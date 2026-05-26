@@ -1,0 +1,27 @@
+{
+  "name": "@moonshot-ai/vis-server",
+  "version": "0.1.1",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "imports": {
+    "#/*": [
+      "./src/*.ts",
+      "./src/*/index.ts"
+    ]
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@moonshot-ai/agent-core": "workspace:^",
+    "hono": "^4.7.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "vitest": "4.1.4"
+  }
+}

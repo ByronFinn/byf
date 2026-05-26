@@ -1,0 +1,35 @@
+name: agent
+description: Default Kimi Code agent
+
+systemPromptPath: ./system.md
+promptVars:
+  roleAdditional: ''
+
+tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - Bash
+  - TaskList
+  - TaskOutput
+  - TaskStop
+  - ReadMediaFile
+  - TodoList
+  - Skill
+  - WebSearch
+  - Agent
+  - FetchURL
+  - AskUserQuestion
+  - EnterPlanMode
+  - ExitPlanMode
+  - mcp__*
+
+subagents:
+  coder:
+    description: Good at general software engineering tasks.
+  explore:
+    description: Fast codebase exploration with prompt-enforced read-only behavior.
+  plan:
+    description: Read-only implementation planning and architecture design.
