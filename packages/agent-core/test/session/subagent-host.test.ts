@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { localKaos } from '@moonshot-ai/kaos';
-import type { ToolCall } from '@moonshot-ai/kosong';
+import { localKaos } from '@byf/kaos';
+import type { ToolCall } from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

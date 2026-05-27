@@ -31,7 +31,7 @@ export {
   fromKimiErrorPayload,
   isKimiError,
   toKimiErrorPayload,
-} from '@moonshot-ai/agent-core';
+} from '@byf/agent-core';
 
 // Diagnostic logging — public surface only.
 // RootLogger / getRootLogger / LoggingConfig stay inside agent-core.
@@ -41,8 +41,8 @@ export {
   redact,
   resolveGlobalLogPath,
   resolveKimiHome,
-} from '@moonshot-ai/agent-core';
-export type { LogContext, LogLevel, LogPayload, Logger } from '@moonshot-ai/agent-core';
+} from '@byf/agent-core';
+export type { LogContext, LogLevel, LogPayload, Logger } from '@byf/agent-core';
 
 export type {
   KimiAuthLoginResult,

@@ -14,7 +14,7 @@
 import * as posixPath from 'node:path/posix';
 import * as win32Path from 'node:path/win32';
 
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@byf/kaos';
 
 export const LIST_DIR_ROOT_WIDTH = 30;
 export const LIST_DIR_CHILD_WIDTH = 10;

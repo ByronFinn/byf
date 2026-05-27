@@ -3,7 +3,7 @@ import {
   type ChatProvider,
   type StreamedMessagePart,
   type ToolCall,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { KosongLLM, type GenerateFn } from '../../src/agent/turn/kosong-llm';

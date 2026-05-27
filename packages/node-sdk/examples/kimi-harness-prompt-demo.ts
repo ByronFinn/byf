@@ -1,4 +1,4 @@
-import { KimiHarness, type Session, type Event } from '@moonshot-ai/kimi-code-sdk';
+import { KimiHarness, type Session, type Event } from '@byf/sdk';
 
 import { smokeIdentityFromEnv } from './runtime-smoke-helpers';
 

@@ -1,7 +1,7 @@
 {
-  "name": "@moonshot-ai/migration-legacy",
-  "version": "0.1.2",
-  "description": "Migrate kimi-cli (~/.kimi/) data into kimi-code (~/.kimi-code/).",
+  "name": "@byf/migration-legacy",
+  "version": "0.0.1",
+  "description": "Legacy migration tool (to be removed).",
   "license": "MIT",
   "type": "module",
   "private": true,
@@ -27,11 +27,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@moonshot-ai/agent-core": "workspace:^",
+    "@byf/agent-core": "workspace:^",
     "smol-toml": "^1.6.1",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@moonshot-ai/kaos": "workspace:^"
+    "@byf/kaos": "workspace:^"
   }
 }

@@ -11,8 +11,8 @@ import {
   type TelemetryClient,
   type TelemetryContextPatch,
   type TelemetryProperties,
-} from '@moonshot-ai/agent-core';
-import { assertKimiHostIdentity } from '@moonshot-ai/kimi-code-oauth';
+} from '@byf/agent-core';
+import { assertKimiHostIdentity } from '@byf/oauth';
 
 import { KimiAuthFacade } from '#/auth';
 import { SDKRpcClient } from '#/rpc';

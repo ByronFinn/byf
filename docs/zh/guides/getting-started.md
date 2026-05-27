@@ -40,16 +40,16 @@ irm https://code.kimi.com/kimi-code/install.ps1 | iex
 node --version
 ```
 
-包名是 `@moonshot-ai/kimi-code`：
+包名是 `@byf/cli`：
 
 ```sh
-npm install -g @moonshot-ai/kimi-code
+npm install -g @byf/cli
 ```
 
 或用 pnpm：
 
 ```sh
-pnpm add -g @moonshot-ai/kimi-code
+pnpm add -g @byf/cli
 ```
 
 ## 升级与卸载
@@ -63,13 +63,13 @@ kimi --version
 **升级**：脚本安装的用户重新运行脚本即可；npm 安装的用户执行：
 
 ```sh
-npm install -g @moonshot-ai/kimi-code@latest
+npm install -g @byf/cli@latest
 ```
 
 **卸载**：脚本安装的用户删除 `kimi` 可执行文件即可；npm 安装的用户执行：
 
 ```sh
-npm uninstall -g @moonshot-ai/kimi-code
+npm uninstall -g @byf/cli
 ```
 
 ## 第一次启动

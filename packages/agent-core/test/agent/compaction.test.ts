@@ -9,7 +9,7 @@ import {
   UNKNOWN_CAPABILITY,
   type Message,
   type ToolCall,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';

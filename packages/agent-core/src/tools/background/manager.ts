@@ -14,7 +14,7 @@
 
 import { randomBytes } from 'node:crypto';
 
-import type { KaosProcess } from '@moonshot-ai/kaos';
+import type { KaosProcess } from '@byf/kaos';
 
 import { isAbortError } from '../../loop/errors';
 import {

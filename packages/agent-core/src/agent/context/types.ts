@@ -1,4 +1,4 @@
-import type { ContentPart, Message } from '@moonshot-ai/kosong';
+import type { ContentPart, Message } from '@byf/kosong';
 
 import type { SkillSource } from '../../skill';
 import type { BackgroundTaskStatus } from '../../tools/background';

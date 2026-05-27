@@ -16,9 +16,9 @@ export type {
   LoopRecordedEvent,
   ContextMessage,
   PromptOrigin,
-} from '@moonshot-ai/agent-core';
-export { AGENT_WIRE_PROTOCOL_VERSION } from '@moonshot-ai/agent-core';
-export type { Message, ContentPart, ToolCall, TokenUsage } from '@moonshot-ai/kosong';
+} from '@byf/agent-core';
+export { AGENT_WIRE_PROTOCOL_VERSION } from '@byf/agent-core';
+export type { Message, ContentPart, ToolCall, TokenUsage } from '@byf/kosong';
 
 // ── vis-only DTOs ──────────────────────────────────────────────────────────
 

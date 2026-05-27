@@ -9,5 +9,5 @@ hero:
       link: guides/getting-started
     - theme: alt
       text: GitHub
-      link: https://github.com/MoonshotAI/kimi-code
+      link: https://github.com/ByronFinn/byf
 ---

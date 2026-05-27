@@ -16,8 +16,8 @@ import {
   type TelemetryClient,
   type ToolCallRequest,
   type ToolCallResponse,
-} from '@moonshot-ai/agent-core';
-import { createKimiDefaultHeaders } from '@moonshot-ai/kimi-code-oauth';
+} from '@byf/agent-core';
+import { createKimiDefaultHeaders } from '@byf/oauth';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {

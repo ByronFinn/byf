@@ -1,4 +1,4 @@
-import type { TokenUsage } from '@moonshot-ai/kosong';
+import type { TokenUsage } from '@byf/kosong';
 
 import type { Agent } from '../agent';
 import type { PromptOrigin } from '../agent/context';

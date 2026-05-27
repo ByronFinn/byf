@@ -1,4 +1,4 @@
-import { UNKNOWN_CAPABILITY } from '@moonshot-ai/kosong';
+import { UNKNOWN_CAPABILITY } from '@byf/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ProviderManager } from '../../src/providers/provider-manager';

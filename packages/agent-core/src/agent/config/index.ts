@@ -4,7 +4,7 @@ import {
   type ChatProvider,
   type ModelCapability,
   type ProviderConfig,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';

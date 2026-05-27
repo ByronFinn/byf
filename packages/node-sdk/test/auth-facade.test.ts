@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { FileTokenStorage, KIMI_CODE_PROVIDER_NAME, type TokenInfo } from '@moonshot-ai/kimi-code-oauth';
+import { FileTokenStorage, KIMI_CODE_PROVIDER_NAME, type TokenInfo } from '@byf/oauth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { KimiHarness } from '#/index';

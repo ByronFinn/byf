@@ -4,9 +4,9 @@ import type {
   TelemetryClient,
   TelemetryContextPatch,
   TelemetryProperties,
-} from '@moonshot-ai/agent-core';
-import type { KimiHostIdentity, OAuthRefreshOutcome } from '@moonshot-ai/kimi-code-oauth';
-import type { ContentPart } from '@moonshot-ai/kosong';
+} from '@byf/agent-core';
+import type { KimiHostIdentity, OAuthRefreshOutcome } from '@byf/oauth';
+import type { ContentPart } from '@byf/kosong';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -38,11 +38,11 @@ export type {
   SkillSummary,
   ThinkingConfig,
   ToolInfo,
-} from '@moonshot-ai/agent-core';
+} from '@byf/agent-core';
 
 export type { KimiHostIdentity, OAuthRefreshOutcome };
 export type { TelemetryClient, TelemetryContextPatch, TelemetryProperties };
-export type { ContentPart, Role, ToolCall } from '@moonshot-ai/kosong';
+export type { ContentPart, Role, ToolCall } from '@byf/kosong';
 
 export type PermissionMode = 'yolo' | 'manual' | 'auto';
 

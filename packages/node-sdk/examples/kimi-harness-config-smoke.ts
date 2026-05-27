@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { KimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import { KimiHarness } from '@byf/sdk';
 
 import { smokeIdentityFromEnv } from './runtime-smoke-helpers';
 

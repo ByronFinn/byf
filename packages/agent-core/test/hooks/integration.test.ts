@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@byf/kosong';
 import { describe, expect, it } from 'vitest';
 
 // Dynamic-import contract: locks the Agent <-> HookEngine integration shape

@@ -1,5 +1,5 @@
-import type { KimiHostIdentity } from '@moonshot-ai/kimi-code-oauth';
-import { type KimiHarness, type Session, type Event } from '@moonshot-ai/kimi-code-sdk';
+import type { KimiHostIdentity } from '@byf/oauth';
+import { type KimiHarness, type Session, type Event } from '@byf/sdk';
 
 export function smokeIdentityFromEnv(): KimiHostIdentity {
   const version = process.env['KIMI_CODE_SMOKE_VERSION'];

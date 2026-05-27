@@ -1,4 +1,4 @@
-import type { FinishReason, TokenUsage } from '@moonshot-ai/kosong';
+import type { FinishReason, TokenUsage } from '@byf/kosong';
 
 import type { PromptOrigin } from '../agent/context';
 import type { KimiErrorPayload } from '../errors';

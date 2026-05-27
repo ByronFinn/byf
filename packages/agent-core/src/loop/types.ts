@@ -10,7 +10,7 @@
  * `exactOptionalPropertyTypes: true`.
  */
 
-import type { ContentPart, Message, TokenUsage, Tool, ToolCall } from '@moonshot-ai/kosong';
+import type { ContentPart, Message, TokenUsage, Tool, ToolCall } from '@byf/kosong';
 
 import type { ToolInputDisplay } from '../tools/display';
 import type { ToolAccesses } from './tool-access';

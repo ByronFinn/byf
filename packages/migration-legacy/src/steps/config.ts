@@ -6,7 +6,7 @@ import {
   ModelAliasSchema,
   ProviderConfigSchema,
   transformTomlData,
-} from '@moonshot-ai/agent-core';
+} from '@byf/agent-core';
 import { atomicWrite } from '../atomic-write.js';
 import { DEFAULT_CONFIG_FILE_TEXT, isTuiStubOrMissing } from '../stub-detect.js';
 import {
@@ -20,7 +20,7 @@ import {
 // `theme` / `default_editor` belong in tui.toml, not config.toml.
 const TUI_TOP_LEVEL_KEYS = new Set(['theme', 'default_editor']);
 
-// kimi-code's tui.toml `theme` enum (mirrors apps/kimi-code TuiThemeSchema).
+// kimi-code's tui.toml `theme` enum (mirrors apps/cli TuiThemeSchema).
 // A legacy theme outside this set would fail loadTuiConfig()'s whole-file
 // validation, taking the migrated editor command down with it — so drop it.
 const TUI_THEMES: ReadonlySet<string> = new Set(['dark', 'light', 'auto']);

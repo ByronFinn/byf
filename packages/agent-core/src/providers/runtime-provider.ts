@@ -7,7 +7,7 @@ import {
   UNKNOWN_CAPABILITY,
   type ModelCapability,
   type ProviderConfig as KosongProviderConfig,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { ProviderRequestAuthResolver } from './request-auth';
 

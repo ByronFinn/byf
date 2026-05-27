@@ -14,7 +14,7 @@ import {
   type GenerateResult,
   type Message,
   type TokenUsage,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { Agent } from '..';
 import { isAbortError } from '../../loop/errors';
