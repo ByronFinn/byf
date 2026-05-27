@@ -9,7 +9,7 @@ const BASE_CONFIG: KimiConfig = {
   defaultModel: 'kimi-code/kimi-for-coding',
   providers: {
     'managed:kimi-code': {
-      type: 'kimi',
+      type: 'openai-compat',
       apiKey: 'test-key',
       baseUrl: 'https://api.example/v1',
     },
@@ -92,7 +92,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:kimi-code': {
-            type: 'kimi',
+            type: 'openai-compat',
             apiKey: '',
             baseUrl: 'https://api.example/v1',
             oauth: { storage: 'file', key: 'oauth/kimi-code' },
@@ -168,7 +168,7 @@ describe('resolveRuntimeProvider model metadata', () => {
           ...BASE_CONFIG,
           providers: {
             'managed:kimi-code': {
-              type: 'kimi',
+              type: 'openai-compat',
               baseUrl: 'https://api.example/v1',
             },
           },
@@ -184,7 +184,7 @@ describe('resolveRuntimeProvider model metadata', () => {
           ...BASE_CONFIG,
           providers: {
             'managed:kimi-code': {
-              type: 'kimi',
+              type: 'openai-compat',
               apiKey: '',
               baseUrl: 'https://api.example/v1',
             },
@@ -299,7 +299,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     const resolved = resolveRuntimeProvider({ config: BASE_CONFIG });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       model: 'kimi-for-coding',
     });
     expect('defaultHeaders' in resolved.provider).toBe(false);
@@ -311,7 +311,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:kimi-code': {
-            type: 'kimi',
+            type: 'openai-compat',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -323,7 +323,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
       },
@@ -337,7 +337,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       defaultHeaders: TEST_KIMI_HEADERS,
     });
   });
@@ -349,7 +349,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
@@ -362,7 +362,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:kimi-code': {
-            type: 'kimi',
+            type: 'openai-compat',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -376,7 +376,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
         'X-Msh-Platform': 'kimi_code_cli',
@@ -529,7 +529,7 @@ describe('ProviderManager prompt cache key', () => {
     const resolved = manager.resolveProviderConfigForModel('kimi-code/kimi-for-coding');
 
     expect(resolved?.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
@@ -572,7 +572,7 @@ describe('ProviderManager prompt cache key', () => {
 
     const resolved = derived.resolveProviderConfigForModel(undefined);
     expect(resolved?.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },

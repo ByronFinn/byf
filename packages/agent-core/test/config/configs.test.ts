@@ -56,8 +56,8 @@ telemetry = false
 theme = "dark"
 
 [providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+type = "openai-compat"
+base_url = "https://api.example.test/v1"
 api_key = "sk-file"
 custom_headers = { "X-Test" = "1" }
 
@@ -113,12 +113,12 @@ event = "Stop"
 command = "echo stop"
 
 [services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
+base_url = "https://api.example.test/v1/search"
 api_key = "sk-search"
 custom_headers = { "X-Search" = "1" }
 
 [services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
+base_url = "https://api.example.test/v1/fetch"
 api_key = "sk-fetch"
 
 [notifications]
@@ -137,8 +137,8 @@ describe('harness config TOML loader', () => {
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
     expect(config.telemetry).toBe(false);
     expect(config.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-file',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
       customHeaders: { 'X-Test': '1' },
@@ -379,8 +379,8 @@ describe('harness config schema and patch merge', () => {
     });
 
     expect(merged.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-patched',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });

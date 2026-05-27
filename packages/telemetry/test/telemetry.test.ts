@@ -245,7 +245,7 @@ describe('payload assembly', () => {
   it('adds server event prefix, payload user id, and flattened fields', () => {
     const payload = buildPayload([sampleEvent('started')], 'device-1');
 
-    expect(payload.user_id).toBe('kfc_device_id_device-1');
+    expect(payload.user_id).toBe('byf_device_id_device-1');
     expect(payload.events[0]).toMatchObject({
       event_id: 'event-1',
       device_id: 'device-1',
@@ -261,9 +261,9 @@ describe('payload assembly', () => {
   });
 
   it('does not double-prefix already-prefixed events', () => {
-    const payload = buildPayload([sampleEvent('kfc_started')], 'device-1');
+    const payload = buildPayload([sampleEvent('byf_started')], 'device-1');
 
-    expect(payload.events[0]?.['event']).toBe('kfc_started');
+    expect(payload.events[0]?.['event']).toBe('byf_started');
   });
 
   it('rejects nested property values before outbound send', () => {
@@ -308,7 +308,7 @@ describe('payload assembly', () => {
     const payload = buildPayload([event], 'device-1');
 
     expect(payload.events[0]).toMatchObject({
-      event: 'kfc_nullable',
+      event: 'byf_nullable',
       property_empty: null,
     });
     expect(event.properties).toBe(originalProperties);
@@ -319,8 +319,8 @@ describe('payload assembly', () => {
 
 describe('server prefix application', () => {
   it('locks the outbound telemetry prefixes', () => {
-    expect(SERVER_EVENT_PREFIX).toBe('kfc_');
-    expect(USER_ID_PREFIX).toBe('kfc_device_id_');
+    expect(SERVER_EVENT_PREFIX).toBe('byf_');
+    expect(USER_ID_PREFIX).toBe('byf_device_id_');
   });
 
   it('returns a new object only when adding the server prefix', () => {
@@ -329,12 +329,12 @@ describe('server prefix application', () => {
     const prefixed = applyServerPrefix(event);
 
     expect(prefixed).not.toBe(event);
-    expect(prefixed.event).toBe('kfc_started');
+    expect(prefixed.event).toBe('byf_started');
     expect(event.event).toBe('started');
   });
 
   it('passes already-prefixed and invalid event names through unchanged', () => {
-    const prefixed = sampleEvent('kfc_started');
+    const prefixed = sampleEvent('byf_started');
     const emptyName = sampleEvent('');
     const missingName = { ...sampleEvent('missing') } as unknown as Record<string, unknown>;
     delete missingName['event'];
@@ -355,10 +355,11 @@ describe('AsyncTransport', () => {
     expect(RETRY_BACKOFFS_MS).toEqual([1_000, 4_000, 16_000]);
   });
 
-  it('sends the outbound payload with bearer token when available', async () => {
+  it('always saves outbound batches to disk without issuing HTTP requests', async () => {
+    const homeDir = await tempHome();
     const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
     const transport = new AsyncTransport({
-      homeDir: await tempHome(),
+      homeDir,
       deviceId: 'dev',
       endpoint: 'https://mock.test/events',
       getAccessToken: () => 'token-1',
@@ -368,217 +369,52 @@ describe('AsyncTransport', () => {
 
     await transport.send([sampleEvent()]);
 
-    const init = requestInitFrom(fetchImpl);
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer token-1' });
-    expect(JSON.parse(init.body as string)).toMatchObject({
-      user_id: 'kfc_device_id_dev',
-    });
-  });
-
-  it('retries anonymously on 401 with a token', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('', { status: 401 }))
-      .mockResolvedValueOnce(new Response('', { status: 200 }));
-    const transport = new AsyncTransport({
-      homeDir: await tempHome(),
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      getAccessToken: () => 'token-1',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
-
-    await transport.send([sampleEvent()]);
-
-    const first = requestInitFrom(fetchImpl);
-    const second = requestInitFrom(fetchImpl, 1);
-    expect(first.headers).toMatchObject({ Authorization: 'Bearer token-1' });
-    expect(second.headers).not.toHaveProperty('Authorization');
-  });
-
-  it('spools to disk when the anonymous 401 retry gets a transient response', async () => {
-    const homeDir = await tempHome();
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('', { status: 401 }))
-      .mockResolvedValueOnce(new Response('', { status: 500 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      getAccessToken: () => 'token-1',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
-
-    await transport.send([sampleEvent('anonymous_retry_server_error')]);
-
-    const first = requestInitFrom(fetchImpl);
-    const second = requestInitFrom(fetchImpl, 1);
-    expect(first.headers).toMatchObject({ Authorization: 'Bearer token-1' });
-    expect(second.headers).not.toHaveProperty('Authorization');
+    expect(fetchImpl).not.toHaveBeenCalled();
     const telemetryDir = join(homeDir, 'telemetry');
     const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
-    expect(file).toContain('"event":"anonymous_retry_server_error"');
+    expect(file).toContain('"event":"started"');
   });
 
-  it('drops events when the anonymous 401 retry gets a non-retryable 4xx', async () => {
-    const homeDir = await tempHome();
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('', { status: 401 }))
-      .mockResolvedValueOnce(new Response('', { status: 403 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      getAccessToken: () => 'token-1',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
-
-    await transport.send([sampleEvent('anonymous_retry_forbidden')]);
-
-    const first = requestInitFrom(fetchImpl);
-    const second = requestInitFrom(fetchImpl, 1);
-    expect(first.headers).toMatchObject({ Authorization: 'Bearer token-1' });
-    expect(second.headers).not.toHaveProperty('Authorization');
-    expect(() => statSync(join(homeDir, 'telemetry'))).toThrow();
-  });
-
-  it('spools transient failures to disk after retries exhaust', async () => {
-    const homeDir = await tempHome();
-    const fetchImpl = vi.fn(async () => new Response('', { status: 429 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
-
-    await transport.send([sampleEvent('rate_limited')]);
-
-    const telemetryDir = join(homeDir, 'telemetry');
-    const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
-    expect(file).toContain('"event":"rate_limited"');
-  });
-
-  it('drops non-retryable 4xx responses without disk fallback', async () => {
-    const homeDir = await tempHome();
-    const fetchImpl = vi.fn(async () => new Response('', { status: 422 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
-
-    await transport.send([sampleEvent('bad_schema')]);
-
-    expect(() => statSync(join(homeDir, 'telemetry'))).toThrow();
-  });
-
-  it('retries disk events through the outbound pipeline and deletes the file on success', async () => {
+  it('keeps retryDiskEvents as a no-op', async () => {
     const homeDir = await tempHome();
     const telemetryDir = join(homeDir, 'telemetry');
     mkdirSync(telemetryDir, { recursive: true });
     const file = join(telemetryDir, 'failed_retry.jsonl');
     writeFileSync(file, `${JSON.stringify(sampleEvent('from_disk'))}\n`);
-    const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
     const transport = new AsyncTransport({
       homeDir,
       deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await transport.retryDiskEvents();
-
-    const init = requestInitFrom(fetchImpl);
-    const payload = JSON.parse(init.body as string) as { events: Array<{ event: string }> };
-    expect(payload.events[0]?.['event']).toBe('kfc_from_disk');
-    expect(() => statSync(file)).toThrow();
-  });
-
-  it('removes expired and corrupted disk files', async () => {
-    const homeDir = await tempHome();
-    const telemetryDir = join(homeDir, 'telemetry');
-    mkdirSync(telemetryDir, { recursive: true });
-    const expired = join(telemetryDir, 'failed_expired.jsonl');
-    const corrupt = join(telemetryDir, 'failed_corrupt.jsonl');
-    writeFileSync(expired, `${JSON.stringify(sampleEvent('old'))}\n`);
-    writeFileSync(corrupt, 'not json\n');
-    const now = Date.now();
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
       fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
-      now: () => now + DISK_EVENT_MAX_AGE_MS + 1,
     });
 
     await transport.retryDiskEvents();
 
-    expect(() => statSync(expired)).toThrow();
-    expect(() => statSync(corrupt)).toThrow();
+    expect(() => statSync(file)).not.toThrow();
   });
 
-  it('saves events before propagating shutdown aborts', async () => {
+  it('saves events before propagating aborts', async () => {
     const homeDir = await tempHome();
     const transport = new AsyncTransport({
       homeDir,
       deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: vi.fn(async () => {
-        throw new TransientTelemetryError('nope');
-      }) as unknown as typeof fetch,
-      retryBackoffsMs: [10_000],
+      fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
     });
     const controller = new AbortController();
-    const send = transport.send([sampleEvent('aborted')], controller.signal);
-
     controller.abort();
-    await expect(send).rejects.toThrow();
+
+    await expect(transport.send([sampleEvent('aborted')], controller.signal)).rejects.toThrow();
 
     const telemetryDir = join(homeDir, 'telemetry');
     const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
     expect(file).toContain('"event":"aborted"');
   });
 
-  it('saves events when shutdown aborts during retry backoff', async () => {
-    const homeDir = await tempHome();
-    const controller = new AbortController();
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: vi.fn(async () => new Response('', { status: 429 })) as unknown as typeof fetch,
-      retryBackoffsMs: [10_000],
-      sleep: async () => {
-        controller.abort();
-        throw new DOMException('The operation was aborted.', 'AbortError');
-      },
-    });
-
-    await expect(
-      transport.send([sampleEvent('aborted_backoff')], controller.signal),
-    ).rejects.toThrow();
-
-    const telemetryDir = join(homeDir, 'telemetry');
-    const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
-    expect(file).toContain('"event":"aborted_backoff"');
-  });
-
-  it('writes one JSONL line per event and keeps raw event names on disk fallback', async () => {
+  it('writes one JSONL line per event and keeps raw event names on disk', async () => {
     const homeDir = await tempHome();
     const transport = new AsyncTransport({
       homeDir,
       deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
       retryBackoffsMs: [],
     });
 
@@ -593,7 +429,7 @@ describe('AsyncTransport', () => {
       properties: { resumed: false, count: 2 },
     });
     expect(file).not.toContain('user_id');
-    expect(file).not.toContain('kfc_first');
+    expect(file).not.toContain('byf_first');
   });
 
   it('does not create a disk file for an empty batch or a schema violation', async () => {
@@ -620,21 +456,20 @@ describe('AsyncTransport', () => {
 });
 
 describe('telemetry bootstrap', () => {
-  it('matches the KIMI_DISABLE_TELEMETRY true-value semantics', () => {
-    expect(isTelemetryDisabledByEnv({ KIMI_DISABLE_TELEMETRY: '1' })).toBe(true);
-    expect(isTelemetryDisabledByEnv({ KIMI_DISABLE_TELEMETRY: 'yes' })).toBe(true);
-    expect(isTelemetryDisabledByEnv({ KIMI_DISABLE_TELEMETRY: '0' })).toBe(false);
-    expect(isTelemetryDisabledByEnv({ KIMI_DISABLE_TELEMETRY: 'false' })).toBe(false);
+  it('matches the BYF_DISABLE_TELEMETRY true-value semantics', () => {
+    expect(isTelemetryDisabledByEnv({ BYF_DISABLE_TELEMETRY: '1' })).toBe(true);
+    expect(isTelemetryDisabledByEnv({ BYF_DISABLE_TELEMETRY: 'yes' })).toBe(true);
+    expect(isTelemetryDisabledByEnv({ BYF_DISABLE_TELEMETRY: '0' })).toBe(false);
+    expect(isTelemetryDisabledByEnv({ BYF_DISABLE_TELEMETRY: 'false' })).toBe(false);
   });
 
   it('disables the singleton without attaching a sink when opted out', async () => {
-    const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
-    vi.stubGlobal('fetch', fetchImpl);
-    const saved = process.env['KIMI_DISABLE_TELEMETRY'];
+    const homeDir = await tempHome();
+    const saved = process.env['BYF_DISABLE_TELEMETRY'];
     try {
-      process.env['KIMI_DISABLE_TELEMETRY'] = 'true';
+      process.env['BYF_DISABLE_TELEMETRY'] = 'true';
       initializeTelemetry({
-        homeDir: await tempHome(),
+        homeDir,
         deviceId: 'dev',
         appName: 'kimi-code-cli',
         version: '1.2.3',
@@ -642,20 +477,19 @@ describe('telemetry bootstrap', () => {
       track('dropped');
       await shutdownTelemetry();
     } finally {
-      if (saved === undefined) delete process.env['KIMI_DISABLE_TELEMETRY'];
-      else process.env['KIMI_DISABLE_TELEMETRY'] = saved;
+      if (saved === undefined) delete process.env['BYF_DISABLE_TELEMETRY'];
+      else process.env['BYF_DISABLE_TELEMETRY'] = saved;
     }
 
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(() => statSync(join(homeDir, 'telemetry'))).toThrow();
   });
 
-  it('queues singleton track calls before initialization, then flushes after bootstrap', async () => {
-    const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
-    vi.stubGlobal('fetch', fetchImpl);
+  it('queues singleton track calls before initialization, then flushes to disk after bootstrap', async () => {
+    const homeDir = await tempHome();
 
     track('before_init');
     initializeTelemetry({
-      homeDir: await tempHome(),
+      homeDir,
       deviceId: 'dev',
       sessionId: 'ses',
       appName: 'kimi-code-cli',
@@ -664,13 +498,10 @@ describe('telemetry bootstrap', () => {
 
     await shutdownTelemetry();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const init = requestInitFrom(fetchImpl);
-    const payload = JSON.parse(init.body as string) as {
-      events: Array<{ event: string; session_id: string }>;
-    };
-    expect(payload.events[0]).toMatchObject({
-      event: 'kfc_before_init',
+    const telemetryDir = join(homeDir, 'telemetry');
+    const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
+    expect(JSON.parse(file.trim()) as Record<string, unknown>).toMatchObject({
+      event: 'before_init',
       session_id: 'ses',
     });
   });

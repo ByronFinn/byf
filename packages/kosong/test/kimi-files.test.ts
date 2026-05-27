@@ -2,18 +2,18 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { KimiChatProvider } from '#/providers/kimi';
-import { KimiFiles } from '#/providers/kimi-files';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
+import { OpenAICompatFiles } from '#/providers/openai-compat-files';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-function createProvider(): KimiChatProvider {
-  return new KimiChatProvider({
+function createProvider(): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
     model: 'kimi-k2-turbo-preview',
     apiKey: 'test-key',
   });
 }
 
-describe('KimiFiles', () => {
+describe('OpenAICompatFiles', () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -24,11 +24,11 @@ describe('KimiFiles', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  describe('exposure on KimiChatProvider', () => {
-    it('exposes files property returning a KimiFiles instance', () => {
+  describe('exposure on OpenAICompatChatProvider', () => {
+    it('exposes files property returning a OpenAICompatFiles instance', () => {
       const provider = createProvider();
       const files = provider.files;
-      expect(files).toBeInstanceOf(KimiFiles);
+      expect(files).toBeInstanceOf(OpenAICompatFiles);
       expect(typeof files.uploadVideo).toBe('function');
     });
 
@@ -140,7 +140,7 @@ describe('KimiFiles', () => {
           create: vi.fn().mockResolvedValue({ id: 'file_auth' }),
         },
       };
-      const files = new KimiFiles({
+      const files = new OpenAICompatFiles({
         baseUrl: 'https://api.example/v1',
         clientFactory: (auth) => {
           auths.push(auth);

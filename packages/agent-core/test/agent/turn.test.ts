@@ -703,7 +703,7 @@ describe('Agent turn flow', () => {
     expect(configPayload).toMatchObject({
       turnId: '0',
       step: 1,
-      provider: 'kimi',
+      provider: 'openai-compat',
       model: 'mock-model',
       modelAlias: 'mock-model',
       toolCount: 0,

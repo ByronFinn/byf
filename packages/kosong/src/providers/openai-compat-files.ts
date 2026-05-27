@@ -14,12 +14,12 @@ import {
   resolveAuthBackedClient,
 } from './request-auth';
 
-export interface KimiUploadOptions {
+export interface OpenAICompatUploadOptions {
   auth?: ProviderRequestAuth;
   signal?: AbortSignal;
 }
 
-export interface KimiFilesOptions {
+export interface OpenAICompatFilesOptions {
   apiKey?: string;
   baseUrl: string;
   defaultHeaders?: Record<string, string>;
@@ -27,23 +27,23 @@ export interface KimiFilesOptions {
 }
 
 /**
- * Kimi-specific file upload client.
+ * OpenAI-compatible file upload client.
  *
  * Wraps the underlying OpenAI-compatible `files.create` API to upload videos
- * to Moonshot's file service and return them as {@link VideoURLPart} values
+ * to the file service and return them as {@link VideoURLPart} values
  * suitable for use in chat messages.
  *
- * A `KimiFiles` instance is typically obtained from
- * {@link KimiChatProvider.files}.
+ * An `OpenAICompatFiles` instance is typically obtained from
+ * {@link OpenAICompatChatProvider.files}.
  */
-export class KimiFiles {
+export class OpenAICompatFiles {
   private readonly _apiKey: string | undefined;
   private readonly _baseUrl: string;
   private readonly _defaultHeaders: Record<string, string> | undefined;
   private readonly _client: OpenAI | undefined;
   private readonly _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
 
-  constructor(options: KimiFilesOptions) {
+  constructor(options: OpenAICompatFilesOptions) {
     this._apiKey = options.apiKey;
     this._baseUrl = options.baseUrl;
     this._defaultHeaders = options.defaultHeaders;
@@ -59,21 +59,21 @@ export class KimiFiles {
   }
 
   /**
-   * Upload a video file to Kimi/Moonshot for use in chat messages.
+   * Upload a video file for use in chat messages.
    *
    * Accepts either a local filesystem path or an in-memory
    * {@link VideoUploadInput}. Returns a {@link VideoURLPart} referencing the
-   * uploaded file by its Moonshot file id.
+   * uploaded file by its file id.
    *
    * @param input - Local path string or `{ data, mimeType }` object.
    * @returns A `VideoURLPart` whose `url` references the uploaded file
-   *          by its Moonshot file id (e.g. `ms://<file-id>`).
+   *          by its file id (e.g. `ms://<file-id>`).
    * @throws {ChatProviderError} if the input is not a video or the upload
    *         fails.
    */
   async uploadVideo(
     input: string | VideoUploadInput,
-    options?: KimiUploadOptions,
+    options?: OpenAICompatUploadOptions,
   ): Promise<VideoURLPart> {
     let file: unknown;
 
@@ -92,7 +92,7 @@ export class KimiFiles {
       const mimeType = guessMimeTypeFromExt(filename);
       if (mimeType === undefined || !mimeType.startsWith('video/')) {
         throw new ChatProviderError(
-          `KimiFiles.uploadVideo: file extension does not indicate a video type: ${filename}`,
+          `OpenAICompatFiles.uploadVideo: file extension does not indicate a video type: ${filename}`,
         );
       }
       // Read the file into memory and wrap it in a File/Blob. We avoid
@@ -146,7 +146,7 @@ export class KimiFiles {
       (a) => {
         const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, a?.headers);
         return new OpenAIClient({
-          apiKey: requireProviderApiKey('KimiFiles.uploadVideo', a, this._apiKey),
+          apiKey: requireProviderApiKey('OpenAICompatFiles.uploadVideo', a, this._apiKey),
           baseURL: this._baseUrl,
           defaultHeaders,
         });

@@ -30,7 +30,7 @@ async function writeTestModelConfig(homeDir: string, modelName = 'kimi-test-mode
     join(homeDir, 'config.toml'),
     `
 [providers.local]
-type = "kimi"
+type = "openai-compat"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 

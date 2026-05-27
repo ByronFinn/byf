@@ -59,7 +59,7 @@ api_key = "sk-test"
 base_url = "https://api.openai.com/v1"
 
 [providers.other]
-type = "kimi"
+type = "openai-compat"
 api_key = "sk-existing"
 
 [models."my-provider/gpt-4"]

@@ -1,6 +1,6 @@
 import { generate } from '#/generate';
 import type { ContentPart, Message, ToolCall } from '#/message';
-import { extractUsageFromChunk, KimiChatProvider } from '#/providers/kimi';
+import { extractUsageFromChunk, OpenAICompatChatProvider } from '#/providers/openai-compat';
 import { extractUsage } from '#/providers/openai-common';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
@@ -22,29 +22,30 @@ function makeChatCompletionResponse(model: string = 'test-model') {
   };
 }
 
-function createProvider(stream: boolean = false): KimiChatProvider {
-  return new KimiChatProvider({
+function createProvider(stream: boolean = false): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
     model: 'kimi-k2-turbo-preview',
     apiKey: 'test-key',
+    baseUrl: 'https://api.example.test/v1',
     stream,
   });
 }
 
-type KimiGenerationState = {
-  max_tokens?: number | undefined;
-  temperature?: number | undefined;
-  reasoning_effort?: string | undefined;
-  prompt_cache_key?: string | undefined;
-  extra_body?: Record<string, unknown> | undefined;
+type OpenAICompatGenerationState = {
+  max_tokens?: number;
+  temperature?: number;
+  reasoning_effort?: string;
+  prompt_cache_key?: string;
+  extra_body?: Record<string, unknown>;
 };
 
-function getGenerationState(provider: KimiChatProvider): KimiGenerationState {
-  return Reflect.get(provider, '_generationKwargs') as KimiGenerationState;
+function getGenerationState(provider: OpenAICompatChatProvider): OpenAICompatGenerationState {
+  return Reflect.get(provider, '_generationKwargs') as OpenAICompatGenerationState;
 }
 
 /** Capture the request body sent to OpenAI by mocking the client. */
 async function captureRequestBody(
-  provider: KimiChatProvider,
+  provider: OpenAICompatChatProvider,
   systemPrompt: string,
   tools: Tool[],
   history: Message[],
@@ -133,7 +134,7 @@ const REF_ENUM_ONLY_TOOL: Tool = {
   },
 };
 
-describe('KimiChatProvider', () => {
+describe('OpenAICompatChatProvider', () => {
   describe('message conversion', () => {
     it('simple user message with system prompt', async () => {
       const provider = createProvider();
@@ -600,7 +601,7 @@ describe('KimiChatProvider', () => {
     });
 
     it('passes constructor generation kwargs into the request body', async () => {
-      const provider = new KimiChatProvider({
+      const provider = new OpenAICompatChatProvider({
         model: 'kimi-k2-turbo-preview',
         apiKey: 'test-key',
         stream: false,
@@ -709,22 +710,13 @@ describe('KimiChatProvider', () => {
   describe('provider properties', () => {
     it('has correct name and model', () => {
       const provider = createProvider();
-      expect(provider.name).toBe('kimi');
+      expect(provider.name).toBe('openai-compat');
       expect(provider.modelName).toBe('kimi-k2-turbo-preview');
     });
 
     it('throws during generation when no constructor or request API key is provided', async () => {
-      // Save and clear env var
-      const saved = process.env['KIMI_API_KEY'];
-      delete process.env['KIMI_API_KEY'];
-      try {
-        const provider = new KimiChatProvider({ model: 'test' });
-        await expect(provider.generate('', [], [])).rejects.toThrow(/options\.auth\.apiKey/);
-      } finally {
-        if (saved !== undefined) {
-          process.env['KIMI_API_KEY'] = saved;
-        }
-      }
+      const provider = new OpenAICompatChatProvider({ model: 'test' });
+      await expect(provider.generate('', [], [])).rejects.toThrow(/options\.auth\.apiKey/);
     });
 
     it('passes request-scoped auth to the client factory', async () => {
@@ -736,7 +728,7 @@ describe('KimiChatProvider', () => {
           },
         },
       };
-      const provider = new KimiChatProvider({
+      const provider = new OpenAICompatChatProvider({
         model: 'test',
         stream: false,
         clientFactory: (auth) => {
@@ -759,14 +751,14 @@ describe('KimiChatProvider', () => {
     it('withThinking returns a new instance', () => {
       const provider = createProvider();
       const newProvider = provider.withThinking('high');
-      expect(newProvider).toBeInstanceOf(KimiChatProvider);
+      expect(newProvider).toBeInstanceOf(OpenAICompatChatProvider);
       expect(newProvider).not.toBe(provider);
     });
 
     it('withGenerationKwargs returns a new instance', () => {
       const provider = createProvider();
       const newProvider = provider.withGenerationKwargs({ temperature: 0.5 });
-      expect(newProvider).toBeInstanceOf(KimiChatProvider);
+      expect(newProvider).toBeInstanceOf(OpenAICompatChatProvider);
       expect(newProvider).not.toBe(provider);
     });
 
@@ -785,7 +777,7 @@ describe('KimiChatProvider', () => {
     // that replaces `clone._client` and closes the previous one, the
     // original instance's `_client` would become a dangling reference to
     // a closed socket. Lock in the invariant here.
-    function getInternalClient(provider: KimiChatProvider): unknown {
+    function getInternalClient(provider: OpenAICompatChatProvider): unknown {
       return Reflect.get(provider, '_client');
     }
 

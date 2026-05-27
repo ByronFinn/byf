@@ -1,13 +1,13 @@
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { StreamedMessage } from '#/provider';
-import { KimiChatProvider } from '#/providers/kimi';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
 import type { Tool } from '#/tool';
 import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness, type FakeProviderHarness } from './fake-provider-harness';
 
-function createProvider(baseUrl: string): KimiChatProvider {
-  return new KimiChatProvider({
+function createProvider(baseUrl: string): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
     model: 'kimi-k2-turbo-preview',
     apiKey: 'test-key',
     baseUrl,
@@ -25,7 +25,7 @@ async function withHarness<T>(fn: (harness: FakeProviderHarness) => Promise<T>):
 }
 
 async function collectStream(
-  provider: KimiChatProvider,
+  provider: OpenAICompatChatProvider,
   systemPrompt: string,
   tools: Tool[],
   history: Message[],

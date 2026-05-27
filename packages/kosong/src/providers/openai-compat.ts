@@ -1,5 +1,5 @@
 import { UNKNOWN_CAPABILITY, type ModelCapability } from '#/capability';
-import { normalizeKimiToolSchema } from './kimi-schema';
+import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
   ChatProvider,
@@ -14,7 +14,7 @@ import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
 
-import { KimiFiles } from './kimi-files';
+import { OpenAICompatFiles } from './openai-compat-files';
 import {
   convertChatCompletionStreamToolCall,
   type BufferedChatCompletionToolCall,
@@ -35,19 +35,19 @@ import {
   requireProviderApiKey,
   resolveAuthBackedClient,
 } from './request-auth';
-export interface KimiOptions {
-  apiKey?: string | undefined;
-  baseUrl?: string | undefined;
+export interface OpenAICompatOptions {
+  apiKey?: string;
+  baseUrl?: string;
   model: string;
-  stream?: boolean | undefined;
-  defaultHeaders?: Record<string, string> | undefined;
-  generationKwargs?: GenerationKwargs | undefined;
+  stream?: boolean;
+  defaultHeaders?: Record<string, string>;
+  generationKwargs?: GenerationKwargs;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
 }
 
 export interface GenerationKwargs {
   /**
-   * Legacy completion-budget alias. The Moonshot Kimi API still accepts
+   * Legacy completion-budget alias. Some OpenAI-compatible APIs still accept
    * `max_tokens`, but for reasoning models it shares the budget with
    * `reasoning_content` and a small value can cause a 200 response with no
    * `content`. Prefer `max_completion_tokens`. When both are set
@@ -161,7 +161,7 @@ function convertMessage(message: Message): OpenAIMessage {
 }
 function convertTool(tool: Tool): OpenAIToolParam {
   if (tool.name.startsWith('$')) {
-    // Kimi builtin functions start with `$`
+    // Builtin functions start with `$`
     return {
       type: 'builtin_function',
       function: { name: tool.name },
@@ -172,12 +172,12 @@ function convertTool(tool: Tool): OpenAIToolParam {
     ...converted,
     function: {
       ...converted.function,
-      parameters: normalizeKimiToolSchema(tool.parameters),
+      parameters: normalizeOpenAICompatToolSchema(tool.parameters),
     },
   };
 }
 /**
- * Extract usage from a streaming chunk. Moonshot may place usage in
+ * Extract usage from a streaming chunk. Some OpenAI-compatible providers may place usage in
  * `choices[0].usage` in addition to the top-level `usage` field.
  */
 export function extractUsageFromChunk(
@@ -191,7 +191,7 @@ export function extractUsageFromChunk(
   ) {
     return chunk['usage'] as Record<string, unknown>;
   }
-  // choices[0].usage (Moonshot proprietary)
+  // choices[0].usage (provider extension)
   const choices = chunk['choices'];
   if (!Array.isArray(choices) || choices.length === 0) {
     return null;
@@ -207,7 +207,7 @@ export function extractUsageFromChunk(
   return null;
 }
 
-class KimiStreamedMessage implements StreamedMessage {
+class OpenAICompatStreamedMessage implements StreamedMessage {
   private _id: string | null = null;
   private _usage: TokenUsage | null = null;
   private _finishReason: FinishReason | null = null;
@@ -265,7 +265,7 @@ class KimiStreamedMessage implements StreamedMessage {
     const message = response.choices[0]?.message;
     if (!message) return;
 
-    // reasoning_content (Moonshot proprietary)
+    // reasoning_content (provider extension)
     const rc = (message as unknown as Record<string, unknown>)['reasoning_content'];
     if (typeof rc === 'string' && rc) {
       yield { type: 'think', think: rc } satisfies StreamedMessagePart;
@@ -323,7 +323,7 @@ class KimiStreamedMessage implements StreamedMessage {
 
         const delta = choice.delta;
 
-        // reasoning_content (Moonshot proprietary)
+        // reasoning_content (provider extension)
         const rc = (delta as unknown as Record<string, unknown>)['reasoning_content'];
         if (typeof rc === 'string' && rc) {
           yield { type: 'think', think: rc } satisfies StreamedMessagePart;
@@ -347,8 +347,8 @@ class KimiStreamedMessage implements StreamedMessage {
     }
   }
 }
-export class KimiChatProvider implements ChatProvider {
-  readonly name: string = 'kimi';
+export class OpenAICompatChatProvider implements ChatProvider {
+  readonly name: string = 'openai-compat';
 
   private _model: string;
   private _stream: boolean;
@@ -358,12 +358,12 @@ export class KimiChatProvider implements ChatProvider {
   private _generationKwargs: GenerationKwargs;
   private _client: OpenAI | undefined;
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
-  private _files: KimiFiles | undefined;
+  private _files: OpenAICompatFiles | undefined;
 
-  constructor(options: KimiOptions) {
-    const apiKey = options.apiKey ?? process.env['KIMI_API_KEY'];
+  constructor(options: OpenAICompatOptions) {
+    const apiKey = options.apiKey;
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl ?? process.env['KIMI_BASE_URL'] ?? 'https://api.moonshot.ai/v1';
+    this._baseUrl = options.baseUrl ?? process.env['KIMI_BASE_URL'] ?? '';
     this._defaultHeaders = options.defaultHeaders;
     this._clientFactory = options.clientFactory;
     this._model = options.model;
@@ -384,14 +384,14 @@ export class KimiChatProvider implements ChatProvider {
   }
 
   /**
-   * File upload client for Kimi/Moonshot.
+   * File upload client for an OpenAI-compatible service.
    *
    * Use this to upload videos (and other media in the future) to the file
    * service and receive a content part that can be embedded in chat
    * messages.
    */
-  get files(): KimiFiles {
-    this._files ??= new KimiFiles({
+  get files(): OpenAICompatFiles {
+    this._files ??= new OpenAICompatFiles({
       apiKey: this._apiKey,
       baseUrl: this._baseUrl,
       defaultHeaders: this._defaultHeaders,
@@ -442,9 +442,9 @@ export class KimiChatProvider implements ChatProvider {
       }
     }
 
-    // Normalize the legacy `max_tokens` alias to Kimi's preferred
+    // Normalize the legacy `max_tokens` alias to the preferred
     // `max_completion_tokens`. When both are set, `max_completion_tokens`
-    // wins (confirmed against the live Moonshot API). When neither is
+    // wins. When neither is
     // set, send no cap — the upstream loop is responsible for clamping
     // against the current input size and model context window.
     if (
@@ -476,13 +476,13 @@ export class KimiChatProvider implements ChatProvider {
 
     try {
       const client = this._createClient(options?.auth);
-      // Use type assertion via unknown because we pass Moonshot-proprietary fields
+      // Use type assertion via unknown because we pass provider-specific fields
       // (reasoning_effort, thinking) that don't exist in the OpenAI type definitions.
       const response = (await client.chat.completions.create(
         createParams as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
         options?.signal ? { signal: options.signal } : undefined,
       )) as unknown as OpenAI.Chat.ChatCompletion | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
-      return new KimiStreamedMessage(response, this._stream);
+      return new OpenAICompatStreamedMessage(response, this._stream);
     } catch (error: unknown) {
       throw convertOpenAIError(error);
     }
@@ -492,7 +492,7 @@ export class KimiChatProvider implements ChatProvider {
     return UNKNOWN_CAPABILITY;
   }
 
-  withThinking(effort: ThinkingEffort): KimiChatProvider {
+  withThinking(effort: ThinkingEffort): OpenAICompatChatProvider {
     const thinking: ThinkingConfig = {
       type: effort === 'off' ? 'disabled' : 'enabled',
     };
@@ -518,15 +518,15 @@ export class KimiChatProvider implements ChatProvider {
     });
   }
 
-  withGenerationKwargs(kwargs: GenerationKwargs): KimiChatProvider {
+  withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompatChatProvider {
     return this._withGenerationKwargs(kwargs);
   }
 
-  withMaxCompletionTokens(maxCompletionTokens: number): KimiChatProvider {
+  withMaxCompletionTokens(maxCompletionTokens: number): OpenAICompatChatProvider {
     return this._withGenerationKwargs({ max_completion_tokens: maxCompletionTokens });
   }
 
-  withExtraBody(extraBody: ExtraBody): KimiChatProvider {
+  withExtraBody(extraBody: ExtraBody): OpenAICompatChatProvider {
     const oldExtra = this._generationKwargs.extra_body ?? {};
     const merged: ExtraBody = { ...oldExtra, ...extraBody };
     const oldThinking = oldExtra.thinking;
@@ -544,7 +544,7 @@ export class KimiChatProvider implements ChatProvider {
       (a) => {
         const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, a?.headers);
         return new OpenAI({
-          apiKey: requireProviderApiKey('KimiChatProvider', a, this._apiKey),
+          apiKey: requireProviderApiKey('OpenAICompatChatProvider', a, this._apiKey),
           baseURL: this._baseUrl,
           defaultHeaders,
         });
@@ -552,19 +552,19 @@ export class KimiChatProvider implements ChatProvider {
     );
   }
 
-  private _withGenerationKwargs(kwargs: GenerationKwargs): KimiChatProvider {
+  private _withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompatChatProvider {
     const clone = this._clone();
     clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
     return clone;
   }
 
-  private _clone(): KimiChatProvider {
+  private _clone(): OpenAICompatChatProvider {
     const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as KimiChatProvider,
+      Object.create(Object.getPrototypeOf(this) as object) as OpenAICompatChatProvider,
       this,
     );
     clone._generationKwargs = { ...this._generationKwargs };
-    // Do not share the memoized KimiFiles instance with the clone; let it be
+    // Do not share the memoized OpenAICompatFiles instance with the clone; let it be
     // lazily re-created on first access.
     clone._files = undefined;
     // `_client` is intentionally shared with the original instance. Per-step
@@ -573,7 +573,7 @@ export class KimiChatProvider implements ChatProvider {
     // `clone._client` with a freshly built client (and closes the old one),
     // the original instance's `_client` would become a dangling reference to
     // a closed socket. Keep `_client` shared and never mutate it after
-    // construction; instead build a new KimiChatProvider when a real new
+    // construction; instead build a new OpenAICompatChatProvider when a real new
     // client is required.
     return clone;
   }

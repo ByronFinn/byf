@@ -4,7 +4,7 @@ import { MockChatProvider } from './fixtures/mock-provider';
 import type { FinishReason } from '#/provider';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider, GoogleGenAIStreamedMessage } from '#/providers/google-genai';
-import { KimiChatProvider } from '#/providers/kimi';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
 import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
 import { OpenAIResponsesStreamedMessage } from '#/providers/openai-responses';
 import { normalizeOpenAIFinishReason } from '#/providers/openai-common';
@@ -86,8 +86,8 @@ function makeOpenAIChatClient(response: unknown) {
   };
 }
 
-function createKimiProvider(response: unknown, stream: boolean): KimiChatProvider {
-  return new KimiChatProvider({
+function createKimiProvider(response: unknown, stream: boolean): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
     model: 'kimi-k2-turbo-preview',
     stream,
     clientFactory: () => makeOpenAIChatClient(response) as never,
@@ -102,7 +102,7 @@ function createOpenAILegacyProvider(response: unknown, stream: boolean): OpenAIL
   });
 }
 
-describe('KimiChatProvider finish reason (stream, table coverage)', () => {
+describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () => {
   // A + B coverage for Kimi.
   it.each<[string, FinishReason, string]>([
     ['stop', 'completed', 'stop'],

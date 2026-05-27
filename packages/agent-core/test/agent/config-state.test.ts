@@ -11,7 +11,7 @@ describe('ConfigState model capabilities', () => {
         config: {
           providers: {
             kimi: {
-              type: 'kimi',
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
@@ -48,7 +48,7 @@ describe('ConfigState model capabilities', () => {
         config: {
           providers: {
             kimi: {
-              type: 'kimi',
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
@@ -93,7 +93,7 @@ describe('ConfigState model capabilities', () => {
         config: {
           providers: {
             kimi: {
-              type: 'kimi',
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
@@ -112,7 +112,7 @@ describe('ConfigState model capabilities', () => {
     config.update({ modelAlias: 'kimi-code' });
 
     expect(config.providerConfig).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },

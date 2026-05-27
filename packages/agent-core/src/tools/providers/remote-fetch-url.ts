@@ -1,12 +1,12 @@
 /**
- * MoonshotFetchURLProvider — host-side UrlFetcher.
+ * RemoteFetchURLProvider — host-side UrlFetcher.
  *
  * Flow:
- *   1. Try Moonshot coding-fetch service (POST {url}, Bearer token from a
+ *   1. Try remote fetch service (POST {url}, Bearer token from a
  *      narrow token provider, Accept: text/markdown, host-provided headers).
- *   2. Moonshot 200 → return the body as `extracted` content (the
+ *   2. Remote 200 → return the body as `extracted` content (the
  *      service has already extracted the main page text on its side).
- *   3. Any Moonshot failure — non-200, network error, or token
+ *   3. Any remote-service failure — non-200, network error, or token
  *      refresh failure — → delegate to `localFallback`, forwarding its
  *      content kind, so the LLM still gets *something* when the service
  *      is down.
@@ -19,7 +19,7 @@ export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
 }
 
-export interface MoonshotFetchURLProviderOptions {
+export interface RemoteFetchURLProviderOptions {
   tokenProvider?: BearerTokenProvider;
   apiKey?: string;
   baseUrl: string;
@@ -29,7 +29,7 @@ export interface MoonshotFetchURLProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
-export class MoonshotFetchURLProvider implements UrlFetcher {
+export class RemoteFetchURLProvider implements UrlFetcher {
   private readonly tokenProvider: BearerTokenProvider | undefined;
   private readonly apiKey: string | undefined;
   private readonly baseUrl: string;
@@ -38,7 +38,7 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
   private readonly localFallback: UrlFetcher;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(options: MoonshotFetchURLProviderOptions) {
+  constructor(options: RemoteFetchURLProviderOptions) {
     this.tokenProvider = options.tokenProvider;
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl;
@@ -50,7 +50,7 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
 
   async fetch(url: string, options?: { toolCallId?: string }): Promise<UrlFetchResult> {
     try {
-      const content = await this.fetchViaMoonshot(url, options?.toolCallId);
+      const content = await this.fetchViaRemoteService(url, options?.toolCallId);
       // The service returns text it has already extracted from the page.
       return { content, kind: 'extracted' };
     } catch {
@@ -60,7 +60,7 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
     }
   }
 
-  private async fetchViaMoonshot(
+  private async fetchViaRemoteService(
     url: string,
     toolCallId: string | undefined,
   ): Promise<string> {
@@ -78,14 +78,14 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
       }
       throw new HttpFetchError(
         response.status,
-        `Moonshot fetch request failed: HTTP ${String(response.status)}. ${detail}`.trim(),
+        `Remote fetch request failed: HTTP ${String(response.status)}. ${detail}`.trim(),
       );
     }
 
     return response.text();
   }
 
-  private async post(bodyJson: string, toolCallId: string | undefined): Promise<Response> {
+  private async post(bodyJson: string, _toolCallId: string | undefined): Promise<Response> {
     const accessToken = await this.resolveApiKey();
     return this.fetchImpl(this.baseUrl, {
       method: 'POST',
@@ -94,9 +94,6 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'text/markdown',
         'Content-Type': 'application/json',
-        ...(toolCallId !== undefined && toolCallId.length > 0
-          ? { 'X-Msh-Tool-Call-Id': toolCallId }
-          : {}),
         ...this.customHeaders,
       },
       body: bodyJson,
@@ -123,6 +120,6 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
     if (this.apiKey !== undefined && this.apiKey.length > 0) {
       return this.apiKey;
     }
-    throw new Error('Moonshot fetch service is not configured: missing API key or token provider.');
+    throw new Error('Remote fetch service is not configured: missing API key or token provider.');
   }
 }

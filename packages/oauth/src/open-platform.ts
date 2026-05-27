@@ -58,14 +58,14 @@ export interface OpenPlatformDefinition {
 export const OPEN_PLATFORMS: readonly OpenPlatformDefinition[] = [
   {
     id: 'moonshot-cn',
-    name: 'Moonshot AI Open Platform (moonshot.cn)',
-    baseUrl: 'https://api.moonshot.cn/v1',
+    name: 'OpenAI-compatible Platform (CN)',
+    baseUrl: 'https://api.openai-compat-cn.invalid/v1',
     allowedPrefixes: ['kimi-k'],
   },
   {
     id: 'moonshot-ai',
-    name: 'Moonshot AI Open Platform (moonshot.ai)',
-    baseUrl: 'https://api.moonshot.ai/v1',
+    name: 'OpenAI-compatible Platform',
+    baseUrl: 'https://api.openai-compat.invalid/v1',
     allowedPrefixes: ['kimi-k'],
   },
 ];
@@ -179,7 +179,7 @@ export function applyOpenPlatformConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'kimi',
+    type: 'openai-compat',
     baseUrl: options.platform.baseUrl,
     apiKey: options.apiKey,
   };

@@ -138,7 +138,7 @@ async function writeFakeModelConfig(homeDir: string): Promise<void> {
 default_model = "fake-model"
 
 [providers.local]
-type = "kimi"
+type = "openai-compat"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 

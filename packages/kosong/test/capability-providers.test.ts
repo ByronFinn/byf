@@ -15,13 +15,13 @@
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
-import { KimiChatProvider } from '#/providers/kimi';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
 import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
 import { OpenAIResponsesChatProvider } from '#/providers/openai-responses';
 import { describe, expect, it } from 'vitest';
-describe('KimiChatProvider.getCapability', () => {
-  function make(model: string): KimiChatProvider {
-    return new KimiChatProvider({ model, apiKey: 'test-key' });
+describe('OpenAICompatChatProvider.getCapability', () => {
+  function make(model: string): OpenAICompatChatProvider {
+    return new OpenAICompatChatProvider({ model, apiKey: 'test-key' });
   }
 
   it('does not infer capabilities from Kimi model names', () => {

@@ -203,7 +203,7 @@ describe('Session.prompt events', () => {
       );
       expect(fakeProviderState.calls[0]?.systemPrompt.length).toBeGreaterThan(0);
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
-        type: 'kimi',
+        type: 'openai-compat',
       });
     } finally {
       await harness.close();
@@ -311,7 +311,7 @@ async function configureFakeProvider(harness: InstanceType<typeof KimiHarness>):
   await harness.setConfig({
     providers: {
       local: {
-        type: 'kimi',
+        type: 'openai-compat',
         apiKey: 'sk-test',
       },
     },

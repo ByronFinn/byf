@@ -5,8 +5,8 @@ import { localKaos } from '@byf/kaos';
 import { ErrorCodes, KimiError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
-import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
-import { MoonshotWebSearchProvider } from '#/tools/providers/moonshot-web-search';
+import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
+import { RemoteWebSearchProvider } from '#/tools/providers/remote-web-search';
 import { detectEnvironmentFromNode } from '#/utils/environment';
 import { getCoreVersion } from '#/version';
 import type {
@@ -633,7 +633,7 @@ async function createRuntimeConfig(input: {
     urlFetcher:
       fetchService?.baseUrl === undefined
         ? localFetcher
-        : new MoonshotFetchURLProvider({
+        : new RemoteFetchURLProvider({
             baseUrl: fetchService.baseUrl,
             localFallback: localFetcher,
             defaultHeaders: input.kimiRequestHeaders,
@@ -642,7 +642,7 @@ async function createRuntimeConfig(input: {
     webSearcher:
       searchService?.baseUrl === undefined
         ? undefined
-        : new MoonshotWebSearchProvider({
+        : new RemoteWebSearchProvider({
             baseUrl: searchService.baseUrl,
             defaultHeaders: input.kimiRequestHeaders,
             ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),

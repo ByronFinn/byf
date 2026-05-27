@@ -40,8 +40,8 @@ merge_all_available_skills = true
 extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 
 [providers.kimi-for-coding]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+type = "openai-compat"
+base_url = "https://api.example.test/v1"
 api_key = "sk-xxx"
 custom_headers = { "X-Custom-Header" = "value" }
 
@@ -70,12 +70,12 @@ agent_task_timeout_s = 900
 print_wait_ceiling_s = 3600
 
 [services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
+base_url = "https://api.example.test/v1/search"
 api_key = "sk-search"
 custom_headers = { "X-Search" = "1" }
 
 [services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
+base_url = "https://api.example.test/v1/fetch"
 api_key = "sk-fetch"
 
 [notifications]
@@ -95,8 +95,8 @@ describe('SDK config TOML', () => {
 
     const provider = config.providers['kimi-for-coding'];
     expect(provider).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-xxx',
       customHeaders: { 'X-Custom-Header': 'value' },
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
@@ -242,8 +242,8 @@ describe('KimiHarness config API', () => {
 
     const config = await harness.getConfig({ reload: true });
     expect(config.providers['kimi-for-coding']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-updated',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });

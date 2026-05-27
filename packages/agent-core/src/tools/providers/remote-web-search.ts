@@ -1,5 +1,5 @@
 /**
- * MoonshotWebSearchProvider — host-side `WebSearchProvider`.
+ * RemoteWebSearchProvider — host-side `WebSearchProvider`.
  *
  * Auth uses a narrow bearer token provider per request. Host-specific
  * default headers are supplied by runtime and request-level overrides
@@ -12,7 +12,7 @@ export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
 }
 
-export interface MoonshotWebSearchProviderOptions {
+export interface RemoteWebSearchProviderOptions {
   tokenProvider?: BearerTokenProvider;
   apiKey?: string;
   baseUrl: string;
@@ -21,7 +21,7 @@ export interface MoonshotWebSearchProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
-interface MoonshotSearchResult {
+interface RemoteSearchResult {
   site_name?: string;
   title?: string;
   url?: string;
@@ -32,11 +32,11 @@ interface MoonshotSearchResult {
   mime?: string;
 }
 
-interface MoonshotSearchResponse {
-  search_results?: MoonshotSearchResult[];
+interface RemoteSearchResponse {
+  search_results?: RemoteSearchResult[];
 }
 
-export class MoonshotWebSearchProvider implements WebSearchProvider {
+export class RemoteWebSearchProvider implements WebSearchProvider {
   private readonly tokenProvider: BearerTokenProvider | undefined;
   private readonly apiKey: string | undefined;
   private readonly baseUrl: string;
@@ -44,7 +44,7 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
   private readonly customHeaders: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(options: MoonshotWebSearchProviderOptions) {
+  constructor(options: RemoteWebSearchProviderOptions) {
     this.tokenProvider = options.tokenProvider;
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl;
@@ -65,24 +65,23 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
     };
     const bodyJson = JSON.stringify(body);
 
-    const toolCallId = options?.toolCallId;
-    const response = await this.post(bodyJson, toolCallId);
+    const response = await this.post(bodyJson);
 
     if (response.status === 401) {
       const detail = await safeReadText(response);
       throw new Error(
-        `Moonshot search request failed: HTTP 401 (auth/unauthorized). ${detail}`.trim(),
+        `Remote search request failed: HTTP 401 (auth/unauthorized). ${detail}`.trim(),
       );
     }
 
     if (response.status !== 200) {
       const detail = await safeReadText(response);
       throw new Error(
-        `Moonshot search request failed: HTTP ${String(response.status)}. ${detail}`.trim(),
+        `Remote search request failed: HTTP ${String(response.status)}. ${detail}`.trim(),
       );
     }
 
-    const json = (await response.json()) as MoonshotSearchResponse;
+    const json = (await response.json()) as RemoteSearchResponse;
     const raw = Array.isArray(json.search_results) ? json.search_results : [];
 
     return raw.map((r): WebSearchResult => {
@@ -97,7 +96,7 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
     });
   }
 
-  private async post(bodyJson: string, toolCallId: string | undefined): Promise<Response> {
+  private async post(bodyJson: string): Promise<Response> {
     const accessToken = await this.resolveApiKey();
     return this.fetchImpl(this.baseUrl, {
       method: 'POST',
@@ -105,9 +104,6 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
         ...this.defaultHeaders,
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        ...(toolCallId !== undefined && toolCallId.length > 0
-          ? { 'X-Msh-Tool-Call-Id': toolCallId }
-          : {}),
         ...this.customHeaders,
       },
       body: bodyJson,
@@ -129,7 +125,7 @@ export class MoonshotWebSearchProvider implements WebSearchProvider {
       return this.apiKey;
     }
     throw new Error(
-      'Moonshot search service is not configured: missing API key or token provider.',
+      'Remote search service is not configured: missing API key or token provider.',
     );
   }
 }

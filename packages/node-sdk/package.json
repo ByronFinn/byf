@@ -2,14 +2,13 @@
   "name": "@byf/sdk",
   "version": "0.0.1",
   "private": true,
-  "description": "TypeScript SDK for the Kimi Code Agent",
+  "description": "Public TypeScript SDK for BYF agents and sessions",
   "license": "MIT",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/node-sdk#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/node-sdk"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
@@ -52,6 +51,7 @@
   "scripts": {
     "build": "tsdown && pnpm run build:dts || true",
     "build:dts": "node scripts/build-dts.mjs",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist .tmp-api-extractor"
   },

@@ -84,7 +84,7 @@ async function configureLocalProvider(harness: KimiHarness): Promise<void> {
   await harness.setConfig({
     providers: {
       local: {
-        type: 'kimi',
+        type: 'openai-compat',
         apiKey: 'sk-test',
       },
     },

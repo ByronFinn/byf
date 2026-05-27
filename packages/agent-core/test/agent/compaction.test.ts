@@ -24,7 +24,7 @@ import { testAgent } from './harness/agent';
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
 const CATALOGUED_PROVIDER = {
-  type: 'kimi',
+  type: 'openai-compat',
   apiKey: 'test-key',
   model: 'kimi-code',
 } as const;

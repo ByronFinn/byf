@@ -17,7 +17,7 @@ export interface ModelCapability {
   readonly max_context_tokens: number;
 }
 
-const UNKNOWN_CAPABILITY_MARKER = Symbol.for('moonshot-ai.kosong.UNKNOWN_CAPABILITY');
+const UNKNOWN_CAPABILITY_MARKER = Symbol.for('byf.kosong.UNKNOWN_CAPABILITY');
 
 /**
  * Shared read-only default returned when a provider has not catalogued a

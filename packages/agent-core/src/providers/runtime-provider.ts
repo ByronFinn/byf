@@ -252,14 +252,14 @@ function toKosongProviderConfig(
         reasoningKey,
         ...defaultHeadersField(provider.customHeaders),
       };
-    case 'kimi': {
+    case 'openai-compat': {
       const defaultHeaders = {
         ...kimiRequestHeaders,
         ...provider.customHeaders,
       };
       if (Object.keys(defaultHeaders).length === 0) {
         return {
-          type: 'kimi',
+          type: 'openai-compat',
           model,
           baseUrl: providerValue(provider.baseUrl, provider.env, 'KIMI_BASE_URL'),
           generationKwargs: {
@@ -269,7 +269,7 @@ function toKosongProviderConfig(
         };
       }
       return {
-        type: 'kimi',
+        type: 'openai-compat',
         model,
         baseUrl: providerValue(provider.baseUrl, provider.env, 'KIMI_BASE_URL'),
         generationKwargs: {
@@ -347,7 +347,7 @@ function providerApiKey(provider: ProviderConfig): string | undefined {
     case 'openai':
     case 'openai_responses':
       return providerValue(provider.apiKey, provider.env, 'OPENAI_API_KEY');
-    case 'kimi':
+    case 'openai-compat':
       return providerValue(provider.apiKey, provider.env, 'KIMI_API_KEY');
     case 'google-genai':
       return providerValue(provider.apiKey, provider.env, 'GOOGLE_API_KEY');

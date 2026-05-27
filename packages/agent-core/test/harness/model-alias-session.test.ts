@@ -20,7 +20,7 @@ const CONFIG = `
 default_model = "kimi-code/kimi-for-coding"
 
 [providers."managed:kimi-code"]
-type = "kimi"
+type = "openai-compat"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
@@ -289,7 +289,7 @@ reason = "no rm"
 default_model = "kimi-code/kimi-for-coding"
 
 [providers."managed:kimi-code"]
-type = "kimi"
+type = "openai-compat"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
