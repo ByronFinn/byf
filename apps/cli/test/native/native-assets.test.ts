@@ -63,18 +63,18 @@ function fakeManifest(files: Record<string, string>): {
 }
 
 describe('native assets', () => {
-  it('uses KIMI_CODE_CACHE_DIR as the native cache base when present', () => {
+  it('uses BYF_CODE_CACHE_DIR as the native cache base when present', () => {
     expect(
       getNativeCacheBase({
-        env: { KIMI_CODE_CACHE_DIR: '/tmp/kimi-cache' },
-        homeDir: '/home/kimi',
+        env: { BYF_CODE_CACHE_DIR: '/tmp/byf-cache' },
+        homeDir: '/home/byf',
         platform: 'linux',
       }),
-    ).toBe('/tmp/kimi-cache');
+    ).toBe('/tmp/byf-cache');
   });
 
   it('extracts package assets and repairs corrupted cache files', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-native-assets-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-native-assets-'));
     try {
       const { manifest, source } = fakeManifest({
         'node_modules/fake-native/package.json': '{"main":"index.js"}',
@@ -106,7 +106,7 @@ describe('native assets', () => {
   });
 
   it('loads a package from extracted native assets', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-native-require-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-native-require-'));
     try {
       const { manifest, source } = fakeManifest({
         'node_modules/fake-native/package.json': '{"main":"index.js"}',

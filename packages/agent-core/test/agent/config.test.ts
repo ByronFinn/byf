@@ -38,7 +38,7 @@ describe('Agent config', () => {
       type: 'openai-compat',
       apiKey: 'sk-next',
       baseUrl: 'https://next.example/v1',
-      model: 'kimi-next',
+      model: 'byf-next',
     };
     const nextCapability: ModelCapability = {
       image_in: true,

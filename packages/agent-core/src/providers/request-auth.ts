@@ -1,6 +1,6 @@
 import { APIStatusError, type ProviderRequestAuth } from '@byf/kosong';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 
 export interface ProviderRequestAuthOptions {
   readonly forceRefresh?: boolean;
@@ -30,7 +30,7 @@ export async function withProviderRequestAuth<T>(
         auth = await resolveAuth({ forceRefresh: true });
         continue;
       }
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.AUTH_LOGIN_REQUIRED,
         'OAuth provider credentials were rejected. Send /login to login.',
         {

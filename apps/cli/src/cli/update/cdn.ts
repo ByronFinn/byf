@@ -1,27 +1,31 @@
 import { valid } from 'semver';
 
-import { KIMI_CODE_CDN_LATEST_URL } from '#/constant/app';
+import { BYF_RELEASES_LATEST_URL } from '#/constant/app';
 
 /**
- * Fetch the latest published Kimi Code version from the CDN.
+ * Fetch the latest published BYF version from the GitHub Releases /latest API.
  *
- * **Throws** on any failure (network error, non-2xx, empty body, non-semver
- * text). Callers must catch — `refreshUpdateCache` deliberately lets the
+ * **Throws** on any failure (network error, non-2xx, missing tag_name, invalid
+ * semver). Callers must catch — `refreshUpdateCache` deliberately lets the
  * error propagate so the existing cache stays intact instead of being
  * overwritten with a null `latest` on a transient blip.
  *
  * `fetchImpl` is injectable for tests; defaults to the global `fetch`.
  */
-export async function fetchLatestVersionFromCdn(
+export async function fetchLatestVersionFromGitHub(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
-  const response = await fetchImpl(KIMI_CODE_CDN_LATEST_URL);
+  const response = await fetchImpl(BYF_RELEASES_LATEST_URL);
   if (!response.ok) {
-    throw new Error(`CDN /latest returned HTTP ${response.status}`);
+    throw new Error(`GitHub Releases /latest returned HTTP ${response.status}`);
   }
-  const raw = (await response.text()).trim();
-  if (valid(raw) === null) {
-    throw new Error(`CDN /latest returned invalid semver: ${JSON.stringify(raw)}`);
+
+  const data = (await response.json()) as { tag_name?: unknown };
+  const latest = typeof data.tag_name === 'string' ? data.tag_name.trim() : '';
+  const normalized = valid(latest);
+  if (normalized === null) {
+    throw new Error(`GitHub Releases returned invalid semver: ${JSON.stringify(latest)}`);
   }
-  return raw;
+
+  return normalized;
 }

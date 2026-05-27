@@ -1,9 +1,9 @@
 import {
   createRPC,
   ErrorCodes,
-  KimiCore,
+  ByfCore,
   makeErrorPayload,
-  resolveKimiHome,
+  resolveByfHome,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
@@ -25,8 +25,8 @@ import type {
   ExportSessionResult,
   ForkSessionInput,
   GetConfigOptions,
-  KimiConfig,
-  KimiConfigPatch,
+  ByfConfig,
+  ByfConfigPatch,
   ListSessionsOptions,
   McpServerInfo,
   McpStartupMetrics,
@@ -95,7 +95,7 @@ export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
 type ResolvedCoreAPI = Awaited<ReturnType<SDKRPCClient>>;
 
 export class SDKRpcClient {
-  readonly core: KimiCore;
+  readonly core: ByfCore;
   interactiveAgentId = MAIN_AGENT_ID;
   private readonly ready: Promise<void>;
   private rpc: ResolvedCoreAPI | undefined;
@@ -105,7 +105,7 @@ export class SDKRpcClient {
 
   constructor(options: SDKRpcClientOptions = {}) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    this.core = new KimiCore(coreRpc, {
+    this.core = new ByfCore(coreRpc, {
       homeDir: options.homeDir,
       configPath: options.configPath,
       skillDirs: options.skillDirs,
@@ -174,19 +174,19 @@ export class SDKRpcClient {
     });
   }
 
-  async getConfig(input?: GetConfigOptions): Promise<KimiConfig> {
+  async getConfig(input?: GetConfigOptions): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.getKimiConfig(input ?? {});
+    return rpc.getByfConfig(input ?? {});
   }
 
-  async setConfig(input: KimiConfigPatch): Promise<KimiConfig> {
+  async setConfig(input: ByfConfigPatch): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.setKimiConfig(input);
+    return rpc.setByfConfig(input);
   }
 
-  async removeProvider(providerId: string): Promise<KimiConfig> {
+  async removeProvider(providerId: string): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.removeKimiProvider({ providerId });
+    return rpc.removeByfProvider({ providerId });
   }
 
   async prompt(input: SessionPromptRpcInput): Promise<void> {

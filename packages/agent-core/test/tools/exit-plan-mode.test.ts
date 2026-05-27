@@ -40,7 +40,7 @@ function makeAgent(
         if (input.plan === null) return null;
         return {
           content: input.plan ?? 'Step 1: read files\nStep 2: fix bug',
-          path: input.path ?? '/tmp/kimi-plan.md',
+          path: input.path ?? '/tmp/byf-plan.md',
         };
       }),
       exit: () => {
@@ -107,7 +107,7 @@ describe('ExitPlanModeTool', () => {
   it('exits with the current plan without consulting permission approval', async () => {
     const { agent, requestApproval, emit } = makeAgent({
       plan: '# File Plan',
-      path: '/tmp/kimi-plan.md',
+      path: '/tmp/byf-plan.md',
     });
 
     const result = await executeTool(new ExitPlanModeTool(agent), {
@@ -120,7 +120,7 @@ describe('ExitPlanModeTool', () => {
     expect(result.isError).toBe(false);
     expect(requestApproval).not.toHaveBeenCalled();
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).toContain('Plan saved to: /tmp/kimi-plan.md');
+    expect(result.output).toContain('Plan saved to: /tmp/byf-plan.md');
     expect(result.output).toContain('# File Plan');
   });
 
@@ -142,7 +142,7 @@ describe('ExitPlanModeTool', () => {
   it('returns an error when no plan content is available', async () => {
     const { agent, emit } = makeAgent({
       plan: '',
-      path: '/tmp/kimi-plan.md',
+      path: '/tmp/byf-plan.md',
     });
 
     const result = await executeTool(new ExitPlanModeTool(agent), {
@@ -153,7 +153,7 @@ describe('ExitPlanModeTool', () => {
     });
 
     expect(result).toMatchObject({ isError: true });
-    expect(result.output).toContain('Write your plan to /tmp/kimi-plan.md first');
+    expect(result.output).toContain('Write your plan to /tmp/byf-plan.md first');
     expect(emit).not.toHaveBeenCalled();
   });
 

@@ -6,7 +6,7 @@ import {
   withTelemetryContext,
 } from '@byf/telemetry';
 import {
-  KimiHarness,
+  ByfHarness,
   log,
   type Event,
   type HookResultEvent,
@@ -19,7 +19,7 @@ import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
 
 import type { CLIOptions, PromptOutputFormat } from './options';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
-import { createKimiCodeHostIdentity } from './version';
+import { createByfHostIdentity } from './version';
 
 interface PromptOutput {
   readonly columns?: number | undefined;
@@ -59,9 +59,9 @@ export async function runPrompt(
     withContext: withTelemetryContext,
     setContext: setTelemetryContext,
   };
-  const harness = new KimiHarness({
+  const harness = new ByfHarness({
     homeDir: telemetryBootstrap.homeDir,
-    identity: createKimiCodeHostIdentity(version),
+    identity: createByfHostIdentity(version),
     uiMode: PROMPT_UI_MODE,
     skillDirs: opts.skillsDirs,
     telemetry: telemetryClient,
@@ -73,7 +73,7 @@ export async function runPrompt(
       track('oauth_refresh', { success: false, reason: outcome.reason });
     },
   });
-  log.info('kimi-code starting', {
+  log.info('byf starting', {
     version,
     uiMode: PROMPT_UI_MODE,
     nodeVersion: process.version,
@@ -150,7 +150,7 @@ interface ResolvedPromptSession {
 }
 
 async function resolvePromptSession(
-  harness: KimiHarness,
+  harness: ByfHarness,
   opts: CLIOptions,
   workDir: string,
   defaultModel: string | undefined,
@@ -232,7 +232,7 @@ function requireConfiguredModel(...models: readonly (string | undefined)[]): str
   const model = configuredModel(...models);
   if (model === undefined) {
     throw new Error(
-      'No model configured. Run `kimi` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
     );
   }
   return model;
@@ -488,7 +488,7 @@ function writeResumeHint(
   stdout: PromptOutput,
   stderr: PromptOutput,
 ): void {
-  const command = `kimi -r ${sessionId}`;
+  const command = `byf -r ${sessionId}`;
   const content = `To resume this session: ${command}`;
   if (outputFormat === 'stream-json') {
     const message: PromptJsonResumeMetaMessage = {

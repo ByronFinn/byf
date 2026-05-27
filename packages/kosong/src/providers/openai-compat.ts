@@ -363,7 +363,7 @@ export class OpenAICompatChatProvider implements ChatProvider {
   constructor(options: OpenAICompatOptions) {
     const apiKey = options.apiKey;
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl ?? process.env['KIMI_BASE_URL'] ?? '';
+    this._baseUrl = options.baseUrl ?? process.env['BYF_BASE_URL'] ?? '';
     this._defaultHeaders = options.defaultHeaders;
     this._clientFactory = options.clientFactory;
     this._model = options.model;

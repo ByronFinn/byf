@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 async function tempHome(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-telemetry-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-telemetry-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -64,10 +64,10 @@ function makeSink(transport: TelemetryTransport, flushThreshold = 10): EventSink
   return new EventSink({
     transport,
     context: {
-      appName: 'kimi-code-cli',
+      appName: 'byf-cli',
       version: '1.2.3',
       uiMode: 'shell',
-      model: 'kimi-k2',
+      model: 'byf-k2',
       env: {},
       terminal: 'test-terminal',
       locale: 'en_US',
@@ -222,11 +222,11 @@ describe('EventSink', () => {
 
     expect('context' in event).toBe(false);
     expect(transport.saved[0]?.[0]?.context).toMatchObject({
-      app_name: 'kimi-code-cli',
+      app_name: 'byf-cli',
       version: '1.2.3',
       runtime: 'node',
       ui_mode: 'shell',
-      model: 'kimi-k2',
+      model: 'byf-k2',
       terminal: 'test-terminal',
     });
   });
@@ -471,7 +471,7 @@ describe('telemetry bootstrap', () => {
       initializeTelemetry({
         homeDir,
         deviceId: 'dev',
-        appName: 'kimi-code-cli',
+        appName: 'byf-cli',
         version: '1.2.3',
       });
       track('dropped');
@@ -492,7 +492,7 @@ describe('telemetry bootstrap', () => {
       homeDir,
       deviceId: 'dev',
       sessionId: 'ses',
-      appName: 'kimi-code-cli',
+      appName: 'byf-cli',
       version: '1.2.3',
     });
 
@@ -512,7 +512,7 @@ describe('telemetry bootstrap', () => {
       homeDir,
       deviceId: 'dev',
       sessionId: 'ses',
-      appName: 'kimi-code-cli',
+      appName: 'byf-cli',
       version: '1.2.3',
     });
     track('sync_flush');

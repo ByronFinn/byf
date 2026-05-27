@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, ByfError } from '../../src/errors';
 import type { Logger, LogPayload } from '../../src/logging';
 import type { LoopHooks } from '../../src/loop/index';
 import { makeEndTurnResponse, makeToolCall, makeToolUseResponse } from './fixtures/fake-llm';
@@ -83,7 +83,7 @@ describe('runTurn — error paths', () => {
     expect(entries).toEqual([]);
   });
 
-  it('throws KimiError(loop.max_steps_exceeded) with turn.interrupted{reason:"max_steps"} before the throw', async () => {
+  it('throws ByfError(loop.max_steps_exceeded) with turn.interrupted{reason:"max_steps"} before the throw', async () => {
     const echo = new EchoTool();
     const { error, sink } = await runTurnExpectingThrow({
       maxSteps: 2,
@@ -95,8 +95,8 @@ describe('runTurn — error paths', () => {
       ],
     });
 
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe(ErrorCodes.LOOP_MAX_STEPS_EXCEEDED);
+    expect(error).toBeInstanceOf(ByfError);
+    expect((error as ByfError).code).toBe(ErrorCodes.LOOP_MAX_STEPS_EXCEEDED);
     const interrupted = sink.byType('turn.interrupted');
     expect(interrupted.map((e) => e.reason)).toEqual(['max_steps']);
     expect(interrupted[0]?.attemptedSteps).toBe(2);

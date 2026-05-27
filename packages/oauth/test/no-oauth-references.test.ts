@@ -6,39 +6,39 @@ import { describe, expect, it } from 'vitest';
 const SRC_DIR = join(import.meta.dirname, '..', 'src');
 
 /**
- * Acceptance criteria for Slice 3: no managed:kimi-code OAuth references
+ * Acceptance criteria for Slice 3: no managed:byf OAuth references
  * remain in the oauth package source code.
  */
 describe('oauth package: no upstream OAuth references', () => {
   const sourceFiles = globSync(join(SRC_DIR, '**', '*.ts'));
 
-  it('has no auth.kimi.com references', () => {
+  it('has no auth.byf.com references', () => {
     const violations: string[] = [];
     for (const file of sourceFiles) {
       const content = readFileSync(file, 'utf-8');
-      if (content.includes('auth.kimi.com')) {
+      if (content.includes('auth.byf.com')) {
         violations.push(file);
       }
     }
     expect(violations).toEqual([]);
   });
 
-  it('has no managed:kimi-code provider references', () => {
+  it('has no managed:byf provider references', () => {
     const violations: string[] = [];
     for (const file of sourceFiles) {
       const content = readFileSync(file, 'utf-8');
-      if (content.includes('managed:kimi-code')) {
+      if (content.includes('managed:byf')) {
         violations.push(file);
       }
     }
     expect(violations).toEqual([]);
   });
 
-  it('has no KIMI_CODE_PROVIDER_NAME references', () => {
+  it('has no BYF_CODE_PROVIDER_NAME references', () => {
     const violations: string[] = [];
     for (const file of sourceFiles) {
       const content = readFileSync(file, 'utf-8');
-      if (content.includes('KIMI_CODE_PROVIDER_NAME')) {
+      if (content.includes('BYF_CODE_PROVIDER_NAME')) {
         violations.push(file);
       }
     }
@@ -49,7 +49,7 @@ describe('oauth package: no upstream OAuth references', () => {
     const oauthFiles = [
       'oauth.ts',
       'oauth-manager.ts',
-      'managed-kimi-code.ts',
+      'managed-byf.ts',
       'managed-usage.ts',
       'managed-feedback.ts',
       'identity.ts',
@@ -78,7 +78,7 @@ describe('oauth package: no upstream OAuth references', () => {
     expect(mod.refreshAccessToken).toBeUndefined();
     expect(mod.requestDeviceAuthorization).toBeUndefined();
     expect(mod.OAuthManager).toBeUndefined();
-    expect(mod.KimiOAuthToolkit).toBeUndefined();
+    expect(mod.ByfOAuthToolkit).toBeUndefined();
     expect(mod.FileTokenStorage).toBeUndefined();
   });
 });

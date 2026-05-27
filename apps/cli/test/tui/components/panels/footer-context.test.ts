@@ -89,10 +89,10 @@ describe('FooterComponent — context NaN resilience', () => {
   it('setState updates visible model and context values', () => {
     const footer = new FooterComponent(baseState({ model: 'k2', contextUsage: 0 }), darkColors);
 
-    footer.setState(baseState({ model: 'kimi-k2-5', contextUsage: 0.5 }));
+    footer.setState(baseState({ model: 'byf-k2-5', contextUsage: 0.5 }));
 
     const out = strip(footer.render(200).join(''));
-    expect(out).toContain('kimi-k2-5');
+    expect(out).toContain('byf-k2-5');
     expect(out).not.toContain(' k2 ');
     expect(out).toMatch(/context: 50\.0%/);
   });

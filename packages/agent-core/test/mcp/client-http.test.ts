@@ -7,7 +7,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, ByfError } from '../../src/errors';
 import {
   buildMcpHttpHeaders,
   HttpMcpClient,
@@ -26,8 +26,8 @@ function expectConfigInvalid(fn: () => unknown): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe(ErrorCodes.CONFIG_INVALID);
+    expect(error).toBeInstanceOf(ByfError);
+    expect((error as ByfError).code).toBe(ErrorCodes.CONFIG_INVALID);
     return;
   }
   throw new Error('expected function to throw');
@@ -43,10 +43,10 @@ describe('buildMcpHttpHeaders', () => {
   it('passes through configured static headers', () => {
     expect(
       buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', headers: { 'X-Tenant': 'kimi' } },
+        { transport: 'http', url: 'https://x', headers: { 'X-Tenant': 'byf' } },
         () => undefined,
       ),
-    ).toEqual({ 'X-Tenant': 'kimi' });
+    ).toEqual({ 'X-Tenant': 'byf' });
   });
 
   it('injects Authorization Bearer when env lookup yields a token', () => {
@@ -58,7 +58,7 @@ describe('buildMcpHttpHeaders', () => {
     ).toEqual({ Authorization: 'Bearer secret' });
   });
 
-  it('throws KimiError(config.invalid) when a configured bearer token env var is empty or missing', () => {
+  it('throws ByfError(config.invalid) when a configured bearer token env var is empty or missing', () => {
     expectConfigInvalid(() =>
       buildMcpHttpHeaders(
         { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'MISSING' },

@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { resolveKimiHome } from '#/config/path';
+import { resolveByfHome } from '#/config/path';
 import { McpServerConfigSchema, type McpServerConfig } from '#/config/schema';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import { z } from 'zod';
 
 const McpJsonFileSchema = z.object({
@@ -22,7 +22,7 @@ export interface ResolveMcpJsonPathsInput {
 
 export function resolveMcpJsonPaths(input: ResolveMcpJsonPathsInput): McpJsonPaths {
   return {
-    user: join(resolveKimiHome(input.homeDir), 'mcp.json'),
+    user: join(resolveByfHome(input.homeDir), 'mcp.json'),
     project: join(input.cwd, '.byf', 'mcp.json'),
   };
 }
@@ -56,7 +56,7 @@ async function readMcpJson(filePath: string): Promise<Record<string, McpServerCo
     text = await readFile(filePath, 'utf-8');
   } catch (error: unknown) {
     if (isFileNotFound(error)) return {};
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Failed to read ${filePath}: ${describeError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Failed to read ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }
@@ -67,7 +67,7 @@ async function readMcpJson(filePath: string): Promise<Record<string, McpServerCo
   try {
     data = JSON.parse(text);
   } catch (error: unknown) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid JSON in ${filePath}: ${describeError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid JSON in ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }
@@ -75,7 +75,7 @@ async function readMcpJson(filePath: string): Promise<Record<string, McpServerCo
   try {
     return McpJsonFileSchema.parse(data).mcpServers;
   } catch (error: unknown) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid MCP server config in ${filePath}: ${describeError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid MCP server config in ${filePath}: ${describeError(error)}`, {
       cause: error,
     });
   }

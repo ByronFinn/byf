@@ -10,7 +10,7 @@ describe('cleanupStaleNativeCache', () => {
   let root: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'kimi-cache-gc-'));
+    root = mkdtempSync(join(tmpdir(), 'byf-cache-gc-'));
   });
 
   afterEach(() => {

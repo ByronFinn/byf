@@ -20,15 +20,15 @@ function makeModelsResponse(): Response {
     JSON.stringify({
       data: [
         {
-          id: 'kimi-k2-0712-preview',
+          id: 'byf-k2-0712-preview',
           context_length: 256000,
           supports_reasoning: true,
           supports_image_in: true,
           supports_video_in: true,
-          display_name: 'Kimi K2 0712 Preview',
+          display_name: 'Byf K2 0712 Preview',
         },
         {
-          id: 'kimi-k2-lite',
+          id: 'byf-k2-lite',
           context_length: 128000,
           supports_reasoning: false,
           supports_image_in: false,
@@ -36,7 +36,7 @@ function makeModelsResponse(): Response {
           supports_tool_use: false,
         },
         {
-          id: 'non-kimi-model',
+          id: 'non-byf-model',
           context_length: 1000,
           supports_reasoning: false,
         },
@@ -47,45 +47,45 @@ function makeModelsResponse(): Response {
 }
 
 describe('OPEN_PLATFORMS', () => {
-  it('contains moonshot.cn and moonshot.ai', () => {
-    expect(getOpenPlatformById('moonshot-cn')).toMatchObject({
+  it('contains byf.cn and byf.ai', () => {
+    expect(getOpenPlatformById('byf-cn')).toMatchObject({
       name: 'OpenAI-compatible Platform (CN)',
       baseUrl: 'https://api.openai-compat-cn.invalid/v1',
-      allowedPrefixes: ['kimi-k'],
+      allowedPrefixes: ['byf-k'],
     });
-    expect(getOpenPlatformById('moonshot-ai')).toMatchObject({
+    expect(getOpenPlatformById('byf-ai')).toMatchObject({
       name: 'OpenAI-compatible Platform',
       baseUrl: 'https://api.openai-compat.invalid/v1',
-      allowedPrefixes: ['kimi-k'],
+      allowedPrefixes: ['byf-k'],
     });
     expect(getOpenPlatformById('unknown')).toBeUndefined();
   });
 
   it('isOpenPlatformId works', () => {
-    expect(isOpenPlatformId('moonshot-cn')).toBe(true);
-    expect(isOpenPlatformId('moonshot-ai')).toBe(true);
-    expect(isOpenPlatformId('kimi-code')).toBe(false);
+    expect(isOpenPlatformId('byf-cn')).toBe(true);
+    expect(isOpenPlatformId('byf-ai')).toBe(true);
+    expect(isOpenPlatformId('byf')).toBe(false);
   });
 });
 
 describe('fetchOpenPlatformModels', () => {
   it('lists and parses models from the platform endpoint', async () => {
     const fetchMock = vi.fn(async () => makeModelsResponse());
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
 
     const models = await fetchOpenPlatformModels(platform, 'sk-test', fetchMock as unknown as typeof fetch);
 
     expect(models).toHaveLength(3);
     expect(models[0]).toMatchObject({
-      id: 'kimi-k2-0712-preview',
+      id: 'byf-k2-0712-preview',
       contextLength: 256000,
       supportsReasoning: true,
       supportsImageIn: true,
       supportsVideoIn: true,
-      displayName: 'Kimi K2 0712 Preview',
+      displayName: 'Byf K2 0712 Preview',
     });
     expect(models[1]?.supportsToolUse).toBe(false);
-    expect(models[2]?.id).toBe('non-kimi-model');
+    expect(models[2]?.id).toBe('non-byf-model');
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.openai-compat-cn.invalid/v1/models',
@@ -103,7 +103,7 @@ describe('fetchOpenPlatformModels', () => {
       async () =>
         new Response(JSON.stringify({ error: { message: 'invalid API key' } }), { status: 401 }),
     );
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
 
     const error = await fetchOpenPlatformModels(
       platform,
@@ -118,7 +118,7 @@ describe('fetchOpenPlatformModels', () => {
 
   it('throws on unexpected response shape', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
 
     await expect(
       fetchOpenPlatformModels(platform, 'sk-test', fetchMock as unknown as typeof fetch),
@@ -128,15 +128,15 @@ describe('fetchOpenPlatformModels', () => {
 
 describe('filterModelsByPrefix', () => {
   it('filters by allowedPrefixes when present', () => {
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
     const models: ModelInfo[] = [
-      { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
+      { id: 'byf-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
       { id: 'gpt-4', contextLength: 1000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
 
     const filtered = filterModelsByPrefix(models, platform);
     expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.id).toBe('kimi-k2-0712-preview');
+    expect(filtered[0]?.id).toBe('byf-k2-0712-preview');
   });
 
   it('returns all models when allowedPrefixes is absent', () => {
@@ -186,10 +186,10 @@ describe('applyOpenPlatformConfig', () => {
     const config: ConfigShape = {
       providers: {},
     };
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
     const models: ModelInfo[] = [
-      { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true, displayName: 'Kimi K2' },
-      { id: 'kimi-k2-lite', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      { id: 'byf-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true, displayName: 'Byf K2' },
+      { id: 'byf-k2-lite', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
 
     const result = applyOpenPlatformConfig(config, {
@@ -201,23 +201,23 @@ describe('applyOpenPlatformConfig', () => {
     });
 
     expect(result).toEqual({
-      defaultModel: 'moonshot-cn/kimi-k2-0712-preview',
+      defaultModel: 'byf-cn/byf-k2-0712-preview',
       defaultThinking: true,
     });
 
-    expect(config.providers['moonshot-cn']).toMatchObject({
+    expect(config.providers['byf-cn']).toMatchObject({
       type: 'openai-compat',
       baseUrl: 'https://api.openai-compat-cn.invalid/v1',
       apiKey: 'sk-test',
     });
-    expect(config.models?.['moonshot-cn/kimi-k2-0712-preview']).toMatchObject({
-      provider: 'moonshot-cn',
-      model: 'kimi-k2-0712-preview',
+    expect(config.models?.['byf-cn/byf-k2-0712-preview']).toMatchObject({
+      provider: 'byf-cn',
+      model: 'byf-k2-0712-preview',
       maxContextSize: 256000,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
-      displayName: 'Kimi K2',
+      displayName: 'Byf K2',
     });
-    expect(config.defaultModel).toBe('moonshot-cn/kimi-k2-0712-preview');
+    expect(config.defaultModel).toBe('byf-cn/byf-k2-0712-preview');
     expect(config.defaultThinking).toBe(true);
     expect(config.services).toBeUndefined();
   });
@@ -225,16 +225,16 @@ describe('applyOpenPlatformConfig', () => {
   it('clears stale models for the same provider', () => {
     const config: ConfigShape = {
       providers: {
-        'moonshot-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-old' },
+        'byf-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-old' },
       },
       models: {
-        'moonshot-cn/stale': { provider: 'moonshot-cn', model: 'stale', maxContextSize: 1000 },
+        'byf-cn/stale': { provider: 'byf-cn', model: 'stale', maxContextSize: 1000 },
         'other/model': { provider: 'other', model: 'other-model', maxContextSize: 1000 },
       },
     };
-    const platform = getOpenPlatformById('moonshot-cn')!;
+    const platform = getOpenPlatformById('byf-cn')!;
     const models: ModelInfo[] = [
-      { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
+      { id: 'byf-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
     ];
 
     applyOpenPlatformConfig(config, {
@@ -245,7 +245,7 @@ describe('applyOpenPlatformConfig', () => {
       apiKey: 'sk-new',
     });
 
-    expect(config.models?.['moonshot-cn/stale']).toBeUndefined();
+    expect(config.models?.['byf-cn/stale']).toBeUndefined();
     expect(config.models?.['other/model']).toBeDefined();
   });
 });
@@ -254,21 +254,21 @@ describe('removeOpenPlatformConfig', () => {
   it('removes provider, its models, and defaultModel when matched', () => {
     const config: ConfigShape = {
       providers: {
-        'moonshot-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-test' },
+        'byf-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-test' },
         'other': { type: 'openai-compat', baseUrl: 'https://other.test/v1', apiKey: 'sk-other' },
       },
       models: {
-        'moonshot-cn/kimi-k2': { provider: 'moonshot-cn', model: 'kimi-k2', maxContextSize: 256000 },
+        'byf-cn/byf-k2': { provider: 'byf-cn', model: 'byf-k2', maxContextSize: 256000 },
         'other/model': { provider: 'other', model: 'other-model', maxContextSize: 1000 },
       },
-      defaultModel: 'moonshot-cn/kimi-k2',
+      defaultModel: 'byf-cn/byf-k2',
     };
 
-    removeOpenPlatformConfig(config, 'moonshot-cn');
+    removeOpenPlatformConfig(config, 'byf-cn');
 
-    expect(config.providers['moonshot-cn']).toBeUndefined();
+    expect(config.providers['byf-cn']).toBeUndefined();
     expect(config.providers['other']).toBeDefined();
-    expect(config.models?.['moonshot-cn/kimi-k2']).toBeUndefined();
+    expect(config.models?.['byf-cn/byf-k2']).toBeUndefined();
     expect(config.models?.['other/model']).toBeDefined();
     expect(config.defaultModel).toBeUndefined();
   });
@@ -276,15 +276,15 @@ describe('removeOpenPlatformConfig', () => {
   it('leaves defaultModel intact when it belongs to another provider', () => {
     const config: ConfigShape = {
       providers: {
-        'moonshot-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-test' },
+        'byf-cn': { type: 'openai-compat', baseUrl: 'https://api.openai-compat-cn.invalid/v1', apiKey: 'sk-test' },
       },
       models: {
-        'moonshot-cn/kimi-k2': { provider: 'moonshot-cn', model: 'kimi-k2', maxContextSize: 256000 },
+        'byf-cn/byf-k2': { provider: 'byf-cn', model: 'byf-k2', maxContextSize: 256000 },
       },
       defaultModel: 'other/model',
     };
 
-    removeOpenPlatformConfig(config, 'moonshot-cn');
+    removeOpenPlatformConfig(config, 'byf-cn');
 
     expect(config.defaultModel).toBe('other/model');
   });

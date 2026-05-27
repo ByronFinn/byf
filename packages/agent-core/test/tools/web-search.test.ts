@@ -175,7 +175,7 @@ describe('WebSearchTool', () => {
       search: vi
         .fn()
         .mockRejectedValue(
-          new Error('Moonshot search request failed: HTTP 401 (auth/unauthorized).'),
+          new Error('Byf search request failed: HTTP 401 (auth/unauthorized).'),
         ),
     };
     const tool = new WebSearchTool(provider);

@@ -1,4 +1,4 @@
-export { KimiHarness } from '#/kimi-harness';
+export { ByfHarness } from '#/byf-harness';
 export { Session } from '#/session';
 export { ByfAuthFacade } from '#/auth';
 
@@ -22,15 +22,15 @@ export type {
 
 export {
   ErrorCodes,
-  KimiError,
-  type KimiErrorCode,
-  type KimiErrorInfo,
-  type KimiErrorOptions,
-  type KimiErrorPayload,
-  KIMI_ERROR_INFO,
-  fromKimiErrorPayload,
-  isKimiError,
-  toKimiErrorPayload,
+  ByfError,
+  type ByfErrorCode,
+  type ByfErrorInfo,
+  type ByfErrorOptions,
+  type ByfErrorPayload,
+  BYF_ERROR_INFO,
+  fromByfErrorPayload,
+  isByfError,
+  toByfErrorPayload,
 } from '@byf/agent-core';
 
 // Diagnostic logging — public surface only.
@@ -40,7 +40,7 @@ export {
   log,
   redact,
   resolveGlobalLogPath,
-  resolveKimiHome,
+  resolveByfHome,
 } from '@byf/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byf/agent-core';
 

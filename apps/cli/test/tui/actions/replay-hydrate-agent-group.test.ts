@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { hydrateProjectedEntries, hydrateTranscriptFromReplay } from '#/tui/actions/replay-ops';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
-import { createTUIState, type KimiTUIOptions, type TUIState } from '#/tui/kimi-tui';
+import { createTUIState, type ByfTuiOptions, type TUIState } from '#/tui/byf-tui';
 import type { AppState, ToolCallBlockData, TranscriptEntry } from '#/tui/types';
 
 function makeAppState(): AppState {
@@ -37,7 +37,7 @@ function makeAppState(): AppState {
 }
 
 function makeTuiState(): TUIState {
-  const options: KimiTUIOptions = {
+  const options: ByfTuiOptions = {
     initialAppState: makeAppState(),
     startup: {
       continueLast: false,

@@ -53,7 +53,7 @@ vi.mock('@byf/kosong', async (importOriginal) => {
   };
 });
 
-const { KimiHarness } = await import('#/index');
+const { ByfHarness } = await import('#/index');
 
 const tempDirs: string[] = [];
 
@@ -96,7 +96,7 @@ describe('Session.prompt events', () => {
   it('persists sanitized prompt metadata without marking the title custom', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -169,7 +169,7 @@ describe('Session.prompt events', () => {
   it('emits mapped turn events through Session.onEvent', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -213,7 +213,7 @@ describe('Session.prompt events', () => {
   it('supports onEvent unsubscribe without touching runtime wire directly', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -237,7 +237,7 @@ describe('Session.prompt events', () => {
   it('runs init through generateAgentsMd RPC as a system trigger without prompt metadata updates', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -293,12 +293,12 @@ describe('Session.prompt events', () => {
   it('rejects empty prompt input', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       const session = await harness.createSession({ id: 'ses_empty_prompt', workDir });
       await expect(session.prompt('   ')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'request.prompt_input_empty',
       });
     } finally {
@@ -307,7 +307,7 @@ describe('Session.prompt events', () => {
   });
 });
 
-async function configureFakeProvider(harness: InstanceType<typeof KimiHarness>): Promise<void> {
+async function configureFakeProvider(harness: InstanceType<typeof ByfHarness>): Promise<void> {
   await harness.setConfig({
     providers: {
       local: {

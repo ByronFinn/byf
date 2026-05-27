@@ -94,9 +94,6 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@byf/migration-legacy':
-        specifier: workspace:^
-        version: link:../../packages/migration-legacy
       '@byf/oauth':
         specifier: workspace:^
         version: link:../../packages/oauth
@@ -313,22 +310,6 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.18.0)
 
-  packages/migration-legacy:
-    dependencies:
-      '@byf/agent-core':
-        specifier: workspace:^
-        version: link:../agent-core
-      smol-toml:
-        specifier: ^1.6.1
-        version: 1.6.1
-      zod:
-        specifier: 'catalog:'
-        version: 4.3.6
-    devDependencies:
-      '@byf/kaos':
-        specifier: workspace:^
-        version: link:../kaos
-
   packages/node-sdk:
     dependencies:
       '@antfu/utils':
@@ -360,15 +341,7 @@ importers:
         specifier: ^2.4.6
         version: 2.4.6
 
-  packages/oauth:
-    dependencies:
-      proper-lockfile:
-        specifier: ^4.1.2
-        version: 4.1.2
-    devDependencies:
-      '@types/proper-lockfile':
-        specifier: ^4.1.4
-        version: 4.1.4
+  packages/oauth: {}
 
   packages/telemetry: {}
 

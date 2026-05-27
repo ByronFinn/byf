@@ -113,7 +113,7 @@ export class HelpPanelComponent extends Container implements Focusable {
       accent.bold(' help ') + muted('· Esc / Enter / q to close · ↑↓ scroll'),
       '',
       // Greeting
-      `  ${dim('Sure, Kimi is ready to help! Just send a message to get started.')}`,
+      `  ${dim('Sure, Byf is ready to help! Just send a message to get started.')}`,
       '',
       // Section: keyboard shortcuts
       `  ${chalk.bold('Keyboard shortcuts')}`,

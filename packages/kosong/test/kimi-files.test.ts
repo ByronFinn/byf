@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function createProvider(): OpenAICompatChatProvider {
   return new OpenAICompatChatProvider({
-    model: 'kimi-k2-turbo-preview',
+    model: 'byf-k2-turbo-preview',
     apiKey: 'test-key',
   });
 }
@@ -17,7 +17,7 @@ describe('OpenAICompatFiles', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-files-test-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'byf-files-test-'));
   });
 
   afterEach(() => {

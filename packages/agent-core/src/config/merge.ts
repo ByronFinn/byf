@@ -1,24 +1,24 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import {
-  KimiConfigPatchSchema,
+  ByfConfigPatchSchema,
   formatConfigValidationError,
-  type KimiConfig,
-  type KimiConfigPatch,
+  type ByfConfig,
+  type ByfConfigPatch,
   validateConfig,
 } from '#/config/schema';
 
-export function mergeConfigPatch(config: KimiConfig, patch: KimiConfigPatch): KimiConfig {
+export function mergeConfigPatch(config: ByfConfig, patch: ByfConfigPatch): ByfConfig {
   const base = validateConfig(config);
   const parsedPatch = parsePatch(patch);
   const merged = deepMerge(base, parsedPatch);
   return validateConfig(merged);
 }
 
-function parsePatch(patch: KimiConfigPatch): KimiConfigPatch {
+function parsePatch(patch: ByfConfigPatch): ByfConfigPatch {
   try {
-    return stripUndefinedDeep(KimiConfigPatchSchema.parse(patch)) as KimiConfigPatch;
+    return stripUndefinedDeep(ByfConfigPatchSchema.parse(patch)) as ByfConfigPatch;
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration patch: ${formatConfigValidationError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration patch: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }

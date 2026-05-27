@@ -1,9 +1,9 @@
 import {
   ErrorCodes,
-  KimiError,
-  isKimiError,
+  ByfError,
+  isByfError,
   makeErrorPayload,
-  toKimiErrorPayload,
+  toByfErrorPayload,
 } from '#/errors';
 import {
   APIConnectionError,
@@ -300,7 +300,7 @@ export class FullCompaction {
     const maxCompactions = this.strategy.maxCompactionPerTurn;
     if (this.compactionCountInTurn >= maxCompactions) {
       if (throwOnLimit) {
-        throw new KimiError(ErrorCodes.CONTEXT_OVERFLOW, `Compaction limit exceeded (${String(maxCompactions)})`, {
+        throw new ByfError(ErrorCodes.CONTEXT_OVERFLOW, `Compaction limit exceeded (${String(maxCompactions)})`, {
           details: { maxCompactions },
         });
       }
@@ -405,13 +405,13 @@ export class FullCompaction {
     } catch (error) {
       if (!isAbortError(error)) {
         this.agent.log.error('compaction failed', {
-          code: isKimiError(error) ? error.code : undefined,
+          code: isByfError(error) ? error.code : undefined,
           error,
         });
         this.markCanceled();
         const payload =
-          isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED
-            ? toKimiErrorPayload(error)
+          isByfError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED
+            ? toByfErrorPayload(error)
             : makeErrorPayload(ErrorCodes.COMPACTION_FAILED, String(error));
         this.agent.emitEvent({
           type: 'error',

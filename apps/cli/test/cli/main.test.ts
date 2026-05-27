@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErrorCodes, KimiError } from '@byf/sdk';
+import { ErrorCodes, ByfError } from '@byf/sdk';
 
 import { validateOptions } from '#/cli/options';
 import type { CLIOptions } from '#/cli/options';
@@ -176,8 +176,8 @@ describe('main entry command handling', () => {
     expect(runShell).not.toHaveBeenCalled();
   });
 
-  it('formats Kimi startup errors with structured fields', () => {
-    const error = new KimiError(
+  it('formats Byf startup errors with structured fields', () => {
+    const error = new ByfError(
       ErrorCodes.SHELL_GIT_BASH_NOT_FOUND,
       'Git Bash was not found on this Windows host. Checked: C:\\Program Files\\Git\\bin\\bash.exe.',
     );

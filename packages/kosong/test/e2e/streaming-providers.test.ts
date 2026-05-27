@@ -61,7 +61,7 @@ class SingleStreamProvider implements ChatProvider {
 }
 
 describe('integration: streaming provider contracts', () => {
-  describe('synthetic Kimi-style SSE streaming', () => {
+  describe('synthetic Byf-style SSE streaming', () => {
     it('multi-chunk text + tool_call + tool_call_part + usage', async () => {
       const usage: TokenUsage = {
         inputOther: 100,
@@ -76,15 +76,15 @@ describe('integration: streaming provider contracts', () => {
         { type: 'text', text: 'world!' },
         {
           type: 'function',
-          id: 'tc-kimi-1',
+          id: 'tc-byf-1',
           name: 'search', arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: '{"query":' },
         { type: 'tool_call_part', argumentsPart: '"vitest"}' },
       ];
 
-      const stream = buildStream(parts, { id: 'kimi-resp-1', usage });
-      const provider = new SingleStreamProvider(stream, 'kimi');
+      const stream = buildStream(parts, { id: 'byf-resp-1', usage });
+      const provider = new SingleStreamProvider(stream, 'byf');
 
       const receivedParts: StreamedMessagePart[] = [];
       const callbacks: GenerateCallbacks = {
@@ -113,7 +113,7 @@ describe('integration: streaming provider contracts', () => {
 
       // Usage extracted from the stream metadata
       expect(result.usage).toEqual(usage);
-      expect(result.id).toBe('kimi-resp-1');
+      expect(result.id).toBe('byf-resp-1');
     });
 
     it('reasoning_content chunks interleave with text', async () => {
@@ -123,8 +123,8 @@ describe('integration: streaming provider contracts', () => {
         { type: 'text', text: 'The answer is 42.' },
       ];
 
-      const stream = buildStream(parts, { id: 'kimi-think-1' });
-      const provider = new SingleStreamProvider(stream, 'kimi');
+      const stream = buildStream(parts, { id: 'byf-think-1' });
+      const provider = new SingleStreamProvider(stream, 'byf');
       const result = await generate(provider, '', [], []);
 
       expect(result.message.content).toHaveLength(2);

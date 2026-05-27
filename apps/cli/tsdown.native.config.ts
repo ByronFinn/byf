@@ -25,7 +25,7 @@ function shouldAlwaysBundle(id: string): boolean {
 }
 
 function buildTarget(): string {
-  return process.env['KIMI_CODE_BUILD_TARGET'] ?? `${process.platform}-${process.arch}`;
+  return process.env['BYF_CODE_BUILD_TARGET'] ?? `${process.platform}-${process.arch}`;
 }
 
 export default defineConfig({
@@ -45,11 +45,11 @@ export default defineConfig({
   },
   define: {
     [BUILT_IN_CATALOG_DEFINE]: builtInCatalogDefine(),
-    __KIMI_CODE_VERSION__: JSON.stringify(packageJson.version),
-    __KIMI_CODE_CHANNEL__: JSON.stringify(process.env['KIMI_CODE_CHANNEL'] ?? ''),
-    __KIMI_CODE_COMMIT__: JSON.stringify(process.env['KIMI_CODE_COMMIT'] ?? ''),
-    __KIMI_CODE_BUILD_TARGET__: JSON.stringify(buildTarget()),
-    __KIMI_CODE_NATIVE_BUNDLE__: 'true',
+    __BYF_CODE_VERSION__: JSON.stringify(packageJson.version),
+    __BYF_CODE_CHANNEL__: JSON.stringify(process.env['BYF_CODE_CHANNEL'] ?? ''),
+    __BYF_CODE_COMMIT__: JSON.stringify(process.env['BYF_CODE_COMMIT'] ?? ''),
+    __BYF_CODE_BUILD_TARGET__: JSON.stringify(buildTarget()),
+    __BYF_CODE_NATIVE_BUNDLE__: 'true',
   },
   deps: {
     alwaysBundle: shouldAlwaysBundle,

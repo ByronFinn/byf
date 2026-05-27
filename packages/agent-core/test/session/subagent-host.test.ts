@@ -594,7 +594,7 @@ describe('SessionSubagentHost', () => {
 
     const session = fakeSession(parent.agent, child.agent, {
       'agent-0': {
-        homedir: '/tmp/kimi-session/agents/agent-0',
+        homedir: '/tmp/byf-session/agents/agent-0',
         type: 'sub',
         parentAgentId: 'main',
       },
@@ -660,7 +660,7 @@ describe('SessionSubagentHost', () => {
 
     const session = fakeSession(parent.agent, child.agent, {
       'agent-0': {
-        homedir: '/tmp/kimi-session/agents/agent-0',
+        homedir: '/tmp/byf-session/agents/agent-0',
         type: 'sub',
         parentAgentId: 'main',
       },
@@ -685,7 +685,7 @@ describe('SessionSubagentHost', () => {
 
 describe('Session resume permission parent chain', () => {
   it('restores subagent live-derived permission when metadata lists the child first', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'kimi-permission-chain-'));
+    const dir = await mkdtemp(join(tmpdir(), 'byf-permission-chain-'));
     tempDirs.push(dir);
     const sessionDir = join(dir, 'session');
     const workDir = join(dir, 'work');
@@ -807,7 +807,7 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
@@ -881,7 +881,7 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       cwd: workDir,
       rpc: createSessionRpc(),
       initializeMainAgent: false,
@@ -921,12 +921,12 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
     session.metadata.agents['agent-0'] = {
-      homedir: '/tmp/kimi-session/agents/agent-0',
+      homedir: '/tmp/byf-session/agents/agent-0',
       type: 'sub',
       parentAgentId: null,
     };
@@ -936,7 +936,7 @@ describe('Session.createAgent', () => {
     expect(created.id).toBe('agent-1');
     expect(session.agents.get('agent-1')).toBe(created.agent);
     expect(session.metadata.agents['agent-1']).toMatchObject({
-      homedir: '/tmp/kimi-session/agents/agent-1',
+      homedir: '/tmp/byf-session/agents/agent-1',
       type: 'sub',
     });
   });
@@ -950,7 +950,7 @@ describe('Session.createAgent', () => {
         }),
         osEnv: TEST_OS_ENV,
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
@@ -991,7 +991,7 @@ function fakeSession(
       ) => {
         agents.set('agent-0', child);
         metadataAgents['agent-0'] = {
-          homedir: '/tmp/kimi-session/agents/agent-0',
+          homedir: '/tmp/byf-session/agents/agent-0',
           type: config.type ?? 'main',
           parentAgentId: parentAgentId ?? null,
         };

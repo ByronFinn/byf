@@ -1,6 +1,6 @@
 import { HOOK_EVENT_TYPES } from '#/agent/hooks/types';
 import { parsePattern } from '#/agent/permission/parse-pattern';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import { z } from 'zod';
 
 export const ProviderTypeSchema = z.enum([
@@ -110,18 +110,18 @@ export const HookDefSchema = z
 
 export type HookDefConfig = z.infer<typeof HookDefSchema>;
 
-export const MoonshotServiceConfigSchema = z.object({
+export const ByfServiceConfigSchema = z.object({
   baseUrl: z.string().optional(),
   apiKey: z.string().optional(),
   oauth: OAuthRefSchema.optional(),
   customHeaders: StringRecordSchema.optional(),
 });
 
-export type MoonshotServiceConfig = z.infer<typeof MoonshotServiceConfigSchema>;
+export type ByfServiceConfig = z.infer<typeof ByfServiceConfigSchema>;
 
 export const ServicesConfigSchema = z.object({
-  moonshotSearch: MoonshotServiceConfigSchema.optional(),
-  moonshotFetch: MoonshotServiceConfigSchema.optional(),
+  byfSearch: ByfServiceConfigSchema.optional(),
+  byfFetch: ByfServiceConfigSchema.optional(),
 });
 
 export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
@@ -176,7 +176,7 @@ export const McpServerConfigSchema = z.preprocess((raw) => {
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
-export const KimiConfigSchema = z.object({
+export const ByfConfigSchema = z.object({
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().optional(),
   defaultModel: z.string().optional(),
@@ -198,7 +198,7 @@ export const KimiConfigSchema = z.object({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
-export type KimiConfig = z.infer<typeof KimiConfigSchema>;
+export type ByfConfig = z.infer<typeof ByfConfigSchema>;
 
 const ProviderConfigPatchSchema = ProviderConfigSchema.partial();
 const ModelAliasPatchSchema = ModelAliasSchema.partial();
@@ -206,13 +206,13 @@ const ThinkingConfigPatchSchema = ThinkingConfigSchema.partial();
 const PermissionConfigPatchSchema = PermissionConfigSchema.partial();
 const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
-const MoonshotServiceConfigPatchSchema = MoonshotServiceConfigSchema.partial();
+const ByfServiceConfigPatchSchema = ByfServiceConfigSchema.partial();
 const ServicesConfigPatchSchema = z.object({
-  moonshotSearch: MoonshotServiceConfigPatchSchema.optional(),
-  moonshotFetch: MoonshotServiceConfigPatchSchema.optional(),
+  byfSearch: ByfServiceConfigPatchSchema.optional(),
+  byfFetch: ByfServiceConfigPatchSchema.optional(),
 });
 
-export const KimiConfigPatchSchema = z
+export const ByfConfigPatchSchema = z
   .object({
     providers: z.record(z.string(), ProviderConfigPatchSchema).optional(),
     defaultProvider: z.string().optional(),
@@ -235,19 +235,19 @@ export const KimiConfigPatchSchema = z
   })
   .strict();
 
-export type KimiConfigPatch = z.infer<typeof KimiConfigPatchSchema>;
+export type ByfConfigPatch = z.infer<typeof ByfConfigPatchSchema>;
 
-export function getDefaultConfig(): KimiConfig {
+export function getDefaultConfig(): ByfConfig {
   return {
     providers: {},
   };
 }
 
-export function validateConfig(config: unknown): KimiConfig {
+export function validateConfig(config: unknown): ByfConfig {
   try {
-    return KimiConfigSchema.parse(config);
+    return ByfConfigSchema.parse(config);
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration: ${formatConfigValidationError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }

@@ -1,5 +1,5 @@
-import type { KimiConfig } from '../config';
-import { ErrorCodes, KimiError } from '#/errors';
+import type { ByfConfig } from '../config';
+import { ErrorCodes, ByfError } from '#/errors';
 import type { Logger } from '#/logging/types';
 import { resolveThinkingEffort, type ThinkingEffort } from '../agent/config/thinking';
 import {
@@ -12,8 +12,8 @@ import {
 } from './runtime-provider';
 
 export interface ProviderManagerOptions {
-  readonly config: KimiConfig;
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
+  readonly config: ByfConfig;
+  readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly promptCacheKey?: string;
 }
@@ -28,19 +28,19 @@ export class ProviderManager {
     this.state = state ?? { config: options.config };
   }
 
-  get config(): KimiConfig {
+  get config(): ByfConfig {
     return this.state.config;
   }
 
-  get providers(): KimiConfig['providers'] {
+  get providers(): ByfConfig['providers'] {
     return this.state.config.providers;
   }
 
-  get models(): NonNullable<KimiConfig['models']> {
+  get models(): NonNullable<ByfConfig['models']> {
     return this.state.config.models ?? {};
   }
 
-  updateConfig(config: KimiConfig): void {
+  updateConfig(config: ByfConfig): void {
     this.state.config = config;
   }
 
@@ -65,7 +65,7 @@ export class ProviderManager {
     return resolveRuntimeProvider({
       config: this.state.config,
       model: selectedModel,
-      kimiRequestHeaders: this.options.kimiRequestHeaders,
+      byfRequestHeaders: this.options.byfRequestHeaders,
       promptCacheKey: options?.promptCacheKey ?? this.options.promptCacheKey,
       validateCredentials: false,
     });
@@ -80,7 +80,7 @@ export class ProviderManager {
     return resolveRuntimeProviderWithOAuth({
       config: this.state.config,
       model: selectedModel,
-      kimiRequestHeaders: this.options.kimiRequestHeaders,
+      byfRequestHeaders: this.options.byfRequestHeaders,
       promptCacheKey: this.options.promptCacheKey,
       resolveOAuthTokenProvider: this.options.resolveOAuthTokenProvider,
     });
@@ -96,14 +96,14 @@ export class ProviderManager {
     const resolved = resolveRuntimeProvider({
       config: this.state.config,
       model: selectedModel,
-      kimiRequestHeaders: this.options.kimiRequestHeaders,
+      byfRequestHeaders: this.options.byfRequestHeaders,
       promptCacheKey: this.options.promptCacheKey,
     });
     return createRuntimeProviderAuthResolver(
       {
         config: this.state.config,
         model: selectedModel,
-        kimiRequestHeaders: this.options.kimiRequestHeaders,
+        byfRequestHeaders: this.options.byfRequestHeaders,
         promptCacheKey: this.options.promptCacheKey,
         resolveOAuthTokenProvider: this.options.resolveOAuthTokenProvider,
         log: options?.log,
@@ -123,7 +123,7 @@ export class ProviderManager {
     if (requestedModel !== undefined) {
       const normalized = normalizeString(requestedModel);
       if (normalized === undefined) {
-        throw new KimiError(ErrorCodes.MODEL_CONFIG_INVALID, 'Runtime provider model cannot be empty');
+        throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, 'Runtime provider model cannot be empty');
       }
       return normalized;
     }
@@ -132,7 +132,7 @@ export class ProviderManager {
 }
 
 interface ProviderManagerState {
-  config: KimiConfig;
+  config: ByfConfig;
 }
 
 function normalizeString(value: string | undefined): string | undefined {

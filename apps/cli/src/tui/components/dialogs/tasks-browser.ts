@@ -4,7 +4,7 @@
  * detail, right bottom preview output) framed by a header row and
  * footer key hint.
  *
- * Mounted by `kimi-tui.ts` via container swap rather than `showOverlay`
+ * Mounted by `byf-tui.ts` via container swap rather than `showOverlay`
  * — the main TUI's children are saved, cleared, and this component is
  * added as the sole child so it covers the entire screen. The
  * controller restores the children when the user exits.

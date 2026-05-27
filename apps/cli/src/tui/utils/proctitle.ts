@@ -2,7 +2,7 @@
  * Terminal window title synchronization.
  *
  * Uses the session title when present, capped at 80 characters to keep tabs
- * readable. New or unnamed sessions fall back to `Kimi Code`.
+ * readable. New or unnamed sessions fall back to `Byf Code`.
  *
  * Writes both `process.title`, for process listings, and OSC 0/2 escape
  * sequences, which most terminals use for window/tab titles. Non-TTY stdout

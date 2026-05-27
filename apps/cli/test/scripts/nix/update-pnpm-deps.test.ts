@@ -32,7 +32,7 @@ describe('update-pnpm-deps.sh', () => {
     expect(result.stdout).toContain('pnpmDeps hash still valid');
 
     const cache = JSON.parse(
-      await readFile(join(fixture.root, '.git/kimi-code/pnpm-deps-hashes-v1.json'), 'utf-8'),
+      await readFile(join(fixture.root, '.git/byf/pnpm-deps-hashes-v1.json'), 'utf-8'),
     ) as Record<string, { hash: string }>;
     expect(Object.values(cache)).toContainEqual(expect.objectContaining({ hash: currentHash }));
   });
@@ -44,7 +44,7 @@ describe('update-pnpm-deps.sh', () => {
     await expect(readFile(join(fixture.root, 'flake.nix'), 'utf-8')).resolves.toContain(newHash);
 
     const cache = JSON.parse(
-      await readFile(join(fixture.root, '.git/kimi-code/pnpm-deps-hashes-v1.json'), 'utf-8'),
+      await readFile(join(fixture.root, '.git/byf/pnpm-deps-hashes-v1.json'), 'utf-8'),
     ) as Record<string, { hash: string }>;
     expect(Object.values(cache)).toContainEqual(expect.objectContaining({ hash: newHash }));
 
@@ -60,7 +60,7 @@ describe('update-pnpm-deps.sh', () => {
 });
 
 async function createFixtureRepo(hash: string): Promise<{ binDir: string; nixLogPath: string; root: string }> {
-  const root = await mkdtemp(join(tmpdir(), 'kimi-update-pnpm-deps-'));
+  const root = await mkdtemp(join(tmpdir(), 'byf-update-pnpm-deps-'));
   tempRoots.push(root);
 
   await writeFile(join(root, 'flake.nix'), flakeWithHash(hash));

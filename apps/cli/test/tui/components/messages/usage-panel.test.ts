@@ -14,7 +14,7 @@ describe('UsagePanelComponent', () => {
       colors: darkColors,
       sessionUsage: {
         byModel: {
-          kimi: {
+          byf: {
             inputOther: 1000,
             inputCacheRead: 500,
             inputCacheCreation: 500,
@@ -37,7 +37,7 @@ describe('UsagePanelComponent', () => {
     }).map(strip);
 
     expect(lines).toContain('Session usage');
-    expect(lines).toContain('  kimi  input 2.0k  output 250  total 2.3k');
+    expect(lines).toContain('  byf  input 2.0k  output 250  total 2.3k');
     expect(lines).toContain('Context window');
     expect(lines.join('\n')).toContain('25.0%');
     expect(lines).toContain('Plan usage');

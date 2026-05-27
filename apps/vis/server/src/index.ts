@@ -15,7 +15,7 @@ async function main(): Promise<void> {
       formatStartupBanner({
         authToken,
         host,
-        kimiCodeHome: BYF_HOME,
+        byfCodeHome: BYF_HOME,
         port: info.port,
       }),
     );

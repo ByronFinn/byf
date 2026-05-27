@@ -22,8 +22,8 @@ describe('getDataDir', () => {
   });
 
   it('returns BYF_HOME when set', () => {
-    process.env['BYF_HOME'] = '/tmp/kimi-test-data';
-    expect(getDataDir()).toBe('/tmp/kimi-test-data');
+    process.env['BYF_HOME'] = '/tmp/byf-test-data';
+    expect(getDataDir()).toBe('/tmp/byf-test-data');
   });
 
   it('returns BYF_HOME even if it is a relative path', () => {

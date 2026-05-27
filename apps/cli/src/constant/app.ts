@@ -35,12 +35,12 @@ export const FEEDBACK_VERSION_PREFIX = 'byf-';
 // Telemetry event name; keep stable for dashboard queries.
 export const FEEDBACK_TELEMETRY_EVENT = 'feedback_submitted';
 
-// CDN source of truth: all version checks and native install scripts pull from here.
-export const KIMI_CODE_CDN_BASE = 'https://github.com/ByronFinn/byf/releases/download';
-export const KIMI_CODE_CDN_LATEST_URL = `${KIMI_CODE_CDN_BASE}/latest`;
-export const KIMI_CODE_INSTALL_SH_URL = `${KIMI_CODE_CDN_BASE}/latest/install.sh`;
-export const KIMI_CODE_INSTALL_PS1_URL = `${KIMI_CODE_CDN_BASE}/latest/install.ps1`;
+// GitHub Releases is the source of truth for install scripts and update checks.
+export const BYF_RELEASES_BASE = 'https://github.com/ByronFinn/byf/releases';
+export const BYF_RELEASES_LATEST_URL = 'https://api.github.com/repos/ByronFinn/byf/releases/latest';
+export const BYF_RELEASES_INSTALL_SH_URL = `${BYF_RELEASES_BASE}/latest/download/install.sh`;
+export const BYF_RELEASES_INSTALL_PS1_URL = `${BYF_RELEASES_BASE}/latest/download/install.ps1`;
 
 // Native install commands, split by platform. Use these for prompt copy and spawn calls only; do not assemble the strings elsewhere.
-export const NATIVE_INSTALL_COMMAND_UNIX = `curl -fsSL ${KIMI_CODE_INSTALL_SH_URL} | bash`;
-export const NATIVE_INSTALL_COMMAND_WIN = `irm ${KIMI_CODE_INSTALL_PS1_URL} | iex`;
+export const NATIVE_INSTALL_COMMAND_UNIX = `curl -fsSL ${BYF_RELEASES_INSTALL_SH_URL} | bash`;
+export const NATIVE_INSTALL_COMMAND_WIN = `irm ${BYF_RELEASES_INSTALL_PS1_URL} | iex`;

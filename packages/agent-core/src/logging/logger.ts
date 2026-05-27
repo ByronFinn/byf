@@ -15,8 +15,8 @@ import {
   levelEnabled,
 } from './types';
 
-const ROOT_SYMBOL = Symbol.for('kimi.logger.root');
-const SESSION_LOG_ID = Symbol('kimi.logger.sessionLogId');
+const ROOT_SYMBOL = Symbol.for('byf.logger.root');
+const SESSION_LOG_ID = Symbol('byf.logger.sessionLogId');
 const LLM_REQUEST_SESSION_LOG_OMITTED_CONTEXT_KEYS = ['sessionId'];
 const MAIN_LLM_REQUEST_SESSION_LOG_OMITTED_CONTEXT_KEYS = ['sessionId', 'agentId'];
 let nextSessionLogId = 0;
@@ -403,8 +403,8 @@ function mergeCtx(
  * Root logger. Import and use directly for events that don't belong to any
  * session (CLI startup, harness construction, etc.):
  *
- *   import { log } from 'kimi-code-sdk';
- *   log.info('kimi-code starting', { version });
+ *   import { log } from 'byf-sdk';
+ *   log.info('byf starting', { version });
  *
  * For events scoped to a session or agent, use the parent's `log` field:
  *
@@ -412,7 +412,7 @@ function mergeCtx(
  *   agent.log.error('turn failed', { turnId, error });
  *
  * Late-binding: methods look up the current `RootLogger` on every call, so
- * importing `log` at module load (before `KimiHarness` configures the root)
+ * importing `log` at module load (before `ByfHarness` configures the root)
  * is safe — calls during the pre-configure window are silent noops.
  */
 export const log: Logger = new LoggerImpl({});

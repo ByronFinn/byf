@@ -1,7 +1,7 @@
 /**
  * Read media from the system clipboard with graceful platform fallbacks.
  *
- * kimi-core's LLM pipeline only accepts PNG/JPEG/GIF/WebP, and the
+ * byf-core's LLM pipeline only accepts PNG/JPEG/GIF/WebP, and the
  * clipboard sources we query already emit those formats on supported
  * platforms — so we deliberately do not include a BMP→PNG converter.
  *
@@ -348,7 +348,7 @@ function readClipboardImageViaXclip(): ClipboardImage | null {
  * across the WSL interop boundary.
  */
 function readClipboardImageViaPowerShell(): ClipboardImage | null {
-  const tmpFile = join(tmpdir(), `kimi-wsl-clip-${randomUUID()}.png`);
+  const tmpFile = join(tmpdir(), `byf-wsl-clip-${randomUUID()}.png`);
   try {
     const winPathResult = runCommand('wslpath', ['-w', tmpFile], {
       timeoutMs: DEFAULT_LIST_TIMEOUT_MS,
@@ -360,14 +360,14 @@ function readClipboardImageViaPowerShell(): ClipboardImage | null {
     const psScript = [
       'Add-Type -AssemblyName System.Windows.Forms',
       'Add-Type -AssemblyName System.Drawing',
-      '$path = $env:KIMI_WSL_CLIPBOARD_IMAGE_PATH',
+      '$path = $env:BYF_WSL_CLIPBOARD_IMAGE_PATH',
       '$img = [System.Windows.Forms.Clipboard]::GetImage()',
       "if ($img) { $img.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'ok' } else { Write-Output 'empty' }",
     ].join('; ');
 
     const result = runCommand('powershell.exe', ['-NoProfile', '-Command', psScript], {
       timeoutMs: DEFAULT_POWERSHELL_TIMEOUT_MS,
-      env: { ...process.env, KIMI_WSL_CLIPBOARD_IMAGE_PATH: winPath },
+      env: { ...process.env, BYF_WSL_CLIPBOARD_IMAGE_PATH: winPath },
     });
     if (!result.ok) return null;
     if (result.stdout.toString('utf-8').trim() !== 'ok') return null;

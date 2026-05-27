@@ -85,9 +85,9 @@ describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
   });
 
   // Decision (confirmed with team, 2026-05-19): background tasks in
-  // kimi-code do NOT carry an implicit default timeout. The Python
-  // kimi-cli enforced a 30-min default because its agents were
-  // expected to be short-lived; kimi-code's agents may legitimately
+  // byf do NOT carry an implicit default timeout. The Python
+  // byf-cli enforced a 30-min default because its agents were
+  // expected to be short-lived; byf's agents may legitimately
   // run a dev server, a long compile, or a watch loop, and an
   // auto-kill would be a footgun. The shutdown wait-cap that reads
   // timeoutMs falls back to its own policy when the field is
@@ -102,7 +102,7 @@ describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
     expect((info as unknown as { timeoutMs?: number }).timeoutMs).toBeUndefined();
   });
 
-  // Contract decision (2026-05-21): kimi-code treats `timeoutMs: 0`
+  // Contract decision (2026-05-21): byf treats `timeoutMs: 0`
   // as "record the value but do NOT arm a deadline" rather than
   // Python's "fire immediately" semantics. The field is preserved on
   // the task info so shutdown wait-caps / UI can read it; the

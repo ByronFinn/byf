@@ -1,11 +1,11 @@
 import type { Session, SkillSummary } from '@byf/sdk';
 
-import type { KimiSlashCommand } from './types';
+import type { ByfSlashCommand } from './types';
 
 export type SkillListSession = Pick<Session, 'listSkills'>;
 
 export interface SkillSlashCommands {
-  readonly commands: readonly KimiSlashCommand[];
+  readonly commands: readonly ByfSlashCommand[];
   readonly commandMap: ReadonlyMap<string, string>;
 }
 

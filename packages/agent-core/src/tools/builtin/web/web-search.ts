@@ -1,7 +1,7 @@
 /**
  * WebSearchTool — host-injected web search.
  *
- * kimi-core defines the interface; the host provides the real search
+ * byf-core defines the interface; the host provides the real search
  * implementation via `WebSearchProvider`. If no provider is supplied,
  * the tool should not be registered (not exposed to the LLM).
  */

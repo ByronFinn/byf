@@ -25,9 +25,9 @@ describe('status panel report lines', () => {
       availableModels: {
         k2: {
           provider: 'managed:byf',
-          model: 'kimi-k2',
+          model: 'byf-k2',
           maxContextSize: 10000,
-          displayName: 'Kimi K2',
+          displayName: 'Byf K2',
         },
       },
       status: {
@@ -54,7 +54,7 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toContain('>_ BYF (v1.2.3)');
-    expect(output).toContain('Model        Kimi K2 (thinking on)');
+    expect(output).toContain('Model        Byf K2 (thinking on)');
     expect(output).toContain('Directory    /tmp/project');
     expect(output).toContain('Permissions  auto');
     expect(output).toContain('Plan mode    on');

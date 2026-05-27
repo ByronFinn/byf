@@ -6,14 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  KimiCore,
+  ByfCore,
   type ApprovalResponse,
   type CoreAPI,
   type SDKAPI,
 } from '../../src';
 import type { OAuthTokenProviderResolver } from '../../src/providers/runtime-provider';
 
-describe('KimiCore runtime config', () => {
+describe('ByfCore runtime config', () => {
   let tmp: string;
 
   afterEach(async () => {
@@ -23,8 +23,8 @@ describe('KimiCore runtime config', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses the shared OAuth resolver for Moonshot service tokens', async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
+  it('uses the shared OAuth resolver for Byf service tokens', async () => {
+    tmp = await mkdtemp(join(tmpdir(), 'byf-core-runtime-'));
     const homeDir = join(tmp, 'home');
     const workDir = join(tmp, 'work');
     await mkdir(homeDir, { recursive: true });
@@ -32,9 +32,9 @@ describe('KimiCore runtime config', () => {
     await writeFile(
       join(homeDir, 'config.toml'),
       `
-[services.moonshot_search]
+[services.byf_search]
 base_url = "https://search.example/v1"
-oauth = { storage = "file", key = "oauth/custom-kimi-code" }
+oauth = { storage = "file", key = "oauth/custom-byf" }
 custom_headers = { "X-Test" = "1" }
 `,
     );
@@ -51,10 +51,10 @@ custom_headers = { "X-Test" = "1" }
     vi.stubGlobal('fetch', fetchImpl);
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const core = new KimiCore(coreRpc, {
+    const core = new ByfCore(coreRpc, {
       homeDir,
-      kimiRequestHeaders: {
-        'User-Agent': 'kimi-code-cli/0.0.0-test',
+      byfRequestHeaders: {
+        'User-Agent': 'byf-cli/0.0.0-test',
         'X-Msh-Version': '0.0.0-test',
       },
       resolveOAuthTokenProvider,
@@ -69,19 +69,19 @@ custom_headers = { "X-Test" = "1" }
     const created = await rpc.createSession({ id: 'ses_runtime_service_oauth', workDir });
     const session = core.sessions.get(created.id);
 
-    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:kimi-code', {
+    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:byf', {
       storage: 'file',
-      key: 'oauth/custom-kimi-code',
+      key: 'oauth/custom-byf',
     });
     expect(session?.config.runtime.webSearcher).toBeDefined();
 
-    await session!.config.runtime.webSearcher!.search('kimi');
+    await session!.config.runtime.webSearcher!.search('byf');
 
     expect(getAccessToken).toHaveBeenCalledWith();
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     expect(init.headers).toMatchObject({
       Authorization: 'Bearer service-token',
-      'User-Agent': 'kimi-code-cli/0.0.0-test',
+      'User-Agent': 'byf-cli/0.0.0-test',
       'X-Msh-Version': '0.0.0-test',
       'X-Test': '1',
     });

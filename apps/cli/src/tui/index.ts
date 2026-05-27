@@ -1,3 +1,3 @@
-export { KimiTUI } from './kimi-tui';
-export type { KimiTUIStartupInput } from './kimi-tui';
-export type { KimiTUIOptions } from './kimi-tui';
+export { ByfTui } from './byf-tui';
+export type { ByfTuiStartupInput } from './byf-tui';
+export type { ByfTuiOptions } from './byf-tui';

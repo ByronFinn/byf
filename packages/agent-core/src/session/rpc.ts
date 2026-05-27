@@ -1,4 +1,4 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import type {
   ActivateSkillPayload,
   AgentAPI,
@@ -43,7 +43,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async renameSession(payload: RenameSessionPayload): Promise<void> {
     const title = payload.title.trim();
     if (title.length === 0) {
-      throw new KimiError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
+      throw new ByfError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
     }
     this.session.metadata = {
       ...this.session.metadata,
@@ -208,7 +208,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   private getAgent(agentId: string): PromisableMethods<AgentAPI> {
     const agent = this.session.agents.get(agentId);
     if (agent === undefined) {
-      throw new KimiError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${agentId}" was not found`);
+      throw new ByfError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${agentId}" was not found`);
     }
     return agent.rpcMethods;
   }

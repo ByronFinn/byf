@@ -1,6 +1,4 @@
 import { execSync } from 'node:child_process';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 
 import {
   setCrashPhase,
@@ -9,24 +7,22 @@ import {
   track,
   withTelemetryContext,
 } from '@byf/telemetry';
-import { KimiHarness, log, type TelemetryClient } from '@byf/sdk';
+import { ByfHarness, log, type TelemetryClient } from '@byf/sdk';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
-import { detectPendingMigration } from '#/migration/index';
 import type { TuiConfig } from '#/tui/config';
 import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
-import { KimiTUI } from '#/tui/index';
+import { ByfTui } from '#/tui/index';
 import { detectTerminalTheme } from '#/tui/theme/detect';
 
 import type { CLIOptions } from './options';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
-import { createKimiCodeHostIdentity } from './version';
+import { createByfHostIdentity } from './version';
 
 export async function runShell(
   opts: CLIOptions,
   version: string,
-  runOptions: { readonly migrateOnly?: boolean } = {},
 ): Promise<void> {
   const startedAt = Date.now();
   const configStartedAt = startedAt;
@@ -51,9 +47,9 @@ export async function runShell(
     withContext: withTelemetryContext,
     setContext: setTelemetryContext,
   };
-  const harness = new KimiHarness({
+  const harness = new ByfHarness({
     homeDir: telemetryBootstrap.homeDir,
-    identity: createKimiCodeHostIdentity(version),
+    identity: createByfHostIdentity(version),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
       if (outcome.success) {
@@ -66,7 +62,7 @@ export async function runShell(
       });
     },
   });
-  log.info('kimi-code starting', {
+  log.info('byf starting', {
     version,
     uiMode: CLI_UI_MODE,
     nodeVersion: process.version,
@@ -74,27 +70,15 @@ export async function runShell(
     workDir,
   });
   await harness.ensureConfigFile();
-  const migrationPlan = await detectPendingMigration({
-    sourceHome: join(homedir(), '.kimi'),
-    targetHome: harness.homeDir,
-    ignoreMarker: runOptions.migrateOnly,
-  });
-  if (runOptions.migrateOnly === true && migrationPlan === null) {
-    process.stdout.write('  Nothing to migrate from ~/.kimi/.\n');
-    await harness.close();
-    return;
-  }
   const config = await harness.getConfig();
   const configMs = Date.now() - configStartedAt;
-  const tui = new KimiTUI(harness, {
+  const tui = new ByfTui(harness, {
     cliOptions: opts,
     tuiConfig,
     version,
     workDir,
     startupNotice: configWarning,
     resolvedTheme,
-    migrationPlan,
-    migrateOnly: runOptions.migrateOnly,
   });
 
   initializeCliTelemetry({
@@ -110,7 +94,7 @@ export async function runShell(
   const trackLifecycleForSession = (
     sessionId: string,
     event: string,
-    properties?: Parameters<KimiHarness['track']>[1],
+    properties?: Parameters<ByfHarness['track']>[1],
   ) => {
     if (sessionId.length === 0) {
       harness.track(event, properties);
@@ -118,7 +102,7 @@ export async function runShell(
     }
     withTelemetryContext({ sessionId }).track(event, properties);
   };
-  const trackLifecycle = (event: string, properties?: Parameters<KimiHarness['track']>[1]) => {
+  const trackLifecycle = (event: string, properties?: Parameters<ByfHarness['track']>[1]) => {
     trackLifecycleForSession(tui.getCurrentSessionId(), event, properties);
   };
 
@@ -131,7 +115,7 @@ export async function runShell(
     const gutter = ' '.repeat(CHROME_GUTTER);
     process.stdout.write(`${gutter}Bye!\n`);
     if (sessionId !== '' && hasContent) {
-      process.stderr.write(`\n${gutter}To resume this session: kimi -r ${sessionId}\n`);
+      process.stderr.write(`\n${gutter}To resume this session: byf -r ${sessionId}\n`);
     }
     process.exit(exitCode);
   };

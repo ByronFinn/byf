@@ -1,4 +1,4 @@
-import type { KimiConfig, ModelAlias } from '@byf/agent-core';
+import type { ByfConfig, ModelAlias } from '@byf/agent-core';
 import {
   catalogBaseUrl,
   catalogProviderModels,
@@ -50,7 +50,7 @@ function capabilityToStrings(capability: ModelCapability): string[] | undefined 
   return caps.length > 0 ? caps : undefined;
 }
 
-/** Builds a kimi-code model alias from a normalized catalog model. */
+/** Builds a byf model alias from a normalized catalog model. */
 export function catalogModelToAlias(providerId: string, model: CatalogModel): ModelAlias {
   return {
     provider: providerId,
@@ -75,7 +75,7 @@ export interface ApplyCatalogProviderOptions {
 
 /**
  * Parses an optional pruned models.dev catalog string — typically the
- * `__KIMI_CODE_BUILT_IN_CATALOG__` constant injected by tsdown at build
+ * `__BYF_CODE_BUILT_IN_CATALOG__` constant injected by tsdown at build
  * time. Returns `undefined` when the argument is missing or invalid.
  */
 export function loadBuiltInCatalog(text?: string): Catalog | undefined {
@@ -100,7 +100,7 @@ export function loadBuiltInCatalog(text?: string): Catalog | undefined {
  * after the merge.
  */
 export function applyCatalogProvider(
-  config: KimiConfig,
+  config: ByfConfig,
   options: ApplyCatalogProviderOptions,
 ): { defaultModel: string } {
   config.providers[options.providerId] = {

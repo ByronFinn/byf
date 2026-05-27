@@ -17,7 +17,7 @@ export function createNativePackageRequire(
   const cacheRoot = ensureNativeAssetTree(options);
   if (cacheRoot === null) return null;
 
-  return createRequire(join(cacheRoot, 'node_modules', '.kimi-native-entry.cjs'));
+  return createRequire(join(cacheRoot, 'node_modules', '.byf-native-entry.cjs'));
 }
 
 export function loadNativePackage<T>(

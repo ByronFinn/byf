@@ -25,11 +25,11 @@ describe('context-projector', () => {
     expect(proj.usage.byScope.turn).toEqual({
       inputOther: 10, output: 5, inputCacheRead: 0, inputCacheCreation: 0,
     });
-    expect(proj.usage.byModel['kimi-k2']).toEqual({
+    expect(proj.usage.byModel['byf-k2']).toEqual({
       inputOther: 10, output: 5, inputCacheRead: 0, inputCacheCreation: 0,
     });
 
-    expect(proj.config.systemPrompt).toBe('You are Kimi.');
+    expect(proj.config.systemPrompt).toBe('You are Byf.');
     expect(proj.config.profileName).toBe('agent');
     expect(proj.permission.mode).toBe('manual');
     expect(proj.planMode.active).toBe(false);

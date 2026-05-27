@@ -38,11 +38,11 @@ function makeAgent(input: {
         return active;
       },
       get planFilePath() {
-        return '/tmp/kimi-plan.md';
+        return '/tmp/byf-plan.md';
       },
       data: vi.fn(async () => ({
         content: '# Plan',
-        path: '/tmp/kimi-plan.md',
+        path: '/tmp/byf-plan.md',
       })),
       exit: exitPlanMode,
     },

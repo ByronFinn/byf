@@ -1,4 +1,4 @@
-import { KIMI_ERROR_INFO, isKimiError } from '@byf/sdk';
+import { BYF_ERROR_INFO, isByfError } from '@byf/sdk';
 import { chalkStderr } from 'chalk';
 
 import { STARTUP_ERROR_COLOR } from '#/constant/startup-error';
@@ -18,12 +18,12 @@ export function formatStartupError(
 ): string {
   const errorStyle = options.errorStyle ?? chalkStderr.hex(STARTUP_ERROR_COLOR);
 
-  if (!isKimiError(error)) {
+  if (!isByfError(error)) {
     const operation = options.operation ?? 'start shell';
     return `${errorStyle(`error: failed to ${operation}: ${formatUnknownErrorMessage(error)}`)}\n`;
   }
 
-  const info = KIMI_ERROR_INFO[error.code];
+  const info = BYF_ERROR_INFO[error.code];
   const lines = [
     errorStyle(`error: ${info.title}`),
     '',

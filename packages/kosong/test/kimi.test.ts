@@ -24,7 +24,7 @@ function makeChatCompletionResponse(model: string = 'test-model') {
 
 function createProvider(stream: boolean = false): OpenAICompatChatProvider {
   return new OpenAICompatChatProvider({
-    model: 'kimi-k2-turbo-preview',
+    model: 'byf-k2-turbo-preview',
     apiKey: 'test-key',
     baseUrl: 'https://api.example.test/v1',
     stream,
@@ -56,7 +56,7 @@ async function captureRequestBody(
     .fn()
     .mockImplementation((params: unknown) => {
       capturedBody = params as Record<string, unknown>;
-      return Promise.resolve(makeChatCompletionResponse('kimi-k2'));
+      return Promise.resolve(makeChatCompletionResponse('byf-k2'));
     });
 
   const stream = await provider.generate(systemPrompt, tools, history);
@@ -248,7 +248,7 @@ describe('OpenAICompatChatProvider', () => {
       ]);
     });
 
-    it('adds Kimi-only types to JetBrains-like enum-only tool parameters without mutation', async () => {
+    it('adds Byf-only types to JetBrains-like enum-only tool parameters without mutation', async () => {
       const provider = createProvider();
       const originalParameters = structuredClone(JETBRAINS_ENUM_ONLY_TOOL.parameters);
       const history: Message[] = [
@@ -283,7 +283,7 @@ describe('OpenAICompatChatProvider', () => {
       expect(JETBRAINS_ENUM_ONLY_TOOL.parameters).toEqual(originalParameters);
     });
 
-    it('dereferences draft-7 definitions and normalizes referenced enum-only schemas for Kimi', async () => {
+    it('dereferences draft-7 definitions and normalizes referenced enum-only schemas for Byf', async () => {
       const provider = createProvider();
       const originalParameters = structuredClone(REF_ENUM_ONLY_TOOL.parameters);
       const history: Message[] = [
@@ -519,8 +519,8 @@ describe('OpenAICompatChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       // Snapshot of the expected wire format.
-      // Kimi injects ThinkPart as `reasoning_content` field on the
-      // assistant message (Moonshot API extension).
+      // Byf injects ThinkPart as `reasoning_content` field on the
+      // assistant message (Byf API extension).
       expect(body['messages']).toEqual([
         { role: 'user', content: 'What is 2+2?' },
         {
@@ -602,7 +602,7 @@ describe('OpenAICompatChatProvider', () => {
 
     it('passes constructor generation kwargs into the request body', async () => {
       const provider = new OpenAICompatChatProvider({
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         apiKey: 'test-key',
         stream: false,
         generationKwargs: { prompt_cache_key: 'session-test' },
@@ -711,7 +711,7 @@ describe('OpenAICompatChatProvider', () => {
     it('has correct name and model', () => {
       const provider = createProvider();
       expect(provider.name).toBe('openai-compat');
-      expect(provider.modelName).toBe('kimi-k2-turbo-preview');
+      expect(provider.modelName).toBe('byf-k2-turbo-preview');
     });
 
     it('throws during generation when no constructor or request API key is provided', async () => {
@@ -724,7 +724,7 @@ describe('OpenAICompatChatProvider', () => {
       const client = {
         chat: {
           completions: {
-            create: vi.fn().mockResolvedValue(makeChatCompletionResponse('kimi-k2')),
+            create: vi.fn().mockResolvedValue(makeChatCompletionResponse('byf-k2')),
           },
         },
       };
@@ -879,10 +879,10 @@ describe('OpenAICompatChatProvider', () => {
       opts?: { finishReason?: string; usage?: boolean },
     ): Record<string, unknown> {
       const chunk: Record<string, unknown> = {
-        id: 'chatcmpl-kimi-stream',
+        id: 'chatcmpl-byf-stream',
         object: 'chat.completion.chunk',
         created: 1234567890,
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         choices: [
           {
             index: 0,
@@ -1175,7 +1175,7 @@ describe('OpenAICompatChatProvider', () => {
       const provider = createProvider().withGenerationKwargs({ temperature: 0.5 });
       const params = provider.modelParameters;
       expect(params).toMatchObject({
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         temperature: 0.5,
         baseUrl: expect.any(String),
       });
@@ -1362,12 +1362,12 @@ describe('extractUsageFromChunk', () => {
     expect(usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   });
 
-  it('extracts choices[0].usage (Moonshot proprietary)', () => {
+  it('extracts choices[0].usage (Byf proprietary)', () => {
     const chunk = {
       id: 'chatcmpl-6970b5d02fa474c1767e8767',
       object: 'chat.completion.chunk',
       created: 1768994256,
-      model: 'kimi-k2-turbo-preview',
+      model: 'byf-k2-turbo-preview',
       choices: [
         {
           index: 0,
@@ -1431,7 +1431,7 @@ describe('extractUsage', () => {
     });
   });
 
-  it('extracts usage with Moonshot cached_tokens', () => {
+  it('extracts usage with Byf cached_tokens', () => {
     const usage = extractUsage({
       prompt_tokens: 100,
       completion_tokens: 20,

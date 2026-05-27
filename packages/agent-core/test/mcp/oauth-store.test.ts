@@ -31,7 +31,7 @@ describe('JsonFileStore', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'kimi-mcp-oauth-store-'));
+    dir = await mkdtemp(join(tmpdir(), 'byf-mcp-oauth-store-'));
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
@@ -70,7 +70,7 @@ describe('MCP OAuth credential identity', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'kimi-mcp-oauth-identity-'));
+    dir = await mkdtemp(join(tmpdir(), 'byf-mcp-oauth-identity-'));
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });

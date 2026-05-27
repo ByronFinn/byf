@@ -1,12 +1,12 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import type { McpServerStdioConfig } from '#/config/schema';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 import {
   buildRequestOptions,
-  KIMI_MCP_CLIENT_NAME,
-  KIMI_MCP_CLIENT_VERSION,
+  BYF_MCP_CLIENT_NAME,
+  BYF_MCP_CLIENT_VERSION,
   toMcpToolDefinition,
   toMcpToolResult,
   type UnexpectedCloseListener,
@@ -54,7 +54,7 @@ export class StdioMcpClient implements MCPClient {
 
   constructor(config: McpServerStdioConfig, options: StdioMcpClientOptions = {}) {
     if (config.executor !== undefined && config.executor !== 'local') {
-      throw new KimiError(ErrorCodes.NOT_IMPLEMENTED, `MCP stdio executor '${config.executor}' is not yet implemented`);
+      throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, `MCP stdio executor '${config.executor}' is not yet implemented`);
     }
     this.transport = new StdioClientTransport({
       command: config.command,
@@ -71,8 +71,8 @@ export class StdioMcpClient implements MCPClient {
       this.stderrBuffer.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
     });
     this.client = new Client({
-      name: options.clientName ?? KIMI_MCP_CLIENT_NAME,
-      version: options.clientVersion ?? KIMI_MCP_CLIENT_VERSION,
+      name: options.clientName ?? BYF_MCP_CLIENT_NAME,
+      version: options.clientVersion ?? BYF_MCP_CLIENT_VERSION,
     });
     this.toolCallTimeoutMs = options.toolCallTimeoutMs;
   }

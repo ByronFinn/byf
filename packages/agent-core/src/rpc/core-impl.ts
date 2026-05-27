@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 
 import { localKaos } from '@byf/kaos';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
@@ -30,11 +30,11 @@ import type {
   McpStartupMetrics,
   PromptPayload,
   ReconnectMcpServerPayload,
-  RemoveKimiProviderPayload,
+  RemoveByfProviderPayload,
   RenameSessionPayload,
   ResumeSessionPayload,
   RegisterToolPayload,
-  SetKimiConfigPayload,
+  SetByfConfigPayload,
   SetActiveToolsPayload,
   SetModelPayload,
   SetModelResult,
@@ -57,14 +57,14 @@ import { resolveSessionMcpConfig } from '../mcp';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
 import { SessionAPIImpl } from '../session/rpc';
 import {
-  ensureKimiHome,
+  ensureByfHome,
   mergeConfigPatch,
   readConfigFile,
   resolveConfigPath,
-  resolveKimiHome,
+  resolveByfHome,
   writeConfigFile,
-  type KimiConfig,
-  type MoonshotServiceConfig,
+  type ByfConfig,
+  type ByfServiceConfig,
 } from '../config';
 import { exportSessionDirectory } from '../session/export';
 import { ProviderManager } from '../providers/provider-manager';
@@ -77,7 +77,7 @@ import type { RuntimeConfig } from '../runtime-types';
 import { normalizeWorkDir, SessionStore } from '../session/store';
 import { noopTelemetryClient, withTelemetryContext, type TelemetryClient } from '../telemetry';
 
-const KIMI_CODE_PROVIDER_NAME = 'managed:kimi-code';
+const BYF_CODE_PROVIDER_NAME = 'managed:byf';
 
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
@@ -85,17 +85,17 @@ type SessionAgentPayload<T> = SessionScopedPayload<AgentScopedPayload<T>>;
 type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
 
-export interface KimiCoreOptions {
+export interface ByfCoreOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly runtime?: RuntimeConfig | undefined;
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
+  readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
   readonly telemetry?: TelemetryClient | undefined;
 }
 
-export class KimiCore implements PromisableMethods<CoreAPI> {
+export class ByfCore implements PromisableMethods<CoreAPI> {
   readonly sdk: Promise<SDKRPC>;
   readonly homeDir: string;
   readonly configPath: string;
@@ -104,7 +104,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   private runtime: RuntimeConfig | undefined;
   private readonly userHomeDir: string;
-  private readonly kimiRequestHeaders: Record<string, string> | undefined;
+  private readonly byfRequestHeaders: Record<string, string> | undefined;
   private readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
   private readonly skillDirs: readonly string[];
   private readonly providerManager: ProviderManager;
@@ -112,23 +112,23 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
-    options: KimiCoreOptions = {},
+    options: ByfCoreOptions = {},
   ) {
-    this.homeDir = resolveKimiHome(options.homeDir);
+    this.homeDir = resolveByfHome(options.homeDir);
     this.userHomeDir = homedir();
     this.configPath = resolveConfigPath({
       homeDir: this.homeDir,
       configPath: options.configPath,
     });
     this.runtime = options.runtime;
-    this.kimiRequestHeaders = options.kimiRequestHeaders;
+    this.byfRequestHeaders = options.byfRequestHeaders;
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
     this.skillDirs = options.skillDirs ?? [];
     this.telemetry = options.telemetry ?? noopTelemetryClient;
-    ensureKimiHome(this.homeDir);
+    ensureByfHome(this.homeDir);
     this.providerManager = new ProviderManager({
       config: readConfigFile(this.configPath),
-      kimiRequestHeaders: this.kimiRequestHeaders,
+      byfRequestHeaders: this.byfRequestHeaders,
       resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
     });
     this.sessionStore = new SessionStore(this.homeDir);
@@ -163,7 +163,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       runtime: await this.resolveRuntime(config),
       id,
       homedir: summary.sessionDir,
-      kimiHomeDir: this.homeDir,
+      byfHomeDir: this.homeDir,
       rpc: proxyWithExtraPayload(await this.sdk, { sessionId: summary.id }),
       cwd: workDir,
       providerManager: this.providerManager,
@@ -239,7 +239,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       runtime: await this.resolveRuntime(config),
       id: summary.id,
       homedir: summary.sessionDir,
-      kimiHomeDir: this.homeDir,
+      byfHomeDir: this.homeDir,
       rpc: proxyWithExtraPayload(await this.sdk, { sessionId: summary.id }),
       cwd: summary.workDir,
       providerManager: this.providerManager,
@@ -332,12 +332,12 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return result;
   }
 
-  async getKimiConfig(input: EmptyPayload = {}): Promise<KimiConfig> {
+  async getByfConfig(input: EmptyPayload = {}): Promise<ByfConfig> {
     void input;
     return readConfigFile(this.configPath);
   }
 
-  async setKimiConfig(input: SetKimiConfigPayload): Promise<KimiConfig> {
+  async setByfConfig(input: SetByfConfigPayload): Promise<ByfConfig> {
     const config = mergeConfigPatch(readConfigFile(this.configPath), input);
     await writeConfigFile(this.configPath, config);
     const updated = readConfigFile(this.configPath);
@@ -345,7 +345,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return updated;
   }
 
-  async removeKimiProvider(input: RemoveKimiProviderPayload): Promise<KimiConfig> {
+  async removeByfProvider(input: RemoveByfProviderPayload): Promise<ByfConfig> {
     const config = readConfigFile(this.configPath);
     delete config.providers[input.providerId];
 
@@ -536,18 +536,18 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).generateAgentsMd(payload);
   }
 
-  private async resolveRuntime(config: KimiConfig): Promise<RuntimeConfig> {
+  private async resolveRuntime(config: ByfConfig): Promise<RuntimeConfig> {
     if (this.runtime !== undefined) return this.runtime;
     const runtime = await createRuntimeConfig({
       config,
-      kimiRequestHeaders: this.kimiRequestHeaders,
+      byfRequestHeaders: this.byfRequestHeaders,
       resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
     });
     this.runtime = runtime;
     return runtime;
   }
 
-  private resolveSessionSkillConfig(config: KimiConfig): SessionSkillConfig {
+  private resolveSessionSkillConfig(config: ByfConfig): SessionSkillConfig {
     const explicitDirs = this.skillDirs.length > 0 ? this.skillDirs : undefined;
     return {
       userHomeDir: this.userHomeDir,
@@ -560,14 +560,14 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   private sessionApi(sessionId: string): SessionAPIImpl {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
-      throw new KimiError(ErrorCodes.SESSION_NOT_FOUND, `Session "${sessionId}" was not found`, {
+      throw new ByfError(ErrorCodes.SESSION_NOT_FOUND, `Session "${sessionId}" was not found`, {
         details: { sessionId },
       });
     }
     return new SessionAPIImpl(session);
   }
 
-  private reloadProviderManager(): KimiConfig {
+  private reloadProviderManager(): ByfConfig {
     const config = readConfigFile(this.configPath);
     this.providerManager.updateConfig(config);
     return config;
@@ -575,7 +575,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   private async refreshSessionRuntimeConfig(
     session: Session,
-    config: KimiConfig,
+    config: ByfConfig,
   ): Promise<void> {
     const api = new SessionAPIImpl(session);
     // A session migrated from an external tool carries no model, and any
@@ -599,7 +599,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
         const aliasMissing = config.models?.[model] === undefined;
         if (
           aliasMissing &&
-          error instanceof KimiError &&
+          error instanceof ByfError &&
           error.code === ErrorCodes.CONFIG_INVALID
         ) {
           continue;
@@ -619,13 +619,13 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 }
 
 async function createRuntimeConfig(input: {
-  readonly config: KimiConfig;
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
+  readonly config: ByfConfig;
+  readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
 }): Promise<RuntimeConfig> {
   const localFetcher = new LocalFetchURLProvider();
-  const searchService = input.config.services?.moonshotSearch;
-  const fetchService = input.config.services?.moonshotFetch;
+  const searchService = input.config.services?.byfSearch;
+  const fetchService = input.config.services?.byfFetch;
 
   return {
     kaos: localKaos,
@@ -636,7 +636,7 @@ async function createRuntimeConfig(input: {
         : new RemoteFetchURLProvider({
             baseUrl: fetchService.baseUrl,
             localFallback: localFetcher,
-            defaultHeaders: input.kimiRequestHeaders,
+            defaultHeaders: input.byfRequestHeaders,
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
     webSearcher:
@@ -644,14 +644,14 @@ async function createRuntimeConfig(input: {
         ? undefined
         : new RemoteWebSearchProvider({
             baseUrl: searchService.baseUrl,
-            defaultHeaders: input.kimiRequestHeaders,
+            defaultHeaders: input.byfRequestHeaders,
             ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),
           }),
   };
 }
 
 function serviceCredentials(
-  service: MoonshotServiceConfig,
+  service: ByfServiceConfig,
   resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
 ): {
   readonly apiKey?: string | undefined;
@@ -663,7 +663,7 @@ function serviceCredentials(
     apiKey,
     tokenProvider:
       service.oauth !== undefined
-        ? resolveOAuthTokenProvider?.(KIMI_CODE_PROVIDER_NAME, service.oauth)
+        ? resolveOAuthTokenProvider?.(BYF_CODE_PROVIDER_NAME, service.oauth)
         : undefined,
     customHeaders: service.customHeaders,
   };
@@ -676,7 +676,7 @@ function nonEmptyString(value: string | undefined): string | undefined {
 
 function requiredWorkDir(operation: string, value: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new KimiError(ErrorCodes.REQUEST_WORK_DIR_REQUIRED, `${operation} requires workDir`);
+    throw new ByfError(ErrorCodes.REQUEST_WORK_DIR_REQUIRED, `${operation} requires workDir`);
   }
   return normalizeWorkDir(value);
 }
@@ -686,7 +686,7 @@ function createSessionId(): string {
 }
 
 function telemetryErrorReason(error: unknown): string {
-  if (error instanceof KimiError) return error.code;
+  if (error instanceof ByfError) return error.code;
   if (error instanceof Error && error.name.length > 0) return error.name;
   return typeof error;
 }

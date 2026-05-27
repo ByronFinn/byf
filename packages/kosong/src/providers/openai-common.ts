@@ -210,7 +210,7 @@ export function extractUsage(usage: unknown): TokenUsage | null {
   const completionTokens = typeof u['completion_tokens'] === 'number' ? u['completion_tokens'] : 0;
 
   let cached = 0;
-  // Moonshot proprietary: top-level cached_tokens
+  // Byf proprietary: top-level cached_tokens
   if (typeof u['cached_tokens'] === 'number') {
     cached = u['cached_tokens'];
   } else if (
@@ -234,7 +234,7 @@ export function extractUsage(usage: unknown): TokenUsage | null {
  * Normalize an OpenAI Chat Completions–style `finish_reason` string to the
  * unified {@link FinishReason} enum.
  *
- * Used by both the Kimi and OpenAI Legacy adapters because they share the
+ * Used by both the Byf and OpenAI Legacy adapters because they share the
  * Chat Completions wire format. Returns `{ finishReason: null,
  * rawFinishReason: null }` when the upstream value is missing or `null` so
  * callers can treat "no signal" uniformly.

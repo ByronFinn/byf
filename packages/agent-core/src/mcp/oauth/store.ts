@@ -27,8 +27,8 @@ import {
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
-export function mcpCredentialsDir(kimiHomeDir: string): string {
-  return join(kimiHomeDir, 'credentials', 'mcp');
+export function mcpCredentialsDir(byfHomeDir: string): string {
+  return join(byfHomeDir, 'credentials', 'mcp');
 }
 
 export function defaultMcpCredentialsDir(): string {

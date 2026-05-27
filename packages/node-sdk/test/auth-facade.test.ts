@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { KimiHarness } from '#/index';
+import { ByfHarness } from '#/index';
 
 let homeDir: string;
 
@@ -18,13 +18,13 @@ afterEach(() => {
   rmSync(homeDir, { recursive: true, force: true });
 });
 
-describe('KimiHarness.auth', () => {
+describe('ByfHarness.auth', () => {
   it('can construct auth facade without host identity', () => {
-    expect(() => new KimiHarness({ homeDir })).not.toThrow();
+    expect(() => new ByfHarness({ homeDir })).not.toThrow();
   });
 
   it('reports no config when no providers are configured', async () => {
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
     const status = await harness.auth.status('my-provider');
     expect(status.providers).toEqual([
       { providerName: 'my-provider', hasConfig: false },
@@ -40,7 +40,7 @@ type = "openai"
 api_key = "sk-test-123"
 `,
     );
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
     const status = await harness.auth.status('my-provider');
     expect(status.providers).toEqual([
       { providerName: 'my-provider', hasConfig: true },
@@ -74,7 +74,7 @@ max_context_size = 1000
 `,
     );
 
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     await harness.auth.removeProvider('my-provider');
 

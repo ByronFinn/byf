@@ -2,17 +2,17 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import {
-  KimiConfigSchema,
+  ByfConfigSchema,
   formatConfigValidationError,
   getDefaultConfig,
   type BackgroundConfig,
   type HookDefConfig,
-  type KimiConfig,
+  type ByfConfig,
   type LoopControl,
   type ModelAlias,
-  type MoonshotServiceConfig,
+  type ByfServiceConfig,
   type OAuthRef,
   type PermissionConfig,
   type ProviderConfig,
@@ -60,7 +60,7 @@ export async function ensureConfigFile(filePath: string): Promise<void> {
   }
 }
 
-export function readConfigFile(filePath: string): KimiConfig {
+export function readConfigFile(filePath: string): ByfConfig {
   if (!existsSync(filePath)) {
     return getDefaultConfig();
   }
@@ -68,7 +68,7 @@ export function readConfigFile(filePath: string): KimiConfig {
   return parseConfigString(text, filePath);
 }
 
-export function parseConfigString(tomlText: string, filePath = 'config.toml'): KimiConfig {
+export function parseConfigString(tomlText: string, filePath = 'config.toml'): ByfConfig {
   if (tomlText.trim().length === 0) {
     return getDefaultConfig();
   }
@@ -77,7 +77,7 @@ export function parseConfigString(tomlText: string, filePath = 'config.toml'): K
   try {
     data = parseToml(tomlText) as Record<string, unknown>;
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
       cause: error,
     });
   }
@@ -85,15 +85,15 @@ export function parseConfigString(tomlText: string, filePath = 'config.toml'): K
   return parseConfigData(data, filePath);
 }
 
-function parseConfigData(data: Record<string, unknown>, filePath: string): KimiConfig {
+function parseConfigData(data: Record<string, unknown>, filePath: string): ByfConfig {
   const raw = cloneRecord(data);
   const transformed = transformTomlData(data);
   transformed['raw'] = raw;
 
   try {
-    return KimiConfigSchema.parse(transformed);
+    return ByfConfigSchema.parse(transformed);
   } catch (error) {
-    throw new KimiError(ErrorCodes.CONFIG_INVALID, `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`, {
+    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`, {
       cause: error,
     });
   }
@@ -248,13 +248,13 @@ function transformLoopControlData(data: Record<string, unknown>): Record<string,
 /*  Write / stringify                                                  */
 /* ------------------------------------------------------------------ */
 
-export async function writeConfigFile(filePath: string, config: KimiConfig): Promise<void> {
+export async function writeConfigFile(filePath: string, config: ByfConfig): Promise<void> {
   const validated = validateConfig(config);
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   await atomicWrite(filePath, `${stringifyToml(configToTomlData(validated))}\n`);
 }
 
-export function configToTomlData(config: KimiConfig): Record<string, unknown> {
+export function configToTomlData(config: ByfConfig): Record<string, unknown> {
   const out = cloneRecord(config.raw);
 
   // Strip deprecated fields
@@ -263,7 +263,7 @@ export function configToTomlData(config: KimiConfig): Record<string, unknown> {
   delete out['defaultPermissionMode'];
 
   // Top-level scalar fields
-  const scalarFields: (keyof KimiConfig)[] = [
+  const scalarFields: (keyof ByfConfig)[] = [
     'defaultProvider',
     'defaultModel',
     'planMode',
@@ -397,20 +397,20 @@ function permissionRuleToToml(
 
 function servicesToToml(services: ServicesConfig, rawServices: unknown): Record<string, unknown> {
   const out = cloneRecord(rawServices);
-  if (services.moonshotSearch !== undefined) {
-    out['moonshot_search'] = serviceToToml(services.moonshotSearch);
+  if (services.byfSearch !== undefined) {
+    out['byf_search'] = serviceToToml(services.byfSearch);
   } else {
-    delete out['moonshot_search'];
+    delete out['byf_search'];
   }
-  if (services.moonshotFetch !== undefined) {
-    out['moonshot_fetch'] = serviceToToml(services.moonshotFetch);
+  if (services.byfFetch !== undefined) {
+    out['byf_fetch'] = serviceToToml(services.byfFetch);
   } else {
-    delete out['moonshot_fetch'];
+    delete out['byf_fetch'];
   }
   return out;
 }
 
-function serviceToToml(service: MoonshotServiceConfig): Record<string, unknown> {
+function serviceToToml(service: ByfServiceConfig): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(service)) {
     if (key === 'oauth' && value !== undefined) {

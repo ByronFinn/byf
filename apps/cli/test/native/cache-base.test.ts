@@ -5,10 +5,10 @@ import { getNativeCacheBase } from '#/native/native-assets';
 describe('getNativeCacheBase precedence', () => {
   const baseOptions = { homeDir: '/home/u' };
 
-  it('uses KIMI_CODE_CACHE_DIR when set (highest precedence)', () => {
+  it('uses BYF_CODE_CACHE_DIR when set (highest precedence)', () => {
     const got = getNativeCacheBase({
       ...baseOptions,
-      env: { KIMI_CODE_CACHE_DIR: '/custom/cache' },
+      env: { BYF_CODE_CACHE_DIR: '/custom/cache' },
     });
     expect(got).toBe('/custom/cache');
   });
@@ -19,7 +19,7 @@ describe('getNativeCacheBase precedence', () => {
       env: { BYF_HOME: '/legacy' },
       platform: 'darwin',
     });
-    expect(got).toBe('/home/u/Library/Caches/kimi-code');
+    expect(got).toBe('/home/u/Library/Caches/byf');
   });
 
   it('uses platform default on macOS when no env set', () => {
@@ -28,7 +28,7 @@ describe('getNativeCacheBase precedence', () => {
       env: {},
       platform: 'darwin',
     });
-    expect(got).toBe('/home/u/Library/Caches/kimi-code');
+    expect(got).toBe('/home/u/Library/Caches/byf');
   });
 
   it('uses XDG_CACHE_HOME on Linux when set', () => {
@@ -37,7 +37,7 @@ describe('getNativeCacheBase precedence', () => {
       env: { XDG_CACHE_HOME: '/xdg' },
       platform: 'linux',
     });
-    expect(got).toBe('/xdg/kimi-code');
+    expect(got).toBe('/xdg/byf');
   });
 
   it('uses LOCALAPPDATA on Windows when set', () => {
@@ -46,6 +46,6 @@ describe('getNativeCacheBase precedence', () => {
       env: { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' },
       platform: 'win32',
     });
-    expect(got).toBe('C:\\Users\\u\\AppData\\Local\\kimi-code');
+    expect(got).toBe('C:\\Users\\u\\AppData\\Local\\byf');
   });
 });

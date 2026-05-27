@@ -24,24 +24,24 @@ describe('OpenAICompatChatProvider.getCapability', () => {
     return new OpenAICompatChatProvider({ model, apiKey: 'test-key' });
   }
 
-  it('does not infer capabilities from Kimi model names', () => {
+  it('does not infer capabilities from Byf model names', () => {
     for (const model of [
-      'kimi-for-coding',
-      'kimi-code',
-      'kimi-k2-turbo-preview',
-      'kimi-k2.5',
-      'kimi-thinking-preview',
+      'byf-for-coding',
+      'byf',
+      'byf-k2-turbo-preview',
+      'byf-k2.5',
+      'byf-thinking-preview',
     ]) {
       expect(make(model).getCapability()).toEqual(UNKNOWN_CAPABILITY);
     }
   });
 
   it('explicit model arg overrides this.modelName', () => {
-    const provider = make('kimi-k2-turbo-preview');
-    expect(provider.getCapability('kimi-for-coding')).toEqual(UNKNOWN_CAPABILITY);
+    const provider = make('byf-k2-turbo-preview');
+    expect(provider.getCapability('byf-for-coding')).toEqual(UNKNOWN_CAPABILITY);
   });
 
-  it('unknown Kimi model → UNKNOWN_CAPABILITY (no throw)', () => {
+  it('unknown Byf model → UNKNOWN_CAPABILITY (no throw)', () => {
     const cap = make('some-fake-model').getCapability();
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
   });

@@ -25,25 +25,25 @@ describe('targetTriple', () => {
     expect(targetTriple({ platform: 'win32', arch: 'x64', env: {} })).toBe('win32-x64');
   });
 
-  it('honors KIMI_CODE_BUILD_TARGET override', () => {
+  it('honors BYF_CODE_BUILD_TARGET override', () => {
     expect(
       targetTriple({
         platform: 'darwin',
         arch: 'arm64',
-        env: { KIMI_CODE_BUILD_TARGET: 'linux-arm64' },
+        env: { BYF_CODE_BUILD_TARGET: 'linux-arm64' },
       }),
     ).toBe('linux-arm64');
   });
 });
 
 describe('executableName', () => {
-  it('returns kimi.exe on win32', () => {
-    expect(executableName('win32')).toBe('kimi.exe');
+  it('returns byf.exe on win32', () => {
+    expect(executableName('win32')).toBe('byf.exe');
   });
 
-  it('returns kimi on other platforms', () => {
-    expect(executableName('darwin')).toBe('kimi');
-    expect(executableName('linux')).toBe('kimi');
+  it('returns byf on other platforms', () => {
+    expect(executableName('darwin')).toBe('byf');
+    expect(executableName('linux')).toBe('byf');
   });
 });
 
@@ -58,16 +58,16 @@ describe('path helpers', () => {
 
   it('returns absolute bin path with executable name', () => {
     expect(nativeBinPath('darwin-arm64', 'darwin')).toBe(
-      `${appRoot}/dist-native/bin/darwin-arm64/kimi`,
+      `${appRoot}/dist-native/bin/darwin-arm64/byf`,
     );
     expect(nativeBinPath('win32-x64', 'win32')).toBe(
-      `${appRoot}/dist-native/bin/win32-x64/kimi.exe`,
+      `${appRoot}/dist-native/bin/win32-x64/byf.exe`,
     );
   });
 
   it('returns intermediate artifact paths', () => {
     expect(nativeJsBundlePath()).toBe(`${appRoot}/dist-native/intermediates/main.cjs`);
-    expect(nativeBlobPath()).toBe(`${appRoot}/dist-native/intermediates/kimi.blob`);
+    expect(nativeBlobPath()).toBe(`${appRoot}/dist-native/intermediates/byf.blob`);
     expect(nativeSeaConfigPath()).toBe(
       `${appRoot}/dist-native/intermediates/sea-config.json`,
     );

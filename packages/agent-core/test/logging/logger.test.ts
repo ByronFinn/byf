@@ -138,11 +138,11 @@ describe('payload shapes', () => {
 
   it('accepts plain object as ctx', async () => {
     await getRootLogger().configure(defaultConfig());
-    log.info('hello', { sessionId: 'ses_x', model: 'kimi-k2' });
+    log.info('hello', { sessionId: 'ses_x', model: 'byf-k2' });
     await getRootLogger().flush();
     const text = await readGlobal();
     expect(text).toContain('sessionId=ses_x');
-    expect(text).toContain('model=kimi-k2');
+    expect(text).toContain('model=byf-k2');
   });
 
   it('bunyan-style: ctx with `error: Error` field hoists stack out', async () => {
@@ -203,12 +203,12 @@ describe('payload shapes', () => {
 describe('createChild', () => {
   it('binds ctx that travels with every entry', async () => {
     await getRootLogger().configure(defaultConfig());
-    const sessionLog = log.createChild({ sessionId: 'ses_a', model: 'kimi-k2' });
+    const sessionLog = log.createChild({ sessionId: 'ses_a', model: 'byf-k2' });
     sessionLog.info('first');
     sessionLog.warn('second', { extra: 'x' });
     await getRootLogger().flush();
     const text = await readGlobal();
-    expect(text).toMatch(/first.*sessionId=ses_a.*model=kimi-k2/);
+    expect(text).toMatch(/first.*sessionId=ses_a.*model=byf-k2/);
     expect(text).toMatch(/second.*extra=x.*sessionId=ses_a/);
   });
 
@@ -262,7 +262,7 @@ describe('session routing', () => {
       await getRootLogger().configure(defaultConfig());
       const handle = getRootLogger().attachSession({ sessionId: 'ses_abc', sessionDir });
       const sessionLog = handle.logger.createChild({ agentId: 'main' });
-      sessionLog.info('llm config', { model: 'kimi-k2' });
+      sessionLog.info('llm config', { model: 'byf-k2' });
       sessionLog.info('llm request', { turn: 0, step: 1 });
       await handle.flush();
       await getRootLogger().flush();

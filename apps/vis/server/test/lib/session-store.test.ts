@@ -65,14 +65,14 @@ describe('session-store', () => {
     expect(sessions[0]!.workDir).toBe('');
   });
 
-  it('skips imported_from_kimi_cli sessions', async () => {
+  it('skips imported_from_byf_cli sessions', async () => {
     const { home, sessionDir, cleanup: c } = await buildSessionFixture('sample-main');
     cleanup = c;
     // mark as imported
     const { readFile, writeFile } = await import('node:fs/promises');
     const { join } = await import('node:path');
     const state = JSON.parse(await readFile(join(sessionDir, 'state.json'), 'utf8'));
-    state.custom = { imported_from_kimi_cli: true };
+    state.custom = { imported_from_byf_cli: true };
     await writeFile(join(sessionDir, 'state.json'), JSON.stringify(state));
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(0);

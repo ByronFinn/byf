@@ -5,7 +5,7 @@ import type { HostIdentity } from '@byf/sdk';
 
 import { CLI_USER_AGENT_PRODUCT } from '#/constant/app';
 
-import { KIMI_BUILD_INFO } from './build-info';
+import { BYF_BUILD_INFO } from './build-info';
 
 const MODULE_DIR = import.meta.dirname;
 
@@ -28,8 +28,8 @@ export function getHostPackageRoot(): string {
 }
 
 export function getVersion(): string {
-  if (KIMI_BUILD_INFO.version !== undefined) {
-    return KIMI_BUILD_INFO.version;
+  if (BYF_BUILD_INFO.version !== undefined) {
+    return BYF_BUILD_INFO.version;
   }
   const pkg = JSON.parse(readFileSync(getHostPackageJsonPath(), 'utf-8')) as {
     version: string;
@@ -44,11 +44,11 @@ export function createHostIdentity(version = getVersion()): HostIdentity {
   };
 }
 
-export function buildKimiDefaultHeaders(version = getVersion()): Record<string, string> {
+export function buildByfDefaultHeaders(version = getVersion()): Record<string, string> {
   return {
     'User-Agent': `${CLI_USER_AGENT_PRODUCT}/${version}`,
   };
 }
 
 /** @deprecated Use createHostIdentity instead */
-export const createKimiCodeHostIdentity = createHostIdentity;
+export const createByfHostIdentity = createHostIdentity;

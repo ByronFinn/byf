@@ -17,7 +17,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { HookEngine } from '../../src/agent/hooks';
 import type { AgentConfig } from '../../src/agent';
-import type { KimiConfig } from '../../src/config';
+import type { ByfConfig } from '../../src/config';
 import type { Logger, LogPayload } from '../../src/logging';
 import { ProviderManager } from '../../src/providers/provider-manager';
 import {
@@ -527,7 +527,7 @@ describe('Agent turn flow', () => {
   });
 
   it('cancels while waiting for a Stop hook', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-stop-hook-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-stop-hook-'));
     const marker = join(dir, 'started');
     const script = [
       "const fs=require('node:fs');",
@@ -561,7 +561,7 @@ describe('Agent turn flow', () => {
   });
 
   it('cancels while waiting for a PreToolUse hook before permission fallback', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-pre-tool-hook-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-pre-tool-hook-'));
     const marker = join(dir, 'started');
     const script = [
       "const fs=require('node:fs');",
@@ -654,7 +654,7 @@ describe('Agent turn flow', () => {
     };
     const ctx = testAgent({ providerManager, generate });
     ctx.configure();
-    await ctx.rpc.setModel({ model: 'kimi-code' });
+    await ctx.rpc.setModel({ model: 'byf' });
     ctx.newEvents();
 
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
@@ -817,7 +817,7 @@ describe('Agent turn flow', () => {
     const generate = vi.fn<GenerateFn>();
     const ctx = testAgent({ providerManager, generate });
     ctx.configure();
-    await ctx.rpc.setModel({ model: 'kimi-code' });
+    await ctx.rpc.setModel({ model: 'byf' });
     ctx.newEvents();
 
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello after token expiry' }] });
@@ -908,7 +908,7 @@ describe('Agent turn flow', () => {
     };
     const ctx = testAgent({ providerManager, generate });
     ctx.configure();
-    await ctx.rpc.setModel({ model: 'kimi-code' });
+    await ctx.rpc.setModel({ model: 'byf' });
     ctx.newEvents();
 
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello after token expiry' }] });
@@ -953,7 +953,7 @@ describe('Agent turn flow', () => {
     };
     const ctx = testAgent({ providerManager, generate });
     ctx.configure();
-    await ctx.rpc.setModel({ model: 'kimi-code' });
+    await ctx.rpc.setModel({ model: 'byf' });
     ctx.newEvents();
 
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
@@ -1119,7 +1119,7 @@ describe('Agent turn flow', () => {
     };
     const ctx = testAgent({ providerManager, generate, log: logger });
     ctx.configure();
-    await ctx.rpc.setModel({ model: 'kimi-code' });
+    await ctx.rpc.setModel({ model: 'byf' });
     ctx.newEvents();
 
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
@@ -1171,7 +1171,7 @@ describe('Agent turn flow', () => {
     });
     ctx.agent.config.update({
       cwd: process.cwd(),
-      modelAlias: 'kimi-code',
+      modelAlias: 'byf',
       systemPrompt: 'test system prompt',
       thinkingLevel: 'off',
     });
@@ -1457,19 +1457,19 @@ function createOAuthProviderManager(
   getAccessToken: (options?: { readonly force?: boolean }) => Promise<string>,
   capabilities?: readonly string[] | undefined,
 ): ProviderManager {
-  const oauthConfig: KimiConfig = {
-    defaultModel: 'kimi-code',
+  const oauthConfig: ByfConfig = {
+    defaultModel: 'byf',
     providers: {
-      'managed:kimi-code': {
+      'managed:byf': {
         type: 'vertexai',
         baseUrl: 'https://api.example/v1',
-        oauth: { storage: 'file', key: 'oauth/kimi-code' },
+        oauth: { storage: 'file', key: 'oauth/byf' },
       },
     },
     models: {
-      'kimi-code': {
-        provider: 'managed:kimi-code',
-        model: 'kimi-for-coding',
+      'byf': {
+        provider: 'managed:byf',
+        model: 'byf-for-coding',
         maxContextSize: 1_000_000,
         capabilities: capabilities === undefined ? undefined : [...capabilities],
       },

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiHarness, type KimiError } from '#/index';
+import { ByfHarness, type ByfError } from '#/index';
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 
 const tempDirs: string[] = [];
@@ -13,7 +13,7 @@ describe('Session.setModel', () => {
   it('updates the runtime model and sends config.update with the resolved model', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-model-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-model-work-');
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureLocalProvider(harness);
@@ -45,16 +45,16 @@ describe('Session.setModel', () => {
   it('rejects empty model names', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-model-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-model-work-');
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureLocalProvider(harness);
       const session = await harness.createSession({ id: 'ses_model_empty', workDir });
 
       await expect(session.setModel('   ')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.model_empty',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
@@ -63,7 +63,7 @@ describe('Session.setModel', () => {
   it('rejects after the session is closed', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-model-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-model-work-');
-    const harness = new KimiHarness({ homeDir });
+    const harness = new ByfHarness({ homeDir });
 
     try {
       await configureLocalProvider(harness);
@@ -71,16 +71,16 @@ describe('Session.setModel', () => {
       await session.close();
 
       await expect(session.setModel('next-model')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
   });
 });
 
-async function configureLocalProvider(harness: KimiHarness): Promise<void> {
+async function configureLocalProvider(harness: ByfHarness): Promise<void> {
   await harness.setConfig({
     providers: {
       local: {

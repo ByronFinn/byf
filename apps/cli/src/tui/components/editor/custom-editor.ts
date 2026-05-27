@@ -151,7 +151,7 @@ export class CustomEditor extends Editor {
 
   private cancelAutocompleteActivity(): void {
     // pi-tui exposes `isShowingAutocomplete()` but keeps cancellation private.
-    // Kimi needs Esc to win over app-level cancel while the slash menu request is active.
+    // Byf needs Esc to win over app-level cancel while the slash menu request is active.
     (this as unknown as AutocompleteInternals).cancelAutocomplete();
   }
 

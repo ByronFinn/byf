@@ -181,7 +181,7 @@ describe('Session.init', () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-core-init-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-core-init-'));
   tempDirs.push(dir);
   return dir;
 }

@@ -20,7 +20,7 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { z } from 'zod';
 
-import { KimiError } from '../../src/errors';
+import { ByfError } from '../../src/errors';
 import { ProviderManager } from '../../src/providers/provider-manager';
 import { McpConnectionManager, type McpServerEntry } from '../../src/mcp/connection-manager';
 import { JsonFileStore, McpOAuthService } from '../../src/mcp/oauth';
@@ -220,10 +220,10 @@ describe('McpConnectionManager', () => {
     }
   }, 7000);
 
-  it('reconnect throws a coded KimiError when the server name is unknown', async () => {
+  it('reconnect throws a coded ByfError when the server name is unknown', async () => {
     const cm = new McpConnectionManager();
     try {
-      await expect(cm.reconnect('nope')).rejects.toBeInstanceOf(KimiError);
+      await expect(cm.reconnect('nope')).rejects.toBeInstanceOf(ByfError);
       await expect(cm.reconnect('nope')).rejects.toMatchObject({ code: 'mcp.server_not_found' });
     } finally {
       await cm.shutdown();
@@ -238,7 +238,7 @@ describe('McpConnectionManager', () => {
       });
 
       const reconnect = cm.reconnect('off');
-      await expect(reconnect).rejects.toBeInstanceOf(KimiError);
+      await expect(reconnect).rejects.toBeInstanceOf(ByfError);
       await expect(reconnect).rejects.toMatchObject({ code: 'mcp.server_disabled' });
       expect(cm.get('off')).toMatchObject({
         status: 'disabled',
@@ -347,7 +347,7 @@ describe('McpConnectionManager', () => {
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as HttpAddress).port;
-    const storeDir = await mkdtemp(join(tmpdir(), 'kimi-mcp-oauth-cm-'));
+    const storeDir = await mkdtemp(join(tmpdir(), 'byf-mcp-oauth-cm-'));
     const oauthService = new McpOAuthService({ store: new JsonFileStore(storeDir) });
     const cm = new McpConnectionManager({ oauthService });
     try {
@@ -394,7 +394,7 @@ describe('McpConnectionManager', () => {
     const port = (server.address() as HttpAddress).port;
     const serverUrl = `http://127.0.0.1:${port}/mcp`;
     const authServerUrl = `http://127.0.0.1:${port}`;
-    const storeDir = await mkdtemp(join(tmpdir(), 'kimi-mcp-oauth-cached-'));
+    const storeDir = await mkdtemp(join(tmpdir(), 'byf-mcp-oauth-cached-'));
     const oauthService = new McpOAuthService({ store: new JsonFileStore(storeDir) });
     const provider = oauthService.getProvider('notion', serverUrl);
     provider.saveDiscoveryState({
@@ -488,7 +488,7 @@ describe('McpConnectionManager', () => {
           transport: 'stdio',
           command: process.execPath,
           args: [crashAfterConnectFixture],
-          env: { KIMI_TEST_MCP_EXIT_AFTER_MS: '50', KIMI_TEST_MCP_STDERR: 'fatal: out of memory' },
+          env: { BYF_TEST_MCP_EXIT_AFTER_MS: '50', BYF_TEST_MCP_STDERR: 'fatal: out of memory' },
           startupTimeoutMs: 4_000,
         },
       });
@@ -522,13 +522,13 @@ describe('McpConnectionManager', () => {
           transport: 'stdio',
           command: process.execPath,
           args: [stderrThenExitFixture],
-          env: { KIMI_TEST_MCP_STDERR: 'fatal: missing API token KIMI_X' },
+          env: { BYF_TEST_MCP_STDERR: 'fatal: missing API token BYF_X' },
           startupTimeoutMs: 4_000,
         },
       });
       const entry = cm.get('nope');
       expect(entry?.status).toBe('failed');
-      expect(entry?.error).toContain('fatal: missing API token KIMI_X');
+      expect(entry?.error).toContain('fatal: missing API token BYF_X');
     } finally {
       await cm.shutdown();
     }
@@ -624,7 +624,7 @@ describe('McpConnectionManager', () => {
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as HttpAddress).port;
-    const storeDir = await mkdtemp(join(tmpdir(), 'kimi-mcp-oauth-cm-'));
+    const storeDir = await mkdtemp(join(tmpdir(), 'byf-mcp-oauth-cm-'));
     const oauthService = new McpOAuthService({ store: new JsonFileStore(storeDir) });
     const cm = new McpConnectionManager({ oauthService });
     try {
@@ -654,10 +654,10 @@ describe('McpConnectionManager', () => {
 });
 
 describe('Session MCP startup', () => {
-  it('stores default MCP OAuth credentials under the configured Kimi home', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-oauth-home-'));
+  it('stores default MCP OAuth credentials under the configured Byf home', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'byf-session-mcp-oauth-home-'));
     const processHome = join(tmp, 'process-home');
-    const kimiHome = join(tmp, 'kimi-home');
+    const byfHome = join(tmp, 'byf-home');
     const oldHome = process.env['HOME'];
     process.env['HOME'] = processHome;
 
@@ -668,7 +668,7 @@ describe('Session MCP startup', () => {
         osEnv: await detectEnvironmentFromNode(),
       },
       homedir: join(tmp, 'session'),
-      kimiHomeDir: kimiHome,
+      byfHomeDir: byfHome,
       cwd: tmp,
       rpc: sessionRpc(),
     });
@@ -686,7 +686,7 @@ describe('Session MCP startup', () => {
 
       await expect(
         readFile(
-          join(kimiHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
+          join(byfHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
           'utf-8',
         ),
       ).resolves.toContain('session-token');
@@ -705,7 +705,7 @@ describe('Session MCP startup', () => {
   });
 
   it('does not block main agent creation on slow MCP startup', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-startup-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'byf-session-mcp-startup-'));
     const session = new Session({
       id: 'test-mcp-slow',
       runtime: {
@@ -742,7 +742,7 @@ describe('Session MCP startup', () => {
   }, 7000);
 
   it('waits for initial MCP startup before the first prompt reaches the model', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-prompt-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'byf-session-mcp-prompt-'));
     const events: SessionRpcEvent[] = [];
     let resolveTurnEnded!: () => void;
     const turnEnded = new Promise<void>((resolve) => {
@@ -771,7 +771,7 @@ describe('Session MCP startup', () => {
             transport: 'stdio',
             command: process.execPath,
             args: [stdioFixture],
-            env: { KIMI_TEST_MCP_START_DELAY_MS: '250' },
+            env: { BYF_TEST_MCP_START_DELAY_MS: '250' },
             startupTimeoutMs: 2_000,
           },
         },
@@ -819,7 +819,7 @@ describe('Session MCP startup', () => {
   }, 7000);
 
   it('emits tool.list.updated(mcp.disconnected) when reconnect drops the live tools', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'kimi-session-mcp-reconnect-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'byf-session-mcp-reconnect-'));
     const events: SessionRpcEvent[] = [];
     const session = new Session({
       id: 'test-mcp-mixed',

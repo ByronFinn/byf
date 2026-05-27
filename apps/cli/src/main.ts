@@ -1,5 +1,5 @@
 /**
- * Kimi Code entry point.
+ * Byf Code entry point.
  *
  * Parses CLI arguments via Commander.js, validates options, runs the
  * outer update preflight, then delegates to the requested UI runner.
@@ -9,7 +9,7 @@ import {
   flushDiagnosticLogs,
   log,
   resolveGlobalLogPath,
-  resolveKimiHome,
+  resolveByfHome,
 } from '@byf/sdk';
 import { installCrashHandlers, track } from '@byf/telemetry';
 
@@ -55,23 +55,6 @@ export async function handleMainCommand(opts: CLIOptions, version: string): Prom
   await runShell(validated.options, version);
 }
 
-/** `kimi migrate`: launch the migration screen only, then exit. */
-async function handleMigrateCommand(version: string): Promise<void> {
-  await runShell(MIGRATE_CLI_OPTIONS, version, { migrateOnly: true });
-}
-
-/** A neutral CLIOptions value — `kimi migrate` never opens a chat session. */
-const MIGRATE_CLI_OPTIONS: CLIOptions = {
-  session: undefined,
-  continue: false,
-  yolo: false,
-  plan: false,
-  model: undefined,
-  outputFormat: undefined,
-  prompt: undefined,
-  skillsDirs: [],
-};
-
 export function main(): void {
   initProcessName();
   installCrashHandlers();
@@ -100,15 +83,7 @@ export function main(): void {
             operation,
           }),
         );
-        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveKimiHome())}\n`);
-        process.exit(1);
-      });
-    },
-    () => {
-      void handleMigrateCommand(version).catch(async (error: unknown) => {
-        await logStartupFailure('run migration', error);
-        process.stderr.write(formatStartupError(error, { operation: 'run migration' }));
-        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveKimiHome())}\n`);
+        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveByfHome())}\n`);
         process.exit(1);
       });
     },

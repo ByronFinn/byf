@@ -67,7 +67,7 @@ function renderInstallPrompt(
   const sourceLabel = chalk.hex(UPDATE_PROMPT_PRIMARY).bold(options.installSource);
   const command = chalk.hex(UPDATE_PROMPT_PRIMARY)(options.installCommand);
   const lines = [
-    chalk.hex(UPDATE_PROMPT_PRIMARY).bold('Kimi Code Update Available'),
+    chalk.hex(UPDATE_PROMPT_PRIMARY).bold('Byf Code Update Available'),
     chalk.hex(UPDATE_PROMPT_MUTED)(`${PRODUCT_NAME} has a newer release ready.`),
     '',
     `${label('Current')}  ${currentVersion}`,

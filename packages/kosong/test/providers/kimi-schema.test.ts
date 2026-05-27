@@ -396,7 +396,7 @@ describe('normalizeOpenAICompatToolSchema', () => {
     });
   });
 
-  it('fails fast for mixed enum types instead of emitting an unsupported Kimi type array', () => {
+  it('fails fast for mixed enum types instead of emitting an unsupported Byf type array', () => {
     const schema = {
       type: 'object',
       properties: {

@@ -2,7 +2,7 @@
  * Detect image MIME type + dimensions from raw bytes.
  *
  * Uses magic-byte sniffing for MIME and minimal format-specific parsing
- * for dimensions. Only formats that the kimi-core multimodal pipeline
+ * for dimensions. Only formats that the byf-core multimodal pipeline
  * accepts are supported: PNG / JPEG / GIF / WebP.
  *
  * Unsupported or truncated inputs return `null` so the caller can

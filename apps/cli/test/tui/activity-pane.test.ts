@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { KimiTUI, type KimiTUIStartupInput, type TUIState } from '#/tui/kimi-tui';
+import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 
 interface ActivityDriver {
   state: TUIState;
   updateActivityPane(): void;
 }
 
-function makeStartupInput(): KimiTUIStartupInput {
+function makeStartupInput(): ByfTuiStartupInput {
   return {
     cliOptions: {
       session: undefined,
@@ -36,7 +36,7 @@ function makeDriverWithTerminalProgress(): {
   setProgress: ReturnType<typeof vi.fn<(active: boolean) => void>>;
 } {
   const setProgress = vi.fn<(active: boolean) => void>();
-  const driver = new KimiTUI({} as never, makeStartupInput()) as unknown as ActivityDriver;
+  const driver = new ByfTui({} as never, makeStartupInput()) as unknown as ActivityDriver;
   vi.spyOn(driver.state.ui, 'requestRender').mockImplementation(() => {});
   driver.state.terminal = { columns: 80, setProgress } as unknown as TUIState['terminal'];
   return { driver, state: driver.state, setProgress };

@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   test: {
-    name: 'kimi-sdk',
+    name: 'byf-sdk',
     include: ['test/**/*.test.ts'],
   },
 });

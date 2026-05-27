@@ -192,7 +192,7 @@ describe('Agent resume', () => {
         tokensAfter: 3,
       },
     ]);
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-resume-delivered-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-resume-delivered-'));
     try {
       const ctx = testAgent({ persistence });
       ctx.agent.background.attachSessionDir(sessionDir);
@@ -231,7 +231,7 @@ describe('Agent resume', () => {
         origin: { kind: 'user' },
       },
     ]);
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-resume-undelivered-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-resume-undelivered-'));
     try {
       const ctx = testAgent({ persistence });
       ctx.agent.background.attachSessionDir(sessionDir);

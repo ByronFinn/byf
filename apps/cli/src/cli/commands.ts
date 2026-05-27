@@ -2,18 +2,14 @@ import { Command, Option } from 'commander';
 
 import { CLI_COMMAND_NAME } from '#/constant/app';
 
-import { registerMigrateCommand } from '#/migration/index';
-
 import type { CLIOptions } from './options';
 import { registerExportCommand } from './sub/export';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
-export type MigrateCommandHandler = () => void;
 
 export function createProgram(
   version: string,
   onMain: MainCommandHandler,
-  onMigrate: MigrateCommandHandler,
 ): Command {
   const program = new Command(CLI_COMMAND_NAME)
     .description('The Starting Point for Next-Gen Agents')
@@ -71,7 +67,6 @@ export function createProgram(
     .option('--plan', 'Start in plan mode.', false);
 
   registerExportCommand(program);
-  registerMigrateCommand(program, onMigrate);
 
   program.action(() => {
     const raw = program.opts<Record<string, unknown>>();
