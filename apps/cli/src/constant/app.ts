@@ -14,14 +14,14 @@ export const CLI_SHUTDOWN_TIMEOUT_MS = 3000;
 export const NPM_PACKAGE_NAME = '@byf/cli';
 
 // App-owned data paths. SDK/core runtime config is intentionally not routed here.
-export const KIMI_CODE_HOME_ENV = 'BYF_HOME';
-export const KIMI_CODE_DATA_DIR_NAME = '.byf';
-export const KIMI_CODE_LOG_DIR_NAME = 'logs';
-export const KIMI_CODE_UPDATE_DIR_NAME = 'updates';
-export const KIMI_CODE_UPDATE_STATE_FILE_NAME = 'latest.json';
-export const KIMI_CODE_INPUT_HISTORY_DIR_NAME = 'user-history';
+export const BYF_HOME_ENV = 'BYF_HOME';
+export const BYF_DATA_DIR_NAME = '.byf';
+export const BYF_LOG_DIR_NAME = 'logs';
+export const BYF_UPDATE_DIR_NAME = 'updates';
+export const BYF_UPDATE_STATE_FILE_NAME = 'latest.json';
+export const BYF_INPUT_HISTORY_DIR_NAME = 'user-history';
 
-// Managed Kimi auth provider key shared with OAuth/SDK config.
+// Managed auth provider key shared with OAuth/SDK config.
 export const DEFAULT_OAUTH_PROVIDER_NAME = 'managed:byf';
 
 // SDK/core error code that tells the TUI to show a login-required startup

@@ -199,9 +199,9 @@ describe('exportSessionDirectory', () => {
     });
 
     expect(result.manifest.globalLogPath).toBeUndefined();
-    expect(result.entries).not.toContain('logs/global/kimi-code.log');
+    expect(result.entries).not.toContain('logs/global/byf.log');
     const entries = readZipEntries(await readFile(outputPath));
-    expect(entries.has('logs/global/kimi-code.log')).toBe(false);
+    expect(entries.has('logs/global/byf.log')).toBe(false);
     const manifest = JSON.parse(entries.get('manifest.json')!.toString('utf-8')) as Record<
       string,
       unknown

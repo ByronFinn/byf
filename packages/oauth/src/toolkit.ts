@@ -294,7 +294,7 @@ export function resolveKimiTokenStorageName(input: {
 }
 
 function defaultKimiHome(): string {
-  const override = process.env['KIMI_CODE_HOME'];
+  const override = process.env['BYF_HOME'];
   if (override !== undefined && override.length > 0) return override;
-  return join(homedir(), '.kimi-code');
+  return join(homedir(), '.byf');
 }

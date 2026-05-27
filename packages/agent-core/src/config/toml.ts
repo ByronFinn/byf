@@ -40,10 +40,10 @@ function camelToSnake(str: string): string {
 /*  Read / parse                                                       */
 /* ------------------------------------------------------------------ */
 
-const DEFAULT_CONFIG_FILE_TEXT = `# ~/.kimi-code/config.toml
-# Runtime settings for Kimi Code.
+const DEFAULT_CONFIG_FILE_TEXT = `# ~/.byf/config.toml
+# Runtime settings for BYF.
 # This file starts empty so built-in defaults can apply.
-# Login will populate managed Kimi provider and model entries.
+# Login will populate managed provider and model entries.
 `;
 
 export async function ensureConfigFile(filePath: string): Promise<void> {

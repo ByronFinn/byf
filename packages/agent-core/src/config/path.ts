@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export function resolveKimiHome(homeDir?: string | undefined): string {
-  return homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code');
+  return homeDir ?? process.env['BYF_HOME'] ?? join(homedir(), '.byf');
 }
 
 export function resolveConfigPath(input: {

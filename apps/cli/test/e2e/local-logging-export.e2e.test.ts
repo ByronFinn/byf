@@ -11,8 +11,8 @@ import { createKimiCodeHostIdentity } from '#/cli/version';
 import { KimiHarness, log } from '@byf/sdk';
 import { __resetRootLoggerForTest } from '../../../../packages/agent-core/src/logging/logger';
 
-const SESSION_LOG = 'logs/kimi-code.log';
-const GLOBAL_LOG = 'logs/global/kimi-code.log';
+const SESSION_LOG = 'logs/byf.log';
+const GLOBAL_LOG = 'logs/global/byf.log';
 const MAIN_WIRE = 'agents/main/wire.jsonl';
 const ENABLED = process.env['KIMI_E2E'] === '1';
 
@@ -24,16 +24,16 @@ beforeEach(async () => {
   await __resetRootLoggerForTest();
   homeDir = await mkdtemp(join(tmpdir(), 'kimi-cli-log-home-'));
   workDir = await mkdtemp(join(tmpdir(), 'kimi-cli-log-work-'));
-  oldHome = process.env['KIMI_CODE_HOME'];
-  process.env['KIMI_CODE_HOME'] = homeDir;
+  oldHome = process.env['BYF_HOME'];
+  process.env['BYF_HOME'] = homeDir;
 });
 
 afterEach(async () => {
   await __resetRootLoggerForTest();
   if (oldHome === undefined) {
-    delete process.env['KIMI_CODE_HOME'];
+    delete process.env['BYF_HOME'];
   } else {
-    process.env['KIMI_CODE_HOME'] = oldHome;
+    process.env['BYF_HOME'] = oldHome;
   }
   await rm(homeDir, { recursive: true, force: true });
   await rm(workDir, { recursive: true, force: true });

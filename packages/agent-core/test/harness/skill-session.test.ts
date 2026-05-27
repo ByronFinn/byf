@@ -59,7 +59,7 @@ describe('HarnessAPI session skills', () => {
       source: 'project',
       disableModelInvocation: true,
     });
-    expect(listed?.path.endsWith('/.kimi-code/skills/phase-one-review/SKILL.md')).toBe(true);
+    expect(listed?.path.endsWith('/.byf/skills/phase-one-review/SKILL.md')).toBe(true);
     expect(JSON.stringify(skills)).not.toContain('Review the requested file.');
   });
 
@@ -114,10 +114,10 @@ describe('HarnessAPI session skills', () => {
     expect(names.has('sandbox-only')).toBe(false);
   });
 
-  it('resolves user skills from the OS home directory even when KIMI_CODE_HOME is set', async () => {
+  it('resolves user skills from the OS home directory even when BYF_HOME is set', async () => {
     const processHome = join(tmp, 'env-process-home');
     vi.stubEnv('HOME', processHome);
-    vi.stubEnv('KIMI_CODE_HOME', homeDir);
+    vi.stubEnv('BYF_HOME', homeDir);
     await writeUserSkill(processHome, 'env-real-home-only', 'Env real home skill');
     await writeUserSkill(homeDir, 'env-sandbox-only', 'Env sandbox skill');
     const { rpc } = await createTestRpc({});
@@ -262,7 +262,7 @@ describe('HarnessAPI session skills', () => {
 
     const records = await readMainWire(created.sessionDir);
     const prompt = records.find((record) => record['type'] === 'turn.prompt');
-    const skillDir = await realpath(join(workDir, '.kimi-code', 'skills', 'templated-review'));
+    const skillDir = await realpath(join(workDir, '.byf', 'skills', 'templated-review'));
     const expectedPrompt = [
       'Target: src/app.ts',
       'Mode: careful',
@@ -485,13 +485,13 @@ describe('HarnessAPI session skills', () => {
   });
 
   async function writeSkill(name: string, lines: readonly string[]): Promise<void> {
-    const dir = join(workDir, '.kimi-code', 'skills', name);
+    const dir = join(workDir, '.byf', 'skills', name);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
   }
 
   async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
-    const dir = join(userHomeDir, '.kimi-code', 'skills', name);
+    const dir = join(userHomeDir, '.byf', 'skills', name);
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, 'SKILL.md'),
@@ -502,7 +502,7 @@ describe('HarnessAPI session skills', () => {
   }
 
   async function writeFlatSkill(name: string, lines: readonly string[]): Promise<void> {
-    const dir = join(workDir, '.kimi-code', 'skills');
+    const dir = join(workDir, '.byf', 'skills');
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, `${name}.md`), lines.join('\n'));
   }

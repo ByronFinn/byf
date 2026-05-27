@@ -93,7 +93,7 @@ describe('Session skills', () => {
         source: 'project',
         disableModelInvocation: true,
       });
-      expect(listed?.path.endsWith('/.kimi-code/skills/review/SKILL.md')).toBe(true);
+      expect(listed?.path.endsWith('/.byf/skills/review/SKILL.md')).toBe(true);
       expect(JSON.stringify(skills)).not.toContain('Review the requested file.');
     } finally {
       await harness.close();
@@ -192,12 +192,12 @@ describe('Session skills', () => {
     }
   });
 
-  it('resolves user skills from the OS home directory, independently of KIMI_CODE_HOME', async () => {
+  it('resolves user skills from the OS home directory, independently of BYF_HOME', async () => {
     const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-home-');
     const processHome = await makeTempDir(tempDirs, 'kimi-sdk-skills-process-home-');
     const workDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-work-');
     vi.stubEnv('HOME', processHome);
-    vi.stubEnv('KIMI_CODE_HOME', homeDir);
+    vi.stubEnv('BYF_HOME', homeDir);
     await writeUserSkill(processHome, 'sdk-real-home-only', 'SDK real home skill');
     await writeUserSkill(homeDir, 'sdk-sandbox-only', 'SDK sandbox skill');
     const harness = new KimiHarness({ identity: TEST_IDENTITY });
@@ -283,13 +283,13 @@ describe('Session skills', () => {
 });
 
 async function writeSkill(workDir: string, name: string, lines: readonly string[]): Promise<void> {
-  const dir = join(workDir, '.kimi-code', 'skills', name);
+  const dir = join(workDir, '.byf', 'skills', name);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
 }
 
 async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
-  const dir = join(userHomeDir, '.kimi-code', 'skills', name);
+  const dir = join(userHomeDir, '.byf', 'skills', name);
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, 'SKILL.md'),

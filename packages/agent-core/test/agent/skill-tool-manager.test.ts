@@ -190,7 +190,7 @@ describe('ToolManager SkillTool registration', () => {
     try {
       const homeDir = join(tmp, 'home');
       const workDir = join(tmp, 'work');
-      const skillDir = join(workDir, '.kimi-code', 'skills', 'review');
+      const skillDir = join(workDir, '.byf', 'skills', 'review');
       await mkdir(skillDir, { recursive: true });
       await writeFile(
         join(skillDir, 'SKILL.md'),

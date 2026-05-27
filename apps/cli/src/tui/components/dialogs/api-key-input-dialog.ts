@@ -62,7 +62,7 @@ export class ApiKeyInputDialogComponent extends Container implements Focusable {
     this.onDone = onDone;
     this.colors = colors;
     this.title = `Enter API key for ${platformName}`;
-    this.subtitle = 'Your key will be saved to ~/.kimi-code/config.toml';
+    this.subtitle = 'Your key will be saved to ~/.byf/config.toml';
     this.input.onSubmit = (value) => {
       this.submit(value);
     };

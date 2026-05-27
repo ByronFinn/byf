@@ -80,7 +80,7 @@ export interface OAuthManagerOptions {
    * genuine mis-wiring.
    *
    * When omitted AND `process.env.NODE_ENV === 'test'`, the manager
-   * falls back to `process.env.KIMI_CODE_HOME` so multi-process test
+   * falls back to `process.env.BYF_HOME` so multi-process test
    * harnesses don't need to thread the dir through every fixture. In
    * production the fallback is inert. Windows platforms and
    * `process.env.KIMI_DISABLE_OAUTH_LOCK === '1'` always skip; the
@@ -146,12 +146,12 @@ export class OAuthManager {
         pollDeviceToken(config, deviceCode, {
           deviceHeaders: this.resolveDeviceHeaders(),
         }));
-    // The `KIMI_CODE_HOME` fallback MUST stay test-only so production
+    // The `BYF_HOME` fallback MUST stay test-only so production
     // entry points can't silently run without a lock just because the
     // env happens to be unset. vitest sets `NODE_ENV='test'` by default,
     // so multi-process test workers still pick up the test home path.
     const envConfigDir =
-      process.env['NODE_ENV'] === 'test' ? process.env['KIMI_CODE_HOME'] : undefined;
+      process.env['NODE_ENV'] === 'test' ? process.env['BYF_HOME'] : undefined;
     this.configDir = options.configDir ?? envConfigDir;
   }
 

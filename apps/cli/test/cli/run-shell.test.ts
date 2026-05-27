@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => {
     readonly fallback: TuiConfigFallback;
 
     constructor(fallback: TuiConfigFallback) {
-      super('Invalid TUI config in ~/.kimi-code/tui.toml; using defaults.');
+      super('Invalid TUI config in ~/.byf/tui.toml; using defaults.');
       this.fallback = fallback;
     }
   }
@@ -467,7 +467,7 @@ describe('runShell', () => {
     expect(mocks.detectTerminalTheme).toHaveBeenCalledOnce();
     const [, , startupInput] = mocks.kimiTuiConstructor.mock.calls[0]!;
     expect(startupInput).toMatchObject({
-      startupNotice: 'Invalid TUI config in ~/.kimi-code/tui.toml; using defaults.',
+      startupNotice: 'Invalid TUI config in ~/.byf/tui.toml; using defaults.',
       resolvedTheme: 'light',
       tuiConfig: {
         theme: 'auto',
@@ -568,7 +568,7 @@ describe('runShell', () => {
     });
     mocks.detectPendingMigration.mockResolvedValue({ totalSessions: 1 });
     mocks.harnessGetConfig.mockRejectedValue(
-      new Error('Invalid configuration in ~/.kimi-code/config.toml'),
+      new Error('Invalid configuration in ~/.byf/config.toml'),
     );
 
     // A broken config.toml must fail loudly — `kimi migrate` must not swallow

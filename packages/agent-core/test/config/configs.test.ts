@@ -243,7 +243,7 @@ describe('harness config TOML loader', () => {
     await ensureConfigFile(configPath);
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for Kimi Code.');
+    expect(text).toContain('Runtime settings for BYF.');
     expect(text).not.toMatch(/^default_thinking =/m);
     expect(text).not.toMatch(/^default_model =/m);
 
@@ -463,18 +463,31 @@ describe('harness config schema and patch merge', () => {
 });
 
 describe('config path env override', () => {
-  it('uses KIMI_CODE_HOME when no explicit homeDir is supplied', () => {
-    const saved = process.env['KIMI_CODE_HOME'];
+  it('uses BYF_HOME when no explicit homeDir is supplied', () => {
+    const saved = process.env['BYF_HOME'];
     try {
-      process.env['KIMI_CODE_HOME'] = '/tmp/kimi-from-env';
+      process.env['BYF_HOME'] = '/tmp/byf-from-env';
 
-      expect(resolveKimiHome()).toBe('/tmp/kimi-from-env');
-      expect(resolveKimiHome('/tmp/kimi-explicit')).toBe('/tmp/kimi-explicit');
-      expect(resolveConfigPath({})).toBe('/tmp/kimi-from-env/config.toml');
+      expect(resolveKimiHome()).toBe('/tmp/byf-from-env');
+      expect(resolveKimiHome('/tmp/byf-explicit')).toBe('/tmp/byf-explicit');
+      expect(resolveConfigPath({})).toBe('/tmp/byf-from-env/config.toml');
       expect(resolveConfigPath({ configPath: '/tmp/custom.toml' })).toBe('/tmp/custom.toml');
     } finally {
-      if (saved === undefined) delete process.env['KIMI_CODE_HOME'];
-      else process.env['KIMI_CODE_HOME'] = saved;
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
+    }
+  });
+
+  it('defaults to ~/.byf when no env var is set', () => {
+    const saved = process.env['BYF_HOME'];
+    try {
+      delete process.env['BYF_HOME'];
+
+      const result = resolveKimiHome();
+      expect(result).toMatch(/\/\.byf$/);
+    } finally {
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
     }
   });
 });
