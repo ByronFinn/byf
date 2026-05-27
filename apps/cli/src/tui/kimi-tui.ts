@@ -23,18 +23,6 @@ import {
 } from '@earendil-works/pi-tui';
 import type { MigrationPlan } from '@byf/migration-legacy';
 import {
-  applyOpenPlatformConfig,
-  capabilitiesForModel,
-  fetchOpenPlatformModels,
-  filterModelsByPrefix,
-  getOpenPlatformById,
-  OpenPlatformApiError,
-  type ModelInfo,
-  type ConfigShape,
-  type OpenPlatformDefinition,
-} from '@byf/oauth';
-// Note: applyOpenPlatformConfig and related functions are used by /connect command only.
-import {
   applyCatalogProvider,
   catalogBaseUrl,
   catalogModelToAlias,
@@ -1517,6 +1505,11 @@ export class KimiTUI {
         return;
       case 'connect':
         await this.handleConnectCommand(args);
+        return;
+      case 'login':
+      case 'logout':
+      case 'disconnect':
+        this.showError(`/${String(name)} has been removed. Use /connect to configure a provider.`);
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -4511,7 +4504,7 @@ export class KimiTUI {
     if (entries.length === 0) {
       this.showNotice(
         'No models configured',
-        'Run /login to sign in to Kimi, or /connect to add another provider from a model catalog.',
+        'Run /connect to add a provider from the model catalog.',
       );
       return;
     }

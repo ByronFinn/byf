@@ -882,6 +882,21 @@ describe('KimiTUI message flow', () => {
     resolveInit?.();
   });
 
+  it('redirects /login and /logout and /disconnect to /connect', async () => {
+    for (const command of ['/login', '/logout', '/disconnect']) {
+      const { driver } = await makeDriver();
+
+      driver.handleUserInput(command);
+      await Promise.resolve();
+
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript, `${command} should mention /connect`).toContain('/connect');
+      expect(transcript, `${command} should not say "Unknown slash command"`).not.toContain(
+        'Unknown slash command',
+      );
+    }
+  });
+
   it('does not run /init when no model is selected', async () => {
     const { driver, session } = await makeDriver();
     driver.state.appState.model = '';

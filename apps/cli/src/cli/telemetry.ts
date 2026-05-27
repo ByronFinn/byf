@@ -49,11 +49,12 @@ export function initializeCliTelemetry(options: InitializeCliTelemetryOptions): 
 function getOrCreateDeviceId(homeDir: string, onFirstLaunch: () => void): string {
   const filePath = join(homeDir, 'device_id');
   if (existsSync(filePath)) {
-    return readFileSync(filePath, 'utf-8').trim();
+    const existing = readFileSync(filePath, 'utf-8').trim();
+    if (existing) return existing;
   }
   const id = randomUUID();
   mkdirSync(homeDir, { recursive: true });
-  writeFileSync(filePath, id, 'utf-8');
+  writeFileSync(filePath, id, { encoding: 'utf-8', mode: 0o600 });
   onFirstLaunch();
   return id;
 }
