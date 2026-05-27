@@ -1,4 +1,4 @@
-import { readConfigFile, writeConfigFile, type KimiConfig, type OAuthRef } from '@moonshot-ai/agent-core';
+import { readConfigFile, writeConfigFile, type KimiConfig, type OAuthRef } from '@byf/agent-core';
 import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
@@ -12,7 +12,7 @@ import {
   type KimiOAuthLoginOptions,
   type ManagedKimiConfigShape,
   type OAuthRefreshOutcome,
-} from '@moonshot-ai/kimi-code-oauth';
+} from '@byf/oauth';
 
 export interface KimiAuthSubmitFeedbackInput {
   readonly content: string;

@@ -3,7 +3,7 @@ import type {
   Message,
   ModelCapability,
   Tool,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {

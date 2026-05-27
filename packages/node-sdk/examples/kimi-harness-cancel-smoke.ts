@@ -1,4 +1,4 @@
-import { KimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import { KimiHarness } from '@byf/sdk';
 
 import {
   smokeIdentityFromEnv,

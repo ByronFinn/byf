@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
-import type { KaosProcess } from '@moonshot-ai/kaos';
+import type { KaosProcess } from '@byf/kaos';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackgroundManager } from '../../src/agent/background';

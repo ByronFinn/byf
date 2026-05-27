@@ -41,7 +41,7 @@ Strip all upstream identity and infrastructure dependencies from the codebase, r
 ### Developer Experience
 
 17. As a contributor, I want all workspace packages to use the `@byf` scope, so that imports are consistent and branded
-18. As a contributor, I want the main app directory to be `apps/cli/` instead of `apps/kimi-code/`, so that directory names match the package name
+18. As a contributor, I want the main app directory to be `apps/cli/` instead of `apps/cli/`, so that directory names match the package name
 19. As a contributor, I want `pnpm dev` to work correctly after rebranding, so that the development workflow is unchanged
 20. As a contributor, I want all tests to pass after rebranding, so that I can verify nothing is broken
 21. As a contributor, I want no references to "moonshot", "kimi", or "KIMI_CODE" remaining in source code, so that the rebranding is complete
@@ -76,18 +76,18 @@ All files importing these constants will pick up the new values automatically.
 **What changes:** All `package.json` files in the monorepo.
 
 Package scope changes from `@moonshot-ai` to `@byf`:
-- `@moonshot-ai/kimi-code` → `@byf/cli`
-- `@moonshot-ai/kimi-code-sdk` → `@byf/sdk`
-- `@moonshot-ai/kimi-code-oauth` → `@byf/oauth`
-- `@moonshot-ai/kimi-telemetry` → `@byf/telemetry`
-- `@moonshot-ai/agent-core` → `@byf/agent-core`
-- `@moonshot-ai/kosong` → `@byf/kosong`
-- `@moonshot-ai/kaos` → `@byf/kaos`
-- `@moonshot-ai/vis` → `@byf/vis`
-- `@moonshot-ai/monorepo` → `@byf/monorepo`
-- `kimi-code-docs` → `byf-docs`
+- `@byf/cli` → `@byf/cli`
+- `@byf/sdk` → `@byf/sdk`
+- `@byf/oauth` → `@byf/oauth`
+- `@byf/telemetry` → `@byf/telemetry`
+- `@byf/agent-core` → `@byf/agent-core`
+- `@byf/kosong` → `@byf/kosong`
+- `@byf/kaos` → `@byf/kaos`
+- `@byf/vis` → `@byf/vis`
+- `@byf/monorepo` → `@byf/monorepo`
+- `byf-docs` → `byf-docs`
 
-The CLI binary entry point changes from `"kimi": "dist/main.mjs"` to `"byf": "dist/main.mjs"`.
+The CLI binary entry point changes from `"byf": "dist/main.mjs"` to `"byf": "dist/main.mjs"`.
 
 All inter-package dependency references in each `package.json` must be updated to use the new scope.
 
@@ -143,11 +143,11 @@ This package migrates data from `~/.kimi/` to `~/.kimi-code/` — both paths are
 
 ### Module 9: Directory Restructure
 
-**What changes:** Rename `apps/kimi-code/` to `apps/cli/`.
+**What changes:** Rename `apps/cli/` to `apps/cli/`.
 
 This requires updating:
 - `pnpm-workspace.yaml` if it references the directory explicitly
-- Root `package.json` scripts that reference `apps/kimi-code`
+- Root `package.json` scripts that reference `apps/cli`
 - `Makefile` targets
 - Any relative import paths from other workspace packages
 

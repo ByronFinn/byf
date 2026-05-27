@@ -1,5 +1,5 @@
 // One creator: meant to run twice as separate processes simultaneously.
-import { KimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import { KimiHarness } from '@byf/sdk';
 
 const workDir = process.argv[2]!;
 const homeDir = process.argv[3]!;

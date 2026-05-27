@@ -65,6 +65,6 @@ export {
 /**
  * Concrete provider adapters stay off the root barrel because their SDK type
  * graphs pollute downstream declaration bundles. Import them from subpaths:
- * `@moonshot-ai/kosong/providers/kimi`,
- * `@moonshot-ai/kosong/providers/openai-legacy`, etc.
+ * `@byf/kosong/providers/kimi`,
+ * `@byf/kosong/providers/openai-legacy`, etc.
  */

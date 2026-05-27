@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
-import { localKaos, type KaosProcess } from '@moonshot-ai/kaos';
+import { localKaos, type KaosProcess } from '@byf/kaos';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SDKSessionRPC } from '../../src/rpc';

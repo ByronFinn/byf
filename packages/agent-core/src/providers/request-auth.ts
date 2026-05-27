@@ -1,4 +1,4 @@
-import { APIStatusError, type ProviderRequestAuth } from '@moonshot-ai/kosong';
+import { APIStatusError, type ProviderRequestAuth } from '@byf/kosong';
 
 import { ErrorCodes, KimiError } from '#/errors';
 

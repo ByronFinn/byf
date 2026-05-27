@@ -4,7 +4,7 @@ import {
   type FinishReason,
   type Message,
   type StreamedMessagePart,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { AgentConfig } from '../../../src/agent';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';

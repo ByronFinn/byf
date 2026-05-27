@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { localKaos } from '@moonshot-ai/kaos';
-import type { ProviderConfig } from '@moonshot-ai/kosong';
+import { localKaos } from '@byf/kaos';
+import type { ProviderConfig } from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderManager } from '../../src/providers/provider-manager';

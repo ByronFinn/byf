@@ -3,7 +3,7 @@ import type {
   Message,
   ModelCapability,
   Tool,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import {
   estimateTokens,

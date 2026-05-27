@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { KimiConfig } from '@moonshot-ai/agent-core';
-import { createKimiDefaultHeaders, KIMI_CODE_PLATFORM } from '@moonshot-ai/kimi-code-oauth';
+import type { KimiConfig } from '@byf/agent-core';
+import { createKimiDefaultHeaders, KIMI_CODE_PLATFORM } from '@byf/oauth';
 
 import { resolveRuntimeProvider } from '../../agent-core/src/providers/runtime-provider';
 import { TEST_IDENTITY } from './test-identity';

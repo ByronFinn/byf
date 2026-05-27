@@ -1,18 +1,18 @@
 {
-  "name": "@moonshot-ai/kimi-code-oauth",
-  "version": "0.1.2",
+  "name": "@byf/oauth",
+  "version": "0.0.1",
   "private": true,
   "description": "Kimi OAuth toolkit for managed Kimi Code authentication",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/oauth#readme",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/oauth#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/ByronFinn/byf.git",
     "directory": "packages/oauth"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
     "kimi",

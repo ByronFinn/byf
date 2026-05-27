@@ -1,4 +1,4 @@
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@byf/kosong';
 
 import type { Agent } from '../..';
 import type { TelemetryPropertyValue } from '../../telemetry';

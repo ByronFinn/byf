@@ -1,8 +1,8 @@
-# @moonshot-ai/kimi-telemetry
+# @byf/telemetry
 
 Shared telemetry infrastructure for Kimi Code.
 
-Part of the [Kimi Code](https://github.com/MoonshotAI/kimi-code) monorepo.
+Part of the [Kimi Code](https://github.com/ByronFinn/byf) monorepo.
 
 See the main repository for documentation, issues, and contribution guidelines.
 

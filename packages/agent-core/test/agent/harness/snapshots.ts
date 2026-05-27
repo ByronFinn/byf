@@ -1,4 +1,4 @@
-import type { Message, Tool as LLMTool } from '@moonshot-ai/kosong';
+import type { Message, Tool as LLMTool } from '@byf/kosong';
 import { expect } from 'vitest';
 
 const IS_EVENT_ARRAY = Symbol('isEventArray');

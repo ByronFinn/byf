@@ -5,7 +5,7 @@
  * Path access policy is resolved before any Kaos I/O.
  */
 
-import type { Kaos } from '@moonshot-ai/kaos';
+import type { Kaos } from '@byf/kaos';
 import * as posixPath from 'node:path/posix';
 import * as win32Path from 'node:path/win32';
 import { z } from 'zod';

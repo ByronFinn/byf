@@ -1,4 +1,4 @@
-import type { ContentPart, Message, Tool } from '@moonshot-ai/kosong';
+import type { ContentPart, Message, Tool } from '@byf/kosong';
 
 /**
  * Estimate token count from text using a character-based heuristic.

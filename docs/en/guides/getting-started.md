@@ -40,16 +40,16 @@ If you prefer to install via npm, you need Node.js 24.15.0 or later:
 node --version
 ```
 
-The package name is `@moonshot-ai/kimi-code`:
+The package name is `@byf/cli`:
 
 ```sh
-npm install -g @moonshot-ai/kimi-code
+npm install -g @byf/cli
 ```
 
 Or with pnpm:
 
 ```sh
-pnpm add -g @moonshot-ai/kimi-code
+pnpm add -g @byf/cli
 ```
 
 ## Upgrade and uninstall
@@ -63,13 +63,13 @@ kimi --version
 **Upgrade**: if you installed via the script, re-run it. If you installed via npm:
 
 ```sh
-npm install -g @moonshot-ai/kimi-code@latest
+npm install -g @byf/cli@latest
 ```
 
 **Uninstall**: if you installed via the script, remove the `kimi` executable. If you installed via npm:
 
 ```sh
-npm uninstall -g @moonshot-ai/kimi-code
+npm uninstall -g @byf/cli
 ```
 
 ## First launch

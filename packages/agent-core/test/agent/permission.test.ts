@@ -1,5 +1,5 @@
-import type { Kaos } from '@moonshot-ai/kaos';
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { Kaos } from '@byf/kaos';
+import type { ToolCall } from '@byf/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

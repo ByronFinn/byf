@@ -1,18 +1,18 @@
 {
-  "name": "@moonshot-ai/agent-core",
-  "version": "0.2.0",
+  "name": "@byf/agent-core",
+  "version": "0.0.1",
   "private": true,
   "description": "The unified agent engine for Kimi",
   "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/agent-core#readme",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/agent-core#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
+    "url": "git+https://github.com/ByronFinn/byf.git",
     "directory": "packages/agent-core"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
     "kimi",
@@ -56,8 +56,8 @@
   "dependencies": {
     "@antfu/utils": "^9.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@moonshot-ai/kaos": "workspace:^",
-    "@moonshot-ai/kosong": "workspace:^",
+    "@byf/kaos": "workspace:^",
+    "@byf/kosong": "workspace:^",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",

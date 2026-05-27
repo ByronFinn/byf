@@ -8,8 +8,8 @@ export default defineConfig({
   plugins: [rawTextPlugin()],
   resolve: {
     alias: {
-      '@moonshot-ai/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
-      '@moonshot-ai/kimi-code-oauth': fileURLToPath(
+      '@byf/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
+      '@byf/oauth': fileURLToPath(
         new URL('../oauth/src/index.ts', import.meta.url),
       ),
     },

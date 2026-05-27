@@ -10,7 +10,7 @@ import {
   type ChatProvider,
   type Message,
   type Tool,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { McpConnectionManager } from '../mcp';
 import {
