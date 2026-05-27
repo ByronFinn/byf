@@ -54,7 +54,7 @@ export async function loadAgentsMd(kaos: Kaos, workDir: string): Promise<string>
 
   // User-level files come first so any project-level AGENTS.md overrides them.
   const home = kaos.gethome();
-  await collect(joinPath(kaos, home, '.kimi-code', 'AGENTS.md'));
+  await collect(joinPath(kaos, home, '.byf', 'AGENTS.md'));
 
   // Generic user-level dir (.agents) matches skill discovery.
   const genericDirs = [joinPath(kaos, home, '.agents')];
@@ -66,7 +66,7 @@ export async function loadAgentsMd(kaos: Kaos, workDir: string): Promise<string>
   }
 
   for (const dir of dirs) {
-    await collect(joinPath(kaos, dir, '.kimi-code', 'AGENTS.md'));
+    await collect(joinPath(kaos, dir, '.byf', 'AGENTS.md'));
     for (const fileName of ['AGENTS.md', 'agents.md']) {
       if (await collect(joinPath(kaos, dir, fileName))) break;
     }

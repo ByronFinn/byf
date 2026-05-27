@@ -3,8 +3,8 @@
  *
  * One provider instance per server/resource identity. The provider:
  *  - Persists OAuth tokens, the registered DCR client info, and discovery
- *    state under `<KIMI_CODE_HOME>/credentials/mcp/<key>-*.json`
- *    (mode 0600; default home is `~/.kimi-code`).
+ *    state under `<BYF_HOME>/credentials/mcp/<key>-*.json`
+ *    (mode 0600; default home is `~/.byf`).
  *  - Captures the authorization URL when the SDK calls
  *    `redirectToAuthorization` — the {@link McpOAuthService} reads that field
  *    after the first `auth()` call returns `'REDIRECT'`.
@@ -62,7 +62,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     this.serverUrl = canonicalMcpOAuthResource(options.serverUrl);
     this.storeKey = mcpOAuthStoreKey(options.serverName, this.serverUrl);
     this.store = options.store;
-    this.clientLabel = options.clientLabel ?? `kimi-code (${options.serverName})`;
+    this.clientLabel = options.clientLabel ?? `byf (${options.serverName})`;
   }
 
   // ── flow-scoped state, set by McpOAuthService before invoking auth() ────

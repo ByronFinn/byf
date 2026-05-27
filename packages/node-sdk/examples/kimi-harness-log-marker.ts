@@ -32,7 +32,7 @@ const USAGE = `Usage:
 
 Options:
   -s, --session <id>   Existing session id to resume and mark
-      --home <dir>     Kimi home dir; defaults to KIMI_CODE_HOME or ~/.kimi-code
+      --home <dir>     Kimi home dir; defaults to BYF_HOME or ~/.byf
       --level <level>  error | warn; defaults to error
   -m, --message <text> Marker text; defaults to MANUAL_SESSION_LOG_MARKER_<timestamp>
   -h, --help           Show this help
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
     process.stderr.write(
       [
         'error: marker was not found in the session log.',
-        'Check that KIMI_LOG_LEVEL is not "off" and that the session id exists in this KIMI_CODE_HOME.',
+        'Check that KIMI_LOG_LEVEL is not "off" and that the session id exists in this BYF_HOME.',
         '',
       ].join('\n'),
     );

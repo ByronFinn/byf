@@ -1,13 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-/** Resolve KIMI_CODE_HOME (env > ~/.kimi-code). */
-function resolveKimiCodeHome(): string {
-  const envHome = process.env['KIMI_CODE_HOME'];
+/** Resolve BYF_HOME (env > ~/.byf). */
+function resolveByfHome(): string {
+  const envHome = process.env['BYF_HOME'];
   if (envHome !== undefined && envHome.length > 0) {
     return envHome;
   }
-  return join(homedir(), '.kimi-code');
+  return join(homedir(), '.byf');
 }
 
 /** HTTP port for the vis API server. */
@@ -51,4 +51,4 @@ export function resolveVisAuthToken(host: string = resolveHost()): string | unde
   return undefined;
 }
 
-export const KIMI_CODE_HOME: string = resolveKimiCodeHome();
+export const BYF_HOME: string = resolveByfHome();

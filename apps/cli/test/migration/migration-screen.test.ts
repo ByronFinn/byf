@@ -34,7 +34,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -54,7 +54,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -68,7 +68,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: (r) => {
         result = r;
@@ -84,7 +84,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       runMigration: async (input) => {
         captured = input;
@@ -103,7 +103,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       runMigration: async (input) => {
         captured = input;
@@ -122,7 +122,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan({ totalSessions: 1365 }),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -139,7 +139,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan({ totalSessions: 0 }),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -154,7 +154,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       skipDecisionStep: true,
       onComplete: () => {},
@@ -170,7 +170,7 @@ describe('MigrationScreenComponent — ask phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       skipDecisionStep: true,
       runMigration: async (input) => {
@@ -190,7 +190,7 @@ describe('MigrationScreenComponent — progress phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -210,7 +210,7 @@ describe('MigrationScreenComponent — progress phase', () => {
       const c = new MigrationScreenComponent({
         plan: makePlan(),
         sourceHome: '/x/.kimi',
-        targetHome: '/y/.kimi-code',
+        targetHome: '/y/.byf',
         colors: darkColors,
         skipDecisionStep: true,
         // A migration that never settles keeps the screen in the progress
@@ -235,7 +235,7 @@ describe('MigrationScreenComponent — progress phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -260,7 +260,7 @@ function makeReport(
     completedAt: 'e',
     migratorVersion: '0.1.1',
     source: '/x/.kimi',
-    target: '/y/.kimi-code',
+    target: '/y/.byf',
     summary: {
       config: {
         migrated: true,
@@ -311,7 +311,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -326,7 +326,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -360,7 +360,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: (r) => {
         result = r;
@@ -376,7 +376,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -412,7 +412,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -453,7 +453,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -495,7 +495,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -510,7 +510,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -543,7 +543,7 @@ describe('MigrationScreenComponent — result phase', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
     });
@@ -560,7 +560,7 @@ describe('MigrationScreenComponent — execution wiring', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: (r) => {
         onCompleteResult = r;
@@ -582,7 +582,7 @@ describe('MigrationScreenComponent — execution wiring', () => {
     const c = new MigrationScreenComponent({
       plan: makePlan(),
       sourceHome: '/x/.kimi',
-      targetHome: '/y/.kimi-code',
+      targetHome: '/y/.byf',
       colors: darkColors,
       onComplete: () => {},
       runMigration: async () => {

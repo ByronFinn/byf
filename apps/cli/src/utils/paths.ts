@@ -10,39 +10,39 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  KIMI_CODE_DATA_DIR_NAME,
-  KIMI_CODE_HOME_ENV,
-  KIMI_CODE_INPUT_HISTORY_DIR_NAME,
-  KIMI_CODE_LOG_DIR_NAME,
-  KIMI_CODE_UPDATE_DIR_NAME,
-  KIMI_CODE_UPDATE_STATE_FILE_NAME,
+  BYF_DATA_DIR_NAME,
+  BYF_HOME_ENV,
+  BYF_INPUT_HISTORY_DIR_NAME,
+  BYF_LOG_DIR_NAME,
+  BYF_UPDATE_DIR_NAME,
+  BYF_UPDATE_STATE_FILE_NAME,
 } from '#/constant/app';
 
 /**
- * Return the root data directory for Kimi Code.
+ * Return the root data directory for BYF.
  *
- * Priority: `KIMI_CODE_HOME` env var > `~/.kimi-code`.
+ * Priority: `BYF_HOME` env var > `~/.byf`.
  */
 export function getDataDir(): string {
-  const envDir = process.env[KIMI_CODE_HOME_ENV];
+  const envDir = process.env[BYF_HOME_ENV];
   if (envDir) {
     return envDir;
   }
-  return join(homedir(), KIMI_CODE_DATA_DIR_NAME);
+  return join(homedir(), BYF_DATA_DIR_NAME);
 }
 
 /**
  * Return the diagnostic log directory: `<dataDir>/logs/`.
  */
 export function getLogDir(): string {
-  return join(getDataDir(), KIMI_CODE_LOG_DIR_NAME);
+  return join(getDataDir(), BYF_LOG_DIR_NAME);
 }
 
 /**
  * Return the update cache file: `<dataDir>/updates/latest.json`.
  */
 export function getUpdateStateFile(): string {
-  return join(getDataDir(), KIMI_CODE_UPDATE_DIR_NAME, KIMI_CODE_UPDATE_STATE_FILE_NAME);
+  return join(getDataDir(), BYF_UPDATE_DIR_NAME, BYF_UPDATE_STATE_FILE_NAME);
 }
 
 /**
@@ -51,5 +51,5 @@ export function getUpdateStateFile(): string {
  */
 export function getInputHistoryFile(workDir: string): string {
   const hash = createHash('md5').update(workDir, 'utf-8').digest('hex');
-  return join(getDataDir(), KIMI_CODE_INPUT_HISTORY_DIR_NAME, `${hash}.jsonl`);
+  return join(getDataDir(), BYF_INPUT_HISTORY_DIR_NAME, `${hash}.jsonl`);
 }

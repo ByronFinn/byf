@@ -23,7 +23,7 @@ export interface ResolveMcpJsonPathsInput {
 export function resolveMcpJsonPaths(input: ResolveMcpJsonPathsInput): McpJsonPaths {
   return {
     user: join(resolveKimiHome(input.homeDir), 'mcp.json'),
-    project: join(input.cwd, '.kimi-code', 'mcp.json'),
+    project: join(input.cwd, '.byf', 'mcp.json'),
   };
 }
 
@@ -33,8 +33,8 @@ export interface LoadMcpServersInput {
 }
 
 /**
- * Load MCP server declarations from the user-global `~/.kimi-code/mcp.json`
- * and the project-local `<cwd>/.kimi-code/mcp.json`. Entries in the project
+ * Load MCP server declarations from the user-global `~/.byf/mcp.json`
+ * and the project-local `<cwd>/.byf/mcp.json`. Entries in the project
  * file override user-global entries with the same key, so a repo can specialise
  * or replace a shared definition.
  *

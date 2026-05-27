@@ -832,7 +832,7 @@ describe('Session.createAgent', () => {
             '/repo/packages',
             workDir,
             `${workDir}/src`,
-            `${workDir}/.kimi-code`,
+            `${workDir}/.byf`,
           ].includes(path)
         ) {
           return stat('dir');
@@ -840,7 +840,7 @@ describe('Session.createAgent', () => {
         if (
           [
             '/repo/AGENTS.md',
-            `${workDir}/.kimi-code/AGENTS.md`,
+            `${workDir}/.byf/AGENTS.md`,
             `${workDir}/AGENTS.md`,
             `${workDir}/package.json`,
             `${workDir}/src/index.ts`,
@@ -864,7 +864,7 @@ describe('Session.createAgent', () => {
       },
       readText: vi.fn(async (path: string) => {
         if (path === '/repo/AGENTS.md') return 'root instructions';
-        if (path === `${workDir}/.kimi-code/AGENTS.md`) return 'brand instructions';
+        if (path === `${workDir}/.byf/AGENTS.md`) return 'brand instructions';
         if (path === `${workDir}/AGENTS.md`) return 'leaf instructions';
         throw new Error(`ENOENT ${path}`);
       }),
@@ -896,7 +896,7 @@ describe('Session.createAgent', () => {
     expect(created.agent.config.systemPrompt).toContain('<!-- From: /repo/AGENTS.md -->');
     expect(created.agent.config.systemPrompt).toContain('root instructions');
     expect(created.agent.config.systemPrompt).toContain(
-      '<!-- From: /repo/packages/app/.kimi-code/AGENTS.md -->',
+      '<!-- From: /repo/packages/app/.byf/AGENTS.md -->',
     );
     expect(created.agent.config.systemPrompt).toContain('brand instructions');
     expect(created.agent.config.systemPrompt).toContain(

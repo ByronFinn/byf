@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app';
-import { KIMI_CODE_HOME, resolveHost, resolvePort, resolveVisAuthToken } from './config';
+import { BYF_HOME, resolveHost, resolvePort, resolveVisAuthToken } from './config';
 import { formatStartupBanner } from './startup-banner';
 
 async function main(): Promise<void> {
@@ -15,7 +15,7 @@ async function main(): Promise<void> {
       formatStartupBanner({
         authToken,
         host,
-        kimiCodeHome: KIMI_CODE_HOME,
+        kimiCodeHome: BYF_HOME,
         port: info.port,
       }),
     );

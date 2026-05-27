@@ -143,7 +143,7 @@ async function runUpdateScript(
 function flakeWithHash(hash: string): string {
   return `{
   outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.kimi-code-pnpm-deps = {
+    packages.x86_64-linux.byf-pnpm-deps = {
       hash = "${hash}";
     };
   };

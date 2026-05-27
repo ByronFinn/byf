@@ -31,7 +31,7 @@ describe('PlanBoxComponent', () => {
       '# Hello',
       theme,
       darkColors.success,
-      '/tmp/projects/foo/.kimi-code/plans/very-long-slug-name.md',
+      '/tmp/projects/foo/.byf/plans/very-long-slug-name.md',
     );
     const out = strip(box.render(80).join('\n'));
     const top = out.split('\n')[0]!;
