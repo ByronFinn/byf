@@ -11,8 +11,8 @@ import { createKimiCodeHostIdentity } from '#/cli/version';
 import { KimiHarness, log } from '@byf/sdk';
 import { __resetRootLoggerForTest } from '../../../../packages/agent-core/src/logging/logger';
 
-const SESSION_LOG = 'logs/kimi-code.log';
-const GLOBAL_LOG = 'logs/global/kimi-code.log';
+const SESSION_LOG = 'logs/byf.log';
+const GLOBAL_LOG = 'logs/global/byf.log';
 const MAIN_WIRE = 'agents/main/wire.jsonl';
 const ENABLED = process.env['KIMI_E2E'] === '1';
 

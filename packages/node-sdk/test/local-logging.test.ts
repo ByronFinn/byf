@@ -117,8 +117,8 @@ describe('Local logging — harness integration', () => {
       (s) => s.id === session.id,
     )!;
 
-    const globalPath = join(homeDir, 'logs', 'kimi-code.log');
-    const sessionLogPath = join(summary.sessionDir, 'logs', 'kimi-code.log');
+    const globalPath = join(homeDir, 'logs', 'byf.log');
+    const sessionLogPath = join(summary.sessionDir, 'logs', 'byf.log');
 
     // Trigger an export — this flushes both global and session via KimiCore
     const exportOut = join(workDir, 'out.zip');
@@ -150,18 +150,18 @@ describe('Local logging — harness integration', () => {
     const zipBuf = await readFile(result.zipPath);
     const entries = readZipEntries(zipBuf);
     expect(entries.has('agents/main/wire.jsonl')).toBe(true);
-    expect(entries.has('logs/kimi-code.log')).toBe(true);
-    expect(entries.has('logs/global/kimi-code.log')).toBe(false);
-    expect(entries.get('logs/kimi-code.log')!.toString('utf-8')).toContain(
+    expect(entries.has('logs/byf.log')).toBe(true);
+    expect(entries.has('logs/global/byf.log')).toBe(false);
+    expect(entries.get('logs/byf.log')!.toString('utf-8')).toContain(
       'session export marker',
     );
-    expect(result.manifest.sessionLogPath).toBe('logs/kimi-code.log');
+    expect(result.manifest.sessionLogPath).toBe('logs/byf.log');
     expect(result.manifest.globalLogPath).toBeUndefined();
     const manifest = JSON.parse(entries.get('manifest.json')!.toString('utf-8')) as Record<
       string,
       unknown
     >;
-    expect(manifest['sessionLogPath']).toBe('logs/kimi-code.log');
+    expect(manifest['sessionLogPath']).toBe('logs/byf.log');
     expect(manifest['globalLogPath']).toBeUndefined();
   });
 
@@ -176,7 +176,7 @@ describe('Local logging — harness integration', () => {
 
     const entries = readZipEntries(await readFile(result.zipPath));
     expect(entries.has('agents/main/wire.jsonl')).toBe(true);
-    expect(entries.has('logs/kimi-code.log')).toBe(false);
+    expect(entries.has('logs/byf.log')).toBe(false);
     expect(result.manifest.sessionLogPath).toBeUndefined();
     const manifest = JSON.parse(entries.get('manifest.json')!.toString('utf-8')) as Record<
       string,
@@ -185,7 +185,7 @@ describe('Local logging — harness integration', () => {
     expect(manifest['sessionLogPath']).toBeUndefined();
   });
 
-  it('default export includes rotated session log files without requiring active kimi-code.log', async () => {
+  it('default export includes rotated session log files without requiring active byf.log', async () => {
     const env = snapshotLogEnv();
     process.env['KIMI_LOG_LEVEL'] = 'warn';
     process.env['KIMI_LOG_SESSION_MAX_BYTES'] = '1024';
@@ -210,13 +210,13 @@ describe('Local logging — harness integration', () => {
 
       const entries = readZipEntries(await readFile(result.zipPath));
       const sessionLogEntries = [...entries.keys()].filter(
-        (entry) => entry === 'logs/kimi-code.log' || entry.startsWith('logs/kimi-code.log.'),
+        (entry) => entry === 'logs/byf.log' || entry.startsWith('logs/byf.log.'),
       );
       expect(sessionLogEntries.length).toBeGreaterThan(0);
-      expect(sessionLogEntries).toContain('logs/kimi-code.log.1');
-      expect(entries.has('logs/global/kimi-code.log')).toBe(false);
-      if (entries.has('logs/kimi-code.log')) {
-        expect(result.manifest.sessionLogPath).toBe('logs/kimi-code.log');
+      expect(sessionLogEntries).toContain('logs/byf.log.1');
+      expect(entries.has('logs/global/byf.log')).toBe(false);
+      if (entries.has('logs/byf.log')) {
+        expect(result.manifest.sessionLogPath).toBe('logs/byf.log');
       } else {
         expect(result.manifest.sessionLogPath).toBeUndefined();
       }
@@ -242,10 +242,10 @@ describe('Local logging — harness integration', () => {
     const zipBuf = await readFile(result.zipPath);
     const entries = readZipEntries(zipBuf);
     expect(entries.has('agents/main/wire.jsonl')).toBe(true);
-    expect(entries.has('logs/global/kimi-code.log')).toBe(true);
-    expect(result.manifest.globalLogPath).toBe('logs/global/kimi-code.log');
+    expect(entries.has('logs/global/byf.log')).toBe(true);
+    expect(result.manifest.globalLogPath).toBe('logs/global/byf.log');
     // Global log carries entries that don't have a sessionId routed to a sink.
-    expect(entries.get('logs/global/kimi-code.log')!.toString('utf-8')).toContain(
+    expect(entries.get('logs/global/byf.log')!.toString('utf-8')).toContain(
       'untagged probe',
     );
   });
@@ -269,8 +269,8 @@ describe('Local logging — harness integration', () => {
     });
 
     const entries = readZipEntries(await readFile(result.zipPath));
-    const globalLog = entries.get('logs/global/kimi-code.log')!.toString('utf-8');
-    const firstLog = await readOptionalFile(join(firstHome, 'logs', 'kimi-code.log'));
+    const globalLog = entries.get('logs/global/byf.log')!.toString('utf-8');
+    const firstLog = await readOptionalFile(join(firstHome, 'logs', 'byf.log'));
     expect(globalLog).toContain('active-global-export-marker');
     expect(firstLog).not.toContain('active-global-export-marker');
 
@@ -301,8 +301,8 @@ describe('Local logging — harness integration', () => {
       });
 
       const entries = readZipEntries(await readFile(result.zipPath));
-      const sessionLog = entries.get('logs/kimi-code.log')!.toString('utf-8');
-      const globalLog = entries.get('logs/global/kimi-code.log')!.toString('utf-8');
+      const sessionLog = entries.get('logs/byf.log')!.toString('utf-8');
+      const globalLog = entries.get('logs/global/byf.log')!.toString('utf-8');
       expect(sessionLog).toContain('export session log flush failed');
       expect(sessionLog).toContain('export global log flush failed');
       expect(globalLog).toContain('export global log flush failed');
@@ -328,8 +328,8 @@ describe('Local logging — harness integration', () => {
     log.warn('second-home-marker');
     await getRootLogger().flushGlobal();
 
-    const firstLog = await readOptionalFile(join(firstHome, 'logs', 'kimi-code.log'));
-    const secondLog = await readFile(join(secondHome, 'logs', 'kimi-code.log'), 'utf-8');
+    const firstLog = await readOptionalFile(join(firstHome, 'logs', 'byf.log'));
+    const secondLog = await readFile(join(secondHome, 'logs', 'byf.log'), 'utf-8');
     expect(firstLog).not.toContain('second-home-marker');
     expect(secondLog).toContain('second-home-marker');
 
@@ -368,7 +368,7 @@ describe('Local logging — harness integration', () => {
       } catch {
         // intentional — directory may not exist when level=off
       }
-      expect(logsDir).not.toContain('kimi-code.log');
+      expect(logsDir).not.toContain('byf.log');
     } finally {
       restoreLogEnv(env);
     }
@@ -380,7 +380,7 @@ describe('Local logging — harness integration', () => {
     log.warn('untagged before close');
     // No `await flush()` here on purpose — close() must do it.
     await harness.close();
-    const globalPath = join(homeDir, 'logs', 'kimi-code.log');
+    const globalPath = join(homeDir, 'logs', 'byf.log');
     const text = await readFile(globalPath, 'utf-8');
     expect(text).toContain('untagged before close');
   });

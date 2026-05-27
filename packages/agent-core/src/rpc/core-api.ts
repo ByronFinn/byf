@@ -57,7 +57,7 @@ export interface ExportSessionPayload {
   readonly outputPath?: string | undefined;
   /**
    * When true, the active global diagnostic log (`$BYF_HOME/logs/byf.log`)
-   * is copied into the zip at `logs/global/kimi-code.log`. Off by default to
+   * is copied into the zip at `logs/global/byf.log`. Off by default to
    * avoid bundling events from concurrent sessions / other projects.
    */
   readonly includeGlobalLog?: boolean | undefined;

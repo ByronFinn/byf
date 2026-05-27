@@ -54,7 +54,7 @@ async function main(): Promise<void> {
       throw new Error(`Session "${session.id}" resumed without a sessionDir summary`);
     }
 
-    sessionLogPath = join(sessionDir, 'logs', 'kimi-code.log');
+    sessionLogPath = join(sessionDir, 'logs', 'byf.log');
     const payload = {
       sessionId: session.id,
       purpose: 'manual-log-marker',

@@ -464,10 +464,8 @@ describe('harness config schema and patch merge', () => {
 
 describe('config path env override', () => {
   it('uses BYF_HOME when no explicit homeDir is supplied', () => {
-    const savedByf = process.env['BYF_HOME'];
-    const savedKimi = process.env['BYF_HOME'];
+    const saved = process.env['BYF_HOME'];
     try {
-      delete process.env['BYF_HOME'];
       process.env['BYF_HOME'] = '/tmp/byf-from-env';
 
       expect(resolveKimiHome()).toBe('/tmp/byf-from-env');
@@ -475,27 +473,21 @@ describe('config path env override', () => {
       expect(resolveConfigPath({})).toBe('/tmp/byf-from-env/config.toml');
       expect(resolveConfigPath({ configPath: '/tmp/custom.toml' })).toBe('/tmp/custom.toml');
     } finally {
-      if (savedByf === undefined) delete process.env['BYF_HOME'];
-      else process.env['BYF_HOME'] = savedByf;
-      if (savedKimi === undefined) delete process.env['BYF_HOME'];
-      else process.env['BYF_HOME'] = savedKimi;
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
     }
   });
 
   it('defaults to ~/.byf when no env var is set', () => {
-    const savedByf = process.env['BYF_HOME'];
-    const savedKimi = process.env['BYF_HOME'];
+    const saved = process.env['BYF_HOME'];
     try {
-      delete process.env['BYF_HOME'];
       delete process.env['BYF_HOME'];
 
       const result = resolveKimiHome();
       expect(result).toMatch(/\/\.byf$/);
     } finally {
-      if (savedByf === undefined) delete process.env['BYF_HOME'];
-      else process.env['BYF_HOME'] = savedByf;
-      if (savedKimi === undefined) delete process.env['BYF_HOME'];
-      else process.env['BYF_HOME'] = savedKimi;
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
     }
   });
 });
