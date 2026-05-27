@@ -5,8 +5,12 @@ import type {
   TelemetryContextPatch,
   TelemetryProperties,
 } from '@byf/agent-core';
-import type { KimiHostIdentity, OAuthRefreshOutcome } from '@byf/oauth';
 import type { ContentPart } from '@byf/kosong';
+
+export interface HostIdentity {
+  readonly userAgentProduct: string;
+  readonly version: string;
+}
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -40,7 +44,6 @@ export type {
   ToolInfo,
 } from '@byf/agent-core';
 
-export type { KimiHostIdentity, OAuthRefreshOutcome };
 export type { TelemetryClient, TelemetryContextPatch, TelemetryProperties };
 export type { ContentPart, Role, ToolCall } from '@byf/kosong';
 
@@ -52,14 +55,13 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 export type PromptInput = readonly PromptPart[];
 
 export interface KimiHarnessOptions {
-  readonly identity?: KimiHostIdentity | undefined;
+  readonly identity?: HostIdentity | undefined;
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly autoLoadConfig?: boolean | undefined;
   readonly uiMode?: string;
   readonly skillDirs?: readonly string[];
   readonly telemetry?: TelemetryClient | undefined;
-  readonly onOAuthRefresh?: ((outcome: OAuthRefreshOutcome) => void) | undefined;
 }
 
 export interface CreateSessionOptions {
@@ -83,8 +85,8 @@ export interface ResumeSessionInput {
 
 export interface ForkSessionInput {
   readonly id: string;
-  readonly forkId?: string;
-  readonly title?: string;
+  readonly forkId?: string | undefined;
+  readonly title?: string | undefined;
   readonly metadata?: JsonObject;
 }
 
@@ -92,7 +94,6 @@ export interface ExportSessionInput {
   readonly id: string;
   readonly outputPath?: string | undefined;
   readonly includeGlobalLog?: boolean | undefined;
-  /** Host version to record in the export manifest. */
   readonly version: string;
 }
 

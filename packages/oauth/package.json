@@ -2,8 +2,8 @@
   "name": "@byf/oauth",
   "version": "0.0.1",
   "private": true,
-  "description": "Kimi OAuth toolkit for managed Kimi Code authentication",
-  "license": "MIT",
+  "description": "Open platform API key authentication and model fetching for BYF",
+  "license": "Proprietary",
   "author": "ByronFinn",
   "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/oauth#readme",
   "repository": {
@@ -15,10 +15,10 @@
     "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
-    "oauth",
+    "byf",
     "authentication",
-    "auth",
+    "api-key",
+    "open-platform",
     "cli"
   ],
   "files": [
@@ -41,11 +41,5 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "proper-lockfile": "^4.1.2"
-  },
-  "devDependencies": {
-    "@types/proper-lockfile": "^4.1.4"
   }
 }

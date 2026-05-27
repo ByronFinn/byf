@@ -1,6 +1,6 @@
 export { KimiHarness } from '#/kimi-harness';
 export { Session } from '#/session';
-export { KimiAuthFacade } from '#/auth';
+export { ByfAuthFacade } from '#/auth';
 
 export {
   applyCatalogProvider,
@@ -43,12 +43,6 @@ export {
   resolveKimiHome,
 } from '@byf/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byf/agent-core';
-
-export type {
-  KimiAuthLoginResult,
-  KimiAuthLogoutResult,
-  KimiAuthSubmitFeedbackInput,
-} from '#/auth';
 
 export * from '#/events';
 export type * from '#/types';

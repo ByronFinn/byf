@@ -8,7 +8,6 @@ import {
   type ApprovalResponse,
   type CoreAPI,
   type Event,
-  type OAuthTokenProviderResolver,
   type QuestionRequest,
   type QuestionResult,
   type SDKAPI,
@@ -17,7 +16,6 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
 } from '@byf/agent-core';
-import { createKimiDefaultHeaders } from '@byf/oauth';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -44,7 +42,6 @@ import type {
   SessionSummary,
   SkillSummary,
   Unsubscribe,
-  KimiHostIdentity,
 } from '#/types';
 
 const MAIN_AGENT_ID = 'main';
@@ -52,8 +49,6 @@ const MAIN_AGENT_ID = 'main';
 export interface SDKRpcClientOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
-  readonly identity?: KimiHostIdentity | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
   readonly telemetry?: TelemetryClient | undefined;
 }
@@ -110,16 +105,9 @@ export class SDKRpcClient {
 
   constructor(options: SDKRpcClientOptions = {}) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const homeDir = resolveKimiHome(options.homeDir);
-    const kimiRequestHeaders =
-      options.identity === undefined
-        ? undefined
-        : createKimiDefaultHeaders({ homeDir, ...options.identity });
     this.core = new KimiCore(coreRpc, {
       homeDir: options.homeDir,
       configPath: options.configPath,
-      kimiRequestHeaders,
-      resolveOAuthTokenProvider: options.resolveOAuthTokenProvider,
       skillDirs: options.skillDirs,
       telemetry: options.telemetry,
     });

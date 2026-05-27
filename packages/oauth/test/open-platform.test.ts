@@ -10,7 +10,9 @@ import {
   OPEN_PLATFORMS,
   OpenPlatformApiError,
   removeOpenPlatformConfig,
-  type ManagedKimiConfigShape,
+  type ConfigShape,
+  type ModelInfo,
+  type OpenPlatformDefinition,
 } from '../src/open-platform';
 
 function makeModelsResponse(): Response {
@@ -127,35 +129,35 @@ describe('fetchOpenPlatformModels', () => {
 describe('filterModelsByPrefix', () => {
   it('filters by allowedPrefixes when present', () => {
     const platform = getOpenPlatformById('moonshot-cn')!;
-    const models = [
+    const models: ModelInfo[] = [
       { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
       { id: 'gpt-4', contextLength: 1000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
 
-    const filtered = filterModelsByPrefix(models as unknown as import('../src/managed-kimi-code').ManagedKimiCodeModelInfo[], platform);
+    const filtered = filterModelsByPrefix(models, platform);
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.id).toBe('kimi-k2-0712-preview');
   });
 
   it('returns all models when allowedPrefixes is absent', () => {
-    const platform: import('../src/open-platform').OpenPlatformDefinition = {
+    const platform: OpenPlatformDefinition = {
       id: 'custom',
       name: 'Custom',
       baseUrl: 'https://example.com/v1',
     };
-    const models = [
+    const models: ModelInfo[] = [
       { id: 'model-a', contextLength: 1000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
       { id: 'model-b', contextLength: 2000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
 
-    const filtered = filterModelsByPrefix(models as unknown as import('../src/managed-kimi-code').ManagedKimiCodeModelInfo[], platform);
+    const filtered = filterModelsByPrefix(models, platform);
     expect(filtered).toHaveLength(2);
   });
 });
 
 describe('capabilitiesForModel', () => {
   it('returns undefined for a model with no capabilities', () => {
-    const model = {
+    const model: ModelInfo = {
       id: 'plain',
       contextLength: 1000,
       supportsReasoning: false,
@@ -167,7 +169,7 @@ describe('capabilitiesForModel', () => {
   });
 
   it('returns all caps for a full-featured model', () => {
-    const model = {
+    const model: ModelInfo = {
       id: 'full',
       contextLength: 1000,
       supportsReasoning: true,
@@ -181,11 +183,11 @@ describe('capabilitiesForModel', () => {
 
 describe('applyOpenPlatformConfig', () => {
   it('writes provider, models, and defaults', () => {
-    const config: ManagedKimiConfigShape = {
+    const config: ConfigShape = {
       providers: {},
     };
     const platform = getOpenPlatformById('moonshot-cn')!;
-    const models = [
+    const models: ModelInfo[] = [
       { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true, displayName: 'Kimi K2' },
       { id: 'kimi-k2-lite', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
@@ -221,7 +223,7 @@ describe('applyOpenPlatformConfig', () => {
   });
 
   it('clears stale models for the same provider', () => {
-    const config: ManagedKimiConfigShape = {
+    const config: ConfigShape = {
       providers: {
         'moonshot-cn': { type: 'kimi', baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'sk-old' },
       },
@@ -231,7 +233,7 @@ describe('applyOpenPlatformConfig', () => {
       },
     };
     const platform = getOpenPlatformById('moonshot-cn')!;
-    const models = [
+    const models: ModelInfo[] = [
       { id: 'kimi-k2-0712-preview', contextLength: 256000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true },
     ];
 
@@ -250,7 +252,7 @@ describe('applyOpenPlatformConfig', () => {
 
 describe('removeOpenPlatformConfig', () => {
   it('removes provider, its models, and defaultModel when matched', () => {
-    const config: ManagedKimiConfigShape = {
+    const config: ConfigShape = {
       providers: {
         'moonshot-cn': { type: 'kimi', baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'sk-test' },
         'other': { type: 'kimi', baseUrl: 'https://other.test/v1', apiKey: 'sk-other' },
@@ -272,7 +274,7 @@ describe('removeOpenPlatformConfig', () => {
   });
 
   it('leaves defaultModel intact when it belongs to another provider', () => {
-    const config: ManagedKimiConfigShape = {
+    const config: ConfigShape = {
       providers: {
         'moonshot-cn': { type: 'kimi', baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'sk-test' },
       },
