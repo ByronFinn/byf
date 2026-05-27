@@ -1,13 +1,12 @@
-import type { KimiHostIdentity } from '@byf/oauth';
-import { type KimiHarness, type Session, type Event } from '@byf/sdk';
+import { type KimiHarness, type Session, type Event, type HostIdentity } from '@byf/sdk';
 
-export function smokeIdentityFromEnv(): KimiHostIdentity {
-  const version = process.env['KIMI_CODE_SMOKE_VERSION'];
+export function smokeIdentityFromEnv(): HostIdentity {
+  const version = process.env['BYF_SMOKE_VERSION'];
   if (version === undefined || version.trim().length === 0) {
-    throw new Error('KIMI_CODE_SMOKE_VERSION is required for Kimi SDK smoke examples.');
+    throw new Error('BYF_SMOKE_VERSION is required for BYF SDK smoke examples.');
   }
   return {
-    userAgentProduct: 'kimi-code-cli',
+    userAgentProduct: 'byf-cli',
     version,
   };
 }

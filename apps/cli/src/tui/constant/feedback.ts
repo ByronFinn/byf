@@ -34,7 +34,7 @@ export function feedbackSessionLine(sessionId: string): string {
 // Hint shown beneath session-level error messages in the TUI to point users
 // at the `kimi export` workflow so they can share diagnostics with us.
 export function errorReportHintLine(sessionId: string): string {
-  return `If this persists, run \`kimi export ${sessionId}\` and share the file with us for diagnosis. Please don't share it publicly.`;
+  return `If this persists, run \`byf export ${sessionId}\` and share the file with us for diagnosis. Please don't share it publicly.`;
 }
 
 export function withFeedbackVersionPrefix(version: string): string {

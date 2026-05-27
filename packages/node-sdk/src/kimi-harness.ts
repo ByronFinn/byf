@@ -12,9 +12,8 @@ import {
   type TelemetryContextPatch,
   type TelemetryProperties,
 } from '@byf/agent-core';
-import { assertKimiHostIdentity } from '@byf/oauth';
 
-import { KimiAuthFacade } from '#/auth';
+import { ByfAuthFacade } from '#/auth';
 import { SDKRpcClient } from '#/rpc';
 import { Session } from '#/session';
 import type {
@@ -26,7 +25,6 @@ import type {
   KimiConfig,
   KimiConfigPatch,
   KimiHarnessOptions,
-  KimiHostIdentity,
   ListSessionsOptions,
   RenameSessionInput,
   ResumeSessionInput,
@@ -36,17 +34,16 @@ import type {
 export class KimiHarness {
   readonly homeDir: string;
   readonly configPath: string;
-  readonly auth: KimiAuthFacade;
+  readonly auth: ByfAuthFacade;
 
-  private readonly identity: KimiHostIdentity | undefined;
+  private readonly identity: { readonly userAgentProduct: string; readonly version: string } | undefined;
   private readonly uiMode: string;
   private readonly telemetry: TelemetryClient;
   private readonly activeSessions = new Map<string, Session>();
   private readonly rpc: SDKRpcClient;
 
   constructor(options: KimiHarnessOptions) {
-    this.identity =
-      options.identity === undefined ? undefined : assertKimiHostIdentity(options.identity);
+    this.identity = options.identity;
     this.uiMode = options.uiMode ?? DEFAULT_SESSION_STARTED_UI_MODE;
     this.homeDir = resolveKimiHome(options.homeDir);
     this.configPath = resolveConfigPath({
@@ -55,25 +52,19 @@ export class KimiHarness {
     });
     this.configureLogging();
     this.telemetry = options.telemetry ?? noopTelemetryClient;
-    this.auth = new KimiAuthFacade({
+    this.auth = new ByfAuthFacade({
       homeDir: this.homeDir,
       configPath: this.configPath,
-      identity: this.identity,
-      onRefresh: options.onOAuthRefresh,
     });
     this.rpc = new SDKRpcClient({
       homeDir: options.homeDir,
       configPath: this.configPath,
-      identity: this.identity,
-      resolveOAuthTokenProvider: this.auth.resolveOAuthTokenProvider,
       skillDirs: options.skillDirs,
       telemetry: this.telemetry,
     });
   }
 
   private configureLogging(): void {
-    // Fresh configure completes synchronously on the first-time path; pre-init
-    // noop covers any caller that races before this returns.
     void getRootLogger().configure(resolveLoggingConfig({ homeDir: this.homeDir }));
   }
 

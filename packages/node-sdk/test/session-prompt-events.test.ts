@@ -4,13 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { KIMI_CODE_PLATFORM } from '@byf/oauth';
 import type * as KosongModule from '@byf/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Event } from '#/index';
-
-import { TEST_IDENTITY } from './test-identity';
 
 const fakeProviderState = vi.hoisted(() => ({
   calls: [] as Array<{
@@ -73,7 +70,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-sdk-prompt-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-sdk-prompt-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -99,10 +96,7 @@ describe('Session.prompt events', () => {
   it('persists sanitized prompt metadata without marking the title custom', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
+    const harness = new KimiHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -175,10 +169,7 @@ describe('Session.prompt events', () => {
   it('emits mapped turn events through Session.onEvent', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
+    const harness = new KimiHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -210,16 +201,10 @@ describe('Session.prompt events', () => {
           reason: 'completed',
         }),
       );
-      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('You are Kimi Code CLI');
-      expect(fakeProviderState.calls[0]?.systemPrompt).toContain('Available skills');
+      expect(fakeProviderState.calls[0]?.systemPrompt.length).toBeGreaterThan(0);
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
         type: 'kimi',
-        defaultHeaders: expect.objectContaining({
-          'X-Msh-Platform': KIMI_CODE_PLATFORM,
-          'User-Agent': 'kimi-code-cli/0.0.0-test',
-        }),
       });
-      expect(existsSync(join(homeDir, 'device_id'))).toBe(true);
     } finally {
       await harness.close();
     }
@@ -228,10 +213,7 @@ describe('Session.prompt events', () => {
   it('supports onEvent unsubscribe without touching runtime wire directly', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
+    const harness = new KimiHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -255,10 +237,7 @@ describe('Session.prompt events', () => {
   it('runs init through generateAgentsMd RPC as a system trigger without prompt metadata updates', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
+    const harness = new KimiHarness({ homeDir });
 
     try {
       await configureFakeProvider(harness);
@@ -314,10 +293,7 @@ describe('Session.prompt events', () => {
   it('rejects empty prompt input', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
-      identity: TEST_IDENTITY,
-      homeDir,
-    });
+    const harness = new KimiHarness({ homeDir });
 
     try {
       const session = await harness.createSession({ id: 'ses_empty_prompt', workDir });

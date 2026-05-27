@@ -21,9 +21,6 @@ export const BYF_UPDATE_DIR_NAME = 'updates';
 export const BYF_UPDATE_STATE_FILE_NAME = 'latest.json';
 export const BYF_INPUT_HISTORY_DIR_NAME = 'user-history';
 
-// Managed auth provider key shared with OAuth/SDK config.
-export const DEFAULT_OAUTH_PROVIDER_NAME = 'managed:byf';
-
 // SDK/core error code that tells the TUI to show a login-required startup
 // notice. Derived from sdk's ErrorCodes so a future rename in core
 // auto-propagates instead of silently breaking the startup recovery path.

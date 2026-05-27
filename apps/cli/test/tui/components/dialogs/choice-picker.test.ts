@@ -62,7 +62,7 @@ describe('ChoicePickerComponent', () => {
           provider: 'managed:byf',
           model: 'kimi-k2',
           maxContextSize: 200_000,
-          displayName: 'Kimi K2',
+          displayName: 'ByF K2',
           capabilities: ['thinking'],
         },
       },
@@ -73,7 +73,7 @@ describe('ChoicePickerComponent', () => {
       onCancel,
     });
     const modelOutput = model.render(120).map(strip);
-    expect(modelOutput).toContain('  ❯ Kimi K2 (BYF) ← current');
+    expect(modelOutput).toContain('  ❯ ByF K2 (byf) ← current');
     expect(modelOutput).toContain(' Thinking');
     expect(modelOutput).toContain('  [ On ]    Off  ');
 

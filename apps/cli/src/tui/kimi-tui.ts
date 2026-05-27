@@ -8,7 +8,6 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { release as osRelease, type as osType } from 'node:os';
 import { join } from 'node:path';
 
 import {
@@ -30,11 +29,11 @@ import {
   filterModelsByPrefix,
   getOpenPlatformById,
   OpenPlatformApiError,
-  type DeviceAuthorization,
-  type ManagedKimiCodeModelInfo,
-  type ManagedKimiConfigShape,
+  type ModelInfo,
+  type ConfigShape,
   type OpenPlatformDefinition,
 } from '@byf/oauth';
+// Note: applyOpenPlatformConfig and related functions are used by /connect command only.
 import {
   applyCatalogProvider,
   catalogBaseUrl,
@@ -115,7 +114,7 @@ import {
   type KimiSlashCommand,
   type SkillListSession,
 } from './commands';
-import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
+
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { CHROME_GUTTER } from './constant/rendering';
@@ -132,14 +131,9 @@ import {
 } from './components/dialogs/api-key-input-dialog';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { EditorSelectorComponent } from './components/dialogs/editor-selector';
-import {
-  FeedbackInputDialogComponent,
-  type FeedbackInputDialogResult,
-} from './components/dialogs/feedback-input-dialog';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ChoicePickerComponent, type ChoiceOption } from './components/dialogs/choice-picker';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
-import { PlatformSelectorComponent } from './components/dialogs/platform-selector';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
@@ -168,30 +162,19 @@ import { ToolCallComponent } from './components/messages/tool-call';
 import {
   buildUsageReportLines,
   UsagePanelComponent,
-  type ManagedUsageReport,
 } from './components/messages/usage-panel';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
 import {
-  FEEDBACK_ISSUE_URL,
-  FEEDBACK_STATUS_CANCELLED,
-  FEEDBACK_STATUS_FALLBACK,
-  FEEDBACK_STATUS_NOT_SIGNED_IN,
-  FEEDBACK_STATUS_SUBMITTING,
-  FEEDBACK_STATUS_SUCCESS,
-  FEEDBACK_TELEMETRY_EVENT,
   errorReportHintLine,
-  feedbackSessionLine,
-  withFeedbackVersionPrefix,
+  FEEDBACK_ISSUE_URL,
 } from './constant/feedback';
 import {
   CTRL_C_HINT,
   CTRL_D_HINT,
-  DEFAULT_OAUTH_PROVIDER_NAME,
   EXIT_CONFIRM_WINDOW_MS,
-  isManagedUsageProvider,
   LLM_NOT_SET_MESSAGE,
   MAIN_AGENT_ID,
   NO_ACTIVE_SESSION_MESSAGE,
@@ -535,11 +518,6 @@ function isOAuthLoginRequiredError(error: unknown): boolean {
 
 interface SessionUsageResult {
   readonly usage?: SessionUsage;
-  readonly error?: string;
-}
-
-interface ManagedUsageResult {
-  readonly usage?: ManagedUsageReport;
   readonly error?: string;
 }
 
@@ -1118,18 +1096,6 @@ export class KimiTUI {
     void this.refreshSkillCommands(this.session);
   }
 
-  // Clears the active session and runtime UI after logout.
-  private async clearActiveSessionAfterLogout(): Promise<void> {
-    await this.closeSession('logged out');
-    this.resetSessionRuntime();
-    this.setAppState({
-      sessionId: '',
-      model: '',
-      sessionTitle: null,
-    });
-    await this.refreshSkillCommands();
-  }
-
   // Reloads config after login and selects the configured default model.
   private async refreshConfigAfterLogin(): Promise<void> {
     const config = await this.harness.getConfig({ reload: true });
@@ -1154,22 +1120,6 @@ export class KimiTUI {
       appStatePatch.thinking = config.defaultThinking;
     }
     this.setAppState(appStatePatch);
-  }
-
-  // Reloads config after logout and clears model-dependent state.
-  private async refreshConfigAfterLogout(): Promise<void> {
-    const config = await this.harness.getConfig({ reload: true });
-    const availableModels = config.models ?? {};
-    const availableProviders = config.providers ?? {};
-    this.setAppState({
-      availableModels,
-      availableProviders,
-      model: '',
-      thinking: false,
-      maxContextTokens: 0,
-      contextUsage: 0,
-      contextTokens: 0,
-    });
   }
 
   // =========================================================================
@@ -1565,14 +1515,8 @@ export class KimiTUI {
       case 'fork':
         await this.handleForkCommand(args);
         return;
-      case 'login':
-        await this.handleLoginCommand();
-        return;
       case 'connect':
         await this.handleConnectCommand(args);
-        return;
-      case 'logout':
-        await this.handleLogoutCommand();
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -3719,22 +3663,6 @@ export class KimiTUI {
     };
   }
 
-  // Opens the device-code URL and renders the login authorization prompt.
-  private showLoginAuthorizationPrompt(auth: DeviceAuthorization): LoginProgressSpinnerHandle {
-    openUrl(auth.verificationUriComplete);
-    this.state.transcriptContainer.addChild(
-      new DeviceCodeBoxComponent({
-        title: 'Sign in to Kimi Code',
-        url: auth.verificationUriComplete,
-        code: auth.userCode,
-        hint: 'Press Ctrl-C to cancel',
-        colors: this.state.theme.colors,
-      }),
-    );
-    this.state.ui.requestRender();
-    return this.showLoginProgressSpinner('Waiting for authorization…');
-  }
-
   // Provides UI callbacks used while hydrating transcript history.
   private replayHydrationHooks(): ReplayHydrationHooks {
     return {
@@ -4799,7 +4727,6 @@ export class KimiTUI {
   // Loads and renders current usage information.
   private async showUsage(): Promise<void> {
     const sessionUsage = await this.loadSessionUsageReport();
-    const managedUsage = await this.loadManagedUsageReport();
     const lines = buildUsageReportLines({
       colors: this.state.theme.colors,
       sessionUsage: sessionUsage.usage,
@@ -4807,8 +4734,6 @@ export class KimiTUI {
       contextUsage: this.state.appState.contextUsage,
       contextTokens: this.state.appState.contextTokens,
       maxContextTokens: this.state.appState.maxContextTokens,
-      managedUsage: managedUsage?.usage,
-      managedUsageError: managedUsage?.error,
     });
     const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary);
     this.state.transcriptContainer.addChild(panel);
@@ -4817,10 +4742,7 @@ export class KimiTUI {
 
   // Loads and renders current runtime status.
   private async showStatusReport(): Promise<void> {
-    const [runtimeStatus, managedUsage] = await Promise.all([
-      this.loadRuntimeStatusReport(),
-      this.loadManagedUsageReport(),
-    ]);
+    const runtimeStatus = await this.loadRuntimeStatusReport();
     const appState = this.state.appState;
     const lines = buildStatusReportLines({
       colors: this.state.theme.colors,
@@ -4838,8 +4760,6 @@ export class KimiTUI {
       availableModels: appState.availableModels,
       status: runtimeStatus.status,
       statusError: runtimeStatus.error,
-      managedUsage: managedUsage?.usage,
-      managedUsageError: managedUsage?.error,
     });
     const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, ' Status ');
     this.state.transcriptContainer.addChild(panel);
@@ -4882,24 +4802,6 @@ export class KimiTUI {
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
-  }
-
-  // Loads managed-provider usage when the active model supports it.
-  private async loadManagedUsageReport(): Promise<ManagedUsageResult | undefined> {
-    const alias = this.state.appState.model;
-    const providerKey = this.state.appState.availableModels[alias]?.provider;
-    if (!isManagedUsageProvider(providerKey)) return undefined;
-
-    let res;
-    try {
-      res = await this.harness.auth.getManagedUsage(providerKey);
-    } catch (error) {
-      return { error: formatErrorMessage(error) };
-    }
-    if (res.kind === 'error') {
-      return { error: res.message };
-    }
-    return { usage: { summary: res.summary, limits: res.limits } };
   }
 
   // Shows an approval panel and connects its response callback.
@@ -5186,152 +5088,6 @@ export class KimiTUI {
     }
   }
 
-  // Handles the /login command.
-  private async handleLoginCommand(): Promise<void> {
-    const platformId = await this.promptPlatformSelection();
-    if (platformId === undefined) return;
-
-    if (platformId === 'kimi-code') {
-      await this.handleKimiCodeOAuthLogin();
-      return;
-    }
-
-    const platform = getOpenPlatformById(platformId);
-    if (platform === undefined) return;
-    await this.handleOpenPlatformLogin(platform);
-  }
-
-  // Kimi Code OAuth login flow.
-  private async handleKimiCodeOAuthLogin(): Promise<void> {
-    const status = await this.harness.auth.status(DEFAULT_OAUTH_PROVIDER_NAME);
-    const alreadyLoggedIn = status.providers.some(
-      (provider) => provider.providerName === DEFAULT_OAUTH_PROVIDER_NAME && provider.hasToken,
-    );
-
-    let spinner: LoginProgressSpinnerHandle | undefined;
-    const controller = new AbortController();
-    const cancelLogin = (): void => {
-      controller.abort();
-    };
-    this.cancelInFlight = cancelLogin;
-    try {
-      await this.harness.auth.login(DEFAULT_OAUTH_PROVIDER_NAME, {
-        signal: controller.signal,
-        onDeviceCode: (data) => {
-          spinner = this.showLoginAuthorizationPrompt(data);
-        },
-      });
-      spinner?.stop({ ok: true, label: 'Logged in.' });
-      spinner = undefined;
-      try {
-        await this.refreshConfigAfterLogin();
-      } catch (refreshError) {
-        const message = formatErrorMessage(refreshError);
-        this.showError(`Authentication successful, but failed to refresh config: ${message}`);
-        return;
-      }
-      this.track('login', {
-        provider: DEFAULT_OAUTH_PROVIDER_NAME,
-        already_logged_in: alreadyLoggedIn,
-      });
-      if (alreadyLoggedIn) {
-        this.showStatus('Already logged in. Model configuration refreshed.');
-      }
-    } catch (error) {
-      const cancelled = controller.signal.aborted;
-      spinner?.stop({
-        ok: false,
-        label: cancelled ? 'Login cancelled.' : 'Login failed.',
-      });
-      spinner = undefined;
-      if (cancelled) return;
-      log.warn('login failed', {
-        providerName: DEFAULT_OAUTH_PROVIDER_NAME,
-        alreadyLoggedIn,
-        sessionId: this.session?.id,
-        error,
-      });
-      const message = formatErrorMessage(error);
-      this.showError(`Login failed: ${message}`);
-    } finally {
-      if (this.cancelInFlight === cancelLogin) {
-        this.cancelInFlight = undefined;
-      }
-    }
-  }
-
-  // Open platform API key login flow.
-  private async handleOpenPlatformLogin(
-    platform: OpenPlatformDefinition,
-  ): Promise<void> {
-    const apiKey = await this.promptApiKey(platform.name);
-    if (apiKey === undefined) return;
-
-    const controller = new AbortController();
-    const cancelLogin = (): void => {
-      controller.abort();
-    };
-    this.cancelInFlight = cancelLogin;
-
-    let models: ManagedKimiCodeModelInfo[];
-    try {
-      models = await fetchOpenPlatformModels(platform, apiKey, fetch, controller.signal);
-      models = filterModelsByPrefix(models, platform);
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to verify API key: ${msg}`);
-      if (
-        error instanceof OpenPlatformApiError &&
-        error.status === 401
-      ) {
-        this.showStatus(
-          'Hint: If your API key was obtained from Kimi Code, please select "Kimi Code" instead.',
-        );
-      }
-      return;
-    } finally {
-      if (this.cancelInFlight === cancelLogin) {
-        this.cancelInFlight = undefined;
-      }
-    }
-
-    if (models.length === 0) {
-      this.showError('No models available for this platform.');
-      return;
-    }
-
-    const selection = await this.promptModelSelectionForOpenPlatform(models, platform);
-    if (selection === undefined) return;
-
-    // Remove stale provider config first so old model aliases are fully
-    // cleared (setConfig patch merge cannot delete nested keys).
-    const existingConfig = await this.harness.getConfig();
-    if (existingConfig.providers[platform.id] !== undefined) {
-      await this.harness.removeProvider(platform.id);
-    }
-
-    const config = await this.harness.getConfig();
-    applyOpenPlatformConfig(config as ManagedKimiConfigShape, {
-      platform,
-      models,
-      selectedModel: selection.model,
-      thinking: selection.thinking,
-      apiKey,
-    });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('login', { provider: platform.id, method: 'api_key' });
-    this.showStatus(`Setup complete: ${platform.name} · ${selection.model.id}`);
-  }
-
   // Handles the /connect command — fetches a model catalog (default
   // models.dev), lets the user pick a provider + model, prompts for an API
   // key, then writes the provider config + model aliases. Model metadata
@@ -5448,178 +5204,15 @@ export class KimiTUI {
     this.showStatus(`Connected: ${entry.name ?? providerId} · ${selection.model.id}`);
   }
 
-  // Handles the /feedback command — opens an inline input dialog and POSTs
-  // the result to the managed Kimi Code platform. Falls back to the GitHub
-  // Issues page when the user is not signed in or the request fails.
+  // Handles the /feedback command — opens the GitHub Issues page.
   private async handleFeedbackCommand(): Promise<void> {
-    const fallback = (reason: string): void => {
-      this.showStatus(reason);
-      this.showStatus(FEEDBACK_ISSUE_URL);
-      openUrl(FEEDBACK_ISSUE_URL);
-    };
-
-    const providerKey = this.state.appState.availableModels[this.state.appState.model]?.provider;
-    if (!isManagedUsageProvider(providerKey)) {
-      fallback(FEEDBACK_STATUS_NOT_SIGNED_IN);
-      return;
-    }
-
-    const content = await this.promptFeedbackInput();
-    if (content === undefined) {
-      this.showStatus(FEEDBACK_STATUS_CANCELLED);
-      return;
-    }
-
-    const spinner = this.showLoginProgressSpinner(FEEDBACK_STATUS_SUBMITTING);
-    const res = await this.harness.auth.submitFeedback({
-      content,
-      sessionId: this.state.appState.sessionId,
-      version: withFeedbackVersionPrefix(this.state.appState.version),
-      os: `${osType()} ${osRelease()}`,
-      model: this.state.appState.model.length > 0 ? this.state.appState.model : null,
-    });
-
-    if (res.kind === 'ok') {
-      spinner.stop({ ok: true, label: FEEDBACK_STATUS_SUCCESS });
-      this.showStatus(feedbackSessionLine(this.state.appState.sessionId));
-      this.track(FEEDBACK_TELEMETRY_EVENT);
-      return;
-    }
-
-    spinner.stop({ ok: false, label: res.message });
-    fallback(FEEDBACK_STATUS_FALLBACK);
-  }
-
-  // Mounts the feedback input dialog and resolves with the trimmed value
-  // when submitted, or undefined when the user cancels.
-  private promptFeedbackInput(): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const dialog = new FeedbackInputDialogComponent((result: FeedbackInputDialogResult) => {
-        this.restoreEditor();
-        resolve(result.kind === 'ok' ? result.value : undefined);
-      }, this.state.theme.colors);
-      this.mountEditorReplacement(dialog);
-    });
-  }
-
-  // Handles the /logout command. Lists every credential currently held — the
-  // Kimi Code OAuth token (or a stale config entry for it) plus each configured
-  // API-key provider — and lets the user pick which one to drop. OAuth tokens
-  // go through auth.logout for proper revocation, everything else through
-  // removeProvider.
-  private async handleLogoutCommand(): Promise<void> {
-    const oauthStatus = await this.harness.auth.status(DEFAULT_OAUTH_PROVIDER_NAME);
-    const hasOAuthToken = oauthStatus.providers.some(
-      (p) => p.providerName === DEFAULT_OAUTH_PROVIDER_NAME && p.hasToken,
-    );
-    const config = await this.harness.getConfig();
-    // Offer the managed provider whenever something points at it — either a
-    // live OAuth token or a stale providers[] entry left over from a previous
-    // login. auth.logout cleans the config regardless of whether the token
-    // is still present, so this avoids leaving residue with no way to reach it.
-    const hasManagedRemnant =
-      hasOAuthToken || config.providers[DEFAULT_OAUTH_PROVIDER_NAME] !== undefined;
-    const apiKeyProviderIds = Object.keys(config.providers ?? {})
-      .filter((id) => id !== DEFAULT_OAUTH_PROVIDER_NAME)
-      .toSorted();
-
-    const options: ChoiceOption[] = [];
-    if (hasManagedRemnant) {
-      options.push({
-        value: DEFAULT_OAUTH_PROVIDER_NAME,
-        label: PRODUCT_NAME,
-        description: 'OAuth login',
-      });
-    }
-    for (const id of apiKeyProviderIds) {
-      const baseUrl = config.providers[id]?.baseUrl;
-      options.push({
-        value: id,
-        label: id,
-        description: typeof baseUrl === 'string' && baseUrl.length > 0 ? baseUrl : undefined,
-      });
-    }
-
-    if (options.length === 0) {
-      this.showStatus('Nothing to logout.');
-      return;
-    }
-
-    const currentModel = this.state.appState.model.trim();
-    const currentProvider = this.state.appState.availableModels[currentModel]?.provider;
-
-    const target = await this.promptLogoutProviderSelection(options, currentProvider);
-    if (target === undefined) return;
-
-    if (target === DEFAULT_OAUTH_PROVIDER_NAME) {
-      await this.harness.auth.logout(DEFAULT_OAUTH_PROVIDER_NAME);
-    } else {
-      await this.harness.removeProvider(target);
-    }
-
-    if (target === currentProvider) {
-      // The active session is backed by the provider we just removed, so it
-      // can no longer make requests — tear it down along with the model state.
-      await this.refreshConfigAfterLogout();
-      await this.clearActiveSessionAfterLogout();
-    } else {
-      // Refresh provider/model listings so the picker reflects the change,
-      // but leave the user's current session running.
-      const updated = await this.harness.getConfig({ reload: true });
-      this.setAppState({
-        availableModels: updated.models ?? {},
-        availableProviders: updated.providers ?? {},
-      });
-    }
-
-    this.track('logout', { provider: target });
-    const label = target === DEFAULT_OAUTH_PROVIDER_NAME ? PRODUCT_NAME : target;
-    this.showStatus(`Logged out from ${label}.`);
-  }
-
-  private promptLogoutProviderSelection(
-    options: readonly ChoiceOption[],
-    currentValue: string | undefined,
-  ): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const picker = new ChoicePickerComponent({
-        title: 'Select a provider to log out',
-        options,
-        currentValue,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          resolve(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(picker);
-    });
+    this.showStatus(FEEDBACK_ISSUE_URL);
+    openUrl(FEEDBACK_ISSUE_URL);
   }
 
   // ---------------------------------------------------------------------------
-  // Login / setup prompts
+  // Setup prompts
   // ---------------------------------------------------------------------------
-
-  private promptPlatformSelection(): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const selector = new PlatformSelectorComponent({
-        colors: this.state.theme.colors,
-        onSelect: (platformId) => {
-          this.restoreEditor();
-          resolve(platformId);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(selector);
-    });
-  }
 
   private promptCatalogProviderSelection(catalog: Catalog): Promise<string | undefined> {
     return new Promise((resolve) => {
@@ -5669,26 +5262,6 @@ export class KimiTUI {
       );
       this.mountEditorReplacement(dialog);
     });
-  }
-
-  private async promptModelSelectionForOpenPlatform(
-    models: ManagedKimiCodeModelInfo[],
-    platform: OpenPlatformDefinition,
-  ): Promise<{ model: ManagedKimiCodeModelInfo; thinking: boolean } | undefined> {
-    const modelDict: Record<string, ModelAlias> = {};
-    for (const m of models) {
-      modelDict[`${platform.id}/${m.id}`] = {
-        provider: platform.id,
-        model: m.id,
-        maxContextSize: m.contextLength,
-        capabilities: capabilitiesForModel(m),
-        displayName: m.displayName,
-      };
-    }
-    const selection = await this.runModelSelector(modelDict);
-    if (selection === undefined) return undefined;
-    const model = models.find((m) => `${platform.id}/${m.id}` === selection.alias);
-    return model ? { model, thinking: selection.thinking } : undefined;
   }
 
   private async promptModelSelectionForCatalog(

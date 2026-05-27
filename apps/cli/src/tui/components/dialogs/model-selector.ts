@@ -8,7 +8,7 @@ import {
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '#/constant/app';
+import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
@@ -32,7 +32,6 @@ export function modelDisplayName(alias: string, model: ModelAlias | undefined): 
 }
 
 export function providerDisplayName(provider: string): string {
-  if (provider === DEFAULT_OAUTH_PROVIDER_NAME) return PRODUCT_NAME;
   if (provider.startsWith('managed:')) return provider.slice('managed:'.length);
   return provider;
 }

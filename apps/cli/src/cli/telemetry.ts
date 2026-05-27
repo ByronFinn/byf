@@ -1,4 +1,7 @@
-import { createKimiDeviceId, KIMI_CODE_PROVIDER_NAME } from '@byf/oauth';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+
 import { initializeTelemetry } from '@byf/telemetry';
 import { resolveKimiHome, type KimiConfig, type KimiHarness } from '@byf/sdk';
 
@@ -22,10 +25,8 @@ export interface InitializeCliTelemetryOptions {
 export function createCliTelemetryBootstrap(): CliTelemetryBootstrap {
   let firstLaunch = false;
   const homeDir = resolveKimiHome();
-  const deviceId = createKimiDeviceId(homeDir, {
-    onFirstLaunch: () => {
-      firstLaunch = true;
-    },
+  const deviceId = getOrCreateDeviceId(homeDir, () => {
+    firstLaunch = true;
   });
   return { homeDir, deviceId, firstLaunch };
 }
@@ -39,10 +40,20 @@ export function initializeCliTelemetry(options: InitializeCliTelemetryOptions): 
     version: options.version,
     uiMode: options.uiMode,
     model: options.model ?? options.config.defaultModel,
-    getAccessToken: async () =>
-      (await options.harness.auth.getCachedAccessToken(KIMI_CODE_PROVIDER_NAME)) ?? null,
   });
   if (options.bootstrap.firstLaunch) {
     options.harness.track('first_launch');
   }
+}
+
+function getOrCreateDeviceId(homeDir: string, onFirstLaunch: () => void): string {
+  const filePath = join(homeDir, 'device_id');
+  if (existsSync(filePath)) {
+    return readFileSync(filePath, 'utf-8').trim();
+  }
+  const id = randomUUID();
+  mkdirSync(homeDir, { recursive: true });
+  writeFileSync(filePath, id, 'utf-8');
+  onFirstLaunch();
+  return id;
 }
