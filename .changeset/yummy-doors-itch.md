@@ -1,5 +1,6 @@
 ---
-"@byf/sdk": patch
+"@byf/cli": minor
+"@byf/oauth": minor
 ---
 
-be your friend first version
+Add /login command for custom OpenAI-compatible providers

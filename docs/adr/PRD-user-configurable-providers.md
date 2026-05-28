@@ -34,7 +34,7 @@ Replace the hardcoded platform system with user-configurable providers. Restore 
 Refactor `open-platform.ts` to remove all hardcoded platform concepts:
 
 - **Delete**: `OpenPlatformDefinition` type, `OPEN_PLATFORMS` constant, `getOpenPlatformById`, `isOpenPlatformId`
-- **Rename** `fetchOpenPlatformModels` → `fetchModels`: takes `(baseUrl, apiKey, fetchImpl, signal?)` instead of a platform object. Returns `ModelInfo[]`. Throws `OpenPlatformApiError` on HTTP errors.
+- **Rename** `fetchOpenPlatformModels` → `fetchModels`: takes `(baseUrl, apiKey, fetchImpl, signal?)` instead of a platform object. Returns `ModelInfo[]`. Throws `ProviderApiError` on HTTP errors.
 - **Rename** `applyOpenPlatformConfig` → `applyProviderConfig`: takes `(config, { name, baseUrl, apiKey, models, selectedModel, thinking })`. The `name` parameter becomes the provider key in config. Writes provider as `type: 'openai-compat'`.
 - **Rename** `removeOpenPlatformConfig` → `removeProviderConfig`: takes `(config, providerName)`. Removes the provider entry, all its models, and clears `defaultModel` if it belonged to this provider.
 - **Simplify** `filterModelsByPrefix`: takes `(models, prefixes)` as separate params instead of a platform object. No behavior change.

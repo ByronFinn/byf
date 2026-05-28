@@ -1468,7 +1468,7 @@ export class ByfTui {
         await this.handleLoginCommand();
         return;
       case 'logout':
-        this.showError(`/${String(name)} has been removed. Use /connect to configure a provider.`);
+        this.showError(`/logout is not yet implemented. Edit ~/.byf/config.toml to remove a provider.`);
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -5029,6 +5029,7 @@ export class ByfTui {
     const baseUrl = await this.promptTextInput({
       title: 'Base URL',
       subtitle: 'The OpenAI-compatible API endpoint',
+      initialValue: 'https://api.openai.com/v1',
       placeholder: 'https://api.openai.com/v1',
       colors: this.state.theme.colors,
     });
@@ -5050,62 +5051,12 @@ export class ByfTui {
       } else {
         this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
       }
-      // Offer manual model entry
-      const manualModel = await this.promptTextInput({
-        title: 'Enter model ID manually',
-        subtitle: 'Could not auto-detect models. Enter the model ID (e.g. gpt-4o).',
-        colors: this.state.theme.colors,
-      });
-      if (manualModel === undefined) return;
-
-      const contextSize = await this.promptTextInput({
-        title: 'Context window size',
-        subtitle: 'Max context size in tokens for this model',
-        placeholder: '128000',
-        colors: this.state.theme.colors,
-      });
-      if (contextSize === undefined) return;
-
-      const parsedSize = Number.parseInt(contextSize, 10);
-      if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
-        this.showError('Invalid context size. Must be a positive number.');
-        return;
-      }
-
-      const manualModelInfo: ModelInfo = {
-        id: manualModel,
-        contextLength: parsedSize,
-        supportsReasoning: false,
-        supportsImageIn: false,
-        supportsVideoIn: false,
-      };
-
-      const config = await this.harness.getConfig();
-      applyProviderConfig(config, {
-        name,
-        baseUrl,
-        apiKey,
-        models: [manualModelInfo],
-        selectedModel: manualModelInfo,
-        thinking: false,
-      });
-
-      await this.harness.setConfig({
-        providers: config.providers,
-        models: config.models,
-        defaultModel: config.defaultModel,
-        defaultThinking: config.defaultThinking,
-      });
-
-      await this.refreshConfigAfterLogin();
-      this.track('login', { provider: name, model: manualModel });
-      this.showStatus(`Connected: ${name} · ${manualModel}`);
-      return;
+      return await this.handleManualModelEntry(name, baseUrl, apiKey);
     }
 
     if (models.length === 0) {
-      this.showError('No models found at this endpoint.');
-      return;
+      this.showStatus('No models found at this endpoint. Enter model ID manually.');
+      return await this.handleManualModelEntry(name, baseUrl, apiKey);
     }
 
     // Step 5: Model selection
@@ -5169,6 +5120,63 @@ export class ByfTui {
       });
       this.mountEditorReplacement(dialog);
     });
+  }
+
+  private async handleManualModelEntry(
+    name: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<void> {
+    const manualModel = await this.promptTextInput({
+      title: 'Enter model ID manually',
+      subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
+      colors: this.state.theme.colors,
+    });
+    if (manualModel === undefined) return;
+
+    const contextSize = await this.promptTextInput({
+      title: 'Context window size',
+      subtitle: 'Max context size in tokens for this model',
+      initialValue: '128000',
+      placeholder: '128000',
+      colors: this.state.theme.colors,
+    });
+    if (contextSize === undefined) return;
+
+    const parsedSize = Number.parseInt(contextSize, 10);
+    if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
+      this.showError('Invalid context size. Must be a positive number.');
+      return;
+    }
+
+    const manualModelInfo: ModelInfo = {
+      id: manualModel,
+      contextLength: parsedSize,
+      supportsReasoning: false,
+      supportsImageIn: false,
+      supportsVideoIn: false,
+    };
+
+    const config = await this.harness.getConfig();
+    applyProviderConfig(config, {
+      name,
+      baseUrl,
+      apiKey,
+      models: [manualModelInfo],
+      selectedModel: manualModelInfo,
+      thinking: false,
+    });
+
+    await this.harness.setConfig({
+      providers: config.providers,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      defaultThinking: config.defaultThinking,
+    });
+
+    await this.refreshConfigAfterLogin();
+    this.track('login', { provider: name, model: manualModel });
+    this.showStatus(`Connected: ${name} · ${manualModel}`);
   }
 
   // Handles the /connect command — fetches a model catalog (default
