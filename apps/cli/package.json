@@ -26,7 +26,6 @@
   "files": [
     "dist",
     "scripts/postinstall.mjs",
-    "scripts/postinstall",
     "README.md"
   ],
   "type": "module",

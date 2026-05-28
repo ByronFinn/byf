@@ -7,7 +7,7 @@ FLAKE="$ROOT/flake.nix"
 FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 CACHE_VERSION="v1"
 FETCHER_VERSION="3"
-CACHE_FILE="$ROOT/.git/kimi-code/pnpm-deps-hashes-$CACHE_VERSION.json"
+CACHE_FILE="$ROOT/.git/byf/pnpm-deps-hashes-$CACHE_VERSION.json"
 RESTORE_ORIG_HASH=0
 
 ORIG_HASH="$(grep -E -o 'hash = "sha256-[A-Za-z0-9+/=]+"' "$FLAKE" \
@@ -130,7 +130,7 @@ fs.renameSync(`${file}.tmp`, file);
 echo "==> current pnpmDeps hash: $ORIG_HASH"
 INPUT_KEY="$(input_fingerprint)"
 
-if nix build --no-link '.#kimi-code-pnpm-deps' >/dev/null 2>&1; then
+if nix build --no-link '.#byf-pnpm-deps' >/dev/null 2>&1; then
   write_cached_hash "$ORIG_HASH"
   echo "==> pnpmDeps hash still valid; cached input fingerprint $INPUT_KEY"
   exit 0
@@ -147,7 +147,7 @@ if [ -n "$CACHED_HASH" ] && [ "$CACHED_HASH" != "$ORIG_HASH" ]; then
   echo "==> cache hit for pnpmDeps input: $CACHED_HASH"
   RESTORE_ORIG_HASH=1
   set_hash "$CACHED_HASH"
-  if nix build --no-link '.#kimi-code-pnpm-deps' >/dev/null 2>&1; then
+  if nix build --no-link '.#byf-pnpm-deps' >/dev/null 2>&1; then
     RESTORE_ORIG_HASH=0
     write_cached_hash "$CACHED_HASH"
     echo "==> done. pnpmDeps hash: $ORIG_HASH -> $CACHED_HASH"
@@ -164,7 +164,7 @@ RESTORE_ORIG_HASH=1
 set_hash "$FAKE_HASH"
 
 echo "==> running nix build to discover the real hash"
-BUILD_OUT="$(nix build --no-link --print-build-logs '.#kimi-code-pnpm-deps' 2>&1 || true)"
+BUILD_OUT="$(nix build --no-link --print-build-logs '.#byf-pnpm-deps' 2>&1 || true)"
 
 NEW_HASH="$(printf '%s\n' "$BUILD_OUT" \
   | grep -E -o 'got:[[:space:]]+sha256-[A-Za-z0-9+/=]+' \
@@ -185,7 +185,7 @@ set_hash "$NEW_HASH"
 RESTORE_ORIG_HASH=0
 
 echo "==> verifying build with new hash"
-if ! nix build --no-link '.#kimi-code-pnpm-deps'; then
+if ! nix build --no-link '.#byf-pnpm-deps'; then
   echo "error: verification build failed after hash update." >&2
   echo "       flake.nix was left pointing at $NEW_HASH for inspection." >&2
   exit 1

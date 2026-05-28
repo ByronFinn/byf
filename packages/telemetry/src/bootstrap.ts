@@ -18,7 +18,6 @@ export interface TelemetryBootstrapOptions {
   readonly buildSha?: string;
   readonly terminal?: string;
   readonly locale?: string;
-  readonly getAccessToken?: () => string | null | Promise<string | null>;
 }
 
 export function isTelemetryDisabledByEnv(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -48,7 +47,6 @@ export function initializeTelemetry(options: TelemetryBootstrapOptions): void {
   const transport = new AsyncTransport({
     homeDir: options.homeDir,
     deviceId: options.deviceId,
-    getAccessToken: options.getAccessToken,
   });
   const sink = new EventSink({
     transport,

@@ -15,9 +15,7 @@ import { EventSink } from '../src/sink';
 import {
   AsyncTransport,
   DISK_EVENT_MAX_AGE_MS,
-  RETRY_BACKOFFS_MS,
   SERVER_EVENT_PREFIX,
-  TransientTelemetryError,
   USER_ID_PREFIX,
   applyServerPrefix,
   buildPayload,
@@ -351,25 +349,12 @@ describe('server prefix application', () => {
 });
 
 describe('AsyncTransport', () => {
-  it('locks the retry backoff schedule', () => {
-    expect(RETRY_BACKOFFS_MS).toEqual([1_000, 4_000, 16_000]);
-  });
-
-  it('always saves outbound batches to disk without issuing HTTP requests', async () => {
+  it('always saves outbound batches to disk', async () => {
     const homeDir = await tempHome();
-    const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      getAccessToken: () => 'token-1',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
+    const transport = new AsyncTransport({ homeDir, deviceId: 'dev' });
 
     await transport.send([sampleEvent()]);
 
-    expect(fetchImpl).not.toHaveBeenCalled();
     const telemetryDir = join(homeDir, 'telemetry');
     const file = readFileSync(join(telemetryDir, readdirOne(telemetryDir)), 'utf-8');
     expect(file).toContain('"event":"started"');
@@ -381,11 +366,7 @@ describe('AsyncTransport', () => {
     mkdirSync(telemetryDir, { recursive: true });
     const file = join(telemetryDir, 'failed_retry.jsonl');
     writeFileSync(file, `${JSON.stringify(sampleEvent('from_disk'))}\n`);
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
-    });
+    const transport = new AsyncTransport({ homeDir, deviceId: 'dev' });
 
     await transport.retryDiskEvents();
 
@@ -394,11 +375,7 @@ describe('AsyncTransport', () => {
 
   it('saves events before propagating aborts', async () => {
     const homeDir = await tempHome();
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
-    });
+    const transport = new AsyncTransport({ homeDir, deviceId: 'dev' });
     const controller = new AbortController();
     controller.abort();
 
@@ -411,12 +388,7 @@ describe('AsyncTransport', () => {
 
   it('writes one JSONL line per event and keeps raw event names on disk', async () => {
     const homeDir = await tempHome();
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      fetchImpl: vi.fn(async () => new Response('', { status: 200 })) as unknown as typeof fetch,
-      retryBackoffsMs: [],
-    });
+    const transport = new AsyncTransport({ homeDir, deviceId: 'dev' });
 
     await transport.send([sampleEvent('first'), sampleEvent('second')]);
 
@@ -434,13 +406,7 @@ describe('AsyncTransport', () => {
 
   it('does not create a disk file for an empty batch or a schema violation', async () => {
     const homeDir = await tempHome();
-    const fetchImpl = vi.fn(async () => new Response('', { status: 200 }));
-    const transport = new AsyncTransport({
-      homeDir,
-      deviceId: 'dev',
-      endpoint: 'https://mock.test/events',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
+    const transport = new AsyncTransport({ homeDir, deviceId: 'dev' });
 
     transport.saveToDisk([]);
     await transport.send([
@@ -450,7 +416,6 @@ describe('AsyncTransport', () => {
       } as unknown as EnrichedTelemetryEvent,
     ]);
 
-    expect(fetchImpl).not.toHaveBeenCalled();
     expect(() => statSync(join(homeDir, 'telemetry'))).toThrow();
   });
 });
@@ -655,16 +620,6 @@ function readdirOne(dir: string): string {
   const entry = readdirSync(dir)[0];
   if (entry === undefined) throw new Error(`No files in ${dir}`);
   return entry;
-}
-
-function requestInitFrom(
-  fetchImpl: { readonly mock: { readonly calls: readonly unknown[][] } },
-  index = 0,
-): RequestInit {
-  const call = fetchImpl.mock.calls[index] as readonly [unknown, RequestInit?] | undefined;
-  const init = call?.[1];
-  if (init === undefined) throw new Error(`No request init for fetch call ${String(index)}`);
-  return init;
 }
 
 function emitCrash(

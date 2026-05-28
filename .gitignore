@@ -9,5 +9,5 @@ coverage/
 .playwright-mcp/
 .claude
 .conductor
-.kimi-stash-dir
+.byf-stash-dir
 superpowers/

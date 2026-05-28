@@ -8,18 +8,10 @@ import { isTelemetryPrimitive } from './types';
 export const SERVER_EVENT_PREFIX = 'byf_';
 export const USER_ID_PREFIX = 'byf_device_id_';
 export const DISK_EVENT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-export const RETRY_BACKOFFS_MS = [1_000, 4_000, 16_000] as const;
 
 export interface AsyncTransportOptions {
   readonly homeDir: string;
   readonly deviceId: string;
-  readonly endpoint?: string;
-  readonly getAccessToken?: () => string | null | Promise<string | null>;
-  readonly fetchImpl?: typeof fetch;
-  readonly retryBackoffsMs?: readonly number[];
-  readonly requestTimeoutMs?: number;
-  readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
-  readonly now?: () => number;
 }
 
 export interface TelemetryPayload {
@@ -77,10 +69,6 @@ export class AsyncTransport {
     }
     return path;
   }
-}
-
-export class TransientTelemetryError extends Error {
-  override readonly name = 'TransientTelemetryError';
 }
 
 export function buildUserId(deviceId: string): string {

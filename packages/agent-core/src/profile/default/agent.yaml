@@ -1,5 +1,5 @@
 name: agent
-description: Default Kimi Code agent
+description: Default BYF agent
 
 systemPromptPath: ./system.md
 promptVars:

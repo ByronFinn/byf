@@ -2,9 +2,8 @@
  * FeedbackInputDialog — blue rounded box that collects a single line of
  * user feedback before submitting it to the managed Byf Code platform.
  *
- * Geometry mirrors `DeviceCodeBox` so the chrome stays consistent with
- * the OAuth login flow. The box embeds a `pi-tui` Input for the actual
- * text entry; cursor visibility tracks the dialog's `focused` flag.
+ * The box embeds a `pi-tui` Input for the actual text entry; cursor
+ * visibility tracks the dialog's `focused` flag.
  */
 
 import {
