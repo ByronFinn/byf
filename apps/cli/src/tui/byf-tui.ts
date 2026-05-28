@@ -5192,16 +5192,21 @@ export class ByfTui {
       return;
     }
 
-    const wasDefaultModel =
-      config.defaultModel !== undefined &&
-      config.models?.[config.defaultModel]?.provider === providerName;
+    const activeModel = this.state.appState.model;
+    const activeProvider = this.state.appState.availableModels[activeModel]?.provider;
+    const defaultProvider = config.models?.[config.defaultModel ?? '']?.provider;
+    const wasActiveModel = activeProvider === providerName || defaultProvider === providerName;
 
     await this.harness.removeProvider(providerName);
     await this.refreshConfigAfterLogin();
 
+    if (wasActiveModel) {
+      this.setAppState({ model: '', maxContextTokens: 0 });
+    }
+
     this.showStatus(`Provider "${providerName}" removed.`, this.state.theme.colors.success);
 
-    if (wasDefaultModel) {
+    if (wasActiveModel) {
       this.showStatus('No active model. Run /login or /connect to configure a provider.');
     }
   }

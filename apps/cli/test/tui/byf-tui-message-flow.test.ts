@@ -1033,6 +1033,64 @@ describe('ByfTui message flow', () => {
     expect(transcript).toContain('Provider "deepseek" removed');
   });
 
+  it('/logout detects active session model even when defaultModel differs', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Simulate the active session using deepseek-chat while defaultModel is gpt-4o
+    (driver.state.appState as Record<string, unknown>).model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "deepseek" removed');
+      expect(transcript).toContain('No active model');
+    });
+  });
+
+  it('/logout clears appState.model when active provider is removed', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Active model belongs to deepseek
+    expect((driver.state.appState as Record<string, unknown>).model).toBeTruthy();
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect((driver.state.appState as Record<string, unknown>).model).toBe('');
+    });
+  });
+
   it('does not run /init when no model is selected', async () => {
     const { driver, session } = await makeDriver();
     driver.state.appState.model = '';
