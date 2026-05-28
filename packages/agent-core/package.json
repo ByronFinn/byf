@@ -2,25 +2,24 @@
   "name": "@byf/agent-core",
   "version": "0.0.1",
   "private": true,
-  "description": "The unified agent engine for Kimi",
-  "license": "MIT",
+  "description": "Unified agent engine for BYF",
+  "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/agent-core#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/agent-core"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "agent",
     "ai",
-    "llm",
     "session",
-    "tools"
+    "tools",
+    "terminal"
   ],
   "files": [
     "dist"

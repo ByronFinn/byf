@@ -1,18 +1,18 @@
 # Config files
 
-Kimi Code CLI stores its global configuration in a single TOML file that covers API providers, model aliases, agent loop parameters, background tasks, external services, and more. This page describes the location of the config file, its top-level fields, each nested structure, and a complete example.
+BYF stores its global configuration in a single TOML file that covers API providers, model aliases, agent loop parameters, background tasks, external services, and more. This page describes the location of the config file, its top-level fields, each nested structure, and a complete example.
 
 ## Config file location
 
-The default config file is located at `~/.kimi-code/config.toml`. The directory and file are created automatically on first run with restrictive permissions.
+The default config file is located at `~/.byf/config.toml`. The directory and file are created automatically on first run with restrictive permissions.
 
-If you want to place the data directory elsewhere, set the `KIMI_CODE_HOME` environment variable:
+If you want to place the data directory elsewhere, set the `BYF_HOME` environment variable:
 
 ```sh
-export KIMI_CODE_HOME=/path/to/kimi-home
+export BYF_HOME=/path/to/byf-home
 ```
 
-The config file path then becomes `$KIMI_CODE_HOME/config.toml`. Regardless of where the directory lives, the file name is always `config.toml`.
+The config file path then becomes `$BYF_HOME/config.toml`. Regardless of where the directory lives, the file name is always `config.toml`.
 
 ::: tip
 TOML field names always use snake_case (for example, `default_model`, `max_context_size`). If a key contains `.`, you must use a quoted TOML key; otherwise TOML will treat `.` as a nested table separator.
@@ -41,21 +41,21 @@ TOML field names always use snake_case (for example, `default_model`, `max_conte
 ## Complete example
 
 ```toml
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-default"
 default_thinking = true
 default_permission_mode = "manual"
 default_plan_mode = false
 merge_all_available_skills = true
 telemetry = true
 
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+[providers."managed:byf"]
+type = "openai-compat"
+base_url = "https://api.byf.dev/coding/v1"
 api_key = ""
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
+[models."byf/byf-default"]
+provider = "managed:byf"
+model = "byf-default"
 max_context_size = 262144
 
 [thinking]
@@ -82,7 +82,7 @@ pattern = "Bash(rm -rf*)"
 [[hooks]]
 event = "PreToolUse"
 matcher = "Bash"
-command = "node ~/.kimi-code/hooks/check-bash.mjs"
+command = "node ~/.byf/hooks/check-bash.mjs"
 timeout = 5
 ```
 
@@ -92,11 +92,11 @@ Each entry in the `providers` table defines the connection info for one API prov
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `type` | `string` | Yes | Provider type; one of `anthropic`, `openai`, `kimi`, `google-genai`, `openai_responses`, `vertexai` |
+| `type` | `string` | Yes | Provider type; one of `anthropic`, `openai`, `byf`, `google-genai`, `openai_responses`, `vertexai` |
 | `api_key` | `string` | No | API key |
 | `base_url` | `string` | No | API base URL |
 | `oauth` | `table` | No | OAuth credential reference; see below |
-| `env` | `table<string, string>` | No | A configuration sub-table keyed by provider-specific names (such as `KIMI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLOUD_PROJECT`), used as fallback values for `api_key` / `base_url` and related fields. This is just a sub-table inside the config file — **it is not written into your shell environment** — and is consulted only when the corresponding field on `[providers.<name>]` is unset |
+| `env` | `table<string, string>` | No | A configuration sub-table keyed by provider-specific names (such as `BYF_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLOUD_PROJECT`), used as fallback values for `api_key` / `base_url` and related fields. This is just a sub-table inside the config file — **it is not written into your shell environment** — and is consulted only when the corresponding field on `[providers.<name>]` is unset |
 | `custom_headers` | `table<string, string>` | No | Custom HTTP headers attached to each request |
 
 OAuth credential reference structure:
@@ -167,14 +167,14 @@ max_context_size = 1047576
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `max_running_tasks` | `integer` | — | Maximum number of background tasks running concurrently |
-| `keep_alive_on_exit` | `boolean` | `true` | Whether to keep still-running background tasks when the session closes. Set to `false` to request stopping background tasks when `kimi -p` finishes and exits, when an SDK session closes, or when a harness closes |
+| `keep_alive_on_exit` | `boolean` | `true` | Whether to keep still-running background tasks when the session closes. Set to `false` to request stopping background tasks when `byf -p` finishes and exits, when an SDK session closes, or when a harness closes |
 | `agent_task_timeout_s` | `integer` | — | Maximum runtime in seconds for background agent tasks |
 
-`keep_alive_on_exit` can be overridden by the `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable; the environment variable has higher priority than `config.toml`. The schema also reserves `kill_grace_period_ms` and `print_wait_ceiling_s`; these fields currently pass schema validation only and are not read by the CLI runtime.
+`keep_alive_on_exit` can be overridden by the `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable; the environment variable has higher priority than `config.toml`. The schema also reserves `kill_grace_period_ms` and `print_wait_ceiling_s`; these fields currently pass schema validation only and are not read by the CLI runtime.
 
 ## `services`
 
-`services` configures the built-in external services Kimi Code CLI calls. Only the two fixed keys `moonshot_search` (web search) and `moonshot_fetch` (web fetch) are recognized; other keys are ignored. Both entries share the same fields:
+`services` configures the built-in external services BYF calls. Only the configured external service keys are recognized; other keys are ignored. Both entries share the same fields:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -184,12 +184,12 @@ max_context_size = 1047576
 | `custom_headers` | `table<string, string>` | No | Custom HTTP headers attached to each request |
 
 ```toml
-[services.moonshot_search]
-base_url = "https://api.moonshot.cn/v1/search"
+[services.web_search]
+base_url = "https://api.example.com/v1/search"
 api_key = "sk-xxx"
 
-[services.moonshot_fetch]
-base_url = "https://api.moonshot.cn/v1/fetch"
+[services.web_fetch]
+base_url = "https://api.example.com/v1/fetch"
 api_key = "sk-xxx"
 ```
 
@@ -227,5 +227,5 @@ pattern = "Bash"
 ```
 
 ::: tip
-MCP server declarations are configured in `~/.kimi-code/mcp.json` or the project-local `.kimi-code/mcp.json`, not in `config.toml`. The interactive configuration entry point is `/mcp-config`; see [Model Context Protocol](../customization/mcp.md).
+MCP server declarations are configured in `~/.byf/mcp.json` or the project-local `.byf/mcp.json`, not in `config.toml`. The interactive configuration entry point is `/mcp-config`; see [Model Context Protocol](../customization/mcp.md).
 :::

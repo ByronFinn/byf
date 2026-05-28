@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-The TUI interactive mode of Kimi Code CLI supports the keyboard shortcuts listed below. These keys primarily take effect inside the input box; some have different behavior inside popups (such as the `/help` panel or the approval panel) or during streaming output.
+The TUI interactive mode of BYF supports the keyboard shortcuts listed below. These keys primarily take effect inside the input box; some have different behavior inside popups (such as the `/help` panel or the approval panel) or during streaming output.
 
 Type `/help` at any time inside the TUI to open the built-in shortcut list.
 
@@ -15,7 +15,7 @@ The following keys are always available in the input box:
 | `↑` / `↓` | Browse input history |
 | `Esc` | Close popup / cancel completion / interrupt streaming output or an in-progress context compaction |
 | `Ctrl-C` | Interrupt the current streaming output, or clear the input box |
-| `Ctrl-D` | Exit Kimi Code CLI when the input box is empty |
+| `Ctrl-D` | Exit BYF when the input box is empty |
 
 Pressing `Ctrl-C` **during streaming output** cancels immediately with no second confirmation needed.
 

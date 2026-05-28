@@ -1,11 +1,11 @@
 # @byf/kaos
 
-Execution environment abstraction used by Kimi Code.
+Execution environment abstraction used by BYF.
 
-Part of the [Kimi Code](https://github.com/ByronFinn/byf) monorepo.
+Part of the [BYF](https://github.com/ByronFinn/byf) monorepo.
 
 See the main repository for documentation, issues, and contribution guidelines.
 
 ## License
 
-MIT
+Proprietary — see the root LICENSE file.

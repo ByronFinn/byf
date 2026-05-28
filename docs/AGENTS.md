@@ -9,7 +9,7 @@ This repository uses VitePress for the documentation site. Most user-facing page
   - Guides: getting-started, migration, use-cases, interaction, sessions
   - Customization: mcp, skills, agents, hooks
   - Configuration: config-files, providers, overrides, env-vars, data-locations
-  - Reference: kimi-command, tools, slash-commands, keyboard
+  - Reference: byf-command, tools, slash-commands, keyboard
   - FAQ
   - Release notes: changelog
 - Navigation and sidebar are defined in `docs/.vitepress/config.ts`. Any new or renamed page must be wired there for both locales.
@@ -55,7 +55,7 @@ Term mapping (Chinese <-> English, and proper noun handling):
 | YOLO 模式 | YOLO mode | yes | yes (YOLO mode) |
 | Thinking 模式 | Thinking mode | yes | yes (Thinking mode) |
 | MCP | MCP | yes | yes |
-| Kimi Code CLI | Kimi Code CLI | yes | yes |
+| BYF CLI | BYF CLI | yes | yes |
 | Agent Skills | Agent Skills | yes | yes |
 | Skill | skill | yes | no |
 | 系统提示词 | system prompt | no | no |
@@ -71,7 +71,7 @@ Term mapping (Chinese <-> English, and proper noun handling):
 | Node.js | Node.js | yes | yes |
 | npm | npm | yes | yes |
 | pnpm | pnpm | yes | yes |
-| kimi | kimi | yes | yes |
+| byf | byf | yes | yes |
 | 审批请求 | approval request | no | no |
 | 斜杠命令 | slash command | no | no |
 | 工具调用 | tool call | no | no |
@@ -98,9 +98,9 @@ Term mapping (Chinese <-> English, and proper noun handling):
   - Chinese: use `提示` for tip, `注意` for warning, `说明` for info, `警告` for danger.
   - English: use no title or short words like `Note` for warning.
   - ✓ `::: tip 提示` + content starting with the key point
-  - ✓ `::: warning 注意` + content `\`KIMI_CODE_HOME\` 不影响 Skills 的搜索路径。...`
+  - ✓ `::: warning 注意` + content `\`BYF_HOME\` 不影响 Skills 的搜索路径。...`
   - ✗ `::: warning 不影响 Skills` (title too long, should be in content)
-  - ✗ `::: tip Skills 路径独立于 KIMI_CODE_HOME` (title too long)
+  - ✗ `::: tip Skills 路径独立于 BYF_HOME` (title too long)
 - **Version info blocks**: For version change callouts, use `::: info` with a category title (Added/Changed/Removed in English; 新增/变更/移除 in Chinese). The content should be a complete sentence.
   - ✓ `::: info 新增` + content `新增于 0.2.0。`
   - ✗ `::: info 新增于 0.2.0` (title too long)
@@ -149,9 +149,9 @@ Outline prompt:
 ```markdown
 ## Install and upgrade
 
-Kimi Code CLI requires Node.js 24.15.0 or later. We recommend using pnpm for installation and management.
+BYF CLI requires Node.js 24.15.0 or later. We recommend using pnpm for installation and management.
 
-If you haven't installed pnpm yet, please refer to the pnpm installation docs first. Install Kimi Code CLI:
+If you haven't installed pnpm yet, please refer to the pnpm installation docs first. Install BYF CLI:
 
 (code block)
 

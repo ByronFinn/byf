@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "Public TypeScript SDK for BYF agents and sessions",
-  "license": "MIT",
+  "license": "Proprietary",
   "author": "ByronFinn",
   "homepage": "https://github.com/ByronFinn/byf",
   "repository": {

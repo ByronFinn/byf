@@ -1,38 +1,12 @@
 # @byf/cli
 
-> The Starting Point for Next-Gen Agents
+> BYF (Be Your Friend) — an AI coding agent that runs in your terminal
 
-[![npm](https://img.shields.io/npm/v/@byf/cli)](https://www.npmjs.com/package/@byf/cli) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  [![Docs](https://img.shields.io/badge/docs-online-blue)](https://moonshotai.github.io/kimi-code/en/)
-
-## What is Kimi Code CLI
-
-Kimi Code CLI is an AI coding agent that runs in your terminal. It can read and edit code, run shell commands, search files, fetch web pages, and choose the next step based on the feedback it receives. It works out of the box with Moonshot AI's Kimi models and can also be configured to use other compatible providers.
+[![npm](https://img.shields.io/npm/v/@byf/cli)](https://www.npmjs.com/package/@byf/cli) [![License](https://img.shields.io/badge/license-proprietary-blue)](LICENSE)
 
 ## Install
 
-The recommended install path is the official script. It does not require Node.js to be installed first.
-
-- **macOS / Linux**:
-
-```sh
-curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
-```
-
-- **Windows (PowerShell)**:
-
-```powershell
-irm https://code.kimi.com/kimi-code/install.ps1 | iex
-```
-
-Then run it with a new Terminal session:
-
-```sh
-kimi --version
-```
-
-### Alternative: npm
-
-If you prefer npm, use Node.js 22.19.0 or later:
+### npm (recommended)
 
 ```sh
 npm install -g @byf/cli
@@ -44,7 +18,17 @@ Or with pnpm:
 pnpm add -g @byf/cli
 ```
 
-For upgrade and uninstall instructions, see the [Getting Started guide](https://moonshotai.github.io/kimi-code/en/guides/getting-started).
+### Quick install (macOS/Linux)
+
+```sh
+curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
+```
+
+### Quick install (Windows)
+
+```powershell
+irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
+```
 
 ## Quick Start
 
@@ -52,14 +36,16 @@ Open a project and start the interactive UI:
 
 ```sh
 cd your-project
-kimi
+byf
 ```
 
-On first launch, run `/login` inside Kimi Code CLI and choose either Kimi Code OAuth or a Moonshot AI Open Platform API key. After login, try a first task:
+You can also start with an inline prompt:
 
+```sh
+byf "Explain the main directories in this repository"
 ```
-Take a look at this project and explain the main directories.
-```
+
+Configure your provider credentials or API key in `~/.byf/config.toml`, then start a session.
 
 ## Key Features
 
@@ -73,9 +59,7 @@ Take a look at this project and explain the main directories.
 
 ## Documentation
 
-- Full docs: https://moonshotai.github.io/kimi-code/en/
-- 中文文档: https://moonshotai.github.io/kimi-code/zh/
-- Getting Started: https://moonshotai.github.io/kimi-code/en/guides/getting-started
+See the main repository README for documentation.
 
 ## Repository & Issues
 
@@ -85,4 +69,4 @@ Take a look at this project and explain the main directories.
 
 ## License
 
-MIT
+Proprietary — see [LICENSE](https://github.com/ByronFinn/byf/blob/main/LICENSE) for terms.

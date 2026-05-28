@@ -1,6 +1,6 @@
 # Slash Commands
 
-Slash commands are built-in control commands provided by Kimi Code CLI in the interactive TUI, used to switch modes, manage sessions, view status, and more. Type `/` in the input box to trigger command completion; the candidate list filters in real time as you continue typing, and command aliases participate in matching as well.
+Slash commands are built-in control commands provided by BYF in the interactive TUI, used to switch modes, manage sessions, view status, and more. Type `/` in the input box to trigger command completion; the candidate list filters in real time as you continue typing, and command aliases participate in matching as well.
 
 After typing a full command name (such as `/help`), press `Enter` to execute it. If the `/`-prefixed input does not match any built-in or skill command, it is sent to the agent as an ordinary message.
 
@@ -12,8 +12,8 @@ Some commands are only available in the idle state. Running them while the sessi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/login` | — | Pick an account or platform and sign in: Kimi Code uses the OAuth device code flow, while the Moonshot AI Open Platform signs in with an API key. | No |
-| `/logout` | — | Clear the credentials of the currently selected account (Kimi Code OAuth credentials, or the corresponding open platform provider config). | No |
+| `/login` | — | Pick an account or platform and sign in: BYF uses the OAuth device code flow, while the BYF API signs in with an API key. | No |
+| `/logout` | — | Clear the credentials of the currently selected account (BYF OAuth credentials, or the corresponding open platform provider config). | No |
 | `/connect [--refresh] [--url=<catalog-url>]` | — | Configure a provider and model from a model catalog. The default catalog is bundled with the CLI; pass `--refresh` to fetch the latest catalog from models.dev, or `--url` to read it from a custom URL. See [Providers and models — `/connect` and the model catalog](../configuration/providers.md#connect-and-the-model-catalog). | No |
 | `/model` | — | Switch the LLM model used by the current session. | No |
 | `/settings` | `/config` | Open the settings panel inside the TUI. | Yes |
@@ -53,14 +53,14 @@ Some commands are only available in the idle state. Running them while the sessi
 | `/usage` | — | Show token usage, context consumption, and quota information. | Yes |
 | `/status` | — | Show the current session runtime status, including version, model, working directory, and permission mode. | Yes |
 | `/mcp` | — | List the MCP servers in the current session and their connection status. | Yes |
-| `/version` | — | Show the Kimi Code CLI version number. | Yes |
-| `/feedback` | — | Submit feedback to help improve Kimi Code CLI. | Yes |
+| `/version` | — | Show the BYF version number. | Yes |
+| `/feedback` | — | Submit feedback to help improve BYF. | Yes |
 
 ## Exit
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/exit` | `/quit`, `/q` | Exit Kimi Code CLI. | No |
+| `/exit` | `/quit`, `/q` | Exit BYF. | No |
 
 ## Dynamic skill commands
 
@@ -74,7 +74,7 @@ For example, `/skill:code-style` loads the content of the `code-style` skill and
 
 For convenience, skill commands also support a short form `/<name>` that omits the `skill:` prefix, provided the name is not already taken by a built-in command. In other words, `/code-style` falls back to matching `/skill:code-style`.
 
-Kimi Code CLI ships with a built-in `mcp-config` skill for configuring MCP servers and handling MCP OAuth login. It still belongs to the skill namespace in completion and help (`/skill:mcp-config`), and it can also be invoked directly as `/mcp-config`.
+BYF ships with a built-in `mcp-config` skill for configuring MCP servers and handling MCP OAuth login. It still belongs to the skill namespace in completion and help (`/skill:mcp-config`), and it can also be invoked directly as `/mcp-config`.
 
 Skill types that can be exposed as slash commands include `prompt`, `inline`, `flow`, and skills without an explicitly declared type. For skill installation and authoring, see [Agent Skills](../customization/skills.md).
 

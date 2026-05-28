@@ -1,11 +1,11 @@
 # @byf/oauth
 
-OAuth toolkit for Kimi Code managed authentication.
+Authentication utilities for BYF.
 
-Part of the [Kimi Code](https://github.com/ByronFinn/byf) monorepo.
+Part of the [BYF](https://github.com/ByronFinn/byf) monorepo.
 
 See the main repository for documentation, issues, and contribution guidelines.
 
 ## License
 
-MIT
+Proprietary — see the root LICENSE file.

@@ -40,9 +40,9 @@ tools exist and the user didn't name one, ask which.
 Config lives in two files; on key collision the project file overrides
 the user-global one:
 
-- User-global: `~/.kimi-code/mcp.json` (or `$KIMI_CODE_HOME/mcp.json` if
+- User-global: `~/.byf/mcp.json` (or `$BYF_HOME/mcp.json` if
   set). Use for servers you want everywhere.
-- Project-local: `<cwd>/.kimi-code/mcp.json`. Mention once that stdio
+- Project-local: `<cwd>/.byf/mcp.json`. Mention once that stdio
   entries spawn commands at session start, so this should only live in
   trusted repos.
 
@@ -86,7 +86,7 @@ For changes, the flow is:
 3. **Write and tell them how to reload MCP servers.** Preserve unrelated
    entries and the `mcpServers` wrapper. MCP servers load at session
    start, so tell the user to start a new session (for example `/new`) or
-   restart `kimi-code` for the change to take effect.
+   restart BYF for the change to take effect.
 
 ## Secrets
 

@@ -1,6 +1,6 @@
 # Built-in tools
 
-Built-in tools are the toolset that Kimi Code CLI ships with its core engine — no MCP server installation required. During each conversation, the agent automatically selects and invokes these tools based on the task at hand; users can also inspect every tool call in detail through the approval request interface.
+Built-in tools are the toolset that BYF ships with its core engine — no MCP server installation required. During each conversation, the agent automatically selects and invokes these tools based on the task at hand; users can also inspect every tool call in detail through the approval request interface.
 
 Compared to MCP tools, built-in tools are managed directly by the runtime, their lifecycle is bound to the session, and no external process is needed. Both follow a unified approval mechanism: **read-only tools** (such as `Read`, `Grep`, `Glob`, and `WebSearch`) are auto-approved by default, while **write and execute tools** (such as `Write`, `Edit`, `Bash`, and `TaskStop`) require user approval by default. In YOLO mode, approval for ordinary tool calls is skipped, but exit approval in Plan mode is not affected.
 

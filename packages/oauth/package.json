@@ -2,14 +2,13 @@
   "name": "@byf/oauth",
   "version": "0.0.1",
   "private": true,
-  "description": "Open platform API key authentication and model fetching for BYF",
+  "description": "Authentication utilities for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/oauth#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/oauth"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
@@ -17,8 +16,8 @@
   "keywords": [
     "byf",
     "authentication",
+    "oauth",
     "api-key",
-    "open-platform",
     "cli"
   ],
   "files": [

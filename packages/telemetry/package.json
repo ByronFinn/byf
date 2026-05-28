@@ -2,20 +2,19 @@
   "name": "@byf/telemetry",
   "version": "0.0.1",
   "private": true,
-  "description": "Shared telemetry infrastructure for Kimi Code",
-  "license": "MIT",
+  "description": "Telemetry infrastructure for BYF (currently disabled)",
+  "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/telemetry#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/telemetry"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "telemetry",
     "analytics",
     "events",

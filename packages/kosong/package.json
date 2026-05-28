@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "LLM and provider abstraction layer for BYF",
-  "license": "MIT",
+  "license": "Proprietary",
   "author": "ByronFinn",
   "homepage": "https://github.com/ByronFinn/byf",
   "repository": {

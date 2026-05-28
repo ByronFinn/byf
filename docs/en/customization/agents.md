@@ -1,6 +1,6 @@
 # Agents and subagents
 
-The agent in Kimi Code CLI is the core that drives a session. A session is always hosted by a single main agent, which may dispatch one or more subagents to handle more focused subtasks as the work progresses.
+The agent in BYF is the core that drives a session. A session is always hosted by a single main agent, which may dispatch one or more subagents to handle more focused subtasks as the work progresses.
 
 The main agent is responsible for understanding the user's overall intent, planning the steps, conversing with the user, calling tools, and finally aggregating the results. Its context spans the entire session, and it is the entity the user interacts with directly in the terminal.
 
@@ -8,7 +8,7 @@ A subagent is a temporary "assistant" spawned by the main agent. It takes a clea
 
 ## Built-in subagents
 
-Kimi Code CLI ships with three built-in subagents, each targeting a different kind of task, ready to use out of the box:
+BYF ships with three built-in subagents, each targeting a different kind of task, ready to use out of the box:
 
 - **`coder`**: The default subagent, a general software engineering assistant that can read and write files, run shell commands, search code, and land concrete changes.
 - **`explore`**: Dedicated to codebase exploration. It operates read-only and will not modify any files. Suitable for quickly searching, reading, and summarizing a repository without making changes.
