@@ -78,7 +78,9 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
   return {
     id: item['id'],
     contextLength,
-    supportsReasoning: Boolean(item['supports_reasoning']),
+    supportsReasoning: Object.hasOwn(item, 'supports_reasoning')
+      ? Boolean(item['supports_reasoning'])
+      : true,
     supportsImageIn: Boolean(item['supports_image_in']),
     supportsVideoIn: Boolean(item['supports_video_in']),
     supportsToolUse,
