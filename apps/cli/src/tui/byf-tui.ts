@@ -1468,7 +1468,7 @@ export class ByfTui {
         await this.handleLoginCommand();
         return;
       case 'logout':
-        this.showError(`/logout is not yet implemented. Edit ~/.byf/config.toml to remove a provider.`);
+        await this.handleLogoutCommand(args);
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -5177,6 +5177,33 @@ export class ByfTui {
     await this.refreshConfigAfterLogin();
     this.track('login', { provider: name, model: manualModel });
     this.showStatus(`Connected: ${name} · ${manualModel}`);
+  }
+
+  private async handleLogoutCommand(args: string | undefined): Promise<void> {
+    const providerName = args?.trim();
+    if (!providerName) {
+      this.showError('Usage: /logout <provider-name>');
+      return;
+    }
+
+    const config = await this.harness.getConfig();
+    if (config.providers?.[providerName] === undefined) {
+      this.showError(`Provider "${providerName}" not found.`);
+      return;
+    }
+
+    const wasDefaultModel =
+      config.defaultModel !== undefined &&
+      config.models?.[config.defaultModel]?.provider === providerName;
+
+    await this.harness.removeProvider(providerName);
+    await this.refreshConfigAfterLogin();
+
+    this.showStatus(`Provider "${providerName}" removed.`, this.state.theme.colors.success);
+
+    if (wasDefaultModel) {
+      this.showStatus('No active model. Run /login or /connect to configure a provider.');
+    }
   }
 
   // Handles the /connect command — fetches a model catalog (default
