@@ -105,6 +105,27 @@ describe('fetchModels', () => {
       fetchModels('https://api.example.com/v1', 'sk-test', fetchMock as unknown as typeof fetch),
     ).rejects.toThrow(/Unexpected models response/);
   });
+
+  it('skips models without a valid context_length', async () => {
+    const fetchMock = vi.fn(async () =>
+      makeModelsResponse([
+        { id: 'deepseek-chat', context_length: 65536, supports_reasoning: false, supports_image_in: false, supports_video_in: false },
+        { id: 'gpt-image-2' },
+        { id: 'embedding-3', context_length: 'not-a-number' },
+        { id: 'deepseek-reasoner', context_length: 65536, supports_reasoning: true, supports_image_in: false, supports_video_in: false },
+      ]),
+    );
+
+    const models = await fetchModels(
+      'https://api.example.com/v1',
+      'sk-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(2);
+    expect(models[0]?.id).toBe('deepseek-chat');
+    expect(models[1]?.id).toBe('deepseek-reasoner');
+  });
 });
 
 describe('applyProviderConfig', () => {

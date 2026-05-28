@@ -67,7 +67,7 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
   }
   const contextLength = Number(item['context_length']);
   if (!Number.isInteger(contextLength) || contextLength <= 0) {
-    throw new Error(`Model "${item['id']}" must include a positive context_length.`);
+    return undefined;
   }
   const displayName = item['display_name'];
   const normalizedDisplayName =
