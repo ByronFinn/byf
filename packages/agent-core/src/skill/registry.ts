@@ -94,7 +94,7 @@ export class SkillRegistry {
     return [...this.skipped];
   }
 
-  getKimiSkillsDescription(): string {
+  getByfSkillsDescription(): string {
     const rendered = renderGroupedSkills(this.listSkills(), formatFullSkill);
     return rendered.length === 0 ? 'No skills' : rendered;
   }

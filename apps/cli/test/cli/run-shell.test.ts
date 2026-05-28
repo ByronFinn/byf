@@ -1,13 +1,13 @@
 import { execSync } from 'node:child_process';
 
-import type { createKimiDeviceId as createKimiDeviceIdFn } from '@byf/oauth';
+import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runShell } from '#/cli/run-shell';
 
 import { captureProcessWrite, ExitCalled, mockProcessExit } from '../helpers/process';
 
-type CreateKimiDeviceId = typeof createKimiDeviceIdFn;
+type CreateByfDeviceId = typeof createByfDeviceIdFn;
 
 const mocks = vi.hoisted(() => {
   type TuiConfigFallback = {
@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => {
   return {
     loadTuiConfig: vi.fn(),
     detectTerminalTheme: vi.fn(),
-    kimiHarnessConstructor: vi.fn(),
+    byfHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
     harnessGetConfig: vi.fn(async () => ({
       providers: {},
@@ -39,14 +39,13 @@ const mocks = vi.hoisted(() => {
     })),
     harnessGetCachedAccessToken: vi.fn(),
     harnessClose: vi.fn(),
-    detectPendingMigration: vi.fn<() => Promise<unknown>>(async () => null),
     harnessTrack: vi.fn(),
-    kimiTuiConstructor: vi.fn(),
+    byfTuiConstructor: vi.fn(),
     tuiStart: vi.fn(),
     tuiGetStartupMcpMs: vi.fn(async () => 0),
     tuiGetCurrentSessionId: vi.fn(() => ''),
     tuiHasSessionContent: vi.fn(() => false),
-    createKimiDeviceId: vi.fn<CreateKimiDeviceId>(() => 'device-1'),
+    createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
     initializeTelemetry: vi.fn(),
     setCrashPhase: vi.fn(),
     shutdownTelemetry: vi.fn(),
@@ -56,7 +55,7 @@ const mocks = vi.hoisted(() => {
     withTelemetryContext: vi.fn(() => ({
       track: lifecycleTrack,
     })),
-    resolveKimiHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/kimi-code-test-home'),
+    resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-test-home'),
     harnessCreatesDeviceIdOnConstruction: false,
     execSync: vi.fn(),
     TuiConfigParseError,
@@ -67,8 +66,8 @@ vi.mock('@byf/sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@byf/sdk')>();
   return {
     ...actual,
-    resolveKimiHome: mocks.resolveKimiHome,
-    KimiHarness: class {
+    resolveByfHome: mocks.resolveByfHome,
+    ByfHarness: class {
       homeDir: string;
       auth = {
         getCachedAccessToken: mocks.harnessGetCachedAccessToken,
@@ -80,11 +79,11 @@ vi.mock('@byf/sdk', async (importOriginal) => {
 
       constructor(...args: unknown[]) {
         const options = args[0] as { readonly homeDir?: string } | undefined;
-        this.homeDir = options?.homeDir ?? '/tmp/kimi-code-test-home';
+        this.homeDir = options?.homeDir ?? '/tmp/byf-test-home';
         if (mocks.harnessCreatesDeviceIdOnConstruction) {
-          mocks.createKimiDeviceId(this.homeDir);
+          mocks.createByfDeviceId(this.homeDir);
         }
-        mocks.kimiHarnessConstructor(...args);
+        mocks.byfHarnessConstructor(...args);
       }
     },
   };
@@ -96,8 +95,8 @@ vi.mock('@byf/oauth', async () => {
   );
   return {
     ...actual,
-    createKimiDeviceId: mocks.createKimiDeviceId,
-    KIMI_CODE_PROVIDER_NAME: 'kimi-code',
+    createByfDeviceId: mocks.createByfDeviceId,
+    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 
@@ -116,11 +115,11 @@ vi.mock('../../src/tui/config', () => ({
 }));
 
 vi.mock('../../src/tui/index', () => ({
-  KimiTUI: class {
+  ByfTui: class {
     onExit?: () => Promise<void>;
 
     constructor(...args: unknown[]) {
-      mocks.kimiTuiConstructor(this, ...args);
+      mocks.byfTuiConstructor(this, ...args);
     }
 
     start = mocks.tuiStart;
@@ -132,10 +131,6 @@ vi.mock('../../src/tui/index', () => ({
 
 vi.mock('../../src/tui/theme/detect', () => ({
   detectTerminalTheme: mocks.detectTerminalTheme,
-}));
-
-vi.mock('../../src/migration/index', () => ({
-  detectPendingMigration: mocks.detectPendingMigration,
 }));
 
 vi.mock('node:child_process', () => ({
@@ -153,14 +148,14 @@ describe('runShell', () => {
     mocks.tuiGetStartupMcpMs.mockResolvedValue(0);
     mocks.tuiGetCurrentSessionId.mockReturnValue('');
     mocks.tuiHasSessionContent.mockReturnValue(false);
-    mocks.createKimiDeviceId.mockImplementation(() => 'device-1');
-    mocks.resolveKimiHome.mockImplementation(
-      (homeDir?: string) => homeDir ?? '/tmp/kimi-code-test-home',
+    mocks.createByfDeviceId.mockImplementation(() => 'device-1');
+    mocks.resolveByfHome.mockImplementation(
+      (homeDir?: string) => homeDir ?? '/tmp/byf-test-home',
     );
     mocks.harnessCreatesDeviceIdOnConstruction = false;
   });
 
-  it('constructs KimiHarness and KimiTUI with startup input', async () => {
+  it('constructs ByfHarness and ByfTui with startup input', async () => {
     mocks.loadTuiConfig.mockResolvedValue({
       theme: 'dark',
       editorCommand: null,
@@ -183,7 +178,7 @@ describe('runShell', () => {
 
     await runShell(cliOptions, '1.2.3-test');
 
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: expect.objectContaining({
           userAgentProduct: 'byf-cli',
@@ -196,10 +191,10 @@ describe('runShell', () => {
       mocks.harnessGetConfig.mock.invocationCallOrder[0]!,
     );
     expect(execSync).toHaveBeenCalledWith('stty -ixon', { stdio: 'ignore' });
-    expect(mocks.kimiTuiConstructor).toHaveBeenCalledTimes(1);
-    expect(mocks.resolveKimiHome).toHaveBeenCalledWith();
+    expect(mocks.byfTuiConstructor).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveByfHome).toHaveBeenCalledWith();
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith({
-      homeDir: '/tmp/kimi-code-test-home',
+      homeDir: '/tmp/byf-test-home',
       deviceId: expect.any(String),
       enabled: true,
       appName: 'byf-cli',
@@ -209,7 +204,7 @@ describe('runShell', () => {
     });
     expect(mocks.setCrashPhase).toHaveBeenCalledWith('runtime');
 
-    const [, harness, startupInput] = mocks.kimiTuiConstructor.mock.calls[0]!;
+    const [, harness, startupInput] = mocks.byfTuiConstructor.mock.calls[0]!;
     expect(harness).toBeTypeOf('object');
     expect(startupInput).toMatchObject({
       cliOptions,
@@ -246,7 +241,7 @@ describe('runShell', () => {
       notifications: { enabled: true, condition: 'unfocused' },
     });
     mocks.tuiStart.mockResolvedValue(undefined);
-    mocks.createKimiDeviceId.mockImplementationOnce((homeDir, options) => {
+    mocks.createByfDeviceId.mockImplementationOnce((homeDir, options) => {
       const deviceId = `device-for-${homeDir}`;
       options?.onFirstLaunch?.(deviceId);
       return deviceId;
@@ -266,8 +261,8 @@ describe('runShell', () => {
       '1.2.3-test',
     );
 
-    expect(mocks.createKimiDeviceId).toHaveBeenCalledWith(
-      '/tmp/kimi-code-test-home',
+    expect(mocks.createByfDeviceId).toHaveBeenCalledWith(
+      '/tmp/byf-test-home',
       expect.objectContaining({ onFirstLaunch: expect.any(Function) }),
     );
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
@@ -282,7 +277,7 @@ describe('runShell', () => {
     mocks.tuiStart.mockResolvedValue(undefined);
     mocks.harnessCreatesDeviceIdOnConstruction = true;
     const createdHomes = new Set<string>();
-    mocks.createKimiDeviceId.mockImplementation((homeDir, options) => {
+    mocks.createByfDeviceId.mockImplementation((homeDir, options) => {
       const deviceId = `device-for-${homeDir}`;
       if (!createdHomes.has(homeDir)) {
         createdHomes.add(homeDir);
@@ -305,16 +300,16 @@ describe('runShell', () => {
       '1.2.3-test',
     );
 
-    expect(mocks.createKimiDeviceId).toHaveBeenNthCalledWith(
+    expect(mocks.createByfDeviceId).toHaveBeenNthCalledWith(
       1,
-      '/tmp/kimi-code-test-home',
+      '/tmp/byf-test-home',
       expect.objectContaining({ onFirstLaunch: expect.any(Function) }),
     );
-    expect(mocks.createKimiDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.kimiHarnessConstructor.mock.invocationCallOrder[0]!,
+    expect(mocks.createByfDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.byfHarnessConstructor.mock.invocationCallOrder[0]!,
     );
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ homeDir: '/tmp/kimi-code-test-home' }),
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ homeDir: '/tmp/byf-test-home' }),
     );
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
   });
@@ -410,7 +405,7 @@ describe('runShell', () => {
       '1.2.3-test',
     );
 
-    const [harnessOptions] = mocks.kimiHarnessConstructor.mock.calls[0] as [
+    const [harnessOptions] = mocks.byfHarnessConstructor.mock.calls[0] as [
       {
         readonly onOAuthRefresh: (
           outcome:
@@ -461,7 +456,7 @@ describe('runShell', () => {
     );
 
     expect(mocks.detectTerminalTheme).toHaveBeenCalledOnce();
-    const [, , startupInput] = mocks.kimiTuiConstructor.mock.calls[0]!;
+    const [, , startupInput] = mocks.byfTuiConstructor.mock.calls[0]!;
     expect(startupInput).toMatchObject({
       startupNotice: 'Invalid TUI config in ~/.byf/tui.toml; using defaults.',
       resolvedTheme: 'light',
@@ -531,7 +526,7 @@ describe('runShell', () => {
         },
         '1.2.3-test',
       );
-      const [tui] = mocks.kimiTuiConstructor.mock.calls[0]!;
+      const [tui] = mocks.byfTuiConstructor.mock.calls[0]!;
       mocks.harnessTrack.mockClear();
       mocks.lifecycleTrack.mockClear();
       mocks.withTelemetryContext.mockClear();
@@ -548,43 +543,11 @@ describe('runShell', () => {
       expect(mocks.harnessTrack).not.toHaveBeenCalledWith('exit', expect.anything());
       expect(mocks.shutdownTelemetry).toHaveBeenCalledOnce();
       expect(stdout.text()).toBe(' Bye!\n');
-      expect(stderr.text()).toContain(' To resume this session: kimi -r ses-1');
+      expect(stderr.text()).toContain(' To resume this session: byf -r ses-1');
     } finally {
       exitSpy.mockRestore();
       stdout.restore();
       stderr.restore();
     }
-  });
-
-  it('surfaces an invalid target config as an error for kimi migrate, not silently', async () => {
-    mocks.loadTuiConfig.mockResolvedValue({
-      theme: 'dark',
-      editorCommand: null,
-      notifications: { enabled: true, condition: 'unfocused' },
-    });
-    mocks.detectPendingMigration.mockResolvedValue({ totalSessions: 1 });
-    mocks.harnessGetConfig.mockRejectedValue(
-      new Error('Invalid configuration in ~/.byf/config.toml'),
-    );
-
-    // A broken config.toml must fail loudly — `kimi migrate` must not swallow
-    // it and proceed, or the user never learns their config is broken.
-    await expect(
-      runShell(
-        {
-          session: undefined,
-          continue: false,
-          yolo: false,
-          plan: false,
-          model: undefined,
-          outputFormat: undefined,
-          prompt: undefined,
-          skillsDirs: [],
-        },
-        '1.2.3-test',
-        { migrateOnly: true },
-      ),
-    ).rejects.toThrow('Invalid configuration');
-    expect(mocks.tuiStart).not.toHaveBeenCalled();
   });
 });

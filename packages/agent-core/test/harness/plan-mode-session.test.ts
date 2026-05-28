@@ -4,19 +4,19 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createRPC, KimiCore, type CoreAPI, type SDKAPI } from '../../src';
+import { createRPC, ByfCore, type CoreAPI, type SDKAPI } from '../../src';
 
 const BASE_CONFIG = `
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-for-coding"
 
-[providers."managed:kimi-code"]
-type = "kimi"
+[providers."managed:byf"]
+type = "openai-compat"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
+[models."byf/byf-for-coding"]
+provider = "managed:byf"
+model = "byf-for-coding"
 max_context_size = 1000000
 `;
 
@@ -27,7 +27,7 @@ describe('plan-mode bootstrap from config.defaultPlanMode', () => {
   let configPath: string;
 
   beforeEach(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-plan-mode-'));
+    tmp = await mkdtemp(join(tmpdir(), 'byf-plan-mode-'));
     homeDir = join(tmp, 'home');
     workDir = join(tmp, 'work');
     configPath = join(tmp, 'config.toml');
@@ -88,7 +88,7 @@ describe('plan-mode bootstrap from config.defaultPlanMode', () => {
 
   async function createTestRpc() {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    void new KimiCore(coreRpc, { homeDir, configPath });
+    void new ByfCore(coreRpc, { homeDir, configPath });
     return sdkRpc({
       emitEvent: vi.fn(),
       requestApproval: vi.fn(async () => ({ decision: 'rejected' as const })),

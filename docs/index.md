@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: Kimi Code CLI
+  name: BYF
   text: ' '
   actions:
     - theme: brand

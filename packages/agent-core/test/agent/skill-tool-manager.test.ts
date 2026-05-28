@@ -25,7 +25,7 @@ const TEST_OS_ENV: Environment = {
 };
 
 const MOCK_PROVIDER = {
-  type: 'kimi',
+  type: 'openai-compat',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const;
@@ -166,7 +166,7 @@ describe('ToolManager SkillTool registration', () => {
         content: [
           {
             type: 'text',
-            text: '<system-reminder>\n<kimi-skill-loaded name="review" args="">\nbody of review\n</kimi-skill-loaded>\n</system-reminder>',
+            text: '<system-reminder>\n<byf-skill-loaded name="review" args="">\nbody of review\n</byf-skill-loaded>\n</system-reminder>',
           },
         ],
         origin: {
@@ -186,7 +186,7 @@ describe('ToolManager SkillTool registration', () => {
   });
 
   it('exposes session skills after the main agent is created', async () => {
-    const tmp = await mkdtemp(join(tmpdir(), 'kimi-core-skill-tool-refresh-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'byf-core-skill-tool-refresh-'));
     try {
       const homeDir = join(tmp, 'home');
       const workDir = join(tmp, 'work');

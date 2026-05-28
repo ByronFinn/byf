@@ -1,13 +1,13 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { createTUIState, type KimiTUIOptions } from '#/tui/kimi-tui';
+import { createTUIState, type ByfTuiOptions } from '#/tui/byf-tui';
 import type { AppState } from '#/tui/types';
 
 function fakeInitialAppState(): AppState {
   return {
     model: 'test-model',
-    workDir: '/tmp/kimi-test',
+    workDir: '/tmp/byf-test',
     sessionId: 'sess-1',
     yolo: false,
     permissionMode: 'manual',
@@ -33,7 +33,7 @@ function fakeInitialAppState(): AppState {
 
 describe('createTUIState', () => {
   it('initializes all fields with sensible defaults', () => {
-    const opts: KimiTUIOptions = {
+    const opts: ByfTuiOptions = {
       initialAppState: fakeInitialAppState(),
       startup: {
         continueLast: false,

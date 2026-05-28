@@ -3,7 +3,7 @@ import { getEmbeddedNativeAssetManifest, getNativePackageRoot } from './native-a
 const smokePackages = ['@mariozechner/clipboard', 'koffi'];
 
 export function runNativeAssetSmokeIfRequested(): boolean {
-  if (process.env['KIMI_CODE_NATIVE_ASSET_SMOKE'] !== '1') return false;
+  if (process.env['BYF_CODE_NATIVE_ASSET_SMOKE'] !== '1') return false;
 
   try {
     const manifest = getEmbeddedNativeAssetManifest();

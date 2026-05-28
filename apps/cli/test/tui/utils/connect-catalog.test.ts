@@ -126,13 +126,13 @@ describe('built-in connect catalog injection', () => {
         },
       },
     };
-    const dir = await mkdtemp(join(tmpdir(), 'kimi-built-in-catalog-'));
+    const dir = await mkdtemp(join(tmpdir(), 'byf-built-in-catalog-'));
     try {
       const file = join(dir, 'catalog.json');
       const text = JSON.stringify(catalog);
       await writeFile(file, text, 'utf-8');
 
-      const defineValue = builtInCatalogDefine({ KIMI_CODE_BUILT_IN_CATALOG_FILE: file });
+      const defineValue = builtInCatalogDefine({ BYF_CODE_BUILT_IN_CATALOG_FILE: file });
       expect(JSON.parse(defineValue)).toBe(text);
       expect(loadBuiltInCatalog(JSON.parse(defineValue))).toEqual(catalog);
     } finally {

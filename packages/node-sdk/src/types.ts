@@ -26,13 +26,13 @@ export type {
   BackgroundTaskStatus,
   ContextMessage,
   ExportSessionManifest,
-  KimiConfig,
-  KimiConfigPatch,
+  ByfConfig,
+  ByfConfigPatch,
   LoopControl,
   McpServerInfo,
   McpStartupMetrics,
   ModelAlias,
-  MoonshotServiceConfig,
+  ByfServiceConfig,
   OAuthRef,
   PromptOrigin,
   ProviderConfig,
@@ -54,7 +54,7 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 
 export type PromptInput = readonly PromptPart[];
 
-export interface KimiHarnessOptions {
+export interface ByfHarnessOptions {
   readonly identity?: HostIdentity | undefined;
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;

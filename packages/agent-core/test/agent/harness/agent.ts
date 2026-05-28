@@ -18,7 +18,7 @@ import {
   AGENT_WIRE_PROTOCOL_VERSION,
   InMemoryAgentRecordPersistence,
 } from '../../../src/agent/records';
-import type { KimiConfig } from '../../../src/config';
+import type { ByfConfig } from '../../../src/config';
 import type { ExecutableToolResult } from '../../../src/loop';
 import type { Logger } from '../../../src/logging';
 import { ProviderManager } from '../../../src/providers/provider-manager';
@@ -47,7 +47,7 @@ const TEST_OS_ENV: Environment = {
 };
 
 const MOCK_PROVIDER = {
-  type: 'kimi',
+  type: 'openai-compat',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const;
@@ -571,15 +571,15 @@ function configStateSnapshot(agent: Agent): ResumeStateSnapshot['config'] {
   };
 }
 
-function emptyConfig(): KimiConfig {
+function emptyConfig(): ByfConfig {
   return configWithProvider({ providers: {} }, MOCK_PROVIDER, undefined);
 }
 
 function configWithProvider(
-  config: KimiConfig,
+  config: ByfConfig,
   provider: ProviderConfig,
   modelCapabilities: ModelCapability | undefined,
-): KimiConfig {
+): ByfConfig {
   const providerName = 'test-provider';
   const maxContextSize = modelCapabilities?.max_context_tokens;
   return {
@@ -601,7 +601,7 @@ function configWithProvider(
   };
 }
 
-function providerConfigForAlias(provider: ProviderConfig): KimiConfig['providers'][string] {
+function providerConfigForAlias(provider: ProviderConfig): ByfConfig['providers'][string] {
   return {
     type: provider.type,
     apiKey: 'apiKey' in provider ? provider.apiKey : undefined,

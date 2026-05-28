@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { KimiTUI, type KimiTUIStartupInput } from '#/tui/kimi-tui';
+import { ByfTui, type ByfTuiStartupInput } from '#/tui/byf-tui';
 
 interface SignalDriver {
   registerSignalHandlers(): void;
@@ -9,7 +9,7 @@ interface SignalDriver {
   stop(): Promise<void>;
 }
 
-function makeStartupInput(): KimiTUIStartupInput {
+function makeStartupInput(): ByfTuiStartupInput {
   return {
     cliOptions: {
       session: undefined,
@@ -50,8 +50,8 @@ function makeHarness() {
   };
 }
 
-function makeDriver(): { driver: SignalDriver; tui: KimiTUI } {
-  const tui = new KimiTUI(makeHarness() as never, makeStartupInput());
+function makeDriver(): { driver: SignalDriver; tui: ByfTui } {
+  const tui = new ByfTui(makeHarness() as never, makeStartupInput());
   const driver = tui as unknown as SignalDriver;
   return { driver, tui };
 }
@@ -120,7 +120,7 @@ function captureHandlers(driver: SignalDriver): CapturedHandlers {
   } as unknown as CapturedHandlers;
 }
 
-describe('KimiTUI signal handlers', () => {
+describe('ByfTui signal handlers', () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let platformDescriptor: PropertyDescriptor | undefined;
 

@@ -8,7 +8,7 @@
  * walks the text and expands image placeholders to image content parts
  * and video placeholders to file-path tags for `ReadMediaFile`.
  *
- * Scope is per-`KimiTUI` instance. Reloads (`/new`, `/clear`,
+ * Scope is per-`ByfTui` instance. Reloads (`/new`, `/clear`,
  * session switch) call `clear()` so ids restart from 1 and stale
  * prompt attachments are dropped. We intentionally do NOT persist
  * attachments across sessions — coding-agent doesn't either, and

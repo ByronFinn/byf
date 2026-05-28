@@ -12,7 +12,6 @@ import {
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import { formatSessionLabel } from '#/migration/index';
 import type { ColorPalette } from '#/tui/theme/colors';
 
 export interface SessionRow {
@@ -206,7 +205,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     const time = formatRelativeTime(session.updated_at);
     const badge = isCurrent ? CURRENT_BADGE : '';
     const rawTitle = (session.title ?? session.id).trim() || session.id;
-    const titleSource = formatSessionLabel({ title: rawTitle, metadata: session.metadata });
+    const titleSource = rawTitle;
 
     // Inline trailing parts after the title: "<title>  <time>  (current)".
     const trailingParts = [time, badge].filter((p) => p.length > 0);

@@ -1,17 +1,17 @@
 # Model Context Protocol
 
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 是一个开放协议，让模型可以安全地调用外部进程或服务暴露的工具。Kimi Code CLI 作为 MCP client 接入这些外部工具，并把它们与内置工具（`Read`、`Bash`、`Grep` 等）一起暴露给 Agent 使用。
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 是一个开放协议，让模型可以安全地调用外部进程或服务暴露的工具。BYF 作为 MCP client 接入这些外部工具，并把它们与内置工具（`Read`、`Bash`、`Grep` 等）一起暴露给 Agent 使用。
 
 ## 集成范围
 
-Kimi Code CLI 支持通过 stdio（本地子进程）和 HTTP 两种方式接入外部 MCP 服务器。接入的 MCP 工具与内置工具一样，可以被 Agent 调用、受权限规则约束、参与审批流程，行为上没有差异。
+BYF 支持通过 stdio（本地子进程）和 HTTP 两种方式接入外部 MCP 服务器。接入的 MCP 工具与内置工具一样，可以被 Agent 调用、受权限规则约束、参与审批流程，行为上没有差异。
 
 ## 配置与登录
 
 MCP server 配置写在 `mcp.json` 中，分为两层：
 
-- 用户级：`~/.kimi-code/mcp.json`（或 `$KIMI_CODE_HOME/mcp.json`），跨项目共享
-- 项目级：`.kimi-code/mcp.json`，仅当前仓库
+- 用户级：`~/.byf/mcp.json`（或 `$BYF_HOME/mcp.json`），跨项目共享
+- 项目级：`.byf/mcp.json`，仅当前仓库
 
 项目级覆盖用户级同名条目。
 
@@ -49,7 +49,7 @@ MCP server 配置写在 `mcp.json` 中，分为两层：
 | `disabledTools` | `string[]` | 两者 | 黑名单 |
 
 ::: warning 注意
-项目级 `.kimi-code/mcp.json` 中的 stdio 条目会在会话启动时执行本地命令，只在你信任的仓库里启用。
+项目级 `.byf/mcp.json` 中的 stdio 条目会在会话启动时执行本地命令，只在你信任的仓库里启用。
 :::
 
 ## 工具命名与权限

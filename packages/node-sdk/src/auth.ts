@@ -1,4 +1,4 @@
-import { readConfigFile, writeConfigFile, type KimiConfig } from '@byf/agent-core';
+import { readConfigFile, writeConfigFile, type ByfConfig } from '@byf/agent-core';
 
 export interface AuthProviderStatus {
   readonly providerName: string;
@@ -12,7 +12,7 @@ export interface AuthStatus {
 export interface ByfAuthFacadeOptions {
   readonly homeDir: string;
   readonly configPath: string;
-  readonly onConfigUpdated?: ((config: KimiConfig) => void) | undefined;
+  readonly onConfigUpdated?: ((config: ByfConfig) => void) | undefined;
 }
 
 export class ByfAuthFacade {

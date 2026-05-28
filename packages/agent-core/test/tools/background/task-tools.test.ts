@@ -307,7 +307,7 @@ describe('TaskOutputTool', () => {
     // where the manager is always constructed with one. A self-contained
     // manager + a terminal task keep teardown free of the cleanup race
     // that non-terminal tasks (still flushing persistence) would cause.
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-output-tool-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-output-tool-'));
     const ownManager = new BackgroundProcessManager();
     ownManager.attachSessionDir(sessionDir);
     try {
@@ -360,7 +360,7 @@ describe('TaskOutputTool', () => {
   });
 
   it('reads persisted output for a task loaded after restart', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-output-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-output-'));
     try {
       const writer = new BackgroundProcessManager();
       writer.attachSessionDir(sessionDir);
@@ -441,7 +441,7 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
   });
 
   it('truncates output > 32 KiB to a tail preview and reports paging metadata', async () => {
-    sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-trunc-'));
+    sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-trunc-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -476,7 +476,7 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
   });
 
   it('does not silently drop the head of a > 1 MiB running task', async () => {
-    sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-ring-'));
+    sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-ring-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -528,7 +528,7 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
   });
 
   it('does not mark small output (< 32 KiB) as truncated', async () => {
-    sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-small-'));
+    sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-small-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -551,7 +551,7 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
   });
 
   it('flags truncation when the tail window starts mid-multibyte character', async () => {
-    sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-utf8-'));
+    sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-utf8-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -585,7 +585,7 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
   });
 
   it('keeps preview and metadata consistent from a single log-size snapshot', async () => {
-    sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-grow-'));
+    sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-grow-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -673,7 +673,7 @@ describe('TaskOutputTool — terminal metadata fields', () => {
   });
 
   it('omits timed_out / stop_reason / terminal_reason for a normally completed task', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-meta-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-meta-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -698,7 +698,7 @@ describe('TaskOutputTool — terminal metadata fields', () => {
 
 describe('TaskOutputTool — full-output guidance', () => {
   it('does not advertise an output_path when the persisted log file does not exist', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-empty-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-empty-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -722,7 +722,7 @@ describe('TaskOutputTool — full-output guidance', () => {
   });
 
   it('emits full_output_available / full_output_tool even when output is not truncated', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-untrunc-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-untrunc-'));
     const manager = new BackgroundProcessManager();
     manager.attachSessionDir(sessionDir);
     try {
@@ -803,7 +803,7 @@ describe('TaskStopTool', () => {
   });
 
   it('persists stop reason when attached to a session directory', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-stop-reason-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-stop-reason-'));
     try {
       const writer = new BackgroundProcessManager();
       writer.attachSessionDir(sessionDir);
@@ -865,7 +865,7 @@ describe('TaskStopTool', () => {
   });
 
   it('falls back to the placeholder when a terminal task has a blank stored reason', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-blank-stored-reason-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-blank-stored-reason-'));
     try {
       // A task persisted by an older build (or a caller that passed `''`)
       // can carry a blank `stop_reason` on disk; the terminal-state branch
@@ -916,7 +916,7 @@ describe('TaskOutputTool — py envelope contract', () => {
   // exists, so the manager must be attached to a session dir.
   it('completed task returns a rich envelope with output_truncated/full_output_tool/full_output_hint', async () => {
     const { mkdtemp, rm } = await import('node:fs/promises');
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-env-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-env-'));
     try {
       const m2 = new BackgroundProcessManager();
       m2.attachSessionDir(sessionDir);
@@ -973,7 +973,7 @@ describe('TaskOutputTool — py envelope contract', () => {
   // ghost entry or any task file on disk.
   it('lookup of a non-existent task does not pollute the store', async () => {
     const { mkdtemp, readdir, rm } = await import('node:fs/promises');
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-missing-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-missing-'));
     try {
       const m2 = new BackgroundProcessManager();
       m2.attachSessionDir(sessionDir);
@@ -1023,7 +1023,7 @@ describe('TaskOutputTool — py envelope contract', () => {
   // (gap #5.)
   it('oversized output surfaces a truncated preview and full log path', async () => {
     const { mkdtemp, rm } = await import('node:fs/promises');
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-trunc-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-trunc-'));
     try {
       const big = 'first marker\n' + 'x'.repeat(33 * 1024) + '\nlast marker\n';
       const m2 = new BackgroundProcessManager();
@@ -1150,7 +1150,7 @@ describe('background store — partial output reads (TS surface)', () => {
 
   it('readOutputBytesFromDisk returns the requested byte window', async () => {
     const { mkdtemp, rm } = await import('node:fs/promises');
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-range-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-range-'));
     try {
       const m2 = new BackgroundProcessManager();
       m2.attachSessionDir(sessionDir);

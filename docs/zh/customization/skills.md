@@ -1,6 +1,6 @@
 # Agent Skills
 
-Agent Skills 是 Kimi Code CLI 用来扩展模型能力的轻量机制。一个 Skill 就是一份带 YAML frontmatter 的 Markdown 文档，描述某项专业知识或工作流程。Kimi Code CLI 在启动时自动扫描已知目录，把发现的 Skill 注入到系统提示词中，让 Agent 知道当前会话里有哪些可用的 Skill。
+Agent Skills 是 BYF 用来扩展模型能力的轻量机制。一个 Skill 就是一份带 YAML frontmatter 的 Markdown 文档，描述某项专业知识或工作流程。BYF 在启动时自动扫描已知目录，把发现的 Skill 注入到系统提示词中，让 Agent 知道当前会话里有哪些可用的 Skill。
 
 相比把同样的指引每次都粘到提示词里，Skill 的好处在于：内容沉淀在文件里、可以跨项目和团队复用、可以通过斜杠命令一键加载，也可以让模型在需要时自动调用。常见用法是把代码风格、提交规范、审查流程等固化为 Skill。
 
@@ -57,24 +57,24 @@ arguments:
 - `$ARGUMENTS`：调用时附带的完整原始参数字符串
 - `$ARGUMENTS[0]`、`$ARGUMENTS[1]` 及简写 `$0`、`$1`：按空白分词后的位置参数（从 0 开始）
 - `$<name>`：`arguments` 中声明的命名参数
-- `${KIMI_SKILL_DIR}`：当前 Skill 文件所在目录
+- `${BYF_SKILL_DIR}`：当前 Skill 文件所在目录
 
 位置参数支持单双引号包裹，如 `/skill:commit "fix login" patch` 中 `$0` 展开为 `fix login`。若正文不含任何参数占位符，调用时附带的文本会以 `\n\nARGUMENTS: <文本>` 的形式追加到正文末尾。
 
 ## Skill 存放位置
 
-Kimi Code CLI 按作用域分四档扫描，越具体的作用域优先级越高：
+BYF 按作用域分四档扫描，越具体的作用域优先级越高：
 
 **Project > User > Extra > Built-in**
 
 用户级：
 
-- `~/.kimi-code/skills/`
+- `~/.byf/skills/`
 - `~/.agents/skills/`
 
 项目级（项目根 = 工作目录向上最近的包含 `.git` 的目录）：
 
-- `.kimi-code/skills/`
+- `.byf/skills/`
 - `.agents/skills/`
 
 额外目录通过 `config.toml` 顶层的 `extra_skill_dirs` 字段声明：
@@ -124,4 +124,4 @@ arguments:
    - 值得肯定的地方
 ```
 
-保存为 `~/.kimi-code/skills/review-pr/SKILL.md`，检查清单放在同目录的 `references/checklist.md`，然后重开会话，即可通过 `/skill:review-pr #1234` 调用，其中 `#1234` 会展开到 `$pr_ref`。
+保存为 `~/.byf/skills/review-pr/SKILL.md`，检查清单放在同目录的 `references/checklist.md`，然后重开会话，即可通过 `/skill:review-pr #1234` 调用，其中 `#1234` 会展开到 `$pr_ref`。

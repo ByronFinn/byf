@@ -58,15 +58,15 @@ describe('ChoicePickerComponent', () => {
 
     const model = new ModelSelectorComponent({
       models: {
-        kimi: {
+        byf: {
           provider: 'managed:byf',
-          model: 'kimi-k2',
+          model: 'byf-k2',
           maxContextSize: 200_000,
           displayName: 'ByF K2',
           capabilities: ['thinking'],
         },
       },
-      currentValue: 'kimi',
+      currentValue: 'byf',
       currentThinking: true,
       colors: darkColors,
       onSelect,
@@ -107,15 +107,15 @@ describe('ChoicePickerComponent', () => {
     const onSelect = vi.fn();
     const picker = new ModelSelectorComponent({
       models: {
-        kimi: {
+        byf: {
           provider: 'managed:byf',
-          model: 'kimi-k2',
+          model: 'byf-k2',
           maxContextSize: 200_000,
-          displayName: 'Kimi K2',
+          displayName: 'Byf K2',
           capabilities: ['thinking'],
         },
       },
-      currentValue: 'kimi',
+      currentValue: 'byf',
       currentThinking: true,
       colors: darkColors,
       onSelect,
@@ -125,7 +125,7 @@ describe('ChoicePickerComponent', () => {
     picker.handleInput('\u001B[C');
     picker.handleInput('\r');
 
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'kimi', thinking: false });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'byf', thinking: false });
   });
 
   it('forces always-thinking models on and unsupported models off', () => {
@@ -134,16 +134,16 @@ describe('ChoicePickerComponent', () => {
       models: {
         always: {
           provider: 'managed:byf',
-          model: 'kimi-thinking',
+          model: 'byf-thinking',
           maxContextSize: 200_000,
-          displayName: 'Kimi Thinking',
+          displayName: 'Byf Thinking',
           capabilities: ['always_thinking'],
         },
         plain: {
           provider: 'managed:byf',
-          model: 'kimi-plain',
+          model: 'byf-plain',
           maxContextSize: 200_000,
-          displayName: 'Kimi Plain',
+          displayName: 'Byf Plain',
           capabilities: ['tool_use'],
         },
       },
@@ -172,16 +172,16 @@ describe('ChoicePickerComponent', () => {
       models: {
         plain: {
           provider: 'managed:byf',
-          model: 'kimi-plain',
+          model: 'byf-plain',
           maxContextSize: 200_000,
-          displayName: 'Kimi Plain',
+          displayName: 'Byf Plain',
           capabilities: ['tool_use'],
         },
         thinking: {
           provider: 'managed:byf',
-          model: 'kimi-thinking',
+          model: 'byf-thinking',
           maxContextSize: 200_000,
-          displayName: 'Kimi Thinking',
+          displayName: 'Byf Thinking',
           capabilities: ['thinking'],
         },
       },

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { KimiError } from '../../src/errors';
+import { ByfError } from '../../src/errors';
 import { StdioMcpClient } from '../../src/mcp/client-stdio';
 
 const here = import.meta.dirname;
@@ -21,7 +21,7 @@ describe('StdioMcpClient', () => {
           executor: 'kaos',
         }),
     ).toThrow(
-      expect.objectContaining({ name: 'KimiError', code: 'not_implemented' }) as unknown as Error,
+      expect.objectContaining({ name: 'ByfError', code: 'not_implemented' }) as unknown as Error,
     );
     // Sanity-check the error class identity too.
     let thrown: unknown;
@@ -31,7 +31,7 @@ describe('StdioMcpClient', () => {
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toBeInstanceOf(KimiError);
+    expect(thrown).toBeInstanceOf(ByfError);
   });
 
   it('connects, lists tools, and round-trips a text result', async () => {
@@ -77,11 +77,11 @@ describe('StdioMcpClient', () => {
       transport: 'stdio',
       command: process.execPath,
       args: [fixture],
-      env: { KIMI_TEST_ENV: 'forwarded-value' },
+      env: { BYF_TEST_ENV: 'forwarded-value' },
     });
     try {
       await client.connect();
-      const result = await client.callTool('read_env', { name: 'KIMI_TEST_ENV' });
+      const result = await client.callTool('read_env', { name: 'BYF_TEST_ENV' });
       expect(result.content).toEqual([{ type: 'text', text: 'forwarded-value' }]);
     } finally {
       await client.close();
@@ -89,8 +89,8 @@ describe('StdioMcpClient', () => {
   }, 15000);
 
   it('inherits parent process env so PATH/HOME survive; config.env overrides on conflict', async () => {
-    const parentOnly = `KIMI_TEST_PARENT_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const shared = `KIMI_TEST_SHARED_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const parentOnly = `BYF_TEST_PARENT_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const shared = `BYF_TEST_SHARED_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     process.env[parentOnly] = 'from-parent';
     process.env[shared] = 'from-parent';
     const client = new StdioMcpClient({
@@ -113,12 +113,12 @@ describe('StdioMcpClient', () => {
   }, 15000);
 
   it('captures recent stderr into a snapshot the manager can attach to errors', async () => {
-    const banner = `kimi-test-stderr-${Date.now()}`;
+    const banner = `byf-test-stderr-${Date.now()}`;
     const client = new StdioMcpClient({
       transport: 'stdio',
       command: process.execPath,
       args: [stderrThenExitFixture],
-      env: { KIMI_TEST_MCP_STDERR: banner },
+      env: { BYF_TEST_MCP_STDERR: banner },
     });
     try {
       await expect(client.connect()).rejects.toThrow();
@@ -149,12 +149,12 @@ describe('StdioMcpClient', () => {
   }, 15000);
 
   it('notifies an unexpected-close listener when the child exits after connect', async () => {
-    const banner = `kimi-test-crash-${Date.now()}`;
+    const banner = `byf-test-crash-${Date.now()}`;
     const client = new StdioMcpClient({
       transport: 'stdio',
       command: process.execPath,
       args: [crashAfterConnectFixture],
-      env: { KIMI_TEST_MCP_EXIT_AFTER_MS: '50', KIMI_TEST_MCP_STDERR: banner },
+      env: { BYF_TEST_MCP_EXIT_AFTER_MS: '50', BYF_TEST_MCP_STDERR: banner },
     });
     const closes: Array<{ stderr?: string; error?: string }> = [];
     client.onUnexpectedClose((reason) => {
@@ -175,12 +175,12 @@ describe('StdioMcpClient', () => {
   }, 15000);
 
   it('buffers an early close and replays it on listener registration', async () => {
-    const banner = `kimi-test-early-${Date.now()}`;
+    const banner = `byf-test-early-${Date.now()}`;
     const client = new StdioMcpClient({
       transport: 'stdio',
       command: process.execPath,
       args: [crashAfterConnectFixture],
-      env: { KIMI_TEST_MCP_STDERR: banner, KIMI_TEST_MCP_EXIT_CODE: '0' },
+      env: { BYF_TEST_MCP_STDERR: banner, BYF_TEST_MCP_EXIT_CODE: '0' },
     });
     try {
       await client.connect();

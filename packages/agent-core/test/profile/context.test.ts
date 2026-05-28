@@ -11,8 +11,8 @@ let homeDir: string;
 let workDir: string;
 
 beforeEach(async () => {
-  homeDir = await mkdtemp(join(tmpdir(), 'kimi-agents-home-'));
-  workDir = await mkdtemp(join(tmpdir(), 'kimi-agents-work-'));
+  homeDir = await mkdtemp(join(tmpdir(), 'byf-agents-home-'));
+  workDir = await mkdtemp(join(tmpdir(), 'byf-agents-work-'));
   vi.spyOn(localKaos, 'gethome').mockReturnValue(homeDir);
 });
 

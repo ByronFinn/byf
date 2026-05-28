@@ -25,7 +25,7 @@ async function ensureExecutableExists() {
   }
 }
 
-async function runKimi(args) {
+async function runByf(args) {
   try {
     const { stdout, stderr } = await execFileAsync(executablePath, args, {
       cwd: appRoot,
@@ -40,7 +40,7 @@ async function runKimi(args) {
   }
 }
 
-async function runKimiWithEnv(args, env) {
+async function runByfWithEnv(args, env) {
   try {
     const { stdout, stderr } = await execFileAsync(executablePath, args, {
       cwd: appRoot,
@@ -64,18 +64,18 @@ function assertIncludes(output, expected, command) {
 
 await ensureExecutableExists();
 
-const versionOutput = await runKimi(['--version']);
+const versionOutput = await runByf(['--version']);
 assertIncludes(versionOutput, expectedVersion, '--version');
 
-const helpOutput = await runKimi(['--help']);
-assertIncludes(helpOutput, 'Usage: kimi', '--help');
+const helpOutput = await runByf(['--help']);
+assertIncludes(helpOutput, 'Usage: byf', '--help');
 
-const exportHelpOutput = await runKimi(['export', '--help']);
-assertIncludes(exportHelpOutput, 'Usage: kimi export', 'export --help');
+const exportHelpOutput = await runByf(['export', '--help']);
+assertIncludes(exportHelpOutput, 'Usage: byf export', 'export --help');
 
-const nativeAssetOutput = await runKimiWithEnv(['--version'], {
-  KIMI_CODE_HOME: smokeHome,
-  KIMI_CODE_NATIVE_ASSET_SMOKE: '1',
+const nativeAssetOutput = await runByfWithEnv(['--version'], {
+  BYF_CODE_HOME: smokeHome,
+  BYF_CODE_NATIVE_ASSET_SMOKE: '1',
 });
 assertIncludes(nativeAssetOutput, `Native asset smoke passed: ${target}`, 'native asset smoke');
 

@@ -35,7 +35,7 @@ import {
   type CompletionBudgetConfig,
 } from '../../utils/completion-budget';
 
-export const GENERATE_REQUEST_LOG_CONTEXT = '__kimiRequestLogContext';
+export const GENERATE_REQUEST_LOG_CONTEXT = '__byfRequestLogContext';
 
 export type GenerateOptionsWithRequestLog = {
   readonly signal?: AbortSignal;

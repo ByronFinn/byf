@@ -1,14 +1,13 @@
 {
   "name": "@byf/cli",
   "version": "0.0.1",
-  "description": "The Starting Point for Next-Gen Agents",
-  "license": "MIT",
+  "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
+  "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/apps/cli#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "apps/cli"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
@@ -16,9 +15,9 @@
   "keywords": [
     "byf",
     "cli",
-    "agent",
-    "coding-agent",
+    "terminal",
     "ai",
+    "coding-agent",
     "tui"
   ],
   "bin": {
@@ -57,8 +56,8 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm -w run build:packages && vitest run",
-    "e2e": "pnpm -w run build:packages && KIMI_E2E=1 vitest run test/e2e",
-    "e2e:real": "pnpm -w run build:packages && KIMI_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
+    "e2e": "pnpm -w run build:packages && BYF_E2E=1 vitest run test/e2e",
+    "e2e:real": "pnpm -w run build:packages && BYF_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
@@ -75,7 +74,6 @@
     "@byf/oauth": "workspace:^",
     "@byf/sdk": "workspace:^",
     "@byf/telemetry": "workspace:^",
-    "@byf/migration-legacy": "workspace:^",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
     "postject": "1.0.0-alpha.6",

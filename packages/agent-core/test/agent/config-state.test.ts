@@ -10,15 +10,15 @@ describe('ConfigState model capabilities', () => {
       providerManager: new ProviderManager({
         config: {
           providers: {
-            kimi: {
-              type: 'kimi',
+            byf: {
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
           models: {
-            'kimi-code/kimi-for-coding': {
-              provider: 'kimi',
-              model: 'kimi-for-coding',
+            'byf/byf-for-coding': {
+              provider: 'byf',
+              model: 'byf-for-coding',
               maxContextSize: 1_000_000,
               capabilities: ['image_in', 'video_in', 'thinking', 'tool_use'],
             },
@@ -28,10 +28,10 @@ describe('ConfigState model capabilities', () => {
     });
     const config = ctx.agent.config;
 
-    config.update({ modelAlias: 'kimi-code/kimi-for-coding' });
+    config.update({ modelAlias: 'byf/byf-for-coding' });
 
-    expect(config.model).toBe('kimi-code/kimi-for-coding');
-    expect(config.providerConfig.model).toBe('kimi-for-coding');
+    expect(config.model).toBe('byf/byf-for-coding');
+    expect(config.providerConfig.model).toBe('byf-for-coding');
     expect(config.modelCapabilities).toMatchObject({
       image_in: true,
       video_in: true,
@@ -42,20 +42,20 @@ describe('ConfigState model capabilities', () => {
     });
   });
 
-  it('does not infer Kimi capabilities from the provider catalogue', () => {
+  it('does not infer Byf capabilities from the provider catalogue', () => {
     const ctx = testAgent({
       providerManager: new ProviderManager({
         config: {
           providers: {
-            kimi: {
-              type: 'kimi',
+            byf: {
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
           models: {
-            'kimi-code': {
-              provider: 'kimi',
-              model: 'kimi-code',
+            'byf': {
+              provider: 'byf',
+              model: 'byf',
               maxContextSize: 128_000,
             },
           },
@@ -64,7 +64,7 @@ describe('ConfigState model capabilities', () => {
     });
     const config = ctx.agent.config;
 
-    config.update({ modelAlias: 'kimi-code' });
+    config.update({ modelAlias: 'byf' });
 
     expect(config.modelCapabilities).toMatchObject({
       image_in: false,
@@ -92,15 +92,15 @@ describe('ConfigState model capabilities', () => {
       providerManager: new ProviderManager({
         config: {
           providers: {
-            kimi: {
-              type: 'kimi',
+            byf: {
+              type: 'openai-compat',
               apiKey: 'test-key',
             },
           },
           models: {
-            'kimi-code': {
-              provider: 'kimi',
-              model: 'kimi-code',
+            'byf': {
+              provider: 'byf',
+              model: 'byf',
               maxContextSize: 128_000,
             },
           },
@@ -109,10 +109,10 @@ describe('ConfigState model capabilities', () => {
     });
     const config = ctx.agent.config;
 
-    config.update({ modelAlias: 'kimi-code' });
+    config.update({ modelAlias: 'byf' });
 
     expect(config.providerConfig).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },

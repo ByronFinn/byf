@@ -26,7 +26,7 @@ let sessionDir: string;
 beforeEach(async () => {
   sessionDir = join(
     tmpdir(),
-    `kimi-hb-stale-${String(Date.now())}-${Math.random().toString(36).slice(2)}`,
+    `byf-hb-stale-${String(Date.now())}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(sessionDir, { recursive: true });
 });

@@ -26,7 +26,7 @@ import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 import { abortable } from '../../utils/abort';
 
 const RG_VERSION = '15.0.0';
-const RG_BASE_URL = 'https://code.kimi.com/kimi-code/rg';
+const RG_BASE_URL = 'https://github.com/BurntSushi/ripgrep/releases/download';
 const DOWNLOAD_TIMEOUT_MS = 600_000;
 const RG_ARCHIVE_SHA256: Record<string, string> = {
   'ripgrep-15.0.0-aarch64-apple-darwin.tar.gz':
@@ -197,7 +197,7 @@ async function downloadAndInstallRg(shareDir: string): Promise<string> {
   await mkdir(binDir, { recursive: true });
   const destination = join(binDir, rgBinaryName());
 
-  const tmp = await mkdtemp(join(tmpdir(), 'kimi-rg-'));
+  const tmp = await mkdtemp(join(tmpdir(), 'byf-rg-'));
   try {
     const archivePath = join(tmp, archiveName);
 

@@ -7,14 +7,14 @@ import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { registerExportCommand } from '#/cli/sub/export';
-import { createKimiCodeHostIdentity } from '#/cli/version';
-import { KimiHarness, log } from '@byf/sdk';
+import { createByfHostIdentity } from '#/cli/version';
+import { ByfHarness, log } from '@byf/sdk';
 import { __resetRootLoggerForTest } from '../../../../packages/agent-core/src/logging/logger';
 
 const SESSION_LOG = 'logs/byf.log';
 const GLOBAL_LOG = 'logs/global/byf.log';
 const MAIN_WIRE = 'agents/main/wire.jsonl';
-const ENABLED = process.env['KIMI_E2E'] === '1';
+const ENABLED = process.env['BYF_E2E'] === '1';
 
 let homeDir: string;
 let workDir: string;
@@ -22,8 +22,8 @@ let oldHome: string | undefined;
 
 beforeEach(async () => {
   await __resetRootLoggerForTest();
-  homeDir = await mkdtemp(join(tmpdir(), 'kimi-cli-log-home-'));
-  workDir = await mkdtemp(join(tmpdir(), 'kimi-cli-log-work-'));
+  homeDir = await mkdtemp(join(tmpdir(), 'byf-cli-log-home-'));
+  workDir = await mkdtemp(join(tmpdir(), 'byf-cli-log-work-'));
   oldHome = process.env['BYF_HOME'];
   process.env['BYF_HOME'] = homeDir;
 });
@@ -41,9 +41,9 @@ afterEach(async () => {
 
 describe.skipIf(!ENABLED)('local logging export e2e', () => {
   it('exports session log and global log by default, and allows skipping global log', async () => {
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       homeDir,
-      identity: createKimiCodeHostIdentity('0.1.1'),
+      identity: createByfHostIdentity('0.1.1'),
     });
     try {
       const session = await harness.createSession({
@@ -54,7 +54,7 @@ describe.skipIf(!ENABLED)('local logging export e2e', () => {
       log.warn('cli global marker');
 
       const defaultZip = join(workDir, 'default.zip');
-      await runKimiExport([session.id, '-o', defaultZip]);
+      await runByfExport([session.id, '-o', defaultZip]);
       const defaultEntries = readZipEntries(await readFile(defaultZip));
       expect(defaultEntries.has(MAIN_WIRE)).toBe(true);
       expect(defaultEntries.has(SESSION_LOG)).toBe(true);
@@ -70,7 +70,7 @@ describe.skipIf(!ENABLED)('local logging export e2e', () => {
       expect(defaultManifest['globalLogPath']).toBe(GLOBAL_LOG);
 
       const noGlobalZip = join(workDir, 'no-global.zip');
-      await runKimiExport([session.id, '-o', noGlobalZip, '--no-include-global-log']);
+      await runByfExport([session.id, '-o', noGlobalZip, '--no-include-global-log']);
       const noGlobalEntries = readZipEntries(await readFile(noGlobalZip));
       expect(noGlobalEntries.has(GLOBAL_LOG)).toBe(false);
       const noGlobalManifest = JSON.parse(
@@ -83,8 +83,8 @@ describe.skipIf(!ENABLED)('local logging export e2e', () => {
   }, 15_000);
 });
 
-async function runKimiExport(args: string[]): Promise<void> {
-  const program = new Command('kimi');
+async function runByfExport(args: string[]): Promise<void> {
+  const program = new Command('byf');
   const stdout: string[] = [];
   const stderr: string[] = [];
   registerExportCommand(program, {
@@ -101,10 +101,10 @@ async function runKimiExport(args: string[]): Promise<void> {
       },
     },
     exit: (code: number): never => {
-      throw new Error(`kimi export exited ${code}: ${stderr.join('')}`);
+      throw new Error(`byf export exited ${code}: ${stderr.join('')}`);
     },
   });
-  await program.parseAsync(['node', 'kimi', 'export', ...args]);
+  await program.parseAsync(['node', 'byf', 'export', ...args]);
 }
 
 function readZipEntries(buf: Buffer): Map<string, Buffer> {

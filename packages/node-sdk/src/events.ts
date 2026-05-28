@@ -6,7 +6,7 @@ import type {
 } from '@byf/agent-core';
 
 // Event union plus shared fields/payloads used across event families.
-export type { KimiErrorPayload, Event } from '@byf/agent-core';
+export type { ByfErrorPayload, Event } from '@byf/agent-core';
 
 export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@byf/agent-core';
 

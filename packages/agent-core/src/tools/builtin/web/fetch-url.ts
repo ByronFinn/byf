@@ -1,7 +1,7 @@
 /**
  * FetchURLTool — host-injected URL fetcher.
  *
- * kimi-core defines the interface; the host provides the real fetch
+ * byf-core defines the interface; the host provides the real fetch
  * implementation via `UrlFetcher`. If no fetcher is supplied, the tool
  * should not be registered (not exposed to the LLM).
  */

@@ -1,9 +1,9 @@
-import type { createKimiDeviceId as createKimiDeviceIdFn } from '@byf/oauth';
+import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
 
-type CreateKimiDeviceId = typeof createKimiDeviceIdFn;
+type CreateByfDeviceId = typeof createByfDeviceIdFn;
 
 const mocks = vi.hoisted(() => {
   const eventHandlers = new Set<(event: any) => void>();
@@ -45,7 +45,7 @@ const mocks = vi.hoisted(() => {
     eventHandlers,
     agentEvent,
     mainEvent,
-    kimiHarnessConstructor: vi.fn(),
+    byfHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
     harnessGetConfig: vi.fn(
       async (): Promise<{ providers: {}; defaultModel?: string; telemetry: boolean }> => ({
@@ -67,8 +67,8 @@ const mocks = vi.hoisted(() => {
     setTelemetryContext: vi.fn(),
     lifecycleTrack: vi.fn(),
     withTelemetryContext: vi.fn(() => ({ track: vi.fn() })),
-    createKimiDeviceId: vi.fn<CreateKimiDeviceId>(() => 'device-1'),
-    resolveKimiHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/kimi-code-test-home'),
+    createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
+    resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-test-home'),
     harnessCreatesDeviceIdOnConstruction: false,
   };
 });
@@ -77,8 +77,8 @@ vi.mock('@byf/sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@byf/sdk')>();
   return {
     ...actual,
-    resolveKimiHome: mocks.resolveKimiHome,
-    KimiHarness: class {
+    resolveByfHome: mocks.resolveByfHome,
+    ByfHarness: class {
       homeDir: string;
       auth = { getCachedAccessToken: mocks.harnessGetCachedAccessToken };
       ensureConfigFile = mocks.harnessEnsureConfigFile;
@@ -91,11 +91,11 @@ vi.mock('@byf/sdk', async (importOriginal) => {
 
       constructor(...args: unknown[]) {
         const options = args[0] as { readonly homeDir?: string } | undefined;
-        this.homeDir = options?.homeDir ?? '/tmp/kimi-code-test-home';
+        this.homeDir = options?.homeDir ?? '/tmp/byf-test-home';
         if (mocks.harnessCreatesDeviceIdOnConstruction) {
-          mocks.createKimiDeviceId(this.homeDir);
+          mocks.createByfDeviceId(this.homeDir);
         }
-        mocks.kimiHarnessConstructor(...args);
+        mocks.byfHarnessConstructor(...args);
       }
     },
   };
@@ -107,8 +107,8 @@ vi.mock('@byf/oauth', async () => {
   );
   return {
     ...actual,
-    createKimiDeviceId: mocks.createKimiDeviceId,
-    KIMI_CODE_PROVIDER_NAME: 'kimi-code',
+    createByfDeviceId: mocks.createByfDeviceId,
+    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 
@@ -181,9 +181,9 @@ describe('runPrompt', () => {
   afterEach(() => {
     vi.clearAllMocks();
     mocks.eventHandlers.clear();
-    mocks.createKimiDeviceId.mockImplementation(() => 'device-1');
-    mocks.resolveKimiHome.mockImplementation(
-      (homeDir?: string) => homeDir ?? '/tmp/kimi-code-test-home',
+    mocks.createByfDeviceId.mockImplementation(() => 'device-1');
+    mocks.resolveByfHome.mockImplementation(
+      (homeDir?: string) => homeDir ?? '/tmp/byf-test-home',
     );
     mocks.harnessCreatesDeviceIdOnConstruction = false;
   });
@@ -194,7 +194,7 @@ describe('runPrompt', () => {
 
     await runPrompt(opts({ skillsDirs: ['/skills'] }), '1.2.3-test', { stdout, stderr });
 
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
       expect.objectContaining({ skillDirs: ['/skills'], uiMode: 'print' }),
     );
     expect(mocks.harnessCreateSession).toHaveBeenCalledWith({
@@ -207,31 +207,31 @@ describe('runPrompt', () => {
     expect(mocks.session.setQuestionHandler).toHaveBeenCalledWith(expect.any(Function));
     expect(mocks.session.prompt).toHaveBeenCalledWith('say hello');
     expect(stdout.text()).toBe('• hello world\n\n');
-    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).toBe('To resume this session: byf -r ses_prompt\n');
     expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
   });
 
   it('uses the CLI model override when creating a fresh prompt session', async () => {
-    await runPrompt(opts({ model: 'kimi-code/k2.5' }), '1.2.3-test', {
+    await runPrompt(opts({ model: 'byf/k2.5' }), '1.2.3-test', {
       stdout: { write: vi.fn(() => true) },
       stderr: { write: vi.fn(() => true) },
     });
 
     expect(mocks.harnessCreateSession).toHaveBeenCalledWith({
       workDir: process.cwd(),
-      model: 'kimi-code/k2.5',
+      model: 'byf/k2.5',
       permission: 'auto',
     });
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'kimi-code/k2.5' }),
+      expect.objectContaining({ model: 'byf/k2.5' }),
     );
   });
 
   it.skip('tracks first launch in prompt mode before harness construction can create the device id', async () => {
     mocks.harnessCreatesDeviceIdOnConstruction = true;
     const createdHomes = new Set<string>();
-    mocks.createKimiDeviceId.mockImplementation((homeDir, options) => {
+    mocks.createByfDeviceId.mockImplementation((homeDir, options) => {
       const deviceId = `device-for-${homeDir}`;
       if (!createdHomes.has(homeDir)) {
         createdHomes.add(homeDir);
@@ -245,16 +245,16 @@ describe('runPrompt', () => {
       stderr: { write: vi.fn(() => true) },
     });
 
-    expect(mocks.createKimiDeviceId).toHaveBeenNthCalledWith(
+    expect(mocks.createByfDeviceId).toHaveBeenNthCalledWith(
       1,
-      '/tmp/kimi-code-test-home',
+      '/tmp/byf-test-home',
       expect.objectContaining({ onFirstLaunch: expect.any(Function) }),
     );
-    expect(mocks.createKimiDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.kimiHarnessConstructor.mock.invocationCallOrder[0]!,
+    expect(mocks.createByfDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.byfHarnessConstructor.mock.invocationCallOrder[0]!,
     );
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ homeDir: '/tmp/kimi-code-test-home' }),
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ homeDir: '/tmp/byf-test-home' }),
     );
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
   });
@@ -289,7 +289,7 @@ describe('runPrompt', () => {
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
     expect(stderr.text()).toBe(
-      '• The user wants an exact reply.\n  No tools are needed.\n\nTo resume this session: kimi -r ses_prompt\n',
+      '• The user wants an exact reply.\n  No tools are needed.\n\nTo resume this session: byf -r ses_prompt\n',
     );
     expect(stdout.text()).toBe('• prompt-mode-ok\n\n');
     expect(stderr.write).toHaveBeenNthCalledWith(1, '• The user wants an exact reply.');
@@ -321,7 +321,7 @@ describe('runPrompt', () => {
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
     expect(stdout.text()).toBe('• UserPromptSubmit hook\n\n  {}\n\n• answer\n\n');
-    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).toBe('To resume this session: byf -r ses_prompt\n');
   });
 
   it('wraps transcript blocks with hanging indentation when terminal width is known', async () => {
@@ -340,7 +340,7 @@ describe('runPrompt', () => {
 
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
-    expect(stderr.text()).toBe('• thinking\n  -wrap\n\nTo resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).toBe('• thinking\n  -wrap\n\nTo resume this session: byf -r ses_prompt\n');
     expect(stdout.text()).toBe('• answer-w\n  rap\n\n');
   });
 
@@ -378,7 +378,7 @@ describe('runPrompt', () => {
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
     expect(stdout.text()).toBe('• main answer\n\n');
-    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).toBe('To resume this session: byf -r ses_prompt\n');
   });
 
   it('ignores child-agent error events while the main turn continues', async () => {
@@ -407,7 +407,7 @@ describe('runPrompt', () => {
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
     expect(stdout.text()).toBe('• main recovered\n\n');
-    expect(stderr.text()).toBe('To resume this session: kimi -r ses_prompt\n');
+    expect(stderr.text()).toBe('To resume this session: byf -r ses_prompt\n');
   });
 
   it('resumes a concrete session and forces auto permission before prompting', async () => {
@@ -423,15 +423,15 @@ describe('runPrompt', () => {
   });
 
   it('applies the CLI model override to resumed prompt sessions', async () => {
-    await runPrompt(opts({ session: 'ses_existing', model: 'kimi-code/k2.5' }), '1.2.3-test', {
+    await runPrompt(opts({ session: 'ses_existing', model: 'byf/k2.5' }), '1.2.3-test', {
       stdout: { write: vi.fn(() => true) },
       stderr: { write: vi.fn(() => true) },
     });
 
     expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_existing' });
-    expect(mocks.session.setModel).toHaveBeenCalledWith('kimi-code/k2.5');
+    expect(mocks.session.setModel).toHaveBeenCalledWith('byf/k2.5');
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'kimi-code/k2.5' }),
+      expect.objectContaining({ model: 'byf/k2.5' }),
     );
   });
 
@@ -444,7 +444,7 @@ describe('runPrompt', () => {
     expect(stdout.text()).toBe(
       [
         '{"role":"assistant","content":"hello world"}',
-        '{"role":"meta","type":"session.resume_hint","session_id":"ses_prompt","command":"kimi -r ses_prompt","content":"To resume this session: kimi -r ses_prompt"}',
+        '{"role":"meta","type":"session.resume_hint","session_id":"ses_prompt","command":"byf -r ses_prompt","content":"To resume this session: byf -r ses_prompt"}',
         '',
       ].join('\n'),
     );
@@ -489,7 +489,7 @@ describe('runPrompt', () => {
         '{"role":"assistant","content":"checking","tool_calls":[{"type":"function","id":"tc_1","function":{"name":"Shell","arguments":"{\\"command\\":\\"ls\\"}"}}]}',
         '{"role":"tool","tool_call_id":"tc_1","content":"file1.py\\nfile2.py"}',
         '{"role":"assistant","content":"done"}',
-        '{"role":"meta","type":"session.resume_hint","session_id":"ses_prompt","command":"kimi -r ses_prompt","content":"To resume this session: kimi -r ses_prompt"}',
+        '{"role":"meta","type":"session.resume_hint","session_id":"ses_prompt","command":"byf -r ses_prompt","content":"To resume this session: byf -r ses_prompt"}',
         '',
       ].join('\n'),
     );
@@ -690,7 +690,7 @@ describe('runPrompt', () => {
         stderr: { write: vi.fn(() => true) },
       }),
     ).rejects.toThrow(
-      'No model configured. Run `kimi` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
     );
 
     expect(mocks.harnessClose).toHaveBeenCalled();

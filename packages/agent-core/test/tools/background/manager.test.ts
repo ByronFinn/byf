@@ -372,7 +372,7 @@ describe('BackgroundProcessManager', () => {
   });
 
   it('persists graceful process shutdown as killed when stop requested', async () => {
-    const sessionDir = await mkdtemp(join(tmpdir(), 'kimi-bg-stop-race-'));
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-stop-race-'));
     try {
       const writer = new BackgroundProcessManager();
       writer.attachSessionDir(sessionDir);
@@ -631,7 +631,7 @@ describe('BackgroundProcessManager — registration semantics', () => {
   // create any task directory on disk.
   it('getTask on an unknown id never creates on-disk state', async () => {
     const sessionDir = await import('node:fs/promises').then((m) =>
-      m.mkdtemp(join(tmpdir(), 'kimi-bg-mgr-missing-')),
+      m.mkdtemp(join(tmpdir(), 'byf-bg-mgr-missing-')),
     );
     try {
       const m2 = new BackgroundProcessManager();

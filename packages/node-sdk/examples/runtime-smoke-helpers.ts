@@ -1,4 +1,4 @@
-import { type KimiHarness, type Session, type Event, type HostIdentity } from '@byf/sdk';
+import { type ByfHarness, type Session, type Event, type HostIdentity } from '@byf/sdk';
 
 export function smokeIdentityFromEnv(): HostIdentity {
   const version = process.env['BYF_SMOKE_VERSION'];
@@ -11,7 +11,7 @@ export function smokeIdentityFromEnv(): HostIdentity {
   };
 }
 
-export async function createConfiguredSession(harness: KimiHarness): Promise<Session> {
+export async function createConfiguredSession(harness: ByfHarness): Promise<Session> {
   const config = await harness.getConfig();
   const model = config.defaultModel;
   if (model === undefined) {

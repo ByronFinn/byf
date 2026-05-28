@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiError, KimiHarness } from '#/index';
+import { ByfError, ByfHarness } from '#/index';
 
 import {
   parseConfigString,
@@ -22,13 +22,13 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-sdk-config-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-sdk-config-'));
   tempDirs.push(dir);
   return dir;
 }
 
 const COMPLETE_TOML = `
-default_model = "kimi-for-coding"
+default_model = "byf-for-coding"
 default_thinking = false
 default_permission_mode = "auto"
 skip_afk_prompt_injection = false
@@ -39,21 +39,21 @@ show_thinking_stream = true
 merge_all_available_skills = true
 extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 
-[providers.kimi-for-coding]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+[providers.byf-for-coding]
+type = "openai-compat"
+base_url = "https://api.example.test/v1"
 api_key = "sk-xxx"
 custom_headers = { "X-Custom-Header" = "value" }
 
-[providers.kimi-for-coding.env]
+[providers.byf-for-coding.env]
 GOOGLE_CLOUD_PROJECT = "project-1"
 
-[models.kimi-for-coding]
-provider = "kimi-for-coding"
-model = "kimi-for-coding"
+[models.byf-for-coding]
+provider = "byf-for-coding"
+model = "byf-for-coding"
 max_context_size = 262144
 capabilities = ["image_in", "thinking", "video_in"]
-display_name = "Kimi for Coding"
+display_name = "Byf for Coding"
 
 [loop_control]
 max_steps_per_turn = 1000
@@ -69,13 +69,13 @@ kill_grace_period_ms = 2000
 agent_task_timeout_s = 900
 print_wait_ceiling_s = 3600
 
-[services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
+[services.byf_search]
+base_url = "https://api.example.test/v1/search"
 api_key = "sk-search"
 custom_headers = { "X-Search" = "1" }
 
-[services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
+[services.byf_fetch]
+base_url = "https://api.example.test/v1/fetch"
 api_key = "sk-fetch"
 
 [notifications]
@@ -86,28 +86,28 @@ describe('SDK config TOML', () => {
   it('parses the documented config shape and keeps TUI-only fields in raw', () => {
     const config = parseConfigString(COMPLETE_TOML, 'complete.toml');
 
-    expect(config.defaultModel).toBe('kimi-for-coding');
+    expect(config.defaultModel).toBe('byf-for-coding');
     expect(config.defaultThinking).toBe(false);
     expect(config.defaultPermissionMode).toBe('auto');
     expect(config.defaultPlanMode).toBe(false);
     expect(config.mergeAllAvailableSkills).toBe(true);
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
 
-    const provider = config.providers['kimi-for-coding'];
+    const provider = config.providers['byf-for-coding'];
     expect(provider).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-xxx',
       customHeaders: { 'X-Custom-Header': 'value' },
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });
 
-    expect(config.models?.['kimi-for-coding']).toMatchObject({
-      provider: 'kimi-for-coding',
-      model: 'kimi-for-coding',
+    expect(config.models?.['byf-for-coding']).toMatchObject({
+      provider: 'byf-for-coding',
+      model: 'byf-for-coding',
       maxContextSize: 262144,
       capabilities: ['image_in', 'thinking', 'video_in'],
-      displayName: 'Kimi for Coding',
+      displayName: 'Byf for Coding',
     });
 
     expect(config.loopControl).toEqual({
@@ -124,8 +124,8 @@ describe('SDK config TOML', () => {
       agentTaskTimeoutS: 900,
       printWaitCeilingS: 3600,
     });
-    expect(config.services?.moonshotSearch?.customHeaders).toEqual({ 'X-Search': '1' });
-    expect(config.services?.moonshotFetch?.apiKey).toBe('sk-fetch');
+    expect(config.services?.byfSearch?.customHeaders).toEqual({ 'X-Search': '1' });
+    expect(config.services?.byfFetch?.apiKey).toBe('sk-fetch');
 
     expect('theme' in config).toBe(false);
     expect(config.raw?.['theme']).toBe('dark');
@@ -141,7 +141,7 @@ describe('SDK config TOML', () => {
 
     await writeConfigFile(configPath, {
       ...config,
-      defaultModel: 'kimi-for-coding',
+      defaultModel: 'byf-for-coding',
       loopControl: {
         ...config.loopControl,
         maxStepsPerTurn: 42,
@@ -149,12 +149,12 @@ describe('SDK config TOML', () => {
     });
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('default_model = "kimi-for-coding"');
+    expect(text).toContain('default_model = "byf-for-coding"');
     expect(text).toContain('default_permission_mode = "auto"');
     expect(text).toContain('extra_skill_dirs = [ "~/team-skills", ".agents/team-skills" ]');
     expect(text).not.toContain('default_yolo');
     expect(text).toContain('max_steps_per_turn = 42');
-    expect(text).toContain('display_name = "Kimi for Coding"');
+    expect(text).toContain('display_name = "Byf for Coding"');
     expect(text).toContain('GOOGLE_CLOUD_PROJECT = "project-1"');
     expect(text).toContain('claim_stale_after_ms = 15000');
     expect(text).toContain('theme = "dark"');
@@ -181,7 +181,7 @@ maxContextSize = 128000
 displayName = "Camel Model"
 custom_model_field = "raw-only"
 
-[services.moonshotSearch]
+[services.byfSearch]
 baseUrl = "https://example.test/search"
 apiKey = "sk-search"
 
@@ -202,7 +202,7 @@ maxRunningTasks = 2
       maxContextSize: 128000,
       displayName: 'Camel Model',
     });
-    expect(config.services?.moonshotSearch).toMatchObject({
+    expect(config.services?.byfSearch).toMatchObject({
       baseUrl: 'https://example.test/search',
       apiKey: 'sk-search',
     });
@@ -219,35 +219,35 @@ maxRunningTasks = 2
   });
 });
 
-describe('KimiHarness config API', () => {
+describe('ByfHarness config API', () => {
   it('loads default config when missing and deep-merges setConfig patches from disk', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
 
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     await harness.setConfig({
       providers: {
-        'kimi-for-coding': {
+        'byf-for-coding': {
           apiKey: 'sk-updated',
         },
       },
       services: {
-        moonshotSearch: {
+        byfSearch: {
           apiKey: 'sk-search-updated',
         },
       },
     });
 
     const config = await harness.getConfig({ reload: true });
-    expect(config.providers['kimi-for-coding']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+    expect(config.providers['byf-for-coding']).toMatchObject({
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-updated',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });
-    expect(config.services?.moonshotSearch?.apiKey).toBe('sk-search-updated');
+    expect(config.services?.byfSearch?.apiKey).toBe('sk-search-updated');
     expect(config.raw?.['theme']).toBe('dark');
 
     const text = await readFile(configPath, 'utf-8');
@@ -262,7 +262,7 @@ describe('KimiHarness config API', () => {
     await writeFile(configPath, COMPLETE_TOML, 'utf-8');
     const before = await readFile(configPath, 'utf-8');
 
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     const setInvalidConfig = harness.setConfig({
       providers: {
@@ -272,17 +272,17 @@ describe('KimiHarness config API', () => {
       },
     } as never);
 
-    await expect(setInvalidConfig).rejects.toBeInstanceOf(KimiError);
+    await expect(setInvalidConfig).rejects.toBeInstanceOf(ByfError);
     await expect(setInvalidConfig).rejects.toMatchObject({
       code: 'config.invalid',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
 
     await expect(readFile(configPath, 'utf-8')).resolves.toBe(before);
   });
 
   it('uses default config when the config file is absent', async () => {
     const homeDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     await expect(harness.getConfig()).resolves.toEqual({ providers: {} });
   });
@@ -290,7 +290,7 @@ describe('KimiHarness config API', () => {
   it('can create the default config scaffold without selecting a model', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     await harness.ensureConfigFile();
 

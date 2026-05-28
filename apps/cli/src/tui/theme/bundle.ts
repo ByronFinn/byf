@@ -5,17 +5,17 @@ import { createMarkdownTheme } from './pi-tui-theme';
 import { createThemeStyles, type ThemeStyles } from './styles';
 import { resolveThemeSync, type Theme } from './index';
 
-export interface KimiTUIThemeBundle {
+export interface ByfTuiThemeBundle {
   resolvedTheme: ResolvedTheme;
   colors: ColorPalette;
   styles: ThemeStyles;
   markdownTheme: MarkdownTheme;
 }
 
-export function createKimiTUIThemeBundle(
+export function createByfTuiThemeBundle(
   theme: Theme,
   resolvedTheme?: ResolvedTheme,
-): KimiTUIThemeBundle {
+): ByfTuiThemeBundle {
   const actualTheme = resolvedTheme ?? resolveThemeSync(theme);
   const colors = { ...getColorPalette(actualTheme) };
   return {

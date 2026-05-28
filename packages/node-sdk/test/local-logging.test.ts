@@ -5,18 +5,18 @@ import * as zlib from 'node:zlib';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { KimiHarness, log } from '#/index';
+import { ByfHarness, log } from '#/index';
 import { __resetRootLoggerForTest, getRootLogger } from '../../agent-core/src/logging/logger';
 import { TEST_IDENTITY } from './test-identity';
 
 const tempDirs: string[] = [];
 
 const LOG_ENV_KEYS = [
-  'KIMI_LOG_LEVEL',
-  'KIMI_LOG_GLOBAL_MAX_BYTES',
-  'KIMI_LOG_GLOBAL_FILES',
-  'KIMI_LOG_SESSION_MAX_BYTES',
-  'KIMI_LOG_SESSION_FILES',
+  'BYF_LOG_LEVEL',
+  'BYF_LOG_GLOBAL_MAX_BYTES',
+  'BYF_LOG_GLOBAL_FILES',
+  'BYF_LOG_SESSION_MAX_BYTES',
+  'BYF_LOG_SESSION_FILES',
 ] as const;
 
 beforeEach(async () => {
@@ -99,10 +99,10 @@ function readZipEntries(buf: Buffer): Map<string, Buffer> {
 
 describe('Local logging — harness integration', () => {
   it('writes session-tagged entries to both global and session log files', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const workDir = await makeTempDir('kimi-log-work-');
+    const homeDir = await makeTempDir('byf-log-home-');
+    const workDir = await makeTempDir('byf-log-work-');
 
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     const session = await harness.createSession({
       id: 'ses_logging_int',
       workDir,
@@ -120,7 +120,7 @@ describe('Local logging — harness integration', () => {
     const globalPath = join(homeDir, 'logs', 'byf.log');
     const sessionLogPath = join(summary.sessionDir, 'logs', 'byf.log');
 
-    // Trigger an export — this flushes both global and session via KimiCore
+    // Trigger an export — this flushes both global and session via ByfCore
     const exportOut = join(workDir, 'out.zip');
     await harness.exportSession({
       id: session.id,
@@ -138,9 +138,9 @@ describe('Local logging — harness integration', () => {
   });
 
   it('default export bundles session log only; no globalLogPath in manifest', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const workDir = await makeTempDir('kimi-log-work-');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const homeDir = await makeTempDir('byf-log-home-');
+    const workDir = await makeTempDir('byf-log-work-');
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     const session = await harness.createSession({ id: 'ses_default_export', workDir });
     log.warn('session export marker', { sessionId: session.id });
 
@@ -166,9 +166,9 @@ describe('Local logging — harness integration', () => {
   });
 
   it('default export works when no session log file exists', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const workDir = await makeTempDir('kimi-log-work-');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const homeDir = await makeTempDir('byf-log-home-');
+    const workDir = await makeTempDir('byf-log-work-');
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     const session = await harness.createSession({ id: 'ses_no_session_log', workDir });
 
     const outputPath = join(workDir, 'no-log.zip');
@@ -187,13 +187,13 @@ describe('Local logging — harness integration', () => {
 
   it('default export includes rotated session log files without requiring active byf.log', async () => {
     const env = snapshotLogEnv();
-    process.env['KIMI_LOG_LEVEL'] = 'warn';
-    process.env['KIMI_LOG_SESSION_MAX_BYTES'] = '1024';
-    process.env['KIMI_LOG_SESSION_FILES'] = '2';
+    process.env['BYF_LOG_LEVEL'] = 'warn';
+    process.env['BYF_LOG_SESSION_MAX_BYTES'] = '1024';
+    process.env['BYF_LOG_SESSION_FILES'] = '2';
     try {
-      const homeDir = await makeTempDir('kimi-log-home-');
-      const workDir = await makeTempDir('kimi-log-work-');
-      const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+      const homeDir = await makeTempDir('byf-log-home-');
+      const workDir = await makeTempDir('byf-log-work-');
+      const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
       const session = await harness.createSession({ id: 'ses_rotated_export', workDir });
       for (let i = 0; i < 16; i++) {
         log.warn(`rotated session marker ${i}`, {
@@ -226,9 +226,9 @@ describe('Local logging — harness integration', () => {
   });
 
   it('--include-global-log bundles global active and sets manifest field', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const workDir = await makeTempDir('kimi-log-work-');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const homeDir = await makeTempDir('byf-log-home-');
+    const workDir = await makeTempDir('byf-log-work-');
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     const session = await harness.createSession({ id: 'ses_global_export', workDir });
     log.warn('untagged probe');
 
@@ -251,12 +251,12 @@ describe('Local logging — harness integration', () => {
   });
 
   it('--include-global-log bundles the active root global log path', async () => {
-    const firstHome = await makeTempDir('kimi-log-home-a-');
-    const secondHome = await makeTempDir('kimi-log-home-b-');
-    const workDir = await makeTempDir('kimi-log-work-');
-    const first = new KimiHarness({ identity: TEST_IDENTITY, homeDir: firstHome });
+    const firstHome = await makeTempDir('byf-log-home-a-');
+    const secondHome = await makeTempDir('byf-log-home-b-');
+    const workDir = await makeTempDir('byf-log-work-');
+    const first = new ByfHarness({ identity: TEST_IDENTITY, homeDir: firstHome });
     const firstSession = await first.createSession({ id: 'ses_first_global_export', workDir });
-    const second = new KimiHarness({ identity: TEST_IDENTITY, homeDir: secondHome });
+    const second = new ByfHarness({ identity: TEST_IDENTITY, homeDir: secondHome });
 
     log.warn('active-global-export-marker');
     await getRootLogger().flushGlobal();
@@ -279,9 +279,9 @@ describe('Local logging — harness integration', () => {
   });
 
   it('logs export flush failures without failing the export', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const workDir = await makeTempDir('kimi-log-work-');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+    const homeDir = await makeTempDir('byf-log-home-');
+    const workDir = await makeTempDir('byf-log-work-');
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     const session = await harness.createSession({ id: 'ses_flush_warning', workDir });
     log.warn('flush warning setup', { sessionId: session.id });
 
@@ -312,18 +312,18 @@ describe('Local logging — harness integration', () => {
     }
   });
 
-  it('multiple KimiHarness constructions in the same process do not throw', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    expect(() => new KimiHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
-    expect(() => new KimiHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
-    expect(() => new KimiHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
+  it('multiple ByfHarness constructions in the same process do not throw', async () => {
+    const homeDir = await makeTempDir('byf-log-home-');
+    expect(() => new ByfHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
+    expect(() => new ByfHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
+    expect(() => new ByfHarness({ identity: TEST_IDENTITY, homeDir })).not.toThrow();
   });
 
   it('uses the latest harness homeDir for global diagnostic logging', async () => {
-    const firstHome = await makeTempDir('kimi-log-home-a-');
-    const secondHome = await makeTempDir('kimi-log-home-b-');
-    const first = new KimiHarness({ identity: TEST_IDENTITY, homeDir: firstHome });
-    const second = new KimiHarness({ identity: TEST_IDENTITY, homeDir: secondHome });
+    const firstHome = await makeTempDir('byf-log-home-a-');
+    const secondHome = await makeTempDir('byf-log-home-b-');
+    const first = new ByfHarness({ identity: TEST_IDENTITY, homeDir: firstHome });
+    const second = new ByfHarness({ identity: TEST_IDENTITY, homeDir: secondHome });
 
     log.warn('second-home-marker');
     await getRootLogger().flushGlobal();
@@ -355,11 +355,11 @@ describe('Local logging — harness integration', () => {
   it('checks that an empty session log directory does not get a log file', async () => {
     // Sanity: if level is off, no log files should be created
     const env = snapshotLogEnv();
-    process.env['KIMI_LOG_LEVEL'] = 'off';
+    process.env['BYF_LOG_LEVEL'] = 'off';
     try {
-      const homeDir = await makeTempDir('kimi-log-home-');
-      const workDir = await makeTempDir('kimi-log-work-');
-      const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+      const homeDir = await makeTempDir('byf-log-home-');
+      const workDir = await makeTempDir('byf-log-work-');
+      const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
       await harness.createSession({ id: 'ses_off', workDir });
       log.error('this should not write');
       let logsDir: string[] = [];
@@ -374,9 +374,9 @@ describe('Local logging — harness integration', () => {
     }
   });
 
-  it('KimiHarness.close() flushes the global log', async () => {
-    const homeDir = await makeTempDir('kimi-log-home-');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY, homeDir });
+  it('ByfHarness.close() flushes the global log', async () => {
+    const homeDir = await makeTempDir('byf-log-home-');
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
     log.warn('untagged before close');
     // No `await flush()` here on purpose — close() must do it.
     await harness.close();

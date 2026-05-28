@@ -21,7 +21,7 @@ import type {
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
-import type { TUIState } from '#/tui/kimi-tui';
+import type { TUIState } from '#/tui/byf-tui';
 import type {
   AppState,
   BackgroundAgentMetadata,

@@ -117,7 +117,7 @@ describe('skill parser', () => {
 describe('skill parameter expansion', () => {
   it('expands raw, positional, named, and context placeholders', () => {
     const out = expandSkillParameters(
-      'raw=$ARGUMENTS zero=$0 one=$1 second=$ARGUMENTS[1] flag=$flag message=$message dir=${KIMI_SKILL_DIR} session=${KIMI_SESSION_ID}',
+      'raw=$ARGUMENTS zero=$0 one=$1 second=$ARGUMENTS[1] flag=$flag message=$message dir=${BYF_SKILL_DIR} session=${BYF_SESSION_ID}',
       '-m "fix login"',
       {
         skillDir: '/tmp/skills/commit',
@@ -181,7 +181,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
 
   it('expands context placeholders and still appends args when no argument placeholder is used', () => {
     const rendered = new SkillRegistry({ sessionId: 'ses_1' }).renderSkillPrompt(
-      testSkill({ content: 'Use ${KIMI_SKILL_DIR}/references/checklist.md.' }),
+      testSkill({ content: 'Use ${BYF_SKILL_DIR}/references/checklist.md.' }),
       'src/app.ts',
     );
 
@@ -228,7 +228,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
 });
 
 async function makeSkillsRoot(): Promise<string> {
-  const tmp = await mkdtemp(path.join(tmpdir(), 'kimi-skill-parser-'));
+  const tmp = await mkdtemp(path.join(tmpdir(), 'byf-skill-parser-'));
   tempDirs.push(tmp);
   const root = path.join(tmp, 'skills');
   await mkdir(root, { recursive: true });

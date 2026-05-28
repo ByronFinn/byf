@@ -1,4 +1,4 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import type { McpServerHttpConfig } from '#/config/schema';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -6,8 +6,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 import {
   buildRequestOptions,
-  KIMI_MCP_CLIENT_NAME,
-  KIMI_MCP_CLIENT_VERSION,
+  BYF_MCP_CLIENT_NAME,
+  BYF_MCP_CLIENT_VERSION,
   toMcpToolDefinition,
   toMcpToolResult,
   type UnexpectedCloseListener,
@@ -73,8 +73,8 @@ export class HttpMcpClient implements MCPClient {
       authProvider: options.oauthProvider,
     });
     this.client = new Client({
-      name: options.clientName ?? KIMI_MCP_CLIENT_NAME,
-      version: options.clientVersion ?? KIMI_MCP_CLIENT_VERSION,
+      name: options.clientName ?? BYF_MCP_CLIENT_NAME,
+      version: options.clientVersion ?? BYF_MCP_CLIENT_VERSION,
     });
     this.toolCallTimeoutMs = options.toolCallTimeoutMs;
   }
@@ -215,7 +215,7 @@ export function buildMcpHttpHeaders(
   if (config.bearerTokenEnvVar !== undefined) {
     const token = envLookup(config.bearerTokenEnvVar);
     if (token === undefined || token.length === 0) {
-      throw new KimiError(ErrorCodes.CONFIG_INVALID, `MCP HTTP bearer token env var "${config.bearerTokenEnvVar}" is not set or is empty`);
+      throw new ByfError(ErrorCodes.CONFIG_INVALID, `MCP HTTP bearer token env var "${config.bearerTokenEnvVar}" is not set or is empty`);
     }
     // Strip any case-variant 'authorization' static header before injecting the
     // bearer; Fetch Headers folds duplicate keys into a comma-joined value,

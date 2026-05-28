@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 
 import { loadNativePackage } from '#/native/native-require';
 
-declare const __KIMI_CODE_NATIVE_BUNDLE__: boolean | undefined;
+declare const __BYF_CODE_NATIVE_BUNDLE__: boolean | undefined;
 
 export interface ClipboardModule {
   availableFormats?(): string[];
@@ -24,7 +24,7 @@ export interface ClipboardModule {
 
 const nodeRequire = createRequire(import.meta.url);
 const isNativeBundle =
-  typeof __KIMI_CODE_NATIVE_BUNDLE__ === 'boolean' && __KIMI_CODE_NATIVE_BUNDLE__;
+  typeof __BYF_CODE_NATIVE_BUNDLE__ === 'boolean' && __BYF_CODE_NATIVE_BUNDLE__;
 
 // The native module uses X11/Wayland on Linux; if no display is
 // available, skip the load attempt so headless environments don't pay

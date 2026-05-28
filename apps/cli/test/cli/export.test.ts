@@ -1,5 +1,5 @@
 /**
- * `kimi export`
+ * `byf export`
  *
  * Verifies the CLI layer: argument handling, previous-session confirmation,
  * error reporting, and delegation to the session export implementation.
@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { createKimiDeviceId as createKimiDeviceIdFn } from '@byf/oauth';
+import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,10 +24,10 @@ import type {
 
 let tmp: string;
 
-type CreateKimiDeviceId = typeof createKimiDeviceIdFn;
+type CreateByfDeviceId = typeof createByfDeviceIdFn;
 
 const mocks = vi.hoisted(() => ({
-  kimiHarnessConstructor: vi.fn(),
+  byfHarnessConstructor: vi.fn(),
   harnessEnsureConfigFile: vi.fn(),
   harnessGetConfig: vi.fn(async () => ({
     providers: {},
@@ -37,13 +37,13 @@ const mocks = vi.hoisted(() => ({
   harnessGetCachedAccessToken: vi.fn(),
   harnessExportSession: vi.fn(),
   harnessTrack: vi.fn(),
-  createKimiDeviceId: vi.fn<CreateKimiDeviceId>(() => 'device-1'),
+  createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
   initializeTelemetry: vi.fn(),
   shutdownTelemetry: vi.fn(),
   telemetryTrack: vi.fn(),
   setTelemetryContext: vi.fn(),
   withTelemetryContext: vi.fn(),
-  resolveKimiHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/kimi-export-home'),
+  resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-export-home'),
   harnessCreatesDeviceIdOnConstruction: false,
 }));
 
@@ -51,8 +51,8 @@ vi.mock('@byf/sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@byf/sdk')>();
   return {
     ...actual,
-    resolveKimiHome: mocks.resolveKimiHome,
-    KimiHarness: class {
+    resolveByfHome: mocks.resolveByfHome,
+    ByfHarness: class {
       homeDir: string;
       auth = {
         getCachedAccessToken: mocks.harnessGetCachedAccessToken,
@@ -62,11 +62,11 @@ vi.mock('@byf/sdk', async (importOriginal) => {
       track = mocks.harnessTrack;
       constructor(...args: unknown[]) {
         const options = args[0] as { readonly homeDir?: string } | undefined;
-        this.homeDir = options?.homeDir ?? '/tmp/kimi-export-home';
+        this.homeDir = options?.homeDir ?? '/tmp/byf-export-home';
         if (mocks.harnessCreatesDeviceIdOnConstruction) {
-          mocks.createKimiDeviceId(this.homeDir);
+          mocks.createByfDeviceId(this.homeDir);
         }
-        mocks.kimiHarnessConstructor(...args);
+        mocks.byfHarnessConstructor(...args);
       }
 
       exportSession = mocks.harnessExportSession;
@@ -80,8 +80,8 @@ vi.mock('@byf/oauth', async () => {
   );
   return {
     ...actual,
-    createKimiDeviceId: mocks.createKimiDeviceId,
-    KIMI_CODE_PROVIDER_NAME: 'kimi-code',
+    createByfDeviceId: mocks.createByfDeviceId,
+    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 
@@ -94,7 +94,7 @@ vi.mock('@byf/telemetry', () => ({
 }));
 
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), 'kimi-export-'));
+  tmp = mkdtempSync(join(tmpdir(), 'byf-export-'));
 });
 
 afterEach(() => {
@@ -105,9 +105,9 @@ afterEach(() => {
     defaultModel: 'k2',
     telemetry: true,
   });
-  mocks.createKimiDeviceId.mockImplementation(() => 'device-1');
-  mocks.resolveKimiHome.mockImplementation(
-    (homeDir?: string) => homeDir ?? '/tmp/kimi-export-home',
+  mocks.createByfDeviceId.mockImplementation(() => 'device-1');
+  mocks.resolveByfHome.mockImplementation(
+    (homeDir?: string) => homeDir ?? '/tmp/byf-export-home',
   );
   mocks.harnessCreatesDeviceIdOnConstruction = false;
 });
@@ -127,7 +127,7 @@ function makeResult(id: string, zipPath: string): ExportSessionResult {
   const manifest: ExportSessionManifest = {
     sessionId: id,
     exportedAt: '2026-04-18T12:00:00.000Z',
-    kimiCodeVersion: '1.27.0',
+    byfCodeVersion: '1.27.0',
     wireProtocolVersion: '1.0',
     os: 'test',
     nodejsVersion: '22.0.0',
@@ -213,7 +213,7 @@ async function runExport(
   }
 }
 
-describe('kimi export', () => {
+describe('byf export', () => {
   it('delegates a named session export and prints the resulting zip path', async () => {
     const output = join(tmp, 'out.zip');
     const { deps, stdout, stderr, exitCodes, exportInputs, listedWorkDirs } = makeDeps();
@@ -316,7 +316,7 @@ describe('kimi export', () => {
   });
 
   it('describes the user-facing command without implementation details', () => {
-    const program = new Command('kimi');
+    const program = new Command('byf');
     const { deps } = makeDeps();
 
     registerExportCommand(program, deps);
@@ -332,10 +332,10 @@ describe('kimi export', () => {
       listSessions: async () => [previous],
       confirmPreviousSession: async () => true,
     });
-    const program = new Command('kimi');
+    const program = new Command('byf');
     registerExportCommand(program, deps);
 
-    await program.parseAsync(['node', 'kimi', 'export', '--no-include-global-log', '-y']);
+    await program.parseAsync(['node', 'byf', 'export', '--no-include-global-log', '-y']);
 
     expect(exitCodes).toEqual([]);
     expect(exportInputs).toEqual([{ id: 'ses_global_log', version: '1.0.0-test' }]);
@@ -345,12 +345,12 @@ describe('kimi export', () => {
   it('parses options after an explicit session id', async () => {
     const output = join(tmp, 'after-id.zip');
     const { deps, exitCodes, exportInputs } = makeDeps();
-    const program = new Command('kimi');
+    const program = new Command('byf');
     registerExportCommand(program, deps);
 
     await program.parseAsync([
       'node',
-      'kimi',
+      'byf',
       'export',
       'ses_after_id',
       '-o',
@@ -366,7 +366,7 @@ describe('kimi export', () => {
   });
 
   it('initializes and flushes telemetry around default export tracking', async () => {
-    const program = new Command('kimi');
+    const program = new Command('byf');
     const output = join(tmp, 'telemetry.zip');
     mocks.harnessExportSession.mockResolvedValue(makeResult('ses_telemetry', output));
 
@@ -383,11 +383,11 @@ describe('kimi export', () => {
       }) as ExportDeps['exit'],
     });
 
-    await program.parseAsync(['node', 'kimi', 'export', 'ses_telemetry', '--output', output], {
+    await program.parseAsync(['node', 'byf', 'export', 'ses_telemetry', '--output', output], {
       from: 'node',
     });
 
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         telemetry: {
           track: mocks.telemetryTrack,
@@ -398,9 +398,9 @@ describe('kimi export', () => {
     );
     expect(mocks.harnessEnsureConfigFile).toHaveBeenCalledOnce();
     expect(mocks.harnessGetConfig).toHaveBeenCalledOnce();
-    expect(mocks.resolveKimiHome).toHaveBeenCalledWith();
+    expect(mocks.resolveByfHome).toHaveBeenCalledWith();
     expect(mocks.initializeTelemetry).toHaveBeenCalledWith({
-      homeDir: '/tmp/kimi-export-home',
+      homeDir: '/tmp/byf-export-home',
       deviceId: expect.any(String),
       enabled: true,
       appName: 'byf-cli',
@@ -424,7 +424,7 @@ describe('kimi export', () => {
   });
 
   it('passes enabled false when default export config disables telemetry', async () => {
-    const program = new Command('kimi');
+    const program = new Command('byf');
     const output = join(tmp, 'telemetry-disabled.zip');
     mocks.harnessGetConfig.mockResolvedValue({
       providers: {},
@@ -446,7 +446,7 @@ describe('kimi export', () => {
       }) as ExportDeps['exit'],
     });
 
-    await program.parseAsync(['node', 'kimi', 'export', 'ses_disabled', '--output', output], {
+    await program.parseAsync(['node', 'byf', 'export', 'ses_disabled', '--output', output], {
       from: 'node',
     });
 
@@ -459,11 +459,11 @@ describe('kimi export', () => {
   });
 
   it.skip('tracks first launch around default export telemetry before harness construction can create the device id', async () => {
-    const program = new Command('kimi');
+    const program = new Command('byf');
     const output = join(tmp, 'telemetry-first-launch.zip');
     mocks.harnessCreatesDeviceIdOnConstruction = true;
     const createdHomes = new Set<string>();
-    mocks.createKimiDeviceId.mockImplementation((homeDir, options) => {
+    mocks.createByfDeviceId.mockImplementation((homeDir, options) => {
       const deviceId = `device-for-${homeDir}`;
       if (!createdHomes.has(homeDir)) {
         createdHomes.add(homeDir);
@@ -486,20 +486,20 @@ describe('kimi export', () => {
       }) as ExportDeps['exit'],
     });
 
-    await program.parseAsync(['node', 'kimi', 'export', 'ses_first_launch', '--output', output], {
+    await program.parseAsync(['node', 'byf', 'export', 'ses_first_launch', '--output', output], {
       from: 'node',
     });
 
-    expect(mocks.createKimiDeviceId).toHaveBeenNthCalledWith(
+    expect(mocks.createByfDeviceId).toHaveBeenNthCalledWith(
       1,
-      '/tmp/kimi-export-home',
+      '/tmp/byf-export-home',
       expect.objectContaining({ onFirstLaunch: expect.any(Function) }),
     );
-    expect(mocks.createKimiDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.kimiHarnessConstructor.mock.invocationCallOrder[0]!,
+    expect(mocks.createByfDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.byfHarnessConstructor.mock.invocationCallOrder[0]!,
     );
-    expect(mocks.kimiHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ homeDir: '/tmp/kimi-export-home' }),
+    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ homeDir: '/tmp/byf-export-home' }),
     );
     expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
     expect(mocks.initializeTelemetry.mock.invocationCallOrder[0]).toBeLessThan(

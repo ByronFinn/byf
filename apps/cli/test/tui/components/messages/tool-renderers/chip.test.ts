@@ -71,7 +71,7 @@ describe('chip registry', () => {
   });
 
   it('WebSearch chip shows result count', () => {
-    expect(chipFor('WebSearch', { query: 'kimi' }, result('1. Alpha\n2. Beta\n3. Gamma'))).toBe(
+    expect(chipFor('WebSearch', { query: 'byf' }, result('1. Alpha\n2. Beta\n3. Gamma'))).toBe(
       '3 results',
     );
   });

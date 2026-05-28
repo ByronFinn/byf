@@ -1,4 +1,4 @@
-// Decodes the `mcp__<server>__<tool>` qualified names produced by kimi-core's
+// Decodes the `mcp__<server>__<tool>` qualified names produced by byf-core's
 // `qualifyMcpToolName`. Returns null for non-MCP tools and for hash-truncated
 // qualified names (where the trailing `__<tool>` segment has been collapsed).
 export function decodeMcpToolName(

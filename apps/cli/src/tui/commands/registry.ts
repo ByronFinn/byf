@@ -1,4 +1,4 @@
-import type { KimiSlashCommand, SlashCommandAvailability } from './types';
+import type { ByfSlashCommand, SlashCommandAvailability } from './types';
 
 export const BUILTIN_SLASH_COMMANDS = [
   {
@@ -109,7 +109,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'feedback',
     aliases: [],
-    description: 'Send feedback to make Kimi Code better',
+    description: 'Send feedback to make Byf Code better',
     priority: 60,
     availability: 'always',
   },
@@ -158,27 +158,27 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 20,
     availability: 'always',
   },
-] as const satisfies readonly KimiSlashCommand[];
+] as const satisfies readonly ByfSlashCommand[];
 
 export type BuiltinSlashCommand = (typeof BUILTIN_SLASH_COMMANDS)[number];
 export type BuiltinSlashCommandName = BuiltinSlashCommand['name'];
 
 export function findBuiltInSlashCommand(commandName: string): BuiltinSlashCommand | undefined {
-  const commands = BUILTIN_SLASH_COMMANDS as readonly KimiSlashCommand<BuiltinSlashCommandName>[];
+  const commands = BUILTIN_SLASH_COMMANDS as readonly ByfSlashCommand<BuiltinSlashCommandName>[];
   return commands.find(
     (command) => command.name === commandName || command.aliases.includes(commandName),
   ) as BuiltinSlashCommand | undefined;
 }
 
 export function resolveSlashCommandAvailability(
-  command: KimiSlashCommand,
+  command: ByfSlashCommand,
   args: string,
 ): SlashCommandAvailability {
   const availability = command.availability ?? 'idle-only';
   return typeof availability === 'function' ? availability(args) : availability;
 }
 
-export function sortSlashCommands(commands: readonly KimiSlashCommand[]): KimiSlashCommand[] {
+export function sortSlashCommands(commands: readonly ByfSlashCommand[]): ByfSlashCommand[] {
   return [...commands].toSorted(
     (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.name.localeCompare(b.name),
   );

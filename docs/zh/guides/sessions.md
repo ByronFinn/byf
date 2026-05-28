@@ -1,13 +1,13 @@
 # 会话与上下文
 
-Kimi Code CLI 把每次对话持久化为一个「会话」，保留消息历史和元数据，可以随时关闭终端后再回来继续。本节介绍恢复会话、上下文压缩和 TUI 内的管理方法。
+BYF 把每次对话持久化为一个「会话」，保留消息历史和元数据，可以随时关闭终端后再回来继续。本节介绍恢复会话、上下文压缩和 TUI 内的管理方法。
 
 ## 会话存储
 
-所有会话保存在 `$KIMI_CODE_HOME/sessions/` 下（默认 `~/.kimi-code/sessions/`），按工作目录分组存放：
+所有会话保存在 `$BYF_HOME/sessions/` 下（默认 `~/.byf/sessions/`），按工作目录分组存放：
 
 ```text
-~/.kimi-code/
+~/.byf/
 ├── config.toml
 ├── session_index.jsonl
 └── sessions/
@@ -30,18 +30,18 @@ Kimi Code CLI 把每次对话持久化为一个「会话」，保留消息历史
 
 ## 启动与恢复会话
 
-默认每次执行 `kimi` 都会创建新会话。如果想接着上一次继续：
+默认每次执行 `byf` 都会创建新会话。如果想接着上一次继续：
 
 **继续当前目录最近的会话：**
 
 ```sh
-kimi --continue
+byf --continue
 ```
 
 **恢复指定会话：**
 
 ```sh
-kimi --session abc123
+byf --session abc123
 ```
 
 也可以带 `-r` / `--resume`，效果相同。
@@ -49,7 +49,7 @@ kimi --session abc123
 **交互式选择：**
 
 ```sh
-kimi --session
+byf --session
 ```
 
 ::: warning 注意
@@ -67,7 +67,7 @@ kimi --session
 
 ## 上下文压缩
 
-对话变长时，Kimi Code CLI 会在上下文接近窗口上限时自动压缩历史消息。你也可以手动触发：
+对话变长时，BYF 会在上下文接近窗口上限时自动压缩历史消息。你也可以手动触发：
 
 ```text
 /compact
@@ -91,19 +91,19 @@ kimi --session
 
 ## 导出会话
 
-用 `kimi export` 打包会话为 ZIP：
+用 `byf export` 打包会话为 ZIP：
 
 ```sh
-kimi export <sessionId>
+byf export <sessionId>
 ```
 
 不传 `sessionId` 时导出当前目录最近的会话（会交互式确认，加 `-y` 跳过）。用 `-o` 指定输出路径：
 
 ```sh
-kimi export <sessionId> -o ~/Desktop/my-session.zip
+byf export <sessionId> -o ~/Desktop/my-session.zip
 ```
 
-未指定 `-o` 时，ZIP 写入当前工作目录。会话目录里的诊断日志会一并打包；此外，全局诊断日志 `$KIMI_CODE_HOME/logs/kimi-code.log`（记录 TUI 启动、登录等不属于任何会话的事件）默认也会包含进来，不需要时加 `--no-include-global-log` 跳过。
+未指定 `-o` 时，ZIP 写入当前工作目录。会话目录里的诊断日志会一并打包；此外，全局诊断日志 `$BYF_HOME/logs/byf.log`（记录 TUI 启动、登录等不属于任何会话的事件）默认也会包含进来，不需要时加 `--no-include-global-log` 跳过。
 
 ::: tip 提示
 导出文件可能包含敏感信息，分享前请确认内容。

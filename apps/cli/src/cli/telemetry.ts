@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import { initializeTelemetry } from '@byf/telemetry';
-import { resolveKimiHome, type KimiConfig, type KimiHarness } from '@byf/sdk';
+import { resolveByfHome, type ByfConfig, type ByfHarness } from '@byf/sdk';
 
 import { CLI_USER_AGENT_PRODUCT } from '#/constant/app';
 
@@ -14,9 +14,9 @@ export interface CliTelemetryBootstrap {
 }
 
 export interface InitializeCliTelemetryOptions {
-  readonly harness: KimiHarness;
+  readonly harness: ByfHarness;
   readonly bootstrap: CliTelemetryBootstrap;
-  readonly config: Pick<KimiConfig, 'defaultModel' | 'telemetry'>;
+  readonly config: Pick<ByfConfig, 'defaultModel' | 'telemetry'>;
   readonly version: string;
   readonly uiMode: string;
   readonly model?: string;
@@ -24,7 +24,7 @@ export interface InitializeCliTelemetryOptions {
 
 export function createCliTelemetryBootstrap(): CliTelemetryBootstrap {
   let firstLaunch = false;
-  const homeDir = resolveKimiHome();
+  const homeDir = resolveByfHome();
   const deviceId = getOrCreateDeviceId(homeDir, () => {
     firstLaunch = true;
   });

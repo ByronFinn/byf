@@ -1,5 +1,5 @@
 /**
- * `kimi export` sub-command.
+ * `byf export` sub-command.
  *
  * CLI glue only: session lookup, previous-session confirmation, and output.
  * The actual ZIP/manifest export is owned by the SDK.
@@ -14,7 +14,7 @@ import {
   withTelemetryContext,
 } from '@byf/telemetry';
 import {
-  KimiHarness,
+  ByfHarness,
   type ExportSessionInput,
   type ExportSessionResult,
   type SessionSummary,
@@ -24,7 +24,7 @@ import type { Command } from 'commander';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from '#/cli/telemetry';
-import { createKimiCodeHostIdentity } from '#/cli/version';
+import { createByfHostIdentity } from '#/cli/version';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -119,11 +119,11 @@ export function registerExportCommand(parent: Command, deps?: Partial<ExportDeps
 }
 
 function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDeps {
-  let harness: KimiHarness | undefined;
+  let harness: ByfHarness | undefined;
   let telemetryBootstrap: ReturnType<typeof createCliTelemetryBootstrap> | undefined;
   let telemetryInitialized = false;
   let telemetryShutdown = false;
-  const identity = createKimiCodeHostIdentity();
+  const identity = createByfHostIdentity();
   const telemetryClient: TelemetryClient = {
     track,
     withContext: withTelemetryContext,
@@ -133,9 +133,9 @@ function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDep
     telemetryBootstrap ??= createCliTelemetryBootstrap();
     return telemetryBootstrap;
   };
-  const getHarness = (): KimiHarness => {
+  const getHarness = (): ByfHarness => {
     const currentTelemetryBootstrap = getTelemetryBootstrap();
-    harness ??= new KimiHarness({
+    harness ??= new ByfHarness({
       homeDir: currentTelemetryBootstrap.homeDir,
       identity,
       telemetry: telemetryClient,

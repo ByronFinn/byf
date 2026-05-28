@@ -195,7 +195,7 @@ describe('runUpdatePreflight', () => {
       await runUpdatePreflight('0.4.0', options);
       expect(mocks.spawn).toHaveBeenCalledWith(
         'bash',
-        ['-c', expect.stringContaining('curl -fsSL https://github.com/ByronFinn/byf/releases/download/latest/install.sh')],
+        ['-c', expect.stringContaining('curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh')],
         { stdio: 'inherit' },
       );
     } finally {
@@ -212,7 +212,7 @@ describe('runUpdatePreflight', () => {
     try {
       const { stdout, options } = captureOutput();
       await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-      expect(stdout.join('')).toContain('irm https://github.com/ByronFinn/byf/releases/download/latest/install.ps1 | iex');
+      expect(stdout.join('')).toContain('irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex');
       expect(promptForInstallConfirmation).not.toHaveBeenCalled();
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {

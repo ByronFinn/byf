@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  KimiCore,
+  ByfCore,
   type CoreAPI,
   type SDKAPI,
   type TelemetryClient,
@@ -17,16 +17,16 @@ import {
 } from '../fixtures/telemetry';
 
 const CONFIG = `
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-for-coding"
 
-[providers."managed:kimi-code"]
-type = "kimi"
+[providers."managed:byf"]
+type = "openai-compat"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
+[models."byf/byf-for-coding"]
+provider = "managed:byf"
+model = "byf-for-coding"
 max_context_size = 1000000
 `;
 
@@ -37,7 +37,7 @@ describe('HarnessAPI session model aliases', () => {
   let configPath: string;
 
   beforeEach(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-model-alias-'));
+    tmp = await mkdtemp(join(tmpdir(), 'byf-model-alias-'));
     homeDir = join(tmp, 'home');
     workDir = join(tmp, 'work');
     configPath = join(tmp, 'config.toml');
@@ -53,29 +53,29 @@ describe('HarnessAPI session model aliases', () => {
     const rpc = await createTestRpc();
     const created = await rpc.createSession({
       workDir,
-      model: 'kimi-code/kimi-for-coding',
+      model: 'byf/byf-for-coding',
     });
 
     expect(await rpc.getModel({ sessionId: created.id, agentId: 'main' })).toBe(
-      'kimi-code/kimi-for-coding',
+      'byf/byf-for-coding',
     );
 
     const config = await rpc.getConfig({ sessionId: created.id, agentId: 'main' });
-    expect(config.modelAlias).toBe('kimi-code/kimi-for-coding');
-    expect(config.provider?.model).toBe('kimi-for-coding');
+    expect(config.modelAlias).toBe('byf/byf-for-coding');
+    expect(config.provider?.model).toBe('byf-for-coding');
     expect(config.modelCapabilities?.max_context_tokens).toBe(1_000_000);
 
     await rpc.setModel({
       sessionId: created.id,
       agentId: 'main',
-      model: 'kimi-code/kimi-for-coding',
+      model: 'byf/byf-for-coding',
     });
 
     const freshRpc = await createTestRpc();
     await freshRpc.resumeSession({ sessionId: created.id });
 
     expect(await freshRpc.getModel({ sessionId: created.id, agentId: 'main' })).toBe(
-      'kimi-code/kimi-for-coding',
+      'byf/byf-for-coding',
     );
   });
 
@@ -87,7 +87,7 @@ describe('HarnessAPI session model aliases', () => {
     const rpc = await createTestRpc();
     const created = await rpc.createSession({
       workDir,
-      model: 'kimi-code/kimi-for-coding',
+      model: 'byf/byf-for-coding',
     });
     await rpc.closeSession({ sessionId: created.id });
 
@@ -105,10 +105,10 @@ describe('HarnessAPI session model aliases', () => {
     await freshRpc.resumeSession({ sessionId: created.id });
 
     expect(await freshRpc.getModel({ sessionId: created.id, agentId: 'main' })).toBe(
-      'kimi-code/kimi-for-coding',
+      'byf/byf-for-coding',
     );
     const config = await freshRpc.getConfig({ sessionId: created.id, agentId: 'main' });
-    expect(config.modelAlias).toBe('kimi-code/kimi-for-coding');
+    expect(config.modelAlias).toBe('byf/byf-for-coding');
     expect(config.systemPrompt.length).toBeGreaterThan(0);
   });
 
@@ -116,10 +116,10 @@ describe('HarnessAPI session model aliases', () => {
     const rpc = await createTestRpc();
     const created = await rpc.createSession({
       workDir,
-      model: 'kimi-code/kimi-for-coding',
+      model: 'byf/byf-for-coding',
     });
 
-    const updatedConfig = await rpc.setKimiConfig({
+    const updatedConfig = await rpc.setByfConfig({
       defaultModel: 'gpt-alias',
       providers: {
         openai: {
@@ -221,8 +221,8 @@ reason = "no rm"
     await writeFile(
       configPath,
       CONFIG.replace(
-        'default_model = "kimi-code/kimi-for-coding"',
-        'default_model = "kimi-code/kimi-for-coding"\ndefault_permission_mode = "auto"',
+        'default_model = "byf/byf-for-coding"',
+        'default_model = "byf/byf-for-coding"\ndefault_permission_mode = "auto"',
       ),
     );
     const rpc = await createTestRpc();
@@ -260,7 +260,7 @@ reason = "no rm"
 
   it('clears a resumed model that no longer resolves and has no valid fallback', async () => {
     const rpc = await createTestRpc();
-    const created = await rpc.createSession({ workDir, model: 'kimi-code/kimi-for-coding' });
+    const created = await rpc.createSession({ workDir, model: 'byf/byf-for-coding' });
     await rpc.closeSession({ sessionId: created.id });
 
     // The config now has no models and no default model — the alias replayed
@@ -277,7 +277,7 @@ reason = "no rm"
 
   it('surfaces a config error when a resumed model is configured but unresolvable', async () => {
     const rpc = await createTestRpc();
-    const created = await rpc.createSession({ workDir, model: 'kimi-code/kimi-for-coding' });
+    const created = await rpc.createSession({ workDir, model: 'byf/byf-for-coding' });
     await rpc.closeSession({ sessionId: created.id });
 
     // The model alias is still in config, but it now references a provider
@@ -286,16 +286,16 @@ reason = "no rm"
     await writeFile(
       configPath,
       `
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-for-coding"
 
-[providers."managed:kimi-code"]
-type = "kimi"
+[providers."managed:byf"]
+type = "openai-compat"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
-[models."kimi-code/kimi-for-coding"]
+[models."byf/byf-for-coding"]
 provider = "ghost-provider"
-model = "kimi-for-coding"
+model = "byf-for-coding"
 max_context_size = 1000000
 `,
     );
@@ -309,7 +309,7 @@ max_context_size = 1000000
     const createRpc = await createTestRpc({ telemetry: recordingContextTelemetry(createRecords) });
     const created = await createRpc.createSession({
       workDir,
-      model: 'kimi-code/kimi-for-coding',
+      model: 'byf/byf-for-coding',
     });
 
     await createRpc.setPermission({ sessionId: created.id, agentId: 'main', mode: 'yolo' });
@@ -328,7 +328,7 @@ max_context_size = 1000000
       properties: { enabled: true },
     });
 
-    await createRpc.setKimiConfig({
+    await createRpc.setByfConfig({
       defaultModel: 'gpt-alias',
       providers: {
         openai: {
@@ -397,7 +397,7 @@ max_context_size = 1000000
 
   async function createTestRpc(options: { readonly telemetry?: TelemetryClient } = {}) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    void new KimiCore(coreRpc, {
+    void new ByfCore(coreRpc, {
       homeDir,
       configPath,
       telemetry: options.telemetry,

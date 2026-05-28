@@ -1,17 +1,17 @@
 # Model Context Protocol
 
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open protocol that lets models safely call tools exposed by external processes or services. Kimi Code CLI acts as an MCP client to integrate these external tools, exposing them to the agent alongside built-in tools (`Read`, `Bash`, `Grep`, etc.).
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open protocol that lets models safely call tools exposed by external processes or services. BYF acts as an MCP client to integrate these external tools, exposing them to the agent alongside built-in tools (`Read`, `Bash`, `Grep`, etc.).
 
 ## Integration scope
 
-Kimi Code CLI connects to MCP servers via stdio (local subprocess) or HTTP. Once connected, MCP tools behave the same as built-in tools: they are available to the agent, subject to permission rules, and go through the approval flow.
+BYF connects to MCP servers via stdio (local subprocess) or HTTP. Once connected, MCP tools behave the same as built-in tools: they are available to the agent, subject to permission rules, and go through the approval flow.
 
 ## Configuration and login
 
 MCP server configurations live in `mcp.json` in two layers:
 
-- User-level: `~/.kimi-code/mcp.json` (or `$KIMI_CODE_HOME/mcp.json`), shared across projects
-- Project-level: `.kimi-code/mcp.json` in the current workspace
+- User-level: `~/.byf/mcp.json` (or `$BYF_HOME/mcp.json`), shared across projects
+- Project-level: `.byf/mcp.json` in the current workspace
 
 Project entries override user-level entries with the same name.
 
@@ -49,7 +49,7 @@ Optional fields:
 | `disabledTools` | `string[]` | both | Blocklist: exclude the tools in this list |
 
 ::: warning Note
-Stdio entries in a project-level `.kimi-code/mcp.json` execute local commands when the session starts. Only enable project-level MCP servers in repositories you trust.
+Stdio entries in a project-level `.byf/mcp.json` execute local commands when the session starts. Only enable project-level MCP servers in repositories you trust.
 :::
 
 ## Tool naming and permissions

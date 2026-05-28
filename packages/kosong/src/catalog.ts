@@ -49,7 +49,7 @@ export interface CatalogModel {
 const KNOWN_WIRE_TYPES = [
   'anthropic',
   'openai',
-  'kimi',
+  'openai-compat',
   'google-genai',
   'openai_responses',
   'vertexai',

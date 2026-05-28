@@ -5,7 +5,7 @@
  * Usage:
  *   node produce-manifest.mjs <input-dir> <release-tag>
  *
- * Input dir must contain files matching: kimi-code-<target>.zip.sha256
+ * Input dir must contain files matching: byf-<target>.zip.sha256
  * (produced by package.mjs across the 6 native-build matrix runners).
  *
  * Output:
@@ -22,14 +22,14 @@ if (!inputDir || !tag) {
   process.exit(1);
 }
 
-// Tag 格式 `@byf/cli@x.y.z` 或 `vx.y.z` 或 `x.y.z`，都归一化到 x.y.z
-const version = tag.replace(/^(@moonshot-ai\/kimi-code|@byf\/cli)@/, '').replace(/^v/, '');
+// Tag formats `@byf/cli@x.y.z` or `vx.y.z` or `x.y.z` are all normalised to x.y.z
+const version = tag.replace(/^(@byf\/cli)@/, '').replace(/^v/, '');
 
 const entries = await readdir(inputDir);
-const sumFiles = entries.filter((f) => /^kimi-code-[a-z0-9-]+\.zip\.sha256$/.test(f));
+const sumFiles = entries.filter((f) => /^byf-[a-z0-9-]+\.zip\.sha256$/.test(f));
 
 if (sumFiles.length === 0) {
-  console.error(`No kimi-code-<target>.zip.sha256 files found in ${inputDir}`);
+  console.error(`No byf-<target>.zip.sha256 files found in ${inputDir}`);
   process.exit(1);
 }
 
@@ -42,8 +42,8 @@ for (const sumFile of sumFiles.sort()) {
     process.exit(1);
   }
   const filename = basename(sumFile, '.sha256');
-  // kimi-code-darwin-arm64.zip → darwin-arm64
-  const target = filename.replace(/^kimi-code-/, '').replace(/\.zip$/, '');
+  // byf-darwin-arm64.zip → darwin-arm64
+  const target = filename.replace(/^byf-/, '').replace(/\.zip$/, '');
   platforms[target] = { filename, checksum };
 }
 

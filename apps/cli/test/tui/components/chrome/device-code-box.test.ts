@@ -7,9 +7,9 @@ function strip(text: string): string {
   return text.replaceAll(/\[[0-9;]*m/g, '');
 }
 
-const url = 'https://www.kimi.com/code/authorize_device?user_code=N32D-W3YD';
+const url = 'https://www.byf.com/code/authorize_device?user_code=N32D-W3YD';
 const code = 'N32D-W3YD';
-const title = 'Sign in to Kimi Code';
+const title = 'Sign in to Byf Code';
 const hint = 'Press Ctrl-C to cancel';
 
 describe('DeviceCodeBoxComponent', () => {

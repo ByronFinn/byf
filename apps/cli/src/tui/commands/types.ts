@@ -2,7 +2,7 @@ import type { SlashCommand } from '@earendil-works/pi-tui';
 
 export type SlashCommandAvailability = 'always' | 'idle-only';
 
-export interface KimiSlashCommand<Name extends string = string> extends SlashCommand {
+export interface ByfSlashCommand<Name extends string = string> extends SlashCommand {
   readonly name: Name;
   readonly aliases: readonly string[];
   readonly description: string;

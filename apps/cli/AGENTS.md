@@ -6,15 +6,15 @@ This file only contains rules local to `apps/cli`. For cross-repo rules, see the
 
 `apps/cli` is the terminal UI / CLI app. The entry chain is:
 
-`src/main.ts` -> `src/cli/commands.ts` -> `src/cli/run-shell.ts` -> SDK `KimiHarness` -> `src/tui/kimi-tui.ts`
+`src/main.ts` -> `src/cli/commands.ts` -> `src/cli/run-shell.ts` -> SDK `ByfHarness` -> `src/tui/byf-tui.ts`
 
 Main directories:
 
 - `src/constant/`: non-copy constants shared by CLI/TUI — product, protocol, paths, terminal control, updates, and so on.
 - `src/cli/`: command-line arguments, subcommands, and CLI startup.
 - `src/tui/`: the interactive terminal UI.
-- `src/tui/kimi-tui.ts`: the TUI master assembler, responsible for wiring state, layout, editor, session, SDK events, and dialogs together.
-- `src/tui/actions/`: reusable TUI state/replay/projection logic. Pure logic that can be split out of `KimiTUI` should land here first.
+- `src/tui/byf-tui.ts`: the TUI master assembler, responsible for wiring state, layout, editor, session, SDK events, and dialogs together.
+- `src/tui/actions/`: reusable TUI state/replay/projection logic. Pure logic that can be split out of `ByfTUI` should land here first.
 - `src/tui/commands/`: slash command definitions, parsing, ordering, and dynamic skill command generation.
 - `src/tui/components/`: pi-tui components, organized by UI type.
 - `src/tui/constant/`: non-copy constants reused across TUI modules — symbols, terminal sequences, render sizing, streaming-arg match rules, and so on.
@@ -32,19 +32,19 @@ Main directories:
 ## Module Responsibilities
 
 - `cli` only interprets command-line input, assembles startup arguments, and invokes the TUI. Do not put TUI interaction logic into the CLI.
-- `KimiTUI` coordinates; it does not accumulate complex business rules. New logic that can be tested independently should be split into `actions`, `commands`, `components`, `reverse-rpc`, or `utils` first.
-- `commands` only owns slash-command declaration, parsing, and the parsed-result types. The actual execution can be dispatched from `KimiTUI`, but complex logic should continue to sink downward.
+- `ByfTUI` coordinates; it does not accumulate complex business rules. New logic that can be tested independently should be split into `actions`, `commands`, `components`, `reverse-rpc`, or `utils` first.
+- `commands` only owns slash-command declaration, parsing, and the parsed-result types. The actual execution can be dispatched from `ByfTUI`, but complex logic should continue to sink downward.
 - `components` only handle presentation and local interaction; they must not call the SDK directly, and must not read or write session state directly.
 - `reverse-rpc` converts SDK approval/question requests into the data shape a UI panel/dialog needs, and converts the user's choice back into an SDK response.
 - `theme` is the single source of truth for colors and styles. Components must not bypass the theme system and use chalk named colors directly.
 - `utils` holds utility functions with no UI-state dependency. Logic that needs `TUIState` or a component instance must not live under app-level `src/utils`.
 - `apps/cli` may only use core capabilities through `@byf/sdk`. Do not import `@byf/agent-core` directly in app code.
 
-## KimiTUI Internal Sections
+## ByfTUI Internal Sections
 
-`src/tui/kimi-tui.ts` is large. When you modify it, place code into the existing responsibility section — do not just drop it where it happens to be convenient.
+`src/tui/byf-tui.ts` is large. When you modify it, place code into the existing responsibility section — do not just drop it where it happens to be convenient.
 
-- Types and state creation: `KimiTUIStartupInput`, `TUIState`, `createInitialAppState`, `createTUIState`. Before adding new global UI state, decide whether it really belongs in `TUIState`.
+- Types and state creation: `ByfTUIStartupInput`, `TUIState`, `createInitialAppState`, `createTUIState`. Before adding new global UI state, decide whether it really belongs in `TUIState`.
 - Startup helpers: slash commands, autocomplete, skill commands, input history.
 - Lifecycle: `start`, `init`, `stop`. They only handle startup/shutdown order — do not stuff feature implementations into them.
 - Layout and editor: `buildLayout`, `setupEditorHandlers`, external editor, clipboard image, exit shortcuts.
@@ -58,7 +58,7 @@ Main directories:
 - Dialogs / selectors: help, session picker, editor/model/thinking/theme/permission/settings selectors, approval / question panels.
 - Slash command handlers: `handleThemeCommand`, `handleModelCommand`, `handlePlanCommand`, `handleCompactCommand`, `handleLoginCommand`, and so on.
 
-If a section keeps growing, split pure functions, state projections, presentation components, and handler logic into the corresponding directories rather than continuing to expand `KimiTUI`.
+If a section keeps growing, split pure functions, state projections, presentation components, and handler logic into the corresponding directories rather than continuing to expand `ByfTUI`.
 
 ## Where New Features Go
 
@@ -66,7 +66,7 @@ The feature type decides where it lands:
 
 - New CLI arguments: change `src/cli/commands.ts` / `src/cli/options.ts`, then pass them into the TUI via `src/cli/run-shell.ts`. Do not let the CLI operate on the session directly.
 - New CLI subcommands: put them under `src/cli/sub/`, with non-interactive command logic only; when SDK access is needed, go through `@byf/sdk`.
-- New slash commands: first change definition, parsing, and types under `src/tui/commands/`; put the execution entry into the slash-command handler section of `KimiTUI`; split complex execution logic into `actions` or `utils`.
+- New slash commands: first change definition, parsing, and types under `src/tui/commands/`; put the execution entry into the slash-command handler section of `ByfTUI`; split complex execution logic into `actions` or `utils`.
 - New skill-derived commands: hook into `buildSkillSlashCommands` / the skill command map — do not hard-code a single skill.
 - New transcript message types: define the data shape in `src/tui/types.ts`, add or extend a component under `components/messages/`, and register the renderer in `createTranscriptComponent`.
 - New tool-result display: prefer extending `components/messages/tool-renderers/registry.ts` and the corresponding renderer; do not stack branches inside `ToolCallComponent`.
@@ -89,7 +89,7 @@ Test placement rules:
 ## TUI Coding Conventions
 
 - Do not over-encapsulate, especially for one- or two-line functions — do not introduce a two-layer wrapper, just inline.
-- Functions with no state / UI side effects do not belong as private methods on the `KimiTUI` class; put them in external utils.
+- Functions with no state / UI side effects do not belong as private methods on the `ByfTUI` class; put them in external utils.
 - Constants must live in the corresponding `constant` directory; they must not be scattered through component or logic code.
 - Inside `handleInput(data)`, when comparing a printable character (letter, digit, space, punctuation), it is **forbidden** to write literal comparisons such as `data === 'q'`. With the Kitty keyboard protocol enabled in terminals like VSCode, these keys are sent as CSI-u sequences (e.g. `\x1b[113u`), and a bare comparison will never match. Decode with `printableChar(data)` from `src/tui/utils/printable-key.ts` first, then compare; function keys continue to use `matchesKey(data, Key.*)`; control characters (codepoint < 32) may still be compared against the raw `data`. `test/tui/printable-key-guard.test.ts` enforces this in CI.
 
@@ -100,13 +100,13 @@ Themes are managed centrally under `src/tui/theme/`:
 - `colors.ts` defines semantic tokens: `ColorPalette`, `darkColors`, `lightColors`.
 - `styles.ts` builds common chalk helpers on top of `ColorPalette`.
 - `pi-tui-theme.ts` produces the theme configuration markdown / pi-tui requires.
-- `bundle.ts` packs `colors`, `styles`, and `markdownTheme` into a `KimiTUIThemeBundle`.
+- `bundle.ts` packs `colors`, `styles`, and `markdownTheme` into a `ByfTUIThemeBundle`.
 - `index.ts` / `detect.ts` handle the theme type and auto/dark/light resolution.
 
 When setting or switching themes:
 
 - The UI entry goes through `ThemeSelectorComponent`, `handleThemeCommand`, and `applyThemeChoice`.
-- The real apply step goes through `KimiTUI.applyTheme`, which should update `state.theme`, `state.appState.theme`, and notify the relevant components to refresh their palette.
+- The real apply step goes through `ByfTUI.applyTheme`, which should update `state.theme`, `state.appState.theme`, and notify the relevant components to refresh their palette.
 - Persisting the user's choice goes through `saveTuiConfig`. Do not let a component write the config file itself.
 
 When writing color:

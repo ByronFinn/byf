@@ -4,16 +4,16 @@ import {
   parseSlashInput,
   resolveSlashCommandAvailability,
   sortSlashCommands,
-  type KimiSlashCommand,
+  type ByfSlashCommand,
 } from '#/tui/commands/index';
 import { describe, expect, it } from 'vitest';
 
 describe('parseSlashInput', () => {
   it('parses command names and trimmed args', () => {
     expect(parseSlashInput('/help')).toEqual({ name: 'help', args: '' });
-    expect(parseSlashInput('/model   kimi-k2  ')).toEqual({
+    expect(parseSlashInput('/model   byf-k2  ')).toEqual({
       name: 'model',
-      args: 'kimi-k2',
+      args: 'byf-k2',
     });
   });
 
@@ -47,7 +47,7 @@ describe('built-in slash command registry', () => {
   });
 
   it('defaults commands without explicit availability to idle-only', () => {
-    const command: KimiSlashCommand = {
+    const command: ByfSlashCommand = {
       name: 'example',
       aliases: [],
       description: 'Example command',
@@ -57,7 +57,7 @@ describe('built-in slash command registry', () => {
   });
 
   it('sorts commands by priority descending and name ascending', () => {
-    const commands: KimiSlashCommand[] = [
+    const commands: ByfSlashCommand[] = [
       { name: 'zebra', aliases: [], description: 'Z', priority: 100 },
       { name: 'alpha', aliases: [], description: 'A', priority: 100 },
       { name: 'middle', aliases: [], description: 'M', priority: 50 },

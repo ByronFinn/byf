@@ -21,7 +21,7 @@ function parse(argv: string[]): CLIOptions {
     writeErr: () => {},
   });
 
-  program.parse(['node', 'kimi', ...argv]);
+  program.parse(['node', 'byf', ...argv]);
 
   if (captured === undefined) {
     throw new Error('Main action handler was not called');
@@ -55,7 +55,7 @@ describe('CLI options parsing', () => {
         },
       });
 
-      expect(() => program.parse(['node', 'kimi', '--version'])).toThrow();
+      expect(() => program.parse(['node', 'byf', '--version'])).toThrow();
       expect(output).toContain('1.2.3');
     });
 
@@ -69,7 +69,7 @@ describe('CLI options parsing', () => {
         },
       });
 
-      expect(() => program.parse(['node', 'kimi', '-V'])).toThrow();
+      expect(() => program.parse(['node', 'byf', '-V'])).toThrow();
       expect(output).toContain('4.5.6');
     });
   });
@@ -128,11 +128,11 @@ describe('CLI options parsing', () => {
 
   describe('--model / -m', () => {
     it('parses -m as a model override', () => {
-      expect(parse(['-m', 'kimi-code/k2']).model).toBe('kimi-code/k2');
+      expect(parse(['-m', 'byf/k2']).model).toBe('byf/k2');
     });
 
     it('parses --model=value as a model override', () => {
-      expect(parse(['--model=kimi-code/k2.5']).model).toBe('kimi-code/k2.5');
+      expect(parse(['--model=byf/k2.5']).model).toBe('byf/k2.5');
     });
 
     it('rejects empty model values', () => {
@@ -222,9 +222,9 @@ describe('CLI options parsing', () => {
 
   describe('sub-commands', () => {
     it('registers the diagnostic sub-commands during alpha', () => {
-      const program = createProgram('0.0.0', () => {}, () => {});
+      const program = createProgram('0.0.0', () => {});
       const commandNames: string[] = program.commands.map((command) => command.name());
-      expect(commandNames).toEqual(['export', 'migrate']);
+      expect(commandNames).toEqual(['export']);
     });
   });
 

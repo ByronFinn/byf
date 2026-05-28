@@ -10,7 +10,7 @@
  *   group can refresh when child state changes.
  * - Throttling: normal changes are coalesced into one render every 200ms.
  *   Phase transitions (spawning -> running -> done/failed) flush immediately.
- * - Mounting: `KimiTUI` attaches the group to the transcript at the
+ * - Mounting: `ByfTui` attaches the group to the transcript at the
  *   right time; the group handles `invalidate` plus `ui.requestRender`.
  * - Ungrouping is not implemented. Once formed, a group stays grouped.
  */

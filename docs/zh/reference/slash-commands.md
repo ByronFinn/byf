@@ -1,6 +1,6 @@
 # 斜杠命令
 
-斜杠命令是 Kimi Code CLI 在交互式 TUI 中提供的内置控制命令，用于切换模式、管理会话、查看状态等。在输入框中输入 `/` 即可触发命令补全，候选列表会随后续字符实时过滤；命令的别名（alias）也会一并参与匹配。
+斜杠命令是 BYF 在交互式 TUI 中提供的内置控制命令，用于切换模式、管理会话、查看状态等。在输入框中输入 `/` 即可触发命令补全，候选列表会随后续字符实时过滤；命令的别名（alias）也会一并参与匹配。
 
 输入完整命令名（如 `/help`）后按 `Enter` 即可执行。如果输入的 `/` 开头内容不匹配任何内置或 Skill 命令，则按普通消息发送给 Agent。
 
@@ -12,8 +12,8 @@
 
 | 命令 | 别名 | 说明 | 随时可用 |
 | --- | --- | --- | --- |
-| `/login` | — | 选择账号或平台并登录：Kimi Code 走 OAuth device code 流程，Moonshot AI 开放平台通过 API 密钥登录。 | 否 |
-| `/logout` | — | 清除当前所选账号的凭据（Kimi Code OAuth 凭据，或对应开放平台的供应商配置）。 | 否 |
+| `/login` | — | 选择账号或平台并登录：BYF 走 OAuth device code 流程，通过 API 密钥登录。 | 否 |
+| `/logout` | — | 清除当前所选账号的凭据（BYF OAuth 凭据，或对应开放平台的供应商配置）。 | 否 |
 | `/connect [--refresh] [--url=<catalog-url>]` | — | 从模型目录中选择并配置供应商与模型。CLI 已内置默认目录；传入 `--refresh` 可从 models.dev 拉取最新目录，传入 `--url` 可指向自定义目录地址。详见 [平台与模型 — `/connect` 与模型目录](../configuration/providers.md#connect-与模型目录)。 | 否 |
 | `/model` | — | 切换当前会话使用的 LLM 模型。 | 否 |
 | `/settings` | `/config` | 打开 TUI 内的设置面板。 | 是 |
@@ -53,14 +53,14 @@
 | `/usage` | — | 显示 token 用量、上下文占用以及配额信息。 | 是 |
 | `/status` | — | 显示当前会话运行时状态，包括版本、模型、工作目录和权限模式等。 | 是 |
 | `/mcp` | — | 列出当前会话中的 MCP server 及其连接状态。 | 是 |
-| `/version` | — | 显示 Kimi Code CLI 版本号。 | 是 |
-| `/feedback` | — | 提交反馈以改进 Kimi Code CLI。 | 是 |
+| `/version` | — | 显示 BYF 版本号。 | 是 |
+| `/feedback` | — | 提交反馈以改进 BYF。 | 是 |
 
 ## 退出
 
 | 命令 | 别名 | 说明 | 随时可用 |
 | --- | --- | --- | --- |
-| `/exit` | `/quit`、`/q` | 退出 Kimi Code CLI。 | 否 |
+| `/exit` | `/quit`、`/q` | 退出 BYF。 | 否 |
 
 ## Skill 动态命令
 
@@ -74,7 +74,7 @@
 
 为方便输入，Skill 命令同时支持省略 `skill:` 前缀的简写形式 `/<name>`，前提是该名称未被内置命令占用。也就是说，`/code-style` 会回退匹配到 `/skill:code-style`。
 
-Kimi Code CLI 随包内置了 `mcp-config` Skill，用于配置 MCP server 和处理 MCP OAuth 登录。它在补全和帮助里仍属于 Skill 命名空间（`/skill:mcp-config`），也可以直接输入 `/mcp-config` 调用。
+BYF 随包内置了 `mcp-config` Skill，用于配置 MCP server 和处理 MCP OAuth 登录。它在补全和帮助里仍属于 Skill 命名空间（`/skill:mcp-config`），也可以直接输入 `/mcp-config` 调用。
 
 可作为斜杠命令暴露的 Skill 类型包括 `prompt`、`inline`、`flow` 以及未显式声明类型的 Skill。Skill 的安装与编写详见 [Agent Skills](../customization/skills.md)。
 

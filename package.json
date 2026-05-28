@@ -2,7 +2,7 @@
   "name": "@byf/monorepo",
   "version": "0.0.1",
   "private": true,
-  "license": "MIT",
+  "license": "Proprietary",
   "type": "module",
   "scripts": {
     "build": "pnpm -r run build",
@@ -42,8 +42,7 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
-  "simple-git-hooks": {
-  },
+  "simple-git-hooks": {},
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
       "oxlint --fix --quiet",
@@ -53,5 +52,12 @@
   "engines": {
     "node": ">=24.15.0"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "description": "BYF (Be Your Friend) monorepo for terminal AI agent tooling",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  }
 }

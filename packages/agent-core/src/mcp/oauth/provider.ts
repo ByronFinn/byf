@@ -44,7 +44,7 @@ export interface McpOAuthProviderOptions {
   readonly serverUrl: string | URL;
   /** JSON store used for persistence. Tests inject an in-memory dir. */
   readonly store: JsonFileStore;
-  /** Identifier embedded in DCR `client_name` ("kimi-code (server)"). */
+  /** Identifier embedded in DCR `client_name` ("byf (server)"). */
   readonly clientLabel?: string;
 }
 

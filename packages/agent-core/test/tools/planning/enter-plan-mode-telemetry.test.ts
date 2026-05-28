@@ -19,7 +19,7 @@ function makeAgent(mode: PermissionMode): {
         return active;
       },
       get planFilePath() {
-        return '/tmp/kimi-plan.md';
+        return '/tmp/byf-plan.md';
       },
       enter: vi.fn(async () => {
         active = true;

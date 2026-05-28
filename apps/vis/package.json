@@ -2,8 +2,8 @@
   "name": "@byf/vis",
   "version": "0.0.1",
   "private": true,
-  "description": "Debug visualization tool for BYF sessions",
-  "license": "MIT",
+  "description": "Visual debugging tools for BYF sessions and replays",
+  "license": "Proprietary",
   "type": "module",
   "scripts": {
     "build:deps": "pnpm --filter @byf/agent-core... build",
@@ -15,5 +15,18 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
-  }
+  },
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
+  "keywords": [
+    "byf",
+    "visualizer",
+    "debugging",
+    "sessions",
+    "replay"
+  ]
 }

@@ -2,20 +2,19 @@
   "name": "@byf/kaos",
   "version": "0.0.1",
   "private": true,
-  "description": "Execution environment abstraction for AI agent applications",
-  "license": "MIT",
+  "description": "Execution environment and filesystem/process abstractions for BYF",
+  "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/kaos#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/kaos"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "agent",
     "execution",
     "sandbox",

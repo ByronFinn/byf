@@ -28,7 +28,7 @@ const TestLineSchema: z.ZodType<TestLine> = z.object({
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'kimi-persistence-'));
+  dir = mkdtempSync(join(tmpdir(), 'byf-persistence-'));
 });
 
 afterEach(() => {

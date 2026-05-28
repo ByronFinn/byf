@@ -4,7 +4,7 @@
  * approach so the experience stays inside the TUI: same colors, same
  * fonts, same redraw cycle, no alt-screen flip-flop.
  *
- * Mounted by `kimi-tui.ts` via nested container swap on top of the
+ * Mounted by `byf-tui.ts` via nested container swap on top of the
  * TasksBrowserApp. Snapshot view (no live tail) — content is fetched
  * once when the viewer opens.
  */

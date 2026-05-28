@@ -2,19 +2,19 @@
   "name": "@byf/kosong",
   "version": "0.0.1",
   "private": true,
-  "description": "The LLM abstraction layer for modern AI agent applications",
-  "license": "MIT",
+  "description": "LLM and provider abstraction layer for BYF",
+  "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf/tree/main/packages/kosong#readme",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByronFinn/byf.git",
-    "directory": "packages/kosong"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
+    "byf",
     "llm",
     "ai",
     "agent",
@@ -42,6 +42,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist"
   },

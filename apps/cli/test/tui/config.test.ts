@@ -17,7 +17,7 @@ let dir: string;
 let filePath: string;
 
 beforeEach(() => {
-  dir = join(tmpdir(), `kimi-tui-config-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  dir = join(tmpdir(), `byf-tui-config-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   filePath = join(dir, 'tui.toml');
 });

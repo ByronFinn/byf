@@ -139,7 +139,7 @@ describe('Session lifecycle hooks', () => {
   });
 
   it('lets the environment override config when deciding background task cleanup', async () => {
-    vi.stubEnv('KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT', '0');
+    vi.stubEnv('BYF_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT', '0');
     const { sessionDir, workDir } = await hookFixture();
     const session = new Session({
       runtime: { kaos: localKaos, osEnv: OS_ENV },
@@ -194,7 +194,7 @@ async function hookFixture(): Promise<{
 }
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-session-hooks-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-session-hooks-'));
   tempDirs.push(dir);
   return dir;
 }

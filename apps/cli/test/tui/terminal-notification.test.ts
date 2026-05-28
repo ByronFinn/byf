@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TUIState } from '#/tui/kimi-tui';
+import type { TUIState } from '#/tui/byf-tui';
 import {
   buildTerminalNotificationSequences,
   emitTerminalNotification,
@@ -42,12 +42,12 @@ describe('terminal notification helpers', () => {
 
     emitTerminalNotification(
       terminal,
-      { title: 'Kimi Code', body: 'Approval\nrequired' },
+      { title: 'Byf Code', body: 'Approval\nrequired' },
       { supportsOsc9: true, insideTmux: false },
     );
 
     expect(terminal.write).toHaveBeenCalledTimes(1);
-    expect(terminal.write).toHaveBeenCalledWith(']9;Kimi Code: Approval required');
+    expect(terminal.write).toHaveBeenCalledWith(']9;Byf Code: Approval required');
   });
 
   it('falls back to a bare BEL when the terminal does not support OSC 9', () => {
@@ -55,7 +55,7 @@ describe('terminal notification helpers', () => {
 
     emitTerminalNotification(
       terminal,
-      { title: 'Kimi Code', body: 'Approval required' },
+      { title: 'Byf Code', body: 'Approval required' },
       { supportsOsc9: false, insideTmux: false },
     );
 
@@ -68,12 +68,12 @@ describe('terminal notification helpers', () => {
 
     emitTerminalNotification(
       terminal,
-      { title: 'Kimi Code', body: 'Approval required' },
+      { title: 'Byf Code', body: 'Approval required' },
       { supportsOsc9: true, insideTmux: true },
     );
 
     expect(terminal.write).toHaveBeenCalledTimes(1);
-    expect(terminal.write).toHaveBeenCalledWith('Ptmux;]9;Kimi Code: Approval required\\');
+    expect(terminal.write).toHaveBeenCalledWith('Ptmux;]9;Byf Code: Approval required\\');
   });
 
   it('skips the tmux wrap when falling back to BEL', () => {
@@ -81,7 +81,7 @@ describe('terminal notification helpers', () => {
 
     emitTerminalNotification(
       terminal,
-      { title: 'Kimi Code', body: 'Approval required' },
+      { title: 'Byf Code', body: 'Approval required' },
       { supportsOsc9: false, insideTmux: true },
     );
 

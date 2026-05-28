@@ -8,8 +8,8 @@
  *
  * On Windows the probe expects Git Bash (the canonical POSIX shell that
  * ships with Git for Windows). If it cannot be located the function
- * throws `KimiError` with code `shell.git_bash_not_found`; the SDK layer
- * can wrap that into a user-facing install hint. Set `KIMI_SHELL_PATH`
+ * throws `ByfError` with code `shell.git_bash_not_found`; the SDK layer
+ * can wrap that into a user-facing install hint. Set `BYF_SHELL_PATH`
  * to override.
  */
 
@@ -17,7 +17,7 @@ import { constants as fsConstants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import * as nodeOs from 'node:os';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 
 // `OsKind` carries 'macOS' / 'Linux' / 'Windows' for known platforms and
 // falls back to the raw `process.platform` string for unknown ones (e.g.
@@ -84,7 +84,7 @@ export async function detectEnvironment(deps: EnvironmentDeps): Promise<Environm
 async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
   const checked: string[] = [];
 
-  const override = deps.env['KIMI_SHELL_PATH']?.trim();
+  const override = deps.env['BYF_SHELL_PATH']?.trim();
   if (override !== undefined && override.length > 0) {
     checked.push(override);
     if (await deps.isFile(override)) {
@@ -118,9 +118,9 @@ async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
     }
   }
 
-  throw new KimiError(
+  throw new ByfError(
     ErrorCodes.SHELL_GIT_BASH_NOT_FOUND,
-    `Git Bash was not found on this Windows host. Install Git for Windows from https://gitforwindows.org/ or set KIMI_SHELL_PATH to a bash.exe. Checked: ${checked.join(', ')}.`,
+    `Git Bash was not found on this Windows host. Install Git for Windows from https://gitforwindows.org/ or set BYF_SHELL_PATH to a bash.exe. Checked: ${checked.join(', ')}.`,
   );
 }
 

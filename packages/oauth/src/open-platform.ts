@@ -2,7 +2,7 @@ import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
 
 // ---------------------------------------------------------------------------
-// Shared types (previously in managed-kimi-code.ts)
+// Shared types (previously in managed-byf.ts)
 // ---------------------------------------------------------------------------
 
 export interface ModelInfo {
@@ -57,16 +57,16 @@ export interface OpenPlatformDefinition {
 
 export const OPEN_PLATFORMS: readonly OpenPlatformDefinition[] = [
   {
-    id: 'moonshot-cn',
-    name: 'Moonshot AI Open Platform (moonshot.cn)',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    allowedPrefixes: ['kimi-k'],
+    id: 'byf-cn',
+    name: 'OpenAI-compatible Platform (CN)',
+    baseUrl: 'https://api.openai-compat-cn.invalid/v1',
+    allowedPrefixes: ['byf-k'],
   },
   {
-    id: 'moonshot-ai',
-    name: 'Moonshot AI Open Platform (moonshot.ai)',
-    baseUrl: 'https://api.moonshot.ai/v1',
-    allowedPrefixes: ['kimi-k'],
+    id: 'byf-ai',
+    name: 'OpenAI-compatible Platform',
+    baseUrl: 'https://api.openai-compat.invalid/v1',
+    allowedPrefixes: ['byf-k'],
   },
 ];
 
@@ -179,7 +179,7 @@ export function applyOpenPlatformConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'kimi',
+    type: 'openai-compat',
     baseUrl: options.platform.baseUrl,
     apiKey: options.apiKey,
   };

@@ -8,7 +8,7 @@ import type { TokenUsage } from './usage';
  *
  * Values above `high` are provider/model-specific and may be clamped by the
  * adapter when the native API has no matching level. OpenAI maps `max` to its
- * `xhigh` ceiling; Kimi and Gemini cap `xhigh`/`max` at `high`; Anthropic
+ * `xhigh` ceiling; Byf and Gemini cap `xhigh`/`max` at `high`; Anthropic
  * supports `xhigh`/`max` only on selected models and otherwise clamps to
  * `high`.
  */
@@ -113,15 +113,15 @@ export interface VideoUploadInput {
 /**
  * Unified interface for an LLM chat provider.
  *
- * Each provider implementation (Kimi, OpenAI, Anthropic, Google GenAI, etc.)
+ * Each provider implementation (Byf, OpenAI, Anthropic, Google GenAI, etc.)
  * converts the common {@link Message} / {@link Tool} types into the
  * provider-specific wire format, streams back a {@link StreamedMessage}, and
  * exposes configuration helpers such as {@link withThinking}.
  */
 export interface ChatProvider {
-  /** Short identifier for the provider backend (e.g. `"kimi"`, `"anthropic"`). */
+  /** Short identifier for the provider backend (e.g. `"byf"`, `"anthropic"`). */
   readonly name: string;
-  /** Model name passed to the upstream API (e.g. `"moonshot-v1-auto"`). */
+  /** Model name passed to the upstream API (e.g. `"byf-v1-auto"`). */
   readonly modelName: string;
   /** Current thinking-effort level, or `null` if thinking is not configured. */
   readonly thinkingEffort: ThinkingEffort | null;
@@ -148,7 +148,7 @@ export interface ChatProvider {
    *
    * Implementations MUST NOT mutate or replace internal HTTP clients on the
    * returned clone — the clone is expected to share transport state with the
-   * original. See `KimiChatProvider._clone()` for the rationale.
+   * original. See `OpenAICompatChatProvider._clone()` for the rationale.
    */
   withMaxCompletionTokens?(maxCompletionTokens: number): ChatProvider;
   /** Upload a video and return a content part that can be sent to this provider. */

@@ -3,7 +3,7 @@
  *
  * pi-tui's `CombinedAutocompleteProvider` handles the mechanical parts
  * (extract `@…` prefix, insert completion with the right quoting). This
- * wrapper adds kimi-specific ranking + filtering so the default "empty
+ * wrapper adds byf-specific ranking + filtering so the default "empty
  * `@`" list surfaces files the user actually wants, not alphabetical
  * noise from `.agents/skills/*` et al.
  *

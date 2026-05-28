@@ -3,7 +3,7 @@ import type { AgentContextData } from '#/agent/context';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { PlanData } from '#/agent/plan';
 import type { ToolInfo } from '#/agent/tool';
-import type { KimiConfig, KimiConfigPatch } from '#/config';
+import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
@@ -18,7 +18,7 @@ export type JsonObject = { readonly [key: string]: JsonValue };
 
 export type Unsubscribe = () => void;
 
-export type { KimiConfig, KimiConfigPatch };
+export type { ByfConfig, ByfConfigPatch };
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;
 export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'video_url' }>;
@@ -68,7 +68,7 @@ export interface ExportSessionPayload {
 export interface ExportSessionManifest {
   readonly sessionId: string;
   readonly exportedAt: string;
-  readonly kimiCodeVersion: string;
+  readonly byfCodeVersion: string;
   readonly wireProtocolVersion: string;
   readonly os: string;
   readonly nodejsVersion: string;
@@ -208,9 +208,9 @@ export interface UpdateSessionMetadataPayload {
   readonly metadata: SessionMetadataPatch;
 }
 
-export type SetKimiConfigPayload = KimiConfigPatch;
+export type SetByfConfigPayload = ByfConfigPatch;
 
-export interface RemoveKimiProviderPayload {
+export interface RemoveByfProviderPayload {
   readonly providerId: string;
 }
 
@@ -261,9 +261,9 @@ type SessionAPIWithId = WithSessionId<SessionAPI>;
 
 export interface CoreAPI extends SessionAPIWithId {
   getCoreInfo: (payload: EmptyPayload) => CoreInfo;
-  getKimiConfig: (payload: EmptyPayload) => KimiConfig;
-  setKimiConfig: (payload: SetKimiConfigPayload) => KimiConfig;
-  removeKimiProvider: (payload: RemoveKimiProviderPayload) => KimiConfig;
+  getByfConfig: (payload: EmptyPayload) => ByfConfig;
+  setByfConfig: (payload: SetByfConfigPayload) => ByfConfig;
+  removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   resumeSession: (payload: ResumeSessionPayload) => ResumeSessionResult;

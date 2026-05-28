@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import type { KimiConfig } from '../../src/config';
-import { KimiError } from '../../src/errors';
+import type { ByfConfig } from '../../src/config';
+import { ByfError } from '../../src/errors';
 import { resolveRuntimeProvider } from '../../src/providers/runtime-provider';
 import { ProviderManager } from '../../src/providers/provider-manager';
 
-const BASE_CONFIG: KimiConfig = {
-  defaultModel: 'kimi-code/kimi-for-coding',
+const BASE_CONFIG: ByfConfig = {
+  defaultModel: 'byf/byf-for-coding',
   providers: {
-    'managed:kimi-code': {
-      type: 'kimi',
+    'managed:byf': {
+      type: 'openai-compat',
       apiKey: 'test-key',
       baseUrl: 'https://api.example/v1',
     },
   },
   models: {
-    'kimi-code/kimi-for-coding': {
-      provider: 'managed:kimi-code',
-      model: 'kimi-for-coding',
+    'byf/byf-for-coding': {
+      provider: 'managed:byf',
+      model: 'byf-for-coding',
       maxContextSize: 1_000_000,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
     },
   },
 };
 
-const TEST_KIMI_HEADERS = {
-  'User-Agent': 'kimi-code-cli/0.0.0-test',
-  'X-Msh-Platform': 'kimi_code_cli',
+const TEST_BYF_HEADERS = {
+  'User-Agent': 'byf-cli/0.0.0-test',
+  'X-Msh-Platform': 'byf_code_cli',
   'X-Msh-Version': '0.0.0-test',
 };
 
@@ -43,8 +43,8 @@ describe('resolveRuntimeProvider model metadata', () => {
       tool_use: true,
       max_context_tokens: 1_000_000,
     });
-    expect(resolved.modelName).toBe('kimi-code/kimi-for-coding');
-    expect(resolved.provider.model).toBe('kimi-for-coding');
+    expect(resolved.modelName).toBe('byf/byf-for-coding');
+    expect(resolved.provider.model).toBe('byf-for-coding');
   });
 
   it('resolves requested aliases to the configured provider and provider model', () => {
@@ -86,16 +86,16 @@ describe('resolveRuntimeProvider model metadata', () => {
     });
   });
 
-  it('uses config Kimi capabilities without requiring an api key during OAuth setup', () => {
+  it('uses config Byf capabilities without requiring an api key during OAuth setup', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:kimi-code': {
-            type: 'kimi',
+          'managed:byf': {
+            type: 'openai-compat',
             apiKey: '',
             baseUrl: 'https://api.example/v1',
-            oauth: { storage: 'file', key: 'oauth/kimi-code' },
+            oauth: { storage: 'file', key: 'oauth/byf' },
           },
         },
       },
@@ -110,14 +110,14 @@ describe('resolveRuntimeProvider model metadata', () => {
     });
   });
 
-  it('does not infer Kimi capabilities from the provider model name', () => {
+  it('does not infer Byf capabilities from the provider model name', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         ...BASE_CONFIG,
         models: {
-          'kimi-code/kimi-for-coding': {
-            provider: 'managed:kimi-code',
-            model: 'kimi-for-coding',
+          'byf/byf-for-coding': {
+            provider: 'managed:byf',
+            model: 'byf-for-coding',
             maxContextSize: 1_000_000,
           },
         },
@@ -137,7 +137,7 @@ describe('resolveRuntimeProvider model metadata', () => {
     expect(() =>
       resolveRuntimeProvider({
         config: BASE_CONFIG,
-        model: 'kimi-for-coding',
+        model: 'byf-for-coding',
       }),
     ).toThrow(/not configured in config.toml/);
   });
@@ -156,9 +156,9 @@ describe('resolveRuntimeProvider model metadata', () => {
     expect(() =>
       resolveRuntimeProvider({
         config: BASE_CONFIG,
-        model: 'kimi-code',
+        model: 'byf',
       }),
-    ).toThrow(KimiError);
+    ).toThrow(ByfError);
   });
 
   it('throws when the selected provider has neither apiKey nor oauth configured', () => {
@@ -167,8 +167,8 @@ describe('resolveRuntimeProvider model metadata', () => {
         config: {
           ...BASE_CONFIG,
           providers: {
-            'managed:kimi-code': {
-              type: 'kimi',
+            'managed:byf': {
+              type: 'openai-compat',
               baseUrl: 'https://api.example/v1',
             },
           },
@@ -183,8 +183,8 @@ describe('resolveRuntimeProvider model metadata', () => {
         config: {
           ...BASE_CONFIG,
           providers: {
-            'managed:kimi-code': {
-              type: 'kimi',
+            'managed:byf': {
+              type: 'openai-compat',
               apiKey: '',
               baseUrl: 'https://api.example/v1',
             },
@@ -221,12 +221,12 @@ describe('resolveRuntimeProvider model metadata', () => {
       ...BASE_CONFIG,
       models: {
         broken: {
-          provider: 'managed:kimi-code',
-          model: 'kimi-for-coding',
+          provider: 'managed:byf',
+          model: 'byf-for-coding',
           capabilities: ['thinking'],
         },
       },
-    } as unknown as KimiConfig;
+    } as unknown as ByfConfig;
 
     expect(() =>
       resolveRuntimeProvider({
@@ -294,24 +294,24 @@ describe('resolveRuntimeProvider maxOutputSize forwarding', () => {
   });
 });
 
-describe('resolveRuntimeProvider Kimi request headers', () => {
-  it('does not set defaultHeaders when no kimiRequestHeaders or customHeaders exist', () => {
+describe('resolveRuntimeProvider Byf request headers', () => {
+  it('does not set defaultHeaders when no byfRequestHeaders or customHeaders exist', () => {
     const resolved = resolveRuntimeProvider({ config: BASE_CONFIG });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
-      model: 'kimi-for-coding',
+      type: 'openai-compat',
+      model: 'byf-for-coding',
     });
     expect('defaultHeaders' in resolved.provider).toBe(false);
   });
 
-  it('uses only customHeaders when kimiRequestHeaders are missing', () => {
+  it('uses only customHeaders when byfRequestHeaders are missing', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:kimi-code': {
-            type: 'kimi',
+          'managed:byf': {
+            type: 'openai-compat',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -323,46 +323,46 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
       },
     });
   });
 
-  it('passes kimiRequestHeaders through to Kimi provider defaultHeaders', () => {
+  it('passes byfRequestHeaders through to Byf provider defaultHeaders', () => {
     const resolved = resolveRuntimeProvider({
       config: BASE_CONFIG,
-      kimiRequestHeaders: TEST_KIMI_HEADERS,
+      byfRequestHeaders: TEST_BYF_HEADERS,
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
-      defaultHeaders: TEST_KIMI_HEADERS,
+      type: 'openai-compat',
+      defaultHeaders: TEST_BYF_HEADERS,
     });
   });
 
-  it('passes the prompt cache key to Kimi generation kwargs', () => {
+  it('passes the prompt cache key to Byf generation kwargs', () => {
     const resolved = resolveRuntimeProvider({
       config: BASE_CONFIG,
       promptCacheKey: 'session-test',
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
     });
   });
 
-  it('lets provider customHeaders override kimiRequestHeaders', () => {
+  it('lets provider customHeaders override byfRequestHeaders', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:kimi-code': {
-            type: 'kimi',
+          'managed:byf': {
+            type: 'openai-compat',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -372,20 +372,20 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
           },
         },
       },
-      kimiRequestHeaders: TEST_KIMI_HEADERS,
+      byfRequestHeaders: TEST_BYF_HEADERS,
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
-        'X-Msh-Platform': 'kimi_code_cli',
+        'X-Msh-Platform': 'byf_code_cli',
         'X-Msh-Version': 'override-version',
       },
     });
   });
 
-  it('does not apply kimiRequestHeaders to non-Kimi providers', () => {
+  it('does not apply byfRequestHeaders to non-Byf providers', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         defaultModel: 'gpt-alias',
@@ -403,7 +403,7 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
           },
         },
       },
-      kimiRequestHeaders: TEST_KIMI_HEADERS,
+      byfRequestHeaders: TEST_BYF_HEADERS,
       promptCacheKey: 'session-test',
     });
 
@@ -492,7 +492,7 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
   });
 
   it('keeps customHeaders isolated between resolved provider instances', () => {
-    const config: KimiConfig = {
+    const config: ByfConfig = {
       defaultModel: 'gpt-alias',
       providers: {
         openai: {
@@ -522,21 +522,21 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
 });
 
 describe('ProviderManager prompt cache key', () => {
-  it('applies a prompt cache key to Kimi providers', () => {
+  it('applies a prompt cache key to Byf providers', () => {
     const manager = new ProviderManager({ config: BASE_CONFIG }).withPromptCacheKey(
       'session-test',
     );
-    const resolved = manager.resolveProviderConfigForModel('kimi-code/kimi-for-coding');
+    const resolved = manager.resolveProviderConfigForModel('byf/byf-for-coding');
 
     expect(resolved?.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
     });
   });
 
-  it('does not add generation kwargs to non-Kimi providers', () => {
+  it('does not add generation kwargs to non-Byf providers', () => {
     const manager = new ProviderManager({
       config: {
         defaultModel: 'gpt-alias',
@@ -572,7 +572,7 @@ describe('ProviderManager prompt cache key', () => {
 
     const resolved = derived.resolveProviderConfigForModel(undefined);
     expect(resolved?.provider).toMatchObject({
-      type: 'kimi',
+      type: 'openai-compat',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },

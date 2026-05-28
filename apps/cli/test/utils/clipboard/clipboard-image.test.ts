@@ -38,7 +38,7 @@ function noMacOsPaths(): { stdout: Buffer; ok: boolean } {
 
 describe('readClipboardMedia', () => {
   it('reads a copied image file from its real path instead of the Finder preview icon', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-code-clip-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-clip-'));
     try {
       const imagePath = join(dir, 'photo.png');
       const imageBytes = png(12, 34);
@@ -65,7 +65,7 @@ describe('readClipboardMedia', () => {
   });
 
   it('prefers a video file URL over an available image preview', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-code-clip-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-clip-'));
     try {
       const videoPath = join(dir, 'sample.mov');
       writeFileSync(videoPath, new Uint8Array([0, 1, 2]));
@@ -136,7 +136,7 @@ describe('readClipboardMedia', () => {
   });
 
   it('rejects pasted videos larger than 100 MB', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-code-clip-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-clip-'));
     try {
       const videoPath = resolve(dir, 'too-big.mp4');
       writeFileSync(videoPath, new Uint8Array([0]));

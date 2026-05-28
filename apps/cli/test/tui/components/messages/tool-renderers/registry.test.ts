@@ -122,7 +122,7 @@ describe('tool-result registry', () => {
   it('WebSearch renders no body when collapsed', () => {
     const renderer = pickResultRenderer('WebSearch');
     const out = joinRender(
-      renderer(call('WebSearch', { query: 'kimi' }), result('1. Alpha\n2. Beta'), ctx),
+      renderer(call('WebSearch', { query: 'byf' }), result('1. Alpha\n2. Beta'), ctx),
     );
     expect(out.trim()).toBe('');
   });

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  KimiCore,
+  ByfCore,
   type ApprovalResponse,
   type CoreAPI,
   type CoreRPC,
@@ -26,7 +26,7 @@ describe('HarnessAPI session skills', () => {
   let workDir: string;
 
   beforeEach(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-skills-'));
+    tmp = await mkdtemp(join(tmpdir(), 'byf-core-skills-'));
     homeDir = join(tmp, 'home');
     workDir = join(tmp, 'work');
     await mkdir(workDir, { recursive: true });
@@ -100,7 +100,7 @@ describe('HarnessAPI session skills', () => {
     expect(JSON.stringify(skills)).not.toContain('Your tool list contains one synthetic tool');
   });
 
-  it('resolves user skills from the OS home directory, not from the kimi home', async () => {
+  it('resolves user skills from the OS home directory, not from the byf home', async () => {
     const processHome = join(tmp, 'process-home');
     vi.stubEnv('HOME', processHome);
     await writeUserSkill(processHome, 'real-home-only', 'Real home skill');
@@ -246,8 +246,8 @@ describe('HarnessAPI session skills', () => {
       'Target: $target',
       'Mode: $mode',
       'Raw: $ARGUMENTS',
-      'Dir: ${KIMI_SKILL_DIR}',
-      'Session: ${KIMI_SESSION_ID}',
+      'Dir: ${BYF_SKILL_DIR}',
+      'Session: ${BYF_SESSION_ID}',
     ]);
     const { core, rpc } = await createTestRpc({ homeDir });
     const created = await rpc.createSession({ id: 'ses_skill_template', workDir });
@@ -461,7 +461,7 @@ describe('HarnessAPI session skills', () => {
     await expect(
       rpc.activateSkill({ sessionId: created.id, agentId: 'main', name: 'missing' }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'skill.not_found',
     });
 
@@ -479,7 +479,7 @@ describe('HarnessAPI session skills', () => {
     await expect(
       rpc.activateSkill({ sessionId: created.id, agentId: 'main', name: 'forked' }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'skill.type_unsupported',
     });
   });
@@ -511,14 +511,14 @@ describe('HarnessAPI session skills', () => {
     readonly homeDir?: string;
     readonly telemetry?: TelemetryClient;
   }): Promise<{
-    core: KimiCore;
+    core: ByfCore;
     events: Event[];
     rpc: CoreRPC;
   }> {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
     const events: Event[] = [];
     const configuredHomeDir = options === undefined ? homeDir : options.homeDir;
-    const core = new KimiCore(
+    const core = new ByfCore(
       coreRpc,
       { homeDir: configuredHomeDir, telemetry: options?.telemetry },
     );

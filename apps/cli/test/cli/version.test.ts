@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildKimiDefaultHeaders,
+  buildByfDefaultHeaders,
   getHostPackageJsonPath,
   getHostPackageRoot,
   getVersion,
@@ -21,7 +21,7 @@ describe('cli version helpers', () => {
   });
 
   it('builds default headers with the byf-cli user-agent', () => {
-    const headers = buildKimiDefaultHeaders('1.2.3');
+    const headers = buildByfDefaultHeaders('1.2.3');
 
     expect(headers['User-Agent']).toBe('byf-cli/1.2.3');
   });

@@ -5,7 +5,7 @@ import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 import type { ColorPalette } from '#/tui/theme/colors';
 
 const PLATFORM_OPTIONS: readonly ChoiceOption[] = [
-  { value: 'kimi-code', label: 'Kimi Code' },
+  { value: 'byf', label: 'Byf Code' },
   ...OPEN_PLATFORMS.map((platform) => ({ value: platform.id, label: platform.name })),
 ];
 
