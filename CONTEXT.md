@@ -20,6 +20,23 @@ BYF is a hard fork. No future merges or cherry-picks from upstream. All upstream
 - Commercial use is prohibited
 - Source code is publicly visible on GitHub (source-available, not open source)
 
+## Glossary
+
+### Provider
+A named OpenAI-compatible API endpoint configured by the user. Each provider has a user-chosen name (e.g. "deepseek"), a `base_url`, an `api_key`, and an optional `allowedPrefixes` for model filtering. Stored in config under `providers[name]`.
+
+### Catalog Provider
+A well-known provider (OpenAI, Anthropic, etc.) configured through `/connect`, which fetches metadata from the models.dev catalog. Distinct from user-configured providers from `/login`.
+
+### /login
+CLI command to add a custom OpenAI-compatible provider. Flow: name → base_url → api_key → select model. Supports multiple providers.
+
+### /connect
+CLI command to configure a catalog provider from models.dev. Complements `/login`.
+
+### /logout
+CLI command to remove a specific provider by name: `/logout <name>`.
+
 ## Renaming Map
 
 | Aspect | Upstream Value | BYF Value |
@@ -45,7 +62,7 @@ BYF is a hard fork. No future merges or cherry-picks from upstream. All upstream
 | Feedback URL | `ByronFinn/byf/issues` | `ByronFinn/byf/issues` |
 | Docs site | `moonshotai.github.io/kimi-code` | README only for now |
 | Telemetry | Kimi backend | Removed entirely |
-| OAuth provider | `managed:kimi-code` | None (user-provided API key) |
+| OAuth provider | `managed:kimi-code` | User-configured via `/login` |
 | migration-legacy pkg | `@byf/migration-legacy` | Deleted |
 | Version | `0.2.0` | `0.0.1` |
 | GitHub repo | `ByronFinn/byf` | `ByronFinn/byf` |
