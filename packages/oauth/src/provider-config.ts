@@ -65,10 +65,10 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
   if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
     return undefined;
   }
-  const contextLength = Number(item['context_length']);
-  if (!Number.isInteger(contextLength) || contextLength <= 0) {
-    return undefined;
-  }
+  const rawContextLength = Number(item['context_length']);
+  const contextLength = Number.isInteger(rawContextLength) && rawContextLength > 0
+    ? rawContextLength
+    : 200_000;
   const displayName = item['display_name'];
   const normalizedDisplayName =
     typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined;

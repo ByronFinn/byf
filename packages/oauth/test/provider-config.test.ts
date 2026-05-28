@@ -106,7 +106,7 @@ describe('fetchModels', () => {
     ).rejects.toThrow(/Unexpected models response/);
   });
 
-  it('skips models without a valid context_length', async () => {
+  it('uses default context_length for models without one', async () => {
     const fetchMock = vi.fn(async () =>
       makeModelsResponse([
         { id: 'deepseek-chat', context_length: 65536, supports_reasoning: false, supports_image_in: false, supports_video_in: false },
@@ -122,9 +122,12 @@ describe('fetchModels', () => {
       fetchMock as unknown as typeof fetch,
     );
 
-    expect(models).toHaveLength(2);
-    expect(models[0]?.id).toBe('deepseek-chat');
-    expect(models[1]?.id).toBe('deepseek-reasoner');
+    expect(models).toHaveLength(4);
+    expect(models[0]?.contextLength).toBe(65536);
+    expect(models[1]?.id).toBe('gpt-image-2');
+    expect(models[1]?.contextLength).toBe(200_000);
+    expect(models[2]?.contextLength).toBe(200_000);
+    expect(models[3]?.contextLength).toBe(65536);
   });
 });
 
