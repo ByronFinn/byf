@@ -63,22 +63,22 @@ describe('oauth package: no upstream OAuth references', () => {
     }
   });
 
-  it('exports API-key-based open platform functions', async () => {
+  it('exports API-key-based provider config functions', async () => {
     const mod = await import('../src/index');
-    expect(mod.fetchOpenPlatformModels).toBeTypeOf('function');
-    expect(mod.applyOpenPlatformConfig).toBeTypeOf('function');
-    expect(mod.removeOpenPlatformConfig).toBeTypeOf('function');
+    expect(mod.fetchModels).toBeTypeOf('function');
+    expect(mod.applyProviderConfig).toBeTypeOf('function');
+    expect(mod.removeProviderConfig).toBeTypeOf('function');
     expect(mod.capabilitiesForModel).toBeTypeOf('function');
     expect(mod.filterModelsByPrefix).toBeTypeOf('function');
   });
 
   it('does not export OAuth functions', async () => {
-    const mod = await import('../src/index');
-    expect(mod.pollDeviceToken).toBeUndefined();
-    expect(mod.refreshAccessToken).toBeUndefined();
-    expect(mod.requestDeviceAuthorization).toBeUndefined();
-    expect(mod.OAuthManager).toBeUndefined();
-    expect(mod.ByfOAuthToolkit).toBeUndefined();
-    expect(mod.FileTokenStorage).toBeUndefined();
+    const mod = await import('../src/index') as Record<string, unknown>;
+    expect(mod['pollDeviceToken']).toBeUndefined();
+    expect(mod['refreshAccessToken']).toBeUndefined();
+    expect(mod['requestDeviceAuthorization']).toBeUndefined();
+    expect(mod['OAuthManager']).toBeUndefined();
+    expect(mod['ByfOAuthToolkit']).toBeUndefined();
+    expect(mod['FileTokenStorage']).toBeUndefined();
   });
 });

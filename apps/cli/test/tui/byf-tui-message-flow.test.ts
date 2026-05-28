@@ -882,15 +882,28 @@ describe('ByfTui message flow', () => {
     resolveInit?.();
   });
 
-  it('redirects /login and /logout and /disconnect to /connect', async () => {
-    for (const command of ['/login', '/logout', '/disconnect']) {
+  it('/login opens provider setup, /logout shows not-implemented message', async () => {
+    // /login now opens a text input dialog — verify it does not show an error
+    {
+      const { driver } = await makeDriver();
+      driver.handleUserInput('/login');
+      await Promise.resolve();
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript, '/login should not say "Unknown slash command"').not.toContain(
+        'Unknown slash command',
+      );
+      expect(transcript, '/login should not say "removed"').not.toContain('removed');
+    }
+
+    // /logout and /disconnect show not-implemented message
+    for (const command of ['/logout', '/disconnect']) {
       const { driver } = await makeDriver();
 
       driver.handleUserInput(command);
       await Promise.resolve();
 
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript, `${command} should mention /connect`).toContain('/connect');
+      expect(transcript, `${command} should mention not yet implemented`).toContain('not yet implemented');
       expect(transcript, `${command} should not say "Unknown slash command"`).not.toContain(
         'Unknown slash command',
       );

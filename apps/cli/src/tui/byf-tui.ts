@@ -29,6 +29,13 @@ import {
   loadBuiltInCatalog,
   log,
 } from '@byf/sdk';
+import {
+  applyProviderConfig,
+  capabilitiesForModel as capabilitiesForModelOAuth,
+  fetchModels,
+  type ModelInfo,
+  ProviderApiError,
+} from '@byf/oauth';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
@@ -76,6 +83,7 @@ import type {
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
+import type { ColorPalette } from '#/tui/theme/colors';
 import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
 import type { GitLsFilesCache } from '#/utils/git/git-ls-files';
 import { createGitLsFilesCache } from '#/utils/git/git-ls-files';
@@ -117,6 +125,7 @@ import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ChoicePickerComponent, type ChoiceOption } from './components/dialogs/choice-picker';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
+import { TextInputDialogComponent } from './components/dialogs/text-input-dialog';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
@@ -1456,9 +1465,10 @@ export class ByfTui {
         await this.handleConnectCommand(args);
         return;
       case 'login':
+        await this.handleLoginCommand();
+        return;
       case 'logout':
-      case 'disconnect':
-        this.showError(`/${String(name)} has been removed. Use /connect to configure a provider.`);
+        this.showError(`/logout is not yet implemented. Edit ~/.byf/config.toml to remove a provider.`);
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -4989,6 +4999,184 @@ export class ByfTui {
     } finally {
       this.deferUserMessages = false;
     }
+  }
+
+  // =========================================================================
+  // /login — add a custom OpenAI-compatible provider
+  // =========================================================================
+
+  private async handleLoginCommand(): Promise<void> {
+    // Step 1: Provider name
+    const name = await this.promptTextInput({
+      title: 'Provider name',
+      subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
+      colors: this.state.theme.colors,
+    });
+    if (name === undefined) return;
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      this.showError('Provider name must contain only letters, numbers, hyphens, and underscores.');
+      return;
+    }
+
+    const existingConfig = await this.harness.getConfig();
+    if (existingConfig.providers[name] !== undefined) {
+      this.showError(`Provider "${name}" already exists. Use a different name or /logout ${name} first.`);
+      return;
+    }
+
+    // Step 2: Base URL
+    const baseUrl = await this.promptTextInput({
+      title: 'Base URL',
+      subtitle: 'The OpenAI-compatible API endpoint',
+      initialValue: 'https://api.openai.com/v1',
+      placeholder: 'https://api.openai.com/v1',
+      colors: this.state.theme.colors,
+    });
+    if (baseUrl === undefined) return;
+
+    // Step 3: API key
+    const apiKey = await this.promptApiKey(name);
+    if (apiKey === undefined) return;
+
+    // Step 4: Fetch models
+    let models: ModelInfo[];
+    try {
+      const spinner = this.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
+      models = await fetchModels(baseUrl, apiKey);
+      spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
+    } catch (error) {
+      if (error instanceof ProviderApiError) {
+        this.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
+      } else {
+        this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
+      }
+      return await this.handleManualModelEntry(name, baseUrl, apiKey);
+    }
+
+    if (models.length === 0) {
+      this.showStatus('No models found at this endpoint. Enter model ID manually.');
+      return await this.handleManualModelEntry(name, baseUrl, apiKey);
+    }
+
+    // Step 5: Model selection
+    const modelDict: Record<string, import('@byf/oauth').ModelAlias> = {};
+    for (const m of models) {
+      modelDict[`${name}/${m.id}`] = {
+        provider: name,
+        model: m.id,
+        maxContextSize: m.contextLength,
+        capabilities: capabilitiesForModelOAuth(m),
+        displayName: m.displayName,
+      };
+    }
+
+    const selection = await this.runModelSelector(modelDict);
+    if (selection === undefined) return;
+
+    const selectedId = selection.alias.split('/').slice(1).join('/');
+    const selectedModel = models.find((m) => m.id === selectedId);
+    if (selectedModel === undefined) return;
+
+    // Step 6: Apply config
+    const config = await this.harness.getConfig();
+    applyProviderConfig(config, {
+      name,
+      baseUrl,
+      apiKey,
+      models,
+      selectedModel,
+      thinking: selection.thinking,
+    });
+
+    await this.harness.setConfig({
+      providers: config.providers,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      defaultThinking: config.defaultThinking,
+    });
+
+    await this.refreshConfigAfterLogin();
+    this.track('login', { provider: name, model: selectedModel.id });
+    this.showStatus(`Connected: ${name} · ${selectedModel.id}`);
+  }
+
+  private promptTextInput(opts: {
+    readonly title: string;
+    readonly subtitle: string;
+    readonly placeholder?: string;
+    readonly colors: ColorPalette;
+  }): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const dialog = new TextInputDialogComponent({
+        title: opts.title,
+        subtitle: opts.subtitle,
+        placeholder: opts.placeholder,
+        colors: opts.colors,
+        onDone: (result) => {
+          this.restoreEditor();
+          resolve(result.kind === 'ok' ? result.value : undefined);
+        },
+      });
+      this.mountEditorReplacement(dialog);
+    });
+  }
+
+  private async handleManualModelEntry(
+    name: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<void> {
+    const manualModel = await this.promptTextInput({
+      title: 'Enter model ID manually',
+      subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
+      colors: this.state.theme.colors,
+    });
+    if (manualModel === undefined) return;
+
+    const contextSize = await this.promptTextInput({
+      title: 'Context window size',
+      subtitle: 'Max context size in tokens for this model',
+      initialValue: '128000',
+      placeholder: '128000',
+      colors: this.state.theme.colors,
+    });
+    if (contextSize === undefined) return;
+
+    const parsedSize = Number.parseInt(contextSize, 10);
+    if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
+      this.showError('Invalid context size. Must be a positive number.');
+      return;
+    }
+
+    const manualModelInfo: ModelInfo = {
+      id: manualModel,
+      contextLength: parsedSize,
+      supportsReasoning: false,
+      supportsImageIn: false,
+      supportsVideoIn: false,
+    };
+
+    const config = await this.harness.getConfig();
+    applyProviderConfig(config, {
+      name,
+      baseUrl,
+      apiKey,
+      models: [manualModelInfo],
+      selectedModel: manualModelInfo,
+      thinking: false,
+    });
+
+    await this.harness.setConfig({
+      providers: config.providers,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      defaultThinking: config.defaultThinking,
+    });
+
+    await this.refreshConfigAfterLogin();
+    this.track('login', { provider: name, model: manualModel });
+    this.showStatus(`Connected: ${name} · ${manualModel}`);
   }
 
   // Handles the /connect command — fetches a model catalog (default

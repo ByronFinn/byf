@@ -26,7 +26,7 @@ export default defineConfig({
     '@byf/kosong': fileURLToPath(new URL('../kosong/src/index.ts', import.meta.url)),
   },
   deps: {
-    alwaysBundle: [/^@byf-ai\//],
+    alwaysBundle: [/^@byf\//],
     neverBundle: [],
   },
 });
