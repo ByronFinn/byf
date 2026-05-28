@@ -136,7 +136,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'login',
     aliases: [],
-    description: 'Select a platform and authenticate',
+    description: 'Add a custom OpenAI-compatible provider',
     priority: 40,
   },
   {

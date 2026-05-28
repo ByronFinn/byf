@@ -2,7 +2,7 @@ import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
 
 // ---------------------------------------------------------------------------
-// Shared types (previously in managed-byf.ts)
+// Shared types
 // ---------------------------------------------------------------------------
 
 export interface ModelInfo {
@@ -45,38 +45,21 @@ export interface ConfigShape {
 }
 
 // ---------------------------------------------------------------------------
-// Open platform definitions
+// Provider API error
 // ---------------------------------------------------------------------------
 
-export interface OpenPlatformDefinition {
-  readonly id: string;
-  readonly name: string;
-  readonly baseUrl: string;
-  readonly allowedPrefixes?: readonly string[] | undefined;
+export class ProviderApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
 }
 
-export const OPEN_PLATFORMS: readonly OpenPlatformDefinition[] = [
-  {
-    id: 'byf-cn',
-    name: 'OpenAI-compatible Platform (CN)',
-    baseUrl: 'https://api.openai-compat-cn.invalid/v1',
-    allowedPrefixes: ['byf-k'],
-  },
-  {
-    id: 'byf-ai',
-    name: 'OpenAI-compatible Platform',
-    baseUrl: 'https://api.openai-compat.invalid/v1',
-    allowedPrefixes: ['byf-k'],
-  },
-];
-
-export function getOpenPlatformById(id: string): OpenPlatformDefinition | undefined {
-  return OPEN_PLATFORMS.find((p) => p.id === id);
-}
-
-export function isOpenPlatformId(id: string): boolean {
-  return OPEN_PLATFORMS.some((p) => p.id === id);
-}
+// ---------------------------------------------------------------------------
+// Model fetching
+// ---------------------------------------------------------------------------
 
 function toModelInfo(item: unknown): ModelInfo | undefined {
   if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
@@ -103,6 +86,53 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
   };
 }
 
+export async function fetchModels(
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
+  const url = `${baseUrl.replace(/\/+$/, '')}/models`;
+  const res = await fetchImpl(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+    },
+    signal,
+  });
+  if (!res.ok) {
+    throw new ProviderApiError(
+      await readApiErrorMessage(res, `Failed to list models (HTTP ${res.status}).`),
+      res.status,
+    );
+  }
+  const payload: unknown = await res.json();
+  if (!isRecord(payload) || !Array.isArray(payload['data'])) {
+    throw new Error(`Unexpected models response for ${baseUrl}.`);
+  }
+  return payload['data']
+    .map((item) => toModelInfo(item))
+    .filter((item): item is ModelInfo => item !== undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Model filtering
+// ---------------------------------------------------------------------------
+
+export function filterModelsByPrefix(
+  models: ModelInfo[],
+  prefixes?: readonly string[] | undefined,
+): ModelInfo[] {
+  if (!prefixes || prefixes.length === 0) {
+    return models;
+  }
+  return models.filter((m) => prefixes.some((p) => m.id.startsWith(p)));
+}
+
+// ---------------------------------------------------------------------------
+// Capabilities
+// ---------------------------------------------------------------------------
+
 export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
   const caps = new Set<string>();
   if (model.supportsReasoning) caps.add('thinking');
@@ -112,75 +142,32 @@ export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
   return caps.size > 0 ? [...caps] : undefined;
 }
 
-export class OpenPlatformApiError extends Error {
-  readonly status: number;
+// ---------------------------------------------------------------------------
+// Config application
+// ---------------------------------------------------------------------------
 
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
-
-export async function fetchOpenPlatformModels(
-  platform: OpenPlatformDefinition,
-  apiKey: string,
-  fetchImpl: typeof fetch = fetch,
-  signal?: AbortSignal,
-): Promise<ModelInfo[]> {
-  const res = await fetchImpl(`${platform.baseUrl.replace(/\/+$/, '')}/models`, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'application/json',
-    },
-    signal,
-  });
-  if (!res.ok) {
-    throw new OpenPlatformApiError(
-      await readApiErrorMessage(res, `Failed to list models (HTTP ${res.status}).`),
-      res.status,
-    );
-  }
-  const payload: unknown = await res.json();
-  if (!isRecord(payload) || !Array.isArray(payload['data'])) {
-    throw new Error(`Unexpected models response for ${platform.baseUrl}.`);
-  }
-  return payload['data']
-    .map((item) => toModelInfo(item))
-    .filter((item): item is ModelInfo => item !== undefined);
-}
-
-export function filterModelsByPrefix(
-  models: ModelInfo[],
-  platform: OpenPlatformDefinition,
-): ModelInfo[] {
-  if (!platform.allowedPrefixes || platform.allowedPrefixes.length === 0) {
-    return models;
-  }
-  const prefixes = platform.allowedPrefixes;
-  return models.filter((m) => prefixes.some((p) => m.id.startsWith(p)));
-}
-
-export interface ApplyOpenPlatformResult {
+export interface ApplyProviderResult {
   readonly defaultModel: string;
   readonly defaultThinking: boolean;
 }
 
-export function applyOpenPlatformConfig(
+export function applyProviderConfig(
   config: ConfigShape,
   options: {
-    readonly platform: OpenPlatformDefinition;
+    readonly name: string;
+    readonly baseUrl: string;
+    readonly apiKey: string;
     readonly models: readonly ModelInfo[];
     readonly selectedModel: ModelInfo;
     readonly thinking: boolean;
-    readonly apiKey: string;
   },
-): ApplyOpenPlatformResult {
-  const providerKey = options.platform.id;
+): ApplyProviderResult {
+  const providerKey = options.name;
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
     type: 'openai-compat',
-    baseUrl: options.platform.baseUrl,
+    baseUrl: options.baseUrl,
     apiKey: options.apiKey,
   };
 
@@ -209,13 +196,17 @@ export function applyOpenPlatformConfig(
   return { defaultModel: modelKey, defaultThinking: options.thinking };
 }
 
-export function removeOpenPlatformConfig(config: ConfigShape, platformId: string): void {
-  delete config.providers[platformId];
+// ---------------------------------------------------------------------------
+// Config removal
+// ---------------------------------------------------------------------------
+
+export function removeProviderConfig(config: ConfigShape, providerName: string): void {
+  delete config.providers[providerName];
 
   let removedDefault = false;
   const existingModels = config.models ?? {};
   for (const [key, model] of Object.entries(existingModels)) {
-    if (!isRecord(model) || model['provider'] !== platformId) continue;
+    if (!isRecord(model) || model['provider'] !== providerName) continue;
     delete existingModels[key];
     if (config.defaultModel === key) removedDefault = true;
   }
@@ -225,7 +216,7 @@ export function removeOpenPlatformConfig(config: ConfigShape, platformId: string
     config.defaultModel = undefined;
   }
 
-  if (config['defaultProvider'] === platformId) {
+  if (config['defaultProvider'] === providerName) {
     config['defaultProvider'] = undefined;
   }
 }
