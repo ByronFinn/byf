@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type * as KosongModule from '@moonshot-ai/kosong';
+import type * as KosongModule from '@byf/kosong';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import type { Event, KimiError, SkillActivatedEvent, SkillSummary } from '#/index';
+import type { Event, ByfError, SkillActivatedEvent, SkillSummary } from '#/index';
 import type { SDKRpcClient } from '#/rpc';
 
 import {
@@ -20,7 +20,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'skill response',
 }));
 
-vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
+vi.mock('@byf/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,
@@ -52,7 +52,7 @@ vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
   };
 });
 
-const { KimiHarness, Session } = await import('#/index');
+const { ByfHarness, Session } = await import('#/index');
 
 const tempDirs: string[] = [];
 
@@ -68,8 +68,8 @@ afterEach(async () => {
 
 describe('Session skills', () => {
   it('lists session skills without exposing content', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-work-');
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-skills-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-skills-work-');
     await writeSkill(workDir, 'review', [
       '---',
       'name: review',
@@ -79,7 +79,7 @@ describe('Session skills', () => {
       '',
       'Review the requested file.',
     ]);
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_sdk_skill_list', workDir });
@@ -93,7 +93,7 @@ describe('Session skills', () => {
         source: 'project',
         disableModelInvocation: true,
       });
-      expect(listed?.path.endsWith('/.kimi-code/skills/review/SKILL.md')).toBe(true);
+      expect(listed?.path.endsWith('/.byf/skills/review/SKILL.md')).toBe(true);
       expect(JSON.stringify(skills)).not.toContain('Review the requested file.');
     } finally {
       await harness.close();
@@ -101,8 +101,8 @@ describe('Session skills', () => {
   });
 
   it('activates a skill through core and emits the public skill event', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-work-');
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-skills-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-skills-work-');
     await writeSkill(workDir, 'review', [
       '---',
       'name: review',
@@ -111,7 +111,7 @@ describe('Session skills', () => {
       '',
       'Review the requested file.',
     ]);
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_sdk_skill_activate', workDir });
@@ -192,15 +192,15 @@ describe('Session skills', () => {
     }
   });
 
-  it('resolves user skills from the OS home directory, independently of KIMI_CODE_HOME', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-home-');
-    const processHome = await makeTempDir(tempDirs, 'kimi-sdk-skills-process-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-skills-work-');
+  it('resolves user skills from the OS home directory, independently of BYF_HOME', async () => {
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-skills-home-');
+    const processHome = await makeTempDir(tempDirs, 'byf-sdk-skills-process-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-skills-work-');
     vi.stubEnv('HOME', processHome);
-    vi.stubEnv('KIMI_CODE_HOME', homeDir);
+    vi.stubEnv('BYF_HOME', homeDir);
     await writeUserSkill(processHome, 'sdk-real-home-only', 'SDK real home skill');
     await writeUserSkill(homeDir, 'sdk-sandbox-only', 'SDK sandbox skill');
-    const harness = new KimiHarness({ identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_sdk_skill_env_home', workDir });
@@ -230,22 +230,22 @@ describe('Session skills', () => {
     });
 
     await expect(session.activateSkill('   ')).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'skill.name_empty',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
     expect(activateSkill).not.toHaveBeenCalled();
 
     await session.close();
     expect(closeSession).toHaveBeenCalledWith({ sessionId: session.id });
     expect(clearSessionHandlers).toHaveBeenCalledWith(session.id);
     await expect(session.listSkills()).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'session.closed',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
     await expect(session.activateSkill('review')).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'session.closed',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
   });
 
   it('finalizes local close state when the core close RPC fails', async () => {
@@ -271,9 +271,9 @@ describe('Session skills', () => {
     expect(closeSession).toHaveBeenCalledTimes(1);
     expect(clearSessionHandlers).toHaveBeenCalledWith(session.id);
     await expect(session.listSkills()).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'session.closed',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
   });
 
   it('exposes public skill event and summary types', () => {
@@ -283,13 +283,13 @@ describe('Session skills', () => {
 });
 
 async function writeSkill(workDir: string, name: string, lines: readonly string[]): Promise<void> {
-  const dir = join(workDir, '.kimi-code', 'skills', name);
+  const dir = join(workDir, '.byf', 'skills', name);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
 }
 
 async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
-  const dir = join(userHomeDir, '.kimi-code', 'skills', name);
+  const dir = join(userHomeDir, '.byf', 'skills', name);
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, 'SKILL.md'),

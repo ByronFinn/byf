@@ -203,8 +203,8 @@ export function expandSkillParameters(
 
   const hasArgumentPlaceholder = content !== body;
   content = content
-    .replaceAll('${KIMI_SKILL_DIR}', context.skillDir)
-    .replaceAll('${KIMI_SESSION_ID}', context.sessionId ?? '');
+    .replaceAll('${BYF_SKILL_DIR}', context.skillDir)
+    .replaceAll('${BYF_SESSION_ID}', context.sessionId ?? '');
 
   if (!hasArgumentPlaceholder && rawArgs.length > 0) {
     return `${content}\n\nARGUMENTS: ${rawArgs}`;

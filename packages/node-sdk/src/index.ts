@@ -1,6 +1,6 @@
-export { KimiHarness } from '#/kimi-harness';
+export { ByfHarness } from '#/byf-harness';
 export { Session } from '#/session';
-export { KimiAuthFacade } from '#/auth';
+export { ByfAuthFacade } from '#/auth';
 
 export {
   applyCatalogProvider,
@@ -22,16 +22,16 @@ export type {
 
 export {
   ErrorCodes,
-  KimiError,
-  type KimiErrorCode,
-  type KimiErrorInfo,
-  type KimiErrorOptions,
-  type KimiErrorPayload,
-  KIMI_ERROR_INFO,
-  fromKimiErrorPayload,
-  isKimiError,
-  toKimiErrorPayload,
-} from '@moonshot-ai/agent-core';
+  ByfError,
+  type ByfErrorCode,
+  type ByfErrorInfo,
+  type ByfErrorOptions,
+  type ByfErrorPayload,
+  BYF_ERROR_INFO,
+  fromByfErrorPayload,
+  isByfError,
+  toByfErrorPayload,
+} from '@byf/agent-core';
 
 // Diagnostic logging — public surface only.
 // RootLogger / getRootLogger / LoggingConfig stay inside agent-core.
@@ -40,15 +40,9 @@ export {
   log,
   redact,
   resolveGlobalLogPath,
-  resolveKimiHome,
-} from '@moonshot-ai/agent-core';
-export type { LogContext, LogLevel, LogPayload, Logger } from '@moonshot-ai/agent-core';
-
-export type {
-  KimiAuthLoginResult,
-  KimiAuthLogoutResult,
-  KimiAuthSubmitFeedbackInput,
-} from '#/auth';
+  resolveByfHome,
+} from '@byf/agent-core';
+export type { LogContext, LogLevel, LogPayload, Logger } from '@byf/agent-core';
 
 export * from '#/events';
 export type * from '#/types';

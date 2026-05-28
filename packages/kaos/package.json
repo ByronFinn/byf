@@ -1,21 +1,20 @@
 {
-  "name": "@moonshot-ai/kaos",
-  "version": "0.1.1",
+  "name": "@byf/kaos",
+  "version": "0.0.1",
   "private": true,
-  "description": "Execution environment abstraction for AI agent applications",
-  "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/kaos#readme",
+  "description": "Execution environment and filesystem/process abstractions for BYF",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
-    "directory": "packages/kaos"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "agent",
     "execution",
     "sandbox",

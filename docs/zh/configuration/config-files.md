@@ -1,18 +1,18 @@
 # 配置文件
 
-Kimi Code CLI 把全局配置保存在一份 TOML 文件中，包含 API 供应商、模型别名、Agent 循环参数、后台任务、外部服务等。这份文档介绍配置文件的位置、顶层字段、各嵌套结构，以及一份完整示例。
+BYF 把全局配置保存在一份 TOML 文件中，包含 API 供应商、模型别名、Agent 循环参数、后台任务、外部服务等。这份文档介绍配置文件的位置、顶层字段、各嵌套结构，以及一份完整示例。
 
 ## 配置文件位置
 
-默认配置文件位于 `~/.kimi-code/config.toml`。目录和文件会在首次运行时自动创建，并设置严格的访问权限。
+默认配置文件位于 `~/.byf/config.toml`。目录和文件会在首次运行时自动创建，并设置严格的访问权限。
 
-如果你希望把数据目录放到别处，可以通过环境变量 `KIMI_CODE_HOME` 覆盖默认路径：
+如果你希望把数据目录放到别处，可以通过环境变量 `BYF_HOME` 覆盖默认路径：
 
 ```sh
-export KIMI_CODE_HOME=/path/to/kimi-home
+export BYF_HOME=/path/to/byf-home
 ```
 
-此时配置文件路径变为 `$KIMI_CODE_HOME/config.toml`。无论目录在哪里，文件名固定为 `config.toml`。
+此时配置文件路径变为 `$BYF_HOME/config.toml`。无论目录在哪里，文件名固定为 `config.toml`。
 
 ::: tip 提示
 TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_context_size`）。如果 key 中包含 `.`，需要使用带引号的 TOML key，否则 TOML 会把 `.` 当作嵌套表分隔符。
@@ -41,21 +41,21 @@ TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_cont
 ## 完整示例
 
 ```toml
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-default"
 default_thinking = true
 default_permission_mode = "manual"
 default_plan_mode = false
 merge_all_available_skills = true
 telemetry = true
 
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+[providers."managed:byf"]
+type = "openai-compat"
+base_url = "https://api.byf.dev/coding/v1"
 api_key = ""
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
+[models."byf/byf-default"]
+provider = "managed:byf"
+model = "byf-default"
 max_context_size = 262144
 
 [thinking]
@@ -82,7 +82,7 @@ pattern = "Bash(rm -rf*)"
 [[hooks]]
 event = "PreToolUse"
 matcher = "Bash"
-command = "node ~/.kimi-code/hooks/check-bash.mjs"
+command = "node ~/.byf/hooks/check-bash.mjs"
 timeout = 5
 ```
 
@@ -92,11 +92,11 @@ timeout = 5
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `type` | `string` | 是 | 供应商类型，可选 `anthropic`、`openai`、`kimi`、`google-genai`、`openai_responses`、`vertexai` |
+| `type` | `string` | 是 | 供应商类型，可选 `anthropic`、`openai`、`byf`、`google-genai`、`openai_responses`、`vertexai` |
 | `api_key` | `string` | 否 | API 密钥 |
 | `base_url` | `string` | 否 | API 基础 URL |
 | `oauth` | `table` | 否 | OAuth 凭据引用，详见下文 |
-| `env` | `table<string, string>` | 否 | 按供应商约定的键读取的配置子表，作为 `api_key` / `base_url` 等字段的备用来源（如 `KIMI_API_KEY`、`ANTHROPIC_API_KEY`、`GOOGLE_CLOUD_PROJECT` 等）。这只是写在配置文件里的子表，**不会真正写入到终端的环境变量**；仅在 `[providers.<name>]` 上直接字段缺省时被 CLI 读取 |
+| `env` | `table<string, string>` | 否 | 按供应商约定的键读取的配置子表，作为 `api_key` / `base_url` 等字段的备用来源（如 `BYF_API_KEY`、`ANTHROPIC_API_KEY`、`GOOGLE_CLOUD_PROJECT` 等）。这只是写在配置文件里的子表，**不会真正写入到终端的环境变量**；仅在 `[providers.<name>]` 上直接字段缺省时被 CLI 读取 |
 | `custom_headers` | `table<string, string>` | 否 | 请求时附加的自定义 HTTP 头 |
 
 OAuth 凭据引用结构：
@@ -165,14 +165,14 @@ max_context_size = 1047576
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `max_running_tasks` | `integer` | — | 同时运行的最大后台任务数 |
-| `keep_alive_on_exit` | `boolean` | `true` | 会话关闭时是否保留仍在运行的后台任务。设为 `false` 后，`kimi -p` 完成退出、SDK 关闭 session 或 harness 关闭时会请求停止后台任务 |
+| `keep_alive_on_exit` | `boolean` | `true` | 会话关闭时是否保留仍在运行的后台任务。设为 `false` 后，`byf -p` 完成退出、SDK 关闭 session 或 harness 关闭时会请求停止后台任务 |
 | `agent_task_timeout_s` | `integer` | — | 后台 Agent 任务的最大运行时间（秒） |
 
-`keep_alive_on_exit` 可以被环境变量 `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` 覆盖；环境变量优先级高于 `config.toml`。schema 还预留了 `kill_grace_period_ms`、`print_wait_ceiling_s` 两个字段，目前仅 schema 校验通过，CLI 运行时不会读取。
+`keep_alive_on_exit` 可以被环境变量 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` 覆盖；环境变量优先级高于 `config.toml`。schema 还预留了 `kill_grace_period_ms`、`print_wait_ceiling_s` 两个字段，目前仅 schema 校验通过，CLI 运行时不会读取。
 
 ## `services`
 
-`services` 配置 Kimi Code CLI 调用的内置外部服务。当前仅识别 `moonshot_search`（网页搜索）和 `moonshot_fetch`（网页抓取）两个固定 key，其他 key 会被忽略。两项的字段相同：
+`services` 配置 BYF 调用的内置外部服务。当前仅识别 `web_search`（网页搜索）和 `web_fetch`（网页抓取）两个固定 key，其他 key 会被忽略。两项的字段相同：
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -182,12 +182,12 @@ max_context_size = 1047576
 | `custom_headers` | `table<string, string>` | 否 | 请求时附加的自定义 HTTP 头 |
 
 ```toml
-[services.moonshot_search]
-base_url = "https://api.moonshot.cn/v1/search"
+[services.web_search]
+base_url = "https://api.example.com/v1/search"
 api_key = "sk-xxx"
 
-[services.moonshot_fetch]
-base_url = "https://api.moonshot.cn/v1/fetch"
+[services.web_fetch]
+base_url = "https://api.example.com/v1/fetch"
 api_key = "sk-xxx"
 ```
 
@@ -225,5 +225,5 @@ pattern = "Bash"
 ```
 
 ::: tip 提示
-MCP server 的声明配置写在 `~/.kimi-code/mcp.json` 或项目内 `.kimi-code/mcp.json` 中，不在 `config.toml` 里。交互式配置入口是 `/mcp-config`，详见 [Model Context Protocol](../customization/mcp.md)。
+MCP server 的声明配置写在 `~/.byf/mcp.json` 或项目内 `.byf/mcp.json` 中，不在 `config.toml` 里。交互式配置入口是 `/mcp-config`，详见 [Model Context Protocol](../customization/mcp.md)。
 :::

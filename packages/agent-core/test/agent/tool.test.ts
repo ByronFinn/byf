@@ -1,4 +1,4 @@
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { ToolCall } from '@byf/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HookEngine } from '../../src/agent/hooks';

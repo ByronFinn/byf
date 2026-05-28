@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  KimiCore,
+  ByfCore,
   type ApprovalResponse,
   type CoreAPI,
   type CoreRPC,
@@ -26,7 +26,7 @@ describe('HarnessAPI session skills', () => {
   let workDir: string;
 
   beforeEach(async () => {
-    tmp = await mkdtemp(join(tmpdir(), 'kimi-core-skills-'));
+    tmp = await mkdtemp(join(tmpdir(), 'byf-core-skills-'));
     homeDir = join(tmp, 'home');
     workDir = join(tmp, 'work');
     await mkdir(workDir, { recursive: true });
@@ -59,7 +59,7 @@ describe('HarnessAPI session skills', () => {
       source: 'project',
       disableModelInvocation: true,
     });
-    expect(listed?.path.endsWith('/.kimi-code/skills/phase-one-review/SKILL.md')).toBe(true);
+    expect(listed?.path.endsWith('/.byf/skills/phase-one-review/SKILL.md')).toBe(true);
     expect(JSON.stringify(skills)).not.toContain('Review the requested file.');
   });
 
@@ -100,7 +100,7 @@ describe('HarnessAPI session skills', () => {
     expect(JSON.stringify(skills)).not.toContain('Your tool list contains one synthetic tool');
   });
 
-  it('resolves user skills from the OS home directory, not from the kimi home', async () => {
+  it('resolves user skills from the OS home directory, not from the byf home', async () => {
     const processHome = join(tmp, 'process-home');
     vi.stubEnv('HOME', processHome);
     await writeUserSkill(processHome, 'real-home-only', 'Real home skill');
@@ -114,10 +114,10 @@ describe('HarnessAPI session skills', () => {
     expect(names.has('sandbox-only')).toBe(false);
   });
 
-  it('resolves user skills from the OS home directory even when KIMI_CODE_HOME is set', async () => {
+  it('resolves user skills from the OS home directory even when BYF_HOME is set', async () => {
     const processHome = join(tmp, 'env-process-home');
     vi.stubEnv('HOME', processHome);
-    vi.stubEnv('KIMI_CODE_HOME', homeDir);
+    vi.stubEnv('BYF_HOME', homeDir);
     await writeUserSkill(processHome, 'env-real-home-only', 'Env real home skill');
     await writeUserSkill(homeDir, 'env-sandbox-only', 'Env sandbox skill');
     const { rpc } = await createTestRpc({});
@@ -246,8 +246,8 @@ describe('HarnessAPI session skills', () => {
       'Target: $target',
       'Mode: $mode',
       'Raw: $ARGUMENTS',
-      'Dir: ${KIMI_SKILL_DIR}',
-      'Session: ${KIMI_SESSION_ID}',
+      'Dir: ${BYF_SKILL_DIR}',
+      'Session: ${BYF_SESSION_ID}',
     ]);
     const { core, rpc } = await createTestRpc({ homeDir });
     const created = await rpc.createSession({ id: 'ses_skill_template', workDir });
@@ -262,7 +262,7 @@ describe('HarnessAPI session skills', () => {
 
     const records = await readMainWire(created.sessionDir);
     const prompt = records.find((record) => record['type'] === 'turn.prompt');
-    const skillDir = await realpath(join(workDir, '.kimi-code', 'skills', 'templated-review'));
+    const skillDir = await realpath(join(workDir, '.byf', 'skills', 'templated-review'));
     const expectedPrompt = [
       'Target: src/app.ts',
       'Mode: careful',
@@ -461,7 +461,7 @@ describe('HarnessAPI session skills', () => {
     await expect(
       rpc.activateSkill({ sessionId: created.id, agentId: 'main', name: 'missing' }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'skill.not_found',
     });
 
@@ -479,19 +479,19 @@ describe('HarnessAPI session skills', () => {
     await expect(
       rpc.activateSkill({ sessionId: created.id, agentId: 'main', name: 'forked' }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'skill.type_unsupported',
     });
   });
 
   async function writeSkill(name: string, lines: readonly string[]): Promise<void> {
-    const dir = join(workDir, '.kimi-code', 'skills', name);
+    const dir = join(workDir, '.byf', 'skills', name);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
   }
 
   async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
-    const dir = join(userHomeDir, '.kimi-code', 'skills', name);
+    const dir = join(userHomeDir, '.byf', 'skills', name);
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, 'SKILL.md'),
@@ -502,7 +502,7 @@ describe('HarnessAPI session skills', () => {
   }
 
   async function writeFlatSkill(name: string, lines: readonly string[]): Promise<void> {
-    const dir = join(workDir, '.kimi-code', 'skills');
+    const dir = join(workDir, '.byf', 'skills');
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, `${name}.md`), lines.join('\n'));
   }
@@ -511,14 +511,14 @@ describe('HarnessAPI session skills', () => {
     readonly homeDir?: string;
     readonly telemetry?: TelemetryClient;
   }): Promise<{
-    core: KimiCore;
+    core: ByfCore;
     events: Event[];
     rpc: CoreRPC;
   }> {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
     const events: Event[] = [];
     const configuredHomeDir = options === undefined ? homeDir : options.homeDir;
-    const core = new KimiCore(
+    const core = new ByfCore(
       coreRpc,
       { homeDir: configuredHomeDir, telemetry: options?.telemetry },
     );

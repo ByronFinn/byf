@@ -6,7 +6,7 @@
  *   - macOS / Linux / Windows / unknown → `osKind`
  *   - POSIX path probing prefers /bin/bash, falls back to /usr/bin/bash,
  *     /usr/local/bin/bash, then /bin/sh (with shellName 'sh').
- *   - Windows resolves Git Bash via `KIMI_SHELL_PATH`, `git.exe` on PATH,
+ *   - Windows resolves Git Bash via `BYF_SHELL_PATH`, `git.exe` on PATH,
  *     or well-known install locations; throws `shell.git_bash_not_found`
  *     if none are present.
  *   - `osArch` / `osVersion` are populated from the Node OS APIs.
@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, ByfError } from '../../src/errors';
 import {
   detectEnvironment,
   type Environment,
@@ -133,11 +133,11 @@ describe('detectEnvironment', () => {
 
   // ── Windows Git Bash probing ───────────────────────────────────────
 
-  it('uses KIMI_SHELL_PATH override when set and the file exists', async () => {
+  it('uses BYF_SHELL_PATH override when set and the file exists', async () => {
     const env = await detectEnvironment(
       stubDeps({
         platform: 'win32',
-        env: { KIMI_SHELL_PATH: 'D:\\custom\\bash.exe' },
+        env: { BYF_SHELL_PATH: 'D:\\custom\\bash.exe' },
         existingPaths: ['D:\\custom\\bash.exe', 'C:\\Program Files\\Git\\bin\\bash.exe'],
       }),
     );
@@ -178,7 +178,7 @@ describe('detectEnvironment', () => {
     expect(env.shellPath).toBe('C:\\Users\\me\\AppData\\Local\\Programs\\Git\\bin\\bash.exe');
   });
 
-  it('throws KimiError with the shell.git_bash_not_found code when no candidate is found', async () => {
+  it('throws ByfError with the shell.git_bash_not_found code when no candidate is found', async () => {
     const error = await detectEnvironment(
       stubDeps({
         platform: 'win32',
@@ -191,22 +191,22 @@ describe('detectEnvironment', () => {
       },
       (error: unknown) => error,
     );
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND);
+    expect(error).toBeInstanceOf(ByfError);
+    expect((error as ByfError).code).toBe(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND);
   });
 
-  it('includes attempted paths in the thrown KimiError message', async () => {
+  it('includes attempted paths in the thrown ByfError message', async () => {
     const error = await detectEnvironment(
       stubDeps({
         platform: 'win32',
-        env: { KIMI_SHELL_PATH: 'D:\\custom\\bash.exe' },
+        env: { BYF_SHELL_PATH: 'D:\\custom\\bash.exe' },
         existingPaths: [],
       }),
     ).then(
       () => {
         throw new Error('expected throw');
       },
-      (error: unknown) => error as KimiError,
+      (error: unknown) => error as ByfError,
     );
     expect(error.message).toContain('D:\\custom\\bash.exe');
     expect(error.message).toContain('C:\\Program Files\\Git\\bin\\bash.exe');

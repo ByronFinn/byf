@@ -2,7 +2,7 @@ import { getDefaultTelemetryClient } from './client';
 import { EventSink } from './sink';
 import { AsyncTransport } from './transport';
 
-export const TELEMETRY_DISABLE_ENV = 'KIMI_DISABLE_TELEMETRY';
+export const TELEMETRY_DISABLE_ENV = 'BYF_DISABLE_TELEMETRY';
 
 const TRUE_ENV_VALUES = new Set(['1', 'true', 't', 'yes', 'y']);
 
@@ -18,7 +18,6 @@ export interface TelemetryBootstrapOptions {
   readonly buildSha?: string;
   readonly terminal?: string;
   readonly locale?: string;
-  readonly getAccessToken?: () => string | null | Promise<string | null>;
 }
 
 export function isTelemetryDisabledByEnv(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -48,7 +47,6 @@ export function initializeTelemetry(options: TelemetryBootstrapOptions): void {
   const transport = new AsyncTransport({
     homeDir: options.homeDir,
     deviceId: options.deviceId,
-    getAccessToken: options.getAccessToken,
   });
   const sink = new EventSink({
     transport,

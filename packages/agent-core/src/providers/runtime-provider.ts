@@ -1,5 +1,5 @@
-import type { KimiConfig, ModelAlias, OAuthRef, ProviderConfig } from '#/config';
-import { ErrorCodes, KimiError, isKimiError } from '#/errors';
+import type { ByfConfig, ModelAlias, OAuthRef, ProviderConfig } from '#/config';
+import { ErrorCodes, ByfError, isByfError } from '#/errors';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import {
@@ -7,16 +7,16 @@ import {
   UNKNOWN_CAPABILITY,
   type ModelCapability,
   type ProviderConfig as KosongProviderConfig,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { ProviderRequestAuthResolver } from './request-auth';
 
 export type { ProviderRequestAuthResolver };
 
 export interface ResolveRuntimeProviderInput {
-  readonly config: KimiConfig;
+  readonly config: ByfConfig;
   readonly model?: string | undefined;
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
+  readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly promptCacheKey?: string;
   readonly validateCredentials?: boolean;
 }
@@ -53,7 +53,7 @@ export function resolveRuntimeProvider(
 ): ResolvedRuntimeProvider {
   const modelName = input.model ?? input.config.defaultModel;
   if (modelName === undefined) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       'No model is selected. Set default_model in config.toml or pass a configured model alias.',
     );
@@ -61,7 +61,7 @@ export function resolveRuntimeProvider(
 
   const alias = input.config.models?.[modelName];
   if (alias === undefined) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Model "${modelName}" is not configured in config.toml. Add a [models."${modelName}"] entry with max_context_size.`,
     );
@@ -73,21 +73,21 @@ export function resolveRuntimeProvider(
     providerName === undefined ? undefined : input.config.providers[providerName];
 
   if (providerName === undefined) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Model "${modelName}" must define a provider in config.toml.`,
     );
   }
 
   if (providerConfig === undefined) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Provider "${providerName}" for model "${modelName}" is not configured.`,
     );
   }
 
   if (!Number.isInteger(alias.maxContextSize) || alias.maxContextSize <= 0) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Model "${modelName}" must define a positive max_context_size in config.toml.`,
     );
@@ -102,7 +102,7 @@ export function resolveRuntimeProvider(
     providerConfig.oauth === undefined &&
     providerApiKey(providerConfig) === undefined
   ) {
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Provider "${providerName}" has no credentials configured. Set apiKey, oauth, or a provider env API key in config.toml.`,
     );
@@ -111,7 +111,7 @@ export function resolveRuntimeProvider(
   const provider = toKosongProviderConfig(
     providerConfig,
     resolvedModel,
-    input.kimiRequestHeaders,
+    input.byfRequestHeaders,
     alias.maxOutputSize,
     alias.reasoningKey,
     input.promptCacheKey,
@@ -155,7 +155,7 @@ export function createRuntimeProviderAuthResolver(
     // oauth + apiKey on the same provider makes request auth ambiguous:
     // provider construction would prefer apiKey while runtime auth resolves
     // OAuth. Reject it so misconfiguration surfaces at model resolution.
-    throw new KimiError(
+    throw new ByfError(
       ErrorCodes.CONFIG_INVALID,
       `Provider "${providerName}" has both apiKey and oauth set in config.toml — they are mutually exclusive. Remove one.`,
     );
@@ -164,7 +164,7 @@ export function createRuntimeProviderAuthResolver(
   const tokenProvider = input.resolveOAuthTokenProvider?.(providerName, providerConfig.oauth);
   if (tokenProvider === undefined) {
     return async () => {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.AUTH_LOGIN_REQUIRED,
         `OAuth provider "${providerName}" requires login before it can be used.`,
       );
@@ -181,7 +181,7 @@ export function createRuntimeProviderAuthResolver(
       if (!isAuthLoginRequired(error)) {
         (input.log ?? defaultLog).warn('oauth token fetch failed', { providerName, error });
       }
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.AUTH_LOGIN_REQUIRED,
         `OAuth provider "${providerName}" requires login before it can be used.`,
         {
@@ -190,7 +190,7 @@ export function createRuntimeProviderAuthResolver(
       );
     }
     if (apiKey.trim().length === 0) {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.AUTH_LOGIN_REQUIRED,
         `OAuth provider "${providerName}" requires login before it can be used.`,
       );
@@ -200,7 +200,7 @@ export function createRuntimeProviderAuthResolver(
 }
 
 function isAuthLoginRequired(error: unknown): boolean {
-  return isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED;
+  return isByfError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED;
 }
 
 function resolveModelCapabilities(
@@ -228,7 +228,7 @@ function resolveModelCapabilities(
 function toKosongProviderConfig(
   provider: ProviderConfig,
   model: string,
-  kimiRequestHeaders?: Record<string, string> | undefined,
+  byfRequestHeaders?: Record<string, string> | undefined,
   maxOutputSize?: number | undefined,
   reasoningKey?: string | undefined,
   promptCacheKey?: string,
@@ -252,16 +252,16 @@ function toKosongProviderConfig(
         reasoningKey,
         ...defaultHeadersField(provider.customHeaders),
       };
-    case 'kimi': {
+    case 'openai-compat': {
       const defaultHeaders = {
-        ...kimiRequestHeaders,
+        ...byfRequestHeaders,
         ...provider.customHeaders,
       };
       if (Object.keys(defaultHeaders).length === 0) {
         return {
-          type: 'kimi',
+          type: 'openai-compat',
           model,
-          baseUrl: providerValue(provider.baseUrl, provider.env, 'KIMI_BASE_URL'),
+          baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
           generationKwargs: {
             prompt_cache_key: promptCacheKey,
           },
@@ -269,9 +269,9 @@ function toKosongProviderConfig(
         };
       }
       return {
-        type: 'kimi',
+        type: 'openai-compat',
         model,
-        baseUrl: providerValue(provider.baseUrl, provider.env, 'KIMI_BASE_URL'),
+        baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
         generationKwargs: {
           prompt_cache_key: promptCacheKey,
         },
@@ -304,7 +304,7 @@ function toKosongProviderConfig(
       };
     default: {
       const exhaustive: never = provider.type;
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,
       );
@@ -347,8 +347,8 @@ function providerApiKey(provider: ProviderConfig): string | undefined {
     case 'openai':
     case 'openai_responses':
       return providerValue(provider.apiKey, provider.env, 'OPENAI_API_KEY');
-    case 'kimi':
-      return providerValue(provider.apiKey, provider.env, 'KIMI_API_KEY');
+    case 'openai-compat':
+      return providerValue(provider.apiKey, provider.env, 'BYF_API_KEY');
     case 'google-genai':
       return providerValue(provider.apiKey, provider.env, 'GOOGLE_API_KEY');
     case 'vertexai':
@@ -359,7 +359,7 @@ function providerApiKey(provider: ProviderConfig): string | undefined {
       );
     default: {
       const exhaustive: never = provider.type;
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.MODEL_CONFIG_INVALID,
         `Unsupported provider type: ${String(exhaustive)}`,
       );

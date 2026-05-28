@@ -2,16 +2,16 @@
  * Loop-local error helpers.
  */
 
-import { ErrorCodes, KimiError, isKimiError } from '#/errors';
+import { ErrorCodes, ByfError, isByfError } from '#/errors';
 
-export function createMaxStepsExceededError(maxSteps: number, message?: string): KimiError {
-  return new KimiError(ErrorCodes.LOOP_MAX_STEPS_EXCEEDED, message ?? `Turn exceeded maxSteps=${maxSteps}`, {
+export function createMaxStepsExceededError(maxSteps: number, message?: string): ByfError {
+  return new ByfError(ErrorCodes.LOOP_MAX_STEPS_EXCEEDED, message ?? `Turn exceeded maxSteps=${maxSteps}`, {
     details: { maxSteps },
   });
 }
 
 export function isMaxStepsExceededError(error: unknown): boolean {
-  return isKimiError(error) && error.code === ErrorCodes.LOOP_MAX_STEPS_EXCEEDED;
+  return isByfError(error) && error.code === ErrorCodes.LOOP_MAX_STEPS_EXCEEDED;
 }
 
 export function isAbortError(err: unknown): boolean {

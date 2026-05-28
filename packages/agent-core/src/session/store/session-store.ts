@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 
 import { z } from 'zod';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import type { SessionIndexEntry } from '#/session/store/session-index';
 import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
@@ -53,12 +53,12 @@ export class SessionStore {
     const workDir = normalizeWorkDir(input.workDir);
     const indexed = await this.findSessionEntry(input.id);
     if (indexed !== undefined) {
-      throw new KimiError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.id}" already exists`);
+      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.id}" already exists`);
     }
 
     const dir = this.sessionDirFor({ id: input.id, workDir });
     if (await isDirectory(dir)) {
-      throw new KimiError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.id}" already exists`);
+      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.id}" already exists`);
     }
 
     await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -75,12 +75,12 @@ export class SessionStore {
     assertSafeSessionId(input.targetId);
     const indexed = await this.findSessionEntry(input.targetId);
     if (indexed !== undefined) {
-      throw new KimiError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
     }
 
     const targetDir = this.sessionDirFor({ id: input.targetId, workDir: source.workDir });
     if (await isDirectory(targetDir)) {
-      throw new KimiError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
     }
 
     await mkdir(dirname(targetDir), { recursive: true, mode: 0o700 });
@@ -112,7 +112,7 @@ export class SessionStore {
   async rename(id: string, title: string): Promise<void> {
     const normalized = title.trim();
     if (normalized.length === 0) {
-      throw new KimiError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
+      throw new ByfError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
     }
     const entry = await this.findExistingSessionEntry(id);
     const statePath = join(entry.sessionDir, 'state.json');
@@ -120,12 +120,12 @@ export class SessionStore {
     try {
       parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
     } catch (error) {
-      throw new KimiError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
+      throw new ByfError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
         cause: error,
       });
     }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new KimiError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
+      throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
     }
     const next: Record<string, unknown> = {
       ...(parsed as Record<string, unknown>),
@@ -170,7 +170,7 @@ export class SessionStore {
   private async findExistingSessionEntry(id: string): Promise<SessionIndexEntry> {
     const entry = await this.findSessionEntry(id);
     if (entry !== undefined && (await isDirectory(entry.sessionDir))) return entry;
-    throw new KimiError(ErrorCodes.SESSION_NOT_FOUND, `Session "${id}" was not found`, {
+    throw new ByfError(ErrorCodes.SESSION_NOT_FOUND, `Session "${id}" was not found`, {
       details: { sessionId: id },
     });
   }
@@ -185,7 +185,7 @@ export class SessionStore {
     try {
       parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
     } catch (error) {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.SESSION_STATE_NOT_FOUND,
         `Session "${input.sourceId}" state.json was not found`,
         {
@@ -194,7 +194,7 @@ export class SessionStore {
       );
     }
     if (!isRecord(parsed)) {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.SESSION_STATE_INVALID,
         `Session "${input.sourceId}" state.json is invalid`,
       );
@@ -291,7 +291,7 @@ function normalizeForkTitle(title: string | undefined, fallback: unknown): strin
   if (title !== undefined) {
     const normalized = title.trim();
     if (normalized.length === 0) {
-      throw new KimiError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
+      throw new ByfError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
     }
     return normalized;
   }
@@ -350,7 +350,7 @@ function timestampOrFallback(value: number, fallback: number): number {
 
 function assertSafeSessionId(id: string): void {
   if (isSafeSessionId(id)) return;
-  throw new KimiError(ErrorCodes.SESSION_ID_INVALID, 'Session id contains unsupported path characters');
+  throw new ByfError(ErrorCodes.SESSION_ID_INVALID, 'Session id contains unsupported path characters');
 }
 
 function isSafeSessionId(id: string): boolean {

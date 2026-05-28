@@ -31,7 +31,7 @@ const promptContext: SystemPromptContext = {
 };
 
 beforeEach(async () => {
-  workDir = await mkdtemp(join(tmpdir(), 'kimi-agent-profile-'));
+  workDir = await mkdtemp(join(tmpdir(), 'byf-agent-profile-'));
 });
 
 afterEach(async () => {
@@ -43,15 +43,15 @@ describe('agent profile loader', () => {
     const systemPath = await write(
       'system.md',
       [
-        'os={{ KIMI_OS }}',
-        'cwd={{ KIMI_WORK_DIR }}',
-        'listing={{ KIMI_WORK_DIR_LS }}',
-        'agents={{ KIMI_AGENTS_MD }}',
-        'skills={{ KIMI_SKILLS }}',
+        'os={{ BYF_OS }}',
+        'cwd={{ BYF_WORK_DIR }}',
+        'listing={{ BYF_WORK_DIR_LS }}',
+        'agents={{ BYF_AGENTS_MD }}',
+        'skills={{ BYF_SKILLS }}',
         'parent={{ parentOnly }}',
         'child={{ childOnly }}',
         'role={{ ROLE_ADDITIONAL }}',
-        '{% if KIMI_OS == "macOS" %}nunjucks-ok{% endif %}',
+        '{% if BYF_OS == "macOS" %}nunjucks-ok{% endif %}',
       ].join('\n'),
     );
     await write(
@@ -214,7 +214,7 @@ describe('default agent profiles', () => {
       cwd: '/workspace/two',
     });
 
-    expect(first).toContain('You are Kimi Code CLI');
+    expect(first).toContain('You are BYF');
     expect(first).toContain('Available skills');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');

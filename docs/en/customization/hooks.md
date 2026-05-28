@@ -1,8 +1,8 @@
 # Hooks
 
-Hooks let you run local commands at key lifecycle points in Kimi Code CLI. They are useful for lightweight policy checks, audit logging, desktop notifications, or wiring into local automation scripts — for example, intercepting a risky tool call before it runs, or firing a notification when a background subagent finishes.
+Hooks let you run local commands at key lifecycle points in BYF. They are useful for lightweight policy checks, audit logging, desktop notifications, or wiring into local automation scripts — for example, intercepting a risky tool call before it runs, or firing a notification when a background subagent finishes.
 
-Hook commands run in the local shell, and Kimi Code CLI writes the event payload as JSON to the command's stdin. The command's stdout, stderr, and exit code determine the hook result. Except for explicit blocking cases, hook failures fail open and do not interrupt the main flow because of a misbehaving script.
+Hook commands run in the local shell, and BYF writes the event payload as JSON to the command's stdin. The command's stdout, stderr, and exit code determine the hook result. Except for explicit blocking cases, hook failures fail open and do not interrupt the main flow because of a misbehaving script.
 
 ::: warning Note
 Hooks are useful for local notifications and lightweight interception, but they should not be treated as the only security boundary. Script errors, timeouts, and ordinary non-zero exit codes fail open and continue to allow the operation; high-risk tool calls should still rely on permission approval and human review.
@@ -10,19 +10,19 @@ Hooks are useful for local notifications and lightweight interception, but they 
 
 ## Configuration
 
-Declare hooks in `~/.kimi-code/config.toml` with `[[hooks]]` array tables:
+Declare hooks in `~/.byf/config.toml` with `[[hooks]]` array tables:
 
 ```toml
 [[hooks]]
 event = "PreToolUse"
 matcher = "Bash"
-command = "node ~/.kimi-code/hooks/check-bash.mjs"
+command = "node ~/.byf/hooks/check-bash.mjs"
 timeout = 5
 
 [[hooks]]
 event = "Notification"
 matcher = "task\\.completed"
-command = "terminal-notifier -title Kimi -message 'Background task finished'"
+command = "terminal-notifier -title BYF -message 'Background task finished'"
 ```
 
 The fields are:
@@ -38,7 +38,7 @@ Each `[[hooks]]` table accepts only these four fields. Misspelled or extra field
 
 When one event fires, all matching hooks run in parallel. If multiple entries share the exact same `command`, that command runs only once. `matcher` uses JavaScript regular expression semantics; invalid regular expressions are silently skipped and treated as no match.
 
-Hook commands are launched through the shell (equivalent to `sh -c <command>`), and the child process's working directory is the current session's `cwd`. On non-Windows platforms, the child is placed in its own process group; on timeout or session interruption, Kimi Code CLI first sends `SIGTERM` and then `SIGKILL` 100 milliseconds later, so any grandchild processes forked inside the hook are cleaned up as well.
+Hook commands are launched through the shell (equivalent to `sh -c <command>`), and the child process's working directory is the current session's `cwd`. On non-Windows platforms, the child is placed in its own process group; on timeout or session interruption, BYF first sends `SIGTERM` and then `SIGKILL` 100 milliseconds later, so any grandchild processes forked inside the hook are cleaned up as well.
 
 JSON fields passed to hooks use snake_case. Every payload includes:
 
@@ -128,7 +128,7 @@ This example only demonstrates how a hook blocks a tool call; it is not a comple
 [[hooks]]
 event = "PreToolUse"
 matcher = "Bash"
-command = "node ~/.kimi-code/hooks/block-dangerous-bash.mjs"
+command = "node ~/.byf/hooks/block-dangerous-bash.mjs"
 timeout = 5
 ```
 
@@ -147,4 +147,4 @@ process.stdin.on('end', () => {
 });
 ```
 
-When the hook blocks the tool call, Kimi Code CLI writes the blocking reason back into context as a failed tool result, so the model can choose a safer alternative.
+When the hook blocks the tool call, BYF writes the blocking reason back into context as a failed tool result, so the model can choose a safer alternative.

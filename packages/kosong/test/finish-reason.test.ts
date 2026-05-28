@@ -4,7 +4,7 @@ import { MockChatProvider } from './fixtures/mock-provider';
 import type { FinishReason } from '#/provider';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider, GoogleGenAIStreamedMessage } from '#/providers/google-genai';
-import { KimiChatProvider } from '#/providers/kimi';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
 import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
 import { OpenAIResponsesStreamedMessage } from '#/providers/openai-responses';
 import { normalizeOpenAIFinishReason } from '#/providers/openai-common';
@@ -40,8 +40,8 @@ const EMPTY_TOOLSET: Toolset = {
 // A. Normalization table coverage (direct helper tests where possible).
 // =====================================================================
 
-describe('normalizeOpenAIFinishReason (Kimi + OpenAILegacy shared helper)', () => {
-  // Covers A for Kimi + OpenAILegacy.
+describe('normalizeOpenAIFinishReason (Byf + OpenAILegacy shared helper)', () => {
+  // Covers A for Byf + OpenAILegacy.
   it.each<[string | null | undefined, FinishReason | null, string | null]>([
     ['stop', 'completed', 'stop'],
     ['tool_calls', 'tool_calls', 'tool_calls'],
@@ -60,8 +60,8 @@ describe('normalizeOpenAIFinishReason (Kimi + OpenAILegacy shared helper)', () =
     },
   );
 });
-function makeKimiStream(rawFinish: string | null | undefined): AsyncIterable<unknown> {
-  // Kimi / Chat Completions stream: emit one content chunk + a terminal
+function makeByfStream(rawFinish: string | null | undefined): AsyncIterable<unknown> {
+  // Byf / Chat Completions stream: emit one content chunk + a terminal
   // chunk carrying finish_reason.
   const chunks: Array<Record<string, unknown>> = [
     {
@@ -86,9 +86,9 @@ function makeOpenAIChatClient(response: unknown) {
   };
 }
 
-function createKimiProvider(response: unknown, stream: boolean): KimiChatProvider {
-  return new KimiChatProvider({
-    model: 'kimi-k2-turbo-preview',
+function createByfProvider(response: unknown, stream: boolean): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
+    model: 'byf-k2-turbo-preview',
     stream,
     clientFactory: () => makeOpenAIChatClient(response) as never,
   });
@@ -102,8 +102,8 @@ function createOpenAILegacyProvider(response: unknown, stream: boolean): OpenAIL
   });
 }
 
-describe('KimiChatProvider finish reason (stream, table coverage)', () => {
-  // A + B coverage for Kimi.
+describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () => {
+  // A + B coverage for Byf.
   it.each<[string, FinishReason, string]>([
     ['stop', 'completed', 'stop'],
     ['tool_calls', 'tool_calls', 'tool_calls'],
@@ -114,7 +114,7 @@ describe('KimiChatProvider finish reason (stream, table coverage)', () => {
   ])(
     'raw stream finish_reason %j maps to %j (raw=%j)',
     async (raw, expectedFinish, expectedRaw) => {
-      const provider = createKimiProvider(makeKimiStream(raw), true);
+      const provider = createByfProvider(makeByfStream(raw), true);
 
       const stream = await provider.generate('', [], [USER_MSG]);
       for await (const _ of stream) {
@@ -125,7 +125,7 @@ describe('KimiChatProvider finish reason (stream, table coverage)', () => {
     },
   );
 
-  // D coverage for Kimi.
+  // D coverage for Byf.
   it('returns null finishReason when stream never emits finish_reason', async () => {
     const chunks = [
       {
@@ -133,7 +133,7 @@ describe('KimiChatProvider finish reason (stream, table coverage)', () => {
         choices: [{ index: 0, delta: { content: 'partial' } }],
       },
     ];
-    const provider = createKimiProvider(makeAsyncIterable(chunks), true);
+    const provider = createByfProvider(makeAsyncIterable(chunks), true);
 
     const stream = await provider.generate('', [], [USER_MSG]);
     for await (const _ of stream) {
@@ -143,9 +143,9 @@ describe('KimiChatProvider finish reason (stream, table coverage)', () => {
     expect(stream.rawFinishReason).toBeNull();
   });
 
-  // C coverage for Kimi.
+  // C coverage for Byf.
   it('captures finish_reason from a non-stream response', async () => {
-    const provider = createKimiProvider(
+    const provider = createByfProvider(
       {
         id: 'chatcmpl-ns',
         choices: [
@@ -168,9 +168,9 @@ describe('KimiChatProvider finish reason (stream, table coverage)', () => {
     expect(stream.rawFinishReason).toBe('length');
   });
 
-  // D (non-stream) coverage for Kimi.
+  // D (non-stream) coverage for Byf.
   it('returns null finishReason when non-stream response omits finish_reason', async () => {
-    const provider = createKimiProvider(
+    const provider = createByfProvider(
       {
         id: 'chatcmpl-ns-null',
         choices: [
@@ -204,7 +204,7 @@ describe('OpenAILegacyChatProvider finish reason (stream + non-stream)', () => {
   ])(
     'raw stream finish_reason %j maps to %j (raw=%j)',
     async (raw, expectedFinish, expectedRaw) => {
-      const provider = createOpenAILegacyProvider(makeKimiStream(raw), true);
+      const provider = createOpenAILegacyProvider(makeByfStream(raw), true);
 
       const stream = await provider.generate('', [], [USER_MSG]);
       for await (const _ of stream) {

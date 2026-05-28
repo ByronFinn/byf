@@ -1,10 +1,10 @@
-# Contributing to kimi-code
+# Contributing to BYF
 
-Thanks for taking the time to contribute! This project moves quickly, and thoughtful contributions from the community are what keep it sharp. The guide below walks you through how we work so your PR has the best chance of landing smoothly.
+Thanks for taking the time to contribute. This project moves quickly, and thoughtful community contributions help keep it useful and maintainable.
 
 ## Before You Start
 
-Kimi Code already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
+BYF already has opinions on CLI/TUI behavior, agent workflows, and public APIs. If your change shifts that direction, open an issue first so we can align before you invest time in a PR.
 
 We hold AI-assisted contributions to the same standard as hand-written ones. **You should understand what you submit** — what changed, how it behaves at the edges, and why it fits this codebase. If you cannot explain that, the PR is not ready for review.
 
@@ -27,10 +27,10 @@ We only merge PRs aligned with the roadmap. Drive-by refactors without context a
 
 This is a pnpm monorepo. The most relevant entry points are:
 
-- `apps/kimi-code` — CLI / TUI
-- `apps/vis` — session replay & debugging visualizer
-- `packages/node-sdk` — public TypeScript SDK (`@moonshot-ai/kimi-code-sdk`)
-- `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
+- `apps/cli` — CLI / TUI
+- `apps/vis` — session replay and debugging visualizer
+- `packages/node-sdk` — public TypeScript SDK (`@byf/sdk`)
+- `packages/agent-core`, `packages/kosong`, `packages/kaos`, `packages/oauth`, `packages/telemetry` — core engine and supporting packages
 - `docs/` — VitePress bilingual docs site
 
 For the full project map, see [AGENTS.md](AGENTS.md).
@@ -40,8 +40,8 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 Prerequisites: Node.js >= 24.15.0, pnpm 10.33.0, Git.
 
 ```sh
-git clone https://github.com/MoonshotAI/kimi-code.git
-cd kimi-code
+git clone https://github.com/ByronFinn/byf.git
+cd byf
 pnpm install
 ```
 
@@ -101,4 +101,4 @@ Found a security issue? Please see [SECURITY.md](SECURITY.md) instead of opening
 
 ## License
 
-By contributing to this repository, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing to this repository, you agree that your contributions will be licensed under the [BYF proprietary license](LICENSE).

@@ -1,14 +1,14 @@
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { StreamedMessage } from '#/provider';
-import { KimiChatProvider } from '#/providers/kimi';
+import { OpenAICompatChatProvider } from '#/providers/openai-compat';
 import type { Tool } from '#/tool';
 import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness, type FakeProviderHarness } from './fake-provider-harness';
 
-function createProvider(baseUrl: string): KimiChatProvider {
-  return new KimiChatProvider({
-    model: 'kimi-k2-turbo-preview',
+function createProvider(baseUrl: string): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
+    model: 'byf-k2-turbo-preview',
     apiKey: 'test-key',
     baseUrl,
     stream: true,
@@ -25,7 +25,7 @@ async function withHarness<T>(fn: (harness: FakeProviderHarness) => Promise<T>):
 }
 
 async function collectStream(
-  provider: KimiChatProvider,
+  provider: OpenAICompatChatProvider,
   systemPrompt: string,
   tools: Tool[],
   history: Message[],
@@ -56,10 +56,10 @@ function makeChunk(
   opts?: { id?: string; finishReason?: string; usage?: Record<string, unknown> },
 ): Record<string, unknown> {
   const chunk: Record<string, unknown> = {
-    id: opts?.id ?? 'chatcmpl-kimi-1',
+    id: opts?.id ?? 'chatcmpl-byf-1',
     object: 'chat.completion.chunk',
     created: 1234567890,
-    model: 'kimi-k2-turbo-preview',
+    model: 'byf-k2-turbo-preview',
     choices: [
       {
         index: 0,
@@ -81,8 +81,8 @@ function makeChunk(
   return chunk;
 }
 
-describe('e2e: kimi adapter', () => {
-  it('sends Moonshot chat-completion requests, streams reasoning + tool-call deltas, and preserves usage', async () => {
+describe('e2e: byf adapter', () => {
+  it('sends Byf chat-completion requests, streams reasoning + tool-call deltas, and preserves usage', async () => {
     await withHarness(async (harness) => {
       let capturedRequest: Record<string, unknown> | null = null;
 
@@ -146,7 +146,7 @@ describe('e2e: kimi adapter', () => {
 
       const result = await collectStream(provider, 'You are helpful.', [LOOKUP_TOOL], history);
       expect(capturedRequest).toMatchObject({
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         stream: true,
         stream_options: { include_usage: true },
         reasoning_effort: 'high',
@@ -173,7 +173,7 @@ describe('e2e: kimi adapter', () => {
       expect(harness.requests).toHaveLength(1);
       expect(harness.requests[0]!.pathname).toBe('/v1/chat/completions');
       expect(harness.requests[0]!.headers['authorization']).toBe('Bearer test-key');
-      expect(result.id).toBe('chatcmpl-kimi-1');
+      expect(result.id).toBe('chatcmpl-byf-1');
       expect(result.usage).toEqual({
         inputOther: 10,
         output: 6,
@@ -226,7 +226,7 @@ describe('e2e: kimi adapter', () => {
         statusCode: 500,
       });
       expect(capturedRequest).toMatchObject({
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         stream: true,
         stream_options: { include_usage: true },
         reasoning_effort: 'high',

@@ -1,8 +1,8 @@
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import type { McpServerConfig } from '#/config/schema';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
-import type { Tool } from '@moonshot-ai/kosong';
+import type { Tool } from '@byf/kosong';
 
 import { abortable } from '../utils/abort';
 import { HttpMcpClient } from './client-http';
@@ -189,10 +189,10 @@ export class McpConnectionManager {
   async reconnect(name: string): Promise<void> {
     const entry = this.entries.get(name);
     if (entry === undefined) {
-      throw new KimiError(ErrorCodes.MCP_SERVER_NOT_FOUND, `Unknown MCP server: ${name}`);
+      throw new ByfError(ErrorCodes.MCP_SERVER_NOT_FOUND, `Unknown MCP server: ${name}`);
     }
     if (entry.config.enabled === false) {
-      throw new KimiError(ErrorCodes.MCP_SERVER_DISABLED, `MCP server is disabled: ${name}`);
+      throw new ByfError(ErrorCodes.MCP_SERVER_DISABLED, `MCP server is disabled: ${name}`);
     }
     const attemptId = this.beginConnectAttempt(entry);
     await this.closeClient(entry);

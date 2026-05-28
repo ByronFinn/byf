@@ -5,7 +5,7 @@ import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 export default defineConfig({
   plugins: [rawTextPlugin()],
   test: {
-    name: 'kimi-core',
+    name: 'byf-core',
     include: ['test/**/*.{test,e2e}.ts'],
   },
 });

@@ -14,14 +14,14 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Project Map
 
-- `apps/kimi-code`: the CLI / TUI application. It consumes core capabilities through `@moonshot-ai/kimi-code-sdk` and must not depend directly on `@moonshot-ai/agent-core`.
-- `apps/vis`, `apps/vis/server`, `apps/vis/web`: visual debugging tools for sessions and replays.
+- `apps/cli`: the CLI / TUI application. It consumes core capabilities through `@byf/sdk` and must not depend directly on `@byf/agent-core`.
+- `apps/vis`: visual debugging tools for sessions and replays, including `apps/vis/server` and `apps/vis/web`.
 - `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, and other core capabilities.
 - `packages/node-sdk`: the public TypeScript SDK and harness.
 - `packages/kosong`: the LLM / provider abstraction layer.
 - `packages/kaos`: the execution environment and file/process abstractions.
-- `packages/oauth`: Kimi OAuth and managed auth utilities.
-- `packages/telemetry`: shared client-side telemetry infrastructure.
+- `packages/oauth`: OAuth and authentication utilities retained in the monorepo while BYF moves toward user-provided API keys.
+- `packages/telemetry`: telemetry infrastructure that remains in the monorepo but is disabled in BYF.
 
 ## Environment Requirements
 

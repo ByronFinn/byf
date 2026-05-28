@@ -1,6 +1,6 @@
 # Agent Skills
 
-Agent Skills are the lightweight mechanism Kimi Code CLI uses to extend a model's capabilities. A skill is a Markdown document with YAML frontmatter that describes a piece of expertise or a workflow. Kimi Code CLI scans known directories on startup and injects the discovered skills into the system prompt, so the agent knows which skills are available in the current session.
+Agent Skills are the lightweight mechanism BYF uses to extend a model's capabilities. A skill is a Markdown document with YAML frontmatter that describes a piece of expertise or a workflow. BYF scans known directories on startup and injects the discovered skills into the system prompt, so the agent knows which skills are available in the current session.
 
 Compared to pasting the same guidance into the prompt every time, skills offer these advantages: the content is captured in a file, reusable across projects and teams, can be loaded with a one-shot slash command, and can also be invoked automatically by the model when needed.
 
@@ -57,24 +57,24 @@ The skill body expands a small set of placeholders before being sent to the mode
 - `$ARGUMENTS`: the complete raw argument string passed when the skill was invoked
 - `$ARGUMENTS[0]`, `$ARGUMENTS[1]`, and shorthand `$0`, `$1`: positional arguments after whitespace splitting, starting at 0
 - `$<name>`: a named argument declared in `arguments`
-- `${KIMI_SKILL_DIR}`: the directory containing the current skill file
+- `${BYF_SKILL_DIR}`: the directory containing the current skill file
 
 Positional arguments respect single- and double-quoted text: in `/skill:commit "fix login" patch`, `$0` expands to `fix login`. If the body does not contain any argument placeholders, the appended text is added to the end of the body as `\n\nARGUMENTS: <text>`.
 
 ## Skill locations
 
-Kimi Code CLI scans skills in four scope tiers, with more specific scopes taking higher priority:
+BYF scans skills in four scope tiers, with more specific scopes taking higher priority:
 
 **Project > User > Extra > Built-in**
 
 User-level:
 
-- `~/.kimi-code/skills/`
+- `~/.byf/skills/`
 - `~/.agents/skills/`
 
 Project-level (project root = the nearest ancestor directory containing `.git`):
 
-- `.kimi-code/skills/`
+- `.byf/skills/`
 - `.agents/skills/`
 
 Extra directories are declared via the top-level `extra_skill_dirs` field in `config.toml`:
@@ -124,4 +124,4 @@ Please review the PR specified by the user using the following process: $pr_ref
    - Things worth acknowledging
 ```
 
-Save the above as `~/.kimi-code/skills/review-pr/SKILL.md`, and put the checklist at `references/checklist.md` in the same directory. Then restart the session, and you can invoke it via `/skill:review-pr #1234`; the appended `#1234` will expand into `$pr_ref` in the body.
+Save the above as `~/.byf/skills/review-pr/SKILL.md`, and put the checklist at `references/checklist.md` in the same directory. Then restart the session, and you can invoke it via `/skill:review-pr #1234`; the appended `#1234` will expand into `$pr_ref` in the body.

@@ -1,6 +1,6 @@
 import { generate } from '#/generate';
 import type { ContentPart, Message, ToolCall } from '#/message';
-import { extractUsageFromChunk, KimiChatProvider } from '#/providers/kimi';
+import { extractUsageFromChunk, OpenAICompatChatProvider } from '#/providers/openai-compat';
 import { extractUsage } from '#/providers/openai-common';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
@@ -22,29 +22,30 @@ function makeChatCompletionResponse(model: string = 'test-model') {
   };
 }
 
-function createProvider(stream: boolean = false): KimiChatProvider {
-  return new KimiChatProvider({
-    model: 'kimi-k2-turbo-preview',
+function createProvider(stream: boolean = false): OpenAICompatChatProvider {
+  return new OpenAICompatChatProvider({
+    model: 'byf-k2-turbo-preview',
     apiKey: 'test-key',
+    baseUrl: 'https://api.example.test/v1',
     stream,
   });
 }
 
-type KimiGenerationState = {
-  max_tokens?: number | undefined;
-  temperature?: number | undefined;
-  reasoning_effort?: string | undefined;
-  prompt_cache_key?: string | undefined;
-  extra_body?: Record<string, unknown> | undefined;
+type OpenAICompatGenerationState = {
+  max_tokens?: number;
+  temperature?: number;
+  reasoning_effort?: string;
+  prompt_cache_key?: string;
+  extra_body?: Record<string, unknown>;
 };
 
-function getGenerationState(provider: KimiChatProvider): KimiGenerationState {
-  return Reflect.get(provider, '_generationKwargs') as KimiGenerationState;
+function getGenerationState(provider: OpenAICompatChatProvider): OpenAICompatGenerationState {
+  return Reflect.get(provider, '_generationKwargs') as OpenAICompatGenerationState;
 }
 
 /** Capture the request body sent to OpenAI by mocking the client. */
 async function captureRequestBody(
-  provider: KimiChatProvider,
+  provider: OpenAICompatChatProvider,
   systemPrompt: string,
   tools: Tool[],
   history: Message[],
@@ -55,7 +56,7 @@ async function captureRequestBody(
     .fn()
     .mockImplementation((params: unknown) => {
       capturedBody = params as Record<string, unknown>;
-      return Promise.resolve(makeChatCompletionResponse('kimi-k2'));
+      return Promise.resolve(makeChatCompletionResponse('byf-k2'));
     });
 
   const stream = await provider.generate(systemPrompt, tools, history);
@@ -133,7 +134,7 @@ const REF_ENUM_ONLY_TOOL: Tool = {
   },
 };
 
-describe('KimiChatProvider', () => {
+describe('OpenAICompatChatProvider', () => {
   describe('message conversion', () => {
     it('simple user message with system prompt', async () => {
       const provider = createProvider();
@@ -247,7 +248,7 @@ describe('KimiChatProvider', () => {
       ]);
     });
 
-    it('adds Kimi-only types to JetBrains-like enum-only tool parameters without mutation', async () => {
+    it('adds Byf-only types to JetBrains-like enum-only tool parameters without mutation', async () => {
       const provider = createProvider();
       const originalParameters = structuredClone(JETBRAINS_ENUM_ONLY_TOOL.parameters);
       const history: Message[] = [
@@ -282,7 +283,7 @@ describe('KimiChatProvider', () => {
       expect(JETBRAINS_ENUM_ONLY_TOOL.parameters).toEqual(originalParameters);
     });
 
-    it('dereferences draft-7 definitions and normalizes referenced enum-only schemas for Kimi', async () => {
+    it('dereferences draft-7 definitions and normalizes referenced enum-only schemas for Byf', async () => {
       const provider = createProvider();
       const originalParameters = structuredClone(REF_ENUM_ONLY_TOOL.parameters);
       const history: Message[] = [
@@ -518,8 +519,8 @@ describe('KimiChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       // Snapshot of the expected wire format.
-      // Kimi injects ThinkPart as `reasoning_content` field on the
-      // assistant message (Moonshot API extension).
+      // Byf injects ThinkPart as `reasoning_content` field on the
+      // assistant message (Byf API extension).
       expect(body['messages']).toEqual([
         { role: 'user', content: 'What is 2+2?' },
         {
@@ -600,8 +601,8 @@ describe('KimiChatProvider', () => {
     });
 
     it('passes constructor generation kwargs into the request body', async () => {
-      const provider = new KimiChatProvider({
-        model: 'kimi-k2-turbo-preview',
+      const provider = new OpenAICompatChatProvider({
+        model: 'byf-k2-turbo-preview',
         apiKey: 'test-key',
         stream: false,
         generationKwargs: { prompt_cache_key: 'session-test' },
@@ -709,22 +710,13 @@ describe('KimiChatProvider', () => {
   describe('provider properties', () => {
     it('has correct name and model', () => {
       const provider = createProvider();
-      expect(provider.name).toBe('kimi');
-      expect(provider.modelName).toBe('kimi-k2-turbo-preview');
+      expect(provider.name).toBe('openai-compat');
+      expect(provider.modelName).toBe('byf-k2-turbo-preview');
     });
 
     it('throws during generation when no constructor or request API key is provided', async () => {
-      // Save and clear env var
-      const saved = process.env['KIMI_API_KEY'];
-      delete process.env['KIMI_API_KEY'];
-      try {
-        const provider = new KimiChatProvider({ model: 'test' });
-        await expect(provider.generate('', [], [])).rejects.toThrow(/options\.auth\.apiKey/);
-      } finally {
-        if (saved !== undefined) {
-          process.env['KIMI_API_KEY'] = saved;
-        }
-      }
+      const provider = new OpenAICompatChatProvider({ model: 'test' });
+      await expect(provider.generate('', [], [])).rejects.toThrow(/options\.auth\.apiKey/);
     });
 
     it('passes request-scoped auth to the client factory', async () => {
@@ -732,11 +724,11 @@ describe('KimiChatProvider', () => {
       const client = {
         chat: {
           completions: {
-            create: vi.fn().mockResolvedValue(makeChatCompletionResponse('kimi-k2')),
+            create: vi.fn().mockResolvedValue(makeChatCompletionResponse('byf-k2')),
           },
         },
       };
-      const provider = new KimiChatProvider({
+      const provider = new OpenAICompatChatProvider({
         model: 'test',
         stream: false,
         clientFactory: (auth) => {
@@ -759,14 +751,14 @@ describe('KimiChatProvider', () => {
     it('withThinking returns a new instance', () => {
       const provider = createProvider();
       const newProvider = provider.withThinking('high');
-      expect(newProvider).toBeInstanceOf(KimiChatProvider);
+      expect(newProvider).toBeInstanceOf(OpenAICompatChatProvider);
       expect(newProvider).not.toBe(provider);
     });
 
     it('withGenerationKwargs returns a new instance', () => {
       const provider = createProvider();
       const newProvider = provider.withGenerationKwargs({ temperature: 0.5 });
-      expect(newProvider).toBeInstanceOf(KimiChatProvider);
+      expect(newProvider).toBeInstanceOf(OpenAICompatChatProvider);
       expect(newProvider).not.toBe(provider);
     });
 
@@ -785,7 +777,7 @@ describe('KimiChatProvider', () => {
     // that replaces `clone._client` and closes the previous one, the
     // original instance's `_client` would become a dangling reference to
     // a closed socket. Lock in the invariant here.
-    function getInternalClient(provider: KimiChatProvider): unknown {
+    function getInternalClient(provider: OpenAICompatChatProvider): unknown {
       return Reflect.get(provider, '_client');
     }
 
@@ -887,10 +879,10 @@ describe('KimiChatProvider', () => {
       opts?: { finishReason?: string; usage?: boolean },
     ): Record<string, unknown> {
       const chunk: Record<string, unknown> = {
-        id: 'chatcmpl-kimi-stream',
+        id: 'chatcmpl-byf-stream',
         object: 'chat.completion.chunk',
         created: 1234567890,
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         choices: [
           {
             index: 0,
@@ -1183,7 +1175,7 @@ describe('KimiChatProvider', () => {
       const provider = createProvider().withGenerationKwargs({ temperature: 0.5 });
       const params = provider.modelParameters;
       expect(params).toMatchObject({
-        model: 'kimi-k2-turbo-preview',
+        model: 'byf-k2-turbo-preview',
         temperature: 0.5,
         baseUrl: expect.any(String),
       });
@@ -1370,12 +1362,12 @@ describe('extractUsageFromChunk', () => {
     expect(usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   });
 
-  it('extracts choices[0].usage (Moonshot proprietary)', () => {
+  it('extracts choices[0].usage (Byf proprietary)', () => {
     const chunk = {
       id: 'chatcmpl-6970b5d02fa474c1767e8767',
       object: 'chat.completion.chunk',
       created: 1768994256,
-      model: 'kimi-k2-turbo-preview',
+      model: 'byf-k2-turbo-preview',
       choices: [
         {
           index: 0,
@@ -1439,7 +1431,7 @@ describe('extractUsage', () => {
     });
   });
 
-  it('extracts usage with Moonshot cached_tokens', () => {
+  it('extracts usage with Byf cached_tokens', () => {
     const usage = extractUsage({
       prompt_tokens: 100,
       completion_tokens: 20,

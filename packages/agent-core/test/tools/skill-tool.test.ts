@@ -139,7 +139,7 @@ describe('SkillTool execution', () => {
     expect(methods.recordSkillActivation).toHaveBeenCalledTimes(1);
     expect(methods.recordSystemReminder).toHaveBeenCalledTimes(1);
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<kimi-skill-loaded name="commit" args="message text">\nbody of commit\n\nARGUMENTS: message text\n</kimi-skill-loaded>',
+      '<byf-skill-loaded name="commit" args="message text">\nbody of commit\n\nARGUMENTS: message text\n</byf-skill-loaded>',
     );
   });
 
@@ -159,7 +159,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'commit', args: '-m "fix login"' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<kimi-skill-loaded name="commit" args="-m &quot;fix login&quot;">\nFlag: -m\nCommit message: fix login\nRaw: -m "fix login"\n</kimi-skill-loaded>',
+      '<byf-skill-loaded name="commit" args="-m &quot;fix login&quot;">\nFlag: -m\nCommit message: fix login\nRaw: -m "fix login"\n</byf-skill-loaded>',
     );
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).not.toContain('ARGUMENTS:');
   });
@@ -167,7 +167,7 @@ describe('SkillTool execution', () => {
   it('expands session id from the skill registry for model-invoked skills', async () => {
     const methods = skillToolMethods();
     const tool = skillTool(
-      registry([skill('session-aware', {}, 'Session: ${KIMI_SESSION_ID}')], {
+      registry([skill('session-aware', {}, 'Session: ${BYF_SESSION_ID}')], {
         sessionId: 'ses_model_skill',
       }),
       methods,
@@ -176,7 +176,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'session-aware' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<kimi-skill-loaded name="session-aware" args="">\nSession: ses_model_skill\n</kimi-skill-loaded>',
+      '<byf-skill-loaded name="session-aware" args="">\nSession: ses_model_skill\n</byf-skill-loaded>',
     );
   });
 
@@ -209,7 +209,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'a&b', args: '<raw "value">' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<kimi-skill-loaded name="a&amp;b" args="&lt;raw &quot;value&quot;&gt;">\nbody of a&b\n\nARGUMENTS: <raw "value">\n</kimi-skill-loaded>',
+      '<byf-skill-loaded name="a&amp;b" args="&lt;raw &quot;value&quot;&gt;">\nbody of a&b\n\nARGUMENTS: <raw "value">\n</byf-skill-loaded>',
     );
     expect(methods.recordSkillActivation).toHaveBeenCalledTimes(1);
   });

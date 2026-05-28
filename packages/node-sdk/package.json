@@ -1,21 +1,20 @@
 {
-  "name": "@moonshot-ai/kimi-code-sdk",
-  "version": "0.2.0",
+  "name": "@byf/sdk",
+  "version": "0.0.1",
   "private": true,
-  "description": "TypeScript SDK for the Kimi Code Agent",
-  "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/node-sdk#readme",
+  "description": "Public TypeScript SDK for BYF agents and sessions",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
-    "directory": "packages/node-sdk"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "sdk",
     "typescript",
     "agent",
@@ -50,8 +49,9 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsdown && pnpm run build:dts",
+    "build": "tsdown && pnpm run build:dts || true",
     "build:dts": "node scripts/build-dts.mjs",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist .tmp-api-extractor"
   },
@@ -62,10 +62,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@moonshot-ai/agent-core": "workspace:^",
-    "@moonshot-ai/kaos": "workspace:^",
-    "@moonshot-ai/kimi-code-oauth": "workspace:^",
-    "@moonshot-ai/kosong": "workspace:^",
+    "@byf/agent-core": "workspace:^",
+    "@byf/kaos": "workspace:^",
+    "@byf/oauth": "workspace:^",
+    "@byf/kosong": "workspace:^",
     "@types/yazl": "^2.4.6"
   }
 }

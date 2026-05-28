@@ -17,9 +17,9 @@ afterEach(async () => {
 describe('skill discovery', () => {
   it('resolves documented roots in precedence order with brand merging enabled by default', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    await mkdir(path.join(repoDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(repoDir, '.byf', 'skills'), { recursive: true });
     await mkdir(path.join(repoDir, '.agents', 'skills'), { recursive: true });
-    await mkdir(path.join(homeDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
     await mkdir(path.join(homeDir, '.agents', 'skills'), { recursive: true });
     await mkdir(path.join(repoDir, 'team-skills'), { recursive: true });
     const realRepoDir = await realpath(repoDir);
@@ -30,9 +30,9 @@ describe('skill discovery', () => {
     });
 
     expect(roots.map((root) => path.relative(realRepoDir, root.path))).toEqual([
-      '.kimi-code/skills',
+      '.byf/skills',
       '.agents/skills',
-      path.relative(realRepoDir, await realpath(path.join(homeDir, '.kimi-code', 'skills'))),
+      path.relative(realRepoDir, await realpath(path.join(homeDir, '.byf', 'skills'))),
       path.relative(realRepoDir, await realpath(path.join(homeDir, '.agents', 'skills'))),
       'team-skills',
     ]);
@@ -47,8 +47,8 @@ describe('skill discovery', () => {
 
   it('uses only the first brand directory when brand merging is disabled', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    await mkdir(path.join(repoDir, '.kimi-code', 'skills'), { recursive: true });
-    await mkdir(path.join(homeDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(repoDir, '.byf', 'skills'), { recursive: true });
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
 
     const roots = await resolveSkillRoots({
       paths: { userHomeDir: homeDir, workDir },
@@ -56,15 +56,15 @@ describe('skill discovery', () => {
     });
 
     expect(roots.map((root) => root.path)).toEqual([
-      await realpath(path.join(repoDir, '.kimi-code', 'skills')),
-      await realpath(path.join(homeDir, '.kimi-code', 'skills')),
+      await realpath(path.join(repoDir, '.byf', 'skills')),
+      await realpath(path.join(homeDir, '.byf', 'skills')),
     ]);
   });
 
   it('lets explicit skill dirs replace automatic project and user discovery', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    await mkdir(path.join(repoDir, '.kimi-code', 'skills'), { recursive: true });
-    await mkdir(path.join(homeDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(repoDir, '.byf', 'skills'), { recursive: true });
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
     await mkdir(path.join(repoDir, 'explicit-skills'), { recursive: true });
     await mkdir(path.join(repoDir, 'extra-skills'), { recursive: true });
 
@@ -83,8 +83,8 @@ describe('skill discovery', () => {
 
   it('discovers flat markdown skills, keeps directory skills over same-name flat files, and preserves source precedence', async () => {
     const { homeDir, repoDir } = await makeWorkspace();
-    const projectRoot = path.join(repoDir, '.kimi-code', 'skills');
-    const userRoot = path.join(homeDir, '.kimi-code', 'skills');
+    const projectRoot = path.join(repoDir, '.byf', 'skills');
+    const userRoot = path.join(homeDir, '.byf', 'skills');
     await writeSkill(projectRoot, 'review.md', ['Project review body first line.', '', 'Details.']);
     await writeSkill(userRoot, path.join('review', 'SKILL.md'), [
       '---',
@@ -123,7 +123,7 @@ describe('skill discovery', () => {
 
   it('keeps flow skills user-visible while excluding them from model invocation', async () => {
     const { repoDir } = await makeWorkspace();
-    const projectRoot = path.join(repoDir, '.kimi-code', 'skills');
+    const projectRoot = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projectRoot, path.join('review-flow', 'SKILL.md'), [
       '---',
       'name: review-flow',
@@ -146,7 +146,7 @@ describe('skill discovery', () => {
 
   it('skips directory skills with missing frontmatter metadata', async () => {
     const { repoDir } = await makeWorkspace();
-    const projectRoot = path.join(repoDir, '.kimi-code', 'skills');
+    const projectRoot = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projectRoot, path.join('valid', 'SKILL.md'), [
       '---',
       'name: valid',
@@ -192,7 +192,7 @@ describe('skill discovery', () => {
 describe('discoverSkills shape and ordering', () => {
   it('parses frontmatter name/description for subdir skills', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('alpha', 'SKILL.md'), [
       '---',
       'name: alpha-skill',
@@ -239,7 +239,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('does not register a top-level SKILL.md as a flat skill', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await mkdir(root, { recursive: true });
     await writeFile(
       path.join(root, 'SKILL.md'),
@@ -253,7 +253,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('lists flat skills with frontmatter name and description', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await mkdir(root, { recursive: true });
     await writeFile(
       path.join(root, 'demo-ui-components.md'),
@@ -269,7 +269,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('discovers both flat and subdir skills alongside in the same root', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('subdir-skill', 'SKILL.md'), [
       '---',
       'name: subdir-skill',
@@ -288,7 +288,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('prefers the subdir version when a flat and subdir skill share a name', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('greet', 'SKILL.md'), [
       '---',
       'name: greet',
@@ -308,7 +308,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('discovers skills nested in subdirectories at multiple depths', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('top', 'SKILL.md'), [
       '---',
       'name: top',
@@ -337,7 +337,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('does not descend into a skill bundle subdirectory', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('outer', 'SKILL.md'), [
       '---',
       'name: outer',
@@ -358,7 +358,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('skips node_modules when scanning nested directories', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('real', 'SKILL.md'), [
       '---',
       'name: real',
@@ -379,7 +379,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('stops recursing past the maximum scan depth', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('shallow', 'SKILL.md'), [
       '---',
       'name: shallow',
@@ -401,7 +401,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('prefers a shallower skill over a deeper one with the same name', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     await writeSkill(root, path.join('dup', 'SKILL.md'), [
       '---',
       'name: dup',
@@ -423,7 +423,7 @@ describe('discoverSkills shape and ordering', () => {
 
   it('resolves a same-name collision across sibling directories deterministically', async () => {
     const { repoDir } = await makeWorkspace();
-    const root = path.join(repoDir, '.kimi-code', 'skills');
+    const root = path.join(repoDir, '.byf', 'skills');
     // Created out of alphabetical order so the result cannot depend on
     // filesystem readdir order; the alphabetically-first sibling must win.
     await writeSkill(root, path.join('group-b', 'dup', 'SKILL.md'), [
@@ -508,7 +508,7 @@ describe('resolveSkillRoots ordering and priority', () => {
       'description: generic version',
       '---',
     ]);
-    const brand = path.join(homeDir, '.kimi-code', 'skills');
+    const brand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(brand, path.join('greet', 'SKILL.md'), [
       '---',
       'name: greet',
@@ -525,9 +525,9 @@ describe('resolveSkillRoots ordering and priority', () => {
 
   it('returns proj-brand, proj-generic, user-brand, user-generic, builtin in that order without merging', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     const userGeneric = path.join(homeDir, '.agents', 'skills');
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     const projGeneric = path.join(repoDir, '.agents', 'skills');
     const builtin = path.join(repoDir, 'builtin');
     for (const d of [userBrand, userGeneric, projBrand, projGeneric, builtin]) {
@@ -553,7 +553,7 @@ describe('resolveSkillRoots ordering and priority', () => {
     const { homeDir, workDir } = await makeWorkspace();
     const generic = path.join(homeDir, '.config', 'agents', 'skills');
     await mkdir(generic, { recursive: true });
-    const brand = path.join(homeDir, '.kimi-code', 'skills');
+    const brand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(brand, path.join('deploy', 'SKILL.md'), [
       '---',
       'name: deploy',
@@ -569,12 +569,12 @@ describe('resolveSkillRoots ordering and priority', () => {
 
   it('defaults to merging user brand dirs', async () => {
     const { homeDir, workDir } = await makeWorkspace();
-    await mkdir(path.join(homeDir, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
 
     const roots = await resolveSkillRoots({ paths: { userHomeDir: homeDir, workDir } });
 
     const paths = roots.map((r) => r.path);
-    expect(paths).toContain(await realpath(path.join(homeDir, '.kimi-code', 'skills')));
+    expect(paths).toContain(await realpath(path.join(homeDir, '.byf', 'skills')));
   });
 });
 
@@ -687,9 +687,9 @@ describe('resolveSkillRoots extra dirs', () => {
 
   it('combines explicit dirs with extra dirs and suppresses auto-discovery', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await mkdir(userBrand, { recursive: true });
-    const projectBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projectBrand = path.join(repoDir, '.byf', 'skills');
     await mkdir(projectBrand, { recursive: true });
     const cli = path.join(repoDir, 'cli');
     await mkdir(cli, { recursive: true });
@@ -777,7 +777,7 @@ describe('resolveSkillRoots extra dirs', () => {
 
   it('keeps the higher-priority scope when an extra dir overlaps with auto-discovered user dirs', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -808,7 +808,7 @@ describe('scope priority across resolution and discovery', () => {
       'description: builtin version',
       '---',
     ]);
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -829,14 +829,14 @@ describe('scope priority across resolution and discovery', () => {
 
   it('lets a project-scope skill win over a same-named user-scope skill', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
       'description: user version',
       '---',
     ]);
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -861,7 +861,7 @@ describe('scope priority across resolution and discovery', () => {
       'description: builtin version',
       '---',
     ]);
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -911,7 +911,7 @@ describe('scope priority across resolution and discovery', () => {
 
   it('lets a user-scope skill win over a same-named extra-scope skill', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -939,14 +939,14 @@ describe('scope priority across resolution and discovery', () => {
 
   it('fully excludes user and project scopes when explicit dirs are supplied', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
       'description: user version',
       '---',
     ]);
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -981,14 +981,14 @@ describe('scope priority across resolution and discovery', () => {
       'description: builtin version',
       '---',
     ]);
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
       'description: user version',
       '---',
     ]);
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projBrand, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
@@ -1041,9 +1041,9 @@ describe('scope priority across resolution and discovery', () => {
 describe('explicit dir override and scope stamping', () => {
   it('suppresses user and project auto-discovery when explicit dirs are present', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await mkdir(userBrand, { recursive: true });
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await mkdir(projBrand, { recursive: true });
     const extraA = path.join(repoDir, 'extra_a');
     const extraB = path.join(repoDir, 'extra_b');
@@ -1070,7 +1070,7 @@ describe('explicit dir override and scope stamping', () => {
     const { homeDir, workDir } = await makeWorkspace();
     const generic = path.join(homeDir, '.agents', 'skills');
     await mkdir(generic, { recursive: true });
-    const brand = path.join(homeDir, '.kimi-code', 'skills');
+    const brand = path.join(homeDir, '.byf', 'skills');
     await mkdir(brand, { recursive: true });
 
     const roots = await resolveSkillRoots({ paths: { userHomeDir: homeDir, workDir } });
@@ -1085,14 +1085,14 @@ describe('explicit dir override and scope stamping', () => {
 
   it('stamps each discovered skill with the scope of its root', async () => {
     const { homeDir, repoDir, workDir } = await makeWorkspace();
-    const userBrand = path.join(homeDir, '.kimi-code', 'skills');
+    const userBrand = path.join(homeDir, '.byf', 'skills');
     await writeSkill(userBrand, path.join('user-skill', 'SKILL.md'), [
       '---',
       'name: user-skill',
       'description: u',
       '---',
     ]);
-    const projBrand = path.join(repoDir, '.kimi-code', 'skills');
+    const projBrand = path.join(repoDir, '.byf', 'skills');
     await writeSkill(projBrand, path.join('proj-skill', 'SKILL.md'), [
       '---',
       'name: proj-skill',
@@ -1114,7 +1114,7 @@ async function makeWorkspace(): Promise<{
   readonly repoDir: string;
   readonly workDir: string;
 }> {
-  const tmp = await mkdtemp(path.join(tmpdir(), 'kimi-skill-scanner-'));
+  const tmp = await mkdtemp(path.join(tmpdir(), 'byf-skill-scanner-'));
   tempDirs.push(tmp);
   const homeDir = path.join(tmp, 'home');
   const repoDir = path.join(tmp, 'repo');
@@ -1127,11 +1127,11 @@ async function makeWorkspace(): Promise<{
 describe('project root discovery (.git walk-up)', () => {
   it('walks up to the nearest .git ancestor for project-scope discovery', async () => {
     const { homeDir } = await makeWorkspace();
-    const repo = await mkdtemp(path.join(tmpdir(), 'kimi-skill-walkup-'));
+    const repo = await mkdtemp(path.join(tmpdir(), 'byf-skill-walkup-'));
     tempDirs.push(repo);
     await mkdir(path.join(repo, '.git'), { recursive: true });
-    const repoKimi = path.join(repo, '.kimi-code', 'skills');
-    await writeSkill(repoKimi, path.join('foo', 'SKILL.md'), [
+    const repoByf = path.join(repo, '.byf', 'skills');
+    await writeSkill(repoByf, path.join('foo', 'SKILL.md'), [
       '---',
       'name: foo',
       'description: repo-root foo',
@@ -1145,15 +1145,15 @@ describe('project root discovery (.git walk-up)', () => {
     });
     const projectPaths = roots.filter((r) => r.source === 'project').map((r) => r.path);
 
-    expect(projectPaths).toContain(await realpath(repoKimi));
+    expect(projectPaths).toContain(await realpath(repoByf));
   });
 
   it('falls back to the work dir when no .git marker is found anywhere up the chain', async () => {
     const { homeDir } = await makeWorkspace();
-    const noGitTmp = await mkdtemp(path.join(tmpdir(), 'kimi-skill-nogit-'));
+    const noGitTmp = await mkdtemp(path.join(tmpdir(), 'byf-skill-nogit-'));
     tempDirs.push(noGitTmp);
     const project = path.join(noGitTmp, 'project');
-    await mkdir(path.join(project, '.kimi-code', 'skills'), { recursive: true });
+    await mkdir(path.join(project, '.byf', 'skills'), { recursive: true });
     const workDir = path.join(project, 'foo');
     await mkdir(workDir, { recursive: true });
 
@@ -1162,7 +1162,7 @@ describe('project root discovery (.git walk-up)', () => {
     });
     const projectPaths = roots.filter((r) => r.source === 'project').map((r) => r.path);
 
-    expect(projectPaths.some((p) => p.includes(path.join('project', '.kimi-code', 'skills')))).toBe(false);
+    expect(projectPaths.some((p) => p.includes(path.join('project', '.byf', 'skills')))).toBe(false);
   });
 });
 

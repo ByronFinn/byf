@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { localKaos } from '@moonshot-ai/kaos';
-import type { ProviderConfig } from '@moonshot-ai/kosong';
+import { localKaos } from '@byf/kaos';
+import type { ProviderConfig } from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderManager } from '../../src/providers/provider-manager';
@@ -16,7 +16,7 @@ import { createScriptedGenerate } from '../agent/harness/scripted-generate';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 
 const MOCK_PROVIDER = {
-  type: 'kimi',
+  type: 'openai-compat',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const satisfies ProviderConfig;
@@ -181,7 +181,7 @@ describe('Session.init', () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-core-init-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-core-init-'));
   tempDirs.push(dir);
   return dir;
 }

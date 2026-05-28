@@ -1,19 +1,32 @@
 {
-  "name": "@moonshot-ai/vis",
-  "version": "0.1.1",
+  "name": "@byf/vis",
+  "version": "0.0.1",
   "private": true,
-  "description": "Debug visualization tool for kimi-code sessions",
-  "license": "MIT",
+  "description": "Visual debugging tools for BYF sessions and replays",
+  "license": "Proprietary",
   "type": "module",
   "scripts": {
-    "build:deps": "pnpm --filter @moonshot-ai/agent-core... build",
+    "build:deps": "pnpm --filter @byf/agent-core... build",
     "predev": "pnpm run build:deps",
     "dev": "node scripts/dev.mjs",
-    "build": "pnpm run build:deps && pnpm --filter @moonshot-ai/vis-server build && pnpm --filter @moonshot-ai/vis-web build && node scripts/copy-web-dist.mjs",
+    "build": "pnpm run build:deps && pnpm --filter @byf/vis-server build && pnpm --filter @byf/vis-web build && node scripts/copy-web-dist.mjs",
     "prestart": "pnpm run build",
     "start": "node server/dist/server.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
-  }
+  },
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
+  "keywords": [
+    "byf",
+    "visualizer",
+    "debugging",
+    "sessions",
+    "replay"
+  ]
 }

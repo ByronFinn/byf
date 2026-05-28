@@ -11,7 +11,7 @@ import {
   WebSearchTool,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
-import { MoonshotWebSearchProvider } from '../../src/tools/providers/moonshot-web-search';
+import { RemoteWebSearchProvider } from '../../src/tools/providers/remote-web-search';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
@@ -175,7 +175,7 @@ describe('WebSearchTool', () => {
       search: vi
         .fn()
         .mockRejectedValue(
-          new Error('Moonshot search request failed: HTTP 401 (auth/unauthorized).'),
+          new Error('Byf search request failed: HTTP 401 (auth/unauthorized).'),
         ),
     };
     const tool = new WebSearchTool(provider);
@@ -265,13 +265,13 @@ describe('WebSearchTool', () => {
   });
 });
 
-describe('MoonshotWebSearchProvider', () => {
+describe('RemoteWebSearchProvider', () => {
   it('does not force-refresh request auth after a 401 response', async () => {
     const getAccessToken = vi.fn().mockResolvedValue('fresh-token');
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response('unauthorized', { status: 401 }));
-    const provider = new MoonshotWebSearchProvider({
+    const provider = new RemoteWebSearchProvider({
       tokenProvider: { getAccessToken },
       baseUrl: 'https://search.example/v1',
       fetchImpl,

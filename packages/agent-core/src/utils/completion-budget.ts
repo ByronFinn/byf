@@ -3,7 +3,7 @@ import type {
   Message,
   ModelCapability,
   Tool,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import {
   estimateTokens,
@@ -34,11 +34,11 @@ export function resolveCompletionBudget(args: {
   readonly env?: NodeJS.ProcessEnv;
 }): CompletionBudgetConfig | undefined {
   const env = args.env ?? process.env;
-  const fromNew = parseEnvBudget(env['KIMI_MODEL_MAX_COMPLETION_TOKENS']);
+  const fromNew = parseEnvBudget(env['BYF_MODEL_MAX_COMPLETION_TOKENS']);
   if (fromNew !== 'absent') {
     return fromNew === 'disabled' ? undefined : { hardCap: fromNew };
   }
-  const fromLegacy = parseEnvBudget(env['KIMI_MODEL_MAX_TOKENS']);
+  const fromLegacy = parseEnvBudget(env['BYF_MODEL_MAX_TOKENS']);
   if (fromLegacy !== 'absent') {
     return fromLegacy === 'disabled' ? undefined : { hardCap: fromLegacy };
   }
@@ -99,7 +99,7 @@ export function computeCompletionBudgetCap(args: {
  * The returned provider is intentionally a shallow clone that shares the
  * original's HTTP client. Callers MUST treat it as a single-step value
  * and NOT persist it back to durable agent state — see the F3 discussion
- * in `KimiChatProvider._clone()`.
+ * in `OpenAICompatChatProvider._clone()`.
  */
 export function applyCompletionBudget(args: {
   readonly provider: ChatProvider;

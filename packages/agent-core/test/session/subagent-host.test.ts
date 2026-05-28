@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { localKaos } from '@moonshot-ai/kaos';
-import type { ToolCall } from '@moonshot-ai/kosong';
+import { localKaos } from '@byf/kaos';
+import type { ToolCall } from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -594,7 +594,7 @@ describe('SessionSubagentHost', () => {
 
     const session = fakeSession(parent.agent, child.agent, {
       'agent-0': {
-        homedir: '/tmp/kimi-session/agents/agent-0',
+        homedir: '/tmp/byf-session/agents/agent-0',
         type: 'sub',
         parentAgentId: 'main',
       },
@@ -660,7 +660,7 @@ describe('SessionSubagentHost', () => {
 
     const session = fakeSession(parent.agent, child.agent, {
       'agent-0': {
-        homedir: '/tmp/kimi-session/agents/agent-0',
+        homedir: '/tmp/byf-session/agents/agent-0',
         type: 'sub',
         parentAgentId: 'main',
       },
@@ -685,7 +685,7 @@ describe('SessionSubagentHost', () => {
 
 describe('Session resume permission parent chain', () => {
   it('restores subagent live-derived permission when metadata lists the child first', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'kimi-permission-chain-'));
+    const dir = await mkdtemp(join(tmpdir(), 'byf-permission-chain-'));
     tempDirs.push(dir);
     const sessionDir = join(dir, 'session');
     const workDir = join(dir, 'work');
@@ -807,7 +807,7 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
@@ -832,7 +832,7 @@ describe('Session.createAgent', () => {
             '/repo/packages',
             workDir,
             `${workDir}/src`,
-            `${workDir}/.kimi-code`,
+            `${workDir}/.byf`,
           ].includes(path)
         ) {
           return stat('dir');
@@ -840,7 +840,7 @@ describe('Session.createAgent', () => {
         if (
           [
             '/repo/AGENTS.md',
-            `${workDir}/.kimi-code/AGENTS.md`,
+            `${workDir}/.byf/AGENTS.md`,
             `${workDir}/AGENTS.md`,
             `${workDir}/package.json`,
             `${workDir}/src/index.ts`,
@@ -864,7 +864,7 @@ describe('Session.createAgent', () => {
       },
       readText: vi.fn(async (path: string) => {
         if (path === '/repo/AGENTS.md') return 'root instructions';
-        if (path === `${workDir}/.kimi-code/AGENTS.md`) return 'brand instructions';
+        if (path === `${workDir}/.byf/AGENTS.md`) return 'brand instructions';
         if (path === `${workDir}/AGENTS.md`) return 'leaf instructions';
         throw new Error(`ENOENT ${path}`);
       }),
@@ -881,7 +881,7 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       cwd: workDir,
       rpc: createSessionRpc(),
       initializeMainAgent: false,
@@ -896,7 +896,7 @@ describe('Session.createAgent', () => {
     expect(created.agent.config.systemPrompt).toContain('<!-- From: /repo/AGENTS.md -->');
     expect(created.agent.config.systemPrompt).toContain('root instructions');
     expect(created.agent.config.systemPrompt).toContain(
-      '<!-- From: /repo/packages/app/.kimi-code/AGENTS.md -->',
+      '<!-- From: /repo/packages/app/.byf/AGENTS.md -->',
     );
     expect(created.agent.config.systemPrompt).toContain('brand instructions');
     expect(created.agent.config.systemPrompt).toContain(
@@ -921,12 +921,12 @@ describe('Session.createAgent', () => {
           shellName: 'bash',
         },
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
     session.metadata.agents['agent-0'] = {
-      homedir: '/tmp/kimi-session/agents/agent-0',
+      homedir: '/tmp/byf-session/agents/agent-0',
       type: 'sub',
       parentAgentId: null,
     };
@@ -936,7 +936,7 @@ describe('Session.createAgent', () => {
     expect(created.id).toBe('agent-1');
     expect(session.agents.get('agent-1')).toBe(created.agent);
     expect(session.metadata.agents['agent-1']).toMatchObject({
-      homedir: '/tmp/kimi-session/agents/agent-1',
+      homedir: '/tmp/byf-session/agents/agent-1',
       type: 'sub',
     });
   });
@@ -950,7 +950,7 @@ describe('Session.createAgent', () => {
         }),
         osEnv: TEST_OS_ENV,
       },
-      homedir: '/tmp/kimi-session',
+      homedir: '/tmp/byf-session',
       rpc: createSessionRpc(),
       initializeMainAgent: false,
     });
@@ -991,7 +991,7 @@ function fakeSession(
       ) => {
         agents.set('agent-0', child);
         metadataAgents['agent-0'] = {
-          homedir: '/tmp/kimi-session/agents/agent-0',
+          homedir: '/tmp/byf-session/agents/agent-0',
           type: config.type ?? 'main',
           parentAgentId: parentAgentId ?? null,
         };

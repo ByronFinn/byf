@@ -138,11 +138,11 @@ describe('payload shapes', () => {
 
   it('accepts plain object as ctx', async () => {
     await getRootLogger().configure(defaultConfig());
-    log.info('hello', { sessionId: 'ses_x', model: 'kimi-k2' });
+    log.info('hello', { sessionId: 'ses_x', model: 'byf-k2' });
     await getRootLogger().flush();
     const text = await readGlobal();
     expect(text).toContain('sessionId=ses_x');
-    expect(text).toContain('model=kimi-k2');
+    expect(text).toContain('model=byf-k2');
   });
 
   it('bunyan-style: ctx with `error: Error` field hoists stack out', async () => {
@@ -203,12 +203,12 @@ describe('payload shapes', () => {
 describe('createChild', () => {
   it('binds ctx that travels with every entry', async () => {
     await getRootLogger().configure(defaultConfig());
-    const sessionLog = log.createChild({ sessionId: 'ses_a', model: 'kimi-k2' });
+    const sessionLog = log.createChild({ sessionId: 'ses_a', model: 'byf-k2' });
     sessionLog.info('first');
     sessionLog.warn('second', { extra: 'x' });
     await getRootLogger().flush();
     const text = await readGlobal();
-    expect(text).toMatch(/first.*sessionId=ses_a.*model=kimi-k2/);
+    expect(text).toMatch(/first.*sessionId=ses_a.*model=byf-k2/);
     expect(text).toMatch(/second.*extra=x.*sessionId=ses_a/);
   });
 
@@ -247,7 +247,7 @@ describe('session routing', () => {
       await handle.flush();
       await getRootLogger().flush();
       const global = await readGlobal();
-      const session = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const session = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       expect(global).toContain('hello');
       expect(session).toContain('hello');
       await handle.close();
@@ -262,7 +262,7 @@ describe('session routing', () => {
       await getRootLogger().configure(defaultConfig());
       const handle = getRootLogger().attachSession({ sessionId: 'ses_abc', sessionDir });
       const sessionLog = handle.logger.createChild({ agentId: 'main' });
-      sessionLog.info('llm config', { model: 'kimi-k2' });
+      sessionLog.info('llm config', { model: 'byf-k2' });
       sessionLog.info('llm request', { turn: 0, step: 1 });
       await handle.flush();
       await getRootLogger().flush();
@@ -271,7 +271,7 @@ describe('session routing', () => {
       expect(global).toMatch(/llm config.*sessionId=ses_abc/);
       expect(global).toMatch(/llm request.*sessionId=ses_abc/);
 
-      const session = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const session = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       expect(session).toMatch(/llm config.*sessionId=ses_abc/);
       expect(session).toMatch(/llm request(?!.*sessionId=ses_abc)/);
       expect(session).toMatch(/llm request(?!.*agentId=main)/);
@@ -291,7 +291,7 @@ describe('session routing', () => {
       await handle.flush();
       await getRootLogger().flush();
 
-      const session = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const session = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       expect(session).toMatch(/llm request.*agentId=agent-0/);
       expect(session).toMatch(/llm request(?!.*sessionId=ses_abc)/);
       await handle.close();
@@ -312,7 +312,7 @@ describe('session routing', () => {
       expect(global).toContain('bootstrap event');
       let sessionText = '';
       try {
-        sessionText = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+        sessionText = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       } catch {}
       expect(sessionText).not.toContain('bootstrap event');
       await handle.close();
@@ -337,8 +337,8 @@ describe('session routing', () => {
       log.info('ambiguous session id', { sessionId: 'ses_same' });
       await getRootLogger().flush();
 
-      const firstText = await readFile(join(firstDir, 'logs', 'kimi-code.log'), 'utf-8');
-      const secondText = await readFile(join(secondDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const firstText = await readFile(join(firstDir, 'logs', 'byf.log'), 'utf-8');
+      const secondText = await readFile(join(secondDir, 'logs', 'byf.log'), 'utf-8');
       expect(firstText).toContain('first only');
       expect(firstText).not.toContain('second only');
       expect(firstText).not.toContain('ambiguous session id');
@@ -372,7 +372,7 @@ describe('session routing', () => {
       second.logger.info('still routes after first close');
       await second.flush();
 
-      const text = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const text = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       expect(text).toContain('still routes after first close');
       await second.close();
     } finally {
@@ -400,7 +400,7 @@ describe('session routing', () => {
       second.logger.info('replacement still routes');
       await second.flush();
 
-      const secondText = await readFile(join(secondDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const secondText = await readFile(join(secondDir, 'logs', 'byf.log'), 'utf-8');
       expect(secondText).toContain('replacement still routes');
       await second.close();
     } finally {
@@ -420,7 +420,7 @@ describe('session routing', () => {
       await expect(getRootLogger().flushSession('ses_closing')).resolves.toBe(true);
       await closing;
 
-      const text = await readFile(join(sessionDir, 'logs', 'kimi-code.log'), 'utf-8');
+      const text = await readFile(join(sessionDir, 'logs', 'byf.log'), 'utf-8');
       expect(text).toContain('close flush marker');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });

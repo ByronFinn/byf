@@ -10,10 +10,10 @@ const providerClientShimPath = path.join(dtsRoot, 'provider-clients.d.ts');
 
 const packageDirs = new Set(['agent-core', 'kaos', 'kosong', 'node-sdk', 'oauth']);
 const workspacePackages = new Map([
-  ['@moonshot-ai/agent-core', 'agent-core'],
-  ['@moonshot-ai/kaos', 'kaos'],
-  ['@moonshot-ai/kimi-code-oauth', 'oauth'],
-  ['@moonshot-ai/kosong', 'kosong'],
+  ['@byf/agent-core', 'agent-core'],
+  ['@byf/kaos', 'kaos'],
+  ['@byf/oauth', 'oauth'],
+  ['@byf/kosong', 'kosong'],
 ]);
 
 try {
@@ -99,7 +99,7 @@ async function rewriteWorkspaceSpecifiers() {
           `import { GoogleGenAI as GenAIClient } from '${providerClientSpecifier}';`,
         );
       const updated = providerClientText.replaceAll(
-        /(["'])(#\/[^"']+|@moonshot-ai\/(?:agent-core|kaos|kimi-code-oauth|kosong)(?:\/[^"']+)?)\1/g,
+        /(["'])(#\/[^"']+|@byf\/(?:agent-core|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({
             currentFile: file,

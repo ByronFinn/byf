@@ -124,7 +124,7 @@ describe('EnterPlanModeTool', () => {
   });
 
   it('uses plan-file guidance when the host provides a plan file path', async () => {
-    const { agent } = makeAgent({ mode: 'yolo', planFilePath: '/tmp/kimi/plans/example.md' });
+    const { agent } = makeAgent({ mode: 'yolo', planFilePath: '/tmp/byf/plans/example.md' });
 
     const result = await executeTool(new EnterPlanModeTool(agent), {
       turnId: '0',
@@ -133,7 +133,7 @@ describe('EnterPlanModeTool', () => {
       signal,
     });
 
-    expect(result.output).toContain('Plan file: /tmp/kimi/plans/example.md');
+    expect(result.output).toContain('Plan file: /tmp/byf/plans/example.md');
     expect(result.output).toContain('Write the plan to the plan file');
   });
 

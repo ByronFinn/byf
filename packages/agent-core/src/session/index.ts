@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import type { Logger, SessionLogHandle } from '#/logging/types';
 import type { SDKSessionRPC } from '#/rpc';
@@ -41,7 +41,7 @@ export interface SessionConfig {
   readonly runtime: RuntimeConfig;
   readonly id?: string | undefined;
   readonly homedir: string;
-  readonly kimiHomeDir?: string;
+  readonly byfHomeDir?: string;
   readonly rpc: SDKSessionRPC;
   readonly cwd?: string;
   readonly initializeMainAgent?: boolean | undefined;
@@ -79,7 +79,7 @@ export interface SessionMeta {
   custom: Record<string, any>;
 }
 
-const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT';
+const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'BYF_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT';
 
 export class Session {
   readonly rpc: SDKSessionRPC;
@@ -124,7 +124,7 @@ export class Session {
     this.telemetry = config.telemetry ?? noopTelemetryClient;
     this.skills = new SkillRegistry({ sessionId: config.id });
     this.mcp = new McpConnectionManager({
-      oauthService: new McpOAuthService({ kimiHomeDir: config.kimiHomeDir }),
+      oauthService: new McpOAuthService({ byfHomeDir: config.byfHomeDir }),
       log: this.log,
     });
     this.mcp.onStatusChange((entry) => {
@@ -271,7 +271,7 @@ export class Session {
       });
       await mainAgent.records.flush();
     } catch (error) {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.SESSION_INIT_FAILED,
         error instanceof Error ? error.message : 'Init failed',
         { cause: error },
@@ -447,7 +447,7 @@ export class Session {
     const existing = this.agents.get(id);
     if (existing !== undefined) return existing;
     if (stack.includes(id)) {
-      throw new KimiError(
+      throw new ByfError(
         ErrorCodes.SESSION_STATE_INVALID,
         `Session agent parent chain contains a cycle: ${[...stack, id].join(' -> ')}`,
       );
@@ -455,7 +455,7 @@ export class Session {
 
     const meta = agents[id];
     if (meta === undefined) {
-      throw new KimiError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
+      throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
     }
 
     const parentAgentId = meta.parentAgentId ?? null;
@@ -480,7 +480,7 @@ export class Session {
   private requireMainAgent(): Agent {
     const agent = this.agents.get('main');
     if (agent === undefined) {
-      throw new KimiError(ErrorCodes.AGENT_NOT_FOUND, 'Main agent was not found');
+      throw new ByfError(ErrorCodes.AGENT_NOT_FOUND, 'Main agent was not found');
     }
     return agent;
   }

@@ -1,15 +1,15 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type * as KosongModule from '@moonshot-ai/kosong';
+import type * as KosongModule from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { KimiError, Event } from '#/index';
+import type { ByfError, Event } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForSDKEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
-vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
+vi.mock('@byf/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,
@@ -33,7 +33,7 @@ vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
   };
 });
 
-const { KimiHarness } = await import('#/index');
+const { ByfHarness } = await import('#/index');
 
 const tempDirs: string[] = [];
 
@@ -43,10 +43,10 @@ afterEach(async () => {
 
 describe('Session.cancel', () => {
   it('cancels an active streaming turn and emits turn_ended(cancelled)', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-work-');
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-work-');
     await writeFakeModelConfig(homeDir);
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_cancel_active_turn', workDir });
@@ -81,10 +81,10 @@ describe('Session.cancel', () => {
   });
 
   it('cancels an active manual compaction and emits compaction.cancelled', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-compact-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-compact-work-');
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-compact-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-compact-work-');
     await writeFakeModelConfig(homeDir);
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_cancel_compaction', workDir });
@@ -109,22 +109,22 @@ describe('Session.cancel', () => {
   });
 
   it('rejects after the session is closed', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-cancel-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-cancel-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_cancel_closed', workDir });
       await session.close();
 
       await expect(session.cancel()).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
       await expect(session.cancelCompaction()).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
@@ -138,7 +138,7 @@ async function writeFakeModelConfig(homeDir: string): Promise<void> {
 default_model = "fake-model"
 
 [providers.local]
-type = "kimi"
+type = "openai-compat"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 

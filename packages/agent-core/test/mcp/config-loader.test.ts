@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, ByfError } from '../../src/errors';
 import { loadMcpServers, resolveMcpJsonPaths } from '../../src/mcp/config-loader';
 
 const tempDirs: string[] = [];
@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-mcp-loader-'));
+  const dir = mkdtempSync(join(tmpdir(), 'byf-mcp-loader-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -29,9 +29,9 @@ async function writeJson(path: string, value: unknown): Promise<void> {
 
 describe('resolveMcpJsonPaths', () => {
   it('returns the canonical user and project paths', () => {
-    const paths = resolveMcpJsonPaths({ cwd: '/work/proj', homeDir: '/home/user/.kimi-code' });
-    expect(paths.user).toBe('/home/user/.kimi-code/mcp.json');
-    expect(paths.project).toBe('/work/proj/.kimi-code/mcp.json');
+    const paths = resolveMcpJsonPaths({ cwd: '/work/proj', homeDir: '/home/user/.byf' });
+    expect(paths.user).toBe('/home/user/.byf/mcp.json');
+    expect(paths.project).toBe('/work/proj/.byf/mcp.json');
   });
 });
 
@@ -61,7 +61,7 @@ describe('loadMcpServers', () => {
         userOnly: { transport: 'stdio', command: 'user-only' },
       },
     });
-    await writeJson(join(cwd, '.kimi-code', 'mcp.json'), {
+    await writeJson(join(cwd, '.byf', 'mcp.json'), {
       mcpServers: {
         shared: { transport: 'stdio', command: 'shared-project' },
         local: { transport: 'http', url: 'http://localhost:8080/mcp' },
@@ -85,17 +85,17 @@ describe('loadMcpServers', () => {
     });
   });
 
-  it('throws KimiError(config.invalid) on invalid JSON', async () => {
+  it('throws ByfError(config.invalid) on invalid JSON', async () => {
     const home = makeTempDir();
     const cwd = makeTempDir();
     await writeFile(join(home, 'mcp.json'), '{not json}', 'utf-8');
-    await expect(loadMcpServers({ cwd, homeDir: home })).rejects.toBeInstanceOf(KimiError);
+    await expect(loadMcpServers({ cwd, homeDir: home })).rejects.toBeInstanceOf(ByfError);
     await expect(loadMcpServers({ cwd, homeDir: home })).rejects.toMatchObject({
       code: ErrorCodes.CONFIG_INVALID,
     });
   });
 
-  it('throws KimiError(config.invalid) on schema violation (unknown transport)', async () => {
+  it('throws ByfError(config.invalid) on schema violation (unknown transport)', async () => {
     const home = makeTempDir();
     const cwd = makeTempDir();
     await writeJson(join(home, 'mcp.json'), {
@@ -106,7 +106,7 @@ describe('loadMcpServers', () => {
     });
   });
 
-  it('throws KimiError(config.invalid) on schema violation (missing required field)', async () => {
+  it('throws ByfError(config.invalid) on schema violation (missing required field)', async () => {
     const home = makeTempDir();
     const cwd = makeTempDir();
     await writeJson(join(home, 'mcp.json'), {
@@ -148,20 +148,20 @@ describe('loadMcpServers', () => {
     });
   });
 
-  it('honors KIMI_CODE_HOME env var when homeDir is not supplied', async () => {
+  it('honors BYF_HOME env var when homeDir is not supplied', async () => {
     const home = makeTempDir();
     const cwd = makeTempDir();
     await writeJson(join(home, 'mcp.json'), {
       mcpServers: { from_env: { transport: 'stdio', command: 'env-cmd' } },
     });
-    const saved = process.env['KIMI_CODE_HOME'];
-    process.env['KIMI_CODE_HOME'] = home;
+    const saved = process.env['BYF_HOME'];
+    process.env['BYF_HOME'] = home;
     try {
       const servers = await loadMcpServers({ cwd });
       expect(servers['from_env']).toEqual({ transport: 'stdio', command: 'env-cmd' });
     } finally {
-      if (saved === undefined) delete process.env['KIMI_CODE_HOME'];
-      else process.env['KIMI_CODE_HOME'] = saved;
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
     }
   });
 });

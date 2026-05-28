@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@byf/kosong';
 
 // Dynamic-import contract: locks the public shape of the future HookEngine
 // without forcing TS module resolution to find a file that doesn't exist yet.

@@ -1,7 +1,7 @@
-import type * as KosongModule from '@moonshot-ai/kosong';
+import type * as KosongModule from '@byf/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { KimiError } from '#/index';
+import type { ByfError } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
@@ -10,7 +10,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'steer response',
 }));
 
-vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
+vi.mock('@byf/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,
@@ -41,7 +41,7 @@ vi.mock('@moonshot-ai/kosong', async (importOriginal) => {
   };
 });
 
-const { KimiHarness } = await import('#/index');
+const { ByfHarness } = await import('#/index');
 
 const tempDirs: string[] = [];
 
@@ -55,9 +55,9 @@ afterEach(async () => {
 
 describe('Session.steer', () => {
   it('sends turn.steer to the core session runtime', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-steer-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-steer-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_wire', workDir });
@@ -78,35 +78,35 @@ describe('Session.steer', () => {
   });
 
   it('rejects empty steer input', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-steer-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-steer-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_empty', workDir });
 
       await expect(session.steer('   ')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'request.prompt_input_empty',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
   });
 
   it('rejects after the session is closed', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-steer-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-steer-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-steer-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_steer_closed', workDir });
       await session.close();
 
       await expect(session.steer('hello')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }

@@ -641,7 +641,7 @@ describe('OpenAILegacyChatProvider', () => {
   describe('auto reasoning_effort', () => {
     it('auto-injects reasoning_effort when history has ThinkPart and reasoningKey is set', async () => {
       const provider = createProvider({
-        model: 'kimi-k2.5',
+        model: 'byf-k2.5',
         reasoningKey: 'reasoning_content',
       });
       const history: Message[] = [
@@ -667,7 +667,7 @@ describe('OpenAILegacyChatProvider', () => {
 
     it('does not auto-inject reasoning_effort when history has no ThinkPart', async () => {
       const provider = createProvider({
-        model: 'kimi-k2.5',
+        model: 'byf-k2.5',
         reasoningKey: 'reasoning_content',
       });
       const history: Message[] = [

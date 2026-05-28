@@ -1,19 +1,19 @@
 {
-  "name": "@moonshot-ai/monorepo",
-  "version": "0.1.1",
+  "name": "@byf/monorepo",
+  "version": "0.0.1",
   "private": true,
-  "license": "MIT",
+  "license": "Proprietary",
   "type": "module",
   "scripts": {
     "build": "pnpm -r run build",
     "build:packages": "pnpm -r --filter './packages/*' run build",
-    "dev:cli": "pnpm -C apps/kimi-code run dev",
+    "dev:cli": "pnpm -C apps/cli run dev",
     "vis": "pnpm -C apps/vis run dev",
     "dev:docs": "pnpm -C docs install --ignore-workspace && pnpm -C docs run dev",
-    "typecheck": "pnpm run build:packages && pnpm -r --filter './packages/*' run typecheck && pnpm --filter @moonshot-ai/kimi-code run typecheck",
+    "typecheck": "pnpm run build:packages && pnpm -r --filter './packages/*' run typecheck && pnpm --filter @byf/cli run typecheck",
     "lint": "oxlint --type-aware",
     "lint:fix": "pnpm run lint --fix",
-    "lint:pkg": "pnpm -r --filter '!@moonshot-ai/monorepo' exec publint && pnpm -r --filter './packages/*' exec attw --pack . --profile node16",
+    "lint:pkg": "pnpm -r --filter '!@byf/monorepo' exec publint && pnpm -r --filter './packages/*' exec attw --pack . --profile node16",
     "sherif": "sherif",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -42,8 +42,7 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
-  "simple-git-hooks": {
-  },
+  "simple-git-hooks": {},
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
       "oxlint --fix --quiet",
@@ -53,5 +52,12 @@
   "engines": {
     "node": ">=24.15.0"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "description": "BYF (Be Your Friend) monorepo for terminal AI agent tooling",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  }
 }

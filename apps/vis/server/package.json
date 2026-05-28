@@ -1,6 +1,6 @@
 {
-  "name": "@moonshot-ai/vis-server",
-  "version": "0.1.1",
+  "name": "@byf/vis-server",
+  "version": "0.0.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@moonshot-ai/agent-core": "workspace:^",
+    "@byf/agent-core": "workspace:^",
     "hono": "^4.7.7"
   },
   "devDependencies": {

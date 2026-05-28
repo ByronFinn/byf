@@ -1,14 +1,14 @@
-import type { FinishReason, TokenUsage } from '@moonshot-ai/kosong';
+import type { FinishReason, TokenUsage } from '@byf/kosong';
 
 import type { PromptOrigin } from '../agent/context';
-import type { KimiErrorPayload } from '../errors';
+import type { ByfErrorPayload } from '../errors';
 import type { PermissionMode } from '../agent/permission';
 import type { SkillSource } from '../skill';
 import type { BackgroundTaskInfo } from '../tools/background/manager';
 import type { ToolInputDisplay } from '../tools/display';
 
 export type { ToolInputDisplay } from '../tools/display';
-export type { KimiErrorPayload } from '../errors';
+export type { ByfErrorPayload } from '../errors';
 
 export interface UsageStatus {
   readonly byModel?: Record<string, TokenUsage> | undefined;
@@ -67,7 +67,7 @@ export interface SkillActivatedEvent {
   readonly skillSource?: SkillSource | undefined;
 }
 
-export interface ErrorEvent extends KimiErrorPayload {
+export interface ErrorEvent extends ByfErrorPayload {
   readonly type: 'error';
 }
 
@@ -87,7 +87,7 @@ export interface TurnEndedEvent {
   readonly type: 'turn.ended';
   readonly turnId: number;
   readonly reason: TurnEndReason;
-  readonly error?: KimiErrorPayload | undefined;
+  readonly error?: ByfErrorPayload | undefined;
 }
 
 export interface TurnStepStartedEvent {

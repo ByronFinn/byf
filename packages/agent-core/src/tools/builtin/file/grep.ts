@@ -19,7 +19,7 @@
 
 import type { Readable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@moonshot-ai/kaos';
+import type { Kaos, KaosProcess } from '@byf/kaos';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

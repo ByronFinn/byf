@@ -3,7 +3,7 @@ import type {
   Message,
   ModelCapability,
   Tool,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -266,21 +266,21 @@ describe('applyCompletionBudget', () => {
 });
 
 describe('resolveCompletionBudget', () => {
-  it('reads KIMI_MODEL_MAX_COMPLETION_TOKENS first', () => {
+  it('reads BYF_MODEL_MAX_COMPLETION_TOKENS first', () => {
     const budget = resolveCompletionBudget({
       reservedContextSize: 1000,
       env: {
-        KIMI_MODEL_MAX_COMPLETION_TOKENS: '4096',
-        KIMI_MODEL_MAX_TOKENS: '2048',
+        BYF_MODEL_MAX_COMPLETION_TOKENS: '4096',
+        BYF_MODEL_MAX_TOKENS: '2048',
       },
     });
     expect(budget?.hardCap).toBe(4096);
   });
 
-  it('falls back to legacy KIMI_MODEL_MAX_TOKENS when the new var is unset', () => {
+  it('falls back to legacy BYF_MODEL_MAX_TOKENS when the new var is unset', () => {
     const budget = resolveCompletionBudget({
       reservedContextSize: 1000,
-      env: { KIMI_MODEL_MAX_TOKENS: '2048' },
+      env: { BYF_MODEL_MAX_TOKENS: '2048' },
     });
     expect(budget?.hardCap).toBe(2048);
   });
@@ -309,26 +309,26 @@ describe('resolveCompletionBudget', () => {
     expect(budget?.fallback).toBe(32000);
   });
 
-  it('treats non-positive KIMI_MODEL_MAX_COMPLETION_TOKENS as an opt-out', () => {
+  it('treats non-positive BYF_MODEL_MAX_COMPLETION_TOKENS as an opt-out', () => {
     expect(
       resolveCompletionBudget({
         reservedContextSize: 1000,
-        env: { KIMI_MODEL_MAX_COMPLETION_TOKENS: '0' },
+        env: { BYF_MODEL_MAX_COMPLETION_TOKENS: '0' },
       }),
     ).toBeUndefined();
     expect(
       resolveCompletionBudget({
         reservedContextSize: 1000,
-        env: { KIMI_MODEL_MAX_COMPLETION_TOKENS: '-1' },
+        env: { BYF_MODEL_MAX_COMPLETION_TOKENS: '-1' },
       }),
     ).toBeUndefined();
   });
 
-  it('treats non-positive legacy KIMI_MODEL_MAX_TOKENS as an opt-out when the new var is unset', () => {
+  it('treats non-positive legacy BYF_MODEL_MAX_TOKENS as an opt-out when the new var is unset', () => {
     expect(
       resolveCompletionBudget({
         reservedContextSize: 1000,
-        env: { KIMI_MODEL_MAX_TOKENS: '-1' },
+        env: { BYF_MODEL_MAX_TOKENS: '-1' },
       }),
     ).toBeUndefined();
   });
@@ -336,8 +336,8 @@ describe('resolveCompletionBudget', () => {
   it('lets the new var override a legacy disable signal', () => {
     const budget = resolveCompletionBudget({
       env: {
-        KIMI_MODEL_MAX_COMPLETION_TOKENS: '4096',
-        KIMI_MODEL_MAX_TOKENS: '-1',
+        BYF_MODEL_MAX_COMPLETION_TOKENS: '4096',
+        BYF_MODEL_MAX_TOKENS: '-1',
       },
     });
     expect(budget?.hardCap).toBe(4096);
@@ -345,7 +345,7 @@ describe('resolveCompletionBudget', () => {
 
   it('falls back to defaults when the env var is non-numeric garbage', () => {
     const budget = resolveCompletionBudget({
-      env: { KIMI_MODEL_MAX_COMPLETION_TOKENS: 'not-a-number' },
+      env: { BYF_MODEL_MAX_COMPLETION_TOKENS: 'not-a-number' },
     });
     expect(budget?.hardCap).toBeUndefined();
     expect(budget?.fallback).toBe(32000);

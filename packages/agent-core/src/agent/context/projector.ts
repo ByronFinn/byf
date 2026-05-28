@@ -1,4 +1,4 @@
-import type { ContentPart, Message, TextPart } from '@moonshot-ai/kosong';
+import type { ContentPart, Message, TextPart } from '@byf/kosong';
 
 import { renderNotificationXml } from './notification-xml';
 

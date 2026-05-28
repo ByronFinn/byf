@@ -1,14 +1,13 @@
 import {
   createRPC,
   ErrorCodes,
-  KimiCore,
+  ByfCore,
   makeErrorPayload,
-  resolveKimiHome,
+  resolveByfHome,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
   type Event,
-  type OAuthTokenProviderResolver,
   type QuestionRequest,
   type QuestionResult,
   type SDKAPI,
@@ -16,8 +15,7 @@ import {
   type TelemetryClient,
   type ToolCallRequest,
   type ToolCallResponse,
-} from '@moonshot-ai/agent-core';
-import { createKimiDefaultHeaders } from '@moonshot-ai/kimi-code-oauth';
+} from '@byf/agent-core';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -27,8 +25,8 @@ import type {
   ExportSessionResult,
   ForkSessionInput,
   GetConfigOptions,
-  KimiConfig,
-  KimiConfigPatch,
+  ByfConfig,
+  ByfConfigPatch,
   ListSessionsOptions,
   McpServerInfo,
   McpStartupMetrics,
@@ -44,7 +42,6 @@ import type {
   SessionSummary,
   SkillSummary,
   Unsubscribe,
-  KimiHostIdentity,
 } from '#/types';
 
 const MAIN_AGENT_ID = 'main';
@@ -52,8 +49,6 @@ const MAIN_AGENT_ID = 'main';
 export interface SDKRpcClientOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
-  readonly identity?: KimiHostIdentity | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
   readonly telemetry?: TelemetryClient | undefined;
 }
@@ -100,7 +95,7 @@ export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
 type ResolvedCoreAPI = Awaited<ReturnType<SDKRPCClient>>;
 
 export class SDKRpcClient {
-  readonly core: KimiCore;
+  readonly core: ByfCore;
   interactiveAgentId = MAIN_AGENT_ID;
   private readonly ready: Promise<void>;
   private rpc: ResolvedCoreAPI | undefined;
@@ -110,16 +105,9 @@ export class SDKRpcClient {
 
   constructor(options: SDKRpcClientOptions = {}) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    const homeDir = resolveKimiHome(options.homeDir);
-    const kimiRequestHeaders =
-      options.identity === undefined
-        ? undefined
-        : createKimiDefaultHeaders({ homeDir, ...options.identity });
-    this.core = new KimiCore(coreRpc, {
+    this.core = new ByfCore(coreRpc, {
       homeDir: options.homeDir,
       configPath: options.configPath,
-      kimiRequestHeaders,
-      resolveOAuthTokenProvider: options.resolveOAuthTokenProvider,
       skillDirs: options.skillDirs,
       telemetry: options.telemetry,
     });
@@ -186,19 +174,19 @@ export class SDKRpcClient {
     });
   }
 
-  async getConfig(input?: GetConfigOptions): Promise<KimiConfig> {
+  async getConfig(input?: GetConfigOptions): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.getKimiConfig(input ?? {});
+    return rpc.getByfConfig(input ?? {});
   }
 
-  async setConfig(input: KimiConfigPatch): Promise<KimiConfig> {
+  async setConfig(input: ByfConfigPatch): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.setKimiConfig(input);
+    return rpc.setByfConfig(input);
   }
 
-  async removeProvider(providerId: string): Promise<KimiConfig> {
+  async removeProvider(providerId: string): Promise<ByfConfig> {
     const rpc = await this.getRpc();
-    return rpc.removeKimiProvider({ providerId });
+    return rpc.removeByfProvider({ providerId });
   }
 
   async prompt(input: SessionPromptRpcInput): Promise<void> {

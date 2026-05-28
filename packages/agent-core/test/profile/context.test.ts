@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { localKaos } from '@moonshot-ai/kaos';
+import { localKaos } from '@byf/kaos';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadAgentsMd } from '../../src/profile/context';
@@ -11,8 +11,8 @@ let homeDir: string;
 let workDir: string;
 
 beforeEach(async () => {
-  homeDir = await mkdtemp(join(tmpdir(), 'kimi-agents-home-'));
-  workDir = await mkdtemp(join(tmpdir(), 'kimi-agents-work-'));
+  homeDir = await mkdtemp(join(tmpdir(), 'byf-agents-home-'));
+  workDir = await mkdtemp(join(tmpdir(), 'byf-agents-work-'));
   vi.spyOn(localKaos, 'gethome').mockReturnValue(homeDir);
 });
 
@@ -24,8 +24,8 @@ afterEach(async () => {
 
 describe('loadAgentsMd user-level discovery', () => {
   it('loads user-level branded and generic files before project-level', async () => {
-    await mkdir(join(homeDir, '.kimi-code'), { recursive: true });
-    await writeFile(join(homeDir, '.kimi-code', 'AGENTS.md'), 'user branded', 'utf-8');
+    await mkdir(join(homeDir, '.byf'), { recursive: true });
+    await writeFile(join(homeDir, '.byf', 'AGENTS.md'), 'user branded', 'utf-8');
     await mkdir(join(homeDir, '.agents'), { recursive: true });
     await writeFile(join(homeDir, '.agents', 'AGENTS.md'), 'user generic', 'utf-8');
     await writeFile(join(workDir, 'AGENTS.md'), 'project instructions', 'utf-8');
@@ -58,8 +58,8 @@ describe('loadAgentsMd user-level discovery', () => {
   });
 
   it('does not load the same file twice when the work dir is the home dir', async () => {
-    await mkdir(join(homeDir, '.kimi-code'), { recursive: true });
-    await writeFile(join(homeDir, '.kimi-code', 'AGENTS.md'), 'home branded', 'utf-8');
+    await mkdir(join(homeDir, '.byf'), { recursive: true });
+    await writeFile(join(homeDir, '.byf', 'AGENTS.md'), 'home branded', 'utf-8');
 
     const result = await loadAgentsMd(localKaos, homeDir);
 

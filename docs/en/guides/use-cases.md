@@ -1,10 +1,10 @@
 # Common use cases
 
-Below are typical scenarios and prompt samples for Kimi Code CLI.
+Below are typical scenarios and prompt samples for BYF.
 
 ## Understanding an unfamiliar project
 
-Use `kimi --plan` or press `Shift-Tab` to enter Plan mode for large-scale research. Ask it to produce a plan first and approve before execution:
+Use `byf --plan` or press `Shift-Tab` to enter Plan mode for large-scale research. Ask it to produce a plan first and approve before execution:
 
 ```
 Walk me through the overall architecture of this repository. Focus on:
@@ -115,4 +115,4 @@ For every public function under src/api that does not have a docstring, add one.
 Based on the command implementations under src/cli, generate a draft command reference listing each subcommand, its arguments, and default values. Put it under docs/en/reference for me to review later.
 ```
 
-Archive or share a session with `kimi export <sessionId>`.
+Archive or share a session with `byf export <sessionId>`.

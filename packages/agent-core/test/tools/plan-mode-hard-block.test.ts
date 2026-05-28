@@ -1,4 +1,4 @@
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { ToolCall } from '@byf/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -12,7 +12,7 @@ const signal = new AbortController().signal;
 
 async function activePlanAgent(): Promise<{ agent: Agent; planMode: PlanMode }> {
   const agent = {
-    homedir: '/tmp/kimi-plan-test',
+    homedir: '/tmp/byf-plan-test',
     emitStatusUpdated: vi.fn(),
     records: { logRecord: vi.fn() },
     replayBuilder: { push: vi.fn() },

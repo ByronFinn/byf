@@ -1,21 +1,20 @@
 {
-  "name": "@moonshot-ai/kimi-telemetry",
-  "version": "0.1.1",
+  "name": "@byf/telemetry",
+  "version": "0.0.1",
   "private": true,
-  "description": "Shared telemetry infrastructure for Kimi Code",
-  "license": "MIT",
-  "author": "Moonshot AI",
-  "homepage": "https://github.com/MoonshotAI/kimi-code/tree/main/packages/telemetry#readme",
+  "description": "Telemetry infrastructure for BYF (currently disabled)",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-code.git",
-    "directory": "packages/telemetry"
+    "url": "https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
-    "url": "https://github.com/MoonshotAI/kimi-code/issues"
+    "url": "https://github.com/ByronFinn/byf/issues"
   },
   "keywords": [
-    "kimi",
+    "byf",
     "telemetry",
     "analytics",
     "events",

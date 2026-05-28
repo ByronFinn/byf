@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@byf/kosong';
 import { describe, expect, it } from 'vitest';
 
 // Dynamic-import contract: locks the Agent <-> HookEngine integration shape
@@ -59,7 +59,7 @@ async function importEngine(): Promise<HookEngineCtor> {
 
 describe('HookEngine integration', () => {
   it('blocks a dangerous Shell command and allows a safe one via a PreToolUse script hook', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kimi-hooks-int-'));
+    const dir = mkdtempSync(join(tmpdir(), 'byf-hooks-int-'));
     const script = join(dir, 'block-rm.sh');
     // Use node for the body to keep the test runtime-agnostic.
     writeFileSync(
@@ -153,7 +153,7 @@ command = "echo ok"
 [[hooks]]
 event = "Notification"
 matcher = "permission_prompt"
-command = "notify-send Kimi"
+command = "notify-send Byf"
 timeout = 5
 `;
     const parsed = config.parseConfigString(toml, 'hooks.toml');

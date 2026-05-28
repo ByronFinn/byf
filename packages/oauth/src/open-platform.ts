@@ -1,11 +1,52 @@
 import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
-import type {
-  ManagedKimiCodeModelInfo,
-  ManagedKimiConfigShape,
-} from './managed-kimi-code';
 
-export type { ManagedKimiConfigShape };
+// ---------------------------------------------------------------------------
+// Shared types (previously in managed-byf.ts)
+// ---------------------------------------------------------------------------
+
+export interface ModelInfo {
+  readonly id: string;
+  readonly contextLength: number;
+  readonly supportsReasoning: boolean;
+  readonly supportsImageIn: boolean;
+  readonly supportsVideoIn: boolean;
+  readonly supportsToolUse?: boolean | undefined;
+  readonly displayName?: string | undefined;
+}
+
+export interface ModelAlias {
+  provider: string;
+  model: string;
+  maxContextSize: number;
+  capabilities?: string[] | undefined;
+  displayName?: string | undefined;
+  readonly [key: string]: unknown;
+}
+
+export interface ProviderConfig {
+  type: string;
+  baseUrl?: string | undefined;
+  apiKey?: string | undefined;
+  readonly [key: string]: unknown;
+}
+
+export interface ServicesConfig {
+  readonly [key: string]: unknown;
+}
+
+export interface ConfigShape {
+  providers: Record<string, ProviderConfig | Record<string, unknown>>;
+  models?: Record<string, ModelAlias | Record<string, unknown>> | undefined;
+  defaultModel?: string | undefined;
+  defaultThinking?: boolean | undefined;
+  services?: ServicesConfig | undefined;
+  [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Open platform definitions
+// ---------------------------------------------------------------------------
 
 export interface OpenPlatformDefinition {
   readonly id: string;
@@ -16,16 +57,16 @@ export interface OpenPlatformDefinition {
 
 export const OPEN_PLATFORMS: readonly OpenPlatformDefinition[] = [
   {
-    id: 'moonshot-cn',
-    name: 'Moonshot AI Open Platform (moonshot.cn)',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    allowedPrefixes: ['kimi-k'],
+    id: 'byf-cn',
+    name: 'OpenAI-compatible Platform (CN)',
+    baseUrl: 'https://api.openai-compat-cn.invalid/v1',
+    allowedPrefixes: ['byf-k'],
   },
   {
-    id: 'moonshot-ai',
-    name: 'Moonshot AI Open Platform (moonshot.ai)',
-    baseUrl: 'https://api.moonshot.ai/v1',
-    allowedPrefixes: ['kimi-k'],
+    id: 'byf-ai',
+    name: 'OpenAI-compatible Platform',
+    baseUrl: 'https://api.openai-compat.invalid/v1',
+    allowedPrefixes: ['byf-k'],
   },
 ];
 
@@ -37,7 +78,7 @@ export function isOpenPlatformId(id: string): boolean {
   return OPEN_PLATFORMS.some((p) => p.id === id);
 }
 
-function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
+function toModelInfo(item: unknown): ModelInfo | undefined {
   if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
     return undefined;
   }
@@ -62,7 +103,7 @@ function toModelInfo(item: unknown): ManagedKimiCodeModelInfo | undefined {
   };
 }
 
-export function capabilitiesForModel(model: ManagedKimiCodeModelInfo): string[] | undefined {
+export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
   const caps = new Set<string>();
   if (model.supportsReasoning) caps.add('thinking');
   if (model.supportsImageIn) caps.add('image_in');
@@ -85,7 +126,7 @@ export async function fetchOpenPlatformModels(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
   signal?: AbortSignal,
-): Promise<ManagedKimiCodeModelInfo[]> {
+): Promise<ModelInfo[]> {
   const res = await fetchImpl(`${platform.baseUrl.replace(/\/+$/, '')}/models`, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -105,13 +146,13 @@ export async function fetchOpenPlatformModels(
   }
   return payload['data']
     .map((item) => toModelInfo(item))
-    .filter((item): item is ManagedKimiCodeModelInfo => item !== undefined);
+    .filter((item): item is ModelInfo => item !== undefined);
 }
 
 export function filterModelsByPrefix(
-  models: ManagedKimiCodeModelInfo[],
+  models: ModelInfo[],
   platform: OpenPlatformDefinition,
-): ManagedKimiCodeModelInfo[] {
+): ModelInfo[] {
   if (!platform.allowedPrefixes || platform.allowedPrefixes.length === 0) {
     return models;
   }
@@ -125,11 +166,11 @@ export interface ApplyOpenPlatformResult {
 }
 
 export function applyOpenPlatformConfig(
-  config: ManagedKimiConfigShape,
+  config: ConfigShape,
   options: {
     readonly platform: OpenPlatformDefinition;
-    readonly models: readonly ManagedKimiCodeModelInfo[];
-    readonly selectedModel: ManagedKimiCodeModelInfo;
+    readonly models: readonly ModelInfo[];
+    readonly selectedModel: ModelInfo;
     readonly thinking: boolean;
     readonly apiKey: string;
   },
@@ -138,7 +179,7 @@ export function applyOpenPlatformConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'kimi',
+    type: 'openai-compat',
     baseUrl: options.platform.baseUrl,
     apiKey: options.apiKey,
   };
@@ -168,10 +209,7 @@ export function applyOpenPlatformConfig(
   return { defaultModel: modelKey, defaultThinking: options.thinking };
 }
 
-export function removeOpenPlatformConfig(
-  config: ManagedKimiConfigShape,
-  platformId: string,
-): void {
+export function removeOpenPlatformConfig(config: ConfigShape, platformId: string): void {
   delete config.providers[platformId];
 
   let removedDefault = false;

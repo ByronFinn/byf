@@ -1,0 +1,85 @@
+{
+  "name": "@byf/cli",
+  "version": "0.0.1",
+  "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
+  "keywords": [
+    "byf",
+    "cli",
+    "terminal",
+    "ai",
+    "coding-agent",
+    "tui"
+  ],
+  "bin": {
+    "byf": "dist/main.mjs"
+  },
+  "files": [
+    "dist",
+    "scripts/postinstall.mjs",
+    "README.md"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": [
+      "./src/*.ts",
+      "./src/*/index.ts"
+    ]
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
+    "smoke": "node scripts/smoke.mjs",
+    "build:native:js": "node scripts/native/01-bundle.mjs",
+    "build:native:sea": "node scripts/native/build.mjs --profile=local",
+    "build:native:release": "node scripts/native/build.mjs --profile=release",
+    "package:native": "node scripts/native/package.mjs",
+    "produce:native:manifest": "node scripts/native/produce-manifest.mjs",
+    "release:native:resolve": "node scripts/native/resolve-release.mjs",
+    "test:native:smoke": "node scripts/native/smoke.mjs",
+    "dev": "tsx --import ../../build/register-raw-text-loader.mjs ./src/main.ts",
+    "dev:prod": "node dist/main.mjs",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm -w run build:packages && vitest run",
+    "e2e": "pnpm -w run build:packages && BYF_E2E=1 vitest run test/e2e",
+    "e2e:real": "pnpm -w run build:packages && BYF_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-tui": "^0.74.0",
+    "@mariozechner/clipboard": "^0.3.2",
+    "chalk": "^5.4.1",
+    "cli-highlight": "^2.1.11",
+    "commander": "^13.1.0",
+    "semver": "^7.7.4",
+    "smol-toml": "^1.6.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@byf/oauth": "workspace:^",
+    "@byf/sdk": "workspace:^",
+    "@byf/telemetry": "workspace:^",
+    "@types/semver": "^7.7.0",
+    "@types/yazl": "^2.4.6",
+    "postject": "1.0.0-alpha.6",
+    "tsx": "^4.21.0",
+    "yazl": "^3.3.1"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

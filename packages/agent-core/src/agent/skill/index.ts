@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ActivateSkillPayload } from '#/rpc';
-import type { ContentPart } from '@moonshot-ai/kosong';
+import type { ContentPart } from '@byf/kosong';
 
 import type { Agent } from '..';
-import { ErrorCodes, KimiError } from '#/errors';
+import { ErrorCodes, ByfError } from '#/errors';
 import { isUserActivatableSkillType, type SkillRegistry } from '../../skill';
 import type { SkillActivationOrigin } from '../context';
 
@@ -17,10 +17,10 @@ export class SkillManager {
   activate(input: ActivateSkillPayload): void {
     const skill = this.registry.getSkill(input.name);
     if (skill === undefined) {
-      throw new KimiError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${input.name}" was not found`);
+      throw new ByfError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${input.name}" was not found`);
     }
     if (!isUserActivatableSkillType(skill.metadata.type)) {
-      throw new KimiError(ErrorCodes.SKILL_TYPE_UNSUPPORTED, `Skill "${skill.name}" cannot be activated by the user`);
+      throw new ByfError(ErrorCodes.SKILL_TYPE_UNSUPPORTED, `Skill "${skill.name}" cannot be activated by the user`);
     }
 
     this.recordActivation(

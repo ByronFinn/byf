@@ -127,9 +127,9 @@ export class SkillTool implements BuiltinTool<SkillToolInput> {
     skills.recordActivation(origin);
     const skillContent = skills.registry.renderSkillPrompt(skill, skillArgs);
     this.agent.context.appendSystemReminder(
-      `<kimi-skill-loaded name="${escapeXml(skill.name)}" args="${escapeXml(skillArgs)}">\n` +
+      `<byf-skill-loaded name="${escapeXml(skill.name)}" args="${escapeXml(skillArgs)}">\n` +
         `${skillContent}\n` +
-        `</kimi-skill-loaded>`,
+        `</byf-skill-loaded>`,
       origin,
     );
     return {

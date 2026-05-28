@@ -9,15 +9,15 @@ import {
   inputTotal,
   type ContentPart,
   type TokenUsage,
-} from '@moonshot-ai/kosong';
+} from '@byf/kosong';
 
 import type { Agent } from '..';
 import {
   ErrorCodes,
-  type KimiErrorPayload,
-  isKimiError,
+  type ByfErrorPayload,
+  isByfError,
   makeErrorPayload,
-  toKimiErrorPayload,
+  toByfErrorPayload,
 } from '#/errors';
 import { isAbortError, isMaxStepsExceededError } from '../../loop/errors';
 import {
@@ -475,7 +475,7 @@ export class TurnFlow {
                   toolName: ctx.toolCall.name,
                   toolInput: toolInputRecord(ctx.args),
                   toolCallId: ctx.toolCall.id,
-                  error: isError === true ? toKimiErrorPayload(toolOutputText(output)) : undefined,
+                  error: isError === true ? toByfErrorPayload(toolOutputText(output)) : undefined,
                   toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
                 },
               });
@@ -488,7 +488,7 @@ export class TurnFlow {
       } catch (error) {
         if (
           error instanceof APIContextOverflowError ||
-          (isKimiError(error) && error.code === ErrorCodes.CONTEXT_OVERFLOW)
+          (isByfError(error) && error.code === ErrorCodes.CONTEXT_OVERFLOW)
         ) {
           await this.agent.fullCompaction.handleOverflowError(signal, error);
           continue; // Retry with compacted context
@@ -497,7 +497,7 @@ export class TurnFlow {
           this.agent.log.warn('turn hit max steps', {
             turnId,
             steps: this.currentStepByTurn.get(turnId) ?? this.currentStep,
-            limit: isKimiError(error) ? error.details?.['maxSteps'] : undefined,
+            limit: isByfError(error) ? error.details?.['maxSteps'] : undefined,
           });
         } else {
           this.agent.log.error('turn failed', { turnId, error });
@@ -727,8 +727,8 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
   }
 }
 
-function summarizeTurnError(error: unknown, turnId: number): KimiErrorPayload {
-  const payload = toKimiErrorPayload(error);
+function summarizeTurnError(error: unknown, turnId: number): ByfErrorPayload {
+  const payload = toByfErrorPayload(error);
   const details = { ...payload.details, turnId };
 
   // Substitute a friendlier TUI-aware message for model-not-configured.
@@ -764,7 +764,7 @@ interface ApiErrorClassification {
   readonly statusCode?: number;
 }
 
-function classifyApiError(error: unknown, summary: KimiErrorPayload): ApiErrorClassification {
+function classifyApiError(error: unknown, summary: ByfErrorPayload): ApiErrorClassification {
   const statusCode = apiStatusCode(error) ?? summaryStatusCode(summary);
   if (statusCode !== undefined) {
     if (statusCode === 429) return { errorType: 'rate_limit', statusCode };
@@ -798,16 +798,16 @@ function apiStatusCode(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined;
 }
 
-function summaryStatusCode(summary: KimiErrorPayload): number | undefined {
+function summaryStatusCode(summary: ByfErrorPayload): number | undefined {
   const statusCode = summary.details?.['statusCode'];
   return typeof statusCode === 'number' ? statusCode : undefined;
 }
 
-function isApiConnectionError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiConnectionError(error: unknown, summary: ByfErrorPayload): boolean {
   return error instanceof APIConnectionError || summary.name === 'APIConnectionError';
 }
 
-function isApiTimeoutError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiTimeoutError(error: unknown, summary: ByfErrorPayload): boolean {
   return (
     error instanceof APITimeoutError ||
     summary.name === 'APITimeoutError' ||
@@ -815,7 +815,7 @@ function isApiTimeoutError(error: unknown, summary: KimiErrorPayload): boolean {
   );
 }
 
-function isApiEmptyResponseError(error: unknown, summary: KimiErrorPayload): boolean {
+function isApiEmptyResponseError(error: unknown, summary: ByfErrorPayload): boolean {
   return error instanceof APIEmptyResponseError || summary.name === 'APIEmptyResponseError';
 }
 

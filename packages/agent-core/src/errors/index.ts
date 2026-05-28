@@ -1,17 +1,17 @@
 export {
   ErrorCodes,
-  KIMI_ERROR_INFO,
-  type KimiErrorCode,
-  type KimiErrorInfo,
+  BYF_ERROR_INFO,
+  type ByfErrorCode,
+  type ByfErrorInfo,
 } from './codes';
 export {
-  KimiError,
-  type KimiErrorOptions,
+  ByfError,
+  type ByfErrorOptions,
 } from './classes';
 export {
-  fromKimiErrorPayload,
-  isKimiError,
+  fromByfErrorPayload,
+  isByfError,
   makeErrorPayload,
-  toKimiErrorPayload,
-  type KimiErrorPayload,
+  toByfErrorPayload,
+  type ByfErrorPayload,
 } from './serialize';

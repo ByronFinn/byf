@@ -7,8 +7,8 @@ import * as zlib from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
-  KimiError,
-  KimiHarness,
+  ByfError,
+  ByfHarness,
   type SessionSummary,
 } from '#/index';
 import { resolveGlobalLogPath } from '../../agent-core/src/logging/logger';
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-sdk-export-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-sdk-export-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -144,7 +144,7 @@ describe('exportSessionDirectory', () => {
       sessionLastActivity: '2026-04-18T10:00:03.000Z',
       title: 'Export Test',
       workspaceDir: workDir,
-      kimiCodeVersion: '1.0.0-test',
+      byfCodeVersion: '1.0.0-test',
     });
     expect(result.manifest.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 
@@ -199,9 +199,9 @@ describe('exportSessionDirectory', () => {
     });
 
     expect(result.manifest.globalLogPath).toBeUndefined();
-    expect(result.entries).not.toContain('logs/global/kimi-code.log');
+    expect(result.entries).not.toContain('logs/global/byf.log');
     const entries = readZipEntries(await readFile(outputPath));
-    expect(entries.has('logs/global/kimi-code.log')).toBe(false);
+    expect(entries.has('logs/global/byf.log')).toBe(false);
     const manifest = JSON.parse(entries.get('manifest.json')!.toString('utf-8')) as Record<
       string,
       unknown
@@ -255,18 +255,18 @@ describe('exportSessionDirectory', () => {
         summary: makeSummary({ id: sid, sessionDir, workDir: tmp }),
       }),
     ).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'session.export_not_found',
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
   });
 });
 
-describe('KimiHarness.exportSession', () => {
+describe('ByfHarness.exportSession', () => {
   it('exports a created session through the public Harness API', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
     const records: TelemetryRecord[] = [];
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
       telemetry: recordingTelemetry(records),
@@ -301,13 +301,13 @@ describe('KimiHarness.exportSession', () => {
 
   it('rejects missing session ids', async () => {
     const homeDir = await makeTempDir();
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     const missingExport = harness.exportSession({ id: 'ses_missing', version: '1.0.0-test' });
-    await expect(missingExport).rejects.toBeInstanceOf(KimiError);
+    await expect(missingExport).rejects.toBeInstanceOf(ByfError);
     await expect(missingExport).rejects.toMatchObject({
       code: 'session.not_found',
       details: { sessionId: 'ses_missing' },
-    } satisfies Partial<KimiError>);
+    } satisfies Partial<ByfError>);
   });
 });

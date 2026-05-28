@@ -11,6 +11,6 @@ export default defineConfig({
   plugins: [rawTextPlugin()],
   deps: {
     alwaysBundle: ['picomatch'],
-    neverBundle: ['@moonshot-ai/kosong', '@moonshot-ai/kaos'],
+    neverBundle: ['@byf/kosong', '@byf/kaos'],
   },
 });

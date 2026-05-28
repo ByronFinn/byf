@@ -1,10 +1,10 @@
 {
-  description = "Kimi Code CLI";
+  description = "BYF CLI";
 
   inputs = {
     # Pinned to the 25.11 release channel because nixpkgs-unstable currently
     # ships nodejs_24 = 24.14.1, which trips the >= 24.15.0 floor that the
-    # native SEA build enforces (see apps/kimi-code/scripts/native/build.mjs).
+    # native SEA build enforces (see apps/cli/scripts/native/build.mjs).
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
@@ -50,7 +50,7 @@
           candidate
         else
           throw ''
-            Kimi Code requires Node.js ${requiredNodeMajor}.x (>= ${minNodeVersion}),
+            BYF requires Node.js ${requiredNodeMajor}.x (>= ${minNodeVersion}),
             but nixpkgs only offers ${candidate.version}.
             Pin a newer nixpkgs revision or update minNodeVersion in flake.nix.
           '';
@@ -149,7 +149,7 @@
         let
           nodejs = nodejsFor pkgs;
           pnpm = pnpmFor pkgs;
-          appPackageJson = builtins.fromJSON (builtins.readFile ./apps/kimi-code/package.json);
+          appPackageJson = builtins.fromJSON (builtins.readFile ./apps/cli/package.json);
           nativeTarget =
             if pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isAarch64 then
               "linux-arm64"
@@ -160,10 +160,10 @@
             else if pkgs.stdenv.hostPlatform.isDarwin then
               "darwin-x64"
             else
-              throw "Unsupported Kimi Code native target for ${pkgs.stdenv.hostPlatform.system}";
+              throw "Unsupported BYF native target for ${pkgs.stdenv.hostPlatform.system}";
 
-          kimi-code = pkgs.stdenv.mkDerivation (finalAttrs: {
-            pname = "kimi-code";
+          byf = pkgs.stdenv.mkDerivation (finalAttrs: {
+            pname = "byf";
             version = appPackageJson.version;
 
             src = lib.fileset.toSource {
@@ -215,18 +215,18 @@
 
             buildPhase = ''
               runHook preBuild
-              export KIMI_CODE_BUILD_TARGET=${nativeTarget}
+              export BYF_CODE_BUILD_TARGET=${nativeTarget}
               ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
                 # pkgs.darwin.sigtool's codesign supports `--sign -` (ad-hoc)
                 # but not the inspection mode (`-dv`) that 05-verify.mjs runs
                 # afterwards. Disable the verify step for the Nix build; the
                 # release CI keeps it via the unmodified script.
-                substituteInPlace apps/kimi-code/scripts/native/build.mjs \
+                substituteInPlace apps/cli/scripts/native/build.mjs \
                   --replace-fail \
                     "await runVerifyStep({ requireGatekeeper: false });" \
                     "// runVerifyStep skipped in nix sandbox (sigtool lacks -dv)"
               ''}
-              pnpm --filter=@moonshot-ai/kimi-code run build:native:sea
+              pnpm --filter=@byf/cli run build:native:sea
               runHook postBuild
             '';
 
@@ -234,25 +234,25 @@
               runHook preInstall
 
               install -Dm755 \
-                "apps/kimi-code/dist-native/bin/${nativeTarget}/kimi" \
-                "$out/bin/kimi"
+                "apps/cli/dist-native/bin/${nativeTarget}/byf" \
+                "$out/bin/byf"
 
               runHook postInstall
             '';
 
             meta = {
-              description = "Kimi Code CLI";
-              homepage = "https://github.com/MoonshotAI/kimi-code";
-              license = lib.licenses.mit;
-              mainProgram = "kimi";
+              description = "BYF CLI";
+              homepage = "https://github.com/ByronFinn/byf";
+              license = lib.licenses.unfree;
+              mainProgram = "byf";
               platforms = systems;
             };
           });
 
-          # Expose pnpmDeps as a top-level package so `nix build .#kimi-code-pnpm-deps`
+          # Expose pnpmDeps as a top-level package so `nix build .#byf-pnpm-deps`
           # (used by the update-pnpm-deps app) is a stable selector that doesn't
           # depend on attribute drilling into a derivation.
-          kimi-code-pnpm-deps = kimi-code.pnpmDeps;
+          byf-pnpm-deps = byf.pnpmDeps;
 
           update-pnpm-deps = pkgs.writeShellApplication {
             name = "update-pnpm-deps";
@@ -268,21 +268,21 @@
           };
         in
         {
-          inherit kimi-code kimi-code-pnpm-deps update-pnpm-deps;
-          default = kimi-code;
+          inherit byf byf-pnpm-deps update-pnpm-deps;
+          default = byf;
         }
       );
 
       apps = forAllSystems (pkgs: {
-        kimi-code = {
+        byf = {
           type = "app";
-          program = "${self.packages.${pkgs.system}.kimi-code}/bin/kimi";
+          program = "${self.packages.${pkgs.system}.byf}/bin/byf";
         };
         update-pnpm-deps = {
           type = "app";
           program = "${self.packages.${pkgs.system}.update-pnpm-deps}/bin/update-pnpm-deps";
         };
-        default = self.apps.${pkgs.system}.kimi-code;
+        default = self.apps.${pkgs.system}.byf;
       });
 
       devShells = forAllSystems (pkgs: {

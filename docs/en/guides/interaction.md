@@ -1,6 +1,6 @@
 # Interaction and Input
 
-Kimi Code CLI runs as an interactive TUI with an input box, conversation view, and status bar. This page covers basic operations, mode switches, the approval flow, and shortcuts. The full list is available via `/help`.
+BYF runs as an interactive TUI with an input box, conversation view, and status bar. This page covers basic operations, mode switches, the approval flow, and shortcuts. The full list is available via `/help`.
 
 ## Input box basics
 

@@ -1,4 +1,4 @@
-import type { ToolCall } from '@moonshot-ai/kosong';
+import type { ToolCall } from '@byf/kosong';
 import { expect, it } from 'vitest';
 
 import { createCommandKaos, testAgent } from './harness/agent';

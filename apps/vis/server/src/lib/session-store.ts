@@ -63,7 +63,7 @@ export async function readSessionDetail(home: string, sessionId: string): Promis
     const agents = await discoverAgentsFromDisk(sessionDir);
     return { sessionId, sessionDir, workDir, state: null, agents };
   }
-  if (state.custom?.['imported_from_kimi_cli'] === true) return null;
+  if (state.custom?.['imported_from_byf_cli'] === true) return null;
   const agents = await inventoryAgents(sessionDir, state);
   return { sessionId, sessionDir, workDir, state, agents };
 }
@@ -120,7 +120,7 @@ async function tryReadSummary(sessionDir: string, sessionId: string, workDir: st
   if (state === null) {
     return brokenStateSummary(sessionDir, sessionId, workDir);
   }
-  if (state.custom?.['imported_from_kimi_cli'] === true) return null;
+  if (state.custom?.['imported_from_byf_cli'] === true) return null;
 
   const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
   const mainExists = await pathExists(mainWirePath);

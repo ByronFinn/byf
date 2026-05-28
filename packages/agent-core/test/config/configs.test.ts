@@ -5,9 +5,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ErrorCodes, KimiError } from '../../src/errors';
+import { ErrorCodes, ByfError } from '../../src/errors';
 import {
-  KimiConfigSchema,
+  ByfConfigSchema,
   ensureConfigFile,
   mergeConfigPatch,
   parseConfigString,
@@ -15,7 +15,7 @@ import {
   readConfigFile,
   resolveConfigPath,
   resolveConfigValue,
-  resolveKimiHome,
+  resolveByfHome,
   validateConfig,
   writeConfigFile,
 } from '../../src/config';
@@ -29,24 +29,24 @@ afterEach(async () => {
 });
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'kimi-core-config-'));
+  const dir = mkdtempSync(join(tmpdir(), 'byf-core-config-'));
   tempDirs.push(dir);
   return dir;
 }
 
-function expectKimiErrorCode(fn: () => unknown, code: string): void {
+function expectByfErrorCode(fn: () => unknown, code: string): void {
   try {
     fn();
   } catch (error) {
-    expect(error).toBeInstanceOf(KimiError);
-    expect((error as KimiError).code).toBe(code);
+    expect(error).toBeInstanceOf(ByfError);
+    expect((error as ByfError).code).toBe(code);
     return;
   }
   throw new Error('expected function to throw');
 }
 
 const COMPLETE_TOML = `
-default_model = "kimi-code/kimi-for-coding"
+default_model = "byf/byf-for-coding"
 default_thinking = true
 default_permission_mode = "auto"
 default_plan_mode = false
@@ -55,21 +55,21 @@ extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 telemetry = false
 theme = "dark"
 
-[providers."managed:kimi-code"]
-type = "kimi"
-base_url = "https://api.kimi.com/coding/v1"
+[providers."managed:byf"]
+type = "openai-compat"
+base_url = "https://api.example.test/v1"
 api_key = "sk-file"
 custom_headers = { "X-Test" = "1" }
 
-[providers."managed:kimi-code".env]
+[providers."managed:byf".env]
 GOOGLE_CLOUD_PROJECT = "project-1"
 
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
+[models."byf/byf-for-coding"]
+provider = "managed:byf"
+model = "byf-for-coding"
 max_context_size = 262144
 capabilities = ["image_in", "thinking", "video_in"]
-display_name = "Kimi for Coding"
+display_name = "Byf for Coding"
 
 [thinking]
 mode = "auto"
@@ -112,13 +112,13 @@ timeout = 5
 event = "Stop"
 command = "echo stop"
 
-[services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
+[services.byf_search]
+base_url = "https://api.example.test/v1/search"
 api_key = "sk-search"
 custom_headers = { "X-Search" = "1" }
 
-[services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
+[services.byf_fetch]
+base_url = "https://api.example.test/v1/fetch"
 api_key = "sk-fetch"
 
 [notifications]
@@ -129,26 +129,26 @@ describe('harness config TOML loader', () => {
   it('parses the current config.toml shape through explicit field mappings', () => {
     const config = parseConfigString(COMPLETE_TOML, 'config.toml');
 
-    expect(config.defaultModel).toBe('kimi-code/kimi-for-coding');
+    expect(config.defaultModel).toBe('byf/byf-for-coding');
     expect(config.defaultThinking).toBe(true);
     expect(config.defaultPermissionMode).toBe('auto');
     expect(config.defaultPlanMode).toBe(false);
     expect(config.mergeAllAvailableSkills).toBe(true);
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
     expect(config.telemetry).toBe(false);
-    expect(config.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+    expect(config.providers['managed:byf']).toMatchObject({
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-file',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
       customHeaders: { 'X-Test': '1' },
     });
-    expect(config.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: 'managed:kimi-code',
-      model: 'kimi-for-coding',
+    expect(config.models?.['byf/byf-for-coding']).toMatchObject({
+      provider: 'managed:byf',
+      model: 'byf-for-coding',
       maxContextSize: 262144,
       capabilities: ['image_in', 'thinking', 'video_in'],
-      displayName: 'Kimi for Coding',
+      displayName: 'Byf for Coding',
     });
     expect(config.thinking).toEqual({ mode: 'auto', effort: 'medium' });
     expect(config.permission).toEqual({
@@ -186,8 +186,8 @@ describe('harness config TOML loader', () => {
         command: 'echo stop',
       },
     ]);
-    expect(config.services?.moonshotSearch?.customHeaders).toEqual({ 'X-Search': '1' });
-    expect(config.services?.moonshotFetch?.apiKey).toBe('sk-fetch');
+    expect(config.services?.byfSearch?.customHeaders).toEqual({ 'X-Search': '1' });
+    expect(config.services?.byfFetch?.apiKey).toBe('sk-fetch');
 
     expect('theme' in config).toBe(false);
     expect(config.raw?.['theme']).toBe('dark');
@@ -205,7 +205,7 @@ describe('harness config TOML loader', () => {
     expect(loopControl).toBeDefined();
     await writeConfigFile(configPath, {
       ...config,
-      defaultModel: 'kimi-code/kimi-for-coding',
+      defaultModel: 'byf/byf-for-coding',
       loopControl: {
         ...loopControl!,
         maxStepsPerTurn: 7,
@@ -213,7 +213,7 @@ describe('harness config TOML loader', () => {
     });
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('default_model = "kimi-code/kimi-for-coding"');
+    expect(text).toContain('default_model = "byf/byf-for-coding"');
     expect(text).toContain('default_permission_mode = "auto"');
     expect(text).toContain('extra_skill_dirs = [ "~/team-skills", ".agents/team-skills" ]');
     expect(text).toContain('telemetry = false');
@@ -243,7 +243,7 @@ describe('harness config TOML loader', () => {
     await ensureConfigFile(configPath);
 
     const text = await readFile(configPath, 'utf-8');
-    expect(text).toContain('Runtime settings for Kimi Code.');
+    expect(text).toContain('Runtime settings for BYF.');
     expect(text).not.toMatch(/^default_thinking =/m);
     expect(text).not.toMatch(/^default_model =/m);
 
@@ -278,12 +278,12 @@ describe('harness config TOML loader', () => {
     expect(text).not.toContain('default_permission_mode');
   });
 
-  it('rejects invalid TOML and invalid schema with KimiError(config.invalid)', () => {
-    expectKimiErrorCode(
+  it('rejects invalid TOML and invalid schema with ByfError(config.invalid)', () => {
+    expectByfErrorCode(
       () => parseConfigString('[[[', 'broken.toml'),
       ErrorCodes.CONFIG_INVALID,
     );
-    expectKimiErrorCode(
+    expectByfErrorCode(
       () =>
         parseConfigString(
           `
@@ -294,7 +294,7 @@ type = "not-a-provider"
         ),
       ErrorCodes.CONFIG_INVALID,
     );
-    expectKimiErrorCode(
+    expectByfErrorCode(
       () =>
         parseConfigString(
           `
@@ -331,7 +331,7 @@ timeout = 5
   });
 
   it('rejects invalid hooks config', () => {
-    expectKimiErrorCode(
+    expectByfErrorCode(
       () =>
         parseConfigString(
           `
@@ -346,7 +346,7 @@ hooks = [{ type = "pre-tool-call", command = "echo hi" }]
 
 describe('harness config schema and patch merge', () => {
   it('accepts the empty public config and requires model context size in full configs', () => {
-    expect(KimiConfigSchema.parse({})).toEqual({ providers: {} });
+    expect(ByfConfigSchema.parse({})).toEqual({ providers: {} });
     expect(() =>
       validateConfig({
         providers: {
@@ -363,13 +363,13 @@ describe('harness config schema and patch merge', () => {
     const base = parseConfigString(COMPLETE_TOML);
     const merged = mergeConfigPatch(base, {
       providers: {
-        'managed:kimi-code': {
+        'managed:byf': {
           apiKey: 'sk-patched',
           baseUrl: undefined,
         },
       },
       models: {
-        'kimi-code/kimi-for-coding': {
+        'byf/byf-for-coding': {
           capabilities: ['tool_use'],
         },
       },
@@ -378,15 +378,15 @@ describe('harness config schema and patch merge', () => {
       },
     });
 
-    expect(merged.providers['managed:kimi-code']).toMatchObject({
-      type: 'kimi',
-      baseUrl: 'https://api.kimi.com/coding/v1',
+    expect(merged.providers['managed:byf']).toMatchObject({
+      type: 'openai-compat',
+      baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-patched',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });
-    expect(merged.models?.['kimi-code/kimi-for-coding']).toMatchObject({
-      provider: 'managed:kimi-code',
-      model: 'kimi-for-coding',
+    expect(merged.models?.['byf/byf-for-coding']).toMatchObject({
+      provider: 'managed:byf',
+      model: 'byf-for-coding',
       maxContextSize: 262144,
       capabilities: ['tool_use'],
     });
@@ -396,7 +396,7 @@ describe('harness config schema and patch merge', () => {
   });
 
   it('rejects unknown fields in config patches', () => {
-    expectKimiErrorCode(
+    expectByfErrorCode(
       () => mergeConfigPatch({ providers: {} }, { theme: 'dark' } as never),
       ErrorCodes.CONFIG_INVALID,
     );
@@ -414,7 +414,7 @@ describe('harness config schema and patch merge', () => {
   });
 
   it('accepts maxOutputSize on a model alias and round-trips it', () => {
-    const parsed = KimiConfigSchema.parse({
+    const parsed = ByfConfigSchema.parse({
       providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
       models: {
         opus: {
@@ -432,7 +432,7 @@ describe('harness config schema and patch merge', () => {
   });
 
   it('leaves maxOutputSize undefined when omitted', () => {
-    const parsed = KimiConfigSchema.parse({
+    const parsed = ByfConfigSchema.parse({
       providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
       models: {
         opus: {
@@ -447,7 +447,7 @@ describe('harness config schema and patch merge', () => {
 
   it('rejects maxOutputSize <= 0', () => {
     expect(() =>
-      KimiConfigSchema.parse({
+      ByfConfigSchema.parse({
         providers: { local: { type: 'anthropic', apiKey: 'sk-test' } },
         models: {
           opus: {
@@ -463,18 +463,31 @@ describe('harness config schema and patch merge', () => {
 });
 
 describe('config path env override', () => {
-  it('uses KIMI_CODE_HOME when no explicit homeDir is supplied', () => {
-    const saved = process.env['KIMI_CODE_HOME'];
+  it('uses BYF_HOME when no explicit homeDir is supplied', () => {
+    const saved = process.env['BYF_HOME'];
     try {
-      process.env['KIMI_CODE_HOME'] = '/tmp/kimi-from-env';
+      process.env['BYF_HOME'] = '/tmp/byf-from-env';
 
-      expect(resolveKimiHome()).toBe('/tmp/kimi-from-env');
-      expect(resolveKimiHome('/tmp/kimi-explicit')).toBe('/tmp/kimi-explicit');
-      expect(resolveConfigPath({})).toBe('/tmp/kimi-from-env/config.toml');
+      expect(resolveByfHome()).toBe('/tmp/byf-from-env');
+      expect(resolveByfHome('/tmp/byf-explicit')).toBe('/tmp/byf-explicit');
+      expect(resolveConfigPath({})).toBe('/tmp/byf-from-env/config.toml');
       expect(resolveConfigPath({ configPath: '/tmp/custom.toml' })).toBe('/tmp/custom.toml');
     } finally {
-      if (saved === undefined) delete process.env['KIMI_CODE_HOME'];
-      else process.env['KIMI_CODE_HOME'] = saved;
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
+    }
+  });
+
+  it('defaults to ~/.byf when no env var is set', () => {
+    const saved = process.env['BYF_HOME'];
+    try {
+      delete process.env['BYF_HOME'];
+
+      const result = resolveByfHome();
+      expect(result).toMatch(/\/\.byf$/);
+    } finally {
+      if (saved === undefined) delete process.env['BYF_HOME'];
+      else process.env['BYF_HOME'] = saved;
     }
   });
 });
@@ -496,8 +509,8 @@ describe('config value env override helpers', () => {
   it('resolves env before config before default', () => {
     expect(
       resolveConfigValue({
-        env: { KIMI_TEST_FLAG: '0' },
-        envKey: 'KIMI_TEST_FLAG',
+        env: { BYF_TEST_FLAG: '0' },
+        envKey: 'BYF_TEST_FLAG',
         configValue: true,
         defaultValue: true,
         parseEnv: parseBooleanEnv,
@@ -507,7 +520,7 @@ describe('config value env override helpers', () => {
     expect(
       resolveConfigValue({
         env: {},
-        envKey: 'KIMI_TEST_FLAG',
+        envKey: 'BYF_TEST_FLAG',
         configValue: false,
         defaultValue: true,
         parseEnv: parseBooleanEnv,
@@ -517,7 +530,7 @@ describe('config value env override helpers', () => {
     expect(
       resolveConfigValue({
         env: {},
-        envKey: 'KIMI_TEST_FLAG',
+        envKey: 'BYF_TEST_FLAG',
         defaultValue: true,
         parseEnv: parseBooleanEnv,
       }),
@@ -527,8 +540,8 @@ describe('config value env override helpers', () => {
   it('ignores invalid env values', () => {
     expect(
       resolveConfigValue({
-        env: { KIMI_TEST_FLAG: 'invalid' },
-        envKey: 'KIMI_TEST_FLAG',
+        env: { BYF_TEST_FLAG: 'invalid' },
+        envKey: 'BYF_TEST_FLAG',
         configValue: false,
         defaultValue: true,
         parseEnv: parseBooleanEnv,

@@ -1,4 +1,4 @@
-import { derefJsonSchema, normalizeKimiToolSchema } from '#/providers/kimi-schema';
+import { derefJsonSchema, normalizeOpenAICompatToolSchema } from '#/providers/openai-compat-schema';
 import { describe, expect, it } from 'vitest';
 
 describe('derefJsonSchema', () => {
@@ -278,7 +278,7 @@ describe('derefJsonSchema', () => {
   });
 });
 
-describe('normalizeKimiToolSchema', () => {
+describe('normalizeOpenAICompatToolSchema', () => {
   it.each([
     {
       name: 'string enum',
@@ -341,7 +341,7 @@ describe('normalizeKimiToolSchema', () => {
       };
       const original = structuredClone(schema);
 
-      const result = normalizeKimiToolSchema(schema);
+      const result = normalizeOpenAICompatToolSchema(schema);
 
       expect(result).toEqual({
         type: 'object',
@@ -362,7 +362,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       type: 'object',
@@ -383,7 +383,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       type: 'object',
@@ -396,7 +396,7 @@ describe('normalizeKimiToolSchema', () => {
     });
   });
 
-  it('fails fast for mixed enum types instead of emitting an unsupported Kimi type array', () => {
+  it('fails fast for mixed enum types instead of emitting an unsupported Byf type array', () => {
     const schema = {
       type: 'object',
       properties: {
@@ -405,7 +405,7 @@ describe('normalizeKimiToolSchema', () => {
     };
     const original = structuredClone(schema);
 
-    expect(() => normalizeKimiToolSchema(schema)).toThrow(
+    expect(() => normalizeOpenAICompatToolSchema(schema)).toThrow(
       /Mixed JSON Schema enum or const types are not supported/,
     );
     expect(schema).toEqual(original);
@@ -436,7 +436,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       properties: {
@@ -478,7 +478,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       properties: {
@@ -491,7 +491,7 @@ describe('normalizeKimiToolSchema', () => {
   });
 
   it('does not default the root schema itself to string', () => {
-    expect(normalizeKimiToolSchema({})).toEqual({});
+    expect(normalizeOpenAICompatToolSchema({})).toEqual({});
   });
 
   it('dereferences and normalizes local definition buckets', () => {
@@ -509,7 +509,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       type: 'object',
@@ -544,7 +544,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       properties: {
@@ -626,7 +626,7 @@ describe('normalizeKimiToolSchema', () => {
       },
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       properties: {
@@ -694,7 +694,7 @@ describe('normalizeKimiToolSchema', () => {
       ],
     };
 
-    const result = normalizeKimiToolSchema(schema);
+    const result = normalizeOpenAICompatToolSchema(schema);
 
     expect(result).toEqual({
       anyOf: [

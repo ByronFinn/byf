@@ -1,104 +1,54 @@
-# Kimi Code CLI
+# BYF (Be Your Friend)
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Docs](https://img.shields.io/badge/docs-online-blue)](https://moonshotai.github.io/kimi-code/zh/)
+一个运行在终端里的 AI 编程 Agent
 
-[Documentation](https://moonshotai.github.io/kimi-code/zh/) · [Issues](https://github.com/MoonshotAI/kimi-code/issues) · [English](README.md)
-
-
-![Kimi Code 的使用演示](./docs/media/intro.gif)
-
-
-## 什么是 Kimi Code CLI
-
-Kimi Code CLI 是一个运行在终端里的 AI 编程 agent，可以帮你读写代码、执行 shell 命令、检索文件、抓取网页，并根据反馈自主决定下一步动作。开箱即用对接 Moonshot AI 的 Kimi 模型，也可指向其他兼容厂商。
+BYF 是一个面向终端工作流的编程 Agent，可以帮助你浏览仓库、编辑文件、执行 shell 命令，并完成日常开发任务。它已经作为独立项目运行，重点关注本地优先、基于 GitHub Releases 的分发方式，以及由用户自行掌控的配置。
 
 ## 安装
-
-推荐使用官方安装脚本，不需要提前安装 Node.js。
-
-- **macOS / Linux**：
-
+### npm（推荐）
 ```sh
-curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
+npm install -g @byf/cli
 ```
 
-- **Windows（PowerShell）**：
+### 快速安装（macOS/Linux）
+```sh
+curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
+```
 
+### 快速安装（Windows）
 ```powershell
-irm https://code.kimi.com/kimi-code/install.ps1 | iex
+irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
 ```
 
-随后在新的终端会话中运行：
-
-```sh
-kimi --version
-```
-
-npm 安装、升级、卸载方式，见[快速上手](https://moonshotai.github.io/kimi-code/zh/guides/getting-started)。
-
-## 快速开始
-
-进入项目目录并启动交互界面：
+## 使用
+在当前项目中启动 BYF：
 
 ```sh
 cd your-project
-kimi
+byf
 ```
 
-首次启动时，在 Kimi Code CLI 里输入 `/login`，选择 Kimi Code OAuth 或 Moonshot AI Open Platform API 密钥登录。登录完成后，可以先让它熟悉项目：
-
-```
-帮我看一下这个项目的目录结构，简单介绍一下每个目录是做什么的
-```
-
-## 核心特性
-
-- **二进制发行，零环境依赖** 一行命令安装，不需要预装 Node.js，不用折腾 PATH，也不会和全局模块冲突。
-- **极速启动** TUI 在毫秒级就绪，开一个新会话没有任何心智负担。
-- **精致的 TUI 体验** 为长时间、专注的 Agent 会话精心打磨的交互界面。
-- **视频也能输入** 屏幕录像、演示视频也能拖进对话。
-- **AI-native 的 MCP 配置** 通过 `/mcp-config` 对话式添加、编辑、认证 MCP 服务器，无需手写 JSON。
-- **子 Agent 聚焦并行工作** 内置 `coder`、`explore`、`plan` 子 Agent 在隔离上下文中处理子任务，主对话保持清爽。
-- **生命周期 hooks** 在关键节点执行本地命令：拦截高风险工具调用、审计决策、发送桌面通知，或对接你自己的自动化脚本。
-
-
-## 文档
-
-- [快速上手](https://moonshotai.github.io/kimi-code/zh/guides/getting-started)
-- [交互与审批](https://moonshotai.github.io/kimi-code/zh/guides/interaction)
-- [会话](https://moonshotai.github.io/kimi-code/zh/guides/sessions)
-- [配置](https://moonshotai.github.io/kimi-code/zh/configuration/config-files)
-- [命令参考](https://moonshotai.github.io/kimi-code/zh/reference/kimi-command)
-
-## 本地开发
-
-环境要求：Node.js ≥ 24.15.0，pnpm 10.33.0。
+也可以直接附带一条提示词启动：
 
 ```sh
-git clone https://github.com/MoonshotAI/kimi-code.git
-cd kimi-code
-pnpm install
+byf "解释一下这个仓库的主要目录结构"
 ```
+
+BYF 可以在终端里读取代码、编辑文件、执行命令，并协助你推进开发任务。
+
+## 配置
+BYF 的用户配置文件位于 `~/.byf/config.toml`。
+
+如果你想自定义 BYF 的主目录，可以设置 `BYF_HOME`：
 
 ```sh
-pnpm dev:cli    # 以开发模式运行 CLI
-pnpm test       # 运行测试
-pnpm typecheck  # TypeScript 检查
-pnpm lint       # 运行 oxlint
-pnpm build      # 构建所有包
+export BYF_HOME="$HOME/.config/byf"
 ```
 
-完整贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+请在本地配置中提供你自己的模型服务凭据或 API Key，并避免把密钥提交到仓库中。
 
-## 社区
-
-- [Issues](https://github.com/MoonshotAI/kimi-code/issues)
-- 安全漏洞反馈，请见 [SECURITY.md](SECURITY.md)。
-
-## 致谢
-
-我们的 TUI 构建在 [`pi-tui`](https://github.com/earendil-works/pi-mono/tree/main/packages/tui) 之上。我们衷心感谢 `pi-tui` 作者的工作。
+## 参与贡献
+开发流程与贡献说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证
-
-基于 [MIT](LICENSE) 协议发布。
+BYF 使用专有 [BYF 许可证](LICENSE) 分发。

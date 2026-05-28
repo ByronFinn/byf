@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiHarness, type KimiError, type PermissionMode } from '#/index';
+import { ByfHarness, type ByfError, type PermissionMode } from '#/index';
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
@@ -14,9 +14,9 @@ describe('Session.setPermission', () => {
   it.each(['yolo', 'manual', 'auto'] as const)(
     'sends permission.set_mode with mode %s',
     async (mode: PermissionMode) => {
-      const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-home-');
-      const workDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-work-');
-      const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+      const homeDir = await makeTempDir(tempDirs, 'byf-sdk-permission-home-');
+      const workDir = await makeTempDir(tempDirs, 'byf-sdk-permission-work-');
+      const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
       try {
         const session = await harness.createSession({
@@ -44,35 +44,35 @@ describe('Session.setPermission', () => {
   );
 
   it('rejects invalid permission modes', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-permission-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-permission-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_permission_invalid', workDir });
 
       await expect(session.setPermission('invalid' as never)).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.permission_mode_invalid',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
   });
 
   it('rejects after the session is closed', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-home-');
-    const workDir = await makeTempDir(tempDirs, 'kimi-sdk-permission-work-');
-    const harness = new KimiHarness({ homeDir, identity: TEST_IDENTITY });
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-permission-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-permission-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
     try {
       const session = await harness.createSession({ id: 'ses_permission_closed', workDir });
       await session.close();
 
       await expect(session.setPermission('yolo')).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'session.closed',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }

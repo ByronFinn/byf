@@ -1,4 +1,4 @@
-import type { ContentPart, TokenUsage } from '@moonshot-ai/kosong';
+import type { ContentPart, TokenUsage } from '@byf/kosong';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { ToolStoreUpdate } from '../../tools/store';

@@ -5,8 +5,8 @@ import { basename, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KimiHarness } from '#/index';
-import type { KimiError } from '#/index';
+import { ByfHarness } from '#/index';
+import type { ByfError } from '#/index';
 
 import {
   SessionStore,
@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-sdk-list-'));
+  const dir = await mkdtemp(join(tmpdir(), 'byf-sdk-list-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -212,42 +212,42 @@ describe('SessionStore.list', () => {
     const store = new SessionStore(homeDir);
     await expect(store.list({ workDir })).resolves.toEqual([]);
     await expect(store.get('ses_legacy_flat')).rejects.toMatchObject({
-      name: 'KimiError',
+      name: 'ByfError',
       code: 'session.not_found',
     });
   });
 });
 
-describe('KimiHarness.listSessions', () => {
+describe('ByfHarness.listSessions', () => {
   it('rejects whitespace-only workDir with request.work_dir_required', async () => {
     const homeDir = await makeTempDir();
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
 
     try {
       await expect(harness.listSessions({ workDir: '   ' })).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'request.work_dir_required',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
   });
 
-  it('rejects undefined payload as KimiError(internal)', async () => {
+  it('rejects undefined payload as ByfError(internal)', async () => {
     const homeDir = await makeTempDir();
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
 
     try {
       await expect(harness.listSessions(undefined as never)).rejects.toMatchObject({
-        name: 'KimiError',
+        name: 'ByfError',
         code: 'internal',
-      } satisfies Partial<KimiError>);
+      } satisfies Partial<ByfError>);
     } finally {
       await harness.close();
     }
@@ -256,7 +256,7 @@ describe('KimiHarness.listSessions', () => {
   it('resolves relative workDir inputs before filtering', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });
@@ -277,7 +277,7 @@ describe('KimiHarness.listSessions', () => {
   it('lists persisted sessions after the active Session has been closed', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const harness = new KimiHarness({
+    const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
     });

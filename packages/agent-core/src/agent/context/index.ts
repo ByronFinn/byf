@@ -1,4 +1,4 @@
-import { createToolMessage, type ContentPart, type Message } from '@moonshot-ai/kosong';
+import { createToolMessage, type ContentPart, type Message } from '@byf/kosong';
 
 import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';

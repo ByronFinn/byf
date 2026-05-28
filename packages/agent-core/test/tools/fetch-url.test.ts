@@ -12,7 +12,7 @@ import {
   HttpFetchError,
   type UrlFetcher,
 } from '../../src/tools/builtin/web/fetch-url';
-import { MoonshotFetchURLProvider } from '../../src/tools/providers/moonshot-fetch-url';
+import { RemoteFetchURLProvider } from '../../src/tools/providers/remote-fetch-url';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
@@ -261,14 +261,14 @@ describe('FetchURLTool', () => {
   });
 });
 
-describe('MoonshotFetchURLProvider', () => {
+describe('RemoteFetchURLProvider', () => {
   it('does not force-refresh request auth after a 401 response', async () => {
     const getAccessToken = vi.fn().mockResolvedValue('fresh-token');
     const localFallback = fakeFetcher('fallback content');
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response('unauthorized', { status: 401 }));
-    const provider = new MoonshotFetchURLProvider({
+    const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       baseUrl: 'https://fetch.example/v1',
       localFallback,

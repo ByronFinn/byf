@@ -1,6 +1,6 @@
 # Providers and models
 
-Kimi Code CLI integrates with multiple LLM platforms through a unified provider abstraction. Each provider handles one API protocol, and models are declared on top of a provider with their own name, context length, and capabilities. This page describes every provider type currently supported and how to configure them in `~/.kimi-code/config.toml`.
+BYF integrates with multiple LLM platforms through a unified provider abstraction. Each provider handles one API protocol, and models are declared on top of a provider with their own name, context length, and capabilities. This page describes every provider type currently supported and how to configure them in `~/.byf/config.toml`.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The `type` field of each entry in the `providers` table determines which impleme
 
 | Type | Protocol | Typical platforms |
 | --- | --- | --- |
-| `kimi` | OpenAI-compatible (chat completions style) | Kimi Code, Moonshot AI Open Platform |
+| `byf` | OpenAI-compatible (chat completions style) | BYF, BYF API |
 | `anthropic` | Anthropic Messages | Claude API |
 | `openai` | OpenAI Chat Completions | OpenAI and compatible services |
 | `openai_responses` | OpenAI Responses API | OpenAI's newer Responses endpoint |
@@ -17,7 +17,7 @@ The `type` field of each entry in the `providers` table determines which impleme
 
 All providers stream model interactions by default. Thinking, vision, and tool-call capabilities are matched automatically by model name prefix, so you do not need to spell them out in the config.
 
-API keys may be written into the `api_key` field, or supplied under the `[providers.<name>.env]` sub-table. The lookup order is `api_key` > sub-table key > missing error. **Kimi Code CLI does not automatically fall back to shell environment variables** — `export KIMI_API_KEY` in your terminal alone will not give a provider credentials; you must write them into `config.toml` (see [Configuration overrides: provider credentials](./overrides.md#provider-credentials) for details). `api_key` and `oauth` are mutually exclusive on the same provider; setting both causes an error when the model is resolved. OAuth credentials are handled by the built-in login flow and do not need to be configured manually.
+API keys may be written into the `api_key` field, or supplied under the `[providers.<name>.env]` sub-table. The lookup order is `api_key` > sub-table key > missing error. **BYF does not automatically fall back to shell environment variables** — `export BYF_API_KEY` in your terminal alone will not give a provider credentials; you must write them into `config.toml` (see [Configuration overrides: provider credentials](./overrides.md#provider-credentials) for details). `api_key` and `oauth` are mutually exclusive on the same provider; setting both causes an error when the model is resolved. OAuth credentials are handled by the built-in login flow and do not need to be configured manually.
 
 The `[providers.<name>.env]` sub-table lets you supply credentials or endpoint overrides directly inside `config.toml`. These values are scoped to the provider and do not leak into the global shell environment:
 
@@ -42,22 +42,22 @@ The default catalog is bundled with the CLI, so `/connect` works offline. Two fl
 
 `/logout` works on `/connect`-configured providers too: it removes the corresponding `[providers.<name>]` entry from `config.toml`.
 
-## `kimi`
+## `byf`
 
-`kimi` connects to the Moonshot AI API using the OpenAI-compatible protocol.
+`byf` connects to an OpenAI-compatible API using the OpenAI-compatible protocol.
 
-- Default `base_url`: `https://api.moonshot.ai/v1`
-- Environment variables: `KIMI_API_KEY`, `KIMI_BASE_URL`
+- Default `base_url`: `https://api.example.com/v1`
+- Environment variables: `BYF_API_KEY`, `BYF_BASE_URL`
 - Extra capability: video upload
 
 ```toml
-[providers.kimi]
-type = "kimi"
-base_url = "https://api.moonshot.ai/v1"
+[providers.byf]
+type = "openai-compat"
+base_url = "https://api.example.com/v1"
 api_key = "sk-xxxxx"
 ```
 
-The Kimi Code hosted service configures its `base_url` and credentials automatically after OAuth login; see [OAuth and credential injection](#oauth-and-credential-injection) and [Environment variables](./env-vars.md) for details.
+The BYF hosted service configures its `base_url` and credentials automatically after OAuth login; see [OAuth and credential injection](#oauth-and-credential-injection) and [Environment variables](./env-vars.md) for details.
 
 ## `anthropic`
 
@@ -130,7 +130,7 @@ api_key = "xxxxx"
 
 `vertexai` shares the same implementation as `google-genai`; setting `type = "vertexai"` switches it to the Vertex AI access path.
 
-Authentication follows the standard Google Cloud flow: authenticate via `gcloud auth application-default login`, or set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON (this step is a generic Google SDK mechanism unrelated to Kimi Code configuration). **The project and region must be written into the `[providers.vertexai.env]` sub-table** — `export GOOGLE_CLOUD_PROJECT` or `export GOOGLE_CLOUD_LOCATION` in the shell will not be read by the CLI. When `GOOGLE_CLOUD_LOCATION` is missing, the CLI tries to infer it from `base_url`. API keys (`VERTEXAI_API_KEY` or `GOOGLE_API_KEY`) likewise go into the sub-table.
+Authentication follows the standard Google Cloud flow: authenticate via `gcloud auth application-default login`, or set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON (this step is a generic Google SDK mechanism unrelated to BYF configuration). **The project and region must be written into the `[providers.vertexai.env]` sub-table** — `export GOOGLE_CLOUD_PROJECT` or `export GOOGLE_CLOUD_LOCATION` in the shell will not be read by the CLI. When `GOOGLE_CLOUD_LOCATION` is missing, the CLI tries to infer it from `base_url`. API keys (`VERTEXAI_API_KEY` or `GOOGLE_API_KEY`) likewise go into the sub-table.
 
 ```toml
 [providers.vertexai]
@@ -143,9 +143,9 @@ GOOGLE_CLOUD_LOCATION = "us-central1"
 
 ```sh
 gcloud auth application-default login   # one-time
-kimi
+byf
 ```
 
 ## OAuth and credential injection
 
-Some platforms (such as the Kimi Code hosted service) use OAuth instead of static API keys. Credentials are injected at runtime by the built-in kimi-oauth toolchain, and the login flow takes care of writing and refreshing them automatically — there is nothing to configure by hand for this in your config file.
+Some platforms (such as the BYF hosted service) use OAuth instead of static API keys. Credentials are injected at runtime by the built-in byf-oauth toolchain, and the login flow takes care of writing and refreshing them automatically — there is nothing to configure by hand for this in your config file.

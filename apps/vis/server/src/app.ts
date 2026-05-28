@@ -79,7 +79,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
         await next();
         return;
       }
-      c.header('www-authenticate', 'Bearer realm="kimi-vis"');
+      c.header('www-authenticate', 'Bearer realm="byf-vis"');
       return c.json({ error: 'unauthorized', code: 'UNAUTHORIZED' }, 401);
     });
   }

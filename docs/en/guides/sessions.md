@@ -1,13 +1,13 @@
 # Sessions and context
 
-Kimi Code CLI persists every conversation as a "session", preserving message history and metadata so you can close the terminal and resume later. This page covers resuming sessions, context compaction, and managing sessions from inside the TUI.
+BYF persists every conversation as a "session", preserving message history and metadata so you can close the terminal and resume later. This page covers resuming sessions, context compaction, and managing sessions from inside the TUI.
 
 ## Session storage
 
-All sessions are stored under `$KIMI_CODE_HOME/sessions/` (default `~/.kimi-code/sessions/`), bucketed by working directory:
+All sessions are stored under `$BYF_HOME/sessions/` (default `~/.byf/sessions/`), bucketed by working directory:
 
 ```text
-~/.kimi-code/
+~/.byf/
 ├── config.toml
 ├── session_index.jsonl
 └── sessions/
@@ -30,18 +30,18 @@ Manually editing files under `sessions/` can leave a session unrecoverable due t
 
 ## Starting and resuming sessions
 
-By default, `kimi` creates a new session each time. To continue where you left off:
+By default, `byf` creates a new session each time. To continue where you left off:
 
 **Resume the most recent session in the current directory:**
 
 ```sh
-kimi --continue
+byf --continue
 ```
 
 **Resume a specific session:**
 
 ```sh
-kimi --session abc123
+byf --session abc123
 ```
 
 `-r` / `--resume` are equivalent aliases.
@@ -49,7 +49,7 @@ kimi --session abc123
 **Pick interactively:**
 
 ```sh
-kimi --session
+byf --session
 ```
 
 ::: warning Note
@@ -67,7 +67,7 @@ kimi --session
 
 ## Context compaction
 
-Kimi Code CLI automatically compresses message history when context approaches the window limit. You can also trigger it manually:
+BYF automatically compresses message history when context approaches the window limit. You can also trigger it manually:
 
 ```text
 /compact
@@ -94,16 +94,16 @@ The forked session is fully independent; you can switch back to the original at 
 Package a session into a ZIP:
 
 ```sh
-kimi export <sessionId>
+byf export <sessionId>
 ```
 
 Without a `sessionId`, it exports the most recent session (interactively asks for confirmation; pass `-y` to skip). Use `-o` to set the output path:
 
 ```sh
-kimi export <sessionId> -o ~/Desktop/my-session.zip
+byf export <sessionId> -o ~/Desktop/my-session.zip
 ```
 
-The ZIP is written to the current working directory by default. The session's own diagnostic log is always bundled along with the session directory. The global diagnostic log at `$KIMI_CODE_HOME/logs/kimi-code.log` — which captures events that do not belong to a session, such as TUI startup and login — is also bundled by default; pass `--no-include-global-log` to skip it.
+The ZIP is written to the current working directory by default. The session's own diagnostic log is always bundled along with the session directory. The global diagnostic log at `$BYF_HOME/logs/byf.log` — which captures events that do not belong to a session, such as TUI startup and login — is also bundled by default; pass `--no-include-global-log` to skip it.
 
 ::: tip Tip
 Exported files may contain sensitive information. Review the contents before sharing.
