@@ -232,7 +232,7 @@ function requireConfiguredModel(...models: readonly (string | undefined)[]): str
   const model = configuredModel(...models);
   if (model === undefined) {
     throw new Error(
-      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login or /connect to configure a provider, then retry; or set default_model in config.toml.',
     );
   }
   return model;

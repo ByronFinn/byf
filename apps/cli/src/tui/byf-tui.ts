@@ -4424,7 +4424,7 @@ export class ByfTui {
     if (entries.length === 0) {
       this.showNotice(
         'No models configured',
-        'Run /connect to add a provider from the model catalog.',
+        'Run /login or /connect to add a provider.',
       );
       return;
     }

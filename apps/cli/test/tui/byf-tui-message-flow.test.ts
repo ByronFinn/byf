@@ -1101,6 +1101,18 @@ describe('ByfTui message flow', () => {
     expect(driver.state.transcriptContainer.render(120).join('\n')).toContain('LLM not set');
   });
 
+  it('shows /login and /connect in model picker when no models are configured', async () => {
+    const { driver } = await makeDriver();
+    driver.state.appState.availableModels = {};
+
+    driver.handleUserInput('/model');
+
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('No models configured');
+    expect(transcript).toContain('/login');
+    expect(transcript).toContain('/connect');
+  });
+
   it('shows the login prompt for auth.login_required session errors', async () => {
     const { driver } = await makeDriver();
 
@@ -1117,7 +1129,7 @@ describe('ByfTui message flow', () => {
     );
 
     const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Authentication required. Use /connect to configure a provider.');
+    expect(transcript).toContain('Authentication required. Use /login or /connect to configure a provider.');
     expect(transcript).not.toContain('[auth.login_required]');
     expect(transcript).not.toContain('byf export');
   });

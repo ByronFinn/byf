@@ -690,7 +690,7 @@ describe('runPrompt', () => {
         stderr: { write: vi.fn(() => true) },
       }),
     ).rejects.toThrow(
-      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login or /connect to configure a provider, then retry; or set default_model in config.toml.',
     );
 
     expect(mocks.harnessClose).toHaveBeenCalled();
