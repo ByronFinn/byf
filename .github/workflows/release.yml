@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '@byfriends/cli@*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: darwin-arm64
+            platform: darwin
+          - runner: macos-13
+            target: darwin-x64
+            platform: darwin
+          - runner: ubuntu-latest
+            target: linux-x64
+            platform: linux
+          - runner: windows-latest
+            target: win32-x64
+            platform: win32
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm run build:packages
+
+      - name: Build native binary
+        env:
+          BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
+        run: pnpm --filter @byfriends/cli run build:native:release
+        shell: bash
+
+      - name: Package native artifact
+        env:
+          BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
+        run: pnpm --filter @byfriends/cli run package:native
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: byf-${{ matrix.target }}
+          path: apps/cli/dist-native/artifacts/byf-${{ matrix.target }}.*
+          if-no-files-found: error
+
+  release:
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: byf-*
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#@byfriends/cli@}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=@byfriends/cli@${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: |
+            ## @byfriends/cli ${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            ```bash
+            # macOS / Linux
+            curl -fsSL https://github.com/ByronFinn/byf/releases/download/${{ steps.version.outputs.tag }}/byf-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip -o byf.zip
+            unzip byf.zip
+            chmod +x byf
+            sudo mv byf /usr/local/bin/
+
+            # Or install via npm
+            npm install -g @byfriends/cli
+            ```
+          files: |
+            artifacts/byf-darwin-arm64/*
+            artifacts/byf-darwin-x64/*
+            artifacts/byf-linux-x64/*
+            artifacts/byf-win32-x64/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
