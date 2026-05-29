@@ -1394,14 +1394,18 @@ describe('ByfTui message flow', () => {
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      expect(session.setThinking).toHaveBeenCalledWith('high');
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
+        thinking: {
+          mode: 'on',
+          effort: 'high',
+        },
       });
     });
     expect(driver.state.appState.model).toBe('turbo');
-    expect(driver.state.appState.thinking).toBe(true);
+    expect(driver.state.appState.thinkingEffort).toBe('high');
   });
 
   it('persists /model selection even when runtime state is unchanged', async () => {
@@ -1434,10 +1438,61 @@ describe('ByfTui message flow', () => {
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'k2',
         defaultThinking: false,
+        thinking: {
+          mode: 'off',
+          effort: 'high',
+        },
       });
     });
     expect(session.setModel).not.toHaveBeenCalled();
     expect(session.setThinking).not.toHaveBeenCalled();
+  });
+
+  it('prefers config thinking.effort when refreshing defaults after login', async () => {
+    const session = makeSession();
+    let configReads = 0;
+    const { driver } = await makeDriver(session, {
+      getConfig: vi.fn(async () => {
+        configReads += 1;
+        if (configReads === 1) {
+          return {
+            models: {
+              k2: {
+                provider: 'managed:byf',
+                model: 'byf-k2',
+                maxContextSize: 100,
+                capabilities: ['thinking_effort'],
+              },
+            },
+            defaultModel: 'k2',
+            defaultThinking: true,
+          };
+        }
+        return {
+          models: {
+            k2: {
+              provider: 'managed:byf',
+              model: 'byf-k2',
+              maxContextSize: 100,
+              capabilities: ['thinking_effort'],
+            },
+          },
+          providers: {},
+          defaultModel: 'k2',
+          defaultThinking: true,
+          thinking: {
+            mode: 'on',
+            effort: 'low',
+          },
+        };
+      }),
+    });
+
+    const refreshDriver = driver as unknown as { refreshConfigAfterLogin(): Promise<void> };
+    await refreshDriver.refreshConfigAfterLogin();
+
+    expect(session.setThinking).toHaveBeenCalledWith('low');
+    expect(driver.state.appState.thinkingEffort).toBe('low');
   });
 
   it('enables search in the shared model selector helper', async () => {

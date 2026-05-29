@@ -9,6 +9,8 @@ export interface ModelInfo {
   readonly id: string;
   readonly contextLength: number;
   readonly supportsReasoning: boolean;
+  readonly supportsReasoningEffort?: boolean | undefined;
+  readonly reasoningEffortKey?: string | undefined;
   readonly supportsImageIn: boolean;
   readonly supportsVideoIn: boolean;
   readonly supportsToolUse?: boolean | undefined;
@@ -75,17 +77,41 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
   const supportsToolUse = Object.hasOwn(item, 'supports_tool_use')
     ? Boolean(item['supports_tool_use'])
     : true;
+  const reasoningEffortKey = firstNonEmptyString(item, [
+    'reasoning_effort_key',
+    'thinking_effort_key',
+    'reasoning_effort_param',
+    'thinking_effort_param',
+  ]);
+  const supportsReasoningEffort = Object.hasOwn(item, 'supports_reasoning_effort')
+    ? Boolean(item['supports_reasoning_effort'])
+    : reasoningEffortKey !== undefined;
   return {
     id: item['id'],
     contextLength,
     supportsReasoning: Object.hasOwn(item, 'supports_reasoning')
       ? Boolean(item['supports_reasoning'])
       : true,
+    supportsReasoningEffort,
+    reasoningEffortKey,
     supportsImageIn: Boolean(item['supports_image_in']),
     supportsVideoIn: Boolean(item['supports_video_in']),
     supportsToolUse,
     displayName: normalizedDisplayName,
   };
+}
+
+function firstNonEmptyString(
+  source: Record<string, unknown>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value !== 'string') continue;
+    const normalized = value.trim();
+    if (normalized.length > 0) return normalized;
+  }
+  return undefined;
 }
 
 export async function fetchModels(
@@ -138,6 +164,7 @@ export function filterModelsByPrefix(
 export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
   const caps = new Set<string>();
   if (model.supportsReasoning) caps.add('thinking');
+  if (model.supportsReasoningEffort === true) caps.add('thinking_effort');
   if (model.supportsImageIn) caps.add('image_in');
   if (model.supportsVideoIn) caps.add('video_in');
   if (model.supportsToolUse ?? true) caps.add('tool_use');
@@ -171,6 +198,7 @@ export function applyProviderConfig(
     type: 'openai-compat',
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
+    thinkingEffortKey: options.selectedModel.reasoningEffortKey,
   };
 
   const existingModels = config.models ?? {};

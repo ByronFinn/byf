@@ -190,10 +190,12 @@ import {
   type AppState,
   type BackgroundAgentMetadata,
   type LivePaneState,
+  parseThinkingEffort,
   type QueuedMessage,
   type ToolCallBlockData,
   type ToolResultBlockData,
   type TranscriptEntry,
+  type ThinkingEffortLevel,
 } from './types';
 import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from './utils/background-task-status';
@@ -390,7 +392,7 @@ function createInitialAppState(input: ByfTuiStartupInput): AppState {
     yolo: input.cliOptions.yolo,
     permissionMode: startupPermission,
     planMode: input.cliOptions.plan,
-    thinking: false,
+    thinkingEffort: 'off',
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
@@ -999,7 +1001,7 @@ export class ByfTui {
     this.setAppState({
       sessionId: '',
       model: '',
-      thinking: false,
+      thinkingEffort: 'off',
       contextTokens: 0,
       maxContextTokens: 0,
       contextUsage: 0,
@@ -1013,8 +1015,11 @@ export class ByfTui {
   }
 
   // Ensures a usable session exists for the default model after login.
-  private async activateModelAfterLogin(model: string, thinking?: boolean): Promise<void> {
-    const level = thinking === undefined ? undefined : thinking ? 'on' : 'off';
+  private async activateModelAfterLogin(
+    model: string,
+    thinkingEffort?: ThinkingEffortLevel,
+  ): Promise<void> {
+    const level = thinkingEffort;
     if (this.session !== undefined) {
       await this.session.setModel(model);
       if (level !== undefined) {
@@ -1055,15 +1060,25 @@ export class ByfTui {
       return;
     }
 
-    await this.activateModelAfterLogin(defaultModel, config.defaultThinking);
+    const defaultThinkingEffort: ThinkingEffortLevel | undefined =
+      config.thinking?.mode === 'off'
+        ? 'off'
+        : config.thinking?.effort !== undefined
+          ? parseThinkingEffort(config.thinking.effort)
+          : config.defaultThinking === undefined
+            ? undefined
+            : config.defaultThinking
+              ? 'high'
+              : 'off';
+    await this.activateModelAfterLogin(defaultModel, defaultThinkingEffort);
     const appStatePatch: Partial<AppState> = {
       availableModels,
       availableProviders,
       model: defaultModel,
       maxContextTokens: selected.maxContextSize,
     };
-    if (config.defaultThinking !== undefined) {
-      appStatePatch.thinking = config.defaultThinking;
+    if (defaultThinkingEffort !== undefined) {
+      appStatePatch.thinkingEffort = defaultThinkingEffort;
     }
     this.setAppState(appStatePatch);
   }
@@ -1941,7 +1956,7 @@ export class ByfTui {
       workDir: this.state.appState.workDir,
       model,
       thinking:
-        this.session === undefined ? undefined : this.state.appState.thinking ? 'on' : 'off',
+        this.session === undefined ? undefined : this.state.appState.thinkingEffort,
       permission: this.state.appState.permissionMode,
       planMode: this.state.appState.planMode ? true : undefined,
     });
@@ -1962,7 +1977,7 @@ export class ByfTui {
     this.setAppState({
       sessionId: session.id,
       model: status.model ?? '',
-      thinking: status.thinkingLevel !== 'off',
+      thinkingEffort: parseThinkingEffort(status.thinkingLevel),
       permissionMode: status.permission,
       yolo: status.permission === 'yolo',
       planMode: status.planMode,
@@ -4433,12 +4448,12 @@ export class ByfTui {
         models: this.state.appState.availableModels,
         currentValue: this.state.appState.model,
         selectedValue,
-        currentThinking: this.state.appState.thinking,
+        currentThinkingEffort: this.state.appState.thinkingEffort,
         colors: this.state.theme.colors,
         searchable: true,
-        onSelect: ({ alias, thinking }) => {
+        onSelect: ({ alias, thinkingEffort }) => {
           this.restoreEditor();
-          void this.performModelSwitch(alias, thinking);
+          void this.performModelSwitch(alias, thinkingEffort);
         },
         onCancel: () => {
           this.restoreEditor();
@@ -4448,27 +4463,26 @@ export class ByfTui {
   }
 
   // Applies model and thinking changes to the active or newly created session.
-  private async performModelSwitch(alias: string, thinking: boolean): Promise<void> {
+  private async performModelSwitch(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<void> {
     if (this.state.appState.isStreaming) {
       this.showError('Cannot switch models while streaming — press Esc or Ctrl-C first.');
       return;
     }
 
-    const level = thinking ? 'on' : 'off';
     const prevModel = this.state.appState.model;
-    const prevThinking = this.state.appState.thinking;
-    const runtimeChanged = alias !== prevModel || thinking !== prevThinking;
+    const prevThinking = this.state.appState.thinkingEffort;
+    const runtimeChanged = alias !== prevModel || thinkingEffort !== prevThinking;
 
     const session = this.session;
     try {
       if (session === undefined && runtimeChanged) {
-        await this.activateModelAfterLogin(alias, thinking);
+        await this.activateModelAfterLogin(alias, thinkingEffort);
       } else if (session !== undefined) {
         if (alias !== prevModel) {
           await session.setModel(alias);
         }
-        if (thinking !== prevThinking) {
-          await session.setThinking(level);
+        if (thinkingEffort !== prevThinking) {
+          await session.setThinking(thinkingEffort);
         }
       }
     } catch (error) {
@@ -4477,19 +4491,19 @@ export class ByfTui {
       return;
     }
 
-    this.setAppState({ model: alias, thinking });
+    this.setAppState({ model: alias, thinkingEffort });
     if (session === undefined && runtimeChanged) {
       if (alias !== prevModel) {
         this.track('model_switch', { model: alias });
       }
-      if (thinking !== prevThinking) {
-        this.track('thinking_toggle', { enabled: thinking });
+      if (thinkingEffort !== prevThinking) {
+        this.track('thinking_toggle', { enabled: thinkingEffort !== 'off' });
       }
     }
 
     let persisted = false;
     try {
-      persisted = await this.persistModelSelection(alias, thinking);
+      persisted = await this.persistModelSelection(alias, thinkingEffort);
     } catch (error) {
       const msg = formatErrorMessage(error);
       this.showError(`Switched to ${alias}, but failed to save default: ${msg}`);
@@ -4497,22 +4511,33 @@ export class ByfTui {
     }
 
     const status = runtimeChanged
-      ? `Switched to ${alias} with thinking ${level}.`
+      ? `Switched to ${alias} with thinking ${thinkingEffort}.`
       : persisted
-        ? `Saved ${alias} with thinking ${level} as default.`
-        : `Already using ${alias} with thinking ${level}.`;
+        ? `Saved ${alias} with thinking ${thinkingEffort} as default.`
+        : `Already using ${alias} with thinking ${thinkingEffort}.`;
     this.showStatus(status, this.state.theme.colors.success);
   }
 
   // Persists the selected model and thinking state as the startup defaults.
-  private async persistModelSelection(alias: string, thinking: boolean): Promise<boolean> {
+  private async persistModelSelection(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<boolean> {
     const config = await this.harness.getConfig({ reload: true });
-    if (config.defaultModel === alias && config.defaultThinking === thinking) {
+    const defaultThinking = thinkingEffort !== 'off';
+    const thinkingConfig =
+      thinkingEffort === 'off'
+        ? { mode: 'off' as const, effort: 'high' as const }
+        : { mode: 'on' as const, effort: thinkingEffort };
+    if (
+      config.defaultModel === alias &&
+      config.defaultThinking === defaultThinking &&
+      config.thinking?.mode === thinkingConfig.mode &&
+      config.thinking?.effort === thinkingConfig.effort
+    ) {
       return false;
     }
     await this.harness.setConfig({
       defaultModel: alias,
-      defaultThinking: thinking,
+      defaultThinking,
+      thinking: thinkingConfig,
     });
     return true;
   }
@@ -4664,7 +4689,7 @@ export class ByfTui {
       workDir: appState.workDir,
       sessionId: appState.sessionId,
       sessionTitle: appState.sessionTitle,
-      thinking: appState.thinking,
+      thinking: appState.thinkingEffort !== 'off',
       permissionMode: appState.permissionMode,
       planMode: appState.planMode,
       contextUsage: appState.contextUsage,
@@ -5086,7 +5111,7 @@ export class ByfTui {
       apiKey,
       models,
       selectedModel,
-      thinking: selection.thinking,
+      thinking: selection.thinkingEffort !== 'off',
     });
 
     await this.harness.setConfig({
@@ -5164,7 +5189,7 @@ export class ByfTui {
       apiKey,
       models: [manualModelInfo],
       selectedModel: manualModelInfo,
-      thinking: false,
+      thinkingEffort: 'off',
     });
 
     await this.harness.setConfig({
@@ -5312,7 +5337,7 @@ export class ByfTui {
       apiKey,
       models,
       selectedModelId: selection.model.id,
-      thinking: selection.thinking,
+      thinking: selection.thinkingEffort !== 'off',
     });
 
     await this.harness.setConfig({
@@ -5390,7 +5415,7 @@ export class ByfTui {
   private async promptModelSelectionForCatalog(
     providerId: string,
     models: CatalogModel[],
-  ): Promise<{ model: CatalogModel; thinking: boolean } | undefined> {
+  ): Promise<{ model: CatalogModel; thinkingEffort: ThinkingEffortLevel } | undefined> {
     const modelDict: Record<string, ModelAlias> = {};
     for (const m of models) {
       modelDict[`${providerId}/${m.id}`] = catalogModelToAlias(providerId, m);
@@ -5398,25 +5423,28 @@ export class ByfTui {
     const selection = await this.runModelSelector(modelDict);
     if (selection === undefined) return undefined;
     const model = models.find((m) => `${providerId}/${m.id}` === selection.alias);
-    return model ? { model, thinking: selection.thinking } : undefined;
+    return model ? { model, thinkingEffort: selection.thinkingEffort } : undefined;
   }
 
   private runModelSelector(
     modelDict: Record<string, ModelAlias>,
-  ): Promise<{ alias: string; thinking: boolean } | undefined> {
+  ): Promise<{ alias: string; thinkingEffort: ThinkingEffortLevel } | undefined> {
     return new Promise((resolve) => {
       const firstAlias = Object.keys(modelDict)[0] ?? '';
       const caps = modelDict[firstAlias]?.capabilities ?? [];
-      const initialThinking = caps.includes('always_thinking') || caps.includes('thinking');
+      const initialThinking: ThinkingEffortLevel =
+        caps.includes('always_thinking') || caps.includes('thinking') || caps.includes('thinking_effort')
+          ? 'high'
+          : 'off';
       const selector = new ModelSelectorComponent({
         models: modelDict,
         currentValue: firstAlias,
-        currentThinking: initialThinking,
+        currentThinkingEffort: initialThinking,
         colors: this.state.theme.colors,
         searchable: true,
-        onSelect: ({ alias, thinking }) => {
+        onSelect: ({ alias, thinkingEffort }) => {
           this.restoreEditor();
-          resolve({ alias, thinking });
+          resolve({ alias, thinkingEffort });
         },
         onCancel: () => {
           this.restoreEditor();
