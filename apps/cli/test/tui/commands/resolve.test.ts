@@ -35,6 +35,10 @@ describe('resolveSlashCommandInput', () => {
       args: 'New title',
     });
     expect(resolve('/init')).toMatchObject({ kind: 'builtin', name: 'init', args: '' });
+    expect(resolve('/q')).toEqual({
+      kind: 'message',
+      input: '/q',
+    });
   });
 
   it('blocks idle-only built-ins while streaming', () => {

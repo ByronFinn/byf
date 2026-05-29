@@ -60,7 +60,7 @@ Some commands are only available in the idle state. Running them while the sessi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/exit` | `/quit`, `/q` | Exit BYF. | No |
+| `/exit` | `/quit` | Exit BYF. | No |
 
 ## Dynamic skill commands
 

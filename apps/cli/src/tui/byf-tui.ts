@@ -96,6 +96,7 @@ import { detectFdPath } from '#/utils/process/fd-detect';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import {
   BUILTIN_SLASH_COMMANDS,
+  buildAutocompleteSlashCommands,
   buildSkillSlashCommands,
   parseSlashInput,
   resolveSlashCommandInput,
@@ -622,10 +623,7 @@ export class ByfTui {
 
   // Rebuilds editor autocomplete from slash commands and file mentions.
   private setupAutocomplete(): void {
-    const slashCommands: SlashCommand[] = this.getSlashCommands().map((cmd) => ({
-      name: cmd.name,
-      description: cmd.description,
-    }));
+    const slashCommands: SlashCommand[] = buildAutocompleteSlashCommands(this.getSlashCommands());
     const provider = new FileMentionProvider(
       slashCommands,
       this.state.appState.workDir,

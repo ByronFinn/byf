@@ -1,5 +1,6 @@
 import {
   BUILTIN_SLASH_COMMANDS,
+  buildAutocompleteSlashCommands,
   findBuiltInSlashCommand,
   parseSlashInput,
   resolveSlashCommandAvailability,
@@ -30,6 +31,7 @@ describe('built-in slash command registry', () => {
   it('finds built-ins by name or alias', () => {
     expect(findBuiltInSlashCommand('exit')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('quit')?.name).toBe('exit');
+    expect(findBuiltInSlashCommand('q')).toBeUndefined();
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
@@ -100,5 +102,11 @@ describe('built-in slash command registry', () => {
         'yolo',
       ]),
     );
+  });
+
+  it('builds autocomplete entries including aliases like /quit', () => {
+    const entries = buildAutocompleteSlashCommands(BUILTIN_SLASH_COMMANDS);
+    expect(entries.some((entry) => entry.name === 'exit')).toBe(true);
+    expect(entries.some((entry) => entry.name === 'quit')).toBe(true);
   });
 });
