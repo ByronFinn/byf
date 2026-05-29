@@ -1102,12 +1102,13 @@ describe('ByfTui message flow', () => {
   });
 
   it('shows /login and /connect in model picker when no models are configured', async () => {
-    const { driver, session } = await makeDriver();
-    (driver.state.appState as unknown as Record<string, unknown>)['availableModels'] = {};
+    const { driver } = await makeDriver();
+    driver.state.appState.availableModels = {};
 
     driver.handleUserInput('/model');
 
     const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('No models configured');
     expect(transcript).toContain('/login');
     expect(transcript).toContain('/connect');
   });
