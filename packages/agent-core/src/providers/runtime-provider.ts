@@ -262,6 +262,7 @@ function toKosongProviderConfig(
           type: 'openai-compat',
           model,
           baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
+          thinkingEffortKey: provider.thinkingEffortKey,
           generationKwargs: {
             prompt_cache_key: promptCacheKey,
           },
@@ -272,6 +273,7 @@ function toKosongProviderConfig(
         type: 'openai-compat',
         model,
         baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
+        thinkingEffortKey: provider.thinkingEffortKey,
         generationKwargs: {
           prompt_cache_key: promptCacheKey,
         },

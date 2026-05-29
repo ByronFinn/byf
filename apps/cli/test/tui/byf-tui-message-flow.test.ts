@@ -1394,14 +1394,14 @@ describe('ByfTui message flow', () => {
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      expect(session.setThinking).toHaveBeenCalledWith('high');
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
       });
     });
     expect(driver.state.appState.model).toBe('turbo');
-    expect(driver.state.appState.thinking).toBe(true);
+    expect(driver.state.appState.thinkingEffort).toBe('high');
   });
 
   it('persists /model selection even when runtime state is unchanged', async () => {

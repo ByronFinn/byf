@@ -30,6 +30,8 @@ const SAMPLE_MODELS = [
     id: 'deepseek-reasoner',
     context_length: 65536,
     supports_reasoning: true,
+    supports_reasoning_effort: true,
+    reasoning_effort_key: 'thinking_effort',
     supports_image_in: false,
     supports_video_in: false,
     display_name: 'DeepSeek Reasoner',
@@ -66,6 +68,8 @@ describe('fetchModels', () => {
       id: 'deepseek-reasoner',
       contextLength: 65536,
       supportsReasoning: true,
+      supportsReasoningEffort: true,
+      reasoningEffortKey: 'thinking_effort',
       displayName: 'DeepSeek Reasoner',
     });
     expect(models[2]?.supportsToolUse).toBe(false);
@@ -135,7 +139,16 @@ describe('applyProviderConfig', () => {
   it('writes provider, models, and defaults', () => {
     const config: ConfigShape = { providers: {} };
     const models: ModelInfo[] = [
-      { id: 'deepseek-chat', contextLength: 65536, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false, displayName: 'DeepSeek Chat' },
+      {
+        id: 'deepseek-chat',
+        contextLength: 65536,
+        supportsReasoning: false,
+        supportsReasoningEffort: true,
+        reasoningEffortKey: 'thinking_effort',
+        supportsImageIn: false,
+        supportsVideoIn: false,
+        displayName: 'DeepSeek Chat',
+      },
       { id: 'deepseek-reasoner', contextLength: 65536, supportsReasoning: true, supportsImageIn: false, supportsVideoIn: false },
     ];
 
@@ -157,6 +170,7 @@ describe('applyProviderConfig', () => {
       type: 'openai-compat',
       baseUrl: 'https://api.deepseek.com/v1',
       apiKey: 'sk-test',
+      thinkingEffortKey: 'thinking_effort',
     });
     expect(config.models?.['deepseek/deepseek-chat']).toMatchObject({
       provider: 'deepseek',
@@ -208,9 +222,15 @@ describe('capabilitiesForModel', () => {
   it('returns all caps for a full-featured model', () => {
     const model: ModelInfo = {
       id: 'full', contextLength: 1000,
-      supportsReasoning: true, supportsImageIn: true, supportsVideoIn: true, supportsToolUse: true,
+      supportsReasoning: true, supportsReasoningEffort: true, supportsImageIn: true, supportsVideoIn: true, supportsToolUse: true,
     };
-    expect(capabilitiesForModel(model)).toEqual(['thinking', 'image_in', 'video_in', 'tool_use']);
+    expect(capabilitiesForModel(model)).toEqual([
+      'thinking',
+      'thinking_effort',
+      'image_in',
+      'video_in',
+      'tool_use',
+    ]);
   });
 });
 

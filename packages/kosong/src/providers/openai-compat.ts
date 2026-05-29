@@ -41,6 +41,7 @@ export interface OpenAICompatOptions {
   model: string;
   stream?: boolean;
   defaultHeaders?: Record<string, string>;
+  thinkingEffortKey?: string;
   generationKwargs?: GenerationKwargs;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
 }
@@ -65,6 +66,7 @@ export interface GenerationKwargs {
   reasoning_effort?: string | undefined;
   prompt_cache_key?: string | undefined;
   extra_body?: ExtraBody;
+  [key: string]: unknown;
 }
 
 export interface ThinkingConfig {
@@ -356,6 +358,7 @@ export class OpenAICompatChatProvider implements ChatProvider {
   private _baseUrl: string;
   private _defaultHeaders: Record<string, string> | undefined;
   private _generationKwargs: GenerationKwargs;
+  private _thinkingEffortKey: string;
   private _client: OpenAI | undefined;
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
   private _files: OpenAICompatFiles | undefined;
@@ -368,6 +371,11 @@ export class OpenAICompatChatProvider implements ChatProvider {
     this._clientFactory = options.clientFactory;
     this._model = options.model;
     this._stream = options.stream ?? true;
+    const normalizedThinkingEffortKey = options.thinkingEffortKey?.trim();
+    this._thinkingEffortKey =
+      normalizedThinkingEffortKey !== undefined && normalizedThinkingEffortKey.length > 0
+        ? normalizedThinkingEffortKey
+        : 'reasoning_effort';
     this._generationKwargs = { ...options.generationKwargs };
     this._client =
       this._apiKey === undefined
@@ -405,7 +413,12 @@ export class OpenAICompatChatProvider implements ChatProvider {
   }
 
   get thinkingEffort(): ThinkingEffort | null {
-    return reasoningEffortToThinkingEffort(this._generationKwargs.reasoning_effort);
+    const customValue = this._generationKwargs[this._thinkingEffortKey];
+    if (typeof customValue === 'string') {
+      return reasoningEffortToThinkingEffort(customValue);
+    }
+    const defaultValue = this._generationKwargs.reasoning_effort;
+    return reasoningEffortToThinkingEffort(defaultValue);
   }
 
   get modelParameters(): Record<string, unknown> {
@@ -513,7 +526,10 @@ export class OpenAICompatChatProvider implements ChatProvider {
         reasoningEffort = 'high';
         break;
     }
-    return this._withGenerationKwargs({ reasoning_effort: reasoningEffort }).withExtraBody({
+    const nextEffort: GenerationKwargs = {
+      [this._thinkingEffortKey]: reasoningEffort,
+    };
+    return this._withGenerationKwargs(nextEffort).withExtraBody({
       thinking,
     });
   }

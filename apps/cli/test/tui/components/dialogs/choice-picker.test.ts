@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
-import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
+import { ModelSelectorComponent, type ThinkingEffortLevel } from '#/tui/components/dialogs/model-selector';
 import { PermissionSelectorComponent } from '#/tui/components/dialogs/permission-selector';
 import { SettingsSelectorComponent } from '#/tui/components/dialogs/settings-selector';
 import { ThemeSelectorComponent } from '#/tui/components/dialogs/theme-selector';
 import { darkColors } from '#/tui/theme/colors';
 
-const ANSI_SGR = /\u001B\[[0-9;]*m/g;
+const ANSI_SGR = /\[[0-9;]*m/g;
 
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
@@ -67,7 +67,7 @@ describe('ChoicePickerComponent', () => {
         },
       },
       currentValue: 'byf',
-      currentThinking: true,
+      currentThinkingEffort: 'high',
       colors: darkColors,
       onSelect,
       onCancel,
@@ -103,7 +103,7 @@ describe('ChoicePickerComponent', () => {
     expect(settingsOutput).toContain('    Switch the active model and thinking mode.');
   });
 
-  it('submits the selected model and inline thinking state', () => {
+  it('submits the selected model and inline thinking effort', () => {
     const onSelect = vi.fn();
     const picker = new ModelSelectorComponent({
       models: {
@@ -116,16 +116,16 @@ describe('ChoicePickerComponent', () => {
         },
       },
       currentValue: 'byf',
-      currentThinking: true,
+      currentThinkingEffort: 'high',
       colors: darkColors,
       onSelect,
       onCancel: vi.fn(),
     });
 
-    picker.handleInput('\u001B[C');
+    picker.handleInput('[C');
     picker.handleInput('\r');
 
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'byf', thinking: false });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'byf', thinkingEffort: 'off' });
   });
 
   it('forces always-thinking models on and unsupported models off', () => {
@@ -148,22 +148,22 @@ describe('ChoicePickerComponent', () => {
         },
       },
       currentValue: 'always',
-      currentThinking: false,
+      currentThinkingEffort: 'off',
       colors: darkColors,
       onSelect,
       onCancel: vi.fn(),
     });
 
     expect(picker.render(120).map(strip)).toContain('  [ Always on ]');
-    picker.handleInput('\u001B[C');
+    picker.handleInput('[C');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinking: true });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'always', thinkingEffort: 'high' });
 
-    picker.handleInput('\u001B[B');
+    picker.handleInput('[B');
     expect(picker.render(120).map(strip)).toContain('  [ Off ] unsupported');
-    picker.handleInput('\u001B[D');
+    picker.handleInput('[D');
     picker.handleInput('\r');
-    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinking: false });
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'plain', thinkingEffort: 'off' });
   });
 
   it('keeps the thinking draft when moving across models', () => {
@@ -186,19 +186,89 @@ describe('ChoicePickerComponent', () => {
         },
       },
       currentValue: 'plain',
-      currentThinking: false,
+      currentThinkingEffort: 'off',
       colors: darkColors,
       onSelect,
       onCancel: vi.fn(),
     });
 
-    picker.handleInput('\u001B[B');
-    picker.handleInput('\u001B[D');
-    picker.handleInput('\u001B[A');
-    picker.handleInput('\u001B[B');
+    picker.handleInput('[B');
+    picker.handleInput('[D');
+    picker.handleInput('[A');
+    picker.handleInput('[B');
     picker.handleInput('\r');
 
-    expect(onSelect).toHaveBeenCalledWith({ alias: 'thinking', thinking: true });
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'thinking', thinkingEffort: 'high' });
+  });
+
+  it('shows effort selector for models with thinking_effort capability', () => {
+    const onSelect = vi.fn();
+    const picker = new ModelSelectorComponent({
+      models: {
+        o3: {
+          provider: 'openai',
+          model: 'o3',
+          maxContextSize: 200_000,
+          displayName: 'OpenAI o3',
+          capabilities: ['thinking_effort'],
+        },
+      },
+      currentValue: 'o3',
+      currentThinkingEffort: 'medium',
+      colors: darkColors,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    const output = rendered(picker);
+    expect(output).toContain('Off');
+    expect(output).toContain('Low');
+    expect(output).toContain('[ Medium ]');
+    expect(output).toContain('High');
+
+    // Right arrow cycles to high
+    picker.handleInput('[C');
+    expect(rendered(picker)).toContain('[ High ]');
+
+    // Left arrow cycles back to medium, then low, then off
+    picker.handleInput('[D');
+    expect(rendered(picker)).toContain('[ Medium ]');
+
+    picker.handleInput('[D');
+    expect(rendered(picker)).toContain('[ Low ]');
+
+    picker.handleInput('[D');
+    expect(rendered(picker)).toContain('[ Off ]');
+
+    // Can't go below off
+    picker.handleInput('[D');
+    expect(rendered(picker)).toContain('[ Off ]');
+
+    // Enter submits the selected level
+    picker.handleInput('[C'); // low
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'o3', thinkingEffort: 'low' });
+  });
+
+  it('cannot go above high in effort selector', () => {
+    const picker = new ModelSelectorComponent({
+      models: {
+        o3: {
+          provider: 'openai',
+          model: 'o3',
+          maxContextSize: 200_000,
+          capabilities: ['thinking_effort'],
+        },
+      },
+      currentValue: 'o3',
+      currentThinkingEffort: 'high',
+      colors: darkColors,
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    picker.handleInput('[C');
+    expect(rendered(picker)).toContain('[ High ]');
   });
 });
 
@@ -323,14 +393,14 @@ describe('ModelSelectorComponent search and pagination', () => {
     return models;
   }
 
-  function makeSelector(models: Record<string, ModelAlias>, currentThinking = true) {
+  function makeSelector(models: Record<string, ModelAlias>, currentThinkingEffort: ThinkingEffortLevel = 'high') {
     const onSelect = vi.fn();
     const onCancel = vi.fn();
     const firstAlias = Object.keys(models)[0] ?? '';
     const selector = new ModelSelectorComponent({
       models,
       currentValue: firstAlias,
-      currentThinking,
+      currentThinkingEffort,
       colors: darkColors,
       searchable: true,
       onSelect,
