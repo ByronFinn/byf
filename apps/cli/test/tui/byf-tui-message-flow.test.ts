@@ -882,32 +882,213 @@ describe('ByfTui message flow', () => {
     resolveInit?.();
   });
 
-  it('/login opens provider setup, /logout shows not-implemented message', async () => {
-    // /login now opens a text input dialog — verify it does not show an error
-    {
-      const { driver } = await makeDriver();
-      driver.handleUserInput('/login');
-      await Promise.resolve();
+  it('/login opens provider setup', async () => {
+    const { driver } = await makeDriver();
+    driver.handleUserInput('/login');
+    await Promise.resolve();
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript, '/login should not say "Unknown slash command"').not.toContain(
+      'Unknown slash command',
+    );
+    expect(transcript, '/login should not say "removed"').not.toContain('removed');
+  });
+
+  it('/logout with no argument shows usage hint', async () => {
+    const { driver } = await makeDriver();
+
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript, '/login should not say "Unknown slash command"').not.toContain(
-        'Unknown slash command',
-      );
-      expect(transcript, '/login should not say "removed"').not.toContain('removed');
-    }
+      expect(transcript).toContain('Usage');
+      expect(transcript).toContain('/logout');
+      expect(transcript).toContain('<provider-name>');
+    });
+  });
 
-    // /logout and /disconnect show not-implemented message
-    for (const command of ['/logout', '/disconnect']) {
-      const { driver } = await makeDriver();
+  it('/logout with non-existent provider shows error', async () => {
+    const { driver } = await makeDriver();
 
-      driver.handleUserInput(command);
-      await Promise.resolve();
+    driver.handleUserInput('/logout xyz');
 
+    await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript, `${command} should mention not yet implemented`).toContain('not yet implemented');
-      expect(transcript, `${command} should not say "Unknown slash command"`).not.toContain(
-        'Unknown slash command',
-      );
-    }
+      expect(transcript).toContain('Provider "xyz" not found');
+    });
+  });
+
+  it('/logout removes a provider and its models', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+  });
+
+  it('/logout clears defaultModel and shows hint when active model removed', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "deepseek" removed');
+      expect(transcript).toContain('No active model');
+      expect(transcript).toContain('/login');
+    });
+  });
+
+  it('/logout preserves other providers and models', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async (id: string) => {
+        const config = await harness.getConfig();
+        delete config.providers[id];
+        for (const [key, model] of Object.entries(config.models)) {
+          if (model.provider === id) delete config.models[key];
+        }
+        return config;
+      }),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+    expect(transcript).not.toContain('No active model');
+  });
+
+  it('/disconnect alias removes provider like /logout', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/disconnect deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+  });
+
+  it('/logout detects active session model even when defaultModel differs', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Simulate the active session using deepseek-chat while defaultModel is gpt-4o
+    (driver.state.appState as Record<string, unknown>).model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "deepseek" removed');
+      expect(transcript).toContain('No active model');
+    });
+  });
+
+  it('/logout clears appState.model when active provider is removed', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Active model belongs to deepseek
+    expect((driver.state.appState as Record<string, unknown>).model).toBeTruthy();
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect((driver.state.appState as Record<string, unknown>).model).toBe('');
+    });
   });
 
   it('does not run /init when no model is selected', async () => {
