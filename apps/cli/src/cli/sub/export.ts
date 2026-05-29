@@ -12,14 +12,14 @@ import {
   shutdownTelemetry,
   track,
   withTelemetryContext,
-} from '@byf/telemetry';
+} from '@byfriends/telemetry';
 import {
   ByfHarness,
   type ExportSessionInput,
   type ExportSessionResult,
   type SessionSummary,
   type TelemetryClient,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 import type { Command } from 'commander';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';

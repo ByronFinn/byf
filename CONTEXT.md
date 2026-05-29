@@ -54,15 +54,15 @@ The persisted plan markdown file. It is considered materialized only after the f
 | Product description | "Kimi Code is an AI coding agent..." | "BYF (Be Your Friend) is an AI coding agent..." |
 | CLI command | `kimi` | `byf` |
 | NPM scope | `@moonshot-ai` | `@byf` |
-| NPM main package | `@byf/cli` | `@byf/cli` |
-| NPM SDK | `@byf/sdk` | `@byf/sdk` |
-| NPM OAuth | `@byf/oauth` | `@byf/oauth` |
-| NPM telemetry | `@byf/telemetry` | `@byf/telemetry` |
-| NPM agent-core | `@byf/agent-core` | `@byf/agent-core` |
-| NPM kosong | `@byf/kosong` | `@byf/kosong` |
-| NPM kaos | `@byf/kaos` | `@byf/kaos` |
-| NPM vis | `@byf/vis` | `@byf/vis` |
-| NPM monorepo | `@byf/monorepo` | `@byf/monorepo` |
+| NPM main package | `@byfriends/cli` | `@byfriends/cli` |
+| NPM SDK | `@byfriends/sdk` | `@byfriends/sdk` |
+| NPM OAuth | `@byfriends/oauth` | `@byfriends/oauth` |
+| NPM telemetry | `@byfriends/telemetry` | `@byfriends/telemetry` |
+| NPM agent-core | `@byfriends/agent-core` | `@byfriends/agent-core` |
+| NPM kosong | `@byfriends/kosong` | `@byfriends/kosong` |
+| NPM kaos | `@byfriends/kaos` | `@byfriends/kaos` |
+| NPM vis | `@byfriends/vis` | `@byfriends/vis` |
+| NPM monorepo | `@byfriends/monorepo` | `@byfriends/monorepo` |
 | Docs package | `byf-docs` | `byf-docs` |
 | App directory | `apps/cli/` | `apps/cli/` |
 | Data dir | `.kimi-code` | `.byf` |
@@ -72,7 +72,7 @@ The persisted plan markdown file. It is considered materialized only after the f
 | Docs site | `moonshotai.github.io/kimi-code` | README only for now |
 | Telemetry | Kimi backend | Removed entirely |
 | OAuth provider | `managed:kimi-code` | User-configured via `/login` |
-| migration-legacy pkg | `@byf/migration-legacy` | Deleted |
+| migration-legacy pkg | `@byfriends/migration-legacy` | Deleted |
 | Version | `0.2.0` | `0.0.1` |
 | GitHub repo | `ByronFinn/byf` | `ByronFinn/byf` |
 | License | MIT | Proprietary |

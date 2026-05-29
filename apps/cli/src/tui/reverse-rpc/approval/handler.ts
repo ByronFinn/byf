@@ -1,4 +1,4 @@
-import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '@byf/sdk';
+import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '@byfriends/sdk';
 
 import { adaptApprovalRequest } from './adapter';
 import type { ApprovalController } from './controller';

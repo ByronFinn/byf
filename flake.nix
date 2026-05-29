@@ -226,7 +226,7 @@
                     "await runVerifyStep({ requireGatekeeper: false });" \
                     "// runVerifyStep skipped in nix sandbox (sigtool lacks -dv)"
               ''}
-              pnpm --filter=@byf/cli run build:native:sea
+              pnpm --filter=@byfriends/cli run build:native:sea
               runHook postBuild
             '';
 

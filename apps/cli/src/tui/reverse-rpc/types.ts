@@ -6,7 +6,7 @@
  * core payloads into these shapes for panel components.
  */
 
-import type { QuestionAnswerMethod } from '@byf/sdk';
+import type { QuestionAnswerMethod } from '@byfriends/sdk';
 
 // ── Display blocks (approval panel) ──────────────────────────────────
 

@@ -1,4 +1,4 @@
-import type { ModelCapability, ProviderConfig } from '@byf/kosong';
+import type { ModelCapability, ProviderConfig } from '@byfriends/kosong';
 
 export interface AgentConfigData {
   cwd: string;

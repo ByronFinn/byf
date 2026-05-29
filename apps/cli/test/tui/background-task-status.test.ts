@@ -1,4 +1,4 @@
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
+import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { formatBackgroundTaskTranscript } from '../../src/tui/utils/background-task-status';

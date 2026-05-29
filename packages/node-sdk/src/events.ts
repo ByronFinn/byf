@@ -3,12 +3,12 @@ import type {
   ApprovalResponse,
   QuestionRequest,
   QuestionResult,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Event union plus shared fields/payloads used across event families.
-export type { ByfErrorPayload, Event } from '@byf/agent-core';
+export type { ByfErrorPayload, Event } from '@byfriends/agent-core';
 
-export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@byf/agent-core';
+export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@byfriends/agent-core';
 
 // Session lifecycle/status events and their status payload.
 export type {
@@ -18,7 +18,7 @@ export type {
   ErrorEvent,
   WarningEvent,
   UsageStatus,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Turn and step lifecycle events plus the turn-ending reason enum.
 export type {
@@ -29,14 +29,14 @@ export type {
   TurnStepRetryingEvent,
   TurnStepInterruptedEvent,
   TurnEndReason,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Streaming content and hook-result events.
 export type {
   AssistantDeltaEvent,
   HookResultEvent,
   ThinkingDeltaEvent,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Tool-call events and incremental progress payloads.
 export type {
@@ -48,7 +48,7 @@ export type {
   ToolCallResponse,
   ToolUpdate,
   McpOAuthAuthorizationUrlUpdateData,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // MCP tool-list and server status events.
 export type {
@@ -56,7 +56,7 @@ export type {
   ToolListUpdatedReason,
   McpServerStatusEvent,
   McpServerStatusPayload,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Approval reverse-RPC request and response/display payloads.
 export type {
@@ -65,7 +65,7 @@ export type {
   ApprovalScope,
   ApprovalResponse,
   ToolInputDisplay,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Question reverse-RPC request and answer payloads.
 export type {
@@ -76,14 +76,14 @@ export type {
   QuestionAnswers,
   QuestionResponse,
   QuestionResult,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Subagent lifecycle events.
 export type {
   SubagentSpawnedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Compaction lifecycle events and compaction result payload.
 export type {
@@ -92,7 +92,7 @@ export type {
   CompactionCancelledEvent,
   CompactionCompletedEvent,
   CompactionResult,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Background task lifecycle events emitted by the BPM. Covers both
 // bash (`bash-*`) and agent (`agent-*`) tasks under one wire format.
@@ -100,7 +100,7 @@ export type {
   BackgroundTaskStartedEvent,
   BackgroundTaskUpdatedEvent,
   BackgroundTaskTerminatedEvent,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 export type MaybePromise<T> = T | Promise<T>;
 

@@ -5,7 +5,7 @@
  * separate from the TUI orchestration layer.
  */
 
-import type { ModelAlias, PermissionMode, SessionStatus } from '@byf/sdk';
+import type { ModelAlias, PermissionMode, SessionStatus } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import { PRODUCT_NAME } from '#/constant/app';

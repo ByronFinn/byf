@@ -10,7 +10,7 @@ import {
   type ChatProvider,
   type Message,
   type Tool,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { McpConnectionManager } from '../mcp';
 import {

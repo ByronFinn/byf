@@ -7,7 +7,7 @@ import {
   resetCapabilitiesCache,
   setCapabilities,
 } from '@earendil-works/pi-tui';
-import type { ApprovalRequest, ApprovalResponse, Event } from '@byf/sdk';
+import type { ApprovalRequest, ApprovalResponse, Event } from '@byfriends/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';

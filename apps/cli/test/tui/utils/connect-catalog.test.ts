@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_CATALOG_URL, loadBuiltInCatalog } from '@byf/sdk';
+import { DEFAULT_CATALOG_URL, loadBuiltInCatalog } from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { BUILT_IN_CATALOG_JSON } from '#/built-in-catalog';

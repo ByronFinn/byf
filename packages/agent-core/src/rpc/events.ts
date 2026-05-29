@@ -1,4 +1,4 @@
-import type { FinishReason, TokenUsage } from '@byf/kosong';
+import type { FinishReason, TokenUsage } from '@byfriends/kosong';
 
 import type { PromptOrigin } from '../agent/context';
 import type { ByfErrorPayload } from '../errors';

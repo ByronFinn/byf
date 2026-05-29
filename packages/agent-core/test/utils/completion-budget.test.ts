@@ -3,7 +3,7 @@ import type {
   Message,
   ModelCapability,
   Tool,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {

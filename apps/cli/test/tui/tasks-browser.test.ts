@@ -1,5 +1,5 @@
 import type { Terminal } from '@earendil-works/pi-tui';
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
+import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

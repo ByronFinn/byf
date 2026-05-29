@@ -2,8 +2,8 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ByfHarness } from '@byf/sdk';
-import type { Event } from '@byf/sdk';
+import { ByfHarness } from '@byfriends/sdk';
+import type { Event } from '@byfriends/sdk';
 
 import { smokeIdentityFromEnv } from './runtime-smoke-helpers';
 

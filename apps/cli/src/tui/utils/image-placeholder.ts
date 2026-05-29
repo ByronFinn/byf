@@ -15,7 +15,7 @@
  *     noise between two media parts.
  */
 
-import type { PromptPart } from '@byf/sdk';
+import type { PromptPart } from '@byfriends/sdk';
 
 import type {
   ImageAttachment,

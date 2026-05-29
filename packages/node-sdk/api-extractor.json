@@ -2,10 +2,10 @@
   "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
   "mainEntryPointFilePath": "<projectFolder>/.tmp-api-extractor/dts/node-sdk/src/index.d.ts",
   "bundledPackages": [
-    "@byf/agent-core",
-    "@byf/kaos",
-    "@byf/oauth",
-    "@byf/kosong"
+    "@byfriends/agent-core",
+    "@byfriends/kaos",
+    "@byfriends/oauth",
+    "@byfriends/kosong"
   ],
   "compiler": {
     "tsconfigFilePath": "<projectFolder>/tsconfig.api-extractor.json",

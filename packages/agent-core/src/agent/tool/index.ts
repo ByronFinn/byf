@@ -1,5 +1,5 @@
 import { uniq } from '@antfu/utils';
-import type { ChatProvider, Tool } from '@byf/kosong';
+import type { ChatProvider, Tool } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import { globMatch } from '../permission/path-glob-match';

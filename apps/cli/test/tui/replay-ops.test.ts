@@ -5,7 +5,7 @@ import type {
   PromptOrigin,
   Role,
   ToolCall,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { projectReplayRecords } from '#/tui/actions/replay-ops';

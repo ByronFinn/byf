@@ -1,4 +1,4 @@
-import { isByfError } from '@byf/sdk';
+import { isByfError } from '@byfriends/sdk';
 
 import {
   STREAMING_ARGS_FIELD_RE,

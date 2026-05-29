@@ -1,4 +1,4 @@
-import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@byf/sdk';
+import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@byfriends/sdk';
 
 import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval-panel';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';

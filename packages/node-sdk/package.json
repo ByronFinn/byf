@@ -1,7 +1,6 @@
 {
-  "name": "@byf/sdk",
+  "name": "@byfriends/sdk",
   "version": "0.0.1",
-  "private": true,
   "description": "Public TypeScript SDK for BYF agents and sessions",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -62,10 +61,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@byf/agent-core": "workspace:^",
-    "@byf/kaos": "workspace:^",
-    "@byf/oauth": "workspace:^",
-    "@byf/kosong": "workspace:^",
+    "@byfriends/agent-core": "workspace:^",
+    "@byfriends/kaos": "workspace:^",
+    "@byfriends/kosong": "workspace:^",
+    "@byfriends/oauth": "workspace:^",
     "@types/yazl": "^2.4.6"
   }
 }

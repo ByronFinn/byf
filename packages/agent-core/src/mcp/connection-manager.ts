@@ -2,7 +2,7 @@ import { ErrorCodes, ByfError } from '#/errors';
 import type { McpServerConfig } from '#/config/schema';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
-import type { Tool } from '@byf/kosong';
+import type { Tool } from '@byfriends/kosong';
 
 import { abortable } from '../utils/abort';
 import { HttpMcpClient } from './client-http';

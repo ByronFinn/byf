@@ -10,7 +10,7 @@
 
 import type { Readable } from 'node:stream';
 
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 const GIT_TIMEOUT_MS = 5_000;
 const MAX_DIRTY_FILES = 20;

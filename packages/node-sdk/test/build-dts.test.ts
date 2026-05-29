@@ -1,5 +1,5 @@
 /**
- * Build artifact tests for the DTS output of @byf/sdk.
+ * Build artifact tests for the DTS output of @byfriends/sdk.
  *
  * These tests verify the EXTERNAL behavior of the build pipeline:
  * that `dist/index.d.mts` is generated and has a clean public API surface.
@@ -24,10 +24,10 @@ describe('dist/index.d.mts', () => {
     expect(content.trim().length).toBeGreaterThan(0);
   });
 
-  it('contains no @byf/* workspace package imports', () => {
+  it('contains no @byfriends/* workspace package imports', () => {
     const content = readFileSync(dtsPath, 'utf8');
     const matches = content.match(/(from|import)\s+['"]@byf\//g);
-    expect(matches, 'Found unresolved @byf/* workspace imports').toBeNull();
+    expect(matches, 'Found unresolved @byfriends/* workspace imports').toBeNull();
   });
 
   it('contains no @moonshot-ai/* legacy imports', () => {

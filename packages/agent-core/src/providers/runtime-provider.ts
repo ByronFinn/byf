@@ -7,7 +7,7 @@ import {
   UNKNOWN_CAPABILITY,
   type ModelCapability,
   type ProviderConfig as KosongProviderConfig,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { ProviderRequestAuthResolver } from './request-auth';
 

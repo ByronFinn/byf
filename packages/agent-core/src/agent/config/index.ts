@@ -4,7 +4,7 @@ import {
   type ChatProvider,
   type ModelCapability,
   type ProviderConfig,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';

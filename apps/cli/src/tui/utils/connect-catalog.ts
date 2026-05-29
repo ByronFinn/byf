@@ -1,4 +1,4 @@
-import { DEFAULT_CATALOG_URL } from '@byf/sdk';
+import { DEFAULT_CATALOG_URL } from '@byfriends/sdk';
 
 const BARE_HTTP_URL_RE = /^https?:\/\/\S+$/;
 

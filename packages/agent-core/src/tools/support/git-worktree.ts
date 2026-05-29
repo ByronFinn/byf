@@ -6,7 +6,7 @@
 import * as posixPath from 'node:path/posix';
 import * as win32Path from 'node:path/win32';
 
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 import type { PathClass } from '../policies/path-access';
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { ByfHarness } from '@byf/sdk';
+import { ByfHarness } from '@byfriends/sdk';
 
 import { smokeIdentityFromEnv } from './runtime-smoke-helpers';
 

@@ -1,4 +1,4 @@
-import type { Message } from '@byf/kosong';
+import type { Message } from '@byfriends/kosong';
 
 import type {
   LoopContentPartEvent,

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import type { HostIdentity } from '@byf/sdk';
+import type { HostIdentity } from '@byfriends/sdk';
 
 import { CLI_USER_AGENT_PRODUCT } from '#/constant/app';
 

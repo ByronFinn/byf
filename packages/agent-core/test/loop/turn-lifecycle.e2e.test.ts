@@ -8,7 +8,7 @@
  * referenced.
  */
 
-import { inputTotal } from '@byf/kosong';
+import { inputTotal } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';

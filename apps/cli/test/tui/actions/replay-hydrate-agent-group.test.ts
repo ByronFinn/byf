@@ -1,6 +1,6 @@
 
 import { Text } from '@earendil-works/pi-tui';
-import type { Session } from '@byf/sdk';
+import type { Session } from '@byfriends/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { hydrateProjectedEntries, hydrateTranscriptFromReplay } from '#/tui/actions/replay-ops';

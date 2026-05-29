@@ -1,4 +1,4 @@
-# @byf/kaos
+# @byfriends/kaos
 
 Execution environment abstraction used by BYF.
 

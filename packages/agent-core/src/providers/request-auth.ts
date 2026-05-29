@@ -1,4 +1,4 @@
-import { APIStatusError, type ProviderRequestAuth } from '@byf/kosong';
+import { APIStatusError, type ProviderRequestAuth } from '@byfriends/kosong';
 
 import { ErrorCodes, ByfError } from '#/errors';
 

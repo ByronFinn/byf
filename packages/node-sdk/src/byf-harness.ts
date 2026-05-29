@@ -11,7 +11,7 @@ import {
   type TelemetryClient,
   type TelemetryContextPatch,
   type TelemetryProperties,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 import { ByfAuthFacade } from '#/auth';
 import { SDKRpcClient } from '#/rpc';

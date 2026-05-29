@@ -1,6 +1,6 @@
 import * as posixPath from 'node:path/posix';
 
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 import {
   DEFAULT_WORKSPACE_ACCESS_POLICY,

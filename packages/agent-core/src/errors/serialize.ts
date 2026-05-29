@@ -3,7 +3,7 @@ import {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import { ByfError } from './classes';
 import { ErrorCodes, BYF_ERROR_INFO, type ByfErrorCode } from './codes';

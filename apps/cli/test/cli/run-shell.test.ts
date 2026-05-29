@@ -61,8 +61,8 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@byf/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@byf/sdk')>();
+vi.mock('@byfriends/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@byfriends/sdk')>();
   return {
     ...actual,
     resolveByfHome: mocks.resolveByfHome,
@@ -88,7 +88,7 @@ vi.mock('@byf/sdk', async (importOriginal) => {
   };
 });
 
-vi.mock('@byf/telemetry', () => ({
+vi.mock('@byfriends/telemetry', () => ({
   initializeTelemetry: mocks.initializeTelemetry,
   setCrashPhase: mocks.setCrashPhase,
   shutdownTelemetry: mocks.shutdownTelemetry,

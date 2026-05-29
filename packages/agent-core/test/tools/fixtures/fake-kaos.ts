@@ -12,7 +12,7 @@
  */
 
 import type { ExecutableToolResult } from '#/loop';
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 import type { WorkspaceConfig } from '../../../src/tools/support/workspace';
 

@@ -1,4 +1,4 @@
-import type { PermissionMode } from '@byf/sdk';
+import type { PermissionMode } from '@byfriends/sdk';
 
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 

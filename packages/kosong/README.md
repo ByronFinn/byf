@@ -1,4 +1,4 @@
-# @byf/kosong
+# @byfriends/kosong
 
 LLM abstraction layer used by BYF.
 

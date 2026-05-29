@@ -2,8 +2,8 @@
  * ReadMediaFileTool tests for the current output/capability contract.
  */
 
-import type { Kaos } from '@byf/kaos';
-import type { ContentPart, ModelCapability } from '@byf/kosong';
+import type { Kaos } from '@byfriends/kaos';
+import type { ContentPart, ModelCapability } from '@byfriends/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';

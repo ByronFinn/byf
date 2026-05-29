@@ -1,4 +1,4 @@
-import type { ContentPart, Message, Tool } from '@byf/kosong';
+import type { ContentPart, Message, Tool } from '@byfriends/kosong';
 
 /**
  * Estimate token count from text using a character-based heuristic.

@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
-import { initializeTelemetry } from '@byf/telemetry';
-import { resolveByfHome, type ByfConfig, type ByfHarness } from '@byf/sdk';
+import { initializeTelemetry } from '@byfriends/telemetry';
+import { resolveByfHome, type ByfConfig, type ByfHarness } from '@byfriends/sdk';
 
 import { CLI_USER_AGENT_PRODUCT } from '#/constant/app';
 

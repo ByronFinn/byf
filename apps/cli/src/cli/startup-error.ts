@@ -1,4 +1,4 @@
-import { BYF_ERROR_INFO, isByfError } from '@byf/sdk';
+import { BYF_ERROR_INFO, isByfError } from '@byfriends/sdk';
 import { chalkStderr } from 'chalk';
 
 import { STARTUP_ERROR_COLOR } from '#/constant/startup-error';

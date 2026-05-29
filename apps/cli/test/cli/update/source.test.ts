@@ -8,60 +8,60 @@ import {
 
 describe('classifyByPathHeuristic', () => {
   it('returns null for an npm-style global path (handled by classifyInstallSource)', () => {
-    expect(classifyByPathHeuristic('/usr/local/lib/node_modules/@byf/cli')).toBeNull();
+    expect(classifyByPathHeuristic('/usr/local/lib/node_modules/@byfriends/cli')).toBeNull();
   });
 
   it('detects pnpm global on macOS', () => {
     expect(
-      classifyByPathHeuristic('/Users/me/Library/pnpm/global/5/node_modules/@byf/cli'),
+      classifyByPathHeuristic('/Users/me/Library/pnpm/global/5/node_modules/@byfriends/cli'),
     ).toBe('pnpm-global');
   });
 
   it('detects pnpm global on Linux', () => {
     expect(
-      classifyByPathHeuristic('/home/me/.local/share/pnpm/global/5/node_modules/@byf/cli'),
+      classifyByPathHeuristic('/home/me/.local/share/pnpm/global/5/node_modules/@byfriends/cli'),
     ).toBe('pnpm-global');
   });
 
   it('detects pnpm global on Windows (normalized backslashes)', () => {
     expect(
-      classifyByPathHeuristic('C:\\Users\\me\\AppData\\Local\\pnpm\\global\\5\\node_modules\\@byf/cli'),
+      classifyByPathHeuristic('C:\\Users\\me\\AppData\\Local\\pnpm\\global\\5\\node_modules\\@byfriends/cli'),
     ).toBe('pnpm-global');
   });
 
   it('detects yarn classic global', () => {
     expect(
-      classifyByPathHeuristic('/Users/me/.config/yarn/global/node_modules/@byf/cli'),
+      classifyByPathHeuristic('/Users/me/.config/yarn/global/node_modules/@byfriends/cli'),
     ).toBe('yarn-global');
   });
 
   it('detects yarn berry global (~/.yarn/global)', () => {
     expect(
-      classifyByPathHeuristic('/Users/me/.yarn/global/node_modules/@byf/cli'),
+      classifyByPathHeuristic('/Users/me/.yarn/global/node_modules/@byfriends/cli'),
     ).toBe('yarn-global');
   });
 
   it('detects bun global', () => {
     expect(
-      classifyByPathHeuristic('/Users/me/.bun/install/global/node_modules/@byf/cli'),
+      classifyByPathHeuristic('/Users/me/.bun/install/global/node_modules/@byfriends/cli'),
     ).toBe('bun-global');
   });
 
   it('returns null for an unknown layout', () => {
-    expect(classifyByPathHeuristic('/Users/me/dev/@byf/cli')).toBeNull();
+    expect(classifyByPathHeuristic('/Users/me/dev/@byfriends/cli')).toBeNull();
   });
 });
 
 describe('classifyInstallSource (npm prefix matching)', () => {
   it('matches a macOS/Linux npm global package path', () => {
     expect(
-      classifyInstallSource('/usr/local/lib/node_modules/@byf/cli', '/usr/local', 'darwin'),
+      classifyInstallSource('/usr/local/lib/node_modules/@byfriends/cli', '/usr/local', 'darwin'),
     ).toBe('npm-global');
   });
 
   it('returns unsupported when the package path does not match the prefix', () => {
     expect(
-      classifyInstallSource('/Users/me/dev/@byf/cli', '/usr/local', 'darwin'),
+      classifyInstallSource('/Users/me/dev/@byfriends/cli', '/usr/local', 'darwin'),
     ).toBe('unsupported');
   });
 });
@@ -71,7 +71,7 @@ describe('detectInstallSource', () => {
     await expect(
       detectInstallSource({
         getPackageRoot: () =>
-          '/Users/me/Library/pnpm/global/5/node_modules/@byf/cli',
+          '/Users/me/Library/pnpm/global/5/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => false,
         platform: 'darwin',
@@ -82,7 +82,7 @@ describe('detectInstallSource', () => {
   it('returns yarn-global when packageRoot matches yarn heuristic', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/Users/me/.config/yarn/global/node_modules/@byf/cli',
+        getPackageRoot: () => '/Users/me/.config/yarn/global/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => false,
         platform: 'darwin',
@@ -93,7 +93,7 @@ describe('detectInstallSource', () => {
   it('returns bun-global when packageRoot matches bun heuristic', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/Users/me/.bun/install/global/node_modules/@byf/cli',
+        getPackageRoot: () => '/Users/me/.bun/install/global/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => false,
         platform: 'darwin',
@@ -104,7 +104,7 @@ describe('detectInstallSource', () => {
   it('returns npm-global when packageRoot matches npm prefix', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/usr/local/lib/node_modules/@byf/cli',
+        getPackageRoot: () => '/usr/local/lib/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => false,
         platform: 'darwin',
@@ -115,7 +115,7 @@ describe('detectInstallSource', () => {
   it('returns native when SEA isSea() is true (highest priority)', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/usr/local/lib/node_modules/@byf/cli',
+        getPackageRoot: () => '/usr/local/lib/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => true,
         platform: 'darwin',
@@ -126,7 +126,7 @@ describe('detectInstallSource', () => {
   it('returns unsupported when nothing matches', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/Users/me/dev/@byf/cli',
+        getPackageRoot: () => '/Users/me/dev/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
         detectNative: () => false,
         platform: 'darwin',
@@ -137,7 +137,7 @@ describe('detectInstallSource', () => {
   it('returns unsupported when npm prefix lookup throws', async () => {
     await expect(
       detectInstallSource({
-        getPackageRoot: () => '/Users/me/dev/@byf/cli',
+        getPackageRoot: () => '/Users/me/dev/@byfriends/cli',
         getGlobalPrefix: async () => {
           throw new Error('prefix failed');
         },

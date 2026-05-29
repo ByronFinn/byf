@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@byf/sdk';
+import type { SessionSummary } from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { sessionRowsForPicker } from '#/tui/utils/session-picker-rows';

@@ -1,4 +1,4 @@
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 import type { UrlFetcher, WebSearchProvider } from './tools/builtin';
 import type { Environment } from './utils/environment';

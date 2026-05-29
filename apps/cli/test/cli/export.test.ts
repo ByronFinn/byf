@@ -19,7 +19,7 @@ import type {
   ExportSessionManifest,
   ExportSessionResult,
   SessionSummary,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 let tmp: string;
 
@@ -46,8 +46,8 @@ const mocks = vi.hoisted(() => ({
   harnessCreatesDeviceIdOnConstruction: false,
 }));
 
-vi.mock('@byf/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@byf/sdk')>();
+vi.mock('@byfriends/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@byfriends/sdk')>();
   return {
     ...actual,
     resolveByfHome: mocks.resolveByfHome,
@@ -73,7 +73,7 @@ vi.mock('@byf/sdk', async (importOriginal) => {
   };
 });
 
-vi.mock('@byf/telemetry', () => ({
+vi.mock('@byfriends/telemetry', () => ({
   initializeTelemetry: mocks.initializeTelemetry,
   shutdownTelemetry: mocks.shutdownTelemetry,
   track: mocks.telemetryTrack,

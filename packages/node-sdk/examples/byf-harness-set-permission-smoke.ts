@@ -1,4 +1,4 @@
-import { ByfHarness, type PermissionMode } from '@byf/sdk';
+import { ByfHarness, type PermissionMode } from '@byfriends/sdk';
 
 import {
   smokeIdentityFromEnv,

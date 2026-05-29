@@ -1,4 +1,4 @@
-import type { QuestionHandler, QuestionRequest, QuestionResult } from '@byf/sdk';
+import type { QuestionHandler, QuestionRequest, QuestionResult } from '@byfriends/sdk';
 
 import type {
   QuestionPanelData,

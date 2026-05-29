@@ -1,5 +1,5 @@
 {
-  "name": "@byf/cli",
+  "name": "@byfriends/cli",
   "version": "0.0.1",
   "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
   "license": "Proprietary",
@@ -70,9 +70,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@byf/oauth": "workspace:^",
-    "@byf/sdk": "workspace:^",
-    "@byf/telemetry": "workspace:^",
+    "@byfriends/oauth": "workspace:^",
+    "@byfriends/sdk": "workspace:^",
+    "@byfriends/telemetry": "workspace:^",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
     "postject": "1.0.0-alpha.6",

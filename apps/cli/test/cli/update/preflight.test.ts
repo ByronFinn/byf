@@ -125,16 +125,16 @@ describe('runUpdatePreflight', () => {
     await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
     expect(mocks.promptForInstallConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({
-        installCommand: 'npm install -g @byf/cli@0.5.0',
+        installCommand: 'npm install -g @byfriends/cli@0.5.0',
         installSource: 'npm-global',
       }),
     );
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
-      ['install', '-g', '@byf/cli@0.5.0'],
+      ['install', '-g', '@byfriends/cli@0.5.0'],
       { stdio: 'inherit' },
     );
-    expect(stdout.join('')).toContain('Updated @byf/cli to 0.5.0');
+    expect(stdout.join('')).toContain('Updated @byfriends/cli to 0.5.0');
   });
 
   it('pnpm-global: spawns pnpm add -g', async () => {
@@ -147,7 +147,7 @@ describe('runUpdatePreflight', () => {
     await runUpdatePreflight('0.4.0', options);
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^pnpm(\.cmd)?$/),
-      ['add', '-g', '@byf/cli@0.5.0'],
+      ['add', '-g', '@byfriends/cli@0.5.0'],
       { stdio: 'inherit' },
     );
   });
@@ -162,7 +162,7 @@ describe('runUpdatePreflight', () => {
     await runUpdatePreflight('0.4.0', options);
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^yarn(\.cmd)?$/),
-      ['global', 'add', '@byf/cli@0.5.0'],
+      ['global', 'add', '@byfriends/cli@0.5.0'],
       { stdio: 'inherit' },
     );
   });
@@ -177,7 +177,7 @@ describe('runUpdatePreflight', () => {
     await runUpdatePreflight('0.4.0', options);
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^bun(\.exe)?$/),
-      ['add', '-g', '@byf/cli@0.5.0'],
+      ['add', '-g', '@byfriends/cli@0.5.0'],
       { stdio: 'inherit' },
     );
   });
@@ -226,7 +226,7 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('unsupported');
     const { stdout, options } = captureOutput();
     await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-    expect(stdout.join('')).toContain('npm install -g @byf/cli@0.5.0');
+    expect(stdout.join('')).toContain('npm install -g @byfriends/cli@0.5.0');
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 

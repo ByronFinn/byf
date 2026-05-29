@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { localKaos } from '@byf/kaos';
-import type { ToolCall } from '@byf/kosong';
+import { localKaos } from '@byfriends/kaos';
+import type { ToolCall } from '@byfriends/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

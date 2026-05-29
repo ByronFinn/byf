@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type * as KosongModule from '@byf/kosong';
+import type * as KosongModule from '@byfriends/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ByfError, Event } from '#/index';
@@ -9,7 +9,7 @@ import type { ByfError, Event } from '#/index';
 import { makeTempDir, removeTempDirs, waitForSDKEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
-vi.mock('@byf/kosong', async (importOriginal) => {
+vi.mock('@byfriends/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,

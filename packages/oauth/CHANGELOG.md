@@ -1,4 +1,4 @@
-# @byf/oauth
+# @byfriends/oauth
 
 ## 0.1.2
 

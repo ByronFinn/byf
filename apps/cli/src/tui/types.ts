@@ -4,7 +4,7 @@ import type {
   ProviderConfig,
   PromptPart,
   ToolInputDisplay,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 import type { NotificationsConfig } from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';

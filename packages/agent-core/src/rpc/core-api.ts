@@ -7,7 +7,7 @@ import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { UsageStatus } from './events';
 import type { WithAgentId, WithSessionId } from './types';

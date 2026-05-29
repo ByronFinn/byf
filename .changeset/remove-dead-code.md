@@ -1,11 +1,11 @@
 ---
-"@byf/telemetry": patch
-"@byf/cli": patch
+"@byfriends/telemetry": patch
+"@byfriends/cli": patch
 ---
 
 Remove dead code and stale Kimi brand artifacts
 
-### @byf/telemetry
+### @byfriends/telemetry
 
 - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
   `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
@@ -18,7 +18,7 @@ Remove dead code and stale Kimi brand artifacts
   silently ignored.
 - Updated tests to reflect the slimmed-down interface.
 
-### @byf/cli
+### @byfriends/cli
 
 - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
   OAuth device-code flow was removed in slice 3; the component was exported

@@ -1,4 +1,4 @@
-import type { McpServerInfo, McpServerStatusEvent } from '@byf/sdk';
+import type { McpServerInfo, McpServerStatusEvent } from '@byfriends/sdk';
 
 export type McpServerStatusSnapshot = McpServerInfo | McpServerStatusEvent['server'];
 

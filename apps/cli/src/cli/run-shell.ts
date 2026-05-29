@@ -6,8 +6,8 @@ import {
   shutdownTelemetry,
   track,
   withTelemetryContext,
-} from '@byf/telemetry';
-import { ByfHarness, log, type TelemetryClient } from '@byf/sdk';
+} from '@byfriends/telemetry';
+import { ByfHarness, log, type TelemetryClient } from '@byfriends/sdk';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
 import type { TuiConfig } from '#/tui/config';

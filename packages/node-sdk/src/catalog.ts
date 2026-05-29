@@ -1,4 +1,4 @@
-import type { ByfConfig, ModelAlias } from '@byf/agent-core';
+import type { ByfConfig, ModelAlias } from '@byfriends/agent-core';
 import {
   catalogBaseUrl,
   catalogProviderModels,
@@ -8,7 +8,7 @@ import {
   type CatalogProviderEntry,
   type ModelCapability,
   type ProviderType,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 export { catalogBaseUrl, catalogProviderModels, inferWireType };
 export type { Catalog, CatalogModel, CatalogProviderEntry };

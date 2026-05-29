@@ -1,10 +1,10 @@
 ---
-"@byf/cli": patch
+"@byfriends/cli": patch
 ---
 
 Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
-### @byf/cli
+### @byfriends/cli
 
 - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
   no-op. The previous hook was a full Kimi-to-BYF CLI migration script that

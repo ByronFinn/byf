@@ -1,4 +1,4 @@
-# @byf/agent-core
+# @byfriends/agent-core
 
 ## 0.2.0
 
@@ -21,4 +21,4 @@
 - [#17](https://github.com/ByronFinn/byf/pull/17) [`bfbd522`](https://github.com/ByronFinn/byf/commit/bfbd522a7160e597d673550f09fd4af089bfde34) - Let Kimi requests use the remaining context window for completion tokens by default while keeping explicit environment limits as hard caps.
 
 - Updated dependencies [[`a200a29`](https://github.com/ByronFinn/byf/commit/a200a297ac8986ec4baa8d2cdc881ef71bc3abfc), [`c4dd1c7`](https://github.com/ByronFinn/byf/commit/c4dd1c7ff298290ee17d4a6676f93284621f32e8), [`df7a9ca`](https://github.com/ByronFinn/byf/commit/df7a9cab606e0f152bc45b1d1645d76210b1e0c4)]:
-  - @byf/kosong@0.2.0
+  - @byfriends/kosong@0.2.0

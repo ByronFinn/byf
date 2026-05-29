@@ -1,6 +1,6 @@
 import { Readable, type Writable } from 'node:stream';
 
-import type { KaosProcess } from '@byf/kaos';
+import type { KaosProcess } from '@byfriends/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';

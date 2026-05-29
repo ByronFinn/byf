@@ -22,8 +22,8 @@ if (!inputDir || !tag) {
   process.exit(1);
 }
 
-// Tag formats `@byf/cli@x.y.z` or `vx.y.z` or `x.y.z` are all normalised to x.y.z
-const version = tag.replace(/^(@byf\/cli)@/, '').replace(/^v/, '');
+// Tag formats `@byfriends/cli@x.y.z` or `vx.y.z` or `x.y.z` are all normalised to x.y.z
+const version = tag.replace(/^(@byfriends\/cli)@/, '').replace(/^v/, '');
 
 const entries = await readdir(inputDir);
 const sumFiles = entries.filter((f) => /^byf-[a-z0-9-]+\.zip\.sha256$/.test(f));

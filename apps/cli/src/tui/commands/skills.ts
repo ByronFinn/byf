@@ -1,4 +1,4 @@
-import type { Session, SkillSummary } from '@byf/sdk';
+import type { Session, SkillSummary } from '@byfriends/sdk';
 
 import type { ByfSlashCommand } from './types';
 

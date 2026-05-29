@@ -38,7 +38,7 @@ Main directories:
 - `reverse-rpc` converts SDK approval/question requests into the data shape a UI panel/dialog needs, and converts the user's choice back into an SDK response.
 - `theme` is the single source of truth for colors and styles. Components must not bypass the theme system and use chalk named colors directly.
 - `utils` holds utility functions with no UI-state dependency. Logic that needs `TUIState` or a component instance must not live under app-level `src/utils`.
-- `apps/cli` may only use core capabilities through `@byf/sdk`. Do not import `@byf/agent-core` directly in app code.
+- `apps/cli` may only use core capabilities through `@byfriends/sdk`. Do not import `@byfriends/agent-core` directly in app code.
 
 ## ByfTUI Internal Sections
 
@@ -65,7 +65,7 @@ If a section keeps growing, split pure functions, state projections, presentatio
 The feature type decides where it lands:
 
 - New CLI arguments: change `src/cli/commands.ts` / `src/cli/options.ts`, then pass them into the TUI via `src/cli/run-shell.ts`. Do not let the CLI operate on the session directly.
-- New CLI subcommands: put them under `src/cli/sub/`, with non-interactive command logic only; when SDK access is needed, go through `@byf/sdk`.
+- New CLI subcommands: put them under `src/cli/sub/`, with non-interactive command logic only; when SDK access is needed, go through `@byfriends/sdk`.
 - New slash commands: first change definition, parsing, and types under `src/tui/commands/`; put the execution entry into the slash-command handler section of `ByfTUI`; split complex execution logic into `actions` or `utils`.
 - New skill-derived commands: hook into `buildSkillSlashCommands` / the skill command map — do not hard-code a single skill.
 - New transcript message types: define the data shape in `src/tui/types.ts`, add or extend a component under `components/messages/`, and register the renderer in `createTranscriptComponent`.

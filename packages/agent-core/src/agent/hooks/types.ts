@@ -1,4 +1,4 @@
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 export const HOOK_EVENT_TYPES = [
   'PreToolUse',

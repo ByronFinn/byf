@@ -1,4 +1,4 @@
-import { readConfigFile, writeConfigFile, type ByfConfig } from '@byf/agent-core';
+import { readConfigFile, writeConfigFile, type ByfConfig } from '@byfriends/agent-core';
 
 export interface AuthProviderStatus {
   readonly providerName: string;

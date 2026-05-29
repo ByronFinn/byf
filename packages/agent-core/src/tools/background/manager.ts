@@ -14,7 +14,7 @@
 
 import { randomBytes } from 'node:crypto';
 
-import type { KaosProcess } from '@byf/kaos';
+import type { KaosProcess } from '@byfriends/kaos';
 
 import { isAbortError } from '../../loop/errors';
 import {

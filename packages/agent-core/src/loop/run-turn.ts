@@ -6,7 +6,7 @@
  * and final `TurnResult` mapping. One-step execution lives in `turn-step.ts`.
  */
 
-import { addUsage, emptyUsage, type TokenUsage } from '@byf/kosong';
+import { addUsage, emptyUsage, type TokenUsage } from '@byfriends/kosong';
 
 import type { Logger } from '#/logging/types';
 

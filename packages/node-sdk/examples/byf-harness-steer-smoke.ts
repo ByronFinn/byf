@@ -1,4 +1,4 @@
-import { ByfHarness } from '@byf/sdk';
+import { ByfHarness } from '@byfriends/sdk';
 
 import {
   smokeIdentityFromEnv,

@@ -31,7 +31,7 @@ export {
   fromByfErrorPayload,
   isByfError,
   toByfErrorPayload,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 // Diagnostic logging — public surface only.
 // RootLogger / getRootLogger / LoggingConfig stay inside agent-core.
@@ -41,8 +41,8 @@ export {
   redact,
   resolveGlobalLogPath,
   resolveByfHome,
-} from '@byf/agent-core';
-export type { LogContext, LogLevel, LogPayload, Logger } from '@byf/agent-core';
+} from '@byfriends/agent-core';
+export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-core';
 
 export * from '#/events';
 export type * from '#/types';

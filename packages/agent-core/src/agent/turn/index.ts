@@ -9,7 +9,7 @@ import {
   inputTotal,
   type ContentPart,
   type TokenUsage,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import {

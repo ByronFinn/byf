@@ -13,7 +13,7 @@
  * should be reviewed together.
  */
 
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { Logger } from '#/logging/types';
 import {

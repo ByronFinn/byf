@@ -3,7 +3,7 @@ import {
   type ChatProvider,
   type StreamedMessagePart,
   type ToolCall,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { KosongLLM, type GenerateFn } from '../../src/agent/turn/kosong-llm';

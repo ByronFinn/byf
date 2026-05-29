@@ -16,9 +16,9 @@ export type {
   LoopRecordedEvent,
   ContextMessage,
   PromptOrigin,
-} from '@byf/agent-core';
-export { AGENT_WIRE_PROTOCOL_VERSION } from '@byf/agent-core';
-export type { Message, ContentPart, ToolCall, TokenUsage } from '@byf/kosong';
+} from '@byfriends/agent-core';
+export { AGENT_WIRE_PROTOCOL_VERSION } from '@byfriends/agent-core';
+export type { Message, ContentPart, ToolCall, TokenUsage } from '@byfriends/kosong';
 
 // ── vis-only DTOs ──────────────────────────────────────────────────────────
 

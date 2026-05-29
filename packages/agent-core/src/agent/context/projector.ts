@@ -1,4 +1,4 @@
-import type { ContentPart, Message, TextPart } from '@byf/kosong';
+import type { ContentPart, Message, TextPart } from '@byfriends/kosong';
 
 import { renderNotificationXml } from './notification-xml';
 

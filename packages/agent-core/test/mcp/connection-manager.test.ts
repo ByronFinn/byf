@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { localKaos } from '@byf/kaos';
-import type { ProviderConfig } from '@byf/kosong';
+import { localKaos } from '@byfriends/kaos';
+import type { ProviderConfig } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { randomUUID } from 'node:crypto';

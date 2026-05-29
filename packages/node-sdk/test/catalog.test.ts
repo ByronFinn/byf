@@ -1,4 +1,4 @@
-import type { ByfConfig } from '@byf/agent-core';
+import type { ByfConfig } from '@byfriends/agent-core';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

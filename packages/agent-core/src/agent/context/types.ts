@@ -1,4 +1,4 @@
-import type { ContentPart, Message } from '@byf/kosong';
+import type { ContentPart, Message } from '@byfriends/kosong';
 
 import type { SkillSource } from '../../skill';
 import type { BackgroundTaskStatus } from '../../tools/background';

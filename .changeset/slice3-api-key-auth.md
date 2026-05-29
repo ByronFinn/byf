@@ -1,12 +1,12 @@
 ---
-"@byf/oauth": major
-"@byf/sdk": major
-"@byf/cli": minor
+"@byfriends/oauth": major
+"@byfriends/sdk": major
+"@byfriends/cli": minor
 ---
 
 Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
-### @byf/oauth (breaking)
+### @byfriends/oauth (breaking)
 
 - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
   `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
@@ -17,7 +17,7 @@ Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 - `pollDeviceToken`, `refreshAccessToken`, `requestDeviceAuthorization`,
   `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
-### @byf/sdk (breaking)
+### @byfriends/sdk (breaking)
 
 - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
   re-exports) and OAuth auth-facade helpers
@@ -26,7 +26,7 @@ Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 - Deleted OAuth smoke-test examples (`kimi-harness-auth-smoke.ts`,
   `kimi-harness-config-smoke.ts`)
 
-### @byf/cli
+### @byfriends/cli
 
 - Feedback hint copy updated from `kimi export` → `byf export`
 - Model selector and provider labels reflect BYF branding

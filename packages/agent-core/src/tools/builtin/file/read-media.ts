@@ -15,13 +15,13 @@
  * Read/Write/Edit.
  */
 
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 import type {
   ContentPart,
   ModelCapability,
   VideoURLPart,
   VideoUploadInput as ProviderVideoUploadInput,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

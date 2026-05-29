@@ -1,4 +1,4 @@
-import { ByfHarness, type Session, type Event } from '@byf/sdk';
+import { ByfHarness, type Session, type Event } from '@byfriends/sdk';
 
 import { smokeIdentityFromEnv } from './runtime-smoke-helpers';
 

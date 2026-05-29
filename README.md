@@ -7,7 +7,7 @@ BYF is a terminal-first coding agent for exploring repositories, editing files, 
 ## Installation
 ### npm (recommended)
 ```sh
-npm install -g @byf/cli
+npm install -g @byfriends/cli
 ```
 
 ### Quick install (macOS/Linux)

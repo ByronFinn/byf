@@ -1,4 +1,4 @@
-import type { ContentPart, Tool } from '@byf/kosong';
+import type { ContentPart, Tool } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';

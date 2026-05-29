@@ -1,4 +1,4 @@
-import type { FinishReason, TextPart, ThinkPart, TokenUsage } from '@byf/kosong';
+import type { FinishReason, TextPart, ThinkPart, TokenUsage } from '@byfriends/kosong';
 
 import type { ToolInputDisplay } from '../tools/display';
 import type { ExecutableToolResult, LoopStepStopReason, ToolUpdate } from './types';

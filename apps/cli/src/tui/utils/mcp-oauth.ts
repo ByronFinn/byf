@@ -3,7 +3,7 @@ import {
   type McpOAuthAuthorizationUrlUpdateData,
   type ToolProgressEvent,
   type ToolUpdate,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 export type OpenUrl = (url: string) => void;
 

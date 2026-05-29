@@ -1,21 +1,21 @@
-# @byf/cli
+# @byfriends/cli
 
 > BYF (Be Your Friend) — an AI coding agent that runs in your terminal
 
-[![npm](https://img.shields.io/npm/v/@byf/cli)](https://www.npmjs.com/package/@byf/cli) [![License](https://img.shields.io/badge/license-proprietary-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@byfriends/cli)](https://www.npmjs.com/package/@byfriends/cli) [![License](https://img.shields.io/badge/license-proprietary-blue)](LICENSE)
 
 ## Install
 
 ### npm (recommended)
 
 ```sh
-npm install -g @byf/cli
+npm install -g @byfriends/cli
 ```
 
 Or with pnpm:
 
 ```sh
-pnpm add -g @byf/cli
+pnpm add -g @byfriends/cli
 ```
 
 ### Quick install (macOS/Linux)
