@@ -79,7 +79,7 @@ export const ExitPlanModePermissionPolicy: PermissionPolicy = {
 
 export const PlanModeGuardPermissionPolicy: PermissionPolicy = {
   name: 'plan.mode-guard',
-  evaluate({ agent, toolCallContext }) {
+  async evaluate({ agent, toolCallContext }) {
     if (!agent.planMode.isActive) return undefined;
 
     const name = toolCallContext.toolCall.name;
@@ -89,7 +89,10 @@ export const PlanModeGuardPermissionPolicy: PermissionPolicy = {
       const path = readStringField(args, 'path');
       if (path === undefined) return undefined;
       const planFilePath = agent.planMode.planFilePath;
-      if (planFilePath !== null && path === planFilePath) return { kind: 'allow' };
+      if (planFilePath !== null && path === planFilePath) {
+        await agent.planMode.materializeCurrentPlanFile();
+        return { kind: 'allow' };
+      }
       return {
         kind: 'result',
         result: {

@@ -11,6 +11,11 @@ import type { ToolExecutionHookContext } from '../../src/loop';
 const signal = new AbortController().signal;
 
 async function activePlanAgent(): Promise<{ agent: Agent; planMode: PlanMode }> {
+  const missingFileError = () => {
+    const error = new Error('missing file') as Error & { code: string };
+    error.code = 'ENOENT';
+    return error;
+  };
   const agent = {
     homedir: '/tmp/byf-plan-test',
     emitStatusUpdated: vi.fn(),
@@ -19,6 +24,10 @@ async function activePlanAgent(): Promise<{ agent: Agent; planMode: PlanMode }> 
     runtime: {
       kaos: {
         mkdir: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn(async () => {
+          throw missingFileError();
+        }),
+        writeText: vi.fn().mockResolvedValue(0),
       },
     },
   } as unknown as Agent;

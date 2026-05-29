@@ -18,7 +18,7 @@ describe('manual plan entry', () => {
     expect('beforeToolCall' in ctx.agent.planMode).toBe(false);
   });
 
-  it('enters plan mode without starting a model turn and prepares the plan directory', async () => {
+  it('enters plan mode without starting a model turn and does not touch the filesystem', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined);
     const writeText = vi.fn().mockResolvedValue(0);
     const ctx = testAgent({
@@ -30,7 +30,7 @@ describe('manual plan entry', () => {
 
     expect(ctx.agent.planMode.isActive).toBe(true);
     expect(ctx.agent.planMode.planFilePath).toMatch(/\.md$/);
-    expect(mkdir).toHaveBeenCalledWith('/workspace/plan', { parents: true, existOk: true });
+    expect(mkdir).not.toHaveBeenCalled();
     expect(writeText).not.toHaveBeenCalled();
     expect(ctx.allEvents.some((event) => event.event === 'turn.started')).toBe(false);
     expect(ctx.llmCalls).toHaveLength(0);
@@ -120,10 +120,34 @@ describe('plan clear', () => {
     expect(ctx.agent.planMode.planFilePath).toBe(planPath);
     await expect(ctx.rpc.getPlan({})).resolves.toMatchObject({
       id: 'test-plan',
+      exists: true,
       content: '',
       path: planPath,
     });
     await ctx.expectResumeMatches();
+  });
+
+  it('does nothing when clearing an unmaterialized plan file', async () => {
+    const readText = vi.fn(async () => {
+      const error = new Error('missing') as Error & { code: string };
+      error.code = 'ENOENT';
+      throw error;
+    });
+    const writeText = vi.fn(async (_path: string, content: string) => content.length);
+
+    const ctx = testAgent({
+      kaos: createPlanKaos({ readText, writeText }),
+    });
+    await ctx.agent.planMode.enter('test-plan', false);
+
+    await ctx.rpc.clearPlan({});
+
+    expect(writeText).not.toHaveBeenCalled();
+    await expect(ctx.rpc.getPlan({})).resolves.toMatchObject({
+      id: 'test-plan',
+      exists: false,
+      content: '',
+    });
   });
 });
 
@@ -326,6 +350,57 @@ describe('plan exit tool options', () => {
 });
 
 describe('plan allows safe tool flow', () => {
+  it.each(['Write', 'Edit'] as const)(
+    'materializes the plan file on first %s to the active plan path',
+    async (toolName) => {
+      const files = new Map<string, string>();
+      const mkdir = vi.fn().mockResolvedValue(undefined);
+      const readText = vi.fn(async (path: string) => {
+        if (!files.has(path)) {
+          const error = new Error('missing') as Error & { code: string };
+          error.code = 'ENOENT';
+          throw error;
+        }
+        return files.get(path) ?? '';
+      });
+      const writeText = vi.fn(async (path: string, content: string) => {
+        files.set(path, content);
+        return content.length;
+      });
+      const ctx = testAgent({
+        kaos: createPlanKaos({ mkdir, readText, writeText }),
+      });
+      ctx.configure({ tools: [toolName] });
+      await ctx.agent.planMode.enter('test-plan', false);
+      const planPath = ctx.agent.planMode.planFilePath;
+      if (planPath === null) throw new Error('expected active plan path');
+
+      const args =
+        toolName === 'Write'
+          ? { path: planPath, content: '# Plan\n\n- First draft' }
+          : { path: planPath, old_string: 'draft', new_string: 'revised draft' };
+      const call: ToolCall = {
+        type: 'function',
+        id: `call_${toolName.toLowerCase()}_materialize`,
+        name: toolName,
+        arguments: JSON.stringify(args),
+      };
+
+      ctx.mockNextResponse({ type: 'text', text: 'I will update the plan file.' }, call);
+      ctx.mockNextResponse({ type: 'text', text: 'Plan file processed.' });
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Update the plan file' }] });
+      await ctx.untilTurnEnd();
+
+      expect(mkdir).toHaveBeenCalledOnce();
+      expect(mkdir).toHaveBeenCalledWith(planPath.replace(/\/[^/]+$/, ''), {
+        parents: true,
+        existOk: true,
+      });
+      expect(writeText).toHaveBeenCalledWith(planPath, '');
+      expect(files.has(planPath)).toBe(true);
+    },
+  );
+
   it.each(['Write', 'Edit'] as const)(
     'runs %s on the active plan file without approval in manual mode',
     async (toolName) => {

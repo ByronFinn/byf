@@ -7,7 +7,7 @@
   "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ByronFinn/byf.git"
+    "url": "git+https://github.com/ByronFinn/byf.git"
   },
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"

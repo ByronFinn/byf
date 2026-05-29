@@ -140,6 +140,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
       },
     })),
     setConfig: vi.fn(async () => ({ providers: {} })),
+    removeProvider: vi.fn(async () => ({})),
     createSession: vi.fn(async () => session),
     resumeSession: vi.fn(async () => session),
     forkSession: vi.fn(async () => session),
@@ -1107,8 +1108,8 @@ describe('ByfTui message flow', () => {
         defaultModel: 'gpt-4o',
       })),
       removeProvider: vi.fn(async (id: string) => {
-        const config = await harness.getConfig();
-        delete config.providers[id];
+        const config: { providers?: Record<string, unknown>; models: Record<string, { provider?: string; model: string; maxContextSize: number }> } = await harness.getConfig();
+        if (config.providers) delete config.providers[id];
         for (const [key, model] of Object.entries(config.models)) {
           if (model.provider === id) delete config.models[key];
         }
@@ -1173,7 +1174,7 @@ describe('ByfTui message flow', () => {
     const { driver } = await makeDriver(session, harness);
 
     // Simulate the active session using deepseek-chat while defaultModel is gpt-4o
-    (driver.state.appState as Record<string, unknown>).model = 'deepseek-chat';
+    driver.state.appState.model = 'deepseek-chat';
 
     driver.handleUserInput('/logout deepseek');
 
@@ -1202,12 +1203,12 @@ describe('ByfTui message flow', () => {
     const { driver } = await makeDriver(session, harness);
 
     // Active model belongs to deepseek
-    expect((driver.state.appState as Record<string, unknown>).model).toBeTruthy();
+    expect(driver.state.appState.model).toBeTruthy();
 
     driver.handleUserInput('/logout deepseek');
 
     await vi.waitFor(() => {
-      expect((driver.state.appState as Record<string, unknown>).model).toBe('');
+      expect(driver.state.appState.model).toBe('');
     });
   });
 
@@ -1301,6 +1302,7 @@ describe('ByfTui message flow', () => {
     const session = makeSession({
       getPlan: vi.fn(async () => ({
         id: 'no-duplicate-plan',
+        exists: true,
         content: planContent,
         path: '/tmp/no-duplicate-plan.md',
       })),

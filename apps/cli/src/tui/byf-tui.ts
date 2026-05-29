@@ -29,7 +29,6 @@ import {
   fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
-  log,
 } from '@byf/sdk';
 import {
   applyProviderConfig,
@@ -178,7 +177,6 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
-  PRODUCT_NAME,
 } from './constant/byf-tui';
 import { STREAMING_UI_FLUSH_MS } from './constant/streaming';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
@@ -1491,6 +1489,8 @@ export class ByfTui {
         } catch (error) {
           this.showError(formatErrorMessage(error));
         }
+        return;
+      case 'invalid':
         return;
     }
   }
@@ -4930,7 +4930,11 @@ export class ByfTui {
         const plan = await session.getPlan().catch(() => null);
         this.showNotice(
           'Plan mode: ON',
-          plan?.path !== undefined ? `Plan will be created here: ${plan.path}` : undefined,
+          plan?.path !== undefined
+            ? plan.exists
+              ? `Plan target path: ${plan.path}`
+              : `Plan target path (not created yet): ${plan.path}`
+            : undefined,
         );
         return;
       }
@@ -5192,12 +5196,12 @@ export class ByfTui {
       } else {
         this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
       }
-      return await this.handleManualModelEntry(name, baseUrl, apiKey);
+      return this.handleManualModelEntry(name, baseUrl, apiKey);
     }
 
     if (models.length === 0) {
       this.showStatus('No models found at this endpoint. Enter model ID manually.');
-      return await this.handleManualModelEntry(name, baseUrl, apiKey);
+      return this.handleManualModelEntry(name, baseUrl, apiKey);
     }
 
     // Step 5: Model selection
@@ -5245,6 +5249,7 @@ export class ByfTui {
   private promptTextInput(opts: {
     readonly title: string;
     readonly subtitle: string;
+    readonly initialValue?: string;
     readonly placeholder?: string;
     readonly colors: ColorPalette;
   }): Promise<string | undefined> {
@@ -5252,6 +5257,7 @@ export class ByfTui {
       const dialog = new TextInputDialogComponent({
         title: opts.title,
         subtitle: opts.subtitle,
+        initialValue: opts.initialValue,
         placeholder: opts.placeholder,
         colors: opts.colors,
         onDone: (result) => {
@@ -5305,7 +5311,7 @@ export class ByfTui {
       apiKey,
       models: [manualModelInfo],
       selectedModel: manualModelInfo,
-      thinkingEffort: 'off',
+      thinking: false,
     });
 
     await this.harness.setConfig({

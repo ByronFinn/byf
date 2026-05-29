@@ -6,6 +6,7 @@ import { generateHeroSlug } from '../../utils/hero-slug';
 
 export type PlanData = null | {
   id: string;
+  exists: boolean;
   content: string;
   path: string;
 };
@@ -35,11 +36,10 @@ export class PlanMode {
     try {
       const planFilePath = this.planFilePathFor(id);
       this._planFilePath = planFilePath;
-      await this.ensurePlanDirectory(planFilePath);
       this.agent.records.logRecord({ type: 'plan_mode.enter', id });
       enterRecorded = true;
       if (createFile) {
-        await this.writeEmptyPlanFile(planFilePath);
+        await this.materializePlanFile(planFilePath);
       }
     } catch (error) {
       if (enterRecorded) {
@@ -52,6 +52,7 @@ export class PlanMode {
       throw error;
     }
 
+    this.trackPlanLifecycle('entered');
     if (emitStatus) this.agent.emitStatusUpdated();
   }
 
@@ -80,7 +81,8 @@ export class PlanMode {
 
   async clear(): Promise<void> {
     if (!this._planFilePath) return;
-    await this.writeEmptyPlanFile(this._planFilePath);
+    if (!(await this.planFileExists(this._planFilePath))) return;
+    await this.agent.runtime.kaos.writeText(this._planFilePath, '');
   }
 
   exit(id?: string): void {
@@ -92,6 +94,7 @@ export class PlanMode {
     this._isActive = false;
     this._planId = null;
     this._planFilePath = null;
+    this.trackPlanLifecycle('exited');
     this.agent.emitStatusUpdated();
   }
 
@@ -106,21 +109,31 @@ export class PlanMode {
   async data(): Promise<PlanData> {
     if (!this._planId || !this._planFilePath) return null;
     let content = '';
+    let exists = true;
     try {
       content = await this.agent.runtime.kaos.readText(this._planFilePath);
     } catch (error) {
       if (!isMissingFileError(error)) throw error;
+      exists = false;
     }
     return {
       id: this._planId,
+      exists,
       content,
       path: this._planFilePath,
     };
   }
 
-  private async writeEmptyPlanFile(path: string): Promise<void> {
+  async materializeCurrentPlanFile(): Promise<void> {
+    if (this._planFilePath === null) return;
+    await this.materializePlanFile(this._planFilePath);
+  }
+
+  private async materializePlanFile(path: string): Promise<void> {
+    if (await this.planFileExists(path)) return;
     await this.ensurePlanDirectory(path);
     await this.agent.runtime.kaos.writeText(path, '');
+    this.trackPlanLifecycle('materialized');
   }
 
   private async ensurePlanDirectory(path: string): Promise<void> {
@@ -136,6 +149,20 @@ export class PlanMode {
         ? join(this.agent.config.cwd || this.agent.runtime.kaos.getcwd(), 'plan')
         : join(this.agent.homedir, 'plans');
     return join(plansDir, `${id}.md`);
+  }
+
+  private async planFileExists(path: string): Promise<boolean> {
+    try {
+      await this.agent.runtime.kaos.readText(path);
+      return true;
+    } catch (error) {
+      if (isMissingFileError(error)) return false;
+      throw error;
+    }
+  }
+
+  private trackPlanLifecycle(stage: 'entered' | 'materialized' | 'exited'): void {
+    this.agent.telemetry?.track?.('plan_file_lifecycle', { stage });
   }
 }
 

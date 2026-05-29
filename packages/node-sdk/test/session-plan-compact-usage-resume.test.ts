@@ -36,6 +36,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
 
       await expect(session.clearPlan()).resolves.toBeUndefined();
       await expect(session.getPlan()).resolves.toMatchObject({
+        exists: false,
         content: '',
       });
       await session.cancel();
@@ -54,7 +55,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
     }
   });
 
-  it('prepares the plans directory without creating plan files on repeated toggles', async () => {
+  it('does not create plans directory or plan files on repeated toggles before first write', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-plan-toggle-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-plan-toggle-work-');
     await writeTestConfig(homeDir);
@@ -133,6 +134,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
       });
       await created.setPlanMode(true);
       await expect(created.getPlan()).resolves.toMatchObject({
+        exists: false,
         content: '',
       });
       await created.close();
@@ -147,6 +149,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
         planMode: true,
       });
       await expect(resumed.getPlan()).resolves.toMatchObject({
+        exists: false,
         content: '',
         path: expect.stringContaining('/plans/'),
       });
@@ -188,7 +191,11 @@ describe('Session plan, compact, usage, and resume APIs', () => {
       await expect(resumed.getStatus()).resolves.toMatchObject({
         planMode: true,
       });
-      await expect(resumed.getPlan()).resolves.toBeNull();
+      await expect(resumed.getPlan()).resolves.toMatchObject({
+        exists: false,
+        content: '',
+        path: expect.stringContaining('/plans/'),
+      });
     } finally {
       await resumedHarness.close();
     }
@@ -231,6 +238,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
       const forkPlan = await fork.getPlan();
       expect(forkPlan).toEqual({
         id: sourcePlan.id,
+        exists: true,
         content: 'source plan',
         path: join(forkSummary!.sessionDir, 'agents', 'main', 'plans', `${sourcePlan.id}.md`),
       });
@@ -335,6 +343,16 @@ max_context_size = 200000
 }
 
 async function markdownFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir);
+  const entries = await readdir(dir).catch((error) => {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'ENOENT'
+    ) {
+      return [];
+    }
+    throw error;
+  });
   return entries.filter((entry) => entry.endsWith('.md')).toSorted();
 }

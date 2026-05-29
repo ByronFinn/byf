@@ -11,13 +11,13 @@ describe('NoticeComponent', () => {
   it('renders top and bottom spacing around the notice copy', () => {
     const component = new NoticeMessageComponent(
       'Plan mode: ON',
-      'Plan will be created here: /tmp/plans/test-plan.md',
+      'Plan target path (not created yet): /tmp/plans/test-plan.md',
       darkColors,
     );
 
     const lines = component.render(120).map((line) => strip(line));
     expect(lines[0]).toBe('');
     expect(lines[1]).toContain('Plan mode: ON');
-    expect(lines[2]).toContain('Plan will be created here: /tmp/plans/test-plan.md');
+    expect(lines[2]).toContain('Plan target path (not created yet): /tmp/plans/test-plan.md');
   });
 });

@@ -1,13 +1,12 @@
 import { execSync } from 'node:child_process';
 
-import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runShell } from '#/cli/run-shell';
 
 import { captureProcessWrite, ExitCalled, mockProcessExit } from '../helpers/process';
 
-type CreateByfDeviceId = typeof createByfDeviceIdFn;
+type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
 
 const mocks = vi.hoisted(() => {
   type TuiConfigFallback = {
@@ -86,17 +85,6 @@ vi.mock('@byf/sdk', async (importOriginal) => {
         mocks.byfHarnessConstructor(...args);
       }
     },
-  };
-});
-
-vi.mock('@byf/oauth', async () => {
-  const actual = await vi.importActual<typeof import('@byf/oauth')>(
-    '@byf/oauth',
-  );
-  return {
-    ...actual,
-    createByfDeviceId: mocks.createByfDeviceId,
-    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 
@@ -405,28 +393,13 @@ describe('runShell', () => {
       '1.2.3-test',
     );
 
-    const [harnessOptions] = mocks.byfHarnessConstructor.mock.calls[0] as [
-      {
-        readonly onOAuthRefresh: (
-          outcome:
-            | { readonly success: true }
-            | { readonly success: false; readonly reason: 'unauthorized' | 'network_or_other' },
-        ) => void;
+    const [harnessOptions] = mocks.byfHarnessConstructor.mock.calls[0] as [{ telemetry?: { track: (event: string, props?: unknown) => void } }];
+    expect(harnessOptions).toMatchObject({
+      telemetry: {
+        track: mocks.telemetryTrack,
+        setContext: mocks.setTelemetryContext,
+        withContext: mocks.withTelemetryContext,
       },
-    ];
-
-    harnessOptions.onOAuthRefresh({ success: true });
-    harnessOptions.onOAuthRefresh({ success: false, reason: 'unauthorized' });
-    harnessOptions.onOAuthRefresh({ success: false, reason: 'network_or_other' });
-
-    expect(mocks.telemetryTrack).toHaveBeenCalledWith('oauth_refresh', { success: true });
-    expect(mocks.telemetryTrack).toHaveBeenCalledWith('oauth_refresh', {
-      success: false,
-      reason: 'unauthorized',
-    });
-    expect(mocks.telemetryTrack).toHaveBeenCalledWith('oauth_refresh', {
-      success: false,
-      reason: 'network_or_other',
     });
   });
 
