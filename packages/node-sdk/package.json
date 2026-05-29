@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/sdk",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Public TypeScript SDK for BYF agents and sessions",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -45,7 +45,7 @@
         "default": "./dist/index.mjs"
       }
     },
-    "provenance": true
+    "provenance": false
   },
   "scripts": {
     "build": "tsdown && pnpm run build:dts",
