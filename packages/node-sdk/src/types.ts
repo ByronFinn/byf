@@ -39,6 +39,8 @@ export type {
   ProviderType,
   ResumedAgentState,
   ServicesConfig,
+  ShellExecPayload,
+  ShellExecResult,
   SkillSummary,
   ThinkingConfig,
   ToolInfo,
@@ -118,6 +120,7 @@ export interface CompactOptions {
 
 export interface PlanInfo {
   readonly id: string;
+  readonly exists: boolean;
   readonly content: string;
   readonly path: string;
 }

@@ -2,13 +2,15 @@ import { readApiErrorMessage } from './api-error';
 import { isRecord } from './utils';
 
 // ---------------------------------------------------------------------------
-// Shared types (previously in managed-byf.ts)
+// Shared types
 // ---------------------------------------------------------------------------
 
 export interface ModelInfo {
   readonly id: string;
   readonly contextLength: number;
   readonly supportsReasoning: boolean;
+  readonly supportsReasoningEffort?: boolean | undefined;
+  readonly reasoningEffortKey?: string | undefined;
   readonly supportsImageIn: boolean;
   readonly supportsVideoIn: boolean;
   readonly supportsToolUse?: boolean | undefined;
@@ -45,74 +47,10 @@ export interface ConfigShape {
 }
 
 // ---------------------------------------------------------------------------
-// Open platform definitions
+// Provider API error
 // ---------------------------------------------------------------------------
 
-export interface OpenPlatformDefinition {
-  readonly id: string;
-  readonly name: string;
-  readonly baseUrl: string;
-  readonly allowedPrefixes?: readonly string[] | undefined;
-}
-
-export const OPEN_PLATFORMS: readonly OpenPlatformDefinition[] = [
-  {
-    id: 'byf-cn',
-    name: 'OpenAI-compatible Platform (CN)',
-    baseUrl: 'https://api.openai-compat-cn.invalid/v1',
-    allowedPrefixes: ['byf-k'],
-  },
-  {
-    id: 'byf-ai',
-    name: 'OpenAI-compatible Platform',
-    baseUrl: 'https://api.openai-compat.invalid/v1',
-    allowedPrefixes: ['byf-k'],
-  },
-];
-
-export function getOpenPlatformById(id: string): OpenPlatformDefinition | undefined {
-  return OPEN_PLATFORMS.find((p) => p.id === id);
-}
-
-export function isOpenPlatformId(id: string): boolean {
-  return OPEN_PLATFORMS.some((p) => p.id === id);
-}
-
-function toModelInfo(item: unknown): ModelInfo | undefined {
-  if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
-    return undefined;
-  }
-  const contextLength = Number(item['context_length']);
-  if (!Number.isInteger(contextLength) || contextLength <= 0) {
-    throw new Error(`Model "${item['id']}" must include a positive context_length.`);
-  }
-  const displayName = item['display_name'];
-  const normalizedDisplayName =
-    typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined;
-  const supportsToolUse = Object.hasOwn(item, 'supports_tool_use')
-    ? Boolean(item['supports_tool_use'])
-    : true;
-  return {
-    id: item['id'],
-    contextLength,
-    supportsReasoning: Boolean(item['supports_reasoning']),
-    supportsImageIn: Boolean(item['supports_image_in']),
-    supportsVideoIn: Boolean(item['supports_video_in']),
-    supportsToolUse,
-    displayName: normalizedDisplayName,
-  };
-}
-
-export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
-  const caps = new Set<string>();
-  if (model.supportsReasoning) caps.add('thinking');
-  if (model.supportsImageIn) caps.add('image_in');
-  if (model.supportsVideoIn) caps.add('video_in');
-  if (model.supportsToolUse ?? true) caps.add('tool_use');
-  return caps.size > 0 ? [...caps] : undefined;
-}
-
-export class OpenPlatformApiError extends Error {
+export class ProviderApiError extends Error {
   readonly status: number;
 
   constructor(message: string, status: number) {
@@ -121,13 +59,69 @@ export class OpenPlatformApiError extends Error {
   }
 }
 
-export async function fetchOpenPlatformModels(
-  platform: OpenPlatformDefinition,
+// ---------------------------------------------------------------------------
+// Model fetching
+// ---------------------------------------------------------------------------
+
+function toModelInfo(item: unknown): ModelInfo | undefined {
+  if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
+    return undefined;
+  }
+  const rawContextLength = Number(item['context_length']);
+  const contextLength = Number.isInteger(rawContextLength) && rawContextLength > 0
+    ? rawContextLength
+    : 200_000;
+  const displayName = item['display_name'];
+  const normalizedDisplayName =
+    typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined;
+  const supportsToolUse = Object.hasOwn(item, 'supports_tool_use')
+    ? Boolean(item['supports_tool_use'])
+    : true;
+  const reasoningEffortKey = firstNonEmptyString(item, [
+    'reasoning_effort_key',
+    'thinking_effort_key',
+    'reasoning_effort_param',
+    'thinking_effort_param',
+  ]);
+  const supportsReasoningEffort = Object.hasOwn(item, 'supports_reasoning_effort')
+    ? Boolean(item['supports_reasoning_effort'])
+    : reasoningEffortKey !== undefined;
+  return {
+    id: item['id'],
+    contextLength,
+    supportsReasoning: Object.hasOwn(item, 'supports_reasoning')
+      ? Boolean(item['supports_reasoning'])
+      : true,
+    supportsReasoningEffort,
+    reasoningEffortKey,
+    supportsImageIn: Boolean(item['supports_image_in']),
+    supportsVideoIn: Boolean(item['supports_video_in']),
+    supportsToolUse,
+    displayName: normalizedDisplayName,
+  };
+}
+
+function firstNonEmptyString(
+  source: Record<string, unknown>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value !== 'string') continue;
+    const normalized = value.trim();
+    if (normalized.length > 0) return normalized;
+  }
+  return undefined;
+}
+
+export async function fetchModels(
+  baseUrl: string,
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<ModelInfo[]> {
-  const res = await fetchImpl(`${platform.baseUrl.replace(/\/+$/, '')}/models`, {
+  const url = `${baseUrl.replace(/\/+$/, '')}/models`;
+  const res = await fetchImpl(url, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'application/json',
@@ -135,53 +129,76 @@ export async function fetchOpenPlatformModels(
     signal,
   });
   if (!res.ok) {
-    throw new OpenPlatformApiError(
+    throw new ProviderApiError(
       await readApiErrorMessage(res, `Failed to list models (HTTP ${res.status}).`),
       res.status,
     );
   }
   const payload: unknown = await res.json();
   if (!isRecord(payload) || !Array.isArray(payload['data'])) {
-    throw new Error(`Unexpected models response for ${platform.baseUrl}.`);
+    throw new Error(`Unexpected models response for ${baseUrl}.`);
   }
   return payload['data']
     .map((item) => toModelInfo(item))
     .filter((item): item is ModelInfo => item !== undefined);
 }
 
+// ---------------------------------------------------------------------------
+// Model filtering
+// ---------------------------------------------------------------------------
+
 export function filterModelsByPrefix(
   models: ModelInfo[],
-  platform: OpenPlatformDefinition,
+  prefixes?: readonly string[] | undefined,
 ): ModelInfo[] {
-  if (!platform.allowedPrefixes || platform.allowedPrefixes.length === 0) {
+  if (!prefixes || prefixes.length === 0) {
     return models;
   }
-  const prefixes = platform.allowedPrefixes;
   return models.filter((m) => prefixes.some((p) => m.id.startsWith(p)));
 }
 
-export interface ApplyOpenPlatformResult {
+// ---------------------------------------------------------------------------
+// Capabilities
+// ---------------------------------------------------------------------------
+
+export function capabilitiesForModel(model: ModelInfo): string[] | undefined {
+  const caps = new Set<string>();
+  if (model.supportsReasoning) caps.add('thinking');
+  if (model.supportsReasoningEffort === true) caps.add('thinking_effort');
+  if (model.supportsImageIn) caps.add('image_in');
+  if (model.supportsVideoIn) caps.add('video_in');
+  if (model.supportsToolUse ?? true) caps.add('tool_use');
+  return caps.size > 0 ? [...caps] : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Config application
+// ---------------------------------------------------------------------------
+
+export interface ApplyProviderResult {
   readonly defaultModel: string;
   readonly defaultThinking: boolean;
 }
 
-export function applyOpenPlatformConfig(
+export function applyProviderConfig(
   config: ConfigShape,
   options: {
-    readonly platform: OpenPlatformDefinition;
+    readonly name: string;
+    readonly baseUrl: string;
+    readonly apiKey: string;
     readonly models: readonly ModelInfo[];
     readonly selectedModel: ModelInfo;
     readonly thinking: boolean;
-    readonly apiKey: string;
   },
-): ApplyOpenPlatformResult {
-  const providerKey = options.platform.id;
+): ApplyProviderResult {
+  const providerKey = options.name;
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
     type: 'openai-compat',
-    baseUrl: options.platform.baseUrl,
+    baseUrl: options.baseUrl,
     apiKey: options.apiKey,
+    thinkingEffortKey: options.selectedModel.reasoningEffortKey,
   };
 
   const existingModels = config.models ?? {};
@@ -209,13 +226,17 @@ export function applyOpenPlatformConfig(
   return { defaultModel: modelKey, defaultThinking: options.thinking };
 }
 
-export function removeOpenPlatformConfig(config: ConfigShape, platformId: string): void {
-  delete config.providers[platformId];
+// ---------------------------------------------------------------------------
+// Config removal
+// ---------------------------------------------------------------------------
+
+export function removeProviderConfig(config: ConfigShape, providerName: string): void {
+  delete config.providers[providerName];
 
   let removedDefault = false;
   const existingModels = config.models ?? {};
   for (const [key, model] of Object.entries(existingModels)) {
-    if (!isRecord(model) || model['provider'] !== platformId) continue;
+    if (!isRecord(model) || model['provider'] !== providerName) continue;
     delete existingModels[key];
     if (config.defaultModel === key) removedDefault = true;
   }
@@ -225,7 +246,7 @@ export function removeOpenPlatformConfig(config: ConfigShape, platformId: string
     config.defaultModel = undefined;
   }
 
-  if (config['defaultProvider'] === platformId) {
+  if (config['defaultProvider'] === providerName) {
     config['defaultProvider'] = undefined;
   }
 }

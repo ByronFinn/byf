@@ -1,6 +1,8 @@
 import {
   BUILTIN_SLASH_COMMANDS,
+  buildAutocompleteSlashCommands,
   findBuiltInSlashCommand,
+  parseShellCommand,
   parseSlashInput,
   resolveSlashCommandAvailability,
   sortSlashCommands,
@@ -24,13 +26,29 @@ describe('parseSlashInput', () => {
     expect(parseSlashInput('/some/path')).toBeNull();
     expect(parseSlashInput('/some/path with args')).toBeNull();
   });
+
+  describe('parseShellCommand', () => {
+    it('parses shell commands prefixed with exclamation and whitespace', () => {
+      expect(parseShellCommand('! ls -la')).toBe('ls -la');
+      expect(parseShellCommand('!\tgrep foo src/')).toBe('grep foo src/');
+      expect(parseShellCommand('!   echo ok   ')).toBe('echo ok');
+    });
+
+    it('returns null for non-shell input or empty commands', () => {
+      expect(parseShellCommand('/help')).toBeNull();
+      expect(parseShellCommand('hello world')).toBeNull();
+      expect(parseShellCommand('!')).toBeNull();
+      expect(parseShellCommand('!   ')).toBeNull();
+      expect(parseShellCommand('!echo')).toBeNull();
+    });
+  });
 });
 
 describe('built-in slash command registry', () => {
   it('finds built-ins by name or alias', () => {
     expect(findBuiltInSlashCommand('exit')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('quit')?.name).toBe('exit');
-    expect(findBuiltInSlashCommand('q')?.name).toBe('exit');
+    expect(findBuiltInSlashCommand('q')).toBeUndefined();
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
@@ -101,5 +119,11 @@ describe('built-in slash command registry', () => {
         'yolo',
       ]),
     );
+  });
+
+  it('builds autocomplete entries including aliases like /quit', () => {
+    const entries = buildAutocompleteSlashCommands(BUILTIN_SLASH_COMMANDS);
+    expect(entries.some((entry) => entry.name === 'exit')).toBe(true);
+    expect(entries.some((entry) => entry.name === 'quit')).toBe(true);
   });
 });

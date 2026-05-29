@@ -18,6 +18,8 @@ import {
   Spacer,
   TUI,
 } from '@earendil-works/pi-tui';
+import { homedir } from 'node:os';
+import { resolve as resolvePath } from 'node:path';
 import {
   applyCatalogProvider,
   catalogBaseUrl,
@@ -27,8 +29,14 @@ import {
   fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
-  log,
 } from '@byf/sdk';
+import {
+  applyProviderConfig,
+  capabilitiesForModel as capabilitiesForModelOAuth,
+  fetchModels,
+  type ModelInfo,
+  ProviderApiError,
+} from '@byf/oauth';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
@@ -57,6 +65,7 @@ import type {
   SessionMetaUpdatedEvent,
   SessionStatus,
   SessionUsage,
+  ShellExecResult,
   SkillActivatedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
@@ -76,6 +85,7 @@ import type {
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
+import type { ColorPalette } from '#/tui/theme/colors';
 import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
 import type { GitLsFilesCache } from '#/utils/git/git-ls-files';
 import { createGitLsFilesCache } from '#/utils/git/git-ls-files';
@@ -88,7 +98,9 @@ import { detectFdPath } from '#/utils/process/fd-detect';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import {
   BUILTIN_SLASH_COMMANDS,
+  buildAutocompleteSlashCommands,
   buildSkillSlashCommands,
+  parseShellCommand,
   parseSlashInput,
   resolveSlashCommandInput,
   slashBusyMessage,
@@ -117,6 +129,7 @@ import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ChoicePickerComponent, type ChoiceOption } from './components/dialogs/choice-picker';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
+import { TextInputDialogComponent } from './components/dialogs/text-input-dialog';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
@@ -135,6 +148,7 @@ import { BackgroundAgentStatusComponent } from './components/messages/background
 import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
 import { SkillActivationComponent } from './components/messages/skill-activation';
+import { ShellExecutionComponent } from './components/messages/shell-execution';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
@@ -163,7 +177,6 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
-  PRODUCT_NAME,
 } from './constant/byf-tui';
 import { STREAMING_UI_FLUSH_MS } from './constant/streaming';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
@@ -181,10 +194,12 @@ import {
   type AppState,
   type BackgroundAgentMetadata,
   type LivePaneState,
+  parseThinkingEffort,
   type QueuedMessage,
   type ToolCallBlockData,
   type ToolResultBlockData,
   type TranscriptEntry,
+  type ThinkingEffortLevel,
 } from './types';
 import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from './utils/background-task-status';
@@ -377,11 +392,12 @@ function createInitialAppState(input: ByfTuiStartupInput): AppState {
   return {
     model: '',
     workDir: input.workDir,
+    shellWorkDir: input.workDir,
     sessionId: '',
     yolo: input.cliOptions.yolo,
     permissionMode: startupPermission,
     planMode: input.cliOptions.plan,
-    thinking: false,
+    thinkingEffort: 'off',
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
@@ -489,6 +505,40 @@ function combineStartupNotice(
     return `${existing}\n${next}`;
   }
   return existing ?? next;
+}
+
+const SIMPLE_CD_ONLY = /^cd(?:\s+(.+))?$/;
+
+function parseSimpleCdPathToken(target: string): string | null {
+  if (target.length === 0) return null;
+  const first = target[0];
+  if (first !== '"' && first !== "'") {
+    if (target.includes('"') || target.includes("'")) return null;
+    return target;
+  }
+  if (target[target.length - 1] !== first || target.length < 2) return null;
+  const inner = target.slice(1, -1);
+  if (inner.includes(first)) return null;
+  return inner;
+}
+
+function parseSimpleCdTarget(command: string): string | null {
+  if (command.includes('&&') || command.includes('||') || command.includes('|') || command.includes(';')) {
+    return null;
+  }
+  const match = SIMPLE_CD_ONLY.exec(command.trim());
+  if (match === null) return null;
+  const target = match[1]?.trim();
+  if (target === undefined || target.length === 0) return '~';
+  return parseSimpleCdPathToken(target);
+}
+
+function resolveShellCdTarget(cwd: string, target: string): string | null {
+  if (target === '-') return null;
+  const home = homedir();
+  if (target === '~') return home;
+  if (target.startsWith('~/')) return resolvePath(home, target.slice(2));
+  return resolvePath(cwd, target);
 }
 
 function isOAuthLoginRequiredError(error: unknown): boolean {
@@ -613,10 +663,7 @@ export class ByfTui {
 
   // Rebuilds editor autocomplete from slash commands and file mentions.
   private setupAutocomplete(): void {
-    const slashCommands: SlashCommand[] = this.getSlashCommands().map((cmd) => ({
-      name: cmd.name,
-      description: cmd.description,
-    }));
+    const slashCommands: SlashCommand[] = buildAutocompleteSlashCommands(this.getSlashCommands());
     const provider = new FileMentionProvider(
       slashCommands,
       this.state.appState.workDir,
@@ -990,7 +1037,7 @@ export class ByfTui {
     this.setAppState({
       sessionId: '',
       model: '',
-      thinking: false,
+      thinkingEffort: 'off',
       contextTokens: 0,
       maxContextTokens: 0,
       contextUsage: 0,
@@ -1004,8 +1051,11 @@ export class ByfTui {
   }
 
   // Ensures a usable session exists for the default model after login.
-  private async activateModelAfterLogin(model: string, thinking?: boolean): Promise<void> {
-    const level = thinking === undefined ? undefined : thinking ? 'on' : 'off';
+  private async activateModelAfterLogin(
+    model: string,
+    thinkingEffort?: ThinkingEffortLevel,
+  ): Promise<void> {
+    const level = thinkingEffort;
     if (this.session !== undefined) {
       await this.session.setModel(model);
       if (level !== undefined) {
@@ -1046,15 +1096,25 @@ export class ByfTui {
       return;
     }
 
-    await this.activateModelAfterLogin(defaultModel, config.defaultThinking);
+    const defaultThinkingEffort: ThinkingEffortLevel | undefined =
+      config.thinking?.mode === 'off'
+        ? 'off'
+        : config.thinking?.effort !== undefined
+          ? parseThinkingEffort(config.thinking.effort)
+          : config.defaultThinking === undefined
+            ? undefined
+            : config.defaultThinking
+              ? 'high'
+              : 'off';
+    await this.activateModelAfterLogin(defaultModel, defaultThinkingEffort);
     const appStatePatch: Partial<AppState> = {
       availableModels,
       availableProviders,
       model: defaultModel,
       maxContextTokens: selected.maxContextSize,
     };
-    if (config.defaultThinking !== undefined) {
-      appStatePatch.thinking = config.defaultThinking;
+    if (defaultThinkingEffort !== undefined) {
+      appStatePatch.thinkingEffort = defaultThinkingEffort;
     }
     this.setAppState(appStatePatch);
   }
@@ -1321,6 +1381,11 @@ export class ByfTui {
   // Routes submitted editor text to slash command handling or normal prompting.
   private handleUserInput(text: string): void {
     if (text.trim().length === 0) return;
+    const shellCommand = parseShellCommand(text);
+    if (shellCommand !== null) {
+      void this.handleShellExecution(shellCommand, text);
+      return;
+    }
     if (this.state.appState.isReplaying) {
       this.showError('Cannot send input while session history is replaying.');
       return;
@@ -1332,6 +1397,52 @@ export class ByfTui {
     }
 
     this.sendNormalUserInput(text);
+  }
+
+  private async handleShellExecution(command: string, rawInput: string): Promise<void> {
+    if (this.state.appState.isReplaying) {
+      this.showError('Cannot execute shell commands while session history is replaying.');
+      return;
+    }
+    const session = this.session;
+    if (session === undefined) {
+      this.showError(NO_ACTIVE_SESSION_MESSAGE);
+      return;
+    }
+    await this.persistInputHistory(rawInput);
+    const cwd = this.state.appState.shellWorkDir ?? session.workDir;
+    let result: ShellExecResult;
+    try {
+      result = await session.shellExec(command, { cwd });
+    } catch (error) {
+      this.showError(error instanceof Error ? error.message : 'Shell execution failed.');
+      return;
+    }
+    this.appendShellExecTranscriptEntry(command, result);
+    await this.maybeUpdateShellWorkDirAfterCd(session, command, cwd, result);
+  }
+
+  private async maybeUpdateShellWorkDirAfterCd(
+    session: Session,
+    command: string,
+    cwd: string,
+    result: ShellExecResult,
+  ): Promise<void> {
+    if (result.timedOut || result.exitCode !== 0) return;
+    const target = parseSimpleCdTarget(command);
+    if (target === null) return;
+    const resolved = resolveShellCdTarget(cwd, target);
+    if (resolved === null) return;
+    try {
+      const check = await session.shellExec('pwd', { cwd: resolved });
+      if (check.timedOut || check.exitCode !== 0) return;
+      const nextCwd = check.stdout.trim();
+      if (nextCwd.length > 0) {
+        this.setAppState({ shellWorkDir: nextCwd });
+      }
+    } catch (error) {
+      this.showError(error instanceof Error ? error.message : 'Failed to update shell working directory.');
+    }
   }
 
   // Parses and executes a slash command intent.
@@ -1378,6 +1489,8 @@ export class ByfTui {
         } catch (error) {
           this.showError(formatErrorMessage(error));
         }
+        return;
+      case 'invalid':
         return;
     }
   }
@@ -1456,9 +1569,10 @@ export class ByfTui {
         await this.handleConnectCommand(args);
         return;
       case 'login':
+        await this.handleLoginCommand();
+        return;
       case 'logout':
-      case 'disconnect':
-        this.showError(`/${String(name)} has been removed. Use /connect to configure a provider.`);
+        await this.handleLogoutCommand(args);
         return;
       default:
         this.showError(`Unknown slash command: /${String(name)}`);
@@ -1628,6 +1742,24 @@ export class ByfTui {
     void session.activateSkill(skillName, skillArgs).catch((error: unknown) => {
       const message = formatErrorMessage(error);
       this.failSessionRequest(`Skill "${skillName}" failed: ${message}`);
+    });
+  }
+
+  private appendShellExecTranscriptEntry(command: string, result: ShellExecResult): void {
+    const entryId = nextTranscriptId();
+    const toolCallId = `shell_exec:${entryId}`;
+    const resultData = toShellExecTranscriptResult(command, result, toolCallId);
+    this.appendTranscriptEntry({
+      id: entryId,
+      kind: 'shell_exec',
+      renderMode: 'plain',
+      content: command,
+      toolCallData: {
+        id: toolCallId,
+        name: 'ShellExec',
+        args: { command },
+        result: resultData,
+      },
     });
   }
 
@@ -1931,7 +2063,7 @@ export class ByfTui {
       workDir: this.state.appState.workDir,
       model,
       thinking:
-        this.session === undefined ? undefined : this.state.appState.thinking ? 'on' : 'off',
+        this.session === undefined ? undefined : this.state.appState.thinkingEffort,
       permission: this.state.appState.permissionMode,
       planMode: this.state.appState.planMode ? true : undefined,
     });
@@ -1942,6 +2074,7 @@ export class ByfTui {
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     this.session = session;
+    this.setAppState({ shellWorkDir: session.workDir });
     this.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
   }
@@ -1952,7 +2085,7 @@ export class ByfTui {
     this.setAppState({
       sessionId: session.id,
       model: status.model ?? '',
-      thinking: status.thinkingLevel !== 'off',
+      thinkingEffort: parseThinkingEffort(status.thinkingLevel),
       permissionMode: status.permission,
       yolo: status.permission === 'yolo',
       planMode: status.planMode,
@@ -3462,6 +3595,14 @@ export class ByfTui {
         return entry.renderMode === 'notice'
           ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
           : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
+      case 'shell_exec':
+        return new ShellExecutionComponent({
+          command: entry.content,
+          result: entry.toolCallData?.result,
+          colors: this.state.theme.colors,
+          expanded: this.state.toolOutputExpanded,
+          showCommand: true,
+        });
       case 'status':
         if (entry.backgroundAgentStatus !== undefined) {
           return new BackgroundAgentStatusComponent(
@@ -4414,7 +4555,7 @@ export class ByfTui {
     if (entries.length === 0) {
       this.showNotice(
         'No models configured',
-        'Run /connect to add a provider from the model catalog.',
+        'Run /login or /connect to add a provider.',
       );
       return;
     }
@@ -4423,12 +4564,12 @@ export class ByfTui {
         models: this.state.appState.availableModels,
         currentValue: this.state.appState.model,
         selectedValue,
-        currentThinking: this.state.appState.thinking,
+        currentThinkingEffort: this.state.appState.thinkingEffort,
         colors: this.state.theme.colors,
         searchable: true,
-        onSelect: ({ alias, thinking }) => {
+        onSelect: ({ alias, thinkingEffort }) => {
           this.restoreEditor();
-          void this.performModelSwitch(alias, thinking);
+          void this.performModelSwitch(alias, thinkingEffort);
         },
         onCancel: () => {
           this.restoreEditor();
@@ -4438,27 +4579,26 @@ export class ByfTui {
   }
 
   // Applies model and thinking changes to the active or newly created session.
-  private async performModelSwitch(alias: string, thinking: boolean): Promise<void> {
+  private async performModelSwitch(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<void> {
     if (this.state.appState.isStreaming) {
       this.showError('Cannot switch models while streaming — press Esc or Ctrl-C first.');
       return;
     }
 
-    const level = thinking ? 'on' : 'off';
     const prevModel = this.state.appState.model;
-    const prevThinking = this.state.appState.thinking;
-    const runtimeChanged = alias !== prevModel || thinking !== prevThinking;
+    const prevThinking = this.state.appState.thinkingEffort;
+    const runtimeChanged = alias !== prevModel || thinkingEffort !== prevThinking;
 
     const session = this.session;
     try {
       if (session === undefined && runtimeChanged) {
-        await this.activateModelAfterLogin(alias, thinking);
+        await this.activateModelAfterLogin(alias, thinkingEffort);
       } else if (session !== undefined) {
         if (alias !== prevModel) {
           await session.setModel(alias);
         }
-        if (thinking !== prevThinking) {
-          await session.setThinking(level);
+        if (thinkingEffort !== prevThinking) {
+          await session.setThinking(thinkingEffort);
         }
       }
     } catch (error) {
@@ -4467,19 +4607,19 @@ export class ByfTui {
       return;
     }
 
-    this.setAppState({ model: alias, thinking });
+    this.setAppState({ model: alias, thinkingEffort });
     if (session === undefined && runtimeChanged) {
       if (alias !== prevModel) {
         this.track('model_switch', { model: alias });
       }
-      if (thinking !== prevThinking) {
-        this.track('thinking_toggle', { enabled: thinking });
+      if (thinkingEffort !== prevThinking) {
+        this.track('thinking_toggle', { enabled: thinkingEffort !== 'off' });
       }
     }
 
     let persisted = false;
     try {
-      persisted = await this.persistModelSelection(alias, thinking);
+      persisted = await this.persistModelSelection(alias, thinkingEffort);
     } catch (error) {
       const msg = formatErrorMessage(error);
       this.showError(`Switched to ${alias}, but failed to save default: ${msg}`);
@@ -4487,22 +4627,33 @@ export class ByfTui {
     }
 
     const status = runtimeChanged
-      ? `Switched to ${alias} with thinking ${level}.`
+      ? `Switched to ${alias} with thinking ${thinkingEffort}.`
       : persisted
-        ? `Saved ${alias} with thinking ${level} as default.`
-        : `Already using ${alias} with thinking ${level}.`;
+        ? `Saved ${alias} with thinking ${thinkingEffort} as default.`
+        : `Already using ${alias} with thinking ${thinkingEffort}.`;
     this.showStatus(status, this.state.theme.colors.success);
   }
 
   // Persists the selected model and thinking state as the startup defaults.
-  private async persistModelSelection(alias: string, thinking: boolean): Promise<boolean> {
+  private async persistModelSelection(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<boolean> {
     const config = await this.harness.getConfig({ reload: true });
-    if (config.defaultModel === alias && config.defaultThinking === thinking) {
+    const defaultThinking = thinkingEffort !== 'off';
+    const thinkingConfig =
+      thinkingEffort === 'off'
+        ? { mode: 'off' as const, effort: 'high' as const }
+        : { mode: 'on' as const, effort: thinkingEffort };
+    if (
+      config.defaultModel === alias &&
+      config.defaultThinking === defaultThinking &&
+      config.thinking?.mode === thinkingConfig.mode &&
+      config.thinking?.effort === thinkingConfig.effort
+    ) {
       return false;
     }
     await this.harness.setConfig({
       defaultModel: alias,
-      defaultThinking: thinking,
+      defaultThinking,
+      thinking: thinkingConfig,
     });
     return true;
   }
@@ -4654,7 +4805,7 @@ export class ByfTui {
       workDir: appState.workDir,
       sessionId: appState.sessionId,
       sessionTitle: appState.sessionTitle,
-      thinking: appState.thinking,
+      thinking: appState.thinkingEffort !== 'off',
       permissionMode: appState.permissionMode,
       planMode: appState.planMode,
       contextUsage: appState.contextUsage,
@@ -4779,7 +4930,11 @@ export class ByfTui {
         const plan = await session.getPlan().catch(() => null);
         this.showNotice(
           'Plan mode: ON',
-          plan?.path !== undefined ? `Plan will be created here: ${plan.path}` : undefined,
+          plan?.path !== undefined
+            ? plan.exists
+              ? `Plan target path: ${plan.path}`
+              : `Plan target path (not created yet): ${plan.path}`
+            : undefined,
         );
         return;
       }
@@ -4991,6 +5146,218 @@ export class ByfTui {
     }
   }
 
+  // =========================================================================
+  // /login — add a custom OpenAI-compatible provider
+  // =========================================================================
+
+  private async handleLoginCommand(): Promise<void> {
+    // Step 1: Provider name
+    const name = await this.promptTextInput({
+      title: 'Provider name',
+      subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
+      colors: this.state.theme.colors,
+    });
+    if (name === undefined) return;
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      this.showError('Provider name must contain only letters, numbers, hyphens, and underscores.');
+      return;
+    }
+
+    const existingConfig = await this.harness.getConfig();
+    if (existingConfig.providers[name] !== undefined) {
+      this.showError(`Provider "${name}" already exists. Use a different name or /logout ${name} first.`);
+      return;
+    }
+
+    // Step 2: Base URL
+    const baseUrl = await this.promptTextInput({
+      title: 'Base URL',
+      subtitle: 'The OpenAI-compatible API endpoint',
+      initialValue: 'https://api.openai.com/v1',
+      placeholder: 'https://api.openai.com/v1',
+      colors: this.state.theme.colors,
+    });
+    if (baseUrl === undefined) return;
+
+    // Step 3: API key
+    const apiKey = await this.promptApiKey(name);
+    if (apiKey === undefined) return;
+
+    // Step 4: Fetch models
+    let models: ModelInfo[];
+    try {
+      const spinner = this.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
+      models = await fetchModels(baseUrl, apiKey);
+      spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
+    } catch (error) {
+      if (error instanceof ProviderApiError) {
+        this.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
+      } else {
+        this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
+      }
+      return this.handleManualModelEntry(name, baseUrl, apiKey);
+    }
+
+    if (models.length === 0) {
+      this.showStatus('No models found at this endpoint. Enter model ID manually.');
+      return this.handleManualModelEntry(name, baseUrl, apiKey);
+    }
+
+    // Step 5: Model selection
+    const modelDict: Record<string, import('@byf/oauth').ModelAlias> = {};
+    for (const m of models) {
+      modelDict[`${name}/${m.id}`] = {
+        provider: name,
+        model: m.id,
+        maxContextSize: m.contextLength,
+        capabilities: capabilitiesForModelOAuth(m),
+        displayName: m.displayName,
+      };
+    }
+
+    const selection = await this.runModelSelector(modelDict);
+    if (selection === undefined) return;
+
+    const selectedId = selection.alias.split('/').slice(1).join('/');
+    const selectedModel = models.find((m) => m.id === selectedId);
+    if (selectedModel === undefined) return;
+
+    // Step 6: Apply config
+    const config = await this.harness.getConfig();
+    applyProviderConfig(config, {
+      name,
+      baseUrl,
+      apiKey,
+      models,
+      selectedModel,
+      thinking: selection.thinkingEffort !== 'off',
+    });
+
+    await this.harness.setConfig({
+      providers: config.providers,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      defaultThinking: config.defaultThinking,
+    });
+
+    await this.refreshConfigAfterLogin();
+    this.track('login', { provider: name, model: selectedModel.id });
+    this.showStatus(`Connected: ${name} · ${selectedModel.id}`);
+  }
+
+  private promptTextInput(opts: {
+    readonly title: string;
+    readonly subtitle: string;
+    readonly initialValue?: string;
+    readonly placeholder?: string;
+    readonly colors: ColorPalette;
+  }): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const dialog = new TextInputDialogComponent({
+        title: opts.title,
+        subtitle: opts.subtitle,
+        initialValue: opts.initialValue,
+        placeholder: opts.placeholder,
+        colors: opts.colors,
+        onDone: (result) => {
+          this.restoreEditor();
+          resolve(result.kind === 'ok' ? result.value : undefined);
+        },
+      });
+      this.mountEditorReplacement(dialog);
+    });
+  }
+
+  private async handleManualModelEntry(
+    name: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<void> {
+    const manualModel = await this.promptTextInput({
+      title: 'Enter model ID manually',
+      subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
+      colors: this.state.theme.colors,
+    });
+    if (manualModel === undefined) return;
+
+    const contextSize = await this.promptTextInput({
+      title: 'Context window size',
+      subtitle: 'Max context size in tokens for this model',
+      initialValue: '128000',
+      placeholder: '128000',
+      colors: this.state.theme.colors,
+    });
+    if (contextSize === undefined) return;
+
+    const parsedSize = Number.parseInt(contextSize, 10);
+    if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
+      this.showError('Invalid context size. Must be a positive number.');
+      return;
+    }
+
+    const manualModelInfo: ModelInfo = {
+      id: manualModel,
+      contextLength: parsedSize,
+      supportsReasoning: false,
+      supportsImageIn: false,
+      supportsVideoIn: false,
+    };
+
+    const config = await this.harness.getConfig();
+    applyProviderConfig(config, {
+      name,
+      baseUrl,
+      apiKey,
+      models: [manualModelInfo],
+      selectedModel: manualModelInfo,
+      thinking: false,
+    });
+
+    await this.harness.setConfig({
+      providers: config.providers,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      defaultThinking: config.defaultThinking,
+    });
+
+    await this.refreshConfigAfterLogin();
+    this.track('login', { provider: name, model: manualModel });
+    this.showStatus(`Connected: ${name} · ${manualModel}`);
+  }
+
+  private async handleLogoutCommand(args: string | undefined): Promise<void> {
+    const providerName = args?.trim();
+    if (!providerName) {
+      this.showError('Usage: /logout <provider-name>');
+      return;
+    }
+
+    const config = await this.harness.getConfig();
+    if (config.providers?.[providerName] === undefined) {
+      this.showError(`Provider "${providerName}" not found.`);
+      return;
+    }
+
+    const activeModel = this.state.appState.model;
+    const activeProvider = this.state.appState.availableModels[activeModel]?.provider;
+    const defaultProvider = config.models?.[config.defaultModel ?? '']?.provider;
+    const wasActiveModel = activeProvider === providerName || defaultProvider === providerName;
+
+    await this.harness.removeProvider(providerName);
+    await this.refreshConfigAfterLogin();
+
+    if (wasActiveModel) {
+      this.setAppState({ model: '', maxContextTokens: 0 });
+    }
+
+    this.showStatus(`Provider "${providerName}" removed.`, this.state.theme.colors.success);
+
+    if (wasActiveModel) {
+      this.showStatus('No active model. Run /login or /connect to configure a provider.');
+    }
+  }
+
   // Handles the /connect command — fetches a model catalog (default
   // models.dev), lets the user pick a provider + model, prompts for an API
   // key, then writes the provider config + model aliases. Model metadata
@@ -5092,7 +5459,7 @@ export class ByfTui {
       apiKey,
       models,
       selectedModelId: selection.model.id,
-      thinking: selection.thinking,
+      thinking: selection.thinkingEffort !== 'off',
     });
 
     await this.harness.setConfig({
@@ -5170,7 +5537,7 @@ export class ByfTui {
   private async promptModelSelectionForCatalog(
     providerId: string,
     models: CatalogModel[],
-  ): Promise<{ model: CatalogModel; thinking: boolean } | undefined> {
+  ): Promise<{ model: CatalogModel; thinkingEffort: ThinkingEffortLevel } | undefined> {
     const modelDict: Record<string, ModelAlias> = {};
     for (const m of models) {
       modelDict[`${providerId}/${m.id}`] = catalogModelToAlias(providerId, m);
@@ -5178,25 +5545,28 @@ export class ByfTui {
     const selection = await this.runModelSelector(modelDict);
     if (selection === undefined) return undefined;
     const model = models.find((m) => `${providerId}/${m.id}` === selection.alias);
-    return model ? { model, thinking: selection.thinking } : undefined;
+    return model ? { model, thinkingEffort: selection.thinkingEffort } : undefined;
   }
 
   private runModelSelector(
     modelDict: Record<string, ModelAlias>,
-  ): Promise<{ alias: string; thinking: boolean } | undefined> {
+  ): Promise<{ alias: string; thinkingEffort: ThinkingEffortLevel } | undefined> {
     return new Promise((resolve) => {
       const firstAlias = Object.keys(modelDict)[0] ?? '';
       const caps = modelDict[firstAlias]?.capabilities ?? [];
-      const initialThinking = caps.includes('always_thinking') || caps.includes('thinking');
+      const initialThinking: ThinkingEffortLevel =
+        caps.includes('always_thinking') || caps.includes('thinking') || caps.includes('thinking_effort')
+          ? 'high'
+          : 'off';
       const selector = new ModelSelectorComponent({
         models: modelDict,
         currentValue: firstAlias,
-        currentThinking: initialThinking,
+        currentThinkingEffort: initialThinking,
         colors: this.state.theme.colors,
         searchable: true,
-        onSelect: ({ alias, thinking }) => {
+        onSelect: ({ alias, thinkingEffort }) => {
           this.restoreEditor();
-          resolve({ alias, thinking });
+          resolve({ alias, thinkingEffort });
         },
         onCancel: () => {
           this.restoreEditor();
@@ -5223,4 +5593,27 @@ function formatHookResultTitle(event: HookResultEvent): string {
 function formatHookResultBody(event: HookResultEvent): string {
   const content = event.content.trim();
   return content.length === 0 ? '(empty)' : content;
+}
+
+function toShellExecTranscriptResult(
+  command: string,
+  result: ShellExecResult,
+  toolCallId: string,
+): ToolResultBlockData {
+  const sections: string[] = [];
+  if (result.stdout.length > 0) {
+    sections.push(result.stdout);
+  }
+  if (result.stderr.length > 0) {
+    sections.push(result.stderr);
+  }
+  if (result.timedOut) {
+    sections.push(`Command timed out: ${command}`);
+  }
+  const output = sections.join('\n').trim();
+  return {
+    tool_call_id: toolCallId,
+    output: output.length > 0 ? output : '(no output)',
+    is_error: result.exitCode !== 0 || result.timedOut,
+  };
 }

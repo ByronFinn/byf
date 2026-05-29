@@ -21,8 +21,8 @@ import {
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
 import chalk from 'chalk';
 
-import type { ColorPalette } from '@/tui/theme/colors';
-import { printableChar } from '@/tui/utils/printable-key';
+import type { ColorPalette } from '../../theme/colors';
+import { printableChar } from '../../utils/printable-key';
 
 const ELLIPSIS = '…';
 

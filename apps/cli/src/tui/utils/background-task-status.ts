@@ -11,7 +11,7 @@
 
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
 
-import type { BackgroundAgentStatusData, BackgroundAgentStatusPhase } from '@/tui/types';
+import type { BackgroundAgentStatusData, BackgroundAgentStatusPhase } from '../types';
 
 const MAX_DETAIL_LENGTH = 240;
 

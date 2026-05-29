@@ -10,14 +10,25 @@ import type { NotificationsConfig } from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { Theme } from './theme';
 
+export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high';
+
+const THINKING_EFFORT_LEVELS = new Set<string>(['off', 'low', 'medium', 'high']);
+
+export function parseThinkingEffort(value: string | undefined): ThinkingEffortLevel {
+  if (value && THINKING_EFFORT_LEVELS.has(value)) return value as ThinkingEffortLevel;
+  if (value === 'on' || value === 'xhigh' || value === 'max') return 'high';
+  return 'off';
+}
+
 export interface AppState {
   model: string;
   workDir: string;
+  shellWorkDir?: string;
   sessionId: string;
   yolo: boolean;
   permissionMode: PermissionMode;
   planMode: boolean;
-  thinking: boolean;
+  thinkingEffort: ThinkingEffortLevel;
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
@@ -101,6 +112,7 @@ export type TranscriptEntryKind =
   | 'user'
   | 'assistant'
   | 'tool_call'
+  | 'shell_exec'
   | 'thinking'
   | 'status'
   | 'skill_activation';

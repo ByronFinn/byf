@@ -6,8 +6,8 @@ import {
   TasksBrowserApp,
   type TasksBrowserProps,
   type TasksFilter,
-} from '@/tui/components/dialogs/tasks-browser';
-import { darkColors } from '@/tui/theme/colors';
+} from '../../src/tui/components/dialogs/tasks-browser';
+import { darkColors } from '../../src/tui/theme/colors';
 
 const ANSI_SGR = /\[[0-9;]*m/g;
 function strip(text: string): string {

@@ -65,13 +65,6 @@ export async function runPrompt(
     uiMode: PROMPT_UI_MODE,
     skillDirs: opts.skillsDirs,
     telemetry: telemetryClient,
-    onOAuthRefresh: (outcome) => {
-      if (outcome.success) {
-        track('oauth_refresh', { success: true });
-        return;
-      }
-      track('oauth_refresh', { success: false, reason: outcome.reason });
-    },
   });
   log.info('byf starting', {
     version,
@@ -232,7 +225,7 @@ function requireConfiguredModel(...models: readonly (string | undefined)[]): str
   const model = configuredModel(...models);
   if (model === undefined) {
     throw new Error(
-      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login or /connect to configure a provider, then retry; or set default_model in config.toml.',
     );
   }
   return model;
@@ -386,6 +379,7 @@ function runPromptTurn(
         case 'tool.list.updated':
         case 'turn.started':
         case 'turn.step.completed':
+        case 'warning':
           return;
       }
     });

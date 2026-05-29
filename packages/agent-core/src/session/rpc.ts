@@ -1,4 +1,7 @@
 import { ErrorCodes, ByfError } from '#/errors';
+import type { KaosProcess } from '@byf/kaos';
+import { StringDecoder } from 'node:string_decoder';
+import type { Readable } from 'node:stream';
 import type {
   ActivateSkillPayload,
   AgentAPI,
@@ -19,6 +22,7 @@ import type {
   SetActiveToolsPayload,
   SetModelPayload,
   SetPermissionPayload,
+  ShellExecResult,
   SetThinkingPayload,
   SkillSummary,
   SteerPayload,
@@ -86,6 +90,48 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   generateAgentsMd(_payload: EmptyPayload): Promise<void> {
     return this.session.generateAgentsMd();
+  }
+
+  async shellExec(payload: {
+    readonly command: string;
+    readonly cwd?: string;
+    readonly timeout?: number;
+  }): Promise<ShellExecResult> {
+    const normalizedCommand = payload.command.trim();
+    if (normalizedCommand.length === 0) {
+      throw new ByfError(ErrorCodes.REQUEST_INVALID, 'Shell command cannot be empty');
+    }
+    const environment = this.session.config.runtime.osEnv;
+    const isWindowsBash = environment.osKind === 'Windows';
+    const defaultCwd = this.session.config.cwd ?? process.cwd();
+    const effectiveCwd = payload.cwd ?? defaultCwd;
+    const shellCwd = isWindowsBash ? windowsPathToPosixPath(effectiveCwd) : effectiveCwd;
+    const command = isWindowsBash
+      ? rewriteWindowsNullRedirect(normalizedCommand)
+      : normalizedCommand;
+    const shellCommand = `cd ${shellQuote(shellCwd)} && ${command}`;
+    const shellArgs = [environment.shellPath, '-c', shellCommand];
+    const timeoutMs = normalizeShellTimeoutMs(payload.timeout);
+
+    const noninteractiveEnv: Record<string, string> = {
+      NO_COLOR: '1',
+      TERM: 'dumb',
+      GIT_TERMINAL_PROMPT: process.env['GIT_TERMINAL_PROMPT'] ?? '0',
+      SHELL: environment.shellPath,
+    };
+    const mergedEnv: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      ...noninteractiveEnv,
+    };
+    const proc = await this.session.config.runtime.kaos.execWithEnv(shellArgs, mergedEnv);
+
+    try {
+      proc.stdin.end();
+    } catch {
+      // stdin may already be closed by process termination
+    }
+
+    return waitForShellExecution(proc, timeoutMs);
   }
 
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
@@ -258,4 +304,107 @@ function isUntitled(title: unknown): boolean {
 function hasCustomTitle(metadata: SessionMeta): boolean {
   if (metadata.isCustomTitle) return true;
   return typeof (metadata as SessionMeta & { customTitle?: unknown }).customTitle === 'string';
+}
+
+const SHELL_DEFAULT_TIMEOUT_MS = 30_000;
+const SHELL_SIGTERM_GRACE_MS = 5_000;
+const WINDOWS_NUL_REDIRECT = /(\d?&?>+\s*)[Nn][Uu][Ll](?=\s|$|[|&;)\n])/g;
+
+function normalizeShellTimeoutMs(timeout: number | undefined): number {
+  if (timeout === undefined) return SHELL_DEFAULT_TIMEOUT_MS;
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    throw new ByfError(ErrorCodes.REQUEST_INVALID, 'Shell timeout must be a positive number.');
+  }
+  return Math.floor(timeout);
+}
+
+async function waitForShellExecution(proc: KaosProcess, timeoutMs: number): Promise<ShellExecResult> {
+  let timedOut = false;
+  let killed = false;
+
+  const killProc = async (): Promise<void> => {
+    if (killed) return;
+    killed = true;
+    try {
+      await proc.kill('SIGTERM');
+    } catch {
+      // process already gone
+    }
+    const exited = proc
+      .wait()
+      .then(() => true)
+      .catch(() => true);
+    const raced = await Promise.race([
+      exited,
+      new Promise<false>((resolve) => {
+        setTimeout(() => {
+          resolve(false);
+        }, SHELL_SIGTERM_GRACE_MS);
+      }),
+    ]);
+    if (!raced && proc.exitCode === null) {
+      try {
+        await proc.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const timeoutHandle = setTimeout(() => {
+    timedOut = true;
+    void killProc();
+  }, timeoutMs);
+
+  const stdoutPromise = readStreamText(proc.stdout);
+  const stderrPromise = readStreamText(proc.stderr);
+  let exitCode = 1;
+  try {
+    exitCode = await proc.wait();
+  } finally {
+    clearTimeout(timeoutHandle);
+    if (timedOut) {
+      await killProc();
+    }
+  }
+
+  const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
+  return {
+    stdout,
+    stderr,
+    exitCode,
+    timedOut,
+  };
+}
+
+async function readStreamText(stream: Readable): Promise<string> {
+  const decoder = new StringDecoder('utf8');
+  let text = '';
+  for await (const chunk of stream) {
+    const buffer = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer);
+    text += decoder.write(buffer);
+  }
+  text += decoder.end();
+  return text;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function windowsPathToPosixPath(path: string): string {
+  if (path.startsWith('\\\\')) {
+    return path.replaceAll('\\', '/');
+  }
+  const driveMatch = /^([A-Za-z]):(?:[\\/]|$)/.exec(path);
+  if (driveMatch !== null) {
+    const drive = driveMatch[1]!.toLowerCase();
+    const rest = path.slice(2).replaceAll('\\', '/');
+    return `/${drive}${rest.startsWith('/') ? rest : `/${rest}`}`;
+  }
+  return path.replaceAll('\\', '/');
+}
+
+function rewriteWindowsNullRedirect(command: string): string {
+  return command.replace(WINDOWS_NUL_REDIRECT, '$1/dev/null');
 }

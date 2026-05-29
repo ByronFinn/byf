@@ -28,6 +28,7 @@ import type {
   ListSessionsOptions,
   RenameSessionInput,
   ResumeSessionInput,
+  ShellExecResult,
   SessionSummary,
 } from '#/types';
 
@@ -194,6 +195,30 @@ export class ByfHarness {
     return this.rpc.removeProvider(providerId);
   }
 
+  async shellExec(
+    command: string,
+    options: { cwd?: string; timeout?: number } = {},
+  ): Promise<ShellExecResult> {
+    const normalizedCommand = command.trim();
+    if (normalizedCommand.length === 0) {
+      throw new ByfError(ErrorCodes.REQUEST_INVALID, 'Shell command cannot be empty.');
+    }
+    const session = this.firstActiveSession();
+    if (session === undefined) {
+      throw new ByfError(
+        ErrorCodes.SESSION_NOT_FOUND,
+        'No active session. Start or resume a session first.',
+      );
+    }
+    const cwd = options.cwd ?? session.workDir;
+    return this.rpc.shellExec({
+      sessionId: session.id,
+      command: normalizedCommand,
+      cwd,
+      timeout: options.timeout,
+    });
+  }
+
   async close(): Promise<void> {
     await Promise.all(Array.from(this.activeSessions.values(), (session) => session.close()));
     try {
@@ -214,6 +239,10 @@ export class ByfHarness {
       ui_mode: this.uiMode,
       resumed,
     });
+  }
+
+  private firstActiveSession(): Session | undefined {
+    return this.activeSessions.values().next().value;
   }
 }
 

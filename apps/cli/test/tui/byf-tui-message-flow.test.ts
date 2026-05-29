@@ -77,9 +77,16 @@ function makeStartupInput(): ByfTuiStartupInput {
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
     id: 'ses-1',
+    workDir: '/tmp/proj-a',
     model: 'k2',
     summary: { title: null },
     prompt: vi.fn(async () => {}),
+    shellExec: vi.fn(async () => ({
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    })),
     steer: vi.fn(async () => {}),
     init: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
@@ -133,6 +140,7 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
       },
     })),
     setConfig: vi.fn(async () => ({ providers: {} })),
+    removeProvider: vi.fn(async () => ({})),
     createSession: vi.fn(async () => session),
     resumeSession: vi.fn(async () => session),
     forkSession: vi.fn(async () => session),
@@ -556,6 +564,119 @@ describe('ByfTui message flow', () => {
     expect(harness.track).toHaveBeenCalledWith('input_queue', undefined);
   });
 
+  it('routes ! commands to shell execution before slash-command dispatch and renders output', async () => {
+    const shellExec = vi.fn(async () => ({
+      stdout: 'hi\n',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const session = makeSession({ shellExec, workDir: '/tmp/shell-session' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! echo hi');
+
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('echo hi', { cwd: '/tmp/shell-session' });
+    });
+    expect(session.prompt).not.toHaveBeenCalled();
+    expect(driver.persistInputHistory).toHaveBeenCalledWith('! echo hi');
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('$ echo hi');
+    expect(transcript).toContain('hi');
+  });
+
+  it('updates shell cwd after successful `! cd` and uses it for subsequent shell commands', async () => {
+    const shellExec = vi.fn(async (command: string, options?: { cwd?: string }) => {
+      if (command === 'pwd' && options?.cwd === '/tmp') {
+        return {
+          stdout: '/tmp\n',
+          stderr: '',
+          exitCode: 0,
+          timedOut: false,
+        };
+      }
+      return {
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    });
+    const session = makeSession({ shellExec, workDir: '/tmp/proj-a' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! cd ..');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('cd ..', { cwd: '/tmp/proj-a' });
+    });
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp' });
+    });
+    expect(driver.state.appState.shellWorkDir).toBe('/tmp');
+
+    driver.handleUserInput('! pwd');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp' });
+    });
+  });
+
+  it('updates shell cwd after successful `! cd "a b"` and uses it for subsequent shell commands', async () => {
+    const shellExec = vi.fn(async (command: string, options?: { cwd?: string }) => {
+      if (command === 'pwd' && options?.cwd === '/tmp/proj-a/a b') {
+        return {
+          stdout: '/tmp/proj-a/a b\n',
+          stderr: '',
+          exitCode: 0,
+          timedOut: false,
+        };
+      }
+      if (command === 'pwd') {
+        return {
+          stdout: '',
+          stderr: 'missing',
+          exitCode: 1,
+          timedOut: false,
+        };
+      }
+      return {
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    });
+    const session = makeSession({ shellExec, workDir: '/tmp/proj-a' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! cd "a b"');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('cd "a b"', { cwd: '/tmp/proj-a' });
+    });
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp/proj-a/a b' });
+    });
+    expect(driver.state.appState.shellWorkDir).toBe('/tmp/proj-a/a b');
+
+    driver.handleUserInput('! pwd');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp/proj-a/a b' });
+    });
+  });
+
+  it('rejects ! commands while replaying session history', async () => {
+    const session = makeSession();
+    const { driver } = await makeDriver(session);
+    driver.state.appState.isReplaying = true;
+
+    driver.handleUserInput('! ls -la');
+
+    expect(session.shellExec).not.toHaveBeenCalled();
+    expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
+      'Cannot execute shell commands while session history is replaying.',
+    );
+  });
+
   it('cancels active streaming from Escape and Ctrl-C editor shortcuts', async () => {
     const { driver, session } = await makeDriver();
 
@@ -882,19 +1003,213 @@ describe('ByfTui message flow', () => {
     resolveInit?.();
   });
 
-  it('redirects /login and /logout and /disconnect to /connect', async () => {
-    for (const command of ['/login', '/logout', '/disconnect']) {
-      const { driver } = await makeDriver();
+  it('/login opens provider setup', async () => {
+    const { driver } = await makeDriver();
+    driver.handleUserInput('/login');
+    await Promise.resolve();
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript, '/login should not say "Unknown slash command"').not.toContain(
+      'Unknown slash command',
+    );
+    expect(transcript, '/login should not say "removed"').not.toContain('removed');
+  });
 
-      driver.handleUserInput(command);
-      await Promise.resolve();
+  it('/logout with no argument shows usage hint', async () => {
+    const { driver } = await makeDriver();
 
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript, `${command} should mention /connect`).toContain('/connect');
-      expect(transcript, `${command} should not say "Unknown slash command"`).not.toContain(
-        'Unknown slash command',
-      );
-    }
+      expect(transcript).toContain('Usage');
+      expect(transcript).toContain('/logout');
+      expect(transcript).toContain('<provider-name>');
+    });
+  });
+
+  it('/logout with non-existent provider shows error', async () => {
+    const { driver } = await makeDriver();
+
+    driver.handleUserInput('/logout xyz');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "xyz" not found');
+    });
+  });
+
+  it('/logout removes a provider and its models', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+  });
+
+  it('/logout clears defaultModel and shows hint when active model removed', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "deepseek" removed');
+      expect(transcript).toContain('No active model');
+      expect(transcript).toContain('/login');
+    });
+  });
+
+  it('/logout preserves other providers and models', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async (id: string) => {
+        const config: { providers?: Record<string, unknown>; models: Record<string, { provider?: string; model: string; maxContextSize: number }> } = await harness.getConfig();
+        if (config.providers) delete config.providers[id];
+        for (const [key, model] of Object.entries(config.models)) {
+          if (model.provider === id) delete config.models[key];
+        }
+        return config;
+      }),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+    expect(transcript).not.toContain('No active model');
+  });
+
+  it('/disconnect alias removes provider like /logout', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/disconnect deepseek');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
+    });
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "deepseek" removed');
+  });
+
+  it('/logout detects active session model even when defaultModel differs', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Simulate the active session using deepseek-chat while defaultModel is gpt-4o
+    driver.state.appState.model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(transcript).toContain('Provider "deepseek" removed');
+      expect(transcript).toContain('No active model');
+    });
+  });
+
+  it('/logout clears appState.model when active provider is removed', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Active model belongs to deepseek
+    expect(driver.state.appState.model).toBeTruthy();
+
+    driver.handleUserInput('/logout deepseek');
+
+    await vi.waitFor(() => {
+      expect(driver.state.appState.model).toBe('');
+    });
   });
 
   it('does not run /init when no model is selected', async () => {
@@ -905,6 +1220,18 @@ describe('ByfTui message flow', () => {
 
     expect(session.init).not.toHaveBeenCalled();
     expect(driver.state.transcriptContainer.render(120).join('\n')).toContain('LLM not set');
+  });
+
+  it('shows /login and /connect in model picker when no models are configured', async () => {
+    const { driver } = await makeDriver();
+    driver.state.appState.availableModels = {};
+
+    driver.handleUserInput('/model');
+
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('No models configured');
+    expect(transcript).toContain('/login');
+    expect(transcript).toContain('/connect');
   });
 
   it('shows the login prompt for auth.login_required session errors', async () => {
@@ -923,7 +1250,7 @@ describe('ByfTui message flow', () => {
     );
 
     const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Authentication required. Use /connect to configure a provider.');
+    expect(transcript).toContain('Authentication required. Use /login or /connect to configure a provider.');
     expect(transcript).not.toContain('[auth.login_required]');
     expect(transcript).not.toContain('byf export');
   });
@@ -975,6 +1302,7 @@ describe('ByfTui message flow', () => {
     const session = makeSession({
       getPlan: vi.fn(async () => ({
         id: 'no-duplicate-plan',
+        exists: true,
         content: planContent,
         path: '/tmp/no-duplicate-plan.md',
       })),
@@ -1188,14 +1516,18 @@ describe('ByfTui message flow', () => {
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      expect(session.setThinking).toHaveBeenCalledWith('high');
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
+        thinking: {
+          mode: 'on',
+          effort: 'high',
+        },
       });
     });
     expect(driver.state.appState.model).toBe('turbo');
-    expect(driver.state.appState.thinking).toBe(true);
+    expect(driver.state.appState.thinkingEffort).toBe('high');
   });
 
   it('persists /model selection even when runtime state is unchanged', async () => {
@@ -1228,10 +1560,61 @@ describe('ByfTui message flow', () => {
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'k2',
         defaultThinking: false,
+        thinking: {
+          mode: 'off',
+          effort: 'high',
+        },
       });
     });
     expect(session.setModel).not.toHaveBeenCalled();
     expect(session.setThinking).not.toHaveBeenCalled();
+  });
+
+  it('prefers config thinking.effort when refreshing defaults after login', async () => {
+    const session = makeSession();
+    let configReads = 0;
+    const { driver } = await makeDriver(session, {
+      getConfig: vi.fn(async () => {
+        configReads += 1;
+        if (configReads === 1) {
+          return {
+            models: {
+              k2: {
+                provider: 'managed:byf',
+                model: 'byf-k2',
+                maxContextSize: 100,
+                capabilities: ['thinking_effort'],
+              },
+            },
+            defaultModel: 'k2',
+            defaultThinking: true,
+          };
+        }
+        return {
+          models: {
+            k2: {
+              provider: 'managed:byf',
+              model: 'byf-k2',
+              maxContextSize: 100,
+              capabilities: ['thinking_effort'],
+            },
+          },
+          providers: {},
+          defaultModel: 'k2',
+          defaultThinking: true,
+          thinking: {
+            mode: 'on',
+            effort: 'low',
+          },
+        };
+      }),
+    });
+
+    const refreshDriver = driver as unknown as { refreshConfigAfterLogin(): Promise<void> };
+    await refreshDriver.refreshConfigAfterLogin();
+
+    expect(session.setThinking).toHaveBeenCalledWith('low');
+    expect(driver.state.appState.thinkingEffort).toBe('low');
   });
 
   it('enables search in the shared model selector helper', async () => {

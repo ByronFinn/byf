@@ -38,7 +38,7 @@ describe('isSupportedTarget', () => {
 describe('resolveTargetDeps', () => {
   it('returns one descriptor per package for darwin-arm64', () => {
     const deps = resolveTargetDeps('darwin-arm64');
-    const names = deps.map((d) => d.resolvedName);
+    const names = deps.map((d: any) => d.resolvedName);
     expect(names).toContain('@mariozechner/clipboard');
     expect(names).toContain('@mariozechner/clipboard-darwin-arm64');
     expect(names).toContain('koffi');
@@ -46,22 +46,22 @@ describe('resolveTargetDeps', () => {
 
   it('picks the right clipboard subpackage per target', () => {
     expect(
-      resolveTargetDeps('linux-x64').map((d) => d.resolvedName),
+      resolveTargetDeps('linux-x64').map((d: any) => d.resolvedName),
     ).toContain('@mariozechner/clipboard-linux-x64-gnu');
     expect(
-      resolveTargetDeps('win32-x64').map((d) => d.resolvedName),
+      resolveTargetDeps('win32-x64').map((d: any) => d.resolvedName),
     ).toContain('@mariozechner/clipboard-win32-x64-msvc');
     expect(
-      resolveTargetDeps('win32-arm64').map((d) => d.resolvedName),
+      resolveTargetDeps('win32-arm64').map((d: any) => d.resolvedName),
     ).toContain('@mariozechner/clipboard-win32-arm64-msvc');
   });
 
   it('encodes koffi native file path with target triplet', () => {
-    const linuxKoffi = resolveTargetDeps('linux-arm64').find((d) => d.resolvedName === 'koffi');
+    const linuxKoffi = resolveTargetDeps('linux-arm64').find((d: any) => d.resolvedName === 'koffi');
     expect(linuxKoffi?.nativeFileRelatives).toEqual(['build/koffi/linux_arm64/koffi.node']);
-    const macKoffi = resolveTargetDeps('darwin-x64').find((d) => d.resolvedName === 'koffi');
+    const macKoffi = resolveTargetDeps('darwin-x64').find((d: any) => d.resolvedName === 'koffi');
     expect(macKoffi?.nativeFileRelatives).toEqual(['build/koffi/darwin_x64/koffi.node']);
-    const winArmKoffi = resolveTargetDeps('win32-arm64').find((d) => d.resolvedName === 'koffi');
+    const winArmKoffi = resolveTargetDeps('win32-arm64').find((d: any) => d.resolvedName === 'koffi');
     expect(winArmKoffi?.nativeFileRelatives).toEqual(['build/koffi/win32_arm64/koffi.node']);
   });
 
@@ -72,18 +72,18 @@ describe('resolveTargetDeps', () => {
 
 describe('nativeDeps registry shape', () => {
   it('has clipboard host (collect=js-only)', () => {
-    const host = nativeDeps.find((d) => d.id === 'clipboard-host');
+    const host = nativeDeps.find((d: any) => d.id === 'clipboard-host');
     expect(host?.collect).toBe('js-only');
   });
 
   it('has clipboard-target (collect=native-files, parent=clipboard-host)', () => {
-    const target = nativeDeps.find((d) => d.id === 'clipboard-target');
+    const target = nativeDeps.find((d: any) => d.id === 'clipboard-target');
     expect(target?.collect).toBe('native-files');
     expect(target?.parent).toBe('clipboard-host');
   });
 
   it('has koffi (collect=js-and-native-file, parent=pi-tui)', () => {
-    const koffi = nativeDeps.find((d) => d.id === 'koffi');
+    const koffi = nativeDeps.find((d: any) => d.id === 'koffi');
     expect(koffi?.collect).toBe('js-and-native-file');
     expect(koffi?.parent).toBe('pi-tui');
   });

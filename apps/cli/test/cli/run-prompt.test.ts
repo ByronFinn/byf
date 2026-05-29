@@ -1,9 +1,8 @@
-import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
 
-type CreateByfDeviceId = typeof createByfDeviceIdFn;
+type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
 
 const mocks = vi.hoisted(() => {
   const eventHandlers = new Set<(event: any) => void>();
@@ -98,17 +97,6 @@ vi.mock('@byf/sdk', async (importOriginal) => {
         mocks.byfHarnessConstructor(...args);
       }
     },
-  };
-});
-
-vi.mock('@byf/oauth', async () => {
-  const actual = await vi.importActual<typeof import('@byf/oauth')>(
-    '@byf/oauth',
-  );
-  return {
-    ...actual,
-    createByfDeviceId: mocks.createByfDeviceId,
-    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 
@@ -690,7 +678,7 @@ describe('runPrompt', () => {
         stderr: { write: vi.fn(() => true) },
       }),
     ).rejects.toThrow(
-      'No model configured. Run `byf` and use /login to sign in, then retry; or set default_model in config.toml.',
+      'No model configured. Run `byf` and use /login or /connect to configure a provider, then retry; or set default_model in config.toml.',
     );
 
     expect(mocks.harnessClose).toHaveBeenCalled();

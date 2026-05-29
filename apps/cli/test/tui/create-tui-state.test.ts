@@ -12,7 +12,7 @@ function fakeInitialAppState(): AppState {
     yolo: false,
     permissionMode: 'manual',
     planMode: false,
-    thinking: false,
+    thinkingEffort: 'off',
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,

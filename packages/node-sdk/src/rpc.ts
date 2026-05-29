@@ -3,7 +3,6 @@ import {
   ErrorCodes,
   ByfCore,
   makeErrorPayload,
-  resolveByfHome,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
@@ -32,6 +31,8 @@ import type {
   McpStartupMetrics,
   PermissionMode,
   CompactOptions,
+  ShellExecPayload,
+  ShellExecResult,
   SessionPlan,
   SessionStatus,
   SessionUsage,
@@ -90,6 +91,12 @@ export interface ActivateSkillRpcInput extends SessionIdRpcInput {
 
 export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
   readonly name: string;
+}
+
+export interface SessionShellExecRpcInput extends SessionIdRpcInput {
+  readonly command: string;
+  readonly cwd?: string;
+  readonly timeout?: number;
 }
 
 type ResolvedCoreAPI = Awaited<ReturnType<SDKRPCClient>>;
@@ -417,6 +424,17 @@ export class SDKRpcClient {
       name: input.name,
       args: input.args,
     });
+  }
+
+  async shellExec(input: SessionShellExecRpcInput): Promise<ShellExecResult> {
+    const rpc = await this.getRpc();
+    const payload: ShellExecPayload = {
+      sessionId: input.sessionId,
+      command: input.command,
+      cwd: input.cwd,
+      timeout: input.timeout,
+    };
+    return rpc.shellExec(payload);
   }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {

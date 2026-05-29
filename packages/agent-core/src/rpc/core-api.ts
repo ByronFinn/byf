@@ -214,6 +214,20 @@ export interface RemoveByfProviderPayload {
   readonly providerId: string;
 }
 
+export interface ShellExecPayload {
+  readonly sessionId: string;
+  readonly command: string;
+  readonly cwd?: string;
+  readonly timeout?: number;
+}
+
+export interface ShellExecResult {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number;
+  readonly timedOut: boolean;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -255,6 +269,7 @@ export interface SessionAPI extends AgentAPIWithId {
   getMcpStartupMetrics: (payload: EmptyPayload) => McpStartupMetrics;
   reconnectMcpServer: (payload: ReconnectMcpServerPayload) => void;
   generateAgentsMd: (payload: EmptyPayload) => void;
+  shellExec: (payload: Omit<ShellExecPayload, 'sessionId'>) => Promise<ShellExecResult>;
 }
 
 type SessionAPIWithId = WithSessionId<SessionAPI>;

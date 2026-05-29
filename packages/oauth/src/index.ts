@@ -1,20 +1,16 @@
 export {
   capabilitiesForModel,
-  fetchOpenPlatformModels,
+  fetchModels,
   filterModelsByPrefix,
-  getOpenPlatformById,
-  isOpenPlatformId,
-  OPEN_PLATFORMS,
-  OpenPlatformApiError,
-  removeOpenPlatformConfig,
-  applyOpenPlatformConfig,
-} from './open-platform';
+  ProviderApiError,
+  removeProviderConfig,
+  applyProviderConfig,
+} from './provider-config';
 export type {
-  ApplyOpenPlatformResult,
+  ApplyProviderResult,
   ConfigShape,
   ModelAlias,
   ModelInfo,
-  OpenPlatformDefinition,
   ProviderConfig,
   ServicesConfig,
-} from './open-platform';
+} from './provider-config';

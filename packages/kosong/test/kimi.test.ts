@@ -684,6 +684,24 @@ describe('OpenAICompatChatProvider', () => {
       expect(body['extra_body']).toBeUndefined();
     });
 
+    it('uses a custom thinking effort key when configured', async () => {
+      const provider = new OpenAICompatChatProvider({
+        model: 'byf-k2-turbo-preview',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.example.test/v1',
+        stream: false,
+        thinkingEffortKey: 'thinking_effort',
+      }).withThinking('high');
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Think' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      expect(body['thinking_effort']).toBe('high');
+      expect(body['reasoning_effort']).toBeUndefined();
+      expect(body['thinking']).toEqual({ type: 'enabled' });
+    });
+
     it('thinkingEffort property reflects current state', () => {
       const provider = createProvider();
       expect(provider.thinkingEffort).toBeNull();

@@ -16,6 +16,7 @@ const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 // `ctrl+<LETTER>` with caps_lock into `ctrl+<letter>` without caps_lock.
 // oxlint-disable-next-line no-control-regex -- ESC (\x1b) is required to match CSI
 const KITTY_CSI_U = /^\u001B\[(\d+);(\d+)((?::\d+)*)u$/;
+const SHELL_MODE_PREFIX = /^!\s+/;
 // Kitty modifier bit layout: shift=1, alt=2, ctrl=4, super=8, hyper=16,
 // meta=32, caps_lock=64, num_lock=128. Reported value is `mask + 1`.
 const CAPS_LOCK_BIT = 64;
@@ -159,8 +160,9 @@ export class CustomEditor extends Editor {
     const lines = super.render(width);
     if (lines.length < 3) return lines;
     const firstContentIdx = 1;
-    const text = this.getText().trimStart();
-    if (text.startsWith('/')) {
+    const text = this.getText();
+    const shellMode = SHELL_MODE_PREFIX.test(text);
+    if (!shellMode && text.trimStart().startsWith('/')) {
       // Paint only the FIRST editor content line; multi-line slash commands
       // are not a thing in practice.
       const original = lines[firstContentIdx];
@@ -173,7 +175,11 @@ export class CustomEditor extends Editor {
     }
     const firstContent = lines[firstContentIdx];
     if (firstContent !== undefined) {
-      const withPrompt = injectPromptSymbol(firstContent);
+      const shellAdjusted = shellMode ? stripShellModePrefix(firstContent) : firstContent;
+      const withPrompt = injectPromptSymbol(shellAdjusted, {
+        symbol: shellMode ? '$' : '>',
+        colorHex: shellMode ? this.colors.success : undefined,
+      });
       if (withPrompt !== undefined) {
         lines[firstContentIdx] = withPrompt;
       }
@@ -320,12 +326,46 @@ export function highlightFirstSlashToken(line: string, hex: string): string | un
  * default foreground colour renders the symbol. Returns `undefined` if the
  * line is too short or doesn't begin with the expected padding.
  */
-export function injectPromptSymbol(line: string): string | undefined {
+export function injectPromptSymbol(
+  line: string,
+  options: { symbol?: '>' | '$'; colorHex?: string } = {},
+): string | undefined {
   if (line.length < 4) return undefined;
   for (let i = 0; i < 4; i++) {
     if (line[i] !== ' ') return undefined;
   }
-  return '  > ' + line.slice(4);
+  const symbol = options.symbol ?? '>';
+  const prompt = options.colorHex ? chalk.hex(options.colorHex).bold(symbol) : symbol;
+  return `  ${prompt} ${line.slice(4)}`;
+}
+
+export function stripShellModePrefix(line: string): string {
+  if (line.length < 4 || !line.startsWith('    ')) return line;
+  const content = line.slice(4);
+  const stripped = stripVisiblePrefix(content, '! ');
+  if (stripped === null) return line;
+  return `    ${stripped}`;
+}
+
+function stripVisiblePrefix(input: string, expected: string): string | null {
+  let i = 0;
+  let matched = 0;
+  let preservedAnsi = '';
+  while (i < input.length && matched < expected.length) {
+    const char = input[i];
+    if (char === '\u001B' && input[i + 1] === '[') {
+      const ansiEnd = input.indexOf('m', i + 2);
+      if (ansiEnd === -1) return null;
+      preservedAnsi += input.slice(i, ansiEnd + 1);
+      i = ansiEnd + 1;
+      continue;
+    }
+    if (char !== expected[matched]) return null;
+    matched += 1;
+    i += 1;
+  }
+  if (matched !== expected.length) return null;
+  return preservedAnsi + input.slice(i);
 }
 
 /**

@@ -356,6 +356,27 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
   });
 
+  it('forwards provider thinkingEffortKey to openai-compat runtime config', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        ...BASE_CONFIG,
+        providers: {
+          'managed:byf': {
+            type: 'openai-compat',
+            apiKey: 'test-key',
+            baseUrl: 'https://api.example/v1',
+            thinkingEffortKey: 'thinking_effort',
+          },
+        },
+      },
+    });
+
+    expect(resolved.provider).toMatchObject({
+      type: 'openai-compat',
+      thinkingEffortKey: 'thinking_effort',
+    });
+  });
+
   it('lets provider customHeaders override byfRequestHeaders', () => {
     const resolved = resolveRuntimeProvider({
       config: {

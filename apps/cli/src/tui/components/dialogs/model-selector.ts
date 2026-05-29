@@ -8,13 +8,14 @@ import {
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
 import type { ChoiceOption } from './choice-picker';
 
-type ThinkingAvailability = 'toggle' | 'always-on' | 'unsupported';
+export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high';
+
+type ThinkingAvailability = 'toggle' | 'effort' | 'always-on' | 'unsupported';
 
 interface ModelChoice {
   readonly alias: string;
@@ -24,7 +25,7 @@ interface ModelChoice {
 
 export interface ModelSelection {
   readonly alias: string;
-  readonly thinking: boolean;
+  readonly thinkingEffort: ThinkingEffortLevel;
 }
 
 export function modelDisplayName(alias: string, model: ModelAlias | undefined): string {
@@ -49,7 +50,7 @@ export interface ModelSelectorOptions {
   readonly models: Record<string, ModelAlias>;
   readonly currentValue: string;
   readonly selectedValue?: string;
-  readonly currentThinking: boolean;
+  readonly currentThinkingEffort: ThinkingEffortLevel;
   readonly colors: ColorPalette;
   /** When true, typed characters filter the list (fuzzy) and a search line is shown. */
   readonly searchable?: boolean;
@@ -70,22 +71,29 @@ function createModelChoices(models: Record<string, ModelAlias>): readonly ModelC
 function thinkingAvailability(model: ModelAlias): ThinkingAvailability {
   const caps = model.capabilities ?? [];
   if (caps.includes('always_thinking')) return 'always-on';
+  if (caps.includes('thinking_effort')) return 'effort';
   if (caps.includes('thinking')) return 'toggle';
   return 'unsupported';
 }
 
-function effectiveThinking(model: ModelAlias, thinkingDraft: boolean): boolean {
+const EFFORT_LEVELS: readonly ThinkingEffortLevel[] = ['off', 'low', 'medium', 'high'];
+
+function effectiveThinking(
+  model: ModelAlias,
+  effortDraft: ThinkingEffortLevel,
+): ThinkingEffortLevel {
   const availability = thinkingAvailability(model);
-  if (availability === 'always-on') return true;
-  if (availability === 'unsupported') return false;
-  return thinkingDraft;
+  if (availability === 'always-on') return 'high';
+  if (availability === 'unsupported') return 'off';
+  if (availability === 'toggle') return effortDraft === 'off' ? 'off' : 'high';
+  return effortDraft;
 }
 
 export class ModelSelectorComponent extends Container implements Focusable {
   focused = false;
   private readonly opts: ModelSelectorOptions;
   private readonly list: SearchableList<ModelChoice>;
-  private thinkingDraft: boolean;
+  private effortDraft: ThinkingEffortLevel;
 
   constructor(opts: ModelSelectorOptions) {
     super();
@@ -100,7 +108,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
       initialIndex: Math.max(selectedIdx, 0),
       searchable: opts.searchable === true,
     });
-    this.thinkingDraft = opts.currentThinking;
+    this.effortDraft = opts.currentThinkingEffort;
   }
 
   handleInput(data: string): void {
@@ -110,15 +118,27 @@ export class ModelSelectorComponent extends Container implements Focusable {
       return;
     }
     const selected = this.list.selected();
-    // Left/Right toggle thinking (only when the model supports it); paging is on
-    // PgUp/PgDn so the horizontal arrows stay free for the thinking control.
-    if (selected !== undefined && thinkingAvailability(selected.model) === 'toggle') {
+    const availability = selected !== undefined ? thinkingAvailability(selected.model) : 'unsupported';
+    // Left/Right control thinking effort; paging is on PgUp/PgDn so the
+    // horizontal arrows stay free for the thinking control.
+    if (availability === 'effort') {
       if (matchesKey(data, Key.left)) {
-        this.thinkingDraft = true;
+        const idx = EFFORT_LEVELS.indexOf(this.effortDraft);
+        if (idx > 0) this.effortDraft = EFFORT_LEVELS[idx - 1]!;
         return;
       }
       if (matchesKey(data, Key.right)) {
-        this.thinkingDraft = false;
+        const idx = EFFORT_LEVELS.indexOf(this.effortDraft);
+        if (idx < EFFORT_LEVELS.length - 1) this.effortDraft = EFFORT_LEVELS[idx + 1]!;
+        return;
+      }
+    } else if (availability === 'toggle') {
+      if (matchesKey(data, Key.left)) {
+        this.effortDraft = 'high';
+        return;
+      }
+      if (matchesKey(data, Key.right)) {
+        this.effortDraft = 'off';
         return;
       }
     }
@@ -126,7 +146,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
       if (selected === undefined) return;
       this.opts.onSelect({
         alias: selected.alias,
-        thinking: effectiveThinking(selected.model, this.thinkingDraft),
+        thinkingEffort: effectiveThinking(selected.model, this.effortDraft),
       });
       return;
     }
@@ -204,6 +224,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
     if (availability === 'unsupported') {
       return `  ${segment('Off', true)} ${chalk.hex(colors.textMuted)('unsupported')}`;
     }
-    return `  ${segment('On', this.thinkingDraft)}  ${segment('Off', !this.thinkingDraft)}`;
+    if (availability === 'effort') {
+      const labels: ThinkingEffortLevel[] = ['off', 'low', 'medium', 'high'];
+      const displayLabels = ['Off', 'Low', 'Medium', 'High'];
+      return '  ' + labels.map((level, i) => segment(displayLabels[i]!, this.effortDraft === level)).join('');
+    }
+    return `  ${segment('On', this.effortDraft !== 'off')}  ${segment('Off', this.effortDraft === 'off')}`;
   }
 }

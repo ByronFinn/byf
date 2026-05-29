@@ -9,7 +9,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { createByfDeviceId as createByfDeviceIdFn } from '@byf/oauth';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,7 +23,7 @@ import type {
 
 let tmp: string;
 
-type CreateByfDeviceId = typeof createByfDeviceIdFn;
+type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
 
 const mocks = vi.hoisted(() => ({
   byfHarnessConstructor: vi.fn(),
@@ -71,17 +70,6 @@ vi.mock('@byf/sdk', async (importOriginal) => {
 
       exportSession = mocks.harnessExportSession;
     },
-  };
-});
-
-vi.mock('@byf/oauth', async () => {
-  const actual = await vi.importActual<typeof import('@byf/oauth')>(
-    '@byf/oauth',
-  );
-  return {
-    ...actual,
-    createByfDeviceId: mocks.createByfDeviceId,
-    BYF_CODE_PROVIDER_NAME: 'byf',
   };
 });
 

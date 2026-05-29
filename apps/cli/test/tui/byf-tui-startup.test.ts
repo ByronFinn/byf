@@ -316,12 +316,12 @@ describe("ByfTui startup", () => {
 
     expect(driver.state.startupState).toBe("ready");
     expect(driver.state.startupNotice).toContain(
-      "Authentication required. Use /connect to configure a provider.",
+      "Authentication required. Use /login or /connect to configure a provider.",
     );
     expect(driver.state.appState).toMatchObject({
       sessionId: "",
       model: "",
-      thinking: false,
+      thinkingEffort: "off",
       contextTokens: 0,
       maxContextTokens: 0,
       contextUsage: 0,
@@ -450,7 +450,7 @@ describe("ByfTui startup", () => {
     const driver = makeDriver(harness, makeStartupInput());
 
     await expect(driver.init()).resolves.toBe(false);
-    expect(driver.state.appState.thinking).toBe(false);
+    expect(driver.state.appState.thinkingEffort).toBe('off');
 
     vi.spyOn(driver as any, 'promptPlatformSelection').mockResolvedValue('byf');
     await driver.handleLoginCommand();
@@ -459,7 +459,7 @@ describe("ByfTui startup", () => {
     expect(session.setThinking).toHaveBeenCalledWith("on");
     expect(driver.state.appState).toMatchObject({
       model: "k2",
-      thinking: true,
+      thinkingEffort: "high",
       maxContextTokens: 100,
     });
     expect(harness.track).toHaveBeenCalledWith("login", {
