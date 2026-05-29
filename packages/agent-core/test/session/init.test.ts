@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { localKaos } from '@byf/kaos';
-import type { ProviderConfig } from '@byf/kosong';
+import { localKaos } from '@byfriends/kaos';
+import type { ProviderConfig } from '@byfriends/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCodes } from '../../src/errors';

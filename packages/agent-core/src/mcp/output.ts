@@ -19,7 +19,7 @@
  * helpers stay private so callers cannot bypass the limits.
  */
 
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { MCPContentBlock, MCPToolResult } from './types';
 

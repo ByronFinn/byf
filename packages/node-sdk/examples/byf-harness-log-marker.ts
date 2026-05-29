@@ -8,7 +8,7 @@ import {
   log,
   resolveGlobalLogPath,
   resolveByfHome,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 type MarkerLevel = 'error' | 'warn';
 

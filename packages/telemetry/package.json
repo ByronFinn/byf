@@ -1,7 +1,6 @@
 {
-  "name": "@byf/telemetry",
+  "name": "@byfriends/telemetry",
   "version": "0.0.1",
-  "private": true,
   "description": "Telemetry infrastructure for BYF (currently disabled)",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -34,6 +33,16 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
     }
   },
   "scripts": {

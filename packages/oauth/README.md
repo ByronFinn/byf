@@ -1,4 +1,4 @@
-# @byf/oauth
+# @byfriends/oauth
 
 Authentication utilities for BYF.
 

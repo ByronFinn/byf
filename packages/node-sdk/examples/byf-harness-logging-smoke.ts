@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { ByfHarness, log } from '@byf/sdk';
+import { ByfHarness, log } from '@byfriends/sdk';
 
 const SESSION_LOG = 'logs/byf.log';
 const GLOBAL_LOG = 'logs/global/byf.log';

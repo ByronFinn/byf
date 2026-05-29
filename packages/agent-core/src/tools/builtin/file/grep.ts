@@ -19,7 +19,7 @@
 
 import type { Readable } from 'node:stream';
 
-import type { Kaos, KaosProcess } from '@byf/kaos';
+import type { Kaos, KaosProcess } from '@byfriends/kaos';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

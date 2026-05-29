@@ -1,4 +1,4 @@
-# @byf/sdk
+# @byfriends/sdk
 
 The TypeScript SDK for BYF.
 

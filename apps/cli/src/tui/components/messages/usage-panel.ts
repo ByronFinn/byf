@@ -6,7 +6,7 @@
 
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
-import type { SessionUsage, TokenUsage } from '@byf/sdk';
+import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import {

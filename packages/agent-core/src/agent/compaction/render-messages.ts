@@ -1,4 +1,4 @@
-import type { Message } from '@byf/kosong';
+import type { Message } from '@byfriends/kosong';
 
 export function renderMessagesToText(messages: readonly Message[]): string {
   return messages.map((message, index) => renderMessageToText(message, index)).join('\n\n');

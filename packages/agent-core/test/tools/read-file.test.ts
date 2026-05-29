@@ -1,4 +1,4 @@
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ReadTool } from '../../src/tools/builtin/file/read';

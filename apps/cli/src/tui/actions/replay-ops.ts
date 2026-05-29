@@ -16,7 +16,7 @@ import type {
   ResumedAgentState,
   Session,
   ToolCall,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';

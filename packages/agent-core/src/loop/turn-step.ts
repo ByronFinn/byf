@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import type { TokenUsage } from '@byf/kosong';
+import type { TokenUsage } from '@byfriends/kosong';
 import type { Logger } from '#/logging/types';
 
 import type { LoopEventDispatcher } from './events';

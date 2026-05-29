@@ -29,14 +29,14 @@ import {
   fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 import {
   applyProviderConfig,
   capabilitiesForModel as capabilitiesForModelOAuth,
   fetchModels,
   type ModelInfo,
   ProviderApiError,
-} from '@byf/oauth';
+} from '@byfriends/oauth';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
@@ -81,7 +81,7 @@ import type {
   TurnStepInterruptedEvent,
   TurnStepStartedEvent,
   WarningEvent,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
@@ -5205,7 +5205,7 @@ export class ByfTui {
     }
 
     // Step 5: Model selection
-    const modelDict: Record<string, import('@byf/oauth').ModelAlias> = {};
+    const modelDict: Record<string, import('@byfriends/oauth').ModelAlias> = {};
     for (const m of models) {
       modelDict[`${name}/${m.id}`] = {
         provider: name,

@@ -20,10 +20,10 @@ export default defineConfig({
     ].join('\n'),
   },
   alias: {
-    '@byf/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
-    '@byf/kaos': fileURLToPath(new URL('../kaos/src/index.ts', import.meta.url)),
-    '@byf/oauth': fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
-    '@byf/kosong': fileURLToPath(new URL('../kosong/src/index.ts', import.meta.url)),
+    '@byfriends/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
+    '@byfriends/kaos': fileURLToPath(new URL('../kaos/src/index.ts', import.meta.url)),
+    '@byfriends/oauth': fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
+    '@byfriends/kosong': fileURLToPath(new URL('../kosong/src/index.ts', import.meta.url)),
   },
   deps: {
     alwaysBundle: [/^@byf\//],

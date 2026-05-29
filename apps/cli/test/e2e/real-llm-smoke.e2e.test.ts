@@ -14,7 +14,7 @@
 import { mkdirSync } from 'node:fs';
 import process from 'node:process';
 
-import { ByfHarness, type Event } from '@byf/sdk';
+import { ByfHarness, type Event } from '@byfriends/sdk';
 import { describe, expect, test } from 'vitest';
 
 import { createByfHostIdentity, getVersion } from '#/cli/version';

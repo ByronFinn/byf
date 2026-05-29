@@ -1,4 +1,4 @@
-import type { ModelCapability } from '@byf/kosong';
+import type { ModelCapability } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ReadMediaFileTool } from '../../src/tools/builtin/file/read-media';

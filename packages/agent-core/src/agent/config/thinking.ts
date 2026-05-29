@@ -1,4 +1,4 @@
-import type { ThinkingEffort } from '@byf/kosong';
+import type { ThinkingEffort } from '@byfriends/kosong';
 
 import type { ThinkingConfig } from '../../config/schema';
 

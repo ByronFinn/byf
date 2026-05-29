@@ -1,4 +1,4 @@
-import type { McpServerInfo } from '@byf/sdk';
+import type { McpServerInfo } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';

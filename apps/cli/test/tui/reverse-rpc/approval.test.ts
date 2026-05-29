@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from '@byf/sdk';
+import type { ApprovalRequest } from '@byfriends/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApprovalController } from '#/tui/reverse-rpc/approval/controller';

@@ -1,4 +1,4 @@
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { ExecutableToolResult } from '../../loop/types';
 

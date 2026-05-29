@@ -58,8 +58,8 @@ const child = spawn(
     '-k',
     '-n', 'server,web',
     '-c', 'cyan,magenta',
-    'pnpm --filter @byf/vis-server dev',
-    'pnpm --filter @byf/vis-web dev',
+    'pnpm --filter @byfriends/vis-server dev',
+    'pnpm --filter @byfriends/vis-web dev',
   ],
   { stdio: 'inherit', env, shell: false },
 );

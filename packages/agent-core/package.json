@@ -1,7 +1,6 @@
 {
-  "name": "@byf/agent-core",
+  "name": "@byfriends/agent-core",
   "version": "0.0.1",
-  "private": true,
   "description": "Unified agent engine for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -45,6 +44,26 @@
       "default": "./src/session/store/index.ts"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      },
+      "./agent/records/migration": {
+        "types": "./dist/agent/records/migration/index.d.mts",
+        "import": "./dist/agent/records/migration/index.mjs",
+        "default": "./dist/agent/records/migration/index.mjs"
+      },
+      "./session/store": {
+        "types": "./dist/session/store/index.d.mts",
+        "import": "./dist/session/store/index.mjs",
+        "default": "./dist/session/store/index.mjs"
+      }
+    }
+  },
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
@@ -54,9 +73,9 @@
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",
+    "@byfriends/kaos": "workspace:^",
+    "@byfriends/kosong": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@byf/kaos": "workspace:^",
-    "@byf/kosong": "workspace:^",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",

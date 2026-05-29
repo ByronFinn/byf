@@ -1,4 +1,4 @@
-import type { Kaos, StatResult } from '@byf/kaos';
+import type { Kaos, StatResult } from '@byfriends/kaos';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

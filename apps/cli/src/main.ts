@@ -10,8 +10,8 @@ import {
   log,
   resolveGlobalLogPath,
   resolveByfHome,
-} from '@byf/sdk';
-import { installCrashHandlers, track } from '@byf/telemetry';
+} from '@byfriends/sdk';
+import { installCrashHandlers, track } from '@byfriends/telemetry';
 
 import { createProgram } from './cli/commands';
 import { PRODUCT_NAME } from '#/constant/app';

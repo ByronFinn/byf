@@ -14,7 +14,7 @@ import {
   type TelemetryClient,
   type ToolCallRequest,
   type ToolCallResponse,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {

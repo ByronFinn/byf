@@ -5,5 +5,5 @@ export default defineConfig({
   format: ['esm'],
   outDir: 'dist',
   clean: true,
-  external: ['@byf/agent-core', '@byf/kosong', '@byf/kaos'],
+  external: ['@byfriends/agent-core', '@byfriends/kosong', '@byfriends/kaos'],
 });

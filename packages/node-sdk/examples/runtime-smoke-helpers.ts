@@ -1,4 +1,4 @@
-import { type ByfHarness, type Session, type Event, type HostIdentity } from '@byf/sdk';
+import { type ByfHarness, type Session, type Event, type HostIdentity } from '@byfriends/sdk';
 
 export function smokeIdentityFromEnv(): HostIdentity {
   const version = process.env['BYF_SMOKE_VERSION'];

@@ -15,7 +15,7 @@ import type {
   TokenUsage,
   Tool,
   ToolCall,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 export interface ToolCallDelta {
   readonly toolCallId: string;

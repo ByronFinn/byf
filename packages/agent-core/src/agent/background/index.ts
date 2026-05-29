@@ -1,4 +1,4 @@
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { Agent } from '../..';
 import type { TelemetryPropertyValue } from '../../telemetry';

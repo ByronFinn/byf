@@ -1,7 +1,6 @@
 {
-  "name": "@byf/kosong",
+  "name": "@byfriends/kosong",
   "version": "0.0.1",
-  "private": true,
   "description": "LLM and provider abstraction layer for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -38,6 +37,46 @@
     "./providers/*": {
       "types": "./src/providers/*.ts",
       "default": "./src/providers/*.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      },
+      "./providers/openai-compat": {
+        "types": "./dist/providers/openai-compat.d.mts",
+        "import": "./dist/providers/openai-compat.mjs",
+        "default": "./dist/providers/openai-compat.mjs"
+      },
+      "./providers/openai-legacy": {
+        "types": "./dist/providers/openai-legacy.d.mts",
+        "import": "./dist/providers/openai-legacy.mjs",
+        "default": "./dist/providers/openai-legacy.mjs"
+      },
+      "./providers/openai-responses": {
+        "types": "./dist/providers/openai-responses.d.mts",
+        "import": "./dist/providers/openai-responses.mjs",
+        "default": "./dist/providers/openai-responses.mjs"
+      },
+      "./providers/anthropic": {
+        "types": "./dist/providers/anthropic.d.mts",
+        "import": "./dist/providers/anthropic.mjs",
+        "default": "./dist/providers/anthropic.mjs"
+      },
+      "./providers/google-genai": {
+        "types": "./dist/providers/google-genai.d.mts",
+        "import": "./dist/providers/google-genai.mjs",
+        "default": "./dist/providers/google-genai.mjs"
+      },
+      "./providers/openai-common": {
+        "types": "./dist/providers/openai-common.d.mts",
+        "import": "./dist/providers/openai-common.mjs",
+        "default": "./dist/providers/openai-common.mjs"
+      }
     }
   },
   "scripts": {

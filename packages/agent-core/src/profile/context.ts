@@ -1,7 +1,7 @@
 import * as posixPath from 'node:path/posix';
 import * as win32Path from 'node:path/win32';
 
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 
 import { listDirectory } from '../tools/support/list-directory';
 import type { SystemPromptContext } from './types';

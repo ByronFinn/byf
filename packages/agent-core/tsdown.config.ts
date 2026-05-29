@@ -3,7 +3,11 @@ import { defineConfig } from 'tsdown';
 import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 
 export default defineConfig({
-  entry: ['./src/index.ts'],
+  entry: [
+    './src/index.ts',
+    './src/agent/records/migration/index.ts',
+    './src/session/store/index.ts',
+  ],
   format: ['esm'],
   dts: true,
   outDir: 'dist',
@@ -11,6 +15,6 @@ export default defineConfig({
   plugins: [rawTextPlugin()],
   deps: {
     alwaysBundle: ['picomatch'],
-    neverBundle: ['@byf/kosong', '@byf/kaos'],
+    neverBundle: ['@byfriends/kosong', '@byfriends/kaos'],
   },
 });

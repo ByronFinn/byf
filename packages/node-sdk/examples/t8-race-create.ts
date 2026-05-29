@@ -1,5 +1,5 @@
 // T8.4 driver: create session with explicit id, twice concurrently in same process.
-import { ByfHarness } from '@byf/sdk';
+import { ByfHarness } from '@byfriends/sdk';
 
 const workDir = process.argv[2]!;
 const homeDir = process.argv[3]!;

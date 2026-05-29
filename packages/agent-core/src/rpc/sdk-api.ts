@@ -1,4 +1,4 @@
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { RPCMethods } from './client';
 import type { AgentEvent, ToolInputDisplay } from './events';

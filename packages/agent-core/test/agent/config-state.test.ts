@@ -1,4 +1,4 @@
-import { UNKNOWN_CAPABILITY } from '@byf/kosong';
+import { UNKNOWN_CAPABILITY } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ProviderManager } from '../../src/providers/provider-manager';

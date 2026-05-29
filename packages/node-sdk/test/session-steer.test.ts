@@ -1,4 +1,4 @@
-import type * as KosongModule from '@byf/kosong';
+import type * as KosongModule from '@byfriends/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ByfError } from '#/index';
@@ -10,7 +10,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'steer response',
 }));
 
-vi.mock('@byf/kosong', async (importOriginal) => {
+vi.mock('@byfriends/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,

@@ -27,7 +27,7 @@ import {
   type Message,
   type ModelCapability,
   type StreamedMessagePart,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { LLM, LLMChatParams, LLMChatResponse, LLMRequestLogContext } from '../../loop';
 import {

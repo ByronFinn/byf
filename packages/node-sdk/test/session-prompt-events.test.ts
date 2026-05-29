@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type * as KosongModule from '@byf/kosong';
+import type * as KosongModule from '@byfriends/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Event } from '#/index';
@@ -18,7 +18,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'hello from fake provider',
 }));
 
-vi.mock('@byf/kosong', async (importOriginal) => {
+vi.mock('@byfriends/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,

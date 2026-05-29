@@ -40,16 +40,16 @@ irm https://github.com/ByronFinn/byf/releases/byf/install.ps1 | iex
 node --version
 ```
 
-包名是 `@byf/cli`：
+包名是 `@byfriends/cli`：
 
 ```sh
-npm install -g @byf/cli
+npm install -g @byfriends/cli
 ```
 
 或用 pnpm：
 
 ```sh
-pnpm add -g @byf/cli
+pnpm add -g @byfriends/cli
 ```
 
 ## 升级与卸载
@@ -63,13 +63,13 @@ byf --version
 **升级**：脚本安装的用户重新运行脚本即可；npm 安装的用户执行：
 
 ```sh
-npm install -g @byf/cli@latest
+npm install -g @byfriends/cli@latest
 ```
 
 **卸载**：脚本安装的用户删除 `byf` 可执行文件即可；npm 安装的用户执行：
 
 ```sh
-npm uninstall -g @byf/cli
+npm uninstall -g @byfriends/cli
 ```
 
 ## 第一次启动

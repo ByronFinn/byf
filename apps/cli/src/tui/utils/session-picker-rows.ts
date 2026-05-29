@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@byf/sdk';
+import type { SessionSummary } from '@byfriends/sdk';
 
 import type { SessionRow } from '#/tui/components/dialogs/session-picker';
 

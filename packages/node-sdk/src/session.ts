@@ -1,4 +1,4 @@
-import { ErrorCodes, ByfError, type ByfErrorCode } from '@byf/agent-core';
+import { ErrorCodes, ByfError, type ByfErrorCode } from '@byfriends/agent-core';
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
 import type { SDKRpcClient } from '#/rpc';
 import type {

@@ -1,4 +1,4 @@
-import type { ToolCall } from '@byf/kosong';
+import type { ToolCall } from '@byfriends/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

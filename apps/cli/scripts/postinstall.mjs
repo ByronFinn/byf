@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Postinstall hook for @byf/cli.
+ * Postinstall hook for @byfriends/cli.
  *
  * BYF has no predecessor CLI to migrate from. This script is a
  * deliberate no-op: it exists so npm/pnpm/yarn do not error on

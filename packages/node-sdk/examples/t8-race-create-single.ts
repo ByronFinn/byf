@@ -1,5 +1,5 @@
 // One creator: meant to run twice as separate processes simultaneously.
-import { ByfHarness } from '@byf/sdk';
+import { ByfHarness } from '@byfriends/sdk';
 
 const workDir = process.argv[2]!;
 const homeDir = process.argv[3]!;

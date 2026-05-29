@@ -1,4 +1,4 @@
-import type { Kaos } from '@byf/kaos';
+import type { Kaos } from '@byfriends/kaos';
 import { describe, expect, it } from 'vitest';
 
 import {

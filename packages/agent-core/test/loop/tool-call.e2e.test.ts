@@ -8,7 +8,7 @@
  * while dispatching terminal events in provider order.
  */
 
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';

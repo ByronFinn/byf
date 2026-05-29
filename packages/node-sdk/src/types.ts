@@ -4,8 +4,8 @@ import type {
   TelemetryClient,
   TelemetryContextPatch,
   TelemetryProperties,
-} from '@byf/agent-core';
-import type { ContentPart } from '@byf/kosong';
+} from '@byfriends/agent-core';
+import type { ContentPart } from '@byfriends/kosong';
 
 export interface HostIdentity {
   readonly userAgentProduct: string;
@@ -44,10 +44,10 @@ export type {
   SkillSummary,
   ThinkingConfig,
   ToolInfo,
-} from '@byf/agent-core';
+} from '@byfriends/agent-core';
 
 export type { TelemetryClient, TelemetryContextPatch, TelemetryProperties };
-export type { ContentPart, Role, ToolCall } from '@byf/kosong';
+export type { ContentPart, Role, ToolCall } from '@byfriends/kosong';
 
 export type PermissionMode = 'yolo' | 'manual' | 'auto';
 

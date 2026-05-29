@@ -9,7 +9,7 @@
  * — into the dim detail line so the user still sees it.
  */
 
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
+import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 
 import type { BackgroundAgentStatusData, BackgroundAgentStatusPhase } from '../types';
 

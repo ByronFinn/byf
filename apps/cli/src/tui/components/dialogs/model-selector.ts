@@ -1,4 +1,4 @@
-import type { ModelAlias } from '@byf/sdk';
+import type { ModelAlias } from '@byfriends/sdk';
 import {
   Container,
   Key,

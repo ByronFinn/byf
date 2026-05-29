@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErrorCodes, ByfError } from '@byf/sdk';
+import { ErrorCodes, ByfError } from '@byfriends/sdk';
 
 import { validateOptions } from '#/cli/options';
 import type { CLIOptions } from '#/cli/options';
@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@byf/telemetry', () => ({
+vi.mock('@byfriends/telemetry', () => ({
   installCrashHandlers: mocks.installCrashHandlers,
   track: vi.fn(),
 }));

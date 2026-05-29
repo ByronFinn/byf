@@ -22,7 +22,7 @@ import {
   visibleWidth,
   type Focusable,
 } from '@earendil-works/pi-tui';
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byf/sdk';
+import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '../../theme/colors';

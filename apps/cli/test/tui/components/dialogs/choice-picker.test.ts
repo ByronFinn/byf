@@ -1,4 +1,4 @@
-import type { ModelAlias } from '@byf/sdk';
+import type { ModelAlias } from '@byfriends/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';

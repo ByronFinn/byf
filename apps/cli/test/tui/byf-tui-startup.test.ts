@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { log } from "@byf/sdk";
+import { log } from "@byfriends/sdk";
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from "#/tui/byf-tui";
 import {

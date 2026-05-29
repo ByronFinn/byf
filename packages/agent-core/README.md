@@ -1,4 +1,4 @@
-# @byf/agent-core
+# @byfriends/agent-core
 
 The unified agent engine for BYF.
 

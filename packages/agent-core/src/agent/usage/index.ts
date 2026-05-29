@@ -1,5 +1,5 @@
 import type { UsageStatus } from '#/rpc';
-import { addUsage, type TokenUsage } from '@byf/kosong';
+import { addUsage, type TokenUsage } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 

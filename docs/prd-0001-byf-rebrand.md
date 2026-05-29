@@ -12,7 +12,7 @@ Strip all upstream identity and infrastructure dependencies from the codebase, r
 
 ### Branding & Identity
 
-1. As a user, I want to install the CLI via `npm install -g @byf/cli`, so that the package name matches the product
+1. As a user, I want to install the CLI via `npm install -g @byfriends/cli`, so that the package name matches the product
 2. As a user, I want to run `byf` in my terminal to start the agent, so that the command name matches the product name
 3. As a user, I want all UI text to say "BYF" instead of "Kimi Code", so that I know what product I'm using
 4. As a user, I want version output to show "BYF v0.0.1" instead of "Kimi Code", so that I can identify the product
@@ -62,7 +62,7 @@ The central constants file will be updated:
 - `PRODUCT_NAME` → `'BYF'`
 - `CLI_COMMAND_NAME` → `'byf'`
 - `CLI_USER_AGENT_PRODUCT` → `'byf-cli'`
-- `NPM_PACKAGE_NAME` → `'@byf/cli'`
+- `NPM_PACKAGE_NAME` → `'@byfriends/cli'`
 - `*_HOME_ENV` → `'BYF_HOME'`
 - `*_DATA_DIR_NAME` → `'.byf'`
 - CDN URLs → GitHub Releases URLs under `ByronFinn/byf`
@@ -76,15 +76,15 @@ All files importing these constants will pick up the new values automatically.
 **What changes:** All `package.json` files in the monorepo.
 
 Package scope changes from `@moonshot-ai` to `@byf`:
-- `@byf/cli` → `@byf/cli`
-- `@byf/sdk` → `@byf/sdk`
-- `@byf/oauth` → `@byf/oauth`
-- `@byf/telemetry` → `@byf/telemetry`
-- `@byf/agent-core` → `@byf/agent-core`
-- `@byf/kosong` → `@byf/kosong`
-- `@byf/kaos` → `@byf/kaos`
-- `@byf/vis` → `@byf/vis`
-- `@byf/monorepo` → `@byf/monorepo`
+- `@byfriends/cli` → `@byfriends/cli`
+- `@byfriends/sdk` → `@byfriends/sdk`
+- `@byfriends/oauth` → `@byfriends/oauth`
+- `@byfriends/telemetry` → `@byfriends/telemetry`
+- `@byfriends/agent-core` → `@byfriends/agent-core`
+- `@byfriends/kosong` → `@byfriends/kosong`
+- `@byfriends/kaos` → `@byfriends/kaos`
+- `@byfriends/vis` → `@byfriends/vis`
+- `@byfriends/monorepo` → `@byfriends/monorepo`
 - `byf-docs` → `byf-docs`
 
 The CLI binary entry point changes from `"byf": "dist/main.mjs"` to `"byf": "dist/main.mjs"`.
@@ -182,7 +182,7 @@ Existing tests in the codebase use Vitest. The test patterns already present (mo
 - **Documentation site** — No VitePress site; README only for now
 - **Kimi provider removal** — The underlying LLM provider code may still support Moonshot AI as an endpoint, but it won't be the default or branded as "Kimi"
 - **Upstream sync** — No mechanism to merge upstream changes
-- **npm publishing** — Publishing `@byf/*` packages to npm is a separate concern
+- **npm publishing** — Publishing `@byfriends/*` packages to npm is a separate concern
 - **GitHub Actions / CI** — CI pipeline updates are separate
 - **New features** — This is purely a rebranding and cleanup effort
 - **vis app** — The visualization app gets scope/name updates but no functional changes

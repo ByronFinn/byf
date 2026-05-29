@@ -40,16 +40,16 @@ If you prefer to install via npm, you need Node.js 24.15.0 or later:
 node --version
 ```
 
-The package name is `@byf/cli`:
+The package name is `@byfriends/cli`:
 
 ```sh
-npm install -g @byf/cli
+npm install -g @byfriends/cli
 ```
 
 Or with pnpm:
 
 ```sh
-pnpm add -g @byf/cli
+pnpm add -g @byfriends/cli
 ```
 
 ## Upgrade and uninstall
@@ -63,13 +63,13 @@ byf --version
 **Upgrade**: if you installed via the script, re-run it. If you installed via npm:
 
 ```sh
-npm install -g @byf/cli@latest
+npm install -g @byfriends/cli@latest
 ```
 
 **Uninstall**: if you installed via the script, remove the `byf` executable. If you installed via npm:
 
 ```sh
-npm uninstall -g @byf/cli
+npm uninstall -g @byfriends/cli
 ```
 
 ## First launch

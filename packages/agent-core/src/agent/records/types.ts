@@ -1,4 +1,4 @@
-import type { ContentPart, TokenUsage } from '@byf/kosong';
+import type { ContentPart, TokenUsage } from '@byfriends/kosong';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { ToolStoreUpdate } from '../../tools/store';

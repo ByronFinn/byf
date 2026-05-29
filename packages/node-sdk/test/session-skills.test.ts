@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type * as KosongModule from '@byf/kosong';
+import type * as KosongModule from '@byfriends/kosong';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import type { Event, ByfError, SkillActivatedEvent, SkillSummary } from '#/index';
@@ -20,7 +20,7 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'skill response',
 }));
 
-vi.mock('@byf/kosong', async (importOriginal) => {
+vi.mock('@byfriends/kosong', async (importOriginal) => {
   const actual = await importOriginal<typeof KosongModule>();
   return {
     ...actual,

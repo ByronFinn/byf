@@ -5,7 +5,7 @@ import {
   migrateWireRecord,
   resolveWireMigrations,
   type WireMigration,
-} from '@byf/agent-core/agent/records/migration';
+} from '@byfriends/agent-core/agent/records/migration';
 
 import type { AgentRecord, WireEntry } from './agent-record-types';
 

@@ -1,4 +1,4 @@
-# @byf/sdk
+# @byfriends/sdk
 
 ## 0.2.0
 

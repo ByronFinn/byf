@@ -14,7 +14,7 @@ import {
   type GenerateResult,
   type Message,
   type TokenUsage,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import { isAbortError } from '../../loop/errors';

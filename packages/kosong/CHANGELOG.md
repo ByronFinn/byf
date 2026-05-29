@@ -1,4 +1,4 @@
-# @byf/kosong
+# @byfriends/kosong
 
 ## 0.2.0
 

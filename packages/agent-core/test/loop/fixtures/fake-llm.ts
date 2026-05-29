@@ -5,7 +5,7 @@ import {
   type TextPart,
   type ThinkPart,
   type TokenUsage,
-} from '@byf/kosong';
+} from '@byfriends/kosong';
 
 import type {
   LLM,

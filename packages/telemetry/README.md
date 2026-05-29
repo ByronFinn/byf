@@ -1,4 +1,4 @@
-# @byf/telemetry
+# @byfriends/telemetry
 
 Shared telemetry infrastructure for BYF (currently disabled).
 

@@ -1,4 +1,4 @@
-import type { QuestionRequest } from '@byf/sdk';
+import type { QuestionRequest } from '@byfriends/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { QuestionController } from '#/tui/reverse-rpc/question/controller';

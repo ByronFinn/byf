@@ -4,7 +4,7 @@ import {
   shutdownTelemetry,
   track,
   withTelemetryContext,
-} from '@byf/telemetry';
+} from '@byfriends/telemetry';
 import {
   ByfHarness,
   log,
@@ -13,7 +13,7 @@ import {
   type Session,
   type SessionStatus,
   type TelemetryClient,
-} from '@byf/sdk';
+} from '@byfriends/sdk';
 
 import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
 

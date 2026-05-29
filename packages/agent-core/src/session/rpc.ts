@@ -1,5 +1,5 @@
 import { ErrorCodes, ByfError } from '#/errors';
-import type { KaosProcess } from '@byf/kaos';
+import type { KaosProcess } from '@byfriends/kaos';
 import { StringDecoder } from 'node:string_decoder';
 import type { Readable } from 'node:stream';
 import type {

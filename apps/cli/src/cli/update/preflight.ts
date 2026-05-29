@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 
-import type { TelemetryProperties } from '@byf/telemetry';
+import type { TelemetryProperties } from '@byfriends/telemetry';
 
 import {
   NATIVE_INSTALL_COMMAND_UNIX,

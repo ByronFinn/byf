@@ -1,5 +1,5 @@
 import { buildSkillSlashCommands, isUserActivatableSkill } from '#/tui/commands/index';
-import type { SkillSummary } from '@byf/sdk';
+import type { SkillSummary } from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
 function skill(

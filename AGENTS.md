@@ -14,7 +14,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Project Map
 
-- `apps/cli`: the CLI / TUI application. It consumes core capabilities through `@byf/sdk` and must not depend directly on `@byf/agent-core`.
+- `apps/cli`: the CLI / TUI application. It consumes core capabilities through `@byfriends/sdk` and must not depend directly on `@byfriends/agent-core`.
 - `apps/vis`: visual debugging tools for sessions and replays, including `apps/vis/server` and `apps/vis/web`.
 - `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, and other core capabilities.
 - `packages/node-sdk`: the public TypeScript SDK and harness.

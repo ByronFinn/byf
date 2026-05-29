@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ActivateSkillPayload } from '#/rpc';
-import type { ContentPart } from '@byf/kosong';
+import type { ContentPart } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import { ErrorCodes, ByfError } from '#/errors';

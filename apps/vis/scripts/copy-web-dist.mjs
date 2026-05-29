@@ -15,7 +15,7 @@ try {
   await stat(src);
 } catch {
   process.stderr.write(`[copy-web-dist] source missing: ${src}\n`);
-  process.stderr.write('Did you run `pnpm --filter @byf/vis-web build` first?\n');
+  process.stderr.write('Did you run `pnpm --filter @byfriends/vis-web build` first?\n');
   process.exit(1);
 }
 

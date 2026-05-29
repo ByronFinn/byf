@@ -1,5 +1,5 @@
-import type { Kaos } from '@byf/kaos';
-import type { ToolCall } from '@byf/kosong';
+import type { Kaos } from '@byfriends/kaos';
+import type { ToolCall } from '@byfriends/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';

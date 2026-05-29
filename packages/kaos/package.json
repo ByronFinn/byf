@@ -1,7 +1,6 @@
 {
-  "name": "@byf/kaos",
+  "name": "@byfriends/kaos",
   "version": "0.0.1",
-  "private": true,
   "description": "Execution environment and filesystem/process abstractions for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -39,6 +38,16 @@
     "./ssh": {
       "types": "./src/ssh.ts",
       "default": "./src/ssh.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
     }
   },
   "scripts": {

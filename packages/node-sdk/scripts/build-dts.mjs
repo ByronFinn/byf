@@ -10,10 +10,10 @@ const providerClientShimPath = path.join(dtsRoot, 'provider-clients.d.ts');
 
 const packageDirs = new Set(['agent-core', 'kaos', 'kosong', 'node-sdk', 'oauth']);
 const workspacePackages = new Map([
-  ['@byf/agent-core', 'agent-core'],
-  ['@byf/kaos', 'kaos'],
-  ['@byf/oauth', 'oauth'],
-  ['@byf/kosong', 'kosong'],
+  ['@byfriends/agent-core', 'agent-core'],
+  ['@byfriends/kaos', 'kaos'],
+  ['@byfriends/oauth', 'oauth'],
+  ['@byfriends/kosong', 'kosong'],
 ]);
 
 try {
@@ -99,7 +99,7 @@ async function rewriteWorkspaceSpecifiers() {
           `import { GoogleGenAI as GenAIClient } from '${providerClientSpecifier}';`,
         );
       const updated = providerClientText.replaceAll(
-        /(["'])(#\/[^"']+|@byf\/(?:agent-core|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
+        /(["'])(#\/[^"']+|@byfriends\/(?:agent-core|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({
             currentFile: file,
