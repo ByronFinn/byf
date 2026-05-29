@@ -19,7 +19,7 @@ function strip(text: string): string {
 describe('HelpPanelComponent', () => {
   it('renders keyboard shortcuts + slash commands sections', () => {
     const panel = new HelpPanelComponent({
-      commands: [cmd('exit', 'Exit', ['quit', 'q'])],
+      commands: [cmd('exit', 'Exit', ['quit'])],
       colors: darkColors,
       onClose: () => {},
     });
@@ -30,7 +30,7 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Ctrl-O/);
     expect(out).toMatch(/Shift-Enter \/ Ctrl-J/);
     expect(out).toMatch(/Slash commands/);
-    expect(out).toMatch(/\/exit \(\/quit, \/q\)/);
+    expect(out).toMatch(/\/exit\(quit\)/);
     expect(out).toMatch(/Exit/);
   });
 

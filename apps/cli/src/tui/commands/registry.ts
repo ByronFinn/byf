@@ -147,7 +147,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   },
   {
     name: 'exit',
-    aliases: ['quit', 'q'],
+    aliases: ['quit'],
     description: 'Exit the application',
     priority: 20,
   },
@@ -162,6 +162,10 @@ export const BUILTIN_SLASH_COMMANDS = [
 
 export type BuiltinSlashCommand = (typeof BUILTIN_SLASH_COMMANDS)[number];
 export type BuiltinSlashCommandName = BuiltinSlashCommand['name'];
+export interface AutocompleteSlashCommand {
+  name: string;
+  description: string;
+}
 
 export function findBuiltInSlashCommand(commandName: string): BuiltinSlashCommand | undefined {
   const commands = BUILTIN_SLASH_COMMANDS as readonly ByfSlashCommand<BuiltinSlashCommandName>[];
@@ -182,4 +186,26 @@ export function sortSlashCommands(commands: readonly ByfSlashCommand[]): ByfSlas
   return [...commands].toSorted(
     (a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.name.localeCompare(b.name),
   );
+}
+
+export function buildAutocompleteSlashCommands(
+  commands: readonly ByfSlashCommand[],
+): AutocompleteSlashCommand[] {
+  const entries: AutocompleteSlashCommand[] = [];
+  const seenNames = new Set<string>();
+  const append = (name: string, description: string): void => {
+    if (seenNames.has(name)) return;
+    seenNames.add(name);
+    entries.push({ name, description });
+  };
+
+  for (const command of commands) {
+    const aliasHint = command.aliases.length > 0 ? ` (${command.aliases.join(', ')})` : '';
+    append(command.name, `${command.description}${aliasHint}`);
+    for (const alias of command.aliases) {
+      append(alias, `${command.description} (alias of /${command.name})`);
+    }
+  }
+
+  return entries;
 }
