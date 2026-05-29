@@ -2,8 +2,8 @@ import type { Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byf/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TaskOutputViewer } from '@/tui/components/dialogs/task-output-viewer';
-import { darkColors } from '@/tui/theme/colors';
+import { TaskOutputViewer } from '../../src/tui/components/dialogs/task-output-viewer';
+import { darkColors } from '../../src/tui/theme/colors';
 
 const ANSI_SGR = /\[[0-9;]*m/g;
 function strip(text: string): string {

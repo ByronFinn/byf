@@ -4,6 +4,7 @@ import {
   NATIVE_ASSET_MANIFEST_VERSION,
   buildManifestKey,
   isManifestVersionSupported,
+// @ts-expect-error: No type definitions for .mjs
 } from '../../../scripts/native/manifest.mjs';
 
 describe('NATIVE_ASSET_MANIFEST_VERSION', () => {

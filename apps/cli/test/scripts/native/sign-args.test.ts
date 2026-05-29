@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+// @ts-expect-error: No type definitions for .mjs
 import { buildCodesignArgs } from '../../../scripts/native/04-sign.mjs';
 
 describe('buildCodesignArgs', () => {
