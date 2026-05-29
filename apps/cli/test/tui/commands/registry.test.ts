@@ -30,7 +30,6 @@ describe('built-in slash command registry', () => {
   it('finds built-ins by name or alias', () => {
     expect(findBuiltInSlashCommand('exit')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('quit')?.name).toBe('exit');
-    expect(findBuiltInSlashCommand('q')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');

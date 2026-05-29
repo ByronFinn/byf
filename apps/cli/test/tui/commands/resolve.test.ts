@@ -26,7 +26,7 @@ describe('resolveSlashCommandInput', () => {
 
   it('resolves built-in commands by name and alias', () => {
     expect(resolve('/help')).toMatchObject({ kind: 'builtin', name: 'help', args: '' });
-    expect(resolve('/q')).toMatchObject({ kind: 'builtin', name: 'exit', args: '' });
+    expect(resolve('/quit')).toMatchObject({ kind: 'builtin', name: 'exit', args: '' });
     expect(resolve('/clear')).toMatchObject({ kind: 'builtin', name: 'new', args: '' });
     expect(resolve('/fork')).toMatchObject({ kind: 'builtin', name: 'fork', args: '' });
     expect(resolve('/title New title')).toMatchObject({

@@ -147,7 +147,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   },
   {
     name: 'exit',
-    aliases: ['quit', 'q'],
+    aliases: ['quit'],
     description: 'Exit the application',
     priority: 20,
   },

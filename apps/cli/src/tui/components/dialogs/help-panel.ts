@@ -104,7 +104,7 @@ export class HelpPanelComponent extends Container implements Focusable {
     const kbdWidth = Math.max(8, ...shortcuts.map((s) => s.keys.length));
     const sortedCmds = [...this.opts.commands].toSorted((a, b) => a.name.localeCompare(b.name));
     const cmdLabels = sortedCmds.map((c) => {
-      const aliases = c.aliases.length > 0 ? ` (${c.aliases.map((a) => '/' + a).join(', ')})` : '';
+      const aliases = c.aliases.length > 0 ? `(${c.aliases.join(',')})` : '';
       return `/${c.name}${aliases}`;
     });
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
