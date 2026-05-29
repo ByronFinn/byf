@@ -29,6 +29,66 @@ describe('Session.listBackgroundTasks / getBackgroundTaskOutput / getBackgroundT
     }
   });
 
+  describe('Session.shellExec', () => {
+    it('executes shell commands and returns stdout/stderr/exit info', async () => {
+      const homeDir = await makeTempDir(tempDirs, 'byf-sdk-shell-home-');
+      const workDir = await makeTempDir(tempDirs, 'byf-sdk-shell-work-');
+      const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
+
+      try {
+        const session = await harness.createSession({ id: 'ses_shell_exec', workDir });
+        await expect(session.shellExec('printf "ok"')).resolves.toMatchObject({
+          stdout: 'ok',
+          stderr: '',
+          exitCode: 0,
+          timedOut: false,
+        });
+        await expect(session.shellExec('echo err >&2; exit 7')).resolves.toMatchObject({
+          stdout: '',
+          stderr: 'err\n',
+          exitCode: 7,
+          timedOut: false,
+        });
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it('supports timeout and reports timedOut=true', async () => {
+      const homeDir = await makeTempDir(tempDirs, 'byf-sdk-shell-home-');
+      const workDir = await makeTempDir(tempDirs, 'byf-sdk-shell-work-');
+      const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
+
+      try {
+        const session = await harness.createSession({ id: 'ses_shell_timeout', workDir });
+        await expect(
+          session.shellExec('node -e "setTimeout(() => {}, 2000)"', { timeout: 100 }),
+        ).resolves.toMatchObject({
+          timedOut: true,
+        });
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it('rejects after session is closed', async () => {
+      const homeDir = await makeTempDir(tempDirs, 'byf-sdk-shell-home-');
+      const workDir = await makeTempDir(tempDirs, 'byf-sdk-shell-work-');
+      const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
+
+      try {
+        const session = await harness.createSession({ id: 'ses_shell_closed', workDir });
+        await session.close();
+        await expect(session.shellExec('echo hi')).rejects.toMatchObject({
+          name: 'ByfError',
+          code: 'session.closed',
+        } satisfies Partial<ByfError>);
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
   it('returns empty output and undefined path for an unknown task id', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-bgtask-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-bgtask-work-');

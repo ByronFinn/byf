@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { injectPromptSymbol } from '#/tui/components/editor/custom-editor';
+import { injectPromptSymbol, stripShellModePrefix } from '#/tui/components/editor/custom-editor';
 
 describe('injectPromptSymbol', () => {
   it('places a "> " prompt at columns 2-3 (col 0 = border, col 1 = single-space gap)', () => {
@@ -33,5 +33,25 @@ describe('injectPromptSymbol', () => {
     expect(injectPromptSymbol(' x  hello')).toBeUndefined();
     expect(injectPromptSymbol('  x hello')).toBeUndefined();
     expect(injectPromptSymbol('   xhello')).toBeUndefined();
+  });
+
+  it('supports shell-mode prompt symbol with color', () => {
+    const out = injectPromptSymbol('    ls', { symbol: '$', colorHex: '#00ff00' });
+    expect(out).toBe('  $ ls');
+  });
+});
+
+describe('stripShellModePrefix', () => {
+  it('hides leading `! ` from shell-mode content line', () => {
+    expect(stripShellModePrefix('    ! ls -la')).toBe('    ls -la');
+  });
+
+  it('preserves ANSI markers around hidden prefix', () => {
+    const line = '    \u001B[7m!\u001B[0m \u001B[7ml\u001B[0ms';
+    expect(stripShellModePrefix(line)).toBe('    \u001B[7m\u001B[0m\u001B[7ml\u001B[0ms');
+  });
+
+  it('leaves non-shell lines untouched', () => {
+    expect(stripShellModePrefix('    /help')).toBe('    /help');
   });
 });

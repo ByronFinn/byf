@@ -9,6 +9,7 @@ import type {
   PermissionMode,
   PromptInput,
   ResumedSessionState,
+  ShellExecResult,
   SessionPlan,
   SessionStatus,
   SessionSummary,
@@ -76,6 +77,24 @@ export class Session {
     await this.rpc.prompt({
       sessionId: this.id,
       input: normalizePromptInput(input),
+    });
+  }
+
+  async shellExec(
+    command: string,
+    options: { cwd?: string; timeout?: number } = {},
+  ): Promise<ShellExecResult> {
+    this.ensureOpen();
+    const normalizedCommand = normalizeRequiredString(
+      command,
+      'Shell command cannot be empty',
+      ErrorCodes.REQUEST_INVALID,
+    );
+    return this.rpc.shellExec({
+      sessionId: this.id,
+      command: normalizedCommand,
+      cwd: options.cwd,
+      timeout: options.timeout,
     });
   }
 
