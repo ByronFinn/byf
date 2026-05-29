@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_CATALOG_JSON } from '#/built-in-catalog';
 import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
 
-// @ts-expect-error: No type definitions for .mjs
 import { builtInCatalogDefine } from '../../../scripts/built-in-catalog.mjs';
 
 describe('resolveConnectCatalogRequest', () => {

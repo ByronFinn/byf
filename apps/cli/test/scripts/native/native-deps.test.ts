@@ -5,7 +5,6 @@ import {
   resolveTargetDeps,
   isSupportedTarget,
   SUPPORTED_TARGETS,
-// @ts-expect-error: No type definitions for .mjs
 } from '../../../scripts/native/native-deps.mjs';
 
 describe('SUPPORTED_TARGETS', () => {

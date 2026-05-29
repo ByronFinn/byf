@@ -16,7 +16,6 @@ import {
   nativeArtifactsDir,
   nativeSmokeHome,
   SEA_SENTINEL_FUSE,
-// @ts-expect-error: No type definitions for .mjs
 } from '../../../scripts/native/paths.mjs';
 
 describe('targetTriple', () => {

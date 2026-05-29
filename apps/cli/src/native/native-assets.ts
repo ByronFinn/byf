@@ -14,7 +14,6 @@ import { homedir } from 'node:os';
 import { dirname, join, win32 as pathWin32 } from 'node:path';
 
 import { BYF_BUILD_INFO } from '#/cli/build-info';
-// @ts-expect-error: No type definitions for .mjs
 import { NATIVE_ASSET_MANIFEST_VERSION as MANIFEST_VERSION, buildManifestKey } from '../../scripts/native/manifest.mjs';
 
 export const NATIVE_ASSET_MANIFEST_VERSION = MANIFEST_VERSION;

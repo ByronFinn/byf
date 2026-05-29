@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-// @ts-expect-error: No type definitions for .mjs
 import { commandForExecFile } from '../../../scripts/native/exec.mjs';
 
 describe('commandForExecFile', () => {

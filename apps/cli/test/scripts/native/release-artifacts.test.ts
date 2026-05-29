@@ -9,7 +9,6 @@ import { inflateRawSync } from 'node:zlib';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-// @ts-expect-error: No type definitions for .mjs
 import { appRoot } from '../../../scripts/native/paths.mjs';
 
 const execFileAsync = promisify(execFile);
