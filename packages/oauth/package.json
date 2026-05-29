@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/oauth",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Authentication utilities for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
