@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/cli",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
   "license": "Proprietary",
   "author": "ByronFinn",
@@ -37,7 +37,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": false
   },
   "scripts": {
     "build": "tsdown",
