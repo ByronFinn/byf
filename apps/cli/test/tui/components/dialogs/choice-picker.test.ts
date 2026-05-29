@@ -201,6 +201,38 @@ describe('ChoicePickerComponent', () => {
     expect(onSelect).toHaveBeenCalledWith({ alias: 'thinking', thinkingEffort: 'high' });
   });
 
+  it('coerces effort draft to binary thinking for toggle-only models', () => {
+    const onSelect = vi.fn();
+    const picker = new ModelSelectorComponent({
+      models: {
+        effort: {
+          provider: 'openai',
+          model: 'o3',
+          maxContextSize: 200_000,
+          displayName: 'OpenAI o3',
+          capabilities: ['thinking_effort'],
+        },
+        toggle: {
+          provider: 'managed:byf',
+          model: 'byf-thinking',
+          maxContextSize: 200_000,
+          displayName: 'Byf Thinking',
+          capabilities: ['thinking'],
+        },
+      },
+      currentValue: 'effort',
+      currentThinkingEffort: 'medium',
+      colors: darkColors,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    picker.handleInput('[B');
+    picker.handleInput('\r');
+
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'toggle', thinkingEffort: 'high' });
+  });
+
   it('shows effort selector for models with thinking_effort capability', () => {
     const onSelect = vi.fn();
     const picker = new ModelSelectorComponent({

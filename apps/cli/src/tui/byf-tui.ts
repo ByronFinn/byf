@@ -1061,7 +1061,15 @@ export class ByfTui {
     }
 
     const defaultThinkingEffort: ThinkingEffortLevel | undefined =
-      config.defaultThinking === undefined ? undefined : config.defaultThinking ? 'high' : 'off';
+      config.thinking?.mode === 'off'
+        ? 'off'
+        : config.thinking?.effort !== undefined
+          ? parseThinkingEffort(config.thinking.effort)
+          : config.defaultThinking === undefined
+            ? undefined
+            : config.defaultThinking
+              ? 'high'
+              : 'off';
     await this.activateModelAfterLogin(defaultModel, defaultThinkingEffort);
     const appStatePatch: Partial<AppState> = {
       availableModels,
@@ -1069,8 +1077,8 @@ export class ByfTui {
       model: defaultModel,
       maxContextTokens: selected.maxContextSize,
     };
-    if (config.defaultThinking !== undefined) {
-      appStatePatch.thinkingEffort = config.defaultThinking ? 'high' : 'off';
+    if (defaultThinkingEffort !== undefined) {
+      appStatePatch.thinkingEffort = defaultThinkingEffort;
     }
     this.setAppState(appStatePatch);
   }
@@ -4514,12 +4522,22 @@ export class ByfTui {
   private async persistModelSelection(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<boolean> {
     const config = await this.harness.getConfig({ reload: true });
     const defaultThinking = thinkingEffort !== 'off';
-    if (config.defaultModel === alias && config.defaultThinking === defaultThinking) {
+    const thinkingConfig =
+      thinkingEffort === 'off'
+        ? { mode: 'off' as const, effort: 'high' as const }
+        : { mode: 'on' as const, effort: thinkingEffort };
+    if (
+      config.defaultModel === alias &&
+      config.defaultThinking === defaultThinking &&
+      config.thinking?.mode === thinkingConfig.mode &&
+      config.thinking?.effort === thinkingConfig.effort
+    ) {
       return false;
     }
     await this.harness.setConfig({
       defaultModel: alias,
       defaultThinking,
+      thinking: thinkingConfig,
     });
     return true;
   }

@@ -86,6 +86,7 @@ function effectiveThinking(
   const availability = thinkingAvailability(model);
   if (availability === 'always-on') return 'high';
   if (availability === 'unsupported') return 'off';
+  if (availability === 'toggle') return effortDraft === 'off' ? 'off' : 'high';
   return effortDraft;
 }
 
