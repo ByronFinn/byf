@@ -65,13 +65,6 @@ export async function runPrompt(
     uiMode: PROMPT_UI_MODE,
     skillDirs: opts.skillsDirs,
     telemetry: telemetryClient,
-    onOAuthRefresh: (outcome) => {
-      if (outcome.success) {
-        track('oauth_refresh', { success: true });
-        return;
-      }
-      track('oauth_refresh', { success: false, reason: outcome.reason });
-    },
   });
   log.info('byf starting', {
     version,
@@ -386,6 +379,7 @@ function runPromptTurn(
         case 'tool.list.updated':
         case 'turn.started':
         case 'turn.step.completed':
+        case 'warning':
           return;
       }
     });

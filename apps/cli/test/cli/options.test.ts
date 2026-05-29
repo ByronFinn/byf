@@ -12,7 +12,6 @@ function parse(argv: string[]): CLIOptions {
     (opts) => {
       captured = opts;
     },
-    () => {},
   );
 
   program.exitOverride();
@@ -47,7 +46,7 @@ describe('CLI options parsing', () => {
   describe('--version', () => {
     it('prints the version string and exits', () => {
       let output = '';
-      const program = createProgram('1.2.3', () => {}, () => {});
+      const program = createProgram('1.2.3', () => {});
       program.exitOverride();
       program.configureOutput({
         writeOut: (s) => {
@@ -61,7 +60,7 @@ describe('CLI options parsing', () => {
 
     it('supports -V as a short alias', () => {
       let output = '';
-      const program = createProgram('4.5.6', () => {}, () => {});
+      const program = createProgram('4.5.6', () => {});
       program.exitOverride();
       program.configureOutput({
         writeOut: (s) => {

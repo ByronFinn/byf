@@ -3,7 +3,6 @@ import {
   ErrorCodes,
   ByfCore,
   makeErrorPayload,
-  resolveByfHome,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,

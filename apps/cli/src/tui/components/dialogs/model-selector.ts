@@ -8,7 +8,6 @@ import {
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { SearchableList } from '#/tui/utils/searchable-list';
 
