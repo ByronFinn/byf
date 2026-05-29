@@ -7,6 +7,7 @@ import { localKaos } from '@byf/kaos';
 import type { ProviderConfig } from '@byf/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ErrorCodes } from '../../src/errors';
 import { ProviderManager } from '../../src/providers/provider-manager';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
@@ -41,6 +42,28 @@ afterEach(async () => {
 });
 
 describe('Session.init', () => {
+  it('rejects empty shell command payloads on the server side', async () => {
+    const workDir = await makeTempDir();
+    const sessionDir = await makeTempDir();
+    const session = new Session({
+      id: 'test-shell-empty-command',
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc([]),
+      providerManager: testProviderManager(),
+    });
+
+    try {
+      const api = new SessionAPIImpl(session);
+      await expect(api.shellExec({ command: '   ' })).rejects.toMatchObject({
+        code: ErrorCodes.REQUEST_INVALID,
+      });
+    } finally {
+      await session.close();
+    }
+  });
+
   it('runs an isolated system-trigger turn and records the latest AGENTS as a system reminder', async () => {
     const workDir = await makeTempDir();
     const sessionDir = await makeTempDir();

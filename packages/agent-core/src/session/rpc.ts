@@ -97,12 +97,18 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     readonly cwd?: string;
     readonly timeout?: number;
   }): Promise<ShellExecResult> {
+    const normalizedCommand = payload.command.trim();
+    if (normalizedCommand.length === 0) {
+      throw new ByfError(ErrorCodes.REQUEST_INVALID, 'Shell command cannot be empty');
+    }
     const environment = this.session.config.runtime.osEnv;
     const isWindowsBash = environment.osKind === 'Windows';
     const defaultCwd = this.session.config.cwd ?? process.cwd();
     const effectiveCwd = payload.cwd ?? defaultCwd;
     const shellCwd = isWindowsBash ? windowsPathToPosixPath(effectiveCwd) : effectiveCwd;
-    const command = isWindowsBash ? rewriteWindowsNullRedirect(payload.command) : payload.command;
+    const command = isWindowsBash
+      ? rewriteWindowsNullRedirect(normalizedCommand)
+      : normalizedCommand;
     const shellCommand = `cd ${shellQuote(shellCwd)} && ${command}`;
     const shellArgs = [environment.shellPath, '-c', shellCommand];
     const timeoutMs = normalizeShellTimeoutMs(payload.timeout);

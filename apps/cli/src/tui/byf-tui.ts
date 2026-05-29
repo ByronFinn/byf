@@ -511,6 +511,19 @@ function combineStartupNotice(
 
 const SIMPLE_CD_ONLY = /^cd(?:\s+(.+))?$/;
 
+function parseSimpleCdPathToken(target: string): string | null {
+  if (target.length === 0) return null;
+  const first = target[0];
+  if (first !== '"' && first !== "'") {
+    if (target.includes('"') || target.includes("'")) return null;
+    return target;
+  }
+  if (target[target.length - 1] !== first || target.length < 2) return null;
+  const inner = target.slice(1, -1);
+  if (inner.includes(first)) return null;
+  return inner;
+}
+
 function parseSimpleCdTarget(command: string): string | null {
   if (command.includes('&&') || command.includes('||') || command.includes('|') || command.includes(';')) {
     return null;
@@ -519,7 +532,7 @@ function parseSimpleCdTarget(command: string): string | null {
   if (match === null) return null;
   const target = match[1]?.trim();
   if (target === undefined || target.length === 0) return '~';
-  return target;
+  return parseSimpleCdPathToken(target);
 }
 
 function resolveShellCdTarget(cwd: string, target: string): string | null {

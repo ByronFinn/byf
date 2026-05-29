@@ -620,6 +620,49 @@ describe('ByfTui message flow', () => {
     });
   });
 
+  it('updates shell cwd after successful `! cd "a b"` and uses it for subsequent shell commands', async () => {
+    const shellExec = vi.fn(async (command: string, options?: { cwd?: string }) => {
+      if (command === 'pwd' && options?.cwd === '/tmp/proj-a/a b') {
+        return {
+          stdout: '/tmp/proj-a/a b\n',
+          stderr: '',
+          exitCode: 0,
+          timedOut: false,
+        };
+      }
+      if (command === 'pwd') {
+        return {
+          stdout: '',
+          stderr: 'missing',
+          exitCode: 1,
+          timedOut: false,
+        };
+      }
+      return {
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    });
+    const session = makeSession({ shellExec, workDir: '/tmp/proj-a' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! cd "a b"');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('cd "a b"', { cwd: '/tmp/proj-a' });
+    });
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp/proj-a/a b' });
+    });
+    expect(driver.state.appState.shellWorkDir).toBe('/tmp/proj-a/a b');
+
+    driver.handleUserInput('! pwd');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp/proj-a/a b' });
+    });
+  });
+
   it('rejects ! commands while replaying session history', async () => {
     const session = makeSession();
     const { driver } = await makeDriver(session);
