@@ -2,6 +2,7 @@ import {
   BUILTIN_SLASH_COMMANDS,
   buildAutocompleteSlashCommands,
   findBuiltInSlashCommand,
+  parseShellCommand,
   parseSlashInput,
   resolveSlashCommandAvailability,
   sortSlashCommands,
@@ -24,6 +25,22 @@ describe('parseSlashInput', () => {
     expect(parseSlashInput('/   ')).toBeNull();
     expect(parseSlashInput('/some/path')).toBeNull();
     expect(parseSlashInput('/some/path with args')).toBeNull();
+  });
+
+  describe('parseShellCommand', () => {
+    it('parses shell commands prefixed with exclamation and whitespace', () => {
+      expect(parseShellCommand('! ls -la')).toBe('ls -la');
+      expect(parseShellCommand('!\tgrep foo src/')).toBe('grep foo src/');
+      expect(parseShellCommand('!   echo ok   ')).toBe('echo ok');
+    });
+
+    it('returns null for non-shell input or empty commands', () => {
+      expect(parseShellCommand('/help')).toBeNull();
+      expect(parseShellCommand('hello world')).toBeNull();
+      expect(parseShellCommand('!')).toBeNull();
+      expect(parseShellCommand('!   ')).toBeNull();
+      expect(parseShellCommand('!echo')).toBeNull();
+    });
   });
 });
 

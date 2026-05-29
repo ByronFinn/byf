@@ -18,6 +18,8 @@ import {
   Spacer,
   TUI,
 } from '@earendil-works/pi-tui';
+import { homedir } from 'node:os';
+import { resolve as resolvePath } from 'node:path';
 import {
   applyCatalogProvider,
   catalogBaseUrl,
@@ -64,6 +66,7 @@ import type {
   SessionMetaUpdatedEvent,
   SessionStatus,
   SessionUsage,
+  ShellExecResult,
   SkillActivatedEvent,
   SubagentCompletedEvent,
   SubagentFailedEvent,
@@ -98,6 +101,7 @@ import {
   BUILTIN_SLASH_COMMANDS,
   buildAutocompleteSlashCommands,
   buildSkillSlashCommands,
+  parseShellCommand,
   parseSlashInput,
   resolveSlashCommandInput,
   slashBusyMessage,
@@ -145,6 +149,7 @@ import { BackgroundAgentStatusComponent } from './components/messages/background
 import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
 import { SkillActivationComponent } from './components/messages/skill-activation';
+import { ShellExecutionComponent } from './components/messages/shell-execution';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
@@ -389,6 +394,7 @@ function createInitialAppState(input: ByfTuiStartupInput): AppState {
   return {
     model: '',
     workDir: input.workDir,
+    shellWorkDir: input.workDir,
     sessionId: '',
     yolo: input.cliOptions.yolo,
     permissionMode: startupPermission,
@@ -501,6 +507,27 @@ function combineStartupNotice(
     return `${existing}\n${next}`;
   }
   return existing ?? next;
+}
+
+const SIMPLE_CD_ONLY = /^cd(?:\s+(.+))?$/;
+
+function parseSimpleCdTarget(command: string): string | null {
+  if (command.includes('&&') || command.includes('||') || command.includes('|') || command.includes(';')) {
+    return null;
+  }
+  const match = SIMPLE_CD_ONLY.exec(command.trim());
+  if (match === null) return null;
+  const target = match[1]?.trim();
+  if (target === undefined || target.length === 0) return '~';
+  return target;
+}
+
+function resolveShellCdTarget(cwd: string, target: string): string | null {
+  if (target === '-') return null;
+  const home = homedir();
+  if (target === '~') return home;
+  if (target.startsWith('~/')) return resolvePath(home, target.slice(2));
+  return resolvePath(cwd, target);
 }
 
 function isOAuthLoginRequiredError(error: unknown): boolean {
@@ -1343,6 +1370,11 @@ export class ByfTui {
   // Routes submitted editor text to slash command handling or normal prompting.
   private handleUserInput(text: string): void {
     if (text.trim().length === 0) return;
+    const shellCommand = parseShellCommand(text);
+    if (shellCommand !== null) {
+      void this.handleShellExecution(shellCommand, text);
+      return;
+    }
     if (this.state.appState.isReplaying) {
       this.showError('Cannot send input while session history is replaying.');
       return;
@@ -1354,6 +1386,52 @@ export class ByfTui {
     }
 
     this.sendNormalUserInput(text);
+  }
+
+  private async handleShellExecution(command: string, rawInput: string): Promise<void> {
+    if (this.state.appState.isReplaying) {
+      this.showError('Cannot execute shell commands while session history is replaying.');
+      return;
+    }
+    const session = this.session;
+    if (session === undefined) {
+      this.showError(NO_ACTIVE_SESSION_MESSAGE);
+      return;
+    }
+    await this.persistInputHistory(rawInput);
+    const cwd = this.state.appState.shellWorkDir ?? session.workDir;
+    let result: ShellExecResult;
+    try {
+      result = await session.shellExec(command, { cwd });
+    } catch (error) {
+      this.showError(error instanceof Error ? error.message : 'Shell execution failed.');
+      return;
+    }
+    this.appendShellExecTranscriptEntry(command, result);
+    await this.maybeUpdateShellWorkDirAfterCd(session, command, cwd, result);
+  }
+
+  private async maybeUpdateShellWorkDirAfterCd(
+    session: Session,
+    command: string,
+    cwd: string,
+    result: ShellExecResult,
+  ): Promise<void> {
+    if (result.timedOut || result.exitCode !== 0) return;
+    const target = parseSimpleCdTarget(command);
+    if (target === null) return;
+    const resolved = resolveShellCdTarget(cwd, target);
+    if (resolved === null) return;
+    try {
+      const check = await session.shellExec('pwd', { cwd: resolved });
+      if (check.timedOut || check.exitCode !== 0) return;
+      const nextCwd = check.stdout.trim();
+      if (nextCwd.length > 0) {
+        this.setAppState({ shellWorkDir: nextCwd });
+      }
+    } catch (error) {
+      this.showError(error instanceof Error ? error.message : 'Failed to update shell working directory.');
+    }
   }
 
   // Parses and executes a slash command intent.
@@ -1651,6 +1729,24 @@ export class ByfTui {
     void session.activateSkill(skillName, skillArgs).catch((error: unknown) => {
       const message = formatErrorMessage(error);
       this.failSessionRequest(`Skill "${skillName}" failed: ${message}`);
+    });
+  }
+
+  private appendShellExecTranscriptEntry(command: string, result: ShellExecResult): void {
+    const entryId = nextTranscriptId();
+    const toolCallId = `shell_exec:${entryId}`;
+    const resultData = toShellExecTranscriptResult(command, result, toolCallId);
+    this.appendTranscriptEntry({
+      id: entryId,
+      kind: 'shell_exec',
+      renderMode: 'plain',
+      content: command,
+      toolCallData: {
+        id: toolCallId,
+        name: 'ShellExec',
+        args: { command },
+        result: resultData,
+      },
     });
   }
 
@@ -1965,6 +2061,7 @@ export class ByfTui {
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     this.session = session;
+    this.setAppState({ shellWorkDir: session.workDir });
     this.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
   }
@@ -3485,6 +3582,14 @@ export class ByfTui {
         return entry.renderMode === 'notice'
           ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
           : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
+      case 'shell_exec':
+        return new ShellExecutionComponent({
+          command: entry.content,
+          result: entry.toolCallData?.result,
+          colors: this.state.theme.colors,
+          expanded: this.state.toolOutputExpanded,
+          showCommand: true,
+        });
       case 'status':
         if (entry.backgroundAgentStatus !== undefined) {
           return new BackgroundAgentStatusComponent(
@@ -5469,4 +5574,27 @@ function formatHookResultTitle(event: HookResultEvent): string {
 function formatHookResultBody(event: HookResultEvent): string {
   const content = event.content.trim();
   return content.length === 0 ? '(empty)' : content;
+}
+
+function toShellExecTranscriptResult(
+  command: string,
+  result: ShellExecResult,
+  toolCallId: string,
+): ToolResultBlockData {
+  const sections: string[] = [];
+  if (result.stdout.length > 0) {
+    sections.push(result.stdout);
+  }
+  if (result.stderr.length > 0) {
+    sections.push(result.stderr);
+  }
+  if (result.timedOut) {
+    sections.push(`Command timed out: ${command}`);
+  }
+  const output = sections.join('\n').trim();
+  return {
+    tool_call_id: toolCallId,
+    output: output.length > 0 ? output : '(no output)',
+    is_error: result.exitCode !== 0 || result.timedOut,
+  };
 }

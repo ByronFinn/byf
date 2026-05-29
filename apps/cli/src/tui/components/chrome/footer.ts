@@ -132,16 +132,21 @@ export class FooterComponent implements Component {
     this.state = state;
     this.colors = colors;
     this.onGitStatusChange = onGitStatusChange;
-    this.gitCacheWorkDir = state.workDir;
-    this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onGitStatusChange });
+    this.gitCacheWorkDir = this.getDisplayedWorkDir(state);
+    this.gitCache = createGitStatusCache(this.gitCacheWorkDir, { onChange: this.onGitStatusChange });
   }
 
   setState(state: AppState): void {
-    if (state.workDir !== this.gitCacheWorkDir) {
-      this.gitCacheWorkDir = state.workDir;
-      this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onGitStatusChange });
+    const displayedWorkDir = this.getDisplayedWorkDir(state);
+    if (displayedWorkDir !== this.gitCacheWorkDir) {
+      this.gitCacheWorkDir = displayedWorkDir;
+      this.gitCache = createGitStatusCache(displayedWorkDir, { onChange: this.onGitStatusChange });
     }
     this.state = state;
+  }
+
+  private getDisplayedWorkDir(state: AppState): string {
+    return state.shellWorkDir ?? state.workDir;
   }
 
   setColors(colors: ColorPalette): void {
@@ -202,7 +207,7 @@ export class FooterComponent implements Component {
       );
     }
 
-    const cwd = shortenCwd(state.workDir);
+    const cwd = shortenCwd(this.getDisplayedWorkDir(state));
     if (cwd) left.push(chalk.hex(colors.status)(cwd));
 
     const git = this.gitCache.getStatus();

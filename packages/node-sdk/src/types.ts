@@ -39,6 +39,8 @@ export type {
   ProviderType,
   ResumedAgentState,
   ServicesConfig,
+  ShellExecPayload,
+  ShellExecResult,
   SkillSummary,
   ThinkingConfig,
   ToolInfo,

@@ -77,9 +77,16 @@ function makeStartupInput(): ByfTuiStartupInput {
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
     id: 'ses-1',
+    workDir: '/tmp/proj-a',
     model: 'k2',
     summary: { title: null },
     prompt: vi.fn(async () => {}),
+    shellExec: vi.fn(async () => ({
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    })),
     steer: vi.fn(async () => {}),
     init: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
@@ -554,6 +561,76 @@ describe('ByfTui message flow', () => {
     expect(driver.state.queuedMessages).toEqual([{ text: 'queued message', agentId: 'main' }]);
     expect(driver.state.queueContainer.children.length).toBeGreaterThan(0);
     expect(harness.track).toHaveBeenCalledWith('input_queue', undefined);
+  });
+
+  it('routes ! commands to shell execution before slash-command dispatch and renders output', async () => {
+    const shellExec = vi.fn(async () => ({
+      stdout: 'hi\n',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const session = makeSession({ shellExec, workDir: '/tmp/shell-session' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! echo hi');
+
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('echo hi', { cwd: '/tmp/shell-session' });
+    });
+    expect(session.prompt).not.toHaveBeenCalled();
+    expect(driver.persistInputHistory).toHaveBeenCalledWith('! echo hi');
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('$ echo hi');
+    expect(transcript).toContain('hi');
+  });
+
+  it('updates shell cwd after successful `! cd` and uses it for subsequent shell commands', async () => {
+    const shellExec = vi.fn(async (command: string, options?: { cwd?: string }) => {
+      if (command === 'pwd' && options?.cwd === '/tmp') {
+        return {
+          stdout: '/tmp\n',
+          stderr: '',
+          exitCode: 0,
+          timedOut: false,
+        };
+      }
+      return {
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      };
+    });
+    const session = makeSession({ shellExec, workDir: '/tmp/proj-a' });
+    const { driver } = await makeDriver(session);
+
+    driver.handleUserInput('! cd ..');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('cd ..', { cwd: '/tmp/proj-a' });
+    });
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp' });
+    });
+    expect(driver.state.appState.shellWorkDir).toBe('/tmp');
+
+    driver.handleUserInput('! pwd');
+    await vi.waitFor(() => {
+      expect(shellExec).toHaveBeenCalledWith('pwd', { cwd: '/tmp' });
+    });
+  });
+
+  it('rejects ! commands while replaying session history', async () => {
+    const session = makeSession();
+    const { driver } = await makeDriver(session);
+    driver.state.appState.isReplaying = true;
+
+    driver.handleUserInput('! ls -la');
+
+    expect(session.shellExec).not.toHaveBeenCalled();
+    expect(driver.state.transcriptContainer.render(120).join('\n')).toContain(
+      'Cannot execute shell commands while session history is replaying.',
+    );
   });
 
   it('cancels active streaming from Escape and Ctrl-C editor shortcuts', async () => {

@@ -23,6 +23,7 @@ export function parseThinkingEffort(value: string | undefined): ThinkingEffortLe
 export interface AppState {
   model: string;
   workDir: string;
+  shellWorkDir?: string;
   sessionId: string;
   yolo: boolean;
   permissionMode: PermissionMode;
@@ -111,6 +112,7 @@ export type TranscriptEntryKind =
   | 'user'
   | 'assistant'
   | 'tool_call'
+  | 'shell_exec'
   | 'thinking'
   | 'status'
   | 'skill_activation';

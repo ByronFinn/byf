@@ -34,6 +34,8 @@ import type {
   RenameSessionPayload,
   ResumeSessionPayload,
   RegisterToolPayload,
+  ShellExecPayload,
+  ShellExecResult,
   SetByfConfigPayload,
   SetActiveToolsPayload,
   SetModelPayload,
@@ -534,6 +536,13 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   generateAgentsMd({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): Promise<void> {
     return this.sessionApi(sessionId).generateAgentsMd(payload);
+  }
+
+  shellExec({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<Omit<ShellExecPayload, 'sessionId'>>): Promise<ShellExecResult> {
+    return this.sessionApi(sessionId).shellExec(payload);
   }
 
   private async resolveRuntime(config: ByfConfig): Promise<RuntimeConfig> {

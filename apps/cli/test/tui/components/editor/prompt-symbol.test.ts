@@ -34,4 +34,9 @@ describe('injectPromptSymbol', () => {
     expect(injectPromptSymbol('  x hello')).toBeUndefined();
     expect(injectPromptSymbol('   xhello')).toBeUndefined();
   });
+
+  it('supports shell-mode prompt symbol with color', () => {
+    const out = injectPromptSymbol('    ls', { symbol: '$', colorHex: '#00ff00' });
+    expect(out).toBe('  $ ls');
+  });
 });

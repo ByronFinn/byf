@@ -316,6 +316,34 @@ effort = "medium"
     }
   });
 
+  it('runs harness.shellExec in first active session workDir by default', async () => {
+    const homeDir = await makeTempDir();
+    const firstWorkDir = await makeTempDir();
+    const secondWorkDir = await makeTempDir();
+    const harness = new ByfHarness({
+      identity: TEST_IDENTITY,
+      homeDir,
+    });
+
+    try {
+      await harness.createSession({ id: 'ses_shell_default_cwd_1', workDir: firstWorkDir });
+      await harness.createSession({ id: 'ses_shell_default_cwd_2', workDir: secondWorkDir });
+
+      await expect(harness.shellExec('pwd')).resolves.toMatchObject({
+        stdout: `${firstWorkDir}\n`,
+        exitCode: 0,
+        timedOut: false,
+      });
+      await expect(harness.shellExec('pwd', { cwd: secondWorkDir })).resolves.toMatchObject({
+        stdout: `${secondWorkDir}\n`,
+        exitCode: 0,
+        timedOut: false,
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
   it('requires a non-empty workDir on createSession', async () => {
     const homeDir = await makeTempDir();
     const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
