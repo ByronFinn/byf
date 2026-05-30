@@ -167,7 +167,7 @@ describe('applyProviderConfig', () => {
     });
 
     expect(config.providers['deepseek']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.deepseek.com/v1',
       apiKey: 'sk-test',
       thinkingEffortKey: 'thinking_effort',
@@ -185,7 +185,7 @@ describe('applyProviderConfig', () => {
   it('clears stale models for the same provider but preserves others', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-compat', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-old' },
+        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-old' },
       },
       models: {
         'deepseek/stale': { provider: 'deepseek', model: 'stale', maxContextSize: 1000 },
@@ -238,8 +238,8 @@ describe('removeProviderConfig', () => {
   it('removes provider, its models, and defaultModel when matched', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-compat', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
-        other: { type: 'openai-compat', baseUrl: 'https://other.test/v1', apiKey: 'sk-other' },
+        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
+        other: { type: 'openai-completions', baseUrl: 'https://other.test/v1', apiKey: 'sk-other' },
       },
       models: {
         'deepseek/deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 65536 },
@@ -260,7 +260,7 @@ describe('removeProviderConfig', () => {
   it('leaves defaultModel intact when it belongs to another provider', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-compat', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
+        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
       },
       models: {
         'deepseek/deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 65536 },

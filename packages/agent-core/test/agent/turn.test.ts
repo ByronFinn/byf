@@ -703,7 +703,7 @@ describe('Agent turn flow', () => {
     expect(configPayload).toMatchObject({
       turnId: '0',
       step: 1,
-      provider: 'openai-compat',
+      provider: 'openai-completions',
       model: 'mock-model',
       modelAlias: 'mock-model',
       toolCount: 0,

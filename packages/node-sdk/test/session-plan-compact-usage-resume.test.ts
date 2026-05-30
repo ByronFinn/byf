@@ -329,7 +329,7 @@ async function writeTestConfig(homeDir: string): Promise<void> {
 default_model = "test-model"
 
 [providers.local]
-type = "openai"
+type = "openai-completions"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 

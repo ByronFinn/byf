@@ -56,7 +56,7 @@ telemetry = false
 theme = "dark"
 
 [providers."managed:byf"]
-type = "openai-compat"
+type = "openai-completions"
 base_url = "https://api.example.test/v1"
 api_key = "sk-file"
 custom_headers = { "X-Test" = "1" }
@@ -137,7 +137,7 @@ describe('harness config TOML loader', () => {
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
     expect(config.telemetry).toBe(false);
     expect(config.providers['managed:byf']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-file',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
@@ -379,7 +379,7 @@ describe('harness config schema and patch merge', () => {
     });
 
     expect(merged.providers['managed:byf']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-patched',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
