@@ -19,12 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-latest
-            target: darwin-arm64
-            platform: darwin
-          - runner: macos-13
-            target: darwin-x64
-            platform: darwin
           - runner: ubuntu-latest
             target: linux-x64
             platform: linux
@@ -114,8 +108,6 @@ jobs:
             npm install -g @byfriends/cli
             ```
           files: |
-            artifacts/byf-darwin-arm64/*
-            artifacts/byf-darwin-x64/*
             artifacts/byf-linux-x64/*
             artifacts/byf-win32-x64/*
         env:
