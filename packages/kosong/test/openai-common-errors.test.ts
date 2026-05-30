@@ -262,6 +262,109 @@ describe('thinkingEffortToReasoningEffort', () => {
     );
   });
 });
+
+describe('thinkingEffortToReasoningEffort: model-aware clamping', () => {
+  // --- No model: backward-compatible, no clamping ---
+
+  it('without model: low passes through', () => {
+    expect(thinkingEffortToReasoningEffort('low')).toBe('low');
+  });
+  it('without model: medium passes through', () => {
+    expect(thinkingEffortToReasoningEffort('medium')).toBe('medium');
+  });
+  it('without model: high passes through', () => {
+    expect(thinkingEffortToReasoningEffort('high')).toBe('high');
+  });
+  it('without model: off returns undefined', () => {
+    expect(thinkingEffortToReasoningEffort('off')).toBeUndefined();
+  });
+  it('without model: xhigh passes through (no clamping)', () => {
+    expect(thinkingEffortToReasoningEffort('xhigh')).toBe('xhigh');
+  });
+  it('without model: max maps to xhigh (no clamping)', () => {
+    expect(thinkingEffortToReasoningEffort('max')).toBe('xhigh');
+  });
+
+  // --- Model that supports xhigh: passes through ---
+
+  it('with xhigh-supporting model: xhigh passes through', () => {
+    expect(thinkingEffortToReasoningEffort('xhigh', 'gpt-5.1-codex-max')).toBe('xhigh');
+  });
+  it('with xhigh-supporting model: max maps to xhigh', () => {
+    expect(thinkingEffortToReasoningEffort('max', 'gpt-5.1-codex-max')).toBe('xhigh');
+  });
+  it('with xhigh-supporting model: low passes through', () => {
+    expect(thinkingEffortToReasoningEffort('low', 'gpt-5.1-codex-max')).toBe('low');
+  });
+  it('with xhigh-supporting model: medium passes through', () => {
+    expect(thinkingEffortToReasoningEffort('medium', 'gpt-5.1-codex-max')).toBe('medium');
+  });
+  it('with xhigh-supporting model: high passes through', () => {
+    expect(thinkingEffortToReasoningEffort('high', 'gpt-5.1-codex-max')).toBe('high');
+  });
+  it('with xhigh-supporting model: off returns undefined', () => {
+    expect(thinkingEffortToReasoningEffort('off', 'gpt-5.1-codex-max')).toBeUndefined();
+  });
+
+  // --- Model that does NOT support xhigh: clamps to high ---
+
+  it('with non-supporting model: xhigh clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('xhigh', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'xhigh' clamped to 'high' for model gpt-4.1",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: max clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('max', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'max' clamped to 'high' for model gpt-4.1",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: low is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('low', 'gpt-4.1')).toBe('low');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: medium is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('medium', 'gpt-4.1')).toBe('medium');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: high is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('high', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: off returns undefined (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('off', 'gpt-4.1')).toBeUndefined();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  // --- Unknown model: conservative — clamps xhigh/max to high ---
+
+  it('with unknown model: xhigh clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('xhigh', 'some-unknown-model')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'xhigh' clamped to 'high' for model some-unknown-model",
+    );
+    warnSpy.mockRestore();
+  });
+});
 describe('reasoningEffortToThinkingEffort', () => {
   it('returns null for undefined', () => {
     const effort: string | undefined = undefined;
