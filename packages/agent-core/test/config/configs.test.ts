@@ -492,6 +492,64 @@ describe('config path env override', () => {
   });
 });
 
+describe('thinking effort enum validation', () => {
+  it.each(['low', 'medium', 'high', 'xhigh', 'max'] as const)(
+    'accepts valid effort value "%s"',
+    (effort) => {
+      const parsed = ByfConfigSchema.parse({
+        thinking: { effort },
+      });
+      expect(parsed.thinking?.effort).toBe(effort);
+    },
+  );
+
+  it('rejects an invalid effort value', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: 'turbo' },
+      }),
+    ).toThrow(/effort/);
+  });
+
+  it('accepts omitted effort (undefined)', () => {
+    const parsed = ByfConfigSchema.parse({
+      thinking: { mode: 'auto' },
+    });
+    expect(parsed.thinking?.effort).toBeUndefined();
+  });
+
+  it('rejects empty string for effort', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: '' },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects uppercase effort value (case-sensitive enum)', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: 'High' },
+      }),
+    ).toThrow();
+  });
+
+  it('includes effort path in error for invalid input', () => {
+    try {
+      ByfConfigSchema.parse({
+        thinking: { effort: 'turbo' },
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const msg = (error as Error).message;
+      expect(msg).toMatch(/effort/);
+      expect(msg).toMatch(/low.*medium.*high.*xhigh.*max/);
+      return;
+    }
+    throw new Error('expected function to throw');
+  });
+});
+
 describe('config value env override helpers', () => {
   it('parses boolean env values', () => {
     expect(parseBooleanEnv('1')).toBe(true);
