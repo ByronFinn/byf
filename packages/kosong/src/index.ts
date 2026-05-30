@@ -65,6 +65,6 @@ export {
 /**
  * Concrete provider adapters stay off the root barrel because their SDK type
  * graphs pollute downstream declaration bundles. Import them from subpaths:
- * `@byfriends/kosong/providers/openai-compat`,
- * `@byfriends/kosong/providers/openai-legacy`, etc.
+ * `@byfriends/kosong/providers/openai-responses`,
+ * `@byfriends/kosong/providers/anthropic`, etc.
  */

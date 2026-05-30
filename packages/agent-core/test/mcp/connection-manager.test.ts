@@ -36,7 +36,7 @@ const slowStdioFixture = join(here, 'fixtures', 'slow-stdio-server.mjs');
 const crashAfterConnectFixture = join(here, 'fixtures', 'crash-after-connect-stdio-server.mjs');
 const stderrThenExitFixture = join(here, 'fixtures', 'stderr-then-exit-stdio-server.mjs');
 const MOCK_PROVIDER: ProviderConfig = {
-  type: 'openai-compat',
+  type: 'openai-completions',
   apiKey: 'test-key',
   model: 'mock-model',
 };

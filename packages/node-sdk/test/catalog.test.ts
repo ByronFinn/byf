@@ -27,6 +27,9 @@ const model: CatalogModel = {
     audio_in: false,
     thinking: true,
     tool_use: true,
+    thinking_effort: false,
+    thinking_xhigh: false,
+    thinking_max: false,
     max_context_tokens: 200000,
   },
 };
@@ -110,7 +113,7 @@ describe('applyCatalogProvider', () => {
 
     applyCatalogProvider(config, {
       providerId: 'deepseek',
-      wire: 'openai',
+      wire: 'openai-completions',
       baseUrl: 'https://api.deepseek.com',
       apiKey: 'sk',
       models,

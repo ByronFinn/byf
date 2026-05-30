@@ -48,8 +48,7 @@ export interface CatalogModel {
 
 const KNOWN_WIRE_TYPES = [
   'anthropic',
-  'openai',
-  'openai-compat',
+  'openai-completions',
   'google-genai',
   'openai_responses',
   'vertexai',
@@ -91,7 +90,7 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
   if (npm.includes('google') || id.includes('google') || id.includes('gemini')) {
     return 'google-genai';
   }
-  if (npm.includes('openai') || id.includes('openai')) return 'openai';
+  if (npm.includes('openai') || id.includes('openai')) return 'openai-completions';
   return undefined;
 }
 
@@ -135,6 +134,9 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
       audio_in: inputs.includes('audio'),
       thinking: Boolean(model.reasoning),
       tool_use: model.tool_call ?? true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: context,
     },
   };

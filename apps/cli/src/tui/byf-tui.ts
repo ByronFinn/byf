@@ -29,6 +29,7 @@ import {
   fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
+  log,
 } from '@byfriends/sdk';
 import {
   applyProviderConfig,
@@ -1096,6 +1097,9 @@ export class ByfTui {
       return;
     }
 
+    if (config.defaultThinking !== undefined) {
+      log.warn('defaultThinking is deprecated. Use [thinking] mode and effort instead.');
+    }
     const defaultThinkingEffort: ThinkingEffortLevel | undefined =
       config.thinking?.mode === 'off'
         ? 'off'

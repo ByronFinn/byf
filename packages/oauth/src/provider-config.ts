@@ -195,7 +195,7 @@ export function applyProviderConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'openai-compat',
+    type: 'openai-completions',
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     thinkingEffortKey: options.selectedModel.reasoningEffortKey,

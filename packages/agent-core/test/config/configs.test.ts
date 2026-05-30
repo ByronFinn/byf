@@ -56,7 +56,7 @@ telemetry = false
 theme = "dark"
 
 [providers."managed:byf"]
-type = "openai-compat"
+type = "openai-completions"
 base_url = "https://api.example.test/v1"
 api_key = "sk-file"
 custom_headers = { "X-Test" = "1" }
@@ -137,7 +137,7 @@ describe('harness config TOML loader', () => {
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
     expect(config.telemetry).toBe(false);
     expect(config.providers['managed:byf']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-file',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
@@ -350,7 +350,7 @@ describe('harness config schema and patch merge', () => {
     expect(() =>
       validateConfig({
         providers: {
-          local: { type: 'openai', apiKey: 'sk-test' },
+          local: { type: 'openai-completions', apiKey: 'sk-test' },
         },
         models: {
           broken: { provider: 'local', model: 'gpt-test' },
@@ -379,7 +379,7 @@ describe('harness config schema and patch merge', () => {
     });
 
     expect(merged.providers['managed:byf']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-patched',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
@@ -489,6 +489,64 @@ describe('config path env override', () => {
       if (saved === undefined) delete process.env['BYF_HOME'];
       else process.env['BYF_HOME'] = saved;
     }
+  });
+});
+
+describe('thinking effort enum validation', () => {
+  it.each(['low', 'medium', 'high', 'xhigh', 'max'] as const)(
+    'accepts valid effort value "%s"',
+    (effort) => {
+      const parsed = ByfConfigSchema.parse({
+        thinking: { effort },
+      });
+      expect(parsed.thinking?.effort).toBe(effort);
+    },
+  );
+
+  it('rejects an invalid effort value', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: 'turbo' },
+      }),
+    ).toThrow(/effort/);
+  });
+
+  it('accepts omitted effort (undefined)', () => {
+    const parsed = ByfConfigSchema.parse({
+      thinking: { mode: 'auto' },
+    });
+    expect(parsed.thinking?.effort).toBeUndefined();
+  });
+
+  it('rejects empty string for effort', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: '' },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects uppercase effort value (case-sensitive enum)', () => {
+    expect(() =>
+      ByfConfigSchema.parse({
+        thinking: { effort: 'High' },
+      }),
+    ).toThrow();
+  });
+
+  it('includes effort path in error for invalid input', () => {
+    try {
+      ByfConfigSchema.parse({
+        thinking: { effort: 'turbo' },
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const msg = (error as Error).message;
+      expect(msg).toMatch(/effort/);
+      expect(msg).toMatch(/low.*medium.*high.*xhigh.*max/);
+      return;
+    }
+    throw new Error('expected function to throw');
   });
 });
 

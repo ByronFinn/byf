@@ -14,6 +14,9 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
     expect(UNKNOWN_CAPABILITY.audio_in).toBe(false);
     expect(UNKNOWN_CAPABILITY.thinking).toBe(false);
     expect(UNKNOWN_CAPABILITY.tool_use).toBe(false);
+    expect(UNKNOWN_CAPABILITY.thinking_effort).toBe(false);
+    expect(UNKNOWN_CAPABILITY.thinking_xhigh).toBe(false);
+    expect(UNKNOWN_CAPABILITY.thinking_max).toBe(false);
   });
 
   it('UNKNOWN_CAPABILITY.max_context_tokens is 0 (unknown)', () => {
@@ -27,6 +30,9 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
       audio_in: false,
       thinking: true,
       tool_use: true,
+      thinking_effort: true,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 128_000,
     };
     expect(cap.image_in).toBe(true);
@@ -55,6 +61,9 @@ describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
       audio_in: false,
       thinking: false,
       tool_use: false,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 0,
     };
     expect(isUnknownCapability(UNKNOWN_CAPABILITY)).toBe(true);

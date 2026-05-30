@@ -276,50 +276,28 @@ function supportsAdaptiveThinking(model: string): boolean {
   return versionAtLeast(parseVersion(match), ADAPTIVE_MIN_VERSION);
 }
 
-function isOpus47(model: string): boolean {
+function supportsXhigh(model: string): boolean {
   const match = OPUS_VERSION_RE.exec(model.toLowerCase());
   if (match === null) {
     return false;
   }
   const version = parseVersion(match);
-  return version.major === 4 && version.minor === 7;
-}
-
-function supportsEffortParam(model: string): boolean {
-  if (supportsAdaptiveThinking(model)) {
-    return true;
-  }
-  const normalized = model.toLowerCase();
-  return normalized.includes('opus-4-5') || normalized.includes('opus-4.5');
+  return version.major === 4 && (version.minor === 7 || version.minor === 8);
 }
 
 function clampEffort(effort: ThinkingEffort, model: string): ThinkingEffort {
   if (effort === 'off') {
     return effort;
   }
-  if (effort === 'xhigh' && !isOpus47(model)) {
+  if (effort === 'xhigh' && !supportsXhigh(model)) {
+    console.warn(`effort 'xhigh' clamped to 'high' for model ${model}`);
     return 'high';
   }
   if (effort === 'max' && !supportsAdaptiveThinking(model)) {
+    console.warn(`effort 'max' clamped to 'high' for model ${model}`);
     return 'high';
   }
   return effort;
-}
-
-function budgetTokensForEffort(effort: ThinkingEffort): number {
-  switch (effort) {
-    case 'low':
-      return 1024;
-    case 'medium':
-      return 4096;
-    case 'high':
-      return 32_000;
-    case 'off':
-    case 'xhigh':
-    case 'max':
-      throw new Error(`Unsupported budget-based thinking effort: ${effort}`);
-  }
-  throw new Error(`Unknown thinking effort: ${String(effort)}`);
 }
 const CACHE_CONTROL = { type: 'ephemeral' as const };
 
@@ -824,27 +802,18 @@ export class AnthropicChatProvider implements ChatProvider {
     if (thinkingConfig.type === 'disabled') {
       return 'off';
     }
-    if (thinkingConfig.type === 'adaptive') {
-      const effort = this._generationKwargs.output_config?.effort;
-      if (effort === undefined || effort === null) {
-        return 'high';
-      }
-      switch (effort) {
-        case 'low':
-        case 'medium':
-        case 'high':
-        case 'xhigh':
-        case 'max':
-          return effort;
-      }
+    // All thinking is now adaptive with output_config.effort
+    const effort = this._generationKwargs.output_config?.effort;
+    if (effort === undefined || effort === null) {
+      return 'high';
     }
-    // budget-based
-    const budget = (thinkingConfig as { budget_tokens?: number }).budget_tokens ?? 0;
-    if (budget <= 1024) {
-      return 'low';
-    }
-    if (budget <= 4096) {
-      return 'medium';
+    switch (effort) {
+      case 'low':
+      case 'medium':
+      case 'high':
+      case 'xhigh':
+      case 'max':
+        return effort;
     }
     return 'high';
   }
@@ -1010,9 +979,7 @@ export class AnthropicChatProvider implements ChatProvider {
   withThinking(effort: ThinkingEffort): AnthropicChatProvider {
     if (effort === 'off') {
       let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
-      if (supportsAdaptiveThinking(this._model)) {
-        newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
-      }
+      newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
       const clone = this._withGenerationKwargs({
         thinking: { type: 'disabled' },
         betaFeatures: newBetas,
@@ -1027,30 +994,13 @@ export class AnthropicChatProvider implements ChatProvider {
     }
 
     let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
+    newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
 
-    if (supportsAdaptiveThinking(this._model)) {
-      newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
-      return this._withGenerationKwargs({
-        thinking: { type: 'adaptive', display: 'summarized' },
-        output_config: { effort: effectiveEffort },
-        betaFeatures: newBetas,
-      });
-    }
-
-    const kwargs: Partial<AnthropicGenerationKwargs> = {
-      thinking: { type: 'enabled', budget_tokens: budgetTokensForEffort(effectiveEffort) },
+    return this._withGenerationKwargs({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: effectiveEffort },
       betaFeatures: newBetas,
-    };
-    if (supportsEffortParam(this._model)) {
-      kwargs.output_config = { effort: effectiveEffort };
-    } else {
-      kwargs.output_config = undefined;
-    }
-    const clone = this._withGenerationKwargs(kwargs);
-    if (!supportsEffortParam(this._model)) {
-      delete clone._generationKwargs.output_config;
-    }
-    return clone;
+    });
   }
 
   withGenerationKwargs(kwargs: Partial<AnthropicGenerationKwargs>): AnthropicChatProvider {

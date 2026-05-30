@@ -703,7 +703,7 @@ describe('Agent turn flow', () => {
     expect(configPayload).toMatchObject({
       turnId: '0',
       step: 1,
-      provider: 'openai-compat',
+      provider: 'openai-completions',
       model: 'mock-model',
       modelAlias: 'mock-model',
       toolCount: 0,
@@ -1449,6 +1449,9 @@ function mediaCapabilities(): ModelCapability {
     audio_in: false,
     thinking: false,
     tool_use: true,
+    thinking_effort: false,
+    thinking_xhigh: false,
+    thinking_max: false,
     max_context_tokens: 1_000_000,
   };
 }

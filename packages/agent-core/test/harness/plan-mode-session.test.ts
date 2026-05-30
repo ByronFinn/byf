@@ -10,7 +10,7 @@ const BASE_CONFIG = `
 default_model = "byf/byf-for-coding"
 
 [providers."managed:byf"]
-type = "openai-compat"
+type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 

@@ -925,7 +925,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
   }
 
   withThinking(effort: ThinkingEffort): OpenAIResponsesChatProvider {
-    const reasoningEffort = thinkingEffortToReasoningEffort(effort);
+    const reasoningEffort = thinkingEffortToReasoningEffort(effort, this._model);
     const clone = this._clone();
     clone._generationKwargs = {
       ...clone._generationKwargs,

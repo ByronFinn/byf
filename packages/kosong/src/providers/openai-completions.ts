@@ -19,42 +19,61 @@ import {
   convertChatCompletionStreamToolCall,
   type BufferedChatCompletionToolCall,
 } from './chat-completions-stream';
+import { getOpenAILegacyModelCapability } from './capability-registry';
 import {
   convertContentPart,
   convertOpenAIError,
+  convertToolMessageContent,
   extractUsage,
   isFunctionToolCall,
   normalizeOpenAIFinishReason,
   type OpenAIContentPart,
   type OpenAIToolParam,
   reasoningEffortToThinkingEffort,
+  thinkingEffortToReasoningEffort,
   toolToOpenAI,
+  type ToolMessageConversion,
 } from './openai-common';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,
   resolveAuthBackedClient,
 } from './request-auth';
-export interface OpenAICompatOptions {
+
+// Inbound: scan in priority order; first string value wins. Outbound: the first
+// entry doubles as the default field we serialize ThinkPart back into. Both
+// arms can be overridden by an explicit `reasoningKey` on the provider config.
+const KNOWN_REASONING_KEYS = ['reasoning_content', 'reasoning_details', 'reasoning'] as const;
+const DEFAULT_OUTBOUND_REASONING_KEY = KNOWN_REASONING_KEYS[0];
+
+function extractReasoningContent(
+  source: unknown,
+  explicitKey: string | undefined,
+): string | undefined {
+  if (typeof source !== 'object' || source === null) return undefined;
+  const record = source as Record<string, unknown>;
+  const keys: readonly string[] = explicitKey !== undefined ? [explicitKey] : KNOWN_REASONING_KEYS;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+export interface OpenAICompletionsOptions {
   apiKey?: string;
   baseUrl?: string;
   model: string;
   stream?: boolean;
   defaultHeaders?: Record<string, string>;
   thinkingEffortKey?: string;
+  reasoningKey?: string;
+  toolMessageConversion?: ToolMessageConversion;
   generationKwargs?: GenerationKwargs;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
 }
 
 export interface GenerationKwargs {
-  /**
-   * Legacy completion-budget alias. Some OpenAI-compatible APIs still accept
-   * `max_tokens`, but for reasoning models it shares the budget with
-   * `reasoning_content` and a small value can cause a 200 response with no
-   * `content`. Prefer `max_completion_tokens`. When both are set
-   * `max_completion_tokens` wins; this provider normalizes by sending only
-   * `max_completion_tokens` on the wire.
-   */
   max_tokens?: number | undefined;
   max_completion_tokens?: number | undefined;
   temperature?: number | undefined;
@@ -79,13 +98,14 @@ export interface ExtraBody {
   thinking?: ThinkingConfig;
   [key: string]: unknown;
 }
+
 interface OpenAIMessage {
   role: string;
   content?: string | OpenAIContentPart[] | undefined;
   tool_calls?: OpenAIToolCallOut[] | undefined;
   tool_call_id?: string | undefined;
   name?: string | undefined;
-  reasoning_content?: string | undefined;
+  [key: string]: unknown;
 }
 
 interface OpenAIToolCallOut {
@@ -103,7 +123,11 @@ function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
   return true;
 }
 
-function convertMessage(message: Message): OpenAIMessage {
+function convertMessage(
+  message: Message,
+  reasoningKey: string | undefined,
+  toolMessageConversion: ToolMessageConversion,
+): OpenAIMessage {
   let reasoningContent = '';
   const nonThinkParts: ContentPart[] = [];
 
@@ -115,14 +139,35 @@ function convertMessage(message: Message): OpenAIMessage {
     }
   }
 
-  // Build the OpenAI message.
   const result: OpenAIMessage = { role: message.role };
   const hasToolCalls = message.toolCalls.length > 0;
   const shouldOmitContent =
     message.role === 'assistant' && hasToolCalls && isEffectivelyEmptyContent(nonThinkParts);
 
-  if (!shouldOmitContent) {
-    // content: serialize to string if single text, array otherwise
+  if (message.role === 'tool') {
+    // OpenAI Chat Completions `tool` messages only accept text content.
+    // Any non-text content parts (image_url, audio_url, video_url) would be
+    // rejected by the API with a 400. Detect multimodal tool output and
+    // force the `extract_text` path in that case, regardless of the caller's
+    // `toolMessageConversion` setting.
+    const hasNonTextPart = message.content.some((p) => p.type !== 'text' && p.type !== 'think');
+    const effectiveConversion: ToolMessageConversion = hasNonTextPart
+      ? 'extract_text'
+      : toolMessageConversion;
+
+    if (effectiveConversion !== null) {
+      result.content = convertToolMessageContent(message, effectiveConversion);
+    } else if (!shouldOmitContent) {
+      const firstPart = nonThinkParts[0];
+      if (nonThinkParts.length === 1 && firstPart?.type === 'text') {
+        result.content = firstPart.text;
+      } else if (nonThinkParts.length > 0) {
+        result.content = nonThinkParts
+          .map((p) => convertContentPart(p))
+          .filter((p): p is OpenAIContentPart => p !== null);
+      }
+    }
+  } else if (!shouldOmitContent) {
     const firstPart = nonThinkParts[0];
     if (nonThinkParts.length === 1 && firstPart?.type === 'text') {
       result.content = firstPart.text;
@@ -156,14 +201,14 @@ function convertMessage(message: Message): OpenAIMessage {
   }
 
   if (reasoningContent) {
-    result.reasoning_content = reasoningContent;
+    result[reasoningKey ?? DEFAULT_OUTBOUND_REASONING_KEY] = reasoningContent;
   }
 
   return result;
 }
+
 function convertTool(tool: Tool): OpenAIToolParam {
   if (tool.name.startsWith('$')) {
-    // Builtin functions start with `$`
     return {
       type: 'builtin_function',
       function: { name: tool.name },
@@ -178,14 +223,10 @@ function convertTool(tool: Tool): OpenAIToolParam {
     },
   };
 }
-/**
- * Extract usage from a streaming chunk. Some OpenAI-compatible providers may place usage in
- * `choices[0].usage` in addition to the top-level `usage` field.
- */
+
 export function extractUsageFromChunk(
   chunk: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  // Top-level usage
   if (
     chunk['usage'] !== null &&
     chunk['usage'] !== undefined &&
@@ -193,7 +234,6 @@ export function extractUsageFromChunk(
   ) {
     return chunk['usage'] as Record<string, unknown>;
   }
-  // choices[0].usage (provider extension)
   const choices = chunk['choices'];
   if (!Array.isArray(choices) || choices.length === 0) {
     return null;
@@ -209,7 +249,7 @@ export function extractUsageFromChunk(
   return null;
 }
 
-class OpenAICompatStreamedMessage implements StreamedMessage {
+class OpenAICompletionsStreamedMessage implements StreamedMessage {
   private _id: string | null = null;
   private _usage: TokenUsage | null = null;
   private _finishReason: FinishReason | null = null;
@@ -219,13 +259,18 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
   constructor(
     response: OpenAI.Chat.ChatCompletion | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
     isStream: boolean,
+    reasoningKey: string | undefined,
   ) {
     if (isStream) {
       this._iter = this._convertStreamResponse(
         response as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
+        reasoningKey,
       );
     } else {
-      this._iter = this._convertNonStreamResponse(response as OpenAI.Chat.ChatCompletion);
+      this._iter = this._convertNonStreamResponse(
+        response as OpenAI.Chat.ChatCompletion,
+        reasoningKey,
+      );
     }
   }
 
@@ -257,6 +302,7 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
 
   private async *_convertNonStreamResponse(
     response: OpenAI.Chat.ChatCompletion,
+    reasoningKey: string | undefined,
   ): AsyncGenerator<StreamedMessagePart> {
     this._id = response.id;
     if (response.usage) {
@@ -267,10 +313,9 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
     const message = response.choices[0]?.message;
     if (!message) return;
 
-    // reasoning_content (provider extension)
-    const rc = (message as unknown as Record<string, unknown>)['reasoning_content'];
-    if (typeof rc === 'string' && rc) {
-      yield { type: 'think', think: rc } satisfies StreamedMessagePart;
+    const reasoning = extractReasoningContent(message, reasoningKey);
+    if (reasoning) {
+      yield { type: 'think', think: reasoning } satisfies StreamedMessagePart;
     }
 
     if (message.content) {
@@ -292,6 +337,7 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
 
   private async *_convertStreamResponse(
     response: AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
+    reasoningKey: string | undefined,
   ): AsyncGenerator<StreamedMessagePart> {
     const bufferedToolCalls = new Map<number | string, BufferedChatCompletionToolCall>();
 
@@ -301,7 +347,6 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
           this._id = chunk.id;
         }
 
-        // Extract usage from chunk (supports top-level and choices[0].usage)
         const rawChunk = chunk as unknown as Record<string, unknown>;
         const rawUsage = extractUsageFromChunk(rawChunk);
         if (rawUsage) {
@@ -315,29 +360,21 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
         const choice = chunk.choices[0];
         if (!choice) continue;
 
-        // Capture finish_reason whenever the chunk carries one. The Chat
-        // Completions API only sets it on the final chunk for a given
-        // choice, but defensively re-capturing on every non-null value
-        // keeps the latest signal available even if upstream re-emits.
         if (choice.finish_reason !== null && choice.finish_reason !== undefined) {
           this._captureFinishReason(choice.finish_reason);
         }
 
         const delta = choice.delta;
 
-        // reasoning_content (provider extension)
-        const rc = (delta as unknown as Record<string, unknown>)['reasoning_content'];
-        if (typeof rc === 'string' && rc) {
-          yield { type: 'think', think: rc } satisfies StreamedMessagePart;
+        const reasoning = extractReasoningContent(delta, reasoningKey);
+        if (reasoning) {
+          yield { type: 'think', think: reasoning } satisfies StreamedMessagePart;
         }
 
-        // text content
         if (delta.content) {
           yield { type: 'text', text: delta.content } satisfies StreamedMessagePart;
         }
 
-        // tool calls — preserve `index` on every yielded part so the generate
-        // loop can route interleaved argument deltas from parallel tool calls.
         for (const toolCall of delta.tool_calls ?? []) {
           for (const part of convertChatCompletionStreamToolCall(toolCall, bufferedToolCalls)) {
             yield part;
@@ -349,8 +386,9 @@ class OpenAICompatStreamedMessage implements StreamedMessage {
     }
   }
 }
-export class OpenAICompatChatProvider implements ChatProvider {
-  readonly name: string = 'openai-compat';
+
+export class OpenAICompletionsChatProvider implements ChatProvider {
+  readonly name: string = 'openai-completions';
 
   private _model: string;
   private _stream: boolean;
@@ -359,14 +397,16 @@ export class OpenAICompatChatProvider implements ChatProvider {
   private _defaultHeaders: Record<string, string> | undefined;
   private _generationKwargs: GenerationKwargs;
   private _thinkingEffortKey: string;
+  private _reasoningKey: string | undefined;
+  private _toolMessageConversion: ToolMessageConversion;
   private _client: OpenAI | undefined;
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
   private _files: OpenAICompatFiles | undefined;
 
-  constructor(options: OpenAICompatOptions) {
+  constructor(options: OpenAICompletionsOptions) {
     const apiKey = options.apiKey;
     this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl ?? process.env['BYF_BASE_URL'] ?? '';
+    this._baseUrl = options.baseUrl ?? '';
     this._defaultHeaders = options.defaultHeaders;
     this._clientFactory = options.clientFactory;
     this._model = options.model;
@@ -376,7 +416,13 @@ export class OpenAICompatChatProvider implements ChatProvider {
       normalizedThinkingEffortKey !== undefined && normalizedThinkingEffortKey.length > 0
         ? normalizedThinkingEffortKey
         : 'reasoning_effort';
+    const normalizedReasoningKey = options.reasoningKey?.trim();
+    this._reasoningKey =
+      normalizedReasoningKey !== undefined && normalizedReasoningKey.length > 0
+        ? normalizedReasoningKey
+        : undefined;
     this._generationKwargs = { ...options.generationKwargs };
+    this._toolMessageConversion = options.toolMessageConversion ?? null;
     this._client =
       this._apiKey === undefined
         ? undefined
@@ -391,13 +437,15 @@ export class OpenAICompatChatProvider implements ChatProvider {
     return this._model;
   }
 
-  /**
-   * File upload client for an OpenAI-compatible service.
-   *
-   * Use this to upload videos (and other media in the future) to the file
-   * service and receive a content part that can be embedded in chat
-   * messages.
-   */
+  get thinkingEffort(): ThinkingEffort | null {
+    const customValue = this._generationKwargs[this._thinkingEffortKey];
+    if (typeof customValue === 'string') {
+      return reasoningEffortToThinkingEffort(customValue);
+    }
+    const defaultValue = this._generationKwargs.reasoning_effort;
+    return reasoningEffortToThinkingEffort(defaultValue);
+  }
+
   get files(): OpenAICompatFiles {
     this._files ??= new OpenAICompatFiles({
       apiKey: this._apiKey,
@@ -412,21 +460,16 @@ export class OpenAICompatChatProvider implements ChatProvider {
     return this.files.uploadVideo(input, options);
   }
 
-  get thinkingEffort(): ThinkingEffort | null {
-    const customValue = this._generationKwargs[this._thinkingEffortKey];
-    if (typeof customValue === 'string') {
-      return reasoningEffortToThinkingEffort(customValue);
-    }
-    const defaultValue = this._generationKwargs.reasoning_effort;
-    return reasoningEffortToThinkingEffort(defaultValue);
-  }
-
   get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       baseUrl: this._baseUrl,
       ...this._generationKwargs,
     };
+  }
+
+  getCapability(model?: string): ModelCapability {
+    return getOpenAILegacyModelCapability(model ?? this._model);
   }
 
   async generate(
@@ -440,12 +483,24 @@ export class OpenAICompatChatProvider implements ChatProvider {
       messages.push({ role: 'system', content: systemPrompt });
     }
     for (const msg of history) {
-      messages.push(convertMessage(msg));
+      messages.push(convertMessage(msg, this._reasoningKey, this._toolMessageConversion));
     }
 
     const kwargs: Record<string, unknown> = {
       ...this._generationKwargs,
     };
+
+    // Auto-enable reasoning_effort when the history contains ThinkPart but
+    // reasoning was not explicitly configured. Skip when the caller already
+    // pinned reasoning_effort via withGenerationKwargs.
+    if (kwargs[this._thinkingEffortKey] === undefined && kwargs['reasoning_effort'] === undefined) {
+      const hasThinkPart = history.some((message) =>
+        message.content.some((part) => part.type === 'think'),
+      );
+      if (hasThinkPart) {
+        kwargs[this._thinkingEffortKey] = 'high';
+      }
+    }
 
     // Remove undefined values from kwargs
     for (const key of Object.keys(kwargs)) {
@@ -455,11 +510,7 @@ export class OpenAICompatChatProvider implements ChatProvider {
       }
     }
 
-    // Normalize the legacy `max_tokens` alias to the preferred
-    // `max_completion_tokens`. When both are set, `max_completion_tokens`
-    // wins. When neither is
-    // set, send no cap — the upstream loop is responsible for clamping
-    // against the current input size and model context window.
+    // Normalize legacy max_tokens → max_completion_tokens
     if (
       kwargs['max_completion_tokens'] === undefined &&
       kwargs['max_tokens'] !== undefined
@@ -489,23 +540,17 @@ export class OpenAICompatChatProvider implements ChatProvider {
 
     try {
       const client = this._createClient(options?.auth);
-      // Use type assertion via unknown because we pass provider-specific fields
-      // (reasoning_effort, thinking) that don't exist in the OpenAI type definitions.
       const response = (await client.chat.completions.create(
         createParams as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
         options?.signal ? { signal: options.signal } : undefined,
       )) as unknown as OpenAI.Chat.ChatCompletion | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
-      return new OpenAICompatStreamedMessage(response, this._stream);
+      return new OpenAICompletionsStreamedMessage(response, this._stream, this._reasoningKey);
     } catch (error: unknown) {
       throw convertOpenAIError(error);
     }
   }
 
-  getCapability(_model?: string): ModelCapability {
-    return UNKNOWN_CAPABILITY;
-  }
-
-  withThinking(effort: ThinkingEffort): OpenAICompatChatProvider {
+  withThinking(effort: ThinkingEffort): OpenAICompletionsChatProvider {
     const thinking: ThinkingConfig = {
       type: effort === 'off' ? 'disabled' : 'enabled',
     };
@@ -534,15 +579,15 @@ export class OpenAICompatChatProvider implements ChatProvider {
     });
   }
 
-  withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompatChatProvider {
+  withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompletionsChatProvider {
     return this._withGenerationKwargs(kwargs);
   }
 
-  withMaxCompletionTokens(maxCompletionTokens: number): OpenAICompatChatProvider {
+  withMaxCompletionTokens(maxCompletionTokens: number): OpenAICompletionsChatProvider {
     return this._withGenerationKwargs({ max_completion_tokens: maxCompletionTokens });
   }
 
-  withExtraBody(extraBody: ExtraBody): OpenAICompatChatProvider {
+  withExtraBody(extraBody: ExtraBody): OpenAICompletionsChatProvider {
     const oldExtra = this._generationKwargs.extra_body ?? {};
     const merged: ExtraBody = { ...oldExtra, ...extraBody };
     const oldThinking = oldExtra.thinking;
@@ -560,7 +605,7 @@ export class OpenAICompatChatProvider implements ChatProvider {
       (a) => {
         const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, a?.headers);
         return new OpenAI({
-          apiKey: requireProviderApiKey('OpenAICompatChatProvider', a, this._apiKey),
+          apiKey: requireProviderApiKey('OpenAICompletionsChatProvider', a, this._apiKey),
           baseURL: this._baseUrl,
           defaultHeaders,
         });
@@ -568,29 +613,19 @@ export class OpenAICompatChatProvider implements ChatProvider {
     );
   }
 
-  private _withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompatChatProvider {
+  private _withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompletionsChatProvider {
     const clone = this._clone();
     clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
     return clone;
   }
 
-  private _clone(): OpenAICompatChatProvider {
+  private _clone(): OpenAICompletionsChatProvider {
     const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as OpenAICompatChatProvider,
+      Object.create(Object.getPrototypeOf(this) as object) as OpenAICompletionsChatProvider,
       this,
     );
     clone._generationKwargs = { ...this._generationKwargs };
-    // Do not share the memoized OpenAICompatFiles instance with the clone; let it be
-    // lazily re-created on first access.
     clone._files = undefined;
-    // `_client` is intentionally shared with the original instance. Per-step
-    // budget clamping (see KosongLLM.chatOnce) relies on this clone being
-    // cheap. If a future change introduces a retry path that REPLACES
-    // `clone._client` with a freshly built client (and closes the old one),
-    // the original instance's `_client` would become a dangling reference to
-    // a closed socket. Keep `_client` shared and never mutate it after
-    // construction; instead build a new OpenAICompatChatProvider when a real new
-    // client is required.
     return clone;
   }
 }

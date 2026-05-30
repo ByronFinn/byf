@@ -152,9 +152,34 @@ export function isFunctionToolCall<T extends { type: string }>(
   return tc.type === 'function';
 }
 /**
- * Map kosong `ThinkingEffort` to OpenAI `reasoning_effort` string.
+ * Model name prefixes / exact names known to support the `xhigh` reasoning
+ * effort level.  All other OpenAI-compatible models clamp `xhigh` / `max`
+ * down to `high`.
  */
-export function thinkingEffortToReasoningEffort(effort: ThinkingEffort): string | undefined {
+const XHIGH_SUPPORT_PREFIXES = [
+  'gpt-5.',
+  'gpt-5-',
+  'o3-pro',
+  'o4-mini',
+] as const;
+
+function supportsXhighReasoningEffort(model: string): boolean {
+  const normalized = model.toLowerCase();
+  return XHIGH_SUPPORT_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+/**
+ * Map kosong `ThinkingEffort` to OpenAI `reasoning_effort` string.
+ *
+ * When `model` is provided, `xhigh` / `max` are clamped to `'high'` with a
+ * `console.warn` if the model is not known to support the `xhigh` effort
+ * level.  When `model` is omitted the mapping is pass-through (backward
+ * compatible).
+ */
+export function thinkingEffortToReasoningEffort(
+  effort: ThinkingEffort,
+  model?: string,
+): string | undefined {
   switch (effort) {
     case 'off':
       return undefined;
@@ -165,8 +190,13 @@ export function thinkingEffortToReasoningEffort(effort: ThinkingEffort): string 
     case 'high':
       return 'high';
     case 'xhigh':
-    case 'max':
+    case 'max': {
+      if (model !== undefined && !supportsXhighReasoningEffort(model)) {
+        console.warn(`effort '${effort}' clamped to 'high' for model ${model}`);
+        return 'high';
+      }
       return 'xhigh';
+    }
     default:
       throw new Error(`Unknown thinking effort: ${String(effort)}`);
   }

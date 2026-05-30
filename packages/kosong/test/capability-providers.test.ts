@@ -15,13 +15,12 @@
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
-import { OpenAICompatChatProvider } from '#/providers/openai-compat';
-import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { OpenAIResponsesChatProvider } from '#/providers/openai-responses';
 import { describe, expect, it } from 'vitest';
-describe('OpenAICompatChatProvider.getCapability', () => {
-  function make(model: string): OpenAICompatChatProvider {
-    return new OpenAICompatChatProvider({ model, apiKey: 'test-key' });
+describe('OpenAICompletionsChatProvider.getCapability', () => {
+  function make(model: string): OpenAICompletionsChatProvider {
+    return new OpenAICompletionsChatProvider({ model, apiKey: 'test-key' });
   }
 
   it('does not infer capabilities from Byf model names', () => {
@@ -126,10 +125,69 @@ describe('AnthropicChatProvider.getCapability', () => {
     const cap = make('claude-not-real').getCapability();
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
   });
+
+  // --- thinking_effort / thinking_xhigh / thinking_max for Claude 4.x ---
+
+  it('claude-opus-4-7 → thinking_effort + thinking_xhigh + thinking_max', () => {
+    const cap = make('claude-opus-4-7-20250619').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(true);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('claude-opus-4-8 → thinking_effort + thinking_xhigh + thinking_max', () => {
+    const cap = make('claude-opus-4-8-20250619').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(true);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('claude-opus-4-6 → thinking_effort + thinking_max but not thinking_xhigh', () => {
+    const cap = make('claude-opus-4-6-20250619').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(false);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('claude-sonnet-4-6 → thinking_effort + thinking_max but not thinking_xhigh', () => {
+    const cap = make('claude-sonnet-4-6-20250619').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(false);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('claude-haiku-4-5 → thinking_effort + thinking_max but not thinking_xhigh', () => {
+    const cap = make('claude-haiku-4-5-20250619').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(false);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('claude-opus-4 (base) → thinking_effort + thinking_max but not thinking_xhigh', () => {
+    const cap = make('claude-opus-4').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(false);
+    expect(cap.thinking_max).toBe(true);
+  });
+
+  it('Claude 3.x models do not have thinking_effort / thinking_xhigh / thinking_max', () => {
+    for (const m of ['claude-3-5-sonnet', 'claude-3-haiku', 'claude-3-7-sonnet']) {
+      const cap = make(m).getCapability();
+      expect(cap.thinking_effort).toBe(false);
+      expect(cap.thinking_xhigh).toBe(false);
+      expect(cap.thinking_max).toBe(false);
+    }
+  });
 });
-describe('OpenAILegacyChatProvider.getCapability', () => {
-  function make(model: string): OpenAILegacyChatProvider {
-    return new OpenAILegacyChatProvider({ model, apiKey: 'test-key' });
+describe('OpenAICompletionsChatProvider.getCapability (known models)', () => {
+  function make(model: string): OpenAICompletionsChatProvider {
+    return new OpenAICompletionsChatProvider({ model, apiKey: 'test-key' });
   }
 
   it('gpt-4o → image_in + tool_use', () => {
@@ -150,9 +208,36 @@ describe('OpenAILegacyChatProvider.getCapability', () => {
     expect(cap.tool_use).toBe(true);
   });
 
-  it('unknown OpenAI-legacy model → UNKNOWN_CAPABILITY', () => {
+  it('unknown OpenAI-completions model → UNKNOWN_CAPABILITY', () => {
     const cap = make('gpt-mystery').getCapability();
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
+  });
+
+  // --- thinking_effort for OpenAI o-series ---
+
+  it('o3 → thinking_effort', () => {
+    const cap = make('o3').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+  });
+
+  it('o4-mini → thinking_effort', () => {
+    const cap = make('o4-mini').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+  });
+
+  it('o1 → thinking_effort', () => {
+    const cap = make('o1').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+  });
+
+  it('non-reasoning OpenAI models do not have thinking_effort', () => {
+    for (const m of ['gpt-4o', 'gpt-3.5-turbo', 'gpt-4.1']) {
+      const cap = make(m).getCapability();
+      expect(cap.thinking_effort).toBe(false);
+    }
   });
 });
 describe('OpenAIResponsesChatProvider.getCapability', () => {
@@ -180,5 +265,33 @@ describe('OpenAIResponsesChatProvider.getCapability', () => {
   it('unknown Responses model → UNKNOWN_CAPABILITY', () => {
     const cap = make('gpt-mystery').getCapability();
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
+  });
+
+  // --- thinking_effort for OpenAI o-series (Responses path) ---
+
+  it('o3 → thinking_effort (Responses)', () => {
+    const cap = make('o3').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+  });
+
+  it('o4-mini → thinking_effort (Responses)', () => {
+    const cap = make('o4-mini').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+  });
+
+  it('gpt-5-codex → thinking_effort + thinking_xhigh', () => {
+    const cap = make('gpt-5-codex').getCapability();
+    expect(cap.thinking).toBe(true);
+    expect(cap.thinking_effort).toBe(true);
+    expect(cap.thinking_xhigh).toBe(true);
+  });
+
+  it('non-reasoning Responses models do not have thinking_effort', () => {
+    for (const m of ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o']) {
+      const cap = make(m).getCapability();
+      expect(cap.thinking_effort).toBe(false);
+    }
   });
 });

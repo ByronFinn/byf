@@ -4,8 +4,7 @@ import { MockChatProvider } from './fixtures/mock-provider';
 import type { FinishReason } from '#/provider';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider, GoogleGenAIStreamedMessage } from '#/providers/google-genai';
-import { OpenAICompatChatProvider } from '#/providers/openai-compat';
-import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { OpenAIResponsesStreamedMessage } from '#/providers/openai-responses';
 import { normalizeOpenAIFinishReason } from '#/providers/openai-common';
 import { step } from './fixtures/step';
@@ -40,8 +39,8 @@ const EMPTY_TOOLSET: Toolset = {
 // A. Normalization table coverage (direct helper tests where possible).
 // =====================================================================
 
-describe('normalizeOpenAIFinishReason (Byf + OpenAILegacy shared helper)', () => {
-  // Covers A for Byf + OpenAILegacy.
+describe('normalizeOpenAIFinishReason (Chat Completions shared helper)', () => {
+  // Covers A for OpenAI Completions.
   it.each<[string | null | undefined, FinishReason | null, string | null]>([
     ['stop', 'completed', 'stop'],
     ['tool_calls', 'tool_calls', 'tool_calls'],
@@ -86,23 +85,15 @@ function makeOpenAIChatClient(response: unknown) {
   };
 }
 
-function createByfProvider(response: unknown, stream: boolean): OpenAICompatChatProvider {
-  return new OpenAICompatChatProvider({
-    model: 'byf-k2-turbo-preview',
+function createOpenAICompletionsProvider(response: unknown, stream: boolean): OpenAICompletionsChatProvider {
+  return new OpenAICompletionsChatProvider({
+    model: 'test-model',
     stream,
     clientFactory: () => makeOpenAIChatClient(response) as never,
   });
 }
 
-function createOpenAILegacyProvider(response: unknown, stream: boolean): OpenAILegacyChatProvider {
-  return new OpenAILegacyChatProvider({
-    model: 'gpt-4.1',
-    stream,
-    clientFactory: () => makeOpenAIChatClient(response) as never,
-  });
-}
-
-describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () => {
+describe('OpenAICompletionsChatProvider finish reason (stream, table coverage)', () => {
   // A + B coverage for Byf.
   it.each<[string, FinishReason, string]>([
     ['stop', 'completed', 'stop'],
@@ -114,7 +105,7 @@ describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () =
   ])(
     'raw stream finish_reason %j maps to %j (raw=%j)',
     async (raw, expectedFinish, expectedRaw) => {
-      const provider = createByfProvider(makeByfStream(raw), true);
+      const provider = createOpenAICompletionsProvider(makeByfStream(raw), true);
 
       const stream = await provider.generate('', [], [USER_MSG]);
       for await (const _ of stream) {
@@ -133,7 +124,7 @@ describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () =
         choices: [{ index: 0, delta: { content: 'partial' } }],
       },
     ];
-    const provider = createByfProvider(makeAsyncIterable(chunks), true);
+    const provider = createOpenAICompletionsProvider(makeAsyncIterable(chunks), true);
 
     const stream = await provider.generate('', [], [USER_MSG]);
     for await (const _ of stream) {
@@ -145,7 +136,7 @@ describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () =
 
   // C coverage for Byf.
   it('captures finish_reason from a non-stream response', async () => {
-    const provider = createByfProvider(
+    const provider = createOpenAICompletionsProvider(
       {
         id: 'chatcmpl-ns',
         choices: [
@@ -170,7 +161,7 @@ describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () =
 
   // D (non-stream) coverage for Byf.
   it('returns null finishReason when non-stream response omits finish_reason', async () => {
-    const provider = createByfProvider(
+    const provider = createOpenAICompletionsProvider(
       {
         id: 'chatcmpl-ns-null',
         choices: [
@@ -183,72 +174,6 @@ describe('OpenAICompatChatProvider finish reason (stream, table coverage)', () =
       },
       false,
     );
-
-    const stream = await provider.generate('', [], [USER_MSG]);
-    for await (const _ of stream) {
-      void _;
-    }
-    expect(stream.finishReason).toBeNull();
-    expect(stream.rawFinishReason).toBeNull();
-  });
-});
-describe('OpenAILegacyChatProvider finish reason (stream + non-stream)', () => {
-  // A + B coverage for OpenAI Legacy.
-  it.each<[string, FinishReason, string]>([
-    ['stop', 'completed', 'stop'],
-    ['tool_calls', 'tool_calls', 'tool_calls'],
-    ['function_call', 'tool_calls', 'function_call'],
-    ['length', 'truncated', 'length'],
-    ['content_filter', 'filtered', 'content_filter'],
-    ['mystery', 'other', 'mystery'],
-  ])(
-    'raw stream finish_reason %j maps to %j (raw=%j)',
-    async (raw, expectedFinish, expectedRaw) => {
-      const provider = createOpenAILegacyProvider(makeByfStream(raw), true);
-
-      const stream = await provider.generate('', [], [USER_MSG]);
-      for await (const _ of stream) {
-        void _;
-      }
-      expect(stream.finishReason).toBe(expectedFinish);
-      expect(stream.rawFinishReason).toBe(expectedRaw);
-    },
-  );
-
-  // C coverage for OpenAI Legacy.
-  it('captures finish_reason from a non-stream response', async () => {
-    const provider = createOpenAILegacyProvider(
-      {
-        id: 'chatcmpl-ns-legacy',
-        choices: [
-          {
-            index: 0,
-            message: { role: 'assistant', content: 'hi' },
-            finish_reason: 'content_filter',
-          },
-        ],
-        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      },
-      false,
-    );
-
-    const stream = await provider.generate('', [], [USER_MSG]);
-    for await (const _ of stream) {
-      void _;
-    }
-    expect(stream.finishReason).toBe('filtered');
-    expect(stream.rawFinishReason).toBe('content_filter');
-  });
-
-  // D coverage for OpenAI Legacy.
-  it('returns null finishReason when stream omits finish_reason entirely', async () => {
-    const chunks = [
-      {
-        id: 'chatcmpl-null',
-        choices: [{ index: 0, delta: { content: 'hi' } }],
-      },
-    ];
-    const provider = createOpenAILegacyProvider(makeAsyncIterable(chunks), true);
 
     const stream = await provider.generate('', [], [USER_MSG]);
     for await (const _ of stream) {

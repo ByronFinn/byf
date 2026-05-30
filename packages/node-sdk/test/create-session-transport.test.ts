@@ -30,7 +30,7 @@ async function writeTestModelConfig(homeDir: string, modelName = 'byf-test-model
     join(homeDir, 'config.toml'),
     `
 [providers.local]
-type = "openai-compat"
+type = "openai-completions"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 
@@ -258,7 +258,7 @@ describe('ByfHarness.createSession transport link', () => {
 default_model = "alias-model"
 
 [providers.local]
-type = "openai"
+type = "openai-completions"
 base_url = "https://example.test/v1"
 api_key = "sk-test"
 

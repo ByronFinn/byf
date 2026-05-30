@@ -221,6 +221,9 @@ function resolveModelCapabilities(
     audio_in: has('audio_in') || providerCapability.audio_in,
     thinking: has('thinking') || has('always_thinking') || providerCapability.thinking,
     tool_use: has('tool_use') || providerCapability.tool_use,
+    thinking_effort: has('thinking_effort') || providerCapability.thinking_effort,
+    thinking_xhigh: has('thinking_xhigh') || providerCapability.thinking_xhigh,
+    thinking_max: has('thinking_max') || providerCapability.thinking_max,
     max_context_tokens: alias.maxContextSize,
   };
 }
@@ -243,25 +246,17 @@ function toKosongProviderConfig(
         ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
-    case 'openai':
-      return {
-        type: 'openai',
-        model,
-        baseUrl: providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL'),
-        apiKey: providerApiKey(provider),
-        reasoningKey,
-        ...defaultHeadersField(provider.customHeaders),
-      };
-    case 'openai-compat': {
+    case 'openai-completions': {
       const defaultHeaders = {
         ...byfRequestHeaders,
         ...provider.customHeaders,
       };
       if (Object.keys(defaultHeaders).length === 0) {
         return {
-          type: 'openai-compat',
+          type: 'openai-completions',
           model,
           baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
+          reasoningKey,
           thinkingEffortKey: provider.thinkingEffortKey,
           generationKwargs: {
             prompt_cache_key: promptCacheKey,
@@ -270,9 +265,10 @@ function toKosongProviderConfig(
         };
       }
       return {
-        type: 'openai-compat',
+        type: 'openai-completions',
         model,
         baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
+        reasoningKey,
         thinkingEffortKey: provider.thinkingEffortKey,
         generationKwargs: {
           prompt_cache_key: promptCacheKey,
@@ -346,10 +342,9 @@ function providerApiKey(provider: ProviderConfig): string | undefined {
   switch (provider.type) {
     case 'anthropic':
       return providerValue(provider.apiKey, provider.env, 'ANTHROPIC_API_KEY');
-    case 'openai':
     case 'openai_responses':
       return providerValue(provider.apiKey, provider.env, 'OPENAI_API_KEY');
-    case 'openai-compat':
+    case 'openai-completions':
       return providerValue(provider.apiKey, provider.env, 'BYF_API_KEY');
     case 'google-genai':
       return providerValue(provider.apiKey, provider.env, 'GOOGLE_API_KEY');

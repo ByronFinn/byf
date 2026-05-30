@@ -2,13 +2,13 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { OpenAICompatChatProvider } from '#/providers/openai-compat';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { OpenAICompatFiles } from '#/providers/openai-compat-files';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-function createProvider(): OpenAICompatChatProvider {
-  return new OpenAICompatChatProvider({
-    model: 'byf-k2-turbo-preview',
+function createProvider(): OpenAICompletionsChatProvider {
+  return new OpenAICompletionsChatProvider({
+    model: 'test-model',
     apiKey: 'test-key',
   });
 }
@@ -24,7 +24,7 @@ describe('OpenAICompatFiles', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  describe('exposure on OpenAICompatChatProvider', () => {
+  describe('exposure on OpenAICompletionsChatProvider', () => {
     it('exposes files property returning a OpenAICompatFiles instance', () => {
       const provider = createProvider();
       const files = provider.files;

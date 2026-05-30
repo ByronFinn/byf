@@ -15,7 +15,7 @@ import { testAgent } from './harness/agent';
 import { DEFAULT_TEST_SYSTEM_PROMPT } from './harness/snapshots';
 
 const MOCK_PROVIDER = {
-  type: 'openai-compat',
+  type: 'openai-completions',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const;

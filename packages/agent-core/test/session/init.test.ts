@@ -17,7 +17,7 @@ import { createScriptedGenerate } from '../agent/harness/scripted-generate';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 
 const MOCK_PROVIDER = {
-  type: 'openai-compat',
+  type: 'openai-completions',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const satisfies ProviderConfig;

@@ -9,7 +9,7 @@ describe('Agent config', () => {
   it('exposes provider, system prompt, thinking level, and model capability updates', async () => {
     const ctx = testAgent();
     const initialProvider: ProviderConfig = {
-      type: 'openai',
+      type: 'openai-completions',
       apiKey: 'sk-initial',
       baseUrl: 'https://initial.example/v1',
       model: 'gpt-initial',
@@ -20,6 +20,9 @@ describe('Agent config', () => {
       audio_in: false,
       thinking: false,
       tool_use: true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 128000,
     };
     ctx.configure({
@@ -35,7 +38,7 @@ describe('Agent config', () => {
     });
 
     const nextProvider: ProviderConfig = {
-      type: 'openai-compat',
+      type: 'openai-completions',
       apiKey: 'sk-next',
       baseUrl: 'https://next.example/v1',
       model: 'byf-next',
@@ -46,6 +49,9 @@ describe('Agent config', () => {
       audio_in: false,
       thinking: true,
       tool_use: true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 262144,
     };
     ctx.configureRuntimeModel(nextProvider, nextCapability);
@@ -127,7 +133,7 @@ describe('Agent config', () => {
     `);
 
     ctx.configureRuntimeModel({
-      type: 'openai-compat',
+      type: 'openai-completions',
       apiKey: 'test-key',
       model: 'changed-model',
     });

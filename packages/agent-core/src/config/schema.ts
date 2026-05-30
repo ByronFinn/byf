@@ -5,8 +5,7 @@ import { z } from 'zod';
 
 export const ProviderTypeSchema = z.enum([
   'anthropic',
-  'openai',
-  'openai-compat',
+  'openai-completions',
   'google-genai',
   'openai_responses',
   'vertexai',
@@ -50,7 +49,7 @@ export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 
 export const ThinkingConfigSchema = z.object({
   mode: z.enum(['auto', 'on', 'off']).optional(),
-  effort: z.string().optional(),
+  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
 });
 
 export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;

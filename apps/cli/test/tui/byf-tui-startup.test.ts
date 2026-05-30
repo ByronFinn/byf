@@ -700,4 +700,94 @@ describe("ByfTui startup", () => {
 
     await expect(driver.init()).rejects.toThrow("provider config is invalid");
   });
+
+  it("emits a deprecation warning when defaultThinking is true and maps to effort high", async () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const session = makeSession({
+      getStatus: vi.fn(async () => ({
+        model: "k2",
+        thinkingLevel: "on",
+        permission: "manual",
+        planMode: false,
+        contextTokens: 10,
+        maxContextTokens: 100,
+        contextUsage: 0.1,
+      })),
+    });
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        defaultModel: "k2",
+        defaultThinking: true,
+        models: {
+          k2: { model: "byf-v1", maxContextSize: 100, capabilities: ["thinking"] },
+        },
+      })),
+    });
+    const driver = makeDriver(harness, makeStartupInput());
+
+    await (driver as any).refreshConfigAfterLogin();
+
+    expect(warn).toHaveBeenCalledWith(
+      "defaultThinking is deprecated. Use [thinking] mode and effort instead.",
+    );
+    expect(driver.state.appState.thinkingEffort).toBe("high");
+
+    warn.mockRestore();
+  });
+
+  it("emits a deprecation warning when defaultThinking is false and maps to effort off", async () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const session = makeSession({
+      getStatus: vi.fn(async () => ({
+        model: "k2",
+        thinkingLevel: "off",
+        permission: "manual",
+        planMode: false,
+        contextTokens: 10,
+        maxContextTokens: 100,
+        contextUsage: 0.1,
+      })),
+    });
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        defaultModel: "k2",
+        defaultThinking: false,
+        models: {
+          k2: { model: "byf-v1", maxContextSize: 100 },
+        },
+      })),
+    });
+    const driver = makeDriver(harness, makeStartupInput());
+
+    await (driver as any).refreshConfigAfterLogin();
+
+    expect(warn).toHaveBeenCalledWith(
+      "defaultThinking is deprecated. Use [thinking] mode and effort instead.",
+    );
+    expect(driver.state.appState.thinkingEffort).toBe("off");
+
+    warn.mockRestore();
+  });
+
+  it("does not emit a deprecation warning when defaultThinking is absent", async () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        defaultModel: "k2",
+        models: {
+          k2: { model: "byf-v1", maxContextSize: 100 },
+        },
+      })),
+    });
+    const driver = makeDriver(harness, makeStartupInput());
+
+    await (driver as any).refreshConfigAfterLogin();
+
+    expect(warn).not.toHaveBeenCalledWith(
+      "defaultThinking is deprecated. Use [thinking] mode and effort instead.",
+    );
+
+    warn.mockRestore();
+  });
 });

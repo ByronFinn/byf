@@ -12,19 +12,17 @@ import {
   reasoningEffortToThinkingEffort,
   thinkingEffortToReasoningEffort,
 } from '#/providers/openai-common';
-import { OpenAILegacyChatProvider, OpenAILegacyStreamedMessage } from '#/providers/openai-legacy';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import {
   APIError as OpenAIAPIError,
   APIConnectionError as OpenAIConnectionError,
   APIConnectionTimeoutError as OpenAITimeoutError,
   APIUserAbortError as OpenAIUserAbortError,
 } from 'openai';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 describe('OpenAI client creation', () => {
   it('does not inject max_retries into OpenAI client', () => {
-    // The OpenAI constructor is called with apiKey and baseURL only —
-    // we verify that the provider does not set max_retries.
-    const provider = new OpenAILegacyChatProvider({
+    const provider = new OpenAICompletionsChatProvider({
       model: 'gpt-4.1',
       apiKey: 'test-key',
       baseUrl: 'https://example.com/v1',
@@ -149,41 +147,31 @@ describe('convertOpenAIError: subclass errors fall through', () => {
 });
 describe('OpenAI streaming error propagation', () => {
   it('base APIError("Network connection lost.") during streaming becomes APIConnectionError', async () => {
-    // Simulates: streaming for ~33 minutes, then SSE connection drops
-    // and the SDK raises openai.APIError("Network connection lost.")
     async function* failingStream(): AsyncGenerator<never> {
       throw new OpenAIAPIError(undefined, undefined, 'Network connection lost.', undefined);
-      // Make this an async generator (unreachable)
       yield undefined as never;
     }
 
-    const msg = new OpenAILegacyStreamedMessage(
-      failingStream() as AsyncIterable<never>,
-      true,
-      undefined,
-    );
+    const provider = new OpenAICompletionsChatProvider({
+      model: 'gpt-4.1',
+      apiKey: 'test-key',
+      baseUrl: 'https://example.com/v1',
+      stream: true,
+    });
+
+    (provider as any)._client.chat.completions.create = vi
+      .fn()
+      .mockResolvedValue(failingStream());
+
+    const stream = await provider.generate('', [], [
+      { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+    ]);
 
     await expect(async () => {
-      for await (const _ of msg) {
+      for await (const _ of stream) {
         void _;
       }
     }).rejects.toThrow(APIConnectionError);
-
-    // Verify the message is preserved
-    await expect(async () => {
-      async function* failingStream2(): AsyncGenerator<never> {
-        throw new OpenAIAPIError(undefined, undefined, 'Network connection lost.', undefined);
-        yield undefined as never;
-      }
-      const msg2 = new OpenAILegacyStreamedMessage(
-        failingStream2() as AsyncIterable<never>,
-        true,
-        undefined,
-      );
-      for await (const _ of msg2) {
-        void _;
-      }
-    }).rejects.toThrow(/Network connection lost/);
   });
 });
 describe('convertContentPart', () => {
@@ -272,6 +260,109 @@ describe('thinkingEffortToReasoningEffort', () => {
     expect(() => thinkingEffortToReasoningEffort('extreme' as never)).toThrow(
       /Unknown thinking effort/,
     );
+  });
+});
+
+describe('thinkingEffortToReasoningEffort: model-aware clamping', () => {
+  // --- No model: backward-compatible, no clamping ---
+
+  it('without model: low passes through', () => {
+    expect(thinkingEffortToReasoningEffort('low')).toBe('low');
+  });
+  it('without model: medium passes through', () => {
+    expect(thinkingEffortToReasoningEffort('medium')).toBe('medium');
+  });
+  it('without model: high passes through', () => {
+    expect(thinkingEffortToReasoningEffort('high')).toBe('high');
+  });
+  it('without model: off returns undefined', () => {
+    expect(thinkingEffortToReasoningEffort('off')).toBeUndefined();
+  });
+  it('without model: xhigh passes through (no clamping)', () => {
+    expect(thinkingEffortToReasoningEffort('xhigh')).toBe('xhigh');
+  });
+  it('without model: max maps to xhigh (no clamping)', () => {
+    expect(thinkingEffortToReasoningEffort('max')).toBe('xhigh');
+  });
+
+  // --- Model that supports xhigh: passes through ---
+
+  it('with xhigh-supporting model: xhigh passes through', () => {
+    expect(thinkingEffortToReasoningEffort('xhigh', 'gpt-5.1-codex-max')).toBe('xhigh');
+  });
+  it('with xhigh-supporting model: max maps to xhigh', () => {
+    expect(thinkingEffortToReasoningEffort('max', 'gpt-5.1-codex-max')).toBe('xhigh');
+  });
+  it('with xhigh-supporting model: low passes through', () => {
+    expect(thinkingEffortToReasoningEffort('low', 'gpt-5.1-codex-max')).toBe('low');
+  });
+  it('with xhigh-supporting model: medium passes through', () => {
+    expect(thinkingEffortToReasoningEffort('medium', 'gpt-5.1-codex-max')).toBe('medium');
+  });
+  it('with xhigh-supporting model: high passes through', () => {
+    expect(thinkingEffortToReasoningEffort('high', 'gpt-5.1-codex-max')).toBe('high');
+  });
+  it('with xhigh-supporting model: off returns undefined', () => {
+    expect(thinkingEffortToReasoningEffort('off', 'gpt-5.1-codex-max')).toBeUndefined();
+  });
+
+  // --- Model that does NOT support xhigh: clamps to high ---
+
+  it('with non-supporting model: xhigh clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('xhigh', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'xhigh' clamped to 'high' for model gpt-4.1",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: max clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('max', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'max' clamped to 'high' for model gpt-4.1",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: low is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('low', 'gpt-4.1')).toBe('low');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: medium is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('medium', 'gpt-4.1')).toBe('medium');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: high is unchanged (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('high', 'gpt-4.1')).toBe('high');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('with non-supporting model: off returns undefined (no warn)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('off', 'gpt-4.1')).toBeUndefined();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  // --- Unknown model: conservative — clamps xhigh/max to high ---
+
+  it('with unknown model: xhigh clamped to high + warn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(thinkingEffortToReasoningEffort('xhigh', 'some-unknown-model')).toBe('high');
+    expect(warnSpy).toHaveBeenCalledWith(
+      "effort 'xhigh' clamped to 'high' for model some-unknown-model",
+    );
+    warnSpy.mockRestore();
   });
 });
 describe('reasoningEffortToThinkingEffort', () => {

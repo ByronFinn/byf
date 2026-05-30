@@ -84,7 +84,7 @@ async function configureLocalProvider(harness: ByfHarness): Promise<void> {
   await harness.setConfig({
     providers: {
       local: {
-        type: 'openai-compat',
+        type: 'openai-completions',
         apiKey: 'sk-test',
       },
     },

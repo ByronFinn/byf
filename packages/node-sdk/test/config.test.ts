@@ -40,7 +40,7 @@ merge_all_available_skills = true
 extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 
 [providers.byf-for-coding]
-type = "openai-compat"
+type = "openai-completions"
 base_url = "https://api.example.test/v1"
 api_key = "sk-xxx"
 custom_headers = { "X-Custom-Header" = "value" }
@@ -95,7 +95,7 @@ describe('SDK config TOML', () => {
 
     const provider = config.providers['byf-for-coding'];
     expect(provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-xxx',
       customHeaders: { 'X-Custom-Header': 'value' },
@@ -169,7 +169,7 @@ describe('SDK config TOML', () => {
 defaultModel = "camel-model"
 
 [providers.local]
-type = "openai"
+type = "openai-completions"
 baseUrl = "https://example.test/v1"
 apiKey = "sk-test"
 unsupported_provider_field = "raw-only"
@@ -194,7 +194,7 @@ maxRunningTasks = 2
 
     expect(config.defaultModel).toBe('camel-model');
     expect(config.providers['local']).toMatchObject({
-      type: 'openai',
+      type: 'openai-completions',
       baseUrl: 'https://example.test/v1',
       apiKey: 'sk-test',
     });
@@ -242,7 +242,7 @@ describe('ByfHarness config API', () => {
 
     const config = await harness.getConfig({ reload: true });
     expect(config.providers['byf-for-coding']).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-updated',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },

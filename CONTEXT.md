@@ -23,7 +23,10 @@ BYF is a hard fork. No future merges or cherry-picks from upstream. All upstream
 ## Glossary
 
 ### Provider
-A named OpenAI-compatible API endpoint configured by the user. Each provider has a user-chosen name (e.g. "deepseek"), a `base_url`, an `api_key`, and an optional `allowedPrefixes` for model filtering. Stored in config under `providers[name]`.
+A named API endpoint configured by the user. Each provider has a user-chosen name (e.g. "deepseek"), a `type` (e.g. `openai-completions`, `anthropic`, `google-genai`), a `base_url`, an `api_key`, and an optional `allowedPrefixes` for model filtering. Stored in config under `providers[name]`.
+
+### openai-completions
+The unified provider type for any OpenAI Chat Completions-compatible API (OpenAI, DeepSeek, Ollama, etc.). Replaces the former `openai` and `openai-compat` types. _Avoid_: openai (deprecated), openai-compat (deprecated).
 
 ### Catalog Provider
 A well-known provider (OpenAI, Anthropic, etc.) configured through `/connect`, which fetches metadata from the models.dev catalog. Distinct from user-configured providers from `/login`.
