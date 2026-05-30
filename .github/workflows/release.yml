@@ -101,16 +101,18 @@ jobs:
             ### Installation
 
             ```bash
-            # macOS / Linux
-            curl -fsSL https://github.com/ByronFinn/byf/releases/download/${{ steps.version.outputs.tag }}/byf-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip -o byf.zip
-            unzip byf.zip
-            chmod +x byf
-            sudo mv byf /usr/local/bin/
+            # macOS / Linux (quick install)
+            curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
+
+            # Windows (quick install)
+            # irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
 
             # Or install via npm
             npm install -g @byfriends/cli
             ```
           files: |
+            install.sh
+            install.ps1
             artifacts/byf-darwin-arm64/*
             artifacts/byf-linux-x64/*
             artifacts/byf-win32-x64/*

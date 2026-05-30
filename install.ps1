@@ -12,8 +12,8 @@ $BINARY_NAME = 'byf.exe'
 function Get-Platform {
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
     switch ($arch) {
-        'X64' { return 'windows-x64' }
-        'Arm64' { return 'windows-arm64' }
+        'X64' { return 'win32-x64' }
+        'Arm64' { return 'win32-arm64' }
         default {
             Write-Error "Unsupported architecture: $arch"
             exit 1
@@ -22,18 +22,24 @@ function Get-Platform {
 }
 
 $platform = Get-Platform
-$downloadUrl = "https://github.com/$GITHUB_REPO/releases/latest/download/byf-$platform.exe"
+$downloadUrl = "https://github.com/$GITHUB_REPO/releases/latest/download/byf-$platform.zip"
+$tempDir = [System.IO.Path]::GetTempPath() + "byf-install-" + [System.Guid]::NewGuid().ToString("N").Substring(0, 8)
 
 Write-Host "Downloading BYF for $platform..."
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-$installPath = Join-Path $InstallDir $BINARY_NAME
+New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 try {
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $installPath -UseBasicParsing
+    Invoke-WebRequest -Uri $downloadUrl -OutFile "$tempDir\byf.zip" -UseBasicParsing
+    Expand-Archive -Path "$tempDir\byf.zip" -DestinationPath $tempDir -Force
+    $installPath = Join-Path $InstallDir $BINARY_NAME
+    Move-Item -Path "$tempDir\$BINARY_NAME" -Destination $installPath -Force
 } catch {
     Write-Error "Download failed from: $downloadUrl`nError: $_"
     exit 1
+} finally {
+    Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
@@ -50,5 +56,5 @@ if ($userPath -notlike "*$InstallDir*") {
     Write-Host "NOTE: Added $InstallDir to your user PATH. Restart your shell to use 'byf'."
 }
 
-Write-Host "✓ BYF installed to $installPath"
+Write-Host "BYF installed to $installPath"
 Write-Host "Run 'byf --help' to get started"
