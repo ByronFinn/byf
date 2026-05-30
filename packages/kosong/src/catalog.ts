@@ -134,6 +134,9 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
       audio_in: inputs.includes('audio'),
       thinking: Boolean(model.reasoning),
       tool_use: model.tool_call ?? true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: context,
     },
   };

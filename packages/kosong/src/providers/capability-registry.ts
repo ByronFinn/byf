@@ -51,6 +51,21 @@ const OPENAI_REASONING_CAPABILITY: ModelCapability = Object.freeze({
   audio_in: false,
   thinking: true,
   tool_use: true,
+  thinking_effort: true,
+  thinking_xhigh: false,
+  thinking_max: false,
+  max_context_tokens: 0,
+});
+
+const OPENAI_REASONING_XHIGH_CAPABILITY: ModelCapability = Object.freeze({
+  image_in: false,
+  video_in: false,
+  audio_in: false,
+  thinking: true,
+  tool_use: true,
+  thinking_effort: true,
+  thinking_xhigh: true,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
@@ -60,6 +75,9 @@ const OPENAI_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   audio_in: false,
   thinking: false,
   tool_use: true,
+  thinking_effort: false,
+  thinking_xhigh: false,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
@@ -69,6 +87,9 @@ const OPENAI_TEXT_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   audio_in: false,
   thinking: false,
   tool_use: true,
+  thinking_effort: false,
+  thinking_xhigh: false,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
@@ -78,6 +99,9 @@ const ANTHROPIC_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   audio_in: false,
   thinking: false,
   tool_use: true,
+  thinking_effort: false,
+  thinking_xhigh: false,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
@@ -87,6 +111,21 @@ const ANTHROPIC_THINKING_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze
   audio_in: false,
   thinking: true,
   tool_use: true,
+  thinking_effort: true,
+  thinking_xhigh: false,
+  thinking_max: true,
+  max_context_tokens: 0,
+});
+
+const ANTHROPIC_THINKING_XHIGH_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
+  image_in: true,
+  video_in: false,
+  audio_in: false,
+  thinking: true,
+  tool_use: true,
+  thinking_effort: true,
+  thinking_xhigh: true,
+  thinking_max: true,
   max_context_tokens: 0,
 });
 
@@ -96,6 +135,9 @@ const GEMINI_MULTIMODAL_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   audio_in: true,
   thinking: false,
   tool_use: true,
+  thinking_effort: false,
+  thinking_xhigh: false,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
@@ -105,10 +147,17 @@ const GEMINI_THINKING_MULTIMODAL_TOOL_CAPABILITY: ModelCapability = Object.freez
   audio_in: true,
   thinking: true,
   tool_use: true,
+  thinking_effort: false,
+  thinking_xhigh: false,
+  thinking_max: false,
   max_context_tokens: 0,
 });
 
 const OPENAI_LEGACY_CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
+  {
+    matches: isOpenAIGpt5ReasoningModel,
+    capability: OPENAI_REASONING_XHIGH_CAPABILITY,
+  },
   {
     matches: isOpenAIReasoningModel,
     capability: OPENAI_REASONING_CAPABILITY,
@@ -125,6 +174,10 @@ const OPENAI_LEGACY_CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
 
 const OPENAI_RESPONSES_CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
   {
+    matches: isOpenAIGpt5ReasoningModel,
+    capability: OPENAI_REASONING_XHIGH_CAPABILITY,
+  },
+  {
     matches: isOpenAIReasoningModel,
     capability: OPENAI_REASONING_CAPABILITY,
   },
@@ -138,6 +191,10 @@ const ANTHROPIC_CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
   {
     matches: (name) => hasPrefix(name, CLAUDE_3_PREFIXES),
     capability: ANTHROPIC_VISION_TOOL_CAPABILITY,
+  },
+  {
+    matches: isClaudeOpus47Or48,
+    capability: ANTHROPIC_THINKING_XHIGH_VISION_TOOL_CAPABILITY,
   },
   {
     matches: (name) => hasPrefix(name, CLAUDE_4_PREFIXES),
@@ -155,6 +212,14 @@ function hasPrefix(modelName: string, prefixes: readonly string[]): boolean {
 
 function isOpenAIReasoningModel(modelName: string): boolean {
   return /^o\d/.test(modelName);
+}
+
+function isOpenAIGpt5ReasoningModel(modelName: string): boolean {
+  return /^gpt-5/.test(modelName);
+}
+
+function isClaudeOpus47Or48(modelName: string): boolean {
+  return /claude-opus-4-[78]/.test(modelName);
 }
 
 function capabilityFromCatalog(

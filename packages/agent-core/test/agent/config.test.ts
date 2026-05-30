@@ -20,6 +20,9 @@ describe('Agent config', () => {
       audio_in: false,
       thinking: false,
       tool_use: true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 128000,
     };
     ctx.configure({
@@ -46,6 +49,9 @@ describe('Agent config', () => {
       audio_in: false,
       thinking: true,
       tool_use: true,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 262144,
     };
     ctx.configureRuntimeModel(nextProvider, nextCapability);

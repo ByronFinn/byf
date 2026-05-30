@@ -391,6 +391,9 @@ function _typeOnlyChecks(): void {
     audio_in: false,
     thinking: false,
     tool_use: true,
+    thinking_effort: false,
+    thinking_xhigh: false,
+    thinking_max: false,
     max_context_tokens: 200000,
   };
   const _llmCapability: ModelCapability | undefined = _llm.capability;

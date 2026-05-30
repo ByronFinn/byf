@@ -10,13 +10,13 @@ import type { NotificationsConfig } from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { Theme } from './theme';
 
-export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high';
+export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-const THINKING_EFFORT_LEVELS = new Set<string>(['off', 'low', 'medium', 'high']);
+const THINKING_EFFORT_LEVELS = new Set<string>(['off', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 export function parseThinkingEffort(value: string | undefined): ThinkingEffortLevel {
   if (value && THINKING_EFFORT_LEVELS.has(value)) return value as ThinkingEffortLevel;
-  if (value === 'on' || value === 'xhigh' || value === 'max') return 'high';
+  if (value === 'on') return 'high';
   return 'off';
 }
 

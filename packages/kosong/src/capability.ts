@@ -14,6 +14,9 @@ export interface ModelCapability {
   readonly audio_in: boolean;
   readonly thinking: boolean;
   readonly tool_use: boolean;
+  readonly thinking_effort: boolean;
+  readonly thinking_xhigh: boolean;
+  readonly thinking_max: boolean;
   readonly max_context_tokens: number;
 }
 
@@ -32,6 +35,9 @@ export const UNKNOWN_CAPABILITY: ModelCapability = Object.freeze(
       audio_in: false,
       thinking: false,
       tool_use: false,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
       max_context_tokens: 0,
     },
     UNKNOWN_CAPABILITY_MARKER,
@@ -50,6 +56,9 @@ export function isUnknownCapability(capability: ModelCapability): boolean {
     !capability.audio_in &&
     !capability.thinking &&
     !capability.tool_use &&
+    !capability.thinking_effort &&
+    !capability.thinking_xhigh &&
+    !capability.thinking_max &&
     capability.max_context_tokens === 0
   );
 }

@@ -32,6 +32,9 @@ function makeCapability(maxContextTokens: number): ModelCapability {
     audio_in: false,
     thinking: false,
     tool_use: true,
+    thinking_effort: false,
+    thinking_xhigh: false,
+    thinking_max: false,
     max_context_tokens: maxContextTokens,
   };
 }

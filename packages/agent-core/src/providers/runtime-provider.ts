@@ -221,6 +221,9 @@ function resolveModelCapabilities(
     audio_in: has('audio_in') || providerCapability.audio_in,
     thinking: has('thinking') || has('always_thinking') || providerCapability.thinking,
     tool_use: has('tool_use') || providerCapability.tool_use,
+    thinking_effort: has('thinking_effort') || providerCapability.thinking_effort,
+    thinking_xhigh: has('thinking_xhigh') || providerCapability.thinking_xhigh,
+    thinking_max: has('thinking_max') || providerCapability.thinking_max,
     max_context_tokens: alias.maxContextSize,
   };
 }

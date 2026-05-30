@@ -81,6 +81,9 @@ describe('catalogModelToCapability', () => {
         audio_in: false,
         thinking: true,
         tool_use: true,
+        thinking_effort: false,
+        thinking_xhigh: false,
+        thinking_max: false,
         max_context_tokens: 200000,
       },
     });

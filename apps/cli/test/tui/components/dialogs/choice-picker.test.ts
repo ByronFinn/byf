@@ -282,7 +282,7 @@ describe('ChoicePickerComponent', () => {
     expect(onSelect).toHaveBeenCalledWith({ alias: 'o3', thinkingEffort: 'low' });
   });
 
-  it('cannot go above high in effort selector', () => {
+  it('cannot go above high in effort selector for effort-only models', () => {
     const picker = new ModelSelectorComponent({
       models: {
         o3: {
@@ -299,8 +299,134 @@ describe('ChoicePickerComponent', () => {
       onCancel: vi.fn(),
     });
 
-    picker.handleInput('[C');
+    picker.handleInput('\x1b[C');
     expect(rendered(picker)).toContain('[ High ]');
+  });
+
+  it('shows xhigh and max for models with thinking_xhigh + thinking_max capabilities', () => {
+    const onSelect = vi.fn();
+    const picker = new ModelSelectorComponent({
+      models: {
+        opus: {
+          provider: 'anthropic',
+          model: 'claude-opus-4-7',
+          maxContextSize: 200_000,
+          displayName: 'Claude Opus 4.7',
+          capabilities: ['thinking_effort', 'thinking_xhigh', 'thinking_max'],
+        },
+      },
+      currentValue: 'opus',
+      currentThinkingEffort: 'medium',
+      colors: darkColors,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    const output = rendered(picker);
+    expect(output).toContain('Off');
+    expect(output).toContain('Low');
+    expect(output).toContain('[ Medium ]');
+    expect(output).toContain('High');
+    expect(output).toContain('XHigh');
+    expect(output).toContain('Max');
+
+    // Right arrow cycles: medium → high → xhigh → max
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ High ]');
+
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ XHigh ]');
+
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ Max ]');
+
+    // Can't go above max
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ Max ]');
+
+    // Enter submits max
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'opus', thinkingEffort: 'max' });
+  });
+
+  it('shows max but not xhigh for models with thinking_max but not thinking_xhigh', () => {
+    const onSelect = vi.fn();
+    const picker = new ModelSelectorComponent({
+      models: {
+        sonnet: {
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6',
+          maxContextSize: 200_000,
+          displayName: 'Claude Sonnet 4.6',
+          capabilities: ['thinking_effort', 'thinking_max'],
+        },
+      },
+      currentValue: 'sonnet',
+      currentThinkingEffort: 'high',
+      colors: darkColors,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    const output = rendered(picker);
+    expect(output).toContain('Off');
+    expect(output).toContain('Low');
+    expect(output).toContain('Medium');
+    expect(output).toContain('[ High ]');
+    expect(output).toContain('Max');
+    expect(output).not.toContain('XHigh');
+
+    // Right arrow cycles: high → max
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ Max ]');
+
+    // Can't go above max
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ Max ]');
+
+    // Left arrow cycles back: max → high → medium → low → off
+    picker.handleInput('\x1b[D');
+    expect(rendered(picker)).toContain('[ High ]');
+
+    // Enter submits high
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'sonnet', thinkingEffort: 'high' });
+  });
+
+  it('shows xhigh but not max for models with thinking_xhigh but not thinking_max', () => {
+    const onSelect = vi.fn();
+    const picker = new ModelSelectorComponent({
+      models: {
+        gpt5: {
+          provider: 'openai',
+          model: 'gpt-5-codex',
+          maxContextSize: 200_000,
+          displayName: 'GPT-5 Codex',
+          capabilities: ['thinking_effort', 'thinking_xhigh'],
+        },
+      },
+      currentValue: 'gpt5',
+      currentThinkingEffort: 'high',
+      colors: darkColors,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    const output = rendered(picker);
+    expect(output).toContain('XHigh');
+    expect(output).not.toContain('Max');
+
+    // Right arrow cycles: high → xhigh
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ XHigh ]');
+
+    // Can't go above xhigh
+    picker.handleInput('\x1b[C');
+    expect(rendered(picker)).toContain('[ XHigh ]');
+
+    // Enter submits xhigh
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith({ alias: 'gpt5', thinkingEffort: 'xhigh' });
   });
 });
 
