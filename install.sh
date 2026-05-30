@@ -25,8 +25,8 @@ detect_platform() {
       ;;
     darwin)
       case "$arch" in
-        x86_64) echo "macos-x64" ;;
-        arm64) echo "macos-arm64" ;;
+        x86_64) echo "darwin-x64" ;;
+        arm64) echo "darwin-arm64" ;;
         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
       esac
       ;;
@@ -40,18 +40,24 @@ detect_platform() {
 install_with_user_permissions() {
   local download_url="$1"
   local install_path="$2"
+  local tmpdir="$3"
 
   mkdir -p "$(dirname "$install_path")"
-  curl -fsSL "$download_url" -o "$install_path"
+  curl -fsSL "$download_url" -o "$tmpdir/byf.zip"
+  unzip -o "$tmpdir/byf.zip" -d "$tmpdir" > /dev/null
+  mv "$tmpdir/$BINARY_NAME" "$install_path"
   chmod +x "$install_path"
 }
 
 install_with_sudo() {
   local download_url="$1"
   local install_path="$2"
+  local tmpdir="$3"
 
+  curl -fsSL "$download_url" -o "$tmpdir/byf.zip"
+  unzip -o "$tmpdir/byf.zip" -d "$tmpdir" > /dev/null
   sudo mkdir -p "$(dirname "$install_path")"
-  curl -fsSL "$download_url" | sudo tee "$install_path" >/dev/null
+  sudo mv "$tmpdir/$BINARY_NAME" "$install_path"
   sudo chmod +x "$install_path"
 }
 
@@ -59,28 +65,36 @@ main() {
   local platform
   platform=$(detect_platform)
 
-  local download_url="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}-${platform}"
+  local download_url="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}-${platform}.zip"
   local install_path
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
 
   echo "Downloading BYF for ${platform}..."
 
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "Error: 'unzip' is required but not found. Please install it first." >&2
+    exit 1
+  fi
+
   if [ -w "$INSTALL_DIR" ] || { [ ! -e "$INSTALL_DIR" ] && [ -w "$(dirname "$INSTALL_DIR")" ]; }; then
     install_path="${INSTALL_DIR}/${BINARY_NAME}"
-    install_with_user_permissions "$download_url" "$install_path"
+    install_with_user_permissions "$download_url" "$install_path" "$tmpdir"
   elif can_use_sudo; then
     install_path="${INSTALL_DIR}/${BINARY_NAME}"
-    install_with_sudo "$download_url" "$install_path"
+    install_with_sudo "$download_url" "$install_path" "$tmpdir"
   else
     INSTALL_DIR="$HOME/.local/bin"
     install_path="${INSTALL_DIR}/${BINARY_NAME}"
-    install_with_user_permissions "$download_url" "$install_path"
+    install_with_user_permissions "$download_url" "$install_path" "$tmpdir"
     case ":$PATH:" in
       *":$INSTALL_DIR:"*) ;;
       *) echo "NOTE: Make sure $INSTALL_DIR is in your PATH" ;;
     esac
   fi
 
-  echo "✓ BYF installed to ${install_path}"
+  echo "BYF installed to ${install_path}"
   echo "Run 'byf --help' to get started"
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "@byfriends/oauth",
-  "version": "1.0.0",
-  "description": "Authentication utilities for BYF",
+  "version": "0.1.0",
+  "description": "Custom OAuth provider configuration for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",
   "homepage": "https://github.com/ByronFinn/byf",
@@ -14,10 +14,10 @@
   },
   "keywords": [
     "byf",
-    "authentication",
     "oauth",
-    "api-key",
-    "cli"
+    "provider",
+    "custom-provider",
+    "model-config"
   ],
   "files": [
     "dist"
