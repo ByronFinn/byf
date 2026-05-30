@@ -48,8 +48,6 @@ export interface CatalogModel {
 
 const KNOWN_WIRE_TYPES = [
   'anthropic',
-  'openai',
-  'openai-compat',
   'openai-completions',
   'google-genai',
   'openai_responses',
@@ -92,7 +90,7 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
   if (npm.includes('google') || id.includes('google') || id.includes('gemini')) {
     return 'google-genai';
   }
-  if (npm.includes('openai') || id.includes('openai')) return 'openai';
+  if (npm.includes('openai') || id.includes('openai')) return 'openai-completions';
   return undefined;
 }
 

@@ -47,16 +47,6 @@
         "import": "./dist/index.mjs",
         "default": "./dist/index.mjs"
       },
-      "./providers/openai-compat": {
-        "types": "./dist/providers/openai-compat.d.mts",
-        "import": "./dist/providers/openai-compat.mjs",
-        "default": "./dist/providers/openai-compat.mjs"
-      },
-      "./providers/openai-legacy": {
-        "types": "./dist/providers/openai-legacy.d.mts",
-        "import": "./dist/providers/openai-legacy.mjs",
-        "default": "./dist/providers/openai-legacy.mjs"
-      },
       "./providers/openai-responses": {
         "types": "./dist/providers/openai-responses.d.mts",
         "import": "./dist/providers/openai-responses.mjs",

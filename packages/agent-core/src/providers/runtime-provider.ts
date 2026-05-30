@@ -339,7 +339,6 @@ function providerApiKey(provider: ProviderConfig): string | undefined {
   switch (provider.type) {
     case 'anthropic':
       return providerValue(provider.apiKey, provider.env, 'ANTHROPIC_API_KEY');
-    case 'openai':
     case 'openai_responses':
       return providerValue(provider.apiKey, provider.env, 'OPENAI_API_KEY');
     case 'openai-completions':

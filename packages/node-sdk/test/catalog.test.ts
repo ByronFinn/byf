@@ -110,7 +110,7 @@ describe('applyCatalogProvider', () => {
 
     applyCatalogProvider(config, {
       providerId: 'deepseek',
-      wire: 'openai',
+      wire: 'openai-completions',
       baseUrl: 'https://api.deepseek.com',
       apiKey: 'sk',
       models,

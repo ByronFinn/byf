@@ -36,7 +36,7 @@ describe('ByfHarness.auth', () => {
       join(homeDir, 'config.toml'),
       `
 [providers.my-provider]
-type = "openai"
+type = "openai-completions"
 api_key = "sk-test-123"
 `,
     );
@@ -54,7 +54,7 @@ api_key = "sk-test-123"
 default_model = "my-provider/gpt-4"
 
 [providers.my-provider]
-type = "openai"
+type = "openai-completions"
 api_key = "sk-test"
 base_url = "https://api.openai.com/v1"
 

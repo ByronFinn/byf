@@ -15,13 +15,12 @@
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
-import { OpenAICompatChatProvider } from '#/providers/openai-compat';
-import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { OpenAIResponsesChatProvider } from '#/providers/openai-responses';
 import { describe, expect, it } from 'vitest';
-describe('OpenAICompatChatProvider.getCapability', () => {
-  function make(model: string): OpenAICompatChatProvider {
-    return new OpenAICompatChatProvider({ model, apiKey: 'test-key' });
+describe('OpenAICompletionsChatProvider.getCapability', () => {
+  function make(model: string): OpenAICompletionsChatProvider {
+    return new OpenAICompletionsChatProvider({ model, apiKey: 'test-key' });
   }
 
   it('does not infer capabilities from Byf model names', () => {
@@ -127,9 +126,9 @@ describe('AnthropicChatProvider.getCapability', () => {
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
   });
 });
-describe('OpenAILegacyChatProvider.getCapability', () => {
-  function make(model: string): OpenAILegacyChatProvider {
-    return new OpenAILegacyChatProvider({ model, apiKey: 'test-key' });
+describe('OpenAICompletionsChatProvider.getCapability (known models)', () => {
+  function make(model: string): OpenAICompletionsChatProvider {
+    return new OpenAICompletionsChatProvider({ model, apiKey: 'test-key' });
   }
 
   it('gpt-4o → image_in + tool_use', () => {
@@ -150,7 +149,7 @@ describe('OpenAILegacyChatProvider.getCapability', () => {
     expect(cap.tool_use).toBe(true);
   });
 
-  it('unknown OpenAI-legacy model → UNKNOWN_CAPABILITY', () => {
+  it('unknown OpenAI-completions model → UNKNOWN_CAPABILITY', () => {
     const cap = make('gpt-mystery').getCapability();
     expect(cap).toEqual(UNKNOWN_CAPABILITY);
   });
