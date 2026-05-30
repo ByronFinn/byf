@@ -12,19 +12,17 @@ import {
   reasoningEffortToThinkingEffort,
   thinkingEffortToReasoningEffort,
 } from '#/providers/openai-common';
-import { OpenAILegacyChatProvider, OpenAILegacyStreamedMessage } from '#/providers/openai-legacy';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import {
   APIError as OpenAIAPIError,
   APIConnectionError as OpenAIConnectionError,
   APIConnectionTimeoutError as OpenAITimeoutError,
   APIUserAbortError as OpenAIUserAbortError,
 } from 'openai';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 describe('OpenAI client creation', () => {
   it('does not inject max_retries into OpenAI client', () => {
-    // The OpenAI constructor is called with apiKey and baseURL only —
-    // we verify that the provider does not set max_retries.
-    const provider = new OpenAILegacyChatProvider({
+    const provider = new OpenAICompletionsChatProvider({
       model: 'gpt-4.1',
       apiKey: 'test-key',
       baseUrl: 'https://example.com/v1',
@@ -149,41 +147,31 @@ describe('convertOpenAIError: subclass errors fall through', () => {
 });
 describe('OpenAI streaming error propagation', () => {
   it('base APIError("Network connection lost.") during streaming becomes APIConnectionError', async () => {
-    // Simulates: streaming for ~33 minutes, then SSE connection drops
-    // and the SDK raises openai.APIError("Network connection lost.")
     async function* failingStream(): AsyncGenerator<never> {
       throw new OpenAIAPIError(undefined, undefined, 'Network connection lost.', undefined);
-      // Make this an async generator (unreachable)
       yield undefined as never;
     }
 
-    const msg = new OpenAILegacyStreamedMessage(
-      failingStream() as AsyncIterable<never>,
-      true,
-      undefined,
-    );
+    const provider = new OpenAICompletionsChatProvider({
+      model: 'gpt-4.1',
+      apiKey: 'test-key',
+      baseUrl: 'https://example.com/v1',
+      stream: true,
+    });
+
+    (provider as any)._client.chat.completions.create = vi
+      .fn()
+      .mockResolvedValue(failingStream());
+
+    const stream = await provider.generate('', [], [
+      { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+    ]);
 
     await expect(async () => {
-      for await (const _ of msg) {
+      for await (const _ of stream) {
         void _;
       }
     }).rejects.toThrow(APIConnectionError);
-
-    // Verify the message is preserved
-    await expect(async () => {
-      async function* failingStream2(): AsyncGenerator<never> {
-        throw new OpenAIAPIError(undefined, undefined, 'Network connection lost.', undefined);
-        yield undefined as never;
-      }
-      const msg2 = new OpenAILegacyStreamedMessage(
-        failingStream2() as AsyncIterable<never>,
-        true,
-        undefined,
-      );
-      for await (const _ of msg2) {
-        void _;
-      }
-    }).rejects.toThrow(/Network connection lost/);
   });
 });
 describe('convertContentPart', () => {

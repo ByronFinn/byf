@@ -350,7 +350,7 @@ describe('harness config schema and patch merge', () => {
     expect(() =>
       validateConfig({
         providers: {
-          local: { type: 'openai', apiKey: 'sk-test' },
+          local: { type: 'openai-completions', apiKey: 'sk-test' },
         },
         models: {
           broken: { provider: 'local', model: 'gpt-test' },

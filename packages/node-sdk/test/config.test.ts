@@ -169,7 +169,7 @@ describe('SDK config TOML', () => {
 defaultModel = "camel-model"
 
 [providers.local]
-type = "openai"
+type = "openai-completions"
 baseUrl = "https://example.test/v1"
 apiKey = "sk-test"
 unsupported_provider_field = "raw-only"
@@ -194,7 +194,7 @@ maxRunningTasks = 2
 
     expect(config.defaultModel).toBe('camel-model');
     expect(config.providers['local']).toMatchObject({
-      type: 'openai',
+      type: 'openai-completions',
       baseUrl: 'https://example.test/v1',
       apiKey: 'sk-test',
     });
