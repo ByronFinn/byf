@@ -1,8 +1,9 @@
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic';
+import type { ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function makeAnthropicResponse(model: string = 'k25') {
   return {
@@ -46,7 +47,6 @@ type AnthropicGenerationState = {
   thinking?:
     | { type: 'disabled' }
     | { type: 'adaptive'; display?: string | undefined }
-    | { type: 'enabled'; budget_tokens: number }
     | undefined;
   output_config?: { effort: string } | undefined;
   betaFeatures?: string[] | undefined;
@@ -797,7 +797,8 @@ describe('AnthropicChatProvider', () => {
 
       expect(state).toMatchObject({
         max_tokens: 512,
-        thinking: { type: 'enabled', budget_tokens: 32_000 },
+        thinking: { type: 'adaptive', display: 'summarized' },
+        output_config: { effort: 'high' },
       });
     });
 
@@ -829,28 +830,35 @@ describe('AnthropicChatProvider', () => {
       { role: 'user', content: [{ type: 'text', text: 'Think' }], toolCalls: [] },
     ];
 
-    it('pre-4.6 model: high -> budget_tokens=32000', async () => {
-      const provider = createProvider('k25').withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
+    // --- Direct categorical effort mapping (no budget_tokens) ---
 
-      expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 32000 });
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it('opus-4-6: uses adaptive thinking', async () => {
-      const provider = createProvider('opus-4-6').withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      expect(body['output_config']).toEqual({ effort: 'high' });
-      // Adaptive should remove interleaved-thinking beta
-      const headers = body['_extra_headers'] as Record<string, string> | undefined;
-      if (headers !== undefined && headers['anthropic-beta'] !== undefined) {
-        expect(headers['anthropic-beta']).not.toContain('interleaved-thinking-2025-05-14');
+    it('each effort level maps to correct output_config.effort value', async () => {
+      const provider = createProvider('claude-opus-4-7');
+      const efforts: Array<[ThinkingEffort, string]> = [
+        ['low', 'low'],
+        ['medium', 'medium'],
+        ['high', 'high'],
+      ];
+      for (const [effort, expected] of efforts) {
+        const body = await captureRequestBody(provider.withThinking(effort), '', [], thinkHistory);
+        expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+        expect(body['output_config']).toEqual({ effort: expected });
+        // No budget_tokens anywhere in the request body
+        expect(body['thinking']).not.toHaveProperty('budget_tokens');
       }
     });
 
-    it('opus-4-7: uses adaptive thinking with xhigh effort', async () => {
+    it('no budget_tokens field in any request body', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('high');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).not.toHaveProperty('budget_tokens');
+      expect(JSON.stringify(body)).not.toContain('budget_tokens');
+    });
+
+    // --- xhigh effort ---
+
+    it('xhigh maps to xhigh for Opus 4.7', async () => {
       const provider = createProvider('claude-opus-4-7').withThinking('xhigh');
       const body = await captureRequestBody(provider, '', [], thinkHistory);
 
@@ -858,27 +866,38 @@ describe('AnthropicChatProvider', () => {
       expect(body['output_config']).toEqual({ effort: 'xhigh' });
     });
 
-    it.each([
-      'claude-sonnet-4-6',
-      'anthropic.claude-opus-4-7-v1:0',
-      'publishers/anthropic/models/claude-sonnet-4-6',
-    ])('%s: uses adaptive thinking', async (model) => {
-      const provider = createProvider(model).withThinking('high');
+    it('xhigh maps to xhigh for Opus 4.8', async () => {
+      const provider = createProvider('claude-opus-4-8').withThinking('xhigh');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'xhigh' });
+    });
+
+    it('xhigh clamped to high for non-Opus models with warn log', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const provider = createProvider('claude-sonnet-4-6').withThinking('xhigh');
       const body = await captureRequestBody(provider, '', [], thinkHistory);
 
       expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
       expect(body['output_config']).toEqual({ effort: 'high' });
+      expect(warnSpy).toHaveBeenCalledWith(
+        "effort 'xhigh' clamped to 'high' for model claude-sonnet-4-6",
+      );
+      warnSpy.mockRestore();
     });
 
-    it('future 4.6+ model uses adaptive thinking and clamps xhigh to high', async () => {
-      const provider = createProvider('claude-sonnet-4-8').withThinking('xhigh');
+    // --- max effort ---
+
+    it('max maps to max for supported models', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('max');
       const body = await captureRequestBody(provider, '', [], thinkHistory);
 
       expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      expect(body['output_config']).toEqual({ effort: 'high' });
+      expect(body['output_config']).toEqual({ effort: 'max' });
     });
 
-    it('opus-4-6 supports max effort', async () => {
+    it('max maps to max for Opus 4.6', async () => {
       const provider = createProvider('claude-opus-4-6').withThinking('max');
       const body = await captureRequestBody(provider, '', [], thinkHistory);
 
@@ -886,26 +905,80 @@ describe('AnthropicChatProvider', () => {
       expect(body['output_config']).toEqual({ effort: 'max' });
     });
 
-    it('pre-4.6 model clamps xhigh and max to high without output_config', async () => {
-      for (const effort of ['xhigh', 'max'] as const) {
-        const provider = createProvider('claude-sonnet-4-5').withThinking(effort);
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
+    it('max clamped to high for unsupported models with warn log', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const provider = createProvider('claude-sonnet-4-5').withThinking('max');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
 
-        expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 32000 });
-        expect(body['output_config']).toBeUndefined();
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'high' });
+      expect(warnSpy).toHaveBeenCalledWith(
+        "effort 'max' clamped to 'high' for model claude-sonnet-4-5",
+      );
+      warnSpy.mockRestore();
+    });
+
+    // --- 'off' disables thinking ---
+
+    it('off disables thinking entirely (no effort sent)', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('off');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'disabled' });
+      expect(body['output_config']).toBeUndefined();
+    });
+
+    it('off clears stale output_config from prior thinking call', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('high').withThinking('off');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'disabled' });
+      expect(body['output_config']).toBeUndefined();
+    });
+
+    // --- All models now use adaptive thinking (no budget_tokens) ---
+
+    it.each([
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-sonnet-4-6',
+      'claude-opus-4-5',
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-20250514',
+      'claude-3-5-sonnet-20240620',
+      'claude-haiku-4-5-20251001',
+      'claude-haiku-3-5',
+      'k25',
+    ])('%s: all models use adaptive thinking (no budget_tokens)', async (model) => {
+      const provider = createProvider(model).withThinking('high');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'high' });
+      expect(body['thinking']).not.toHaveProperty('budget_tokens');
+    });
+
+    // --- Existing behavior preserved ---
+
+    it('replaces the previous thinking config when called again', () => {
+      const provider = createProvider().withThinking('high').withThinking('off');
+
+      expect(getGenerationState(provider).thinking).toEqual({ type: 'disabled' });
+    });
+
+    it('adaptive thinking removes interleaved-thinking beta', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('high');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      const headers = body['_extra_headers'] as Record<string, string> | undefined;
+      if (headers !== undefined && headers['anthropic-beta'] !== undefined) {
+        expect(headers['anthropic-beta']).not.toContain('interleaved-thinking-2025-05-14');
       }
     });
 
-    it('opus-4-5 sends legacy budget thinking with clamped effort output_config', async () => {
-      const provider = createProvider('claude-opus-4-5').withThinking('xhigh');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 32000 });
-      expect(body['output_config']).toEqual({ effort: 'high' });
-    });
-
-    it('opus-4-6 with thinking off -> disabled', async () => {
-      const provider = createProvider('opus-4-6').withThinking('off');
+    it('off removes interleaved-thinking beta', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('off');
       const body = await captureRequestBody(provider, '', [], thinkHistory);
 
       expect(body['thinking']).toEqual({ type: 'disabled' });
@@ -914,224 +987,8 @@ describe('AnthropicChatProvider', () => {
       expect(headers?.['anthropic-beta']).toBeUndefined();
     });
 
-    it('adaptive thinking off clears stale output_config', async () => {
-      const provider = createProvider('opus-4-6').withThinking('high').withThinking('off');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
+    // --- Clamp effort matrix ---
 
-      expect(body['thinking']).toEqual({ type: 'disabled' });
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it('replaces the previous thinking config when called again', () => {
-      const provider = createProvider().withThinking('high').withThinking('off');
-
-      expect(getGenerationState(provider).thinking).toEqual({ type: 'disabled' });
-    });
-
-    it('claude-3-5-sonnet legacy: high sends budget thinking without output_config', async () => {
-      const provider = createProvider('claude-3-5-sonnet-20240620').withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 32000 });
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it('haiku-4-5 legacy: medium sends budget thinking without output_config', async () => {
-      const provider = createProvider('claude-haiku-4-5-20251001').withThinking('medium');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 4096 });
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it('opus-4-7: low effort passes through to output_config', async () => {
-      const provider = createProvider('claude-opus-4-7').withThinking('low');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['output_config']).toEqual({ effort: 'low' });
-    });
-
-    it('opus-4-7: medium effort passes through to output_config', async () => {
-      const provider = createProvider('claude-opus-4-7').withThinking('medium');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['output_config']).toEqual({ effort: 'medium' });
-    });
-
-    it('future opus-4-8 uses adaptive thinking via regex extrapolation', async () => {
-      const provider = createProvider('claude-opus-4-8').withThinking('xhigh');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      // xhigh is opus-4-7-only; clamps to high on future 4.8 until proven otherwise
-      expect(body['output_config']).toEqual({ effort: 'high' });
-    });
-
-    it('opus-4-7 + high stays high without clamping', async () => {
-      const provider = createProvider('claude-opus-4-7').withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      expect(body['output_config']).toEqual({ effort: 'high' });
-    });
-
-    it.each([
-      ['low', 1024],
-      ['medium', 4096],
-      ['high', 32000],
-    ] as const)(
-      'sonnet-4 (pre-4.6) %s: budget_tokens=%i, no output_config',
-      async (effort, budget) => {
-        const provider = createProvider('claude-sonnet-4-20250514').withThinking(effort);
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-        expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: budget });
-        expect(body['output_config']).toBeUndefined();
-      },
-    );
-
-    it.each([
-      // opus-4-7 passes all efforts through unchanged
-      ['claude-opus-4-7', 'low', 'low'],
-      ['claude-opus-4-7', 'medium', 'medium'],
-      ['claude-opus-4-7', 'high', 'high'],
-      ['claude-opus-4-7', 'xhigh', 'xhigh'],
-      ['claude-opus-4-7', 'max', 'max'],
-      // pre-4.7 opus: xhigh and max clamp to high/max respectively (xhigh -> high, max passes since adaptive)
-      ['claude-opus-4-6', 'xhigh', 'high'],
-      ['claude-opus-4-6', 'max', 'max'],
-    ] as const)(
-      'clampEffort wire body: %s + %s -> output_config.effort=%s',
-      async (model, effort, expected) => {
-        const provider = createProvider(model).withThinking(effort);
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-        expect(body['output_config']).toEqual({ effort: expected });
-      },
-    );
-
-    it('clampEffort wire body: sonnet-4-5 (non-adaptive) has no output_config', async () => {
-      const provider = createProvider('claude-sonnet-4-5').withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it.each([
-      'claude-opus-4-7',
-      'claude-opus-4-8',
-      'anthropic.claude-opus-4-7-v1:0',
-      'vertex_ai/claude-opus-4-7',
-      'bedrock/anthropic.claude-opus-4-6-v1:0',
-    ])('adaptive-capable model %s routes through adaptive path', async (model) => {
-      const provider = createProvider(model).withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      expect(body['output_config']).toEqual({ effort: 'high' });
-    });
-
-    it.each([
-      'claude-sonnet-4-20250514',
-      'claude-3-5-sonnet-20240620',
-      'claude-haiku-4-5-20251001',
-    ])('non-adaptive model %s does not emit adaptive thinking', async (model) => {
-      const provider = createProvider(model).withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      expect(body['thinking']).toEqual({ type: 'enabled', budget_tokens: 32000 });
-      expect(body['output_config']).toBeUndefined();
-    });
-
-    it.each([
-      // effort-supporting models: output_config present
-      ['claude-opus-4-7', true],
-      ['anthropic.claude-opus-4-5-v1:0', true],
-      // non-effort-supporting models: output_config absent
-      ['claude-3-5-sonnet-20240620', false],
-      ['claude-haiku-4-5-20251001', false],
-    ] as const)('supportsEffortParam wire body: %s -> output_config=%s', async (model, supports) => {
-      const provider = createProvider(model).withThinking('high');
-      const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-      if (supports) {
-        expect(body['output_config']).toEqual({ effort: 'high' });
-      } else {
-        expect(body['output_config']).toBeUndefined();
-      }
-    });
-
-    // Full adaptive-thinking coverage matrix. Adaptive models must
-    // emit { type: 'adaptive' } and output_config; non-adaptive models
-    // must fall back to legacy budget thinking.
-    describe('supports adaptive thinking matrix', () => {
-      it.each([
-        // Opus 4.7 family (adaptive-only per Anthropic docs)
-        'claude-opus-4-7',
-        'claude-opus-4-7-20260301',
-        'claude-opus-4.7',
-        'CLAUDE-OPUS-4-7', // case-insensitive
-        // Opus 4.6 / Sonnet 4.6
-        'claude-opus-4-6',
-        'claude-opus-4-6-20260205',
-        'claude-opus-4.6',
-        'claude-sonnet-4-6',
-        'claude-sonnet-4-6-20260301',
-        'claude-sonnet-4.6',
-        // Future version extrapolation
-        'claude-opus-4-8',
-        'claude-opus-4-9',
-        'claude-opus-4-10',
-        'claude-opus-5-0',
-        'claude-opus-5-0-20270101',
-        'claude-sonnet-5-0',
-        'claude-haiku-4-6',
-        'claude-haiku-5-0',
-        // Bedrock / Vertex / proxy prefixes
-        'anthropic.claude-opus-4-7-v1:0',
-        'aws/claude-opus-4-7',
-        'bedrock/anthropic.claude-opus-4-6-v1:0',
-        'claude-opus-4-7@20260101',
-      ])('adaptive: %s -> type=adaptive', async (model) => {
-        const provider = createProvider(model).withThinking('high');
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-        expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-      });
-
-      it.each([
-        // Pre-4.6 models (legacy budget_tokens required)
-        'claude-opus-4',
-        'claude-opus-4-0',
-        'claude-opus-4-5',
-        'claude-opus-4-5-20251001',
-        'claude-opus-3-5',
-        'claude-opus-3-5-sonnet-20241022',
-        'claude-sonnet-4-20250514',
-        'claude-sonnet-4-5',
-        'claude-sonnet-4-5-20250929',
-        'claude-sonnet-3-5',
-        'claude-sonnet-3-7',
-        'claude-haiku-3-5',
-        'claude-haiku-4-5',
-        'claude-haiku-4-5-20251001',
-        // Non-Claude models / garbage input
-        'gpt-4',
-        'gpt-4-turbo',
-        'gemini-2.5-pro',
-        'unknown-model',
-        'claude', // no family word
-      ])('non-adaptive: %s -> type=enabled budget', async (model) => {
-        const provider = createProvider(model).withThinking('high');
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
-
-        expect(body['thinking']).toMatchObject({ type: 'enabled' });
-        expect((body['thinking'] as { type: string }).type).not.toBe('adaptive');
-      });
-    });
-
-    // Effort clamping per model capability: adaptive-capable models
-    // pass max effort through, others cap at high.
     describe('clamp effort matrix', () => {
       it.each([
         // Opus 4.7: full range including xhigh and max
@@ -1140,110 +997,147 @@ describe('AnthropicChatProvider', () => {
         ['claude-opus-4-7', 'high', 'high'],
         ['claude-opus-4-7', 'xhigh', 'xhigh'],
         ['claude-opus-4-7', 'max', 'max'],
+        // Opus 4.7 dated variant
         ['claude-opus-4-7-20260301', 'xhigh', 'xhigh'],
         // Opus 4.6: max supported, xhigh clamps to high
         ['claude-opus-4-6', 'max', 'max'],
         ['claude-opus-4-6', 'xhigh', 'high'],
         ['claude-opus-4-6-20260205', 'max', 'max'],
-        // Sonnet 4.6
+        // Sonnet 4.6: max supported, xhigh clamps to high
         ['claude-sonnet-4-6', 'max', 'max'],
         ['claude-sonnet-4-6', 'xhigh', 'high'],
         // low/medium/high passthrough
         ['claude-opus-4-6', 'medium', 'medium'],
-        // Future 4.8+: inherits max but xhigh clamps to high
-        ['claude-opus-4-8', 'xhigh', 'high'],
+        // Future 4.8+: xhigh and max pass through (Opus 4.8 supports xhigh)
+        ['claude-opus-4-8', 'xhigh', 'xhigh'],
         ['claude-opus-4-8', 'max', 'max'],
         ['claude-opus-5-0', 'max', 'max'],
         ['claude-opus-5-0', 'xhigh', 'high'],
       ] as const)(
         'clamp adaptive: %s + %s -> effort=%s',
         async (model, effort, expected) => {
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
           const provider = createProvider(model).withThinking(effort);
           const body = await captureRequestBody(provider, '', [], thinkHistory);
 
+          expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
           expect(body['output_config']).toEqual({ effort: expected });
+          expect(body['thinking']).not.toHaveProperty('budget_tokens');
+          warnSpy.mockRestore();
         },
       );
 
-      // Pre-4.6 non-adaptive models: effort clamps in legacy budget mode.
-      // output_config presence depends on _supports_effort_param; opus-4-5
-      // supports effort, sonnet/haiku-4 do not.
+      // All models now use adaptive + output_config (no more budget_tokens paths)
       it.each([
-        ['claude-opus-4-5', 'max', 'high', true],
-        ['claude-opus-4-5', 'xhigh', 'high', true],
-        ['claude-opus-4-5', 'high', 'high', true],
-        ['claude-sonnet-4-20250514', 'max', 'high', false],
-        ['claude-sonnet-4-20250514', 'xhigh', 'high', false],
-        ['claude-sonnet-4-20250514', 'low', 'low', false],
-        ['claude-sonnet-4-5', 'xhigh', 'high', false],
-        ['claude-haiku-4-5', 'max', 'high', false],
+        ['claude-opus-4-5', 'max', 'high'],
+        ['claude-opus-4-5', 'xhigh', 'high'],
+        ['claude-opus-4-5', 'high', 'high'],
+        ['claude-sonnet-4-20250514', 'max', 'high'],
+        ['claude-sonnet-4-20250514', 'xhigh', 'high'],
+        ['claude-sonnet-4-20250514', 'low', 'low'],
+        ['claude-sonnet-4-5', 'xhigh', 'high'],
+        ['claude-haiku-4-5', 'max', 'high'],
       ] as const)(
-        'clamp legacy: %s + %s -> effort=%s (supports=%s)',
-        async (model, effort, expected, supports) => {
+        'clamp legacy (now adaptive): %s + %s -> effort=%s',
+        async (model, effort, expected) => {
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
           const provider = createProvider(model).withThinking(effort);
           const body = await captureRequestBody(provider, '', [], thinkHistory);
 
-          if (supports) {
-            expect(body['output_config']).toEqual({ effort: expected });
-          } else {
-            expect(body['output_config']).toBeUndefined();
-          }
+          expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+          expect(body['output_config']).toEqual({ effort: expected });
+          expect(body['thinking']).not.toHaveProperty('budget_tokens');
+          warnSpy.mockRestore();
         },
       );
     });
 
-    // Effort-param gating: adaptive-capable models and explicit
-    // allowlist entries (Opus 4.5 legacy) emit output_config; legacy
-    // year-first names and Bedrock-prefixed legacy must not.
-    describe('supports effort param matrix', () => {
+    // --- All models emit output_config with effort (no more gating) ---
+
+    describe('all models emit output_config', () => {
       it.each([
-        // Adaptive-capable: all support effort
+        // Previously adaptive-capable
         'claude-opus-4-7',
-        'claude-opus-4-7-20260301',
         'claude-opus-4-6',
-        'claude-opus-4-6-20260205',
         'claude-sonnet-4-6',
         'claude-opus-5-0',
-        // Opus 4.5 explicitly supports effort (legacy budget thinking + effort)
+        // Previously legacy budget_tokens models now use adaptive
         'claude-opus-4-5',
-        'claude-opus-4-5-20251001',
-        'claude-opus-4.5',
-        'anthropic.claude-opus-4-5-v1:0',
-      ])('effort supported: %s -> output_config present', async (model) => {
+        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-5',
+        'claude-haiku-4-5',
+        'claude-3-5-sonnet-20240620',
+        // Non-Claude models also get adaptive + effort
+        'gpt-4',
+        'unknown-model',
+      ])('%s: emits output_config with effort', async (model) => {
         const provider = createProvider(model).withThinking('high');
         const body = await captureRequestBody(provider, '', [], thinkHistory);
 
         expect(body['output_config']).toEqual({ effort: 'high' });
+        expect(body['thinking']).not.toHaveProperty('budget_tokens');
+      });
+    });
+
+    // --- Warn logging on clamping ---
+
+    describe('warn logging on clamping', () => {
+      it('warns when xhigh clamped to high for non-Opus-4.7/4.8', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const provider = createProvider('claude-sonnet-4-6').withThinking('xhigh');
+        await captureRequestBody(provider, '', [], thinkHistory);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          "effort 'xhigh' clamped to 'high' for model claude-sonnet-4-6",
+        );
+        warnSpy.mockRestore();
       });
 
-      it.each([
-        // Sonnet/Haiku-4 (non-4.6): not explicitly listed → false
-        'claude-sonnet-4-20250514',
-        'claude-sonnet-4-5',
-        'claude-sonnet-4-5-20250929',
-        'claude-haiku-4-5',
-        'claude-haiku-4-5-20251001',
-        // Claude 3.x family: predates effort param
-        'claude-sonnet-3-7',
-        'claude-sonnet-3-7-20250219',
-        'claude-sonnet-3-5',
-        'claude-opus-3-5',
-        'claude-haiku-3-5',
-        // Old naming format (year-first)
-        'claude-3-opus-20240229',
-        'claude-3-5-sonnet-20240620',
-        'claude-3-5-haiku-20241022',
-        // Bedrock + old format
-        'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        // Non-Claude / garbage
-        'gpt-4',
-        'claude-2.1',
-      ])('effort unsupported: %s -> output_config absent', async (model) => {
-        const provider = createProvider(model).withThinking('high');
-        const body = await captureRequestBody(provider, '', [], thinkHistory);
+      it('warns when max clamped to high for non-adaptive models', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const provider = createProvider('claude-sonnet-4-5').withThinking('max');
+        await captureRequestBody(provider, '', [], thinkHistory);
 
-        expect(body['output_config']).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(
+          "effort 'max' clamped to 'high' for model claude-sonnet-4-5",
+        );
+        warnSpy.mockRestore();
       });
+
+      it('does not warn when effort passes through unchanged', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const provider = createProvider('claude-opus-4-7').withThinking('xhigh');
+        await captureRequestBody(provider, '', [], thinkHistory);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+      });
+    });
+
+    // --- Wire format verification ---
+
+    it('opus-4-7 high: adaptive thinking + output_config.effort', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('high');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'high' });
+    });
+
+    it('opus-4-7 low passes through to output_config', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('low');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'low' });
+    });
+
+    it('opus-4-7 medium passes through to output_config', async () => {
+      const provider = createProvider('claude-opus-4-7').withThinking('medium');
+      const body = await captureRequestBody(provider, '', [], thinkHistory);
+
+      expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(body['output_config']).toEqual({ effort: 'medium' });
     });
   });
 
@@ -1300,7 +1194,7 @@ describe('AnthropicChatProvider', () => {
       expect(provider.thinkingEffort).toBe('high');
     });
 
-    it('pre-4.6 budget-based levels', () => {
+    it('all models report effort from output_config', () => {
       const low = createProvider().withThinking('low');
       expect(low.thinkingEffort).toBe('low');
 
