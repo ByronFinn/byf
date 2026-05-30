@@ -24,7 +24,7 @@ import { testAgent } from './harness/agent';
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
 const CATALOGUED_PROVIDER = {
-  type: 'openai-compat',
+  type: 'openai-completions',
   apiKey: 'test-key',
   model: 'byf',
 } as const;

@@ -20,7 +20,7 @@ const CONFIG = `
 default_model = "byf/byf-for-coding"
 
 [providers."managed:byf"]
-type = "openai-compat"
+type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
@@ -122,15 +122,15 @@ describe('HarnessAPI session model aliases', () => {
     const updatedConfig = await rpc.setByfConfig({
       defaultModel: 'gpt-alias',
       providers: {
-        openai: {
-          type: 'openai',
-          apiKey: 'sk-openai',
-          baseUrl: 'https://openai.example/v1',
+        custom: {
+          type: 'openai-completions',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://custom.example/v1',
         },
       },
       models: {
         'gpt-alias': {
-          provider: 'openai',
+          provider: 'custom',
           model: 'gpt-runtime',
           maxContextSize: 200000,
           capabilities: ['tool_use'],
@@ -147,16 +147,16 @@ describe('HarnessAPI session model aliases', () => {
       }),
     ).resolves.toEqual({
       model: 'gpt-alias',
-      providerName: 'openai',
+      providerName: 'custom',
     });
 
     const config = await rpc.getConfig({ sessionId: created.id, agentId: 'main' });
     expect(config.modelAlias).toBe('gpt-alias');
     expect(config.provider).toMatchObject({
-      type: 'openai',
+      type: 'openai-completions',
       model: 'gpt-runtime',
-      apiKey: 'sk-openai',
-      baseUrl: 'https://openai.example/v1',
+      apiKey: 'sk-custom',
+      baseUrl: 'https://custom.example/v1',
     });
     expect(config.modelCapabilities).toMatchObject({
       tool_use: true,
@@ -289,7 +289,7 @@ reason = "no rm"
 default_model = "byf/byf-for-coding"
 
 [providers."managed:byf"]
-type = "openai-compat"
+type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
@@ -331,15 +331,15 @@ max_context_size = 1000000
     await createRpc.setByfConfig({
       defaultModel: 'gpt-alias',
       providers: {
-        openai: {
-          type: 'openai',
-          apiKey: 'sk-openai',
-          baseUrl: 'https://openai.example/v1',
+        custom: {
+          type: 'openai-completions',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://custom.example/v1',
         },
       },
       models: {
         'gpt-alias': {
-          provider: 'openai',
+          provider: 'custom',
           model: 'gpt-runtime',
           maxContextSize: 200000,
         },

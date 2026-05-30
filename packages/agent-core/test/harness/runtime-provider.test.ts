@@ -9,7 +9,7 @@ const BASE_CONFIG: ByfConfig = {
   defaultModel: 'byf/byf-for-coding',
   providers: {
     'managed:byf': {
-      type: 'openai-compat',
+      type: 'openai-completions',
       apiKey: 'test-key',
       baseUrl: 'https://api.example/v1',
     },
@@ -53,16 +53,16 @@ describe('resolveRuntimeProvider model metadata', () => {
         ...BASE_CONFIG,
         providers: {
           ...BASE_CONFIG.providers,
-          openai: {
-            type: 'openai',
-            apiKey: 'sk-openai',
-            baseUrl: 'https://openai.example/v1',
+          custom: {
+            type: 'openai-completions',
+            apiKey: 'sk-custom',
+            baseUrl: 'https://custom.example/v1',
           },
         },
         models: {
           ...BASE_CONFIG.models!,
           'gpt-alias': {
-            provider: 'openai',
+            provider: 'custom',
             model: 'gpt-runtime',
             maxContextSize: 200000,
             capabilities: ['tool_use'],
@@ -72,13 +72,13 @@ describe('resolveRuntimeProvider model metadata', () => {
       model: 'gpt-alias',
     });
 
-    expect(resolved.providerName).toBe('openai');
+    expect(resolved.providerName).toBe('custom');
     expect(resolved.modelName).toBe('gpt-alias');
     expect(resolved.provider).toMatchObject({
-      type: 'openai',
+      type: 'openai-completions',
       model: 'gpt-runtime',
-      apiKey: 'sk-openai',
-      baseUrl: 'https://openai.example/v1',
+      apiKey: 'sk-custom',
+      baseUrl: 'https://custom.example/v1',
     });
     expect(resolved.modelCapabilities).toMatchObject({
       tool_use: true,
@@ -92,7 +92,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:byf': {
-            type: 'openai-compat',
+            type: 'openai-completions',
             apiKey: '',
             baseUrl: 'https://api.example/v1',
             oauth: { storage: 'file', key: 'oauth/byf' },
@@ -168,7 +168,7 @@ describe('resolveRuntimeProvider model metadata', () => {
           ...BASE_CONFIG,
           providers: {
             'managed:byf': {
-              type: 'openai-compat',
+              type: 'openai-completions',
               baseUrl: 'https://api.example/v1',
             },
           },
@@ -184,7 +184,7 @@ describe('resolveRuntimeProvider model metadata', () => {
           ...BASE_CONFIG,
           providers: {
             'managed:byf': {
-              type: 'openai-compat',
+              type: 'openai-completions',
               apiKey: '',
               baseUrl: 'https://api.example/v1',
             },
@@ -299,7 +299,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     const resolved = resolveRuntimeProvider({ config: BASE_CONFIG });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       model: 'byf-for-coding',
     });
     expect('defaultHeaders' in resolved.provider).toBe(false);
@@ -311,7 +311,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:byf': {
-            type: 'openai-compat',
+            type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -323,7 +323,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
       },
@@ -337,7 +337,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       defaultHeaders: TEST_BYF_HEADERS,
     });
   });
@@ -349,20 +349,20 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
     });
   });
 
-  it('forwards provider thinkingEffortKey to openai-compat runtime config', () => {
+  it('forwards provider thinkingEffortKey to openai-completions runtime config', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         ...BASE_CONFIG,
         providers: {
           'managed:byf': {
-            type: 'openai-compat',
+            type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             thinkingEffortKey: 'thinking_effort',
@@ -372,7 +372,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       thinkingEffortKey: 'thinking_effort',
     });
   });
@@ -383,7 +383,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
         ...BASE_CONFIG,
         providers: {
           'managed:byf': {
-            type: 'openai-compat',
+            type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
             customHeaders: {
@@ -397,7 +397,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       defaultHeaders: {
         'User-Agent': 'Custom/1',
         'X-Msh-Platform': 'byf_code_cli',
@@ -409,17 +409,17 @@ describe('resolveRuntimeProvider Byf request headers', () => {
   it('does not apply byfRequestHeaders to non-Byf providers', () => {
     const resolved = resolveRuntimeProvider({
       config: {
-        defaultModel: 'gpt-alias',
+        defaultModel: 'claude-alias',
         providers: {
-          openai: {
-            type: 'openai',
-            apiKey: 'sk-openai',
+          anthropic: {
+            type: 'anthropic',
+            apiKey: 'sk-anthropic',
           },
         },
         models: {
-          'gpt-alias': {
-            provider: 'openai',
-            model: 'gpt-runtime',
+          'claude-alias': {
+            provider: 'anthropic',
+            model: 'claude-runtime',
             maxContextSize: 200000,
           },
         },
@@ -429,9 +429,9 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai',
-      model: 'gpt-runtime',
-      apiKey: 'sk-openai',
+      type: 'anthropic',
+      model: 'claude-runtime',
+      apiKey: 'sk-anthropic',
     });
     expect('defaultHeaders' in resolved.provider).toBe(false);
     expect('generationKwargs' in resolved.provider).toBe(false);
@@ -462,25 +462,25 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
     });
   });
 
-  it('forwards customHeaders to an openai provider', () => {
+  it('forwards customHeaders to an openai-completions provider', () => {
     const resolved = resolveRuntimeProvider({
       config: {
         defaultModel: 'gpt-alias',
         providers: {
-          openai: {
-            type: 'openai',
-            apiKey: 'sk-openai',
+          custom: {
+            type: 'openai-completions',
+            apiKey: 'sk-custom',
             customHeaders: { 'X-Custom': 'value' },
           },
         },
         models: {
-          'gpt-alias': { provider: 'openai', model: 'gpt-runtime', maxContextSize: 200000 },
+          'gpt-alias': { provider: 'custom', model: 'gpt-runtime', maxContextSize: 200000 },
         },
       },
     });
 
     expect(resolved.provider).toMatchObject({
-      type: 'openai',
+      type: 'openai-completions',
       defaultHeaders: { 'X-Custom': 'value' },
     });
   });
@@ -516,14 +516,14 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
     const config: ByfConfig = {
       defaultModel: 'gpt-alias',
       providers: {
-        openai: {
-          type: 'openai',
-          apiKey: 'sk-openai',
+        custom: {
+          type: 'openai-completions',
+          apiKey: 'sk-custom',
           customHeaders: { 'X-Custom': 'original' },
         },
       },
       models: {
-        'gpt-alias': { provider: 'openai', model: 'gpt-runtime', maxContextSize: 200000 },
+        'gpt-alias': { provider: 'custom', model: 'gpt-runtime', maxContextSize: 200000 },
       },
     };
 
@@ -538,7 +538,7 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
     expect(
       (second.provider as { defaultHeaders?: Record<string, string> }).defaultHeaders,
     ).toEqual({ 'X-Custom': 'original' });
-    expect(config.providers['openai']?.customHeaders).toEqual({ 'X-Custom': 'original' });
+    expect(config.providers['custom']?.customHeaders).toEqual({ 'X-Custom': 'original' });
   });
 });
 
@@ -550,7 +550,7 @@ describe('ProviderManager prompt cache key', () => {
     const resolved = manager.resolveProviderConfigForModel('byf/byf-for-coding');
 
     expect(resolved?.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },
@@ -560,27 +560,27 @@ describe('ProviderManager prompt cache key', () => {
   it('does not add generation kwargs to non-Byf providers', () => {
     const manager = new ProviderManager({
       config: {
-        defaultModel: 'gpt-alias',
+        defaultModel: 'claude-alias',
         providers: {
-          openai: {
-            type: 'openai',
-            apiKey: 'sk-openai',
+          anthropic: {
+            type: 'anthropic',
+            apiKey: 'sk-anthropic',
           },
         },
         models: {
-          'gpt-alias': {
-            provider: 'openai',
-            model: 'gpt-runtime',
+          'claude-alias': {
+            provider: 'anthropic',
+            model: 'claude-runtime',
             maxContextSize: 200000,
           },
         },
       },
     }).withPromptCacheKey('session-test');
-    const resolved = manager.resolveProviderConfigForModel('gpt-alias');
+    const resolved = manager.resolveProviderConfigForModel('claude-alias');
 
     expect(resolved?.provider).toMatchObject({
-      type: 'openai',
-      model: 'gpt-runtime',
+      type: 'anthropic',
+      model: 'claude-runtime',
     });
     expect('generationKwargs' in resolved!.provider).toBe(false);
   });
@@ -593,7 +593,7 @@ describe('ProviderManager prompt cache key', () => {
 
     const resolved = derived.resolveProviderConfigForModel(undefined);
     expect(resolved?.provider).toMatchObject({
-      type: 'openai-compat',
+      type: 'openai-completions',
       generationKwargs: {
         prompt_cache_key: 'session-test',
       },

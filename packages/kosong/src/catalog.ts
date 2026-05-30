@@ -50,6 +50,7 @@ const KNOWN_WIRE_TYPES = [
   'anthropic',
   'openai',
   'openai-compat',
+  'openai-completions',
   'google-genai',
   'openai_responses',
   'vertexai',

@@ -47,7 +47,7 @@ const TEST_OS_ENV: Environment = {
 };
 
 const MOCK_PROVIDER = {
-  type: 'openai-compat',
+  type: 'openai-completions',
   apiKey: 'test-key',
   model: 'mock-model',
 } as const;

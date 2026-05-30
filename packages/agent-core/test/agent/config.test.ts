@@ -9,7 +9,7 @@ describe('Agent config', () => {
   it('exposes provider, system prompt, thinking level, and model capability updates', async () => {
     const ctx = testAgent();
     const initialProvider: ProviderConfig = {
-      type: 'openai',
+      type: 'openai-completions',
       apiKey: 'sk-initial',
       baseUrl: 'https://initial.example/v1',
       model: 'gpt-initial',
@@ -35,7 +35,7 @@ describe('Agent config', () => {
     });
 
     const nextProvider: ProviderConfig = {
-      type: 'openai-compat',
+      type: 'openai-completions',
       apiKey: 'sk-next',
       baseUrl: 'https://next.example/v1',
       model: 'byf-next',
@@ -127,7 +127,7 @@ describe('Agent config', () => {
     `);
 
     ctx.configureRuntimeModel({
-      type: 'openai-compat',
+      type: 'openai-completions',
       apiKey: 'test-key',
       model: 'changed-model',
     });

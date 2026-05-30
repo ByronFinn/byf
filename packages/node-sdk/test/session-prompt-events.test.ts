@@ -203,7 +203,7 @@ describe('Session.prompt events', () => {
       );
       expect(fakeProviderState.calls[0]?.systemPrompt.length).toBeGreaterThan(0);
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
-        type: 'openai-compat',
+        type: 'openai-completions',
       });
     } finally {
       await harness.close();
@@ -311,7 +311,7 @@ async function configureFakeProvider(harness: InstanceType<typeof ByfHarness>): 
   await harness.setConfig({
     providers: {
       local: {
-        type: 'openai-compat',
+        type: 'openai-completions',
         apiKey: 'sk-test',
       },
     },
