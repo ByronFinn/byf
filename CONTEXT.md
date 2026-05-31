@@ -49,6 +49,36 @@ The stable path shown when Plan Mode is entered, indicating where the plan artif
 ### Plan Artifact
 The persisted plan markdown file. It is considered materialized only after the first actual write, not merely by entering Plan Mode.
 
+### Agent
+The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, PlanMode, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
+
+### Session
+The outer lifecycle container in `agent-core`. Owns a `SkillRegistry`, `McpConnectionManager`, and a map of `Agent` instances (main + sub-agents). Creates agents, loads skills & MCP servers, manages metadata, triggers hooks.
+
+### Turn
+A single conversational cycle: user prompt → LLM loop → tool calls → response. Orchestrated by `TurnFlow` which drives the stateless `loop/runTurn()`. A session consists of multiple turns.
+
+### Wire Records
+Event-sourced persistence layer (`AgentRecords`). Logs every state-changing action to `wire.jsonl` in JSONL format. Supports protocol version migration. Used for session resume (replay records to rebuild in-memory state) and vis debugging.
+
+### ChatProvider
+The LLM provider interface in `kosong`. Defines `generate()` returning a `StreamedMessage` (async iterable of `TextPart`, `ThinkPart`, `ToolCall`, `ToolCallPart`). Adapters: `openai-completions`, `openai_responses`, `anthropic`, `google-genai`, `vertexai`. Created via `createProvider(config)` factory.
+
+### Kaos
+The execution environment abstraction. `Kaos` interface with `LocalKaos` (local filesystem) and `SSHKaos` (remote via SSH/SFTP) adapters. Bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely.
+
+### ByfHarness
+The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config, telemetry. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object.
+
+### MCP (Model Context Protocol)
+External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP), tool discovery, OAuth, and reconnection.
+
+### Compaction
+Summarizes old conversation history to fit within context limits. Triggered manually or on context overflow. Compaction events are recorded in wire records and displayed as ribbons in vis.
+
+### Thinking
+Extended thinking / reasoning by the model. Controlled by `ThinkingEffort` (`off | low | medium | high | xhigh | max`). Each provider adapter maps effort levels to its native API parameter.
+
 ## Renaming Map
 
 | Aspect | Upstream Value | BYF Value |
