@@ -124,12 +124,14 @@ export function makeThinkingParts(
 export function makeEndTurnResponse(
   text: string,
   usage: Partial<TokenUsage> = {},
+  timing?: { readonly llmFirstTokenLatencyMs?: number; readonly llmStreamDurationMs?: number },
 ): FakeLLMResponse {
   return {
     toolCalls: [],
     providerFinishReason: 'completed',
     usage: zeroUsage(usage),
     contentParts: makeTextParts(text),
+    ...timing,
   };
 }
 

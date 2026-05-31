@@ -139,6 +139,22 @@ describe('runTurn — LoopEventDispatcher live event containment', () => {
     expect(sink.byType('tool.progress').length).toBe(1);
   });
 
+  it('step.end carries LLM timing metrics from the LLM response', async () => {
+    const { sink } = await runTurn({
+      responses: [
+        makeEndTurnResponse('ok', {}, {
+          llmFirstTokenLatencyMs: 120,
+          llmStreamDurationMs: 340,
+        }),
+      ],
+    });
+    const stepEnds = sink.byType('step.end');
+    expect(stepEnds.length).toBe(1);
+    const stepEnd = stepEnds[0];
+    expect(stepEnd?.llmFirstTokenLatencyMs).toBe(120);
+    expect(stepEnd?.llmStreamDurationMs).toBe(340);
+  });
+
   it('LoopEvent payload carries the documented fields', async () => {
     const echo = new EchoTool();
     const { sink } = await runTurn({

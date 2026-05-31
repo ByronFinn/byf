@@ -25,6 +25,8 @@ export interface LoopStepEndEvent {
    */
   readonly providerFinishReason?: FinishReason | undefined;
   readonly rawFinishReason?: string | undefined;
+  readonly llmFirstTokenLatencyMs?: number | undefined;
+  readonly llmStreamDurationMs?: number | undefined;
 }
 
 export interface LoopStepRetryingEvent {

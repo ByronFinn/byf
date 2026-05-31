@@ -39,6 +39,18 @@ export interface GenerateResult {
    * `null` if the provider did not emit one.
    */
   readonly rawFinishReason: string | null;
+  /**
+   * Milliseconds between the `provider.generate()` call and the first
+   * streamed chunk. `undefined` when the stream produced no chunks
+   * (empty response, early abort, or error).
+   */
+  readonly llmFirstTokenLatencyMs?: number | undefined;
+  /**
+   * Milliseconds between the `provider.generate()` call and stream
+   * exhaustion (last chunk consumed). `undefined` when the stream
+   * never started iterating.
+   */
+  readonly llmStreamDurationMs?: number | undefined;
 }
 
 export interface GenerateCallbacks {
@@ -103,6 +115,7 @@ export async function generate(
     throwAbortError();
   }
 
+  const generateStart = performance.now();
   const stream = await provider.generate(systemPrompt, tools, history, options);
 
   // Post-await abort check: `provider.generate()` may have resolved before
@@ -110,7 +123,9 @@ export async function generate(
   // the stream.
   await throwIfAborted(options?.signal, stream);
 
+  let firstChunkTime: number | undefined;
   for await (const part of stream) {
+    if (firstChunkTime === undefined) firstChunkTime = performance.now();
     await throwIfAborted(options?.signal, stream);
 
     // Notify raw part callback (deep copy to avoid aliasing mutations).
@@ -189,12 +204,22 @@ export async function generate(
     }
   }
 
+  const streamEnd = performance.now();
+  const llmFirstTokenLatencyMs = firstChunkTime !== undefined
+    ? Math.round(firstChunkTime - generateStart)
+    : undefined;
+  const llmStreamDurationMs = firstChunkTime !== undefined
+    ? Math.round(streamEnd - generateStart)
+    : undefined;
+
   return {
     id: stream.id,
     message,
     usage: stream.usage,
     finishReason: stream.finishReason,
     rawFinishReason: stream.rawFinishReason,
+    ...(llmFirstTokenLatencyMs !== undefined ? { llmFirstTokenLatencyMs } : {}),
+    ...(llmStreamDurationMs !== undefined ? { llmStreamDurationMs } : {}),
   };
 }
 

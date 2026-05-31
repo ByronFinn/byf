@@ -140,6 +140,12 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     usage,
     finishReason: effectiveStopReason,
     ...stepEndProviderDiagnostics(response, effectiveStopReason),
+    ...(response.llmFirstTokenLatencyMs !== undefined
+      ? { llmFirstTokenLatencyMs: response.llmFirstTokenLatencyMs }
+      : {}),
+    ...(response.llmStreamDurationMs !== undefined
+      ? { llmStreamDurationMs: response.llmStreamDurationMs }
+      : {}),
   });
 
   if (hooks?.afterStep !== undefined) {

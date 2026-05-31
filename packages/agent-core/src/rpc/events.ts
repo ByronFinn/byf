@@ -106,6 +106,8 @@ export interface TurnStepCompletedEvent {
   readonly finishReason?: string | undefined;
   readonly providerFinishReason?: FinishReason | undefined;
   readonly rawFinishReason?: string | undefined;
+  readonly llmFirstTokenLatencyMs?: number | undefined;
+  readonly llmStreamDurationMs?: number | undefined;
 }
 
 export interface TurnStepRetryingEvent {
