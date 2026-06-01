@@ -234,6 +234,13 @@ import {
   handleStatusUpdate,
   type SessionMetaCallbacks,
 } from './events/session-meta-handler';
+import {
+  handleSubagentSpawned as handleSubagentSpawnedImpl,
+  handleSubagentCompleted as handleSubagentCompletedImpl,
+  handleSubagentFailed as handleSubagentFailedImpl,
+  routeSubagentEvent as routeSubagentEventImpl,
+  type SubagentCallbacks,
+} from './events/subagent-event-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -2451,74 +2458,7 @@ export class ByfTui implements DialogHost {
 
   // Routes child-agent events into their parent tool-call component.
   private routeSubagentEvent(event: Event): boolean {
-    const subagentId = event.agentId;
-    if (subagentId === MAIN_AGENT_ID) return false;
-
-    const parentToolCallId = this.state.subagentParentToolCallIds.get(subagentId);
-    if (parentToolCallId === undefined || parentToolCallId.length === 0) return true;
-    const sourceName = this.state.subagentNames.get(subagentId);
-    const toolCall = this.state.pendingToolComponents.get(parentToolCallId);
-    if (toolCall === undefined) return true;
-    toolCall.setSubagentMeta(subagentId, sourceName);
-
-    switch (event.type) {
-      case 'hook.result':
-        toolCall.appendSubagentText(formatHookResultPlain(event), 'text');
-        return true;
-      case 'assistant.delta':
-        toolCall.appendSubagentText(event.delta, 'text');
-        return true;
-      case 'thinking.delta':
-        toolCall.appendSubagentText(event.delta, 'thinking');
-        return true;
-      case 'tool.call.started':
-        toolCall.appendSubToolCall({
-          id: `${subagentId}:${event.toolCallId}`,
-          name: event.name,
-          args: argsRecord(event.args),
-        });
-        return true;
-      case 'tool.call.delta':
-        toolCall.appendSubToolCallDelta({
-          id: `${subagentId}:${event.toolCallId}`,
-          name: event.name,
-          argumentsPart: event.argumentsPart ?? null,
-        });
-        return true;
-      case 'tool.result':
-        toolCall.finishSubToolCall({
-          tool_call_id: `${subagentId}:${event.toolCallId}`,
-          output: serializeToolResultOutput(event.output),
-          is_error: event.isError,
-        });
-        return true;
-      case 'agent.status.updated':
-      case 'background.task.started':
-      case 'background.task.updated':
-      case 'background.task.terminated':
-      case 'compaction.blocked':
-      case 'compaction.cancelled':
-      case 'compaction.completed':
-      case 'compaction.started':
-      case 'error':
-      case 'session.meta.updated':
-      case 'skill.activated':
-      case 'subagent.completed':
-      case 'subagent.failed':
-      case 'subagent.spawned':
-      case 'tool.progress':
-      case 'tool.list.updated':
-      case 'mcp.server.status':
-      case 'turn.ended':
-      case 'turn.started':
-      case 'turn.step.completed':
-      case 'turn.step.interrupted':
-      case 'turn.step.retrying':
-      case 'turn.step.started':
-        return true;
-      default:
-        return true;
-    }
+    return routeSubagentEventImpl(event, this.state);
   }
 
   // Initializes turn-scoped buffers when the SDK starts a turn.
@@ -2963,147 +2903,36 @@ export class ByfTui implements DialogHost {
     }
   }
 
+  private subagentCallbacks(): SubagentCallbacks {
+    return {
+      appendBackgroundAgentEntry: (phase, meta, extras) => {
+        this.appendBackgroundAgentEntry(phase, meta, extras);
+      },
+      syncBackgroundAgentBadge: () => {
+        this.syncBackgroundAgentBadge();
+      },
+      appendTranscriptEntry: (entry) => {
+        this.appendTranscriptEntry(entry);
+      },
+      onToolCallStart: (toolCall) => {
+        this.onToolCallStart(toolCall);
+      },
+    };
+  }
+
   // Registers a spawned subagent and renders foreground or background status.
   private handleSubagentSpawned(event: SubagentSpawnedEvent): void {
-    this.state.subagentParentToolCallIds.set(event.subagentId, event.parentToolCallId);
-    this.state.subagentNames.set(event.subagentId, event.subagentName);
-
-    if (event.runInBackground) {
-      const meta = this.buildBackgroundAgentMetadata(event);
-      this.state.backgroundAgentMetadata.set(event.subagentId, meta);
-      this.state.backgroundAgents.add(event.subagentId);
-      this.appendBackgroundAgentEntry('started', meta);
-      this.syncBackgroundAgentBadge();
-      return;
-    }
-
-    let tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) {
-      const toolCall = this.state.activeToolCalls.get(event.parentToolCallId);
-      if (toolCall !== undefined) {
-        this.onToolCallStart(toolCall);
-        tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-      }
-    }
-    tc ??= this.createStandaloneSubagentToolCall(event);
-    if (tc === undefined) return;
-    tc.onSubagentSpawned({
-      agentId: event.subagentId,
-      agentName: event.subagentName,
-      runInBackground: event.runInBackground,
-    });
+    handleSubagentSpawnedImpl(event, this.state, this.subagentCallbacks());
   }
 
   // Completes a subagent in its parent tool call or background transcript entry.
   private handleSubagentCompleted(event: SubagentCompletedEvent): void {
-    const backgroundMeta = this.state.backgroundAgentMetadata.get(event.subagentId);
-    if (this.state.backgroundAgents.delete(event.subagentId)) {
-      this.syncBackgroundAgentBadge();
-    }
-    if (backgroundMeta !== undefined) {
-      this.state.backgroundAgentMetadata.delete(event.subagentId);
-      // Dedupe: if the BPM `background.task.terminated` for the
-      // matching agent task already pushed a terminal card, skip.
-      // Otherwise mark the subagent id so a later BPM event skips.
-      const taskId = this.findAgentTaskId(event.subagentId);
-      if (taskId !== undefined && this.state.backgroundTaskTranscriptedTerminal.has(taskId)) {
-        return;
-      }
-      if (taskId !== undefined) {
-        this.state.backgroundTaskTranscriptedTerminal.add(taskId);
-      }
-      const extras =
-        event.resultSummary === undefined ? undefined : { resultSummary: event.resultSummary };
-      this.appendBackgroundAgentEntry('completed', backgroundMeta, extras);
-      return;
-    }
-    const tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) return;
-    tc.onSubagentCompleted({
-      usage: event.usage,
-      resultSummary: event.resultSummary,
-    });
-    if (!this.state.activeToolCalls.has(event.parentToolCallId)) {
-      this.state.pendingToolComponents.delete(event.parentToolCallId);
-    }
+    handleSubagentCompletedImpl(event, this.state, this.subagentCallbacks());
   }
 
   // Marks a subagent failure in its parent tool call or background transcript entry.
   private handleSubagentFailed(event: SubagentFailedEvent): void {
-    const backgroundMeta = this.state.backgroundAgentMetadata.get(event.subagentId);
-    if (this.state.backgroundAgents.delete(event.subagentId)) {
-      this.syncBackgroundAgentBadge();
-    }
-    if (backgroundMeta !== undefined) {
-      this.state.backgroundAgentMetadata.delete(event.subagentId);
-      const taskId = this.findAgentTaskId(event.subagentId);
-      if (taskId !== undefined && this.state.backgroundTaskTranscriptedTerminal.has(taskId)) {
-        return;
-      }
-      if (taskId !== undefined) {
-        this.state.backgroundTaskTranscriptedTerminal.add(taskId);
-      }
-      this.appendBackgroundAgentEntry('failed', backgroundMeta, { error: event.error });
-      return;
-    }
-    const tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) return;
-    tc.onSubagentFailed({ error: event.error });
-    if (!this.state.activeToolCalls.has(event.parentToolCallId)) {
-      this.state.pendingToolComponents.delete(event.parentToolCallId);
-    }
-  }
-
-  // Mounts subagents launched by session-level commands that do not originate
-  // from a model-issued Agent tool call.
-  private createStandaloneSubagentToolCall(event: SubagentSpawnedEvent): ToolCallComponent | undefined {
-    const description = event.description ?? `Run ${event.subagentName} agent`;
-    const toolCall: ToolCallBlockData = {
-      id: event.parentToolCallId,
-      name: 'Agent',
-      args: {
-        description,
-        subagent_type: event.subagentName,
-      },
-      description,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    this.onToolCallStart(toolCall);
-    return this.state.pendingToolComponents.get(event.parentToolCallId);
-  }
-
-  /**
-   * Locate the BPM `agent-*` task id whose `description` matches the
-   * spawned subagent's recorded description. Used only for dedupe
-   * between the BPM and subagent flows — best-effort: if there is no
-   * unique match (e.g. multiple agent tasks with the same description)
-   * the caller treats the dedupe as a miss, which is safe.
-   */
-  private findAgentTaskId(subagentId: string): string | undefined {
-    const meta = this.state.backgroundAgentMetadata.get(subagentId);
-    const description = meta?.description ?? meta?.agentName;
-    if (description === undefined) return undefined;
-    let match: string | undefined;
-    for (const info of this.state.backgroundTasks.values()) {
-      if (!info.taskId.startsWith('agent-')) continue;
-      if (info.description !== description) continue;
-      if (match !== undefined) return undefined; // ambiguous
-      match = info.taskId;
-    }
-    return match;
-  }
-
-  // Builds transcript metadata for a background subagent.
-  private buildBackgroundAgentMetadata(event: SubagentSpawnedEvent): BackgroundAgentMetadata {
-    const parent = this.state.activeToolCalls.get(event.parentToolCallId);
-    const description = parent?.args['description'] ?? event.description;
-    return {
-      agentId: event.subagentId,
-      parentToolCallId: event.parentToolCallId,
-      agentName: event.subagentName,
-      description: typeof description === 'string' ? description : undefined,
-    };
+    handleSubagentFailedImpl(event, this.state, this.subagentCallbacks());
   }
 
   // Appends a background-agent status row to the transcript.
@@ -5509,10 +5338,6 @@ export class ByfTui implements DialogHost {
 
 function formatHookResultMarkdown(event: HookResultEvent): string {
   return `*${formatHookResultTitle(event)}*\n\n${formatHookResultBody(event)}`;
-}
-
-function formatHookResultPlain(event: HookResultEvent): string {
-  return `${formatHookResultTitle(event)}\n\n${formatHookResultBody(event)}`;
 }
 
 function formatHookResultTitle(event: HookResultEvent): string {
