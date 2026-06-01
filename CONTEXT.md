@@ -79,6 +79,9 @@ Summarizes old conversation history to fit within context limits. Triggered manu
 ### Thinking
 Extended thinking / reasoning by the model. Controlled by `ThinkingEffort` (`off | low | medium | high | xhigh | max`). Each provider adapter maps effort levels to its native API parameter.
 
+### Sub-agent Activity Trace
+A user-visible account of what a sub-agent did while working: lifecycle status, visible assistant output, tool activity, approval waits, errors, and final result. It is not the model's private chain-of-thought.
+
 ## Renaming Map
 
 | Aspect | Upstream Value | BYF Value |

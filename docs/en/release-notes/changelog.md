@@ -2,7 +2,7 @@
 
 This page documents the changes in each BYF release.
 
-## 0.2.0
+## 0.1.1
 
 ### Features
 
@@ -10,7 +10,6 @@ This page documents the changes in each BYF release.
 - The `/connect` provider and model pickers now support type-to-search filtering, and long lists are paginated. The `/model` picker is also paginated when many models are configured.
 - Add `Ctrl-J` as an additional shortcut for inserting new lines in the TUI prompt.
 - Add wire record migration handling during session replay.
-- Migrate user skills from `~/.byf/skills/` to `~/.byf/skills/` during the first-launch migration; existing target skills are kept.
 - Emit session resume hint as a structured meta message in stream-json output format.
 
 ### Bug Fixes
