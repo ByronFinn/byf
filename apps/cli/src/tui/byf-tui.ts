@@ -227,6 +227,13 @@ import {
 } from './utils/mcp-server-status';
 import { hasPatchChanges } from './utils/object-patch';
 import { openUrl } from './utils/open-url';
+import {
+  handleSessionError,
+  handleSessionMetaChanged,
+  handleSessionWarning,
+  handleStatusUpdate,
+  type SessionMetaCallbacks,
+} from './events/session-meta-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -2787,48 +2794,31 @@ export class ByfTui implements DialogHost {
     this.patchLivePane({ mode: 'waiting' });
   }
 
-  // Applies agent status updates to app state.
+  private sessionMetaCallbacks(): SessionMetaCallbacks {
+    return {
+      flushStreamingUiUpdatesNow: () => this.flushStreamingUiUpdatesNow(),
+      resetLiveToolUiState: () => this.resetLiveToolUiState(),
+      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
+      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color) => this.showStatus(msg, color),
+      setAppState: (patch) => this.setAppState(patch),
+    };
+  }
+
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    const patch: Partial<AppState> = {};
-    if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
-    if (event.contextTokens !== undefined) patch.contextTokens = event.contextTokens;
-    if (event.maxContextTokens !== undefined) patch.maxContextTokens = event.maxContextTokens;
-    if (event.planMode !== undefined) patch.planMode = event.planMode;
-    if (event.permission !== undefined) {
-      patch.permissionMode = event.permission;
-      patch.yolo = event.permission === 'yolo';
-    }
-    if (event.model !== undefined) patch.model = event.model;
-    if (Object.keys(patch).length > 0) this.setAppState(patch);
+    handleStatusUpdate(event, (patch) => this.setAppState(patch));
   }
 
-  // Applies session metadata changes to the UI and process title.
   private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
-    const title = event.title ?? stringValue(event.patch?.['title']);
-    if (title !== undefined) {
-      this.setAppState({ sessionTitle: title });
-      setProcessTitle(title, this.state.appState.sessionId);
-    }
+    handleSessionMetaChanged(event, (patch) => this.setAppState(patch));
   }
 
-  // Finalizes live buffers and renders a session error.
   private handleSessionError(event: ErrorEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('idle');
-    if (event.code === OAUTH_LOGIN_REQUIRED_CODE) {
-      this.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
-      return;
-    }
-    this.showError(`[${event.code}] ${event.message}`);
-    const sessionId = this.state.appState.sessionId;
-    if (sessionId.length > 0) {
-      this.showStatus(errorReportHintLine(sessionId));
-    }
+    handleSessionError(event, this.state.appState, this.sessionMetaCallbacks());
   }
 
   private handleSessionWarning(event: WarningEvent): void {
-    this.showStatus(`Warning: ${event.message}`, this.state.theme.colors.warning);
+    handleSessionWarning(event, this.state, (msg, color) => this.showStatus(msg, color));
   }
 
   private renderMcpServerStatus(server: McpServerStatusSnapshot): void {
