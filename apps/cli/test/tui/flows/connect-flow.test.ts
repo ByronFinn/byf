@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ConnectFlow, type ConnectFlowDeps } from '#/tui/flows/connect-flow';
 
@@ -30,6 +30,7 @@ function makeDeps(overrides: Partial<ConnectFlowDeps> = {}): ConnectFlowDeps {
     showError: vi.fn(),
     showSpinner: vi.fn(() => ({ stop: vi.fn() })),
     setCancelInFlight: vi.fn(),
+    clearCancelInFlight: vi.fn(),
     track: vi.fn(),
     promptProviderSelection: vi.fn(async () => undefined),
     promptModelSelection: vi.fn(async () => undefined),
@@ -60,6 +61,10 @@ function makeModelSelection() {
 }
 
 describe('ConnectFlow', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('shows error for bad connect args', async () => {
     const deps = makeDeps();
     await new ConnectFlow(deps).run('bad-arg');
@@ -97,6 +102,49 @@ describe('ConnectFlow', () => {
     expect(deps.refreshConfigAfterLogin).toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('connect', { provider: 'openai', model: 'gpt-4o' });
     expect(deps.showStatus).toHaveBeenCalledWith('Connected: OpenAI · gpt-4o');
+  });
+
+  it('keeps newer refresh cancel handler when older aborted refresh settles', async () => {
+    const fetchCalls: Array<{ signal: AbortSignal | null | undefined }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        fetchCalls.push({ signal: init?.signal });
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      }),
+    );
+
+    let activeCancel: (() => void) | undefined;
+    const deps = makeDeps({
+      setCancelInFlight: vi.fn((cancel) => {
+        activeCancel = cancel;
+      }),
+      clearCancelInFlight: vi.fn((cancel) => {
+        if (activeCancel === cancel) activeCancel = undefined;
+      }),
+    });
+    const flow = new ConnectFlow(deps);
+
+    const firstRun = flow.run('refresh');
+    await vi.waitFor(() => expect(fetchCalls).toHaveLength(1));
+    const firstCancel = activeCancel;
+    expect(firstCancel).toBeTypeOf('function');
+
+    firstCancel?.();
+    const secondRun = flow.run('refresh');
+    await vi.waitFor(() => expect(fetchCalls).toHaveLength(2));
+    const secondCancel = activeCancel;
+    expect(secondCancel).toBeTypeOf('function');
+    expect(secondCancel).not.toBe(firstCancel);
+
+    await firstRun;
+
+    expect(activeCancel).toBe(secondCancel);
+
+    secondCancel?.();
+    await secondRun;
   });
 
   it('cancels at provider selection', async () => {

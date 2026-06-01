@@ -4209,6 +4209,9 @@ export class ByfTui implements DialogHost {
       showError: (msg) => this.showError(msg),
       showSpinner: (label) => this.showLoginProgressSpinner(label),
       setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
+      clearCancelInFlight: (cancel) => {
+        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
+      },
       track: (event, props?) => this.track(event, props),
       promptProviderSelection: (catalog) => this.promptCatalogProviderSelection(catalog),
       promptModelSelection: (providerId, models) => this.promptModelSelectionForCatalog(providerId, models),

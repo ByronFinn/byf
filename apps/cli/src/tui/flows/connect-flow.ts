@@ -40,6 +40,7 @@ export interface ConnectFlowDeps {
   showError(message: string): void;
   showSpinner(label: string): SpinnerHandle;
   setCancelInFlight(cancel: (() => void) | undefined): void;
+  clearCancelInFlight(cancel: () => void): void;
   track(event: string, properties?: Record<string, string | number | boolean | null>): void;
   promptProviderSelection(catalog: Catalog): Promise<string | undefined>;
   promptModelSelection(
@@ -160,9 +161,7 @@ export class ConnectFlow {
       }
       return undefined;
     } finally {
-      if (this.deps.setCancelInFlight !== undefined) {
-        this.deps.setCancelInFlight(undefined);
-      }
+      this.deps.clearCancelInFlight(cancel);
     }
   }
 }
