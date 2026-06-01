@@ -104,9 +104,7 @@ export class LoginFlow {
     }
 
     const selection = await this.deps.runModelSelector(modelDict);
-    if (selection === undefined) {
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
-    }
+    if (selection === undefined) return;
 
     const selectedId = selection.alias.split('/').slice(1).join('/');
     const selectedModel = models.find((m) => m.id === selectedId);

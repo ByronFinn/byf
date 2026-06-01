@@ -177,16 +177,15 @@ describe('LoginFlow', () => {
     expect(deps.track).toHaveBeenCalledWith('login', { provider: 'myprovider', model: 'manual-model' });
   });
 
-  it('falls back to manual entry when model selector cancelled', async () => {
+  it('ends login flow when fetched model selector is cancelled', async () => {
     const models = [
       { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
     ];
+    const promptTextInput = vi.fn()
+      .mockResolvedValueOnce('myprovider')
+      .mockResolvedValueOnce('https://api.example.com/v1');
     const deps = makeDeps({
-      promptTextInput: vi.fn()
-        .mockResolvedValueOnce('myprovider')
-        .mockResolvedValueOnce('https://api.example.com/v1')
-        .mockResolvedValueOnce('manual-model')
-        .mockResolvedValueOnce('128000'),
+      promptTextInput,
       promptApiKey: vi.fn().mockResolvedValue('sk-test-key'),
       fetchModels: vi.fn(async () => models),
       runModelSelector: vi.fn(async () => undefined),
@@ -194,7 +193,13 @@ describe('LoginFlow', () => {
 
     await new LoginFlow(deps).run();
 
-    expect(deps.applyProviderConfig).toHaveBeenCalled();
+    expect(promptTextInput).toHaveBeenCalledTimes(2);
+    expect(promptTextInput).not.toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Enter model ID manually',
+    }));
+    expect(deps.applyProviderConfig).not.toHaveBeenCalled();
+    expect(deps.setConfig).not.toHaveBeenCalled();
+    expect(deps.refreshConfigAfterLogin).not.toHaveBeenCalled();
   });
 
   it('cancels at manual model ID step', async () => {
@@ -276,8 +281,7 @@ describe('LoginFlow', () => {
     const deps = makeDeps({
       promptTextInput: vi.fn()
         .mockResolvedValueOnce('myprovider')
-        .mockResolvedValueOnce('https://api.example.com/v1')
-        .mockResolvedValueOnce(undefined), // cancel manual entry after selector cancel
+        .mockResolvedValueOnce('https://api.example.com/v1'),
       promptApiKey: vi.fn().mockResolvedValue('sk-test-key'),
       fetchModels: vi.fn(async () => models),
       runModelSelector: vi.fn(async () => undefined),
@@ -285,7 +289,7 @@ describe('LoginFlow', () => {
 
     await new LoginFlow(deps).run();
 
-    // Falls back to manual entry, which was also cancelled
+    // Selector cancellation ends the login flow without applying config.
     expect(deps.applyProviderConfig).not.toHaveBeenCalled();
   });
 });
