@@ -97,6 +97,7 @@ import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/exte
 import { detectFdPath } from '#/utils/process/fd-detect';
 
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
+import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
   BUILTIN_SLASH_COMMANDS,
   buildAutocompleteSlashCommands,
@@ -145,11 +146,8 @@ import { CustomEditor } from './components/editor/custom-editor';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
 import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
-import { SkillActivationComponent } from './components/messages/skill-activation';
-import { ShellExecutionComponent } from './components/messages/shell-execution';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
@@ -218,7 +216,7 @@ import {
   stringValue,
 } from './utils/event-payload';
 import { isAbortError } from './utils/errors';
-import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
+import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
 import { McpOAuthAuthorizationUrlOpener } from './utils/mcp-oauth';
 import {
@@ -3538,91 +3536,19 @@ export class ByfTui implements DialogHost {
   // Transcript Rendering
   // =========================================================================
 
-  // Creates the pi-tui component that renders a transcript entry.
   private createTranscriptComponent(entry: TranscriptEntry): Component | null {
-    if (entry.compactionData !== undefined) {
-      const data = entry.compactionData;
-      const block = new CompactionComponent(
-        this.state.theme.colors,
-        this.state.ui,
-        data.instruction,
-      );
-      block.markDone(data.tokensBefore, data.tokensAfter);
-      return block;
-    }
-
-    switch (entry.kind) {
-      case 'user': {
-        const images = entry.imageAttachmentIds
-          ?.map((id) => this.imageStore.get(id))
-          .filter((a): a is ImageAttachment => a?.kind === 'image');
-        return new UserMessageComponent(entry.content, this.state.theme.colors, images);
-      }
-      case 'skill_activation':
-        return new SkillActivationComponent(
-          entry.skillName ?? entry.content,
-          entry.skillArgs,
-          this.state.theme.colors,
-        );
-      case 'assistant': {
-        const component = new AssistantMessageComponent(
-          this.state.theme.markdownTheme,
-          this.state.theme.colors,
-        );
-        component.updateContent(entry.content);
-        return component;
-      }
-      case 'thinking': {
-        const thinking = new ThinkingComponent(entry.content, this.state.theme.colors, true);
-        if (this.state.toolOutputExpanded) thinking.setExpanded(true);
-        return thinking;
-      }
-      case 'tool_call':
-        if (entry.toolCallData) {
-          const tc = new ToolCallComponent(
-            entry.toolCallData,
-            entry.toolCallData.result,
-            this.state.theme.colors,
-            this.state.ui,
-            this.state.theme.markdownTheme,
-            this.state.appState.workDir,
-          );
-          if (this.state.toolOutputExpanded) tc.setExpanded(true);
-          if (this.state.planExpanded) tc.setPlanExpanded(true);
-          return tc;
-        }
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(
-            entry.backgroundAgentStatus,
-            this.state.theme.colors,
-          );
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
-          : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
-      case 'shell_exec':
-        return new ShellExecutionComponent({
-          command: entry.content,
-          result: entry.toolCallData?.result,
-          colors: this.state.theme.colors,
-          expanded: this.state.toolOutputExpanded,
-          showCommand: true,
-        });
-      case 'status':
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(
-            entry.backgroundAgentStatus,
-            this.state.theme.colors,
-          );
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
-          : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
-      case 'welcome':
-        return null;
-      default:
-        return null;
-    }
+    return createTranscriptComponent(entry, {
+      colors: this.state.theme.colors,
+      markdownTheme: this.state.theme.markdownTheme,
+      ui: this.state.ui,
+      workDir: this.state.appState.workDir,
+      toolOutputExpanded: this.state.toolOutputExpanded,
+      planExpanded: this.state.planExpanded,
+      getImageAttachment: (id) => {
+        const a = this.imageStore.get(id);
+        return a?.kind === 'image' ? a : undefined;
+      },
+    });
   }
 
   // Stores a transcript entry and mounts its component if renderable.
