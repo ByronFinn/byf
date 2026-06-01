@@ -36,6 +36,11 @@ describe('Event public types', () => {
     expectTypeOf<ApprovalResponse['scope']>().toEqualTypeOf<'session' | undefined>();
   });
 
+  it('exposes optional LLM timing on turn.step.completed', () => {
+    expectTypeOf<EventByType<'turn.step.completed'>['llmFirstTokenLatencyMs']>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<EventByType<'turn.step.completed'>['llmStreamDurationMs']>().toEqualTypeOf<number | undefined>();
+  });
+
   it('covers every event in exhaustive switches', () => {
     function handle(event: Event): void {
       switch (event.type) {

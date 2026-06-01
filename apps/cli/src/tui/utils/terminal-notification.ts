@@ -1,7 +1,7 @@
 import type { Terminal } from '@earendil-works/pi-tui';
 
 import { BEL, ESC, MAX_TERMINAL_NOTIFICATION_MESSAGE_LENGTH, ST } from '#/tui/constant/terminal';
-import type { TUIState } from '#/tui/byf-tui';
+import type { TUIState } from '#/tui/types';
 
 export interface TerminalNotification {
   readonly title: string;

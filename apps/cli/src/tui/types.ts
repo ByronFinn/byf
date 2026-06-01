@@ -1,4 +1,6 @@
+import type { Component, Container, Focusable, ProcessTerminal, TUI } from '@earendil-works/pi-tui';
 import type {
+  BackgroundTaskInfo,
   ModelAlias,
   PermissionMode,
   ProviderConfig,
@@ -7,8 +9,33 @@ import type {
 } from '@byfriends/sdk';
 
 import type { NotificationsConfig } from './config';
+import type { AssistantMessageComponent } from './components/messages/assistant-message';
+import type { CompactionComponent } from './components/dialogs/compaction';
+import type { CustomEditor } from './components/editor/custom-editor';
+import type { AgentGroupComponent } from './components/messages/agent-group';
+import type { ReadGroupComponent } from './components/messages/read-group';
+import type { ThinkingComponent } from './components/messages/thinking';
+import type { ToolCallComponent } from './components/messages/tool-call';
+import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
+import type { TodoPanelComponent } from './components/chrome/todo-panel';
+import type { FooterComponent } from './components/chrome/footer';
+import type { SessionRow } from './components/dialogs/session-picker';
+import type { ByfTuiThemeBundle } from './theme/bundle';
+import type { TerminalState } from './utils/terminal-state';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { Theme } from './theme';
+
+export interface DialogHost {
+  show(panel: Component & Focusable): void;
+  close(): void;
+}
+
+export interface FullscreenHost {
+  showFullscreen(panel: Component & Focusable): readonly Component[];
+  closeFullscreen(savedChildren: readonly Component[]): void;
+  focus(component: Component & Focusable): void;
+  requestRender(full?: boolean): void;
+}
 
 export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -159,3 +186,73 @@ export const INITIAL_LIVE_PANE: LivePaneState = {
   pendingApproval: null,
   pendingQuestion: null,
 };
+
+export type TUIStartupState = 'pending' | 'ready' | 'picker';
+
+export interface TUIState {
+  ui: TUI;
+  terminal: ProcessTerminal;
+  transcriptContainer: Container;
+  activityContainer: Container;
+  todoPanelContainer: Container;
+  todoPanel: TodoPanelComponent;
+  queueContainer: Container;
+  editorContainer: Container;
+  footer: FooterComponent;
+  editor: CustomEditor;
+  theme: ByfTuiThemeBundle;
+  appState: AppState;
+  startupState: TUIStartupState;
+  startupNotice: string | undefined;
+  livePane: LivePaneState;
+  transcriptEntries: TranscriptEntry[];
+  terminalState: TerminalState;
+  activitySpinner: MoonLoader | undefined;
+  activitySpinnerStyle: SpinnerStyle | undefined;
+  activeThinkingComponent: ThinkingComponent | undefined;
+  streamingComponent: AssistantMessageComponent | undefined;
+  streamingTranscriptEntry: TranscriptEntry | undefined;
+  activeCompactionBlock: CompactionComponent | undefined;
+  toolOutputExpanded: boolean;
+  planExpanded: boolean;
+  lastActivityMode: string | undefined;
+  lastHistoryContent: string | undefined;
+  pendingToolComponents: Map<string, ToolCallComponent>;
+  pendingAgentGroup: {
+    readonly turnId: string | undefined;
+    readonly step: number;
+    solo?: ToolCallComponent;
+    group?: AgentGroupComponent;
+  } | null;
+  pendingReadGroup: {
+    readonly turnId: string | undefined;
+    readonly step: number;
+    solo?: ToolCallComponent;
+    group?: ReadGroupComponent;
+  } | null;
+  backgroundAgents: Set<string>;
+  backgroundAgentMetadata: Map<string, BackgroundAgentMetadata>;
+  backgroundTasks: Map<string, BackgroundTaskInfo>;
+  backgroundTaskTranscriptedTerminal: Set<string>;
+  renderedSkillActivationIds: Set<string>;
+  renderedMcpServerStatusKeys: Map<string, string>;
+  mcpServerStatusSpinners: Map<string, MoonLoader>;
+  subagentParentToolCallIds: Map<string, string>;
+  subagentNames: Map<string, string>;
+  sessions: SessionRow[];
+  loadingSessions: boolean;
+  showingSessionPicker: boolean;
+  showingHelpPanel: boolean;
+  externalEditorRunning: boolean;
+  currentTurnId: string | undefined;
+  currentStep: number;
+  assistantDraft: string;
+  assistantStreamActive: boolean;
+  thinkingDraft: string;
+  activeToolCalls: Map<string, ToolCallBlockData>;
+  streamingToolCallArguments: Map<
+    string,
+    { name?: string; argumentsText: string; startedAtMs: number }
+  >;
+  queuedMessages: QueuedMessage[];
+}

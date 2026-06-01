@@ -130,6 +130,12 @@ export class KosongLLM implements LLM {
       ...(result.finishReason !== null ? { providerFinishReason: result.finishReason } : {}),
       ...(result.rawFinishReason !== null ? { rawFinishReason: result.rawFinishReason } : {}),
       usage: result.usage ?? emptyUsage(),
+      ...(result.llmFirstTokenLatencyMs !== undefined
+        ? { llmFirstTokenLatencyMs: result.llmFirstTokenLatencyMs }
+        : {}),
+      ...(result.llmStreamDurationMs !== undefined
+        ? { llmStreamDurationMs: result.llmStreamDurationMs }
+        : {}),
     };
 
     return response;

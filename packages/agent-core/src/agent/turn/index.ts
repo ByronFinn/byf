@@ -653,6 +653,12 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         finishReason: event.finishReason,
         providerFinishReason: event.providerFinishReason,
         rawFinishReason: event.rawFinishReason,
+        ...(event.llmFirstTokenLatencyMs !== undefined
+          ? { llmFirstTokenLatencyMs: event.llmFirstTokenLatencyMs }
+          : {}),
+        ...(event.llmStreamDurationMs !== undefined
+          ? { llmStreamDurationMs: event.llmStreamDurationMs }
+          : {}),
       };
     case 'step.retrying':
       return {

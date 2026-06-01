@@ -21,13 +21,13 @@ import type {
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
-import type { TUIState } from '#/tui/byf-tui';
 import type {
   AppState,
   BackgroundAgentMetadata,
   BackgroundAgentStatusData,
   ToolCallBlockData,
   TranscriptEntry,
+  TUIState,
 } from '#/tui/types';
 import { formatErrorMessage, isTodoItemShape } from '#/tui/utils/event-payload';
 import { formatBackgroundAgentTranscript } from '#/tui/utils/background-agent-status';

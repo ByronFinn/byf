@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useData, withBase } from 'vitepress'
 import { computed } from 'vue'
-import KimiLogo from './KimiLogo.vue'
+import BYFLogo from './BYFLogo.vue'
 
 const { lang } = useData()
 
@@ -9,24 +9,24 @@ const isZh = computed(() => lang.value.startsWith('zh'))
 
 const copy = computed(() => isZh.value
   ? {
-      titleLead: 'Kimi',
-      titleAccent: 'Code',
+      titleLead: '',
+      titleAccent: 'BYF',
       titleTail: ' CLI',
       tagline: 'The Starting Point for Next-Gen Agents',
       primaryText: '开始使用',
       primaryHref: '/zh/guides/getting-started',
       secondaryText: '在 GitHub 查看',
-      secondaryHref: 'https://github.com/MoonshotAI/kimi-code',
+      secondaryHref: 'https://github.com/ByronFinn/byf',
     }
   : {
-      titleLead: 'Kimi',
-      titleAccent: 'Code',
+      titleLead: '',
+      titleAccent: 'BYF',
       titleTail: ' CLI',
       tagline: 'The Starting Point for Next-Gen Agents',
       primaryText: 'Get started',
       primaryHref: '/en/guides/getting-started',
       secondaryText: 'View on GitHub',
-      secondaryHref: 'https://github.com/MoonshotAI/kimi-code',
+      secondaryHref: 'https://github.com/ByronFinn/byf',
     })
 </script>
 
@@ -35,10 +35,10 @@ const copy = computed(() => isZh.value
     <div class="KimiHero__halo" aria-hidden="true" />
     <div class="KimiHero__inner">
       <div class="KimiHero__logo">
-        <KimiLogo :size="64" />
+        <BYFLogo :size="64" />
       </div>
       <h1 class="KimiHero__title">
-        {{ copy.titleLead }}&nbsp;<span class="KimiHero__accent">{{ copy.titleAccent }}</span>{{ copy.titleTail }}
+        <span class="KimiHero__accent">{{ copy.titleAccent }}</span>{{ copy.titleTail }}
       </h1>
       <p class="KimiHero__tagline">{{ copy.tagline }}</p>
       <div class="KimiHero__actions">

@@ -36,21 +36,6 @@ interface FeedbackDriver extends MessageDriver {
   promptFeedbackInput(): Promise<string | undefined>;
 }
 
-interface ModelSelectorDriver extends MessageDriver {
-  runModelSelector(
-    models: Record<
-      string,
-      {
-        provider: string;
-        model: string;
-        maxContextSize: number;
-        displayName?: string;
-        capabilities?: string[];
-      }
-    >,
-  ): Promise<{ alias: string; thinking: boolean } | undefined>;
-}
-
 function makeStartupInput(): ByfTuiStartupInput {
   return {
     cliOptions: {
@@ -322,6 +307,25 @@ describe('ByfTui message flow', () => {
 
     expect(harness.auth.submitFeedback).not.toHaveBeenCalled();
     expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
+  });
+
+  it('/tasks without an active session shows an error and keeps the main layout', async () => {
+    const oauthLoginRequired = Object.assign(new Error('login required'), {
+      code: 'auth.login_required',
+    });
+    const { driver } = await makeDriver(makeSession(), {
+      createSession: vi.fn(async () => {
+        throw oauthLoginRequired;
+      }),
+    });
+    const rootChildren = [...driver.state.ui.children];
+
+    driver.handleUserInput('/tasks');
+
+    await vi.waitFor(() => {
+      expect(stripSgr(renderTranscript(driver))).toContain('No active session.');
+      expect(driver.state.ui.children).toEqual(rootChildren);
+    });
   });
 
   it('tracks blocked slash commands as invalid without counting them as executed commands', async () => {
@@ -1617,25 +1621,32 @@ describe('ByfTui message flow', () => {
     expect(driver.state.appState.thinkingEffort).toBe('low');
   });
 
-  it('enables search in the shared model selector helper', async () => {
-    const { driver } = await makeDriver();
-    const selectorDriver = driver as unknown as ModelSelectorDriver;
-    const selection = selectorDriver.runModelSelector({
-      alpha: {
-        provider: 'managed:byf',
-        model: 'byf-alpha',
-        maxContextSize: 100,
-        displayName: 'ByF Alpha',
-        capabilities: ['thinking'],
-      },
-      turbo: {
-        provider: 'managed:byf',
-        model: 'byf-turbo',
-        maxContextSize: 100,
-        displayName: 'ByF Turbo',
-        capabilities: ['thinking'],
-      },
+  it('enables search in the model selector', async () => {
+    const session = makeSession();
+    const { driver } = await makeDriver(session, {
+      getConfig: vi.fn(async () => ({
+        models: {
+          alpha: {
+            provider: 'managed:byf',
+            model: 'byf-alpha',
+            maxContextSize: 100,
+            displayName: 'ByF Alpha',
+            capabilities: ['thinking'],
+          },
+          turbo: {
+            provider: 'managed:byf',
+            model: 'byf-turbo',
+            maxContextSize: 100,
+            displayName: 'ByF Turbo',
+            capabilities: ['thinking'],
+          },
+        },
+        defaultModel: 'alpha',
+        defaultThinking: false,
+      })),
     });
+
+    driver.handleUserInput('/model');
 
     const picker = driver.state.editorContainer.children[0];
     expect(picker).toBeInstanceOf(ModelSelectorComponent);
@@ -1649,7 +1660,6 @@ describe('ByfTui message flow', () => {
 
     (picker as ModelSelectorComponent).handleInput('\u001B');
     (picker as ModelSelectorComponent).handleInput('\u001B');
-    await expect(selection).resolves.toBeUndefined();
   });
 
   it('deletes Kitty inline images when /new clears the transcript', async () => {

@@ -21,22 +21,11 @@ import {
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
-  applyCatalogProvider,
-  catalogBaseUrl,
-  catalogModelToAlias,
-  catalogProviderModels,
-  CatalogFetchError,
-  fetchCatalog,
-  inferWireType,
-  loadBuiltInCatalog,
   log,
 } from '@byfriends/sdk';
 import {
   applyProviderConfig,
-  capabilitiesForModel as capabilitiesForModelOAuth,
   fetchModels,
-  type ModelInfo,
-  ProviderApiError,
 } from '@byfriends/oauth';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
@@ -48,8 +37,6 @@ import type {
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
   BackgroundTaskUpdatedEvent,
-  Catalog,
-  CatalogModel,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
   CompactionStartedEvent,
@@ -86,7 +73,6 @@ import type {
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
-import type { ColorPalette } from '#/tui/theme/colors';
 import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
 import type { GitLsFilesCache } from '#/utils/git/git-ls-files';
 import { createGitLsFilesCache } from '#/utils/git/git-ls-files';
@@ -97,6 +83,7 @@ import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/exte
 import { detectFdPath } from '#/utils/process/fd-detect';
 
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
+import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
   BUILTIN_SLASH_COMMANDS,
   buildAutocompleteSlashCommands,
@@ -121,21 +108,14 @@ import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
 } from './components/dialogs/approval-panel';
-import {
-  ApiKeyInputDialogComponent,
-  type ApiKeyInputResult,
-} from './components/dialogs/api-key-input-dialog';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
-import { ChoicePickerComponent, type ChoiceOption } from './components/dialogs/choice-picker';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
-import { TextInputDialogComponent } from './components/dialogs/text-input-dialog';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
-import { TaskOutputViewer } from './components/dialogs/task-output-viewer';
-import { TasksBrowserApp, type TasksFilter } from './components/dialogs/tasks-browser';
+import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
 import {
   SettingsSelectorComponent,
   type SettingsSelection,
@@ -145,11 +125,8 @@ import { CustomEditor } from './components/editor/custom-editor';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
 import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
-import { SkillActivationComponent } from './components/messages/skill-activation';
-import { ShellExecutionComponent } from './components/messages/shell-execution';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
@@ -179,7 +156,6 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from './constant/byf-tui';
-import { STREAMING_UI_FLUSH_MS } from './constant/streaming';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -194,9 +170,12 @@ import {
   INITIAL_LIVE_PANE,
   type AppState,
   type BackgroundAgentMetadata,
+  type DialogHost,
   type LivePaneState,
   parseThinkingEffort,
   type QueuedMessage,
+  type TUIStartupState,
+  type TUIState,
   type ToolCallBlockData,
   type ToolResultBlockData,
   type TranscriptEntry,
@@ -205,19 +184,13 @@ import {
 import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from './utils/background-task-status';
 import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-capabilities';
-import { resolveConnectCatalogRequest } from './utils/connect-catalog';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
-  appendStreamingArgsPreview,
-  argsRecord,
   formatErrorMessage,
-  isTodoItemShape,
-  parseStreamingArgs,
-  serializeToolResultOutput,
   stringValue,
 } from './utils/event-payload';
 import { isAbortError } from './utils/errors';
-import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
+import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
 import { McpOAuthAuthorizationUrlOpener } from './utils/mcp-oauth';
 import {
@@ -228,6 +201,27 @@ import {
 } from './utils/mcp-server-status';
 import { hasPatchChanges } from './utils/object-patch';
 import { openUrl } from './utils/open-url';
+import {
+  handleSessionError,
+  handleSessionMetaChanged,
+  handleSessionWarning,
+  handleStatusUpdate,
+  type SessionMetaCallbacks,
+  type SessionMetaState,
+} from './events/session-meta-handler';
+import {
+  handleSubagentSpawned as handleSubagentSpawnedImpl,
+  handleSubagentCompleted as handleSubagentCompletedImpl,
+  handleSubagentFailed as handleSubagentFailedImpl,
+  routeSubagentEvent as routeSubagentEventImpl,
+  type SubagentCallbacks,
+  type SubagentEventState,
+} from './events/subagent-event-handler';
+import {
+  TurnEventHandler,
+  type TurnEventCallbacks,
+  type TurnEventState,
+} from './events/turn-event-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -236,6 +230,10 @@ import { createTerminalState, type TerminalState } from './utils/terminal-state'
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
+import { LoginFlow } from './flows/login-flow';
+import { ConnectFlow } from './flows/connect-flow';
+
+export type { TUIState } from './types';
 
 export interface ByfTuiStartupInput {
   readonly cliOptions: CLIOptions;
@@ -262,129 +260,10 @@ export interface TUIStartupOptions {
   readonly startupNotice?: string;
 }
 
-export type TUIStartupState = 'pending' | 'ready' | 'picker';
-
 export interface ByfTuiOptions {
   initialAppState: AppState;
   startup: TUIStartupOptions;
   resolvedTheme?: ResolvedTheme;
-}
-
-export interface TUIState {
-  ui: TUI;
-  terminal: ProcessTerminal;
-  transcriptContainer: Container;
-  activityContainer: Container;
-  todoPanelContainer: Container;
-  todoPanel: TodoPanelComponent;
-  queueContainer: Container;
-  editorContainer: Container;
-  footer: FooterComponent;
-  editor: CustomEditor;
-  theme: ByfTuiThemeBundle;
-  appState: AppState;
-  startupState: TUIStartupState;
-  startupNotice: string | undefined;
-  livePane: LivePaneState;
-  transcriptEntries: TranscriptEntry[];
-  terminalState: TerminalState;
-  activitySpinner: MoonLoader | undefined;
-  activitySpinnerStyle: SpinnerStyle | undefined;
-  activeThinkingComponent: ThinkingComponent | undefined;
-  streamingComponent: AssistantMessageComponent | undefined;
-  streamingTranscriptEntry: TranscriptEntry | undefined;
-  activeCompactionBlock: CompactionComponent | undefined;
-  toolOutputExpanded: boolean;
-  planExpanded: boolean;
-  lastActivityMode: string | undefined;
-  lastHistoryContent: string | undefined;
-  pendingToolComponents: Map<string, ToolCallComponent>;
-  pendingAgentGroup: {
-    readonly turnId: string | undefined;
-    readonly step: number;
-    solo?: ToolCallComponent;
-    group?: AgentGroupComponent;
-  } | null;
-  pendingReadGroup: {
-    readonly turnId: string | undefined;
-    readonly step: number;
-    solo?: ToolCallComponent;
-    group?: ReadGroupComponent;
-  } | null;
-  backgroundAgents: Set<string>;
-  backgroundAgentMetadata: Map<string, BackgroundAgentMetadata>;
-  /**
-   * Authoritative live mirror of the BPM. Keyed by `taskId`. Includes
-   * both bash and agent tasks, and retains terminal entries until they
-   * are explicitly forgotten (kept so transcript replay and footer
-   * lookups stay consistent).
-   */
-  backgroundTasks: Map<string, BackgroundTaskInfo>;
-  /**
-   * Task IDs whose terminal transcript card has already been pushed.
-   * Used to dedupe between the BPM `background.task.terminated` event
-   * and the older `subagent.completed/failed` flow, both of which
-   * arrive for `agent-*` tasks.
-   */
-  backgroundTaskTranscriptedTerminal: Set<string>;
-  renderedSkillActivationIds: Set<string>;
-  renderedMcpServerStatusKeys: Map<string, string>;
-  mcpServerStatusSpinners: Map<string, MoonLoader>;
-  subagentParentToolCallIds: Map<string, string>;
-  subagentNames: Map<string, string>;
-  sessions: SessionRow[];
-  loadingSessions: boolean;
-  showingSessionPicker: boolean;
-  showingHelpPanel: boolean;
-  /**
-   * Active `/tasks` full-screen takeover. When non-undefined, the main
-   * TUI's children have been replaced by `component`; `savedChildren`
-   * holds the original list so we can restore on exit.
-   */
-  tasksBrowser:
-    | {
-        component: TasksBrowserApp;
-        savedChildren: readonly Component[];
-        filter: TasksFilter;
-        selectedTaskId: string | undefined;
-        tailOutput: string | undefined;
-        tailLoading: boolean;
-        tailRequestId: number;
-        flashMessage: string | undefined;
-        flashTimer: NodeJS.Timeout | undefined;
-        pollTimer: NodeJS.Timeout | undefined;
-        /**
-         * Active nested output viewer (TaskOutputViewer). Undefined when
-         * the browser is showing its normal 3-pane layout.
-         */
-        viewer:
-          | {
-              component: TaskOutputViewer;
-              savedChildren: readonly Component[];
-              /** Task whose output the viewer is currently following. */
-              taskId: string;
-              /** Latest output snapshot pushed into the viewer. */
-              output: string;
-              /** Last in-flight refresh — used to ignore late responses. */
-              refreshId: number;
-              /** 1s background poll so live tail still works if events drop. */
-              pollTimer: NodeJS.Timeout;
-            }
-          | undefined;
-      }
-    | undefined;
-  externalEditorRunning: boolean;
-  currentTurnId: string | undefined;
-  currentStep: number;
-  assistantDraft: string;
-  assistantStreamActive: boolean;
-  thinkingDraft: string;
-  activeToolCalls: Map<string, ToolCallBlockData>;
-  streamingToolCallArguments: Map<
-    string,
-    { name?: string; argumentsText: string; startedAtMs: number }
-  >;
-  queuedMessages: QueuedMessage[];
 }
 
 // Builds the app-state snapshot used before a session is attached.
@@ -484,7 +363,6 @@ export function createTUIState(options: ByfTuiOptions): TUIState {
     loadingSessions: false,
     showingSessionPicker: false,
     showingHelpPanel: false,
-    tasksBrowser: undefined,
     externalEditorRunning: false,
     currentTurnId: undefined,
     currentStep: 0,
@@ -568,7 +446,7 @@ interface LoginProgressSpinnerHandle {
   stop(opts: { ok: boolean; label: string }): void;
 }
 
-export class ByfTui {
+export class ByfTui implements DialogHost {
   private readonly harness: ByfHarness;
   private readonly options: ByfTuiOptions;
   private session: Session | undefined;
@@ -596,13 +474,8 @@ export class ByfTui {
   // Guards `stop()` and `emergencyTerminalExit()` so a signal arriving mid-
   // shutdown does not race with itself.
   private isShuttingDown = false;
-  // High-frequency model/tool deltas update draft state immediately, then use
-  // these flags to coalesce expensive component rebuilds into periodic flushes.
-  private streamingUiFlushTimer: ReturnType<typeof setTimeout> | undefined;
-  private lastStreamingUiFlushAt: number | undefined;
-  private pendingAssistantFlush = false;
-  private pendingThinkingFlush = false;
-  private readonly pendingToolCallFlushIds = new Set<string>();
+  private readonly turnEventHandler: TurnEventHandler;
+  private readonly tasksBrowserController: TasksBrowserController;
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
@@ -631,6 +504,7 @@ export class ByfTui {
     this.options = tuiOptions;
     this.state = createTUIState(tuiOptions);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
+    this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -651,6 +525,7 @@ export class ByfTui {
     );
     this.setupEditorHandlers();
     this.buildLayout();
+    this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
   }
 
   // =========================================================================
@@ -1522,7 +1397,11 @@ export class ByfTui {
         void this.showSessionPicker();
         return;
       case 'tasks':
-        void this.showTasksBrowser();
+        if (this.session === undefined) {
+          this.showError('No active session.');
+          return;
+        }
+        void this.tasksBrowserController.show();
         return;
       case 'mcp':
         void this.showMcpServers();
@@ -1827,191 +1706,47 @@ export class ByfTui {
     });
   }
 
-  private hasPendingStreamingUiUpdates(): boolean {
-    return (
-      this.pendingAssistantFlush ||
-      this.pendingThinkingFlush ||
-      this.pendingToolCallFlushIds.size > 0
-    );
-  }
-
-  private clearStreamingUiFlushTimer(): void {
-    if (this.streamingUiFlushTimer === undefined) return;
-    clearTimeout(this.streamingUiFlushTimer);
-    this.streamingUiFlushTimer = undefined;
-  }
-
-  private clearStreamingUiFlushTimerIfIdle(): void {
-    if (this.hasPendingStreamingUiUpdates()) return;
-    this.clearStreamingUiFlushTimer();
-  }
-
   private discardPendingStreamingUiUpdates(): void {
-    this.clearStreamingUiFlushTimer();
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.pendingToolCallFlushIds.clear();
-  }
-
-  // Schedule trailing UI work for streaming deltas. Terminal drawing is already
-  // coalesced by pi-tui; this avoids doing our own markdown/tool preview rebuild
-  // work on every chunk before pi-tui even gets a chance to render.
-  private scheduleStreamingUiFlush(): void {
-    if (!this.hasPendingStreamingUiUpdates()) return;
-    if (this.streamingUiFlushTimer !== undefined) return;
-    const delay =
-      this.lastStreamingUiFlushAt === undefined
-        ? 0
-        : Math.max(0, STREAMING_UI_FLUSH_MS - (Date.now() - this.lastStreamingUiFlushAt));
-    this.streamingUiFlushTimer = setTimeout(() => {
-      this.streamingUiFlushTimer = undefined;
-      this.flushStreamingUiUpdates();
-    }, delay);
+    this.turnEventHandler.discardPendingStreamingUiUpdates();
   }
 
   // Final events such as tool.result or turn.ended must observe all streamed
   // draft content, so they bypass the timer and drain pending UI work first.
   private flushStreamingUiUpdatesNow(): void {
-    this.clearStreamingUiFlushTimer();
-    this.flushStreamingUiUpdates();
-  }
-
-  private flushStreamingUiUpdates(): void {
-    if (!this.hasPendingStreamingUiUpdates()) return;
-    this.lastStreamingUiFlushAt = Date.now();
-    const shouldFlushThinking = this.pendingThinkingFlush;
-    const shouldFlushAssistant = this.pendingAssistantFlush;
-    const toolCallIds = [...this.pendingToolCallFlushIds];
-    this.pendingThinkingFlush = false;
-    this.pendingAssistantFlush = false;
-    this.pendingToolCallFlushIds.clear();
-
-    if (shouldFlushThinking && this.state.thinkingDraft.length > 0) {
-      this.onThinkingUpdate(this.state.thinkingDraft);
-    }
-    if (shouldFlushAssistant) {
-      this.onStreamingTextUpdate(this.state.assistantDraft);
-    }
-    for (const id of toolCallIds) {
-      this.flushStreamingToolCallPreview(id);
-    }
-  }
-
-  // Materializes the latest bounded argument preview for one in-flight tool
-  // call. The final tool.call event still replaces this with authoritative args.
-  private flushStreamingToolCallPreview(id: string): void {
-    const streaming = this.state.streamingToolCallArguments.get(id);
-    if (streaming === undefined) return;
-    const toolCall: ToolCallBlockData = {
-      id,
-      name: streaming.name ?? this.state.activeToolCalls.get(id)?.name ?? 'Tool',
-      args: parseStreamingArgs(streaming.argumentsText),
-      streamingArguments: streaming.argumentsText,
-      streamingStartedAtMs: streaming.startedAtMs,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    this.state.activeToolCalls.set(id, toolCall);
-
-    if (this.state.thinkingDraft.length > 0 || this.state.assistantStreamActive) {
-      this.finalizeLiveTextBuffers('tool');
-    }
-
-    const existingComponent = this.state.pendingToolComponents.get(id);
-    if (existingComponent !== undefined) {
-      existingComponent.updateToolCall(toolCall);
-    } else if (toolCall.name !== 'Agent') {
-      this.onToolCallStart(toolCall);
-    }
-  }
-
-  // Finalizes live thinking output and moves the live pane to the next mode.
-  private flushThinkingToTranscript(nextMode: LivePaneState['mode'] = 'idle'): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.thinkingDraft.length === 0) {
-      this.patchLivePane({ mode: nextMode });
-      return;
-    }
-    this.state.thinkingDraft = '';
-    this.onThinkingEnd();
-    this.patchLivePane({ mode: nextMode });
-  }
-
-  // Finalizes live assistant text and clears streaming component state.
-  private finalizeAssistantStream(): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.assistantStreamActive) {
-      this.onStreamingTextEnd();
-      this.state.assistantStreamActive = false;
-    }
-    this.state.assistantDraft = '';
-    this.updateActivityPane();
-    this.state.ui.requestRender();
+    this.turnEventHandler.flushStreamingUiUpdatesNow();
   }
 
   // Discards live thinking and assistant text state without finalizing transcript output.
   private resetLiveTextRuntime(): void {
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.clearStreamingUiFlushTimerIfIdle();
-    this.state.assistantDraft = '';
-    this.state.assistantStreamActive = false;
+    this.turnEventHandler.resetLiveTextRuntime();
     this.state.streamingComponent = undefined;
     this.state.streamingTranscriptEntry = undefined;
-    this.state.thinkingDraft = '';
-    this.disposeActiveThinkingComponent();
   }
 
   // Clears live tool UI state while preserving active tool-call tracking.
   private resetLiveToolUiState(): void {
-    this.pendingToolCallFlushIds.clear();
-    this.clearStreamingUiFlushTimerIfIdle();
-    this.state.streamingToolCallArguments.clear();
-    this.disposeAndClearPendingToolComponents();
+    this.turnEventHandler.resetLiveToolUiState();
     this.state.pendingAgentGroup = null;
     this.state.pendingReadGroup = null;
   }
 
   // Clears SDK tool-call tracking.
   private resetToolCallState(): void {
-    this.state.activeToolCalls.clear();
+    this.turnEventHandler.resetToolCallState();
   }
 
   // Finalizes any live thinking and assistant text for a phase transition.
   private finalizeLiveTextBuffers(nextMode: LivePaneState['mode'] = 'idle'): void {
-    this.flushThinkingToTranscript(nextMode);
-    this.finalizeAssistantStream();
+    this.turnEventHandler.finalizeLiveTextBuffers(nextMode);
   }
 
   // Completes a turn, dispatches queued work, and sends completion notification.
   private finalizeTurn(sendQueued: (item: QueuedMessage) => void): void {
-    if (!this.state.appState.isStreaming) return;
     this.deferUserMessages = false;
-    const completedTurnKey =
-      this.state.currentTurnId ?? `local:${String(this.state.appState.streamingStartTime)}`;
-    this.finalizeLiveTextBuffers('idle');
-    this.resetToolCallState();
-    this.state.currentTurnId = undefined;
-
-    if (this.state.queuedMessages.length > 0) {
-      const [next, ...rest] = this.state.queuedMessages;
-      this.state.queuedMessages = rest;
-      this.setAppState({ isStreaming: false, streamingPhase: 'idle' });
-      this.resetLivePane();
-      if (next !== undefined) {
-        setTimeout(() => {
-          sendQueued(next);
-        }, 0);
-      }
-      return;
-    }
-
-    this.setAppState({ isStreaming: false, streamingPhase: 'idle' });
-    this.resetLivePane();
-    notifyTerminalOnce(this.state, `turn-complete:${completedTurnKey}`, {
-      title: 'Byf Code task complete',
-      body: this.state.appState.sessionTitle ?? undefined,
-    });
+    this.turnEventHandler.handleTurnEnd(
+      { type: 'turn.ended', turnId: 0 } as TurnEndedEvent,
+      sendQueued,
+    );
   }
 
   // =========================================================================
@@ -2181,7 +1916,7 @@ export class ByfTui {
     this.state.backgroundAgentMetadata.clear();
     this.state.backgroundTasks.clear();
     this.state.backgroundTaskTranscriptedTerminal.clear();
-    this.closeTasksBrowser();
+    this.tasksBrowserController.close();
     this.state.subagentParentToolCallIds.clear();
     this.state.subagentNames.clear();
     this.state.renderedSkillActivationIds.clear();
@@ -2445,120 +2180,28 @@ export class ByfTui {
 
   // Routes child-agent events into their parent tool-call component.
   private routeSubagentEvent(event: Event): boolean {
-    const subagentId = event.agentId;
-    if (subagentId === MAIN_AGENT_ID) return false;
-
-    const parentToolCallId = this.state.subagentParentToolCallIds.get(subagentId);
-    if (parentToolCallId === undefined || parentToolCallId.length === 0) return true;
-    const sourceName = this.state.subagentNames.get(subagentId);
-    const toolCall = this.state.pendingToolComponents.get(parentToolCallId);
-    if (toolCall === undefined) return true;
-    toolCall.setSubagentMeta(subagentId, sourceName);
-
-    switch (event.type) {
-      case 'hook.result':
-        toolCall.appendSubagentText(formatHookResultPlain(event), 'text');
-        return true;
-      case 'assistant.delta':
-        toolCall.appendSubagentText(event.delta, 'text');
-        return true;
-      case 'thinking.delta':
-        toolCall.appendSubagentText(event.delta, 'thinking');
-        return true;
-      case 'tool.call.started':
-        toolCall.appendSubToolCall({
-          id: `${subagentId}:${event.toolCallId}`,
-          name: event.name,
-          args: argsRecord(event.args),
-        });
-        return true;
-      case 'tool.call.delta':
-        toolCall.appendSubToolCallDelta({
-          id: `${subagentId}:${event.toolCallId}`,
-          name: event.name,
-          argumentsPart: event.argumentsPart ?? null,
-        });
-        return true;
-      case 'tool.result':
-        toolCall.finishSubToolCall({
-          tool_call_id: `${subagentId}:${event.toolCallId}`,
-          output: serializeToolResultOutput(event.output),
-          is_error: event.isError,
-        });
-        return true;
-      case 'agent.status.updated':
-      case 'background.task.started':
-      case 'background.task.updated':
-      case 'background.task.terminated':
-      case 'compaction.blocked':
-      case 'compaction.cancelled':
-      case 'compaction.completed':
-      case 'compaction.started':
-      case 'error':
-      case 'session.meta.updated':
-      case 'skill.activated':
-      case 'subagent.completed':
-      case 'subagent.failed':
-      case 'subagent.spawned':
-      case 'tool.progress':
-      case 'tool.list.updated':
-      case 'mcp.server.status':
-      case 'turn.ended':
-      case 'turn.started':
-      case 'turn.step.completed':
-      case 'turn.step.interrupted':
-      case 'turn.step.retrying':
-      case 'turn.step.started':
-        return true;
-      default:
-        return true;
-    }
+    return routeSubagentEventImpl(event, this.subagentEventState());
   }
 
   // Initializes turn-scoped buffers when the SDK starts a turn.
-  private handleTurnBegin(_event: TurnStartedEvent): void {
-    void _event;
-    this.resetLiveToolUiState();
-    this.state.currentStep = 0;
-    this.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.setAppState({
-      isStreaming: true,
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
+  private handleTurnBegin(event: TurnStartedEvent): void {
+    this.turnEventHandler.handleTurnBegin(event);
   }
 
   // Finalizes turn-scoped state when the SDK completes a turn.
-  private handleTurnEnd(_event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
-    void _event;
-    this.flushStreamingUiUpdatesNow();
+  private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
+    this.turnEventHandler.flushStreamingUiUpdatesNow();
     const todos = this.state.todoPanel.getTodos();
     if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
       this.setTodoList([]);
     }
-    this.resetLiveToolUiState();
-    this.finalizeTurn(sendQueued);
+    this.turnEventHandler.resetLiveToolUiState();
+    this.turnEventHandler.handleTurnEnd(event, sendQueued);
   }
 
   // Resets live render state for a new turn step.
   private handleStepBegin(event: TurnStepStartedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.state.currentStep = event.step;
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('waiting');
-    this.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.setAppState({
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
+    this.turnEventHandler.handleStepBegin(event);
   }
 
   // Surfaces step-level outcomes the user needs to act on. The common
@@ -2570,42 +2213,7 @@ export class ByfTui {
   // wrong. Flip those into a visible 'Truncated' state and append a
   // notice pointing at the config knob.
   private handleStepCompleted(event: TurnStepCompletedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    if (event.finishReason !== 'max_tokens') return;
-
-    // Scope the truncation marking to tool calls that belong to the
-    // step that just completed. Without this guard, stale entries from
-    // earlier retry attempts (or unrelated still-tracked calls) would
-    // get relabeled and counted, producing misleading "tool call was
-    // truncated" notices for the wrong step.
-    const eventTurnId = String(event.turnId);
-    let truncatedCount = 0;
-    for (const toolCall of this.state.activeToolCalls.values()) {
-      if (toolCall.result !== undefined) continue;
-      if (toolCall.streamingArguments === undefined) continue;
-      if (toolCall.turnId !== eventTurnId) continue;
-      if (toolCall.step !== event.step) continue;
-      toolCall.truncated = true;
-      const component = this.state.pendingToolComponents.get(toolCall.id);
-      if (component !== undefined) {
-        component.updateToolCall(toolCall);
-      }
-      truncatedCount += 1;
-    }
-    this.state.streamingToolCallArguments.clear();
-
-    const title =
-      truncatedCount > 0
-        ? 'Model hit max_tokens — tool call was truncated before it could run.'
-        : 'Model hit max_tokens — no tool call was emitted.';
-    // The `max_output_size` knob is only wired through to provider
-    // requests for the Anthropic provider (see toKosongProviderConfig).
-    // For OpenAI / Byf / Google sessions the advice would be a
-    // dead end, so skip the second line on those providers.
-    const detail = this.isAnthropicSessionActive()
-      ? 'If this limit is wrong for your model, set `max_output_size` on the model alias in your byf config.'
-      : undefined;
-    this.showNotice(title, detail);
+    this.turnEventHandler.handleStepCompleted(event);
   }
 
   private isAnthropicSessionActive(): boolean {
@@ -2616,133 +2224,31 @@ export class ByfTui {
 
   // Renders user-facing status for an interrupted turn step.
   private handleStepInterrupted(event: TurnStepInterruptedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('idle');
-    const reason = event.reason;
-    if (reason === 'error') return;
-    if (reason === 'aborted' || reason === undefined || reason === '') {
-      this.showStatus('Interrupted by user', this.state.theme.colors.error);
-      return;
-    }
-    this.showError(
-      reason === 'max_steps'
-        ? 'reached per-turn step limit (max_steps)'
-        : `step interrupted (${reason})`,
-    );
+    this.turnEventHandler.handleStepInterrupted(event);
   }
 
   // Appends a thinking delta to the live thinking block.
   private handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    this.state.thinkingDraft += event.delta;
-    this.pendingThinkingFlush = true;
-    this.patchLivePane({ mode: 'idle' });
-    if (this.state.appState.streamingPhase !== 'thinking') {
-      this.setAppState({ streamingPhase: 'thinking', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleThinkingDelta(event);
   }
 
   // Appends an assistant text delta to the live assistant block.
   private handleAssistantDelta(event: AssistantDeltaEvent): void {
-    if (this.state.thinkingDraft.length > 0) {
-      this.flushThinkingToTranscript('idle');
-    }
-
-    if (!this.state.assistantStreamActive) {
-      this.state.assistantStreamActive = true;
-      this.onStreamingTextStart();
-    }
-
-    this.state.assistantDraft += event.delta;
-    this.pendingAssistantFlush = true;
-
-    this.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (this.state.appState.streamingPhase !== 'composing') {
-      this.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleAssistantDelta(event);
   }
 
   private handleHookResult(event: HookResultEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.thinkingDraft.length > 0) {
-      this.flushThinkingToTranscript('idle');
-    }
-    this.finalizeAssistantStream();
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'assistant',
-      turnId: String(event.turnId),
-      renderMode: 'markdown',
-      content: formatHookResultMarkdown(event),
-    });
-    this.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
+    this.turnEventHandler.handleHookResult(event);
   }
 
   // Starts or updates a rendered tool call from a tool-call start event.
   private handleToolCall(event: ToolCallStartedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    const toolCall: ToolCallBlockData = {
-      id: event.toolCallId,
-      name: event.name,
-      args: argsRecord(event.args),
-      description: event.description,
-      display: event.display,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    const existing = this.state.activeToolCalls.get(event.toolCallId);
-    this.state.activeToolCalls.set(event.toolCallId, toolCall);
-    this.pendingToolCallFlushIds.delete(event.toolCallId);
-    this.state.streamingToolCallArguments.delete(event.toolCallId);
-    const existingComponent = this.state.pendingToolComponents.get(event.toolCallId);
-    if (existingComponent !== undefined) {
-      existingComponent.updateToolCall(toolCall);
-    } else if (existing === undefined) {
-      this.finalizeLiveTextBuffers('tool');
-      if (event.name !== 'Agent') {
-        this.onToolCallStart(toolCall);
-      }
-    }
-    this.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
+    this.turnEventHandler.handleToolCall(event);
   }
 
   // Accumulates streaming tool-call arguments and updates the rendered call.
   private handleToolCallDelta(event: ToolCallDeltaEvent): void {
-    if (event.toolCallId.length === 0) return;
-    const id = event.toolCallId;
-    const existing = this.state.streamingToolCallArguments.get(id);
-    const argumentsText = appendStreamingArgsPreview(
-      existing?.argumentsText,
-      event.argumentsPart,
-    );
-    const name = event.name ?? existing?.name ?? this.state.activeToolCalls.get(id)?.name ?? 'Tool';
-    const startedAtMs = existing?.startedAtMs ?? Date.now();
-    this.state.streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
-    this.pendingToolCallFlushIds.add(id);
-
-    this.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (this.state.appState.streamingPhase !== 'composing') {
-      this.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleToolCallDelta(event);
   }
 
   // Streams a `{kind:'status'}` progress text into the live tool box so
@@ -2751,85 +2257,102 @@ export class ByfTui {
   // their authorization URL. Non-status update kinds stay out of the terminal
   // transcript because only status text needs persistent display.
   private handleToolProgress(event: ToolProgressEvent): void {
-    if (event.update.kind !== 'status') return;
-    const text = event.update.text;
-    if (text === undefined || text.length === 0) return;
-    const tc = this.state.pendingToolComponents.get(event.toolCallId);
-    if (tc === undefined) return;
-    tc.appendProgress(text);
+    this.turnEventHandler.handleToolProgress(event);
   }
 
   // Completes a tool call and applies any tool-specific UI side effects.
   private handleToolResult(event: ToolResultEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    const matchedCall = this.state.activeToolCalls.get(event.toolCallId);
-    const resultData: ToolResultBlockData = {
-      tool_call_id: event.toolCallId,
-      output: serializeToolResultOutput(event.output),
-      is_error: event.isError,
-      synthetic: event.synthetic,
+    this.turnEventHandler.handleToolResult(event);
+  }
+
+  private turnEventState(): TurnEventState {
+    const state = this.state;
+    return {
+      get appState() { return state.appState; },
+      get colors() { return state.theme.colors; },
+      get currentTurnId() { return state.currentTurnId; },
+      set currentTurnId(v: string | undefined) { state.currentTurnId = v; },
+      get currentStep() { return state.currentStep; },
+      set currentStep(v: number) { state.currentStep = v; },
+      get assistantDraft() { return state.assistantDraft; },
+      set assistantDraft(v: string) { state.assistantDraft = v; },
+      get assistantStreamActive() { return state.assistantStreamActive; },
+      set assistantStreamActive(v: boolean) { state.assistantStreamActive = v; },
+      get thinkingDraft() { return state.thinkingDraft; },
+      set thinkingDraft(v: string) { state.thinkingDraft = v; },
+      get activeToolCalls() { return state.activeToolCalls; },
+      get streamingToolCallArguments() { return state.streamingToolCallArguments; },
+      get pendingToolComponents() { return state.pendingToolComponents; },
+      get transcriptEntries() { return state.transcriptEntries; },
+      get queuedMessages() { return state.queuedMessages; },
+      set queuedMessages(v: QueuedMessage[]) { state.queuedMessages = v; },
     };
-    if (matchedCall !== undefined) {
-      this.onToolCallEnd(event.toolCallId, resultData);
-      if (matchedCall.name === 'TodoList' && !event.isError) {
-        const rawTodos = (matchedCall.args as { todos?: unknown }).todos;
-        if (Array.isArray(rawTodos)) {
-          const sanitized = rawTodos
-            .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-              isTodoItemShape(todo),
-            )
-            .map((t) => ({ title: t.title, status: t.status }));
-          this.setTodoList(sanitized);
-        }
-      }
-    }
-    this.state.activeToolCalls.delete(event.toolCallId);
-    this.state.streamingToolCallArguments.delete(event.toolCallId);
-    this.patchLivePane({ mode: 'waiting' });
   }
 
-  // Applies agent status updates to app state.
+  private turnEventCallbacks(): TurnEventCallbacks {
+    return {
+      setAppState: (patch) => this.setAppState(patch),
+      patchLivePane: (patch) => this.patchLivePane(patch),
+      resetLivePane: () => this.resetLivePane(),
+      showStatus: (msg, color) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showNotice: (title, detail) => this.showNotice(title, detail),
+      requestRender: () => this.state.ui.requestRender(),
+      onStreamingTextStart: () => this.onStreamingTextStart(),
+      onStreamingTextUpdate: (text) => this.onStreamingTextUpdate(text),
+      onStreamingTextEnd: () => this.onStreamingTextEnd(),
+      onThinkingUpdate: (text) => this.onThinkingUpdate(text),
+      onThinkingEnd: () => this.onThinkingEnd(),
+      onToolCallStart: (tc) => this.onToolCallStart(tc),
+      onToolCallEnd: (id, result) => this.onToolCallEnd(id, result),
+      appendTranscriptEntry: (entry) => this.appendTranscriptEntry(entry),
+      updateActivityPane: () => this.updateActivityPane(),
+      disposeActiveThinkingComponent: () => this.disposeActiveThinkingComponent(),
+      disposeAndClearPendingToolComponents: () => this.disposeAndClearPendingToolComponents(),
+      setTodoList: (todos) => this.setTodoList(todos),
+      isAnthropicSessionActive: () => this.isAnthropicSessionActive(),
+      notifyTurnComplete: (key) => {
+        notifyTerminalOnce(this.state, `turn-complete:${key}`, {
+          title: 'Byf Code task complete',
+          body: this.state.appState.sessionTitle ?? undefined,
+        });
+      },
+    };
+  }
+
+  private sessionMetaCallbacks(): SessionMetaCallbacks {
+    return {
+      flushStreamingUiUpdatesNow: () => this.turnEventHandler.flushStreamingUiUpdatesNow(),
+      resetLiveToolUiState: () => this.turnEventHandler.resetLiveToolUiState(),
+      finalizeLiveTextBuffers: (mode) => this.turnEventHandler.finalizeLiveTextBuffers(mode),
+      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color) => this.showStatus(msg, color),
+      setAppState: (patch) => this.setAppState(patch),
+    };
+  }
+
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    const patch: Partial<AppState> = {};
-    if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
-    if (event.contextTokens !== undefined) patch.contextTokens = event.contextTokens;
-    if (event.maxContextTokens !== undefined) patch.maxContextTokens = event.maxContextTokens;
-    if (event.planMode !== undefined) patch.planMode = event.planMode;
-    if (event.permission !== undefined) {
-      patch.permissionMode = event.permission;
-      patch.yolo = event.permission === 'yolo';
-    }
-    if (event.model !== undefined) patch.model = event.model;
-    if (Object.keys(patch).length > 0) this.setAppState(patch);
+    handleStatusUpdate(event, (patch) => this.setAppState(patch));
   }
 
-  // Applies session metadata changes to the UI and process title.
   private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
-    const title = event.title ?? stringValue(event.patch?.['title']);
-    if (title !== undefined) {
-      this.setAppState({ sessionTitle: title });
-      setProcessTitle(title, this.state.appState.sessionId);
-    }
+    handleSessionMetaChanged(event, (patch) => this.setAppState(patch));
   }
 
-  // Finalizes live buffers and renders a session error.
   private handleSessionError(event: ErrorEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('idle');
-    if (event.code === OAUTH_LOGIN_REQUIRED_CODE) {
-      this.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
-      return;
-    }
-    this.showError(`[${event.code}] ${event.message}`);
-    const sessionId = this.state.appState.sessionId;
-    if (sessionId.length > 0) {
-      this.showStatus(errorReportHintLine(sessionId));
-    }
+    const metaState: SessionMetaState = {
+      sessionId: this.state.appState.sessionId,
+      theme: { colors: { warning: this.state.theme.colors.warning } },
+    };
+    handleSessionError(event, metaState, this.sessionMetaCallbacks());
   }
 
   private handleSessionWarning(event: WarningEvent): void {
-    this.showStatus(`Warning: ${event.message}`, this.state.theme.colors.warning);
+    const metaState: SessionMetaState = {
+      sessionId: this.state.appState.sessionId,
+      theme: { colors: { warning: this.state.theme.colors.warning } },
+    };
+    handleSessionWarning(event, metaState, (msg, color) => this.showStatus(msg, color));
   }
 
   private renderMcpServerStatus(server: McpServerStatusSnapshot): void {
@@ -2974,147 +2497,87 @@ export class ByfTui {
     }
   }
 
+  private subagentCallbacks(): SubagentCallbacks {
+    return {
+      appendBackgroundAgentEntry: (phase, meta, extras) => {
+        this.appendBackgroundAgentEntry(phase, meta, extras);
+      },
+      syncBackgroundAgentBadge: () => {
+        this.syncBackgroundAgentBadge();
+      },
+      appendTranscriptEntry: (entry) => {
+        this.appendTranscriptEntry(entry);
+      },
+      onToolCallStart: (toolCall) => {
+        this.onToolCallStart(toolCall);
+      },
+    };
+  }
+
+  // Narrow adapter over TUIState for subagent handlers. ByfTUI keeps
+  // ownership of state; the handler module only sees a controlled
+  // getter/setter subset.
+  private subagentEventState(): SubagentEventState {
+    const state = this.state;
+    return {
+      getSubagentParentToolCallId: (id) => state.subagentParentToolCallIds.get(id),
+      setSubagentParentToolCallId: (id, parent) => {
+        state.subagentParentToolCallIds.set(id, parent);
+      },
+      getSubagentName: (id) => state.subagentNames.get(id),
+      setSubagentName: (id, name) => {
+        state.subagentNames.set(id, name);
+      },
+      hasBackgroundAgent: (id) => state.backgroundAgents.has(id),
+      addBackgroundAgent: (id) => {
+        state.backgroundAgents.add(id);
+      },
+      deleteBackgroundAgent: (id) => state.backgroundAgents.delete(id),
+      getBackgroundAgentMetadata: (id) => state.backgroundAgentMetadata.get(id),
+      setBackgroundAgentMetadata: (id, meta) => {
+        state.backgroundAgentMetadata.set(id, meta);
+      },
+      deleteBackgroundAgentMetadata: (id) => {
+        state.backgroundAgentMetadata.delete(id);
+      },
+      getPendingToolCall: (id) => state.pendingToolComponents.get(id),
+      deletePendingToolCall: (id) => {
+        state.pendingToolComponents.delete(id);
+      },
+      getActiveToolCall: (id) => state.activeToolCalls.get(id),
+      hasActiveToolCall: (id) => state.activeToolCalls.has(id),
+      hasTranscriptedTask: (taskId) => state.backgroundTaskTranscriptedTerminal.has(taskId),
+      addTranscriptedTask: (taskId) => {
+        state.backgroundTaskTranscriptedTerminal.add(taskId);
+      },
+      findAgentTaskIdByDescription: (description) => {
+        let match: string | undefined;
+        for (const info of state.backgroundTasks.values()) {
+          if (!info.taskId.startsWith('agent-')) continue;
+          if (info.description !== description) continue;
+          if (match !== undefined) return undefined; // ambiguous
+          match = info.taskId;
+        }
+        return match;
+      },
+      get currentStep() { return state.currentStep; },
+      get currentTurnId() { return state.currentTurnId; },
+    };
+  }
+
   // Registers a spawned subagent and renders foreground or background status.
   private handleSubagentSpawned(event: SubagentSpawnedEvent): void {
-    this.state.subagentParentToolCallIds.set(event.subagentId, event.parentToolCallId);
-    this.state.subagentNames.set(event.subagentId, event.subagentName);
-
-    if (event.runInBackground) {
-      const meta = this.buildBackgroundAgentMetadata(event);
-      this.state.backgroundAgentMetadata.set(event.subagentId, meta);
-      this.state.backgroundAgents.add(event.subagentId);
-      this.appendBackgroundAgentEntry('started', meta);
-      this.syncBackgroundAgentBadge();
-      return;
-    }
-
-    let tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) {
-      const toolCall = this.state.activeToolCalls.get(event.parentToolCallId);
-      if (toolCall !== undefined) {
-        this.onToolCallStart(toolCall);
-        tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-      }
-    }
-    tc ??= this.createStandaloneSubagentToolCall(event);
-    if (tc === undefined) return;
-    tc.onSubagentSpawned({
-      agentId: event.subagentId,
-      agentName: event.subagentName,
-      runInBackground: event.runInBackground,
-    });
+    handleSubagentSpawnedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Completes a subagent in its parent tool call or background transcript entry.
   private handleSubagentCompleted(event: SubagentCompletedEvent): void {
-    const backgroundMeta = this.state.backgroundAgentMetadata.get(event.subagentId);
-    if (this.state.backgroundAgents.delete(event.subagentId)) {
-      this.syncBackgroundAgentBadge();
-    }
-    if (backgroundMeta !== undefined) {
-      this.state.backgroundAgentMetadata.delete(event.subagentId);
-      // Dedupe: if the BPM `background.task.terminated` for the
-      // matching agent task already pushed a terminal card, skip.
-      // Otherwise mark the subagent id so a later BPM event skips.
-      const taskId = this.findAgentTaskId(event.subagentId);
-      if (taskId !== undefined && this.state.backgroundTaskTranscriptedTerminal.has(taskId)) {
-        return;
-      }
-      if (taskId !== undefined) {
-        this.state.backgroundTaskTranscriptedTerminal.add(taskId);
-      }
-      const extras =
-        event.resultSummary === undefined ? undefined : { resultSummary: event.resultSummary };
-      this.appendBackgroundAgentEntry('completed', backgroundMeta, extras);
-      return;
-    }
-    const tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) return;
-    tc.onSubagentCompleted({
-      usage: event.usage,
-      resultSummary: event.resultSummary,
-    });
-    if (!this.state.activeToolCalls.has(event.parentToolCallId)) {
-      this.state.pendingToolComponents.delete(event.parentToolCallId);
-    }
+    handleSubagentCompletedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Marks a subagent failure in its parent tool call or background transcript entry.
   private handleSubagentFailed(event: SubagentFailedEvent): void {
-    const backgroundMeta = this.state.backgroundAgentMetadata.get(event.subagentId);
-    if (this.state.backgroundAgents.delete(event.subagentId)) {
-      this.syncBackgroundAgentBadge();
-    }
-    if (backgroundMeta !== undefined) {
-      this.state.backgroundAgentMetadata.delete(event.subagentId);
-      const taskId = this.findAgentTaskId(event.subagentId);
-      if (taskId !== undefined && this.state.backgroundTaskTranscriptedTerminal.has(taskId)) {
-        return;
-      }
-      if (taskId !== undefined) {
-        this.state.backgroundTaskTranscriptedTerminal.add(taskId);
-      }
-      this.appendBackgroundAgentEntry('failed', backgroundMeta, { error: event.error });
-      return;
-    }
-    const tc = this.state.pendingToolComponents.get(event.parentToolCallId);
-    if (tc === undefined) return;
-    tc.onSubagentFailed({ error: event.error });
-    if (!this.state.activeToolCalls.has(event.parentToolCallId)) {
-      this.state.pendingToolComponents.delete(event.parentToolCallId);
-    }
-  }
-
-  // Mounts subagents launched by session-level commands that do not originate
-  // from a model-issued Agent tool call.
-  private createStandaloneSubagentToolCall(event: SubagentSpawnedEvent): ToolCallComponent | undefined {
-    const description = event.description ?? `Run ${event.subagentName} agent`;
-    const toolCall: ToolCallBlockData = {
-      id: event.parentToolCallId,
-      name: 'Agent',
-      args: {
-        description,
-        subagent_type: event.subagentName,
-      },
-      description,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    this.onToolCallStart(toolCall);
-    return this.state.pendingToolComponents.get(event.parentToolCallId);
-  }
-
-  /**
-   * Locate the BPM `agent-*` task id whose `description` matches the
-   * spawned subagent's recorded description. Used only for dedupe
-   * between the BPM and subagent flows — best-effort: if there is no
-   * unique match (e.g. multiple agent tasks with the same description)
-   * the caller treats the dedupe as a miss, which is safe.
-   */
-  private findAgentTaskId(subagentId: string): string | undefined {
-    const meta = this.state.backgroundAgentMetadata.get(subagentId);
-    const description = meta?.description ?? meta?.agentName;
-    if (description === undefined) return undefined;
-    let match: string | undefined;
-    for (const info of this.state.backgroundTasks.values()) {
-      if (!info.taskId.startsWith('agent-')) continue;
-      if (info.description !== description) continue;
-      if (match !== undefined) return undefined; // ambiguous
-      match = info.taskId;
-    }
-    return match;
-  }
-
-  // Builds transcript metadata for a background subagent.
-  private buildBackgroundAgentMetadata(event: SubagentSpawnedEvent): BackgroundAgentMetadata {
-    const parent = this.state.activeToolCalls.get(event.parentToolCallId);
-    const description = parent?.args['description'] ?? event.description;
-    return {
-      agentId: event.subagentId,
-      parentToolCallId: event.parentToolCallId,
-      agentName: event.subagentName,
-      description: typeof description === 'string' ? description : undefined,
-    };
+    handleSubagentFailedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Appends a background-agent status row to the transcript.
@@ -3152,14 +2615,6 @@ export class ByfTui {
     const previous = this.state.backgroundTasks.get(info.taskId);
     this.state.backgroundTasks.set(info.taskId, info);
 
-    // If the user is currently viewing this task's output, nudge a
-    // refresh immediately so they see new content without waiting for
-    // the 1s poll. Same dedupe-by-output-equality applies inside.
-    const viewer = this.state.tasksBrowser?.viewer;
-    if (viewer !== undefined && viewer.taskId === info.taskId) {
-      void this.refreshTaskOutputViewer({ silent: true });
-    }
-
     const isTerminal =
       info.status === 'completed' ||
       info.status === 'failed' ||
@@ -3171,12 +2626,12 @@ export class ByfTui {
       // pushed a 'started' transcript card; skip to avoid duplicates.
       if (info.taskId.startsWith('agent-')) {
         this.syncBackgroundTaskBadge();
-        this.repaintTasksBrowser();
+        this.tasksBrowserController.repaint();
         return;
       }
       this.appendBackgroundTaskEntry(info);
       this.syncBackgroundTaskBadge();
-      this.repaintTasksBrowser();
+      this.tasksBrowserController.repaint();
       return;
     }
 
@@ -3191,7 +2646,7 @@ export class ByfTui {
         this.state.backgroundTaskTranscriptedTerminal.add(info.taskId);
       }
       this.syncBackgroundTaskBadge();
-      this.repaintTasksBrowser();
+      this.tasksBrowserController.repaint();
       return;
     }
 
@@ -3201,7 +2656,7 @@ export class ByfTui {
     if (previous?.status !== info.status) {
       this.syncBackgroundTaskBadge();
     }
-    this.repaintTasksBrowser();
+    this.tasksBrowserController.repaint();
   }
 
   private appendBackgroundTaskEntry(info: BackgroundTaskInfo): void {
@@ -3537,91 +2992,19 @@ export class ByfTui {
   // Transcript Rendering
   // =========================================================================
 
-  // Creates the pi-tui component that renders a transcript entry.
   private createTranscriptComponent(entry: TranscriptEntry): Component | null {
-    if (entry.compactionData !== undefined) {
-      const data = entry.compactionData;
-      const block = new CompactionComponent(
-        this.state.theme.colors,
-        this.state.ui,
-        data.instruction,
-      );
-      block.markDone(data.tokensBefore, data.tokensAfter);
-      return block;
-    }
-
-    switch (entry.kind) {
-      case 'user': {
-        const images = entry.imageAttachmentIds
-          ?.map((id) => this.imageStore.get(id))
-          .filter((a): a is ImageAttachment => a?.kind === 'image');
-        return new UserMessageComponent(entry.content, this.state.theme.colors, images);
-      }
-      case 'skill_activation':
-        return new SkillActivationComponent(
-          entry.skillName ?? entry.content,
-          entry.skillArgs,
-          this.state.theme.colors,
-        );
-      case 'assistant': {
-        const component = new AssistantMessageComponent(
-          this.state.theme.markdownTheme,
-          this.state.theme.colors,
-        );
-        component.updateContent(entry.content);
-        return component;
-      }
-      case 'thinking': {
-        const thinking = new ThinkingComponent(entry.content, this.state.theme.colors, true);
-        if (this.state.toolOutputExpanded) thinking.setExpanded(true);
-        return thinking;
-      }
-      case 'tool_call':
-        if (entry.toolCallData) {
-          const tc = new ToolCallComponent(
-            entry.toolCallData,
-            entry.toolCallData.result,
-            this.state.theme.colors,
-            this.state.ui,
-            this.state.theme.markdownTheme,
-            this.state.appState.workDir,
-          );
-          if (this.state.toolOutputExpanded) tc.setExpanded(true);
-          if (this.state.planExpanded) tc.setPlanExpanded(true);
-          return tc;
-        }
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(
-            entry.backgroundAgentStatus,
-            this.state.theme.colors,
-          );
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
-          : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
-      case 'shell_exec':
-        return new ShellExecutionComponent({
-          command: entry.content,
-          result: entry.toolCallData?.result,
-          colors: this.state.theme.colors,
-          expanded: this.state.toolOutputExpanded,
-          showCommand: true,
-        });
-      case 'status':
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(
-            entry.backgroundAgentStatus,
-            this.state.theme.colors,
-          );
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail, this.state.theme.colors)
-          : new StatusMessageComponent(entry.content, this.state.theme.colors, entry.color);
-      case 'welcome':
-        return null;
-      default:
-        return null;
-    }
+    return createTranscriptComponent(entry, {
+      colors: this.state.theme.colors,
+      markdownTheme: this.state.theme.markdownTheme,
+      ui: this.state.ui,
+      workDir: this.state.appState.workDir,
+      toolOutputExpanded: this.state.toolOutputExpanded,
+      planExpanded: this.state.planExpanded,
+      getImageAttachment: (id) => {
+        const a = this.imageStore.get(id);
+        return a?.kind === 'image' ? a : undefined;
+      },
+    });
   }
 
   // Stores a transcript entry and mounts its component if renderable.
@@ -4015,6 +3398,14 @@ export class ByfTui {
     this.state.ui.requestRender();
   }
 
+  public show(panel: Component & Focusable): void {
+    this.mountEditorReplacement(panel);
+  }
+
+  public close(): void {
+    this.restoreEditor();
+  }
+
   // Shows the help panel with the current slash command list.
   private showHelpPanel(): void {
     this.state.showingHelpPanel = true;
@@ -4079,429 +3470,55 @@ export class ByfTui {
     );
   }
 
-  // =========================================================================
-  // Background tasks browser (`/tasks`)
-  // =========================================================================
-
-  /**
-   * Open the `/tasks` overlay. Idempotent: a second `/tasks` while the
-   * panel is already open is a no-op (the focus stays on the existing
-   * overlay) — prevents accidental stacking.
-   */
-  private async showTasksBrowser(): Promise<void> {
-    if (this.state.tasksBrowser !== undefined) return;
-    const session = this.session;
-    if (session === undefined) {
-      this.showError('No active session.');
-      return;
-    }
-
-    let tasks: readonly BackgroundTaskInfo[] = [];
-    try {
-      tasks = await session.listBackgroundTasks({ activeOnly: false });
-    } catch (error) {
-      this.showError(
-        `Failed to load tasks: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return;
-    }
-    // Race: panel might have been opened then immediately closed by
-    // another path while the await above was in flight. Bail out then.
-    if (this.state.tasksBrowser !== undefined) return;
-
-    const filter: TasksFilter = 'all';
-    const selectedTaskId = this.pickInitialSelection(tasks, filter);
-    const component = new TasksBrowserApp(
-      {
-        tasks,
-        filter,
-        selectedTaskId,
-        tailOutput: undefined,
-        tailLoading: false,
-        flashMessage: undefined,
-        colors: this.state.theme.colors,
-        ...this.buildTasksBrowserCallbacks(),
-      },
-      this.state.terminal,
-    );
-
-    // Alt-screen takeover: save the main TUI's children, then replace
-    // them with this single full-screen component. `closeTasksBrowser`
-    // restores the original layout. Mirrors the Python `Application(
-    // full_screen=True, erase_when_done=True)` pattern.
-    const savedChildren = [...this.state.ui.children];
-    this.state.ui.clear();
-    this.state.ui.addChild(component);
-    this.state.ui.setFocus(component);
-    this.state.ui.requestRender(true);
-
-    const pollTimer = setInterval(() => {
-      void this.refreshTasksBrowser({ silent: true });
-    }, 1000);
-
-    this.state.tasksBrowser = {
-      component,
-      savedChildren,
-      filter,
-      selectedTaskId,
-      tailOutput: undefined,
-      tailLoading: false,
-      tailRequestId: 0,
-      flashMessage: undefined,
-      flashTimer: undefined,
-      pollTimer,
-      viewer: undefined,
-    };
-
-    if (selectedTaskId !== undefined) {
-      this.loadTasksBrowserTail(selectedTaskId);
-    }
-  }
-
-  private pickInitialSelection(
-    tasks: readonly BackgroundTaskInfo[],
-    filter: TasksFilter,
-  ): string | undefined {
-    const candidates =
-      filter === 'all'
-        ? tasks
-        : tasks.filter(
-            (t) =>
-              t.status !== 'completed' &&
-              t.status !== 'failed' &&
-              t.status !== 'killed' &&
-              t.status !== 'lost',
-          );
-    if (candidates.length === 0) return undefined;
-    // Prefer the first non-terminal task; fall back to the first one.
-    return (
-      candidates.find(
-        (t) => t.status === 'running' || t.status === 'awaiting_approval',
-      )?.taskId ?? candidates[0]!.taskId
-    );
-  }
-
-  private async refreshTasksBrowser(opts: { silent?: boolean } = {}): Promise<void> {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    const session = this.session;
-    if (session === undefined) return;
-
-    let tasks: readonly BackgroundTaskInfo[];
-    try {
-      tasks = await session.listBackgroundTasks({ activeOnly: false });
-    } catch (error) {
-      if (!opts.silent) {
-        this.flashTasksBrowser(
-          `Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return;
-    }
-    if (this.state.tasksBrowser !== browser) return;
-    this.pushTasksBrowserProps(tasks);
-  }
-
-  private pushTasksBrowserProps(tasks: readonly BackgroundTaskInfo[]): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    browser.component.setProps({
-      tasks,
-      filter: browser.filter,
-      selectedTaskId: browser.selectedTaskId,
-      tailOutput: browser.tailOutput,
-      tailLoading: browser.tailLoading,
-      flashMessage: browser.flashMessage,
-      colors: this.state.theme.colors,
-      ...this.buildTasksBrowserCallbacks(),
-    });
-    this.state.ui.requestRender();
-  }
-
-  /** Callback bundle for `TasksBrowserComponent`. Single source of truth. */
-  private buildTasksBrowserCallbacks(): {
-    onSelect: (taskId: string) => void;
-    onToggleFilter: () => void;
-    onRefresh: () => void;
-    onCancel: () => void;
-    onStopConfirmed: (taskId: string) => void;
-    onOpenOutput: (taskId: string) => void;
-    onStopIgnored: (taskId: string, reason: 'terminal') => void;
-  } {
+  private createTasksBrowserEnv(): TasksBrowserEnv {
     return {
-      onSelect: (taskId) => {
-        this.handleTasksBrowserSelect(taskId);
-      },
-      onToggleFilter: () => {
-        this.handleTasksBrowserToggleFilter();
-      },
-      onRefresh: () => {
-        this.handleTasksBrowserRefresh();
-      },
-      onCancel: () => {
-        this.closeTasksBrowser();
-      },
-      onStopConfirmed: (taskId) => {
-        void this.handleTasksBrowserStop(taskId);
-      },
-      onOpenOutput: (taskId) => {
-        void this.handleTasksBrowserOpenOutput(taskId);
-      },
-      onStopIgnored: (taskId, reason) => {
-        if (reason === 'terminal') {
-          this.flashTasksBrowser(`${taskId} is already terminal — nothing to stop.`);
-        }
-      },
-    };
-  }
-
-  private handleTasksBrowserSelect(taskId: string): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    if (browser.selectedTaskId === taskId) return;
-    browser.selectedTaskId = taskId;
-    browser.tailOutput = undefined;
-    browser.tailLoading = true;
-    this.repaintTasksBrowser();
-    this.loadTasksBrowserTail(taskId);
-  }
-
-  private handleTasksBrowserToggleFilter(): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    browser.filter = browser.filter === 'all' ? 'active' : 'all';
-    this.repaintTasksBrowser();
-  }
-
-  private handleTasksBrowserRefresh(): void {
-    this.flashTasksBrowser('Refreshing…', 600);
-    void this.refreshTasksBrowser();
-  }
-
-  /**
-   * Re-render the `/tasks` panel from the in-memory BPM store (no RPC
-   * fetch). Safe to call when the panel is closed (no-op). Use this
-   * after any local state change — selection, filter, flash message,
-   * or an incoming `background.task.*` event — so the UI stays in sync.
-   * Use `refreshTasksBrowser` instead when you also want fresh data
-   * from the agent (e.g. a manual `R refresh`).
-   */
-  private repaintTasksBrowser(): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    const tasks = [...this.state.backgroundTasks.values()];
-    this.pushTasksBrowserProps(tasks);
-  }
-
-  private loadTasksBrowserTail(taskId: string): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    const session = this.session;
-    if (session === undefined) {
-      browser.tailLoading = false;
-      this.repaintTasksBrowser();
-      return;
-    }
-    const requestId = ++browser.tailRequestId;
-    void session
-      .getBackgroundTaskOutput(taskId, { tail: 4000 })
-      .then((output) => {
-        const current = this.state.tasksBrowser;
-        if (current === undefined) return;
-        if (current !== browser || current.tailRequestId !== requestId) return;
-        if (current.selectedTaskId !== taskId) return;
-        current.tailOutput = output;
-        current.tailLoading = false;
-        this.repaintTasksBrowser();
-      })
-      .catch(() => {
-        const current = this.state.tasksBrowser;
-        if (current === undefined) return;
-        if (current !== browser || current.tailRequestId !== requestId) return;
-        if (current.selectedTaskId !== taskId) return;
-        current.tailOutput = '';
-        current.tailLoading = false;
-        this.repaintTasksBrowser();
-      });
-  }
-
-  private flashTasksBrowser(message: string, durationMs = 2500): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    if (browser.flashTimer !== undefined) clearTimeout(browser.flashTimer);
-    browser.flashMessage = message;
-    browser.flashTimer = setTimeout(() => {
-      const current = this.state.tasksBrowser;
-      if (current !== browser) return;
-      current.flashMessage = undefined;
-      current.flashTimer = undefined;
-      this.repaintTasksBrowser();
-    }, durationMs);
-    this.repaintTasksBrowser();
-  }
-
-  private async handleTasksBrowserStop(taskId: string): Promise<void> {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    const session = this.session;
-    if (session === undefined) {
-      this.flashTasksBrowser('No active session.');
-      return;
-    }
-    this.flashTasksBrowser(`Stopping ${taskId}…`, 1500);
-    try {
-      await session.stopBackgroundTask(taskId, { reason: 'stopped from /tasks' });
-      // Force a refresh so the row flips to `killed` immediately. The
-      // `background.task.terminated` event will repaint again shortly.
-      await this.refreshTasksBrowser({ silent: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.flashTasksBrowser(`Stop failed: ${message}`);
-    }
-  }
-
-  private async handleTasksBrowserOpenOutput(taskId: string): Promise<void> {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    if (browser.viewer !== undefined) return; // already viewing
-    const session = this.session;
-    if (session === undefined) {
-      this.flashTasksBrowser('No active session.');
-      return;
-    }
-
-    let output: string;
-    try {
-      output = await session.getBackgroundTaskOutput(taskId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.flashTasksBrowser(`Cannot open output: ${message}`);
-      return;
-    }
-    // Race: panel might have been closed while the await was in flight.
-    const current = this.state.tasksBrowser;
-    if (current === undefined || current !== browser) return;
-
-    const info = this.state.backgroundTasks.get(taskId);
-    const viewer = new TaskOutputViewer(
-      {
-        taskId,
-        info,
-        output,
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.closeTaskOutputViewer();
+      host: {
+        showFullscreen: (component) => {
+          const saved = [...this.state.ui.children];
+          this.state.ui.clear();
+          this.state.ui.addChild(component);
+          this.state.ui.setFocus(component);
+          this.state.ui.requestRender(true);
+          return saved;
+        },
+        closeFullscreen: (savedChildren) => {
+          this.state.ui.clear();
+          for (const child of savedChildren) {
+            this.state.ui.addChild(child);
+          }
+          this.state.ui.setFocus(this.state.editor);
+          this.state.ui.requestRender(true);
+        },
+        focus: (component) => {
+          this.state.ui.setFocus(component);
+        },
+        requestRender: (full) => {
+          this.state.ui.requestRender(full);
         },
       },
-      this.state.terminal,
-    );
-
-    // Nested takeover: save the TasksBrowser layer (which itself is a
-    // single-child swap of the main TUI), then put the viewer in its
-    // place. `closeTaskOutputViewer` reverses this without touching the
-    // outer "main TUI ↔ TasksBrowser" swap state.
-    const savedBrowserChildren = [...this.state.ui.children];
-    this.state.ui.clear();
-    this.state.ui.addChild(viewer);
-    this.state.ui.setFocus(viewer);
-    this.state.ui.requestRender(true);
-
-    // Live-tail: keep re-fetching the output every second so the viewer
-    // shows new content as the task writes it. The viewer itself decides
-    // whether to follow the tail or preserve scroll position.
-    const pollTimer = setInterval(() => {
-      void this.refreshTaskOutputViewer({ silent: true });
-    }, 1000);
-
-    browser.viewer = {
-      component: viewer,
-      savedChildren: savedBrowserChildren,
-      taskId,
-      output,
-      refreshId: 0,
-      pollTimer,
-    };
-  }
-
-  /**
-   * Re-fetch the current viewer task's output and push it into the
-   * component. Safe to call when the viewer is closed (no-op). Stale
-   * responses (issued before a more recent call) are discarded via the
-   * monotonically-increasing `refreshId`.
-   */
-  private async refreshTaskOutputViewer(opts: { silent?: boolean } = {}): Promise<void> {
-    const browser = this.state.tasksBrowser;
-    const viewer = browser?.viewer;
-    if (browser === undefined || viewer === undefined) return;
-    const session = this.session;
-    if (session === undefined) return;
-
-    const myRefreshId = ++viewer.refreshId;
-    let output: string;
-    try {
-      output = await session.getBackgroundTaskOutput(viewer.taskId);
-    } catch (error) {
-      if (!opts.silent) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.flashTasksBrowser(`Output refresh failed: ${message}`);
-      }
-      return;
-    }
-    // If the viewer was closed or another refresh raced ahead, drop this result.
-    const current = this.state.tasksBrowser?.viewer;
-    if (current === undefined || current !== viewer || current.refreshId !== myRefreshId) {
-      return;
-    }
-    // Skip the setProps round-trip when nothing changed — keeps the
-    // differential renderer from re-emitting the same frame.
-    if (output === viewer.output) return;
-    viewer.output = output;
-    const info = this.state.backgroundTasks.get(viewer.taskId);
-    viewer.component.setProps({
-      taskId: viewer.taskId,
-      info,
-      output,
-      colors: this.state.theme.colors,
-      onClose: () => {
-        this.closeTaskOutputViewer();
+      getTerminal: () => this.state.terminal,
+      getColors: () => this.state.theme.colors,
+      getBackgroundTasks: () => this.state.backgroundTasks.values(),
+      listBackgroundTasks: () => {
+        const session = this.session;
+        if (session === undefined) return Promise.resolve([]);
+        return session.listBackgroundTasks({ activeOnly: false });
       },
-    });
-    this.state.ui.requestRender();
-  }
-
-  private closeTaskOutputViewer(): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined || browser.viewer === undefined) return;
-    const viewer = browser.viewer;
-    clearInterval(viewer.pollTimer);
-    browser.viewer = undefined;
-    this.state.ui.clear();
-    for (const child of viewer.savedChildren) {
-      this.state.ui.addChild(child);
-    }
-    this.state.ui.setFocus(browser.component);
-    this.state.ui.requestRender(true);
-  }
-
-  private closeTasksBrowser(): void {
-    const browser = this.state.tasksBrowser;
-    if (browser === undefined) return;
-    // If the output viewer is open, fold it back before tearing down
-    // the browser so the saved-children stack stays consistent.
-    if (browser.viewer !== undefined) this.closeTaskOutputViewer();
-    if (browser.pollTimer !== undefined) clearInterval(browser.pollTimer);
-    if (browser.flashTimer !== undefined) clearTimeout(browser.flashTimer);
-
-    // Restore the main TUI's children we saved when opening. After
-    // clearing, re-add in original order, then return focus to the
-    // editor so the user is back at the prompt.
-    this.state.ui.clear();
-    for (const child of browser.savedChildren) {
-      this.state.ui.addChild(child);
-    }
-    this.state.tasksBrowser = undefined;
-    this.state.ui.setFocus(this.state.editor);
-    this.state.ui.requestRender(true);
+      getBackgroundTaskOutput: (taskId, opts) => {
+        const session = this.session;
+        if (session === undefined) return Promise.reject(new Error('No active session'));
+        return session.getBackgroundTaskOutput(taskId, opts);
+      },
+      stopBackgroundTask: (taskId, opts) => {
+        const session = this.session;
+        if (session === undefined) return Promise.reject(new Error('No active session'));
+        return session.stopBackgroundTask(taskId, opts);
+      },
+      getBackgroundTaskInfo: (taskId) => this.state.backgroundTasks.get(taskId),
+      showError: (message) => {
+        this.showError(message);
+      },
+    };
   }
 
   // Shows the editor command selector.
@@ -5155,180 +4172,22 @@ export class ByfTui {
   // =========================================================================
 
   private async handleLoginCommand(): Promise<void> {
-    // Step 1: Provider name
-    const name = await this.promptTextInput({
-      title: 'Provider name',
-      subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
+    const flow = new LoginFlow({
       colors: this.state.theme.colors,
+      dialogHost: this,
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
+      applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showStatus: (msg, color?) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
+      track: (event, props?) => this.track(event, props),
     });
-    if (name === undefined) return;
-
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      this.showError('Provider name must contain only letters, numbers, hyphens, and underscores.');
-      return;
-    }
-
-    const existingConfig = await this.harness.getConfig();
-    if (existingConfig.providers[name] !== undefined) {
-      this.showError(`Provider "${name}" already exists. Use a different name or /logout ${name} first.`);
-      return;
-    }
-
-    // Step 2: Base URL
-    const baseUrl = await this.promptTextInput({
-      title: 'Base URL',
-      subtitle: 'The OpenAI-compatible API endpoint',
-      initialValue: 'https://api.openai.com/v1',
-      placeholder: 'https://api.openai.com/v1',
-      colors: this.state.theme.colors,
-    });
-    if (baseUrl === undefined) return;
-
-    // Step 3: API key
-    const apiKey = await this.promptApiKey(name);
-    if (apiKey === undefined) return;
-
-    // Step 4: Fetch models
-    let models: ModelInfo[];
-    try {
-      const spinner = this.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
-      models = await fetchModels(baseUrl, apiKey);
-      spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
-    } catch (error) {
-      if (error instanceof ProviderApiError) {
-        this.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
-      } else {
-        this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
-      }
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
-    }
-
-    if (models.length === 0) {
-      this.showStatus('No models found at this endpoint. Enter model ID manually.');
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
-    }
-
-    // Step 5: Model selection
-    const modelDict: Record<string, import('@byfriends/oauth').ModelAlias> = {};
-    for (const m of models) {
-      modelDict[`${name}/${m.id}`] = {
-        provider: name,
-        model: m.id,
-        maxContextSize: m.contextLength,
-        capabilities: capabilitiesForModelOAuth(m),
-        displayName: m.displayName,
-      };
-    }
-
-    const selection = await this.runModelSelector(modelDict);
-    if (selection === undefined) return;
-
-    const selectedId = selection.alias.split('/').slice(1).join('/');
-    const selectedModel = models.find((m) => m.id === selectedId);
-    if (selectedModel === undefined) return;
-
-    // Step 6: Apply config
-    const config = await this.harness.getConfig();
-    applyProviderConfig(config, {
-      name,
-      baseUrl,
-      apiKey,
-      models,
-      selectedModel,
-      thinking: selection.thinkingEffort !== 'off',
-    });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('login', { provider: name, model: selectedModel.id });
-    this.showStatus(`Connected: ${name} · ${selectedModel.id}`);
+    await flow.run();
   }
 
-  private promptTextInput(opts: {
-    readonly title: string;
-    readonly subtitle: string;
-    readonly initialValue?: string;
-    readonly placeholder?: string;
-    readonly colors: ColorPalette;
-  }): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const dialog = new TextInputDialogComponent({
-        title: opts.title,
-        subtitle: opts.subtitle,
-        initialValue: opts.initialValue,
-        placeholder: opts.placeholder,
-        colors: opts.colors,
-        onDone: (result) => {
-          this.restoreEditor();
-          resolve(result.kind === 'ok' ? result.value : undefined);
-        },
-      });
-      this.mountEditorReplacement(dialog);
-    });
-  }
-
-  private async handleManualModelEntry(
-    name: string,
-    baseUrl: string,
-    apiKey: string,
-  ): Promise<void> {
-    const manualModel = await this.promptTextInput({
-      title: 'Enter model ID manually',
-      subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
-      colors: this.state.theme.colors,
-    });
-    if (manualModel === undefined) return;
-
-    const contextSize = await this.promptTextInput({
-      title: 'Context window size',
-      subtitle: 'Max context size in tokens for this model',
-      initialValue: '128000',
-      placeholder: '128000',
-      colors: this.state.theme.colors,
-    });
-    if (contextSize === undefined) return;
-
-    const parsedSize = Number.parseInt(contextSize, 10);
-    if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
-      this.showError('Invalid context size. Must be a positive number.');
-      return;
-    }
-
-    const manualModelInfo: ModelInfo = {
-      id: manualModel,
-      contextLength: parsedSize,
-      supportsReasoning: false,
-      supportsImageIn: false,
-      supportsVideoIn: false,
-    };
-
-    const config = await this.harness.getConfig();
-    applyProviderConfig(config, {
-      name,
-      baseUrl,
-      apiKey,
-      models: [manualModelInfo],
-      selectedModel: manualModelInfo,
-      thinking: false,
-    });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('login', { provider: name, model: manualModel });
-    this.showStatus(`Connected: ${name} · ${manualModel}`);
-  }
 
   private async handleLogoutCommand(args: string | undefined): Promise<void> {
     const providerName = args?.trim();
@@ -5362,120 +4221,25 @@ export class ByfTui {
     }
   }
 
-  // Handles the /connect command — fetches a model catalog (default
-  // models.dev), lets the user pick a provider + model, prompts for an API
-  // key, then writes the provider config + model aliases. Model metadata
-  // (context size, capabilities) comes from the catalog, so users do not
-  // hand-write it.
   private async handleConnectCommand(args: string): Promise<void> {
-    const resolution = resolveConnectCatalogRequest(args);
-    if (resolution.kind === 'error') {
-      this.showError(resolution.message);
-      return;
-    }
-    const { url, preferBuiltIn, allowBuiltInFallback } = resolution.request;
-
-    let catalog: Catalog | undefined;
-
-    // Default path: serve the bundled catalog so /connect works without a
-    // live network and is not gated by models.dev availability. The source
-    // placeholder is undefined in dev builds, so dev falls through to fetch.
-    if (preferBuiltIn) {
-      const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
-      if (builtIn !== undefined) {
-        this.showStatus('Loaded built-in catalog. Run /connect refresh for the latest.');
-        catalog = builtIn;
-      }
-    }
-
-    if (catalog === undefined) {
-      const controller = new AbortController();
-      const cancel = (): void => {
-        controller.abort();
-      };
-      this.cancelInFlight = cancel;
-
-      const spinner = this.showLoginProgressSpinner(`Fetching catalog from ${url}`);
-      try {
-        catalog = await fetchCatalog(url, controller.signal);
-        spinner.stop({ ok: true, label: 'Catalog loaded.' });
-      } catch (error) {
-        if (controller.signal.aborted) {
-          spinner.stop({ ok: false, label: 'Aborted.' });
-        } else {
-          const hint = error instanceof CatalogFetchError ? ` (HTTP ${error.status})` : '';
-          if (!allowBuiltInFallback) {
-            spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-            this.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-          } else {
-            const fallback = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
-            if (fallback !== undefined) {
-              spinner.stop({ ok: true, label: 'Using built-in catalog (offline mode).' });
-              catalog = fallback;
-            } else {
-              spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-              this.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-            }
-          }
-        }
-      } finally {
+    const flow = new ConnectFlow({
+      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
+      colors: this.state.theme.colors,
+      dialogHost: this,
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      removeProvider: (id) => this.harness.removeProvider(id),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showStatus: (msg, color?) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showSpinner: (label) => this.showLoginProgressSpinner(label),
+      setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
+      clearCancelInFlight: (cancel) => {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
-      }
-    }
-
-    if (catalog === undefined) return;
-
-    const providerId = await this.promptCatalogProviderSelection(catalog);
-    if (providerId === undefined) return;
-    const entry = catalog[providerId];
-    if (entry === undefined) return;
-
-    const models = catalogProviderModels(entry);
-    if (models.length === 0) {
-      this.showError(`Provider "${providerId}" has no usable models in this catalog.`);
-      return;
-    }
-
-    const selection = await this.promptModelSelectionForCatalog(providerId, models);
-    if (selection === undefined) return;
-
-    const apiKey = await this.promptApiKey(entry.name ?? providerId);
-    if (apiKey === undefined) return;
-
-    const wire = inferWireType(entry);
-    if (wire === undefined) return;
-    const baseUrl = catalogBaseUrl(entry, wire);
-
-    // Remove stale provider config first: setConfig is a deep-merge patch that
-    // cannot delete keys, and applyCatalogProvider's in-memory cleanup below
-    // does not survive that merge — removeProvider is the only step that
-    // actually drops old model aliases from disk.
-    const existingConfig = await this.harness.getConfig();
-    if (existingConfig.providers[providerId] !== undefined) {
-      await this.harness.removeProvider(providerId);
-    }
-
-    const config = await this.harness.getConfig();
-    applyCatalogProvider(config, {
-      providerId,
-      wire,
-      baseUrl,
-      apiKey,
-      models,
-      selectedModelId: selection.model.id,
-      thinking: selection.thinkingEffort !== 'off',
+      },
+      track: (event, props?) => this.track(event, props),
     });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('connect', { provider: providerId, model: selection.model.id });
-    this.showStatus(`Connected: ${entry.name ?? providerId} · ${selection.model.id}`);
+    await flow.run(args);
   }
 
   // Handles the /feedback command — opens the GitHub Issues page.
@@ -5484,119 +4248,6 @@ export class ByfTui {
     openUrl(FEEDBACK_ISSUE_URL);
   }
 
-  // ---------------------------------------------------------------------------
-  // Setup prompts
-  // ---------------------------------------------------------------------------
-
-  private promptCatalogProviderSelection(catalog: Catalog): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const options: ChoiceOption[] = Object.entries(catalog)
-        .filter(([, entry]) => inferWireType(entry) !== undefined)
-        .map(([id, entry]) => ({
-          value: id,
-          label: entry.name ?? id,
-          description:
-            typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
-        }))
-        .toSorted((a, b) => a.label.localeCompare(b.label));
-
-      if (options.length === 0) {
-        this.showError('Catalog has no providers with supported wire types.');
-        resolve(undefined);
-        return;
-      }
-
-      const picker = new ChoicePickerComponent({
-        title: 'Select a provider',
-        options,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: (value) => {
-          this.restoreEditor();
-          resolve(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(picker);
-    });
-  }
-
-  private promptApiKey(platformName: string): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const dialog = new ApiKeyInputDialogComponent(
-        platformName,
-        (result: ApiKeyInputResult) => {
-          this.restoreEditor();
-          resolve(result.kind === 'ok' ? result.value : undefined);
-        },
-        this.state.theme.colors,
-      );
-      this.mountEditorReplacement(dialog);
-    });
-  }
-
-  private async promptModelSelectionForCatalog(
-    providerId: string,
-    models: CatalogModel[],
-  ): Promise<{ model: CatalogModel; thinkingEffort: ThinkingEffortLevel } | undefined> {
-    const modelDict: Record<string, ModelAlias> = {};
-    for (const m of models) {
-      modelDict[`${providerId}/${m.id}`] = catalogModelToAlias(providerId, m);
-    }
-    const selection = await this.runModelSelector(modelDict);
-    if (selection === undefined) return undefined;
-    const model = models.find((m) => `${providerId}/${m.id}` === selection.alias);
-    return model ? { model, thinkingEffort: selection.thinkingEffort } : undefined;
-  }
-
-  private runModelSelector(
-    modelDict: Record<string, ModelAlias>,
-  ): Promise<{ alias: string; thinkingEffort: ThinkingEffortLevel } | undefined> {
-    return new Promise((resolve) => {
-      const firstAlias = Object.keys(modelDict)[0] ?? '';
-      const caps = modelDict[firstAlias]?.capabilities ?? [];
-      const initialThinking: ThinkingEffortLevel =
-        caps.includes('always_thinking') || caps.includes('thinking') || caps.includes('thinking_effort')
-          ? 'high'
-          : 'off';
-      const selector = new ModelSelectorComponent({
-        models: modelDict,
-        currentValue: firstAlias,
-        currentThinkingEffort: initialThinking,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: ({ alias, thinkingEffort }) => {
-          this.restoreEditor();
-          resolve({ alias, thinkingEffort });
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(selector);
-    });
-  }
-}
-
-function formatHookResultMarkdown(event: HookResultEvent): string {
-  return `*${formatHookResultTitle(event)}*\n\n${formatHookResultBody(event)}`;
-}
-
-function formatHookResultPlain(event: HookResultEvent): string {
-  return `${formatHookResultTitle(event)}\n\n${formatHookResultBody(event)}`;
-}
-
-function formatHookResultTitle(event: HookResultEvent): string {
-  return `${event.hookEvent} hook${event.blocked === true ? ' blocked' : ''}`;
-}
-
-function formatHookResultBody(event: HookResultEvent): string {
-  const content = event.content.trim();
-  return content.length === 0 ? '(empty)' : content;
 }
 
 function toShellExecTranscriptResult(

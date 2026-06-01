@@ -60,6 +60,8 @@ export interface LLMChatResponse {
   providerFinishReason?: FinishReason | undefined;
   rawFinishReason?: string | undefined;
   usage: TokenUsage;
+  llmFirstTokenLatencyMs?: number | undefined;
+  llmStreamDurationMs?: number | undefined;
 }
 
 export interface LLM {

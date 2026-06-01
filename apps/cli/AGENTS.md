@@ -24,6 +24,8 @@ Main directories:
 - `src/tui/components/media/`: image, diff, code highlight, and other media displays.
 - `src/tui/components/messages/`: message blocks in the transcript — assistant, user, tool call, thinking, usage, subagent, and so on.
 - `src/tui/components/panes/`: right-side / activity-area panes such as the activity pane and queue pane.
+- `src/tui/events/`: extracted event handler modules — turn, session-meta, subagent. Pure functions receiving state/callbacks as parameters.
+- `src/tui/flows/`: extracted slash-command flow modules — login, connect. Depend on `DialogHost` interface, not ByfTui internals.
 - `src/tui/reverse-rpc/`: the adapter layer that bridges SDK approval/question callbacks to the UI.
 - `src/tui/theme/`: themes, color tokens, style helpers, and the pi-tui markdown theme.
 - `src/tui/utils/`: TUI-only utility functions.
@@ -51,12 +53,12 @@ Main directories:
 - User input: `handleUserInput`, `executeSlashCommand`, `handleBuiltInSlashCommand`, `sendNormalUserInput`.
 - Sending and queueing: `enqueueMessage`, `sendMessageInternal`, `sendMessage`, `steerMessage`, `finalizeTurn`.
 - Session management: create, restore, switch, close, sync runtime state, subscribe to session events.
-- Event routing: `handleEvent` only dispatches; concrete events go into the corresponding `handleXxx`.
-- Streaming rendering: assistant delta, thinking, tool call, tool result, compaction, subagent, background agent.
-- Transcript: `createTranscriptComponent`, `appendTranscriptEntry`, read/tool/agent group aggregation.
+- Event routing: `handleEvent` only dispatches; concrete events go into the corresponding `handleXxx`, which delegate to extracted modules in `events/`.
+- Streaming rendering: delegated to `TurnEventHandler` in `events/turn-event-handler.ts`.
+- Transcript: `createTranscriptComponent` extracted to `actions/transcript-renderer.ts`; `appendTranscriptEntry` remains in ByfTUI.
 - Activity / queue / footer: `updateActivityPane`, `resolveActivityPaneMode`, `updateQueueDisplay`, terminal progress.
 - Dialogs / selectors: help, session picker, editor/model/thinking/theme/permission/settings selectors, approval / question panels.
-- Slash command handlers: `handleThemeCommand`, `handleModelCommand`, `handlePlanCommand`, `handleCompactCommand`, `handleLoginCommand`, and so on.
+- Slash command handlers: `handleThemeCommand`, `handleModelCommand`, `handlePlanCommand`, `handleCompactCommand`. Login/connect flows delegate to `flows/`.
 
 If a section keeps growing, split pure functions, state projections, presentation components, and handler logic into the corresponding directories rather than continuing to expand `ByfTUI`.
 

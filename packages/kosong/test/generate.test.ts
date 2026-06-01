@@ -904,4 +904,44 @@ describe('generate()', () => {
       expect(result.rawFinishReason).toBe('content_filter');
     });
   });
+
+  describe('LLM timing metrics', () => {
+    it('reports llmFirstTokenLatencyMs and llmStreamDurationMs when streaming chunks', async () => {
+      function createDelayedStream(parts: StreamedMessagePart[], delayMs: number): StreamedMessage {
+        return {
+          id: null,
+          usage: null,
+          finishReason: null,
+          rawFinishReason: null,
+          async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+            for (const part of parts) {
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+              yield part;
+            }
+          },
+        };
+      }
+
+      const stream = createDelayedStream(
+        [
+          { type: 'text', text: 'Hello' },
+          { type: 'text', text: ' world' },
+        ],
+        10,
+      );
+      const provider = createMockProvider(stream);
+      const result = await generate(provider, '', [], []);
+
+      expect(result.llmFirstTokenLatencyMs).toBeGreaterThanOrEqual(5);
+      expect(result.llmStreamDurationMs).toBeGreaterThanOrEqual(result.llmFirstTokenLatencyMs!);
+    });
+
+    it('includes timing metrics on a normal stream', async () => {
+      const normalStream = createMockStream([{ type: 'text', text: 'ok' }]);
+      const provider = createMockProvider(normalStream);
+      const result = await generate(provider, '', [], []);
+      expect(result.llmFirstTokenLatencyMs).toBeDefined();
+      expect(result.llmStreamDurationMs).toBeDefined();
+    });
+  });
 });
