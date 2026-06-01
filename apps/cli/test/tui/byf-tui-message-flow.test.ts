@@ -324,6 +324,25 @@ describe('ByfTui message flow', () => {
     expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
   });
 
+  it('/tasks without an active session shows an error and keeps the main layout', async () => {
+    const oauthLoginRequired = Object.assign(new Error('login required'), {
+      code: 'auth.login_required',
+    });
+    const { driver } = await makeDriver(makeSession(), {
+      createSession: vi.fn(async () => {
+        throw oauthLoginRequired;
+      }),
+    });
+    const rootChildren = [...driver.state.ui.children];
+
+    driver.handleUserInput('/tasks');
+
+    await vi.waitFor(() => {
+      expect(stripSgr(renderTranscript(driver))).toContain('No active session.');
+      expect(driver.state.ui.children).toEqual(rootChildren);
+    });
+  });
+
   it('tracks blocked slash commands as invalid without counting them as executed commands', async () => {
     const { driver, harness } = await makeDriver();
     driver.state.appState.isStreaming = true;

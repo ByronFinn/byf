@@ -1407,6 +1407,10 @@ export class ByfTui implements DialogHost {
         void this.showSessionPicker();
         return;
       case 'tasks':
+        if (this.session === undefined) {
+          this.showError('No active session.');
+          return;
+        }
         void this.tasksBrowserController.show();
         return;
       case 'mcp':
