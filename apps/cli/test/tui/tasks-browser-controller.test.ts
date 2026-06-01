@@ -40,27 +40,38 @@ function fakeTerminal(): Terminal {
   };
 }
 
-function makeEnv(overrides: Partial<TasksBrowserEnv> = {}): TasksBrowserEnv & {
-  tasks: BackgroundTaskInfo[];
-  errors: string[];
-  swappedComponents: Array<Component & Focusable>;
-  restoredChildren: Component[][];
-  focusedComponents: Array<Component & Focusable>;
-  renders: number;
-} {
+function makeEnv(overrides: Partial<TasksBrowserEnv> = {}) {
   const tasks: BackgroundTaskInfo[] = [];
   const errors: string[] = [];
-  const swappedComponents: Array<Component & Focusable> = [];
+  const fullscreenPanels: Array<Component & Focusable> = [];
   const restoredChildren: Component[][] = [];
   const focusedComponents: Array<Component & Focusable> = [];
+  let renders = 0;
 
-  return {
-    tasks,
-    errors,
-    swappedComponents,
+  const host = {
+    fullscreenPanels,
     restoredChildren,
     focusedComponents,
-    renders: 0,
+    get renders() { return renders; },
+    showFullscreen(component: Component & Focusable): readonly Component[] {
+      fullscreenPanels.push(component);
+      return [];
+    },
+    closeFullscreen(savedChildren: readonly Component[]): void {
+      restoredChildren.push([...savedChildren]);
+    },
+    focus(component: Component & Focusable): void {
+      focusedComponents.push(component);
+    },
+    requestRender(_full?: boolean): void {
+      renders++;
+    },
+  };
+
+  const result = {
+    tasks,
+    errors,
+    host,
     getTerminal: () => fakeTerminal(),
     getColors: () => darkColors,
     getBackgroundTasks() { return tasks.values(); },
@@ -73,24 +84,17 @@ function makeEnv(overrides: Partial<TasksBrowserEnv> = {}): TasksBrowserEnv & {
     getBackgroundTaskInfo(taskId: string) {
       return tasks.find((x) => x.taskId === taskId);
     },
-    swapChildren(component: Component & Focusable): readonly Component[] {
-      swappedComponents.push(component);
-      return [];
-    },
-    restoreChildren(savedChildren: readonly Component[]) {
-      restoredChildren.push([...savedChildren]);
-    },
-    setFocus(component: Component & Focusable) {
-      focusedComponents.push(component);
-    },
-    requestRender(_full?: boolean) {
-      this.renders++;
-    },
     showError(message: string) {
       errors.push(message);
     },
     ...overrides,
+  } as unknown as TasksBrowserEnv & {
+    tasks: BackgroundTaskInfo[];
+    errors: string[];
+    host: typeof host;
   };
+
+  return result;
 }
 
 function spySetProps(app: TasksBrowserApp) {
@@ -110,7 +114,7 @@ describe('TasksBrowserController', () => {
     await controller.show();
 
     expect(controller.isOpen).toBe(true);
-    expect(env.swappedComponents).toHaveLength(1);
+    expect(env.host.fullscreenPanels).toHaveLength(1);
   });
 
   it('does not open if already open', async () => {
@@ -120,7 +124,7 @@ describe('TasksBrowserController', () => {
     await controller.show();
     await controller.show();
 
-    expect(env.swappedComponents).toHaveLength(1);
+    expect(env.host.fullscreenPanels).toHaveLength(1);
   });
 
   it('shows error when listBackgroundTasks fails', async () => {
@@ -144,7 +148,7 @@ describe('TasksBrowserController', () => {
 
     controller.close();
     expect(controller.isOpen).toBe(false);
-    expect(env.restoredChildren).toHaveLength(1);
+    expect(env.host.restoredChildren).toHaveLength(1);
   });
 
   it('close is a no-op when not open', () => {
@@ -162,7 +166,7 @@ describe('TasksBrowserController', () => {
     await controller.show();
 
     env.tasks.push(task({ taskId: 'bash-bbb' }));
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
 
@@ -186,7 +190,7 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     expect(lastProps(spy).selectedTaskId).toBe('bash-running');
@@ -198,7 +202,7 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     expect(lastProps(spy).selectedTaskId).toBeUndefined();
@@ -227,7 +231,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
 
@@ -243,7 +247,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
@@ -251,7 +255,7 @@ describe('TasksBrowserController', () => {
 
     await onOpenOutput('bash-aaa');
 
-    expect(env.swappedComponents.length).toBeGreaterThanOrEqual(2);
+    expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
   });
 
   it('does not open viewer if already viewing', async () => {
@@ -260,17 +264,17 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
-    const countAfterFirst = env.swappedComponents.length;
+    const countAfterFirst = env.host.fullscreenPanels.length;
     await onOpenOutput('bash-aaa');
 
-    expect(env.swappedComponents).toHaveLength(countAfterFirst);
+    expect(env.host.fullscreenPanels).toHaveLength(countAfterFirst);
   });
 
   it('closes viewer and restores browser children', async () => {
@@ -279,7 +283,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
@@ -297,7 +301,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -321,7 +325,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -343,7 +347,7 @@ describe('TasksBrowserController', () => {
     await vi.waitFor(() => expect(getOutputSpy).toHaveBeenCalled());
     getOutputSpy.mockClear();
 
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     const onSelect = lastProps(spy)['onSelect'] as (taskId: string) => void;
@@ -358,7 +362,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -374,7 +378,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -396,7 +400,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -417,7 +421,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -436,7 +440,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -453,14 +457,14 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
-    expect(env.swappedComponents.length).toBeGreaterThanOrEqual(2);
+    expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
 
     controller.close();
     expect(controller.isOpen).toBe(false);

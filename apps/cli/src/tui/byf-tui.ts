@@ -3420,6 +3420,30 @@ export class ByfTui implements DialogHost {
 
   private createTasksBrowserEnv(): TasksBrowserEnv {
     return {
+      host: {
+        showFullscreen: (component) => {
+          const saved = [...this.state.ui.children];
+          this.state.ui.clear();
+          this.state.ui.addChild(component);
+          this.state.ui.setFocus(component);
+          this.state.ui.requestRender(true);
+          return saved;
+        },
+        closeFullscreen: (savedChildren) => {
+          this.state.ui.clear();
+          for (const child of savedChildren) {
+            this.state.ui.addChild(child);
+          }
+          this.state.ui.setFocus(this.state.editor);
+          this.state.ui.requestRender(true);
+        },
+        focus: (component) => {
+          this.state.ui.setFocus(component);
+        },
+        requestRender: (full) => {
+          this.state.ui.requestRender(full);
+        },
+      },
       getTerminal: () => this.state.terminal,
       getColors: () => this.state.theme.colors,
       getBackgroundTasks: () => this.state.backgroundTasks.values(),
@@ -3439,28 +3463,6 @@ export class ByfTui implements DialogHost {
         return session.stopBackgroundTask(taskId, opts);
       },
       getBackgroundTaskInfo: (taskId) => this.state.backgroundTasks.get(taskId),
-      swapChildren: (component) => {
-        const saved = [...this.state.ui.children];
-        this.state.ui.clear();
-        this.state.ui.addChild(component);
-        this.state.ui.setFocus(component);
-        this.state.ui.requestRender(true);
-        return saved;
-      },
-      restoreChildren: (savedChildren) => {
-        this.state.ui.clear();
-        for (const child of savedChildren) {
-          this.state.ui.addChild(child);
-        }
-        this.state.ui.setFocus(this.state.editor);
-        this.state.ui.requestRender(true);
-      },
-      setFocus: (component) => {
-        this.state.ui.setFocus(component);
-      },
-      requestRender: (full) => {
-        this.state.ui.requestRender(full);
-      },
       showError: (message) => {
         this.showError(message);
       },

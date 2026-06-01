@@ -30,6 +30,13 @@ export interface DialogHost {
   close(): void;
 }
 
+export interface FullscreenHost {
+  showFullscreen(panel: Component & Focusable): readonly Component[];
+  closeFullscreen(savedChildren: readonly Component[]): void;
+  focus(component: Component & Focusable): void;
+  requestRender(full?: boolean): void;
+}
+
 export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 const THINKING_EFFORT_LEVELS = new Set<string>(['off', 'low', 'medium', 'high', 'xhigh', 'max']);

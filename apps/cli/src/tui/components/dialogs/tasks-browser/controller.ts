@@ -4,8 +4,10 @@ import type { BackgroundTaskInfo } from '@byfriends/sdk';
 import { TaskOutputViewer } from '../task-output-viewer';
 import { TasksBrowserApp, type TasksFilter } from '../tasks-browser';
 import type { ColorPalette } from '../../../theme/colors';
+import type { FullscreenHost } from '../../../types';
 
 export interface TasksBrowserEnv {
+  host: FullscreenHost;
   getTerminal(): Terminal;
   getColors(): ColorPalette;
   getBackgroundTasks(): IterableIterator<BackgroundTaskInfo>;
@@ -13,10 +15,6 @@ export interface TasksBrowserEnv {
   getBackgroundTaskOutput(taskId: string, opts?: { tail?: number }): Promise<string>;
   stopBackgroundTask(taskId: string, opts: { reason: string }): Promise<void>;
   getBackgroundTaskInfo(taskId: string): BackgroundTaskInfo | undefined;
-  swapChildren(component: Component & Focusable): readonly Component[];
-  restoreChildren(savedChildren: readonly Component[]): void;
-  setFocus(component: Component & Focusable): void;
-  requestRender(full?: boolean): void;
   showError(message: string): void;
 }
 
@@ -82,7 +80,7 @@ export class TasksBrowserController {
       this.env.getTerminal(),
     );
 
-    const savedChildren = this.env.swapChildren(component);
+    const savedChildren = this.env.host.showFullscreen(component);
 
     const pollTimer = setInterval(() => {
       void this.refresh({ silent: true });
@@ -114,7 +112,7 @@ export class TasksBrowserController {
     if (browser.pollTimer !== undefined) clearInterval(browser.pollTimer);
     if (browser.flashTimer !== undefined) clearTimeout(browser.flashTimer);
 
-    this.env.restoreChildren(browser.savedChildren);
+    this.env.host.closeFullscreen(browser.savedChildren);
     this.state = undefined;
   }
 
@@ -156,7 +154,7 @@ export class TasksBrowserController {
       colors: this.env.getColors(),
       ...this.buildCallbacks(),
     });
-    this.env.requestRender();
+    this.env.host.requestRender();
   }
 
   private buildCallbacks() {
@@ -280,7 +278,7 @@ export class TasksBrowserController {
       this.env.getTerminal(),
     );
 
-    const savedChildren = this.env.swapChildren(viewer);
+    const savedChildren = this.env.host.showFullscreen(viewer);
 
     const pollTimer = setInterval(() => {
       void this.refreshViewer({ silent: true });
@@ -323,7 +321,7 @@ export class TasksBrowserController {
       colors: this.env.getColors(),
       onClose: () => this.closeViewer(),
     });
-    this.env.requestRender();
+    this.env.host.requestRender();
   }
 
   private closeViewer(): void {
@@ -332,9 +330,9 @@ export class TasksBrowserController {
     const viewer = browser.viewer;
     clearInterval(viewer.pollTimer);
     browser.viewer = undefined;
-    this.env.restoreChildren(viewer.savedChildren);
-    this.env.setFocus(browser.component);
-    this.env.requestRender(true);
+    this.env.host.closeFullscreen(viewer.savedChildren);
+    this.env.host.focus(browser.component);
+    this.env.host.requestRender(true);
   }
 
   private pickInitialSelection(
