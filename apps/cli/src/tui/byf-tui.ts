@@ -21,14 +21,8 @@ import {
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
-  applyCatalogProvider,
-  catalogBaseUrl,
   catalogModelToAlias,
-  catalogProviderModels,
-  CatalogFetchError,
-  fetchCatalog,
   inferWireType,
-  loadBuiltInCatalog,
   log,
 } from '@byfriends/sdk';
 import {
@@ -200,7 +194,6 @@ import {
 import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from './utils/background-task-status';
 import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-capabilities';
-import { resolveConnectCatalogRequest } from './utils/connect-catalog';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
   formatErrorMessage,
@@ -246,6 +239,7 @@ import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
 import { LoginFlow } from './flows/login-flow';
+import { ConnectFlow } from './flows/connect-flow';
 
 export interface ByfTuiStartupInput {
   readonly cliOptions: CLIOptions;
@@ -4694,120 +4688,23 @@ export class ByfTui implements DialogHost {
     }
   }
 
-  // Handles the /connect command — fetches a model catalog (default
-  // models.dev), lets the user pick a provider + model, prompts for an API
-  // key, then writes the provider config + model aliases. Model metadata
-  // (context size, capabilities) comes from the catalog, so users do not
-  // hand-write it.
   private async handleConnectCommand(args: string): Promise<void> {
-    const resolution = resolveConnectCatalogRequest(args);
-    if (resolution.kind === 'error') {
-      this.showError(resolution.message);
-      return;
-    }
-    const { url, preferBuiltIn, allowBuiltInFallback } = resolution.request;
-
-    let catalog: Catalog | undefined;
-
-    // Default path: serve the bundled catalog so /connect works without a
-    // live network and is not gated by models.dev availability. The source
-    // placeholder is undefined in dev builds, so dev falls through to fetch.
-    if (preferBuiltIn) {
-      const builtIn = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
-      if (builtIn !== undefined) {
-        this.showStatus('Loaded built-in catalog. Run /connect refresh for the latest.');
-        catalog = builtIn;
-      }
-    }
-
-    if (catalog === undefined) {
-      const controller = new AbortController();
-      const cancel = (): void => {
-        controller.abort();
-      };
-      this.cancelInFlight = cancel;
-
-      const spinner = this.showLoginProgressSpinner(`Fetching catalog from ${url}`);
-      try {
-        catalog = await fetchCatalog(url, controller.signal);
-        spinner.stop({ ok: true, label: 'Catalog loaded.' });
-      } catch (error) {
-        if (controller.signal.aborted) {
-          spinner.stop({ ok: false, label: 'Aborted.' });
-        } else {
-          const hint = error instanceof CatalogFetchError ? ` (HTTP ${error.status})` : '';
-          if (!allowBuiltInFallback) {
-            spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-            this.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-          } else {
-            const fallback = loadBuiltInCatalog(BUILT_IN_CATALOG_JSON);
-            if (fallback !== undefined) {
-              spinner.stop({ ok: true, label: 'Using built-in catalog (offline mode).' });
-              catalog = fallback;
-            } else {
-              spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-              this.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-            }
-          }
-        }
-      } finally {
-        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
-      }
-    }
-
-    if (catalog === undefined) return;
-
-    const providerId = await this.promptCatalogProviderSelection(catalog);
-    if (providerId === undefined) return;
-    const entry = catalog[providerId];
-    if (entry === undefined) return;
-
-    const models = catalogProviderModels(entry);
-    if (models.length === 0) {
-      this.showError(`Provider "${providerId}" has no usable models in this catalog.`);
-      return;
-    }
-
-    const selection = await this.promptModelSelectionForCatalog(providerId, models);
-    if (selection === undefined) return;
-
-    const apiKey = await this.promptApiKey(entry.name ?? providerId);
-    if (apiKey === undefined) return;
-
-    const wire = inferWireType(entry);
-    if (wire === undefined) return;
-    const baseUrl = catalogBaseUrl(entry, wire);
-
-    // Remove stale provider config first: setConfig is a deep-merge patch that
-    // cannot delete keys, and applyCatalogProvider's in-memory cleanup below
-    // does not survive that merge — removeProvider is the only step that
-    // actually drops old model aliases from disk.
-    const existingConfig = await this.harness.getConfig();
-    if (existingConfig.providers[providerId] !== undefined) {
-      await this.harness.removeProvider(providerId);
-    }
-
-    const config = await this.harness.getConfig();
-    applyCatalogProvider(config, {
-      providerId,
-      wire,
-      baseUrl,
-      apiKey,
-      models,
-      selectedModelId: selection.model.id,
-      thinking: selection.thinkingEffort !== 'off',
+    const flow = new ConnectFlow({
+      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      removeProvider: (id) => this.harness.removeProvider(id),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showStatus: (msg, color?) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showSpinner: (label) => this.showLoginProgressSpinner(label),
+      setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
+      track: (event, props?) => this.track(event, props),
+      promptProviderSelection: (catalog) => this.promptCatalogProviderSelection(catalog),
+      promptModelSelection: (providerId, models) => this.promptModelSelectionForCatalog(providerId, models),
+      promptApiKey: (providerName) => this.promptApiKey(providerName),
     });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('connect', { provider: providerId, model: selection.model.id });
-    this.showStatus(`Connected: ${entry.name ?? providerId} · ${selection.model.id}`);
+    await flow.run(args);
   }
 
   // Handles the /feedback command — opens the GitHub Issues page.
