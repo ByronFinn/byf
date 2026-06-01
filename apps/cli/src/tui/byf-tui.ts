@@ -215,6 +215,7 @@ import {
   handleSubagentFailed as handleSubagentFailedImpl,
   routeSubagentEvent as routeSubagentEventImpl,
   type SubagentCallbacks,
+  type SubagentEventState,
 } from './events/subagent-event-handler';
 import {
   TurnEventHandler,
@@ -2179,7 +2180,7 @@ export class ByfTui implements DialogHost {
 
   // Routes child-agent events into their parent tool-call component.
   private routeSubagentEvent(event: Event): boolean {
-    return routeSubagentEventImpl(event, this.state);
+    return routeSubagentEventImpl(event, this.subagentEventState());
   }
 
   // Initializes turn-scoped buffers when the SDK starts a turn.
@@ -2513,19 +2514,70 @@ export class ByfTui implements DialogHost {
     };
   }
 
+  // Narrow adapter over TUIState for subagent handlers. ByfTUI keeps
+  // ownership of state; the handler module only sees a controlled
+  // getter/setter subset.
+  private subagentEventState(): SubagentEventState {
+    const state = this.state;
+    return {
+      getSubagentParentToolCallId: (id) => state.subagentParentToolCallIds.get(id),
+      setSubagentParentToolCallId: (id, parent) => {
+        state.subagentParentToolCallIds.set(id, parent);
+      },
+      getSubagentName: (id) => state.subagentNames.get(id),
+      setSubagentName: (id, name) => {
+        state.subagentNames.set(id, name);
+      },
+      hasBackgroundAgent: (id) => state.backgroundAgents.has(id),
+      addBackgroundAgent: (id) => {
+        state.backgroundAgents.add(id);
+      },
+      deleteBackgroundAgent: (id) => state.backgroundAgents.delete(id),
+      getBackgroundAgentMetadata: (id) => state.backgroundAgentMetadata.get(id),
+      setBackgroundAgentMetadata: (id, meta) => {
+        state.backgroundAgentMetadata.set(id, meta);
+      },
+      deleteBackgroundAgentMetadata: (id) => {
+        state.backgroundAgentMetadata.delete(id);
+      },
+      getPendingToolCall: (id) => state.pendingToolComponents.get(id),
+      deletePendingToolCall: (id) => {
+        state.pendingToolComponents.delete(id);
+      },
+      getActiveToolCall: (id) => state.activeToolCalls.get(id),
+      hasActiveToolCall: (id) => state.activeToolCalls.has(id),
+      hasTranscriptedTask: (taskId) => state.backgroundTaskTranscriptedTerminal.has(taskId),
+      addTranscriptedTask: (taskId) => {
+        state.backgroundTaskTranscriptedTerminal.add(taskId);
+      },
+      findAgentTaskIdByDescription: (description) => {
+        let match: string | undefined;
+        for (const info of state.backgroundTasks.values()) {
+          if (!info.taskId.startsWith('agent-')) continue;
+          if (info.description !== description) continue;
+          if (match !== undefined) return undefined; // ambiguous
+          match = info.taskId;
+        }
+        return match;
+      },
+      get currentStep() { return state.currentStep; },
+      get currentTurnId() { return state.currentTurnId; },
+    };
+  }
+
   // Registers a spawned subagent and renders foreground or background status.
   private handleSubagentSpawned(event: SubagentSpawnedEvent): void {
-    handleSubagentSpawnedImpl(event, this.state, this.subagentCallbacks());
+    handleSubagentSpawnedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Completes a subagent in its parent tool call or background transcript entry.
   private handleSubagentCompleted(event: SubagentCompletedEvent): void {
-    handleSubagentCompletedImpl(event, this.state, this.subagentCallbacks());
+    handleSubagentCompletedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Marks a subagent failure in its parent tool call or background transcript entry.
   private handleSubagentFailed(event: SubagentFailedEvent): void {
-    handleSubagentFailedImpl(event, this.state, this.subagentCallbacks());
+    handleSubagentFailedImpl(event, this.subagentEventState(), this.subagentCallbacks());
   }
 
   // Appends a background-agent status row to the transcript.

@@ -16,7 +16,7 @@ import {
   handleSubagentSpawned,
   routeSubagentEvent,
   type SubagentCallbacks,
-  type SubagentState,
+  type SubagentEventState,
   type SubagentToolCall,
 } from '#/tui/events/subagent-event-handler';
 
@@ -33,7 +33,21 @@ function makeToolCall(): SubagentToolCall {
   };
 }
 
-function makeState(overrides: Partial<SubagentState> = {}): SubagentState {
+// Internal mutable storage behind the SubagentEventState adapter.
+interface AdapterStore {
+  subagentParentToolCallIds: Map<string, string>;
+  subagentNames: Map<string, string>;
+  backgroundAgentMetadata: Map<string, BackgroundAgentMetadata>;
+  backgroundAgents: Set<string>;
+  backgroundTasks: Map<string, { taskId: string; description: string }>;
+  backgroundTaskTranscriptedTerminal: Set<string>;
+  pendingToolComponents: Map<string, SubagentToolCall>;
+  activeToolCalls: Map<string, ToolCallBlockData>;
+  currentStep: number;
+  currentTurnId: string | undefined;
+}
+
+function makeStore(overrides: Partial<AdapterStore> = {}): AdapterStore {
   return {
     subagentParentToolCallIds: new Map(),
     subagentNames: new Map(),
@@ -47,6 +61,60 @@ function makeState(overrides: Partial<SubagentState> = {}): SubagentState {
     currentTurnId: 'turn-1',
     ...overrides,
   };
+}
+
+function makeState(store: AdapterStore = makeStore()): SubagentEventState {
+  return {
+    getSubagentParentToolCallId: (id) => store.subagentParentToolCallIds.get(id),
+    setSubagentParentToolCallId: (id, parent) => {
+      store.subagentParentToolCallIds.set(id, parent);
+    },
+    getSubagentName: (id) => store.subagentNames.get(id),
+    setSubagentName: (id, name) => {
+      store.subagentNames.set(id, name);
+    },
+    hasBackgroundAgent: (id) => store.backgroundAgents.has(id),
+    addBackgroundAgent: (id) => {
+      store.backgroundAgents.add(id);
+    },
+    deleteBackgroundAgent: (id) => store.backgroundAgents.delete(id),
+    getBackgroundAgentMetadata: (id) => store.backgroundAgentMetadata.get(id),
+    setBackgroundAgentMetadata: (id, meta) => {
+      store.backgroundAgentMetadata.set(id, meta);
+    },
+    deleteBackgroundAgentMetadata: (id) => {
+      store.backgroundAgentMetadata.delete(id);
+    },
+    getPendingToolCall: (id) => store.pendingToolComponents.get(id),
+    deletePendingToolCall: (id) => {
+      store.pendingToolComponents.delete(id);
+    },
+    getActiveToolCall: (id) => store.activeToolCalls.get(id),
+    hasActiveToolCall: (id) => store.activeToolCalls.has(id),
+    hasTranscriptedTask: (taskId) => store.backgroundTaskTranscriptedTerminal.has(taskId),
+    addTranscriptedTask: (taskId) => {
+      store.backgroundTaskTranscriptedTerminal.add(taskId);
+    },
+    findAgentTaskIdByDescription: (description) => {
+      let match: string | undefined;
+      for (const info of store.backgroundTasks.values()) {
+        if (!info.taskId.startsWith('agent-')) continue;
+        if (info.description !== description) continue;
+        if (match !== undefined) return undefined; // ambiguous
+        match = info.taskId;
+      }
+      return match;
+    },
+    get currentStep() { return store.currentStep; },
+    get currentTurnId() { return store.currentTurnId; },
+  };
+}
+
+// Convenience: build an (adapter, store) pair so tests can read the
+// underlying maps/sets after running a handler.
+function makeAdapter(overrides: Partial<AdapterStore> = {}): { state: SubagentEventState; store: AdapterStore } {
+  const store = makeStore(overrides);
+  return { state: makeState(store), store };
 }
 
 function makeCallbacks(overrides: Partial<SubagentCallbacks> = {}): SubagentCallbacks {
@@ -78,7 +146,7 @@ function makeSpawnedEvent(
 
 describe('routeSubagentEvent', () => {
   it('returns false for main agent events', () => {
-    const state = makeState();
+    const { state } = makeAdapter();
     const result = routeSubagentEvent(
       { type: 'assistant.delta', agentId: 'main', delta: 'hi' } as Event,
       state,
@@ -88,7 +156,7 @@ describe('routeSubagentEvent', () => {
 
   it('returns true and routes assistant.delta to parent tool call', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', tc]]),
@@ -103,7 +171,7 @@ describe('routeSubagentEvent', () => {
   });
 
   it('returns true for subagent event without parent tool call id', () => {
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', '']]),
     });
     const result = routeSubagentEvent(
@@ -114,7 +182,7 @@ describe('routeSubagentEvent', () => {
   });
 
   it('returns true for subagent event with unknown parent tool call', () => {
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-missing']]),
       subagentNames: new Map([['sub-1', 'coder']]),
     });
@@ -127,7 +195,7 @@ describe('routeSubagentEvent', () => {
 
   it('routes thinking.delta', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', tc]]),
@@ -141,7 +209,7 @@ describe('routeSubagentEvent', () => {
 
   it('routes tool.call.started', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', tc]]),
@@ -166,7 +234,7 @@ describe('routeSubagentEvent', () => {
 
   it('routes tool.result', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', tc]]),
@@ -189,7 +257,7 @@ describe('routeSubagentEvent', () => {
   });
 
   it('returns true for subagent lifecycle events that bypass routing', () => {
-    const state = makeState({
+    const { state } = makeAdapter({
       subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', makeToolCall()]]),
@@ -212,7 +280,7 @@ describe('routeSubagentEvent', () => {
 describe('handleSubagentSpawned (foreground)', () => {
   it('registers subagent maps and delegates to existing tool call', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state, store } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
     });
     const callbacks = makeCallbacks();
@@ -220,8 +288,8 @@ describe('handleSubagentSpawned (foreground)', () => {
 
     handleSubagentSpawned(event, state, callbacks);
 
-    expect(state.subagentParentToolCallIds.get('sub-1')).toBe('tc-1');
-    expect(state.subagentNames.get('sub-1')).toBe('coder');
+    expect(store.subagentParentToolCallIds.get('sub-1')).toBe('tc-1');
+    expect(store.subagentNames.get('sub-1')).toBe('coder');
     expect(tc.onSubagentSpawned).toHaveBeenCalledWith({
       agentId: 'sub-1',
       agentName: 'coder',
@@ -231,10 +299,10 @@ describe('handleSubagentSpawned (foreground)', () => {
   });
 
   it('creates standalone tool call when none exists', () => {
-    const state = makeState();
+    const { state, store } = makeAdapter();
     const tc = makeToolCall();
     const onToolCallStart = vi.fn((_toolCall: ToolCallBlockData) => {
-      state.pendingToolComponents.set('tc-1', tc);
+      store.pendingToolComponents.set('tc-1', tc);
     });
     const callbacks = makeCallbacks({ onToolCallStart });
     const event = makeSpawnedEvent();
@@ -251,7 +319,7 @@ describe('handleSubagentSpawned (foreground)', () => {
   });
 
   it('does nothing if standalone creation fails', () => {
-    const state = makeState();
+    const { state, store } = makeAdapter();
     const callbacks = makeCallbacks({
       onToolCallStart: () => {
         // intentionally does not add to pendingToolComponents
@@ -260,7 +328,7 @@ describe('handleSubagentSpawned (foreground)', () => {
     const event = makeSpawnedEvent({ parentToolCallId: 'tc-missing' });
 
     handleSubagentSpawned(event, state, callbacks);
-    expect(state.subagentParentToolCallIds.get('tc-missing-agent')).toBeUndefined();
+    expect(store.subagentParentToolCallIds.get('tc-missing-agent')).toBeUndefined();
   });
 });
 
@@ -270,14 +338,14 @@ describe('handleSubagentSpawned (foreground)', () => {
 
 describe('handleSubagentSpawned (background)', () => {
   it('stores metadata and appends background entry', () => {
-    const state = makeState();
+    const { state, store } = makeAdapter();
     const callbacks = makeCallbacks();
     const event = makeSpawnedEvent({ runInBackground: true });
 
     handleSubagentSpawned(event, state, callbacks);
 
-    expect(state.backgroundAgents.has('sub-1')).toBe(true);
-    expect(state.backgroundAgentMetadata.has('sub-1')).toBe(true);
+    expect(store.backgroundAgents.has('sub-1')).toBe(true);
+    expect(store.backgroundAgentMetadata.has('sub-1')).toBe(true);
     expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith(
       'started',
       expect.anything(),
@@ -293,7 +361,7 @@ describe('handleSubagentSpawned (background)', () => {
 describe('handleSubagentCompleted (foreground)', () => {
   it('delegates to tool call component', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
     });
     const callbacks = makeCallbacks();
@@ -314,7 +382,7 @@ describe('handleSubagentCompleted (foreground)', () => {
 
   it('removes pending component if not in activeToolCalls', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state, store } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
       activeToolCalls: new Map(),
     });
@@ -328,12 +396,12 @@ describe('handleSubagentCompleted (foreground)', () => {
 
     handleSubagentCompleted(event, state, callbacks);
 
-    expect(state.pendingToolComponents.has('tc-1')).toBe(false);
+    expect(store.pendingToolComponents.has('tc-1')).toBe(false);
   });
 
   it('keeps pending component if still in activeToolCalls', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state, store } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
       activeToolCalls: new Map([['tc-1', { id: 'tc-1' } as ToolCallBlockData]]),
     });
@@ -347,11 +415,11 @@ describe('handleSubagentCompleted (foreground)', () => {
 
     handleSubagentCompleted(event, state, callbacks);
 
-    expect(state.pendingToolComponents.has('tc-1')).toBe(true);
+    expect(store.pendingToolComponents.has('tc-1')).toBe(true);
   });
 
   it('does nothing when tool call not found', () => {
-    const state = makeState();
+    const { state } = makeAdapter();
     const callbacks = makeCallbacks();
     const event: SubagentCompletedEvent = {
       type: 'subagent.completed',
@@ -376,7 +444,7 @@ describe('handleSubagentCompleted (background)', () => {
       parentToolCallId: 'tc-1',
       agentName: 'coder',
     };
-    const state = makeState({
+    const { state, store } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
     });
@@ -390,8 +458,8 @@ describe('handleSubagentCompleted (background)', () => {
 
     handleSubagentCompleted(event, state, callbacks);
 
-    expect(state.backgroundAgents.has('sub-1')).toBe(false);
-    expect(state.backgroundAgentMetadata.has('sub-1')).toBe(false);
+    expect(store.backgroundAgents.has('sub-1')).toBe(false);
+    expect(store.backgroundAgentMetadata.has('sub-1')).toBe(false);
     expect(callbacks.syncBackgroundAgentBadge).toHaveBeenCalled();
     expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith(
       'completed',
@@ -406,7 +474,7 @@ describe('handleSubagentCompleted (background)', () => {
       parentToolCallId: 'tc-1',
       description: 'test',
     };
-    const state = makeState({
+    const { state } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
       backgroundTasks: new Map([
@@ -435,7 +503,7 @@ describe('handleSubagentCompleted (background)', () => {
 describe('handleSubagentFailed (foreground)', () => {
   it('delegates to tool call component', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
     });
     const callbacks = makeCallbacks();
@@ -453,7 +521,7 @@ describe('handleSubagentFailed (foreground)', () => {
 
   it('removes pending component if not active', () => {
     const tc = makeToolCall();
-    const state = makeState({
+    const { state, store } = makeAdapter({
       pendingToolComponents: new Map([['tc-1', tc]]),
       activeToolCalls: new Map(),
     });
@@ -470,7 +538,7 @@ describe('handleSubagentFailed (foreground)', () => {
       callbacks,
     );
 
-    expect(state.pendingToolComponents.has('tc-1')).toBe(false);
+    expect(store.pendingToolComponents.has('tc-1')).toBe(false);
   });
 });
 
@@ -485,7 +553,7 @@ describe('handleSubagentFailed (background)', () => {
       parentToolCallId: 'tc-1',
       agentName: 'coder',
     };
-    const state = makeState({
+    const { state, store } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
     });
@@ -507,7 +575,7 @@ describe('handleSubagentFailed (background)', () => {
       meta,
       { error: 'timeout' },
     );
-    expect(state.backgroundAgents.has('sub-1')).toBe(false);
+    expect(store.backgroundAgents.has('sub-1')).toBe(false);
   });
 
   it('skips transcript when matching agent-* task is already transcripted', () => {
@@ -516,7 +584,7 @@ describe('handleSubagentFailed (background)', () => {
       parentToolCallId: 'tc-1',
       description: 'test',
     };
-    const state = makeState({
+    const { state } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
       backgroundTasks: new Map([
@@ -548,7 +616,7 @@ describe('handleSubagentFailed (background)', () => {
 describe('buildBackgroundAgentMetadata', () => {
   it('uses active tool call description when available', () => {
     const event = makeSpawnedEvent({ runInBackground: true });
-    const state = makeState({
+    const { state } = makeAdapter({
       activeToolCalls: new Map([
         ['tc-1', { id: 'tc-1', name: 'Agent', args: { description: 'refactor module' } } as unknown as ToolCallBlockData],
       ]),
@@ -569,10 +637,43 @@ describe('buildBackgroundAgentMetadata', () => {
       runInBackground: true,
       description: 'event desc',
     });
-    const state = makeState();
+    const { state } = makeAdapter();
 
     const meta = buildBackgroundAgentMetadata(event, state);
 
     expect(meta.description).toBe('event desc');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adapter boundary — guard against SubagentState leak
+// ---------------------------------------------------------------------------
+
+describe('SubagentEventState adapter boundary', () => {
+  it('does not expose raw maps/sets (only methods)', () => {
+    const { state } = makeAdapter();
+    const probe = state as unknown as Record<string, unknown>;
+    // The adapter must not expose SubagentState-shaped fields like
+    // subagentParentToolCallIds, backgroundAgents, etc.
+    expect(probe['subagentParentToolCallIds']).toBeUndefined();
+    expect(probe['backgroundAgents']).toBeUndefined();
+    expect(probe['backgroundAgentMetadata']).toBeUndefined();
+    expect(probe['pendingToolComponents']).toBeUndefined();
+  });
+
+  it('routes setSubagentParentToolCallId through the adapter', () => {
+    const { state, store } = makeAdapter();
+    state.setSubagentParentToolCallId('sub-x', 'tc-x');
+    expect(store.subagentParentToolCallIds.get('sub-x')).toBe('tc-x');
+    expect(state.getSubagentParentToolCallId('sub-x')).toBe('tc-x');
+  });
+
+  it('addBackgroundAgent / hasBackgroundAgent / deleteBackgroundAgent round-trip', () => {
+    const { state } = makeAdapter();
+    expect(state.hasBackgroundAgent('sub-1')).toBe(false);
+    state.addBackgroundAgent('sub-1');
+    expect(state.hasBackgroundAgent('sub-1')).toBe(true);
+    expect(state.deleteBackgroundAgent('sub-1')).toBe(true);
+    expect(state.hasBackgroundAgent('sub-1')).toBe(false);
   });
 });

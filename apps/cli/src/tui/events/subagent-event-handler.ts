@@ -47,17 +47,45 @@ export interface SubagentToolCall {
   }): void;
 }
 
-export interface SubagentState {
-  subagentParentToolCallIds: Map<string, string>;
-  subagentNames: Map<string, string>;
-  backgroundAgentMetadata: Map<string, BackgroundAgentMetadata>;
-  backgroundAgents: Set<string>;
-  backgroundTasks: Map<string, { taskId: string; description: string }>;
-  backgroundTaskTranscriptedTerminal: Set<string>;
-  pendingToolComponents: Map<string, SubagentToolCall>;
-  activeToolCalls: Map<string, ToolCallBlockData>;
-  currentStep: number;
-  currentTurnId: string | undefined;
+// ---------------------------------------------------------------------------
+// SubagentEventState — narrow adapter over TUIState.
+// ByfTUI is the sole owner of TUIState; handlers only see a controlled
+// getter/setter subset.
+// ---------------------------------------------------------------------------
+
+export interface SubagentEventState {
+  // Maps
+  getSubagentParentToolCallId(subagentId: string): string | undefined;
+  setSubagentParentToolCallId(subagentId: string, parentToolCallId: string): void;
+  getSubagentName(subagentId: string): string | undefined;
+  setSubagentName(subagentId: string, name: string): void;
+
+  // Background agent set + metadata
+  hasBackgroundAgent(subagentId: string): boolean;
+  addBackgroundAgent(subagentId: string): void;
+  deleteBackgroundAgent(subagentId: string): boolean;
+  getBackgroundAgentMetadata(subagentId: string): BackgroundAgentMetadata | undefined;
+  setBackgroundAgentMetadata(subagentId: string, meta: BackgroundAgentMetadata): void;
+  deleteBackgroundAgentMetadata(subagentId: string): void;
+
+  // Pending tool components
+  getPendingToolCall(parentToolCallId: string): SubagentToolCall | undefined;
+  deletePendingToolCall(parentToolCallId: string): void;
+
+  // Active tool calls
+  getActiveToolCall(parentToolCallId: string): ToolCallBlockData | undefined;
+  hasActiveToolCall(parentToolCallId: string): boolean;
+
+  // Background task transcripts
+  hasTranscriptedTask(taskId: string): boolean;
+  addTranscriptedTask(taskId: string): void;
+
+  // Find a background agent-* task id by matching description/agentName
+  findAgentTaskIdByDescription(description: string): string | undefined;
+
+  // Turn context
+  readonly currentStep: number;
+  readonly currentTurnId: string | undefined;
 }
 
 export interface SubagentCallbacks {
@@ -73,15 +101,15 @@ export interface SubagentCallbacks {
 
 export function routeSubagentEvent(
   event: Event,
-  state: SubagentState,
+  state: SubagentEventState,
 ): boolean {
   const subagentId = event.agentId;
   if (subagentId === MAIN_AGENT_ID) return false;
 
-  const parentToolCallId = state.subagentParentToolCallIds.get(subagentId);
+  const parentToolCallId = state.getSubagentParentToolCallId(subagentId);
   if (parentToolCallId === undefined || parentToolCallId.length === 0) return true;
-  const sourceName = state.subagentNames.get(subagentId);
-  const toolCall = state.pendingToolComponents.get(parentToolCallId);
+  const sourceName = state.getSubagentName(subagentId);
+  const toolCall = state.getPendingToolCall(parentToolCallId);
   if (toolCall === undefined) return true;
   toolCall.setSubagentMeta(subagentId, sourceName);
 
@@ -134,27 +162,27 @@ export function routeSubagentEvent(
 
 export function handleSubagentSpawned(
   event: SubagentSpawnedEvent,
-  state: SubagentState,
+  state: SubagentEventState,
   callbacks: SubagentCallbacks,
 ): void {
-  state.subagentParentToolCallIds.set(event.subagentId, event.parentToolCallId);
-  state.subagentNames.set(event.subagentId, event.subagentName);
+  state.setSubagentParentToolCallId(event.subagentId, event.parentToolCallId);
+  state.setSubagentName(event.subagentId, event.subagentName);
 
   if (event.runInBackground) {
     const meta = buildBackgroundAgentMetadata(event, state);
-    state.backgroundAgentMetadata.set(event.subagentId, meta);
-    state.backgroundAgents.add(event.subagentId);
+    state.setBackgroundAgentMetadata(event.subagentId, meta);
+    state.addBackgroundAgent(event.subagentId);
     callbacks.appendBackgroundAgentEntry('started', meta);
     callbacks.syncBackgroundAgentBadge();
     return;
   }
 
-  let tc = state.pendingToolComponents.get(event.parentToolCallId);
+  let tc = state.getPendingToolCall(event.parentToolCallId);
   if (tc === undefined) {
-    const toolCall = state.activeToolCalls.get(event.parentToolCallId);
+    const toolCall = state.getActiveToolCall(event.parentToolCallId);
     if (toolCall !== undefined) {
       callbacks.onToolCallStart(toolCall);
-      tc = state.pendingToolComponents.get(event.parentToolCallId);
+      tc = state.getPendingToolCall(event.parentToolCallId);
     }
   }
   tc ??= createStandaloneSubagentToolCall(event, state, callbacks);
@@ -168,72 +196,72 @@ export function handleSubagentSpawned(
 
 export function handleSubagentCompleted(
   event: SubagentCompletedEvent,
-  state: SubagentState,
+  state: SubagentEventState,
   callbacks: SubagentCallbacks,
 ): void {
-  const backgroundMeta = state.backgroundAgentMetadata.get(event.subagentId);
-  if (state.backgroundAgents.delete(event.subagentId)) {
+  const backgroundMeta = state.getBackgroundAgentMetadata(event.subagentId);
+  if (state.deleteBackgroundAgent(event.subagentId)) {
     callbacks.syncBackgroundAgentBadge();
   }
   if (backgroundMeta !== undefined) {
     const taskId = findAgentTaskId(event.subagentId, state);
-    state.backgroundAgentMetadata.delete(event.subagentId);
-    if (taskId !== undefined && state.backgroundTaskTranscriptedTerminal.has(taskId)) {
+    state.deleteBackgroundAgentMetadata(event.subagentId);
+    if (taskId !== undefined && state.hasTranscriptedTask(taskId)) {
       return;
     }
     if (taskId !== undefined) {
-      state.backgroundTaskTranscriptedTerminal.add(taskId);
+      state.addTranscriptedTask(taskId);
     }
     const extras =
       event.resultSummary === undefined ? undefined : { resultSummary: event.resultSummary };
     callbacks.appendBackgroundAgentEntry('completed', backgroundMeta, extras);
     return;
   }
-  const tc = state.pendingToolComponents.get(event.parentToolCallId);
+  const tc = state.getPendingToolCall(event.parentToolCallId);
   if (tc === undefined) return;
   tc.onSubagentCompleted({
     usage: event.usage,
     resultSummary: event.resultSummary,
   });
-  if (!state.activeToolCalls.has(event.parentToolCallId)) {
-    state.pendingToolComponents.delete(event.parentToolCallId);
+  if (!state.hasActiveToolCall(event.parentToolCallId)) {
+    state.deletePendingToolCall(event.parentToolCallId);
   }
 }
 
 export function handleSubagentFailed(
   event: SubagentFailedEvent,
-  state: SubagentState,
+  state: SubagentEventState,
   callbacks: SubagentCallbacks,
 ): void {
-  const backgroundMeta = state.backgroundAgentMetadata.get(event.subagentId);
-  if (state.backgroundAgents.delete(event.subagentId)) {
+  const backgroundMeta = state.getBackgroundAgentMetadata(event.subagentId);
+  if (state.deleteBackgroundAgent(event.subagentId)) {
     callbacks.syncBackgroundAgentBadge();
   }
   if (backgroundMeta !== undefined) {
     const taskId = findAgentTaskId(event.subagentId, state);
-    state.backgroundAgentMetadata.delete(event.subagentId);
-    if (taskId !== undefined && state.backgroundTaskTranscriptedTerminal.has(taskId)) {
+    state.deleteBackgroundAgentMetadata(event.subagentId);
+    if (taskId !== undefined && state.hasTranscriptedTask(taskId)) {
       return;
     }
     if (taskId !== undefined) {
-      state.backgroundTaskTranscriptedTerminal.add(taskId);
+      state.addTranscriptedTask(taskId);
     }
     callbacks.appendBackgroundAgentEntry('failed', backgroundMeta, { error: event.error });
     return;
   }
-  const tc = state.pendingToolComponents.get(event.parentToolCallId);
+  const tc = state.getPendingToolCall(event.parentToolCallId);
   if (tc === undefined) return;
   tc.onSubagentFailed({ error: event.error });
-  if (!state.activeToolCalls.has(event.parentToolCallId)) {
-    state.pendingToolComponents.delete(event.parentToolCallId);
+  if (!state.hasActiveToolCall(event.parentToolCallId)) {
+    state.deletePendingToolCall(event.parentToolCallId);
   }
 }
 
 export function buildBackgroundAgentMetadata(
   event: SubagentSpawnedEvent,
-  state: SubagentState,
+  state: SubagentEventState,
 ): BackgroundAgentMetadata {
-  const parent = state.activeToolCalls.get(event.parentToolCallId);
+  const parent = state.getActiveToolCall(event.parentToolCallId);
   const description = parent?.args['description'] ?? event.description;
   return {
     agentId: event.subagentId,
@@ -245,7 +273,7 @@ export function buildBackgroundAgentMetadata(
 
 function createStandaloneSubagentToolCall(
   event: SubagentSpawnedEvent,
-  state: SubagentState,
+  state: SubagentEventState,
   callbacks: SubagentCallbacks,
 ): SubagentToolCall | undefined {
   const description = event.description ?? `Run ${event.subagentName} agent`;
@@ -261,21 +289,17 @@ function createStandaloneSubagentToolCall(
     turnId: state.currentTurnId,
   };
   callbacks.onToolCallStart(toolCall);
-  return state.pendingToolComponents.get(event.parentToolCallId);
+  return state.getPendingToolCall(event.parentToolCallId);
 }
 
-function findAgentTaskId(subagentId: string, state: SubagentState): string | undefined {
-  const meta = state.backgroundAgentMetadata.get(subagentId);
+function findAgentTaskId(
+  subagentId: string,
+  state: SubagentEventState,
+): string | undefined {
+  const meta = state.getBackgroundAgentMetadata(subagentId);
   const description = meta?.description ?? meta?.agentName;
   if (description === undefined) return undefined;
-  let match: string | undefined;
-  for (const info of state.backgroundTasks.values()) {
-    if (!info.taskId.startsWith('agent-')) continue;
-    if (info.description !== description) continue;
-    if (match !== undefined) return undefined; // ambiguous
-    match = info.taskId;
-  }
-  return match;
+  return state.findAgentTaskIdByDescription(description);
 }
 
 function formatHookResultPlain(event: HookResultEvent): string {
