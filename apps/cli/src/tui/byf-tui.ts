@@ -33,10 +33,7 @@ import {
 } from '@byfriends/sdk';
 import {
   applyProviderConfig,
-  capabilitiesForModel as capabilitiesForModelOAuth,
   fetchModels,
-  type ModelInfo,
-  ProviderApiError,
 } from '@byfriends/oauth';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
@@ -248,6 +245,7 @@ import { createTerminalState, type TerminalState } from './utils/terminal-state'
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
+import { LoginFlow } from './flows/login-flow';
 
 export interface ByfTuiStartupInput {
   readonly cliOptions: CLIOptions;
@@ -4623,99 +4621,22 @@ export class ByfTui implements DialogHost {
   // =========================================================================
 
   private async handleLoginCommand(): Promise<void> {
-    // Step 1: Provider name
-    const name = await this.promptTextInput({
-      title: 'Provider name',
-      subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
+    const flow = new LoginFlow({
       colors: this.state.theme.colors,
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
+      applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showStatus: (msg, color?) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
+      track: (event, props?) => this.track(event, props),
+      promptTextInput: (opts) => this.promptTextInput({ ...opts, colors: this.state.theme.colors }),
+      promptApiKey: (providerName) => this.promptApiKey(providerName),
+      runModelSelector: (modelDict) => this.runModelSelector(modelDict),
     });
-    if (name === undefined) return;
-
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      this.showError('Provider name must contain only letters, numbers, hyphens, and underscores.');
-      return;
-    }
-
-    const existingConfig = await this.harness.getConfig();
-    if (existingConfig.providers[name] !== undefined) {
-      this.showError(`Provider "${name}" already exists. Use a different name or /logout ${name} first.`);
-      return;
-    }
-
-    // Step 2: Base URL
-    const baseUrl = await this.promptTextInput({
-      title: 'Base URL',
-      subtitle: 'The OpenAI-compatible API endpoint',
-      initialValue: 'https://api.openai.com/v1',
-      placeholder: 'https://api.openai.com/v1',
-      colors: this.state.theme.colors,
-    });
-    if (baseUrl === undefined) return;
-
-    // Step 3: API key
-    const apiKey = await this.promptApiKey(name);
-    if (apiKey === undefined) return;
-
-    // Step 4: Fetch models
-    let models: ModelInfo[];
-    try {
-      const spinner = this.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
-      models = await fetchModels(baseUrl, apiKey);
-      spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
-    } catch (error) {
-      if (error instanceof ProviderApiError) {
-        this.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
-      } else {
-        this.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
-      }
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
-    }
-
-    if (models.length === 0) {
-      this.showStatus('No models found at this endpoint. Enter model ID manually.');
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
-    }
-
-    // Step 5: Model selection
-    const modelDict: Record<string, import('@byfriends/oauth').ModelAlias> = {};
-    for (const m of models) {
-      modelDict[`${name}/${m.id}`] = {
-        provider: name,
-        model: m.id,
-        maxContextSize: m.contextLength,
-        capabilities: capabilitiesForModelOAuth(m),
-        displayName: m.displayName,
-      };
-    }
-
-    const selection = await this.runModelSelector(modelDict);
-    if (selection === undefined) return;
-
-    const selectedId = selection.alias.split('/').slice(1).join('/');
-    const selectedModel = models.find((m) => m.id === selectedId);
-    if (selectedModel === undefined) return;
-
-    // Step 6: Apply config
-    const config = await this.harness.getConfig();
-    applyProviderConfig(config, {
-      name,
-      baseUrl,
-      apiKey,
-      models,
-      selectedModel,
-      thinking: selection.thinkingEffort !== 'off',
-    });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('login', { provider: name, model: selectedModel.id });
-    this.showStatus(`Connected: ${name} · ${selectedModel.id}`);
+    await flow.run();
   }
 
   private promptTextInput(opts: {
@@ -4739,63 +4660,6 @@ export class ByfTui implements DialogHost {
       });
       this.mountEditorReplacement(dialog);
     });
-  }
-
-  private async handleManualModelEntry(
-    name: string,
-    baseUrl: string,
-    apiKey: string,
-  ): Promise<void> {
-    const manualModel = await this.promptTextInput({
-      title: 'Enter model ID manually',
-      subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
-      colors: this.state.theme.colors,
-    });
-    if (manualModel === undefined) return;
-
-    const contextSize = await this.promptTextInput({
-      title: 'Context window size',
-      subtitle: 'Max context size in tokens for this model',
-      initialValue: '128000',
-      placeholder: '128000',
-      colors: this.state.theme.colors,
-    });
-    if (contextSize === undefined) return;
-
-    const parsedSize = Number.parseInt(contextSize, 10);
-    if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
-      this.showError('Invalid context size. Must be a positive number.');
-      return;
-    }
-
-    const manualModelInfo: ModelInfo = {
-      id: manualModel,
-      contextLength: parsedSize,
-      supportsReasoning: false,
-      supportsImageIn: false,
-      supportsVideoIn: false,
-    };
-
-    const config = await this.harness.getConfig();
-    applyProviderConfig(config, {
-      name,
-      baseUrl,
-      apiKey,
-      models: [manualModelInfo],
-      selectedModel: manualModelInfo,
-      thinking: false,
-    });
-
-    await this.harness.setConfig({
-      providers: config.providers,
-      models: config.models,
-      defaultModel: config.defaultModel,
-      defaultThinking: config.defaultThinking,
-    });
-
-    await this.refreshConfigAfterLogin();
-    this.track('login', { provider: name, model: manualModel });
-    this.showStatus(`Connected: ${name} · ${manualModel}`);
   }
 
   private async handleLogoutCommand(args: string | undefined): Promise<void> {
