@@ -177,7 +177,6 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from './constant/byf-tui';
-import { STREAMING_UI_FLUSH_MS } from './constant/streaming';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -207,12 +206,7 @@ import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-ca
 import { resolveConnectCatalogRequest } from './utils/connect-catalog';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
-  appendStreamingArgsPreview,
-  argsRecord,
   formatErrorMessage,
-  isTodoItemShape,
-  parseStreamingArgs,
-  serializeToolResultOutput,
   stringValue,
 } from './utils/event-payload';
 import { isAbortError } from './utils/errors';
@@ -241,6 +235,11 @@ import {
   routeSubagentEvent as routeSubagentEventImpl,
   type SubagentCallbacks,
 } from './events/subagent-event-handler';
+import {
+  TurnEventHandler,
+  type TurnEventCallbacks,
+  type TurnEventState,
+} from './events/turn-event-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -609,13 +608,7 @@ export class ByfTui implements DialogHost {
   // Guards `stop()` and `emergencyTerminalExit()` so a signal arriving mid-
   // shutdown does not race with itself.
   private isShuttingDown = false;
-  // High-frequency model/tool deltas update draft state immediately, then use
-  // these flags to coalesce expensive component rebuilds into periodic flushes.
-  private streamingUiFlushTimer: ReturnType<typeof setTimeout> | undefined;
-  private lastStreamingUiFlushAt: number | undefined;
-  private pendingAssistantFlush = false;
-  private pendingThinkingFlush = false;
-  private readonly pendingToolCallFlushIds = new Set<string>();
+  private readonly turnEventHandler: TurnEventHandler;
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
@@ -644,6 +637,7 @@ export class ByfTui implements DialogHost {
     this.options = tuiOptions;
     this.state = createTUIState(tuiOptions);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
+    this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -1840,191 +1834,47 @@ export class ByfTui implements DialogHost {
     });
   }
 
-  private hasPendingStreamingUiUpdates(): boolean {
-    return (
-      this.pendingAssistantFlush ||
-      this.pendingThinkingFlush ||
-      this.pendingToolCallFlushIds.size > 0
-    );
-  }
-
-  private clearStreamingUiFlushTimer(): void {
-    if (this.streamingUiFlushTimer === undefined) return;
-    clearTimeout(this.streamingUiFlushTimer);
-    this.streamingUiFlushTimer = undefined;
-  }
-
-  private clearStreamingUiFlushTimerIfIdle(): void {
-    if (this.hasPendingStreamingUiUpdates()) return;
-    this.clearStreamingUiFlushTimer();
-  }
-
   private discardPendingStreamingUiUpdates(): void {
-    this.clearStreamingUiFlushTimer();
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.pendingToolCallFlushIds.clear();
-  }
-
-  // Schedule trailing UI work for streaming deltas. Terminal drawing is already
-  // coalesced by pi-tui; this avoids doing our own markdown/tool preview rebuild
-  // work on every chunk before pi-tui even gets a chance to render.
-  private scheduleStreamingUiFlush(): void {
-    if (!this.hasPendingStreamingUiUpdates()) return;
-    if (this.streamingUiFlushTimer !== undefined) return;
-    const delay =
-      this.lastStreamingUiFlushAt === undefined
-        ? 0
-        : Math.max(0, STREAMING_UI_FLUSH_MS - (Date.now() - this.lastStreamingUiFlushAt));
-    this.streamingUiFlushTimer = setTimeout(() => {
-      this.streamingUiFlushTimer = undefined;
-      this.flushStreamingUiUpdates();
-    }, delay);
+    this.turnEventHandler.discardPendingStreamingUiUpdates();
   }
 
   // Final events such as tool.result or turn.ended must observe all streamed
   // draft content, so they bypass the timer and drain pending UI work first.
   private flushStreamingUiUpdatesNow(): void {
-    this.clearStreamingUiFlushTimer();
-    this.flushStreamingUiUpdates();
-  }
-
-  private flushStreamingUiUpdates(): void {
-    if (!this.hasPendingStreamingUiUpdates()) return;
-    this.lastStreamingUiFlushAt = Date.now();
-    const shouldFlushThinking = this.pendingThinkingFlush;
-    const shouldFlushAssistant = this.pendingAssistantFlush;
-    const toolCallIds = [...this.pendingToolCallFlushIds];
-    this.pendingThinkingFlush = false;
-    this.pendingAssistantFlush = false;
-    this.pendingToolCallFlushIds.clear();
-
-    if (shouldFlushThinking && this.state.thinkingDraft.length > 0) {
-      this.onThinkingUpdate(this.state.thinkingDraft);
-    }
-    if (shouldFlushAssistant) {
-      this.onStreamingTextUpdate(this.state.assistantDraft);
-    }
-    for (const id of toolCallIds) {
-      this.flushStreamingToolCallPreview(id);
-    }
-  }
-
-  // Materializes the latest bounded argument preview for one in-flight tool
-  // call. The final tool.call event still replaces this with authoritative args.
-  private flushStreamingToolCallPreview(id: string): void {
-    const streaming = this.state.streamingToolCallArguments.get(id);
-    if (streaming === undefined) return;
-    const toolCall: ToolCallBlockData = {
-      id,
-      name: streaming.name ?? this.state.activeToolCalls.get(id)?.name ?? 'Tool',
-      args: parseStreamingArgs(streaming.argumentsText),
-      streamingArguments: streaming.argumentsText,
-      streamingStartedAtMs: streaming.startedAtMs,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    this.state.activeToolCalls.set(id, toolCall);
-
-    if (this.state.thinkingDraft.length > 0 || this.state.assistantStreamActive) {
-      this.finalizeLiveTextBuffers('tool');
-    }
-
-    const existingComponent = this.state.pendingToolComponents.get(id);
-    if (existingComponent !== undefined) {
-      existingComponent.updateToolCall(toolCall);
-    } else if (toolCall.name !== 'Agent') {
-      this.onToolCallStart(toolCall);
-    }
-  }
-
-  // Finalizes live thinking output and moves the live pane to the next mode.
-  private flushThinkingToTranscript(nextMode: LivePaneState['mode'] = 'idle'): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.thinkingDraft.length === 0) {
-      this.patchLivePane({ mode: nextMode });
-      return;
-    }
-    this.state.thinkingDraft = '';
-    this.onThinkingEnd();
-    this.patchLivePane({ mode: nextMode });
-  }
-
-  // Finalizes live assistant text and clears streaming component state.
-  private finalizeAssistantStream(): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.assistantStreamActive) {
-      this.onStreamingTextEnd();
-      this.state.assistantStreamActive = false;
-    }
-    this.state.assistantDraft = '';
-    this.updateActivityPane();
-    this.state.ui.requestRender();
+    this.turnEventHandler.flushStreamingUiUpdatesNow();
   }
 
   // Discards live thinking and assistant text state without finalizing transcript output.
   private resetLiveTextRuntime(): void {
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.clearStreamingUiFlushTimerIfIdle();
-    this.state.assistantDraft = '';
-    this.state.assistantStreamActive = false;
+    this.turnEventHandler.resetLiveTextRuntime();
     this.state.streamingComponent = undefined;
     this.state.streamingTranscriptEntry = undefined;
-    this.state.thinkingDraft = '';
-    this.disposeActiveThinkingComponent();
   }
 
   // Clears live tool UI state while preserving active tool-call tracking.
   private resetLiveToolUiState(): void {
-    this.pendingToolCallFlushIds.clear();
-    this.clearStreamingUiFlushTimerIfIdle();
-    this.state.streamingToolCallArguments.clear();
-    this.disposeAndClearPendingToolComponents();
+    this.turnEventHandler.resetLiveToolUiState();
     this.state.pendingAgentGroup = null;
     this.state.pendingReadGroup = null;
   }
 
   // Clears SDK tool-call tracking.
   private resetToolCallState(): void {
-    this.state.activeToolCalls.clear();
+    this.turnEventHandler.resetToolCallState();
   }
 
   // Finalizes any live thinking and assistant text for a phase transition.
   private finalizeLiveTextBuffers(nextMode: LivePaneState['mode'] = 'idle'): void {
-    this.flushThinkingToTranscript(nextMode);
-    this.finalizeAssistantStream();
+    this.turnEventHandler.finalizeLiveTextBuffers(nextMode);
   }
 
   // Completes a turn, dispatches queued work, and sends completion notification.
   private finalizeTurn(sendQueued: (item: QueuedMessage) => void): void {
-    if (!this.state.appState.isStreaming) return;
     this.deferUserMessages = false;
-    const completedTurnKey =
-      this.state.currentTurnId ?? `local:${String(this.state.appState.streamingStartTime)}`;
-    this.finalizeLiveTextBuffers('idle');
-    this.resetToolCallState();
-    this.state.currentTurnId = undefined;
-
-    if (this.state.queuedMessages.length > 0) {
-      const [next, ...rest] = this.state.queuedMessages;
-      this.state.queuedMessages = rest;
-      this.setAppState({ isStreaming: false, streamingPhase: 'idle' });
-      this.resetLivePane();
-      if (next !== undefined) {
-        setTimeout(() => {
-          sendQueued(next);
-        }, 0);
-      }
-      return;
-    }
-
-    this.setAppState({ isStreaming: false, streamingPhase: 'idle' });
-    this.resetLivePane();
-    notifyTerminalOnce(this.state, `turn-complete:${completedTurnKey}`, {
-      title: 'Byf Code task complete',
-      body: this.state.appState.sessionTitle ?? undefined,
-    });
+    this.turnEventHandler.handleTurnEnd(
+      { type: 'turn.ended', turnId: 0 } as TurnEndedEvent,
+      sendQueued,
+    );
   }
 
   // =========================================================================
@@ -2462,49 +2312,24 @@ export class ByfTui implements DialogHost {
   }
 
   // Initializes turn-scoped buffers when the SDK starts a turn.
-  private handleTurnBegin(_event: TurnStartedEvent): void {
-    void _event;
-    this.resetLiveToolUiState();
-    this.state.currentStep = 0;
-    this.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.setAppState({
-      isStreaming: true,
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
+  private handleTurnBegin(event: TurnStartedEvent): void {
+    this.turnEventHandler.handleTurnBegin(event);
   }
 
   // Finalizes turn-scoped state when the SDK completes a turn.
-  private handleTurnEnd(_event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
-    void _event;
-    this.flushStreamingUiUpdatesNow();
+  private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
+    this.turnEventHandler.flushStreamingUiUpdatesNow();
     const todos = this.state.todoPanel.getTodos();
     if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
       this.setTodoList([]);
     }
-    this.resetLiveToolUiState();
-    this.finalizeTurn(sendQueued);
+    this.turnEventHandler.resetLiveToolUiState();
+    this.turnEventHandler.handleTurnEnd(event, sendQueued);
   }
 
   // Resets live render state for a new turn step.
   private handleStepBegin(event: TurnStepStartedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.state.currentStep = event.step;
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('waiting');
-    this.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.setAppState({
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
+    this.turnEventHandler.handleStepBegin(event);
   }
 
   // Surfaces step-level outcomes the user needs to act on. The common
@@ -2516,42 +2341,7 @@ export class ByfTui implements DialogHost {
   // wrong. Flip those into a visible 'Truncated' state and append a
   // notice pointing at the config knob.
   private handleStepCompleted(event: TurnStepCompletedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    if (event.finishReason !== 'max_tokens') return;
-
-    // Scope the truncation marking to tool calls that belong to the
-    // step that just completed. Without this guard, stale entries from
-    // earlier retry attempts (or unrelated still-tracked calls) would
-    // get relabeled and counted, producing misleading "tool call was
-    // truncated" notices for the wrong step.
-    const eventTurnId = String(event.turnId);
-    let truncatedCount = 0;
-    for (const toolCall of this.state.activeToolCalls.values()) {
-      if (toolCall.result !== undefined) continue;
-      if (toolCall.streamingArguments === undefined) continue;
-      if (toolCall.turnId !== eventTurnId) continue;
-      if (toolCall.step !== event.step) continue;
-      toolCall.truncated = true;
-      const component = this.state.pendingToolComponents.get(toolCall.id);
-      if (component !== undefined) {
-        component.updateToolCall(toolCall);
-      }
-      truncatedCount += 1;
-    }
-    this.state.streamingToolCallArguments.clear();
-
-    const title =
-      truncatedCount > 0
-        ? 'Model hit max_tokens — tool call was truncated before it could run.'
-        : 'Model hit max_tokens — no tool call was emitted.';
-    // The `max_output_size` knob is only wired through to provider
-    // requests for the Anthropic provider (see toKosongProviderConfig).
-    // For OpenAI / Byf / Google sessions the advice would be a
-    // dead end, so skip the second line on those providers.
-    const detail = this.isAnthropicSessionActive()
-      ? 'If this limit is wrong for your model, set `max_output_size` on the model alias in your byf config.'
-      : undefined;
-    this.showNotice(title, detail);
+    this.turnEventHandler.handleStepCompleted(event);
   }
 
   private isAnthropicSessionActive(): boolean {
@@ -2562,133 +2352,31 @@ export class ByfTui implements DialogHost {
 
   // Renders user-facing status for an interrupted turn step.
   private handleStepInterrupted(event: TurnStepInterruptedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    this.resetLiveToolUiState();
-    this.finalizeLiveTextBuffers('idle');
-    const reason = event.reason;
-    if (reason === 'error') return;
-    if (reason === 'aborted' || reason === undefined || reason === '') {
-      this.showStatus('Interrupted by user', this.state.theme.colors.error);
-      return;
-    }
-    this.showError(
-      reason === 'max_steps'
-        ? 'reached per-turn step limit (max_steps)'
-        : `step interrupted (${reason})`,
-    );
+    this.turnEventHandler.handleStepInterrupted(event);
   }
 
   // Appends a thinking delta to the live thinking block.
   private handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    this.state.thinkingDraft += event.delta;
-    this.pendingThinkingFlush = true;
-    this.patchLivePane({ mode: 'idle' });
-    if (this.state.appState.streamingPhase !== 'thinking') {
-      this.setAppState({ streamingPhase: 'thinking', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleThinkingDelta(event);
   }
 
   // Appends an assistant text delta to the live assistant block.
   private handleAssistantDelta(event: AssistantDeltaEvent): void {
-    if (this.state.thinkingDraft.length > 0) {
-      this.flushThinkingToTranscript('idle');
-    }
-
-    if (!this.state.assistantStreamActive) {
-      this.state.assistantStreamActive = true;
-      this.onStreamingTextStart();
-    }
-
-    this.state.assistantDraft += event.delta;
-    this.pendingAssistantFlush = true;
-
-    this.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (this.state.appState.streamingPhase !== 'composing') {
-      this.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleAssistantDelta(event);
   }
 
   private handleHookResult(event: HookResultEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    if (this.state.thinkingDraft.length > 0) {
-      this.flushThinkingToTranscript('idle');
-    }
-    this.finalizeAssistantStream();
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'assistant',
-      turnId: String(event.turnId),
-      renderMode: 'markdown',
-      content: formatHookResultMarkdown(event),
-    });
-    this.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
+    this.turnEventHandler.handleHookResult(event);
   }
 
   // Starts or updates a rendered tool call from a tool-call start event.
   private handleToolCall(event: ToolCallStartedEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    const toolCall: ToolCallBlockData = {
-      id: event.toolCallId,
-      name: event.name,
-      args: argsRecord(event.args),
-      description: event.description,
-      display: event.display,
-      step: this.state.currentStep,
-      turnId: this.state.currentTurnId,
-    };
-    const existing = this.state.activeToolCalls.get(event.toolCallId);
-    this.state.activeToolCalls.set(event.toolCallId, toolCall);
-    this.pendingToolCallFlushIds.delete(event.toolCallId);
-    this.state.streamingToolCallArguments.delete(event.toolCallId);
-    const existingComponent = this.state.pendingToolComponents.get(event.toolCallId);
-    if (existingComponent !== undefined) {
-      existingComponent.updateToolCall(toolCall);
-    } else if (existing === undefined) {
-      this.finalizeLiveTextBuffers('tool');
-      if (event.name !== 'Agent') {
-        this.onToolCallStart(toolCall);
-      }
-    }
-    this.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
+    this.turnEventHandler.handleToolCall(event);
   }
 
   // Accumulates streaming tool-call arguments and updates the rendered call.
   private handleToolCallDelta(event: ToolCallDeltaEvent): void {
-    if (event.toolCallId.length === 0) return;
-    const id = event.toolCallId;
-    const existing = this.state.streamingToolCallArguments.get(id);
-    const argumentsText = appendStreamingArgsPreview(
-      existing?.argumentsText,
-      event.argumentsPart,
-    );
-    const name = event.name ?? existing?.name ?? this.state.activeToolCalls.get(id)?.name ?? 'Tool';
-    const startedAtMs = existing?.startedAtMs ?? Date.now();
-    this.state.streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
-    this.pendingToolCallFlushIds.add(id);
-
-    this.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (this.state.appState.streamingPhase !== 'composing') {
-      this.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    this.scheduleStreamingUiFlush();
+    this.turnEventHandler.handleToolCallDelta(event);
   }
 
   // Streams a `{kind:'status'}` progress text into the live tool box so
@@ -2697,48 +2385,74 @@ export class ByfTui implements DialogHost {
   // their authorization URL. Non-status update kinds stay out of the terminal
   // transcript because only status text needs persistent display.
   private handleToolProgress(event: ToolProgressEvent): void {
-    if (event.update.kind !== 'status') return;
-    const text = event.update.text;
-    if (text === undefined || text.length === 0) return;
-    const tc = this.state.pendingToolComponents.get(event.toolCallId);
-    if (tc === undefined) return;
-    tc.appendProgress(text);
+    this.turnEventHandler.handleToolProgress(event);
   }
 
   // Completes a tool call and applies any tool-specific UI side effects.
   private handleToolResult(event: ToolResultEvent): void {
-    this.flushStreamingUiUpdatesNow();
-    const matchedCall = this.state.activeToolCalls.get(event.toolCallId);
-    const resultData: ToolResultBlockData = {
-      tool_call_id: event.toolCallId,
-      output: serializeToolResultOutput(event.output),
-      is_error: event.isError,
-      synthetic: event.synthetic,
+    this.turnEventHandler.handleToolResult(event);
+  }
+
+  private turnEventState(): TurnEventState {
+    const state = this.state;
+    return {
+      get appState() { return state.appState; },
+      get colors() { return state.theme.colors; },
+      get currentTurnId() { return state.currentTurnId; },
+      set currentTurnId(v: string | undefined) { state.currentTurnId = v; },
+      get currentStep() { return state.currentStep; },
+      set currentStep(v: number) { state.currentStep = v; },
+      get assistantDraft() { return state.assistantDraft; },
+      set assistantDraft(v: string) { state.assistantDraft = v; },
+      get assistantStreamActive() { return state.assistantStreamActive; },
+      set assistantStreamActive(v: boolean) { state.assistantStreamActive = v; },
+      get thinkingDraft() { return state.thinkingDraft; },
+      set thinkingDraft(v: string) { state.thinkingDraft = v; },
+      get activeToolCalls() { return state.activeToolCalls; },
+      get streamingToolCallArguments() { return state.streamingToolCallArguments; },
+      get pendingToolComponents() { return state.pendingToolComponents; },
+      get transcriptEntries() { return state.transcriptEntries; },
+      get queuedMessages() { return state.queuedMessages; },
+      set queuedMessages(v: QueuedMessage[]) { state.queuedMessages = v; },
     };
-    if (matchedCall !== undefined) {
-      this.onToolCallEnd(event.toolCallId, resultData);
-      if (matchedCall.name === 'TodoList' && !event.isError) {
-        const rawTodos = (matchedCall.args as { todos?: unknown }).todos;
-        if (Array.isArray(rawTodos)) {
-          const sanitized = rawTodos
-            .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-              isTodoItemShape(todo),
-            )
-            .map((t) => ({ title: t.title, status: t.status }));
-          this.setTodoList(sanitized);
-        }
-      }
-    }
-    this.state.activeToolCalls.delete(event.toolCallId);
-    this.state.streamingToolCallArguments.delete(event.toolCallId);
-    this.patchLivePane({ mode: 'waiting' });
+  }
+
+  private turnEventCallbacks(): TurnEventCallbacks {
+    return {
+      setAppState: (patch) => this.setAppState(patch),
+      patchLivePane: (patch) => this.patchLivePane(patch),
+      resetLivePane: () => this.resetLivePane(),
+      showStatus: (msg, color) => this.showStatus(msg, color),
+      showError: (msg) => this.showError(msg),
+      showNotice: (title, detail) => this.showNotice(title, detail),
+      requestRender: () => this.state.ui.requestRender(),
+      onStreamingTextStart: () => this.onStreamingTextStart(),
+      onStreamingTextUpdate: (text) => this.onStreamingTextUpdate(text),
+      onStreamingTextEnd: () => this.onStreamingTextEnd(),
+      onThinkingUpdate: (text) => this.onThinkingUpdate(text),
+      onThinkingEnd: () => this.onThinkingEnd(),
+      onToolCallStart: (tc) => this.onToolCallStart(tc),
+      onToolCallEnd: (id, result) => this.onToolCallEnd(id, result),
+      appendTranscriptEntry: (entry) => this.appendTranscriptEntry(entry),
+      updateActivityPane: () => this.updateActivityPane(),
+      disposeActiveThinkingComponent: () => this.disposeActiveThinkingComponent(),
+      disposeAndClearPendingToolComponents: () => this.disposeAndClearPendingToolComponents(),
+      setTodoList: (todos) => this.setTodoList(todos),
+      isAnthropicSessionActive: () => this.isAnthropicSessionActive(),
+      notifyTurnComplete: (key) => {
+        notifyTerminalOnce(this.state, `turn-complete:${key}`, {
+          title: 'Byf Code task complete',
+          body: this.state.appState.sessionTitle ?? undefined,
+        });
+      },
+    };
   }
 
   private sessionMetaCallbacks(): SessionMetaCallbacks {
     return {
-      flushStreamingUiUpdatesNow: () => this.flushStreamingUiUpdatesNow(),
-      resetLiveToolUiState: () => this.resetLiveToolUiState(),
-      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
+      flushStreamingUiUpdatesNow: () => this.turnEventHandler.flushStreamingUiUpdatesNow(),
+      resetLiveToolUiState: () => this.turnEventHandler.resetLiveToolUiState(),
+      finalizeLiveTextBuffers: (mode) => this.turnEventHandler.finalizeLiveTextBuffers(mode),
       showError: (msg) => this.showError(msg),
       showStatus: (msg, color) => this.showStatus(msg, color),
       setAppState: (patch) => this.setAppState(patch),
@@ -5334,19 +5048,6 @@ export class ByfTui implements DialogHost {
       this.mountEditorReplacement(selector);
     });
   }
-}
-
-function formatHookResultMarkdown(event: HookResultEvent): string {
-  return `*${formatHookResultTitle(event)}*\n\n${formatHookResultBody(event)}`;
-}
-
-function formatHookResultTitle(event: HookResultEvent): string {
-  return `${event.hookEvent} hook${event.blocked === true ? ' blocked' : ''}`;
-}
-
-function formatHookResultBody(event: HookResultEvent): string {
-  const content = event.content.trim();
-  return content.length === 0 ? '(empty)' : content;
 }
 
 function toShellExecTranscriptResult(
