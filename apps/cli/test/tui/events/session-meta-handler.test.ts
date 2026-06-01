@@ -80,7 +80,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, setAppState);
     expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0][0]).toEqual({ contextUsage: 0.75 });
+    expect(setAppState.mock.calls[0]![0]).toEqual({ contextUsage: 0.75 });
   });
 
   it('applies model and permission patches together', () => {
@@ -92,7 +92,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, setAppState);
     expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0][0];
+    const patch = setAppState.mock.calls[0]![0];
     expect(patch.model).toBe('k2');
     expect(patch.permissionMode).toBe('yolo');
     expect(patch.yolo).toBe(true);
@@ -115,7 +115,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, setAppState);
     expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0][0].planMode).toBe(true);
+    expect(setAppState.mock.calls[0]![0].planMode).toBe(true);
   });
 });
 
@@ -128,7 +128,7 @@ describe('handleSessionMetaChanged', () => {
     };
     handleSessionMetaChanged(event, setAppState);
     expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0][0]).toEqual({ sessionTitle: 'My Session' });
+    expect(setAppState.mock.calls[0]![0]).toEqual({ sessionTitle: 'My Session' });
   });
 
   it('sets sessionTitle from patch.title when event.title is undefined', () => {
@@ -139,7 +139,7 @@ describe('handleSessionMetaChanged', () => {
     };
     handleSessionMetaChanged(event, setAppState);
     expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0][0]).toEqual({ sessionTitle: 'Patched Title' });
+    expect(setAppState.mock.calls[0]![0]).toEqual({ sessionTitle: 'Patched Title' });
   });
 
   it('does nothing when neither title nor patch.title is present', () => {
@@ -178,8 +178,8 @@ describe('handleSessionError', () => {
     };
     handleSessionError(event, makeState({ sessionId: 'ses-abc' }), callbacks);
     expect(calls.showStatus.length).toBe(1);
-    expect(calls.showStatus[0].message).toContain('ses-abc');
-    expect(calls.showStatus[0].message).toContain('byf export');
+    expect(calls.showStatus[0]!.message).toContain('ses-abc');
+    expect(calls.showStatus[0]!.message).toContain('byf export');
   });
 
   it('does not show error report hint when sessionId is empty', () => {
@@ -218,7 +218,7 @@ describe('handleSessionWarning', () => {
     };
     handleSessionWarning(event, state, showStatus);
     expect(showStatus).toHaveBeenCalledOnce();
-    expect(showStatus.mock.calls[0][0]).toBe('Warning: deprecated model');
-    expect(showStatus.mock.calls[0][1]).toBe(state.theme.colors.warning);
+    expect(showStatus.mock.calls[0]![0]).toBe('Warning: deprecated model');
+    expect(showStatus.mock.calls[0]![1]).toBe(state.theme.colors.warning);
   });
 });

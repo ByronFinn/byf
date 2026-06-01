@@ -2,6 +2,7 @@ import type { Component, Focusable, Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TasksBrowserApp, type TasksBrowserProps } from '../../src/tui/components/dialogs/tasks-browser';
 import { TasksBrowserController, type TasksBrowserEnv } from '../../src/tui/components/dialogs/tasks-browser/index';
 import { darkColors } from '../../src/tui/theme/colors';
 
@@ -92,6 +93,15 @@ function makeEnv(overrides: Partial<TasksBrowserEnv> = {}): TasksBrowserEnv & {
   };
 }
 
+function spySetProps(app: TasksBrowserApp) {
+  return vi.spyOn(app, 'setProps');
+}
+
+function lastProps(spy: ReturnType<typeof spySetProps>): TasksBrowserProps {
+  const call = spy.mock.calls.at(-1);
+  return call?.[0] as TasksBrowserProps;
+}
+
 describe('TasksBrowserController', () => {
   it('opens the browser and swaps children', async () => {
     const env = makeEnv();
@@ -152,13 +162,12 @@ describe('TasksBrowserController', () => {
     await controller.show();
 
     env.tasks.push(task({ taskId: 'bash-bbb' }));
-    const comp = env.swappedComponents[0]!;
-    const setPropsSpy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
     controller.repaint();
 
-    expect(setPropsSpy).toHaveBeenCalled();
-    const lastCall = setPropsSpy.mock.calls.at(-1)![0] as { tasks: BackgroundTaskInfo[] };
-    expect(lastCall.tasks).toHaveLength(2);
+    expect(spy).toHaveBeenCalled();
+    expect(lastProps(spy).tasks).toHaveLength(2);
   });
 
   it('repaint is a no-op when browser is closed', () => {
@@ -177,12 +186,10 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.swappedComponents[0]!;
-    // Access internal state via setProps calls to check selectedTaskId
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as { selectedTaskId: string | undefined };
-    expect(lastCall.selectedTaskId).toBe('bash-running');
+    expect(lastProps(spy).selectedTaskId).toBe('bash-running');
   });
 
   it('returns undefined initial selection when no tasks', async () => {
@@ -191,11 +198,10 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as { selectedTaskId: string | undefined };
-    expect(lastCall.selectedTaskId).toBeUndefined();
+    expect(lastProps(spy).selectedTaskId).toBeUndefined();
   });
 
   it('handles race: state set while awaiting tasks', async () => {
@@ -207,10 +213,6 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     const showPromise = controller.show();
-    // Manually open a second time (sets state) while first show is awaiting
-    // Actually, the first show checks at start: if state !== undefined, return.
-    // Let's simulate: resolve the list, but before that manually open won't work.
-    // Let's just resolve and check
     resolveList!([task()]);
     await showPromise;
     expect(controller.isOpen).toBe(true);
@@ -225,12 +227,11 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
     controller.repaint();
 
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onStopConfirmed = lastCall.onStopConfirmed as (taskId: string) => void;
+    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
 
     await onStopConfirmed('bash-aaa');
     expect(stopFn).toHaveBeenCalledWith('bash-aaa', { reason: 'stopped from /tasks' });
@@ -242,17 +243,14 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
 
-    // Get the onOpenOutput callback
-    const spy = vi.spyOn(comp, 'setProps');
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onOpenOutput = lastCall.onOpenOutput as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
 
-    // Should have swapped again for the viewer
     expect(env.swappedComponents.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -262,12 +260,11 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
 
-    const spy = vi.spyOn(comp, 'setProps');
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onOpenOutput = lastCall.onOpenOutput as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
     const countAfterFirst = env.swappedComponents.length;
@@ -282,16 +279,14 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
 
-    const spy = vi.spyOn(comp, 'setProps');
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onOpenOutput = lastCall.onOpenOutput as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
 
-    // Now close the viewer
     controller.close();
     expect(controller.isOpen).toBe(false);
   });
@@ -302,22 +297,18 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
-    // Get onToggleFilter callback
     controller.repaint();
-    let lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onToggleFilter = lastCall.onToggleFilter as () => void;
+    const onToggleFilter = lastProps(spy)['onToggleFilter'] as () => void;
 
     onToggleFilter();
 
-    lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(lastCall.filter).toBe('active');
+    expect(lastProps(spy)['filter']).toBe('active');
 
     onToggleFilter();
-    lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(lastCall.filter).toBe('all');
+    expect(lastProps(spy)['filter']).toBe('all');
   });
 
   it('select changes selectedTaskId and loads tail', async () => {
@@ -330,17 +321,15 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onSelect = lastCall.onSelect as (taskId: string) => void;
+    const onSelect = lastProps(spy)['onSelect'] as (taskId: string) => void;
 
     onSelect('bash-bbb');
 
-    const finalCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(finalCall.selectedTaskId).toBe('bash-bbb');
+    expect(lastProps(spy)['selectedTaskId']).toBe('bash-bbb');
     expect(getOutputSpy).toHaveBeenCalledWith('bash-bbb', { tail: 4000 });
   });
 
@@ -351,15 +340,13 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    // Wait for initial tail load
     await vi.waitFor(() => expect(getOutputSpy).toHaveBeenCalled());
     getOutputSpy.mockClear();
 
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onSelect = lastCall.onSelect as (taskId: string) => void;
+    const onSelect = lastProps(spy)['onSelect'] as (taskId: string) => void;
 
     onSelect('bash-aaa'); // already selected
     expect(getOutputSpy).not.toHaveBeenCalledWith('bash-aaa', { tail: 4000 });
@@ -371,12 +358,11 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onCancel = lastCall.onCancel as () => void;
+    const onCancel = lastProps(spy)['onCancel'] as () => void;
 
     onCancel();
     expect(controller.isOpen).toBe(false);
@@ -388,17 +374,15 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onStopIgnored = lastCall.onStopIgnored as (taskId: string, reason: 'terminal') => void;
+    const onStopIgnored = lastProps(spy)['onStopIgnored'] as (taskId: string, reason: 'terminal') => void;
 
     onStopIgnored('bash-aaa', 'terminal');
 
-    const finalCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(finalCall.flashMessage).toContain('already terminal');
+    expect(lastProps(spy)['flashMessage']).toContain('already terminal');
   });
 
   it('handles getBackgroundTaskOutput failure in loadTail', async () => {
@@ -412,19 +396,16 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onSelect = lastCall.onSelect as (taskId: string) => void;
+    const onSelect = lastProps(spy)['onSelect'] as (taskId: string) => void;
 
     onSelect('bash-bbb');
 
-    // Wait for the tail load to fail
     await vi.waitFor(() => {
-      const finalCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-      expect(finalCall.tailLoading).toBe(false);
+      expect(lastProps(spy)['tailLoading']).toBe(false);
     });
   });
 
@@ -436,17 +417,15 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onOpenOutput = lastCall.onOpenOutput as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
 
-    const finalCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(finalCall.flashMessage).toContain('Cannot open output');
+    expect(lastProps(spy)['flashMessage']).toContain('Cannot open output');
   });
 
   it('handleStop flashes error on failure', async () => {
@@ -457,17 +436,15 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onStopConfirmed = lastCall.onStopConfirmed as (taskId: string) => void;
+    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
 
     await onStopConfirmed('bash-aaa');
 
-    const finalCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    expect(finalCall.flashMessage).toContain('Stop failed');
+    expect(lastProps(spy)['flashMessage']).toContain('Stop failed');
   });
 
   it('closes viewer when closing browser', async () => {
@@ -476,17 +453,15 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.swappedComponents[0]!;
-    const spy = vi.spyOn(comp, 'setProps');
+    const comp = env.swappedComponents[0]! as TasksBrowserApp;
+    const spy = spySetProps(comp);
 
     controller.repaint();
-    const lastCall = spy.mock.calls.at(-1)![0] as Record<string, unknown>;
-    const onOpenOutput = lastCall.onOpenOutput as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
     await onOpenOutput('bash-aaa');
     expect(env.swappedComponents.length).toBeGreaterThanOrEqual(2);
 
-    // Close should handle nested viewer
     controller.close();
     expect(controller.isOpen).toBe(false);
   });

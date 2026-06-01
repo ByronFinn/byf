@@ -13,7 +13,7 @@ export interface TasksBrowserEnv {
   getBackgroundTaskOutput(taskId: string, opts?: { tail?: number }): Promise<string>;
   stopBackgroundTask(taskId: string, opts: { reason: string }): Promise<void>;
   getBackgroundTaskInfo(taskId: string): BackgroundTaskInfo | undefined;
-  swapChildren(component: Component & Focusable): void;
+  swapChildren(component: Component & Focusable): readonly Component[];
   restoreChildren(savedChildren: readonly Component[]): void;
   setFocus(component: Component & Focusable): void;
   requestRender(full?: boolean): void;
