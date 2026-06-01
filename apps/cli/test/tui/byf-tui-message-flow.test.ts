@@ -36,21 +36,6 @@ interface FeedbackDriver extends MessageDriver {
   promptFeedbackInput(): Promise<string | undefined>;
 }
 
-interface ModelSelectorDriver extends MessageDriver {
-  runModelSelector(
-    models: Record<
-      string,
-      {
-        provider: string;
-        model: string;
-        maxContextSize: number;
-        displayName?: string;
-        capabilities?: string[];
-      }
-    >,
-  ): Promise<{ alias: string; thinking: boolean } | undefined>;
-}
-
 function makeStartupInput(): ByfTuiStartupInput {
   return {
     cliOptions: {
@@ -1636,25 +1621,32 @@ describe('ByfTui message flow', () => {
     expect(driver.state.appState.thinkingEffort).toBe('low');
   });
 
-  it('enables search in the shared model selector helper', async () => {
-    const { driver } = await makeDriver();
-    const selectorDriver = driver as unknown as ModelSelectorDriver;
-    const selection = selectorDriver.runModelSelector({
-      alpha: {
-        provider: 'managed:byf',
-        model: 'byf-alpha',
-        maxContextSize: 100,
-        displayName: 'ByF Alpha',
-        capabilities: ['thinking'],
-      },
-      turbo: {
-        provider: 'managed:byf',
-        model: 'byf-turbo',
-        maxContextSize: 100,
-        displayName: 'ByF Turbo',
-        capabilities: ['thinking'],
-      },
+  it('enables search in the model selector', async () => {
+    const session = makeSession();
+    const { driver } = await makeDriver(session, {
+      getConfig: vi.fn(async () => ({
+        models: {
+          alpha: {
+            provider: 'managed:byf',
+            model: 'byf-alpha',
+            maxContextSize: 100,
+            displayName: 'ByF Alpha',
+            capabilities: ['thinking'],
+          },
+          turbo: {
+            provider: 'managed:byf',
+            model: 'byf-turbo',
+            maxContextSize: 100,
+            displayName: 'ByF Turbo',
+            capabilities: ['thinking'],
+          },
+        },
+        defaultModel: 'alpha',
+        defaultThinking: false,
+      })),
     });
+
+    driver.handleUserInput('/model');
 
     const picker = driver.state.editorContainer.children[0];
     expect(picker).toBeInstanceOf(ModelSelectorComponent);
@@ -1668,7 +1660,6 @@ describe('ByfTui message flow', () => {
 
     (picker as ModelSelectorComponent).handleInput('\u001B');
     (picker as ModelSelectorComponent).handleInput('\u001B');
-    await expect(selection).resolves.toBeUndefined();
   });
 
   it('deletes Kitty inline images when /new clears the transcript', async () => {
