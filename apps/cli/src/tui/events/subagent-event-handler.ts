@@ -176,8 +176,8 @@ export function handleSubagentCompleted(
     callbacks.syncBackgroundAgentBadge();
   }
   if (backgroundMeta !== undefined) {
-    state.backgroundAgentMetadata.delete(event.subagentId);
     const taskId = findAgentTaskId(event.subagentId, state);
+    state.backgroundAgentMetadata.delete(event.subagentId);
     if (taskId !== undefined && state.backgroundTaskTranscriptedTerminal.has(taskId)) {
       return;
     }
@@ -210,8 +210,8 @@ export function handleSubagentFailed(
     callbacks.syncBackgroundAgentBadge();
   }
   if (backgroundMeta !== undefined) {
-    state.backgroundAgentMetadata.delete(event.subagentId);
     const taskId = findAgentTaskId(event.subagentId, state);
+    state.backgroundAgentMetadata.delete(event.subagentId);
     if (taskId !== undefined && state.backgroundTaskTranscriptedTerminal.has(taskId)) {
       return;
     }

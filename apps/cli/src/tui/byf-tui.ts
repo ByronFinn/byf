@@ -3437,12 +3437,12 @@ export class ByfTui implements DialogHost {
       },
       getBackgroundTaskOutput: (taskId, opts) => {
         const session = this.session;
-        if (session === undefined) return Promise.resolve('');
+        if (session === undefined) return Promise.reject(new Error('No active session'));
         return session.getBackgroundTaskOutput(taskId, opts);
       },
       stopBackgroundTask: (taskId, opts) => {
         const session = this.session;
-        if (session === undefined) return Promise.resolve();
+        if (session === undefined) return Promise.reject(new Error('No active session'));
         return session.stopBackgroundTask(taskId, opts);
       },
       getBackgroundTaskInfo: (taskId) => this.state.backgroundTasks.get(taskId),

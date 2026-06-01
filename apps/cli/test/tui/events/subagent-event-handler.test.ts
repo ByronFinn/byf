@@ -400,7 +400,7 @@ describe('handleSubagentCompleted (background)', () => {
     );
   });
 
-  it('always appends because metadata is deleted before findAgentTaskId', () => {
+  it('skips transcript when matching agent-* task is already transcripted', () => {
     const meta: BackgroundAgentMetadata = {
       agentId: 'sub-1',
       parentToolCallId: 'tc-1',
@@ -424,8 +424,7 @@ describe('handleSubagentCompleted (background)', () => {
 
     handleSubagentCompleted(event, state, callbacks);
 
-    // Metadata deleted before findAgentTaskId, so dedupe lookup always misses
-    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalled();
+    expect(callbacks.appendBackgroundAgentEntry).not.toHaveBeenCalled();
   });
 });
 
@@ -511,7 +510,7 @@ describe('handleSubagentFailed (background)', () => {
     expect(state.backgroundAgents.has('sub-1')).toBe(false);
   });
 
-  it('always appends because metadata is deleted before findAgentTaskId', () => {
+  it('skips transcript when matching agent-* task is already transcripted', () => {
     const meta: BackgroundAgentMetadata = {
       agentId: 'sub-1',
       parentToolCallId: 'tc-1',
@@ -538,8 +537,7 @@ describe('handleSubagentFailed (background)', () => {
       callbacks,
     );
 
-    // Metadata deleted before findAgentTaskId, so dedupe lookup always misses
-    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalled();
+    expect(callbacks.appendBackgroundAgentEntry).not.toHaveBeenCalled();
   });
 });
 

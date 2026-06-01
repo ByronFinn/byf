@@ -936,21 +936,7 @@ describe('generate()', () => {
       expect(result.llmStreamDurationMs).toBeGreaterThanOrEqual(result.llmFirstTokenLatencyMs!);
     });
 
-    it('omits timing metrics when the stream produces no chunks', async () => {
-      const stream: StreamedMessage = {
-        id: null,
-        usage: null,
-        finishReason: 'completed',
-        rawFinishReason: 'stop',
-        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-          // no chunks — but we still need content, so this stream would
-          // actually fail in generate(). The test validates the interface.
-        },
-      };
-      // An empty stream triggers APIEmptyResponseError, so we use a
-      // stream with a single think-only part to avoid that while still
-      // testing the edge case where no "real" content is produced.
-      // Instead, verify that timing is present on a normal stream.
+    it('includes timing metrics on a normal stream', async () => {
       const normalStream = createMockStream([{ type: 'text', text: 'ok' }]);
       const provider = createMockProvider(normalStream);
       const result = await generate(provider, '', [], []);

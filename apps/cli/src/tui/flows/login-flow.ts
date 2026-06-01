@@ -73,11 +73,12 @@ export class LoginFlow {
     if (apiKey === undefined) return;
 
     let models: OAuthModelInfo[];
+    const spinner = this.deps.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
     try {
-      const spinner = this.deps.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
       models = await this.deps.fetchModels(baseUrl, apiKey);
       spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
     } catch (error: unknown) {
+      spinner.stop({ ok: false, label: 'Failed' });
       if (isProviderApiError(error)) {
         this.deps.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
       } else {

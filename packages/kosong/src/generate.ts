@@ -48,7 +48,7 @@ export interface GenerateResult {
   /**
    * Milliseconds between the `provider.generate()` call and stream
    * exhaustion (last chunk consumed). `undefined` when the stream
-   * never started iterating.
+   * produced no chunks (empty response, early abort, or error).
    */
   readonly llmStreamDurationMs?: number | undefined;
 }
