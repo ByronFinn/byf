@@ -8,7 +8,12 @@ import type {
 } from '@byfriends/sdk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
-import type { ThinkingEffortLevel } from '#/tui/types';
+import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
+import {
+  promptTextInput as promptTextInputViaHost,
+  promptApiKey as promptApiKeyViaHost,
+  promptModelSelector as promptModelSelectorViaHost,
+} from '#/tui/flows/dialog-prompts';
 
 export interface ModelSelection {
   alias: string;
@@ -21,6 +26,7 @@ export interface SpinnerHandle {
 
 export interface LoginFlowDeps {
   readonly colors: ColorPalette;
+  readonly dialogHost: DialogHost;
   getConfig(): Promise<ByfConfig>;
   setConfig(config: ByfConfigPatch): Promise<unknown>;
   fetchModels(baseUrl: string, apiKey: string): Promise<OAuthModelInfo[]>;
@@ -30,21 +36,14 @@ export interface LoginFlowDeps {
   showError(message: string): void;
   showLoginProgressSpinner(label: string): SpinnerHandle;
   track(event: string, properties?: Record<string, string | number | boolean | null>): void;
-  promptTextInput(opts: {
-    title: string;
-    subtitle: string;
-    initialValue?: string;
-    placeholder?: string;
-  }): Promise<string | undefined>;
-  promptApiKey(providerName: string): Promise<string | undefined>;
-  runModelSelector(modelDict: Record<string, ModelAlias>): Promise<ModelSelection | undefined>;
 }
 
 export class LoginFlow {
   constructor(private readonly deps: LoginFlowDeps) {}
 
   async run(): Promise<void> {
-    const name = await this.deps.promptTextInput({
+    const { dialogHost, colors } = this.deps;
+    const name = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Provider name',
       subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
     });
@@ -61,7 +60,7 @@ export class LoginFlow {
       return;
     }
 
-    const baseUrl = await this.deps.promptTextInput({
+    const baseUrl = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Base URL',
       subtitle: 'The OpenAI-compatible API endpoint',
       initialValue: 'https://api.openai.com/v1',
@@ -69,7 +68,7 @@ export class LoginFlow {
     });
     if (baseUrl === undefined) return;
 
-    const apiKey = await this.deps.promptApiKey(name);
+    const apiKey = await promptApiKeyViaHost(dialogHost, colors, name);
     if (apiKey === undefined) return;
 
     let models: OAuthModelInfo[];
@@ -103,7 +102,7 @@ export class LoginFlow {
       };
     }
 
-    const selection = await this.deps.runModelSelector(modelDict);
+    const selection = await promptModelSelectorViaHost(dialogHost, colors, modelDict);
     if (selection === undefined) return;
 
     const selectedId = selection.alias.split('/').slice(1).join('/');
@@ -120,13 +119,14 @@ export class LoginFlow {
     baseUrl: string,
     apiKey: string,
   ): Promise<void> {
-    const manualModel = await this.deps.promptTextInput({
+    const { dialogHost, colors } = this.deps;
+    const manualModel = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Enter model ID manually',
       subtitle: 'Could not detect models. Enter the model ID (e.g. gpt-4o).',
     });
     if (manualModel === undefined) return;
 
-    const contextSize = await this.deps.promptTextInput({
+    const contextSize = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Context window size',
       subtitle: 'Max context size in tokens for this model',
       initialValue: '128000',

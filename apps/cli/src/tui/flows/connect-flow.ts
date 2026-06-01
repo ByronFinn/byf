@@ -3,13 +3,10 @@ import type {
   ByfConfigPatch,
   Catalog,
   CatalogModel,
-  ModelAlias,
-  ProviderConfig,
 } from '@byfriends/sdk';
 import {
   applyCatalogProvider,
   catalogBaseUrl,
-  catalogModelToAlias,
   catalogProviderModels,
   CatalogFetchError,
   fetchCatalog,
@@ -19,7 +16,13 @@ import {
 
 import type { ConnectCatalogResolution } from '#/tui/utils/connect-catalog';
 import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
-import type { ThinkingEffortLevel } from '#/tui/types';
+import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
+import type { ColorPalette } from '#/tui/theme/colors';
+import {
+  promptProviderSelection as promptProviderSelectionViaHost,
+  promptModelSelectionForCatalog as promptModelSelectionViaHost,
+  promptApiKey as promptApiKeyViaHost,
+} from '#/tui/flows/dialog-prompts';
 
 export interface ModelSelection {
   model: CatalogModel;
@@ -32,6 +35,8 @@ export interface SpinnerHandle {
 
 export interface ConnectFlowDeps {
   readonly builtInCatalogJson: string | undefined;
+  readonly dialogHost: DialogHost;
+  readonly colors: ColorPalette;
   getConfig(): Promise<ByfConfig>;
   setConfig(config: ByfConfigPatch): Promise<unknown>;
   removeProvider(providerId: string): Promise<unknown>;
@@ -42,12 +47,6 @@ export interface ConnectFlowDeps {
   setCancelInFlight(cancel: (() => void) | undefined): void;
   clearCancelInFlight(cancel: () => void): void;
   track(event: string, properties?: Record<string, string | number | boolean | null>): void;
-  promptProviderSelection(catalog: Catalog): Promise<string | undefined>;
-  promptModelSelection(
-    providerId: string,
-    models: CatalogModel[],
-  ): Promise<ModelSelection | undefined>;
-  promptApiKey(providerName: string): Promise<string | undefined>;
 }
 
 export class ConnectFlow {
@@ -77,7 +76,9 @@ export class ConnectFlow {
 
     if (catalog === undefined) return;
 
-    const providerId = await this.deps.promptProviderSelection(catalog);
+    const providerId = await promptProviderSelectionViaHost(
+      this.deps.dialogHost, this.deps.colors, catalog, (msg) => this.deps.showError(msg),
+    );
     if (providerId === undefined) return;
     const entry = catalog[providerId];
     if (entry === undefined) return;
@@ -88,10 +89,14 @@ export class ConnectFlow {
       return;
     }
 
-    const selection = await this.deps.promptModelSelection(providerId, models);
+    const selection = await promptModelSelectionViaHost(
+      this.deps.dialogHost, this.deps.colors, providerId, models,
+    );
     if (selection === undefined) return;
 
-    const apiKey = await this.deps.promptApiKey(entry.name ?? providerId);
+    const apiKey = await promptApiKeyViaHost(
+      this.deps.dialogHost, this.deps.colors, entry.name ?? providerId,
+    );
     if (apiKey === undefined) return;
 
     const wire = inferWireType(entry);

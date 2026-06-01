@@ -21,8 +21,6 @@ import {
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
-  catalogModelToAlias,
-  inferWireType,
   log,
 } from '@byfriends/sdk';
 import {
@@ -39,8 +37,6 @@ import type {
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
   BackgroundTaskUpdatedEvent,
-  Catalog,
-  CatalogModel,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
   CompactionStartedEvent,
@@ -77,7 +73,6 @@ import type {
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
-import type { ColorPalette } from '#/tui/theme/colors';
 import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
 import type { GitLsFilesCache } from '#/utils/git/git-ls-files';
 import { createGitLsFilesCache } from '#/utils/git/git-ls-files';
@@ -113,16 +108,10 @@ import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
 } from './components/dialogs/approval-panel';
-import {
-  ApiKeyInputDialogComponent,
-  type ApiKeyInputResult,
-} from './components/dialogs/api-key-input-dialog';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
-import { ChoicePickerComponent, type ChoiceOption } from './components/dialogs/choice-picker';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
-import { TextInputDialogComponent } from './components/dialogs/text-input-dialog';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
@@ -4131,6 +4120,7 @@ export class ByfTui implements DialogHost {
   private async handleLoginCommand(): Promise<void> {
     const flow = new LoginFlow({
       colors: this.state.theme.colors,
+      dialogHost: this,
       getConfig: () => this.harness.getConfig(),
       setConfig: (cfg) => this.harness.setConfig(cfg),
       fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
@@ -4140,35 +4130,10 @@ export class ByfTui implements DialogHost {
       showError: (msg) => this.showError(msg),
       showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
       track: (event, props?) => this.track(event, props),
-      promptTextInput: (opts) => this.promptTextInput({ ...opts, colors: this.state.theme.colors }),
-      promptApiKey: (providerName) => this.promptApiKey(providerName),
-      runModelSelector: (modelDict) => this.runModelSelector(modelDict),
     });
     await flow.run();
   }
 
-  private promptTextInput(opts: {
-    readonly title: string;
-    readonly subtitle: string;
-    readonly initialValue?: string;
-    readonly placeholder?: string;
-    readonly colors: ColorPalette;
-  }): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const dialog = new TextInputDialogComponent({
-        title: opts.title,
-        subtitle: opts.subtitle,
-        initialValue: opts.initialValue,
-        placeholder: opts.placeholder,
-        colors: opts.colors,
-        onDone: (result) => {
-          this.restoreEditor();
-          resolve(result.kind === 'ok' ? result.value : undefined);
-        },
-      });
-      this.mountEditorReplacement(dialog);
-    });
-  }
 
   private async handleLogoutCommand(args: string | undefined): Promise<void> {
     const providerName = args?.trim();
@@ -4205,6 +4170,8 @@ export class ByfTui implements DialogHost {
   private async handleConnectCommand(args: string): Promise<void> {
     const flow = new ConnectFlow({
       builtInCatalogJson: BUILT_IN_CATALOG_JSON,
+      colors: this.state.theme.colors,
+      dialogHost: this,
       getConfig: () => this.harness.getConfig(),
       setConfig: (cfg) => this.harness.setConfig(cfg),
       removeProvider: (id) => this.harness.removeProvider(id),
@@ -4217,9 +4184,6 @@ export class ByfTui implements DialogHost {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
       },
       track: (event, props?) => this.track(event, props),
-      promptProviderSelection: (catalog) => this.promptCatalogProviderSelection(catalog),
-      promptModelSelection: (providerId, models) => this.promptModelSelectionForCatalog(providerId, models),
-      promptApiKey: (providerName) => this.promptApiKey(providerName),
     });
     await flow.run(args);
   }
@@ -4230,102 +4194,6 @@ export class ByfTui implements DialogHost {
     openUrl(FEEDBACK_ISSUE_URL);
   }
 
-  // ---------------------------------------------------------------------------
-  // Setup prompts
-  // ---------------------------------------------------------------------------
-
-  private promptCatalogProviderSelection(catalog: Catalog): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const options: ChoiceOption[] = Object.entries(catalog)
-        .filter(([, entry]) => inferWireType(entry) !== undefined)
-        .map(([id, entry]) => ({
-          value: id,
-          label: entry.name ?? id,
-          description:
-            typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
-        }))
-        .toSorted((a, b) => a.label.localeCompare(b.label));
-
-      if (options.length === 0) {
-        this.showError('Catalog has no providers with supported wire types.');
-        resolve(undefined);
-        return;
-      }
-
-      const picker = new ChoicePickerComponent({
-        title: 'Select a provider',
-        options,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: (value) => {
-          this.restoreEditor();
-          resolve(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(picker);
-    });
-  }
-
-  private promptApiKey(platformName: string): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const dialog = new ApiKeyInputDialogComponent(
-        platformName,
-        (result: ApiKeyInputResult) => {
-          this.restoreEditor();
-          resolve(result.kind === 'ok' ? result.value : undefined);
-        },
-        this.state.theme.colors,
-      );
-      this.mountEditorReplacement(dialog);
-    });
-  }
-
-  private async promptModelSelectionForCatalog(
-    providerId: string,
-    models: CatalogModel[],
-  ): Promise<{ model: CatalogModel; thinkingEffort: ThinkingEffortLevel } | undefined> {
-    const modelDict: Record<string, ModelAlias> = {};
-    for (const m of models) {
-      modelDict[`${providerId}/${m.id}`] = catalogModelToAlias(providerId, m);
-    }
-    const selection = await this.runModelSelector(modelDict);
-    if (selection === undefined) return undefined;
-    const model = models.find((m) => `${providerId}/${m.id}` === selection.alias);
-    return model ? { model, thinkingEffort: selection.thinkingEffort } : undefined;
-  }
-
-  private runModelSelector(
-    modelDict: Record<string, ModelAlias>,
-  ): Promise<{ alias: string; thinkingEffort: ThinkingEffortLevel } | undefined> {
-    return new Promise((resolve) => {
-      const firstAlias = Object.keys(modelDict)[0] ?? '';
-      const caps = modelDict[firstAlias]?.capabilities ?? [];
-      const initialThinking: ThinkingEffortLevel =
-        caps.includes('always_thinking') || caps.includes('thinking') || caps.includes('thinking_effort')
-          ? 'high'
-          : 'off';
-      const selector = new ModelSelectorComponent({
-        models: modelDict,
-        currentValue: firstAlias,
-        currentThinkingEffort: initialThinking,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: ({ alias, thinkingEffort }) => {
-          this.restoreEditor();
-          resolve({ alias, thinkingEffort });
-        },
-        onCancel: () => {
-          this.restoreEditor();
-          resolve(undefined);
-        },
-      });
-      this.mountEditorReplacement(selector);
-    });
-  }
 }
 
 function toShellExecTranscriptResult(
