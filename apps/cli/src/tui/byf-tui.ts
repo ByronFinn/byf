@@ -128,6 +128,7 @@ import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
 import { TaskOutputViewer } from './components/dialogs/task-output-viewer';
 import { TasksBrowserApp, type TasksFilter } from './components/dialogs/tasks-browser';
+import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
 import {
   SettingsSelectorComponent,
   type SettingsSelection,
