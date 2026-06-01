@@ -1,3 +1,4 @@
+import type { Component, Focusable } from '@earendil-works/pi-tui';
 import type {
   ModelAlias,
   PermissionMode,
@@ -9,6 +10,11 @@ import type {
 import type { NotificationsConfig } from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { Theme } from './theme';
+
+export interface DialogHost {
+  show(panel: Component & Focusable): void;
+  close(): void;
+}
 
 export type ThinkingEffortLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 

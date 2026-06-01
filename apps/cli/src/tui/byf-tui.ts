@@ -194,6 +194,7 @@ import {
   INITIAL_LIVE_PANE,
   type AppState,
   type BackgroundAgentMetadata,
+  type DialogHost,
   type LivePaneState,
   parseThinkingEffort,
   type QueuedMessage,
@@ -568,7 +569,7 @@ interface LoginProgressSpinnerHandle {
   stop(opts: { ok: boolean; label: string }): void;
 }
 
-export class ByfTui {
+export class ByfTui implements DialogHost {
   private readonly harness: ByfHarness;
   private readonly options: ByfTuiOptions;
   private session: Session | undefined;
@@ -4013,6 +4014,14 @@ export class ByfTui {
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
     this.state.ui.requestRender();
+  }
+
+  public show(panel: Component & Focusable): void {
+    this.mountEditorReplacement(panel);
+  }
+
+  public close(): void {
+    this.restoreEditor();
   }
 
   // Shows the help panel with the current slash command list.
