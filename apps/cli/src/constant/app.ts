@@ -3,11 +3,9 @@ import { ErrorCodes } from '@byfriends/sdk';
 export const PRODUCT_NAME = 'BYF';
 export const CLI_COMMAND_NAME = 'byf';
 
-// Used in telemetry app names and HTTP User-Agent headers.
+// Used in HTTP User-Agent headers.
 export const CLI_USER_AGENT_PRODUCT = 'byf-cli';
 export const CLI_UI_MODE = 'shell';
-
-export const CLI_SHUTDOWN_TIMEOUT_MS = 3000;
 
 // Published npm package name; this can differ from the executable command.
 export const NPM_PACKAGE_NAME = '@byfriends/cli';

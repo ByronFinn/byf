@@ -1,5 +1,5 @@
-// Shared DTO types for vis-web and vis-server.
-// Type-only module — no runtime code. Both packages import from here.
+// Shared DTO types for vis-web.
+// Type-only module — no runtime code. (vis-server imports from apps/vis/shared/types.ts.)
 
 import type {
   AgentRecord,

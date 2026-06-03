@@ -7,8 +7,6 @@ import {
   type SessionStatus,
 } from '@byfriends/sdk';
 
-import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
-
 import type { CLIOptions, PromptOutputFormat } from './options';
 import { createByfHostIdentity } from './version';
 

@@ -1,7 +1,6 @@
-// Client-side types — re-export shared DTOs (type-only cross-package import).
-// The shared types module is the single source of truth for all session /
-// agent / wire shapes. vis-server imports from ../shared/types.ts; vis-web
-// uses the copy at ./shared-types.ts for tsconfig isolation.
+// Client-side types — re-export vis DTOs (type-only).
+// Canonical shared DTO definitions live in apps/vis/shared/types.ts.
+// vis-web imports from ./shared-types.ts to avoid pulling vis-server source into the web tsconfig.
 
 export type {
   SessionSummary,
