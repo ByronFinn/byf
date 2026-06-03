@@ -356,7 +356,7 @@ describe('hydrateTodoPanelFromResume', () => {
     return {
       setAppState: vi.fn(),
       appendEntry: vi.fn(),
-      setTodoList: (todos: Parameters<typeof setTodoList>[1]) => setTodoList(state, todos),
+      setTodoList: (todos: Parameters<typeof setTodoList>[1]) =>{  setTodoList(state, todos); },
       emitError: vi.fn(),
     };
   }

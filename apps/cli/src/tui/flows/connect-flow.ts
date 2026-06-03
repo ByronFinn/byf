@@ -69,14 +69,12 @@ export class ConnectFlow {
       }
     }
 
-    if (catalog === undefined) {
-      catalog = await this.fetchCatalog(url, allowBuiltInFallback);
-    }
+    catalog ??= await this.fetchCatalog(url, allowBuiltInFallback);
 
     if (catalog === undefined) return;
 
     const providerId = await promptProviderSelectionViaHost(
-      this.deps.dialogHost, this.deps.colors, catalog, (msg) => this.deps.showError(msg),
+      this.deps.dialogHost, this.deps.colors, catalog, (msg) =>{  this.deps.showError(msg); },
     );
     if (providerId === undefined) return;
     const entry = catalog[providerId];

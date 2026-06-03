@@ -26,7 +26,7 @@ export function SubagentDetailPage() {
   if (error) {
     return (
       <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
-        {(error as Error).message}
+        {(error).message}
       </div>
     );
   }

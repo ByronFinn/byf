@@ -300,7 +300,7 @@ describe('TurnEventHandler', () => {
       const { handler, state, calls } = makeHandler();
       handler.handleStepBegin(stepStarted(1, 3));
       expect(state.currentStep).toBe(3);
-      const lastPaneCall = calls.patchLivePane[calls.patchLivePane.length - 1];
+      const lastPaneCall = calls.patchLivePane.at(-1);
       expect(lastPaneCall).toEqual({
         mode: 'waiting',
         pendingApproval: null,

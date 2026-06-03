@@ -171,7 +171,7 @@ export class LoginFlow {
       thinking,
     });
     await this.deps.setConfig({
-      providers: config.providers as Record<string, ProviderConfig>,
+      providers: config.providers,
       models: config.models,
       defaultModel: config.defaultModel,
       defaultThinking: config.defaultThinking,

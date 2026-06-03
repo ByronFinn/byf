@@ -128,7 +128,7 @@ function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDep
     exportSession:
       overrides.exportSession ??
       (async (input: ExportSessionInput) => {
-        return await getHarness().exportSession(input);
+        return  getHarness().exportSession(input);
       }),
     version: overrides.version ?? identity.version,
     confirmPreviousSession: overrides.confirmPreviousSession ?? confirmPreviousSession,

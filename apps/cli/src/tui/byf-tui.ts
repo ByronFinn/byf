@@ -389,7 +389,7 @@ function parseSimpleCdPathToken(target: string): string | null {
     if (target.includes('"') || target.includes("'")) return null;
     return target;
   }
-  if (target[target.length - 1] !== first || target.length < 2) return null;
+  if (target.at(-1) !== first || target.length < 2) return null;
   const inner = target.slice(1, -1);
   if (inner.includes(first)) return null;
   return inner;
@@ -2283,25 +2283,25 @@ export class ByfTui implements DialogHost {
 
   private turnEventCallbacks(): TurnEventCallbacks {
     return {
-      setAppState: (patch) => this.setAppState(patch),
-      patchLivePane: (patch) => this.patchLivePane(patch),
-      resetLivePane: () => this.resetLivePane(),
-      showStatus: (msg, color) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
-      showNotice: (title, detail) => this.showNotice(title, detail),
-      requestRender: () => this.state.ui.requestRender(),
-      onStreamingTextStart: () => this.onStreamingTextStart(),
-      onStreamingTextUpdate: (text) => this.onStreamingTextUpdate(text),
-      onStreamingTextEnd: () => this.onStreamingTextEnd(),
-      onThinkingUpdate: (text) => this.onThinkingUpdate(text),
-      onThinkingEnd: () => this.onThinkingEnd(),
-      onToolCallStart: (tc) => this.onToolCallStart(tc),
-      onToolCallEnd: (id, result) => this.onToolCallEnd(id, result),
-      appendTranscriptEntry: (entry) => this.appendTranscriptEntry(entry),
-      updateActivityPane: () => this.updateActivityPane(),
-      disposeActiveThinkingComponent: () => this.disposeActiveThinkingComponent(),
-      disposeAndClearPendingToolComponents: () => this.disposeAndClearPendingToolComponents(),
-      setTodoList: (todos) => this.setTodoList(todos),
+      setAppState: (patch) =>{  this.setAppState(patch); },
+      patchLivePane: (patch) =>{  this.patchLivePane(patch); },
+      resetLivePane: () =>{  this.resetLivePane(); },
+      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
+      showNotice: (title, detail) =>{  this.showNotice(title, detail); },
+      requestRender: () =>{  this.state.ui.requestRender(); },
+      onStreamingTextStart: () =>{  this.onStreamingTextStart(); },
+      onStreamingTextUpdate: (text) =>{  this.onStreamingTextUpdate(text); },
+      onStreamingTextEnd: () =>{  this.onStreamingTextEnd(); },
+      onThinkingUpdate: (text) =>{  this.onThinkingUpdate(text); },
+      onThinkingEnd: () =>{  this.onThinkingEnd(); },
+      onToolCallStart: (tc) =>{  this.onToolCallStart(tc); },
+      onToolCallEnd: (id, result) =>{  this.onToolCallEnd(id, result); },
+      appendTranscriptEntry: (entry) =>{  this.appendTranscriptEntry(entry); },
+      updateActivityPane: () =>{  this.updateActivityPane(); },
+      disposeActiveThinkingComponent: () =>{  this.disposeActiveThinkingComponent(); },
+      disposeAndClearPendingToolComponents: () =>{  this.disposeAndClearPendingToolComponents(); },
+      setTodoList: (todos) =>{  this.setTodoList(todos); },
       isAnthropicSessionActive: () => this.isAnthropicSessionActive(),
       notifyTurnComplete: (key) => {
         notifyTerminalOnce(this.state, `turn-complete:${key}`, {
@@ -2314,21 +2314,21 @@ export class ByfTui implements DialogHost {
 
   private sessionMetaCallbacks(): SessionMetaCallbacks {
     return {
-      flushStreamingUiUpdatesNow: () => this.turnEventHandler.flushStreamingUiUpdatesNow(),
-      resetLiveToolUiState: () => this.turnEventHandler.resetLiveToolUiState(),
-      finalizeLiveTextBuffers: (mode) => this.turnEventHandler.finalizeLiveTextBuffers(mode),
-      showError: (msg) => this.showError(msg),
-      showStatus: (msg, color) => this.showStatus(msg, color),
-      setAppState: (patch) => this.setAppState(patch),
+      flushStreamingUiUpdatesNow: () =>{  this.turnEventHandler.flushStreamingUiUpdatesNow(); },
+      resetLiveToolUiState: () =>{  this.turnEventHandler.resetLiveToolUiState(); },
+      finalizeLiveTextBuffers: (mode) =>{  this.turnEventHandler.finalizeLiveTextBuffers(mode); },
+      showError: (msg) =>{  this.showError(msg); },
+      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
+      setAppState: (patch) =>{  this.setAppState(patch); },
     };
   }
 
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    handleStatusUpdate(event, (patch) => this.setAppState(patch));
+    handleStatusUpdate(event, (patch) =>{  this.setAppState(patch); });
   }
 
   private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
-    handleSessionMetaChanged(event, (patch) => this.setAppState(patch));
+    handleSessionMetaChanged(event, (patch) =>{  this.setAppState(patch); });
   }
 
   private handleSessionError(event: ErrorEvent): void {
@@ -2344,7 +2344,7 @@ export class ByfTui implements DialogHost {
       sessionId: this.state.appState.sessionId,
       theme: { colors: { warning: this.state.theme.colors.warning } },
     };
-    handleSessionWarning(event, metaState, (msg, color) => this.showStatus(msg, color));
+    handleSessionWarning(event, metaState, (msg, color) =>{  this.showStatus(msg, color); });
   }
 
   private renderMcpServerStatus(server: McpServerStatusSnapshot): void {
@@ -4172,10 +4172,10 @@ export class ByfTui implements DialogHost {
       fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
       applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
       showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
-      track: (event, props?) => this.track(event, props),
+      track: (event, props?) =>{  this.track(event, props); },
     });
     await flow.run();
   }
@@ -4222,14 +4222,14 @@ export class ByfTui implements DialogHost {
       setConfig: (cfg) => this.harness.setConfig(cfg),
       removeProvider: (id) => this.harness.removeProvider(id),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
       showSpinner: (label) => this.showLoginProgressSpinner(label),
       setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
       clearCancelInFlight: (cancel) => {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
       },
-      track: (event, props?) => this.track(event, props),
+      track: (event, props?) =>{  this.track(event, props); },
     });
     await flow.run(args);
   }

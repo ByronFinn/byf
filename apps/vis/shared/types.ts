@@ -3,9 +3,6 @@
 
 import type {
   AgentRecord,
-  AgentRecordEvents,
-  AgentRecordOf,
-  AgentConfigUpdateData,
   CompactionBeginData,
   CompactionResult,
   PermissionApprovalResultRecord,
@@ -59,7 +56,7 @@ export interface ContextProjection {
   messages: ProjectedMessage[];
   usage: UsageTotals;
   config: ConfigSnapshot;
-  permission: { mode: PermissionMode | null };
+  permission: { mode: 'manual' | 'yolo' | 'auto' | null };
   planMode: { active: boolean; id?: string };
 }
 

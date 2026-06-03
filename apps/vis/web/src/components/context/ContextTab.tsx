@@ -14,7 +14,7 @@ interface ContextTabProps {
 }
 
 export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabProps) {
-  const [agentId, setAgentId] = useState<string>(initialAgentId);
+  const [agentId, setAgentId] = useState(initialAgentId);
   // Re-sync on session OR agent id change — see WireTab for the same
   // rationale (session navigation must reset a stale subagent pick).
   useEffect(() => {
@@ -83,7 +83,7 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
             <div className="px-3 py-2 font-mono text-[12px] text-fg-3">loading context…</div>
           ) : error ? (
             <div className="px-3 py-2 font-mono text-[12px] text-[var(--color-sev-error)]">
-              {(error as Error).message}
+              {(error).message}
             </div>
           ) : messages.length === 0 ? (
             <div className="px-3 py-2 font-mono text-[12px] text-fg-3">

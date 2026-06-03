@@ -41,7 +41,7 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
     byModel: {},
   };
   const config: ConfigSnapshot = {};
-  let permissionMode: PermissionMode | null = null;
+  let permissionMode: 'manual' | 'yolo' | 'auto' | null = null;
   let planActive = false;
   let planId: string | undefined;
   // Maps step.uuid → the assistant ProjectedMessage that step is filling in.
@@ -151,17 +151,17 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
       case 'usage.record': {
         const scope = rec.usageScope ?? 'session';
         addUsage(usage.byScope[scope], rec.usage);
-        if (!usage.byModel[rec.model]) usage.byModel[rec.model] = { ...ZERO };
-        addUsage(usage.byModel[rec.model]!, rec.usage);
+        usage.byModel[rec.model] ??= { ...ZERO };
+        addUsage(usage.byModel[rec.model], rec.usage);
         break;
       }
       case 'config.update': {
-        const upd = rec as AgentConfigUpdateData & { type: 'config.update' };
-        if (upd.cwd !== undefined) config.cwd = upd.cwd;
-        if (upd.modelAlias !== undefined) config.modelAlias = upd.modelAlias;
-        if (upd.profileName !== undefined) config.profileName = upd.profileName;
-        if (upd.thinkingLevel !== undefined) config.thinkingLevel = upd.thinkingLevel;
-        if (upd.systemPrompt !== undefined) config.systemPrompt = upd.systemPrompt;
+        const typeChecked = rec as { type: 'config.update'; cwd?: string; modelAlias?: string; profileName?: string; thinkingLevel?: string; systemPrompt?: string };
+        if (typeChecked.cwd !== undefined) config.cwd = typeChecked.cwd;
+        if (typeChecked.modelAlias !== undefined) config.modelAlias = typeChecked.modelAlias;
+        if (typeChecked.profileName !== undefined) config.profileName = typeChecked.profileName;
+        if (typeChecked.thinkingLevel !== undefined) config.thinkingLevel = typeChecked.thinkingLevel;
+        if (typeChecked.systemPrompt !== undefined) config.systemPrompt = typeChecked.systemPrompt;
         break;
       }
       case 'permission.set_mode':

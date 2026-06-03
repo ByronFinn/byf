@@ -299,7 +299,7 @@ describe('ChoicePickerComponent', () => {
       onCancel: vi.fn(),
     });
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ High ]');
   });
 
@@ -331,17 +331,17 @@ describe('ChoicePickerComponent', () => {
     expect(output).toContain('Max');
 
     // Right arrow cycles: medium → high → xhigh → max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ High ]');
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Can't go above max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Enter submits max
@@ -377,15 +377,15 @@ describe('ChoicePickerComponent', () => {
     expect(output).not.toContain('XHigh');
 
     // Right arrow cycles: high → max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Can't go above max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Left arrow cycles back: max → high → medium → low → off
-    picker.handleInput('\x1b[D');
+    picker.handleInput('\u001B[D');
     expect(rendered(picker)).toContain('[ High ]');
 
     // Enter submits high
@@ -417,11 +417,11 @@ describe('ChoicePickerComponent', () => {
     expect(output).not.toContain('Max');
 
     // Right arrow cycles: high → xhigh
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
     // Can't go above xhigh
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
     // Enter submits xhigh

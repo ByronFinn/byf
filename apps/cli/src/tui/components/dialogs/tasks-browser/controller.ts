@@ -159,10 +159,10 @@ export class TasksBrowserController {
 
   private buildCallbacks() {
     return {
-      onSelect: (taskId: string) => this.handleSelect(taskId),
-      onToggleFilter: () => this.handleToggleFilter(),
-      onRefresh: () => this.handleRefresh(),
-      onCancel: () => this.close(),
+      onSelect: (taskId: string) =>{  this.handleSelect(taskId); },
+      onToggleFilter: () =>{  this.handleToggleFilter(); },
+      onRefresh: () =>{  this.handleRefresh(); },
+      onCancel: () =>{  this.close(); },
       onStopConfirmed: (taskId: string) => void this.handleStop(taskId),
       onOpenOutput: (taskId: string) => void this.handleOpenOutput(taskId),
       onStopIgnored: (taskId: string, reason: 'terminal') => {
@@ -273,7 +273,7 @@ export class TasksBrowserController {
         info,
         output,
         colors: this.env.getColors(),
-        onClose: () => this.closeViewer(),
+        onClose: () =>{  this.closeViewer(); },
       },
       this.env.getTerminal(),
     );
@@ -319,7 +319,7 @@ export class TasksBrowserController {
       info,
       output,
       colors: this.env.getColors(),
-      onClose: () => this.closeViewer(),
+      onClose: () =>{  this.closeViewer(); },
     });
     this.env.host.requestRender();
   }

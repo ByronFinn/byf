@@ -35,6 +35,7 @@ export class RotatingFileSink implements Sink {
   private pending: string[] = [];
   private dropped = 0;
   private closed = false;
+  // @ts-expect-error - Used in noteFailure() and reset in drain()
   private failed = false;
   private lastStderrNotice = 0;
   private currentBytes = -1;
