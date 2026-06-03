@@ -273,7 +273,6 @@ export function configToTomlData(config: ByfConfig): Record<string, unknown> {
     'defaultPlanMode',
     'mergeAllAvailableSkills',
     'extraSkillDirs',
-    'telemetry',
   ];
   for (const key of scalarFields) {
     setDefined(out, camelToSnake(key), config[key]);

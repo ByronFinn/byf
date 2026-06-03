@@ -265,7 +265,7 @@ describe('ByfTui message flow', () => {
             k2: {
               model: 'byf-v1',
               maxContextSize: 100,
-              provider: 'managed:byf',
+              provider: 'test-provider',
             },
           },
         })),
@@ -282,7 +282,7 @@ describe('ByfTui message flow', () => {
     expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
   });
 
-  it.skip('shows feedback API error messages without replacing them with HTTP status text', async () => {});
+
 
   it('does not track feedback when the dialog is cancelled', async () => {
     const { driver, harness } = await makeDriver(
@@ -293,7 +293,7 @@ describe('ByfTui message flow', () => {
             k2: {
               model: 'byf-v1',
               maxContextSize: 100,
-              provider: 'managed:byf',
+              provider: 'test-provider',
             },
           },
         })),
@@ -1482,14 +1482,14 @@ describe('ByfTui message flow', () => {
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-k2',
             maxContextSize: 100,
             displayName: 'ByF K2',
             capabilities: ['thinking'],
           },
           turbo: {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-turbo',
             maxContextSize: 100,
             displayName: 'ByF Turbo',
@@ -1507,14 +1507,14 @@ describe('ByfTui message flow', () => {
     const picker = driver.state.editorContainer.children[0];
     expect(picker).toBeInstanceOf(ModelSelectorComponent);
     const pickerOutput = stripSgr((picker as ModelSelectorComponent).render(120).join('\n'));
-    expect(pickerOutput).toContain('ByF K2 (byf) ← current');
-    expect(pickerOutput).toContain('❯ ByF Turbo (byf)');
+    expect(pickerOutput).toContain('ByF K2 (test-provider) ← current');
+    expect(pickerOutput).toContain('❯ ByF Turbo (test-provider)');
     (picker as ModelSelectorComponent).handleInput('t');
     (picker as ModelSelectorComponent).handleInput('u');
     const filteredOutput = stripSgr((picker as ModelSelectorComponent).render(120).join('\n'));
     expect(filteredOutput).toContain('Search: tu');
-    expect(filteredOutput).toContain('ByF Turbo (byf)');
-    expect(filteredOutput).not.toContain('ByF K2 (byf)');
+    expect(filteredOutput).toContain('ByF Turbo (test-provider)');
+    expect(filteredOutput).not.toContain('ByF K2 (test-provider)');
     (picker as ModelSelectorComponent).handleInput('\u001B[D');
     (picker as ModelSelectorComponent).handleInput('\r');
 
@@ -1541,7 +1541,7 @@ describe('ByfTui message flow', () => {
       getConfig: vi.fn(async () => ({
         models: {
           k2: {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-k2',
             maxContextSize: 100,
             displayName: 'Byf K2',
@@ -1584,7 +1584,7 @@ describe('ByfTui message flow', () => {
           return {
             models: {
               k2: {
-                provider: 'managed:byf',
+                provider: 'test-provider',
                 model: 'byf-k2',
                 maxContextSize: 100,
                 capabilities: ['thinking_effort'],
@@ -1597,7 +1597,7 @@ describe('ByfTui message flow', () => {
         return {
           models: {
             k2: {
-              provider: 'managed:byf',
+              provider: 'test-provider',
               model: 'byf-k2',
               maxContextSize: 100,
               capabilities: ['thinking_effort'],
@@ -1627,14 +1627,14 @@ describe('ByfTui message flow', () => {
       getConfig: vi.fn(async () => ({
         models: {
           alpha: {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-alpha',
             maxContextSize: 100,
             displayName: 'ByF Alpha',
             capabilities: ['thinking'],
           },
           turbo: {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-turbo',
             maxContextSize: 100,
             displayName: 'ByF Turbo',
@@ -1655,8 +1655,8 @@ describe('ByfTui message flow', () => {
 
     const output = stripSgr((picker as ModelSelectorComponent).render(120).join('\n'));
     expect(output).toContain('Search: tu');
-    expect(output).toContain('ByF Turbo (byf)');
-    expect(output).not.toContain('ByF Alpha (byf)');
+    expect(output).toContain('ByF Turbo (test-provider)');
+    expect(output).not.toContain('ByF Alpha (test-provider)');
 
     (picker as ModelSelectorComponent).handleInput('\u001B');
     (picker as ModelSelectorComponent).handleInput('\u001B');

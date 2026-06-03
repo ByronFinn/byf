@@ -8,22 +8,13 @@
 import { createInterface } from 'node:readline/promises';
 
 import {
-  setTelemetryContext,
-  shutdownTelemetry,
-  track,
-  withTelemetryContext,
-} from '@byfriends/telemetry';
-import {
   ByfHarness,
   type ExportSessionInput,
   type ExportSessionResult,
   type SessionSummary,
-  type TelemetryClient,
 } from '@byfriends/sdk';
 import type { Command } from 'commander';
 
-import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
-import { createCliTelemetryBootstrap, initializeCliTelemetry } from '#/cli/telemetry';
 import { createByfHostIdentity } from '#/cli/version';
 
 interface WritableLike {
@@ -120,47 +111,12 @@ export function registerExportCommand(parent: Command, deps?: Partial<ExportDeps
 
 function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDeps {
   let harness: ByfHarness | undefined;
-  let telemetryBootstrap: ReturnType<typeof createCliTelemetryBootstrap> | undefined;
-  let telemetryInitialized = false;
-  let telemetryShutdown = false;
   const identity = createByfHostIdentity();
-  const telemetryClient: TelemetryClient = {
-    track,
-    withContext: withTelemetryContext,
-    setContext: setTelemetryContext,
-  };
-  const getTelemetryBootstrap = (): ReturnType<typeof createCliTelemetryBootstrap> => {
-    telemetryBootstrap ??= createCliTelemetryBootstrap();
-    return telemetryBootstrap;
-  };
   const getHarness = (): ByfHarness => {
-    const currentTelemetryBootstrap = getTelemetryBootstrap();
     harness ??= new ByfHarness({
-      homeDir: currentTelemetryBootstrap.homeDir,
       identity,
-      telemetry: telemetryClient,
     });
     return harness;
-  };
-  const initializeDefaultTelemetry = async (): Promise<void> => {
-    if (telemetryInitialized) return;
-    const currentTelemetryBootstrap = getTelemetryBootstrap();
-    const currentHarness = getHarness();
-    await currentHarness.ensureConfigFile();
-    const config = await currentHarness.getConfig();
-    initializeCliTelemetry({
-      harness: currentHarness,
-      bootstrap: currentTelemetryBootstrap,
-      config,
-      version: identity.version,
-      uiMode: CLI_UI_MODE,
-    });
-    telemetryInitialized = true;
-  };
-  const shutdownDefaultTelemetry = async (): Promise<void> => {
-    if (!telemetryInitialized || telemetryShutdown) return;
-    telemetryShutdown = true;
-    await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS });
   };
   return {
     listSessions:
@@ -172,12 +128,7 @@ function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDep
     exportSession:
       overrides.exportSession ??
       (async (input: ExportSessionInput) => {
-        await initializeDefaultTelemetry();
-        try {
-          return await getHarness().exportSession(input);
-        } finally {
-          await shutdownDefaultTelemetry();
-        }
+        return await getHarness().exportSession(input);
       }),
     version: overrides.version ?? identity.version,
     confirmPreviousSession: overrides.confirmPreviousSession ?? confirmPreviousSession,

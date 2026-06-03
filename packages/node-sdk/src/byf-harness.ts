@@ -3,14 +3,9 @@ import {
   ErrorCodes,
   ByfError,
   getRootLogger,
-  noopTelemetryClient,
   resolveConfigPath,
   resolveByfHome,
   resolveLoggingConfig,
-  withTelemetryContext,
-  type TelemetryClient,
-  type TelemetryContextPatch,
-  type TelemetryProperties,
 } from '@byfriends/agent-core';
 
 import { ByfAuthFacade } from '#/auth';
@@ -39,7 +34,6 @@ export class ByfHarness {
 
   private readonly identity: { readonly userAgentProduct: string; readonly version: string } | undefined;
   private readonly uiMode: string;
-  private readonly telemetry: TelemetryClient;
   private readonly activeSessions = new Map<string, Session>();
   private readonly rpc: SDKRpcClient;
 
@@ -52,7 +46,6 @@ export class ByfHarness {
       configPath: options.configPath,
     });
     this.configureLogging();
-    this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.auth = new ByfAuthFacade({
       homeDir: this.homeDir,
       configPath: this.configPath,
@@ -61,7 +54,6 @@ export class ByfHarness {
       homeDir: options.homeDir,
       configPath: this.configPath,
       skillDirs: options.skillDirs,
-      telemetry: this.telemetry,
     });
   }
 
@@ -81,12 +73,8 @@ export class ByfHarness {
     this.rpc.interactiveAgentId = agentId;
   }
 
-  track(event: string, properties?: TelemetryProperties): void {
-    this.telemetry.track(event, properties);
-  }
-
-  setTelemetryContext(patch: TelemetryContextPatch): void {
-    this.telemetry.setContext?.(patch);
+  track(event: string, properties?: Record<string, unknown>): void {
+    // No-op: telemetry has been removed.
   }
 
   async createSession(options: CreateSessionOptions): Promise<Session> {
@@ -105,8 +93,6 @@ export class ByfHarness {
     if (planMode === true) {
       await session.setPlanMode(true);
     }
-    this.trackSessionStarted(summary.id, false);
-    this.trackSessionEvent(session.id, 'session_new');
     return session;
   }
 
@@ -126,8 +112,6 @@ export class ByfHarness {
       },
     });
     this.activeSessions.set(session.id, session);
-    this.trackSessionStarted(summary.id, true);
-    this.trackSessionEvent(session.id, 'session_resume');
     return session;
   }
 
@@ -148,8 +132,6 @@ export class ByfHarness {
       },
     });
     this.activeSessions.set(session.id, session);
-    this.trackSessionStarted(summary.id, true);
-    this.trackSessionEvent(session.id, 'session_fork');
     return session;
   }
 
@@ -171,7 +153,6 @@ export class ByfHarness {
       ...input,
       version: input.version ?? this.identity?.version,
     });
-    this.trackSessionEvent(input.id, 'export');
     return result;
   }
 
@@ -226,19 +207,6 @@ export class ByfHarness {
     } catch {
       // never let logger flush block process exit
     }
-  }
-
-  private trackSessionEvent(eventSessionId: string, event: string): void {
-    withTelemetryContext(this.telemetry, { sessionId: eventSessionId }).track(event);
-  }
-
-  private trackSessionStarted(eventSessionId: string, resumed: boolean): void {
-    withTelemetryContext(this.telemetry, { sessionId: eventSessionId }).track('session_started', {
-      client_name: this.identity?.userAgentProduct ?? null,
-      client_version: this.identity?.version ?? null,
-      ui_mode: this.uiMode,
-      resumed,
-    });
   }
 
   private firstActiveSession(): Session | undefined {

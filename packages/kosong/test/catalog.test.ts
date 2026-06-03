@@ -49,14 +49,14 @@ describe('catalogBaseUrl', () => {
   });
 
   it('passes openai-family base URLs through unchanged (SDK appends /chat/completions)', () => {
-    expect(catalogBaseUrl({ id: 'o', api: 'https://api.openai.com/v1' }, 'openai')).toBe(
+    expect(catalogBaseUrl({ id: 'o', api: 'https://api.openai.com/v1' }, 'openai-completions')).toBe(
       'https://api.openai.com/v1',
     );
   });
 
   it('returns undefined for a missing or empty api', () => {
     expect(catalogBaseUrl({ id: 'x' }, 'anthropic')).toBeUndefined();
-    expect(catalogBaseUrl({ id: 'x', api: '' }, 'openai')).toBeUndefined();
+    expect(catalogBaseUrl({ id: 'x', api: '' }, 'openai-completions')).toBeUndefined();
   });
 });
 

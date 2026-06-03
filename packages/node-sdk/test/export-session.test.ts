@@ -16,7 +16,6 @@ import {
   WIRE_PROTOCOL_VERSION,
   exportSessionDirectory,
 } from '../../agent-core/src/session/export';
-import { recordingTelemetry, type TelemetryRecord } from './telemetry';
 import { TEST_IDENTITY } from './test-identity';
 
 const tempDirs: string[] = [];
@@ -265,11 +264,9 @@ describe('ByfHarness.exportSession', () => {
   it('exports a created session through the public Harness API', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
-    const records: TelemetryRecord[] = [];
     const harness = new ByfHarness({
       identity: TEST_IDENTITY,
       homeDir,
-      telemetry: recordingTelemetry(records),
     });
 
     const session = await harness.createSession({
@@ -292,11 +289,6 @@ describe('ByfHarness.exportSession', () => {
     expect(result.entries).toContain('wire.jsonl');
     expect(result.entries).toContain('subagents/demo.txt');
     expect(result.manifest.sessionId).toBe(session.id);
-    expect(records).toContainEqual({
-      event: 'export',
-      sessionId: session.id,
-      properties: undefined,
-    });
   });
 
   it('rejects missing session ids', async () => {

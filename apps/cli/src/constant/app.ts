@@ -7,7 +7,6 @@ export const CLI_COMMAND_NAME = 'byf';
 export const CLI_USER_AGENT_PRODUCT = 'byf-cli';
 export const CLI_UI_MODE = 'shell';
 
-// Give telemetry a short flush window without making CLI exit feel stuck.
 export const CLI_SHUTDOWN_TIMEOUT_MS = 3000;
 
 // Published npm package name; this can differ from the executable command.
@@ -31,9 +30,6 @@ export const FEEDBACK_ISSUE_URL = 'https://github.com/ByronFinn/byf/issues';
 // Sent in the feedback `version` field so the backend can distinguish this
 // TypeScript client from clients that send a bare version.
 export const FEEDBACK_VERSION_PREFIX = 'byf-';
-
-// Telemetry event name; keep stable for dashboard queries.
-export const FEEDBACK_TELEMETRY_EVENT = 'feedback_submitted';
 
 // GitHub Releases is the source of truth for install scripts and update checks.
 export const BYF_RELEASES_BASE = 'https://github.com/ByronFinn/byf/releases';

@@ -14,7 +14,6 @@ import {
   loadBuiltInCatalog,
 } from '@byfriends/sdk';
 
-import type { ConnectCatalogResolution } from '#/tui/utils/connect-catalog';
 import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
 import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
 import type { ColorPalette } from '#/tui/theme/colors';

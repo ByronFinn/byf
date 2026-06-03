@@ -24,7 +24,7 @@ describe('status panel report lines', () => {
       maxContextTokens: 10000,
       availableModels: {
         k2: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-k2',
           maxContextSize: 10000,
           displayName: 'Byf K2',

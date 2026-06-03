@@ -12,10 +12,7 @@ import type {
   TurnStepInterruptedEvent,
   TurnStepStartedEvent,
 } from '@byfriends/sdk';
-import type { Container } from '@earendil-works/pi-tui';
-
 import type { ToolCallComponent } from '#/tui/components/messages/tool-call';
-import type { SubagentToolCall } from '#/tui/events/subagent-event-handler';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { AppState, LivePaneState, QueuedMessage, ToolCallBlockData, ToolResultBlockData, TranscriptEntry } from '#/tui/types';
 import {

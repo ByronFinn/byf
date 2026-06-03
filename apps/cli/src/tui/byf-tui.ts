@@ -8,7 +8,6 @@
  */
 
 import {
-  Container,
   deleteAllKittyImages,
   type Component,
   type Focusable,
@@ -26,7 +25,7 @@ import {
 import {
   applyProviderConfig,
   fetchModels,
-} from '@byfriends/oauth';
+} from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
@@ -45,7 +44,6 @@ import type {
   Event,
   HookResultEvent,
   ByfHarness,
-  ModelAlias,
   McpServerInfo,
   PermissionMode,
   PromptPart,
@@ -114,7 +112,7 @@ import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
-import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
+import { SessionPickerComponent } from './components/dialogs/session-picker';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
 import {
   SettingsSelectorComponent,
@@ -138,12 +136,10 @@ import {
   buildUsageReportLines,
   UsagePanelComponent,
 } from './components/messages/usage-panel';
-import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
 import {
-  errorReportHintLine,
   FEEDBACK_ISSUE_URL,
 } from './constant/feedback';
 import {
@@ -163,7 +159,7 @@ import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
 import { createQuestionAskHandler } from './reverse-rpc/question/handler';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
-import { createByfTuiThemeBundle, type ByfTuiThemeBundle } from './theme/bundle';
+import { createByfTuiThemeBundle } from './theme/bundle';
 import type { ResolvedTheme } from './theme/colors';
 import { isTheme, type Theme } from './theme/index';
 import {
@@ -174,7 +170,6 @@ import {
   type LivePaneState,
   parseThinkingEffort,
   type QueuedMessage,
-  type TUIStartupState,
   type TUIState,
   type ToolCallBlockData,
   type ToolResultBlockData,
@@ -187,7 +182,6 @@ import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-ca
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
   formatErrorMessage,
-  stringValue,
 } from './utils/event-payload';
 import { isAbortError } from './utils/errors';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
@@ -226,7 +220,7 @@ import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
 import { notifyTerminalOnce } from './utils/terminal-notification';
-import { createTerminalState, type TerminalState } from './utils/terminal-state';
+import { createTerminalState } from './utils/terminal-state';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
@@ -1814,7 +1808,6 @@ export class ByfTui implements DialogHost {
     await previous?.close();
     this.session = session;
     this.setAppState({ shellWorkDir: session.workDir });
-    this.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
   }
 
@@ -1862,7 +1855,6 @@ export class ByfTui implements DialogHost {
     this.approvalController.cancelAll(reason);
     this.questionController.cancelAll(reason);
     this.session = undefined;
-    this.harness.setTelemetryContext({ sessionId: null });
     return previous;
   }
 

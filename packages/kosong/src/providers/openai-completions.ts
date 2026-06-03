@@ -1,4 +1,4 @@
-import { UNKNOWN_CAPABILITY, type ModelCapability } from '#/capability';
+import type { ModelCapability } from '#/capability';
 import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
@@ -30,7 +30,6 @@ import {
   type OpenAIContentPart,
   type OpenAIToolParam,
   reasoningEffortToThinkingEffort,
-  thinkingEffortToReasoningEffort,
   toolToOpenAI,
   type ToolMessageConversion,
 } from './openai-common';

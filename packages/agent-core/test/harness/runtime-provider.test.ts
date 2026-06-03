@@ -8,7 +8,7 @@ import { ProviderManager } from '../../src/providers/provider-manager';
 const BASE_CONFIG: ByfConfig = {
   defaultModel: 'byf/byf-for-coding',
   providers: {
-    'managed:byf': {
+    'test-provider': {
       type: 'openai-completions',
       apiKey: 'test-key',
       baseUrl: 'https://api.example/v1',
@@ -16,7 +16,7 @@ const BASE_CONFIG: ByfConfig = {
   },
   models: {
     'byf/byf-for-coding': {
-      provider: 'managed:byf',
+      provider: 'test-provider',
       model: 'byf-for-coding',
       maxContextSize: 1_000_000,
       capabilities: ['thinking', 'image_in', 'video_in', 'tool_use'],
@@ -91,7 +91,7 @@ describe('resolveRuntimeProvider model metadata', () => {
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:byf': {
+          'test-provider': {
             type: 'openai-completions',
             apiKey: '',
             baseUrl: 'https://api.example/v1',
@@ -116,7 +116,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         ...BASE_CONFIG,
         models: {
           'byf/byf-for-coding': {
-            provider: 'managed:byf',
+            provider: 'test-provider',
             model: 'byf-for-coding',
             maxContextSize: 1_000_000,
           },
@@ -167,7 +167,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         config: {
           ...BASE_CONFIG,
           providers: {
-            'managed:byf': {
+            'test-provider': {
               type: 'openai-completions',
               baseUrl: 'https://api.example/v1',
             },
@@ -183,7 +183,7 @@ describe('resolveRuntimeProvider model metadata', () => {
         config: {
           ...BASE_CONFIG,
           providers: {
-            'managed:byf': {
+            'test-provider': {
               type: 'openai-completions',
               apiKey: '',
               baseUrl: 'https://api.example/v1',
@@ -221,7 +221,7 @@ describe('resolveRuntimeProvider model metadata', () => {
       ...BASE_CONFIG,
       models: {
         broken: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-for-coding',
           capabilities: ['thinking'],
         },
@@ -310,7 +310,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:byf': {
+          'test-provider': {
             type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
@@ -361,7 +361,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:byf': {
+          'test-provider': {
             type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',
@@ -382,7 +382,7 @@ describe('resolveRuntimeProvider Byf request headers', () => {
       config: {
         ...BASE_CONFIG,
         providers: {
-          'managed:byf': {
+          'test-provider': {
             type: 'openai-completions',
             apiKey: 'test-key',
             baseUrl: 'https://api.example/v1',

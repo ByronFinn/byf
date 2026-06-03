@@ -216,37 +216,6 @@ describe('runPrompt', () => {
     );
   });
 
-  it.skip('tracks first launch in prompt mode before harness construction can create the device id', async () => {
-    mocks.harnessCreatesDeviceIdOnConstruction = true;
-    const createdHomes = new Set<string>();
-    mocks.createByfDeviceId.mockImplementation((homeDir, options) => {
-      const deviceId = `device-for-${homeDir}`;
-      if (!createdHomes.has(homeDir)) {
-        createdHomes.add(homeDir);
-        options?.onFirstLaunch?.(deviceId);
-      }
-      return deviceId;
-    });
-
-    await runPrompt(opts(), '1.2.3-test', {
-      stdout: { write: vi.fn(() => true) },
-      stderr: { write: vi.fn(() => true) },
-    });
-
-    expect(mocks.createByfDeviceId).toHaveBeenNthCalledWith(
-      1,
-      '/tmp/byf-test-home',
-      expect.objectContaining({ onFirstLaunch: expect.any(Function) }),
-    );
-    expect(mocks.createByfDeviceId.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.byfHarnessConstructor.mock.invocationCallOrder[0]!,
-    );
-    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ homeDir: '/tmp/byf-test-home' }),
-    );
-    expect(mocks.harnessTrack).toHaveBeenCalledWith('first_launch');
-  });
-
   it('formats thinking and assistant output as transcript blocks', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {

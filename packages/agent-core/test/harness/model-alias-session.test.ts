@@ -9,23 +9,18 @@ import {
   ByfCore,
   type CoreAPI,
   type SDKAPI,
-  type TelemetryClient,
 } from '../../src';
-import {
-  recordingContextTelemetry,
-  type TelemetryContextRecord,
-} from '../fixtures/telemetry';
 
 const CONFIG = `
 default_model = "byf/byf-for-coding"
 
-[providers."managed:byf"]
+[providers."test-provider"]
 type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
 [models."byf/byf-for-coding"]
-provider = "managed:byf"
+provider = "test-provider"
 model = "byf-for-coding"
 max_context_size = 1000000
 `;
@@ -288,7 +283,7 @@ reason = "no rm"
       `
 default_model = "byf/byf-for-coding"
 
-[providers."managed:byf"]
+[providers."test-provider"]
 type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
@@ -304,87 +299,6 @@ max_context_size = 1000000
     await expect(freshRpc.resumeSession({ sessionId: created.id })).rejects.toThrow();
   });
 
-  it('scopes agent telemetry events to the owning session', async () => {
-    const createRecords: TelemetryContextRecord[] = [];
-    const createRpc = await createTestRpc({ telemetry: recordingContextTelemetry(createRecords) });
-    const created = await createRpc.createSession({
-      workDir,
-      model: 'byf/byf-for-coding',
-    });
-
-    await createRpc.setPermission({ sessionId: created.id, agentId: 'main', mode: 'yolo' });
-
-    expect(createRecords).toContainEqual({
-      event: 'yolo_toggle',
-      sessionId: created.id,
-      properties: { enabled: true },
-    });
-
-    await createRpc.setPermission({ sessionId: created.id, agentId: 'main', mode: 'auto' });
-
-    expect(createRecords).toContainEqual({
-      event: 'afk_toggle',
-      sessionId: created.id,
-      properties: { enabled: true },
-    });
-
-    await createRpc.setByfConfig({
-      defaultModel: 'gpt-alias',
-      providers: {
-        custom: {
-          type: 'openai-completions',
-          apiKey: 'sk-custom',
-          baseUrl: 'https://custom.example/v1',
-        },
-      },
-      models: {
-        'gpt-alias': {
-          provider: 'custom',
-          model: 'gpt-runtime',
-          maxContextSize: 200000,
-        },
-      },
-    });
-    await createRpc.setModel({
-      sessionId: created.id,
-      agentId: 'main',
-      model: 'gpt-alias',
-    });
-
-    expect(createRecords).toContainEqual({
-      event: 'model_switch',
-      sessionId: created.id,
-      properties: { model: 'gpt-alias' },
-    });
-
-    const resumeRecords: TelemetryContextRecord[] = [];
-    const resumeRpc = await createTestRpc({ telemetry: recordingContextTelemetry(resumeRecords) });
-    await resumeRpc.resumeSession({ sessionId: created.id });
-    await resumeRpc.setThinking({ sessionId: created.id, agentId: 'main', level: 'off' });
-
-    expect(resumeRecords).toContainEqual({
-      event: 'thinking_toggle',
-      sessionId: created.id,
-      properties: { enabled: false },
-    });
-  });
-
-  it('tracks session_load_failed with the attempted session context', async () => {
-    const rpc = await createTestRpc();
-    const created = await rpc.createSession({ workDir });
-    await writeFile(join(created.sessionDir, 'state.json'), '{bad json', 'utf-8');
-
-    const records: TelemetryContextRecord[] = [];
-    const freshRpc = await createTestRpc({ telemetry: recordingContextTelemetry(records) });
-
-    await expect(freshRpc.resumeSession({ sessionId: created.id })).rejects.toThrow();
-    expect(records).toContainEqual({
-      event: 'session_load_failed',
-      sessionId: created.id,
-      properties: { reason: 'SyntaxError' },
-    });
-  });
-
   async function findWireFile(root: string): Promise<string> {
     const suffix = join('agents', 'main', 'wire.jsonl');
     const entries = await readdir(root, { recursive: true });
@@ -395,12 +309,11 @@ max_context_size = 1000000
     return join(root, match);
   }
 
-  async function createTestRpc(options: { readonly telemetry?: TelemetryClient } = {}) {
+  async function createTestRpc() {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
     void new ByfCore(coreRpc, {
       homeDir,
       configPath,
-      telemetry: options.telemetry,
     });
     return sdkRpc({
       emitEvent: vi.fn(),

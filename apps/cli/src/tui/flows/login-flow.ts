@@ -1,5 +1,5 @@
-import { applyProviderConfig } from '@byfriends/oauth';
-import type { ModelInfo as OAuthModelInfo } from '@byfriends/oauth';
+import { applyProviderConfig } from '@byfriends/sdk';
+import type { ModelInfo as OAuthModelInfo } from '@byfriends/sdk';
 import type {
   ByfConfig,
   ByfConfigPatch,

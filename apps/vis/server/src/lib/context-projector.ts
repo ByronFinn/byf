@@ -8,34 +8,13 @@ import type {
   WireEntry,
 } from './agent-record-types';
 
-export interface ProjectedMessage {
-  lineNo: number;
-  time?: number;
-  source: 'append_message' | 'compaction_summary';
-  message: ContextMessage;
-  toolStepUuids: string[];
-}
-
-export interface UsageTotals {
-  byScope: { session: TokenUsage; turn: TokenUsage };
-  byModel: Record<string, TokenUsage>;
-}
-
-export interface ConfigSnapshot {
-  cwd?: string;
-  modelAlias?: string;
-  profileName?: string;
-  thinkingLevel?: string;
-  systemPrompt?: string;
-}
-
-export interface ContextProjection {
-  messages: ProjectedMessage[];
-  usage: UsageTotals;
-  config: ConfigSnapshot;
-  permission: { mode: PermissionMode | null };
-  planMode: { active: boolean; id?: string };
-}
+// Context-projection DTOs — canonical definitions live in shared/types.ts
+export type {
+  ProjectedMessage,
+  UsageTotals,
+  ConfigSnapshot,
+  ContextProjection,
+} from '../../../shared/types';
 
 const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 

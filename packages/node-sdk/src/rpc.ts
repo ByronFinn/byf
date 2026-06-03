@@ -11,7 +11,6 @@ import {
   type QuestionResult,
   type SDKAPI,
   type SDKRPCClient,
-  type TelemetryClient,
   type ToolCallRequest,
   type ToolCallResponse,
 } from '@byfriends/agent-core';
@@ -51,7 +50,6 @@ export interface SDKRpcClientOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly skillDirs?: readonly string[];
-  readonly telemetry?: TelemetryClient | undefined;
 }
 
 export interface SessionPromptRpcInput {
@@ -116,7 +114,6 @@ export class SDKRpcClient {
       homeDir: options.homeDir,
       configPath: options.configPath,
       skillDirs: options.skillDirs,
-      telemetry: options.telemetry,
     });
     this.ready = sdkRpc(new ClientAPI(this)).then((rpc) => {
       this.rpc = rpc;

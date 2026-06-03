@@ -1,4 +1,4 @@
-import type { Component, Focusable, Terminal } from '@earendil-works/pi-tui';
+import type { Component, Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
 
 import { TaskOutputViewer } from '../task-output-viewer';

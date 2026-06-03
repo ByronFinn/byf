@@ -11,7 +11,6 @@ import { FEEDBACK_VERSION_PREFIX } from '#/constant/app';
 
 export {
   FEEDBACK_ISSUE_URL,
-  FEEDBACK_TELEMETRY_EVENT,
   FEEDBACK_VERSION_PREFIX,
 } from '#/constant/app';
 

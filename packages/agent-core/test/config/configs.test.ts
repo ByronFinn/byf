@@ -52,20 +52,19 @@ default_permission_mode = "auto"
 default_plan_mode = false
 merge_all_available_skills = true
 extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
-telemetry = false
 theme = "dark"
 
-[providers."managed:byf"]
+[providers."test-provider"]
 type = "openai-completions"
 base_url = "https://api.example.test/v1"
 api_key = "sk-file"
 custom_headers = { "X-Test" = "1" }
 
-[providers."managed:byf".env]
+[providers."test-provider".env]
 GOOGLE_CLOUD_PROJECT = "project-1"
 
 [models."byf/byf-for-coding"]
-provider = "managed:byf"
+provider = "test-provider"
 model = "byf-for-coding"
 max_context_size = 262144
 capabilities = ["image_in", "thinking", "video_in"]
@@ -135,8 +134,7 @@ describe('harness config TOML loader', () => {
     expect(config.defaultPlanMode).toBe(false);
     expect(config.mergeAllAvailableSkills).toBe(true);
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
-    expect(config.telemetry).toBe(false);
-    expect(config.providers['managed:byf']).toMatchObject({
+    expect(config.providers['test-provider']).toMatchObject({
       type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-file',
@@ -144,7 +142,7 @@ describe('harness config TOML loader', () => {
       customHeaders: { 'X-Test': '1' },
     });
     expect(config.models?.['byf/byf-for-coding']).toMatchObject({
-      provider: 'managed:byf',
+      provider: 'test-provider',
       model: 'byf-for-coding',
       maxContextSize: 262144,
       capabilities: ['image_in', 'thinking', 'video_in'],
@@ -216,7 +214,6 @@ describe('harness config TOML loader', () => {
     expect(text).toContain('default_model = "byf/byf-for-coding"');
     expect(text).toContain('default_permission_mode = "auto"');
     expect(text).toContain('extra_skill_dirs = [ "~/team-skills", ".agents/team-skills" ]');
-    expect(text).toContain('telemetry = false');
     expect(text).not.toContain('default_yolo');
     expect(text).toContain('[[permission.rules]]');
     expect(text).toContain('pattern = "Bash(rm *)"');
@@ -363,7 +360,7 @@ describe('harness config schema and patch merge', () => {
     const base = parseConfigString(COMPLETE_TOML);
     const merged = mergeConfigPatch(base, {
       providers: {
-        'managed:byf': {
+        'test-provider': {
           apiKey: 'sk-patched',
           baseUrl: undefined,
         },
@@ -378,14 +375,14 @@ describe('harness config schema and patch merge', () => {
       },
     });
 
-    expect(merged.providers['managed:byf']).toMatchObject({
+    expect(merged.providers['test-provider']).toMatchObject({
       type: 'openai-completions',
       baseUrl: 'https://api.example.test/v1',
       apiKey: 'sk-patched',
       env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
     });
     expect(merged.models?.['byf/byf-for-coding']).toMatchObject({
-      provider: 'managed:byf',
+      provider: 'test-provider',
       model: 'byf-for-coding',
       maxContextSize: 262144,
       capabilities: ['tool_use'],

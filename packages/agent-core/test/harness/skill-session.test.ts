@@ -13,12 +13,7 @@ import {
   type CoreRPC,
   type Event,
   type SDKAPI,
-  type TelemetryClient,
 } from '../../src';
-import {
-  recordingContextTelemetry,
-  type TelemetryContextRecord,
-} from '../fixtures/telemetry';
 
 describe('HarnessAPI session skills', () => {
   let tmp: string;
@@ -139,10 +134,8 @@ describe('HarnessAPI session skills', () => {
       '',
       'Review the requested file.',
     ]);
-    const telemetryRecords: TelemetryContextRecord[] = [];
     const { core, events, rpc } = await createTestRpc({
       homeDir,
-      telemetry: recordingContextTelemetry(telemetryRecords),
     });
     const created = await rpc.createSession({ id: 'ses_skill_activate', workDir });
 
@@ -166,15 +159,6 @@ describe('HarnessAPI session skills', () => {
       skillSource: 'project',
     });
     expect(JSON.stringify(skillEvent)).not.toContain('Review the requested file.');
-    expect(telemetryRecords).toContainEqual({
-      event: 'skill_invoked',
-      sessionId: created.id,
-      properties: {
-        skill_name: 'phase-one-review',
-        trigger: 'user-slash',
-      },
-    });
-    expect(telemetryRecords.some((record) => record.event === 'flow_invoked')).toBe(false);
 
     const skillIndex = events.findIndex((event) => event.type === 'skill.activated');
     const turnIndex = events.findIndex((event) => event.type === 'turn.started');
@@ -280,47 +264,6 @@ describe('HarnessAPI session skills', () => {
       },
     });
     expect(JSON.stringify(prompt)).not.toContain('ARGUMENTS:');
-  });
-
-  it('records legacy flow telemetry when activating a flow skill', async () => {
-    await writeSkill('review-flow', [
-      '---',
-      'name: review-flow',
-      'description: Review flow',
-      'type: flow',
-      '---',
-      '',
-      'Review the requested file as a flow.',
-    ]);
-    const telemetryRecords: TelemetryContextRecord[] = [];
-    const { events, rpc } = await createTestRpc({
-      homeDir,
-      telemetry: recordingContextTelemetry(telemetryRecords),
-    });
-    const created = await rpc.createSession({ id: 'ses_flow_skill_activate', workDir });
-
-    await rpc.activateSkill({
-      sessionId: created.id,
-      agentId: 'main',
-      name: 'review-flow',
-    });
-    await waitForEvent(events, (event) => event.type === 'skill.activated');
-
-    expect(telemetryRecords).toContainEqual({
-      event: 'skill_invoked',
-      sessionId: created.id,
-      properties: {
-        skill_name: 'review-flow',
-        trigger: 'user-slash',
-      },
-    });
-    expect(telemetryRecords).toContainEqual({
-      event: 'flow_invoked',
-      sessionId: created.id,
-      properties: {
-        flow_name: 'review-flow',
-      },
-    });
   });
 
   it('does not re-emit skill activation live events on resume', async () => {
@@ -509,7 +452,6 @@ describe('HarnessAPI session skills', () => {
 
   async function createTestRpc(options?: {
     readonly homeDir?: string;
-    readonly telemetry?: TelemetryClient;
   }): Promise<{
     core: ByfCore;
     events: Event[];
@@ -520,7 +462,7 @@ describe('HarnessAPI session skills', () => {
     const configuredHomeDir = options === undefined ? homeDir : options.homeDir;
     const core = new ByfCore(
       coreRpc,
-      { homeDir: configuredHomeDir, telemetry: options?.telemetry },
+      { homeDir: configuredHomeDir },
     );
     const rpc = await sdkRpc({
       emitEvent: (event) => {
