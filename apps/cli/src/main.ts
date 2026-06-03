@@ -11,7 +11,6 @@ import {
   resolveGlobalLogPath,
   resolveByfHome,
 } from '@byfriends/sdk';
-import { installCrashHandlers, track } from '@byfriends/telemetry';
 
 import { createProgram } from './cli/commands';
 import { PRODUCT_NAME } from '#/constant/app';
@@ -41,7 +40,7 @@ export async function handleMainCommand(opts: CLIOptions, version: string): Prom
 
   const preflightResult = await runUpdatePreflight(
     version,
-    validated.uiMode === 'print' ? { track, isTTY: false } : { track },
+    validated.uiMode === 'print' ? { isTTY: false } : {},
   );
   if (preflightResult === 'exit') {
     process.exit(0);
@@ -57,7 +56,6 @@ export async function handleMainCommand(opts: CLIOptions, version: string): Prom
 
 export function main(): void {
   initProcessName();
-  installCrashHandlers();
   installNativeModuleHook();
   if (runNativeAssetSmokeIfRequested()) return;
 

@@ -77,9 +77,9 @@ import {
 import type { Logger } from '../logging/types';
 import type { RuntimeConfig } from '../runtime-types';
 import { normalizeWorkDir, SessionStore } from '../session/store';
-import { noopTelemetryClient, withTelemetryContext, type TelemetryClient } from '../telemetry';
+import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 
-const BYF_CODE_PROVIDER_NAME = 'managed:byf';
+const BYF_CODE_PROVIDER_NAME = 'byf';
 
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
@@ -94,7 +94,6 @@ export interface ByfCoreOptions {
   readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
-  readonly telemetry?: TelemetryClient | undefined;
 }
 
 export class ByfCore implements PromisableMethods<CoreAPI> {
@@ -126,7 +125,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     this.byfRequestHeaders = options.byfRequestHeaders;
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
     this.skillDirs = options.skillDirs ?? [];
-    this.telemetry = options.telemetry ?? noopTelemetryClient;
+    this.telemetry = noopTelemetryClient;
     ensureByfHome(this.homeDir);
     this.providerManager = new ProviderManager({
       config: readConfigFile(this.configPath),
@@ -174,7 +173,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       permissionRules: config.permission?.rules,
       skills: this.resolveSessionSkillConfig(config),
       mcpConfig,
-      telemetry: withTelemetryContext(this.telemetry, { sessionId: summary.id }),
+      telemetry: this.telemetry,
     });
     try {
       session.metadata = {
@@ -250,7 +249,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       permissionRules: config.permission?.rules,
       skills: this.resolveSessionSkillConfig(config),
       mcpConfig,
-      telemetry: withTelemetryContext(this.telemetry, { sessionId: summary.id }),
+      telemetry: this.telemetry,
       initializeMainAgent: false,
     });
     let warning: string | undefined;
@@ -260,9 +259,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       await this.refreshSessionRuntimeConfig(session, config);
     } catch (error) {
       await session.close().catch(() => {});
-      withTelemetryContext(this.telemetry, { sessionId: summary.id }).track('session_load_failed', {
-        reason: telemetryErrorReason(error),
-      });
       throw error;
     }
     this.sessions.set(summary.id, session);
@@ -692,12 +688,6 @@ function requiredWorkDir(operation: string, value: string): string {
 
 function createSessionId(): string {
   return `session_${randomUUID()}`;
-}
-
-function telemetryErrorReason(error: unknown): string {
-  if (error instanceof ByfError) return error.code;
-  if (error instanceof Error && error.name.length > 0) return error.name;
-  return typeof error;
 }
 
 async function resumeSessionResult(

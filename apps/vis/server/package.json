@@ -21,6 +21,7 @@
     "hono": "^4.7.7"
   },
   "devDependencies": {
+    "@byfriends/kosong": "workspace:*",
     "tsx": "^4.21.0",
     "vitest": "4.1.4"
   }

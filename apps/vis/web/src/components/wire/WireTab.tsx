@@ -58,7 +58,7 @@ interface WireTabProps {
 }
 
 export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
-  const [agentId, setAgentId] = useState<string>(initialAgentId);
+  const [agentId, setAgentId] = useState(initialAgentId);
   // Re-sync when the route changes either the session or the agent id
   // while this component stays mounted. Without `sessionId` in the deps,
   // navigating /sessions/A → /sessions/B (with default initialAgentId)
@@ -72,7 +72,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [expanded, setExpanded] = useState(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hoveredPairId, setHoveredPairId] = useState<string | null>(null);
 
@@ -237,7 +237,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
         <div className="p-6 font-mono text-[12px] text-fg-3">loading wire…</div>
       ) : error ? (
         <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
-          {(error as Error).message}
+          {(error).message}
         </div>
       ) : (
         <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto">

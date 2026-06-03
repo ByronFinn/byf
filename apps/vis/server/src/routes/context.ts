@@ -36,8 +36,8 @@ export function contextRoute(): Hono {
         permission: proj.permission,
         planMode: proj.planMode,
       });
-    } catch (err) {
-      const msg = (err as Error).message;
+    } catch (error) {
+      const msg = (error as Error).message;
       if (msg.toLowerCase().includes('unsupported protocol')) {
         return c.json({ error: msg, code: 'UNSUPPORTED_PROTOCOL' }, 400);
       }

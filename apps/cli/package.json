@@ -70,9 +70,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@byfriends/oauth": "workspace:^",
     "@byfriends/sdk": "workspace:^",
-    "@byfriends/telemetry": "workspace:^",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
     "postject": "1.0.0-alpha.6",

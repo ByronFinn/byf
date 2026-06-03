@@ -53,7 +53,7 @@ function activePanel(host: FakeDialogHost): TestablePanel {
 
 /** Press Escape on the active dialog. */
 function pressEscape(host: FakeDialogHost): void {
-  activePanel(host).handleInput('\x1b');
+  activePanel(host).handleInput('\u001B');
 }
 
 /** Type text and press Enter on the active dialog. */
@@ -136,16 +136,16 @@ describe('ConnectFlow', () => {
     const flowPromise = new ConnectFlow(deps).run('');
 
     // Wait for provider selection picker to appear
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     // Select first item (openai) — it's already highlighted, press Enter
     activePanel(host).handleInput('\r');
 
     // Model selection — first item already highlighted, press Enter
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // API key input
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     await flowPromise;
@@ -166,7 +166,7 @@ describe('ConnectFlow', () => {
       vi.fn((_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
         fetchCalls.push({ signal: init?.signal });
         return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          init?.signal?.addEventListener('abort', () =>{  reject(new Error('aborted')); }, { once: true });
         });
       }),
     );
@@ -183,13 +183,13 @@ describe('ConnectFlow', () => {
     const flow = new ConnectFlow(deps);
 
     const firstRun = flow.run('refresh');
-    await vi.waitFor(() => expect(fetchCalls).toHaveLength(1));
+    await vi.waitFor(() =>{  expect(fetchCalls).toHaveLength(1); });
     const firstCancel = activeCancel;
     expect(firstCancel).toBeTypeOf('function');
 
     firstCancel?.();
     const secondRun = flow.run('refresh');
-    await vi.waitFor(() => expect(fetchCalls).toHaveLength(2));
+    await vi.waitFor(() =>{  expect(fetchCalls).toHaveLength(2); });
     const secondCancel = activeCancel;
     expect(secondCancel).toBeTypeOf('function');
     expect(secondCancel).not.toBe(firstCancel);
@@ -210,7 +210,7 @@ describe('ConnectFlow', () => {
 
     const flowPromise = new ConnectFlow(deps).run('');
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -225,11 +225,11 @@ describe('ConnectFlow', () => {
     const flowPromise = new ConnectFlow(deps).run('');
 
     // Select provider
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // Cancel at model selection
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -244,15 +244,15 @@ describe('ConnectFlow', () => {
     const flowPromise = new ConnectFlow(deps).run('');
 
     // Select provider
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // Select model
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // Cancel at API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -274,15 +274,15 @@ describe('ConnectFlow', () => {
     const flowPromise = new ConnectFlow(deps).run('');
 
     // Select provider
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // Select model
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     await flowPromise;
@@ -306,7 +306,7 @@ describe('ConnectFlow', () => {
     const flowPromise = new ConnectFlow(deps).run('');
 
     // Select the "empty" provider
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
@@ -330,7 +330,7 @@ describe('ConnectFlow', () => {
     // catalog[providerId] is undefined, model selection is not called.
     // To test this we need to select an item not in catalog — impossible with real picker.
     // So let's just verify the picker appears and cancelling works.
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;

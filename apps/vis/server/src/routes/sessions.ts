@@ -27,9 +27,9 @@ export function sessionsRoute(): Hono {
     try {
       await revealInOs(detail.sessionDir);
       return c.json({ sessionId: id, opened: detail.sessionDir });
-    } catch (err) {
+    } catch (error) {
       return c.json(
-        { error: `failed to open: ${(err as Error).message}`, code: 'READ_ERROR' },
+        { error: `failed to open: ${(error as Error).message}`, code: 'READ_ERROR' },
         500,
       );
     }

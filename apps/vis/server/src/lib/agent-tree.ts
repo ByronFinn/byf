@@ -23,7 +23,7 @@ export function buildAgentTree(agents: ReadonlyArray<AgentInfo>): AgentNode[] {
       roots.push(node);
     }
   }
-  return roots.sort(sortAgents);
+  return roots.toSorted(sortAgents);
 }
 
 function sortAgents(a: AgentNode, b: AgentNode): number {

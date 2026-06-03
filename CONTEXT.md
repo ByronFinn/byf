@@ -68,7 +68,7 @@ The LLM provider interface in `kosong`. Defines `generate()` returning a `Stream
 The execution environment abstraction. `Kaos` interface with `LocalKaos` (local filesystem) and `SSHKaos` (remote via SSH/SFTP) adapters. Bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely.
 
 ### ByfHarness
-The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config, telemetry. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object.
+The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object.
 
 ### MCP (Model Context Protocol)
 External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP), tool discovery, OAuth, and reconnection.
@@ -93,7 +93,7 @@ A user-visible account of what a sub-agent did while working: lifecycle status, 
 | NPM main package | `@byfriends/cli` | `@byfriends/cli` |
 | NPM SDK | `@byfriends/sdk` | `@byfriends/sdk` |
 | NPM OAuth | `@byfriends/oauth` | `@byfriends/oauth` |
-| NPM telemetry | `@byfriends/telemetry` | `@byfriends/telemetry` |
+| NPM telemetry | `@byfriends/telemetry` | Deleted |
 | NPM agent-core | `@byfriends/agent-core` | `@byfriends/agent-core` |
 | NPM kosong | `@byfriends/kosong` | `@byfriends/kosong` |
 | NPM kaos | `@byfriends/kaos` | `@byfriends/kaos` |
@@ -106,7 +106,7 @@ A user-visible account of what a sub-agent did while working: lifecycle status, 
 | CDN / Install | `code.kimi.com` CDN | GitHub Releases |
 | Feedback URL | `ByronFinn/byf/issues` | `ByronFinn/byf/issues` |
 | Docs site | `moonshotai.github.io/kimi-code` | README only for now |
-| Telemetry | Kimi backend | Removed entirely |
+| Telemetry | Kimi backend | Removed entirely — no `@byfriends/telemetry` package, no device_id, no event writing, no config option |
 | OAuth provider | `managed:kimi-code` | User-configured via `/login` |
 | migration-legacy pkg | `@byfriends/migration-legacy` | Deleted |
 | Version | `0.2.0` | `0.0.1` |

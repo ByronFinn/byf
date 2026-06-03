@@ -344,7 +344,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    await vi.waitFor(() => expect(getOutputSpy).toHaveBeenCalled());
+    await vi.waitFor(() =>{  expect(getOutputSpy).toHaveBeenCalled(); });
     getOutputSpy.mockClear();
 
     const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;

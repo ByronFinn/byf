@@ -582,11 +582,18 @@ function configWithProvider(
 ): ByfConfig {
   const providerName = 'test-provider';
   const maxContextSize = modelCapabilities?.max_context_tokens;
+  const existingProvider = config.providers[providerName];
+  const newProvider = providerConfigForAlias(provider);
+  // When the existing provider has OAuth configured, keep it and drop the
+  // apiKey from the runtime override — apiKey + oauth are mutually exclusive.
+  const mergedProvider = existingProvider?.oauth !== undefined
+    ? { ...newProvider, oauth: existingProvider.oauth, apiKey: undefined }
+    : newProvider;
   return {
     ...config,
     providers: {
       ...config.providers,
-      [providerName]: providerConfigForAlias(provider),
+      [providerName]: mergedProvider,
     },
     models: {
       ...config.models,

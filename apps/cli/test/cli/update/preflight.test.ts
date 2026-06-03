@@ -251,19 +251,4 @@ describe('runUpdatePreflight', () => {
     expect(stderr.join('')).toContain('warning: failed to install');
   });
 
-  it('tracks update_prompted telemetry', async () => {
-    mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
-    mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
-    mocks.detectInstallSource.mockResolvedValue('npm-global');
-    mocks.promptForInstallConfirmation.mockResolvedValue(false);
-    const { options } = captureOutput();
-    const track = vi.fn();
-    await runUpdatePreflight('0.4.0', { ...options, track });
-    expect(track).toHaveBeenCalledWith('update_prompted', expect.objectContaining({
-      current: '0.4.0',
-      latest: '0.5.0',
-      decision: 'prompt-install',
-      source: 'npm-global',
-    }));
-  });
 });

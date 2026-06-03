@@ -1,24 +1,13 @@
 import {
-  setCrashPhase,
-  setTelemetryContext,
-  shutdownTelemetry,
-  track,
-  withTelemetryContext,
-} from '@byfriends/telemetry';
-import {
   ByfHarness,
   log,
   type Event,
   type HookResultEvent,
   type Session,
   type SessionStatus,
-  type TelemetryClient,
 } from '@byfriends/sdk';
 
-import { CLI_SHUTDOWN_TIMEOUT_MS } from '#/constant/app';
-
 import type { CLIOptions, PromptOutputFormat } from './options';
-import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import { createByfHostIdentity } from './version';
 
 interface PromptOutput {
@@ -53,18 +42,10 @@ export async function runPrompt(
   const stderr = io.stderr ?? process.stderr;
   const promptProcess = io.process ?? process;
   const workDir = process.cwd();
-  const telemetryBootstrap = createCliTelemetryBootstrap();
-  const telemetryClient: TelemetryClient = {
-    track,
-    withContext: withTelemetryContext,
-    setContext: setTelemetryContext,
-  };
   const harness = new ByfHarness({
-    homeDir: telemetryBootstrap.homeDir,
     identity: createByfHostIdentity(version),
     uiMode: PROMPT_UI_MODE,
     skillDirs: opts.skillsDirs,
-    telemetry: telemetryClient,
   });
   log.info('byf starting', {
     version,
@@ -79,11 +60,9 @@ export async function runPrompt(
   const cleanupPromptRun = async (): Promise<void> => {
     cleanupPromise ??= (async () => {
       removeTerminationCleanup?.();
-      setCrashPhase('shutdown');
       try {
         await restorePromptSessionPermission();
       } finally {
-        await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS });
         await harness.close();
       }
     })();
@@ -94,7 +73,7 @@ export async function runPrompt(
   try {
     await harness.ensureConfigFile();
     const config = await harness.getConfig();
-    const { session, resumed, restorePermission, telemetryModel } = await resolvePromptSession(
+    const { session, resumed, restorePermission } = await resolvePromptSession(
       harness,
       opts,
       workDir,
@@ -106,30 +85,9 @@ export async function runPrompt(
     );
     restorePromptSessionPermission = restorePermission;
 
-    initializeCliTelemetry({
-      harness,
-      bootstrap: telemetryBootstrap,
-      config,
-      version,
-      uiMode: PROMPT_UI_MODE,
-      model: telemetryModel,
-    });
-    setCrashPhase('runtime');
-
-    withTelemetryContext({ sessionId: session.id }).track('started', {
-      resumed,
-      yolo: false,
-      plan: false,
-      afk: true,
-    });
-
     const outputFormat = opts.outputFormat ?? 'text';
     await runPromptTurn(session, opts.prompt!, outputFormat, stdout, stderr);
     writeResumeHint(session.id, outputFormat, stdout, stderr);
-
-    withTelemetryContext({ sessionId: session.id }).track('exit', {
-      duration_s: (Date.now() - startedAt) / 1000,
-    });
   } finally {
     await cleanupPromptRun();
   }
@@ -139,7 +97,6 @@ interface ResolvedPromptSession {
   readonly session: Session;
   readonly resumed: boolean;
   readonly restorePermission: () => Promise<void>;
-  readonly telemetryModel?: string;
 }
 
 async function resolvePromptSession(
@@ -166,7 +123,6 @@ async function resolvePromptSession(
       session,
       resumed: true,
       restorePermission,
-      telemetryModel: configuredModel(opts.model, status.model, defaultModel),
     };
   }
 
@@ -189,7 +145,6 @@ async function resolvePromptSession(
         session,
         resumed: true,
         restorePermission,
-        telemetryModel: configuredModel(opts.model, status.model, defaultModel),
       };
     }
     stderr.write(`No sessions to continue under "${workDir}"; starting a fresh session.\n`);
@@ -198,7 +153,7 @@ async function resolvePromptSession(
   const model = requireConfiguredModel(opts.model, defaultModel);
   const session = await harness.createSession({ workDir, model, permission: 'auto' });
   installHeadlessHandlers(session);
-  return { session, resumed: false, restorePermission: async () => {}, telemetryModel: model };
+  return { session, resumed: false, restorePermission: async () => {} };
 }
 
 async function forcePromptPermission(

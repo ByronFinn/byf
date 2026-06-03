@@ -21,7 +21,6 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 - `packages/kosong`: the LLM / provider abstraction layer.
 - `packages/kaos`: the execution environment and file/process abstractions.
 - `packages/oauth`: OAuth and authentication utilities retained in the monorepo while BYF moves toward user-provided API keys.
-- `packages/telemetry`: telemetry infrastructure that remains in the monorepo but is disabled in BYF.
 
 ## Environment Requirements
 

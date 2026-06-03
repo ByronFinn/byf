@@ -116,9 +116,9 @@ function RevealButton({ sessionId }: { sessionId: string }) {
           .then(() => {
             setState('idle');
           })
-          .catch((err: unknown) => {
+          .catch((error: unknown) => {
             setState('err');
-            setErrMsg(err instanceof Error ? err.message : String(err));
+            setErrMsg(error instanceof Error ? error.message : String(error));
             setTimeout(() => {
               setState('idle');
               setErrMsg(null);

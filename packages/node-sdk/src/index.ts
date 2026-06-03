@@ -46,3 +46,8 @@ export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-
 
 export * from '#/events';
 export type * from '#/types';
+
+// Provider config — re-exported from @byfriends/oauth so consumers don't
+// need a direct dependency on the oauth package.
+export { applyProviderConfig, fetchModels } from '@byfriends/oauth';
+export type { ModelInfo } from '@byfriends/oauth';

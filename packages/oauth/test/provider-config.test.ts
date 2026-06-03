@@ -95,7 +95,7 @@ describe('fetchModels', () => {
       'https://api.example.com/v1',
       'sk-bad',
       fetchMock as unknown as typeof fetch,
-    ).catch((caught: unknown) => caught);
+    ).catch((error: unknown) => error);
 
     expect(error).toBeInstanceOf(ProviderApiError);
     expect((error as ProviderApiError).status).toBe(401);

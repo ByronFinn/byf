@@ -108,7 +108,7 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
       wireProtocolVersion: info.protocolVersion,
     });
   }
-  return out.sort((a, b) => {
+  return out.toSorted((a, b) => {
     if (a.agentId === 'main') return -1;
     if (b.agentId === 'main') return 1;
     return a.agentId.localeCompare(b.agentId);
@@ -224,7 +224,7 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
       wireProtocolVersion: info.protocolVersion,
     });
   }
-  return result.sort((a, b) => {
+  return result.toSorted((a, b) => {
     if (a.agentId === 'main') return -1;
     if (b.agentId === 'main') return 1;
     return a.agentId.localeCompare(b.agentId);

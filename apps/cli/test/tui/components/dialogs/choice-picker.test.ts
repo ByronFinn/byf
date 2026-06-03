@@ -59,7 +59,7 @@ describe('ChoicePickerComponent', () => {
     const model = new ModelSelectorComponent({
       models: {
         byf: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-k2',
           maxContextSize: 200_000,
           displayName: 'ByF K2',
@@ -73,7 +73,7 @@ describe('ChoicePickerComponent', () => {
       onCancel,
     });
     const modelOutput = model.render(120).map(strip);
-    expect(modelOutput).toContain('  ❯ ByF K2 (byf) ← current');
+    expect(modelOutput).toContain('  ❯ ByF K2 (test-provider) ← current');
     expect(modelOutput).toContain(' Thinking');
     expect(modelOutput).toContain('  [ On ]    Off  ');
 
@@ -108,7 +108,7 @@ describe('ChoicePickerComponent', () => {
     const picker = new ModelSelectorComponent({
       models: {
         byf: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-k2',
           maxContextSize: 200_000,
           displayName: 'Byf K2',
@@ -133,14 +133,14 @@ describe('ChoicePickerComponent', () => {
     const picker = new ModelSelectorComponent({
       models: {
         always: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-thinking',
           maxContextSize: 200_000,
           displayName: 'Byf Thinking',
           capabilities: ['always_thinking'],
         },
         plain: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-plain',
           maxContextSize: 200_000,
           displayName: 'Byf Plain',
@@ -171,14 +171,14 @@ describe('ChoicePickerComponent', () => {
     const picker = new ModelSelectorComponent({
       models: {
         plain: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-plain',
           maxContextSize: 200_000,
           displayName: 'Byf Plain',
           capabilities: ['tool_use'],
         },
         thinking: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-thinking',
           maxContextSize: 200_000,
           displayName: 'Byf Thinking',
@@ -213,7 +213,7 @@ describe('ChoicePickerComponent', () => {
           capabilities: ['thinking_effort'],
         },
         toggle: {
-          provider: 'managed:byf',
+          provider: 'test-provider',
           model: 'byf-thinking',
           maxContextSize: 200_000,
           displayName: 'Byf Thinking',
@@ -299,7 +299,7 @@ describe('ChoicePickerComponent', () => {
       onCancel: vi.fn(),
     });
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ High ]');
   });
 
@@ -331,17 +331,17 @@ describe('ChoicePickerComponent', () => {
     expect(output).toContain('Max');
 
     // Right arrow cycles: medium → high → xhigh → max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ High ]');
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Can't go above max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Enter submits max
@@ -377,15 +377,15 @@ describe('ChoicePickerComponent', () => {
     expect(output).not.toContain('XHigh');
 
     // Right arrow cycles: high → max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Can't go above max
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ Max ]');
 
     // Left arrow cycles back: max → high → medium → low → off
-    picker.handleInput('\x1b[D');
+    picker.handleInput('\u001B[D');
     expect(rendered(picker)).toContain('[ High ]');
 
     // Enter submits high
@@ -417,11 +417,11 @@ describe('ChoicePickerComponent', () => {
     expect(output).not.toContain('Max');
 
     // Right arrow cycles: high → xhigh
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
     // Can't go above xhigh
-    picker.handleInput('\x1b[C');
+    picker.handleInput('\u001B[C');
     expect(rendered(picker)).toContain('[ XHigh ]');
 
     // Enter submits xhigh

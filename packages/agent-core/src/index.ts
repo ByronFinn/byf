@@ -3,7 +3,6 @@ export * from './session';
 export * from './rpc';
 export * from './config';
 export * from './session/export';
-export * from './telemetry';
 export * from './errors';
 export {
   flushDiagnosticLogs,
@@ -39,6 +38,7 @@ export type {
   BackgroundTaskStatus,
 } from './tools/background/manager';
 export type { RuntimeConfig } from './runtime-types';
+export type { TelemetryClient, TelemetryProperties } from './telemetry';
 export type {
   BearerTokenProvider,
   OAuthTokenProviderResolver,

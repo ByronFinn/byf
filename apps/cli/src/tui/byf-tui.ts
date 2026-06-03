@@ -8,7 +8,6 @@
  */
 
 import {
-  Container,
   deleteAllKittyImages,
   type Component,
   type Focusable,
@@ -26,7 +25,7 @@ import {
 import {
   applyProviderConfig,
   fetchModels,
-} from '@byfriends/oauth';
+} from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
@@ -45,7 +44,6 @@ import type {
   Event,
   HookResultEvent,
   ByfHarness,
-  ModelAlias,
   McpServerInfo,
   PermissionMode,
   PromptPart,
@@ -114,7 +112,7 @@ import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
-import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
+import { SessionPickerComponent } from './components/dialogs/session-picker';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
 import {
   SettingsSelectorComponent,
@@ -138,12 +136,10 @@ import {
   buildUsageReportLines,
   UsagePanelComponent,
 } from './components/messages/usage-panel';
-import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
 import {
-  errorReportHintLine,
   FEEDBACK_ISSUE_URL,
 } from './constant/feedback';
 import {
@@ -163,7 +159,7 @@ import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
 import { createQuestionAskHandler } from './reverse-rpc/question/handler';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
-import { createByfTuiThemeBundle, type ByfTuiThemeBundle } from './theme/bundle';
+import { createByfTuiThemeBundle } from './theme/bundle';
 import type { ResolvedTheme } from './theme/colors';
 import { isTheme, type Theme } from './theme/index';
 import {
@@ -174,7 +170,6 @@ import {
   type LivePaneState,
   parseThinkingEffort,
   type QueuedMessage,
-  type TUIStartupState,
   type TUIState,
   type ToolCallBlockData,
   type ToolResultBlockData,
@@ -187,7 +182,6 @@ import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-ca
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
   formatErrorMessage,
-  stringValue,
 } from './utils/event-payload';
 import { isAbortError } from './utils/errors';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
@@ -226,7 +220,7 @@ import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
 import { notifyTerminalOnce } from './utils/terminal-notification';
-import { createTerminalState, type TerminalState } from './utils/terminal-state';
+import { createTerminalState } from './utils/terminal-state';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
@@ -395,7 +389,7 @@ function parseSimpleCdPathToken(target: string): string | null {
     if (target.includes('"') || target.includes("'")) return null;
     return target;
   }
-  if (target[target.length - 1] !== first || target.length < 2) return null;
+  if (target.at(-1) !== first || target.length < 2) return null;
   const inner = target.slice(1, -1);
   if (inner.includes(first)) return null;
   return inner;
@@ -1814,7 +1808,6 @@ export class ByfTui implements DialogHost {
     await previous?.close();
     this.session = session;
     this.setAppState({ shellWorkDir: session.workDir });
-    this.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
   }
 
@@ -1862,7 +1855,6 @@ export class ByfTui implements DialogHost {
     this.approvalController.cancelAll(reason);
     this.questionController.cancelAll(reason);
     this.session = undefined;
-    this.harness.setTelemetryContext({ sessionId: null });
     return previous;
   }
 
@@ -2291,25 +2283,25 @@ export class ByfTui implements DialogHost {
 
   private turnEventCallbacks(): TurnEventCallbacks {
     return {
-      setAppState: (patch) => this.setAppState(patch),
-      patchLivePane: (patch) => this.patchLivePane(patch),
-      resetLivePane: () => this.resetLivePane(),
-      showStatus: (msg, color) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
-      showNotice: (title, detail) => this.showNotice(title, detail),
-      requestRender: () => this.state.ui.requestRender(),
-      onStreamingTextStart: () => this.onStreamingTextStart(),
-      onStreamingTextUpdate: (text) => this.onStreamingTextUpdate(text),
-      onStreamingTextEnd: () => this.onStreamingTextEnd(),
-      onThinkingUpdate: (text) => this.onThinkingUpdate(text),
-      onThinkingEnd: () => this.onThinkingEnd(),
-      onToolCallStart: (tc) => this.onToolCallStart(tc),
-      onToolCallEnd: (id, result) => this.onToolCallEnd(id, result),
-      appendTranscriptEntry: (entry) => this.appendTranscriptEntry(entry),
-      updateActivityPane: () => this.updateActivityPane(),
-      disposeActiveThinkingComponent: () => this.disposeActiveThinkingComponent(),
-      disposeAndClearPendingToolComponents: () => this.disposeAndClearPendingToolComponents(),
-      setTodoList: (todos) => this.setTodoList(todos),
+      setAppState: (patch) =>{  this.setAppState(patch); },
+      patchLivePane: (patch) =>{  this.patchLivePane(patch); },
+      resetLivePane: () =>{  this.resetLivePane(); },
+      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
+      showNotice: (title, detail) =>{  this.showNotice(title, detail); },
+      requestRender: () =>{  this.state.ui.requestRender(); },
+      onStreamingTextStart: () =>{  this.onStreamingTextStart(); },
+      onStreamingTextUpdate: (text) =>{  this.onStreamingTextUpdate(text); },
+      onStreamingTextEnd: () =>{  this.onStreamingTextEnd(); },
+      onThinkingUpdate: (text) =>{  this.onThinkingUpdate(text); },
+      onThinkingEnd: () =>{  this.onThinkingEnd(); },
+      onToolCallStart: (tc) =>{  this.onToolCallStart(tc); },
+      onToolCallEnd: (id, result) =>{  this.onToolCallEnd(id, result); },
+      appendTranscriptEntry: (entry) =>{  this.appendTranscriptEntry(entry); },
+      updateActivityPane: () =>{  this.updateActivityPane(); },
+      disposeActiveThinkingComponent: () =>{  this.disposeActiveThinkingComponent(); },
+      disposeAndClearPendingToolComponents: () =>{  this.disposeAndClearPendingToolComponents(); },
+      setTodoList: (todos) =>{  this.setTodoList(todos); },
       isAnthropicSessionActive: () => this.isAnthropicSessionActive(),
       notifyTurnComplete: (key) => {
         notifyTerminalOnce(this.state, `turn-complete:${key}`, {
@@ -2322,21 +2314,21 @@ export class ByfTui implements DialogHost {
 
   private sessionMetaCallbacks(): SessionMetaCallbacks {
     return {
-      flushStreamingUiUpdatesNow: () => this.turnEventHandler.flushStreamingUiUpdatesNow(),
-      resetLiveToolUiState: () => this.turnEventHandler.resetLiveToolUiState(),
-      finalizeLiveTextBuffers: (mode) => this.turnEventHandler.finalizeLiveTextBuffers(mode),
-      showError: (msg) => this.showError(msg),
-      showStatus: (msg, color) => this.showStatus(msg, color),
-      setAppState: (patch) => this.setAppState(patch),
+      flushStreamingUiUpdatesNow: () =>{  this.turnEventHandler.flushStreamingUiUpdatesNow(); },
+      resetLiveToolUiState: () =>{  this.turnEventHandler.resetLiveToolUiState(); },
+      finalizeLiveTextBuffers: (mode) =>{  this.turnEventHandler.finalizeLiveTextBuffers(mode); },
+      showError: (msg) =>{  this.showError(msg); },
+      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
+      setAppState: (patch) =>{  this.setAppState(patch); },
     };
   }
 
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    handleStatusUpdate(event, (patch) => this.setAppState(patch));
+    handleStatusUpdate(event, (patch) =>{  this.setAppState(patch); });
   }
 
   private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
-    handleSessionMetaChanged(event, (patch) => this.setAppState(patch));
+    handleSessionMetaChanged(event, (patch) =>{  this.setAppState(patch); });
   }
 
   private handleSessionError(event: ErrorEvent): void {
@@ -2352,7 +2344,7 @@ export class ByfTui implements DialogHost {
       sessionId: this.state.appState.sessionId,
       theme: { colors: { warning: this.state.theme.colors.warning } },
     };
-    handleSessionWarning(event, metaState, (msg, color) => this.showStatus(msg, color));
+    handleSessionWarning(event, metaState, (msg, color) =>{  this.showStatus(msg, color); });
   }
 
   private renderMcpServerStatus(server: McpServerStatusSnapshot): void {
@@ -4180,10 +4172,10 @@ export class ByfTui implements DialogHost {
       fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
       applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
       showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
-      track: (event, props?) => this.track(event, props),
+      track: (event, props?) =>{  this.track(event, props); },
     });
     await flow.run();
   }
@@ -4230,14 +4222,14 @@ export class ByfTui implements DialogHost {
       setConfig: (cfg) => this.harness.setConfig(cfg),
       removeProvider: (id) => this.harness.removeProvider(id),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => this.showStatus(msg, color),
-      showError: (msg) => this.showError(msg),
+      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
+      showError: (msg) =>{  this.showError(msg); },
       showSpinner: (label) => this.showLoginProgressSpinner(label),
       setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
       clearCancelInFlight: (cancel) => {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
       },
-      track: (event, props?) => this.track(event, props),
+      track: (event, props?) =>{  this.track(event, props); },
     });
     await flow.run(args);
   }

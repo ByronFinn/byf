@@ -194,7 +194,6 @@ export const ByfConfigSchema = z.object({
   extraSkillDirs: z.array(z.string()).optional(),
   loopControl: LoopControlSchema.optional(),
   background: BackgroundConfigSchema.optional(),
-  telemetry: z.boolean().optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -231,7 +230,6 @@ export const ByfConfigPatchSchema = z
     extraSkillDirs: z.array(z.string()).optional(),
     loopControl: LoopControlPatchSchema.optional(),
     background: BackgroundConfigPatchSchema.optional(),
-    telemetry: z.boolean().optional(),
   })
   .strict();
 

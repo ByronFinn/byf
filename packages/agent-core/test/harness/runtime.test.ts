@@ -69,7 +69,7 @@ custom_headers = { "X-Test" = "1" }
     const created = await rpc.createSession({ id: 'ses_runtime_service_oauth', workDir });
     const session = core.sessions.get(created.id);
 
-    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('managed:byf', {
+    expect(resolveOAuthTokenProvider).toHaveBeenCalledWith('byf', {
       storage: 'file',
       key: 'oauth/custom-byf',
     });

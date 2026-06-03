@@ -14,7 +14,6 @@ import {
   loadBuiltInCatalog,
 } from '@byfriends/sdk';
 
-import type { ConnectCatalogResolution } from '#/tui/utils/connect-catalog';
 import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
 import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
 import type { ColorPalette } from '#/tui/theme/colors';
@@ -70,14 +69,12 @@ export class ConnectFlow {
       }
     }
 
-    if (catalog === undefined) {
-      catalog = await this.fetchCatalog(url, allowBuiltInFallback);
-    }
+    catalog ??= await this.fetchCatalog(url, allowBuiltInFallback);
 
     if (catalog === undefined) return;
 
     const providerId = await promptProviderSelectionViaHost(
-      this.deps.dialogHost, this.deps.colors, catalog, (msg) => this.deps.showError(msg),
+      this.deps.dialogHost, this.deps.colors, catalog, (msg) =>{  this.deps.showError(msg); },
     );
     if (providerId === undefined) return;
     const entry = catalog[providerId];

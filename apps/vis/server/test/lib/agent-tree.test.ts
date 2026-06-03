@@ -40,7 +40,7 @@ describe('agent-tree', () => {
       info({ agentId: 'agent-0', type: 'sub', parentAgentId: 'does-not-exist' }),
     ]);
     expect(tree).toHaveLength(2);
-    const ids = tree.map((n) => n.agentId).sort();
+    const ids = tree.map((n) => n.agentId).toSorted();
     expect(ids).toEqual(['agent-0', 'main']);
     // orphan is still a root, no children attached anywhere
     const orphan = tree.find((n) => n.agentId === 'agent-0')!;

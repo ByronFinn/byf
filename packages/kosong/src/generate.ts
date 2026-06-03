@@ -125,7 +125,7 @@ export async function generate(
 
   let firstChunkTime: number | undefined;
   for await (const part of stream) {
-    if (firstChunkTime === undefined) firstChunkTime = performance.now();
+    firstChunkTime ??= performance.now();
     await throwIfAborted(options?.signal, stream);
 
     // Notify raw part callback (deep copy to avoid aliasing mutations).

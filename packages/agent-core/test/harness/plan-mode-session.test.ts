@@ -9,13 +9,13 @@ import { createRPC, ByfCore, type CoreAPI, type SDKAPI } from '../../src';
 const BASE_CONFIG = `
 default_model = "byf/byf-for-coding"
 
-[providers."managed:byf"]
+[providers."test-provider"]
 type = "openai-completions"
 api_key = "test-key"
 base_url = "https://api.example/v1"
 
 [models."byf/byf-for-coding"]
-provider = "managed:byf"
+provider = "test-provider"
 model = "byf-for-coding"
 max_context_size = 1000000
 `;

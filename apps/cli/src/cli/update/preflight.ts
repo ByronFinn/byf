@@ -1,7 +1,5 @@
 import { spawn } from 'node:child_process';
 
-import type { TelemetryProperties } from '@byfriends/telemetry';
-
 import {
   NATIVE_INSTALL_COMMAND_UNIX,
   NATIVE_INSTALL_COMMAND_WIN,
@@ -26,7 +24,6 @@ export interface RunUpdatePreflightOptions {
   readonly stdout?: { write(chunk: string): boolean };
   readonly stderr?: { write(chunk: string): boolean };
   readonly isTTY?: boolean;
-  readonly track?: (event: string, properties?: TelemetryProperties) => void;
 }
 
 function withCmdSuffix(base: string, platform: NodeJS.Platform): string {
@@ -128,27 +125,6 @@ function refreshInBackground(): void {
   void refreshUpdateCache().catch(() => {});
 }
 
-function trackUpdatePrompted(
-  track: RunUpdatePreflightOptions['track'],
-  currentVersion: string,
-  target: UpdateTarget,
-  source: InstallSource,
-  decision: UpdateDecision,
-): void {
-  try {
-    track?.('update_prompted', {
-      current: currentVersion,
-      latest: target.version,
-      current_version: currentVersion,
-      target_version: target.version,
-      source,
-      decision,
-    });
-  } catch {
-    // Telemetry must never affect update prompting.
-  }
-}
-
 async function promptInstall(
   currentVersion: string,
   target: UpdateTarget,
@@ -219,7 +195,6 @@ export async function runUpdatePreflight(
     if (decision === 'none' || target === null) return 'continue';
 
     const installCommand = installCommandFor(source, target.version, platform);
-    trackUpdatePrompted(options.track, currentVersion, target, source, decision);
 
     if (decision === 'manual-command') {
       stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));

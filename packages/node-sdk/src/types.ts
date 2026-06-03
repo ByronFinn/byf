@@ -1,9 +1,6 @@
 import type {
   ExportSessionManifest,
   ResumeSessionResult,
-  TelemetryClient,
-  TelemetryContextPatch,
-  TelemetryProperties,
 } from '@byfriends/agent-core';
 import type { ContentPart } from '@byfriends/kosong';
 
@@ -46,7 +43,6 @@ export type {
   ToolInfo,
 } from '@byfriends/agent-core';
 
-export type { TelemetryClient, TelemetryContextPatch, TelemetryProperties };
 export type { ContentPart, Role, ToolCall } from '@byfriends/kosong';
 
 export type PermissionMode = 'yolo' | 'manual' | 'auto';
@@ -63,7 +59,6 @@ export interface ByfHarnessOptions {
   readonly autoLoadConfig?: boolean | undefined;
   readonly uiMode?: string;
   readonly skillDirs?: readonly string[];
-  readonly telemetry?: TelemetryClient | undefined;
 }
 
 export interface CreateSessionOptions {

@@ -215,7 +215,7 @@ function isOpenAIReasoningModel(modelName: string): boolean {
 }
 
 function isOpenAIGpt5ReasoningModel(modelName: string): boolean {
-  return /^gpt-5/.test(modelName);
+  return modelName.startsWith('gpt-5');
 }
 
 function isClaudeOpus47Or48(modelName: string): boolean {

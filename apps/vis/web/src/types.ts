@@ -1,6 +1,6 @@
-// Client-side types — re-export server DTOs (type-only cross-package import).
-// The server's `agent-record-types.ts` is the single source of truth for
-// all session / agent / wire shapes.
+// Client-side types — re-export vis DTOs (type-only).
+// Canonical shared DTO definitions live in apps/vis/shared/types.ts.
+// vis-web imports from ./shared-types.ts to avoid pulling vis-server source into the web tsconfig.
 
 export type {
   SessionSummary,
@@ -21,14 +21,11 @@ export type {
   ContentPart,
   Message,
   ToolCall,
-} from '../../server/src/lib/agent-record-types';
-
-export type {
   ProjectedMessage,
   UsageTotals,
   ConfigSnapshot,
   ContextProjection,
-} from '../../server/src/lib/context-projector';
+} from './shared-types';
 
 export interface DeleteSessionResponse {
   sessionId: string;
@@ -38,15 +35,15 @@ export interface DeleteSessionResponse {
 /**
  * Shape returned by `GET /api/sessions/:id/context?agent=<agentId>`.
  *
- * Mirrors `ContextProjection` from context-projector, plus the `sessionId`
+ * Mirrors `ContextProjection` from shared/types, plus the `sessionId`
  * and `agentId` echoed by the route.
  */
 export interface ContextResponse {
   sessionId: string;
   agentId: string;
-  messages: import('../../server/src/lib/context-projector').ProjectedMessage[];
-  usage: import('../../server/src/lib/context-projector').UsageTotals;
-  config: import('../../server/src/lib/context-projector').ConfigSnapshot;
-  permission: { mode: import('../../server/src/lib/agent-record-types').PermissionMode | null };
+  messages: import('./shared-types').ProjectedMessage[];
+  usage: import('./shared-types').UsageTotals;
+  config: import('./shared-types').ConfigSnapshot;
+  permission: { mode: import('./shared-types').PermissionMode | null };
   planMode: { active: boolean; id?: string };
 }

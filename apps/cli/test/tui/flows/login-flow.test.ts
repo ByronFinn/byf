@@ -57,7 +57,7 @@ function activePanel(host: FakeDialogHost): TestablePanel {
 /** Clear the current input, type text, then press Enter. */
 async function clearTypeAndEnter(host: FakeDialogHost, text: string): Promise<void> {
   const p = activePanel(host);
-  p.handleInput('\x15'); // Ctrl+U: delete to line start
+  p.handleInput('\u0015'); // Ctrl+U: delete to line start
   for (const ch of text) {
     p.handleInput(ch);
   }
@@ -75,7 +75,7 @@ async function typeAndEnter(host: FakeDialogHost, text: string): Promise<void> {
 
 /** Press Escape on the active dialog. */
 function pressEscape(host: FakeDialogHost): void {
-  activePanel(host).handleInput('\x1b');
+  activePanel(host).handleInput('\u001B');
 }
 
 function makeDeps(overrides: Partial<LoginFlowDeps> = {}): LoginFlowDeps {
@@ -110,19 +110,19 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Step 1: type provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Step 2: type base URL (has initialValue, must clear first)
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // Step 3: type API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Step 4: select model (first item is already highlighted, press Enter)
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
@@ -149,7 +149,7 @@ describe('LoginFlow', () => {
 
     const flowPromise = new LoginFlow(deps).run();
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'bad name!');
 
     await flowPromise;
@@ -170,7 +170,7 @@ describe('LoginFlow', () => {
 
     const flowPromise = new LoginFlow(deps).run();
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'existing');
 
     await flowPromise;
@@ -186,7 +186,7 @@ describe('LoginFlow', () => {
 
     const flowPromise = new LoginFlow(deps).run();
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -201,11 +201,11 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Type provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Cancel at base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -217,14 +217,14 @@ describe('LoginFlow', () => {
 
     const flowPromise = new LoginFlow(deps).run();
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // Cancel at API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -243,23 +243,23 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'gpt-4o-manual');
 
     // Context size
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, '64000');
 
     await flowPromise;
@@ -285,23 +285,23 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'manual-model');
 
     // Context size
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, '128000');
 
     await flowPromise;
@@ -323,19 +323,19 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel model selector
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -354,19 +354,19 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel manual model entry
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -383,23 +383,23 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'manual-model');
 
     // Cancel context size
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;
@@ -416,23 +416,23 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'manual-model');
 
     // Invalid context size
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'not-a-number');
 
     await flowPromise;
@@ -455,23 +455,23 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'manual-model');
 
     // Context size
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, '128000');
 
     await flowPromise;
@@ -494,19 +494,19 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Provider name
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await clearTypeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel model selector
-    await vi.waitFor(() => expect(host.panel).not.toBeNull());
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     pressEscape(host);
 
     await flowPromise;

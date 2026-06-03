@@ -1385,7 +1385,7 @@ function createOAuthProviderManager(
   const oauthConfig: ByfConfig = {
     defaultModel: 'byf',
     providers: {
-      'managed:byf': {
+      'test-provider': {
         type: 'vertexai',
         baseUrl: 'https://api.example/v1',
         oauth: { storage: 'file', key: 'oauth/byf' },
@@ -1393,7 +1393,7 @@ function createOAuthProviderManager(
     },
     models: {
       'byf': {
-        provider: 'managed:byf',
+        provider: 'test-provider',
         model: 'byf-for-coding',
         maxContextSize: 1_000_000,
       },
