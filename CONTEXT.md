@@ -38,7 +38,7 @@ CLI command to add a custom OpenAI-compatible provider. Flow: name → base_url 
 CLI command to configure a catalog provider from models.dev. Complements `/login`.
 
 ### /logout
-CLI command to remove a specific provider by name: `/logout <name>`.
+CLI command to open an interactive selector to remove a configured provider. The provider for `defaultModel` is highlighted by default. The `/disconnect` alias behaves identically.
 
 ### Plan Mode
 A planning state where the agent focuses on investigation and planning before implementation, with stricter write boundaries than normal execution mode.

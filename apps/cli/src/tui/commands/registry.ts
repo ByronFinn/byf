@@ -130,7 +130,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'logout',
     aliases: ['disconnect'],
-    description: 'Log out of a configured provider',
+    description: 'Open selector to remove a configured provider',
     priority: 40,
   },
   {

@@ -226,6 +226,7 @@ import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
 import { LoginFlow } from './flows/login-flow';
 import { ConnectFlow } from './flows/connect-flow';
+import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
 
 export type { TUIState } from './types';
 
@@ -4181,23 +4182,22 @@ export class ByfTui implements DialogHost {
   }
 
 
-  private async handleLogoutCommand(args: string | undefined): Promise<void> {
-    const providerName = args?.trim();
-    if (!providerName) {
-      this.showError('Usage: /logout <provider-name>');
-      return;
-    }
-
+  private async handleLogoutCommand(_args: string | undefined): Promise<void> {
     const config = await this.harness.getConfig();
-    if (config.providers?.[providerName] === undefined) {
-      this.showError(`Provider "${providerName}" not found.`);
+
+    const providerName = await promptConfiguredProviderSelection(
+      this,
+      this.state.theme.colors,
+      config,
+      (msg) => this.showError(msg),
+    );
+    if (providerName === undefined) {
       return;
     }
 
     const activeModel = this.state.appState.model;
     const activeProvider = this.state.appState.availableModels[activeModel]?.provider;
-    const defaultProvider = config.models?.[config.defaultModel ?? '']?.provider;
-    const wasActiveModel = activeProvider === providerName || defaultProvider === providerName;
+    const wasActiveModel = activeProvider === providerName;
 
     await this.harness.removeProvider(providerName);
     await this.refreshConfigAfterLogin();
