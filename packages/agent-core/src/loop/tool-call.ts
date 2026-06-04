@@ -293,9 +293,10 @@ async function prepareToolCall(
   }
 
   if (execution.isError === true) {
+    const coerced = coerceToolResult(execution, call.toolName);
     return {
-      task: makeResolvedToolCallTask(makeToolResult(call, effectiveArgs, execution)),
-      stopBatchAfterThis: execution.stopTurn,
+      task: makeResolvedToolCallTask(makeToolResult(call, effectiveArgs, coerced)),
+      stopBatchAfterThis: toolResultStopsTurn(coerced),
     };
   }
 

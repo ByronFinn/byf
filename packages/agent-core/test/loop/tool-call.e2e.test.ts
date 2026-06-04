@@ -620,6 +620,41 @@ describe('runTurn — tool-call behaviour', () => {
     expect(output.find((part) => part.type === 'image_url')).toBeDefined();
   });
 
+  it('keeps every tool.call paired when a tool returns isError=true without output', async () => {
+    const bad: ExecutableTool = {
+      name: 'bad',
+      description: 'returns isError without output',
+      parameters: { type: 'object', additionalProperties: true },
+      resolveExecution: () =>
+        ({
+          isError: true,
+        }) as ExecutableToolResult,
+    };
+    const echo = new EchoTool();
+    const { sink, context } = await runTurn({
+      tools: [bad, echo],
+      responses: [
+        makeToolUseResponse([
+          makeToolCall('bad', {}, 'tc-bad'),
+          makeToolCall('echo', { text: 'hi' }, 'tc-echo'),
+        ]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+    const callIds = sink
+      .byType('tool.call')
+      .map((e) => e.toolCallId)
+      .toSorted();
+    const resultIds = sink
+      .byType('tool.result')
+      .map((e) => e.toolCallId)
+      .toSorted();
+    expect(callIds).toEqual(['tc-bad', 'tc-echo']);
+    expect(resultIds).toEqual(callIds);
+    const badResult = context.toolResults().find((r) => r.toolCallId === 'tc-bad');
+    expect(badResult?.result.isError).toBe(true);
+  });
+
   it('every tool.call event has a matching tool.result event (mixed batch)', async () => {
     const echo = new EchoTool();
     const fail = new FailingTool();
