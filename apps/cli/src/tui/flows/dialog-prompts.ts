@@ -54,6 +54,45 @@ export function promptApiKey(
   });
 }
 
+export function promptConfiguredProviderSelection(
+  host: DialogHost,
+  colors: ColorPalette,
+  config: { providers?: Record<string, unknown> | undefined; models?: Record<string, { provider?: string }> | undefined; defaultModel?: string | undefined },
+  showError: (msg: string) => void,
+): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const providerIds = Object.keys(config.providers ?? {});
+    if (providerIds.length === 0) {
+      showError('No providers configured. Run /login or /connect first.');
+      resolve(undefined);
+      return;
+    }
+
+    const options: ChoiceOption[] = providerIds
+      .toSorted((a, b) => a.localeCompare(b))
+      .map((id) => ({ value: id, label: id }));
+
+    const defaultProvider = config.models?.[config.defaultModel ?? '']?.provider;
+
+    const picker = new ChoicePickerComponent({
+      title: 'Select a provider to log out',
+      options,
+      currentValue: defaultProvider,
+      colors,
+      searchable: false,
+      onSelect: (value) => {
+        host.close();
+        resolve(value);
+      },
+      onCancel: () => {
+        host.close();
+        resolve(undefined);
+      },
+    });
+    host.show(picker);
+  });
+}
+
 export function promptProviderSelection(
   host: DialogHost,
   colors: ColorPalette,

@@ -10,6 +10,7 @@ import {
 import type { ApprovalRequest, ApprovalResponse, Event } from '@byfriends/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 import type { QueuedMessage } from '#/tui/types';
@@ -1018,31 +1019,51 @@ describe('ByfTui message flow', () => {
     expect(transcript, '/login should not say "removed"').not.toContain('removed');
   });
 
-  it('/logout with no argument shows usage hint', async () => {
+  it('/logout opens provider selector with configured providers', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    const output = stripSgr(picker.render(120).join('\n'));
+    expect(output).toContain('deepseek');
+    expect(output).toContain('openai');
+    expect(output).toContain('openai ← current');
+  });
+
+  it('/logout with no configured providers shows error', async () => {
     const { driver } = await makeDriver();
 
     driver.handleUserInput('/logout');
 
     await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Usage');
-      expect(transcript).toContain('/logout');
-      expect(transcript).toContain('<provider-name>');
+      expect(transcript).toContain('No providers configured');
+      expect(transcript).toContain('/login');
+      expect(transcript).toContain('/connect');
     });
   });
 
-  it('/logout with non-existent provider shows error', async () => {
-    const { driver } = await makeDriver();
-
-    driver.handleUserInput('/logout xyz');
-
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Provider "xyz" not found');
-    });
-  });
-
-  it('/logout removes a provider and its models', async () => {
+  it('/logout selecting a provider removes it and its models', async () => {
     const session = makeSession();
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
@@ -1061,7 +1082,19 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(session, harness);
 
-    driver.handleUserInput('/logout deepseek');
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    // List is sorted alphabetically: deepseek, openai
+    // defaultModel is gpt-4o (openai), so openai is highlighted at index 1
+    // Navigate up to deepseek (index 0)
+    picker.handleInput('\u001B[A');
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
@@ -1070,7 +1103,7 @@ describe('ByfTui message flow', () => {
     expect(transcript).toContain('Provider "deepseek" removed');
   });
 
-  it('/logout clears defaultModel and shows hint when active model removed', async () => {
+  it('/logout clears appState.model when active model is removed', async () => {
     const session = makeSession();
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
@@ -1087,7 +1120,18 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(session, harness);
 
-    driver.handleUserInput('/logout deepseek');
+    // Simulate active session model belonging to deepseek
+    driver.state.appState.model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
@@ -1123,7 +1167,17 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(session, harness);
 
-    driver.handleUserInput('/logout deepseek');
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    // Navigate to deepseek (index 0, default is openai at index 1)
+    picker.handleInput('\u001B[A');
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
@@ -1133,7 +1187,7 @@ describe('ByfTui message flow', () => {
     expect(transcript).not.toContain('No active model');
   });
 
-  it('/disconnect alias removes provider like /logout', async () => {
+  it('/disconnect alias opens selector and removes provider like /logout', async () => {
     const session = makeSession();
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
@@ -1149,7 +1203,15 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(session, harness);
 
-    driver.handleUserInput('/disconnect deepseek');
+    driver.handleUserInput('/disconnect');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(harness.removeProvider).toHaveBeenCalledWith('deepseek');
@@ -1158,7 +1220,7 @@ describe('ByfTui message flow', () => {
     expect(transcript).toContain('Provider "deepseek" removed');
   });
 
-  it('/logout detects active session model even when defaultModel differs', async () => {
+  it('/logout removes active model provider even when defaultModel differs', async () => {
     const session = makeSession();
     const harness = makeHarness(session, {
       getConfig: vi.fn(async () => ({
@@ -1177,10 +1239,20 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(session, harness);
 
-    // Simulate the active session using deepseek-chat while defaultModel is gpt-4o
+    // Active session uses deepseek-chat while defaultModel is gpt-4o (openai)
     driver.state.appState.model = 'deepseek-chat';
 
-    driver.handleUserInput('/logout deepseek');
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    // Navigate to deepseek (index 0, default highlight is openai at index 1)
+    picker.handleInput('\u001B[A');
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
@@ -1207,13 +1279,100 @@ describe('ByfTui message flow', () => {
     const { driver } = await makeDriver(session, harness);
 
     // Active model belongs to deepseek
+    driver.state.appState.model = 'deepseek-chat';
     expect(driver.state.appState.model).toBeTruthy();
 
-    driver.handleUserInput('/logout deepseek');
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(driver.state.appState.model).toBe('');
     });
+  });
+
+  it('/logout cancelling with Escape makes no state changes', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+        },
+        defaultModel: 'deepseek-chat',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+    driver.state.appState.model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    picker.handleInput('\u001B'); // Escape
+
+    await vi.waitFor(() => {
+      expect(driver.state.editorContainer.children[0]).not.toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    expect(harness.removeProvider).not.toHaveBeenCalled();
+    expect(driver.state.appState.model).toBe('deepseek-chat');
+  });
+
+  it('/logout removing non-active provider preserves appState.model', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      getConfig: vi.fn(async () => ({
+        providers: {
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'key-ds' },
+          openai: { baseUrl: 'https://api.openai.com/v1', apiKey: 'key-oai' },
+        },
+        models: {
+          'deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 64000 },
+          'gpt-4o': { provider: 'openai', model: 'gpt-4o', maxContextSize: 128000 },
+        },
+        defaultModel: 'gpt-4o',
+      })),
+      removeProvider: vi.fn(async () => ({})),
+      setConfig: vi.fn(async () => ({})),
+    });
+    const { driver } = await makeDriver(session, harness);
+
+    // Active session uses deepseek-chat; defaultModel is gpt-4o (openai)
+    driver.state.appState.model = 'deepseek-chat';
+
+    driver.handleUserInput('/logout');
+
+    await vi.waitFor(() => {
+      const picker = driver.state.editorContainer.children[0];
+      expect(picker).toBeInstanceOf(ChoicePickerComponent);
+    });
+
+    const picker = driver.state.editorContainer.children[0] as ChoicePickerComponent;
+    // defaultModel is gpt-4o (openai), so openai is highlighted at index 1
+    // Press Enter to select openai — this is NOT the active model's provider
+    picker.handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(harness.removeProvider).toHaveBeenCalledWith('openai');
+    });
+
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).toContain('Provider "openai" removed');
+    expect(transcript).not.toContain('No active model');
   });
 
   it('does not run /init when no model is selected', async () => {
