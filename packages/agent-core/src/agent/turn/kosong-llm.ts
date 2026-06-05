@@ -155,6 +155,7 @@ export class KosongLLM implements LLM {
 function generateOptions(params: LLMChatParams): GenerateOptionsWithRequestLog {
   const options: GenerateOptionsWithRequestLog = {
     signal: params.signal,
+    cacheBreakpoints: ['__CACHE_BOUNDARY__'],
   };
   if (params.requestLogContext !== undefined) {
     return {

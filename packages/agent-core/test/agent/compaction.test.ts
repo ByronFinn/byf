@@ -127,11 +127,11 @@ describe('Agent compaction', () => {
       [wire] full_compaction.begin      { "source": "manual", "instruction": "Keep the important test facts.", "time": "<time>" }
       [emit] compaction.started         { "trigger": "manual", "instruction": "Keep the important test facts." }
       [wire] usage.record               { "model": "byf", "usage": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 120, "maxContextTokens": 256000, "contextUsage": 0.00046875, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 120, "maxContextTokens": 256000, "contextUsage": 0.00046875, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] full_compaction.complete   { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20, "time": "<time>" }
       [emit] compaction.completed       { "result": { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20 } }
       [wire] context.apply_compaction   { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20, "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 20, "maxContextTokens": 256000, "contextUsage": 0.000078125, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 20, "maxContextTokens": 256000, "contextUsage": 0.000078125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
       system: <system-prompt>
@@ -727,11 +727,11 @@ describe('Agent compaction', () => {
       [emit] compaction.started         { "trigger": "manual" }
       [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "new user while compacting" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] usage.record               { "model": "byf", "usage": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 80, "maxContextTokens": 256000, "contextUsage": 0.0003125, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 80, "maxContextTokens": 256000, "contextUsage": 0.0003125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] full_compaction.complete   { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18, "time": "<time>" }
       [emit] compaction.completed       { "result": { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18 } }
       [wire] context.apply_compaction   { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18, "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 18, "maxContextTokens": 256000, "contextUsage": 0.0000703125, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 18, "maxContextTokens": 256000, "contextUsage": 0.0000703125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
       system: <system-prompt>
@@ -785,9 +785,9 @@ describe('Agent compaction', () => {
       [wire] full_compaction.begin    { "source": "manual", "time": "<time>" }
       [emit] compaction.started       { "trigger": "manual" }
       [wire] context.clear            { "time": "<time>" }
-      [emit] agent.status.updated     { "model": "byf", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "planMode": false, "permission": "manual" }
+      [emit] agent.status.updated     { "model": "byf", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "permission": "manual" }
       [wire] usage.record             { "model": "byf", "usage": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
-      [emit] agent.status.updated     { "model": "byf", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated     { "model": "byf", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] full_compaction.cancel   { "time": "<time>" }
       [emit] compaction.cancelled     {}
     `);
@@ -829,11 +829,11 @@ describe('Agent compaction', () => {
       [emit] compaction.started          { "trigger": "auto" }
       [emit] compaction.blocked          { "turnId": 0 }
       [wire] usage.record                { "model": "byf", "usage": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "byf", "contextTokens": 950000, "maxContextTokens": 256000, "contextUsage": 3.7109375, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "byf", "contextTokens": 950000, "maxContextTokens": 256000, "contextUsage": 3.7109375, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] full_compaction.complete    { "summary": "Auto compacted summary.", "compactedCount": 6, "tokensBefore": 950000, "tokensAfter": 13, "time": "<time>" }
       [emit] compaction.completed        { "result": { "summary": "Auto compacted summary.", "compactedCount": 6, "tokensBefore": 950000, "tokensAfter": 13 } }
       [wire] context.apply_compaction    { "summary": "Auto compacted summary.", "compactedCount": 6, "tokensBefore": 950000, "tokensAfter": 13, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "byf", "contextTokens": 13, "maxContextTokens": 256000, "contextUsage": 0.00005078125, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "byf", "contextTokens": 13, "maxContextTokens": 256000, "contextUsage": 0.00005078125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 487, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "I can answer after compaction." }
@@ -841,7 +841,7 @@ describe('Agent compaction', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "byf", "usage": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "byf", "contextTokens": 27, "maxContextTokens": 256000, "contextUsage": 0.00010546875, "planMode": false, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "byf", "contextTokens": 27, "maxContextTokens": 256000, "contextUsage": 0.00010546875, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(ctx.llmInputs()).toMatchInlineSnapshot(`
@@ -1300,11 +1300,11 @@ describe('Agent compaction', () => {
       [emit] compaction.started          { "trigger": "auto" }
       [emit] compaction.blocked          { "turnId": 0 }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] full_compaction.complete    { "summary": "First compacted summary.", "compactedCount": 1, "tokensBefore": 0, "tokensAfter": 6, "time": "<time>" }
       [emit] compaction.completed        { "result": { "summary": "First compacted summary.", "compactedCount": 1, "tokensBefore": 0, "tokensAfter": 6 } }
       [wire] context.apply_compaction    { "summary": "First compacted summary.", "compactedCount": 1, "tokensBefore": 0, "tokensAfter": 6, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 6, "maxContextTokens": 1000000, "contextUsage": 0.000006, "planMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 6, "maxContextTokens": 1000000, "contextUsage": 0.000006, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 456, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "I need a tool." }
@@ -1317,7 +1317,7 @@ describe('Agent compaction', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 20, "maxContextTokens": 1000000, "contextUsage": 0.00002, "planMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 20, "maxContextTokens": 1000000, "contextUsage": 0.00002, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 } } }
       [emit] turn.step.interrupted       { "turnId": 0, "step": 2, "reason": "error", "message": "Compaction limit exceeded (1)" }
       [emit] turn.ended                  { "turnId": 0, "reason": "failed", "error": { "code": "context.overflow", "message": "Compaction limit exceeded (1)", "name": "ByfError", "details": { "maxCompactions": 1, "turnId": 0 }, "retryable": true } }
     `);
@@ -1336,6 +1336,93 @@ describe('Agent compaction', () => {
         messages:
           assistant: text "First compacted summary."
     `);
+    await ctx.expectResumeMatches();
+  });
+
+  it('applies observation masking before auto compaction in beforeStep', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: {
+        ...CATALOGUED_MODEL_CAPABILITIES,
+        max_context_tokens: 2_000,
+      },
+    });
+
+    // Append a user message and a large Read tool result to create pressure.
+    // estimateTokensForMessages uses ASCII/4 heuristic.
+    // 600 lines ≈ 4200 chars ≈ 1050 tokens, which triggers masking
+    // but stays below the compaction threshold (2000 * 0.85 = 1700).
+    const bigContent = Array.from({ length: 600 }, (_, i) => `line ${String(i + 1)}`).join('\n');
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'read a big file' }]);
+    const stepUuid = 'masking-step';
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: { type: 'step.begin', uuid: stepUuid, turnId: '0', step: 1 },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.call',
+        uuid: 'call_read',
+        turnId: '0',
+        step: 1,
+        stepUuid,
+        toolCallId: 'call_read',
+        name: 'Read',
+        args: { file_path: 'big.txt' },
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'step.end',
+        uuid: stepUuid,
+        turnId: '0',
+        step: 1,
+        finishReason: 'tool_use',
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.result',
+        parentUuid: 'call_read',
+        toolCallId: 'call_read',
+        result: {
+          output: bigContent,
+        },
+      },
+    });
+
+    ctx.mockNextResponse({ type: 'text', text: 'Done.' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'continue' }] });
+    await ctx.untilTurnEnd();
+
+    // Verify that observation masking was applied (tool result content shortened)
+    const events = ctx.allEvents;
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: '[wire]',
+        event: 'context.observation_masking',
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'observation_masking.applied',
+        args: expect.objectContaining({ maskedCount: expect.any(Number) }),
+      }),
+    );
+
+    // The Read tool result should have been masked to summary + head/tail
+    const toolResultMessage = ctx.agent.context.history.find(
+      (m) => m.role === 'tool' && m.toolCallId === 'call_read',
+    );
+    expect(toolResultMessage).toBeDefined();
+    const text = toolResultMessage?.content[0]?.type === 'text' ? toolResultMessage.content[0].text : '';
+    expect(text).toContain('[Read: 600 lines]');
+    expect(text).toContain('...');
+
     await ctx.expectResumeMatches();
   });
 });

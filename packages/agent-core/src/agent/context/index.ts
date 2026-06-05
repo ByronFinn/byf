@@ -1,10 +1,22 @@
 import { createToolMessage, type ContentPart, type Message } from '@byfriends/kosong';
+import { join } from 'node:path';
 
 import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
-import { estimateTokensForMessages } from '../../utils/tokens';
+import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
+import {
+  applyObservationMasking,
+  DEFAULT_MASKING_CONFIG,
+  type MaskingConfig,
+  type MaskingResult,
+} from './observation-masking';
+import {
+  DEFAULT_OFFLOADING_CONFIG,
+  offloadOutput,
+} from './output-offloading';
 import { project } from './projector';
+import { ScratchManager } from './scratch-manager';
 import {
   USER_PROMPT_ORIGIN,
   type AgentContextData,
@@ -13,6 +25,9 @@ import {
 } from './types';
 
 export * from './types';
+export * from './observation-masking';
+export * from './output-offloading';
+export * from './scratch-manager';
 
 const TOOL_ERROR_STATUS = '<system>ERROR: Tool execution failed.</system>';
 const TOOL_EMPTY_STATUS = '<system>Tool output is empty.</system>';
@@ -27,8 +42,21 @@ export class ContextMemory {
   private openSteps: Map<string, ContextMessage> = new Map();
   private pendingToolResultIds = new Set<string>();
   private deferredMessages: ContextMessage[] = [];
+  private toolCallInfo = new Map<string, { name: string; args: unknown }>();
+  readonly scratchManager: ScratchManager | undefined;
 
-  constructor(protected readonly agent: Agent) {}
+  constructor(
+    protected readonly agent: Agent,
+    sessionId?: string,
+  ) {
+    if (agent.homedir !== undefined && sessionId !== undefined) {
+      this.scratchManager = new ScratchManager(agent.runtime.kaos, {
+        scratchDir: join(agent.homedir, 'sessions', sessionId, 'scratch'),
+        maxSessionSize: 50_000_000,
+        maxFileCount: 100,
+      });
+    }
+  }
 
   appendUserMessage(
     content: readonly ContentPart[],
@@ -76,6 +104,8 @@ export class ContextMemory {
     this.openSteps.clear();
     this.pendingToolResultIds.clear();
     this.deferredMessages = [];
+    this.toolCallInfo.clear();
+    void this.scratchManager?.cleanup();
     this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
   }
@@ -126,7 +156,90 @@ export class ContextMemory {
     return project(this.history);
   }
 
-  appendLoopEvent(event: LoopRecordedEvent): void {
+  applyObservationMasking(config?: MaskingConfig): MaskingResult {
+    const effectiveConfig = config ?? DEFAULT_MASKING_CONFIG;
+    const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
+    const { history, result } = applyObservationMasking(
+      this._history,
+      maxContextSize,
+      this.toolCallInfo,
+      effectiveConfig,
+    );
+    if (result.masked) {
+      this.agent.records.logRecord({
+        type: 'context.observation_masking',
+        maskedCount: result.maskedCount,
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+      });
+      this._history = history;
+      this.agent.emitStatusUpdated();
+    }
+    return result;
+  }
+
+  applyPruning(config?: { effectiveCapacityRatio?: number; pruningThreshold?: number }): {
+    pruned: boolean;
+    prunedCount: number;
+  } {
+    const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
+    if (maxContextSize <= 0) {
+      return { pruned: false, prunedCount: 0 };
+    }
+    const effectiveCapacity = maxContextSize * (config?.effectiveCapacityRatio ?? 0.6);
+    const currentTokens = this.tokenCountWithPending;
+    const threshold = effectiveCapacity * (config?.pruningThreshold ?? 0.85);
+
+    if (currentTokens < threshold) {
+      return { pruned: false, prunedCount: 0 };
+    }
+
+    // Find masked tool results (identified by content starting with `[ToolName:`)
+    const maskedIndices: number[] = [];
+    for (let i = 0; i < this._history.length; i++) {
+      const message = this._history[i];
+      if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+      const info = this.toolCallInfo.get(message.toolCallId);
+      if (info === undefined) continue;
+      const text =
+        typeof message.content === 'string'
+          ? message.content
+          : message.content
+              .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+              .map((part) => part.text)
+              .join('');
+      if (text.startsWith(`[${info.name}:`)) {
+        maskedIndices.push(i);
+      }
+    }
+
+    let prunedCount = 0;
+    let tokensAfter = currentTokens;
+    for (const index of maskedIndices) {
+      if (tokensAfter < threshold) break;
+      const message = this._history[index];
+      if (message === undefined) continue;
+      const tokensBeforeMessage = estimateTokensForMessages([message]);
+      this._history[index] = {
+        ...message,
+        content: [{ type: 'text', text: '[pruned]' }],
+      };
+      tokensAfter -= tokensBeforeMessage;
+      prunedCount++;
+    }
+
+    if (prunedCount > 0) {
+      this.agent.records.logRecord({
+        type: 'context.pruning',
+        prunedCount,
+      });
+      this.agent.emitStatusUpdated();
+    }
+
+    return { pruned: prunedCount > 0, prunedCount };
+  }
+
+  async appendLoopEvent(event: LoopRecordedEvent): Promise<void> {
     this.agent.records.logRecord({
       type: 'context.append_loop_event',
       event,
@@ -182,14 +295,40 @@ export class ContextMemory {
           arguments: event.args === undefined ? null : JSON.stringify(event.args),
         });
         this.pendingToolResultIds.add(event.toolCallId);
+        this.toolCallInfo.set(event.toolCallId, { name: event.name, args: event.args });
         return;
       }
       case 'tool.result': {
-        const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
+        let result = event.result;
+
+        // Attempt output offloading for large string outputs
+        if (
+          !this.agent.records.restoring &&
+          this.scratchManager !== undefined &&
+          typeof result.output === 'string'
+        ) {
+          const offloadResult = await offloadOutput(
+            event.toolCallId,
+            this.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown',
+            result,
+            this.scratchManager,
+            DEFAULT_OFFLOADING_CONFIG,
+          );
+          if (offloadResult.offloaded) {
+            result = { ...result, output: offloadResult.output! };
+            this.agent.records.logRecord({
+              type: 'context.output_offloaded',
+              toolCallId: event.toolCallId,
+              filePath: offloadResult.filePath,
+            });
+          }
+        }
+
+        const message = createToolMessage(event.toolCallId, toolResultOutputForModel(result));
         this.pushHistory({
           ...message,
           role: 'tool',
-          isError: event.result.isError,
+          isError: result.isError,
         });
         this.pendingToolResultIds.delete(event.toolCallId);
         this.flushDeferredMessagesIfToolExchangeClosed();

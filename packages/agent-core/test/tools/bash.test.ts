@@ -240,7 +240,7 @@ describe('BashTool', () => {
     }
   });
 
-  it('renders the available commands section and the /tasks hint', () => {
+  it('renders the background task and /tasks hint but not the command catalog', () => {
     const tool = new BashTool(
       createFakeKaos(),
       '/workspace',
@@ -248,7 +248,7 @@ describe('BashTool', () => {
       new BackgroundProcessManager(),
     );
 
-    expect(tool.description).toContain('Commands available');
+    expect(tool.description).not.toContain('Commands available');
     expect(tool.description).toContain('/tasks');
   });
 
@@ -842,7 +842,7 @@ describe('BashTool', () => {
     expect(argv[2]).toBe("cd '/workspace' && ls 2>nul");
   });
 
-  it('exposes a shell description that documents /bin/bash, TaskOutput/TaskStop, safety and efficiency sections, and background semantics', () => {
+  it('exposes a compressed shell description that retains safety anchors, background semantics, and output notes', () => {
     const tool = new BashTool(
       createFakeKaos(),
       '/workspace',
@@ -854,10 +854,18 @@ describe('BashTool', () => {
     expect(description).toContain('`bash`');
     expect(description).toContain('TaskOutput');
     expect(description).toContain('TaskStop');
-    expect(description).toContain('**Guidelines for safety and security:**');
-    expect(description).toContain('**Guidelines for efficiency:**');
+    expect(description).toContain('superuser privileges');
+    expect(description).toContain('fresh shell environment');
     expect(description).toContain('run_in_background=true');
     expect(description).toContain('automatically notified');
+    expect(description).not.toContain('**Guidelines for efficiency:**');
+    expect(description).not.toContain('**Guidelines for safety and security:**');
+  });
+
+  it('retains the sudo prohibition after description compression', () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    expect(tool.description).toContain('superuser privileges');
+    expect(tool.description).toContain('Never run');
   });
 });
 

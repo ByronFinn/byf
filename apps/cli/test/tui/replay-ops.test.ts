@@ -531,7 +531,7 @@ describe('projectReplayRecords', () => {
     const projected = projectReplayRecords([
       { type: 'config_updated', config: { thinkingLevel: 'off' } },
       message('user', [{ type: 'text', text: 'ignore by origin' }], {
-        origin: { kind: 'injection', variant: 'plan_mode' },
+        origin: { kind: 'injection', variant: 'permission_mode' },
       }),
       message('user', [{ type: 'text', text: 'visible' }]),
     ]);

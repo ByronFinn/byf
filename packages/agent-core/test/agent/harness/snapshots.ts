@@ -219,9 +219,6 @@ function formatText(text: string): string {
   if (isAutoModeExitReminder(text)) {
     return '<auto-mode-exit-reminder>';
   }
-  if (isPlanModeReminder(text)) {
-    return '<plan-mode-reminder>';
-  }
   if (text.includes('<!-- Compression Priorities (in order) -->')) {
     return '<compaction-instruction>';
   }
@@ -250,7 +247,6 @@ function normalizeValue(value: unknown, uuidLabels: Map<string, string>): unknow
   if (typeof value === 'string') {
     if (isAutoModeEnterReminder(value)) return '<auto-mode-enter-reminder>';
     if (isAutoModeExitReminder(value)) return '<auto-mode-exit-reminder>';
-    if (isPlanModeReminder(value)) return '<plan-mode-reminder>';
     if (!isUuid(value)) return value;
     let label = uuidLabels.get(value);
     if (label === undefined) {
@@ -296,13 +292,6 @@ function stripUndefined(value: unknown): unknown {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function isPlanModeReminder(value: string): boolean {
-  return (
-    value.includes('Plan mode is active. You MUST NOT make any edits') &&
-    value.includes('Plan file:')
-  );
 }
 
 function isAutoModeEnterReminder(value: string): boolean {

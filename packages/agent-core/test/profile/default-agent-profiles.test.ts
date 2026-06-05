@@ -19,7 +19,7 @@ describe('default agent profiles', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext);
 
     expect(prompt).toContain('You are BYF');
-    expect(prompt).toContain('Available skills');
+    expect(prompt).toContain('# Skills');
     expect(prompt).toContain('/workspace');
   });
 

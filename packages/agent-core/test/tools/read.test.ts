@@ -622,15 +622,17 @@ describe('ReadTool', () => {
     expect(output).not.toContain('Max');
   });
 
-  it('description pins line/byte caps, tail mode, and the Grep-over-Read preference', () => {
+  it('description pins line/byte caps, tail mode, and sensitive-file rules', () => {
     const tool = toolWithContent('');
     // Numeric caps are part of the stable contract.
     expect(tool.description).toContain(String(MAX_LINES));
     expect(tool.description).toContain(String(MAX_LINE_LENGTH));
     // Tail mode (negative line_offset) is documented.
     expect(tool.description).toMatch(/negative line_offset|reads from the end/i);
-    // Recommend Grep when searching for unknown content.
-    expect(tool.description).toContain('Grep');
+    // Sensitive files and binary handling are documented.
+    expect(tool.description).toMatch(/sensitive|credential|secret|\.env|SSH key/i);
+    expect(tool.description).toMatch(/UTF-?8/i);
+    expect(tool.description).toMatch(/binary/i);
   });
 
   it('reads files inside additional_dirs via absolute path', async () => {
@@ -822,5 +824,13 @@ describe('ReadTool description and schema parity', () => {
 
     expect(tool.description).toMatch(/UTF-?8/i);
     expect(tool.description).toMatch(/binary/i);
+  });
+
+  it('adversarial: still documents pagination with line_offset and n_lines after compression', () => {
+    const tool = toolWithContent('');
+
+    expect(tool.description).toMatch(/line_offset.*1-based|1-based.*line_offset/i);
+    expect(tool.description).toMatch(/n_lines|number of lines/i);
+    expect(tool.description).toMatch(/page larger files|omit.*n_lines/i);
   });
 });

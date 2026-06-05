@@ -169,8 +169,6 @@ function headerFor(toolName: string): string {
       return 'Apply these edits?';
     case 'TaskStop':
       return 'Stop this task?';
-    case 'ExitPlanMode':
-      return 'Ready to build with this plan?';
     default:
       return `Approve ${toolName}?`;
   }

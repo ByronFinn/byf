@@ -5,7 +5,6 @@ export interface CLIOptions {
   session: string | undefined;
   continue: boolean;
   yolo: boolean;
-  plan: boolean;
   model: string | undefined;
   outputFormat: PromptOutputFormat | undefined;
   prompt: string | undefined;
@@ -39,9 +38,6 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   if (promptMode && opts.yolo) {
     throw new OptionConflictError('Cannot combine --prompt with --yolo.');
   }
-  if (promptMode && opts.plan) {
-    throw new OptionConflictError('Cannot combine --prompt with --plan.');
-  }
   if (promptMode && opts.session === '') {
     throw new OptionConflictError('Cannot use --session without an id in prompt mode.');
   }
@@ -50,9 +46,6 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   }
   if (!promptMode && (opts.continue || opts.session !== undefined) && opts.yolo) {
     throw new OptionConflictError('Cannot combine --yolo with --continue or --session.');
-  }
-  if (!promptMode && (opts.continue || opts.session !== undefined) && opts.plan) {
-    throw new OptionConflictError('Cannot combine --plan with --continue or --session.');
   }
   return { options: opts, uiMode: promptMode ? 'print' : 'shell' };
 }

@@ -1,5 +1,5 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -14,75 +14,7 @@ afterEach(async () => {
   await removeTempDirs(tempDirs);
 });
 
-describe('Session plan, compact, usage, and resume APIs', () => {
-  it('sets plan mode through manualEnterPlan and clears the active plan file', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-plan-home-');
-    const workDir = await makeTempDir(tempDirs, 'byf-sdk-plan-work-');
-    await writeTestConfig(homeDir);
-    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
-
-    try {
-      const session = await harness.createSession({ id: 'ses_plan_runtime', workDir });
-
-      const planOn = waitForSessionEvent(
-        session,
-        (event) => event.type === 'agent.status.updated' && event.planMode === true,
-      );
-      await session.setPlanMode(true);
-      await expect(planOn).resolves.toMatchObject({
-        type: 'agent.status.updated',
-        planMode: true,
-      });
-
-      await expect(session.clearPlan()).resolves.toBeUndefined();
-      await expect(session.getPlan()).resolves.toMatchObject({
-        exists: false,
-        content: '',
-      });
-      await session.cancel();
-
-      const planOff = waitForSessionEvent(
-        session,
-        (event) => event.type === 'agent.status.updated' && event.planMode === false,
-      );
-      await session.setPlanMode(false);
-      await expect(planOff).resolves.toMatchObject({
-        type: 'agent.status.updated',
-        planMode: false,
-      });
-    } finally {
-      await harness.close();
-    }
-  });
-
-  it('does not create plans directory or plan files on repeated toggles before first write', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-plan-toggle-home-');
-    const workDir = await makeTempDir(tempDirs, 'byf-sdk-plan-toggle-work-');
-    await writeTestConfig(homeDir);
-    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
-
-    try {
-      const session = await harness.createSession({ id: 'ses_plan_toggle_runtime', workDir });
-
-      await session.setPlanMode(true);
-      const firstPlan = await session.getPlan();
-      if (firstPlan === null) throw new Error('expected first plan');
-      const plansDir = dirname(firstPlan.path);
-      await expect(markdownFiles(plansDir)).resolves.toEqual([]);
-
-      await session.setPlanMode(false);
-      await session.setPlanMode(true);
-      const secondPlan = await session.getPlan();
-      if (secondPlan === null) throw new Error('expected second plan');
-
-      expect(secondPlan.path).not.toBe(firstPlan.path);
-      expect(dirname(secondPlan.path)).toBe(plansDir);
-      await expect(markdownFiles(plansDir)).resolves.toEqual([]);
-    } finally {
-      await harness.close();
-    }
-  });
-
+describe('Session compact, usage, and resume APIs', () => {
   it('starts manual compaction with an optional instruction', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-compact-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-compact-work-');
@@ -120,7 +52,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
     }
   });
 
-  it('resumes a persisted session and restores runtime plan mode from wire history', async () => {
+  it('resumes a persisted session', async () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-resume-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-resume-work-');
     await writeTestConfig(homeDir);
@@ -132,11 +64,6 @@ describe('Session plan, compact, usage, and resume APIs', () => {
         workDir,
         model: 'test-model',
       });
-      await created.setPlanMode(true);
-      await expect(created.getPlan()).resolves.toMatchObject({
-        exists: false,
-        content: '',
-      });
       await created.close();
       expect(harness.getSession(created.id)).toBeUndefined();
 
@@ -146,58 +73,10 @@ describe('Session plan, compact, usage, and resume APIs', () => {
       expect(resumed.workDir).toBe(workDir);
       await expect(resumed.getStatus()).resolves.toMatchObject({
         model: 'test-model',
-        planMode: true,
-      });
-      await expect(resumed.getPlan()).resolves.toMatchObject({
-        exists: false,
-        content: '',
-        path: expect.stringContaining('/plans/'),
       });
       expect(harness.getSession(created.id)).toBe(resumed);
     } finally {
       await harness.close();
-    }
-  });
-
-  it.todo('marks resumed plan mode active when the restored plan has no plan data', async () => {
-    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-resume-legacy-plan-home-');
-    const workDir = await makeTempDir(tempDirs, 'byf-sdk-resume-legacy-plan-work-');
-    await writeTestConfig(homeDir);
-    const createdHarness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
-    let sessionId = '';
-    let sessionDir = '';
-
-    try {
-      const created = await createdHarness.createSession({
-        id: 'ses_resume_legacy_plan_runtime',
-        workDir,
-        model: 'test-model',
-      });
-      await created.setPlanMode(true);
-      const summary = created.summary;
-      expect(summary).toBeDefined();
-      sessionId = created.id;
-      sessionDir = summary!.sessionDir;
-    } finally {
-      await createdHarness.close();
-    }
-
-    await removeManualPlanIds(sessionDir);
-
-    const resumedHarness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
-    try {
-      const resumed = await resumedHarness.resumeSession({ id: sessionId });
-
-      await expect(resumed.getStatus()).resolves.toMatchObject({
-        planMode: true,
-      });
-      await expect(resumed.getPlan()).resolves.toMatchObject({
-        exists: false,
-        content: '',
-        path: expect.stringContaining('/plans/'),
-      });
-    } finally {
-      await resumedHarness.close();
     }
   });
 
@@ -214,11 +93,6 @@ describe('Session plan, compact, usage, and resume APIs', () => {
         model: 'test-model',
         metadata: { source: true },
       });
-      await source.setPlanMode(true);
-      const sourcePlan = await source.getPlan();
-      if (sourcePlan === null) throw new Error('expected source plan');
-      await mkdir(dirname(sourcePlan.path), { recursive: true });
-      await writeFile(sourcePlan.path, 'source plan', 'utf-8');
 
       const fork = await harness.forkSession({
         id: source.id,
@@ -235,28 +109,6 @@ describe('Session plan, compact, usage, and resume APIs', () => {
 
       const forkSummary = fork.summary;
       expect(forkSummary).toBeDefined();
-      const forkPlan = await fork.getPlan();
-      expect(forkPlan).toEqual({
-        id: sourcePlan.id,
-        exists: true,
-        content: 'source plan',
-        path: join(forkSummary!.sessionDir, 'agents', 'main', 'plans', `${sourcePlan.id}.md`),
-      });
-      expect(forkPlan?.path).not.toBe(sourcePlan.path);
-      const forkWire = await readFile(
-        join(forkSummary!.sessionDir, 'agents', 'main', 'wire.jsonl'),
-        'utf-8',
-      );
-      const enterRecord = forkWire
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line) as Record<string, unknown>)
-        .find((record) => record['type'] === 'plan_mode.enter');
-      expect(enterRecord).toEqual({
-        type: 'plan_mode.enter',
-        id: sourcePlan.id,
-        time: expect.any(Number),
-      });
       const forkState = JSON.parse(
         await readFile(join(forkSummary!.sessionDir, 'state.json'), 'utf-8'),
       ) as {
@@ -288,21 +140,6 @@ describe('Session plan, compact, usage, and resume APIs', () => {
     }
   });
 });
-
-async function removeManualPlanIds(sessionDir: string): Promise<void> {
-  const wirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
-  const raw = await readFile(wirePath, 'utf-8');
-  const lines = raw
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .flatMap((line) => {
-      const record = JSON.parse(line) as Record<string, unknown>;
-      if (record['type'] === 'plan.enter') return [];
-      if (record['type'] === 'plan.manual_enter') delete record['id'];
-      return [JSON.stringify(record)];
-    });
-  await writeFile(wirePath, `${lines.join('\n')}\n`, 'utf-8');
-}
 
 function waitForSessionEvent(
   session: { onEvent(listener: (event: Event) => void): () => void },

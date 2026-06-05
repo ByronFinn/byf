@@ -63,8 +63,7 @@ export function createProgram(
         .default([]),
     )
     .addOption(new Option('--yes').hideHelp().default(false))
-    .addOption(new Option('--auto-approve').hideHelp().default(false))
-    .option('--plan', 'Start in plan mode.', false);
+    .addOption(new Option('--auto-approve').hideHelp().default(false));
 
   registerExportCommand(program);
 
@@ -79,7 +78,6 @@ export function createProgram(
       session: sessionValue,
       continue: raw['continue'] as boolean,
       yolo: yoloValue,
-      plan: raw['plan'] as boolean,
       model: raw['model'] as string | undefined,
       outputFormat: raw['outputFormat'] as CLIOptions['outputFormat'],
       prompt: raw['prompt'] as string | undefined,

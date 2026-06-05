@@ -12,6 +12,7 @@ import {
   type SystemPromptContext,
 } from '../../src/profile';
 import { SkillRegistry, type SkillDefinition } from '../../src/skill';
+import { estimateTokens } from '../../src/utils/tokens';
 
 let workDir: string;
 
@@ -25,7 +26,6 @@ const promptContext: SystemPromptContext = {
   },
   cwd: '/workspace',
   now: '2026-05-09T00:00:00.000Z',
-  cwdListing: 'README.md',
   agentsMd: 'Project instructions.',
   skills: 'Available test skills.',
 };
@@ -45,7 +45,6 @@ describe('agent profile loader', () => {
       [
         'os={{ BYF_OS }}',
         'cwd={{ BYF_WORK_DIR }}',
-        'listing={{ BYF_WORK_DIR_LS }}',
         'agents={{ BYF_AGENTS_MD }}',
         'skills={{ BYF_SKILLS }}',
         'parent={{ parentOnly }}',
@@ -110,7 +109,6 @@ tools:
     expect(profiles['shared']?.description).toBe('Shared parent subagent');
     expect(coderPrompt).toContain('os=macOS');
     expect(coderPrompt).toContain('cwd=/workspace');
-    expect(coderPrompt).toContain('listing=README.md');
     expect(coderPrompt).toContain('agents=Project instructions.');
     expect(coderPrompt).toContain('skills=Available test skills.');
     expect(coderPrompt).toContain('parent=parent-value');
@@ -182,7 +180,6 @@ describe('default agent profiles', () => {
       expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash']),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Write');
-    expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Bash');
   });
 
   it('renders the model-invocable skill listing for bundled prompts', () => {
@@ -197,8 +194,9 @@ describe('default agent profiles', () => {
     });
 
     expect(prompt).toContain('Current available skills:');
-    expect(prompt).toContain('- review:');
-    expect(prompt).toContain('When to use: When code review is requested.');
+    expect(prompt).toContain('- review: desc for review');
+    expect(prompt).not.toContain('When to use:');
+    expect(prompt).not.toContain('Path:');
     expect(prompt).not.toContain('private');
     expect(prompt).not.toContain('flow-only');
     expect(prompt).not.toContain('body of review');
@@ -215,10 +213,42 @@ describe('default agent profiles', () => {
     });
 
     expect(first).toContain('You are BYF');
-    expect(first).toContain('Available skills');
+    expect(first).toContain('# Skills');
     expect(first).toContain('/workspace/one');
     expect(second).toContain('/workspace/two');
     expect(second).not.toContain('/workspace/one');
+  });
+
+  it('includes AGENTS.md budget warning when agentsMd exceeds 4,000 tokens', () => {
+    const longAgentsMd = 'a'.repeat(20_000);
+    const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+      ...promptContext,
+      agentsMd: longAgentsMd,
+    });
+
+    expect(prompt).toContain('exceeds 4,000 tokens');
+    expect(prompt).toContain('Consider compressing project instructions');
+  });
+
+  it('omits AGENTS.md budget warning when agentsMd is within budget', () => {
+    const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+      ...promptContext,
+      agentsMd: 'Short instructions.',
+    });
+
+    expect(prompt).not.toContain('exceeds 4,000 tokens');
+  });
+
+  it('renders the default system prompt within the target token budget', () => {
+    const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+      ...promptContext,
+      agentsMd: '',
+      skills: '',
+    });
+
+    const tokens = estimateTokens(prompt);
+    expect(tokens).toBeGreaterThan(0);
+    expect(tokens).toBeLessThanOrEqual(4500);
   });
 });
 

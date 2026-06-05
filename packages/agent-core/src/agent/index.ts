@@ -37,7 +37,7 @@ import { ContextMemory } from './context';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
-import { PlanMode } from './plan';
+
 import {
   AgentRecords,
   FileSystemAgentRecordPersistence,
@@ -101,7 +101,7 @@ export class Agent {
   readonly turn: TurnFlow;
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
-  readonly planMode: PlanMode;
+
   readonly usage: UsageRecorder;
   readonly tools: ToolManager;
   readonly background: BackgroundManager;
@@ -142,12 +142,12 @@ export class Agent {
           : undefined),
     );
     this.fullCompaction = new FullCompaction(this, config.compactionStrategy);
-    this.context = new ContextMemory(this);
+    this.context = new ContextMemory(this, config.sessionId);
     this.config = new ConfigState(this);
     this.turn = new TurnFlow(this);
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, config.permission);
-    this.planMode = new PlanMode(this);
+
     this.usage = new UsageRecorder(this);
     this.tools = new ToolManager(this);
     this.background = new BackgroundManager(this, {
@@ -222,7 +222,6 @@ export class Agent {
       osEnv: this.runtime.osEnv,
       cwd,
       skills: this.skills?.registry,
-      cwdListing: context?.cwdListing,
       agentsMd: context?.agentsMd,
     });
     this.config.update({ profileName: profile.name, systemPrompt });
@@ -294,12 +293,14 @@ export class Agent {
         return this.config.modelAlias ?? '';
       },
       enterPlan: async () => {
-        await this.planMode.enter();
+        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
       },
-      cancelPlan: (payload) => {
-        this.planMode.cancel(payload.id);
+      cancelPlan: async () => {
+        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
       },
-      clearPlan: () => this.planMode.clear(),
+      clearPlan: async () => {
+        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
+      },
       beginCompaction: (payload) => {
         this.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });
       },
@@ -335,7 +336,7 @@ export class Agent {
       getContext: () => this.context.data(),
       getConfig: () => this.config.data(),
       getPermission: () => this.permission.data(),
-      getPlan: () => this.planMode.data(),
+      getPlan: async () => null,
       getUsage: () => this.usage.data(),
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
@@ -366,7 +367,7 @@ export class Agent {
       contextTokens,
       maxContextTokens,
       contextUsage,
-      planMode: this.planMode.isActive,
+
       permission: this.permission.mode,
       usage,
     });

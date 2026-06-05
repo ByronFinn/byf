@@ -16,7 +16,6 @@ function makeAppState(): AppState {
     sessionId: 'sess-1',
     yolo: false,
     permissionMode: 'manual',
-    planMode: false,
     thinkingEffort: 'off',
     contextUsage: 0,
     contextTokens: 0,

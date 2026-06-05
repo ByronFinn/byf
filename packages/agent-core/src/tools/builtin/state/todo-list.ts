@@ -2,7 +2,7 @@
  * TodoListTool — structured TODO list management tool.
  *
  * The LLM uses this tool to maintain a visible plan of sub-tasks during
- * plan-mode workflows and multi-step operations. A single tool serves
+ * multi-step workflows and operations. A single tool serves
  * both reads and writes:
  *
  *   - `resolveExecution({ todos: [...] })` — replace the full list

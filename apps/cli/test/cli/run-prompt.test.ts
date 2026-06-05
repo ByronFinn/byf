@@ -114,7 +114,6 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     session: undefined,
     continue: false,
     yolo: false,
-    plan: false,
     model: undefined,
     outputFormat: undefined,
     prompt: 'say hello',

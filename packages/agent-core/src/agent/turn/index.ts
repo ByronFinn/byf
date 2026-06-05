@@ -510,7 +510,7 @@ export class TurnFlow {
   private buildDispatchEvent(turnId: number) {
     return createLoopEventDispatcher({
       appendTranscriptRecord: async (event: LoopRecordedEvent) => {
-        this.agent.context.appendLoopEvent(event);
+        await this.agent.context.appendLoopEvent(event);
       },
       emitLiveEvent: (event: LoopEvent) => {
         this.trackLoopTelemetry(event, turnId);
@@ -624,8 +624,8 @@ export class TurnFlow {
     });
   }
 
-  private telemetryMode(): 'agent' | 'plan' {
-    return this.agent.planMode.isActive ? 'plan' : 'agent';
+  private telemetryMode(): 'agent' {
+    return 'agent';
   }
 
   private shouldTrackApiError(turnId: number): boolean {

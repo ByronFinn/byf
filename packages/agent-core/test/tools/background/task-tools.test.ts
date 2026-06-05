@@ -276,9 +276,9 @@ describe('TaskListTool', () => {
       expect(tool.description).toContain('TaskOutput');
     });
 
-    it('states the tool is read-only and safe in plan mode', () => {
+    it('states the tool is read-only and safe for background tasks', () => {
       expect(tool.description).toMatch(/read-only/i);
-      expect(tool.description).toMatch(/plan mode/i);
+      expect(tool.description).toMatch(/safe/i);
     });
   });
 });
@@ -1114,12 +1114,12 @@ describe('background tool descriptions', () => {
     expect(desc).toMatch(/Read/);
   });
 
-  it('TaskList description mentions active_only default, read-only, plan-mode safe', () => {
+  it('TaskList description mentions active_only default, read-only, background-task safe', () => {
     const tool = new TaskListTool(manager);
     const desc = tool.description;
     expect(desc).toMatch(/active_only/);
     expect(desc).toMatch(/read[- ]only/i);
-    expect(desc).toMatch(/plan[- ]mode/i);
+    expect(desc).toMatch(/safe/i);
     expect(desc).toMatch(/background tasks?/i);
   });
 

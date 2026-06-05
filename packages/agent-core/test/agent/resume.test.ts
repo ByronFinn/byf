@@ -31,8 +31,6 @@ describe('Agent resume', () => {
 
     await ctx.agent.resume();
 
-    expect(ctx.agent.planMode.isActive).toBe(true);
-    expect(ctx.agent.planMode.planFilePath).toContain('resume-plan');
     expect(ctx.newEvents()).toMatchInlineSnapshot(`[]`);
     expect(ctx.llmCalls).toHaveLength(0);
     expect(execWithEnv).not.toHaveBeenCalled();
@@ -59,7 +57,6 @@ describe('Agent resume', () => {
         messages:
           assistant: text "Historical compacted summary."
           user: text "Fresh prompt after resume"
-          user: text <plan-mode-reminder>
     `);
   });
 
@@ -322,6 +319,31 @@ describe('Agent resume', () => {
         isError: true,
       }),
     });
+  });
+
+  it('gracefully replays legacy plan_mode records as no-ops', async () => {
+    const persistence = new RecordingAgentPersistence([
+      {
+        type: 'plan_mode.enter',
+        id: 'legacy-plan',
+      },
+      {
+        type: 'plan_mode.cancel',
+        id: 'legacy-plan',
+      },
+      {
+        type: 'plan_mode.enter',
+        id: 'legacy-plan-2',
+      },
+      {
+        type: 'plan_mode.exit',
+        id: 'legacy-plan-2',
+      },
+    ]);
+    const ctx = testAgent({ persistence });
+
+    await expect(ctx.agent.resume()).resolves.not.toThrow();
+    expect(findRpcEvent(ctx.allEvents, 'error')).toBeUndefined();
   });
 });
 

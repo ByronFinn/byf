@@ -54,7 +54,6 @@ export interface AppState {
   sessionId: string;
   yolo: boolean;
   permissionMode: PermissionMode;
-  planMode: boolean;
   thinkingEffort: ThinkingEffortLevel;
   contextUsage: number;
   contextTokens: number;
@@ -215,7 +214,6 @@ export interface TUIState {
   streamingTranscriptEntry: TranscriptEntry | undefined;
   activeCompactionBlock: CompactionComponent | undefined;
   toolOutputExpanded: boolean;
-  planExpanded: boolean;
   lastActivityMode: string | undefined;
   lastHistoryContent: string | undefined;
   pendingToolComponents: Map<string, ToolCallComponent>;

@@ -326,9 +326,7 @@ function buildSubagentDescriptions(subagents: ResolvedAgentProfile['subagents'])
       const details = [subagent.description, subagent.whenToUse].filter(
         (part): part is string => part !== undefined && part.length > 0,
       );
-      const header = details.length === 0 ? `- ${name}` : `- ${name}: ${details.join(' ')}`;
-      if (subagent.tools.length === 0) return header;
-      return `${header}\n  Tools: ${subagent.tools.join(', ')}`;
+      return details.length === 0 ? `- ${name}` : `- ${name}: ${details.join(' ')}`;
     })
     .join('\n');
 }

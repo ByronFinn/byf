@@ -182,7 +182,6 @@ function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppState> {
     contextTokens,
     maxContextTokens,
     contextUsage,
-    planMode: agent.plan !== null,
     yolo: agent.permission.mode === 'yolo',
     permissionMode: agent.permission.mode,
   };
@@ -674,7 +673,6 @@ function attachAgentBatchAsGroup(state: TUIState, batch: readonly TranscriptEntr
       state.appState.workDir,
     );
     if (state.toolOutputExpanded) component.setExpanded(true);
-    if (state.planExpanded) component.setPlanExpanded(true);
     state.pendingToolComponents.set(tc.id, component);
     group.attach(tc.id, component);
   }

@@ -62,19 +62,20 @@ async function captureRequestBody(
   systemPrompt: string,
   tools: Tool[],
   history: Message[],
+  options?: import('#/provider').GenerateOptions,
 ): Promise<Record<string, unknown>> {
   let capturedParams: Record<string, unknown> | undefined;
   let capturedOptions: Record<string, unknown> | undefined;
 
   (provider as any)._client.messages.create = vi
     .fn()
-    .mockImplementation((params: unknown, options?: unknown) => {
+    .mockImplementation((params: unknown, opts?: unknown) => {
       capturedParams = params as Record<string, unknown>;
-      capturedOptions = options as Record<string, unknown> | undefined;
+      capturedOptions = opts as Record<string, unknown> | undefined;
       return Promise.resolve(makeAnthropicResponse());
     });
 
-  const stream = await provider.generate(systemPrompt, tools, history);
+  const stream = await provider.generate(systemPrompt, tools, history, options);
   for await (const part of stream) {
     void part;
   }
@@ -153,7 +154,7 @@ describe('AnthropicChatProvider', () => {
       expect(body['messages']).toEqual([
         {
           role: 'user',
-          content: [{ type: 'text', text: 'Hello!', cache_control: { type: 'ephemeral' } }],
+          content: [{ type: 'text', text: 'Hello!' }],
         },
       ]);
       expect(body['system']).toEqual([
@@ -175,7 +176,7 @@ describe('AnthropicChatProvider', () => {
         { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.' }] },
         {
           role: 'user',
-          content: [{ type: 'text', text: 'And 3+3?', cache_control: { type: 'ephemeral' } }],
+          content: [{ type: 'text', text: 'And 3+3?' }],
         },
       ]);
       // No system when empty
@@ -199,7 +200,7 @@ describe('AnthropicChatProvider', () => {
         { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.' }] },
         {
           role: 'user',
-          content: [{ type: 'text', text: 'And 3+3?', cache_control: { type: 'ephemeral' } }],
+          content: [{ type: 'text', text: 'And 3+3?' }],
         },
       ]);
     });
@@ -226,7 +227,6 @@ describe('AnthropicChatProvider', () => {
             {
               type: 'image',
               source: { type: 'url', url: 'https://example.com/image.png' },
-              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -314,7 +314,6 @@ describe('AnthropicChatProvider', () => {
               type: 'tool_result',
               tool_use_id: 'call_abc123',
               content: [{ type: 'text', text: '5' }],
-              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -362,7 +361,6 @@ describe('AnthropicChatProvider', () => {
                 source: { type: 'url', url: 'https://example.com/image.png' },
               },
             ],
-            cache_control: { type: 'ephemeral' },
           },
         ],
       });
@@ -425,8 +423,6 @@ describe('AnthropicChatProvider', () => {
       // degrades parallel tool use on api.anthropic.com. This asserts:
       //  - exactly 3 messages in the expected order
       //  - both tool_result blocks are bundled in the trailing user message
-      //  - cache_control lands on the LAST block after merging (call_mul's
-      //    tool_result), mirroring the "cache the longest prefix" policy.
       expect(body['messages']).toEqual([
         {
           role: 'user',
@@ -464,7 +460,6 @@ describe('AnthropicChatProvider', () => {
                 },
                 { type: 'text', text: '20' },
               ],
-              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -668,8 +663,7 @@ describe('AnthropicChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       // Snapshot of the expected wire format:
-      // first user message has NO cache_control, assistant has thinking + text,
-      // LAST user message's text block carries cache_control.
+      // first user message has NO cache_control, assistant has thinking + text.
       expect(body['messages']).toEqual([
         {
           role: 'user',
@@ -684,7 +678,7 @@ describe('AnthropicChatProvider', () => {
         },
         {
           role: 'user',
-          content: [{ type: 'text', text: 'Thanks!', cache_control: { type: 'ephemeral' } }],
+          content: [{ type: 'text', text: 'Thanks!' }],
         },
       ]);
     });
@@ -738,7 +732,6 @@ describe('AnthropicChatProvider', () => {
             {
               type: 'image',
               source: { type: 'base64', data: B64_PNG, media_type: 'image/png' },
-              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -1783,6 +1776,83 @@ describe('AnthropicChatProvider', () => {
         model: 'k25',
         temperature: 0.5,
       });
+    });
+  });
+
+  describe('system prompt cache breakpoints', () => {
+    it('splits system prompt into multiple text blocks on breakpoints', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const systemPrompt = 'Static part\n__CACHE_BOUNDARY__\nDynamic part';
+      const body = await captureRequestBody(provider, systemPrompt, [], history, {
+        cacheBreakpoints: ['__CACHE_BOUNDARY__'],
+      });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Static part', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'Dynamic part', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('uses single block when no breakpoints provided', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, 'You are helpful.', [], history);
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'You are helpful.', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('ignores missing breakpoints and falls back to single block', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, 'No markers here.', [], history, {
+        cacheBreakpoints: ['__MISSING_MARKER__'],
+      });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'No markers here.', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('supports multiple breakpoints', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const systemPrompt = 'A\n__B1__\nB\n__B2__\nC';
+      const body = await captureRequestBody(provider, systemPrompt, [], history, {
+        cacheBreakpoints: ['__B1__', '__B2__'],
+      });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'A', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'B', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'C', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('trims whitespace around split parts', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const systemPrompt = '  Static  \n__B__\n  Dynamic  ';
+      const body = await captureRequestBody(provider, systemPrompt, [], history, {
+        cacheBreakpoints: ['__B__'],
+      });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Static', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'Dynamic', cache_control: { type: 'ephemeral' } },
+      ]);
     });
   });
 

@@ -78,10 +78,6 @@ export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
   readonly mode: PermissionMode;
 }
 
-export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
 export interface ActivateSkillRpcInput extends SessionIdRpcInput {
   readonly name: string;
   readonly args?: string | undefined;
@@ -130,9 +126,7 @@ export class SDKRpcClient {
 
   async createSession(input: CreateSessionOptions): Promise<SessionSummary> {
     const rpc = await this.getRpc();
-    const { planMode, ...coreInput } = input;
-    void planMode;
-    return rpc.createSession(coreInput);
+    return rpc.createSession(input);
   }
 
   async resumeSession(input: ResumeSessionInput): Promise<ResumedSessionSummary> {
@@ -251,20 +245,6 @@ export class SDKRpcClient {
     });
   }
 
-  async setPlanMode(input: SetSessionPlanModeRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    if (!input.enabled) {
-      return rpc.cancelPlan({
-        sessionId: input.sessionId,
-        agentId: this.interactiveAgentId,
-      });
-    }
-    return rpc.enterPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
   async getPlan(input: SessionIdRpcInput): Promise<SessionPlan> {
     const rpc = await this.getRpc();
     return rpc.getPlan({
@@ -321,10 +301,6 @@ export class SDKRpcClient {
       sessionId: input.sessionId,
       agentId,
     });
-    const plan = await rpc.getPlan({
-      sessionId: input.sessionId,
-      agentId,
-    });
     const usage = await rpc.getUsage({
       sessionId: input.sessionId,
       agentId,
@@ -338,7 +314,6 @@ export class SDKRpcClient {
       model: config.modelAlias ?? config.provider?.model,
       thinkingLevel: config.thinkingLevel,
       permission: permission.mode,
-      planMode: plan !== null,
       contextTokens,
       maxContextTokens,
       contextUsage,

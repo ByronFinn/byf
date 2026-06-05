@@ -1,4 +1,5 @@
 import { renderPrompt } from '../utils/render-prompt';
+import { estimateTokens } from '../utils/tokens';
 import type {
   RawAgentProfile,
   RawSubagentProfile,
@@ -150,14 +151,16 @@ function buildTemplateVars(
       ? context.now.toISOString()
       : (context.now ?? new Date().toISOString());
 
+  const agentsMd = context.agentsMd ?? '';
+
   return {
     ...promptVars,
     BYF_OS: context.osEnv.osKind,
     BYF_SHELL: `${context.osEnv.shellName} (\`${context.osEnv.shellPath}\`)`,
     BYF_NOW: now,
     BYF_WORK_DIR: context.cwd,
-    BYF_WORK_DIR_LS: context.cwdListing ?? '',
-    BYF_AGENTS_MD: context.agentsMd ?? '',
+    BYF_AGENTS_MD: agentsMd,
+    BYF_AGENTS_MD_TOO_LONG: estimateTokens(agentsMd) > 4000 ? 'true' : '',
     BYF_SKILLS: skills,
     BYF_ADDITIONAL_DIRS_INFO: context.additionalDirsInfo ?? '',
     ROLE_ADDITIONAL:

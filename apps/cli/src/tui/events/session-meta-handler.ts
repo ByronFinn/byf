@@ -33,7 +33,6 @@ export function handleStatusUpdate(
   if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
   if (event.contextTokens !== undefined) patch.contextTokens = event.contextTokens;
   if (event.maxContextTokens !== undefined) patch.maxContextTokens = event.maxContextTokens;
-  if (event.planMode !== undefined) patch.planMode = event.planMode;
   if (event.permission !== undefined) {
     patch.permissionMode = event.permission;
     patch.yolo = event.permission === 'yolo';

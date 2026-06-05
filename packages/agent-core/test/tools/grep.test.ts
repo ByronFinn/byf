@@ -132,7 +132,7 @@ describe('GrepTool', () => {
 
     expect(tool.name).toBe('Grep');
     expect(tool.description).toContain('unknown content or unknown file locations');
-    expect(tool.description).toContain('Do not use shell `grep` or `rg` directly');
+    expect(tool.description).not.toContain('Do not use shell `grep` or `rg` directly');
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: {
@@ -1857,7 +1857,7 @@ describe('GrepTool', () => {
     expect(tool.description).toContain('Hidden files');
     expect(tool.description).toContain('include_ignored');
     expect(tool.description).toMatch(/sensitive/i);
-    expect(tool.description).toMatch(/ALWAYS use Grep tool instead of running `grep` or `rg`/);
+    expect(tool.description).not.toMatch(/ALWAYS use Grep tool instead of running `grep` or `rg`/);
   });
 
   it('aborts and kills ripgrep after the process has spawned', async () => {

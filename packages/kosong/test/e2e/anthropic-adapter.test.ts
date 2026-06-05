@@ -90,7 +90,6 @@ describe('e2e: Anthropic adapter bridge', () => {
               {
                 type: 'image',
                 source: { type: 'url', url: 'https://example.com/image.png' },
-                cache_control: { type: 'ephemeral' },
               },
             ],
           },

@@ -176,7 +176,7 @@ import {
 } from './types';
 import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from './utils/background-task-status';
-import { hasDispose, isExpandable, isPlanExpandable } from './utils/component-capabilities';
+import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
   formatErrorMessage,
@@ -248,7 +248,6 @@ export interface TUIStartupOptions {
   readonly sessionFlag?: string;
   readonly continueLast: boolean;
   readonly yolo: boolean;
-  readonly plan: boolean;
   readonly model?: string;
   readonly startupNotice?: string;
 }
@@ -269,7 +268,6 @@ function createInitialAppState(input: ByfTuiStartupInput): AppState {
     sessionId: '',
     yolo: input.cliOptions.yolo,
     permissionMode: startupPermission,
-    planMode: input.cliOptions.plan,
     thinkingEffort: 'off',
     contextUsage: 0,
     contextTokens: 0,
@@ -337,7 +335,6 @@ export function createTUIState(options: ByfTuiOptions): TUIState {
     streamingTranscriptEntry: undefined,
     activeCompactionBlock: undefined,
     toolOutputExpanded: false,
-    planExpanded: false,
     lastActivityMode: undefined,
     lastHistoryContent: undefined,
     pendingToolComponents: new Map<string, ToolCallComponent>(),
@@ -488,7 +485,6 @@ export class ByfTui implements DialogHost {
         sessionFlag: startupInput.cliOptions.session,
         continueLast: startupInput.cliOptions.continue,
         yolo: startupInput.cliOptions.yolo,
-        plan: startupInput.cliOptions.plan,
         model: startupInput.cliOptions.model,
         startupNotice: startupInput.startupNotice,
       },
@@ -691,7 +687,6 @@ export class ByfTui implements DialogHost {
       workDir,
       model: startup.model,
       permission: startup.yolo ? 'yolo' : undefined,
-      planMode: startup.plan ? true : undefined,
     };
 
     try {
@@ -938,7 +933,6 @@ export class ByfTui implements DialogHost {
       model,
       thinking: level,
       permission: this.options.startup.yolo ? 'yolo' : undefined,
-      planMode: this.state.appState.planMode ? true : undefined,
     });
     await this.setSession(session);
     this.setAppState({
@@ -1081,18 +1075,6 @@ export class ByfTui implements DialogHost {
       }
     };
 
-    editor.onShiftTab = () => {
-      const session = this.session;
-      if (session === undefined) {
-        this.showError(NO_ACTIVE_SESSION_MESSAGE);
-        return;
-      }
-      const next = !this.state.appState.planMode;
-      this.track('shortcut_plan_toggle', { enabled: next });
-      this.track('shortcut_mode_switch', { to_mode: next ? 'plan' : 'agent' });
-      void this.applyPlanMode(session, next);
-    };
-
     editor.onOpenExternalEditor = () => {
       this.track('shortcut_editor');
       void this.openExternalEditor();
@@ -1102,8 +1084,6 @@ export class ByfTui implements DialogHost {
       this.track('shortcut_expand');
       this.toggleToolOutputExpansion();
     };
-
-    editor.onTogglePlanExpand = () => this.togglePlanExpansion();
 
     editor.onCtrlS = () => {
       if (!this.state.appState.isStreaming || this.state.appState.isCompacting) return;
@@ -1429,9 +1409,6 @@ export class ByfTui implements DialogHost {
       case 'yolo':
         await this.handleYoloCommand(args);
         return;
-      case 'plan':
-        await this.handlePlanCommand(args);
-        return;
       case 'compact':
         await this.handleCompactCommand(args);
         return;
@@ -1751,7 +1728,6 @@ export class ByfTui implements DialogHost {
     if (!hasPatchChanges(this.state.appState, patch)) return;
     const busyChanged = 'isStreaming' in patch || 'isCompacting' in patch;
     Object.assign(this.state.appState, patch);
-    if ('planMode' in patch) this.updateEditorBorderHighlight();
     this.state.footer.setState(this.state.appState);
     this.updateActivityPane();
     if (busyChanged) this.updateQueueDisplay();
@@ -1797,7 +1773,6 @@ export class ByfTui implements DialogHost {
       thinking:
         this.session === undefined ? undefined : this.state.appState.thinkingEffort,
       permission: this.state.appState.permissionMode,
-      planMode: this.state.appState.planMode ? true : undefined,
     });
   }
 
@@ -1819,7 +1794,6 @@ export class ByfTui implements DialogHost {
       thinkingEffort: parseThinkingEffort(status.thinkingLevel),
       permissionMode: status.permission,
       yolo: status.permission === 'yolo',
-      planMode: status.planMode,
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
@@ -1831,9 +1805,6 @@ export class ByfTui implements DialogHost {
   private async activateRuntime(): Promise<void> {
     const session = this.requireSession();
     await session.setPermission(this.state.appState.permissionMode);
-    if (this.state.appState.planMode) {
-      await session.setPlanMode(true);
-    }
     await this.syncRuntimeState(session);
   }
 
@@ -2769,7 +2740,6 @@ export class ByfTui implements DialogHost {
       this.state.appState.workDir,
     );
     if (this.state.toolOutputExpanded) tc.setExpanded(true);
-    if (this.state.planExpanded) tc.setPlanExpanded(true);
     this.state.pendingToolComponents.set(toolCall.id, tc);
 
     if (toolCall.name !== 'Agent') this.state.pendingAgentGroup = null;
@@ -2782,17 +2752,6 @@ export class ByfTui implements DialogHost {
       this.state.ui.requestRender();
     }
 
-    if (toolCall.name === 'ExitPlanMode' && typeof toolCall.args['plan'] !== 'string') {
-      const session = this.requireSession();
-      void (async () => {
-        try {
-          const plan = await session.getPlan();
-          tc.setPlanInfo(plan === null ? {} : { plan: plan.content, path: plan.path });
-        } catch {
-          tc.setPlanInfo({});
-        }
-      })();
-    }
   }
 
   // Applies a tool result to a live or completed tool-call component.
@@ -2816,7 +2775,6 @@ export class ByfTui implements DialogHost {
         this.state.appState.workDir,
       );
       if (this.state.toolOutputExpanded) completed.setExpanded(true);
-      if (this.state.planExpanded) completed.setPlanExpanded(true);
       this.state.transcriptContainer.addChild(completed);
       this.state.ui.requestRender();
     }
@@ -2986,7 +2944,6 @@ export class ByfTui implements DialogHost {
       ui: this.state.ui,
       workDir: this.state.appState.workDir,
       toolOutputExpanded: this.state.toolOutputExpanded,
-      planExpanded: this.state.planExpanded,
       getImageAttachment: (id) => {
         const a = this.imageStore.get(id);
         return a?.kind === 'image' ? a : undefined;
@@ -3226,30 +3183,12 @@ export class ByfTui implements DialogHost {
     this.state.ui.requestRender();
   }
 
-  // Toggles expansion for plan-preview cards (ExitPlanMode). Returns true
-  // iff at least one plan card was actually toggled so the caller can decide
-  // whether to consume the keystroke vs. let pi-tui's default end-of-line run.
-  private togglePlanExpansion(): boolean {
-    const next = !this.state.planExpanded;
-    let toggled = false;
-    for (const child of this.state.transcriptContainer.children) {
-      if (isPlanExpandable(child) && child.setPlanExpanded(next)) {
-        toggled = true;
-      }
-    }
-    if (!toggled) return false;
-    this.state.planExpanded = next;
-    this.state.ui.requestRender();
-    return true;
-  }
-
-  // Updates the editor border color for slash command and plan-mode context.
+  // Updates the editor border color for slash command context.
   private updateEditorBorderHighlight(text?: string): void {
     const trimmed = (text ?? this.state.editor.getText()).trimStart();
-    const colorToken =
-      this.state.appState.planMode || trimmed.startsWith('/')
-        ? this.state.theme.colors.primary
-        : this.state.theme.colors.border;
+    const colorToken = trimmed.startsWith('/')
+      ? this.state.theme.colors.primary
+      : this.state.theme.colors.border;
     this.state.editor.borderColor = (s: string) => chalk.hex(colorToken)(s);
     this.state.ui.requestRender();
   }
@@ -3789,7 +3728,6 @@ export class ByfTui implements DialogHost {
       sessionTitle: appState.sessionTitle,
       thinking: appState.thinkingEffort !== 'off',
       permissionMode: appState.permissionMode,
-      planMode: appState.planMode,
       contextUsage: appState.contextUsage,
       contextTokens: appState.contextTokens,
       maxContextTokens: appState.maxContextTokens,
@@ -3856,9 +3794,6 @@ export class ByfTui implements DialogHost {
       () => {
         this.toggleToolOutputExpansion();
       },
-      () => {
-        this.togglePlanExpansion();
-      },
     );
     this.mountEditorReplacement(panel);
   }
@@ -3886,9 +3821,6 @@ export class ByfTui implements DialogHost {
       () => {
         this.toggleToolOutputExpansion();
       },
-      () => {
-        this.togglePlanExpansion();
-      },
     );
     this.mountEditorReplacement(dialog);
   }
@@ -3902,30 +3834,6 @@ export class ByfTui implements DialogHost {
   // =========================================================================
   // Slash Command Handlers
   // =========================================================================
-
-  // Applies plan mode through the session and mirrors it into UI state.
-  private async applyPlanMode(session: Session, enabled: boolean): Promise<void> {
-    try {
-      await session.setPlanMode(enabled);
-      this.setAppState({ planMode: enabled });
-      if (enabled) {
-        const plan = await session.getPlan().catch(() => null);
-        this.showNotice(
-          'Plan mode: ON',
-          plan?.path !== undefined
-            ? plan.exists
-              ? `Plan target path: ${plan.path}`
-              : `Plan target path (not created yet): ${plan.path}`
-            : undefined,
-        );
-        return;
-      }
-      this.showNotice('Plan mode: OFF');
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to set plan mode: ${msg}`);
-    }
-  }
 
   // Handles the /editor command.
   private async handleEditorCommand(args: string, _eCtx: {}): Promise<void> {
@@ -4058,33 +3966,6 @@ export class ByfTui implements DialogHost {
       return;
     }
     this.showNotice('YOLO mode: OFF');
-  }
-
-  // Handles the /plan command.
-  private async handlePlanCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const subcmd = args.trim().toLowerCase();
-    if (subcmd === 'clear') {
-      await session.clearPlan();
-      this.showNotice('Plan cleared');
-      return;
-    }
-
-    let enabled: boolean;
-    if (subcmd.length === 0) enabled = !this.state.appState.planMode;
-    else if (subcmd === 'on') enabled = true;
-    else if (subcmd === 'off') enabled = false;
-    else {
-      this.showError(`Unknown plan subcommand: ${subcmd}`);
-      return;
-    }
-
-    await this.applyPlanMode(session, enabled);
   }
 
   // Handles the /compact command.

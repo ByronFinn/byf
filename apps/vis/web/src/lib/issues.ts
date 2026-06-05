@@ -6,7 +6,6 @@
 //   - tool.result without preceding tool.call (orphan tool.result)
 //   - step.begin without paired step.end (incomplete step)
 //   - full_compaction.begin without complete/cancel (incomplete compaction)
-//   - plan_mode.enter without exit/cancel (still in plan mode)
 //   - permission.record_approval_result with decision='rejected' (info)
 //
 // Wire-file parse warnings are appended as info-level entries with no lineNo.
@@ -20,7 +19,6 @@ export type IssueKind =
   | 'missing_tool_result'
   | 'incomplete_step'
   | 'incomplete_compaction'
-  | 'active_plan_mode'
   | 'rejected_approval'
   | 'wire_warning';
 
@@ -54,7 +52,6 @@ export function computeIssues(
   const toolCallById = new Map<string, { lineNo: number; name: string }>();
   const stepBeginByUuid = new Map<string, { lineNo: number; step: number; turnId: string }>();
   let lastCompactionBegin: { lineNo: number; source: string } | null = null;
-  let lastPlanEnter: { lineNo: number; id: string } | null = null;
 
   for (const entry of entries) {
     const r = entry.data;
@@ -96,14 +93,6 @@ export function computeIssues(
       case 'full_compaction.complete':
       case 'full_compaction.cancel':
         lastCompactionBegin = null;
-        break;
-
-      case 'plan_mode.enter':
-        lastPlanEnter = { lineNo, id: r.id };
-        break;
-      case 'plan_mode.cancel':
-      case 'plan_mode.exit':
-        lastPlanEnter = null;
         break;
 
       case 'permission.record_approval_result':
@@ -148,14 +137,6 @@ export function computeIssues(
       kind: 'incomplete_compaction',
       lineNo: lastCompactionBegin.lineNo,
       summary: `${lastCompactionBegin.source} compaction never completed`,
-    });
-  }
-  if (lastPlanEnter !== null) {
-    out.push({
-      severity: 'info',
-      kind: 'active_plan_mode',
-      lineNo: lastPlanEnter.lineNo,
-      summary: `plan mode still active: ${lastPlanEnter.id}`,
     });
   }
 

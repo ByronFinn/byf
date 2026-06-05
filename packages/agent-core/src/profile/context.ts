@@ -3,17 +3,13 @@ import * as win32Path from 'node:path/win32';
 
 import type { Kaos } from '@byfriends/kaos';
 
-import { listDirectory } from '../tools/support/list-directory';
 import type { SystemPromptContext } from './types';
 
 const AGENTS_MD_MAX_BYTES = 32 * 1024;
 const S_IFMT = 0o170000;
 const S_IFREG = 0o100000;
 
-export type PreparedSystemPromptContext = Pick<
-  SystemPromptContext,
-  'cwd' | 'cwdListing' | 'agentsMd'
->;
+export type PreparedSystemPromptContext = Pick<SystemPromptContext, 'cwd' | 'agentsMd'>;
 
 export function resolveSystemPromptCwd(kaos: Kaos, cwd: string): string {
   return cwd === '' ? kaos.getcwd() : cwd;
@@ -24,14 +20,10 @@ export async function prepareSystemPromptContext(
   cwd: string,
 ): Promise<PreparedSystemPromptContext> {
   const resolvedCwd = resolveSystemPromptCwd(kaos, cwd);
-  const [cwdListing, agentsMd] = await Promise.all([
-    listDirectory(kaos, resolvedCwd),
-    loadAgentsMd(kaos, resolvedCwd),
-  ]);
+  const agentsMd = await loadAgentsMd(kaos, resolvedCwd);
 
   return {
     cwd: resolvedCwd,
-    cwdListing,
     agentsMd,
   };
 }

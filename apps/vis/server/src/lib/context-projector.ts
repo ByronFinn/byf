@@ -42,8 +42,6 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
   };
   const config: ConfigSnapshot = {};
   let permissionMode: 'manual' | 'yolo' | 'auto' | null = null;
-  let planActive = false;
-  let planId: string | undefined;
   // Maps step.uuid → the assistant ProjectedMessage that step is filling in.
   // Cleared on context.clear / context.apply_compaction.
   let openSteps = new Map<string, ProjectedMessage>();
@@ -168,10 +166,10 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         permissionMode = rec.mode;
         break;
       case 'plan_mode.enter':
-        planActive = true; planId = rec.id; break;
       case 'plan_mode.cancel':
       case 'plan_mode.exit':
-        planActive = false; planId = undefined; break;
+        // Legacy plan mode records are no-ops in projection.
+        break;
       default:
         break;
     }
@@ -182,7 +180,6 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
     usage,
     config,
     permission: { mode: permissionMode },
-    planMode: { active: planActive, id: planId },
   };
 }
 

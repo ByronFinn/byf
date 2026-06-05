@@ -815,7 +815,6 @@ describe('Session.createAgent', () => {
     const created = await session.createAgent({ type: 'main' }, contextProfile());
 
     expect(created.agent.config.systemPrompt).toContain('cwd=/remote/project');
-    expect(created.agent.config.systemPrompt).toContain('listing=└── README.md');
     expect(created.agent.config.systemPrompt).toContain('remote instructions');
   });
 
@@ -890,9 +889,6 @@ describe('Session.createAgent', () => {
     const created = await session.createAgent({ type: 'main' }, contextProfile());
 
     expect(created.agent.config.systemPrompt).toContain('cwd=/repo/packages/app');
-    expect(created.agent.config.systemPrompt).toContain('listing=├── src/');
-    expect(created.agent.config.systemPrompt).toContain('│   └── index.ts');
-    expect(created.agent.config.systemPrompt).toContain('└── package.json');
     expect(created.agent.config.systemPrompt).toContain('<!-- From: /repo/AGENTS.md -->');
     expect(created.agent.config.systemPrompt).toContain('root instructions');
     expect(created.agent.config.systemPrompt).toContain(
@@ -1008,11 +1004,7 @@ function contextProfile(): ResolvedAgentProfile {
   return {
     name: 'context-profile',
     systemPrompt: (context) =>
-      [
-        `cwd=${context.cwd}`,
-        `listing=${context.cwdListing ?? ''}`,
-        `agents=${context.agentsMd ?? ''}`,
-      ].join('\n'),
+      [`cwd=${context.cwd}`, `agents=${context.agentsMd ?? ''}`].join('\n'),
     tools: [],
   };
 }

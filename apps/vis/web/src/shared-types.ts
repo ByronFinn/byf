@@ -52,7 +52,6 @@ export interface ContextProjection {
   usage: UsageTotals;
   config: ConfigSnapshot;
   permission: { mode: PermissionMode | null };
-  planMode: { active: boolean; id?: string };
 }
 
 // ── Session / agent / wire DTOs ────────────────────────────────────────────

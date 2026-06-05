@@ -20,7 +20,6 @@ export interface TranscriptRenderContext {
   readonly ui?: TUI;
   readonly workDir?: string;
   readonly toolOutputExpanded: boolean;
-  readonly planExpanded: boolean;
   readonly getImageAttachment?: (id: number) => ImageAttachment | undefined;
 }
 
@@ -69,7 +68,6 @@ export function createTranscriptComponent(
           ctx.workDir,
         );
         if (ctx.toolOutputExpanded) tc.setExpanded(true);
-        if (ctx.planExpanded) tc.setPlanExpanded(true);
         return tc;
       }
       if (entry.backgroundAgentStatus !== undefined) {

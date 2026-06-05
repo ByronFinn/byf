@@ -32,7 +32,6 @@ function makeStartupInput(
       session: undefined,
       continue: false,
       yolo: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
@@ -60,7 +59,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       model: "k2",
       thinkingLevel: "off",
       permission: "manual",
-      planMode: false,
       contextTokens: 10,
       maxContextTokens: 100,
       contextUsage: 0.1,
@@ -70,7 +68,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
-    setPlanMode: vi.fn(async () => {}),
     onEvent: vi.fn(() => () => {}),
     listSkills: vi.fn(async () => []),
     close: vi.fn(async () => {}),
@@ -139,33 +136,28 @@ describe("ByfTui startup", () => {
         model: "k2",
         thinkingLevel: "off",
         permission: "yolo",
-        planMode: true,
         contextTokens: 25,
         maxContextTokens: 200,
         contextUsage: 0.125,
       })),
     });
     const harness = makeHarness(session);
-    const driver = makeDriver(harness, makeStartupInput({ yolo: true, plan: true }));
+    const driver = makeDriver(harness, makeStartupInput({ yolo: true }));
 
     await expect(driver.init()).resolves.toBe(false);
 
     expect(harness.createSession).toHaveBeenCalledWith({
       workDir: "/tmp/proj-a",
       permission: "yolo",
-      planMode: true,
     });
     expect(session.setApprovalHandler).toHaveBeenCalledOnce();
     expect(session.setQuestionHandler).toHaveBeenCalledOnce();
-    expect(harness.setTelemetryContext).toHaveBeenCalledWith({ sessionId: null });
-    expect(harness.setTelemetryContext).toHaveBeenLastCalledWith({ sessionId: "ses-1" });
     expect(driver.state.startupState).toBe("ready");
     expect(driver.state.appState).toMatchObject({
       sessionId: "ses-1",
       model: "k2",
       permissionMode: "yolo",
       yolo: true,
-      planMode: true,
       contextTokens: 25,
       maxContextTokens: 200,
       contextUsage: 0.125,
@@ -198,7 +190,6 @@ describe("ByfTui startup", () => {
       workDir: "/tmp/proj-a",
       model: "byf/k2.5",
       permission: undefined,
-      planMode: undefined,
     });
   });
 
@@ -212,7 +203,6 @@ describe("ByfTui startup", () => {
         model,
         thinkingLevel: "off",
         permission: "manual",
-        planMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -380,7 +370,6 @@ describe("ByfTui startup", () => {
         model: "k2",
         thinkingLevel: "on",
         permission: "manual",
-        planMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -414,7 +403,6 @@ describe("ByfTui startup", () => {
         model: "k2",
         thinkingLevel: "off",
         permission: "manual",
-        planMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,

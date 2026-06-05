@@ -96,6 +96,66 @@ describe('skill registry prompt rendering', () => {
   });
 });
 
+describe('getModelSkillListing', () => {
+  it('renders only name + one-line description per skill', () => {
+    const registry = makeRegistry([
+      makeSkill('alpha', 'user', 'Alpha does things.'),
+      makeSkill('beta', 'project', 'Beta helps with testing.'),
+    ]);
+
+    const listing = registry.getModelSkillListing();
+
+    expect(listing).toContain('DISREGARD any earlier skill listings. Current available skills:');
+    expect(listing).toContain('- alpha: Alpha does things.');
+    expect(listing).toContain('- beta: Beta helps with testing.');
+    expect(listing).not.toContain('Path:');
+    expect(listing).not.toContain('When to use:');
+  });
+
+  it('truncates descriptions to ~100 characters', () => {
+    const longDesc = 'a'.repeat(200);
+    const registry = makeRegistry([makeSkill('long', 'user', longDesc)]);
+
+    const listing = registry.getModelSkillListing();
+    const line = listing.split('\n').find((l) => l.includes('- long:'));
+
+    expect(line).toBeDefined();
+    expect(line!.length).toBeLessThanOrEqual('- long: '.length + 100);
+  });
+
+  it('omits disabled-model-invocation and non-prompt skills', () => {
+    const registry = makeRegistry([
+      makeSkill('visible', 'user', 'Visible skill'),
+      { ...makeSkill('hidden', 'user', 'Hidden skill'), metadata: { disableModelInvocation: true } },
+      { ...makeSkill('flow', 'user', 'Flow skill'), metadata: { type: 'flow' } },
+    ]);
+
+    const listing = registry.getModelSkillListing();
+
+    expect(listing).toContain('- visible: Visible skill');
+    expect(listing).not.toContain('hidden');
+    expect(listing).not.toContain('flow');
+  });
+
+  it('groups skills by scope', () => {
+    const registry = makeRegistry([
+      makeSkill('builtin-a', 'builtin'),
+      makeSkill('user-a', 'user'),
+    ]);
+
+    const listing = registry.getModelSkillListing();
+
+    expect(listing).toContain('### User');
+    expect(listing).toContain('### Built-in');
+    expect(listing.indexOf('### User')).toBeLessThan(listing.indexOf('### Built-in'));
+  });
+
+  it('returns empty string when no invocable skills exist', () => {
+    const registry = new SkillRegistry();
+    expect(registry.getModelSkillListing()).toBe('');
+  });
+});
+
 function makeRegistry(skills: readonly SkillDefinition[]): SkillRegistry {
   const registry = new SkillRegistry();
   for (const skill of skills) registry.register(skill);

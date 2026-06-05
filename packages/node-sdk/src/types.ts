@@ -67,7 +67,6 @@ export interface CreateSessionOptions {
   readonly model?: string | undefined;
   readonly thinking?: string | undefined;
   readonly permission?: PermissionMode | undefined;
-  readonly planMode?: boolean;
   readonly metadata?: JsonObject | undefined;
 }
 
@@ -139,7 +138,6 @@ export interface SessionStatus {
   readonly model?: string;
   readonly thinkingLevel: string;
   readonly permission: PermissionMode;
-  readonly planMode: boolean;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
   readonly contextUsage: number;

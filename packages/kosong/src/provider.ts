@@ -98,6 +98,13 @@ export interface GenerateOptions {
    * each request/retry so providers never retain mutable credential state.
    */
   auth?: ProviderRequestAuth;
+  /**
+   * String markers that indicate where to split the system prompt into
+   * separate content blocks for prompt caching. Only used by providers that
+   * support explicit cache control (e.g. Anthropic). Markers are removed from
+   * the text before it is sent to the API.
+   */
+  cacheBreakpoints?: string[];
 }
 
 /**

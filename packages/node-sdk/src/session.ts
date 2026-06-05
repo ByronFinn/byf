@@ -147,25 +147,14 @@ export class Session {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
-  async setPlanMode(enabled: boolean): Promise<void> {
-    this.ensureOpen();
-    if (typeof enabled !== 'boolean') {
-      throw new ByfError(
-        ErrorCodes.SESSION_PLAN_MODE_INVALID,
-        'Session plan mode must be a boolean',
-      );
-    }
-    await this.rpc.setPlanMode({ sessionId: this.id, enabled });
-  }
-
   async getPlan(): Promise<SessionPlan> {
     this.ensureOpen();
-    return this.rpc.getPlan({ sessionId: this.id });
+    return null;
   }
 
   async clearPlan(): Promise<void> {
     this.ensureOpen();
-    await this.rpc.clearPlan({ sessionId: this.id });
+    // Plan mode has been removed; this is now a no-op.
   }
 
   async compact(options: CompactOptions = {}): Promise<void> {

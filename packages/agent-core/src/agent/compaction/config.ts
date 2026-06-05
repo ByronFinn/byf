@@ -1,3 +1,6 @@
+import type { MaskingConfig } from '../context/observation-masking';
+import { DEFAULT_MASKING_CONFIG } from '../context/observation-masking';
+
 export interface CompactionConfig {
   triggerRatio: number;
   blockRatio: number;
@@ -6,6 +9,7 @@ export interface CompactionConfig {
   maxRecentSteps: number;
   maxRecentUserMessages: number;
   maxRecentSizeRatio: number;
+  masking?: MaskingConfig | undefined;
 }
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
@@ -16,4 +20,5 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   maxRecentSteps: 3,
   maxRecentUserMessages: Infinity,
   maxRecentSizeRatio: 0.2,
+  masking: DEFAULT_MASKING_CONFIG,
 };

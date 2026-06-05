@@ -34,7 +34,6 @@ export function contextRoute(): Hono {
         usage: proj.usage,
         config: proj.config,
         permission: proj.permission,
-        planMode: proj.planMode,
       });
     } catch (error) {
       const msg = (error as Error).message;

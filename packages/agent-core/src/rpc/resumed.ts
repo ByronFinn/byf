@@ -6,7 +6,7 @@ import type {
   PermissionData,
   PermissionMode,
 } from '#/agent/permission';
-import type { PlanData } from '#/agent/plan';
+import type { PlanData } from '#/rpc/core-api';
 import type { ToolInfo } from '#/agent/tool';
 import type { SessionSummary } from '#/rpc/core-api';
 import type { UsageStatus } from '#/rpc/events';

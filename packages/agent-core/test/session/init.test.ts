@@ -124,16 +124,14 @@ describe('Session.init', () => {
         parentToolCallId: 'generate-agents-md',
       }),
     );
-    expect(scripted.calls[0]?.history).toMatchObject([
-      {
-        role: 'user',
-        content: [
-          expect.objectContaining({
-            text: expect.stringContaining('Task requirements:'),
-          }),
-        ],
-      },
-    ]);
+    expect(scripted.calls[0]?.history[0]).toMatchObject({
+      role: 'user',
+      content: [
+        expect.objectContaining({
+          text: expect.stringContaining('Task requirements:'),
+        }),
+      ],
+    });
 
     const contextText = mainAgent.context.history
       .flatMap((message) => message.content)

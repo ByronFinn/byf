@@ -20,7 +20,7 @@ export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
 // Contract: restore MUST NOT emit UI events, call the LLM, execute tools, or
 // touch the filesystem in a way that triggers external side effects. Each case
 // should reproduce the in-memory state the live handler left behind, nothing more.
-function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
+async function restoreAgentRecord(agent: Agent, input: AgentRecord): Promise<void> {
   switch (input.type) {
     case 'metadata':
       return;
@@ -57,13 +57,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.fullCompaction.complete(input);
       return;
     case 'plan_mode.enter':
-      agent.planMode.restoreEnter(input);
-      return;
     case 'plan_mode.cancel':
-      agent.planMode.cancel(input.id);
-      return;
     case 'plan_mode.exit':
-      agent.planMode.exit(input.id);
+      // Legacy plan mode records are no-ops during replay.
       return;
     case 'context.append_message':
       agent.context.appendMessage(input.message);
@@ -72,13 +68,19 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.context.markLastUserPromptBlocked(input.hookEvent);
       return;
     case 'context.append_loop_event':
-      agent.context.appendLoopEvent(input.event);
+      await agent.context.appendLoopEvent(input.event);
       return;
     case 'context.clear':
       agent.context.clear();
       return;
     case 'context.apply_compaction':
       agent.context.applyCompaction(input);
+      return;
+    case 'context.observation_masking':
+      // Re-apply masking so the resumed context matches the live state.
+      // The original (unmasked) tool results are restored first by
+      // 'context.append_loop_event'; this record then re-applies the mask.
+      agent.context.applyObservationMasking();
       return;
     case 'tools.register_user_tool':
       agent.tools.registerUserTool(input);
@@ -133,7 +135,7 @@ export class AgentRecords {
   restore(record: AgentRecord): void {
     this._restoring = true;
     try {
-      restoreAgentRecord(this.agent, record);
+      void restoreAgentRecord(this.agent, record);
     } finally {
       this._restoring = false;
     }

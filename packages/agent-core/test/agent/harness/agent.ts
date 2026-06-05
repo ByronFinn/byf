@@ -97,6 +97,7 @@ interface TestAgentOptions {
   readonly permission?: AgentConfig['permission'];
   readonly providerManager?: ProviderManager;
   readonly sessionId?: string;
+  readonly homedir?: string;
   readonly subagentHost?: AgentConfig['subagentHost'];
   readonly onEvent?: ((event: AgentRecord) => AgentRecord | undefined) | undefined;
   readonly persistence?: AgentRecordPersistence | undefined;
@@ -174,6 +175,7 @@ export class AgentTestContext {
       compactionStrategy: options.compactionStrategy,
       providerManager,
       sessionId: options.sessionId,
+      homedir: options.homedir,
       subagentHost: options.subagentHost,
       type: options.type,
       permission: options.permission,
@@ -181,6 +183,10 @@ export class AgentTestContext {
       telemetry: options.telemetry,
       log: options.log,
     });
+    // Suppress DirectoryTreeInjector in tests so snapshots and message-order
+    // assertions remain stable. Dedicated injection tests opt-in explicitly.
+    const mgr = this.agent.injection as unknown as { injectors: Array<{ injectionVariant: string }> };
+    mgr.injectors = mgr.injectors.filter((i) => i.injectionVariant !== 'directory_tree');
     this.rpc = this.createPromiseAgentApi(this.agent);
   }
 

@@ -10,11 +10,6 @@ const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
   { label: 'Reject with feedback', response: 'rejected', requires_feedback: true },
 ];
 
-const PLAN_REJECT_CHOICES: ApprovalPanelChoice[] = [
-  { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
-  { label: 'Revise', response: 'rejected', selected_label: 'Revise', requires_feedback: true },
-];
-
 export function adaptApprovalRequest(event: ApprovalRequest): ApprovalPanelData {
   const resolved = resolveDisplay(event.toolName, event.display, event.action);
   return {
@@ -314,24 +309,8 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
   }
 }
 
-function adaptChoices(toolName: string, display: ToolInputDisplay): ApprovalPanelChoice[] {
-  if (toolName === 'ExitPlanMode' || display.kind === 'plan_review') {
-    return adaptPlanReviewChoices(display);
-  }
-
+function adaptChoices(_toolName: string, _display: ToolInputDisplay): ApprovalPanelChoice[] {
   return DEFAULT_APPROVAL_CHOICES.map((choice) => cloneChoice(choice));
-}
-
-function adaptPlanReviewChoices(display: ToolInputDisplay): ApprovalPanelChoice[] {
-  const optionChoices =
-    display.kind === 'plan_review' && display.options !== undefined && display.options.length >= 2
-      ? display.options.map((option) => ({
-          label: option.label,
-          response: 'approved' as const,
-          selected_label: option.label,
-        }))
-      : [{ label: 'Approve', response: 'approved' as const, selected_label: 'Approve' }];
-  return [...optionChoices, ...PLAN_REJECT_CHOICES].map((choice) => cloneChoice(choice));
 }
 
 function cloneChoice(choice: ApprovalPanelChoice): ApprovalPanelChoice {

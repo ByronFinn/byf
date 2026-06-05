@@ -266,11 +266,9 @@ export function configToTomlData(config: ByfConfig): Record<string, unknown> {
   const scalarFields: (keyof ByfConfig)[] = [
     'defaultProvider',
     'defaultModel',
-    'planMode',
     'yolo',
     'defaultThinking',
     'defaultPermissionMode',
-    'defaultPlanMode',
     'mergeAllAvailableSkills',
     'extraSkillDirs',
   ];

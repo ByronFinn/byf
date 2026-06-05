@@ -7,7 +7,7 @@ describe('approval adapter', () => {
     const adapted = adaptApprovalRequest(
       {
         toolCallId: 'tc-1',
-        toolName: 'EnterPlanMode',
+        toolName: 'Bash',
         action: 'run',
         display: {
           kind: 'generic',
@@ -23,7 +23,7 @@ describe('approval adapter', () => {
     expect(adapted).toMatchObject({
       id: 'tc-1',
       tool_call_id: 'tc-1',
-      tool_name: 'EnterPlanMode',
+      tool_name: 'Bash',
       display: [
         {
           type: 'shell',
@@ -87,60 +87,6 @@ describe('approval adapter', () => {
         type: 'file_content',
         path: 'src/new.ts',
         content: 'export const x = 1;\nexport const y = 2;',
-      },
-    ]);
-  });
-
-  it('omits plan review content from the approval panel while keeping Python-style choices', () => {
-    const adapted = adaptApprovalRequest({
-      toolCallId: 'tc-plan',
-      toolName: 'ExitPlanMode',
-      action: 'Review plan',
-      display: {
-        kind: 'plan_review',
-        plan: '# Plan\n\n- Inspect\n- Change\n- Verify',
-        path: '/tmp/byf-plan.md',
-      },
-    });
-
-    expect(adapted.display).toEqual([]);
-    expect(adapted.choices).toEqual([
-      { label: 'Approve', response: 'approved', selected_label: 'Approve' },
-      { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
-      {
-        label: 'Revise',
-        response: 'rejected',
-        selected_label: 'Revise',
-        requires_feedback: true,
-      },
-    ]);
-  });
-
-  it('renders multi-option plan review choices ahead of reject controls', () => {
-    const adapted = adaptApprovalRequest({
-      toolCallId: 'tc-plan-options',
-      toolName: 'ExitPlanMode',
-      action: 'Review plan and choose an option',
-      display: {
-        kind: 'plan_review',
-        plan: '# Plan',
-        path: '/tmp/byf-plan.md',
-        options: [
-          { label: 'Approach A', description: 'Small refactor' },
-          { label: 'Approach B', description: 'Full refactor' },
-        ],
-      },
-    });
-
-    expect(adapted.choices).toEqual([
-      { label: 'Approach A', response: 'approved', selected_label: 'Approach A' },
-      { label: 'Approach B', response: 'approved', selected_label: 'Approach B' },
-      { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
-      {
-        label: 'Revise',
-        response: 'rejected',
-        selected_label: 'Revise',
-        requires_feedback: true,
       },
     ]);
   });

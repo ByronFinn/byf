@@ -45,5 +45,4 @@ export interface ContextResponse {
   usage: import('./shared-types').UsageTotals;
   config: import('./shared-types').ConfigSnapshot;
   permission: { mode: import('./shared-types').PermissionMode | null };
-  planMode: { active: boolean; id?: string };
 }

@@ -81,7 +81,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       model: 'k2',
       thinkingLevel: 'off',
       permission: 'manual',
-      planMode: false,
       contextTokens: 0,
       maxContextTokens: 100,
       contextUsage: 0,
@@ -91,7 +90,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
-    setPlanMode: vi.fn(async () => {}),
     onEvent: vi.fn(() => vi.fn()),
     listMcpServers: vi.fn(async () => []),
     listSkills: vi.fn(async () => []),
@@ -103,7 +101,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
             model: 'k2',
             thinkingLevel: 'off',
             permission: 'manual',
-            planMode: false,
             contextTokens: 0,
             maxContextTokens: 100,
             contextUsage: 0,
@@ -347,19 +344,6 @@ describe('ByfTui message flow', () => {
         command: command.slice(1),
       });
     }
-  });
-
-  it('tracks Shift-Tab mode switches through the editor handler', async () => {
-    const { driver, session, harness } = await makeDriver();
-    harness.track.mockClear();
-
-    driver.state.editor.onShiftTab?.();
-
-    await vi.waitFor(() => {
-      expect(session.setPlanMode).toHaveBeenCalledWith(true);
-    });
-    expect(harness.track).toHaveBeenCalledWith('shortcut_plan_toggle', { enabled: true });
-    expect(harness.track).toHaveBeenCalledWith('shortcut_mode_switch', { to_mode: 'plan' });
   });
 
   it('routes /yolo through session permission state without app-layer telemetry duplication', async () => {
@@ -1460,68 +1444,12 @@ describe('ByfTui message flow', () => {
     expect(transcript).not.toContain('byf export');
   });
 
-  it('shows ExitPlanMode plan only in the current-plan card during approval', async () => {
-    const planContent = '# No Duplicate Plan\n\n- Do the non-duplicated plan work';
-    const session = makeSession({
-      getPlan: vi.fn(async () => ({
-        id: 'no-duplicate-plan',
-        exists: true,
-        content: planContent,
-        path: '/tmp/no-duplicate-plan.md',
-      })),
-    });
-    const { driver } = await makeDriver(session);
-
-    driver.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_exit_plan',
-        name: 'ExitPlanMode',
-        args: {},
-      } as Event,
-      vi.fn(),
-    );
-
-    await vi.waitFor(() => {
-      const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Current plan');
-      expect(countOccurrences(transcript, 'non-duplicated plan work')).toBe(1);
-    });
-
-    const approvalHandler = vi.mocked(session.setApprovalHandler).mock.calls[0]?.[0] as
-      | ((request: ApprovalRequest) => Promise<ApprovalResponse>)
-      | undefined;
-    if (approvalHandler === undefined) throw new Error('expected approval handler');
-    void approvalHandler({
-      turnId: 1,
-      toolCallId: 'call_exit_plan',
-      toolName: 'ExitPlanMode',
-      action: 'Review plan',
-      display: {
-        kind: 'plan_review',
-        plan: planContent,
-        path: '/tmp/no-duplicate-plan.md',
-      },
-    });
-
-    await vi.waitFor(() => {
-      const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
-      expect(approval).toContain('Ready to build with this plan?');
-      expect(approval).not.toContain('non-duplicated plan work');
-      expect(approval).not.toContain('/tmp/no-duplicate-plan.md');
-    });
-  });
-
   it('renders /status using the active session runtime status', async () => {
     const session = makeSession({
       getStatus: vi.fn(async () => ({
         model: 'k2',
         thinkingLevel: 'high',
         permission: 'auto',
-        planMode: true,
         contextTokens: 25,
         maxContextTokens: 100,
         contextUsage: 0.25,
@@ -1541,7 +1469,6 @@ describe('ByfTui message flow', () => {
       expect(output).toContain('Model');
       expect(output).toContain('thinking on');
       expect(output).toContain('Permissions  auto');
-      expect(output).toContain('Plan mode    on');
       expect(output).toContain('Context window');
       expect(output).toContain('25.0%');
     });
