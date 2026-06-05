@@ -39,6 +39,7 @@ export const GENERATE_REQUEST_LOG_CONTEXT = '__byfRequestLogContext';
 
 export type GenerateOptionsWithRequestLog = {
   readonly signal?: AbortSignal;
+  readonly cacheBreakpoints?: string[];
   readonly [GENERATE_REQUEST_LOG_CONTEXT]?: LLMRequestLogContext;
 };
 
