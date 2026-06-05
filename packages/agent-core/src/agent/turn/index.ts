@@ -686,14 +686,18 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         description: event.description,
         display: event.display,
       };
-    case 'tool.result':
+    case 'tool.result': {
+      const blockedReason =
+        event.result.isError === true ? event.result.blockedReason : undefined;
       return {
         type: 'tool.result',
         turnId,
         toolCallId: event.toolCallId,
         output: event.result.output,
         isError: event.result.isError,
+        blockedReason,
       };
+    }
     case 'turn.interrupted':
       if (event.activeStep === undefined) return undefined;
       return {

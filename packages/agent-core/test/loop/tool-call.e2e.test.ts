@@ -766,3 +766,92 @@ class PathSecurityTool implements ExecutableTool<Record<string, unknown>> {
     );
   }
 }
+
+describe('runTurn — blocked tool result carries blockedReason', () => {
+  it('flows blockedReason "rejected" from prepareToolExecution hook to tool.result event', async () => {
+    const echo = new EchoTool();
+    const { sink } = await runTurn({
+      tools: [echo],
+      hooks: {
+        prepareToolExecution: async () => ({
+          block: true,
+          reason: 'user rejected',
+          blockedReason: 'rejected' as const,
+        }),
+      },
+      responses: [
+        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const results = sink.byType('tool.result');
+    expect(results).toHaveLength(1);
+    const result = results[0]!.result;
+    expect(result.isError).toBe(true);
+    if (result.isError !== true) throw new Error('expected error');
+    expect(result.blockedReason).toBe('rejected');
+  });
+
+  it('flows blockedReason "cancelled" from prepareToolExecution hook to tool.result event', async () => {
+    const echo = new EchoTool();
+    const { sink } = await runTurn({
+      tools: [echo],
+      hooks: {
+        prepareToolExecution: async () => ({
+          block: true,
+          reason: 'request cancelled',
+          blockedReason: 'cancelled' as const,
+        }),
+      },
+      responses: [
+        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const results = sink.byType('tool.result');
+    expect(results).toHaveLength(1);
+    const result = results[0]!.result;
+    expect(result.isError).toBe(true);
+    if (result.isError !== true) throw new Error('expected error');
+    expect(result.blockedReason).toBe('cancelled');
+  });
+
+  it('leaves blockedReason undefined when tool executes normally', async () => {
+    const echo = new EchoTool();
+    const { sink } = await runTurn({
+      tools: [echo],
+      responses: [
+        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const results = sink.byType('tool.result');
+    expect(results).toHaveLength(1);
+    const result = results[0]!.result;
+    expect(result.isError).toBeFalsy();
+    if (result.isError === true) {
+      expect(result.blockedReason).toBeUndefined();
+    }
+  });
+
+  it('leaves blockedReason undefined when tool fails during execution', async () => {
+    const fail = new FailingTool();
+    const { sink } = await runTurn({
+      tools: [fail],
+      responses: [
+        makeToolUseResponse([makeToolCall('fail', {}, 'tc-1')]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const results = sink.byType('tool.result');
+    expect(results).toHaveLength(1);
+    const result = results[0]!.result;
+    expect(result.isError).toBe(true);
+    if (result.isError !== true) throw new Error('expected error');
+    expect(result.blockedReason).toBeUndefined();
+  });
+});

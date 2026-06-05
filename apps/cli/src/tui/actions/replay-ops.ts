@@ -260,29 +260,8 @@ function projectReplayRecord(state: ProjectionState, record: AgentReplayRecord):
       flushAssistant(state);
       projectPermissionUpdate(state, record.mode);
       return;
-    case 'approval_result': {
-      flushAssistant(state);
-      const { record: approvalRecord } = record;
-      const { result } = approvalRecord;
-      const parts: string[] = [];
-      switch (result.decision) {
-        case 'approved':
-          parts.push(result.scope === 'session' ? 'Approved for session' : 'Approved');
-          break;
-        case 'rejected':
-          parts.push('Rejected');
-          break;
-        case 'cancelled':
-          parts.push('Cancelled');
-          break;
-      }
-      parts.push(`: ${approvalRecord.action}`);
-      if (result.feedback !== undefined && result.feedback.length > 0) {
-        parts.push(` — "${result.feedback}"`);
-      }
-      state.entries.push(entry('status', parts.join(''), 'notice'));
+    case 'approval_result':
       return;
-    }
     case 'config_updated':
       return;
   }

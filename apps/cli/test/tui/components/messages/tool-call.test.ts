@@ -1045,6 +1045,71 @@ describe('ToolCallComponent', () => {
     expect(expanded).not.toContain('ctrl+o to expand');
   });
 
+  it('shows Rejected in the header when blockedReason is rejected', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_rejected',
+        name: 'Bash',
+        args: { command: 'rm -rf /' },
+      },
+      {
+        tool_call_id: 'call_bash_rejected',
+        output: 'Tool "Bash" was not run because the user rejected the tool call.',
+        is_error: true,
+        blockedReason: 'rejected',
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Rejected Bash');
+    expect(out).not.toContain('Used Bash');
+    // Body should be suppressed.
+    expect(out).not.toContain('was not run');
+  });
+
+  it('shows Cancelled in the header when blockedReason is cancelled', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_cancelled',
+        name: 'Bash',
+        args: { command: 'rm -rf /' },
+      },
+      {
+        tool_call_id: 'call_bash_cancelled',
+        output: 'Tool "Bash" was not run because the operation was cancelled.',
+        is_error: true,
+        blockedReason: 'cancelled',
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Cancelled Bash');
+    expect(out).not.toContain('Used Bash');
+    expect(out).not.toContain('was not run');
+  });
+
+  it('still says Used when blockedReason is undefined even if is_error is true', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_error',
+        name: 'Bash',
+        args: { command: 'false' },
+      },
+      {
+        tool_call_id: 'call_bash_error',
+        output: 'command exited with code 1',
+        is_error: true,
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Used Bash');
+    expect(out).toContain('command exited with code 1');
+  });
+
   it('renders unknown Write file extensions as plain text without stderr noise', () => {
     const stderr = captureProcessWrite('stderr');
     try {

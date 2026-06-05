@@ -96,6 +96,7 @@ export interface ToolResultBlockData {
   output: string;
   is_error?: boolean;
   synthetic?: boolean;
+  blockedReason?: 'rejected' | 'cancelled';
 }
 
 export interface SubagentReplayToolCallData {

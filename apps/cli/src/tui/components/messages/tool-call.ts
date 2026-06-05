@@ -1045,7 +1045,12 @@ export class ToolCallComponent extends Container {
       return this.buildSingleSubagentHeader();
     }
 
-    const verb = isFinished ? 'Used' : isTruncated ? 'Truncated' : 'Using';
+    const verb =
+      isFinished && result?.blockedReason === 'rejected' ? 'Rejected'
+      : isFinished && result?.blockedReason === 'cancelled' ? 'Cancelled'
+      : isFinished ? 'Used'
+      : isTruncated ? 'Truncated'
+      : 'Using';
     const keyArg = extractKeyArgument(toolCall.name, toolCall.args, this.workspaceDir);
     const decoded = decodeMcpToolName(toolCall.name);
     const verbStyled = isTruncated
@@ -1565,6 +1570,10 @@ export class ToolCallComponent extends Container {
   private buildContent(): void {
     const { result } = this;
     if (result === undefined || !result.output) return;
+
+    // Blocked tools: the body is the LLM-facing rejection message, which is
+    // not useful for the user who made the decision.
+    if (result.blockedReason !== undefined) return;
 
     if (this.isSingleSubagentView()) {
       return;

@@ -35,6 +35,7 @@ import type {
   ToolCall,
   PrepareToolExecutionResult,
   ExecutableToolResult,
+  ExecutableToolErrorResult,
   RunnableToolExecution,
   ToolExecution,
 } from './types';
@@ -78,7 +79,7 @@ interface RejectedToolCall {
 type PrepareToolExecutionDecision =
   | { readonly kind: 'allowed'; readonly args: unknown; readonly metadata?: unknown }
   | { readonly kind: 'synthetic'; readonly args: unknown; readonly result: ExecutableToolResult }
-  | { readonly kind: 'blocked'; readonly args: unknown; readonly output: string }
+  | { readonly kind: 'blocked'; readonly args: unknown; readonly output: string; readonly blockedReason?: 'rejected' | 'cancelled' | undefined }
   | { readonly kind: 'hookFailed'; readonly args: unknown; readonly output: string };
 
 interface PendingToolResult {
@@ -232,7 +233,9 @@ async function prepareToolCall(
   if (decision.kind === 'blocked') {
     await dispatchToolCall(step, call, decision.args);
     return {
-      task: makeResolvedToolCallTask(makeErrorToolResult(call, decision.args, decision.output)),
+      task: makeResolvedToolCallTask(
+        makeErrorToolResult(call, decision.args, decision.output, decision.blockedReason),
+      ),
     };
   }
 
@@ -375,6 +378,7 @@ async function runPrepareToolExecutionHook(
       kind: 'blocked',
       args: effectiveArgs,
       output: hookResult.reason ?? `Tool call "${call.toolName}" was blocked`,
+      blockedReason: hookResult.blockedReason,
     };
   }
 
@@ -604,7 +608,14 @@ function normalizeToolResult(r: ExecutableToolResult): ExecutableToolResult {
       output = textJoined.length > 0 ? textJoined : TOOL_OUTPUT_EMPTY;
     }
   }
-  return r.isError === true ? { output, isError: true } : { output };
+  if (r.isError === true) {
+    const base: ExecutableToolErrorResult =
+      r.blockedReason !== undefined
+        ? { output, isError: true, blockedReason: r.blockedReason }
+        : { output, isError: true };
+    return base;
+  }
+  return { output };
 }
 
 function makeToolResult(
@@ -629,8 +640,9 @@ function makeErrorToolResult(
   call: PreflightedToolCall,
   args: unknown,
   output: string,
+  blockedReason?: 'rejected' | 'cancelled' | undefined,
 ): PendingToolResult {
-  return makeToolResult(call, args, { output, isError: true });
+  return makeToolResult(call, args, { output, isError: true, blockedReason });
 }
 
 /**

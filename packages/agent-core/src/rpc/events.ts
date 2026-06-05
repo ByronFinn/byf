@@ -185,6 +185,7 @@ export interface ToolResultEvent {
   readonly output: unknown;
   readonly isError?: boolean | undefined;
   readonly synthetic?: boolean | undefined;
+  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
 }
 
 export interface SubagentSpawnedEvent {

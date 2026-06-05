@@ -110,7 +110,19 @@ const webSearchChip: ChipProvider = (_toolCall, result) => {
   return pluralize(count, 'result');
 };
 
+const bashChip: ChipProvider = (_toolCall, result) => {
+  const lines = result.output.split('\n').filter((l) => l.trim().length > 0).length;
+  if (lines === 0) return '';
+  if (!result.is_error) return pluralize(lines, 'line');
+  const m =
+    result.output.match(/Command failed with exit code: (\d+)/) ??
+    result.output.match(/Process exited with code (\d+)/);
+  if (m) return `exit ${m[1]}, ${pluralize(lines, 'line')}`;
+  return pluralize(lines, 'line');
+};
+
 const REGISTRY: Record<string, ChipProvider> = {
+  Bash: bashChip,
   Edit: editChip,
   Write: writeChip,
   Read: readChip,

@@ -29,8 +29,6 @@ import {
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
-  ApprovalRequest,
-  ApprovalResponse,
   AssistantDeltaEvent,
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
@@ -1867,11 +1865,7 @@ export class ByfTui implements DialogHost {
 
   // Connects session approval and question requests to local controllers.
   private registerSessionHandlers(session: Session): void {
-    session.setApprovalHandler(
-      createApprovalRequestHandler(this.approvalController, (request, response) => {
-        this.appendApprovalTranscriptEntry(request, response);
-      }),
-    );
+    session.setApprovalHandler(createApprovalRequestHandler(this.approvalController));
     session.setQuestionHandler(createQuestionAskHandler(this.questionController));
   }
 
@@ -3008,32 +3002,6 @@ export class ByfTui implements DialogHost {
       this.state.transcriptContainer.addChild(component);
       this.state.ui.requestRender();
     }
-  }
-
-  // Appends an approval-result entry to the transcript.
-  private appendApprovalTranscriptEntry(request: ApprovalRequest, response: ApprovalResponse): void {
-    const parts: string[] = [];
-    switch (response.decision) {
-      case 'approved':
-        parts.push(response.scope === 'session' ? 'Approved for session' : 'Approved');
-        break;
-      case 'rejected':
-        parts.push('Rejected');
-        break;
-      case 'cancelled':
-        parts.push('Cancelled');
-        break;
-    }
-    parts.push(`: ${request.action}`);
-    if (response.feedback !== undefined && response.feedback.length > 0) {
-      parts.push(` — "${response.feedback}"`);
-    }
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'status',
-      renderMode: 'notice',
-      content: parts.join(''),
-    });
   }
 
   // Adds the welcome component to the transcript.
