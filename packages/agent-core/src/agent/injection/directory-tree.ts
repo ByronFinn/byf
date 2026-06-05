@@ -59,7 +59,7 @@ export class DirectoryTreeInjector extends DynamicInjector {
 
     this.lastTree = tree;
     this.hasInjected = true;
-    return tree;
+    return `Current working directory structure (${workDir}):\n${tree}`;
   }
 }
 
