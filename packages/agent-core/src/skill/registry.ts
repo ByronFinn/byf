@@ -3,8 +3,6 @@ import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import type { SkillDefinition, SkillRoot, SkillSource, SkippedSkill } from './types';
 import { isInlineSkillType, normalizeSkillName } from './types';
 
-const LISTING_DESC_MAX = 100;
-
 export class SkillNotFoundError extends Error {
   readonly skillName: string;
 
@@ -137,9 +135,5 @@ function formatFullSkill(skill: SkillDefinition): readonly string[] {
 }
 
 function formatModelSkill(skill: SkillDefinition): readonly string[] {
-  return [`- ${skill.name}: ${truncate(skill.description, LISTING_DESC_MAX)}`];
-}
-
-function truncate(value: string, max: number): string {
-  return value.length > max ? value.slice(0, max) : value;
+  return [`- ${skill.name}: ${skill.description}`];
 }
