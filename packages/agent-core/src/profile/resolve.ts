@@ -146,10 +146,6 @@ function buildTemplateVars(
     typeof context.skills === 'string'
       ? context.skills
       : (context.skills?.getModelSkillListing() ?? '');
-  const now =
-    context.now instanceof Date
-      ? context.now.toISOString()
-      : (context.now ?? new Date().toISOString());
 
   const agentsMd = context.agentsMd ?? '';
 
@@ -157,7 +153,6 @@ function buildTemplateVars(
     ...promptVars,
     BYF_OS: context.osEnv.osKind,
     BYF_SHELL: `${context.osEnv.shellName} (\`${context.osEnv.shellPath}\`)`,
-    BYF_NOW: now,
     BYF_WORK_DIR: context.cwd,
     BYF_AGENTS_MD: agentsMd,
     BYF_AGENTS_MD_TOO_LONG: estimateTokens(agentsMd) > 4000 ? 'true' : '',

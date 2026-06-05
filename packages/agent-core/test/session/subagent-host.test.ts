@@ -252,7 +252,7 @@ describe('SessionSubagentHost', () => {
         'Implemented the requested fix in the target module, updated all affected call sites, and confirmed the change compiles cleanly and passes the existing test suite. No unrelated code paths were touched while making this change.',
     });
     expect(child.agent.config.profileName).toBe('coder');
-    expect(child.llmCalls[0]?.systemPrompt).toContain('You are now running as a subagent.');
+    expect(child.llmCalls[0]?.systemPrompt).toContain('You are operating as a subagent instance.');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'Bash',
       'Edit',

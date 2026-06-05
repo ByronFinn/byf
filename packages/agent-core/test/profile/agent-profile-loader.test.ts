@@ -25,7 +25,6 @@ const promptContext: SystemPromptContext = {
     shellPath: '/bin/bash',
   },
   cwd: '/workspace',
-  now: '2026-05-09T00:00:00.000Z',
   agentsMd: 'Project instructions.',
   skills: 'Available test skills.',
 };

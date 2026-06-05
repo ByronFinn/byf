@@ -36,7 +36,6 @@ export type RawAgentProfile = z.infer<typeof RawAgentProfileSchema>;
 export interface SystemPromptContext {
   readonly osEnv: Environment;
   readonly cwd: string;
-  readonly now?: string | Date;
   readonly agentsMd?: string;
   readonly skills?: SkillRegistry | string;
   readonly additionalDirsInfo?: string;
