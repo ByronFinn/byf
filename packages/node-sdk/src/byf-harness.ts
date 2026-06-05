@@ -78,8 +78,7 @@ export class ByfHarness {
   }
 
   async createSession(options: CreateSessionOptions): Promise<Session> {
-    const { planMode, ...coreOptions } = options;
-    const summary = await this.rpc.createSession(coreOptions);
+    const summary = await this.rpc.createSession(options);
     const session = new Session({
       id: summary.id,
       workDir: summary.workDir,
@@ -90,9 +89,6 @@ export class ByfHarness {
       },
     });
     this.activeSessions.set(session.id, session);
-    if (planMode === true) {
-      await session.setPlanMode(true);
-    }
     return session;
   }
 

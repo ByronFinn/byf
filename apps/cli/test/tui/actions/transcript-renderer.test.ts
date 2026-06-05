@@ -22,7 +22,6 @@ function makeCtx(overrides?: Partial<Parameters<typeof createTranscriptComponent
     colors,
     markdownTheme,
     toolOutputExpanded: false,
-    planExpanded: false,
     ...overrides,
   };
 }
@@ -87,7 +86,7 @@ describe('createTranscriptComponent', () => {
     expect(result).toBeInstanceOf(ToolCallComponent);
   });
 
-  it('passes toolOutputExpanded and planExpanded to ToolCallComponent', () => {
+  it('passes toolOutputExpanded to ToolCallComponent', () => {
     const toolCallData: ToolCallBlockData = {
       id: 'tc1',
       name: 'Edit',
@@ -95,7 +94,7 @@ describe('createTranscriptComponent', () => {
     };
     const result = createTranscriptComponent(
       entry('tool_call', '', { toolCallData }),
-      makeCtx({ toolOutputExpanded: true, planExpanded: true }),
+      makeCtx({ toolOutputExpanded: true }),
     );
     expect(result).toBeInstanceOf(ToolCallComponent);
   });

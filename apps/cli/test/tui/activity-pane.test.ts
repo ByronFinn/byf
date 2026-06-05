@@ -13,7 +13,6 @@ function makeStartupInput(): ByfTuiStartupInput {
       session: undefined,
       continue: false,
       yolo: false,
-      plan: false,
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,

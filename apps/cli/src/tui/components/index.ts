@@ -21,7 +21,6 @@ export * from './media/image-thumbnail';
 export * from './messages/agent-group';
 export * from './messages/assistant-message';
 export * from './messages/background-agent-status';
-export * from './messages/plan-box';
 export * from './messages/read-group';
 export * from './messages/shell-execution';
 export * from './messages/skill-activation';

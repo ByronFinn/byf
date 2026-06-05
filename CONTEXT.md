@@ -40,15 +40,6 @@ CLI command to configure a catalog provider from models.dev. Complements `/login
 ### /logout
 CLI command to open an interactive selector to remove a configured provider. The provider for `defaultModel` is highlighted by default. The `/disconnect` alias behaves identically.
 
-### Plan Mode
-A planning state where the agent focuses on investigation and planning before implementation, with stricter write boundaries than normal execution mode.
-
-### Plan Target Path
-The stable path shown when Plan Mode is entered, indicating where the plan artifact is intended to be written if planning content is actually produced.
-
-### Plan Artifact
-The persisted plan markdown file. It is considered materialized only after the first actual write, not merely by entering Plan Mode.
-
 ### Agent
 The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, PlanMode, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
 
@@ -79,8 +70,35 @@ Summarizes old conversation history to fit within context limits. Triggered manu
 ### Thinking
 Extended thinking / reasoning by the model. Controlled by `ThinkingEffort` (`off | low | medium | high | xhigh | max`). Each provider adapter maps effort levels to its native API parameter.
 
+### Approval
+A permission gate before a tool is executed. The agent presents a tool call to the user (with the command, diff, or file operation details), who approves, rejects, or cancels. The approval outcome flows into the tool result as `blockedReason` (`'rejected'` | `'cancelled'`) when the tool was not executed. Approved tools proceed to execution normally.
+
 ### Sub-agent Activity Trace
 A user-visible account of what a sub-agent did while working: lifecycle status, visible assistant output, tool activity, approval waits, errors, and final result. It is not the model's private chain-of-thought.
+
+### Context Minimization
+A first-class engineering concern in the agent engine. The discipline of curating the smallest set of high-signal tokens that maximize the likelihood of desired outcomes. Encompasses system prompt size, tool definition tokens, conversation history, tool outputs, and prompt caching.
+
+### Observation Masking
+A rule-based compression strategy that replaces old tool results in the conversation history with compact structured summaries plus a small head/tail fragment. Requires no LLM call — purely string transformation. Outperforms LLM summarization at a fraction of the cost (per JetBrains research). Ordered by importance (Write/Edit preserved longest, Read/Grep/Glob masked first).
+
+### Importance-Based Masking
+The specific variant of observation masking used in BYF. Tool results are classified by priority: high-persistence results (Write/Edit, user-visible output) are kept longest; low-persistence results (Glob/Grep search results) are masked first. Triggered by token pressure thresholds (60-85%), not by turn count.
+
+### Cache Boundary
+A sentinel marker (`__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__` pattern) that splits the prompt into a static cacheable prefix and a dynamic per-session suffix. Enables Anthropic's prompt cache API. Static content before the boundary is cached globally; dynamic content after it is recomputed per turn.
+
+### Progressive Disclosure
+Loading only names and brief descriptions at startup, then fetching full content on demand. Applied to Skills in BYF: only skill names and one-line descriptions are injected into the system prompt; the full SKILL.md content is loaded via the `Skill` tool when needed.
+
+### Structured Summary
+The compact representation used for masked tool results. Example: `[Bash: 'npm test', exit=0, 127 lines, stderr: none]`. Preserves the tool call metadata and a small head/tail fragment so the agent can decide whether to re-read the full output.
+
+### Output Offloading
+Writing full tool outputs exceeding a threshold (~8,000 tokens) to scratch files and replacing the tool result with a preview (1,000 chars) plus a file reference. Agent can re-read on demand. Scratch files are size/age bounded to prevent unbounded growth.
+
+### AGENTS.md Budget
+A soft limit (4,000 tokens) that triggers a warning when merged AGENTS.md content exceeds it. Encourages concise project instructions. AGENTS.md is always loaded into the system prompt (not moved to messages) to preserve instruction following.
 
 ## Renaming Map
 

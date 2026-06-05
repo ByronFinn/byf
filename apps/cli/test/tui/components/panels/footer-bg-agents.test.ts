@@ -16,7 +16,6 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     sessionId: 'sess_1',
     yolo: false,
     permissionMode: 'manual',
-    planMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,

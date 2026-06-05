@@ -21,8 +21,6 @@ export type KnownBuiltinToolName =
   | 'FetchURL'
   | 'Agent'
   | 'AskUserQuestion'
-  | 'EnterPlanMode'
-  | 'ExitPlanMode'
   | 'Skill'
   | 'Bash'
   | 'Write'
@@ -46,8 +44,6 @@ const BUILTIN_TOOL_DEFAULT_PERMISSION_TABLE: BuiltinToolDefaultPermissionTable =
   FetchURL: 'auto_allow',
   Agent: 'auto_allow',
   AskUserQuestion: 'auto_allow',
-  EnterPlanMode: 'auto_allow',
-  ExitPlanMode: 'auto_allow',
   Skill: 'auto_allow',
   Bash: 'ask',
   Write: 'ask',

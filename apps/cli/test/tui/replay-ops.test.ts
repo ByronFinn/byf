@@ -506,26 +506,12 @@ describe('projectReplayRecords', () => {
     expect(JSON.parse(output)).toEqual(mediaContent);
   });
 
-  it('projects plan, permission, and approval replay records as notices', () => {
+  it('projects plan and permission replay records as notices', () => {
     const projected = projectReplayRecords([
       { type: 'plan_updated', enabled: true },
       { type: 'permission_updated', mode: 'auto' },
       { type: 'permission_updated', mode: 'yolo' },
       { type: 'permission_updated', mode: 'manual' },
-      {
-        type: 'approval_result',
-        record: {
-          turnId: 0,
-          toolCallId: 'call_bash',
-          action: 'run command',
-          toolName: 'Bash',
-          result: {
-            decision: 'approved',
-            scope: 'session',
-            selectedLabel: 'Approve for this session',
-          },
-        },
-      },
       { type: 'plan_updated', enabled: false },
     ]);
 
@@ -534,7 +520,6 @@ describe('projectReplayRecords', () => {
       ['status', 'notice', 'Permission mode: auto'],
       ['status', 'notice', 'YOLO mode: ON'],
       ['status', 'notice', 'YOLO mode: OFF'],
-      ['status', 'notice', 'Approved for session: run command'],
       ['status', 'notice', 'Plan mode: OFF'],
     ]);
     expect(projected.entries[2]?.detail).toBe(
@@ -546,7 +531,7 @@ describe('projectReplayRecords', () => {
     const projected = projectReplayRecords([
       { type: 'config_updated', config: { thinkingLevel: 'off' } },
       message('user', [{ type: 'text', text: 'ignore by origin' }], {
-        origin: { kind: 'injection', variant: 'plan_mode' },
+        origin: { kind: 'injection', variant: 'permission_mode' },
       }),
       message('user', [{ type: 'text', text: 'visible' }]),
     ]);

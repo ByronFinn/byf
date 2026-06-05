@@ -32,7 +32,6 @@ default_model = "byf-for-coding"
 default_thinking = false
 default_permission_mode = "auto"
 skip_afk_prompt_injection = false
-default_plan_mode = false
 default_editor = ""
 theme = "dark"
 show_thinking_stream = true
@@ -89,7 +88,6 @@ describe('SDK config TOML', () => {
     expect(config.defaultModel).toBe('byf-for-coding');
     expect(config.defaultThinking).toBe(false);
     expect(config.defaultPermissionMode).toBe('auto');
-    expect(config.defaultPlanMode).toBe(false);
     expect(config.mergeAllAvailableSkills).toBe(true);
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
 

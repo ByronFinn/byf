@@ -1,13 +1,13 @@
 import type { Agent } from '..';
 import type { DynamicInjector } from './injector';
+import { DirectoryTreeInjector } from './directory-tree';
 import { PermissionModeInjector } from './permission-mode';
-import { PlanModeInjector } from './plan-mode';
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
 
   constructor(protected readonly agent: Agent) {
-    this.injectors = [new PlanModeInjector(agent), new PermissionModeInjector(agent)];
+    this.injectors = [new PermissionModeInjector(agent), new DirectoryTreeInjector(agent)];
   }
 
   async inject(): Promise<void> {

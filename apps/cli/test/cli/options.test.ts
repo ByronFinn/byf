@@ -33,7 +33,6 @@ describe('CLI options parsing', () => {
     it('returns defaults when no arguments are given', () => {
       const opts = parse([]);
       expect(opts.yolo).toBe(false);
-      expect(opts.plan).toBe(false);
       expect(opts.continue).toBe(false);
       expect(opts.session).toBeUndefined();
       expect(opts.model).toBeUndefined();
@@ -119,12 +118,6 @@ describe('CLI options parsing', () => {
     });
   });
 
-  describe('--plan', () => {
-    it('sets plan mode flag', () => {
-      expect(parse(['--plan']).plan).toBe(true);
-    });
-  });
-
   describe('--model / -m', () => {
     it('parses -m as a model override', () => {
       expect(parse(['-m', 'byf/k2']).model).toBe('byf/k2');
@@ -184,12 +177,6 @@ describe('CLI options parsing', () => {
       expect(() => validateOptions(opts)).toThrow('Cannot combine --prompt with --yolo.');
     });
 
-    it('rejects prompt mode with --plan', () => {
-      const opts = parse(['-p', 'run this', '--plan']);
-      expect(() => validateOptions(opts)).toThrow(OptionConflictError);
-      expect(() => validateOptions(opts)).toThrow('Cannot combine --prompt with --plan.');
-    });
-
     it('parses --output-format=stream-json in prompt mode', () => {
       const opts = parse(['-p', 'run this', '--output-format=stream-json']);
       expect(opts.outputFormat).toBe('stream-json');
@@ -247,6 +234,7 @@ describe('CLI options parsing', () => {
         '--agent-file=x',
         '--mcp-config={}',
         '--mcp-config-file=/',
+        '--plan',
       ]) {
         expect(() => parse([arg])).toThrow();
       }

@@ -1,13 +1,6 @@
-Use this tool to maintain a structured TODO list as you work through a multi-step task. This is especially useful in plan mode and for long-running investigations.
+Use this tool to maintain a structured TODO list as you work through a multi-step task.
 
-**When to use:**
-- Multi-step tasks that span several tool calls
-- Tracking investigation progress across a large codebase search
-- Planning a sequence of edits before making them
-
-**When NOT to use:**
-- Single-shot answers that complete in one or two tool calls
-- Trivial requests where tracking adds no clarity
+Use for multi-step tasks, tracking investigation progress, or planning a sequence of edits. Do not use for single-shot answers or trivial requests.
 
 **Avoid churn:**
 - Do not re-call this tool when nothing meaningful has changed since the last call — update the list only after real progress.
@@ -16,7 +9,7 @@ Use this tool to maintain a structured TODO list as you work through a multi-ste
 
 **How to use:**
 - Call with `todos: [...]` to replace the full list. Statuses: pending / in_progress / done.
-- Call with no arguments to retrieve the current list without changing it.
+- Call with no arguments to query the current list.
 - Call with `todos: []` to clear the list.
-- Keep titles short and actionable (e.g. "Read session-control.ts", "Add planMode flag to TurnManager").
+- Keep titles short and actionable.
 - Update statuses as you make progress — mark one item in_progress at a time.

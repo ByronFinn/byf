@@ -164,12 +164,12 @@ describe('ApprovalPanelComponent', () => {
     },
   );
 
-  it('renders ExitPlanMode with plan-specific header and plan-review choices', () => {
+  it('renders generic approval with custom choices', () => {
     const pending: PendingApproval = {
       data: {
         id: 'approval_plan',
         tool_call_id: 'tool_plan',
-        tool_name: 'ExitPlanMode',
+        tool_name: 'CustomTool',
         action: 'review plan',
         description: '',
         display: [],
@@ -183,8 +183,7 @@ describe('ApprovalPanelComponent', () => {
     const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
 
     const out = strip(dialog.render(80).join('\n'));
-    expect(out).toContain('Ready to build with this plan?');
-    expect(out).not.toContain('Approve ExitPlanMode?');
+    expect(out).toContain('Approve CustomTool?');
     expect(out).toContain('Approve');
     expect(out).toContain('Reject');
     expect(out).toContain('Revise');
@@ -372,7 +371,7 @@ describe('ApprovalPanelComponent', () => {
     }
   });
 
-  it('returns feedback for plan-review revise choice', () => {
+  it('returns feedback for revise choice', () => {
     const responses: Array<{
       response: string;
       feedback?: string | undefined;
@@ -382,7 +381,7 @@ describe('ApprovalPanelComponent', () => {
       data: {
         id: 'approval_plan',
         tool_call_id: 'tool_plan',
-        tool_name: 'ExitPlanMode',
+        tool_name: 'CustomTool',
         action: 'review plan',
         description: '',
         display: [],

@@ -65,7 +65,7 @@ describe('AskUserQuestionTool', () => {
     const { tool } = makeTool();
 
     expect(tool.name).toBe('AskUserQuestion');
-    expect(tool.description).toContain('structured options');
+    expect(tool.description).toContain('multiple-choice');
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: { questions: { type: 'array' } },
@@ -259,5 +259,13 @@ describe('AskUserQuestionTool', () => {
     expect(result.output).toContain('does not support interactive questions');
     expect(result.output).toContain('Do NOT call this tool again');
     expect(result.output).toContain('Ask the user directly in your text response instead');
+  });
+
+  it('adversarial: still distinguishes when to ask and when not to ask after compression', () => {
+    const { tool } = makeTool();
+
+    expect(tool.description).toMatch(/when not to use|when NOT to use/i);
+    expect(tool.description).toMatch(/infer the answer|be decisive/i);
+    expect(tool.description).toMatch(/trivial|genuinely changes/i);
   });
 });

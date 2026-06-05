@@ -510,7 +510,7 @@ export class TurnFlow {
   private buildDispatchEvent(turnId: number) {
     return createLoopEventDispatcher({
       appendTranscriptRecord: async (event: LoopRecordedEvent) => {
-        this.agent.context.appendLoopEvent(event);
+        await this.agent.context.appendLoopEvent(event);
       },
       emitLiveEvent: (event: LoopEvent) => {
         this.trackLoopTelemetry(event, turnId);
@@ -624,8 +624,8 @@ export class TurnFlow {
     });
   }
 
-  private telemetryMode(): 'agent' | 'plan' {
-    return this.agent.planMode.isActive ? 'plan' : 'agent';
+  private telemetryMode(): 'agent' {
+    return 'agent';
   }
 
   private shouldTrackApiError(turnId: number): boolean {
@@ -686,14 +686,18 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         description: event.description,
         display: event.display,
       };
-    case 'tool.result':
+    case 'tool.result': {
+      const blockedReason =
+        event.result.isError === true ? event.result.blockedReason : undefined;
       return {
         type: 'tool.result',
         turnId,
         toolCallId: event.toolCallId,
         output: event.result.output,
         isError: event.result.isError,
+        blockedReason,
       };
+    }
     case 'turn.interrupted':
       if (event.activeStep === undefined) return undefined;
       return {

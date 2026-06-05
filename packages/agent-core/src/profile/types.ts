@@ -37,7 +37,6 @@ export interface SystemPromptContext {
   readonly osEnv: Environment;
   readonly cwd: string;
   readonly now?: string | Date;
-  readonly cwdListing?: string;
   readonly agentsMd?: string;
   readonly skills?: SkillRegistry | string;
   readonly additionalDirsInfo?: string;

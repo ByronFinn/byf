@@ -585,4 +585,12 @@ describe('GlobTool', () => {
     expect(tool.description).toContain('C:\\Users\\foo');
     expect(tool.description).toContain('/c/Users/foo');
   });
+
+  it('adversarial: still requires literal anchors in glob patterns after compression', () => {
+    const tool = new GlobTool(createFakeKaos(), workspace);
+
+    expect(tool.description).toMatch(/literal anchor|no literal anchor/i);
+    expect(tool.description).toContain('pure wildcard');
+    expect(tool.description).toContain('brace expansion');
+  });
 });

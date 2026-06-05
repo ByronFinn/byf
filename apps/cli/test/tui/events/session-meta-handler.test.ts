@@ -107,16 +107,7 @@ describe('handleStatusUpdate', () => {
     expect(setAppState).not.toHaveBeenCalled();
   });
 
-  it('applies planMode patch', () => {
-    const setAppState = vi.fn();
-    const event: AgentStatusUpdatedEvent = {
-      type: 'agent.status.updated',
-      planMode: true,
-    };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0]![0].planMode).toBe(true);
-  });
+
 });
 
 describe('handleSessionMetaChanged', () => {

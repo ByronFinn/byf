@@ -22,7 +22,6 @@ import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 
-import { PlanBoxComponent } from './plan-box';
 import { ShellExecutionComponent } from './shell-execution';
 import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
 import { pickResultRenderer } from './tool-renderers/registry';
@@ -30,7 +29,6 @@ import { pickResultRenderer } from './tool-renderers/registry';
 const MAX_ARG_LENGTH = 60;
 const MAX_SUB_TOOL_CALLS_SHOWN = 4;
 const MAX_SINGLE_SUBAGENT_TOOL_ROWS = 4;
-const APPROVED_PLAN_MARKER = '## Approved Plan:';
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 const SUBAGENT_ELAPSED_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
@@ -132,62 +130,6 @@ function formatElapsed(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
   return `${String(minutes)}m ${String(remainder)}s`;
-}
-
-function extractApprovedPlan(output: string): string {
-  const markerIndex = output.indexOf(APPROVED_PLAN_MARKER);
-  if (markerIndex < 0) return '';
-  return output.slice(markerIndex + APPROVED_PLAN_MARKER.length).trim();
-}
-
-interface ExitPlanModeOutcome {
-  readonly kind: 'approved' | 'rejected';
-  readonly chosen?: string;
-  readonly feedback?: string;
-  readonly path?: string;
-}
-
-const REJECT_PREFIX = 'User rejected the plan.';
-const REJECT_FEEDBACK_PREFIX = 'User rejected the plan. Feedback:';
-const APPROVED_OPTION_RE = /^User approved option "([^"]+)"\./;
-const PLAN_REJECT_PREFIX = 'Plan rejected by user.';
-const SELECTED_APPROACH_RE = /^Exited plan mode\. Selected approach: ([^\n]+)\n/;
-const PLAN_SAVED_TO_RE = /\nPlan saved to: ([^\n]+)\n/;
-
-/**
- * Parses the ExitPlanMode result content string to recover the approval outcome
- * and optional plan path. Core-side templates live in
- * `packages/agent-core/src/tools/builtin/planning/exit-plan-mode.ts`:
- *   - Approved output starts with 'Exited plan mode.' and selected options
- *     are reported as 'Selected approach: <label>'. Older outputs may start
- *     with 'User approved option "<label>".' Plan-file mode may include
- *     'Plan saved to: <path>'.
- *   - Rejected output starts with 'Plan rejected by user.' or older
- *     'User rejected the plan.'; feedback uses 'User rejected the plan.
- *     Feedback:\n\n<text>'.
- * This is a string protocol rather than a structured payload. Prefer a
- * structured event payload if core starts emitting one.
- */
-function interpretExitPlanModeOutcome(output: string): ExitPlanModeOutcome {
-  if (output.startsWith(REJECT_PREFIX)) {
-    if (output.startsWith(REJECT_FEEDBACK_PREFIX)) {
-      const feedback = output.slice(REJECT_FEEDBACK_PREFIX.length).trimStart();
-      return { kind: 'rejected', feedback };
-    }
-    return { kind: 'rejected' };
-  }
-  if (output.startsWith(PLAN_REJECT_PREFIX)) {
-    return { kind: 'rejected' };
-  }
-  const pathMatch = PLAN_SAVED_TO_RE.exec(output);
-  const path = pathMatch?.[1]?.trim();
-  const optionMatch = SELECTED_APPROACH_RE.exec(output) ?? APPROVED_OPTION_RE.exec(output);
-  if (optionMatch !== null) {
-    return path !== undefined && path.length > 0
-      ? { kind: 'approved', chosen: optionMatch[1], path }
-      : { kind: 'approved', chosen: optionMatch[1] };
-  }
-  return path !== undefined && path.length > 0 ? { kind: 'approved', path } : { kind: 'approved' };
 }
 
 function unescapeJsonString(s: string): string {
@@ -423,21 +365,11 @@ class PrefixedWrappedLine implements Component {
 
 export class ToolCallComponent extends Container {
   private expanded = false;
-  private planExpanded = false;
   private toolCall: ToolCallBlockData;
   private result: ToolResultBlockData | undefined;
   private colors: ColorPalette;
   private ui: TUI | undefined;
   private markdownTheme: MarkdownTheme | undefined;
-  private planPath: string | undefined;
-  /**
-   * Fallback plan body used when the LLM uses plan-file mode and
-   * `args.plan` is empty. `ByfTui` calls `setPlanInfo` with
-   * `session.getPlan()` content so the plan box can render while
-   * approval is pending, and so rejected or revised results still show
-   * the plan body even without a `## Approved Plan:` marker.
-   */
-  private currentPlan: string | undefined;
   private headerText: Text;
   private callPreviewEndIndex = 0;
 
@@ -531,17 +463,6 @@ export class ToolCallComponent extends Container {
     this.rebuildBody();
   }
 
-  // Toggle the plan box's expanded state independently from tool-output
-  // expansion. Returns true iff this card actually owns a plan preview
-  // (ExitPlanMode), so the caller can decide whether to consume the keystroke.
-  setPlanExpanded(expanded: boolean): boolean {
-    if (this.toolCall.name !== 'ExitPlanMode') return false;
-    if (this.planExpanded === expanded) return true;
-    this.planExpanded = expanded;
-    this.rebuildBody();
-    return true;
-  }
-
   setResult(result: ToolResultBlockData): void {
     this.result = result;
     // Result supersedes any live progress chatter; the result body is the
@@ -593,28 +514,6 @@ export class ToolCallComponent extends Container {
   dispose(): void {
     this.stopStreamingProgressTimer();
     this.stopSubagentElapsedTimer();
-  }
-
-  /**
-   * Injects plan body/path asynchronously. Only ExitPlanMode cards use
-   * this: plan-file mode leaves `args.plan` empty, so `ByfTui` fetches
-   * the plan via `session.getPlan()` and calls this method to render the
-   * plan box.
-   */
-  setPlanInfo(info: { plan?: string; path?: string }): void {
-    if (this.toolCall.name !== 'ExitPlanMode') return;
-    let changed = false;
-    if (info.plan !== undefined && info.plan.length > 0 && this.currentPlan !== info.plan) {
-      this.currentPlan = info.plan;
-      changed = true;
-    }
-    if (info.path !== undefined && info.path.length > 0 && this.planPath !== info.path) {
-      this.planPath = info.path;
-      changed = true;
-    }
-    if (!changed) return;
-    this.rebuildBody();
-    this.ui?.requestRender();
   }
 
   private applySubagentReplay(subagent: ToolCallBlockData['subagent']): void {
@@ -900,6 +799,16 @@ export class ToolCallComponent extends Container {
     this.ui?.requestRender();
   }
 
+  /** Receives live cumulative token usage from `agent.status.updated` while running. */
+  updateSubagentLiveUsage(usage: SubagentTokenUsage | undefined): void {
+    if (usage === undefined) return;
+    if (this.subagentPhase !== 'spawning' && this.subagentPhase !== 'running') return;
+    this.subagentUsage = usage;
+    this.headerText.setText(this.buildHeader());
+    this.notifySnapshotChange();
+    this.ui?.requestRender();
+  }
+
   appendSubagentText(text: string, kind: SubagentTextKind = 'text'): void {
     if (kind === 'thinking') {
       this.subagentThinkingText += text;
@@ -1005,22 +914,6 @@ export class ToolCallComponent extends Container {
       bullet = chalk.hex(colors.roleAssistant)(STATUS_BULLET);
     }
 
-    if (toolCall.name === 'ExitPlanMode') {
-      const label = chalk.hex(colors.primary).bold('Current plan');
-      if (!isFinished || result === undefined || result.is_error === true) {
-        return label;
-      }
-      const outcome = interpretExitPlanModeOutcome(result.output);
-      if (outcome.kind === 'approved') {
-        const chipText =
-          outcome.chosen !== undefined && outcome.chosen.length > 0
-            ? `Approved: ${outcome.chosen}`
-            : 'Approved';
-        return `${label}${chalk.hex(colors.success)(` · ${chipText}`)}`;
-      }
-      return `${label}${chalk.hex(colors.error)(' · Rejected')}`;
-    }
-
     if (toolCall.name === 'AskUserQuestion') {
       const label = isFinished
         ? isError
@@ -1035,7 +928,12 @@ export class ToolCallComponent extends Container {
       return this.buildSingleSubagentHeader();
     }
 
-    const verb = isFinished ? 'Used' : isTruncated ? 'Truncated' : 'Using';
+    const verb =
+      isFinished && result?.blockedReason === 'rejected' ? 'Rejected'
+      : isFinished && result?.blockedReason === 'cancelled' ? 'Cancelled'
+      : isFinished ? 'Used'
+      : isTruncated ? 'Truncated'
+      : 'Using';
     const keyArg = extractKeyArgument(toolCall.name, toolCall.args, this.workspaceDir);
     const decoded = decodeMcpToolName(toolCall.name);
     const verbStyled = isTruncated
@@ -1203,9 +1101,12 @@ export class ToolCallComponent extends Container {
       case 'spawning':
         parts.push('↻ starting…');
         break;
-      case 'running':
+      case 'running': {
         parts.push('↻ running');
+        const liveTokens = formatSubagentTokens(this.subagentUsage);
+        if (liveTokens !== undefined) parts.push(liveTokens);
         break;
+      }
       case 'done': {
         parts.push(chalk.hex(this.colors.success)('✓ done'));
         const toolCount = this.finishedSubCalls.length + this.hiddenSubCallCount;
@@ -1372,10 +1273,6 @@ export class ToolCallComponent extends Container {
 
   private buildCallPreview(): void {
     const name = this.toolCall.name;
-    if (name === 'ExitPlanMode') {
-      this.buildPlanPreview();
-      return;
-    }
     if (this.result === undefined && this.toolCall.truncated === true) {
       this.addChild(
         new Text(
@@ -1503,55 +1400,13 @@ export class ToolCallComponent extends Container {
     // leave the body blank and let the header do the talking.
   }
 
-  private buildPlanPreview(): void {
-    // Priority: inline `args.plan`, approved plan parsed from result, then
-    // asynchronously injected currentPlan used while approval is in flight.
-    // Once a plan is found, PlanBoxComponent renders it. Without markdownTheme
-    // (unit tests), fall back to indented dim text so it remains visible.
-    const plan = this.resolvePlanForPreview();
-    if (plan.length === 0) return;
-    const path = this.resolvePlanPath();
-    if (this.markdownTheme !== undefined) {
-      this.addChild(
-        new PlanBoxComponent(plan, this.markdownTheme, this.colors.success, path, {
-          maxContentLines: this.computePlanBoxMaxContentLines(),
-          expanded: this.planExpanded,
-        }),
-      );
-    } else {
-      this.addChild(new Text(chalk.dim(plan), 2, 0));
-    }
-  }
-
-  private computePlanBoxMaxContentLines(): number | undefined {
-    const rows = this.ui?.terminal.rows;
-    if (rows === undefined || !Number.isFinite(rows) || rows <= 0) return undefined;
-    return Math.max(8, Math.floor(rows * 0.6) - 4);
-  }
-
-  private resolvePlanForPreview(): string {
-    const inlinePlan = str(this.toolCall.args['plan']);
-    if (inlinePlan.length > 0) return inlinePlan;
-    if (this.result !== undefined && !this.result.is_error) {
-      const approved = extractApprovedPlan(this.result.output);
-      if (approved.length > 0) return approved;
-    }
-    return this.currentPlan ?? '';
-  }
-
-  // Priority: approved result.output with 'Plan saved to: <path>', then the
-  // planPath asynchronously injected by setPlanInfo while approval is in flight.
-  private resolvePlanPath(): string | undefined {
-    if (this.result !== undefined && !this.result.is_error) {
-      const fromResult = interpretExitPlanModeOutcome(this.result.output).path;
-      if (fromResult !== undefined && fromResult.length > 0) return fromResult;
-    }
-    return this.planPath;
-  }
-
   private buildContent(): void {
     const { result } = this;
     if (result === undefined || !result.output) return;
+
+    // Blocked tools: the body is the LLM-facing rejection message, which is
+    // not useful for the user who made the decision.
+    if (result.blockedReason !== undefined) return;
 
     if (this.isSingleSubagentView()) {
       return;
@@ -1564,32 +1419,10 @@ export class ToolCallComponent extends Container {
       return;
     }
 
-    if (this.toolCall.name === 'ExitPlanMode' && !result.is_error) {
-      // Approved plans are already rendered by buildCallPreview via
-      // resolvePlanForPreview. Rejected or revise feedback uses a warning label
-      // plus normal body text so it remains visible in the transcript.
-      const outcome = interpretExitPlanModeOutcome(result.output);
-      if (outcome.kind === 'rejected' && outcome.feedback !== undefined) {
-        const trimmed = outcome.feedback.trim();
-        if (trimmed.length > 0) {
-          const labelTone = chalk.hex(this.colors.warning).bold;
-          this.addChild(new Text(labelTone('↪ Suggestion'), 2, 0));
-          for (const line of trimmed.split('\n')) {
-            this.addChild(new Text(line, 4, 0));
-          }
-        }
-      }
-      return;
-    }
-
     // TodoList: the authoritative list is shown in the dedicated
     // TodoPanel before the input area, so repeating the text dump here is
     // pure clutter. Keep the headline, drop the body.
     if (this.toolCall.name === 'TodoList' && !result.is_error) {
-      return;
-    }
-
-    if (this.toolCall.name === 'EnterPlanMode' && !result.is_error) {
       return;
     }
 

@@ -49,7 +49,6 @@ const COMPLETE_TOML = `
 default_model = "byf/byf-for-coding"
 default_thinking = true
 default_permission_mode = "auto"
-default_plan_mode = false
 merge_all_available_skills = true
 extra_skill_dirs = ["~/team-skills", ".agents/team-skills"]
 theme = "dark"
@@ -131,7 +130,6 @@ describe('harness config TOML loader', () => {
     expect(config.defaultModel).toBe('byf/byf-for-coding');
     expect(config.defaultThinking).toBe(true);
     expect(config.defaultPermissionMode).toBe('auto');
-    expect(config.defaultPlanMode).toBe(false);
     expect(config.mergeAllAvailableSkills).toBe(true);
     expect(config.extraSkillDirs).toEqual(['~/team-skills', '.agents/team-skills']);
     expect(config.providers['test-provider']).toMatchObject({

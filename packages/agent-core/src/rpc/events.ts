@@ -46,7 +46,6 @@ export interface AgentStatusUpdatedEvent {
   readonly contextTokens?: number | undefined;
   readonly maxContextTokens?: number | undefined;
   readonly contextUsage?: number | undefined;
-  readonly planMode?: boolean | undefined;
   readonly permission?: PermissionMode | undefined;
   readonly usage?: UsageStatus | undefined;
 }
@@ -185,6 +184,7 @@ export interface ToolResultEvent {
   readonly output: unknown;
   readonly isError?: boolean | undefined;
   readonly synthetic?: boolean | undefined;
+  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
 }
 
 export interface SubagentSpawnedEvent {
@@ -231,6 +231,18 @@ export interface CompactionCancelledEvent {
 export interface CompactionCompletedEvent {
   readonly type: 'compaction.completed';
   readonly result: CompactionResult;
+}
+
+export interface ObservationMaskingAppliedEvent {
+  readonly type: 'observation_masking.applied';
+  readonly maskedCount: number;
+  readonly tokensBefore: number;
+  readonly tokensAfter: number;
+}
+
+export interface PruningAppliedEvent {
+  readonly type: 'pruning.applied';
+  readonly prunedCount: number;
 }
 
 export interface BackgroundTaskStartedEvent {
@@ -297,6 +309,8 @@ export type AgentEvent =
   | CompactionBlockedEvent
   | CompactionCancelledEvent
   | CompactionCompletedEvent
+  | ObservationMaskingAppliedEvent
+  | PruningAppliedEvent
   | BackgroundTaskStartedEvent
   | BackgroundTaskUpdatedEvent
   | BackgroundTaskTerminatedEvent;

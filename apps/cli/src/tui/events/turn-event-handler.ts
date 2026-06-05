@@ -340,6 +340,7 @@ export class TurnEventHandler {
       output: serializeToolResultOutput(event.output),
       is_error: event.isError,
       synthetic: event.synthetic,
+      blockedReason: event.blockedReason,
     };
     if (matchedCall !== undefined) {
       this.callbacks.onToolCallEnd(event.toolCallId, resultData);

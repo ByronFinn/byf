@@ -23,7 +23,6 @@ const KIND_LABEL: Record<Issue['kind'], string> = {
   missing_tool_result: 'missing tool.result',
   incomplete_step: 'incomplete step',
   incomplete_compaction: 'incomplete compaction',
-  active_plan_mode: 'plan mode active',
   rejected_approval: 'approval rejected',
   wire_warning: 'wire warning',
 };

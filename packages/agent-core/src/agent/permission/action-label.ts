@@ -41,7 +41,6 @@ const TOOL_NAME_TO_ACTION: Readonly<Record<string, string>> = {
 /** Inverse table — action label → the representative tool-name pattern. */
 const ACTION_TO_PATTERN: Readonly<Record<string, string | null>> = {
   'run command': 'Bash',
-  'run command in plan mode': null,
   'run background command': 'BackgroundRun',
   'stop background task': 'BackgroundStop',
   'edit file': 'Write',

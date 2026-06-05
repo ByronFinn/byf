@@ -47,10 +47,15 @@ export interface CompactionStrategy {
   computeCompactCount(messages: readonly Message[], maxSize: number): number;
   readonly checkAfterStep: boolean;
   readonly maxCompactionPerTurn: number;
+  readonly maskingConfig?: import('../context/observation-masking').MaskingConfig | undefined;
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
   constructor(protected readonly config: CompactionConfig = DEFAULT_COMPACTION_CONFIG) {}
+
+  get maskingConfig() {
+    return this.config.masking;
+  }
 
   shouldCompact(usedSize: number, maxSize: number): boolean {
     if (maxSize <= 0) return false;
@@ -275,6 +280,30 @@ export class FullCompaction {
   }
 
   async beforeStep(signal: AbortSignal): Promise<void> {
+    // Pass 1: Output offloading — already applied when tool.results are appended.
+
+    // Pass 2: Observation masking (zero-cost)
+    const maskingResult = this.agent.context.applyObservationMasking(this.strategy.maskingConfig);
+    if (maskingResult.masked) {
+      this.agent.emitEvent({
+        type: 'observation_masking.applied',
+        maskedCount: maskingResult.maskedCount,
+        tokensBefore: maskingResult.tokensBefore,
+        tokensAfter: maskingResult.tokensAfter,
+      });
+    }
+
+    // Pass 3: Low-priority pruning (zero-cost)
+    // If masking didn't reduce pressure enough, remove oldest masked tool results.
+    const pruningResult = this.agent.context.applyPruning();
+    if (pruningResult.pruned) {
+      this.agent.emitEvent({
+        type: 'pruning.applied',
+        prunedCount: pruningResult.prunedCount,
+      });
+    }
+
+    // Pass 4: LLM summarization (expensive, only when necessary)
     this.checkAutoCompaction();
     if (this.shouldBlock) {
       await this.block(signal);

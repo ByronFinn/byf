@@ -147,259 +147,6 @@ describe('ToolCallComponent', () => {
     expect(out).toContain('first line');
   });
 
-  it('renders ExitPlanMode plan from result output when args.plan is absent', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit',
-        output:
-          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# File Plan\n\n1. Do the focused fix.',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Current plan');
-    expect(out).toContain('# File Plan');
-    expect(out).toContain('1. Do the focused fix.');
-    expect(out).not.toContain('Plan saved to: /tmp/plan.md');
-  });
-
-  it('setPlanInfo injects plan body when args.plan is empty (plan-file mode)', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_async',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      undefined,
-      darkColors,
-      undefined,
-      createMarkdownTheme(darkColors),
-    );
-
-    // A fresh tool card only shows the 'Current plan' title; no plan box renders yet.
-    const before = strip(component.render(100).join('\n'));
-    expect(before).toContain('Current plan');
-    expect(before).not.toContain('Refactor session');
-
-    component.setPlanInfo({ plan: '# Refactor session\n\n- step', path: '/tmp/refactor.md' });
-
-    const after = strip(component.render(100).join('\n'));
-    expect(after).toContain('Refactor session');
-    expect(after).toContain('plan:');
-    expect(after).toContain('refactor.md');
-    // Directory portion of the path must not leak into the visible header.
-    expect(after).not.toContain('/tmp/refactor.md');
-  });
-
-  it('caps the plan preview to the terminal height and expands on ctrl+e', () => {
-    const longPlan = `# Refactor session\n\n${Array.from({ length: 40 }, (_, i) => `- step ${String(i + 1)}`).join('\n')}`;
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_long',
-        name: 'ExitPlanMode',
-        args: { plan: longPlan },
-      },
-      undefined,
-      darkColors,
-      stubTui(24),
-      createMarkdownTheme(darkColors),
-    );
-
-    const collapsed = strip(component.render(100).join('\n'));
-    expect(collapsed).toContain('step 1');
-    expect(collapsed).toMatch(/\.\.\. \(\d+ more lines, ctrl\+e to expand\)/);
-    expect(collapsed).not.toContain('step 40');
-
-    expect(component.setPlanExpanded(true)).toBe(true);
-    const expanded = strip(component.render(100).join('\n'));
-    expect(expanded).toContain('step 40');
-    expect(expanded).not.toContain('ctrl+e to expand');
-  });
-
-  it('plan preview controls are no-ops for non-ExitPlanMode tool calls', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_bash_plan',
-        name: 'Bash',
-        args: { command: 'echo hi' },
-      },
-      undefined,
-      darkColors,
-      undefined,
-      createMarkdownTheme(darkColors),
-    );
-
-    expect(component.setPlanExpanded(true)).toBe(false);
-    component.setPlanInfo({ plan: 'should be ignored', path: '/etc/hosts' });
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).not.toContain('should be ignored');
-    expect(out).not.toContain('plan:');
-  });
-
-  it('ctrl+o does not affect the plan preview cap', () => {
-    const longPlan = `# P\n\n${Array.from({ length: 40 }, (_, i) => `- step ${String(i + 1)}`).join('\n')}`;
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_isolation',
-        name: 'ExitPlanMode',
-        args: { plan: longPlan },
-      },
-      undefined,
-      darkColors,
-      stubTui(24),
-      createMarkdownTheme(darkColors),
-    );
-    component.setExpanded(true);
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('ctrl+e to expand');
-    expect(out).not.toContain('step 40');
-  });
-
-  it('header chips an Approved status when ExitPlanMode result indicates approval', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_approved',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_approved',
-        output:
-          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# Plan body',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const header = strip(component.render(100).join('\n')).split('\n')[1] ?? '';
-    expect(header).toMatch(/Current plan · Approved\s*$/);
-  });
-
-  it('header chips approved option label when the user picked one', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_chosen',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_chosen',
-        output:
-          'Exited plan mode. Selected approach: Pragmatic refactor\n' +
-          'Execute ONLY the selected approach. Do not execute any unselected alternatives.\n\n' +
-          'Plan mode deactivated. All tools are now available.\n' +
-          'Plan saved to: /tmp/plan.md\n\n' +
-          '## Approved Plan:\n# body',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const header = strip(component.render(100).join('\n')).split('\n')[1] ?? '';
-    expect(header).toContain('Current plan · Approved: Pragmatic refactor');
-  });
-
-  it('header chips Rejected and renders feedback for reject-with-suggestion', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_reject_fb',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_reject_fb',
-        output: 'User rejected the plan. Feedback:\n\nplease rethink step 2',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Current plan · Rejected');
-    expect(out).toContain('↪ Suggestion');
-    expect(out).toContain('please rethink step 2');
-  });
-
-  it('header chips Rejected without feedback when user rejected outright', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_exit_reject',
-        name: 'ExitPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_exit_reject',
-        output: 'Plan rejected by user. Plan mode remains active.',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Current plan · Rejected');
-    expect(out).not.toContain('Plan mode remains active.');
-  });
-
-  it('suppresses EnterPlanMode success body so prompt scaffolding does not leak into the transcript', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_enter',
-        name: 'EnterPlanMode',
-        args: { reason: 'plan a refactor' },
-      },
-      {
-        tool_call_id: 'call_enter',
-        output:
-          'Plan mode is now active. Your workflow:\n\n' +
-          'Plan file: /tmp/plan.md\n\n' +
-          '1. Use read-only tools (Read, Grep, Glob) to investigate the codebase.\n' +
-          '2. Design a concrete, step-by-step plan.\n' +
-          '3. Write the plan to the plan file with Write or Edit.\n' +
-          '4. When the plan is ready, call ExitPlanMode for user approval.\n\n' +
-          'Do NOT edit files other than the plan file while plan mode is active.',
-        is_error: false,
-      },
-      darkColors,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Used EnterPlanMode');
-    expect(out).not.toContain('Plan mode is now active');
-    expect(out).not.toContain('Plan file:');
-    expect(out).not.toContain('read-only tools');
-  });
-
-  it('still surfaces EnterPlanMode error output', () => {
-    const component = new ToolCallComponent(
-      {
-        id: 'call_enter_err',
-        name: 'EnterPlanMode',
-        args: {},
-      },
-      {
-        tool_call_id: 'call_enter_err',
-        output: 'Plan mode is already active. Use ExitPlanMode when the plan is ready.',
-        is_error: true,
-      },
-      darkColors,
-    );
-
-    const out = strip(component.render(100).join('\n'));
-    expect(out).toContain('Plan mode is already active');
-  });
-
   it('renders AskUserQuestion with a friendly header instead of the raw tool name', () => {
     const component = new ToolCallComponent(
       {
@@ -1043,6 +790,71 @@ describe('ToolCallComponent', () => {
     expect(expanded).toContain('line25');
     expect(expanded).toContain('line30');
     expect(expanded).not.toContain('ctrl+o to expand');
+  });
+
+  it('shows Rejected in the header when blockedReason is rejected', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_rejected',
+        name: 'Bash',
+        args: { command: 'rm -rf /' },
+      },
+      {
+        tool_call_id: 'call_bash_rejected',
+        output: 'Tool "Bash" was not run because the user rejected the tool call.',
+        is_error: true,
+        blockedReason: 'rejected',
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Rejected Bash');
+    expect(out).not.toContain('Used Bash');
+    // Body should be suppressed.
+    expect(out).not.toContain('was not run');
+  });
+
+  it('shows Cancelled in the header when blockedReason is cancelled', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_cancelled',
+        name: 'Bash',
+        args: { command: 'rm -rf /' },
+      },
+      {
+        tool_call_id: 'call_bash_cancelled',
+        output: 'Tool "Bash" was not run because the operation was cancelled.',
+        is_error: true,
+        blockedReason: 'cancelled',
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Cancelled Bash');
+    expect(out).not.toContain('Used Bash');
+    expect(out).not.toContain('was not run');
+  });
+
+  it('still says Used when blockedReason is undefined even if is_error is true', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_error',
+        name: 'Bash',
+        args: { command: 'false' },
+      },
+      {
+        tool_call_id: 'call_bash_error',
+        output: 'command exited with code 1',
+        is_error: true,
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Used Bash');
+    expect(out).toContain('command exited with code 1');
   });
 
   it('renders unknown Write file extensions as plain text without stderr noise', () => {

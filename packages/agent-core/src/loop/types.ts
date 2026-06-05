@@ -85,6 +85,12 @@ export interface ExecutableToolErrorResult {
    * allowed after this tool batch.
    */
   readonly stopTurn?: boolean | undefined;
+  /**
+   * Set when the tool was not executed because the approval request was
+   * rejected or cancelled by the user. Distinguishes "blocked by user" from
+   * "tool ran but failed".
+   */
+  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
 }
 
 export type ExecutableToolResult = ExecutableToolSuccessResult | ExecutableToolErrorResult;
@@ -148,6 +154,7 @@ export interface PrepareToolExecutionResult {
   readonly updatedArgs?: unknown;
   readonly syntheticResult?: ExecutableToolResult | undefined;
   readonly executionMetadata?: unknown;
+  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
 }
 
 export interface FinalizeToolResultContext extends ToolExecutionHookContext {

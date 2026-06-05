@@ -25,8 +25,44 @@ function chipFor(name: string, args: Record<string, unknown>, out: ToolResultBlo
 }
 
 describe('chip registry', () => {
-  it('Bash has no chip (exit code is not surfaced)', () => {
-    expect(pickChip('Bash')).toBeUndefined();
+  it('Bash chip shows line count on success', () => {
+    expect(chipFor('Bash', { command: 'ls' }, result('a.ts\nb.ts\nc.ts'))).toBe('3 lines');
+  });
+
+  it('Bash chip shows singular on single line', () => {
+    expect(chipFor('Bash', { command: 'echo hi' }, result('hi\n'))).toBe('1 line');
+  });
+
+  it('Bash chip returns empty on success with no output', () => {
+    expect(chipFor('Bash', { command: 'true' }, result(''))).toBe('');
+  });
+
+  it('Bash chip shows exit code and lines on failure', () => {
+    const out = chipFor(
+      'Bash',
+      { command: 'exit 1' },
+      result('Command failed with exit code: 1\nerror output', true),
+    );
+    expect(out).toBe('exit 1, 2 lines');
+  });
+
+  it('Bash chip shows exit code from "Process exited" pattern', () => {
+    const out = chipFor(
+      'Bash',
+      { command: 'bad' },
+      result('Process exited with code 137\nsome line', true),
+    );
+    expect(out).toBe('exit 137, 2 lines');
+  });
+
+  it('Bash chip shows only lines on failure without exit code', () => {
+    expect(chipFor('Bash', { command: 'oops' }, result('something went wrong', true))).toBe(
+      '1 line',
+    );
+  });
+
+  it('Bash chip returns empty on failure with no output', () => {
+    expect(chipFor('Bash', { command: 'fail' }, result('', true))).toBe('');
   });
 
   it('Edit chip shows +N -M from args diff', () => {

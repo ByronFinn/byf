@@ -317,16 +317,32 @@ const CACHEABLE_TYPES = new Set([
   'web_search_tool_result',
 ]);
 
-function injectCacheControlOnLastBlock(messages: MessageParam[]): void {
-  const lastMessage = messages.at(-1);
-  if (lastMessage === undefined) return;
-  const content = lastMessage.content;
-  if (!Array.isArray(content) || content.length === 0) return;
-  const lastBlock = content.at(-1) as CacheableBlock | undefined;
-  if (lastBlock === undefined) return;
-  if (CACHEABLE_TYPES.has(lastBlock.type)) {
-    lastBlock.cache_control = CACHE_CONTROL;
+function splitSystemPrompt(systemPrompt: string, breakpoints?: string[]): TextBlockParam[] {
+  if (!breakpoints || breakpoints.length === 0) {
+    return systemPrompt
+      ? [{ type: 'text', text: systemPrompt, cache_control: CACHE_CONTROL }]
+      : [];
   }
+
+  const blocks: TextBlockParam[] = [];
+  let remaining = systemPrompt;
+
+  for (const marker of breakpoints) {
+    const idx = remaining.indexOf(marker);
+    if (idx === -1) continue;
+    const before = remaining.slice(0, idx).trim();
+    if (before) {
+      blocks.push({ type: 'text', text: before, cache_control: CACHE_CONTROL });
+    }
+    remaining = remaining.slice(idx + marker.length);
+  }
+
+  const final = remaining.trim();
+  if (final) {
+    blocks.push({ type: 'text', text: final, cache_control: CACHE_CONTROL });
+  }
+
+  return blocks;
 }
 
 /**
@@ -835,16 +851,9 @@ export class AnthropicChatProvider implements ChatProvider {
     history: Message[],
     options?: GenerateOptions,
   ): Promise<StreamedMessage> {
-    // Build system param
-    const system: TextBlockParam[] | undefined = systemPrompt
-      ? [
-          {
-            type: 'text',
-            text: systemPrompt,
-            cache_control: CACHE_CONTROL,
-          } as TextBlockParam,
-        ]
-      : undefined;
+    // Build system param, splitting on cache breakpoints when provided.
+    const systemBlocks = splitSystemPrompt(systemPrompt, options?.cacheBreakpoints);
+    const system: TextBlockParam[] | undefined = systemBlocks.length > 0 ? systemBlocks : undefined;
 
     // Convert messages, merging consecutive tool-result-only user messages
     // into a single user message (Anthropic parallel-tool-use spec).
@@ -861,10 +870,6 @@ export class AnthropicChatProvider implements ChatProvider {
         messages.push(converted);
       }
     }
-
-    // Inject cache_control on last content block of last message (after merge,
-    // so it lands on the final tool_result block in the merged user message).
-    injectCacheControlOnLastBlock(messages);
 
     // Build generation kwargs (excluding betaFeatures)
     const kwargs: Record<string, unknown> = {};

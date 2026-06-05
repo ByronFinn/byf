@@ -28,7 +28,6 @@ const MAX_CWD_SEGMENTS = 3;
 const TIP_ROTATE_INTERVAL_MS = 30_000;
 const TIP_SEPARATOR = ' | ';
 const TOOLBAR_TIPS: readonly string[] = [
-  'shift+tab: plan mode',
   '/yolo: toggle yolo',
   'ctrl+c: cancel',
   '/help: show commands',
@@ -183,8 +182,6 @@ export class FooterComponent implements Component {
     const left: string[] = [];
     if (state.permissionMode === 'auto') left.push(chalk.hex(colors.warning).bold('auto'));
     if (state.permissionMode === 'yolo') left.push(chalk.hex(colors.warning).bold('yolo'));
-    if (state.planMode) left.push(chalk.hex(colors.primary).bold('plan'));
-
     const model = shortenModel(modelDisplayName(state));
     if (model) {
       const effortLabel = state.thinkingEffort !== 'off' ? ` thinking:${state.thinkingEffort}` : '';

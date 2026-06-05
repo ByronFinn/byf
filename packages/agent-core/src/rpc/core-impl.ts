@@ -197,11 +197,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       if (permissionMode !== undefined) {
         mainAgent.permission.setMode(permissionMode);
       }
-      // Honor config.defaultPlanMode for fresh sessions. Resumed sessions
-      // restore their own plan state from records and never re-apply this.
-      if (config.defaultPlanMode === true) {
-        await mainAgent.planMode.enter();
-      }
       await session.writeMetadata();
       await session.flushMetadata();
     } catch (error) {
@@ -701,7 +696,6 @@ async function resumeSessionResult(
     const config = await api.getConfig({ agentId });
     const context = await api.getContext({ agentId });
     const permission = await api.getPermission({ agentId });
-    const plan = await api.getPlan({ agentId });
     const usage = await api.getUsage({ agentId });
     agents[agentId] = {
       type: agent.type,
@@ -709,7 +703,7 @@ async function resumeSessionResult(
       context,
       replay: agent.replayBuilder.buildResult(),
       permission,
-      plan,
+      plan: null,
       usage,
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),

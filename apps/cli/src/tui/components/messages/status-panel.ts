@@ -34,7 +34,6 @@ export interface StatusReportOptions {
   readonly sessionTitle: string | null;
   readonly thinking: boolean;
   readonly permissionMode: PermissionMode;
-  readonly planMode: boolean;
   readonly contextUsage: number;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
@@ -98,13 +97,11 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     sev === 'danger' ? colors.error : sev === 'warn' ? colors.warning : colors.success;
 
   const permission = options.status?.permission ?? options.permissionMode;
-  const planMode = options.status?.planMode ?? options.planMode;
   const sessionId = options.sessionId.trim().length > 0 ? options.sessionId : 'none';
   const rows: FieldRow[] = [
     { label: 'Model', value: formatModelStatus(options) },
     { label: 'Directory', value: options.workDir },
     { label: 'Permissions', value: permission },
-    { label: 'Plan mode', value: planMode ? 'on' : 'off' },
     { label: 'Session', value: sessionId },
   ];
   const title = options.sessionTitle?.trim();

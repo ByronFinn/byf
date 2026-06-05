@@ -70,6 +70,18 @@ export interface AgentRecordEvents {
   'context.append_loop_event': { event: LoopRecordedEvent };
   'context.clear': {};
   'context.apply_compaction': CompactionResult;
+  'context.observation_masking': {
+    maskedCount: number;
+    tokensBefore: number;
+    tokensAfter: number;
+  };
+  'context.output_offloaded': {
+    toolCallId: string;
+    filePath?: string | undefined;
+  };
+  'context.pruning': {
+    prunedCount: number;
+  };
 
   'tools.update_store': ToolStoreUpdate;
 }

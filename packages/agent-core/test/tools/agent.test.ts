@@ -127,7 +127,7 @@ describe('AgentTool', () => {
     expect(properties).not.toHaveProperty('model');
   });
 
-  it('renders the tool set for each subagent type', () => {
+  it('renders subagent names and descriptions without tool lists after compression', () => {
     const host = mockSubagentHost({ spawn: vi.fn() });
     const subagents = {
       explore: profile({
@@ -144,8 +144,9 @@ describe('AgentTool', () => {
 
     const tool = new AgentTool(host, undefined, subagents);
 
-    expect(tool.description).toContain('Tools: Read, Grep, Glob');
-    expect(tool.description).toContain('Tools: Read, Write, Edit, Bash');
+    expect(tool.description).toContain('- explore: Read-only exploration.');
+    expect(tool.description).toContain('- coder: General coding.');
+    expect(tool.description).not.toContain('Tools:');
   });
 
   it('mentions resume preference and result visibility in the description', () => {
@@ -154,7 +155,14 @@ describe('AgentTool', () => {
 
     expect(tool.description.toLowerCase()).toContain('resume');
     expect(tool.description.toLowerCase()).toContain('only visible to you');
-    expect(tool.description.toLowerCase()).toContain('when not to');
+  });
+
+  it('retains the zero-context and no-repeat contracts after description compression', () => {
+    const host = mockSubagentHost({ spawn: vi.fn() });
+    const tool = new AgentTool(host);
+
+    expect(tool.description.toLowerCase()).toContain('zero context');
+    expect(tool.description.toLowerCase()).toContain('do not redo');
   });
 
   it('normalizes the default subagent type into tool args', () => {
