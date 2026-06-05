@@ -30,6 +30,7 @@ function makeToolCall(): SubagentToolCall {
     appendSubToolCall: vi.fn(),
     appendSubToolCallDelta: vi.fn(),
     finishSubToolCall: vi.fn(),
+    updateSubagentLiveUsage: vi.fn(),
   };
 }
 
@@ -270,6 +271,43 @@ describe('routeSubagentEvent', () => {
       const event = { type, agentId: 'sub-1' } as Event;
       expect(routeSubagentEvent(event, state)).toBe(true);
     }
+  });
+
+  it('routes agent.status.updated with usage.total to tool call', () => {
+    const tc = makeToolCall();
+    const { state } = makeAdapter({
+      subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
+      subagentNames: new Map([['sub-1', 'coder']]),
+      pendingToolComponents: new Map([['tc-1', tc]]),
+    });
+    const usage = { inputOther: 100, output: 50, inputCacheRead: 200, inputCacheCreation: 0 };
+    routeSubagentEvent(
+      {
+        type: 'agent.status.updated',
+        agentId: 'sub-1',
+        usage: { total: usage },
+      } as Event,
+      state,
+    );
+    expect(tc.updateSubagentLiveUsage).toHaveBeenCalledWith(usage);
+  });
+
+  it('does not call updateSubagentLiveUsage when usage.total is undefined', () => {
+    const tc = makeToolCall();
+    const { state } = makeAdapter({
+      subagentParentToolCallIds: new Map([['sub-1', 'tc-1']]),
+      subagentNames: new Map([['sub-1', 'coder']]),
+      pendingToolComponents: new Map([['tc-1', tc]]),
+    });
+    routeSubagentEvent(
+      {
+        type: 'agent.status.updated',
+        agentId: 'sub-1',
+        usage: {},
+      } as Event,
+      state,
+    );
+    expect(tc.updateSubagentLiveUsage).not.toHaveBeenCalled();
   });
 });
 

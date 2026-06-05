@@ -1,4 +1,5 @@
 import type {
+  AgentStatusUpdatedEvent,
   Event,
   HookResultEvent,
   SubagentCompletedEvent,
@@ -45,6 +46,7 @@ export interface SubagentToolCall {
     output: string;
     is_error?: boolean;
   }): void;
+  updateSubagentLiveUsage(usage: SubagentCompletedEvent['usage']): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,13 @@ export function routeSubagentEvent(
         output: serializeToolResultOutput(trEvent.output),
         is_error: trEvent.isError,
       });
+      return true;
+    }
+    case 'agent.status.updated': {
+      const statusEvent = event as AgentStatusUpdatedEvent;
+      if (statusEvent.usage?.total !== undefined) {
+        toolCall.updateSubagentLiveUsage(statusEvent.usage.total);
+      }
       return true;
     }
     default:

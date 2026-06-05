@@ -900,6 +900,16 @@ export class ToolCallComponent extends Container {
     this.ui?.requestRender();
   }
 
+  /** Receives live cumulative token usage from `agent.status.updated` while running. */
+  updateSubagentLiveUsage(usage: SubagentTokenUsage | undefined): void {
+    if (usage === undefined) return;
+    if (this.subagentPhase !== 'spawning' && this.subagentPhase !== 'running') return;
+    this.subagentUsage = usage;
+    this.headerText.setText(this.buildHeader());
+    this.notifySnapshotChange();
+    this.ui?.requestRender();
+  }
+
   appendSubagentText(text: string, kind: SubagentTextKind = 'text'): void {
     if (kind === 'thinking') {
       this.subagentThinkingText += text;
@@ -1203,9 +1213,12 @@ export class ToolCallComponent extends Container {
       case 'spawning':
         parts.push('↻ starting…');
         break;
-      case 'running':
+      case 'running': {
         parts.push('↻ running');
+        const liveTokens = formatSubagentTokens(this.subagentUsage);
+        if (liveTokens !== undefined) parts.push(liveTokens);
         break;
+      }
       case 'done': {
         parts.push(chalk.hex(this.colors.success)('✓ done'));
         const toolCount = this.finishedSubCalls.length + this.hiddenSubCallCount;
