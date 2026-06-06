@@ -17,89 +17,10 @@ export {
 } from './persistence';
 export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
 
-// Contract: restore MUST NOT emit UI events, call the LLM, execute tools, or
-// touch the filesystem in a way that triggers external side effects. Each case
-// should reproduce the in-memory state the live handler left behind, nothing more.
-async function restoreAgentRecord(agent: Agent, input: AgentRecord): Promise<void> {
-  switch (input.type) {
-    case 'metadata':
-      return;
-    case 'turn.prompt':
-      agent.turn.restorePrompt();
-      return;
-    case 'turn.steer':
-      agent.turn.restoreSteer(input.input, input.origin);
-      return;
-    case 'turn.cancel':
-      agent.turn.cancel(input.turnId);
-      return;
-    case 'background.stop':
-      return;
-    case 'config.update':
-      agent.config.update(input);
-      return;
-    case 'permission.set_mode':
-      agent.permission.setMode(input.mode);
-      return;
-    case 'permission.record_approval_result':
-      agent.permission.recordApprovalResult(input);
-      return;
-    case 'usage.record':
-      agent.usage.record(input.model, input.usage, 'session');
-      return;
-    case 'full_compaction.begin':
-      agent.fullCompaction.begin(input);
-      return;
-    case 'full_compaction.cancel':
-      agent.fullCompaction.cancel();
-      return;
-    case 'full_compaction.complete':
-      agent.fullCompaction.complete(input);
-      return;
-    case 'plan_mode.enter':
-    case 'plan_mode.cancel':
-    case 'plan_mode.exit':
-      // Legacy plan mode records are no-ops during replay.
-      return;
-    case 'context.append_message':
-      agent.context.appendMessage(input.message);
-      return;
-    case 'context.mark_last_user_prompt_blocked':
-      agent.context.markLastUserPromptBlocked(input.hookEvent);
-      return;
-    case 'context.append_loop_event':
-      await agent.context.appendLoopEvent(input.event);
-      return;
-    case 'context.clear':
-      agent.context.clear();
-      return;
-    case 'context.apply_compaction':
-      agent.context.applyCompaction(input);
-      return;
-    case 'context.observation_masking':
-      // Re-apply masking so the resumed context matches the live state.
-      // The original (unmasked) tool results are restored first by
-      // 'context.append_loop_event'; this record then re-applies the mask.
-      agent.context.applyObservationMasking();
-      return;
-    case 'tools.register_user_tool':
-      agent.tools.registerUserTool(input);
-      return;
-    case 'tools.unregister_user_tool':
-      agent.tools.unregisterUserTool(input.name);
-      return;
-    case 'tools.set_active_tools':
-      agent.tools.setActiveTools(input.names);
-      return;
-    case 'tools.update_store':
-      agent.tools.updateStore(input.key, input.value);
-      return;
-  }
-}
-
 export class AgentRecords {
   private _restoring = false;
   private metadataInitialized = false;
+  private handlers: Record<string, import('../restore-handler').RecordRestoreHandler> = {};
 
   constructor(
     private readonly agent: Agent,
@@ -108,6 +29,10 @@ export class AgentRecords {
 
   get restoring() {
     return this._restoring;
+  }
+
+  registerHandlers(handlers: Record<string, import('../restore-handler').RecordRestoreHandler>): void {
+    this.handlers = { ...handlers };
   }
 
   logRecord(record: AgentRecord): void {
@@ -135,10 +60,46 @@ export class AgentRecords {
   restore(record: AgentRecord): void {
     this._restoring = true;
     try {
-      void restoreAgentRecord(this.agent, record);
+      this.routeToHandler(record);
     } finally {
       this._restoring = false;
     }
+  }
+
+  private routeToHandler(record: AgentRecord): void {
+    const handlerKey = this.getHandlerKey(record.type);
+    if (handlerKey === null || this.handlers[handlerKey] === undefined) {
+      // Silently skip unregistered record types
+      return;
+    }
+
+    const handler = this.handlers[handlerKey];
+    handler.restoreRecord(record);
+  }
+
+  private getHandlerKey(recordType: string): string | null {
+    // Special case: metadata is handled directly
+    if (recordType === 'metadata') {
+      return null;
+    }
+
+    // Extract the prefix from the record type
+    const prefix = recordType.split('.')[0];
+
+    // Map prefixes to handler keys
+    const mapping: Record<string, string> = {
+      context: 'context',
+      config: 'config',
+      turn: 'turn',
+      permission: 'permission',
+      tools: 'tools',
+      usage: 'usage',
+      background: 'background',
+      full_compaction: 'fullCompaction',
+      plan_mode: 'planMode',
+    };
+
+    return mapping[prefix] ?? null;
   }
 
   async replay(): Promise<{ warning?: string }> {
