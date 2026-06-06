@@ -155,6 +155,17 @@ export class Agent {
       sessionDir: config.backgroundSessionDir,
     });
     this.replayBuilder = new ReplayBuilder(this);
+
+    // Register restore handlers after all subsystems are initialized
+    this.records.registerHandlers({
+      context: this.context,
+      config: this.config,
+      usage: this.usage,
+      turn: this.turn,
+      permission: this.permission,
+      tools: this.tools,
+      fullCompaction: this.fullCompaction,
+    });
   }
 
   get generate(): typeof generate {
@@ -228,12 +239,19 @@ export class Agent {
     this.tools.setActiveTools(profile.tools);
   }
 
-  async resume(): Promise<{ warning?: string }> {
-    const result = await this.records.replay();
-    await this.background.loadFromDisk();
-    await this.background.reconcile();
-    this.turn.finishResume();
-    return result;
+  async resume(): Promise<{ warning?: string; error?: Error }> {
+    try {
+      const result = await this.records.replay();
+      await this.background.loadFromDisk();
+      await this.background.reconcile();
+      this.turn.finishResume();
+      return result;
+    } catch (error) {
+      // Return error instead of throwing
+      return {
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
   }
 
   get rpcMethods(): PromisableMethods<AgentAPI> {
