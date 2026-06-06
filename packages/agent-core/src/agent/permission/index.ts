@@ -113,22 +113,30 @@ export class PermissionManager {
       };
     }
 
-    const policyResult = await this.evaluatePolicies(context, matchedRule);
-    if (policyResult !== undefined) {
-      return this.permissionPolicyResultToPrepare(policyResult, context);
-    }
-
+    // 处理自动模式
     if (mode === 'auto') {
+      const policyResult = await this.evaluatePolicies(context, matchedRule);
+      if (policyResult !== undefined) {
+        return this.permissionPolicyResultToPrepare(policyResult, context);
+      }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'afk');
       }
       return undefined;
     }
+
+    // 处理yolo模式 - 优先级最高,跳过策略评估
     if (mode === 'yolo') {
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'yolo');
       }
       return undefined;
+    }
+
+    // 处理manual模式的策略评估
+    const policyResult = await this.evaluatePolicies(context, matchedRule);
+    if (policyResult !== undefined) {
+      return this.permissionPolicyResultToPrepare(policyResult, context);
     }
 
     if (decision === 'allow') {
