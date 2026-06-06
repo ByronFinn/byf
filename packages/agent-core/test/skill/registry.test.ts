@@ -112,7 +112,7 @@ describe('getModelSkillListing', () => {
     expect(listing).not.toContain('When to use:');
   });
 
-  it('truncates descriptions to ~100 characters', () => {
+  it('includes full descriptions without truncation', () => {
     const longDesc = 'a'.repeat(200);
     const registry = makeRegistry([makeSkill('long', 'user', longDesc)]);
 
@@ -120,7 +120,7 @@ describe('getModelSkillListing', () => {
     const line = listing.split('\n').find((l) => l.includes('- long:'));
 
     expect(line).toBeDefined();
-    expect(line!.length).toBeLessThanOrEqual('- long: '.length + 100);
+    expect(line).toBe(`- long: ${longDesc}`);
   });
 
   it('omits disabled-model-invocation and non-prompt skills', () => {
