@@ -33,6 +33,7 @@ import type { AgentEvent, TurnEndedEvent } from '../../rpc';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { abortable } from '../../utils/abort';
 import { resolveCompletionBudget } from '../../utils/completion-budget';
+import type { RecordRestoreHandler } from '../restore-handler';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
@@ -56,7 +57,7 @@ export interface TurnEndResult {
 
 const LLM_NOT_SET_MESSAGE = 'LLM not set, send "/login" to login';
 
-export class TurnFlow {
+export class TurnFlow implements RecordRestoreHandler {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
@@ -631,6 +632,30 @@ export class TurnFlow {
   private shouldTrackApiError(turnId: number): boolean {
     const failure = this.stepFailureByTurn.get(turnId);
     return failure?.reason === 'error' && failure.activeStep !== undefined;
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'turn.prompt':
+        // During restore, we need to process each turn.prompt record
+        // If we're in 'resuming' state, we need to allow the next turn
+        if (this.activeTurn === 'resuming') {
+          this.activeTurn = null; // Clear resuming state to allow next turn
+        }
+        this.restorePrompt();
+        break;
+      case 'turn.steer':
+        // Similar logic for steer records
+        if (this.activeTurn === 'resuming') {
+          this.activeTurn = null; // Clear resuming state to allow next turn
+        }
+        this.restoreSteer(record.input, record.origin);
+        break;
+      case 'turn.cancel':
+        // During restore, cancel is a no-op since there's no active turn
+        // The turnId tracking is handled by restorePrompt/restoreSteer
+        break;
+    }
   }
 }
 

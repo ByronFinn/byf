@@ -2,6 +2,7 @@ import { uniq } from '@antfu/utils';
 import type { ChatProvider, Tool } from '@byfriends/kosong';
 
 import type { Agent } from '..';
+import type { RecordRestoreHandler } from '../restore-handler';
 import { globMatch } from '../permission/path-glob-match';
 import { makeErrorPayload } from '../../errors';
 import type { ExecutableTool } from '../../loop';
@@ -30,7 +31,7 @@ interface McpToolEntry {
   readonly serverName: string;
 }
 
-export class ToolManager {
+export class ToolManager implements RecordRestoreHandler {
   protected builtinTools: Map<string, BuiltinTool> = new Map();
   protected readonly userTools: Map<string, ExecutableTool> = new Map();
   protected readonly mcpTools: Map<string, McpToolEntry> = new Map();
@@ -415,5 +416,27 @@ export class ToolManager {
           this.userTools.get(name) ?? this.mcpTools.get(name)?.tool ?? this.builtinTools.get(name),
       )
       .filter((tool) => !!tool);
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'tools.register_user_tool':
+        // Call the normal registerUserTool method but it should not log
+        // because the restoring flag prevents logging
+        this.registerUserTool(record);
+        break;
+      case 'tools.unregister_user_tool':
+        // Call the normal unregisterUserTool method but it should not log
+        this.unregisterUserTool(record.name);
+        break;
+      case 'tools.set_active_tools':
+        // Call the normal setActiveTools method but it should not log
+        this.setActiveTools(record.names);
+        break;
+      case 'tools.update_store':
+        // Call the normal updateStore method but it should not log
+        this.updateStore(record.key, record.value);
+        break;
+    }
   }
 }

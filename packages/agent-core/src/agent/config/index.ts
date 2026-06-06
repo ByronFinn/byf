@@ -8,13 +8,14 @@ import {
 
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';
+import type { RecordRestoreHandler } from '../restore-handler';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
 import { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 
 export * from './types';
 export { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 
-export class ConfigState {
+export class ConfigState implements RecordRestoreHandler {
   private _cwd: string = '';
   private _modelAlias: string | undefined;
   private _profileName: string | undefined;
@@ -129,6 +130,16 @@ export class ConfigState {
       return this.resolvedProviderConfig;
     } catch {
       return undefined;
+    }
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'config.update':
+        // During restore, we call the normal update method but it should not log
+        // because the restoring flag prevents logging
+        this.update(record);
+        break;
     }
   }
 }

@@ -17,6 +17,7 @@ import {
 } from '@byfriends/kosong';
 
 import type { Agent } from '..';
+import type { RecordRestoreHandler } from '../restore-handler';
 import { isAbortError } from '../../loop/errors';
 import {
   DEFAULT_MAX_RETRY_ATTEMPTS,
@@ -142,7 +143,7 @@ export interface CompactedHistory {
 
 type CompactionTelemetryTrigger = CompactionBeginData['source'] | 'manual-with-prompt' | 'unknown';
 
-export class FullCompaction {
+export class FullCompaction implements RecordRestoreHandler {
   protected compactionCountInTurn = 0;
   protected compacting: {
     abortController: AbortController;
@@ -554,6 +555,26 @@ export class FullCompaction {
       history,
       this.strategy.computeCompactCount(history, this.maxContextSize),
     );
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'full_compaction.begin':
+        // During restore, we call begin but it should not start the worker
+        // because the restoring flag prevents starting async operations
+        this.begin(record);
+        break;
+      case 'full_compaction.cancel':
+        // During restore, cancel is a no-op since there's no active compaction
+        // The compacting state check will handle this
+        this.cancel();
+        break;
+      case 'full_compaction.complete':
+        // During restore, we call complete but it should not trigger side effects
+        // because the restoring flag prevents logging and events
+        this.complete(record);
+        break;
+    }
   }
 }
 

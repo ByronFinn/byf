@@ -3,6 +3,7 @@ import type { PrepareToolExecutionResult, ToolExecutionHookContext } from '../..
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import type { ToolInputDisplay } from '../../tools/display';
+import type { RecordRestoreHandler } from '../restore-handler';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
 import type { PermissionPathMatchOptions } from './path-glob-match';
@@ -25,7 +26,7 @@ export interface PermissionManagerOptions {
   readonly parent?: PermissionManager | undefined;
 }
 
-export class PermissionManager {
+export class PermissionManager implements RecordRestoreHandler {
   rules: PermissionRule[] = [];
   private modeOverride: PermissionMode | undefined;
   private readonly parent: PermissionManager | undefined;
@@ -338,6 +339,21 @@ export class PermissionManager {
       properties['scope'] = scope;
     }
     this.agent.telemetry.track('tool_approved', properties);
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'permission.set_mode':
+        // Call the normal setMode method but it should not log
+        // because the restoring flag prevents logging
+        this.setMode(record.mode);
+        break;
+      case 'permission.record_approval_result':
+        // Call the normal recordApprovalResult method but it should not log
+        // because the restoring flag prevents logging
+        this.recordApprovalResult(record);
+        break;
+    }
   }
 }
 
