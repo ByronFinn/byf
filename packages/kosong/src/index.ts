@@ -30,7 +30,10 @@ export type { ProviderConfig, ProviderType } from './providers';
 
 // Model capability matrix
 export { UNKNOWN_CAPABILITY, isUnknownCapability } from './capability';
-export type { ModelCapability } from './capability';
+export type { ModelCapability, ProviderCacheCapability } from './capability';
+
+// Prompt planning and caching types
+export type { CacheScope, CacheStrategy, PromptBlock, PromptPlan } from './prompt-plan';
 
 // Model catalog (models.dev-style) metadata
 export {

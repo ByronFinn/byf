@@ -1,3 +1,42 @@
+import type { CacheScope, CacheStrategy } from './prompt-plan';
+
+/**
+ * Cache capability advertised by a provider.
+ *
+ * Providers that support prompt caching expose this via
+ * {@link ModelCapability.cache} to describe which caching mechanisms they
+ * implement and any constraints consumers must respect.
+ *
+ * @readonly
+ */
+export interface ProviderCacheCapability {
+  /**
+   * The caching strategy supported by this provider.
+   *
+   * See {@link CacheStrategy} for strategy descriptions and semantics.
+   */
+  readonly strategy: CacheStrategy;
+
+  /**
+   * Maximum number of cacheable blocks supported.
+   *
+   * Only applicable for `'explicit-block'` strategy. Providers may limit
+   * the number of distinct cache points they support (e.g., Anthropic
+   * supports up to 4 cache breakpoints). Omitted means "unknown" or "no
+   * practical limit."
+   */
+  readonly maxCacheableBlocks?: number;
+
+  /**
+   * Cache scopes supported by this provider.
+   *
+   * Providers may not support all scopes (e.g., some may not support
+   * `'global'` scoping). When omitted, consumers should assume all scopes
+   * are supported.
+   */
+  readonly supportedScopes?: readonly CacheScope[];
+}
+
 /**
  * Declared capabilities for a specific model exposed by a {@link ChatProvider}.
  *
@@ -18,6 +57,14 @@ export interface ModelCapability {
   readonly thinking_xhigh: boolean;
   readonly thinking_max: boolean;
   readonly max_context_tokens: number;
+  /**
+   * Cache capability for this model.
+   *
+   * Present when the provider supports prompt caching. Consumers can inspect
+   * this field to determine which caching strategies and scopes are
+   * available, then construct appropriate {@link PromptPlan}s.
+   */
+  readonly cache?: ProviderCacheCapability;
 }
 
 const UNKNOWN_CAPABILITY_MARKER = Symbol.for('byf.kosong.UNKNOWN_CAPABILITY');

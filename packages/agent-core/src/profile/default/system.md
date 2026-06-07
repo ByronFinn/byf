@@ -67,8 +67,6 @@ The following directories have been added to the workspace. You can read, write,
 {{ BYF_ADDITIONAL_DIRS_INFO }}
 {% endif %}
 
-__CACHE_BOUNDARY__
-
 # Project Information
 
 `AGENTS.md` files contain project-specific context, styles, and conventions for agents. They may exist at different locations in the project — each file governs its directory and all subdirectories beneath it. Deeper files take precedence over parent files.

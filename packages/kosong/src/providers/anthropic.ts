@@ -14,6 +14,7 @@ import type {
   StreamedMessage,
   ThinkingEffort,
 } from '#/provider';
+import type { PromptPlan } from '#/prompt-plan';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 import Anthropic, {
@@ -317,29 +318,21 @@ const CACHEABLE_TYPES = new Set([
   'web_search_tool_result',
 ]);
 
-function splitSystemPrompt(systemPrompt: string, breakpoints?: string[]): TextBlockParam[] {
-  if (!breakpoints || breakpoints.length === 0) {
-    return systemPrompt
-      ? [{ type: 'text', text: systemPrompt, cache_control: CACHE_CONTROL }]
-      : [];
-  }
-
+/**
+ * Convert a PromptPlan to Anthropic TextBlockParam[] with cache control.
+ *
+ * Injects cache_control on blocks with cacheScope other than 'none'.
+ */
+function promptPlanToSystemBlocks(promptPlan: PromptPlan): TextBlockParam[] {
   const blocks: TextBlockParam[] = [];
-  let remaining = systemPrompt;
 
-  for (const marker of breakpoints) {
-    const idx = remaining.indexOf(marker);
-    if (idx === -1) continue;
-    const before = remaining.slice(0, idx).trim();
-    if (before) {
-      blocks.push({ type: 'text', text: before, cache_control: CACHE_CONTROL });
+  for (const block of promptPlan.blocks) {
+    const textBlock: TextBlockParam = { type: 'text', text: block.text };
+    // Only inject cache_control for cacheable scopes
+    if (block.cacheScope !== 'none') {
+      textBlock.cache_control = CACHE_CONTROL;
     }
-    remaining = remaining.slice(idx + marker.length);
-  }
-
-  const final = remaining.trim();
-  if (final) {
-    blocks.push({ type: 'text', text: final, cache_control: CACHE_CONTROL });
+    blocks.push(textBlock);
   }
 
   return blocks;
@@ -851,9 +844,17 @@ export class AnthropicChatProvider implements ChatProvider {
     history: Message[],
     options?: GenerateOptions,
   ): Promise<StreamedMessage> {
-    // Build system param, splitting on cache breakpoints when provided.
-    const systemBlocks = splitSystemPrompt(systemPrompt, options?.cacheBreakpoints);
-    const system: TextBlockParam[] | undefined = systemBlocks.length > 0 ? systemBlocks : undefined;
+    // Build system param from PromptPlan when provided.
+    let system: TextBlockParam[] | undefined;
+    if (options?.promptPlan) {
+      const systemBlocks = promptPlanToSystemBlocks(options.promptPlan);
+      system = systemBlocks.length > 0 ? systemBlocks : undefined;
+    } else if (systemPrompt) {
+      // Fallback to legacy behavior: single cacheable block
+      system = [{ type: 'text', text: systemPrompt, cache_control: CACHE_CONTROL }];
+    } else {
+      system = undefined;
+    }
 
     // Convert messages, merging consecutive tool-result-only user messages
     // into a single user message (Anthropic parallel-tool-use spec).

@@ -1,5 +1,15 @@
 import { UNKNOWN_CAPABILITY, type ModelCapability } from '#/capability';
 
+const CACHE_CAPABILITY = Object.freeze({
+  strategy: 'explicit-block' as const,
+  supportedScopes: ['global', 'project', 'session', 'none'] as const,
+});
+
+const OPENAI_CACHE_CAPABILITY = Object.freeze({
+  strategy: 'prompt-cache-key' as const,
+  supportedScopes: ['global'] as const,
+});
+
 type CapabilityMatcher = (normalizedModelName: string) => boolean;
 
 interface CapabilityCatalogEntry {
@@ -55,6 +65,7 @@ const OPENAI_REASONING_CAPABILITY: ModelCapability = Object.freeze({
   thinking_xhigh: false,
   thinking_max: false,
   max_context_tokens: 0,
+  cache: OPENAI_CACHE_CAPABILITY,
 });
 
 const OPENAI_REASONING_XHIGH_CAPABILITY: ModelCapability = Object.freeze({
@@ -67,6 +78,7 @@ const OPENAI_REASONING_XHIGH_CAPABILITY: ModelCapability = Object.freeze({
   thinking_xhigh: true,
   thinking_max: false,
   max_context_tokens: 0,
+  cache: OPENAI_CACHE_CAPABILITY,
 });
 
 const OPENAI_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -79,6 +91,7 @@ const OPENAI_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   thinking_xhigh: false,
   thinking_max: false,
   max_context_tokens: 0,
+  cache: OPENAI_CACHE_CAPABILITY,
 });
 
 const OPENAI_TEXT_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -91,6 +104,7 @@ const OPENAI_TEXT_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   thinking_xhigh: false,
   thinking_max: false,
   max_context_tokens: 0,
+  cache: OPENAI_CACHE_CAPABILITY,
 });
 
 const ANTHROPIC_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -103,6 +117,7 @@ const ANTHROPIC_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
   thinking_xhigh: false,
   thinking_max: false,
   max_context_tokens: 0,
+  cache: CACHE_CAPABILITY,
 });
 
 const ANTHROPIC_THINKING_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -115,6 +130,7 @@ const ANTHROPIC_THINKING_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze
   thinking_xhigh: false,
   thinking_max: true,
   max_context_tokens: 0,
+  cache: CACHE_CAPABILITY,
 });
 
 const ANTHROPIC_THINKING_XHIGH_VISION_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -127,6 +143,7 @@ const ANTHROPIC_THINKING_XHIGH_VISION_TOOL_CAPABILITY: ModelCapability = Object.
   thinking_xhigh: true,
   thinking_max: true,
   max_context_tokens: 0,
+  cache: CACHE_CAPABILITY,
 });
 
 const GEMINI_MULTIMODAL_TOOL_CAPABILITY: ModelCapability = Object.freeze({
@@ -236,7 +253,12 @@ function capabilityFromCatalog(
 }
 
 export function getOpenAILegacyModelCapability(modelName: string): ModelCapability {
-  return capabilityFromCatalog(modelName, OPENAI_LEGACY_CAPABILITY_CATALOG);
+  const capability = capabilityFromCatalog(modelName, OPENAI_LEGACY_CAPABILITY_CATALOG);
+  // Add cache capability to all OpenAI models (including unknown)
+  if (!capability.cache) {
+    return { ...capability, cache: OPENAI_CACHE_CAPABILITY };
+  }
+  return capability;
 }
 
 export function getOpenAIResponsesModelCapability(modelName: string): ModelCapability {

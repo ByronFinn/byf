@@ -7,8 +7,10 @@ import type { Logger } from '#/logging/types';
 import type { AgentAPI, AgentEvent, SDKAgentRPC, UsageStatus } from '#/rpc';
 import {
   generate,
+  type CacheStrategy,
   type ChatProvider,
   type Message,
+  type PromptPlan,
   type Tool,
 } from '@byfriends/kosong';
 
@@ -202,6 +204,7 @@ export class Agent {
       this.config.modelAlias,
       systemPrompt,
       tools,
+      options,
     );
     this.logLlmConfigIfChanged(
       context,
@@ -438,6 +441,10 @@ interface LlmConfigMetadata {
   thinkingEffort?: string;
   systemPromptChars: number;
   toolCount: number;
+  /** Cache block hashes extracted from PromptPlan, if available */
+  cacheBlockHashes?: Record<string, string>;
+  /** Provider's cache strategy */
+  providerCacheStrategy?: CacheStrategy;
 }
 
 function buildLlmRequestContext(options: Parameters<typeof generate>[5]): LlmRequestContextFields {
@@ -493,8 +500,9 @@ function buildLlmConfigMetadata(
   modelAlias: string | undefined,
   systemPrompt: string,
   tools: readonly Tool[],
+  options: Parameters<typeof generate>[5],
 ): LlmConfigMetadata {
-  return {
+  const metadata: LlmConfigMetadata = {
     provider: provider.name,
     model: provider.modelName,
     modelAlias,
@@ -502,6 +510,46 @@ function buildLlmConfigMetadata(
     systemPromptChars: systemPrompt.length,
     toolCount: tools.length,
   };
+
+  // Extract cache strategy from provider capability
+  const providerCacheStrategy = getProviderCacheStrategy(provider);
+  if (providerCacheStrategy !== undefined) {
+    metadata.providerCacheStrategy = providerCacheStrategy;
+  }
+
+  // Extract cache block hashes from PromptPlan if available
+  const promptPlan = options?.promptPlan;
+  if (promptPlan !== undefined && promptPlan.blocks.length > 0) {
+    metadata.cacheBlockHashes = extractCacheBlockHashes(promptPlan);
+  }
+
+  return metadata;
+}
+
+/**
+ * Get the cache strategy from a provider's capability.
+ *
+ * Safely handles providers that don't implement getCapability or don't have cache.
+ */
+function getProviderCacheStrategy(provider: ChatProvider): CacheStrategy | undefined {
+  if (typeof provider.getCapability !== 'function') {
+    return undefined;
+  }
+  const capability = provider.getCapability();
+  return capability?.cache?.strategy;
+}
+
+/**
+ * Extract cache block hashes from a PromptPlan.
+ *
+ * Returns a Record mapping block names to their SHA256 hashes.
+ */
+function extractCacheBlockHashes(promptPlan: PromptPlan): Record<string, string> {
+  const hashes: Record<string, string> = {};
+  for (const block of promptPlan.blocks) {
+    hashes[block.name] = fingerprint(block.text);
+  }
+  return hashes;
 }
 
 function buildLlmConfigSignature(

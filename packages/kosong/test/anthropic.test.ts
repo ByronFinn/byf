@@ -2,6 +2,7 @@ import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic';
 import type { ThinkingEffort } from '#/provider';
+import type { PromptPlan } from '#/prompt-plan';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -1779,24 +1780,8 @@ describe('AnthropicChatProvider', () => {
     });
   });
 
-  describe('system prompt cache breakpoints', () => {
-    it('splits system prompt into multiple text blocks on breakpoints', async () => {
-      const provider = createProvider();
-      const history: Message[] = [
-        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
-      ];
-      const systemPrompt = 'Static part\n__CACHE_BOUNDARY__\nDynamic part';
-      const body = await captureRequestBody(provider, systemPrompt, [], history, {
-        cacheBreakpoints: ['__CACHE_BOUNDARY__'],
-      });
-
-      expect(body['system']).toEqual([
-        { type: 'text', text: 'Static part', cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'Dynamic part', cache_control: { type: 'ephemeral' } },
-      ]);
-    });
-
-    it('uses single block when no breakpoints provided', async () => {
+  describe('system prompt cache breakpoints (deprecated)', () => {
+    it('uses single block when no prompt plan provided', async () => {
       const provider = createProvider();
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
@@ -1808,50 +1793,57 @@ describe('AnthropicChatProvider', () => {
       ]);
     });
 
-    it('ignores missing breakpoints and falls back to single block', async () => {
+    it('full system prompt sent as single block without promptPlan', async () => {
       const provider = createProvider();
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
       ];
-      const body = await captureRequestBody(provider, 'No markers here.', [], history, {
-        cacheBreakpoints: ['__MISSING_MARKER__'],
-      });
+      const systemPrompt = 'Static part\n__CACHE_BOUNDARY__\nDynamic part';
+      const body = await captureRequestBody(provider, systemPrompt, [], history);
+
+      // Without promptPlan, the entire prompt is sent as a single block
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Static part\n__CACHE_BOUNDARY__\nDynamic part', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('full system prompt sent as single block with markers', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, 'No markers here.', [], history);
 
       expect(body['system']).toEqual([
         { type: 'text', text: 'No markers here.', cache_control: { type: 'ephemeral' } },
       ]);
     });
 
-    it('supports multiple breakpoints', async () => {
+    it('full system prompt with multiple markers sent as single block', async () => {
       const provider = createProvider();
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
       ];
       const systemPrompt = 'A\n__B1__\nB\n__B2__\nC';
-      const body = await captureRequestBody(provider, systemPrompt, [], history, {
-        cacheBreakpoints: ['__B1__', '__B2__'],
-      });
+      const body = await captureRequestBody(provider, systemPrompt, [], history);
 
+      // Without promptPlan, the entire prompt is sent as a single block
       expect(body['system']).toEqual([
-        { type: 'text', text: 'A', cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'B', cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'C', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'A\n__B1__\nB\n__B2__\nC', cache_control: { type: 'ephemeral' } },
       ]);
     });
 
-    it('trims whitespace around split parts', async () => {
+    it('full system prompt with whitespace sent as-is', async () => {
       const provider = createProvider();
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
       ];
       const systemPrompt = '  Static  \n__B__\n  Dynamic  ';
-      const body = await captureRequestBody(provider, systemPrompt, [], history, {
-        cacheBreakpoints: ['__B__'],
-      });
+      const body = await captureRequestBody(provider, systemPrompt, [], history);
 
+      // Without promptPlan, the entire prompt is sent as-is
       expect(body['system']).toEqual([
-        { type: 'text', text: 'Static', cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'Dynamic', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: '  Static  \n__B__\n  Dynamic  ', cache_control: { type: 'ephemeral' } },
       ]);
     });
   });
@@ -2007,5 +1999,165 @@ describe('AnthropicChatProvider constructor max_tokens', () => {
 
   it('clamps defaultMaxTokens above the documented ceiling for known models', async () => {
     expect(await maxTokensFor('claude-opus-4-7', { defaultMaxTokens: 999999 })).toBe(128000);
+  });
+});
+
+describe('AnthropicChatProvider PromptPlan support', () => {
+  describe('getCapability cache capability', () => {
+    it('returns cache capability with explicit-block strategy', () => {
+      const provider = createProvider('claude-opus-4-7');
+      const capability = provider.getCapability();
+
+      expect(capability.cache).toBeDefined();
+      expect(capability.cache?.strategy).toBe('explicit-block');
+      expect(capability.cache?.supportedScopes).toEqual(['global', 'project', 'session', 'none']);
+    });
+
+    it('returns cache capability for Claude 4 models', () => {
+      const models = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
+      for (const model of models) {
+        const provider = createProvider(model);
+        const capability = provider.getCapability();
+        expect(capability.cache?.strategy).toBe('explicit-block');
+        expect(capability.cache?.supportedScopes).toEqual(['global', 'project', 'session', 'none']);
+      }
+    });
+
+    it('returns cache capability for Claude 3 models', () => {
+      const provider = createProvider('claude-3-opus-20240229');
+      const capability = provider.getCapability();
+      expect(capability.cache?.strategy).toBe('explicit-block');
+      expect(capability.cache?.supportedScopes).toEqual(['global', 'project', 'session', 'none']);
+    });
+  });
+
+  describe('PromptPlan to TextBlockParam conversion', () => {
+    it('injects cache_control on global scope blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'system', text: 'You are helpful.', cacheScope: 'global' },
+          { name: 'project', text: 'Project rules.', cacheScope: 'project' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'You are helpful.', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'Project rules.', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('injects cache_control on project scope blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'project', text: 'Project-specific instructions.', cacheScope: 'project' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Project-specific instructions.', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('injects cache_control on session scope blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'session', text: 'Session context.', cacheScope: 'session' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Session context.', cache_control: { type: 'ephemeral' } },
+      ]);
+    });
+
+    it('does not inject cache_control on none scope blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'system', text: 'Cached system prompt.', cacheScope: 'global' },
+          { name: 'user-query', text: 'Dynamic user query.', cacheScope: 'none' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      expect(body['system']).toEqual([
+        { type: 'text', text: 'Cached system prompt.', cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: 'Dynamic user query.' },
+      ]);
+      expect((body['system'] as Array<{ type: string; text: string; cache_control?: { type: string } }>)[1]).not.toHaveProperty('cache_control');
+    });
+
+    it('produces correct block count for mixed scopes', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'global', text: 'Global instructions.', cacheScope: 'global' },
+          { name: 'project', text: 'Project rules.', cacheScope: 'project' },
+          { name: 'session', text: 'Session context.', cacheScope: 'session' },
+          { name: 'dynamic', text: 'Dynamic content.', cacheScope: 'none' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      const system = body['system'] as Array<{ type: string; text: string; cache_control?: { type: string } }>;
+      expect(system).toHaveLength(4);
+      expect(system[0]!.cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[1]!.cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[2]!.cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[3]!.cache_control).toBeUndefined();
+    });
+
+    it('handles empty PromptPlan blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = { blocks: [] };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      expect(body['system']).toBeUndefined();
+    });
+
+    it('preserves block order from PromptPlan', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
+      ];
+      const promptPlan: PromptPlan = {
+        blocks: [
+          { name: 'first', text: 'First block.', cacheScope: 'global' },
+          { name: 'second', text: 'Second block.', cacheScope: 'project' },
+          { name: 'third', text: 'Third block.', cacheScope: 'session' },
+        ],
+      };
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+
+      const system = body['system'] as Array<{ type: string; text: string }>;
+      expect(system).toHaveLength(3);
+      expect(system[0]!.text).toBe('First block.');
+      expect(system[1]!.text).toBe('Second block.');
+      expect(system[2]!.text).toBe('Third block.');
+    });
   });
 });

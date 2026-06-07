@@ -26,8 +26,12 @@ import {
   type GenerateCallbacks,
   type Message,
   type ModelCapability,
+  type PromptPlan,
+  type ProviderCacheCapability,
   type StreamedMessagePart,
 } from '@byfriends/kosong';
+
+import { buildPromptPlan } from '../../prompt-plan';
 
 import type { LLM, LLMChatParams, LLMChatResponse, LLMRequestLogContext } from '../../loop';
 import {
@@ -39,7 +43,7 @@ export const GENERATE_REQUEST_LOG_CONTEXT = '__byfRequestLogContext';
 
 export type GenerateOptionsWithRequestLog = {
   readonly signal?: AbortSignal;
-  readonly cacheBreakpoints?: string[];
+  readonly promptPlan?: PromptPlan;
   readonly [GENERATE_REQUEST_LOG_CONTEXT]?: LLMRequestLogContext;
 };
 
@@ -110,7 +114,7 @@ export class KosongLLM implements LLM {
       [...params.tools],
       [...params.messages],
       callbacks,
-      generateOptions(params),
+      generateOptions(params, this.systemPrompt, effectiveProvider),
     );
 
     // Replay merged content parts onto loop per-block callbacks after the
@@ -153,11 +157,20 @@ export class KosongLLM implements LLM {
   }
 }
 
-function generateOptions(params: LLMChatParams): GenerateOptionsWithRequestLog {
+function generateOptions(
+  params: LLMChatParams,
+  systemPrompt: string,
+  provider: ChatProvider,
+): GenerateOptionsWithRequestLog {
+  // Build PromptPlan using provider's cache capability
+  const cacheCapability = getProviderCacheCapability(provider);
+  const promptPlan = buildPromptPlan(systemPrompt, cacheCapability);
+
   const options: GenerateOptionsWithRequestLog = {
     signal: params.signal,
-    cacheBreakpoints: ['__CACHE_BOUNDARY__'],
+    promptPlan,
   };
+
   if (params.requestLogContext !== undefined) {
     return {
       ...options,
@@ -165,6 +178,26 @@ function generateOptions(params: LLMChatParams): GenerateOptionsWithRequestLog {
     };
   }
   return options;
+}
+
+/**
+ * Get the cache capability from a provider.
+ *
+ * Safely handles providers that don't implement getCapability or don't have cache.
+ * Returns a default capability with 'none' strategy for non-caching providers.
+ */
+function getProviderCacheCapability(provider: ChatProvider): ProviderCacheCapability {
+  if (typeof provider.getCapability !== 'function') {
+    // Provider doesn't implement getCapability, assume no caching
+    return { strategy: 'none' };
+  }
+  const capability = provider.getCapability();
+  // If capability exists and has cache field, return it
+  if (capability?.cache !== undefined) {
+    return capability.cache;
+  }
+  // Otherwise return default 'none' strategy
+  return { strategy: 'none' };
 }
 
 function buildKosongCallbacks(params: LLMChatParams): GenerateCallbacks {

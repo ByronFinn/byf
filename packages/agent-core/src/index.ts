@@ -43,6 +43,7 @@ export type {
   BearerTokenProvider,
   OAuthTokenProviderResolver,
 } from './providers/runtime-provider';
+export { buildPromptPlan } from './prompt-plan';
 
 // ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
 export type {
