@@ -437,6 +437,10 @@ function convertMessage(message: Message): MessageParam {
       throw new ChatProviderError('Tool message missing `toolCallId`.');
     }
     const block = toolResultToBlock(message.toolCallId, message.content);
+    // Inject cache_control on tool result if cache hints are present
+    if (message.cacheHint?.isLastTurnEnd || message.cacheHint?.isSuddenLargeContext) {
+      (block as CacheableBlock).cache_control = CACHE_CONTROL;
+    }
     return { role: 'user', content: [block as ContentBlockParam] };
   }
 
@@ -484,6 +488,14 @@ function convertMessage(message: Message): MessageParam {
         name: tc.name,
         input: toolInput,
       } satisfies ToolUseBlockParam);
+    }
+  }
+
+  // Inject cache_control on the last content block if cache hints are present
+  if (message.cacheHint?.isLastTurnEnd || message.cacheHint?.isSuddenLargeContext) {
+    const lastBlock = blocks.at(-1);
+    if (lastBlock !== undefined && CACHEABLE_TYPES.has((lastBlock as { type: string }).type)) {
+      (lastBlock as CacheableBlock).cache_control = CACHE_CONTROL;
     }
   }
 

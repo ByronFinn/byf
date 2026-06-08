@@ -20,6 +20,7 @@ import {
   toByfErrorPayload,
 } from '#/errors';
 import { isAbortError, isMaxStepsExceededError } from '../../loop/errors';
+import { applyCacheStaking } from '../cache-staking';
 import {
   createLoopEventDispatcher,
   runTurn,
@@ -60,6 +61,7 @@ const LLM_NOT_SET_MESSAGE = 'LLM not set, send "/login" to login';
 export class TurnFlow implements RecordRestoreHandler {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
+  private _previousTurnMessageCount = 0;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
   private readonly toolCallStartedAt = new Map<string, { name: string; startedAt: number }>();
   private readonly toolCallDupType = new Map<string, 'normal' | 'cross_step'>();
@@ -111,6 +113,7 @@ export class TurnFlow implements RecordRestoreHandler {
     }
 
     this.turnId += 1;
+    this._previousTurnMessageCount = this.agent.context.messages.length;
     this.currentStep = 0;
     this.stepToolCallKeys.clear();
     this.toolCallDupType.clear();
@@ -383,7 +386,12 @@ export class TurnFlow implements RecordRestoreHandler {
             generate: this.agent.generate,
             completionBudgetConfig,
           }),
-          buildMessages: () => this.agent.context.messages,
+          buildMessages: () => {
+            const messages = this.agent.context.messages;
+            return applyCacheStaking(messages, {
+              previousTurnMessageCount: this._previousTurnMessageCount,
+            });
+          },
           dispatchEvent: this.buildDispatchEvent(turnId),
           tools: this.agent.tools.loopTools,
           log: this.agent.log,

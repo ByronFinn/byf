@@ -88,6 +88,24 @@ The specific variant of observation masking used in BYF. Tool results are classi
 ### Cache Boundary
 A sentinel marker (`__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__` pattern) that splits the prompt into a static cacheable prefix and a dynamic per-session suffix. Enables Anthropic's prompt cache API. Static content before the boundary is cached globally; dynamic content after it is recomputed per turn.
 
+### Cache Hint
+A provider-agnostic logical tag (`cacheHint`) on a `Message` indicating its temporal caching significance (e.g., `isLastTurnEnd` marks the previous turn's final assistant message). Produced by `CacheStakingStrategy`, consumed by provider adapters. Not a provider-specific API parameter.
+
+### CacheStakingStrategy
+An agent-core module that analyzes conversation history and attaches `CacheHint` tags to messages based on turn boundaries and content size. Decoupled from provider specifics — it decides *what* to cache; adapters decide *how*. Complements `PromptPlan` (which handles system prompt and tools).
+
+### PromptPlan
+A structured representation of the system prompt as ordered, named blocks (`PromptBlock[]`), each with a `CacheScope`. Produced by the builder in agent-core, consumed by provider adapters via `GenerateOptions.promptPlan`. Manages static, non-array content (system instructions, AGENTS.md, tool schemas).
+
+### Turn Boundary
+The division point between consecutive Turns in the conversation history. Identified by `previousTurnMessageCount` from TurnFlow. Used by `CacheStakingStrategy` to place the history cache stake at the previous turn's last assistant message, ensuring the entire preceding conversation (including tool results) is cached.
+
+### Dynamic Context Anchor
+The optional 4th cache stake point, placed after the largest content block in the current turn (threshold ~2000 chars). Optimizes streaming TTFT/TPS when the current turn contains a burst of large context (user-pasted logs, large file reads). Conditional: only placed when a qualifying block exists.
+
+### Tool Stability Ordering
+Tools are ordered by stability before caching: Builtin tools (never change) first, MCP tools (may connect/disconnect) after. A fixed sentinel marker ensures the tools cache endpoint never collapses into the system prompt cache endpoint when no MCP tools are present.
+
 ### Progressive Disclosure
 Loading only names and brief descriptions at startup, then fetching full content on demand. Applied to Skills in BYF: only skill names and one-line descriptions are injected into the system prompt; the full SKILL.md content is loaded via the `Skill` tool when needed.
 

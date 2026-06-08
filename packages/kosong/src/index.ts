@@ -11,6 +11,7 @@ export {
 } from './message';
 export type {
   AudioURLPart,
+  CacheHint,
   ContentPart,
   ImageURLPart,
   Message,

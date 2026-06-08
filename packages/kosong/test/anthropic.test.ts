@@ -2161,3 +2161,116 @@ describe('AnthropicChatProvider PromptPlan support', () => {
     });
   });
 });
+
+describe('AnthropicChatProvider cacheHint on history messages', () => {
+  it('injects cache_control on message with isLastTurnEnd', async () => {
+    const provider = createProvider();
+    const history: Message[] = [
+      { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hi there' }],
+        toolCalls: [],
+        cacheHint: { isLastTurnEnd: true },
+      },
+      { role: 'user', content: [{ type: 'text', text: 'How are you?' }], toolCalls: [] },
+    ];
+    const body = await captureRequestBody(provider, '', [], history);
+
+    const messages = body['messages'] as Array<{
+      role: string;
+      content: Array<{ type: string; text?: string; cache_control?: { type: string } }>;
+    }>;
+
+    // First user message - no cache_control
+    expect(messages[0]!.content[0]!.cache_control).toBeUndefined();
+    // Assistant message with isLastTurnEnd - last block should have cache_control
+    expect(messages[1]!.content.at(-1)!.cache_control).toEqual({ type: 'ephemeral' });
+    // Second user message - no cache_control
+    expect(messages[2]!.content[0]!.cache_control).toBeUndefined();
+  });
+
+  it('does not inject cache_control on messages without cacheHint', async () => {
+    const provider = createProvider();
+    const history: Message[] = [
+      { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] },
+    ];
+    const body = await captureRequestBody(provider, '', [], history);
+
+    const messages = body['messages'] as Array<{
+      role: string;
+      content: Array<{ type: string; cache_control?: { type: string } }>;
+    }>;
+
+    expect(messages[0]!.content[0]!.cache_control).toBeUndefined();
+    expect(messages[1]!.content[0]!.cache_control).toBeUndefined();
+  });
+
+  it('injects cache_control on last block when assistant has tool calls', async () => {
+    const provider = createProvider();
+    const toolCall: ToolCall = {
+      type: 'function',
+      id: 'call_abc',
+      name: 'add',
+      arguments: '{"a": 1, "b": 2}',
+    };
+    const history: Message[] = [
+      { role: 'user', content: [{ type: 'text', text: 'Add 1 and 2' }], toolCalls: [] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Calculating.' }],
+        toolCalls: [toolCall],
+        cacheHint: { isLastTurnEnd: true },
+      },
+    ];
+    const body = await captureRequestBody(provider, '', [], history);
+
+    const messages = body['messages'] as Array<{
+      role: string;
+      content: Array<{ type: string; cache_control?: { type: string } }>;
+    }>;
+
+    // The last block (tool_use) should have cache_control
+    const assistantContent = messages[1]!.content;
+    const lastBlock = assistantContent.at(-1)!;
+    expect(lastBlock.cache_control).toEqual({ type: 'ephemeral' });
+    // The text block should NOT have cache_control
+    expect(assistantContent[0]!.cache_control).toBeUndefined();
+  });
+
+  it('injects cache_control on message with isSuddenLargeContext', async () => {
+    const provider = createProvider();
+    const history: Message[] = [
+      { role: 'user', content: [{ type: 'text', text: 'Read file' }], toolCalls: [] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Reading...' }],
+        toolCalls: [{ type: 'function', id: 'tc1', name: 'Read', arguments: '{"path":"x"}' }],
+      },
+      {
+        role: 'tool',
+        content: [{ type: 'text', text: 'x'.repeat(2500) }],
+        toolCalls: [],
+        toolCallId: 'tc1',
+        cacheHint: { isSuddenLargeContext: true },
+      },
+    ];
+    const body = await captureRequestBody(provider, '', [], history);
+
+    // Tool messages are merged into user messages. The tool_result block
+    // should have cache_control because isSuddenLargeContext is set.
+    const messages = body['messages'] as Array<{
+      role: string;
+      content: Array<{ type: string; text?: string; cache_control?: { type: string } }>;
+    }>;
+
+    // Find the user message containing the tool result
+    const toolResultMsg = messages.find((m) =>
+      m.content.some((b) => b.type === 'tool_result'),
+    );
+    expect(toolResultMsg).toBeDefined();
+    const toolResultBlock = toolResultMsg!.content.find((b) => b.type === 'tool_result');
+    expect(toolResultBlock!.cache_control).toEqual({ type: 'ephemeral' });
+  });
+});

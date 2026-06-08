@@ -35,6 +35,19 @@ export interface VideoURLPart {
  */
 export type ContentPart = TextPart | ThinkPart | ImageURLPart | AudioURLPart | VideoURLPart;
 
+/**
+ * Cache hint metadata attached to a {@link Message}.
+ *
+ * Used by the cache staking layer to signal which messages are good
+ * cache breakpoint candidates (e.g. the last message of a previous turn).
+ * The Anthropic adapter reads these hints to inject `cache_control` on
+ * the appropriate content blocks.
+ */
+export interface CacheHint {
+  readonly isLastTurnEnd?: boolean;
+  readonly isSuddenLargeContext?: boolean;
+}
+
 export interface ToolCall {
   type: 'function';
   id: string;
@@ -100,6 +113,8 @@ export interface Message {
   toolCallId?: string;
   /** When `true`, indicates the message was not fully received (e.g. stream interrupted). */
   partial?: boolean;
+  /** Cache hint metadata for prompt caching strategies. */
+  cacheHint?: CacheHint;
 }
 
 /** Check if a streamed part is a ContentPart (text, think, image_url, audio_url, video_url). */
