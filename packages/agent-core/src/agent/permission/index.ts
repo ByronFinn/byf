@@ -126,8 +126,12 @@ export class PermissionManager implements RecordRestoreHandler {
       return undefined;
     }
 
-    // 处理yolo模式 - 优先级最高,跳过策略评估
+    // 处理yolo模式 - 仍需评估策略（如workspace外路径检查）
     if (mode === 'yolo') {
+      const policyResult = await this.evaluatePolicies(context, matchedRule);
+      if (policyResult !== undefined) {
+        return this.permissionPolicyResultToPrepare(policyResult, context);
+      }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'yolo');
       }

@@ -47,6 +47,7 @@ describe('Agent usage', () => {
         inputCacheCreation: 444,
       },
       currentTurn: undefined,
+      cacheHitRate: 333 / (111 + 333 + 444),
     });
   });
 
@@ -135,6 +136,7 @@ describe('Agent usage', () => {
         inputCacheCreation: 4,
       },
       currentTurn: undefined,
+      cacheHitRate: 3 / (1 + 3 + 4),
     });
   });
 });

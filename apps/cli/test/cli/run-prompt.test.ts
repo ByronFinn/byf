@@ -59,13 +59,6 @@ const mocks = vi.hoisted(() => {
     harnessClose: vi.fn(),
     harnessTrack: vi.fn(),
     harnessGetCachedAccessToken: vi.fn(),
-    initializeTelemetry: vi.fn(),
-    setCrashPhase: vi.fn(),
-    shutdownTelemetry: vi.fn(),
-    telemetryTrack: vi.fn(),
-    setTelemetryContext: vi.fn(),
-    lifecycleTrack: vi.fn(),
-    withTelemetryContext: vi.fn(() => ({ track: vi.fn() })),
     createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
     resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-test-home'),
     harnessCreatesDeviceIdOnConstruction: false,
@@ -99,15 +92,6 @@ vi.mock('@byfriends/sdk', async (importOriginal) => {
     },
   };
 });
-
-vi.mock('@byfriends/telemetry', () => ({
-  initializeTelemetry: mocks.initializeTelemetry,
-  setCrashPhase: mocks.setCrashPhase,
-  shutdownTelemetry: mocks.shutdownTelemetry,
-  track: mocks.telemetryTrack,
-  setTelemetryContext: mocks.setTelemetryContext,
-  withTelemetryContext: mocks.withTelemetryContext,
-}));
 
 function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
   return {
@@ -195,7 +179,6 @@ describe('runPrompt', () => {
     expect(mocks.session.prompt).toHaveBeenCalledWith('say hello');
     expect(stdout.text()).toBe('• hello world\n\n');
     expect(stderr.text()).toBe('To resume this session: byf -r ses_prompt\n');
-    expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
   });
 
@@ -210,9 +193,6 @@ describe('runPrompt', () => {
       model: 'byf/k2.5',
       permission: 'auto',
     });
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'byf/k2.5' }),
-    );
   });
 
   it('formats thinking and assistant output as transcript blocks', async () => {
@@ -386,9 +366,6 @@ describe('runPrompt', () => {
 
     expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_existing' });
     expect(mocks.session.setModel).toHaveBeenCalledWith('byf/k2.5');
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'byf/k2.5' }),
-    );
   });
 
   it('writes stream-json output as assistant JSONL with resume meta without transcript bullets', async () => {
@@ -462,9 +439,6 @@ describe('runPrompt', () => {
 
     expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_existing' });
     expect(mocks.harnessCreateSession).not.toHaveBeenCalled();
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'saved-model' }),
-    );
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(1, 'auto');
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
   });
@@ -493,9 +467,6 @@ describe('runPrompt', () => {
     expect(mocks.harnessListSessions).toHaveBeenCalledWith({ workDir: process.cwd() });
     expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_previous' });
     expect(mocks.harnessCreateSession).not.toHaveBeenCalled();
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'saved-model' }),
-    );
   });
 
   it('restores resumed session permission even when the turn fails', async () => {
@@ -559,7 +530,6 @@ describe('runPrompt', () => {
     expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
       processMock.exit.mock.invocationCallOrder[0]!,
     );
-    expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
     expect(processMock.exit).toHaveBeenCalledWith(130);
 
@@ -676,7 +646,6 @@ describe('runPrompt', () => {
       }),
     ).rejects.toThrow('provider.error: model failed');
 
-    expect(mocks.shutdownTelemetry).toHaveBeenCalled();
     expect(mocks.harnessClose).toHaveBeenCalled();
   });
 
