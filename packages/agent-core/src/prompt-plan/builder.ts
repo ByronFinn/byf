@@ -325,6 +325,20 @@ function createPlanFromParts(
     };
   });
 
+  // Enforce maxCacheableBlocks: downgrade excess cacheable blocks to 'none'
+  const maxCacheable = providerCacheCapability.maxCacheableBlocks;
+  if (maxCacheable !== undefined && maxCacheable > 0) {
+    let cacheableCount = 0;
+    for (const block of blocks) {
+      if (block.cacheScope !== 'none') {
+        cacheableCount++;
+        if (cacheableCount > maxCacheable) {
+          (block as { cacheScope: CacheScope }).cacheScope = 'none';
+        }
+      }
+    }
+  }
+
   return { blocks };
 }
 

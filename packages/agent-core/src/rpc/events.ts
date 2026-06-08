@@ -1,4 +1,4 @@
-import type { FinishReason, TokenUsage } from '@byfriends/kosong';
+import type { CacheHitRate, FinishReason, TokenUsage } from '@byfriends/kosong';
 
 import type { PromptOrigin } from '../agent/context';
 import type { ByfErrorPayload } from '../errors';
@@ -14,6 +14,8 @@ export interface UsageStatus {
   readonly byModel?: Record<string, TokenUsage> | undefined;
   readonly currentTurn?: TokenUsage | undefined;
   readonly total?: TokenUsage | undefined;
+  /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
+  readonly cacheHitRate?: CacheHitRate | undefined;
 }
 
 export interface ToolUpdate {

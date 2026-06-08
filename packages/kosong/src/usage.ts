@@ -52,3 +52,20 @@ export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
     inputCacheCreation: a.inputCacheCreation + b.inputCacheCreation,
   };
 }
+
+/**
+ * Branded type for cache hit rate to avoid accidental misuse as a raw number.
+ */
+export type CacheHitRate = number & { readonly __brand: unique symbol };
+
+/**
+ * Compute the cache hit rate as a branded number between 0 and 1.
+ *
+ * Returns `undefined` when no input tokens were processed (inputTotal === 0),
+ * so callers can distinguish "no data" from "zero hits".
+ */
+export function cacheHitRate(usage: TokenUsage): CacheHitRate | undefined {
+  const total = inputTotal(usage);
+  if (total === 0) return undefined;
+  return usage.inputCacheRead / total as CacheHitRate;
+}

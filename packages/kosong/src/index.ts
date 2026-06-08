@@ -52,8 +52,8 @@ export type { GenerateCallbacks, GenerateResult } from './generate';
 export type { Tool } from './tool';
 
 // Token usage
-export { addUsage, emptyUsage, grandTotal, inputTotal } from './usage';
-export type { TokenUsage } from './usage';
+export { addUsage, cacheHitRate, emptyUsage, grandTotal, inputTotal } from './usage';
+export type { CacheHitRate, TokenUsage } from './usage';
 
 // Errors
 export {

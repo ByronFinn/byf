@@ -31,6 +31,7 @@ export type CacheScope = 'global' | 'project' | 'session' | 'none';
  *   entire prompt (OpenAI's `prompt_cache_key` approach).
  * - `'prefix-match'`: Provider caches by matching prompt prefixes
  *   (OpenAI's automatic prefix caching for repeated prefixes).
+ *   Reserved for future use — no provider currently declares this strategy.
  * - `'none'`: Provider does not support prompt caching.
  */
 export type CacheStrategy = 'explicit-block' | 'prompt-cache-key' | 'prefix-match' | 'none';
