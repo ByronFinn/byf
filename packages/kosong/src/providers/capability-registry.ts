@@ -1,4 +1,4 @@
-import { UNKNOWN_CAPABILITY, type ModelCapability } from '#/capability';
+import { UNKNOWN_CAPABILITY, isUnknownCapability, type ModelCapability } from '#/capability';
 
 const CACHE_CAPABILITY = Object.freeze({
   strategy: 'explicit-block' as const,
@@ -286,6 +286,25 @@ export function getGoogleGenAIModelCapability(modelName: string): ModelCapabilit
     return GEMINI_THINKING_MULTIMODAL_TOOL_CAPABILITY;
   }
   return GEMINI_MULTIMODAL_TOOL_CAPABILITY;
+}
+
+/**
+ * Tries all provider-specific capability registries and returns the first
+ * non-UNKNOWN match. Used when the provider context is unknown (e.g., catalog
+ * enrichment) to fill in accurate thinking capability flags.
+ */
+export function resolveCapabilityFromRegistry(modelName: string): ModelCapability | undefined {
+  const registries: readonly ((name: string) => ModelCapability)[] = [
+    getAnthropicModelCapability,
+    getOpenAIResponsesModelCapability,
+    getOpenAILegacyModelCapability,
+    getGoogleGenAIModelCapability,
+  ];
+  for (const fn of registries) {
+    const cap = fn(modelName);
+    if (!isUnknownCapability(cap)) return cap;
+  }
+  return undefined;
 }
 
 export function usesOpenAIResponsesDeveloperRole(modelName: string): boolean {

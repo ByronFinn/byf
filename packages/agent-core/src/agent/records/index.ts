@@ -84,7 +84,7 @@ export class AgentRecords {
     }
 
     // Extract the prefix from the record type
-    const prefix = recordType.split('.')[0];
+    const prefix = recordType.split('.')[0]!;
 
     // Map prefixes to handler keys
     const mapping: Record<string, string> = {
