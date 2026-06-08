@@ -4026,6 +4026,7 @@ export class ByfTui implements DialogHost {
       showError: (msg) =>{  this.showError(msg); },
       showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
       track: (event, props?) =>{  this.track(event, props); },
+      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
     });
     await flow.run();
   }

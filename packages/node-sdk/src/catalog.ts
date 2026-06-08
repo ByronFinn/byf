@@ -46,6 +46,9 @@ function capabilityToStrings(capability: ModelCapability): string[] | undefined 
   if (capability.video_in) caps.push('video_in');
   if (capability.audio_in) caps.push('audio_in');
   if (capability.thinking) caps.push('thinking');
+  if (capability.thinking_effort) caps.push('thinking_effort');
+  if (capability.thinking_xhigh) caps.push('thinking_xhigh');
+  if (capability.thinking_max) caps.push('thinking_max');
   if (capability.tool_use) caps.push('tool_use');
   return caps.length > 0 ? caps : undefined;
 }
@@ -122,4 +125,59 @@ export function applyCatalogProvider(
   config.defaultModel = defaultModel;
   config.defaultThinking = options.thinking;
   return { defaultModel };
+}
+
+// ---------------------------------------------------------------------------
+// Login-time catalog enrichment
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests whether `candidate` is a prefix of `modelId` followed by either
+ * end-of-string or a `-` separator. This matches `gpt-5.5` against
+ * `gpt-5.5-2025-06-01` but not against `gpt-5.5-turbo` (different segment).
+ */
+export function catalogIdMatchesModelId(candidate: string, modelId: string): boolean {
+  if (modelId === candidate) return true;
+  if (modelId.startsWith(candidate) && modelId[candidate.length] === '-') return true;
+  return false;
+}
+
+/**
+ * Searches all providers in the catalog for a model whose ID matches
+ * `modelId` (prefix + separator boundary). Returns the first match.
+ */
+export function findCatalogModel(catalog: Catalog, modelId: string): CatalogModel | undefined {
+  for (const entry of Object.values(catalog)) {
+    const models = catalogProviderModels(entry);
+    for (const model of models) {
+      if (catalogIdMatchesModelId(model.id, modelId)) return model;
+    }
+  }
+  return undefined;
+}
+
+export interface EnrichedModelAlias {
+  readonly maxContextSize: number;
+  readonly maxOutputSize?: number;
+  readonly capabilities?: string[];
+  readonly displayName?: string;
+  readonly reasoningKey?: string;
+}
+
+/**
+ * Merges catalog metadata (priority) with provider-supplied values (fallback).
+ * Catalog provides: capabilities, maxContextSize, maxOutputSize, reasoningKey.
+ * Provider provides: displayName (user chose this provider, keep its naming).
+ */
+export function enrichWithCatalog(
+  providerModel: { readonly id: string; readonly contextLength: number; readonly displayName?: string },
+  catalogModel: CatalogModel,
+): EnrichedModelAlias {
+  return {
+    maxContextSize: catalogModel.capability.max_context_tokens || providerModel.contextLength,
+    maxOutputSize: catalogModel.maxOutputSize,
+    capabilities: capabilityToStrings(catalogModel.capability),
+    displayName: providerModel.displayName,
+    reasoningKey: catalogModel.reasoningKey,
+  };
 }

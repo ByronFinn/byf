@@ -5,11 +5,14 @@ export { ByfAuthFacade } from '#/auth';
 export {
   applyCatalogProvider,
   catalogBaseUrl,
+  catalogIdMatchesModelId,
   catalogModelToAlias,
   catalogProviderModels,
   CatalogFetchError,
   DEFAULT_CATALOG_URL,
+  enrichWithCatalog,
   fetchCatalog,
+  findCatalogModel,
   inferWireType,
   loadBuiltInCatalog,
 } from '#/catalog';
@@ -18,6 +21,7 @@ export type {
   Catalog,
   CatalogModel,
   CatalogProviderEntry,
+  EnrichedModelAlias,
 } from '#/catalog';
 
 export {
