@@ -1,4 +1,6 @@
 import type { ModelCapability } from '#/capability';
+import type { PromptPlan } from '#/prompt-plan';
+import { createHash } from 'node:crypto';
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { extractText } from '#/message';
@@ -65,6 +67,27 @@ function normalizeResponsesFinishReason(
     return { finishReason: 'other', rawFinishReason: 'failed' };
   }
   return { finishReason: null, rawFinishReason: null };
+}
+
+/**
+ * Derive a stable cache key from cacheable blocks in a PromptPlan.
+ *
+ * Only blocks with cacheScope 'global' are included in the hash, as OpenAI
+ * only supports caching the prefix (global scope).
+ */
+function deriveCacheKeyFromPromptPlan(promptPlan: PromptPlan | undefined): string | undefined {
+  if (!promptPlan || promptPlan.blocks.length === 0) return undefined;
+
+  const cacheableTexts: string[] = [];
+  for (const block of promptPlan.blocks) {
+    if (block.cacheScope === 'global') {
+      cacheableTexts.push(block.text);
+    }
+  }
+
+  if (cacheableTexts.length === 0) return undefined;
+
+  return createHash('sha256').update(cacheableTexts.join('')).digest('hex');
 }
 
 type RawObject = Record<string, unknown>;
@@ -903,6 +926,14 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
         stream: this._stream,
         ...kwargs,
       };
+
+      // Inject prompt_cache_key from PromptPlan if provided
+      if (options?.promptPlan) {
+        const cacheKey = deriveCacheKeyFromPromptPlan(options.promptPlan);
+        if (cacheKey) {
+          createParams['prompt_cache_key'] = cacheKey;
+        }
+      }
 
       if (
         !('responses' in client) ||

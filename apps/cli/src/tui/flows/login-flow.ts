@@ -6,6 +6,14 @@ import type {
   ModelAlias,
   ProviderConfig,
 } from '@byfriends/sdk';
+import {
+  enrichWithCatalog,
+  findCatalogModel,
+  fetchCatalog,
+  loadBuiltInCatalog,
+  DEFAULT_CATALOG_URL,
+  type Catalog,
+} from '@byfriends/sdk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
@@ -36,6 +44,7 @@ export interface LoginFlowDeps {
   showError(message: string): void;
   showLoginProgressSpinner(label: string): SpinnerHandle;
   track(event: string, properties?: Record<string, string | number | boolean | null>): void;
+  builtInCatalogJson: string | undefined;
 }
 
 export class LoginFlow {
@@ -63,7 +72,6 @@ export class LoginFlow {
     const baseUrl = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Base URL',
       subtitle: 'The OpenAI-compatible API endpoint',
-      initialValue: 'https://api.openai.com/v1',
       placeholder: 'https://api.openai.com/v1',
     });
     if (baseUrl === undefined) return;
@@ -91,14 +99,26 @@ export class LoginFlow {
       return this.handleManualModelEntry(name, baseUrl, apiKey);
     }
 
+    const catalog = await this.fetchCatalogWithFallback();
+    const enriched: Record<string, Partial<ModelAlias>> = {};
+
     const modelDict: Record<string, ModelAlias> = {};
     for (const m of models) {
-      modelDict[`${name}/${m.id}`] = {
+      const aliasKey = `${name}/${m.id}`;
+      const enrichedData = catalog !== undefined
+        ? this.enrichModelFromCatalog(m, catalog)
+        : undefined;
+      if (enrichedData !== undefined) {
+        enriched[aliasKey] = enrichedData;
+      }
+      modelDict[aliasKey] = {
         provider: name,
         model: m.id,
-        maxContextSize: m.contextLength,
-        capabilities: capabilitiesForModel(m),
+        maxContextSize: enrichedData?.maxContextSize ?? m.contextLength,
+        capabilities: enrichedData?.capabilities ?? capabilitiesForModel(m),
         displayName: m.displayName,
+        reasoningKey: enrichedData?.reasoningKey,
+        maxOutputSize: enrichedData?.maxOutputSize,
       };
     }
 
@@ -109,7 +129,7 @@ export class LoginFlow {
     const selectedModel = models.find((m) => m.id === selectedId);
     if (selectedModel === undefined) return;
 
-    await this.applyConfig(name, baseUrl, apiKey, models, selectedModel, selection.thinkingEffort !== 'off');
+    await this.applyConfig(name, baseUrl, apiKey, models, selectedModel, selection.thinkingEffort !== 'off', enriched);
     this.deps.track('login', { provider: name, model: selectedModel.id });
     this.deps.showStatus(`Connected: ${name} · ${selectedModel.id}`);
   }
@@ -148,7 +168,7 @@ export class LoginFlow {
       supportsVideoIn: false,
     };
 
-    await this.applyConfig(name, baseUrl, apiKey, [manualModelInfo], manualModelInfo, false);
+    await this.applyConfig(name, baseUrl, apiKey, [manualModelInfo], manualModelInfo, false, {});
     this.deps.track('login', { provider: name, model: manualModel });
     this.deps.showStatus(`Connected: ${name} · ${manualModel}`);
   }
@@ -160,6 +180,7 @@ export class LoginFlow {
     models: readonly OAuthModelInfo[],
     selectedModel: OAuthModelInfo,
     thinking: boolean,
+    enriched?: Record<string, Partial<ModelAlias>>,
   ): Promise<void> {
     const config = await this.deps.getConfig();
     this.deps.applyProviderConfig(config, {
@@ -170,6 +191,15 @@ export class LoginFlow {
       selectedModel,
       thinking,
     });
+    // Apply catalog enrichment overrides that were computed at fetch time.
+    if (enriched !== undefined) {
+      for (const [key, patch] of Object.entries(enriched)) {
+        const existing = config.models?.[key];
+        if (existing !== undefined) {
+          config.models![key] = { ...existing, ...patch };
+        }
+      }
+    }
     await this.deps.setConfig({
       providers: config.providers,
       models: config.models,
@@ -177,6 +207,25 @@ export class LoginFlow {
       defaultThinking: config.defaultThinking,
     });
     await this.deps.refreshConfigAfterLogin();
+  }
+
+  private async fetchCatalogWithFallback(): Promise<Catalog | undefined> {
+    try {
+      const catalog = await fetchCatalog(DEFAULT_CATALOG_URL);
+      return catalog;
+    } catch {
+      const fallback = loadBuiltInCatalog(this.deps.builtInCatalogJson);
+      return fallback;
+    }
+  }
+
+  private enrichModelFromCatalog(
+    model: OAuthModelInfo,
+    catalog: Catalog,
+  ): Partial<ModelAlias> | undefined {
+    const catalogModel = findCatalogModel(catalog, model.id);
+    if (catalogModel === undefined) return undefined;
+    return enrichWithCatalog(model, catalogModel);
   }
 }
 

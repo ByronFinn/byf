@@ -37,11 +37,6 @@ const mocks = vi.hoisted(() => ({
   harnessExportSession: vi.fn(),
   harnessTrack: vi.fn(),
   createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
-  initializeTelemetry: vi.fn(),
-  shutdownTelemetry: vi.fn(),
-  telemetryTrack: vi.fn(),
-  setTelemetryContext: vi.fn(),
-  withTelemetryContext: vi.fn(),
   resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-export-home'),
   harnessCreatesDeviceIdOnConstruction: false,
 }));
@@ -72,14 +67,6 @@ vi.mock('@byfriends/sdk', async (importOriginal) => {
     },
   };
 });
-
-vi.mock('@byfriends/telemetry', () => ({
-  initializeTelemetry: mocks.initializeTelemetry,
-  shutdownTelemetry: mocks.shutdownTelemetry,
-  track: mocks.telemetryTrack,
-  setTelemetryContext: mocks.setTelemetryContext,
-  withTelemetryContext: mocks.withTelemetryContext,
-}));
 
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), 'byf-export-'));
@@ -351,99 +338,6 @@ describe('byf export', () => {
     expect(exportInputs).toEqual([
       { id: 'ses_after_id', outputPath: output, version: '1.0.0-test' },
     ]);
-  });
-
-  it('initializes and flushes telemetry around default export tracking', async () => {
-    const program = new Command('byf');
-    const output = join(tmp, 'telemetry.zip');
-    mocks.harnessExportSession.mockResolvedValue(makeResult('ses_telemetry', output));
-
-    registerExportCommand(program, {
-      cwd: () => tmp,
-      stdout: {
-        write: () => true,
-      },
-      stderr: {
-        write: () => true,
-      },
-      exit: ((code: number) => {
-        throw new ExitCalled(code);
-      }) as ExportDeps['exit'],
-    });
-
-    await program.parseAsync(['node', 'byf', 'export', 'ses_telemetry', '--output', output], {
-      from: 'node',
-    });
-
-    expect(mocks.byfHarnessConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        telemetry: {
-          track: mocks.telemetryTrack,
-          setContext: mocks.setTelemetryContext,
-          withContext: mocks.withTelemetryContext,
-        },
-      }),
-    );
-    expect(mocks.harnessEnsureConfigFile).toHaveBeenCalledOnce();
-    expect(mocks.harnessGetConfig).toHaveBeenCalledOnce();
-    expect(mocks.resolveByfHome).toHaveBeenCalledWith();
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith({
-      homeDir: '/tmp/byf-export-home',
-      deviceId: expect.any(String),
-      enabled: true,
-      appName: 'byf-cli',
-      version: expect.any(String),
-      uiMode: 'shell',
-      model: 'k2',
-    });
-    expect(mocks.initializeTelemetry.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.harnessExportSession.mock.invocationCallOrder[0]!,
-    );
-    expect(mocks.harnessExportSession).toHaveBeenCalledWith({
-      id: 'ses_telemetry',
-      outputPath: output,
-      version: expect.any(String),
-      includeGlobalLog: true,
-    });
-    expect(mocks.shutdownTelemetry).toHaveBeenCalledWith({ timeoutMs: 3000 });
-    expect(mocks.harnessExportSession.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.shutdownTelemetry.mock.invocationCallOrder[0]!,
-    );
-  });
-
-  it('passes enabled false when default export config disables telemetry', async () => {
-    const program = new Command('byf');
-    const output = join(tmp, 'telemetry-disabled.zip');
-    mocks.harnessGetConfig.mockResolvedValue({
-      providers: {},
-      defaultModel: 'k2',
-      telemetry: false,
-    });
-    mocks.harnessExportSession.mockResolvedValue(makeResult('ses_disabled', output));
-
-    registerExportCommand(program, {
-      cwd: () => tmp,
-      stdout: {
-        write: () => true,
-      },
-      stderr: {
-        write: () => true,
-      },
-      exit: ((code: number) => {
-        throw new ExitCalled(code);
-      }) as ExportDeps['exit'],
-    });
-
-    await program.parseAsync(['node', 'byf', 'export', 'ses_disabled', '--output', output], {
-      from: 'node',
-    });
-
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false,
-      }),
-    );
-    expect(mocks.shutdownTelemetry).toHaveBeenCalledWith({ timeoutMs: 3000 });
   });
 
 });

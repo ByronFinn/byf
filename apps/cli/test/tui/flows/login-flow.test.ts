@@ -113,9 +113,9 @@ describe('LoginFlow', () => {
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
     await typeAndEnter(host, 'myprovider');
 
-    // Step 2: type base URL (has initialValue, must clear first)
+    // Step 2: type base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // Step 3: type API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -221,7 +221,7 @@ describe('LoginFlow', () => {
     await typeAndEnter(host, 'myprovider');
 
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // Cancel at API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -248,7 +248,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -290,7 +290,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -328,7 +328,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -359,7 +359,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -388,7 +388,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -421,7 +421,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -460,7 +460,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
@@ -499,7 +499,7 @@ describe('LoginFlow', () => {
 
     // Base URL
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
-    await clearTypeAndEnter(host, 'https://api.example.com/v1');
+    await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
     await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });

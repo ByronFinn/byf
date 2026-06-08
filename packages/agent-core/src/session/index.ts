@@ -153,14 +153,32 @@ export class Session {
     const { agents } = await this.readMetadata();
     this.agents.clear();
     let warning: string | undefined;
+    const failedAgents: Array<{ id: string; error: Error }> = [];
+
     const resumeTasks = Object.keys(agents).map(async (id) => {
       const agent = this.ensureResumeAgentInstantiated(id, agents);
       const result = await agent.resume();
       if (result.warning !== undefined && warning === undefined) {
         warning = result.warning;
       }
+      if (result.error !== undefined) {
+        failedAgents.push({ id, error: result.error });
+      }
     });
     await Promise.all(resumeTasks);
+
+    // Handle failed agents according to PRD requirements
+    const mainAgentFailure = failedAgents.find(({ id }) => id === 'main');
+    if (mainAgentFailure !== undefined) {
+      // Main agent failure should terminate the session
+      throw mainAgentFailure.error;
+    }
+
+    // Log sub agent failures but continue
+    for (const { id, error } of failedAgents) {
+      this.log.warn(`Sub agent "${id}" failed to resume: ${error.message}`);
+    }
+
     const resumeWarning = warning;
     // A session migrated from an external tool ships a wire without the
     // `config.update` bootstrap events a natively-created agent writes, so the

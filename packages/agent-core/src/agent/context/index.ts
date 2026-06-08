@@ -5,6 +5,7 @@ import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
 import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
+import type { RecordRestoreHandler } from '../restore-handler';
 import {
   applyObservationMasking,
   DEFAULT_MASKING_CONFIG,
@@ -35,7 +36,7 @@ const TOOL_EMPTY_ERROR_STATUS =
   '<system>ERROR: Tool execution failed. Tool output is empty.</system>';
 const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
 
-export class ContextMemory {
+export class ContextMemory implements RecordRestoreHandler {
   private _history: ContextMessage[] = [];
   private _tokenCount = 0;
   private tokenCountCoveredMessageCount = 0;
@@ -372,6 +373,95 @@ export class ContextMemory {
         message,
       });
     }
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'context.append_message':
+        this.appendMessage(record.message);
+        break;
+      case 'context.clear':
+        this.restoreClear();
+        break;
+      case 'context.apply_compaction':
+        this.restoreApplyCompaction(record);
+        break;
+      case 'context.mark_last_user_prompt_blocked':
+        this.restoreMarkLastUserPromptBlocked(record);
+        break;
+      case 'context.append_loop_event':
+        // This is handled asynchronously, but restoreRecord must be synchronous
+        // We'll handle this in the next implementation step
+        void this.restoreAppendLoopEvent(record);
+        break;
+      case 'context.observation_masking':
+        this.restoreObservationMasking();
+        break;
+    }
+  }
+
+  private restoreClear(): void {
+    this._history = [];
+    this._tokenCount = 0;
+    this.tokenCountCoveredMessageCount = 0;
+    this.openSteps.clear();
+    this.pendingToolResultIds.clear();
+    this.deferredMessages = [];
+    this.toolCallInfo.clear();
+    this.agent.injection.onContextClear();
+    this.agent.emitStatusUpdated();
+  }
+
+  private restoreApplyCompaction(record: Extract<import('../records/types').AgentRecord, { type: 'context.apply_compaction' }>): void {
+    const compactedCount = record.compactedCount;
+    const summary = record.summary;
+    const tokensAfter = record.tokensAfter;
+
+    this._history = [
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: summary }],
+        toolCalls: [],
+        origin: { kind: 'compaction_summary' },
+      },
+      ...this._history.slice(compactedCount),
+    ];
+    this.openSteps.clear();
+    this.flushDeferredMessagesIfToolExchangeClosed();
+    this._tokenCount = tokensAfter;
+    this.tokenCountCoveredMessageCount = this._history.length;
+    this.agent.injection.onContextCompacted(compactedCount);
+    this.agent.emitStatusUpdated();
+  }
+
+  private restoreMarkLastUserPromptBlocked(record: Extract<import('../records/types').AgentRecord, { type: 'context.mark_last_user_prompt_blocked' }>): void {
+    const hookEvent = record.hookEvent;
+    for (let i = this._history.length - 1; i >= 0; i--) {
+      const message = this._history[i];
+      if (message?.role !== 'user' || message.origin?.kind !== 'user') continue;
+      this._history[i] = {
+        ...message,
+        origin: { ...message.origin, blockedByHook: hookEvent },
+      };
+      return;
+    }
+  }
+
+  private async restoreAppendLoopEvent(record: Extract<import('../records/types').AgentRecord, { type: 'context.append_loop_event' }>): Promise<void> {
+    // During restore, we call the normal appendLoopEvent but it should not log
+    // The restoring flag prevents logging
+    await this.appendLoopEvent(record.event);
+  }
+
+  private restoreObservationMasking(): void {
+    const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
+    const { history } = applyObservationMasking(
+      this._history,
+      maxContextSize,
+      this.toolCallInfo,
+    );
+    this._history = history;
+    this.agent.emitStatusUpdated();
   }
 }
 

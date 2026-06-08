@@ -1,7 +1,8 @@
 import type { UsageStatus } from '#/rpc';
-import { addUsage, type TokenUsage } from '@byfriends/kosong';
+import { addUsage, cacheHitRate, type TokenUsage } from '@byfriends/kosong';
 
 import type { Agent } from '..';
+import type { RecordRestoreHandler } from '../restore-handler';
 
 export type UsageRecordScope = 'session' | 'turn';
 
@@ -9,7 +10,7 @@ function copyUsage(usage: TokenUsage): TokenUsage {
   return { ...usage };
 }
 
-export class UsageRecorder {
+export class UsageRecorder implements RecordRestoreHandler {
   private readonly byModel: Record<string, TokenUsage> = {};
   private currentTurn: TokenUsage | undefined;
 
@@ -44,10 +45,12 @@ export class UsageRecorder {
     const byModel = this.byModelSnapshot();
     const hasByModel = Object.keys(byModel).length > 0;
     const currentTurn = this.currentTurn;
+    const total = hasByModel ? totalUsage(byModel) : undefined;
     return {
       byModel: hasByModel ? byModel : undefined,
-      total: hasByModel ? totalUsage(byModel) : undefined,
+      total,
       currentTurn: currentTurn === undefined ? undefined : copyUsage(currentTurn),
+      cacheHitRate: total !== undefined ? cacheHitRate(total) : undefined,
     };
   }
 
@@ -67,6 +70,17 @@ export class UsageRecorder {
     return Object.fromEntries(
       Object.entries(this.byModel).map(([model, usage]) => [model, copyUsage(usage)]),
     );
+  }
+
+  restoreRecord(record: import('../records/types').AgentRecord): void {
+    switch (record.type) {
+      case 'usage.record':
+        // During restore, we always use 'session' scope regardless of the original scope
+        // This matches the old restoration behavior and ensures currentTurn is not set
+        // The restoring flag prevents logging
+        this.record(record.model, record.usage, 'session');
+        break;
+    }
   }
 }
 

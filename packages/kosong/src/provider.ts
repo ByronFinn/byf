@@ -1,5 +1,6 @@
 import type { ModelCapability } from './capability';
 import type { Message, StreamedMessagePart, VideoURLPart } from './message';
+import type { PromptPlan } from './prompt-plan';
 import type { Tool } from './tool';
 import type { TokenUsage } from './usage';
 
@@ -99,12 +100,12 @@ export interface GenerateOptions {
    */
   auth?: ProviderRequestAuth;
   /**
-   * String markers that indicate where to split the system prompt into
-   * separate content blocks for prompt caching. Only used by providers that
-   * support explicit cache control (e.g. Anthropic). Markers are removed from
-   * the text before it is sent to the API.
+   * Structured prompt plan with explicit cache scoping.
+   *
+   * When provided, providers that support caching may translate this into
+   * their native cache control format.
    */
-  cacheBreakpoints?: string[];
+  promptPlan?: PromptPlan;
 }
 
 /**

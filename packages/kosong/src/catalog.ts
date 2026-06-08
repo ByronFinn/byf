@@ -1,5 +1,6 @@
 import type { ModelCapability } from './capability';
 import type { ProviderType } from './providers';
+import { resolveCapabilityFromRegistry } from './providers/capability-registry';
 
 /**
  * models.dev-style catalog: a public map of provider/model metadata. Callers
@@ -123,22 +124,27 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
   if (!isUsableChatModel(model)) return undefined;
   const inputs = model.modalities?.input ?? [];
   const output = model.limit?.output;
+  const base: ModelCapability = {
+    image_in: inputs.includes('image'),
+    video_in: inputs.includes('video'),
+    audio_in: inputs.includes('audio'),
+    thinking: Boolean(model.reasoning),
+    tool_use: model.tool_call ?? true,
+    thinking_effort: false,
+    thinking_xhigh: false,
+    thinking_max: false,
+    max_context_tokens: context,
+  };
+  const registry = resolveCapabilityFromRegistry(model.id);
+  const capability = registry !== undefined
+    ? { ...base, ...registry, max_context_tokens: context }
+    : base;
   return {
     id: model.id,
     name: typeof model.name === 'string' && model.name.length > 0 ? model.name : undefined,
     maxOutputSize: typeof output === 'number' && output > 0 ? output : undefined,
     reasoningKey: catalogReasoningKey(model.interleaved),
-    capability: {
-      image_in: inputs.includes('image'),
-      video_in: inputs.includes('video'),
-      audio_in: inputs.includes('audio'),
-      thinking: Boolean(model.reasoning),
-      tool_use: model.tool_call ?? true,
-      thinking_effort: false,
-      thinking_xhigh: false,
-      thinking_max: false,
-      max_context_tokens: context,
-    },
+    capability,
   };
 }
 
