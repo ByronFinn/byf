@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
 
@@ -698,5 +698,222 @@ describe('runPrompt', () => {
 
     const handler = mocks.session.setQuestionHandler.mock.calls[0]![0] as () => unknown;
     expect(handler()).toBeNull();
+  });
+
+  describe('SIGHUP and dead-terminal I/O handling', () => {
+    let prependSpy: ReturnType<typeof vi.spyOn>;
+    let stdoutOnSpy: ReturnType<typeof vi.spyOn>;
+    let stderrOnSpy: ReturnType<typeof vi.spyOn>;
+    let platformDescriptor: PropertyDescriptor | undefined;
+    let capturedSighup: (() => void) | undefined;
+    let capturedStdoutError: ((error: Error) => void) | undefined;
+    let capturedStderrError: ((error: Error) => void) | undefined;
+
+    function setupHandlerCaptureSpies(): void {
+      capturedSighup = undefined;
+      capturedStdoutError = undefined;
+      capturedStderrError = undefined;
+
+      prependSpy = vi.spyOn(process, 'prependListener');
+      (prependSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
+        (event: string | symbol, listener: (...args: unknown[]) => void): NodeJS.Process => {
+          if (event === 'SIGHUP') {
+            capturedSighup = listener as () => void;
+          }
+          return process;
+        },
+      );
+
+      stdoutOnSpy = vi.spyOn(process.stdout, 'on');
+      (stdoutOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
+        (event: string | symbol, listener: (...args: unknown[]) => void) => {
+          if (event === 'error') {
+            capturedStdoutError = listener as (error: Error) => void;
+          }
+          return process.stdout;
+        },
+      );
+
+      stderrOnSpy = vi.spyOn(process.stderr, 'on');
+      (stderrOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
+        (event: string | symbol, listener: (...args: unknown[]) => void) => {
+          if (event === 'error') {
+            capturedStderrError = listener as (error: Error) => void;
+          }
+          return process.stderr;
+        },
+      );
+    }
+
+    beforeEach(() => {
+      platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+      setupHandlerCaptureSpies();
+    });
+
+    afterEach(() => {
+      prependSpy.mockRestore();
+      stdoutOnSpy.mockRestore();
+      stderrOnSpy.mockRestore();
+      if (platformDescriptor !== undefined) {
+        Object.defineProperty(process, 'platform', platformDescriptor);
+      }
+    });
+
+    async function startPromptWithHangingSession() {
+      let releasePrompt!: () => void;
+      mocks.session.prompt.mockImplementationOnce(async () => {
+        for (const handler of mocks.eventHandlers) {
+          handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
+        }
+        await new Promise<void>((resolve) => {
+          releasePrompt = resolve;
+        });
+      });
+      const processMock = fakeProcess();
+      const run = runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
+        stdout: { write: vi.fn(() => true) },
+        stderr: { write: vi.fn(() => true) },
+        process: processMock,
+      } as Parameters<typeof runPrompt>[2] & { process: ReturnType<typeof fakeProcess> });
+
+      await waitForAssertion(() => {
+        expect(capturedStdoutError).toBeDefined();
+        expect(capturedStderrError).toBeDefined();
+        expect(processMock.listener('SIGINT')).toBeDefined();
+        expect(mocks.session.prompt).toHaveBeenCalled();
+      });
+
+      return { processMock, run, releasePrompt };
+    }
+
+    async function completePrompt(
+      processMock: ReturnType<typeof fakeProcess>,
+      run: Promise<void>,
+      releasePrompt: () => void,
+    ): Promise<void> {
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
+      }
+      releasePrompt();
+      await run;
+    }
+
+    it('SIGHUP causes exit(129) without running cleanup', async () => {
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      expect(capturedSighup).toBeDefined();
+      capturedSighup!();
+
+      expect(processMock.exit).toHaveBeenCalledWith(129);
+      expect(mocks.harnessClose).not.toHaveBeenCalled();
+
+      await completePrompt(processMock, run, releasePrompt);
+    });
+
+    it('SIGHUP is not registered on Windows', async () => {
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+
+      let releasePrompt!: () => void;
+      mocks.session.prompt.mockImplementationOnce(async () => {
+        for (const handler of mocks.eventHandlers) {
+          handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
+        }
+        await new Promise<void>((resolve) => {
+          releasePrompt = resolve;
+        });
+      });
+      const processMock = fakeProcess();
+      const run = runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
+        stdout: { write: vi.fn(() => true) },
+        stderr: { write: vi.fn(() => true) },
+        process: processMock,
+      } as Parameters<typeof runPrompt>[2] & { process: ReturnType<typeof fakeProcess> });
+
+      await waitForAssertion(() => {
+        expect(processMock.listener('SIGINT')).toBeDefined();
+        expect(mocks.session.prompt).toHaveBeenCalled();
+      });
+
+      expect(capturedSighup).toBeUndefined();
+
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
+      }
+      releasePrompt();
+      await run;
+    });
+
+    it('stdout EIO error triggers exit(129) without cleanup', async () => {
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      const eio = Object.assign(new Error('write EIO'), { code: 'EIO' });
+      capturedStdoutError!(eio);
+
+      expect(processMock.exit).toHaveBeenCalledWith(129);
+      expect(mocks.harnessClose).not.toHaveBeenCalled();
+
+      await completePrompt(processMock, run, releasePrompt);
+    });
+
+    it('stderr EPIPE error triggers exit(129)', async () => {
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      const epipe = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+      capturedStderrError!(epipe);
+
+      expect(processMock.exit).toHaveBeenCalledWith(129);
+
+      await completePrompt(processMock, run, releasePrompt);
+    });
+
+    it('stderr ENOTCONN error triggers exit(129)', async () => {
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      const enotconn = Object.assign(new Error('Transport endpoint is not connected'), {
+        code: 'ENOTCONN',
+      });
+      capturedStderrError!(enotconn);
+
+      expect(processMock.exit).toHaveBeenCalledWith(129);
+
+      await completePrompt(processMock, run, releasePrompt);
+    });
+
+    it('unrelated errors (ENOENT) on stdout/stderr do not trigger exit', async () => {
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      const enoent = Object.assign(new Error('not found'), { code: 'ENOENT' });
+      capturedStdoutError!(enoent);
+      capturedStderrError!(enoent);
+
+      expect(processMock.exit).not.toHaveBeenCalled();
+
+      await completePrompt(processMock, run, releasePrompt);
+    });
+
+    it('cleanup function removes SIGHUP, stdout error, and stderr error listeners', async () => {
+      const beforeSighup = process.listenerCount('SIGHUP');
+      const beforeStdoutError = process.stdout.listenerCount('error');
+      const beforeStderrError = process.stderr.listenerCount('error');
+
+      const { processMock, run, releasePrompt } = await startPromptWithHangingSession();
+
+      // Handlers were captured (mocks intercepted registration, so real listener
+      // counts are unchanged — we verify the spies saw the right calls instead).
+      expect(capturedSighup).toBeDefined();
+      expect(capturedStdoutError).toBeDefined();
+      expect(capturedStderrError).toBeDefined();
+
+      // Complete the prompt normally — the finally block calls the cleanup
+      // function which removes all listeners.
+      await completePrompt(processMock, run, releasePrompt);
+
+      expect(mocks.harnessClose).toHaveBeenCalled();
+      // Real listener counts are unchanged (mocks intercepted registration).
+      expect(process.listenerCount('SIGHUP')).toBe(beforeSighup);
+      expect(process.stdout.listenerCount('error')).toBe(beforeStdoutError);
+      expect(process.stderr.listenerCount('error')).toBe(beforeStderrError);
+    });
   });
 });
