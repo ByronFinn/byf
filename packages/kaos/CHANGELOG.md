@@ -1,8 +1,8 @@
-# @byfriends/vis-server
+# @byfriends/kaos
 
-## 0.1.1
+## 0.2.0
 
-### Patch Changes
+### Minor Changes
 
 - fa5a6bd: Codebase cleanup: remove dead code, telemetry, legacy artifacts, and align with ADRs (#58)
 
@@ -14,23 +14,3 @@
   - **Clean up skipped tests** — remove 14 disabled test blocks, fix `managed:byf` fixture references
   - **Re-export OAuth through SDK seam** — CLI no longer imports `@byfriends/oauth` directly (ADR 0006)
   - **Extract vis shared types** — vis-web typechecks independently, no longer imports from vis-server source
-
-- Updated dependencies [0a9bb30]
-- Updated dependencies [68987f7]
-- Updated dependencies [fa5a6bd]
-- Updated dependencies [0a9bb30]
-- Updated dependencies [0a9bb30]
-- Updated dependencies [1b35310]
-- Updated dependencies [0a9bb30]
-- Updated dependencies [0a9bb30]
-- Updated dependencies [0a9bb30]
-- Updated dependencies [1d06a98]
-- Updated dependencies [0a9bb30]
-  - @byfriends/agent-core@0.2.0
-
-## 0.0.2
-
-### Patch Changes
-
-- Updated dependencies [eb5f4fc]
-  - @byfriends/agent-core@0.1.0
