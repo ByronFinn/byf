@@ -3,6 +3,7 @@ import { UNKNOWN_CAPABILITY } from '#/capability';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { OpenAICompletionsChatProvider, extractUsageFromChunk } from '#/providers/openai-completions';
 import { extractUsage } from '#/providers/openai-common';
+import type { PromptPlan } from '#/prompt-plan';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -46,6 +47,7 @@ async function captureRequestBody(
   systemPrompt: string,
   tools: Tool[],
   history: Message[],
+  options?: { promptPlan?: PromptPlan },
 ): Promise<Record<string, unknown>> {
   let capturedBody: Record<string, unknown> | undefined;
 
@@ -56,7 +58,7 @@ async function captureRequestBody(
       return Promise.resolve(makeChatCompletionResponse());
     });
 
-  const stream = await provider.generate(systemPrompt, tools, history);
+  const stream = await provider.generate(systemPrompt, tools, history, options);
   for await (const part of stream) {
     void part;
   }
@@ -903,10 +905,19 @@ describe('OpenAICompletionsChatProvider', () => {
       expect(cap).not.toEqual(UNKNOWN_CAPABILITY);
     });
 
-    it('returns UNKNOWN_CAPABILITY for unknown models', () => {
+    it('returns UNKNOWN_CAPABILITY with cache for unknown models', () => {
       const provider = createProvider({ model: 'some-unknown-model' });
       const cap = provider.getCapability('some-unknown-model');
-      expect(cap).toEqual(UNKNOWN_CAPABILITY);
+      // OpenAI providers always advertise cache capability
+      expect(cap.cache).toBeDefined();
+      expect(cap.cache?.strategy).toBe('prompt-cache-key');
+      // Other fields should match UNKNOWN_CAPABILITY
+      expect(cap.image_in).toBe(UNKNOWN_CAPABILITY.image_in);
+      expect(cap.video_in).toBe(UNKNOWN_CAPABILITY.video_in);
+      expect(cap.audio_in).toBe(UNKNOWN_CAPABILITY.audio_in);
+      expect(cap.thinking).toBe(UNKNOWN_CAPABILITY.thinking);
+      expect(cap.tool_use).toBe(UNKNOWN_CAPABILITY.tool_use);
+      expect(cap.max_context_tokens).toBe(UNKNOWN_CAPABILITY.max_context_tokens);
     });
   });
 
@@ -987,6 +998,169 @@ describe('OpenAICompletionsChatProvider', () => {
       const clone = original.withThinking('high');
       expect(getInternalClient(clone)).not.toBeUndefined();
       expect(Object.is(getInternalClient(clone), getInternalClient(original))).toBe(true);
+    });
+  });
+
+  describe('PromptPlan support', () => {
+    const makePromptPlan = (blocks: PromptPlan['blocks']): PromptPlan => ({ blocks });
+
+    it('generates stable SHA256 hash from global-scope blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      const promptPlan: PromptPlan = makePromptPlan([
+        { name: 'system', text: 'You are a helpful assistant.', cacheScope: 'global' },
+        { name: 'instructions', text: 'Be concise.', cacheScope: 'global' },
+      ]);
+
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+      const hash1 = body['prompt_cache_key'] as string;
+
+      expect(hash1).toBeDefined();
+      expect(typeof hash1).toBe('string');
+      expect(hash1.length).toBe(64); // SHA256 hex string length
+
+      // Same blocks should produce same hash
+      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan });
+      const hash2 = body2['prompt_cache_key'] as string;
+      expect(hash2).toBe(hash1);
+    });
+
+    it('generates different hashes for different block content', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      const promptPlan1: PromptPlan = makePromptPlan([
+        { name: 'system', text: 'You are helpful.', cacheScope: 'global' },
+      ]);
+
+      const promptPlan2: PromptPlan = makePromptPlan([
+        { name: 'system', text: 'You are very helpful.', cacheScope: 'global' },
+      ]);
+
+      const body1 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan1 });
+      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+
+      expect(body1['prompt_cache_key']).not.toBe(body2['prompt_cache_key']);
+    });
+
+    it('includes only global-scope blocks in hash', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      // Both global and non-global blocks
+      const promptPlan: PromptPlan = makePromptPlan([
+        { name: 'system', text: 'Global instructions.', cacheScope: 'global' },
+        { name: 'session', text: 'Session context.', cacheScope: 'session' },
+        { name: 'user', text: 'User input.', cacheScope: 'none' },
+      ]);
+
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan });
+      const hash = body['prompt_cache_key'] as string;
+
+      expect(hash).toBeDefined();
+
+      // Verify that only global blocks are included by testing with a plan
+      // that has the same global blocks but different other blocks
+      const promptPlan2: PromptPlan = makePromptPlan([
+        { name: 'system', text: 'Global instructions.', cacheScope: 'global' },
+        { name: 'session', text: 'Different session context.', cacheScope: 'session' },
+        { name: 'user', text: 'Different user input.', cacheScope: 'none' },
+      ]);
+
+      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+      const hash2 = body2['prompt_cache_key'] as string;
+
+      // Hashes should be the same since global blocks are identical
+      expect(hash2).toBe(hash);
+    });
+
+    it('handles empty PromptPlan correctly', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      const emptyPlan: PromptPlan = makePromptPlan([]);
+
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan: emptyPlan });
+
+      // Empty plan should still generate a hash (of empty string)
+      expect(body['prompt_cache_key']).toBeDefined();
+    });
+
+    it('handles PromptPlan with only non-global blocks', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      const nonGlobalPlan: PromptPlan = makePromptPlan([
+        { name: 'session', text: 'Session context.', cacheScope: 'session' },
+        { name: 'project', text: 'Project info.', cacheScope: 'project' },
+        { name: 'user', text: 'User input.', cacheScope: 'none' },
+      ]);
+
+      const body = await captureRequestBody(provider, '', [], history, { promptPlan: nonGlobalPlan });
+
+      // Hash should still be generated (of empty concatenation)
+      expect(body['prompt_cache_key']).toBeDefined();
+      const emptyHash = body['prompt_cache_key'] as string;
+
+      // Should match empty plan hash
+      const emptyPlan: PromptPlan = makePromptPlan([]);
+      const emptyBody = await captureRequestBody(provider, '', [], history, { promptPlan: emptyPlan });
+      expect(emptyBody['prompt_cache_key']).toBe(emptyHash);
+    });
+
+    it('hash depends on block order (order is preserved)', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
+      ];
+
+      const promptPlan1: PromptPlan = makePromptPlan([
+        { name: 'first', text: 'AAA', cacheScope: 'global' },
+        { name: 'second', text: 'BBB', cacheScope: 'global' },
+      ]);
+
+      const promptPlan2: PromptPlan = makePromptPlan([
+        { name: 'second', text: 'BBB', cacheScope: 'global' },
+        { name: 'first', text: 'AAA', cacheScope: 'global' },
+      ]);
+
+      const body1 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan1 });
+      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+
+      // Hashes should differ since block order changes the concatenated content
+      expect(body1['prompt_cache_key']).not.toBe(body2['prompt_cache_key']);
+    });
+  });
+
+  describe('cache capability', () => {
+    it('getCapability returns cache strategy for cacheable models', () => {
+      const provider = createProvider({ model: 'gpt-4o' });
+      const capability = provider.getCapability();
+
+      expect(capability.cache).toBeDefined();
+      expect(capability.cache?.strategy).toBe('prompt-cache-key');
+      expect(capability.cache?.supportedScopes).toEqual(['global']);
+    });
+
+    it('getCapability returns cache strategy for unknown models', () => {
+      const provider = createProvider({ model: 'unknown-model' });
+      const capability = provider.getCapability();
+
+      // Unknown models still advertise cache capability
+      expect(capability.cache).toBeDefined();
+      expect(capability.cache?.strategy).toBe('prompt-cache-key');
+      expect(capability.cache?.supportedScopes).toEqual(['global']);
     });
   });
 });

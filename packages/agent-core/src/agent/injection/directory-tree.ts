@@ -47,6 +47,7 @@ export class DirectoryTreeInjector extends DynamicInjector {
 
   private lastTree: string | undefined;
   private hasInjected = false;
+  private capturedTimestamp: string | undefined;
 
   protected override async getInjection(): Promise<string | undefined> {
     const kaos = this.agent.runtime.kaos;
@@ -59,7 +60,10 @@ export class DirectoryTreeInjector extends DynamicInjector {
 
     this.lastTree = tree;
     this.hasInjected = true;
-    return `Current working directory structure (${workDir}):\n${tree}\n\nThe current date and time in ISO format is \`${new Date().toISOString()}\`. This is only a reference for you when searching the web or checking file modification time, etc. If you need the exact time, use Bash tool with proper command.`;
+    if (this.capturedTimestamp === undefined) {
+      this.capturedTimestamp = new Date().toISOString();
+    }
+    return `Current working directory structure (${workDir}):\n${tree}\n\nThe current date and time in ISO format is \`${this.capturedTimestamp}\`. This is only a reference for you when searching the web or checking file modification time, etc. If you need the exact time, use Bash tool with proper command.`;
   }
 }
 

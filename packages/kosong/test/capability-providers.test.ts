@@ -31,18 +31,35 @@ describe('OpenAICompletionsChatProvider.getCapability', () => {
       'byf-k2.5',
       'byf-thinking-preview',
     ]) {
-      expect(make(model).getCapability()).toEqual(UNKNOWN_CAPABILITY);
+      const cap = make(model).getCapability();
+      // OpenAI providers always advertise cache capability even for unknown models
+      expect(cap.cache).toBeDefined();
+      expect(cap.cache?.strategy).toBe('prompt-cache-key');
+      expect(cap.image_in).toBe(UNKNOWN_CAPABILITY.image_in);
+      expect(cap.video_in).toBe(UNKNOWN_CAPABILITY.video_in);
+      expect(cap.audio_in).toBe(UNKNOWN_CAPABILITY.audio_in);
     }
   });
 
   it('explicit model arg overrides this.modelName', () => {
     const provider = make('byf-k2-turbo-preview');
-    expect(provider.getCapability('byf-for-coding')).toEqual(UNKNOWN_CAPABILITY);
+    const cap = provider.getCapability('byf-for-coding');
+    // OpenAI providers always advertise cache capability even for unknown models
+    expect(cap.cache).toBeDefined();
+    expect(cap.cache?.strategy).toBe('prompt-cache-key');
+    expect(cap.image_in).toBe(UNKNOWN_CAPABILITY.image_in);
+    expect(cap.video_in).toBe(UNKNOWN_CAPABILITY.video_in);
+    expect(cap.audio_in).toBe(UNKNOWN_CAPABILITY.audio_in);
   });
 
   it('unknown Byf model → UNKNOWN_CAPABILITY (no throw)', () => {
     const cap = make('some-fake-model').getCapability();
-    expect(cap).toEqual(UNKNOWN_CAPABILITY);
+    // OpenAI providers always advertise cache capability even for unknown models
+    expect(cap.cache).toBeDefined();
+    expect(cap.cache?.strategy).toBe('prompt-cache-key');
+    expect(cap.image_in).toBe(UNKNOWN_CAPABILITY.image_in);
+    expect(cap.video_in).toBe(UNKNOWN_CAPABILITY.video_in);
+    expect(cap.audio_in).toBe(UNKNOWN_CAPABILITY.audio_in);
   });
 });
 describe('GoogleGenAIChatProvider.getCapability', () => {
@@ -208,9 +225,14 @@ describe('OpenAICompletionsChatProvider.getCapability (known models)', () => {
     expect(cap.tool_use).toBe(true);
   });
 
-  it('unknown OpenAI-completions model → UNKNOWN_CAPABILITY', () => {
+  it('unknown OpenAI-completions model → UNKNOWN_CAPABILITY with cache', () => {
     const cap = make('gpt-mystery').getCapability();
-    expect(cap).toEqual(UNKNOWN_CAPABILITY);
+    // OpenAI providers always advertise cache capability even for unknown models
+    expect(cap.cache).toBeDefined();
+    expect(cap.cache?.strategy).toBe('prompt-cache-key');
+    expect(cap.image_in).toBe(UNKNOWN_CAPABILITY.image_in);
+    expect(cap.video_in).toBe(UNKNOWN_CAPABILITY.video_in);
+    expect(cap.audio_in).toBe(UNKNOWN_CAPABILITY.audio_in);
   });
 
   // --- thinking_effort for OpenAI o-series ---

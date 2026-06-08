@@ -1,5 +1,5 @@
 import type { UsageStatus } from '#/rpc';
-import { addUsage, type TokenUsage } from '@byfriends/kosong';
+import { addUsage, cacheHitRate, type TokenUsage } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import type { RecordRestoreHandler } from '../restore-handler';
@@ -45,10 +45,12 @@ export class UsageRecorder implements RecordRestoreHandler {
     const byModel = this.byModelSnapshot();
     const hasByModel = Object.keys(byModel).length > 0;
     const currentTurn = this.currentTurn;
+    const total = hasByModel ? totalUsage(byModel) : undefined;
     return {
       byModel: hasByModel ? byModel : undefined,
-      total: hasByModel ? totalUsage(byModel) : undefined,
+      total,
       currentTurn: currentTurn === undefined ? undefined : copyUsage(currentTurn),
+      cacheHitRate: total !== undefined ? cacheHitRate(total) : undefined,
     };
   }
 

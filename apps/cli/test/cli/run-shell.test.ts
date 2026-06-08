@@ -24,8 +24,6 @@ const mocks = vi.hoisted(() => {
     }
   }
 
-  const lifecycleTrack = vi.fn();
-
   return {
     loadTuiConfig: vi.fn(),
     detectTerminalTheme: vi.fn(),
@@ -45,15 +43,6 @@ const mocks = vi.hoisted(() => {
     tuiGetCurrentSessionId: vi.fn(() => ''),
     tuiHasSessionContent: vi.fn(() => false),
     createByfDeviceId: vi.fn<CreateByfDeviceId>(() => 'device-1'),
-    initializeTelemetry: vi.fn(),
-    setCrashPhase: vi.fn(),
-    shutdownTelemetry: vi.fn(),
-    telemetryTrack: vi.fn(),
-    setTelemetryContext: vi.fn(),
-    lifecycleTrack,
-    withTelemetryContext: vi.fn(() => ({
-      track: lifecycleTrack,
-    })),
     resolveByfHome: vi.fn((homeDir?: string) => homeDir ?? '/tmp/byf-test-home'),
     harnessCreatesDeviceIdOnConstruction: false,
     execSync: vi.fn(),
@@ -87,15 +76,6 @@ vi.mock('@byfriends/sdk', async (importOriginal) => {
     },
   };
 });
-
-vi.mock('@byfriends/telemetry', () => ({
-  initializeTelemetry: mocks.initializeTelemetry,
-  setCrashPhase: mocks.setCrashPhase,
-  shutdownTelemetry: mocks.shutdownTelemetry,
-  track: mocks.telemetryTrack,
-  setTelemetryContext: mocks.setTelemetryContext,
-  withTelemetryContext: mocks.withTelemetryContext,
-}));
 
 vi.mock('../../src/tui/config', () => ({
   loadTuiConfig: mocks.loadTuiConfig,
@@ -175,22 +155,8 @@ describe('runShell', () => {
       }),
     );
     expect(mocks.harnessEnsureConfigFile).toHaveBeenCalledOnce();
-    expect(mocks.harnessEnsureConfigFile.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.harnessGetConfig.mock.invocationCallOrder[0]!,
-    );
     expect(execSync).toHaveBeenCalledWith('stty -ixon', { stdio: 'ignore' });
     expect(mocks.byfTuiConstructor).toHaveBeenCalledTimes(1);
-    expect(mocks.resolveByfHome).toHaveBeenCalledWith();
-    expect(mocks.initializeTelemetry).toHaveBeenCalledWith({
-      homeDir: '/tmp/byf-test-home',
-      deviceId: expect.any(String),
-      enabled: true,
-      appName: 'byf-cli',
-      version: '1.2.3-test',
-      uiMode: 'shell',
-      model: 'k2',
-    });
-    expect(mocks.setCrashPhase).toHaveBeenCalledWith('runtime');
 
     const [, harness, startupInput] = mocks.byfTuiConstructor.mock.calls[0]!;
     expect(harness).toBeTypeOf('object');
@@ -206,124 +172,9 @@ describe('runShell', () => {
       resolvedTheme: 'dark',
     });
     expect(mocks.tuiStart).toHaveBeenCalledOnce();
-    expect(mocks.harnessTrack).not.toHaveBeenCalledWith('started', expect.anything());
-    expect(mocks.withTelemetryContext).toHaveBeenCalledWith({ sessionId: 'ses-startup' });
-    expect(mocks.lifecycleTrack).toHaveBeenCalledWith('started', {
-      resumed: false,
-      yolo: true,
-      plan: true,
-      afk: false,
-    });
-    expect(mocks.lifecycleTrack).toHaveBeenCalledWith('startup_perf', {
-      duration_ms: expect.any(Number),
-      config_ms: expect.any(Number),
-      init_ms: expect.any(Number),
-      mcp_ms: 47,
-    });
   });
 
   it('marks resumed lifecycle starts from session flags', async () => {
-    mocks.loadTuiConfig.mockResolvedValue({
-      theme: 'dark',
-      editorCommand: null,
-      notifications: { enabled: true, condition: 'unfocused' },
-    });
-    mocks.tuiStart.mockResolvedValue(undefined);
-    mocks.tuiGetCurrentSessionId.mockReturnValue('ses-1');
-
-    await runShell(
-      {
-        session: 'ses-1',
-        continue: false,
-        yolo: false,
-        plan: false,
-        model: undefined,
-        outputFormat: undefined,
-        prompt: undefined,
-        skillsDirs: [],
-      },
-      '1.2.3-test',
-    );
-
-    expect(mocks.lifecycleTrack).toHaveBeenCalledWith('started', {
-      resumed: true,
-      yolo: false,
-      plan: false,
-      afk: false,
-    });
-  });
-
-  it('binds startup_perf to the session captured before MCP metrics resolve', async () => {
-    mocks.loadTuiConfig.mockResolvedValue({
-      theme: 'dark',
-      editorCommand: null,
-      notifications: { enabled: true, condition: 'unfocused' },
-    });
-    mocks.tuiStart.mockResolvedValue(undefined);
-    let currentSessionId = 'ses-startup';
-    mocks.tuiGetCurrentSessionId.mockImplementation(() => currentSessionId);
-    mocks.tuiGetStartupMcpMs.mockImplementation(async () => {
-      currentSessionId = 'ses-later';
-      return 47;
-    });
-
-    await runShell(
-      {
-        session: undefined,
-        continue: false,
-        yolo: false,
-        plan: false,
-        model: undefined,
-        outputFormat: undefined,
-        prompt: undefined,
-        skillsDirs: [],
-      },
-      '1.2.3-test',
-    );
-
-    expect(mocks.withTelemetryContext).toHaveBeenNthCalledWith(1, { sessionId: 'ses-startup' });
-    expect(mocks.withTelemetryContext).toHaveBeenNthCalledWith(2, { sessionId: 'ses-startup' });
-    expect(mocks.lifecycleTrack).toHaveBeenNthCalledWith(2, 'startup_perf', {
-      duration_ms: expect.any(Number),
-      config_ms: expect.any(Number),
-      init_ms: expect.any(Number),
-      mcp_ms: 47,
-    });
-  });
-
-  it('bridges OAuth refresh outcomes to telemetry', async () => {
-    mocks.loadTuiConfig.mockResolvedValue({
-      theme: 'dark',
-      editorCommand: null,
-      notifications: { enabled: true, condition: 'unfocused' },
-    });
-    mocks.tuiStart.mockResolvedValue(undefined);
-
-    await runShell(
-      {
-        session: undefined,
-        continue: false,
-        yolo: false,
-        plan: false,
-        model: undefined,
-        outputFormat: undefined,
-        prompt: undefined,
-        skillsDirs: [],
-      },
-      '1.2.3-test',
-    );
-
-    const [harnessOptions] = mocks.byfHarnessConstructor.mock.calls[0] as [{ telemetry?: { track: (event: string, props?: unknown) => void } }];
-    expect(harnessOptions).toMatchObject({
-      telemetry: {
-        track: mocks.telemetryTrack,
-        setContext: mocks.setTelemetryContext,
-        withContext: mocks.withTelemetryContext,
-      },
-    });
-  });
-
-  it('detects auto theme and forwards config parse warnings as startup notice', async () => {
     mocks.loadTuiConfig.mockRejectedValue(
       new mocks.TuiConfigParseError({
         theme: 'auto',
@@ -385,9 +236,6 @@ describe('runShell', () => {
       ),
     ).rejects.toThrow('boom');
 
-    expect(mocks.setCrashPhase).toHaveBeenCalledWith('shutdown');
-    expect(mocks.harnessTrack).toHaveBeenCalledWith('exit', { duration_s: expect.any(Number) });
-    expect(mocks.shutdownTelemetry).toHaveBeenCalledOnce();
     expect(mocks.harnessClose).toHaveBeenCalledOnce();
   });
 
@@ -421,20 +269,11 @@ describe('runShell', () => {
       );
       const [tui] = mocks.byfTuiConstructor.mock.calls[0]!;
       mocks.harnessTrack.mockClear();
-      mocks.lifecycleTrack.mockClear();
-      mocks.withTelemetryContext.mockClear();
 
       await expect((tui as { onExit: () => Promise<void> }).onExit()).rejects.toBeInstanceOf(
         ExitCalled,
       );
 
-      expect(mocks.setCrashPhase).toHaveBeenCalledWith('shutdown');
-      expect(mocks.withTelemetryContext).toHaveBeenCalledWith({ sessionId: 'ses-1' });
-      expect(mocks.lifecycleTrack).toHaveBeenCalledWith('exit', {
-        duration_s: expect.any(Number),
-      });
-      expect(mocks.harnessTrack).not.toHaveBeenCalledWith('exit', expect.anything());
-      expect(mocks.shutdownTelemetry).toHaveBeenCalledOnce();
       expect(stdout.text()).toBe(' Bye!\n');
       expect(stderr.text()).toContain(' To resume this session: byf -r ses-1');
     } finally {

@@ -7,6 +7,8 @@ import {
   type SessionStatus,
 } from '@byfriends/sdk';
 
+import { isDeadTerminalError } from '#/tui/utils/dead-terminal';
+
 import type { CLIOptions, PromptOutputFormat } from './options';
 import { createByfHostIdentity } from './version';
 
@@ -200,6 +202,11 @@ function installPromptTerminationCleanup(
   cleanup: () => Promise<void>,
 ): () => void {
   let terminating = false;
+
+  const emergencyExit = (): void => {
+    promptProcess.exit(129);
+  };
+
   const exitAfterCleanup = async (signal: NodeJS.Signals): Promise<void> => {
     if (terminating) return;
     terminating = true;
@@ -213,9 +220,29 @@ function installPromptTerminationCleanup(
   const onSigterm = () => exitAfterCleanup('SIGTERM');
   promptProcess.once('SIGINT', onSigint);
   promptProcess.once('SIGTERM', onSigterm);
+
+  let onSighup: (() => void) | undefined;
+  if (process.platform !== 'win32') {
+    onSighup = () => emergencyExit();
+    process.prependListener('SIGHUP', onSighup);
+  }
+
+  const terminalErrorHandler = (error: Error): void => {
+    if (isDeadTerminalError(error)) {
+      emergencyExit();
+    }
+  };
+  process.stdout.on('error', terminalErrorHandler);
+  process.stderr.on('error', terminalErrorHandler);
+
   return () => {
     promptProcess.off('SIGINT', onSigint);
     promptProcess.off('SIGTERM', onSigterm);
+    if (onSighup !== undefined) {
+      process.off('SIGHUP', onSighup);
+    }
+    process.stdout.off('error', terminalErrorHandler);
+    process.stderr.off('error', terminalErrorHandler);
   };
 }
 

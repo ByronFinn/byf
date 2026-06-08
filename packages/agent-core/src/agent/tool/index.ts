@@ -1,4 +1,3 @@
-import { uniq } from '@antfu/utils';
 import type { ChatProvider, Tool } from '@byfriends/kosong';
 
 import type { Agent } from '..';
@@ -408,14 +407,24 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   get loopTools(): readonly ExecutableTool[] {
+    // 1. Builtin tools first: stable, never change during session (alphabetical)
+    const builtinNames = [...this.builtinTools.keys()]
+      .filter((name) => this.enabledTools.has(name))
+      .sort();
+
+    // 2. User tools: alphabetically sorted
+    const userNames = [...this.userTools.keys()]
+      .filter((name) => this.enabledTools.has(name))
+      .sort();
+
+    // 3. MCP tools last: grouped by server, connection order preserved
     const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
-    return uniq([...this.enabledTools, ...mcpNames])
-      .toSorted((a, b) => a.localeCompare(b))
-      .map(
-        (name) =>
-          this.userTools.get(name) ?? this.mcpTools.get(name)?.tool ?? this.builtinTools.get(name),
-      )
-      .filter((tool) => !!tool);
+
+    return [
+      ...builtinNames.map((name) => this.builtinTools.get(name)),
+      ...userNames.map((name) => this.userTools.get(name)),
+      ...mcpNames.map((name) => this.mcpTools.get(name)?.tool),
+    ].filter((tool): tool is ExecutableTool => !!tool);
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {

@@ -1,6 +1,7 @@
 import type { ModelCapability } from '#/capability';
 import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
 import type {
   ChatProvider,
   FinishReason,
@@ -13,6 +14,7 @@ import type {
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
+import { createHash } from 'node:crypto';
 
 import { OpenAICompatFiles } from './openai-compat-files';
 import {
@@ -120,6 +122,35 @@ function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
     if (part.text.trim() !== '') return false;
   }
   return true;
+}
+
+/**
+ * Derive a stable SHA256 hash from cacheable blocks in a PromptPlan.
+ *
+ * Only blocks with cacheScope 'global' are included in the hash, as OpenAI
+ * only supports caching the prefix (global scope).
+ *
+ * @param promptPlan - The prompt plan containing cacheable blocks.
+ * @returns A hexadecimal SHA256 hash string.
+ */
+function deriveCacheKeyFromPromptPlan(promptPlan: PromptPlan | undefined): string {
+  if (!promptPlan || promptPlan.blocks.length === 0) {
+    // Hash of empty string
+    return createHash('sha256').digest('hex');
+  }
+
+  // Concatenate only global-scope blocks in order
+  const cacheableTexts: string[] = [];
+  for (const block of promptPlan.blocks) {
+    if (block.cacheScope === 'global') {
+      cacheableTexts.push(block.text);
+    }
+  }
+
+  const concatenated = cacheableTexts.join('');
+
+  // Use Node.js crypto for SHA256
+  return createHash('sha256').update(concatenated).digest('hex');
 }
 
 function convertMessage(
@@ -535,6 +566,14 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
 
     if (this._stream) {
       createParams['stream_options'] = { include_usage: true };
+    }
+
+    // Inject prompt_cache_key from PromptPlan if provided
+    if (options?.promptPlan) {
+      const cacheKey = deriveCacheKeyFromPromptPlan(options.promptPlan);
+      if (cacheKey) {
+        createParams['prompt_cache_key'] = cacheKey;
+      }
     }
 
     try {

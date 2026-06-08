@@ -408,6 +408,8 @@ export class ContextMemory implements RecordRestoreHandler {
     this.pendingToolResultIds.clear();
     this.deferredMessages = [];
     this.toolCallInfo.clear();
+    this.agent.injection.onContextClear();
+    this.agent.emitStatusUpdated();
   }
 
   private restoreApplyCompaction(record: Extract<import('../records/types').AgentRecord, { type: 'context.apply_compaction' }>): void {
@@ -428,6 +430,8 @@ export class ContextMemory implements RecordRestoreHandler {
     this.flushDeferredMessagesIfToolExchangeClosed();
     this._tokenCount = tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
+    this.agent.injection.onContextCompacted(compactedCount);
+    this.agent.emitStatusUpdated();
   }
 
   private restoreMarkLastUserPromptBlocked(record: Extract<import('../records/types').AgentRecord, { type: 'context.mark_last_user_prompt_blocked' }>): void {
@@ -450,9 +454,14 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   private restoreObservationMasking(): void {
-    // During restore, we re-apply observation masking to match the live state
-    // The actual masking was already applied during live execution
-    // This is a no-op during restore since the history is already in the correct state
+    const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
+    const { history } = applyObservationMasking(
+      this._history,
+      maxContextSize,
+      this.toolCallInfo,
+    );
+    this._history = history;
+    this.agent.emitStatusUpdated();
   }
 }
 
