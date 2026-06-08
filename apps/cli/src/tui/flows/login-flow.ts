@@ -72,7 +72,6 @@ export class LoginFlow {
     const baseUrl = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Base URL',
       subtitle: 'The OpenAI-compatible API endpoint',
-      initialValue: 'https://api.openai.com/v1',
       placeholder: 'https://api.openai.com/v1',
     });
     if (baseUrl === undefined) return;
