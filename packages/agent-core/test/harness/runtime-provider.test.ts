@@ -356,6 +356,39 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
   });
 
+  it('forwards provider extraBody to generation kwargs extra_body', () => {
+    const resolved = resolveRuntimeProvider({
+      config: {
+        ...BASE_CONFIG,
+        providers: {
+          'test-provider': {
+            type: 'openai-completions',
+            apiKey: 'test-key',
+            baseUrl: 'https://api.example/v1',
+            extraBody: { thinking: { keep: 'all' } },
+          },
+        },
+      },
+    });
+
+    expect(resolved.provider).toMatchObject({
+      type: 'openai-completions',
+      generationKwargs: {
+        extra_body: { thinking: { keep: 'all' } },
+      },
+    });
+  });
+
+  it('omits extra_body when provider extraBody is not configured', () => {
+    const resolved = resolveRuntimeProvider({
+      config: BASE_CONFIG,
+    });
+
+    const extraBody = (resolved.provider as Record<string, unknown>)?.generationKwargs
+      ?.extra_body;
+    expect(extraBody).toBeUndefined();
+  });
+
   it('forwards provider thinkingEffortKey to openai-completions runtime config', () => {
     const resolved = resolveRuntimeProvider({
       config: {
