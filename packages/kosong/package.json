@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/kosong",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LLM and provider abstraction layer for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",

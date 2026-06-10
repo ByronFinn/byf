@@ -1,5 +1,11 @@
 # @byfriends/oauth
 
+## 0.1.1
+
+### Patch Changes
+
+- Release 0.2.1
+
 ## 1.0.0
 
 ### Major Changes
