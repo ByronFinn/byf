@@ -1,5 +1,14 @@
 # @byfriends/agent-core
 
+## 0.2.1
+
+### Patch Changes
+
+- Release 0.2.1
+- Updated dependencies
+  - @byfriends/kaos@0.2.1
+  - @byfriends/kosong@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
