@@ -742,6 +742,94 @@ function assistantToolCallMessage(ids: readonly string[]): Message {
   };
 }
 
+  it('does not offload Agent tool results regardless of size', async () => {
+    const homedir = `/tmp/byf-test-offload-${Date.now()}`;
+    const ctx = testAgent({ homedir, sessionId: 'test-session' });
+    ctx.configure();
+
+    const stepUuid = 'step-agent';
+    const toolCallId = 'call_agent_large';
+
+    await ctx.agent.context.appendLoopEvent({ type: 'step.begin', uuid: stepUuid, turnId: '', step: 1 });
+
+    // Register the tool call as an Agent tool
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: toolCallId,
+      turnId: '',
+      step: 1,
+      stepUuid,
+      toolCallId,
+      name: 'Agent',
+      args: { prompt: 'explore the codebase' },
+    });
+
+    // Produce a large output that would normally trigger offloading (> 8000 tokens ≈ 32K chars)
+    const largeOutput = 'x'.repeat(40_000);
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: stepUuid,
+      toolCallId,
+      result: { output: largeOutput },
+    });
+
+    // The Agent tool result must remain intact — not replaced by a scratch-file preview
+    const lastMessage = ctx.agent.context.history[ctx.agent.context.history.length - 1];
+    expect(lastMessage.role).toBe('tool');
+    expect(textOf(lastMessage)).toBe(largeOutput);
+
+    // Cleanup
+    try {
+      const { rmSync } = await import('node:fs');
+      rmSync(homedir, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  });
+
+  it('offloads non-Agent tool results when they exceed the threshold', async () => {
+    const homedir = `/tmp/byf-test-offload-other-${Date.now()}`;
+    const ctx = testAgent({ homedir, sessionId: 'test-session' });
+    ctx.configure();
+
+    const stepUuid = 'step-bash';
+    const toolCallId = 'call_bash_large';
+
+    await ctx.agent.context.appendLoopEvent({ type: 'step.begin', uuid: stepUuid, turnId: '', step: 1 });
+
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: toolCallId,
+      turnId: '',
+      step: 1,
+      stepUuid,
+      toolCallId,
+      name: 'Bash',
+      args: { command: 'cat large-file.txt' },
+    });
+
+    const largeOutput = 'x'.repeat(40_000);
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: stepUuid,
+      toolCallId,
+      result: { output: largeOutput },
+    });
+
+    // Bash tool results should be offloaded to scratch
+    const lastMessage = ctx.agent.context.history[ctx.agent.context.history.length - 1];
+    expect(lastMessage.role).toBe('tool');
+    expect(textOf(lastMessage)).toContain('[Tool output offloaded to scratch file');
+
+    // Cleanup
+    try {
+      const { rmSync } = await import('node:fs');
+      rmSync(homedir, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  });
+
 function toolMessage(toolCallId: string, text: string): Message {
   return {
     role: 'tool',

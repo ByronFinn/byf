@@ -69,9 +69,10 @@ function buildHistoryWithToolResults(
 }
 
 describe('getToolPriority', () => {
-  it('returns high for Write and Edit', () => {
+  it('returns high for Write, Edit, and Agent', () => {
     expect(getToolPriority('Write')).toBe('high');
     expect(getToolPriority('Edit')).toBe('high');
+    expect(getToolPriority('Agent')).toBe('high');
   });
 
   it('returns medium for Bash', () => {

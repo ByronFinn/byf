@@ -436,4 +436,132 @@ describe('QuestionDialogComponent', () => {
     expect(collected).toEqual([]);
   });
 
+  // ── Text wrapping ──────────────────────────────────────────────
+
+  it('wraps long question text instead of truncating with ellipsis', () => {
+    const longQuestion =
+      'What is the best approach to handle this very long question that should wrap to multiple lines instead of being truncated';
+    const pending = makePending([
+      {
+        question: longQuestion,
+        multi_select: false,
+        options: [{ label: 'A' }, { label: 'B' }],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    const lines = dialog.render(40);
+    const out = strip(lines.join('\n'));
+
+    // Should contain the full question text split across lines
+    expect(out).toContain('What is the best');
+    expect(out).toContain('truncated');
+    // Verify wrapping: question appears on multiple lines, not one long line
+    const questionLines = lines.filter((l) => strip(l).includes('What is the best'));
+    expect(questionLines).toHaveLength(1);
+    // The question should span multiple visual lines
+    const strippedLines = lines.map(strip);
+    const qStart = strippedLines.findIndex((l) => l.startsWith(' ? What'));
+    expect(qStart).toBeGreaterThanOrEqual(0);
+    expect(strippedLines[qStart + 1] ?? '').toContain('this very long');
+  });
+
+  it('wraps long option labels instead of truncating', () => {
+    const pending = makePending([
+      {
+        question: 'Pick?',
+        multi_select: false,
+        options: [
+          { label: 'This is a very long option label that wraps to multiple lines easily' },
+          { label: 'B' },
+        ],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    const lines = dialog.render(40);
+    const out = strip(lines.join('\n'));
+
+    expect(out).toContain('This is a very long');
+    expect(out).toContain('multiple');
+    expect(out).toContain('easily');
+  });
+
+  it('wraps long option descriptions instead of truncating', () => {
+    const pending = makePending([
+      {
+        question: 'Pick?',
+        multi_select: false,
+        options: [
+          {
+            label: 'A',
+            description:
+              'This is a very long option description that should wrap to multiple lines instead of being truncated with ellipsis',
+          },
+          { label: 'B' },
+        ],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    const out = strip(dialog.render(40).join('\n'));
+
+    expect(out).toContain('This is a very long');
+    expect(out).toContain('ellipsis');
+  });
+
+  it('wraps long body text lines instead of truncating', () => {
+    const longLine =
+      'This is a very long body line that should wrap properly to multiple lines within the available width of the terminal instead of being cut off';
+    const pending = makePending([
+      {
+        question: 'Read?',
+        body: longLine,
+        multi_select: false,
+        options: [{ label: 'A' }, { label: 'B' }],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    const out = strip(dialog.render(40).join('\n'));
+
+    expect(out).toContain('This is a very long');
+    expect(out).toContain('cut off');
+  });
+
+  it('wraps long question text in the submit review tab', () => {
+    const longQuestion =
+      'What is the very long question text in the review tab that should wrap to multiple lines';
+    const pending = makePending([
+      {
+        question: longQuestion,
+        multi_select: false,
+        options: [{ label: 'Selected Answer' }, { label: 'B' }],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    // Navigate to submit tab
+    dialog.handleInput('\t');
+    const out = strip(dialog.render(40).join('\n'));
+
+    expect(out).toContain('What is the very');
+    expect(out).toContain('multiple lines');
+  });
+
+  it('wraps long answer text in the submit review tab', () => {
+    const pending = makePending([
+      {
+        question: 'Q?',
+        multi_select: false,
+        options: [
+          { label: 'This is a very long answer that wraps in the review tab instead of being truncated' },
+          { label: 'B' },
+        ],
+      },
+    ]);
+    const { dialog } = makeDialog(pending);
+    dialog.handleInput('\r');
+    dialog.handleInput('\t');
+    const out = strip(dialog.render(40).join('\n'));
+
+    expect(out).toContain('This is a very long');
+    expect(out).toContain('truncated');
+  });
+
 });

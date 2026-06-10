@@ -302,11 +302,14 @@ export class ContextMemory implements RecordRestoreHandler {
       case 'tool.result': {
         let result = event.result;
 
-        // Attempt output offloading for large string outputs
+        // Attempt output offloading for large string outputs.
+        // Agent tool results are subagent summaries — distilled by another LLM
+        // — and should never be offloaded (see ADR in commit message).
         if (
           !this.agent.records.restoring &&
           this.scratchManager !== undefined &&
-          typeof result.output === 'string'
+          typeof result.output === 'string' &&
+          (this.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown') !== 'Agent'
         ) {
           const offloadResult = await offloadOutput(
             event.toolCallId,
