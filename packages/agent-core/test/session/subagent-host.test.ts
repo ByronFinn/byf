@@ -224,7 +224,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.history).toMatchObject([
       {
         role: 'user',
-        content: [{ type: 'text', text: 'Find the cause' }],
+        content: [{ type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nFind the cause' }],
       },
     ]);
   });
@@ -264,7 +264,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.history).toMatchObject([
       {
         role: 'user',
-        content: [{ type: 'text', text: 'Implement the fix' }],
+        content: [{ type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix' }],
       },
     ]);
   });
@@ -540,7 +540,7 @@ describe('SessionSubagentHost', () => {
       content: [
         {
           type: 'text',
-          text: '<git-context>\nWorking directory: /repo\nBranch: main\n</git-context>\n\nFind the cause',
+          text: '<git-context>\nWorking directory: /repo\nBranch: main\n</git-context>\n\nSummary length constraint: minimum 200 characters, maximum 8000 characters.\n\nFind the cause',
         },
       ],
     });
@@ -569,8 +569,68 @@ describe('SessionSubagentHost', () => {
 
     expect(child.llmCalls[0]?.history[0]).toMatchObject({
       role: 'user',
-      content: [{ type: 'text', text: 'Implement the fix' }],
+      content: [
+        { type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix' },
+      ],
     });
+  });
+
+  it('prepends budget constraint with correct min/max character values', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const summary = 'A'.repeat(300); // above SUMMARY_MIN_LENGTH
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn('coder', {
+      parentToolCallId: 'call_budget',
+      prompt: 'Check budget format',
+      description: 'Budget test',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    // The first user message must start with the budget constraint line
+    const firstUserText = child.llmCalls[0]?.history[0]?.content?.[0];
+    expect(firstUserText).toMatchObject({ type: 'text' });
+    expect((firstUserText as { type: 'text'; text: string }).text).toMatch(
+      /^Summary length constraint: minimum \d+ characters, maximum \d+ characters\./,
+    );
+  });
+
+  it('orders prompt as gitContext → budgetLine → userPrompt for explore subagents', async () => {
+    const parent = testAgent({ cwd: '/repo' });
+    parent.configure();
+    parent.newEvents();
+
+    const summary = 'B'.repeat(300);
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn('explore', {
+      parentToolCallId: 'call_order',
+      prompt: 'Analyze the project',
+      description: 'Order test',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    const text = (child.llmCalls[0]?.history[0]?.content?.[0] as { type: 'text'; text: string }).text;
+    // git context comes first
+    const gitIdx = text.indexOf('<git-context>');
+    const budgetIdx = text.indexOf('Summary length constraint:');
+    const promptIdx = text.indexOf('Analyze the project');
+
+    expect(gitIdx).toBeLessThan(budgetIdx);
+    expect(budgetIdx).toBeLessThan(promptIdx);
   });
 
   it('resumes an idle child agent by id', async () => {
@@ -624,7 +684,7 @@ describe('SessionSubagentHost', () => {
       system: "explore prompt"
       tools: Read
       messages:
-        user: text "Earlier context\\n\\nContinue from context"
+        user: text "Earlier context\\n\\nSummary length constraint: minimum 200 characters, maximum 8000 characters.\\n\\nContinue from context"
     `);
     expect(parent.allEvents).toContainEqual(
       expect.objectContaining({

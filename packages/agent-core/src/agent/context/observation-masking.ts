@@ -28,6 +28,7 @@ export function getToolPriority(toolName: string): ToolPriority {
   switch (toolName) {
     case 'Write':
     case 'Edit':
+    case 'Agent':
       return 'high';
     case 'Bash':
       return 'medium';

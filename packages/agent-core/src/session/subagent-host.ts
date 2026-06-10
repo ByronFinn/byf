@@ -19,6 +19,11 @@ import SUMMARY_CONTINUATION_PROMPT from './summary-continuation.md';
  * agent receives a technically complete handoff.
  */
 const SUMMARY_MIN_LENGTH = 200;
+/**
+ * Soft upper bound (characters) communicated to the subagent via prompt so
+ * it self-regulates summary length. Not enforced at runtime.
+ */
+const SUMMARY_MAX_LENGTH = 8_000;
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
@@ -224,9 +229,13 @@ export class SessionSubagentHost {
       await this.triggerSubagentStart(parent, profileName, options.prompt, options.signal);
       options.signal.throwIfAborted();
 
+      // Inject length budget constraint so the subagent self-regulates its
+      // summary length (prevents oversized handoffs that would blow the
+      // parent agent's context window).
+      const budgetLine = `Summary length constraint: minimum ${SUMMARY_MIN_LENGTH} characters, maximum ${SUMMARY_MAX_LENGTH} characters.`;
+      let childPrompt = `${budgetLine}\n\n${options.prompt}`;
       // Explore subagents start cold; a git-context block helps them orient
       // in the repository before searching.
-      let childPrompt = options.prompt;
       if (profileName === 'explore') {
         const gitContext = await collectGitContext(child.runtime.kaos, child.config.cwd);
         if (gitContext) childPrompt = `${gitContext}\n\n${childPrompt}`;

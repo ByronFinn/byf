@@ -251,6 +251,10 @@ function toKosongProviderConfig(
         ...byfRequestHeaders,
         ...provider.customHeaders,
       };
+      const generationKwargs = {
+        prompt_cache_key: promptCacheKey,
+        extra_body: provider.extraBody,
+      };
       if (Object.keys(defaultHeaders).length === 0) {
         return {
           type: 'openai-completions',
@@ -258,9 +262,7 @@ function toKosongProviderConfig(
           baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
           reasoningKey,
           thinkingEffortKey: provider.thinkingEffortKey,
-          generationKwargs: {
-            prompt_cache_key: promptCacheKey,
-          },
+          generationKwargs,
           apiKey: providerApiKey(provider),
         };
       }
@@ -270,9 +272,7 @@ function toKosongProviderConfig(
         baseUrl: providerValue(provider.baseUrl, provider.env, 'BYF_BASE_URL'),
         reasoningKey,
         thinkingEffortKey: provider.thinkingEffortKey,
-        generationKwargs: {
-          prompt_cache_key: promptCacheKey,
-        },
+        generationKwargs,
         defaultHeaders,
         apiKey: providerApiKey(provider),
       };

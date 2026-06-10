@@ -14,6 +14,7 @@ import {
   type Focusable,
   truncateToWidth,
   visibleWidth,
+  wrapTextWithAnsi,
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
@@ -32,6 +33,36 @@ const REVIEW_TITLE = 'Review your answer before submit';
 const SUBMIT_PROMPT = 'Ready to submit your answers?';
 const UNANSWERED_WARNING = 'Some questions are still unanswered.';
 const SUBMIT_ACTIONS = ['Submit', 'Cancel'] as const;
+
+/**
+ * Wrap a line of text so that each output line is <= width visible columns.
+ * The first line is prefixed with `firstLinePrefix`, subsequent lines with
+ * `continuationPrefix`. A style function is applied to each full line
+ * (prefix + wrapped text) so ANSI codes cover the entire line.
+ */
+function wrapWithPrefix(
+  text: string,
+  width: number,
+  firstLinePrefix: string,
+  continuationPrefix: string,
+  styleFn: (s: string) => string,
+): string[] {
+  const firstWidth = visibleWidth(firstLinePrefix);
+  const contWidth = visibleWidth(continuationPrefix);
+  const maxPrefix = Math.max(firstWidth, contWidth);
+  const wrapW = Math.max(1, width - maxPrefix);
+  const wrapped = wrapTextWithAnsi(text, wrapW);
+  const lines: string[] = [];
+  for (let i = 0; i < wrapped.length; i++) {
+    const line = wrapped[i] ?? '';
+    if (i === 0) {
+      lines.push(styleFn(firstLinePrefix + line));
+    } else {
+      lines.push(styleFn(continuationPrefix + line));
+    }
+  }
+  return lines.length > 0 ? lines : [styleFn(firstLinePrefix + text)];
+}
 
 interface DisplayOption {
   readonly label: string;
@@ -432,7 +463,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
     this.pushTabs(lines);
     lines.push('');
 
-    lines.push(accent(` ? ${question.question}`));
+    lines.push(...wrapWithPrefix(question.question, width, ` ? `, `    `, accent));
     if (this.isEditingOther()) {
       lines.push(dim('   Type your answer, then press Enter to save.'));
     }
@@ -442,7 +473,8 @@ export class QuestionDialogComponent extends Container implements Focusable {
       const bodyLines = question.body.trim().split('\n');
       const visibleBodyLines = bodyLines.slice(0, MAX_BODY_LINES);
       for (const bodyLine of visibleBodyLines) {
-        lines.push(dim(`   ${bodyLine}`));
+        const wrapped = wrapWithPrefix(bodyLine, width, '   ', '   ', dim);
+        lines.push(...wrapped);
       }
       if (bodyLines.length > visibleBodyLines.length) {
         lines.push(dim(`   ... ${String(bodyLines.length - visibleBodyLines.length)} more lines`));
@@ -473,31 +505,46 @@ export class QuestionDialogComponent extends Container implements Focusable {
 
       const label = this.renderOptionLabel(questionIdx, option, isCursor);
 
-      let line: string;
       if (question.multi_select) {
         const checked = isSelected ? '✓' : ' ';
-        const body = `[${checked}] ${label}`;
-        if (isSelected && isCursor) line = success.bold(`  ${body}`);
-        else if (isSelected) line = success(`  ${body}`);
-        else if (isCursor) line = accent(`  ${body}`);
-        else line = dim(`  ${body}`);
-      } else if (isSelected && this.isAnswered(questionIdx)) {
-        line = isCursor
-          ? success.bold(`  → [${String(num)}] ${label}`)
-          : success(`    [${String(num)}] ${label}`);
-      } else if (isCursor) {
-        line = accent(`  → [${String(num)}] ${label}`);
+        const firstPrefix = `  [${checked}] `;
+        const contPrefix = '      ';
+        if (isSelected && isCursor) {
+          lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, success.bold));
+        } else if (isSelected) {
+          lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, success));
+        } else if (isCursor) {
+          lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, accent));
+        } else {
+          lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, dim));
+        }
       } else {
-        line = dim(`    [${String(num)}] ${label}`);
+        const firstPrefix = `  → [${String(num)}] `;
+        const contPrefix = '        ';
+        if (isSelected && this.isAnswered(questionIdx)) {
+          const np = isCursor ? firstPrefix : `    [${String(num)}] `;
+          if (isCursor) {
+            lines.push(...wrapWithPrefix(label, width, np, contPrefix, success.bold));
+          } else {
+            lines.push(...wrapWithPrefix(label, width, np, contPrefix, success));
+          }
+        } else if (isCursor) {
+          lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, accent));
+        } else {
+          lines.push(
+            ...wrapWithPrefix(label, width, `    [${String(num)}] `, contPrefix, dim),
+          );
+        }
       }
-      lines.push(line);
 
       if (
         option.description !== undefined &&
         option.description.length > 0 &&
         !(this.isEditingOther() && isCursor && isOther)
       ) {
-        lines.push(dim(`        ${option.description}`));
+        lines.push(
+          ...wrapWithPrefix(option.description, width, '        ', '        ', dim),
+        );
       }
     }
 
@@ -539,9 +586,9 @@ export class QuestionDialogComponent extends Container implements Focusable {
       const question = this.request.data.questions[i];
       if (question === undefined) continue;
       const answer = this.answers[i];
-      lines.push(`  ${dim('Q')}  ${question.question}`);
+      lines.push(...wrapWithPrefix(question.question, width, `  Q  `, `     `, dim));
       if (answer !== undefined && answer.length > 0) {
-        lines.push(`  ${accent('→')}  ${text(answer)}`);
+        lines.push(...wrapWithPrefix(answer, width, `  →  `, `     `, text));
       } else {
         lines.push(`  ${dim('→')}  ${dim(NOT_ANSWERED_LABEL)}`);
       }
