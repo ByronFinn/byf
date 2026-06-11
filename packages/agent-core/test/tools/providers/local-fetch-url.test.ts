@@ -6,8 +6,9 @@
  * from an HTML page.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createProxiedFetch } from '../../../src/tools/providers/proxied-fetch';
 import { LocalFetchURLProvider } from '../../../src/tools/providers/local-fetch-url';
 
 function htmlResponse(body: string, contentType: string): Response {
@@ -15,6 +16,12 @@ function htmlResponse(body: string, contentType: string): Response {
     status: 200,
     headers: { 'content-type': contentType },
   });
+}
+
+function networkError(code: string): TypeError {
+  const err = new TypeError(`fetch failed: ${code}`);
+  (err as unknown as { cause: { code: string } }).cause = { code };
+  return err;
 }
 
 describe('LocalFetchURLProvider content kind', () => {
@@ -54,5 +61,73 @@ describe('LocalFetchURLProvider content kind', () => {
 
     expect(result.kind).toBe('extracted');
     expect(result.content).toContain('quick brown fox');
+  });
+});
+
+describe('LocalFetchURLProvider with proxy fallback', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns content without proxy when direct fetch succeeds', async () => {
+    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('direct content', { status: 200, headers: { 'content-type': 'text/plain' } }),
+    );
+    const env = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+    const provider = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
+
+    const result = await provider.fetch('https://example.com/file.txt');
+    expect(result.content).toBe('direct content');
+    expect(innerFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries through proxy when direct fetch fails with retryable error', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+      .mockResolvedValueOnce(
+        new Response('proxy content', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      );
+    const env = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+    const provider = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
+
+    const result = await provider.fetch('https://example.com/file.txt');
+    expect(result.content).toBe('proxy content');
+    expect(innerFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates error when direct fails and no proxy configured', async () => {
+    const innerFetch = vi.fn<typeof fetch>().mockRejectedValue(networkError('ECONNREFUSED'));
+    const env: Record<string, string> = {};
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+    const provider = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
+
+    await expect(provider.fetch('https://example.com/file.txt')).rejects.toThrow('ECONNREFUSED');
+    expect(innerFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry on non-retryable HTTP error (404)', async () => {
+    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response('not found', { status: 404 }));
+    const env = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+    const provider = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
+
+    // LocalFetchURLProvider throws HttpFetchError on non-2xx — no proxy retry
+    await expect(provider.fetch('https://example.com/missing')).rejects.toThrow('HTTP 404');
+    expect(innerFetch).toHaveBeenCalledTimes(1);
   });
 });
