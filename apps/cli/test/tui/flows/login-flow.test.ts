@@ -4,6 +4,17 @@ import { LoginFlow, type LoginFlowDeps } from '#/tui/flows/login-flow';
 
 import type { Component, Focusable } from '@earendil-works/pi-tui';
 
+// fetchCatalog makes a real HTTP request to DEFAULT_CATALOG_URL. Mock it to
+// throw so fetchCatalogWithFallback falls through to loadBuiltInCatalog
+// (which returns undefined when no builtInCatalogJson is provided).
+vi.mock('@byfriends/sdk', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    fetchCatalog: vi.fn().mockRejectedValue(new Error('test: no network')),
+  };
+});
+
 /** A dialog component that is guaranteed to have handleInput. */
 interface TestablePanel extends Component, Focusable {
   handleInput(data: string): void;
