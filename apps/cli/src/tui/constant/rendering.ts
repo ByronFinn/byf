@@ -15,5 +15,6 @@ export const COMMAND_PREVIEW_LINES = 10;
 export const SPINNER_FRAMES = ['◐', '◓', '◑', '◒'];
 export const SPINNER_INTERVAL_MS = 80;
 
-export const MOON_SPINNER_FRAMES = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
-export const MOON_SPINNER_INTERVAL_MS = 120;
+// Laughing-face spinner for activity pane (waiting, tool execution).
+export const MOON_SPINNER_FRAMES = ['😀', '😃', '😄', '😁', '😆', '😂', '🤣', '😂'];
+export const MOON_SPINNER_INTERVAL_MS = 160;
