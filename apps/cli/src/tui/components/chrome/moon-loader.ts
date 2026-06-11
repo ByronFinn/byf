@@ -2,13 +2,13 @@ import { Text } from '@earendil-works/pi-tui';
 import type { TUI } from '@earendil-works/pi-tui';
 
 import {
-  BRAILLE_SPINNER_FRAMES,
-  BRAILLE_SPINNER_INTERVAL_MS,
+  SPINNER_FRAMES,
+  SPINNER_INTERVAL_MS,
   MOON_SPINNER_FRAMES,
   MOON_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
 
-export type SpinnerStyle = 'moon' | 'braille';
+export type SpinnerStyle = 'moon' | 'circle';
 
 export class MoonLoader extends Text {
   private currentFrame = 0;
@@ -27,8 +27,8 @@ export class MoonLoader extends Text {
   ) {
     super('', 1, 0);
     this.ui = ui;
-    this.frames = style === 'moon' ? [...MOON_SPINNER_FRAMES] : [...BRAILLE_SPINNER_FRAMES];
-    this.interval = style === 'moon' ? MOON_SPINNER_INTERVAL_MS : BRAILLE_SPINNER_INTERVAL_MS;
+    this.frames = style === 'moon' ? [...MOON_SPINNER_FRAMES] : [...SPINNER_FRAMES];
+    this.interval = style === 'moon' ? MOON_SPINNER_INTERVAL_MS : SPINNER_INTERVAL_MS;
     this.colorFn = colorFn;
     this.label = label;
     this.start();

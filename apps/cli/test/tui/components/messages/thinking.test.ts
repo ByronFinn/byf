@@ -16,9 +16,9 @@ describe('ThinkingComponent', () => {
     const component = new ThinkingComponent('working it out', darkColors, true, 'live');
     const out = strip(component.render(80).join('\n'));
 
-    expect(out).toContain('⠋ thinking...');
-    expect(out).not.toContain('  ⠋ thinking...');
-    expect(out).not.toContain(`${STATUS_BULLET}⠋`);
+    expect(out).toContain('◐ thinking...');
+    expect(out).not.toContain('  ◐ thinking...');
+    expect(out).not.toContain(`${STATUS_BULLET}◐`);
     expect(out).toContain('  working it out');
   });
 
@@ -40,11 +40,11 @@ describe('ThinkingComponent', () => {
       requestRender,
     } as unknown as TUI);
 
-    expect(strip(component.render(80).join('\n'))).toContain('⠋ thinking...');
+    expect(strip(component.render(80).join('\n'))).toContain('◐ thinking...');
 
     vi.advanceTimersByTime(80);
     expect(requestRender).toHaveBeenCalled();
-    expect(strip(component.render(80).join('\n'))).toContain('⠙ thinking...');
+    expect(strip(component.render(80).join('\n'))).toContain('◓ thinking...');
 
     component.finalize();
     requestRender.mockClear();

@@ -10,8 +10,8 @@ import { Text } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import {
-  BRAILLE_SPINNER_FRAMES,
-  BRAILLE_SPINNER_INTERVAL_MS,
+  SPINNER_FRAMES,
+  SPINNER_INTERVAL_MS,
   MESSAGE_INDENT,
   RESULT_PREVIEW_LINES,
 } from '#/tui/constant/rendering';
@@ -78,7 +78,7 @@ export class ThinkingComponent implements Component {
           ? contentLines.slice(contentLines.length - RESULT_PREVIEW_LINES)
           : contentLines;
       const spinner = chalk.hex(this.color)(
-        `${BRAILLE_SPINNER_FRAMES[this.spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0]} `,
+        `${SPINNER_FRAMES[this.spinnerFrame] ?? SPINNER_FRAMES[0]} `,
       );
       return [
         '',
@@ -109,9 +109,9 @@ export class ThinkingComponent implements Component {
   private startSpinner(): void {
     if (this.ui === undefined || this.spinnerInterval !== undefined) return;
     this.spinnerInterval = setInterval(() => {
-      this.spinnerFrame = (this.spinnerFrame + 1) % BRAILLE_SPINNER_FRAMES.length;
+      this.spinnerFrame = (this.spinnerFrame + 1) % SPINNER_FRAMES.length;
       this.ui?.requestRender();
-    }, BRAILLE_SPINNER_INTERVAL_MS);
+    }, SPINNER_INTERVAL_MS);
   }
 
   private stopSpinner(): void {
