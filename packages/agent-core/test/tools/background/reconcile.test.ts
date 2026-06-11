@@ -314,4 +314,96 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
     expect(second.lost).toEqual([]);
     expect(fired).toEqual([]);
   });
+
+  it('list() deduplicates when the same taskId exists in both processes and ghosts', async () => {
+    // Seed a ghost via disk (simulates a task from a previous session).
+    const ghostTaskId = 'bash-overlap0';
+    await writeTask(sessionDir, {
+      task_id: ghostTaskId,
+      command: 'old command',
+      description: 'ghost from disk',
+      pid: 11111,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'running',
+    });
+
+    const mgr = new BackgroundProcessManager();
+    mgr.attachSessionDir(sessionDir);
+    await mgr.loadFromDisk();
+    // Ghost is now loaded.
+    expect(mgr.getTask(ghostTaskId)).toBeDefined();
+
+    // Simulate the same taskId also appearing as a live process
+    // (e.g. register happened after loadFromDisk but before reconcile,
+    // or a race where the random ID collided).
+    const internals = mgr as unknown as {
+      processes: Map<string, { taskId: string; status: string; [k: string]: unknown }>;
+    };
+    internals.processes.set(ghostTaskId, {
+      taskId: ghostTaskId,
+      status: 'running',
+      command: 'new command',
+      description: 'live duplicate',
+      proc: { pid: 22222 },
+      exitCode: null,
+      startedAt: 1_700_000_100,
+      endedAt: null,
+      output: '',
+      waiters: [],
+      terminalFired: false,
+      stopRequested: false,
+      lifecyclePromise: Promise.resolve(),
+      persistWriteQueue: Promise.resolve(),
+      outputWriteQueue: Promise.resolve(),
+    });
+
+    // list(false) must return exactly one entry for the overlapping taskId.
+    const all = mgr.list(false);
+    const matching = all.filter((t) => t.taskId === ghostTaskId);
+    expect(matching).toHaveLength(1);
+
+    // The live process entry (from `processes`) takes precedence.
+    expect(matching[0]?.command).toBe('new command');
+
+    // Other non-overlapping ghosts should still appear.
+    await writeTask(sessionDir, {
+      task_id: 'bash-solo0000',
+      command: 'solo',
+      description: 'no overlap',
+      pid: 33333,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'completed',
+    });
+    // Reload ghosts to pick up the second task.
+    await mgr.loadFromDisk();
+    // Re-inject the live process (loadFromDisk clears and reloads ghosts,
+    // but processes survive).
+    internals.processes.set(ghostTaskId, {
+      taskId: ghostTaskId,
+      status: 'running',
+      command: 'new command',
+      description: 'live duplicate',
+      proc: { pid: 22222 },
+      exitCode: null,
+      startedAt: 1_700_000_100,
+      endedAt: null,
+      output: '',
+      waiters: [],
+      terminalFired: false,
+      stopRequested: false,
+      lifecyclePromise: Promise.resolve(),
+      persistWriteQueue: Promise.resolve(),
+      outputWriteQueue: Promise.resolve(),
+    });
+
+    const allAfter = mgr.list(false);
+    const overlapCount = allAfter.filter((t) => t.taskId === ghostTaskId).length;
+    const soloCount = allAfter.filter((t) => t.taskId === 'bash-solo0000').length;
+    expect(overlapCount).toBe(1);
+    expect(soloCount).toBe(1);
+  });
 });

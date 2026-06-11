@@ -486,17 +486,22 @@ export class BackgroundProcessManager {
    * restart. Active-only mode never shows ghosts (they're terminal).
    */
   list(activeOnly = true, limit?: number): BackgroundTaskInfo[] {
+    const seen = new Set<string>();
     const result: BackgroundTaskInfo[] = [];
     for (const entry of this.processes.values()) {
       // An awaiting_approval task is non-terminal and therefore counts
       // as active in listings (UI needs to show it alongside plain
       // running tasks).
       if (activeOnly && TERMINAL_STATUSES.has(entry.status)) continue;
+      if (seen.has(entry.taskId)) continue;
+      seen.add(entry.taskId);
       result.push(this.toInfo(entry));
       if (limit !== undefined && result.length >= limit) return result;
     }
     if (!activeOnly) {
       for (const ghost of this.ghosts.values()) {
+        if (seen.has(ghost.taskId)) continue;
+        seen.add(ghost.taskId);
         result.push(ghost);
         if (limit !== undefined && result.length >= limit) return result;
       }
