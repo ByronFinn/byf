@@ -13,32 +13,38 @@
  */
 
 const dark = {
-  blue400: '#4FA8FF',
-  cyan400: '#5BC0BE',
-  gray50: '#F5F5F5',
-  gray100: '#E0E0E0',
-  gray500: '#888888',
-  gray600: '#6B6B6B',
-  gray700: '#5A5A5A',
-  green400: '#4EC87E',
-  green300: '#7AD99B',
-  red400: '#E85454',
-  red300: '#F08585',
-  amber400: '#E8A838',
-  orange300: '#FFCB6B',
+  // Brand — softened for long sessions; lower saturation avoids blue-light fatigue
+  blue300: '#79C0FF',
+  cyan300: '#7EC8E3',
+  // Text — warm grays prevent the harsh "pure white on black" glare that
+  // causes eye strain during extended use.  Contrast stays above 10:1.
+  gray40: '#CDCDCD',
+  gray60: '#B8B8B8',
+  gray400: '#8B949E',
+  gray500: '#6E7681',
+  gray600: '#484F58',
+  // State — slightly desaturated to reduce visual shouting
+  green400: '#56D364',
+  green300: '#7EE787',
+  red400: '#F78166',
+  red300: '#FFA198',
+  amber400: '#D29922',
+  orange300: '#F0C674',
 } as const;
 
 const light = {
-  blue600: '#1565C0',
-  cyan700: '#00838F',
-  gray900: '#1A1A1A',
-  gray700: '#454545',
-  gray600: '#5F5F5F',
-  gray500: '#737373',
-  green700: '#0E7A38',
-  red700: '#B91C1C',
-  amber800: '#92660A',
-  orange700: '#9A4A00',
+  // Brand — richer but not neon, keeps WCAG AA on white
+  blue600: '#0969DA',
+  cyan700: '#087E8B',
+  // Text — slightly warm-tinted dark tones
+  gray900: '#1F2328',
+  gray700: '#424A53',
+  gray600: '#57606A',
+  gray500: '#6E7781',
+  green700: '#116329',
+  red700: '#CF222E',
+  amber800: '#9A6700',
+  orange700: '#953800',
 } as const;
 
 export interface ColorPalette {
@@ -80,15 +86,15 @@ export interface ColorPalette {
 }
 
 export const darkColors: ColorPalette = {
-  primary: dark.blue400,
-  accent: dark.cyan400,
+  primary: dark.blue300,
+  accent: dark.cyan300,
 
-  text: dark.gray100,
-  textStrong: dark.gray50,
-  textDim: dark.gray500,
-  textMuted: dark.gray600,
+  text: dark.gray60,
+  textStrong: dark.gray40,
+  textDim: dark.gray400,
+  textMuted: dark.gray500,
 
-  border: dark.gray700,
+  border: dark.gray600,
   borderFocus: dark.amber400,
 
   success: dark.green400,
@@ -99,15 +105,15 @@ export const darkColors: ColorPalette = {
   diffRemoved: dark.red400,
   diffAddedStrong: dark.green300,
   diffRemovedStrong: dark.red300,
-  diffGutter: dark.gray600,
-  diffMeta: dark.gray500,
+  diffGutter: dark.gray500,
+  diffMeta: dark.gray400,
 
   roleUser: dark.orange300,
-  roleAssistant: dark.gray100,
-  roleThinking: dark.gray500,
+  roleAssistant: dark.gray60,
+  roleThinking: dark.gray400,
   roleTool: dark.amber400,
 
-  status: dark.gray500,
+  status: dark.gray400,
 };
 
 export const lightColors: ColorPalette = {

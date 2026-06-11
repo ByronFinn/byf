@@ -2357,7 +2357,7 @@ export class ByfTui implements DialogHost {
       return;
     }
     const tint = (s: string): string => chalk.hex(this.state.theme.colors.textMuted)(s);
-    const spinner = new MoonLoader(this.state.ui, 'braille', tint, label);
+    const spinner = new MoonLoader(this.state.ui, 'circle', tint, label);
     this.state.transcriptContainer.addChild(spinner);
     this.state.mcpServerStatusSpinners.set(name, spinner);
     this.state.ui.requestRender();
@@ -3036,7 +3036,7 @@ export class ByfTui implements DialogHost {
   // Adds an animated login progress row to the transcript.
   private showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle {
     const tint = (s: string): string => chalk.hex(this.state.theme.colors.primary)(s);
-    const spinner = new MoonLoader(this.state.ui, 'braille', tint, label);
+    const spinner = new MoonLoader(this.state.ui, 'circle', tint, label);
     this.state.transcriptContainer.addChild(new Spacer(1));
     this.state.transcriptContainer.addChild(spinner);
     this.state.ui.requestRender();
@@ -3108,7 +3108,7 @@ export class ByfTui implements DialogHost {
         break;
       }
       case 'composing': {
-        const spinner = this.ensureActivitySpinner('braille', 'working...', (s) =>
+        const spinner = this.ensureActivitySpinner('circle', 'working...', (s) =>
           chalk.hex(this.state.theme.colors.primary)(s),
         );
         this.state.activityContainer.addChild(
