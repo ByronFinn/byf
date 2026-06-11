@@ -131,7 +131,7 @@ describe('Agent.resume() integration tests', () => {
     });
 
     it('应该在恢复错误时保持agent状态一致', async () => {
-      const originalRecords = [
+      const originalRecords: readonly AgentRecord[] = [
         {
           type: 'metadata',
           protocol_version: '1.1',

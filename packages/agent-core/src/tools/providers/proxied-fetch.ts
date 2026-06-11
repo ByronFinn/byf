@@ -136,9 +136,9 @@ export function isNoProxyHost(hostname: string, noProxyValue: string | undefined
     if (entry.startsWith('.')) {
       // Domain suffix: `.example.com` matches `sub.example.com`
       if (host.endsWith(entry) || host === entry.slice(1)) return true;
-    } else {
+    } else if (host === entry || host.endsWith('.' + entry)) {
       // Exact match or domain suffix
-      if (host === entry || host.endsWith('.' + entry)) return true;
+      return true;
     }
   }
 
@@ -223,7 +223,7 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
 // ── Internal helpers ─────────────────────────────────────────────────
 
 async function retryViaProxy(
-  input: RequestInfo | URL,
+  input: string | URL | Request,
   init: RequestInit | undefined,
   proxyUrl: string,
   innerFetch: typeof fetch,
@@ -243,12 +243,11 @@ async function retryViaProxy(
   // Use undici ProxyAgent as dispatcher for the proxy connection.
   const dispatcher = new ProxyAgent(proxyUrl);
 
-  const retryInit: RequestInit & { dispatcher?: unknown } = {
+  const retryInit: RequestInit = {
     ...init,
     signal: controller.signal,
-    // undici's fetch accepts `dispatcher` to route through a proxy.
-    dispatcher,
-  };
+    dispatcher: dispatcher as unknown,
+  } as RequestInit;
 
   try {
     const response = await innerFetch(input, retryInit);

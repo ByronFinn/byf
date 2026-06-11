@@ -27,6 +27,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 
@@ -185,6 +186,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 
@@ -213,6 +215,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 
@@ -243,6 +246,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 
@@ -266,6 +270,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 
@@ -331,6 +336,7 @@ describe('AgentRecords.restore() unit tests', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 

@@ -75,6 +75,7 @@ describe('AgentRecords handler registration and routing', () => {
         message: {
           role: 'user',
           content: [{ type: 'text', text: 'test' }],
+          toolCalls: [],
         },
       };
 

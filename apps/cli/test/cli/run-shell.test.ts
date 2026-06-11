@@ -137,7 +137,7 @@ describe('runShell', () => {
       session: undefined,
       continue: false,
       yolo: true,
-      plan: true,
+      
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
@@ -190,7 +190,7 @@ describe('runShell', () => {
         session: '',
         continue: false,
         yolo: false,
-        plan: false,
+        
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
@@ -226,7 +226,7 @@ describe('runShell', () => {
           session: undefined,
           continue: false,
           yolo: false,
-          plan: false,
+          
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,
@@ -259,7 +259,7 @@ describe('runShell', () => {
           session: undefined,
           continue: false,
           yolo: false,
-          plan: false,
+          
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,

@@ -79,6 +79,7 @@ describe('ContextMemory restore handler', () => {
         type: 'context.apply_compaction',
         compactedCount: 3,
         summary: 'Compacted summary',
+        tokensBefore: 1000,
         tokensAfter: 100,
       };
 

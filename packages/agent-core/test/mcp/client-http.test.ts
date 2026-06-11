@@ -334,7 +334,7 @@ describe('HttpMcpClient with proxy fallback', () => {
       // Strip the ProxyAgent dispatcher so the real fetch hits the
       // in-process server directly instead of trying to connect through a
       // real proxy.
-      const { dispatcher: _, ...restInit } = init ?? {};
+      const { dispatcher: _d, ...restInit } = (init ?? {}) as Record<string, unknown>;
       return originalFetch(input, restInit as RequestInit);
     };
 

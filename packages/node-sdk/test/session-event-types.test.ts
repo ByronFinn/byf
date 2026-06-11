@@ -74,6 +74,8 @@ describe('Event public types', () => {
         case 'background.task.started':
         case 'background.task.updated':
         case 'background.task.terminated':
+        case 'observation_masking.applied':
+        case 'pruning.applied':
           return;
         default:
           assertNever(event);

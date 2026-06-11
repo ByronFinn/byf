@@ -32,6 +32,8 @@ describe('PermissionManager restore handler', () => {
 
       const testRecord: AgentRecord = {
         type: 'permission.record_approval_result',
+        turnId: 1,
+        toolCallId: 'call_1',
         action: 'Bash',
         toolName: 'Bash',
         result: {
@@ -63,6 +65,8 @@ describe('PermissionManager restore handler', () => {
 
       const testRecord: AgentRecord = {
         type: 'permission.record_approval_result',
+        turnId: 1,
+        toolCallId: 'call_1',
         action: 'Bash',
         toolName: 'Bash',
         result: {
@@ -88,6 +92,8 @@ describe('PermissionManager restore handler', () => {
       // Rejected result should not add a rule
       const rejectedRecord: AgentRecord = {
         type: 'permission.record_approval_result',
+        turnId: 1,
+        toolCallId: 'call_1',
         action: 'Bash',
         toolName: 'Bash',
         result: {

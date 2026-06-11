@@ -41,7 +41,7 @@ function makeTuiState(): TUIState {
     startup: {
       continueLast: false,
       yolo: false,
-      plan: false,
+      
     },
     resolvedTheme: 'dark',
   };
@@ -99,7 +99,7 @@ function sessionWithToolStore(toolStore: Record<string, unknown>): Session {
           context: { history: [], tokenCount: 0 },
           replay: [],
           permission: { mode: 'manual' },
-          plan: null,
+          
           usage: {},
           tools: [],
           toolStore,
