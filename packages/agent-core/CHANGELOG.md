@@ -1,5 +1,11 @@
 # @byfriends/agent-core
 
+## 0.2.3
+
+### Patch Changes
+
+- 4f70390: fix: deduplicate tasks in BackgroundProcessManager.list() to prevent same taskId appearing in both processes and ghosts maps
+
 ## 0.2.2
 
 ### Patch Changes
