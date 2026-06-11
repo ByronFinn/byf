@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentRecord } from '../../../../src/agent/records/types';
+import type { AgentRecord } from '../../../src/agent/records/types';
 import { testAgent } from '../harness/agent';
-import type { RecordRestoreHandler } from '../../../../src/agent/restore-handler';
+import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 
 describe('ToolManager restore handler', () => {
   describe('restoreRecord method', () => {
@@ -92,15 +92,15 @@ describe('ToolManager restore handler', () => {
 
       const testRecord: AgentRecord = {
         type: 'tools.update_store',
-        key: 'test-key',
-        value: 'test-value',
+        key: 'todo' as never,
+        value: ['test-value'] as never,
       };
 
       tools.restoreRecord(testRecord);
 
       // Verify the store was updated
       const storeData = agent.tools.storeData();
-      expect(storeData['test-key']).toBe('test-value');
+      expect((storeData as Record<string, unknown>)['todo']).toEqual(['test-value']);
     });
   });
 });

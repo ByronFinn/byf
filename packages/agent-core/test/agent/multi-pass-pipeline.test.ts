@@ -51,7 +51,7 @@ describe('Output offloading integration', () => {
 
     const toolMessage = ctx.agent.context.history.find((m) => m.role === 'tool');
     expect(toolMessage).toBeDefined();
-    const content = toolMessage!.content[0]?.type === 'text' ? toolMessage!.content[0].text : '';
+    const content = toolMessage!.content[0]?.type === 'text' ? toolMessage!.content[0]!.text : '';
     expect(content).not.toBe(largeOutput);
     expect(content).toContain('Tool output offloaded');
     expect(content).toContain('/home/byf/sessions/test-session/scratch/call_1.txt');
@@ -95,7 +95,7 @@ describe('Output offloading integration', () => {
     });
 
     const toolMessage = ctx.agent.context.history.find((m) => m.role === 'tool');
-    const content = toolMessage!.content[0]?.type === 'text' ? toolMessage!.content[0].text : '';
+    const content = toolMessage!.content[0]?.type === 'text' ? toolMessage!.content[0]!.text : '';
     expect(content).toBe(smallOutput);
     expect(kaos.writeText).not.toHaveBeenCalled();
   });
@@ -108,6 +108,13 @@ describe('Multi-pass compaction pipeline', () => {
       modelCapabilities: {
         max_context_tokens: 5_000,
         tool_use: true,
+        image_in: true,
+        video_in: true,
+        audio_in: true,
+        thinking: true,
+        thinking_effort: true,
+        thinking_xhigh: true,
+        thinking_max: true,
       },
     });
 

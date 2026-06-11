@@ -384,8 +384,8 @@ describe('resolveRuntimeProvider Byf request headers', () => {
       config: BASE_CONFIG,
     });
 
-    const extraBody = (resolved.provider as Record<string, unknown>)?.generationKwargs
-      ?.extra_body;
+    const providerMap = resolved.provider as unknown as Record<string, unknown>;
+    const extraBody = (providerMap['generationKwargs'] as Record<string, unknown> | undefined)?.['extra_body'];
     expect(extraBody).toBeUndefined();
   });
 

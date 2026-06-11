@@ -90,6 +90,7 @@ interface ResumeStateSnapshot {
 interface TestAgentOptions {
   readonly kaos?: Kaos | undefined;
   readonly runtime?: RuntimeConfig | undefined;
+  readonly cwd?: string | undefined;
   readonly compactionStrategy?: CompactionStrategy | undefined;
   readonly generate?: GenerateFn | undefined;
   readonly hookEngine?: AgentConfig['hookEngine'];
@@ -197,7 +198,7 @@ export class AgentTestContext {
   }: ConfigureOptions = {}): void {
     this.configureRuntimeModel(provider, modelCapabilities);
     this.agent.config.update({
-      cwd: process.cwd(),
+      cwd: this.options.cwd ?? process.cwd(),
       modelAlias: provider.model,
       systemPrompt: DEFAULT_TEST_SYSTEM_PROMPT,
       thinkingLevel: 'off',

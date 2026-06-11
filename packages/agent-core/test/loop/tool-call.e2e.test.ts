@@ -628,7 +628,7 @@ describe('runTurn — tool-call behaviour', () => {
       resolveExecution: () =>
         ({
           isError: true,
-        }) as ExecutableToolResult,
+        }) as ToolExecution,
     };
     const echo = new EchoTool();
     const { sink, context } = await runTurn({

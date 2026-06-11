@@ -67,7 +67,7 @@ describe('ScratchManager', () => {
       }),
       exec: vi.fn().mockImplementation(async (...args: string[]) => {
         if (args[0] === 'rm' && args.length === 2) {
-          files.delete(args[1]);
+          files.delete(args[1]!);
         }
         return {
           stdin: { write: vi.fn(), end: vi.fn() },
@@ -123,7 +123,7 @@ describe('ScratchManager', () => {
       }),
       exec: vi.fn().mockImplementation(async (...args: string[]) => {
         if (args[0] === 'rm' && args.length === 2) {
-          files.delete(args[1]);
+          files.delete(args[1]!);
         }
         return {
           stdin: { write: vi.fn(), end: vi.fn() },

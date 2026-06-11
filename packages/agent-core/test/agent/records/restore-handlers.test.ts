@@ -6,7 +6,7 @@ import {
   type AgentRecord,
 } from '../../../src/agent/records';
 import { testAgent } from '../harness/agent';
-import type { RecordRestoreHandler } from '../../../../src/agent/restore-handler';
+import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 
 describe('AgentRecords handler registration and routing', () => {
   describe('registerHandlers method', () => {

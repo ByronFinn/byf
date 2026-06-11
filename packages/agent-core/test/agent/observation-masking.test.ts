@@ -147,9 +147,9 @@ describe('applyObservationMasking thresholds', () => {
     const bashMessage = result.history.find((m) => m.toolCallId === 'call_2');
     const writeMessage = result.history.find((m) => m.toolCallId === 'call_3');
 
-    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0].text.startsWith('[Read:') : false).toBe(true);
-    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0].text.startsWith('line') : false).toBe(true);
-    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0].text.startsWith('line') : false).toBe(true);
+    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0]!.text.startsWith('[Read:') : false).toBe(true);
+    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0]!.text.startsWith('line') : false).toBe(true);
+    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0]!.text.startsWith('line') : false).toBe(true);
   });
 
   it('masks low and medium priority when pressure is 80-85%', () => {
@@ -177,9 +177,9 @@ describe('applyObservationMasking thresholds', () => {
     const bashMessage = result.history.find((m) => m.toolCallId === 'call_2');
     const writeMessage = result.history.find((m) => m.toolCallId === 'call_3');
 
-    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0].text.startsWith('[Read:') : false).toBe(true);
-    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0].text.startsWith('[Bash:') : false).toBe(true);
-    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0].text.startsWith('line') : false).toBe(true);
+    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0]!.text.startsWith('[Read:') : false).toBe(true);
+    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0]!.text.startsWith('[Bash:') : false).toBe(true);
+    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0]!.text.startsWith('line') : false).toBe(true);
   });
 
   it('never masks high priority tools (Write/Edit)', () => {
@@ -203,8 +203,8 @@ describe('applyObservationMasking thresholds', () => {
     const writeMessage = result.history.find((m) => m.toolCallId === 'call_1');
     const editMessage = result.history.find((m) => m.toolCallId === 'call_2');
 
-    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0].text.startsWith('line') : false).toBe(true);
-    expect(editMessage?.content[0]?.type === 'text' ? editMessage.content[0].text.startsWith('line') : false).toBe(true);
+    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0]!.text.startsWith('line') : false).toBe(true);
+    expect(editMessage?.content[0]?.type === 'text' ? editMessage.content[0]!.text.startsWith('line') : false).toBe(true);
   });
 });
 
@@ -218,7 +218,7 @@ describe('applyObservationMasking summary format', () => {
       lowPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toContain('[Read: 3 lines]');
   });
 
@@ -232,7 +232,7 @@ describe('applyObservationMasking summary format', () => {
       mediumPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toContain('[Bash: 2 lines, error]');
   });
 
@@ -246,7 +246,7 @@ describe('applyObservationMasking summary format', () => {
       mediumPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     const parts = text.split('---\n');
     expect(parts).toHaveLength(2);
     const body = parts[1] ?? '';
@@ -272,7 +272,7 @@ describe('applyObservationMasking summary format', () => {
       lowPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     const parts = text.split('---\n');
     const body = parts[1] ?? '';
     const bodyLines = body.split('\n');
@@ -295,7 +295,7 @@ describe('applyObservationMasking summary format', () => {
       lowPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toContain('line 1');
     expect(text).toContain('line 5');
     expect(text).not.toContain('...');
@@ -314,7 +314,7 @@ describe('applyObservationMasking summary format', () => {
     });
 
     // Edit is high priority and is never masked regardless of thresholds
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toBe(lines);
   });
 });
@@ -351,10 +351,10 @@ describe('applyObservationMasking priority order', () => {
     expect(result.result.maskedCount).toBe(2); // Read and Grep
 
     const readMasked = result.history.find((m) => m.toolCallId === 'call_read')?.content[0]?.type === 'text'
-      ? result.history.find((m) => m.toolCallId === 'call_read')!.content[0].text.startsWith('[Read:')
+      ? (result.history.find((m) => m.toolCallId === 'call_read')!.content[0] as { type: 'text'; text: string }).text.startsWith('[Read:')
       : false;
     const grepMasked = result.history.find((m) => m.toolCallId === 'call_grep')?.content[0]?.type === 'text'
-      ? result.history.find((m) => m.toolCallId === 'call_grep')!.content[0].text.startsWith('[Grep:')
+      ? (result.history.find((m) => m.toolCallId === 'call_grep')!.content[0] as { type: 'text'; text: string }).text.startsWith('[Grep:')
       : false;
     expect(readMasked).toBe(true);
     expect(grepMasked).toBe(true);
@@ -472,7 +472,7 @@ describe('applyObservationMasking adversarial', () => {
       lowPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toBe('[Read: 0 lines]');
   });
 
@@ -495,7 +495,7 @@ describe('applyObservationMasking adversarial', () => {
       lowPriorityThreshold: 0,
     });
 
-    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0].content[0].text : '';
+    const text = result.history[0]?.content[0]?.type === 'text' ? result.history[0]!.content[0]!.text : '';
     expect(text).toContain('[Read: 1 lines]');
   });
 });

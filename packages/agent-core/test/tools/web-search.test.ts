@@ -325,7 +325,7 @@ describe('RemoteWebSearchProvider with proxy fallback', () => {
 
     const results = await provider.search('test query');
     expect(results).toHaveLength(1);
-    expect(results[0].title).toBe('Proxy result');
+    expect(results[0]!.title).toBe('Proxy result');
     expect(innerFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -351,7 +351,7 @@ describe('RemoteWebSearchProvider with proxy fallback', () => {
 
     const results = await provider.search('test query');
     expect(results).toHaveLength(1);
-    expect(results[0].title).toBe('Proxy result');
+    expect(results[0]!.title).toBe('Proxy result');
     expect(innerFetch).toHaveBeenCalledTimes(2);
   });
 

@@ -243,7 +243,7 @@ async function retryViaProxy(
   // Use undici ProxyAgent as dispatcher for the proxy connection.
   const dispatcher = new ProxyAgent(proxyUrl);
 
-  const retryInit: RequestInit = {
+  const retryInit: RequestInit & { dispatcher?: unknown } = {
     ...init,
     signal: controller.signal,
     // undici's fetch accepts `dispatcher` to route through a proxy.

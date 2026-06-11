@@ -51,9 +51,9 @@ Skills listing here.`;
 
       // Should create 3 blocks: base, projectInstructions, sessionContext
       expect(plan.blocks).toHaveLength(3);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[1].name).toBe('projectInstructions');
-      expect(plan.blocks[2].name).toBe('sessionContext');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[1]!.name).toBe('projectInstructions');
+      expect(plan.blocks[2]!.name).toBe('sessionContext');
     });
 
     it('assigns correct scopes to implicit blocks', () => {
@@ -75,9 +75,9 @@ Skills listing here.`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('global');
-      expect(plan.blocks[1].cacheScope).toBe('project');
-      expect(plan.blocks[2].cacheScope).toBe('session');
+      expect(plan.blocks[0]!.cacheScope).toBe('global');
+      expect(plan.blocks[1]!.cacheScope).toBe('project');
+      expect(plan.blocks[2]!.cacheScope).toBe('session');
     });
 
     it('handles template without Project Information section', () => {
@@ -97,8 +97,8 @@ Skills listing here.`;
 
       // Should create 2 blocks: base, sessionContext
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[1].name).toBe('sessionContext');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[1]!.name).toBe('sessionContext');
     });
 
     it('handles template without Skills section', () => {
@@ -118,8 +118,8 @@ Project-specific context here.`;
 
       // Should create 2 blocks: base, projectInstructions
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[1].name).toBe('projectInstructions');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[1]!.name).toBe('projectInstructions');
     });
 
     it('handles template with only base section', () => {
@@ -135,7 +135,7 @@ Think from first principles.`;
 
       // Should create 1 block: base
       expect(plan.blocks).toHaveLength(1);
-      expect(plan.blocks[0].name).toBe('base');
+      expect(plan.blocks[0]!.name).toBe('base');
     });
 
     it('preserves exact content in each block', () => {
@@ -158,17 +158,17 @@ Skills listing here.`;
       const plan = buildPromptPlan(prompt, capability);
 
       // Verify content boundaries are correct
-      expect(plan.blocks[0].text).toContain('You are a helpful assistant.');
-      expect(plan.blocks[0].text).toContain('# First Principles');
-      expect(plan.blocks[0].text).toContain('Think from first principles.');
-      expect(plan.blocks[0].text).not.toContain('# Project Information');
+      expect(plan.blocks[0]!.text).toContain('You are a helpful assistant.');
+      expect(plan.blocks[0]!.text).toContain('# First Principles');
+      expect(plan.blocks[0]!.text).toContain('Think from first principles.');
+      expect(plan.blocks[0]!.text).not.toContain('# Project Information');
 
-      expect(plan.blocks[1].text).toContain('# Project Information');
-      expect(plan.blocks[1].text).toContain('Project-specific context here.');
-      expect(plan.blocks[1].text).not.toContain('# Skills');
+      expect(plan.blocks[1]!.text).toContain('# Project Information');
+      expect(plan.blocks[1]!.text).toContain('Project-specific context here.');
+      expect(plan.blocks[1]!.text).not.toContain('# Skills');
 
-      expect(plan.blocks[2].text).toContain('# Skills');
-      expect(plan.blocks[2].text).toContain('Skills listing here.');
+      expect(plan.blocks[2]!.text).toContain('# Skills');
+      expect(plan.blocks[2]!.text).toContain('Skills listing here.');
     });
 
     it('handles actual system.md template structure', () => {
@@ -260,9 +260,9 @@ Skills listing here.`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('global'); // Supported
-      expect(plan.blocks[1].cacheScope).toBe('none'); // 'project' not supported → 'none'
-      expect(plan.blocks[2].cacheScope).toBe('session'); // Supported
+      expect(plan.blocks[0]!.cacheScope).toBe('global'); // Supported
+      expect(plan.blocks[1]!.cacheScope).toBe('none'); // 'project' not supported → 'none'
+      expect(plan.blocks[2]!.cacheScope).toBe('session'); // Supported
     });
 
     it('handles implicit boundaries when provider supports no caching', () => {
@@ -310,9 +310,9 @@ Skills listing here.`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].text).toBe(prompt);
+      expect(plan.blocks[0]!.text).toBe(prompt);
       // The text field should contain the original content
-      expect(fingerprint(plan.blocks[0].text)).toBe(fingerprint(prompt));
+      expect(fingerprint(plan.blocks[0]!.text)).toBe(fingerprint(prompt));
     });
 
       it('handles empty prompt', () => {
@@ -322,9 +322,9 @@ Skills listing here.`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(1);
-      expect(plan.blocks[0].text).toBe('');
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[0].cacheScope).toBe('none');
+      expect(plan.blocks[0]!.text).toBe('');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[0]!.cacheScope).toBe('none');
       });
     });
   });
@@ -361,8 +361,8 @@ Session context`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[0].text).toBe('');
-      expect(plan.blocks[0].name).toBe('base');
+      expect(plan.blocks[0]!.text).toBe('');
+      expect(plan.blocks[0]!.name).toBe('base');
     });
 
     it('handles empty blocks after marker', () => {
@@ -374,8 +374,8 @@ __CACHE_BOUNDARY__`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[1].text).toBe('');
-      expect(plan.blocks[1].name).toBe('sessionContext');
+      expect(plan.blocks[1]!.text).toBe('');
+      expect(plan.blocks[1]!.name).toBe('sessionContext');
     });
   });
 
@@ -392,9 +392,9 @@ Session data`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(3);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[1].name).toBe('projectInstructions');
-      expect(plan.blocks[2].name).toBe('sessionContext');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[1]!.name).toBe('projectInstructions');
+      expect(plan.blocks[2]!.name).toBe('sessionContext');
     });
 
     it('assigns correct scopes to multiple blocks', () => {
@@ -408,9 +408,9 @@ Session content`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('global');
-      expect(plan.blocks[1].cacheScope).toBe('project');
-      expect(plan.blocks[2].cacheScope).toBe('session');
+      expect(plan.blocks[0]!.cacheScope).toBe('global');
+      expect(plan.blocks[1]!.cacheScope).toBe('project');
+      expect(plan.blocks[2]!.cacheScope).toBe('session');
     });
 
     it('handles more than 3 blocks (base + multiple intermediate + sessionContext)', () => {
@@ -429,11 +429,11 @@ Session`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(5);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[1].name).toBe('projectInstructions');
-      expect(plan.blocks[2].name).toBe('skillsListing');
-      expect(plan.blocks[3].name).toBe('sessionContext');
-      expect(plan.blocks[4].name).toBe('sessionContext');
+      expect(plan.blocks[0]!.name).toBe('base');
+      expect(plan.blocks[1]!.name).toBe('projectInstructions');
+      expect(plan.blocks[2]!.name).toBe('skillsListing');
+      expect(plan.blocks[3]!.name).toBe('sessionContext');
+      expect(plan.blocks[4]!.name).toBe('sessionContext');
     });
   });
 
@@ -449,9 +449,9 @@ Session`;
       const plan = buildPromptPlan(prompt, capability);
 
       expect(plan.blocks).toHaveLength(3);
-      expect(plan.blocks[0].text).toBe('Base\n');
-      expect(plan.blocks[1].text).toBe('\n');
-      expect(plan.blocks[2].text).toBe('Session');
+      expect(plan.blocks[0]!.text).toBe('Base\n');
+      expect(plan.blocks[1]!.text).toBe('\n');
+      expect(plan.blocks[2]!.text).toBe('Session');
     });
 
     it('handles multiple consecutive markers', () => {
@@ -482,9 +482,9 @@ Session content`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('global'); // Supported
-      expect(plan.blocks[1].cacheScope).toBe('none'); // 'project' not supported → 'none'
-      expect(plan.blocks[2].cacheScope).toBe('session'); // Supported
+      expect(plan.blocks[0]!.cacheScope).toBe('global'); // Supported
+      expect(plan.blocks[1]!.cacheScope).toBe('none'); // 'project' not supported → 'none'
+      expect(plan.blocks[2]!.cacheScope).toBe('session'); // Supported
     });
 
     it('marks all blocks as none when provider supports no scopes', () => {
@@ -498,9 +498,9 @@ Session content`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('none');
-      expect(plan.blocks[1].cacheScope).toBe('none');
-      expect(plan.blocks[2].cacheScope).toBe('none');
+      expect(plan.blocks[0]!.cacheScope).toBe('none');
+      expect(plan.blocks[1]!.cacheScope).toBe('none');
+      expect(plan.blocks[2]!.cacheScope).toBe('none');
     });
 
     it('handles undefined supportedScopes (assume all supported)', () => {
@@ -518,9 +518,9 @@ Session content`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('global');
-      expect(plan.blocks[1].cacheScope).toBe('project');
-      expect(plan.blocks[2].cacheScope).toBe('session');
+      expect(plan.blocks[0]!.cacheScope).toBe('global');
+      expect(plan.blocks[1]!.cacheScope).toBe('project');
+      expect(plan.blocks[2]!.cacheScope).toBe('session');
     });
 
     it('only supports scopes that exist in capability array', () => {
@@ -535,9 +535,9 @@ Session`;
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0].cacheScope).toBe('none'); // 'global' not supported
-      expect(plan.blocks[1].cacheScope).toBe('none'); // 'project' not supported
-      expect(plan.blocks[2].cacheScope).toBe('session'); // Supported
+      expect(plan.blocks[0]!.cacheScope).toBe('none'); // 'global' not supported
+      expect(plan.blocks[1]!.cacheScope).toBe('none'); // 'project' not supported
+      expect(plan.blocks[2]!.cacheScope).toBe('session'); // Supported
     });
   });
 
@@ -549,7 +549,7 @@ Session`;
       const plan1 = buildPromptPlan(prompt, capability);
       const plan2 = buildPromptPlan(prompt, capability);
 
-      expect(fingerprint(plan1.blocks[0].text)).toBe(fingerprint(plan2.blocks[0].text));
+      expect(fingerprint(plan1.blocks[0]!.text)).toBe(fingerprint(plan2.blocks[0]!.text));
     });
 
     it('produces different hashes for different content', () => {
@@ -558,7 +558,7 @@ Session`;
       const plan1 = buildPromptPlan('Content A', capability);
       const plan2 = buildPromptPlan('Content B', capability);
 
-      expect(fingerprint(plan1.blocks[0].text)).not.toBe(fingerprint(plan2.blocks[0].text));
+      expect(fingerprint(plan1.blocks[0]!.text)).not.toBe(fingerprint(plan2.blocks[0]!.text));
     });
 
     it('hashes are consistent across multiple calls', () => {
@@ -574,9 +574,9 @@ Session`;
 
       expect(plan1.blocks.length).toBe(plan2.blocks.length);
       for (let i = 0; i < plan1.blocks.length; i++) {
-        expect(fingerprint(plan1.blocks[i].text)).toBe(fingerprint(plan2.blocks[i].text));
-        expect(plan1.blocks[i].name).toBe(plan2.blocks[i].name);
-        expect(plan1.blocks[i].cacheScope).toBe(plan2.blocks[i].cacheScope);
+        expect(fingerprint(plan1.blocks[i]!.text)).toBe(fingerprint(plan2.blocks[i]!.text));
+        expect(plan1.blocks[i]!.name).toBe(plan2.blocks[i]!.name);
+        expect(plan1.blocks[i]!.cacheScope).toBe(plan2.blocks[i]!.cacheScope);
       }
     });
 
@@ -587,8 +587,8 @@ Session`;
       const plan = buildPromptPlan(prompt, capability);
 
       // Text should be preserved exactly (not trimmed)
-      expect(plan.blocks[0].text).toBe(prompt);
-      expect(fingerprint(plan.blocks[0].text)).toBe(fingerprint(prompt));
+      expect(plan.blocks[0]!.text).toBe(prompt);
+      expect(fingerprint(plan.blocks[0]!.text)).toBe(fingerprint(prompt));
     });
   });
 
@@ -654,7 +654,7 @@ M5`;
       const plan = buildPromptPlan(prompt, createCapability(['global', 'project', 'session']));
 
       // All blocks after the last marker should be 'sessionContext'
-      expect(plan.blocks[plan.blocks.length - 1].name).toBe('sessionContext');
+      expect(plan.blocks[plan.blocks.length - 1]!.name).toBe('sessionContext');
     });
   });
 
@@ -666,8 +666,8 @@ Content`;
       const plan = buildPromptPlan(prompt, createCapability(['global', 'project', 'session']));
 
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[0].text).toBe('');
-      expect(plan.blocks[1].text).toBe('Content');
+      expect(plan.blocks[0]!.text).toBe('');
+      expect(plan.blocks[1]!.text).toBe('Content');
     });
 
     it('handles marker at the very end', () => {
@@ -677,8 +677,8 @@ __CACHE_BOUNDARY__`;
       const plan = buildPromptPlan(prompt, createCapability(['global', 'project', 'session']));
 
       expect(plan.blocks).toHaveLength(2);
-      expect(plan.blocks[0].text).toBe('Content\n');
-      expect(plan.blocks[1].text).toBe('');
+      expect(plan.blocks[0]!.text).toBe('Content\n');
+      expect(plan.blocks[1]!.text).toBe('');
     });
 
     it('handles only markers with no content', () => {
@@ -702,12 +702,12 @@ Line 6`;
 
       const plan = buildPromptPlan(prompt, createCapability(['global', 'project', 'session']));
 
-      expect(plan.blocks[0].text).toContain('Line 1');
-      expect(plan.blocks[0].text).toContain('Line 2');
-      expect(plan.blocks[0].text).toContain('Line 3');
-      expect(plan.blocks[1].text).toContain('Line 4');
-      expect(plan.blocks[1].text).toContain('Line 5');
-      expect(plan.blocks[1].text).toContain('Line 6');
+      expect(plan.blocks[0]!.text).toContain('Line 1');
+      expect(plan.blocks[0]!.text).toContain('Line 2');
+      expect(plan.blocks[0]!.text).toContain('Line 3');
+      expect(plan.blocks[1]!.text).toContain('Line 4');
+      expect(plan.blocks[1]!.text).toContain('Line 5');
+      expect(plan.blocks[1]!.text).toContain('Line 6');
     });
   });
 

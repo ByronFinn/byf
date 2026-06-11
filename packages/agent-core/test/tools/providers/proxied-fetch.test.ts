@@ -436,7 +436,7 @@ describe('createProxiedFetch', () => {
     expect(innerFetch).toHaveBeenCalledTimes(2);
     // Second call should include a dispatcher
     const secondCallInit = innerFetch.mock.calls[1]?.[1];
-    expect(secondCallInit?.dispatcher).toBeDefined();
+    expect((secondCallInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
   });
 
   it('propagates original error when direct fetch fails and no proxy is configured', async () => {
@@ -574,7 +574,7 @@ describe('createProxiedFetch', () => {
     expect(await res.text()).toBe('via-http-proxy');
     // Verify the proxy URL used for the second call
     const secondInit = innerFetch.mock.calls[1]?.[1];
-    expect(secondInit?.dispatcher).toBeDefined();
+    expect((secondInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
   });
 
   it('does not modify behavior when no proxy is configured and request succeeds', async () => {
@@ -587,7 +587,7 @@ describe('createProxiedFetch', () => {
     expect(innerFetch).toHaveBeenCalledTimes(1);
     // No dispatcher should be set when no proxy is used
     const init = innerFetch.mock.calls[0]?.[1];
-    expect(init?.dispatcher).toBeUndefined();
+    expect((init as { dispatcher?: unknown })?.dispatcher).toBeUndefined();
   });
 
   // ── SOCKS5 proxy integration (#118) ────────────────────────────────
@@ -605,7 +605,7 @@ describe('createProxiedFetch', () => {
     expect(innerFetch).toHaveBeenCalledTimes(2);
     // Second call should include a dispatcher (ProxyAgent handles socks5://)
     const secondCallInit = innerFetch.mock.calls[1]?.[1];
-    expect(secondCallInit?.dispatcher).toBeDefined();
+    expect((secondCallInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
   });
 
   it('retries through SOCKS5 proxy from ALL_PROXY env var', async () => {
@@ -620,7 +620,7 @@ describe('createProxiedFetch', () => {
     expect(await res.text()).toBe('via-all-proxy-socks');
     expect(innerFetch).toHaveBeenCalledTimes(2);
     const secondCallInit = innerFetch.mock.calls[1]?.[1];
-    expect(secondCallInit?.dispatcher).toBeDefined();
+    expect((secondCallInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
   });
 
   it('for HTTPS: falls back to HTTP_PROXY when HTTPS_PROXY and ALL_PROXY are absent', async () => {
@@ -635,6 +635,6 @@ describe('createProxiedFetch', () => {
     expect(await res.text()).toBe('via-http-fallback');
     expect(innerFetch).toHaveBeenCalledTimes(2);
     const secondCallInit = innerFetch.mock.calls[1]?.[1];
-    expect(secondCallInit?.dispatcher).toBeDefined();
+    expect((secondCallInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
   });
 });
