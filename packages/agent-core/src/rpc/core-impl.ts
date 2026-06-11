@@ -5,6 +5,7 @@ import { localKaos } from '@byfriends/kaos';
 import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
+import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
 import { RemoteWebSearchProvider } from '#/tools/providers/remote-web-search';
 import { detectEnvironmentFromNode } from '#/utils/environment';
@@ -623,7 +624,10 @@ async function createRuntimeConfig(input: {
   readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
 }): Promise<RuntimeConfig> {
-  const localFetcher = new LocalFetchURLProvider();
+  const proxiedFetch = createProxiedFetch({
+    envLookup: (key) => process.env[key],
+  });
+  const localFetcher = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
   const searchService = input.config.services?.byfSearch;
   const fetchService = input.config.services?.byfFetch;
 
@@ -637,6 +641,7 @@ async function createRuntimeConfig(input: {
             baseUrl: fetchService.baseUrl,
             localFallback: localFetcher,
             defaultHeaders: input.byfRequestHeaders,
+            fetchImpl: proxiedFetch,
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
     webSearcher:
@@ -645,6 +650,7 @@ async function createRuntimeConfig(input: {
         : new RemoteWebSearchProvider({
             baseUrl: searchService.baseUrl,
             defaultHeaders: input.byfRequestHeaders,
+            fetchImpl: proxiedFetch,
             ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),
           }),
   };
