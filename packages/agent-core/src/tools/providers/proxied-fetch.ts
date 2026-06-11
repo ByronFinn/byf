@@ -18,6 +18,8 @@
 
 import { ProxyAgent } from 'undici';
 
+import type { ProxySettings } from '#/tools/providers/system-proxy';
+
 // ── Constants ────────────────────────────────────────────────────────
 
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -38,6 +40,7 @@ const RETRYABLE_NETWORK_CODES = new Set([
 const HTTPS_PROXY_KEYS = ['HTTPS_PROXY', 'https_proxy'] as const;
 const HTTP_PROXY_KEYS = ['HTTP_PROXY', 'http_proxy'] as const;
 const ALL_PROXY_KEYS = ['ALL_PROXY', 'all_proxy'] as const;
+const SOCKS_PROXY_KEYS = ['SOCKS_PROXY', 'socks_proxy'] as const;
 const NO_PROXY_KEYS = ['NO_PROXY', 'no_proxy'] as const;
 
 // ── Helpers (exported for testing) ───────────────────────────────────
@@ -46,19 +49,41 @@ export type EnvLookup = (key: string) => string | undefined;
 
 /**
  * Determine the proxy URL for a given request URL based on environment
- * variables. Returns `undefined` when no proxy is configured.
+ * variables and optional system proxy settings.
  *
- * Priority for HTTPS requests: HTTPS_PROXY → ALL_PROXY
- * Priority for HTTP requests:  HTTP_PROXY → ALL_PROXY
+ * Env vars always take priority over system proxy.
+ *
+ * Priority for HTTPS requests:
+ *   HTTPS_PROXY → system HTTPS → ALL_PROXY → SOCKS_PROXY → system SOCKS → HTTP_PROXY → system HTTP
+ * Priority for HTTP requests:
+ *   HTTP_PROXY → system HTTP → ALL_PROXY → SOCKS_PROXY → system SOCKS
  */
-export function getProxyForUrl(requestUrl: string, envLookup: EnvLookup): string | undefined {
+export function getProxyForUrl(
+  requestUrl: string,
+  envLookup: EnvLookup,
+  systemProxy?: ProxySettings,
+): string | undefined {
   const parsed = new URL(requestUrl);
   const isHttps = parsed.protocol === 'https:';
 
   if (isHttps) {
-    return firstDefined(HTTPS_PROXY_KEYS, envLookup) ?? firstDefined(ALL_PROXY_KEYS, envLookup);
+    return (
+      firstDefined(HTTPS_PROXY_KEYS, envLookup) ??
+      systemProxy?.httpsProxy ??
+      firstDefined(ALL_PROXY_KEYS, envLookup) ??
+      firstDefined(SOCKS_PROXY_KEYS, envLookup) ??
+      systemProxy?.socksProxy ??
+      firstDefined(HTTP_PROXY_KEYS, envLookup) ??
+      systemProxy?.httpProxy
+    );
   }
-  return firstDefined(HTTP_PROXY_KEYS, envLookup) ?? firstDefined(ALL_PROXY_KEYS, envLookup);
+  return (
+    firstDefined(HTTP_PROXY_KEYS, envLookup) ??
+    systemProxy?.httpProxy ??
+    firstDefined(ALL_PROXY_KEYS, envLookup) ??
+    firstDefined(SOCKS_PROXY_KEYS, envLookup) ??
+    systemProxy?.socksProxy
+  );
 }
 
 /**
@@ -127,6 +152,8 @@ export interface ProxiedFetchDeps {
   envLookup: EnvLookup;
   /** The underlying fetch to wrap. Defaults to `globalThis.fetch`. */
   innerFetch?: typeof fetch;
+  /** Injectable system proxy detector (called per-request). */
+  systemProxy?: () => ProxySettings;
 }
 
 /**
@@ -148,7 +175,8 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
     const hostname = new URL(url).hostname;
 
     // Check proxy availability up-front.
-    const proxyUrl = getProxyForUrl(url, envLookup);
+    const sysProxy = deps.systemProxy?.();
+    const proxyUrl = getProxyForUrl(url, envLookup, sysProxy);
     const noProxyMatch = noProxy !== undefined && isNoProxyHost(hostname, noProxy);
 
     // Create a merged AbortController with 60s timeout.

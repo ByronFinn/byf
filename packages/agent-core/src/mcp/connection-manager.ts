@@ -55,6 +55,13 @@ export interface McpConnectionManagerOptions {
    * `session.log` so MCP events land in the session log too.
    */
   readonly log?: Logger;
+  /**
+   * Custom fetch function for HTTP MCP transports. When provided, the
+   * connection manager passes it to every `HttpMcpClient` so the
+   * transport uses it for all HTTP requests — enabling proxy fallback,
+   * custom retries, or test doubles.
+   */
+  readonly fetch?: typeof fetch;
 }
 
 /**
@@ -295,6 +302,7 @@ export class McpConnectionManager {
       toolCallTimeoutMs,
       envLookup: this.options.envLookup,
       oauthProvider: this.resolveOAuthProvider(config, name),
+      fetch: this.options.fetch,
     });
   }
 

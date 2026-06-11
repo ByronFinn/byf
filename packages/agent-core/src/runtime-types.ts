@@ -8,4 +8,10 @@ export interface RuntimeConfig {
   readonly osEnv: Environment;
   readonly urlFetcher?: UrlFetcher | undefined;
   readonly webSearcher?: WebSearchProvider | undefined;
+  /**
+   * ProxiedFetch — a `typeof fetch` wrapper that retries through an
+   * HTTP/SOCKS proxy when the direct attempt fails with a retryable error.
+   * Used by MCP HTTP connections, URL fetcher, and web search.
+   */
+  readonly fetch?: typeof fetch;
 }

@@ -13,6 +13,7 @@ import {
   HttpMcpClient,
   isTerminalTransportError,
 } from '../../src/mcp/client-http';
+import { createProxiedFetch } from '../../src/tools/providers/proxied-fetch';
 
 const cleanups: Array<() => Promise<void> | void> = [];
 
@@ -264,6 +265,153 @@ describe('HttpMcpClient', () => {
       await client.connect();
       const tools = await client.listTools();
       expect(tools.map((t) => t.name)).toEqual(['echo']);
+    } finally {
+      await client.close();
+    }
+  }, 15000);
+});
+
+describe('HttpMcpClient with proxy fallback', () => {
+  it('succeeds directly when ProxiedFetch wraps a working fetch (no proxy env)', async () => {
+    const server = await startInProcessHttpMcpServer();
+    cleanups.push(server.close);
+
+    const proxiedFetch = createProxiedFetch({ envLookup: () => undefined });
+    const client = new HttpMcpClient(
+      { transport: 'http', url: server.url },
+      { fetch: proxiedFetch },
+    );
+    try {
+      await client.connect();
+      const tools = await client.listTools();
+      expect(tools.map((t) => t.name)).toEqual(['echo']);
+
+      const result = await client.callTool('echo', { text: 'hello proxied' });
+      expect(result.isError).toBe(false);
+      expect(result.content).toEqual([{ type: 'text', text: 'hello proxied' }]);
+    } finally {
+      await client.close();
+    }
+  }, 15000);
+
+  it('succeeds directly when proxy env is set but direct connection works', async () => {
+    const server = await startInProcessHttpMcpServer();
+    cleanups.push(server.close);
+
+    const env: Record<string, string> = { HTTP_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+    });
+    const client = new HttpMcpClient(
+      { transport: 'http', url: server.url },
+      { fetch: proxiedFetch },
+    );
+    try {
+      await client.connect();
+      const result = await client.callTool('echo', { text: 'direct-works' });
+      expect(result.isError).toBe(false);
+      expect(result.content).toEqual([{ type: 'text', text: 'direct-works' }]);
+    } finally {
+      await client.close();
+    }
+  }, 15000);
+
+  it('retries through proxy when direct fetch fails with a retryable error', async () => {
+    const server = await startInProcessHttpMcpServer();
+    cleanups.push(server.close);
+
+    let fetchCallCount = 0;
+    const originalFetch = globalThis.fetch.bind(globalThis);
+    // Mock that fails on first call (ECONNREFUSED), then delegates to real
+    // fetch on subsequent calls — simulating "direct fails, proxy retry works".
+    const mockFetch: typeof fetch = async (input, init) => {
+      fetchCallCount++;
+      if (fetchCallCount === 1) {
+        const err = new TypeError('fetch failed');
+        (err as unknown as { cause: { code: string } }).cause = { code: 'ECONNREFUSED' };
+        throw err;
+      }
+      // Strip the ProxyAgent dispatcher so the real fetch hits the
+      // in-process server directly instead of trying to connect through a
+      // real proxy.
+      const { dispatcher: _, ...restInit } = init ?? {};
+      return originalFetch(input, restInit as RequestInit);
+    };
+
+    const env: Record<string, string> = { HTTP_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch: mockFetch,
+    });
+
+    const client = new HttpMcpClient(
+      { transport: 'http', url: server.url },
+      { fetch: proxiedFetch },
+    );
+    try {
+      await client.connect();
+      const tools = await client.listTools();
+      expect(tools.length).toBeGreaterThan(0);
+      // The first fetch call must have been the failed direct attempt;
+      // subsequent calls went through the proxy retry path.
+      expect(fetchCallCount).toBeGreaterThanOrEqual(2);
+    } finally {
+      await client.close();
+    }
+  }, 15000);
+
+  it('does not retry non-retryable errors (HTTP 404)', async () => {
+    let fetchCallCount = 0;
+    const mockFetch: typeof fetch = async () => {
+      fetchCallCount++;
+      return new Response('not found', { status: 404 });
+    };
+
+    const env: Record<string, string> = { HTTP_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch: mockFetch,
+    });
+
+    const client = new HttpMcpClient(
+      { transport: 'http', url: 'http://127.0.0.1:1/mcp' },
+      { fetch: proxiedFetch },
+    );
+    try {
+      await client.connect();
+      expect.unreachable('Expected connect to fail with a non-retryable error');
+    } catch {
+      // Must NOT have retried — only one fetch call.
+      expect(fetchCallCount).toBe(1);
+    } finally {
+      await client.close();
+    }
+  }, 15000);
+
+  it('does not retry when no proxy is configured and connection fails', async () => {
+    let fetchCallCount = 0;
+    const mockFetch: typeof fetch = async () => {
+      fetchCallCount++;
+      const err = new TypeError('fetch failed');
+      (err as unknown as { cause: { code: string } }).cause = { code: 'ECONNREFUSED' };
+      throw err;
+    };
+
+    const proxiedFetch = createProxiedFetch({
+      envLookup: () => undefined,
+      innerFetch: mockFetch,
+    });
+
+    const client = new HttpMcpClient(
+      { transport: 'http', url: 'http://127.0.0.1:1/mcp' },
+      { fetch: proxiedFetch },
+    );
+    try {
+      await client.connect();
+      expect.unreachable('Expected connect to fail');
+    } catch {
+      // No proxy configured, so ProxiedFetch must NOT retry.
+      expect(fetchCallCount).toBe(1);
     } finally {
       await client.close();
     }

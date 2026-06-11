@@ -126,6 +126,7 @@ export class Session {
     this.mcp = new McpConnectionManager({
       oauthService: new McpOAuthService({ byfHomeDir: config.byfHomeDir }),
       log: this.log,
+      fetch: config.runtime.fetch,
     });
     this.mcp.onStatusChange((entry) => {
       this.onMcpServerStatusChange(entry);

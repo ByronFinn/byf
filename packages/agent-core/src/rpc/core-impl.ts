@@ -6,6 +6,7 @@ import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
+import { detectSystemProxy } from '#/tools/providers/system-proxy';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
 import { RemoteWebSearchProvider } from '#/tools/providers/remote-web-search';
 import { detectEnvironmentFromNode } from '#/utils/environment';
@@ -626,6 +627,7 @@ async function createRuntimeConfig(input: {
 }): Promise<RuntimeConfig> {
   const proxiedFetch = createProxiedFetch({
     envLookup: (key) => process.env[key],
+    systemProxy: () => detectSystemProxy(),
   });
   const localFetcher = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
   const searchService = input.config.services?.byfSearch;
@@ -634,6 +636,7 @@ async function createRuntimeConfig(input: {
   return {
     kaos: localKaos,
     osEnv: await detectEnvironmentFromNode(),
+    fetch: proxiedFetch,
     urlFetcher:
       fetchService?.baseUrl === undefined
         ? localFetcher

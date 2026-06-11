@@ -14,6 +14,7 @@ import {
   isNoProxyHost,
   isRetryableError,
 } from '../../../src/tools/providers/proxied-fetch';
+import type { ProxySettings } from '../../../src/tools/providers/system-proxy';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -108,6 +109,171 @@ describe('getProxyForUrl', () => {
       https_proxy: 'http://lower:8080',
     });
     expect(getProxyForUrl('https://example.com', env)).toBe('http://upper:8080');
+  });
+
+  // ── SOCKS5 proxy support (#118) ───────────────────────────────────
+
+  it('uses SOCKS_PROXY for HTTPS requests when no HTTPS_PROXY, ALL_PROXY, or HTTP_PROXY', () => {
+    const env = envFromRecord({ SOCKS_PROXY: 'socks5://proxy:1080' });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://proxy:1080');
+  });
+
+  it('uses SOCKS_PROXY for HTTP requests when no HTTP_PROXY or ALL_PROXY', () => {
+    const env = envFromRecord({ SOCKS_PROXY: 'socks5://proxy:1080' });
+    expect(getProxyForUrl('http://example.com', env)).toBe('socks5://proxy:1080');
+  });
+
+  it('respects lowercase socks_proxy variant', () => {
+    const env = envFromRecord({ socks_proxy: 'socks5://lower:1080' });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://lower:1080');
+  });
+
+  it('prefers SOCKS_PROXY uppercase over lowercase', () => {
+    const env = envFromRecord({
+      SOCKS_PROXY: 'socks5://upper:1080',
+      socks_proxy: 'socks5://lower:1080',
+    });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://upper:1080');
+  });
+
+  it('prefers ALL_PROXY over SOCKS_PROXY for HTTPS', () => {
+    const env = envFromRecord({
+      ALL_PROXY: 'socks5://all:1080',
+      SOCKS_PROXY: 'socks5://socks:1080',
+    });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://all:1080');
+  });
+
+  it('prefers ALL_PROXY over SOCKS_PROXY for HTTP', () => {
+    const env = envFromRecord({
+      ALL_PROXY: 'socks5://all:1080',
+      SOCKS_PROXY: 'socks5://socks:1080',
+    });
+    expect(getProxyForUrl('http://example.com', env)).toBe('socks5://all:1080');
+  });
+
+  // ── Updated priority chain (#118) ──────────────────────────────────
+
+  it('for HTTPS: HTTPS_PROXY → ALL_PROXY → HTTP_PROXY (all set)', () => {
+    const env = envFromRecord({
+      HTTPS_PROXY: 'http://secure:8080',
+      ALL_PROXY: 'socks5://all:1080',
+      HTTP_PROXY: 'http://insecure:8080',
+    });
+    expect(getProxyForUrl('https://example.com', env)).toBe('http://secure:8080');
+  });
+
+  it('for HTTPS: ALL_PROXY wins over HTTP_PROXY when HTTPS_PROXY is absent', () => {
+    const env = envFromRecord({
+      ALL_PROXY: 'socks5://all:1080',
+      HTTP_PROXY: 'http://insecure:8080',
+    });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://all:1080');
+  });
+
+  it('for HTTPS: SOCKS_PROXY wins over HTTP_PROXY when HTTPS_PROXY and ALL_PROXY absent', () => {
+    const env = envFromRecord({
+      SOCKS_PROXY: 'socks5://socks:1080',
+      HTTP_PROXY: 'http://insecure:8080',
+    });
+    expect(getProxyForUrl('https://example.com', env)).toBe('socks5://socks:1080');
+  });
+
+  it('for HTTPS: falls back to HTTP_PROXY when only HTTP_PROXY is set', () => {
+    const env = envFromRecord({ HTTP_PROXY: 'http://insecure:8080' });
+    expect(getProxyForUrl('https://example.com', env)).toBe('http://insecure:8080');
+  });
+
+  it('for HTTP: HTTP_PROXY → ALL_PROXY (both set, HTTP_PROXY wins)', () => {
+    const env = envFromRecord({
+      HTTP_PROXY: 'http://insecure:8080',
+      ALL_PROXY: 'socks5://all:1080',
+    });
+    expect(getProxyForUrl('http://example.com', env)).toBe('http://insecure:8080');
+  });
+
+  it('for HTTP: falls back to ALL_PROXY when HTTP_PROXY is absent', () => {
+    const env = envFromRecord({ ALL_PROXY: 'socks5://all:1080' });
+    expect(getProxyForUrl('http://example.com', env)).toBe('socks5://all:1080');
+  });
+
+  it('for HTTP: falls back to SOCKS_PROXY when HTTP_PROXY and ALL_PROXY absent', () => {
+    const env = envFromRecord({ SOCKS_PROXY: 'socks5://socks:1080' });
+    expect(getProxyForUrl('http://example.com', env)).toBe('socks5://socks:1080');
+  });
+
+  it('returns undefined when no proxy env vars are set at all', () => {
+    const env = envFromRecord({});
+    expect(getProxyForUrl('https://example.com', env)).toBeUndefined();
+    expect(getProxyForUrl('http://example.com', env)).toBeUndefined();
+  });
+
+  // ── System proxy fallback ──────────────────────────────────────────
+
+  it('env var takes priority over system proxy (HTTPS)', () => {
+    const env = envFromRecord({ HTTPS_PROXY: 'http://env-proxy:8080' });
+    const sys: ProxySettings = { httpsProxy: 'http://sys-proxy:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://env-proxy:8080');
+  });
+
+  it('falls back to system proxy when env var is not set (HTTPS)', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpsProxy: 'http://sys-proxy:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-proxy:8080');
+  });
+
+  it('env var takes priority over system proxy (HTTP)', () => {
+    const env = envFromRecord({ HTTP_PROXY: 'http://env-proxy:8080' });
+    const sys: ProxySettings = { httpProxy: 'http://sys-proxy:8080' };
+    expect(getProxyForUrl('http://example.com', env, sys)).toBe('http://env-proxy:8080');
+  });
+
+  it('falls back to system proxy when env var is not set (HTTP)', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpProxy: 'http://sys-proxy:8080' };
+    expect(getProxyForUrl('http://example.com', env, sys)).toBe('http://sys-proxy:8080');
+  });
+
+  it('for HTTPS: falls back to system HTTPS proxy, then system HTTP proxy', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpsProxy: 'http://sys-https:8080', httpProxy: 'http://sys-http:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-https:8080');
+  });
+
+  it('for HTTPS: falls back to system HTTP proxy when system HTTPS proxy absent', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpProxy: 'http://sys-http:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-http:8080');
+  });
+
+  it('for HTTP: falls back to system HTTP proxy only (not HTTPS)', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpsProxy: 'http://sys-https:8080' };
+    expect(getProxyForUrl('http://example.com', env, sys)).toBeUndefined();
+  });
+
+  it('returns undefined when neither env nor system proxy is configured', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = {};
+    expect(getProxyForUrl('https://example.com', env, sys)).toBeUndefined();
+  });
+
+  it('for HTTPS: env ALL_PROXY takes priority over system HTTP proxy', () => {
+    const env = envFromRecord({ ALL_PROXY: 'http://all-env:8080' });
+    const sys: ProxySettings = { httpProxy: 'http://sys-http:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://all-env:8080');
+  });
+
+  it('for HTTPS: system HTTPS proxy takes priority over env ALL_PROXY', () => {
+    const env = envFromRecord({ ALL_PROXY: 'http://all-env:8080' });
+    const sys: ProxySettings = { httpsProxy: 'http://sys-https:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-https:8080');
+  });
+
+  it('for HTTPS: system proxy is used when only env ALL_PROXY is absent', () => {
+    const env = envFromRecord({});
+    const sys: ProxySettings = { httpsProxy: 'http://sys-https:8080' };
+    expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-https:8080');
   });
 });
 
@@ -422,5 +588,53 @@ describe('createProxiedFetch', () => {
     // No dispatcher should be set when no proxy is used
     const init = innerFetch.mock.calls[0]?.[1];
     expect(init?.dispatcher).toBeUndefined();
+  });
+
+  // ── SOCKS5 proxy integration (#118) ────────────────────────────────
+
+  it('retries through SOCKS5 proxy from SOCKS_PROXY env var', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+      .mockResolvedValueOnce(okResponse('via-socks'));
+    const env = envFromRecord({ SOCKS_PROXY: 'socks5://proxy:1080' });
+    const proxied = createProxiedFetch({ envLookup: env, innerFetch });
+
+    const res = await proxied('https://example.com');
+    expect(await res.text()).toBe('via-socks');
+    expect(innerFetch).toHaveBeenCalledTimes(2);
+    // Second call should include a dispatcher (ProxyAgent handles socks5://)
+    const secondCallInit = innerFetch.mock.calls[1]?.[1];
+    expect(secondCallInit?.dispatcher).toBeDefined();
+  });
+
+  it('retries through SOCKS5 proxy from ALL_PROXY env var', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+      .mockResolvedValueOnce(okResponse('via-all-proxy-socks'));
+    const env = envFromRecord({ ALL_PROXY: 'socks5://proxy:1080' });
+    const proxied = createProxiedFetch({ envLookup: env, innerFetch });
+
+    const res = await proxied('https://example.com');
+    expect(await res.text()).toBe('via-all-proxy-socks');
+    expect(innerFetch).toHaveBeenCalledTimes(2);
+    const secondCallInit = innerFetch.mock.calls[1]?.[1];
+    expect(secondCallInit?.dispatcher).toBeDefined();
+  });
+
+  it('for HTTPS: falls back to HTTP_PROXY when HTTPS_PROXY and ALL_PROXY are absent', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+      .mockResolvedValueOnce(okResponse('via-http-fallback'));
+    const env = envFromRecord({ HTTP_PROXY: 'http://http-proxy:8080' });
+    const proxied = createProxiedFetch({ envLookup: env, innerFetch });
+
+    const res = await proxied('https://example.com');
+    expect(await res.text()).toBe('via-http-fallback');
+    expect(innerFetch).toHaveBeenCalledTimes(2);
+    const secondCallInit = innerFetch.mock.calls[1]?.[1];
+    expect(secondCallInit?.dispatcher).toBeDefined();
   });
 });

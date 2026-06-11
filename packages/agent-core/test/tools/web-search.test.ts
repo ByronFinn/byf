@@ -11,6 +11,7 @@ import {
   WebSearchTool,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
+import { createProxiedFetch } from '../../src/tools/providers/proxied-fetch';
 import { RemoteWebSearchProvider } from '../../src/tools/providers/remote-web-search';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
@@ -285,5 +286,114 @@ describe('RemoteWebSearchProvider', () => {
     expect(fetchImpl.mock.calls[0]?.[1]?.headers).toMatchObject({
       Authorization: 'Bearer fresh-token',
     });
+  });
+});
+
+// ── Proxy fallback tests ─────────────────────────────────────────────
+
+function networkError(code: string): TypeError {
+  const err = new TypeError(`fetch failed: ${code}`);
+  (err as any).cause = { code };
+  return err;
+}
+
+describe('RemoteWebSearchProvider with proxy fallback', () => {
+  const mockSearchResults = {
+    search_results: [
+      { title: 'Proxy result', url: 'https://example.com/proxy', snippet: 'via proxy' },
+    ],
+  };
+
+  it('returns results directly when search succeeds without needing proxy', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(mockSearchResults), { status: 200 }),
+      );
+
+    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+
+    const provider = new RemoteWebSearchProvider({
+      baseUrl: 'https://search.example/v1',
+      apiKey: 'test-key',
+      fetchImpl: proxiedFetch,
+    });
+
+    const results = await provider.search('test query');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('Proxy result');
+    expect(innerFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries through proxy when direct fetch fails with ECONNREFUSED', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(mockSearchResults), { status: 200 }),
+      );
+
+    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+
+    const provider = new RemoteWebSearchProvider({
+      baseUrl: 'https://search.example/v1',
+      apiKey: 'test-key',
+      fetchImpl: proxiedFetch,
+    });
+
+    const results = await provider.search('test query');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('Proxy result');
+    expect(innerFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry on HTTP 401 even when proxy is configured', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }));
+
+    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+
+    const provider = new RemoteWebSearchProvider({
+      baseUrl: 'https://search.example/v1',
+      apiKey: 'test-key',
+      fetchImpl: proxiedFetch,
+    });
+
+    await expect(provider.search('test query')).rejects.toThrow(/HTTP 401/);
+    expect(innerFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry when no proxy is configured', async () => {
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(networkError('ECONNREFUSED'));
+
+    const env: Record<string, string> = {};
+    const proxiedFetch = createProxiedFetch({
+      envLookup: (key) => env[key],
+      innerFetch,
+    });
+
+    const provider = new RemoteWebSearchProvider({
+      baseUrl: 'https://search.example/v1',
+      apiKey: 'test-key',
+      fetchImpl: proxiedFetch,
+    });
+
+    await expect(provider.search('test query')).rejects.toThrow(/ECONNREFUSED/);
+    expect(innerFetch).toHaveBeenCalledTimes(1);
   });
 });
