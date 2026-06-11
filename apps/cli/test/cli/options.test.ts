@@ -240,4 +240,24 @@ describe('CLI options parsing', () => {
       }
     });
   });
+
+  describe('unknown subcommand', () => {
+    it('shows "unknown command" for an invalid subcommand, not "too many arguments"', () => {
+      let stderrOutput = '';
+
+      const program = createProgram('0.1.0-test', () => {});
+      program.exitOverride();
+      program.configureOutput({
+        writeOut: () => {},
+        writeErr: (str: string) => {
+          stderrOutput += str;
+        },
+      });
+
+      expect(() => program.parse(['node', 'byf', 'foobar'])).toThrow();
+
+      expect(stderrOutput).toContain('unknown command');
+      expect(stderrOutput).not.toContain('too many arguments');
+    });
+  });
 });
