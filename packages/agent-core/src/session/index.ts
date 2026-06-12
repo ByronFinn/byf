@@ -432,7 +432,12 @@ export class Session {
       sessionId: this.config.id,
       hookEngine: config.hookEngine ?? this.hookEngine,
       subagentHost:
-        config.subagentHost ?? new SessionSubagentHost(this, id, this.backgroundTaskTimeoutMs()),
+        config.subagentHost ?? new SessionSubagentHost(
+          this,
+          id,
+          this.backgroundTaskTimeoutMs(),
+          this.config.background?.maxConcurrentSubagents,
+        ),
       mcp: this.mcp,
       backgroundMaxRunningTasks: this.config.background?.maxRunningTasks,
       backgroundSessionDir: homedir,

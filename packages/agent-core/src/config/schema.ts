@@ -94,6 +94,7 @@ export type LoopControl = z.infer<typeof LoopControlSchema>;
 
 export const BackgroundConfigSchema = z.object({
   maxRunningTasks: z.number().int().min(1).optional(),
+  maxConcurrentSubagents: z.number().int().min(1).optional(),
   keepAliveOnExit: z.boolean().optional(),
   killGracePeriodMs: z.number().int().min(0).optional(),
   agentTaskTimeoutS: z.number().int().min(1).optional(),

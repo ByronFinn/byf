@@ -741,6 +741,116 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.modelAlias).toBe(parent.agent.config.modelAlias);
     expect(child.agent.config.modelAlias).not.toBe('stale-model-from-initial-spawn');
   });
+
+  it('rejects spawn when maxConcurrentSubagents is reached and reports the count', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    let agentCounter = 0;
+    const summary = 'Summary with enough detail to skip re-prompting. '.repeat(10);
+    const child1 = testAgent();
+    const child2 = testAgent();
+    child1.mockNextResponse({ type: 'text', text: summary });
+    child2.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child1.agent);
+    (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(
+      async (
+        config: Parameters<Session['createAgent']>[0],
+        profile?: ResolvedAgentProfile,
+        parentAgentId?: string,
+      ) => {
+        const id = `agent-${agentCounter}`;
+        const child = agentCounter === 0 ? child1 : child2;
+        session.agents.set(id, child.agent);
+        agentCounter++;
+        return { id, agent: child.agent };
+      },
+    );
+    const host = new SessionSubagentHost(session, 'main', undefined, 2);
+
+    const h1 = await host.spawn('coder', {
+      parentToolCallId: 'call_1',
+      prompt: 'Task 1',
+      description: 'First',
+      runInBackground: true,
+      signal,
+    });
+    const h2 = await host.spawn('coder', {
+      parentToolCallId: 'call_2',
+      prompt: 'Task 2',
+      description: 'Second',
+      runInBackground: true,
+      signal,
+    });
+
+    expect(h1.agentId).toBe('agent-0');
+    expect(h2.agentId).toBe('agent-1');
+
+    // Third spawn should fail with a message that includes the actual count.
+    await expect(
+      host.spawn('coder', {
+        parentToolCallId: 'call_3',
+        prompt: 'Task 3',
+        description: 'Third',
+        runInBackground: true,
+        signal,
+      }),
+    ).rejects.toThrow('Too many concurrent subagents (2 running, maximum 2)');
+
+    await Promise.all([h1.completion, h2.completion]);
+  });
+
+  it('rejects spawn when maxConcurrentSubagents is 1', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const child1 = testAgent();
+    const summary = 'Summary with enough detail to skip re-prompting. '.repeat(10);
+    child1.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child1.agent);
+    (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => ({ id: 'agent-0', agent: child1.agent }),
+    );
+    const host = new SessionSubagentHost(session, 'main', undefined, 1);
+
+    const h1 = await host.spawn('coder', {
+      parentToolCallId: 'call_1',
+      prompt: 'Task 1',
+      description: 'First',
+      runInBackground: true,
+      signal,
+    });
+
+    await expect(
+      host.spawn('coder', {
+        parentToolCallId: 'call_2',
+        prompt: 'Task 2',
+        description: 'Second',
+        runInBackground: true,
+        signal,
+      }),
+    ).rejects.toThrow('Too many concurrent subagents (1 running, maximum 1)');
+
+    await h1.completion;
+  });
+
+  it('uses default maxConcurrentSubagents when not configured', () => {
+    const parent = testAgent();
+    parent.configure();
+    const session = fakeSession(parent.agent, testAgent().agent);
+    const host = new SessionSubagentHost(session, 'main');
+    expect(host.maxConcurrentSubagents).toBe(5);
+  });
+
+  it('accepts custom maxConcurrentSubagents config', () => {
+    const parent = testAgent();
+    parent.configure();
+    const session = fakeSession(parent.agent, testAgent().agent);
+    const host = new SessionSubagentHost(session, 'main', undefined, 10);
+    expect(host.maxConcurrentSubagents).toBe(10);
+  });
 });
 
 describe('Session resume permission parent chain', () => {
