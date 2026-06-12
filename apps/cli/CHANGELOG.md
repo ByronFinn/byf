@@ -1,5 +1,15 @@
 # @byfriends/cli
 
+## 0.2.5
+
+### Patch Changes
+
+- 3a6e7e8: feat: remove 1000-step default limit per turn
+
+  Turns now run without a step limit unless `loop_control.max_steps_per_turn` is explicitly configured. Previously the default was 1000 steps.
+
+- 56db517: chore: remove Windows from release pipeline; document platform priority (macOS first, Linux second, Windows best-effort)
+
 ## 0.2.2
 
 ### Patch Changes
