@@ -12,7 +12,7 @@ export const RESULT_PREVIEW_LINES = 3;
 export const COMMAND_PREVIEW_LINES = 10;
 
 // Circle-halves spinner used for live thinking, MCP loading, and login progress.
-export const SPINNER_FRAMES = ['◐', '◓', '◑', '◒'];
+export const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 export const SPINNER_INTERVAL_MS = 80;
 
 // Laughing-face spinner for activity pane (waiting, tool execution).
