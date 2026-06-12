@@ -39,6 +39,8 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 
 Prerequisites: Node.js >= 24.15.0, pnpm 10.33.0, Git.
 
+BYF is developed primarily on macOS and Linux. Windows is supported but on a best-effort basis.
+
 ```sh
 git clone https://github.com/ByronFinn/byf.git
 cd byf

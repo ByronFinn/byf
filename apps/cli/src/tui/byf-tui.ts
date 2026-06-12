@@ -103,9 +103,11 @@ import { WelcomeComponent } from './components/chrome/welcome';
 import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
+  resolveSection,
 } from './components/dialogs/approval-panel';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { EditorSelectorComponent } from './components/dialogs/editor-selector';
+import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { HelpPanelComponent } from './components/dialogs/help-panel';
 import { ModelSelectorComponent } from './components/dialogs/model-selector';
 import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
@@ -156,7 +158,12 @@ import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
 import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
 import { createQuestionAskHandler } from './reverse-rpc/question/handler';
-import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
+import type {
+  ApprovalPanelData,
+  DiffDisplayBlock,
+  FileContentDisplayBlock,
+  QuestionPanelData,
+} from './reverse-rpc/types';
 import { createByfTuiThemeBundle } from './theme/bundle';
 import type { ResolvedTheme } from './theme/colors';
 import { isTheme, type Theme } from './theme/index';
@@ -3785,15 +3792,46 @@ export class ByfTui implements DialogHost {
       title: 'Byf Code approval required',
       body: payload.tool_name,
     });
+    const colors = this.state.theme.colors;
+    const expandableBlocks = payload.display.filter(
+      (b): b is DiffDisplayBlock | FileContentDisplayBlock =>
+        b.type === 'diff' || b.type === 'file_content',
+    );
+    const onViewFullscreen =
+      expandableBlocks.length > 0
+        ? () => {
+            const sections = expandableBlocks.map((b) => resolveSection(b, colors));
+            const saved = [...this.state.ui.children];
+            this.state.ui.clear();
+            const viewer = new FileViewerComponent(
+              {
+                sections,
+                colors,
+                onClose: () => {
+                  this.state.ui.clear();
+                  for (const child of saved) this.state.ui.addChild(child);
+                  this.state.ui.setFocus(panel);
+                  this.state.ui.requestRender(true);
+                },
+              },
+              this.state.terminal,
+            );
+            this.state.ui.addChild(viewer);
+            this.state.ui.setFocus(viewer);
+            this.state.ui.requestRender(true);
+          }
+        : undefined;
     const panel = new ApprovalPanelComponent(
       { data: payload },
       (response: ApprovalPanelResponse) => {
         this.approvalController.respond(adaptPanelResponse(response));
       },
-      this.state.theme.colors,
+      colors,
       () => {
         this.toggleToolOutputExpansion();
       },
+      undefined,
+      onViewFullscreen,
     );
     this.mountEditorReplacement(panel);
   }

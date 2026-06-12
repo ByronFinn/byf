@@ -1,7 +1,10 @@
 import { CURSOR_MARKER } from '@earendil-works/pi-tui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval-panel';
+import {
+  ApprovalPanelComponent,
+  resolveSection,
+} from '#/tui/components/dialogs/approval-panel';
 import type { PendingApproval } from '#/tui/reverse-rpc/types';
 import { getColorPalette } from '#/tui/theme/colors';
 
@@ -52,6 +55,78 @@ function makeDialog(): {
   );
   return { dialog, responses };
 }
+
+// ── resolveSection ─────────────────────────────────────────────────────
+
+describe('resolveSection', () => {
+  it('converts a diff block into a section with +/- counts and formatted lines', () => {
+    const section = resolveSection(
+      {
+        type: 'diff',
+        path: 'src/foo.ts',
+        old_text: 'a\nb\nc',
+        new_text: 'a\nx\nc',
+      },
+      COLORS,
+    );
+    expect(section.header).toContain('src/foo.ts');
+    const added = section.lines.filter((l) => strip(l).includes('+'));
+    const deleted = section.lines.filter((l) => strip(l).includes('-'));
+    expect(added.length).toBeGreaterThan(0);
+    expect(deleted.length).toBeGreaterThan(0);
+    // Header should include counts like "+1 -1"
+    expect(section.header).toContain('+1');
+    expect(section.header).toContain('-1');
+  });
+
+  it('converts a file_content block into a section with path and highlighted lines', () => {
+    const section = resolveSection(
+      {
+        type: 'file_content',
+        path: 'src/bar.ts',
+        content: 'const x = 1;\nconst y = 2;',
+      },
+      COLORS,
+    );
+    expect(section.header).toBe('src/bar.ts');
+    expect(section.lines.length).toBe(2);
+    // Lines should contain line numbers in gutter
+    const plain = section.lines.map(strip);
+    expect(plain[0]).toContain('1');
+    expect(plain[1]).toContain('2');
+  });
+
+  it('returns [no changes] for empty diff (both sides empty)', () => {
+    const section = resolveSection(
+      {
+        type: 'diff',
+        path: 'src/same.ts',
+        old_text: '',
+        new_text: '',
+      },
+      COLORS,
+    );
+    const plain = section.lines.map(strip);
+    expect(plain.some((l) => l.includes('[no changes]'))).toBe(true);
+  });
+
+  it('returns context lines for identical non-empty diff', () => {
+    const section = resolveSection(
+      {
+        type: 'diff',
+        path: 'src/same.ts',
+        old_text: 'hello',
+        new_text: 'hello',
+      },
+      COLORS,
+    );
+    expect(section.lines.length).toBe(1);
+    const plain = strip(section.lines[0]!);
+    expect(plain).toContain('hello');
+  });
+});
+
+// ── ApprovalPanelComponent ─────────────────────────────────────────────
 
 describe('ApprovalPanelComponent', () => {
   it('renders only numeric approval shortcuts in the hint', () => {
@@ -191,7 +266,7 @@ describe('ApprovalPanelComponent', () => {
     expect(out).not.toContain('Investigate');
   });
 
-  it('renders an Edit diff collapsed by default and expands on ctrl+e', () => {
+  it('renders an Edit diff truncated at 10 lines with ctrl+e view hint', () => {
     const responses: Array<{ response: string }> = [];
     const oldLines: string[] = [];
     const newLines: string[] = [];
@@ -217,34 +292,88 @@ describe('ApprovalPanelComponent', () => {
         choices: [{ label: 'Approve once', response: 'approved' }],
       },
     };
-    let globalToggleCalls = 0;
+    let viewFullscreenCalls = 0;
     const dialog = new ApprovalPanelComponent(
       pending,
       (r) => responses.push(r),
       COLORS,
-      () => globalToggleCalls++,
+      () => {},
+      undefined,
+      () => viewFullscreenCalls++,
     );
 
-    const collapsed = strip(dialog.render(120).join('\n'));
-    expect(collapsed).not.toMatch(/\bedit\s+src\/foo\.ts\b/);
-    expect(collapsed).toContain('+30');
-    expect(collapsed).toContain('-30');
-    expect(collapsed).toContain('ctrl+e expand');
-    expect(collapsed).toContain('ctrl+e to expand');
-    expect(collapsed).toMatch(/old\d+|new\d+/);
-    expect(collapsed).not.toContain('new30');
+    const rendered = strip(dialog.render(120).join('\n'));
+    expect(rendered).toContain('+30');
+    expect(rendered).toContain('-30');
+    expect(rendered).toContain('ctrl+e to view');
+    expect(rendered).toContain('ctrl+e view');
+    expect(rendered).not.toContain('ctrl+e expand');
+    expect(rendered).not.toContain('ctrl+e collapse');
+    // Content is truncated — last line should not be visible
+    expect(rendered).not.toContain('new30');
 
-    dialog.handleInput('\u0005'); // Ctrl+E — local toggle, no global callback.
+    // Ctrl+E triggers the fullscreen callback instead of toggling inline
+    dialog.handleInput('\u0005'); // Ctrl+E
+    expect(viewFullscreenCalls).toBe(1);
 
-    const expanded = strip(dialog.render(120).join('\n'));
-    expect(expanded).toContain('new30');
-    expect(expanded).toContain('ctrl+e collapse');
-    expect(expanded).not.toContain('more changes hidden');
-    expect(globalToggleCalls).toBe(0);
+    // After callback, panel still renders truncated (no inline expand)
+    const after = strip(dialog.render(120).join('\n'));
+    expect(after).not.toContain('new30');
+    expect(after).toContain('ctrl+e view');
     expect(responses).toEqual([]);
   });
 
-  it('forwards ctrl+o to the global tool-output toggle without changing local expansion', () => {
+  it('ctrl+e is no-op when onViewFullscreen is not provided', () => {
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_no_expand',
+        tool_call_id: 'tool_ne',
+        tool_name: 'Edit',
+        action: 'edit',
+        description: '',
+        display: [
+          {
+            type: 'diff',
+            path: 'src/foo.ts',
+            old_text: 'a',
+            new_text: 'b',
+          },
+        ],
+        choices: [{ label: 'Approve once', response: 'approved' }],
+      },
+    };
+    const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
+    // Should not throw — the ?.() makes it a no-op
+    dialog.handleInput('\u0005'); // Ctrl+E
+    const after = strip(dialog.render(120).join('\n'));
+    // Still shows truncated, no change
+    expect(after).toContain('ctrl+e view');
+  });
+
+  it('no ctrl+e hint when there are no expandable blocks', () => {
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_no_expand_hint',
+        tool_call_id: 'tool_neh',
+        tool_name: 'Bash',
+        action: 'run',
+        description: '',
+        display: [
+          {
+            type: 'shell',
+            language: 'bash',
+            command: 'echo hi',
+          },
+        ],
+        choices: [{ label: 'Approve once', response: 'approved' }],
+      },
+    };
+    const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
+    const out = strip(dialog.render(80).join('\n'));
+    expect(out).not.toContain('ctrl+e');
+  });
+
+  it('forwards ctrl+o to the global tool-output toggle', () => {
     const pending: PendingApproval = {
       data: {
         id: 'approval_forward',
@@ -266,47 +395,12 @@ describe('ApprovalPanelComponent', () => {
     let globalToggleCalls = 0;
     const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS, () => globalToggleCalls++);
 
-    dialog.handleInput('\u000F'); // Ctrl+O — forwarded; local stays collapsed.
+    dialog.handleInput('\u000F'); // Ctrl+O — forwarded
 
     const after = strip(dialog.render(120).join('\n'));
     expect(globalToggleCalls).toBe(1);
-    expect(after).toContain('ctrl+e expand');
+    expect(after).toContain('ctrl+e view');
     expect(after).not.toContain('new30');
-  });
-
-  it('also forwards ctrl+e to the global plan-expand toggle while toggling local content', () => {
-    const pending: PendingApproval = {
-      data: {
-        id: 'approval_plan_forward',
-        tool_call_id: 'tool_plan_forward',
-        tool_name: 'Edit',
-        action: 'edit',
-        description: '',
-        display: [
-          {
-            type: 'diff',
-            path: 'src/foo.ts',
-            old_text: Array.from({ length: 30 }, (_, i) => `old${String(i + 1)}`).join('\n'),
-            new_text: Array.from({ length: 30 }, (_, i) => `new${String(i + 1)}`).join('\n'),
-          },
-        ],
-        choices: [{ label: 'Approve once', response: 'approved' }],
-      },
-    };
-    let planToggles = 0;
-    const dialog = new ApprovalPanelComponent(
-      pending,
-      () => {},
-      COLORS,
-      undefined,
-      () => planToggles++,
-    );
-
-    dialog.handleInput('\u0005'); // Ctrl+E
-    const out = strip(dialog.render(120).join('\n'));
-    expect(planToggles).toBe(1);
-    expect(out).toContain('ctrl+e collapse'); // local also expanded
-    expect(out).toContain('new30');
   });
 
   it('renders Write as a syntax-highlighted code block (file_content), not a diff', () => {
@@ -334,13 +428,17 @@ describe('ApprovalPanelComponent', () => {
     expect(collapsed).toContain('const x1 = 1;');
     expect(collapsed).toContain('const x10 = 10;');
     expect(collapsed).not.toContain('const x25 = 25;');
-    expect(collapsed).toContain('20 more lines hidden (ctrl+e to expand)');
-    expect(collapsed).toContain('ctrl+e expand');
+    // Truncation hint says "ctrl+e to view"
+    expect(collapsed).toContain('20 more lines hidden (ctrl+e to view)');
+    // Footer says "ctrl+e view" (not expand/collapse)
+    expect(collapsed).toContain('ctrl+e view');
+    expect(collapsed).not.toContain('ctrl+e expand');
 
-    dialog.handleInput('\u0005'); // Ctrl+E
-    const expanded = strip(dialog.render(120).join('\n'));
-    expect(expanded).toContain('const x30 = 30;');
-    expect(expanded).not.toContain('more lines hidden');
+    // Ctrl+E doesn't toggle inline expansion — content stays truncated
+    dialog.handleInput('\u0005'); // Ctrl+E — no fullscreen callback, so no-op
+    const after = strip(dialog.render(120).join('\n'));
+    expect(after).not.toContain('const x30 = 30;');
+    expect(after).toContain('more lines hidden');
     expect(responses).toEqual([]);
   });
 
@@ -361,11 +459,7 @@ describe('ApprovalPanelComponent', () => {
       const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
       const collapsed = strip(dialog.render(120).join('\n'));
       expect(collapsed).toContain('hello');
-
-      dialog.handleInput('\u0005'); // Ctrl+E
-      const expanded = strip(dialog.render(120).join('\n'));
-      expect(expanded).toContain('world');
-      expect(stderr.text()).not.toContain('Could not find the language');
+      // File is only 2 lines, fits in cap, no truncation hint needed
     } finally {
       stderr.restore();
     }
@@ -409,5 +503,60 @@ describe('ApprovalPanelComponent', () => {
     expect(responses).toEqual([
       { response: 'rejected', feedback: 'no', selected_label: 'Revise' },
     ]);
+  });
+
+  it('renderDisplayBlock always caps diff at max lines regardless of expanded state', () => {
+    const oldLines: string[] = [];
+    const newLines: string[] = [];
+    for (let i = 1; i <= 30; i++) {
+      oldLines.push(`old${String(i)}`);
+      newLines.push(`new${String(i)}`);
+    }
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_cap',
+        tool_call_id: 'tool_cap',
+        tool_name: 'Edit',
+        action: 'edit',
+        description: '',
+        display: [
+          {
+            type: 'diff',
+            path: 'src/foo.ts',
+            old_text: oldLines.join('\n'),
+            new_text: newLines.join('\n'),
+          },
+        ],
+        choices: [{ label: 'Approve once', response: 'approved' }],
+      },
+    };
+    const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
+
+    // Even after pressing Ctrl+E (no-op without callback), content stays truncated
+    dialog.handleInput('\u0005');
+    const out = strip(dialog.render(120).join('\n'));
+    expect(out).not.toContain('new30');
+  });
+
+  it('renderDisplayBlock always caps file_content at max lines', () => {
+    const lines: string[] = [];
+    for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_cap_file',
+        tool_call_id: 'tool_cap_file',
+        tool_name: 'Write',
+        action: 'write',
+        description: '',
+        display: [{ type: 'file_content', path: 'src/big.ts', content: lines.join('\n') }],
+        choices: [{ label: 'Approve once', response: 'approved' }],
+      },
+    };
+    const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS);
+
+    const out = strip(dialog.render(120).join('\n'));
+    expect(out).toContain('line1');
+    expect(out).not.toContain('line25');
+    expect(out).toContain('20 more lines hidden (ctrl+e to view)');
   });
 });

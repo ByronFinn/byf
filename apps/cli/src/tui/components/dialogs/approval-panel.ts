@@ -16,9 +16,19 @@ import {
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
+import type { FileViewerSection } from '#/tui/components/dialogs/file-viewer';
+import {
+  computeDiffLines,
+  renderDiffLinesClustered,
+} from '#/tui/components/media/diff-preview';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
-import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
-import type { ApprovalPanelChoice, DisplayBlock, PendingApproval } from '#/tui/reverse-rpc/types';
+import type {
+  ApprovalPanelChoice,
+  DiffDisplayBlock,
+  DisplayBlock,
+  FileContentDisplayBlock,
+  PendingApproval,
+} from '#/tui/reverse-rpc/types';
 import type { ColorPalette } from '#/tui/theme/colors';
 
 export interface ApprovalPanelResponse {
@@ -55,7 +65,6 @@ function makeBlockStyles(colors: ColorPalette): BlockStyles {
 
 function renderDisplayBlock(
   block: DisplayBlock,
-  expanded: boolean,
   s: BlockStyles,
   colors: ColorPalette,
 ): string[] {
@@ -63,13 +72,13 @@ function renderDisplayBlock(
     case 'diff':
       return renderDiffLinesClustered(block.old_text, block.new_text, block.path, colors, {
         contextLines: 3,
-        expandKeyHint: 'ctrl+e',
-        ...(expanded ? {} : { maxLines: DIFF_SUMMARY_MAX_LINES }),
+        maxLines: DIFF_SUMMARY_MAX_LINES,
+        expandKeyHint: 'ctrl+e to view',
       });
     case 'file_content': {
       const lang = block.language ?? langFromPath(block.path);
       const allLines = highlightLines(block.content, lang);
-      const cap = expanded ? allLines.length : CONTENT_SUMMARY_MAX_LINES;
+      const cap = CONTENT_SUMMARY_MAX_LINES;
       const shown = allLines.slice(0, cap);
       const lines = [s.strong(block.path)];
       for (const [i, line] of shown.entries()) {
@@ -79,7 +88,7 @@ function renderDisplayBlock(
       if (remaining > 0) {
         lines.push(
           s.dim(
-            `     … ${String(remaining)} more line${remaining > 1 ? 's' : ''} hidden (ctrl+e to expand)`,
+            `     … ${String(remaining)} more line${remaining > 1 ? 's' : ''} hidden (ctrl+e to view)`,
           ),
         );
       }
@@ -174,17 +183,59 @@ function headerFor(toolName: string): string {
   }
 }
 
+/**
+ * Converts a `DiffDisplayBlock` or `FileContentDisplayBlock` into a pre-rendered
+ * `FileViewerSection` suitable for the fullscreen `FileViewerComponent`.
+ */
+export function resolveSection(
+  block: DiffDisplayBlock | FileContentDisplayBlock,
+  colors: ColorPalette,
+): FileViewerSection {
+  switch (block.type) {
+    case 'diff': {
+      const diffLines = computeDiffLines(block.old_text, block.new_text);
+      const added = diffLines.filter((l) => l.kind === 'add').length;
+      const deleted = diffLines.filter((l) => l.kind === 'delete').length;
+      const header = `${added > 0 ? `+${added} ` : ''}${deleted > 0 ? `-${deleted} ` : ''}${block.path}`;
+      const lines: string[] = [];
+      for (const line of diffLines) {
+        const gutter = chalk.hex(colors.diffGutter)(String(line.lineNum).padStart(4) + '  ');
+        const marker =
+          line.kind === 'add'
+            ? chalk.hex(colors.diffAdded)('+')
+            : line.kind === 'delete'
+              ? chalk.hex(colors.diffRemoved)('-')
+              : ' ';
+        lines.push(gutter + marker + ' ' + line.code);
+      }
+      if (lines.length === 0) {
+        lines.push(chalk.hex(colors.textDim)('[no changes]'));
+      }
+      return { header, lines };
+    }
+    case 'file_content': {
+      const lang = block.language ?? langFromPath(block.path);
+      const highlighted = highlightLines(block.content, lang);
+      const header = block.path;
+      const lines = highlighted.map((line, i) =>
+        chalk.hex(colors.diffGutter)(String(i + 1).padStart(4) + '  ') + line,
+      );
+      return { header, lines };
+    }
+  }
+}
+
 export class ApprovalPanelComponent extends Container implements Focusable {
   focused = false;
   private selectedIndex = 0;
   private feedbackMode = false;
   private readonly feedbackInput = new Input();
-  private expanded = false;
   private onResponse: (response: ApprovalPanelResponse) => void;
   private request: PendingApproval;
   private readonly colors: ColorPalette;
   private readonly onToggleToolOutput: (() => void) | undefined;
   private readonly onTogglePlanExpand: (() => void) | undefined;
+  private readonly onViewFullscreen: (() => void) | undefined;
 
   constructor(
     request: PendingApproval,
@@ -192,6 +243,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     colors: ColorPalette,
     onToggleToolOutput?: () => void,
     onTogglePlanExpand?: () => void,
+    onViewFullscreen?: () => void,
   ) {
     super();
     this.request = request;
@@ -199,6 +251,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     this.colors = colors;
     this.onToggleToolOutput = onToggleToolOutput;
     this.onTogglePlanExpand = onTogglePlanExpand;
+    this.onViewFullscreen = onViewFullscreen;
     this.feedbackInput.onSubmit = (value) => {
       this.submit(this.selectedIndex, value);
     };
@@ -240,8 +293,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     }
 
     if (matchesKey(data, Key.ctrl('e'))) {
-      this.expanded = !this.expanded;
-      this.onTogglePlanExpand?.();
+      this.onViewFullscreen?.();
       return;
     }
 
@@ -317,7 +369,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     if (visibleBlocks.length > 0) {
       lines.push('');
       for (const block of visibleBlocks) {
-        const blockLines = renderDisplayBlock(block, this.expanded, blockStyles, this.colors);
+        const blockLines = renderDisplayBlock(block, blockStyles, this.colors);
         for (const line of blockLines) {
           lines.push(indent(line));
         }
@@ -350,7 +402,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     if (this.feedbackMode) {
       lines.push(indent(dim('Type feedback · ↵ submit.')));
     } else {
-      const expandHint = hasExpandable ? ` · ctrl+e ${this.expanded ? 'collapse' : 'expand'}` : '';
+      const expandHint = hasExpandable ? ' · ctrl+e view' : '';
       lines.push(
         indent(
           dim(

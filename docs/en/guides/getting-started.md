@@ -18,19 +18,15 @@ The entire CLI is written in TypeScript, distributed through npm, and runs on No
 
 The quickest way to install BYF is with the install script; no pre-installed Node.js is required:
 
-- **macOS / Linux**:
-
 ```sh
 curl -fsSL https://github.com/ByronFinn/byf/releases/byf/install.sh | bash
 ```
 
-- **Windows (PowerShell)**:
-
-```powershell
-irm https://github.com/ByronFinn/byf/releases/byf/install.ps1 | iex
-```
-
 This downloads the latest release, verifies the checksum, and places the `byf` executable on your `PATH`.
+
+::: tip Platform support
+BYF is built and tested primarily on **macOS** and **Linux**. Windows is supported but on a best-effort basis.
+:::
 
 ### npm installation
 

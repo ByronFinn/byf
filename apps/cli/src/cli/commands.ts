@@ -15,6 +15,7 @@ export function createProgram(
     .description('The Starting Point for Next-Gen Agents')
     .version(version, '-V, --version')
     .allowUnknownOption(false)
+    .allowExcessArguments(true)
     .configureHelp({ helpWidth: 100 })
     .helpOption('-h, --help', 'Show help.')
     .addHelpText(
@@ -68,6 +69,19 @@ export function createProgram(
   registerExportCommand(program);
 
   program.action(() => {
+    // When the user types a positional arg that is not a known subcommand
+    // (e.g. `byf foo`), Commander routes to this action handler instead of
+    // producing "unknown command" because the root command has an action handler.
+    // We allow excess arguments so Commander does not emit "too many arguments"
+    // first, and detect the case here to produce the expected error.
+    const operands = program.args;
+    if (operands.length > 0) {
+      const unknownName = operands[0]!;
+      program.error(`error: unknown command '${unknownName}'`, {
+        code: 'commander.unknownCommand',
+      });
+    }
+
     const raw = program.opts<Record<string, unknown>>();
 
     const rawSession = raw['session'] ?? raw['resume'];
