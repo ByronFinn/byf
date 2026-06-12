@@ -153,7 +153,7 @@ export class Agent {
     this.usage = new UsageRecorder(this);
     this.tools = new ToolManager(this);
     this.background = new BackgroundManager(this, {
-      maxRunningTasks: config.backgroundMaxRunningTasks,
+      maxRunningTasks: config.backgroundMaxRunningTasks ?? 10,
       sessionDir: config.backgroundSessionDir,
     });
     this.replayBuilder = new ReplayBuilder(this);

@@ -28,6 +28,11 @@ const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
   'Subagent turn failed before completing its final summary: reason=max_tokens';
+/**
+ * Maximum number of concurrently running subagents per parent.
+ * Prevents cascading subagent proliferation that exhausts LLM bandwidth.
+ */
+const DEFAULT_MAX_CONCURRENT_SUBAGENTS = 5;
 
 type RunSubagentOptions = {
   readonly parentToolCallId: string;
@@ -58,15 +63,21 @@ export type SubagentHandle = {
 
 export class SessionSubagentHost {
   private readonly activeChildren = new Map<string, ActiveChild>();
+  /** Maximum concurrent subagents; exposed for testing and config diagnostics. */
+  readonly maxConcurrentSubagents: number;
 
   constructor(
     private readonly session: Session,
     private readonly ownerAgentId: string,
     readonly backgroundTaskTimeoutMs?: number | undefined,
-  ) {}
+    maxConcurrentSubagents: number | undefined = undefined,
+  ) {
+    this.maxConcurrentSubagents = maxConcurrentSubagents ?? DEFAULT_MAX_CONCURRENT_SUBAGENTS;
+  }
 
   async spawn(profileName: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
+    this.assertCanSpawn();
 
     const parent = this.session.agents.get(this.ownerAgentId);
     if (parent === undefined) {
@@ -111,6 +122,7 @@ export class SessionSubagentHost {
 
   async resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
+    this.assertCanSpawn();
 
     const parent = this.session.agents.get(this.ownerAgentId);
     if (parent === undefined) {
@@ -179,6 +191,14 @@ export class SessionSubagentHost {
     for (const [childId, child] of foregroundChildren) {
       this.session.agents.get(childId)?.subagentHost?.cancelAll();
       child.controller.abort();
+    }
+  }
+
+  private assertCanSpawn(): void {
+    if (this.activeChildren.size >= this.maxConcurrentSubagents) {
+      throw new Error(
+        `Too many concurrent subagents (${this.activeChildren.size} running, maximum ${this.maxConcurrentSubagents}).`,
+      );
     }
   }
 
