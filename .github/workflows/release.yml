@@ -25,9 +25,6 @@ jobs:
           - runner: ubuntu-latest
             target: linux-x64
             platform: linux
-          - runner: windows-latest
-            target: win32-x64
-            platform: win32
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -104,17 +101,12 @@ jobs:
             # macOS / Linux (quick install)
             curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 
-            # Windows (quick install)
-            # irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
-
             # Or install via npm
             npm install -g @byfriends/cli
             ```
           files: |
             install.sh
-            install.ps1
             artifacts/byf-darwin-arm64/*
             artifacts/byf-linux-x64/*
-            artifacts/byf-win32-x64/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -217,6 +217,47 @@ describe('HarnessAPI session skills', () => {
     });
   });
 
+  it('appends <byf-skill-loaded> system reminder on user slash activation', async () => {
+    await writeSkill('phase-one-review', [
+      '---',
+      'name: phase-one-review',
+      'description: Review code',
+      '---',
+      '',
+      'Review the requested file.',
+    ]);
+    const { core, rpc } = await createTestRpc({ homeDir });
+    const created = await rpc.createSession({ id: 'ses_skill_loaded_reminder', workDir });
+
+    await rpc.activateSkill({
+      sessionId: created.id,
+      agentId: 'main',
+      name: 'phase-one-review',
+      args: 'src/app.ts',
+    });
+    await core.sessions.get(created.id)?.flushMetadata();
+
+    const context = await rpc.getContext({ sessionId: created.id, agentId: 'main' });
+    // The user message with skill_activation origin
+    const userMsg = context.history.find((msg) => msg.origin?.kind === 'skill_activation');
+    expect(userMsg).toBeDefined();
+    // A system-reminder message containing <byf-skill-loaded>
+    const reminder = context.history.find((msg) =>
+      msg.content.some(
+        (part) => part.type === 'text' && part.text.includes('<byf-skill-loaded name="phase-one-review">'),
+      ),
+    );
+    expect(reminder).toBeDefined();
+    expect(reminder?.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('<byf-skill-loaded name="phase-one-review">'),
+    });
+    expect(reminder?.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('</byf-skill-loaded>'),
+    });
+  });
+
   it('expands skill body placeholders on user slash activation', async () => {
     await writeSkill('templated-review', [
       '---',
@@ -298,6 +339,22 @@ describe('HarnessAPI session skills', () => {
           {
             type: 'text',
             text: 'Review the requested file.\n\nARGUMENTS: src/app.ts',
+          },
+        ],
+        origin: {
+          kind: 'skill_activation',
+          skillName: 'phase-one-review',
+          skillArgs: 'src/app.ts',
+          trigger: 'user-slash',
+          skillSource: 'project',
+        },
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: expect.stringContaining('<byf-skill-loaded name="phase-one-review">'),
           },
         ],
         origin: {

@@ -10,15 +10,14 @@ BYF is a terminal-first coding agent for exploring repositories, editing files, 
 npm install -g @byfriends/cli
 ```
 
-### Quick install (macOS/Linux)
+### Quick install
 ```sh
 curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 ```
 
-### Quick install (Windows)
-```powershell
-irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
-```
+## Platform Support
+
+BYF is built and tested primarily on **macOS** and **Linux**. Windows is supported but on a best-effort basis.
 
 ## Usage
 Start BYF in the current project:

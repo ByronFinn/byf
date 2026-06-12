@@ -23,23 +23,33 @@ export class SkillManager {
       throw new ByfError(ErrorCodes.SKILL_TYPE_UNSUPPORTED, `Skill "${skill.name}" cannot be activated by the user`);
     }
 
+    const origin: SkillActivationOrigin = {
+      kind: 'skill_activation',
+      activationId: randomUUID(),
+      skillName: skill.name,
+      trigger: 'user-slash',
+      skillType: skill.metadata.type,
+      skillPath: skill.path,
+      skillSource: skill.source,
+      skillArgs: input.args,
+    };
+    const skillContent = this.registry.renderSkillPrompt(skill, input.args ?? '');
+
     this.recordActivation(
-      {
-        kind: 'skill_activation',
-        activationId: randomUUID(),
-        skillName: skill.name,
-        trigger: 'user-slash',
-        skillType: skill.metadata.type,
-        skillPath: skill.path,
-        skillSource: skill.source,
-        skillArgs: input.args,
-      },
+      origin,
       [
         {
           type: 'text',
-          text: this.registry.renderSkillPrompt(skill, input.args ?? ''),
+          text: skillContent,
         },
       ],
+    );
+
+    // Append a <byf-skill-loaded> reminder so the model knows the skill
+    // is already loaded and does not redundantly invoke the Skill tool.
+    this.agent.context.appendSystemReminder(
+      `<byf-skill-loaded name="${skill.name}">\n${skillContent}\n</byf-skill-loaded>`,
+      origin,
     );
   }
 
