@@ -192,16 +192,6 @@ Use tools only when the task requires them.
 
 The environment is not a sandbox.
 
-# Working Environment
-
-## Operating System
-
-You are running on {{ BYF_OS }}.
-
-## Working Directory
-
-The current working directory is \`{{ BYF_WORK_DIR }}\`.
-
 # Project Information
 
 \`AGENTS.md\` files contain project-specific context.
@@ -217,6 +207,16 @@ The \`AGENTS.md\` instructions (merged from all applicable directories):
 
 If you modified anything mentioned in \`AGENTS.md\` files, update the corresponding files.
 
+# Working Environment
+
+## Operating System
+
+You are running on {{ BYF_OS }}.
+
+## Working Directory
+
+The current working directory is \`{{ BYF_WORK_DIR }}\`.
+
 # Skills
 
 Skills are reusable capabilities.
@@ -227,15 +227,19 @@ Skills are reusable capabilities.
 
       const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks).toHaveLength(3);
+      // 4 blocks: base (global), projectInstructions (project),
+      // workingEnvironment (session), sessionContext (session)
+      expect(plan.blocks).toHaveLength(4);
       expect(plan.blocks.map((b) => b.name)).toEqual([
         'base',
         'projectInstructions',
+        'workingEnvironment',
         'sessionContext',
       ]);
       expect(plan.blocks.map((b) => b.cacheScope)).toEqual([
         'global',
         'project',
+        'session',
         'session',
       ]);
     });
@@ -431,7 +435,7 @@ Session`;
       expect(plan.blocks).toHaveLength(5);
       expect(plan.blocks[0]!.name).toBe('base');
       expect(plan.blocks[1]!.name).toBe('projectInstructions');
-      expect(plan.blocks[2]!.name).toBe('skillsListing');
+      expect(plan.blocks[2]!.name).toBe('workingEnvironment');
       expect(plan.blocks[3]!.name).toBe('sessionContext');
       expect(plan.blocks[4]!.name).toBe('sessionContext');
     });
@@ -633,7 +637,7 @@ Context`;
       expect(plan.blocks.map((b) => b.name)).toEqual([
         'base',
         'projectInstructions',
-        'skillsListing',
+        'workingEnvironment',
         'sessionContext',
       ]);
     });

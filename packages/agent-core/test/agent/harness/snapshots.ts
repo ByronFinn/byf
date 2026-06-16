@@ -216,9 +216,6 @@ function formatText(text: string): string {
   if (isAutoModeEnterReminder(text)) {
     return '<auto-mode-enter-reminder>';
   }
-  if (isAutoModeExitReminder(text)) {
-    return '<auto-mode-exit-reminder>';
-  }
   if (text.includes('<!-- Compression Priorities (in order) -->')) {
     return '<compaction-instruction>';
   }
@@ -246,7 +243,6 @@ function isDeepEqual(left: unknown, right: unknown): boolean {
 function normalizeValue(value: unknown, uuidLabels: Map<string, string>): unknown {
   if (typeof value === 'string') {
     if (isAutoModeEnterReminder(value)) return '<auto-mode-enter-reminder>';
-    if (isAutoModeExitReminder(value)) return '<auto-mode-exit-reminder>';
     if (!isUuid(value)) return value;
     let label = uuidLabels.get(value);
     if (label === undefined) {
@@ -296,8 +292,4 @@ function isUuid(value: string): boolean {
 
 function isAutoModeEnterReminder(value: string): boolean {
   return value.includes('Auto permission mode is active.');
-}
-
-function isAutoModeExitReminder(value: string): boolean {
-  return value.includes('Auto permission mode is no longer active.');
 }

@@ -184,10 +184,11 @@ export class AgentTestContext {
       telemetry: options.telemetry,
       log: options.log,
     });
-    // Suppress DirectoryTreeInjector in tests so snapshots and message-order
-    // assertions remain stable. Dedicated injection tests opt-in explicitly.
+    // Suppress TimestampInjector in tests so snapshots and message-order
+    // assertions remain stable (timestamps are non-deterministic).
+    // Dedicated injection tests opt-in explicitly.
     const mgr = this.agent.injection as unknown as { injectors: Array<{ injectionVariant: string }> };
-    mgr.injectors = mgr.injectors.filter((i) => i.injectionVariant !== 'directory_tree');
+    mgr.injectors = mgr.injectors.filter((i) => i.injectionVariant !== 'timestamp');
     this.rpc = this.createPromiseAgentApi(this.agent);
   }
 

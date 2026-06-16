@@ -42,7 +42,6 @@ describe('Agent permission', () => {
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash in auto mode" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Run Bash in auto mode" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<auto-mode-enter-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "permission_mode" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "Running without asking." }
@@ -76,9 +75,10 @@ describe('Agent permission', () => {
 
       call 2:
         messages:
-          <last>
+          user: text "Run Bash in auto mode"
           assistant: text "Running without asking."  calls call_bash:Bash { "command": "printf permission-output", "timeout": 60 }
           tool[call_bash]: text "auto-output"
+          user: text <auto-mode-enter-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -136,7 +136,7 @@ describe('Agent permission', () => {
     `);
     await ctx.expectResumeMatches();
   });
-  it('injects a reminder when leaving auto mode', async () => {
+  it('transitions from auto to manual mode without persistent injection', async () => {
     const ctx = testAgent();
     ctx.configure();
     await ctx.rpc.setPermission({ mode: 'auto' });
@@ -155,15 +155,14 @@ describe('Agent permission', () => {
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Back to manual" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Back to manual" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<auto-mode-exit-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "permission_mode" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "1", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 1, "step": 1, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 1, "delta": "Manual turn done." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-4>", "turnId": "1", "step": 1, "stepUuid": "<uuid-3>", "part": { "type": "text", "text": "Manual turn done." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "1", "step": 1, "usage": { "inputOther": 161, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-3>", "usage": { "inputOther": 161, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 161, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 169, "maxContextTokens": 1000000, "contextUsage": 0.000169, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 250, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 250, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 161, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "1", "step": 1, "usage": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-3>", "usage": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 25, "maxContextTokens": 1000000, "contextUsage": 0.000025, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 106, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 106, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
       [emit] turn.ended                  { "turnId": 1, "reason": "completed" }
     `);
     expect(ctx.llmInputs()).toMatchInlineSnapshot(`
@@ -176,10 +175,9 @@ describe('Agent permission', () => {
 
       call 2:
         messages:
-          <last>
+          user: text "Use auto first"
           assistant: text "Auto turn done."
           user: text "Back to manual"
-          user: text <auto-mode-exit-reminder>
     `);
     await ctx.expectResumeMatches();
   });
@@ -250,20 +248,18 @@ describe('Agent permission', () => {
 });
 
 describe('Permission auto mode', () => {
-  it('tells the agent not to ask questions in auto mode', async () => {
-    const appendSystemReminder = vi.fn();
+  it('tells the agent not to ask questions in auto mode', () => {
     const agent = {
       permission: { mode: 'auto' },
-      context: { history: [], appendSystemReminder },
     } as unknown as Agent;
     const injector = new PermissionModeInjector(agent);
 
-    await injector.inject();
+    const result = injector.getEphemeral();
 
-    expect(appendSystemReminder).toHaveBeenCalledWith(
-      expect.stringContaining('Do NOT call AskUserQuestion while auto mode is active'),
-      { kind: 'injection', variant: 'permission_mode' },
-    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.kind).toBe('system_reminder');
+    expect(result[0]!.content).toContain('Do NOT call AskUserQuestion while auto mode is active');
+    expect(result[0]!.position).toBe('before_user');
   });
 
   it('blocks AskUserQuestion in auto mode before execution', async () => {

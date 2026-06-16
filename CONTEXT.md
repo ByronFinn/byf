@@ -107,7 +107,19 @@ The optional 4th cache stake point, placed after the largest content block in th
 Tools are ordered by stability before caching: Builtin tools (never change) first, MCP tools (may connect/disconnect) after. A fixed sentinel marker ensures the tools cache endpoint never collapses into the system prompt cache endpoint when no MCP tools are present.
 
 ### Progressive Disclosure
-Loading only names and brief descriptions at startup, then fetching full content on demand. Applied to Skills in BYF: only skill names and one-line descriptions are injected into the system prompt; the full SKILL.md content is loaded via the `Skill` tool when needed.
+Loading only names and brief descriptions at startup, then fetching full content on demand. Applied to Skills (names/descriptions in system prompt, full SKILL.md via `Skill` tool) and directory structure (not injected; model discovers via tools when needed).
+
+### Dynamic Injection
+The mechanism by which the agent system adds context to the conversation beyond what the user and model produce. Managed by `InjectionManager` in agent-core, which runs registered `DynamicInjector` instances in the `beforeStep` hook. Injectors can produce two kinds of injection: **persistent** (via `inject()` → `appendSystemReminder()`, written into `_history` as `user`-role messages) and **ephemeral** (via `getEphemeral()`, rendered fresh each step at request time, never stored in history). Current injectors: `PermissionModeInjector` (ephemeral — reflects current permission mode state, only fires when auto mode is active) and `TimestampInjector` (ephemeral — fresh ISO timestamp each step at `before_user` position). Formerly included `DirectoryTreeInjector` (removed — directory structure is now progressively disclosed via tools). Persistent injection is still used for one-time events (skill activation, `/init` completion).
+
+### Ephemeral Injection
+A per-request injection rendered fresh at projection time (in `projector.ts`) and never persisted to `_history`. Placed at the `before_user` position — appended **after** all conversation history — so it has zero impact on the cached prefix. Carries dynamic content that changes every step (timestamp, permission mode state). Contrasted with persistent injection (`appendSystemReminder()`), which writes to `_history` and stays in the cached prefix. See ADR 0013.
+
+### Cache Scope
+The stability classification assigned to each `PromptBlock` in a `PromptPlan`: `'global'` (identical across all sessions — pure agent rules), `'project'` (stable within a project — AGENTS.md), `'session'` (varies per session — OS, cwd, skills), or `'none'` (not cached). Provider adapters use scope to decide cache breakpoint placement. See ADR 0013 for the 4-block architecture that separates pure global rules from session-scoped environment.
+
+### Dynamic Zone
+The tail of the projected message array where ephemeral injections (timestamp, permission mode) are appended at the `before_user` position. Content here is per-request and never participates in the cached prefix. Part of the three-zone prompt layout: Cache Zone (stable system prompt blocks + tool specs), Conversation History (clean user/assistant/tool messages), Dynamic Zone (ephemeral per-request content).
 
 ### Structured Summary
 The compact representation used for masked tool results. Example: `[Bash: 'npm test', exit=0, 127 lines, stderr: none]`. Preserves the tool call metadata and a small head/tail fragment so the agent can decide whether to re-read the full output.

@@ -387,7 +387,8 @@ export class TurnFlow implements RecordRestoreHandler {
             completionBudgetConfig,
           }),
           buildMessages: () => {
-            const messages = this.agent.context.messages;
+            const ephemeral = this.agent.injection.getEphemeralInjections();
+            const messages = this.agent.context.getMessages(ephemeral);
             return applyCacheStaking(messages, {
               previousTurnMessageCount: this._previousTurnMessageCount,
             });
