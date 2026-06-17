@@ -106,20 +106,11 @@ import {
   resolveSection,
 } from './components/dialogs/approval-panel';
 import { CompactionComponent } from './components/dialogs/compaction';
-import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
-import { HelpPanelComponent } from './components/dialogs/help-panel';
-import { ModelSelectorComponent } from './components/dialogs/model-selector';
-import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
-import { SessionPickerComponent } from './components/dialogs/session-picker';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
-import {
-  SettingsSelectorComponent,
-  type SettingsSelection,
-} from './components/dialogs/settings-selector';
-import { ThemeSelectorComponent } from './components/dialogs/theme-selector';
 import { CustomEditor } from './components/editor/custom-editor';
+import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
@@ -473,6 +464,7 @@ export class ByfTui implements DialogHost {
   private isShuttingDown = false;
   private readonly turnEventHandler: TurnEventHandler;
   private readonly tasksBrowserController: TasksBrowserController;
+  private readonly dialogManager: DialogManager;
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
@@ -501,6 +493,7 @@ export class ByfTui implements DialogHost {
     this.state = createTUIState(tuiOptions);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
     this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
+    this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -648,7 +641,7 @@ export class ByfTui implements DialogHost {
     }
     void this.showTmuxKeyboardWarningIfNeeded();
     if (this.state.startupState === 'picker') {
-      void this.bootstrapFromPicker();
+      void this.dialogManager.bootstrapFromPicker();
       // resumeSession (fired on picker select) owns post-pick init; nothing
       // else to do here until the user makes a choice.
       return;
@@ -1070,7 +1063,7 @@ export class ByfTui implements DialogHost {
     editor.onEscape = () => {
       if (this.pendingExit) this.clearPendingExit();
       if (this.state.showingSessionPicker) {
-        this.hideSessionPicker();
+        this.dialogManager.hideSessionPicker();
         return;
       }
       if (this.state.appState.isStreaming) {
@@ -1364,7 +1357,7 @@ export class ByfTui implements DialogHost {
         void this.stop();
         return;
       case 'help':
-        this.showHelpPanel();
+        this.dialogManager.showHelpPanel();
         return;
       case 'version':
         this.showStatus(`Byf Code v${this.state.appState.version}`);
@@ -1374,7 +1367,7 @@ export class ByfTui implements DialogHost {
         this.state.ui.requestRender();
         return;
       case 'sessions':
-        void this.showSessionPicker();
+        void this.dialogManager.showSessionPicker();
         return;
       case 'tasks':
         if (this.session === undefined) {
@@ -1396,10 +1389,10 @@ export class ByfTui implements DialogHost {
         this.handleModelCommand(args);
         return;
       case 'permission':
-        this.showPermissionPicker();
+        this.dialogManager.showPermissionPicker();
         return;
       case 'settings':
-        this.showSettingsSelector();
+        this.dialogManager.showSettingsSelector();
         return;
       case 'usage':
         void this.showUsage();
@@ -2239,6 +2232,21 @@ export class ByfTui implements DialogHost {
       showError: (msg) =>{  this.showError(msg); },
       showStatus: (msg, color) =>{  this.showStatus(msg, color); },
       setAppState: (patch) =>{  this.setAppState(patch); },
+    };
+  }
+
+  private dialogManagerCallbacks(): DialogManagerCallbacks {
+    return {
+      fetchSessions: () => this.fetchSessions(),
+      resumeSession: (sessionId) => this.resumeSession(sessionId),
+      applyEditorChoice: (value) => this.applyEditorChoice(value),
+      performModelSwitch: (alias, thinkingEffort) => this.performModelSwitch(alias, thinkingEffort),
+      applyPermissionChoice: (mode) => this.applyPermissionChoice(mode),
+      applyThemeChoice: (theme) => this.applyThemeChoice(theme),
+      showUsage: () => this.showUsage(),
+      getSlashCommands: () => this.getSlashCommands(),
+      showNotice: (title, detail) => this.showNotice(title, detail),
+      stop: () => this.stop(),
     };
   }
 
@@ -3259,70 +3267,7 @@ export class ByfTui implements DialogHost {
     this.restoreEditor();
   }
 
-  // Shows the help panel with the current slash command list.
-  private showHelpPanel(): void {
-    this.state.showingHelpPanel = true;
-    this.mountEditorReplacement(
-      new HelpPanelComponent({
-        commands: this.getSlashCommands(),
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.hideHelpPanel();
-        },
-      }),
-    );
-  }
-
-  // Hides the help panel and returns focus to the editor.
-  private hideHelpPanel(): void {
-    this.state.showingHelpPanel = false;
-    this.restoreEditor();
-  }
-
   // Loads sessions and shows the session picker.
-  private async showSessionPicker(): Promise<void> {
-    await this.fetchSessions();
-    this.mountSessionPicker(() => {
-      this.hideSessionPicker();
-    });
-  }
-
-  // Shows the startup session picker and exits when it is cancelled.
-  private async bootstrapFromPicker(): Promise<void> {
-    await this.fetchSessions();
-    this.mountSessionPicker(() => {
-      this.hideSessionPicker();
-      void this.stop();
-    });
-  }
-
-  // Hides the session picker and restores the editor.
-  private hideSessionPicker(): void {
-    this.state.showingSessionPicker = false;
-    this.restoreEditor();
-  }
-
-  // Mounts a session picker with shared selection behavior.
-  private mountSessionPicker(onCancel: () => void): void {
-    this.state.showingSessionPicker = true;
-    this.mountEditorReplacement(
-      new SessionPickerComponent({
-        sessions: this.state.sessions,
-        loading: this.state.loadingSessions,
-        currentSessionId: this.state.appState.sessionId,
-        colors: this.state.theme.colors,
-        onSelect: (sessionId: string) => {
-          void this.resumeSession(sessionId).then((switched) => {
-            if (switched) {
-              this.hideSessionPicker();
-            }
-          });
-        },
-        onCancel,
-      }),
-    );
-  }
-
   private createTasksBrowserEnv(): TasksBrowserEnv {
     return {
       host: {
@@ -3374,24 +3319,6 @@ export class ByfTui implements DialogHost {
     };
   }
 
-  // Shows the editor command selector.
-  private showEditorPicker(): void {
-    const currentValue = this.state.appState.editorCommand ?? '';
-    this.mountEditorReplacement(
-      new EditorSelectorComponent({
-        currentValue,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyEditorChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
   // Persists and applies the selected external editor command.
   private async applyEditorChoice(value: string): Promise<void> {
     const previous = this.state.appState.editorCommand ?? '';
@@ -3420,35 +3347,6 @@ export class ByfTui implements DialogHost {
       value.length > 0
         ? `Editor set to "${value}".`
         : 'Editor set to auto-detect ($VISUAL / $EDITOR).',
-    );
-  }
-
-  // Shows the model selector when models are available.
-  private showModelPicker(selectedValue: string = this.state.appState.model): void {
-    const entries = Object.entries(this.state.appState.availableModels);
-    if (entries.length === 0) {
-      this.showNotice(
-        'No models configured',
-        'Run /login or /connect to add a provider.',
-      );
-      return;
-    }
-    this.mountEditorReplacement(
-      new ModelSelectorComponent({
-        models: this.state.appState.availableModels,
-        currentValue: this.state.appState.model,
-        selectedValue,
-        currentThinkingEffort: this.state.appState.thinkingEffort,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: ({ alias, thinkingEffort }) => {
-          this.restoreEditor();
-          void this.performModelSwitch(alias, thinkingEffort);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
     );
   }
 
@@ -3530,77 +3428,6 @@ export class ByfTui implements DialogHost {
       thinking: thinkingConfig,
     });
     return true;
-  }
-
-  // Shows the theme selector.
-  private showThemePicker(): void {
-    this.mountEditorReplacement(
-      new ThemeSelectorComponent({
-        currentValue: this.state.appState.theme,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyThemeChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Shows the permission mode selector.
-  private showPermissionPicker(): void {
-    this.mountEditorReplacement(
-      new PermissionSelectorComponent({
-        currentValue: this.state.appState.permissionMode,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyPermissionChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Shows the settings selector entry point.
-  private showSettingsSelector(): void {
-    this.mountEditorReplacement(
-      new SettingsSelectorComponent({
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.handleSettingsSelection(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Routes a settings selection to the matching selector or panel.
-  private handleSettingsSelection(value: SettingsSelection): void {
-    this.restoreEditor();
-    switch (value) {
-      case 'model':
-        this.showModelPicker();
-        return;
-      case 'permission':
-        this.showPermissionPicker();
-        return;
-      case 'theme':
-        this.showThemePicker();
-        return;
-      case 'editor':
-        this.showEditorPicker();
-        return;
-      case 'usage':
-        void this.showUsage();
-        return;
-    }
   }
 
   // Applies a permission mode choice to the active session and app state.
@@ -3823,7 +3650,7 @@ export class ByfTui implements DialogHost {
   private async handleEditorCommand(args: string, _eCtx: {}): Promise<void> {
     const command = args.trim();
     if (command.length === 0) {
-      this.showEditorPicker();
+      this.dialogManager.showEditorPicker();
       return;
     }
     await this.applyEditorChoice(command);
@@ -3833,7 +3660,7 @@ export class ByfTui implements DialogHost {
   private async handleThemeCommand(args: string): Promise<void> {
     const theme = args.trim();
     if (theme.length === 0) {
-      this.showThemePicker();
+      this.dialogManager.showThemePicker();
       return;
     }
     if (!isTheme(theme)) {
@@ -3847,14 +3674,14 @@ export class ByfTui implements DialogHost {
   private handleModelCommand(args: string): void {
     const alias = args.trim();
     if (alias.length === 0) {
-      this.showModelPicker();
+      this.dialogManager.showModelPicker();
       return;
     }
     if (this.state.appState.availableModels[alias] === undefined) {
       this.showError(`Unknown model alias: ${alias}`);
       return;
     }
-    this.showModelPicker(alias);
+    this.dialogManager.showModelPicker(alias);
   }
 
   // Handles the /title command.
