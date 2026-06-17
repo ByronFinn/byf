@@ -442,3 +442,12 @@ function extractCacheUsage(
 - **`cache-observability-cli.md`**：H4 的 usage 归一化集中后，该 PRD 依赖的 `inputCacheRead`/`inputCacheCreation` 四字段模型有更可靠的单一来源。
 - **`ephemeral-injection-cache-optimization.md`** / **ADR 0011**：H4 让 cache hint 的 provider 适配更一致（归一化逻辑集中）。
 - **`approval-fullscreen-viewer.md`**：已 Done，H1 的 DialogManager 抽取不影响它（FileViewerComponent 已独立）。
+
+## 实现后验收记录
+
+### H1-6 行数缺口
+
+- **PRD 目标**：`byf-tui.ts` 第二阶段后 < 3000 行。
+- **实际结果**：`wc -l apps/cli/src/tui/byf-tui.ts` = **3916 行**（`main` 基准约 4154 行，净减少约 238 行）。
+- **缺口原因**：第二阶段仅抽取了 `DialogManager`（约 150 行纯 picker 转发），而 PRD 已明确保留 `setupEditorHandlers`（Ctrl-C 状态机，131 行）、流式渲染 hook、MCP/background badge 等带状态逻辑在 `ByfTui` 内。这些保留项使文件无法降到 3000 行以下。
+- **结论**：H1 的功能正确性（AC 1–5、7）与不回归要求均已满足；**H1-6 的硬数字目标未达成**，但符合 PRD 自身描述的“诚实版”瘦身范围。若合并此 PR，建议在 PR 描述中明确记录实际行数与偏差原因。

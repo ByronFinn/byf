@@ -962,12 +962,12 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
 
   protected createRawClient(
     auth: ResolvedAuth,
-    _defaultHeaders: Record<string, string> | undefined,
+    defaultHeaders: Record<string, string> | undefined,
   ): Anthropic {
     return new Anthropic({
       apiKey: auth.apiKey,
       baseURL: this._baseUrl,
-      defaultHeaders: this._defaultHeaders,
+      defaultHeaders,
     });
   }
 
