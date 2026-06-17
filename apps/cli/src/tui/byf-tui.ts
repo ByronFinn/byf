@@ -2056,42 +2056,42 @@ export class ByfTui implements DialogHost {
 
     switch (event.type) {
       case 'turn.started':
-        this.handleTurnBegin(event);
+        this.turnEventHandler.handleTurnBegin(event);
         break;
       case 'turn.ended':
         this.handleTurnEnd(event, sendQueued);
         break;
       case 'turn.step.started':
-        this.handleStepBegin(event);
+        this.turnEventHandler.handleStepBegin(event);
         break;
       case 'turn.step.interrupted':
-        this.handleStepInterrupted(event);
+        this.turnEventHandler.handleStepInterrupted(event);
         break;
       case 'turn.step.completed':
-        this.handleStepCompleted(event);
+        this.turnEventHandler.handleStepCompleted(event);
         break;
       case 'turn.step.retrying':
         break;
       case 'tool.progress':
-        this.handleToolProgress(event);
+        this.turnEventHandler.handleToolProgress(event);
         break;
       case 'assistant.delta':
-        this.handleAssistantDelta(event);
+        this.turnEventHandler.handleAssistantDelta(event);
         break;
       case 'hook.result':
-        this.handleHookResult(event);
+        this.turnEventHandler.handleHookResult(event);
         break;
       case 'thinking.delta':
-        this.handleThinkingDelta(event);
+        this.turnEventHandler.handleThinkingDelta(event);
         break;
       case 'tool.call.started':
-        this.handleToolCall(event);
+        this.turnEventHandler.handleToolCall(event);
         break;
       case 'tool.call.delta':
-        this.handleToolCallDelta(event);
+        this.turnEventHandler.handleToolCallDelta(event);
         break;
       case 'tool.result':
-        this.handleToolResult(event);
+        this.turnEventHandler.handleToolResult(event);
         break;
       case 'agent.status.updated':
         this.handleStatusUpdate(event);
@@ -2148,10 +2148,6 @@ export class ByfTui implements DialogHost {
     return routeSubagentEventImpl(event, this.subagentEventState());
   }
 
-  // Initializes turn-scoped buffers when the SDK starts a turn.
-  private handleTurnBegin(event: TurnStartedEvent): void {
-    this.turnEventHandler.handleTurnBegin(event);
-  }
 
   // Finalizes turn-scoped state when the SDK completes a turn.
   private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
@@ -2164,22 +2160,7 @@ export class ByfTui implements DialogHost {
     this.turnEventHandler.handleTurnEnd(event, sendQueued);
   }
 
-  // Resets live render state for a new turn step.
-  private handleStepBegin(event: TurnStepStartedEvent): void {
-    this.turnEventHandler.handleStepBegin(event);
-  }
 
-  // Surfaces step-level outcomes the user needs to act on. The common
-  // case (finishReason === 'tool_use' or 'end_turn') is silent — those
-  // already render via tool.call.started/tool.result and assistant.delta.
-  // The interesting case is max_tokens: the model started a tool_use but
-  // ran out of budget before finalizing it, so the partial tool call is
-  // still pinned in 'Preparing' state with no signal that anything went
-  // wrong. Flip those into a visible 'Truncated' state and append a
-  // notice pointing at the config knob.
-  private handleStepCompleted(event: TurnStepCompletedEvent): void {
-    this.turnEventHandler.handleStepCompleted(event);
-  }
 
   private isAnthropicSessionActive(): boolean {
     const providerKey = this.state.appState.availableModels[this.state.appState.model]?.provider;
@@ -2187,48 +2168,13 @@ export class ByfTui implements DialogHost {
     return this.state.appState.availableProviders[providerKey]?.type === 'anthropic';
   }
 
-  // Renders user-facing status for an interrupted turn step.
-  private handleStepInterrupted(event: TurnStepInterruptedEvent): void {
-    this.turnEventHandler.handleStepInterrupted(event);
-  }
 
-  // Appends a thinking delta to the live thinking block.
-  private handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    this.turnEventHandler.handleThinkingDelta(event);
-  }
 
-  // Appends an assistant text delta to the live assistant block.
-  private handleAssistantDelta(event: AssistantDeltaEvent): void {
-    this.turnEventHandler.handleAssistantDelta(event);
-  }
 
-  private handleHookResult(event: HookResultEvent): void {
-    this.turnEventHandler.handleHookResult(event);
-  }
 
-  // Starts or updates a rendered tool call from a tool-call start event.
-  private handleToolCall(event: ToolCallStartedEvent): void {
-    this.turnEventHandler.handleToolCall(event);
-  }
 
-  // Accumulates streaming tool-call arguments and updates the rendered call.
-  private handleToolCallDelta(event: ToolCallDeltaEvent): void {
-    this.turnEventHandler.handleToolCallDelta(event);
-  }
 
-  // Streams a `{kind:'status'}` progress text into the live tool box so
-  // long-blocking tools (e.g. the MCP synthetic `authenticate` tool whose
-  // 15-minute browser wait would otherwise show only a spinner) can surface
-  // their authorization URL. Non-status update kinds stay out of the terminal
-  // transcript because only status text needs persistent display.
-  private handleToolProgress(event: ToolProgressEvent): void {
-    this.turnEventHandler.handleToolProgress(event);
-  }
 
-  // Completes a tool call and applies any tool-specific UI side effects.
-  private handleToolResult(event: ToolResultEvent): void {
-    this.turnEventHandler.handleToolResult(event);
-  }
 
   private turnEventState(): TurnEventState {
     const state = this.state;
