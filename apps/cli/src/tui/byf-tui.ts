@@ -20,16 +20,13 @@ import {
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
-  log,
-} from '@byfriends/sdk';
-import {
   applyProviderConfig,
   fetchModels,
+  log,
 } from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
-  AssistantDeltaEvent,
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
@@ -40,7 +37,6 @@ import type {
   CreateSessionOptions,
   ErrorEvent,
   Event,
-  HookResultEvent,
   ByfHarness,
   McpServerInfo,
   PermissionMode,
@@ -54,16 +50,7 @@ import type {
   SubagentCompletedEvent,
   SubagentFailedEvent,
   SubagentSpawnedEvent,
-  ThinkingDeltaEvent,
-  ToolCallDeltaEvent,
-  ToolCallStartedEvent,
-  ToolProgressEvent,
-  ToolResultEvent,
   TurnEndedEvent,
-  TurnStartedEvent,
-  TurnStepCompletedEvent,
-  TurnStepInterruptedEvent,
-  TurnStepStartedEvent,
   WarningEvent,
 } from '@byfriends/sdk';
 import chalk from 'chalk';
@@ -2245,7 +2232,9 @@ export class ByfTui implements DialogHost {
       applyThemeChoice: (theme) => this.applyThemeChoice(theme),
       showUsage: () => this.showUsage(),
       getSlashCommands: () => this.getSlashCommands(),
-      showNotice: (title, detail) => this.showNotice(title, detail),
+      showNotice: (title, detail) => {
+        this.showNotice(title, detail);
+      },
       stop: () => this.stop(),
     };
   }

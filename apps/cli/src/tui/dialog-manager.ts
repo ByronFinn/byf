@@ -2,16 +2,16 @@ import type { PermissionMode } from '@byfriends/sdk';
 
 import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
 import { HelpPanelComponent, type HelpPanelCommand } from '#/tui/components/dialogs/help-panel';
-import { ModelSelectorComponent, type ModelSelection } from '#/tui/components/dialogs/model-selector';
+import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import { PermissionSelectorComponent } from '#/tui/components/dialogs/permission-selector';
-import { SessionPickerComponent, type SessionRow } from '#/tui/components/dialogs/session-picker';
+import { SessionPickerComponent } from '#/tui/components/dialogs/session-picker';
 import {
   SettingsSelectorComponent,
   type SettingsSelection,
 } from '#/tui/components/dialogs/settings-selector';
 import { ThemeSelectorComponent } from '#/tui/components/dialogs/theme-selector';
 import type { Theme } from '#/tui/theme';
-import type { AppState, DialogHost, ThinkingEffortLevel, TUIState } from '#/tui/types';
+import type { DialogHost, ThinkingEffortLevel, TUIState } from '#/tui/types';
 
 /**
  * TUI methods the DialogManager delegates to. Keeping these explicit avoids
