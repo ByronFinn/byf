@@ -546,7 +546,8 @@ export class TasksBrowserApp extends Container implements Focusable {
           ? `finished ${formatRelativeTime(task.endedAt)}`
           : '';
     if (timing.length > 0) lines.push(`${label('Time:')}${chalk.hex(colors.textMuted)(timing)}`);
-    if (task.pid > 0) lines.push(`${label('Pid:')}${chalk.hex(colors.textMuted)(String(task.pid))}`);
+    if (task.pid !== null && task.pid > 0)
+      lines.push(`${label('Pid:')}${chalk.hex(colors.textMuted)(String(task.pid))}`);
     if (task.exitCode !== null && task.exitCode !== undefined) {
       lines.push(`${label('Exit code:')}${chalk.hex(colors.textMuted)(String(task.exitCode))}`);
     }

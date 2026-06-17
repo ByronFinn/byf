@@ -77,7 +77,7 @@ export interface BackgroundTaskInfo {
   readonly command: string;
   readonly description: string;
   readonly status: BackgroundTaskStatus;
-  readonly pid: number;
+  readonly pid: number | null;
   readonly exitCode: number | null;
   readonly startedAt: number;
   readonly endedAt: number | null;
@@ -104,11 +104,10 @@ export interface BackgroundTaskInfo {
   readonly failureReason?: string | undefined;
 }
 
-interface ManagedProcess {
+interface TaskCommon {
   readonly taskId: string;
   readonly command: string;
   readonly description: string;
-  readonly proc: KaosProcess;
   readonly outputChunks: string[];
   /** Total UTF-8 bytes observed, including chunks dropped from the live ring buffer. */
   outputSizeBytes: number;
@@ -142,6 +141,34 @@ interface ManagedProcess {
   persistWriteQueue: Promise<void>;
   outputWriteQueue: Promise<void>;
 }
+
+/**
+ * Real OS-process task. Lifecycle is driven by `proc.wait()`; cancellation is
+ * SIGTERM → 5s grace → SIGKILL.
+ *
+ * See ADR 0014 (TaskEntry discriminated union).
+ */
+interface ProcessTaskEntry extends TaskCommon {
+  readonly kind: 'process';
+  readonly proc: KaosProcess;
+}
+
+/**
+ * Agent / Promise-based task. Lifecycle is driven by `completion`; cancellation
+ * is the `abort` callback (idempotent). Has no pid and no process streams.
+ *
+ * See ADR 0014.
+ */
+interface PromiseTaskEntry extends TaskCommon {
+  readonly kind: 'promise';
+  /** Resolves with the agent's result text, written to outputChunks on success. */
+  completion: Promise<{ result: string }>;
+  /** Idempotent cancellation. Called on stop() and on deadline expiry. */
+  abort: () => void;
+}
+
+/** Active background task: a real process or a Promise-based agent task. */
+type TaskEntry = ProcessTaskEntry | PromiseTaskEntry;
 
 /**
  * Maximum bytes of combined output kept in the in-memory ring buffer per
@@ -220,7 +247,7 @@ function emptyOutputSnapshot(): BackgroundTaskOutputSnapshot {
 // ── Manager ──────────────────────────────────────────────────────────
 
 export class BackgroundProcessManager {
-  private readonly processes = new Map<string, ManagedProcess>();
+  private readonly processes = new Map<string, TaskEntry>();
   private reservedTaskSlots = 0;
   /**
    * Ghosts: tasks loaded from disk during reconcile that have no live
@@ -302,7 +329,7 @@ export class BackgroundProcessManager {
    * exit cannot yield duplicate notifications. This is the manager-side
    * half of the dedupe pact with `NotificationManager.dedupe_key`.
    */
-  private fireTerminalCallbacks(entry: ManagedProcess): void {
+  private fireTerminalCallbacks(entry: TaskEntry): void {
     if (entry.terminalFired) return;
     entry.terminalFired = true;
     const info = this.toInfo(entry);
@@ -331,7 +358,7 @@ export class BackgroundProcessManager {
     this.fireLifecycle('terminated', info);
   }
 
-  private resolveWaiters(entry: ManagedProcess): void {
+  private resolveWaiters(entry: TaskEntry): void {
     const waiters = entry.waiters.splice(0);
     for (const resolve of waiters) resolve();
   }
@@ -407,7 +434,8 @@ export class BackgroundProcessManager {
     }
     const kind = opts?.kind;
     const taskId = generateTaskId(kind ?? 'bash');
-    const entry: ManagedProcess = {
+    const entry: TaskEntry = {
+      kind: 'process',
       taskId,
       command,
       description,
@@ -669,10 +697,14 @@ export class BackgroundProcessManager {
     entry.stopRequested = true;
     entry.stopReason = stopReason;
 
-    try {
-      await entry.proc.kill('SIGTERM');
-    } catch {
-      /* process already gone */
+    if (entry.kind === 'process') {
+      try {
+        await entry.proc.kill('SIGTERM');
+      } catch {
+        /* process already gone */
+      }
+    } else {
+      entry.abort();
     }
 
     // Wait up to 5s for the lifecycle path to settle, then SIGKILL.
@@ -697,11 +729,18 @@ export class BackgroundProcessManager {
       return this.toInfo(entry);
     }
 
-    if (!graceful && entry.proc.exitCode === null) {
-      try {
-        await entry.proc.kill('SIGKILL');
-      } catch {
-        /* ignore */
+    if (!graceful) {
+      if (entry.kind === 'process') {
+        if (entry.proc.exitCode === null) {
+          try {
+            await entry.proc.kill('SIGKILL');
+          } catch {
+            /* ignore */
+          }
+        }
+      } else {
+        // Promise tasks have no SIGKILL; abort is idempotent, so re-issue.
+        entry.abort();
       }
     }
 
@@ -793,29 +832,22 @@ export class BackgroundProcessManager {
       this.assertCanRegister();
     }
     const taskId = generateTaskId('agent');
-    const entry: ManagedProcess = {
+    const entry: TaskEntry = {
+      // Agent tasks are Promise-based, not process-based — no KaosProcess.
+      // See ADR 0014 (TaskEntry discriminated union).
+      kind: 'promise',
       taskId,
       command: `[agent] ${description}`,
       description,
       timeoutMs: opts.timeoutMs,
+      completion,
+      abort: () => opts.abort?.(),
       // Fall back to defaults that satisfy callers reading these fields
       // without forcing every call site to supply them. The dedicated
       // dispatch path in AgentTool passes the real handle.agentId /
       // handle.profileName.
       agentId: opts.agentId ?? taskId,
       subagentType: opts.subagentType ?? 'agent',
-      // Dummy KaosProcess — agent tasks are Promise-based, not process-based
-      proc: {
-        stdin: { write: () => false, end: () => {} } as never,
-        stdout: { setEncoding: () => {}, on: () => {} } as never,
-        stderr: { setEncoding: () => {}, on: () => {} } as never,
-        pid: 0,
-        exitCode: null,
-        wait: () => completion.then(() => 0),
-        kill: async () => {
-          opts.abort?.();
-        },
-      } as unknown as KaosProcess,
       outputChunks: [],
       outputSizeBytes: 0,
       status: 'running',
@@ -1054,17 +1086,17 @@ export class BackgroundProcessManager {
   }
 
   /**
-   * Persist the current state of a live ManagedProcess. Called from
+   * Persist the current state of a live TaskEntry. Called from
    * `register()` and the lifecycle finally block. No-op unless attached.
    */
-  private persistLive(entry: ManagedProcess): Promise<void> {
+  private persistLive(entry: TaskEntry): Promise<void> {
     if (this.sessionDir === undefined) return Promise.resolve();
     const sessionDir = this.sessionDir;
     const task: PersistedTask = {
       task_id: entry.taskId,
       command: entry.command,
       description: entry.description,
-      pid: entry.proc.pid,
+      pid: entry.kind === 'process' ? entry.proc.pid : 0,
       started_at: entry.startedAt,
       ended_at: entry.endedAt,
       exit_code: entry.exitCode,
@@ -1079,7 +1111,7 @@ export class BackgroundProcessManager {
     return entry.persistWriteQueue;
   }
 
-  private appendOutput(entry: ManagedProcess, chunk: string): void {
+  private appendOutput(entry: TaskEntry, chunk: string): void {
     entry.outputSizeBytes += Buffer.byteLength(chunk, 'utf-8');
     entry.outputChunks.push(chunk);
     // Enforce output cap: drop oldest chunks when over budget.
@@ -1104,7 +1136,7 @@ export class BackgroundProcessManager {
     return undefined;
   }
 
-  private async settleProcessExit(entry: ManagedProcess, exitCode: number): Promise<void> {
+  private async settleProcessExit(entry: TaskEntry, exitCode: number): Promise<void> {
     if (TERMINAL_STATUSES.has(entry.status)) {
       if (entry.status === 'killed' && entry.exitCode === null) {
         entry.exitCode = exitCode;
@@ -1122,20 +1154,20 @@ export class BackgroundProcessManager {
   private observedExitCompletions(): Promise<void>[] {
     const completions: Promise<void>[] = [];
     for (const entry of this.processes.values()) {
-      if (!TERMINAL_STATUSES.has(entry.status) && entry.proc.exitCode !== null) {
+      if (entry.kind === 'process' && !TERMINAL_STATUSES.has(entry.status) && entry.proc.exitCode !== null) {
         completions.push(entry.lifecyclePromise);
       }
     }
     return completions;
   }
 
-  private toInfo(entry: ManagedProcess): BackgroundTaskInfo {
+  private toInfo(entry: TaskEntry): BackgroundTaskInfo {
     return {
       taskId: entry.taskId,
       command: entry.command,
       description: entry.description,
       status: entry.status,
-      pid: entry.proc.pid,
+      pid: entry.kind === 'process' ? entry.proc.pid : null,
       exitCode: entry.exitCode,
       startedAt: entry.startedAt,
       endedAt: entry.endedAt,
@@ -1150,7 +1182,7 @@ export class BackgroundProcessManager {
   }
 
   private async finalizeTerminal(
-    entry: ManagedProcess,
+    entry: TaskEntry,
     status: BackgroundTaskStatus,
     exitCode: number | null,
     options: { readonly timedOut?: boolean; readonly stopReason?: string } = {},
@@ -1198,7 +1230,7 @@ function infoToPersisted(info: BackgroundTaskInfo): PersistedTask {
     task_id: info.taskId,
     command: info.command,
     description: info.description,
-    pid: info.pid,
+    pid: info.pid ?? 0,
     started_at: info.startedAt,
     ended_at: info.endedAt,
     exit_code: info.exitCode,
