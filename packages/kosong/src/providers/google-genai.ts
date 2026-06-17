@@ -1,13 +1,7 @@
 import type { ModelCapability } from '#/capability';
-import {
-  APIConnectionError,
-  APITimeoutError,
-  ChatProviderError,
-  normalizeAPIStatusError,
-} from '#/errors';
+import { ChatProviderError, normalizeAPIStatusError } from '#/errors';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
-  ChatProvider,
   FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
@@ -20,6 +14,8 @@ import { ApiError as GoogleApiError, GoogleGenAI as GenAIClient } from '@google/
 
 import { getGoogleGenAIModelCapability } from './capability-registry';
 import { requireProviderApiKey, resolveAuthBackedClient } from './request-auth';
+import { convertProviderError, extractCacheUsage } from './provider-common';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
 
 /**
  * Normalize a Google GenAI (Gemini) `finishReason` value to the unified
@@ -567,12 +563,8 @@ export class GoogleGenAIStreamedMessage implements StreamedMessage {
         typeof usageMetadata['cachedContentTokenCount'] === 'number'
           ? usageMetadata['cachedContentTokenCount']
           : 0;
-      this._usage = {
-        inputOther: Math.max(promptTokenCount - cachedContentTokenCount, 0),
-        output: (usageMetadata['candidatesTokenCount'] as number) ?? 0,
-        inputCacheRead: cachedContentTokenCount,
-        inputCacheCreation: 0,
-      };
+      const output = (usageMetadata['candidatesTokenCount'] as number) ?? 0;
+      this._usage = extractCacheUsage(promptTokenCount, cachedContentTokenCount, output);
     }
   }
 
@@ -634,9 +626,6 @@ export class GoogleGenAIStreamedMessage implements StreamedMessage {
     }
   }
 }
-const NETWORK_RE = /network|connection|connect|disconnect|fetch failed/i;
-const TIMEOUT_RE = /timed?\s*out|timeout|deadline/i;
-
 /**
  * Convert a Google GenAI SDK error (or raw Error) to a kosong `ChatProviderError`.
  */
@@ -645,71 +634,75 @@ export function convertGoogleGenAIError(error: unknown): ChatProviderError {
   if (error instanceof GoogleApiError) {
     return normalizeAPIStatusError(error.status, error.message);
   }
-  if (error instanceof Error) {
-    const msg = error.message;
-    // Timeout takes priority over network (a timeout is also a connection issue)
-    if (TIMEOUT_RE.test(msg)) {
-      return new APITimeoutError(msg);
-    }
-    // Network / fetch errors (e.g. TypeError: fetch failed)
-    if (NETWORK_RE.test(msg) || (error instanceof TypeError && msg.includes('fetch'))) {
-      return new APIConnectionError(msg);
-    }
-    // Try to extract status code from unknown error shapes
-    const statusCode = (error as { code?: number }).code;
-    if (typeof statusCode === 'number') {
-      return normalizeAPIStatusError(statusCode, msg);
-    }
-    return new ChatProviderError(`GoogleGenAI error: ${msg}`);
+
+  // Non-GoogleApiError values may still carry a numeric status code.
+  const statusCode = (error as { code?: number }).code;
+  if (error instanceof Error && typeof statusCode === 'number') {
+    return normalizeAPIStatusError(statusCode, error.message);
   }
-  return new ChatProviderError(`GoogleGenAI error: ${String(error)}`);
+
+  // Preserve Google's fetch-specific network classification via the shared
+  // provider error converter; everything else falls through to the standard
+  // NETWORK_RE / TIMEOUT_RE ladder.
+  return convertProviderError(error, {
+    extraNetworkMatchers: [/^fetch failed$/i],
+    extraTypeErrorMatch: 'fetch',
+  });
 }
-export class GoogleGenAIChatProvider implements ChatProvider {
+export class GoogleGenAIChatProvider extends BaseChatProvider<GoogleGenAIGenerationKwargs> {
   readonly name: string = 'google_genai';
 
-  private _model: string;
-  private _client: GenAIClient | undefined;
-  private _generationKwargs: GoogleGenAIGenerationKwargs;
-  private _vertexai: boolean;
   private _stream: boolean;
-  private _apiKey: string | undefined;
+  private _vertexai: boolean;
   private _project: string | undefined;
   private _location: string | undefined;
-  private _clientFactory: ((auth: ProviderRequestAuth) => GenAIClient) | undefined;
 
   constructor(options: GoogleGenAIOptions) {
-    this._model = options.model;
-    this._vertexai = options.vertexai ?? false;
-    this._stream = options.stream ?? true;
-    this._generationKwargs = {};
-
     const apiKey = options.apiKey ?? process.env['GOOGLE_API_KEY'];
-    this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
+    const apiKeyResolved = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
+    const client =
+      (options.vertexai ?? false) || apiKeyResolved !== undefined
+        ? GoogleGenAIChatProvider.buildClient(
+            apiKeyResolved,
+            options.vertexai ?? false,
+            options.project,
+            options.location,
+          )
+        : undefined;
+    super(
+      options.model,
+      {},
+      apiKeyResolved,
+      '',
+      undefined,
+      client,
+      options.clientFactory,
+    );
+    this._stream = options.stream ?? true;
+    this._vertexai = options.vertexai ?? false;
     this._project = options.project;
     this._location = options.location;
-    this._clientFactory = options.clientFactory;
-    this._client =
-      this._vertexai || this._apiKey !== undefined ? this._buildClient(this._apiKey) : undefined;
   }
 
-  private _buildClient(apiKey: string | undefined): GenAIClient {
+  private static buildClient(
+    apiKey: string | undefined,
+    vertexai: boolean,
+    project: string | undefined,
+    location: string | undefined,
+  ): GenAIClient {
     return new GenAIClient({
       apiKey,
-      ...(this._vertexai
+      ...(vertexai
         ? {
             vertexai: true,
-            project: this._project,
-            location: this._location,
+            project,
+            location,
           }
         : {}),
     });
   }
 
-  get modelName(): string {
-    return this._model;
-  }
-
-  get thinkingEffort(): ThinkingEffort | null {
+  override get thinkingEffort(): ThinkingEffort | null {
     const thinkingConfig = this._generationKwargs.thinking_config;
     if (thinkingConfig === undefined) return null;
 
@@ -742,14 +735,14 @@ export class GoogleGenAIChatProvider implements ChatProvider {
     return null;
   }
 
-  get modelParameters(): Record<string, unknown> {
+  override get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       ...this._generationKwargs,
     };
   }
 
-  getCapability(model?: string): ModelCapability {
+  override getCapability(model?: string): ModelCapability {
     return getGoogleGenAIModelCapability(model ?? this._model);
   }
 
@@ -815,9 +808,19 @@ export class GoogleGenAIChatProvider implements ChatProvider {
     }
   }
 
-  private _createClient(auth: ProviderRequestAuth | undefined): GenAIClient {
+  /**
+   * Override the base auth-resolution path to preserve the Vertex AI
+   * short-circuit: Vertex uses service credentials, not request-scoped keys
+   * or headers, so `requireProviderApiKey` must not be enforced there.
+   */
+  protected override _createClient(auth: ProviderRequestAuth | undefined): GenAIClient {
     return resolveAuthBackedClient(
-      { cachedClient: this._client, clientFactory: this._clientFactory },
+      {
+        cachedClient: this._client as GenAIClient | undefined,
+        clientFactory: this._clientFactory as
+          | ((auth: ProviderRequestAuth) => GenAIClient)
+          | undefined,
+      },
       auth,
       (a) => {
         // Vertex AI auth flows through google-auth-library service credentials,
@@ -826,13 +829,38 @@ export class GoogleGenAIChatProvider implements ChatProvider {
         // `auth.headers` is propagated in vertexai mode. Callers that need
         // request-scoped credentials should instead point their service
         // account at the right principal.
-        if (this._vertexai) return this._buildClient(this._apiKey);
-        return this._buildClient(requireProviderApiKey('GoogleGenAIChatProvider', a, this._apiKey));
+        if (this._vertexai) {
+          return GoogleGenAIChatProvider.buildClient(
+            this._apiKey,
+            this._vertexai,
+            this._project,
+            this._location,
+          );
+        }
+        return this.createRawClient(
+          {
+            apiKey: requireProviderApiKey('GoogleGenAIChatProvider', a, this._apiKey),
+            headers: undefined,
+          },
+          undefined,
+        ) as GenAIClient;
       },
     );
   }
 
-  withThinking(effort: ThinkingEffort): GoogleGenAIChatProvider {
+  protected createRawClient(
+    auth: ResolvedAuth,
+    _defaultHeaders: Record<string, string> | undefined,
+  ): GenAIClient {
+    return GoogleGenAIChatProvider.buildClient(
+      auth.apiKey,
+      this._vertexai,
+      this._project,
+      this._location,
+    );
+  }
+
+  override withThinking(effort: ThinkingEffort): GoogleGenAIChatProvider {
     const thinkingConfig: ThinkingConfig = { include_thoughts: true };
 
     if (this._model.includes('gemini-3')) {
@@ -880,20 +908,5 @@ export class GoogleGenAIChatProvider implements ChatProvider {
     }
 
     return this.withGenerationKwargs({ thinking_config: thinkingConfig });
-  }
-
-  withGenerationKwargs(kwargs: GoogleGenAIGenerationKwargs): GoogleGenAIChatProvider {
-    const clone = this._clone();
-    clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
-    return clone;
-  }
-
-  private _clone(): GoogleGenAIChatProvider {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as GoogleGenAIChatProvider,
-      this,
-    );
-    clone._generationKwargs = { ...this._generationKwargs };
-    return clone;
   }
 }
