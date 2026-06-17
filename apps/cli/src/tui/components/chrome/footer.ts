@@ -19,7 +19,7 @@ import {
   type GitStatus,
   type GitStatusCache,
 } from '#/utils/git/git-status';
-import { formatCacheHitRate, safeUsageRatio } from '#/utils/usage/usage-format';
+import { formatCacheHitRate, formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
 
 const MAX_CWD_SEGMENTS = 3;
 
@@ -80,12 +80,6 @@ function shortenCwd(path: string): string {
   if (segments.length <= MAX_CWD_SEGMENTS) return work;
   const tail = segments.slice(-MAX_CWD_SEGMENTS).join('/');
   return `…/${tail}`;
-}
-
-function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
 }
 
 function safeUsage(usage: number): number {

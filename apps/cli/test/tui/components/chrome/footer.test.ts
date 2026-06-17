@@ -90,6 +90,19 @@ describe('Footer — cache badge (Group B)', () => {
     expect(result).not.toContain('cache:');
   });
 
+  // ── #135: footer must use the canonical formatTokenCount (finite/negative guard) ──
+  it('#135: renders NaN tokens as 0 (not "NaN") via canonical formatTokenCount guard', () => {
+    const result = formatContextStatus(0.45, Number.NaN, 48000);
+    expect(result).not.toContain('NaN');
+    expect(result).toContain('0/48.0k');
+  });
+
+  it('#135: renders negative tokens as 0 via canonical formatTokenCount guard', () => {
+    const result = formatContextStatus(0.45, -5, 48000);
+    expect(result).not.toContain('-5');
+    expect(result).toContain('0/48.0k');
+  });
+
   // ── B12: key absent ────────────────────────────────────────────
   it('B12: no cache badge when cacheHitRate key is absent from state', () => {
     // Construct state without cacheHitRate — key literally absent.
