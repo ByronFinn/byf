@@ -58,6 +58,7 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
+  cacheHitRate?: number;
   isStreaming: boolean;
   isCompacting: boolean;
   isReplaying: boolean;

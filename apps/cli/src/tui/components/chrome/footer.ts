@@ -19,7 +19,7 @@ import {
   type GitStatus,
   type GitStatusCache,
 } from '#/utils/git/git-status';
-import { safeUsageRatio } from '#/utils/usage/usage-format';
+import { formatCacheHitRate, safeUsageRatio } from '#/utils/usage/usage-format';
 
 const MAX_CWD_SEGMENTS = 3;
 
@@ -92,7 +92,7 @@ function safeUsage(usage: number): number {
   return safeUsageRatio(usage);
 }
 
-function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
+export function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
   const pct = `${(safeUsage(usage) * 100).toFixed(1)}%`;
   if (maxTokens && maxTokens > 0 && tokens !== undefined) {
     return `context: ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
@@ -238,13 +238,18 @@ export class FooterComponent implements Component {
       line1 = truncateToWidth(leftLine, width, '…');
     }
 
-    // ── Line 2: transient hint (bottom-left) + context (right) ──
+    // ── Line 2: transient hint (bottom-left) + context + cache badge (right) ──
     const contextText = formatContextStatus(
       state.contextUsage,
       state.contextTokens,
       state.maxContextTokens,
     );
-    const contextWidth = visibleWidth(contextText);
+    const hitRateStr = formatCacheHitRate(state.cacheHitRate);
+    const cacheBadge = hitRateStr ? `  cache: ${hitRateStr}` : '';
+    const contextWidth = visibleWidth(contextText) + visibleWidth(cacheBadge);
+    const contextRight =
+      chalk.hex(colors.text)(contextText) +
+      (cacheBadge ? chalk.hex(colors.textDim)(cacheBadge) : '');
     let line2: string;
     if (this.transientHint) {
       const maxHintWidth = Math.max(0, width - contextWidth - 1);
@@ -254,13 +259,10 @@ export class FooterComponent implements Component {
           : truncateToWidth(this.transientHint, maxHintWidth, '…');
       const hintWidth = visibleWidth(shownHint);
       const pad = Math.max(0, width - hintWidth - contextWidth);
-      line2 =
-        chalk.hex(colors.warning).bold(shownHint) +
-        ' '.repeat(pad) +
-        chalk.hex(colors.text)(contextText);
+      line2 = chalk.hex(colors.warning).bold(shownHint) + ' '.repeat(pad) + contextRight;
     } else {
       const leftPad = Math.max(0, width - contextWidth);
-      line2 = ' '.repeat(leftPad) + chalk.hex(colors.text)(contextText);
+      line2 = ' '.repeat(leftPad) + contextRight;
     }
 
     return [truncateToWidth(line1, width), truncateToWidth(line2, width)];

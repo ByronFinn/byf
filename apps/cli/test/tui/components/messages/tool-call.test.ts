@@ -1,7 +1,10 @@
 import type { TUI } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import {
+  formatSubagentTokens,
+  ToolCallComponent,
+} from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
@@ -884,5 +887,143 @@ describe('ToolCallComponent', () => {
     } finally {
       stderr.restore();
     }
+  });
+});
+
+describe('formatSubagentTokens', () => {
+  it('appends cache hit-rate suffix when inputCacheRead > 0', () => {
+    // scenario 1: 87% with k-suffix
+    const result = formatSubagentTokens({
+      inputOther: 1300,
+      inputCacheRead: 8700,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (87%)');
+  });
+
+  it('omits cache suffix when inputCacheRead is 0', () => {
+    // scenario 2: hit rate = 0, no suffix
+    const result = formatSubagentTokens({
+      inputOther: 10000,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('omits cache suffix when all input breakdown fields are 0', () => {
+    // scenario 3: denominator = 0, computeCacheHitRate → undefined, no suffix
+    const result = formatSubagentTokens({
+      inputOther: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('5.0k tok');
+  });
+
+  it('returns undefined for undefined input', () => {
+    // scenario 4
+    expect(formatSubagentTokens(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined when total tokens is 0', () => {
+    // scenario 5: all fields 0
+    const result = formatSubagentTokens({
+      inputOther: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 0,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it('formats percentage without decimals', () => {
+    // scenario 6: 88% exactly, no decimal
+    const result = formatSubagentTokens({
+      inputOther: 1200,
+      inputCacheRead: 8800,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (88%)');
+  });
+
+  it('uses banker rounding for exact .5 ties', () => {
+    // scenario 7: 87.5 → 88 (round-half-to-even: 87 is odd, round up)
+    const result = formatSubagentTokens({
+      inputOther: 1250,
+      inputCacheRead: 8750,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (88%)');
+  });
+
+  it('formats small token counts without k-suffix', () => {
+    // scenario 8: total < 1000, no k-suffix; 10/17 ≈ 59%
+    const result = formatSubagentTokens({
+      inputOther: 5,
+      inputCacheRead: 10,
+      inputCacheCreation: 2,
+      output: 3,
+    });
+    expect(result).toBe('20 tok (59%)');
+  });
+
+  it('computes hit rate with inputCacheCreation in denominator', () => {
+    // scenario 9: 5000 / (1000+5000+4000) = 50%
+    const result = formatSubagentTokens({
+      inputOther: 1000,
+      inputCacheRead: 5000,
+      inputCacheCreation: 4000,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (50%)');
+  });
+
+  it('skips cache suffix when legacy input field is present without breakdown', () => {
+    // scenario 10: legacy input, no breakdown fields — no suffix
+    const result = formatSubagentTokens({
+      input: 10000,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('skips cache suffix when legacy input is present even with breakdown fields', () => {
+    // scenario 11: legacy input present, skip cache computation entirely
+    const result = formatSubagentTokens({
+      input: 10000,
+      inputOther: 1300,
+      inputCacheRead: 8700,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('rounds up to 100% when close to full cache read', () => {
+    // scenario 14: 24900/25000 = 99.6% → rounds to 100%
+    const result = formatSubagentTokens({
+      inputOther: 100,
+      inputCacheRead: 24900,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('30.0k tok (100%)');
+  });
+
+  it('hides suffix for tiny hit rates that round to 0%', () => {
+    // scenario 15: 50/10000 = 0.5% → banker's rounding → 0% → hidden
+    const result = formatSubagentTokens({
+      inputOther: 9950,
+      inputCacheRead: 50,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
   });
 });

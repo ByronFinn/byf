@@ -121,6 +121,9 @@ The stability classification assigned to each `PromptBlock` in a `PromptPlan`: `
 ### Dynamic Zone
 The tail of the projected message array where ephemeral injections (timestamp, permission mode) are appended at the `before_user` position. Content here is per-request and never participates in the cached prefix. Part of the three-zone prompt layout: Cache Zone (stable system prompt blocks + tool specs), Conversation History (clean user/assistant/tool messages), Dynamic Zone (ephemeral per-request content).
 
+### Cache Hit Rate
+The ratio of input tokens served from the provider's prompt cache to total input tokens: `inputCacheRead / (inputOther + inputCacheRead + inputCacheCreation)`. A key metric for prompt cache efficiency. Two distinct scopes exist: **per-turn** (computed from `TokenUsage` of the current turn only, reflects "what just happened") and **session-cumulative** (computed from the aggregated `TokenUsage` across all turns, reflects "overall cache health"). The per-turn value is typically higher after the first turn because it excludes the initial cache-creation cost that permanently lowers the session-cumulative average.
+
 ### Structured Summary
 The compact representation used for masked tool results. Example: `[Bash: 'npm test', exit=0, 127 lines, stderr: none]`. Preserves the tool call metadata and a small head/tail fragment so the agent can decide whether to re-read the full output.
 
