@@ -7,7 +7,6 @@ import {
 } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
-  ChatProvider,
   FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
@@ -16,7 +15,6 @@ import type {
 } from '#/provider';
 import type { PromptPlan } from '#/prompt-plan';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import Anthropic, {
   APIError as AnthropicAPIError,
   APIConnectionError as AnthropicConnectionError,
@@ -42,9 +40,19 @@ import type {
 import { getAnthropicModelCapability } from './capability-registry';
 import {
   mergeRequestHeaders,
-  requireProviderApiKey,
-  resolveAuthBackedClient,
 } from './request-auth';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
+import { makeFinishReasonNormalizer } from './provider-common';
+
+const ANTHROPIC_STOP_REASON_MAP: Readonly<Record<string, FinishReason>> = {
+  end_turn: 'completed',
+  stop_sequence: 'completed',
+  max_tokens: 'truncated',
+  tool_use: 'tool_calls',
+  pause_turn: 'paused',
+  refusal: 'filtered',
+};
 
 /**
  * Normalize an Anthropic `stop_reason` string to the unified
@@ -53,29 +61,7 @@ import {
  * Source: `message.stop_reason` (non-stream) or the last `message_delta`
  * event's `delta.stop_reason` (stream).
  */
-function normalizeAnthropicStopReason(raw: string | null | undefined): {
-  finishReason: FinishReason | null;
-  rawFinishReason: string | null;
-} {
-  if (raw === null || raw === undefined) {
-    return { finishReason: null, rawFinishReason: null };
-  }
-  switch (raw) {
-    case 'end_turn':
-    case 'stop_sequence':
-      return { finishReason: 'completed', rawFinishReason: raw };
-    case 'max_tokens':
-      return { finishReason: 'truncated', rawFinishReason: raw };
-    case 'tool_use':
-      return { finishReason: 'tool_calls', rawFinishReason: raw };
-    case 'pause_turn':
-      return { finishReason: 'paused', rawFinishReason: raw };
-    case 'refusal':
-      return { finishReason: 'filtered', rawFinishReason: raw };
-    default:
-      return { finishReason: 'other', rawFinishReason: raw };
-  }
-}
+const normalizeAnthropicStopReason = makeFinishReasonNormalizer(ANTHROPIC_STOP_REASON_MAP);
 export interface AnthropicOptions {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
@@ -90,6 +76,7 @@ export interface AnthropicOptions {
 }
 
 interface AnthropicGenerationKwargs {
+  [key: string]: unknown;
   max_tokens?: number | undefined;
   temperature?: number | undefined;
   top_k?: number | undefined;
@@ -522,65 +509,50 @@ export function convertAnthropicError(error: unknown): ChatProviderError {
   }
   return new ChatProviderError(`Error: ${String(error)}`);
 }
-class AnthropicStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage = {
-    inputOther: 0,
-    output: 0,
-    inputCacheRead: 0,
-    inputCacheCreation: 0,
-  };
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+class AnthropicStreamedMessage extends BaseStreamedMessage {
+  private readonly _response: unknown;
+  private readonly _isStream: boolean;
 
   constructor(response: unknown, isStream: boolean) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(response as AsyncIterable<MessageStreamEvent>);
-    } else {
-      this._iter = this._convertNonStreamResponse(
-        response as {
-          id: string;
-          stop_reason?: string | null;
-          usage: {
-            input_tokens: number;
-            output_tokens: number;
-            cache_read_input_tokens?: number;
-            cache_creation_input_tokens?: number;
-          };
-          content: Array<{
-            type: string;
-            text?: string;
-            thinking?: string;
-            signature?: string;
-            data?: string;
-            id?: string;
-            name?: string;
-            input?: unknown;
-          }>;
-        },
-      );
+    super();
+    this._response = response;
+    this._isStream = isStream;
+    // Anthropic reports usage on every response, so default to a zeroed
+    // usage object rather than null until the first event arrives.
+    this._usage = {
+      inputOther: 0,
+      output: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    };
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(this._response as AsyncIterable<MessageStreamEvent>);
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(
+      this._response as {
+        id: string;
+        stop_reason?: string | null;
+        usage: {
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_input_tokens?: number;
+          cache_creation_input_tokens?: number;
+        };
+        content: Array<{
+          type: string;
+          text?: string;
+          thinking?: string;
+          signature?: string;
+          data?: string;
+          id?: string;
+          name?: string;
+          input?: unknown;
+        }>;
+      },
+    );
   }
 
   private _captureStopReason(raw: string | null | undefined): void {
@@ -749,16 +721,16 @@ class AnthropicStreamedMessage implements StreamedMessage {
           const deltaUsage = (evt as { usage?: Record<string, unknown> }).usage;
           if (deltaUsage !== undefined) {
             if (typeof deltaUsage['output_tokens'] === 'number') {
-              this._usage.output = deltaUsage['output_tokens'];
+              this._usage!.output = deltaUsage['output_tokens'];
             }
             if (typeof deltaUsage['cache_read_input_tokens'] === 'number') {
-              this._usage.inputCacheRead = deltaUsage['cache_read_input_tokens'];
+              this._usage!.inputCacheRead = deltaUsage['cache_read_input_tokens'];
             }
             if (typeof deltaUsage['cache_creation_input_tokens'] === 'number') {
-              this._usage.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
+              this._usage!.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
             }
             if (typeof deltaUsage['input_tokens'] === 'number') {
-              this._usage.inputOther = deltaUsage['input_tokens'];
+              this._usage!.inputOther = deltaUsage['input_tokens'];
             }
           }
           // The terminal `stop_reason` lives on `delta.stop_reason` of the
@@ -782,40 +754,42 @@ class AnthropicStreamedMessage implements StreamedMessage {
     }
   }
 }
-export class AnthropicChatProvider implements ChatProvider {
+export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationKwargs> {
   readonly name: string = 'anthropic';
 
-  private _model: string;
   private _stream: boolean;
-  private _client: Anthropic | undefined;
-  private _generationKwargs: AnthropicGenerationKwargs;
   private _metadata: Record<string, string> | undefined;
-  private _apiKey: string | undefined;
-  private _baseUrl: string | undefined;
-  private _defaultHeaders: Record<string, string> | undefined;
-  private _clientFactory: ((auth: ProviderRequestAuth) => Anthropic) | undefined;
 
   constructor(options: AnthropicOptions) {
-    this._model = options.model;
-    this._stream = options.stream ?? true;
-    this._metadata = options.metadata;
-    const apiKey = options.apiKey ?? process.env['ANTHROPIC_API_KEY'];
-    this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl;
-    this._defaultHeaders = options.defaultHeaders;
-    this._clientFactory = options.clientFactory;
-    this._client = this._apiKey === undefined ? undefined : this._buildClient(this._apiKey);
-    this._generationKwargs = {
+    const apiKey =
+      options.apiKey === undefined || options.apiKey.length === 0
+        ? (process.env['ANTHROPIC_API_KEY'] ?? undefined)
+        : options.apiKey;
+    const apiKeyResolved = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
+    const baseUrl = options.baseUrl;
+    const client = apiKeyResolved === undefined ? undefined : AnthropicChatProvider.buildClient(apiKeyResolved, baseUrl, options.defaultHeaders);
+    const generationKwargs: AnthropicGenerationKwargs = {
       max_tokens: resolveDefaultMaxTokens(options.model, options.defaultMaxTokens),
       betaFeatures: options.betaFeatures ?? [INTERLEAVED_THINKING_BETA],
     };
+    super(
+      options.model,
+      generationKwargs,
+      apiKeyResolved,
+      baseUrl ?? '',
+      options.defaultHeaders,
+      client,
+      options.clientFactory,
+    );
+    this._stream = options.stream ?? true;
+    this._metadata = options.metadata;
   }
 
-  get modelName(): string {
+  override get modelName(): string {
     return this._model;
   }
 
-  get thinkingEffort(): ThinkingEffort | null {
+  override get thinkingEffort(): ThinkingEffort | null {
     const thinkingConfig = this._generationKwargs.thinking;
     if (thinkingConfig === undefined || thinkingConfig === null) {
       return null;
@@ -839,18 +813,18 @@ export class AnthropicChatProvider implements ChatProvider {
     return 'high';
   }
 
-  get modelParameters(): Record<string, unknown> {
+  override get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       ...this._generationKwargs,
     };
   }
 
-  getCapability(model?: string): ModelCapability {
+  override getCapability(model?: string): ModelCapability {
     return getAnthropicModelCapability(model ?? this._model);
   }
 
-  async generate(
+  override async generate(
     systemPrompt: string,
     tools: Tool[],
     history: Message[],
@@ -949,7 +923,7 @@ export class AnthropicChatProvider implements ChatProvider {
       requestOptions['signal'] = options.signal;
     }
     const finalRequestOptions = Object.keys(requestOptions).length > 0 ? requestOptions : undefined;
-    const client = this._createClient(options?.auth);
+    const client = this._createClient(options?.auth) as Anthropic;
 
     if (this._stream) {
       // Use the raw Messages stream instead of the SDK MessageStream helper.
@@ -978,27 +952,30 @@ export class AnthropicChatProvider implements ChatProvider {
     }
   }
 
-  private _createClient(auth: ProviderRequestAuth | undefined): Anthropic {
-    return resolveAuthBackedClient(
-      { cachedClient: this._client, clientFactory: this._clientFactory },
-      auth,
-      (a) => this._buildClient(requireProviderApiKey('AnthropicChatProvider', a, this._apiKey)),
-    );
+  private static buildClient(
+    apiKey: string,
+    baseUrl: string | undefined,
+    defaultHeaders: Record<string, string> | undefined,
+  ): Anthropic {
+    return new Anthropic({ apiKey, baseURL: baseUrl, defaultHeaders });
   }
 
-  private _buildClient(apiKey: string): Anthropic {
+  protected createRawClient(
+    auth: ResolvedAuth,
+    defaultHeaders: Record<string, string> | undefined,
+  ): Anthropic {
     return new Anthropic({
-      apiKey,
+      apiKey: auth.apiKey,
       baseURL: this._baseUrl,
-      defaultHeaders: this._defaultHeaders,
+      defaultHeaders,
     });
   }
 
-  withThinking(effort: ThinkingEffort): AnthropicChatProvider {
+  override withThinking(effort: ThinkingEffort): AnthropicChatProvider {
     if (effort === 'off') {
       let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
       newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
-      const clone = this._withGenerationKwargs({
+      const clone = this.withGenerationKwargs({
         thinking: { type: 'disabled' },
         betaFeatures: newBetas,
       });
@@ -1014,29 +991,11 @@ export class AnthropicChatProvider implements ChatProvider {
     let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
     newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
 
-    return this._withGenerationKwargs({
+    return this.withGenerationKwargs({
       thinking: { type: 'adaptive', display: 'summarized' },
       output_config: { effort: effectiveEffort },
       betaFeatures: newBetas,
     });
   }
 
-  withGenerationKwargs(kwargs: Partial<AnthropicGenerationKwargs>): AnthropicChatProvider {
-    return this._withGenerationKwargs(kwargs);
-  }
-
-  private _withGenerationKwargs(kwargs: Partial<AnthropicGenerationKwargs>): AnthropicChatProvider {
-    const clone = this._clone();
-    clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
-    return clone;
-  }
-
-  private _clone(): AnthropicChatProvider {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as AnthropicChatProvider,
-      this,
-    );
-    clone._generationKwargs = { ...this._generationKwargs };
-    return clone;
-  }
 }

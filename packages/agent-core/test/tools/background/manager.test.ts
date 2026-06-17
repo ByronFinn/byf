@@ -224,8 +224,9 @@ describe('BackgroundProcessManager', () => {
     const info = manager.getTask(taskId);
     expect(info).toBeDefined();
     expect(info!.status).toBe('running');
-    // Agent tasks use pid=0 (dummy KaosProcess).
-    expect(info!.pid).toBe(0);
+    // Agent tasks have no real pid — BackgroundTaskInfo.pid is null for
+    // Promise-based tasks (ADR 0014 TaskEntry discriminated union).
+    expect(info!.pid).toBeNull();
     // Spec marker: command includes the `[agent]` tag so LLM renderers
     // can distinguish bash vs agent entries when scrolling tasks.
     expect(info!.command).toContain('[agent]');

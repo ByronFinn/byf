@@ -41,7 +41,7 @@ CLI command to configure a catalog provider from models.dev. Complements `/login
 CLI command to open an interactive selector to remove a configured provider. The provider for `defaultModel` is highlighted by default. The `/disconnect` alias behaves identically.
 
 ### Agent
-The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, PlanMode, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
+The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, FullCompaction, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
 
 ### Session
 The outer lifecycle container in `agent-core`. Owns a `SkillRegistry`, `McpConnectionManager`, and a map of `Agent` instances (main + sub-agents). Creates agents, loads skills & MCP servers, manages metadata, triggers hooks.

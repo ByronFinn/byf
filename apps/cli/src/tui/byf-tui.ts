@@ -20,16 +20,13 @@ import {
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
-  log,
-} from '@byfriends/sdk';
-import {
   applyProviderConfig,
   fetchModels,
+  log,
 } from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
   AgentStatusUpdatedEvent,
-  AssistantDeltaEvent,
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
@@ -40,7 +37,6 @@ import type {
   CreateSessionOptions,
   ErrorEvent,
   Event,
-  HookResultEvent,
   ByfHarness,
   McpServerInfo,
   PermissionMode,
@@ -54,16 +50,7 @@ import type {
   SubagentCompletedEvent,
   SubagentFailedEvent,
   SubagentSpawnedEvent,
-  ThinkingDeltaEvent,
-  ToolCallDeltaEvent,
-  ToolCallStartedEvent,
-  ToolProgressEvent,
-  ToolResultEvent,
   TurnEndedEvent,
-  TurnStartedEvent,
-  TurnStepCompletedEvent,
-  TurnStepInterruptedEvent,
-  TurnStepStartedEvent,
   WarningEvent,
 } from '@byfriends/sdk';
 import chalk from 'chalk';
@@ -106,20 +93,11 @@ import {
   resolveSection,
 } from './components/dialogs/approval-panel';
 import { CompactionComponent } from './components/dialogs/compaction';
-import { EditorSelectorComponent } from './components/dialogs/editor-selector';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
-import { HelpPanelComponent } from './components/dialogs/help-panel';
-import { ModelSelectorComponent } from './components/dialogs/model-selector';
-import { PermissionSelectorComponent } from './components/dialogs/permission-selector';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
-import { SessionPickerComponent } from './components/dialogs/session-picker';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
-import {
-  SettingsSelectorComponent,
-  type SettingsSelection,
-} from './components/dialogs/settings-selector';
-import { ThemeSelectorComponent } from './components/dialogs/theme-selector';
 import { CustomEditor } from './components/editor/custom-editor';
+import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
@@ -473,6 +451,7 @@ export class ByfTui implements DialogHost {
   private isShuttingDown = false;
   private readonly turnEventHandler: TurnEventHandler;
   private readonly tasksBrowserController: TasksBrowserController;
+  private readonly dialogManager: DialogManager;
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
@@ -501,6 +480,7 @@ export class ByfTui implements DialogHost {
     this.state = createTUIState(tuiOptions);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
     this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
+    this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -648,7 +628,7 @@ export class ByfTui implements DialogHost {
     }
     void this.showTmuxKeyboardWarningIfNeeded();
     if (this.state.startupState === 'picker') {
-      void this.bootstrapFromPicker();
+      void this.dialogManager.bootstrapFromPicker();
       // resumeSession (fired on picker select) owns post-pick init; nothing
       // else to do here until the user makes a choice.
       return;
@@ -1070,7 +1050,7 @@ export class ByfTui implements DialogHost {
     editor.onEscape = () => {
       if (this.pendingExit) this.clearPendingExit();
       if (this.state.showingSessionPicker) {
-        this.hideSessionPicker();
+        this.dialogManager.hideSessionPicker();
         return;
       }
       if (this.state.appState.isStreaming) {
@@ -1364,7 +1344,7 @@ export class ByfTui implements DialogHost {
         void this.stop();
         return;
       case 'help':
-        this.showHelpPanel();
+        this.dialogManager.showHelpPanel();
         return;
       case 'version':
         this.showStatus(`Byf Code v${this.state.appState.version}`);
@@ -1374,7 +1354,7 @@ export class ByfTui implements DialogHost {
         this.state.ui.requestRender();
         return;
       case 'sessions':
-        void this.showSessionPicker();
+        void this.dialogManager.showSessionPicker();
         return;
       case 'tasks':
         if (this.session === undefined) {
@@ -1396,10 +1376,10 @@ export class ByfTui implements DialogHost {
         this.handleModelCommand(args);
         return;
       case 'permission':
-        this.showPermissionPicker();
+        this.dialogManager.showPermissionPicker();
         return;
       case 'settings':
-        this.showSettingsSelector();
+        this.dialogManager.showSettingsSelector();
         return;
       case 'usage':
         void this.showUsage();
@@ -2056,42 +2036,42 @@ export class ByfTui implements DialogHost {
 
     switch (event.type) {
       case 'turn.started':
-        this.handleTurnBegin(event);
+        this.turnEventHandler.handleTurnBegin(event);
         break;
       case 'turn.ended':
         this.handleTurnEnd(event, sendQueued);
         break;
       case 'turn.step.started':
-        this.handleStepBegin(event);
+        this.turnEventHandler.handleStepBegin(event);
         break;
       case 'turn.step.interrupted':
-        this.handleStepInterrupted(event);
+        this.turnEventHandler.handleStepInterrupted(event);
         break;
       case 'turn.step.completed':
-        this.handleStepCompleted(event);
+        this.turnEventHandler.handleStepCompleted(event);
         break;
       case 'turn.step.retrying':
         break;
       case 'tool.progress':
-        this.handleToolProgress(event);
+        this.turnEventHandler.handleToolProgress(event);
         break;
       case 'assistant.delta':
-        this.handleAssistantDelta(event);
+        this.turnEventHandler.handleAssistantDelta(event);
         break;
       case 'hook.result':
-        this.handleHookResult(event);
+        this.turnEventHandler.handleHookResult(event);
         break;
       case 'thinking.delta':
-        this.handleThinkingDelta(event);
+        this.turnEventHandler.handleThinkingDelta(event);
         break;
       case 'tool.call.started':
-        this.handleToolCall(event);
+        this.turnEventHandler.handleToolCall(event);
         break;
       case 'tool.call.delta':
-        this.handleToolCallDelta(event);
+        this.turnEventHandler.handleToolCallDelta(event);
         break;
       case 'tool.result':
-        this.handleToolResult(event);
+        this.turnEventHandler.handleToolResult(event);
         break;
       case 'agent.status.updated':
         this.handleStatusUpdate(event);
@@ -2148,10 +2128,6 @@ export class ByfTui implements DialogHost {
     return routeSubagentEventImpl(event, this.subagentEventState());
   }
 
-  // Initializes turn-scoped buffers when the SDK starts a turn.
-  private handleTurnBegin(event: TurnStartedEvent): void {
-    this.turnEventHandler.handleTurnBegin(event);
-  }
 
   // Finalizes turn-scoped state when the SDK completes a turn.
   private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
@@ -2164,22 +2140,7 @@ export class ByfTui implements DialogHost {
     this.turnEventHandler.handleTurnEnd(event, sendQueued);
   }
 
-  // Resets live render state for a new turn step.
-  private handleStepBegin(event: TurnStepStartedEvent): void {
-    this.turnEventHandler.handleStepBegin(event);
-  }
 
-  // Surfaces step-level outcomes the user needs to act on. The common
-  // case (finishReason === 'tool_use' or 'end_turn') is silent — those
-  // already render via tool.call.started/tool.result and assistant.delta.
-  // The interesting case is max_tokens: the model started a tool_use but
-  // ran out of budget before finalizing it, so the partial tool call is
-  // still pinned in 'Preparing' state with no signal that anything went
-  // wrong. Flip those into a visible 'Truncated' state and append a
-  // notice pointing at the config knob.
-  private handleStepCompleted(event: TurnStepCompletedEvent): void {
-    this.turnEventHandler.handleStepCompleted(event);
-  }
 
   private isAnthropicSessionActive(): boolean {
     const providerKey = this.state.appState.availableModels[this.state.appState.model]?.provider;
@@ -2187,48 +2148,13 @@ export class ByfTui implements DialogHost {
     return this.state.appState.availableProviders[providerKey]?.type === 'anthropic';
   }
 
-  // Renders user-facing status for an interrupted turn step.
-  private handleStepInterrupted(event: TurnStepInterruptedEvent): void {
-    this.turnEventHandler.handleStepInterrupted(event);
-  }
 
-  // Appends a thinking delta to the live thinking block.
-  private handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    this.turnEventHandler.handleThinkingDelta(event);
-  }
 
-  // Appends an assistant text delta to the live assistant block.
-  private handleAssistantDelta(event: AssistantDeltaEvent): void {
-    this.turnEventHandler.handleAssistantDelta(event);
-  }
 
-  private handleHookResult(event: HookResultEvent): void {
-    this.turnEventHandler.handleHookResult(event);
-  }
 
-  // Starts or updates a rendered tool call from a tool-call start event.
-  private handleToolCall(event: ToolCallStartedEvent): void {
-    this.turnEventHandler.handleToolCall(event);
-  }
 
-  // Accumulates streaming tool-call arguments and updates the rendered call.
-  private handleToolCallDelta(event: ToolCallDeltaEvent): void {
-    this.turnEventHandler.handleToolCallDelta(event);
-  }
 
-  // Streams a `{kind:'status'}` progress text into the live tool box so
-  // long-blocking tools (e.g. the MCP synthetic `authenticate` tool whose
-  // 15-minute browser wait would otherwise show only a spinner) can surface
-  // their authorization URL. Non-status update kinds stay out of the terminal
-  // transcript because only status text needs persistent display.
-  private handleToolProgress(event: ToolProgressEvent): void {
-    this.turnEventHandler.handleToolProgress(event);
-  }
 
-  // Completes a tool call and applies any tool-specific UI side effects.
-  private handleToolResult(event: ToolResultEvent): void {
-    this.turnEventHandler.handleToolResult(event);
-  }
 
   private turnEventState(): TurnEventState {
     const state = this.state;
@@ -2293,6 +2219,23 @@ export class ByfTui implements DialogHost {
       showError: (msg) =>{  this.showError(msg); },
       showStatus: (msg, color) =>{  this.showStatus(msg, color); },
       setAppState: (patch) =>{  this.setAppState(patch); },
+    };
+  }
+
+  private dialogManagerCallbacks(): DialogManagerCallbacks {
+    return {
+      fetchSessions: () => this.fetchSessions(),
+      resumeSession: (sessionId) => this.resumeSession(sessionId),
+      applyEditorChoice: (value) => this.applyEditorChoice(value),
+      performModelSwitch: (alias, thinkingEffort) => this.performModelSwitch(alias, thinkingEffort),
+      applyPermissionChoice: (mode) => this.applyPermissionChoice(mode),
+      applyThemeChoice: (theme) => this.applyThemeChoice(theme),
+      showUsage: () => this.showUsage(),
+      getSlashCommands: () => this.getSlashCommands(),
+      showNotice: (title, detail) => {
+        this.showNotice(title, detail);
+      },
+      stop: () => this.stop(),
     };
   }
 
@@ -3313,70 +3256,7 @@ export class ByfTui implements DialogHost {
     this.restoreEditor();
   }
 
-  // Shows the help panel with the current slash command list.
-  private showHelpPanel(): void {
-    this.state.showingHelpPanel = true;
-    this.mountEditorReplacement(
-      new HelpPanelComponent({
-        commands: this.getSlashCommands(),
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.hideHelpPanel();
-        },
-      }),
-    );
-  }
-
-  // Hides the help panel and returns focus to the editor.
-  private hideHelpPanel(): void {
-    this.state.showingHelpPanel = false;
-    this.restoreEditor();
-  }
-
   // Loads sessions and shows the session picker.
-  private async showSessionPicker(): Promise<void> {
-    await this.fetchSessions();
-    this.mountSessionPicker(() => {
-      this.hideSessionPicker();
-    });
-  }
-
-  // Shows the startup session picker and exits when it is cancelled.
-  private async bootstrapFromPicker(): Promise<void> {
-    await this.fetchSessions();
-    this.mountSessionPicker(() => {
-      this.hideSessionPicker();
-      void this.stop();
-    });
-  }
-
-  // Hides the session picker and restores the editor.
-  private hideSessionPicker(): void {
-    this.state.showingSessionPicker = false;
-    this.restoreEditor();
-  }
-
-  // Mounts a session picker with shared selection behavior.
-  private mountSessionPicker(onCancel: () => void): void {
-    this.state.showingSessionPicker = true;
-    this.mountEditorReplacement(
-      new SessionPickerComponent({
-        sessions: this.state.sessions,
-        loading: this.state.loadingSessions,
-        currentSessionId: this.state.appState.sessionId,
-        colors: this.state.theme.colors,
-        onSelect: (sessionId: string) => {
-          void this.resumeSession(sessionId).then((switched) => {
-            if (switched) {
-              this.hideSessionPicker();
-            }
-          });
-        },
-        onCancel,
-      }),
-    );
-  }
-
   private createTasksBrowserEnv(): TasksBrowserEnv {
     return {
       host: {
@@ -3428,24 +3308,6 @@ export class ByfTui implements DialogHost {
     };
   }
 
-  // Shows the editor command selector.
-  private showEditorPicker(): void {
-    const currentValue = this.state.appState.editorCommand ?? '';
-    this.mountEditorReplacement(
-      new EditorSelectorComponent({
-        currentValue,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyEditorChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
   // Persists and applies the selected external editor command.
   private async applyEditorChoice(value: string): Promise<void> {
     const previous = this.state.appState.editorCommand ?? '';
@@ -3474,35 +3336,6 @@ export class ByfTui implements DialogHost {
       value.length > 0
         ? `Editor set to "${value}".`
         : 'Editor set to auto-detect ($VISUAL / $EDITOR).',
-    );
-  }
-
-  // Shows the model selector when models are available.
-  private showModelPicker(selectedValue: string = this.state.appState.model): void {
-    const entries = Object.entries(this.state.appState.availableModels);
-    if (entries.length === 0) {
-      this.showNotice(
-        'No models configured',
-        'Run /login or /connect to add a provider.',
-      );
-      return;
-    }
-    this.mountEditorReplacement(
-      new ModelSelectorComponent({
-        models: this.state.appState.availableModels,
-        currentValue: this.state.appState.model,
-        selectedValue,
-        currentThinkingEffort: this.state.appState.thinkingEffort,
-        colors: this.state.theme.colors,
-        searchable: true,
-        onSelect: ({ alias, thinkingEffort }) => {
-          this.restoreEditor();
-          void this.performModelSwitch(alias, thinkingEffort);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
     );
   }
 
@@ -3584,77 +3417,6 @@ export class ByfTui implements DialogHost {
       thinking: thinkingConfig,
     });
     return true;
-  }
-
-  // Shows the theme selector.
-  private showThemePicker(): void {
-    this.mountEditorReplacement(
-      new ThemeSelectorComponent({
-        currentValue: this.state.appState.theme,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyThemeChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Shows the permission mode selector.
-  private showPermissionPicker(): void {
-    this.mountEditorReplacement(
-      new PermissionSelectorComponent({
-        currentValue: this.state.appState.permissionMode,
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.restoreEditor();
-          void this.applyPermissionChoice(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Shows the settings selector entry point.
-  private showSettingsSelector(): void {
-    this.mountEditorReplacement(
-      new SettingsSelectorComponent({
-        colors: this.state.theme.colors,
-        onSelect: (value) => {
-          this.handleSettingsSelection(value);
-        },
-        onCancel: () => {
-          this.restoreEditor();
-        },
-      }),
-    );
-  }
-
-  // Routes a settings selection to the matching selector or panel.
-  private handleSettingsSelection(value: SettingsSelection): void {
-    this.restoreEditor();
-    switch (value) {
-      case 'model':
-        this.showModelPicker();
-        return;
-      case 'permission':
-        this.showPermissionPicker();
-        return;
-      case 'theme':
-        this.showThemePicker();
-        return;
-      case 'editor':
-        this.showEditorPicker();
-        return;
-      case 'usage':
-        void this.showUsage();
-        return;
-    }
   }
 
   // Applies a permission mode choice to the active session and app state.
@@ -3877,7 +3639,7 @@ export class ByfTui implements DialogHost {
   private async handleEditorCommand(args: string, _eCtx: {}): Promise<void> {
     const command = args.trim();
     if (command.length === 0) {
-      this.showEditorPicker();
+      this.dialogManager.showEditorPicker();
       return;
     }
     await this.applyEditorChoice(command);
@@ -3887,7 +3649,7 @@ export class ByfTui implements DialogHost {
   private async handleThemeCommand(args: string): Promise<void> {
     const theme = args.trim();
     if (theme.length === 0) {
-      this.showThemePicker();
+      this.dialogManager.showThemePicker();
       return;
     }
     if (!isTheme(theme)) {
@@ -3901,14 +3663,14 @@ export class ByfTui implements DialogHost {
   private handleModelCommand(args: string): void {
     const alias = args.trim();
     if (alias.length === 0) {
-      this.showModelPicker();
+      this.dialogManager.showModelPicker();
       return;
     }
     if (this.state.appState.availableModels[alias] === undefined) {
       this.showError(`Unknown model alias: ${alias}`);
       return;
     }
-    this.showModelPicker(alias);
+    this.dialogManager.showModelPicker(alias);
   }
 
   // Handles the /title command.

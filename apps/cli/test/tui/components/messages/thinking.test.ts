@@ -2,6 +2,7 @@ import type { TUI } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
+import { SPINNER_FRAMES } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
 
@@ -16,9 +17,9 @@ describe('ThinkingComponent', () => {
     const component = new ThinkingComponent('working it out', darkColors, true, 'live');
     const out = strip(component.render(80).join('\n'));
 
-    expect(out).toContain('◐ thinking...');
-    expect(out).not.toContain('  ◐ thinking...');
-    expect(out).not.toContain(`${STATUS_BULLET}◐`);
+    expect(out).toContain(`${SPINNER_FRAMES[0]} thinking...`);
+    expect(out).not.toContain(`  ${SPINNER_FRAMES[0]} thinking...`);
+    expect(out).not.toContain(`${STATUS_BULLET}${SPINNER_FRAMES[0]}`);
     expect(out).toContain('  working it out');
   });
 
@@ -40,11 +41,11 @@ describe('ThinkingComponent', () => {
       requestRender,
     } as unknown as TUI);
 
-    expect(strip(component.render(80).join('\n'))).toContain('◐ thinking...');
+    expect(strip(component.render(80).join('\n'))).toContain(`${SPINNER_FRAMES[0]} thinking...`);
 
     vi.advanceTimersByTime(80);
     expect(requestRender).toHaveBeenCalled();
-    expect(strip(component.render(80).join('\n'))).toContain('◓ thinking...');
+    expect(strip(component.render(80).join('\n'))).toContain(`${SPINNER_FRAMES[1]} thinking...`);
 
     component.finalize();
     requestRender.mockClear();

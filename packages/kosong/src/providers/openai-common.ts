@@ -9,6 +9,7 @@ import type { ContentPart, Message } from '#/message';
 import type { FinishReason, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
+import { makeFinishReasonNormalizer } from './provider-common';
 import {
   APIConnectionError as OpenAIConnectionError,
   APIConnectionTimeoutError as OpenAITimeoutError,
@@ -260,6 +261,14 @@ export function extractUsage(usage: unknown): TokenUsage | null {
     inputCacheCreation: 0,
   };
 }
+const OPENAI_FINISH_REASON_MAP: Readonly<Record<string, FinishReason>> = {
+  stop: 'completed',
+  tool_calls: 'tool_calls',
+  function_call: 'tool_calls',
+  length: 'truncated',
+  content_filter: 'filtered',
+};
+
 /**
  * Normalize an OpenAI Chat Completions–style `finish_reason` string to the
  * unified {@link FinishReason} enum.
@@ -277,27 +286,7 @@ export function extractUsage(usage: unknown): TokenUsage | null {
  * - `'content_filter'` → `'filtered'`
  * - any other non-null string → `'other'`
  */
-export function normalizeOpenAIFinishReason(raw: string | null | undefined): {
-  finishReason: FinishReason | null;
-  rawFinishReason: string | null;
-} {
-  if (raw === null || raw === undefined) {
-    return { finishReason: null, rawFinishReason: null };
-  }
-  switch (raw) {
-    case 'stop':
-      return { finishReason: 'completed', rawFinishReason: raw };
-    case 'tool_calls':
-    case 'function_call':
-      return { finishReason: 'tool_calls', rawFinishReason: raw };
-    case 'length':
-      return { finishReason: 'truncated', rawFinishReason: raw };
-    case 'content_filter':
-      return { finishReason: 'filtered', rawFinishReason: raw };
-    default:
-      return { finishReason: 'other', rawFinishReason: raw };
-  }
-}
+export const normalizeOpenAIFinishReason = makeFinishReasonNormalizer(OPENAI_FINISH_REASON_MAP);
 /**
  * Strategy for converting tool-role message content.
  *
