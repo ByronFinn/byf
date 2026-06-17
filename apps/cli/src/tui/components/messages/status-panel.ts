@@ -11,9 +11,12 @@ import chalk from 'chalk';
 import { PRODUCT_NAME } from '#/constant/app';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
+  computeCacheHitRate,
+  formatCacheHitRate,
   formatTokenCount,
   ratioSeverity,
   renderProgressBar,
+  safeNumber,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
 
@@ -45,6 +48,7 @@ export interface StatusReportOptions {
 }
 
 type Colorize = (text: string) => string;
+
 
 function displayModelName(alias: string, models: Record<string, ModelAlias>): string {
   const model = models[alias];
@@ -129,6 +133,33 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     );
   } else {
     lines.push(`  ${muted('No context window data available.')}`);
+  }
+
+  // Cache section
+  const total = options.status?.usage?.total;
+  if (total !== undefined) {
+    const hitRate = computeCacheHitRate(
+      safeNumber(total.inputOther),
+      safeNumber(total.inputCacheRead),
+      safeNumber(total.inputCacheCreation),
+    );
+    const hitRateStr = formatCacheHitRate(hitRate);
+    if (hitRateStr !== undefined) {
+      const labelWidth = Math.max(10, ...rows.map((r) => r.label.length));
+      const cacheLabel = muted('Cache'.padEnd(labelWidth));
+      const cacheValue =
+        muted(hitRateStr) +
+        '  ' +
+        muted('(') +
+        formatTokenCount(safeNumber(total.inputCacheRead)) +
+        ' read' +
+        ' / ' +
+        formatTokenCount(safeNumber(total.inputCacheCreation)) +
+        ' write' +
+        muted(')');
+      lines.push('');
+      lines.push('  ' + cacheLabel + '  ' + cacheValue);
+    }
   }
 
   const managedSection = buildManagedUsageReportLines({

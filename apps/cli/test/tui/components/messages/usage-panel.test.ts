@@ -37,7 +37,7 @@ describe('UsagePanelComponent', () => {
     }).map(strip);
 
     expect(lines).toContain('Session usage');
-    expect(lines).toContain('  byf  input 2.0k  output 250  total 2.3k');
+    expect(lines).toContain('  byf  input 2.0k (cache 25%)  output 250  total 2.3k');
     expect(lines).toContain('Context window');
     expect(lines.join('\n')).toContain('25.0%');
     expect(lines).toContain('Plan usage');
@@ -63,5 +63,535 @@ describe('UsagePanelComponent', () => {
     for (const line of output) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(width);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cache hit-rate suffix — Acceptance Criterion #1: /usage panel per-model
+// and total-row (cache XX%) suffix
+// ---------------------------------------------------------------------------
+
+describe('buildUsageReportLines — cache hit-rate suffix', () => {
+  // ---- single model -------------------------------------------------------
+
+  it('shows cache suffix when model has substantial cache reads (70% hit rate)', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 1000,
+            inputCacheRead: 7000,
+            inputCacheCreation: 2000,
+            output: 3000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('Session usage');
+    const modelLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 10.0k (cache 70%)');
+  });
+
+  it('omits cache suffix when all cache fields are 0', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'gpt-5': {
+            inputOther: 1000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('gpt-5'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 1.0k');
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('omits cache suffix for first turn (cache writes but no reads)', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 8000,
+            inputCacheRead: 0,
+            inputCacheCreation: 2000,
+            output: 1000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 10.0k');
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('shows 100% cache when all input tokens served from cache', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 0,
+            inputCacheRead: 5000,
+            inputCacheCreation: 0,
+            output: 2000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 5.0k (cache 100%)');
+  });
+
+  it('shows 1% cache with very small hit rate', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 9900,
+            inputCacheRead: 100,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 10.0k (cache 1%)');
+  });
+
+  it('handles zero denominator — all input fields zero, shows "input 0" with no suffix', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 0,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 100,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 0');
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('shows integer precision — 33.3% rounds down to 33%', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 333,
+            inputCacheRead: 333,
+            inputCacheCreation: 334,
+            output: 100,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('model'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 1.0k (cache 33%)');
+  });
+
+  it('rounds up — 99.6% rounds to 100%', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 4,
+            inputCacheRead: 996,
+            inputCacheCreation: 0,
+            output: 100,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('model'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 1.0k (cache 100%)');
+  });
+
+  it('rounds down — 99.4% rounds to 99%', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 6,
+            inputCacheRead: 994,
+            inputCacheCreation: 0,
+            output: 100,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('model'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 1.0k (cache 99%)');
+  });
+
+  it('omits cache suffix for provider without cache support', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          gemini: {
+            inputOther: 5000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 2000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('gemini'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 5.0k');
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('omits cache suffix when only cache creation, zero other input', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 0,
+            inputCacheRead: 0,
+            inputCacheCreation: 5000,
+            output: 1000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('model'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 5.0k');
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('shows M-scale formatting with cache suffix for large values', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 500000,
+            inputCacheRead: 1_500_000,
+            inputCacheCreation: 0,
+            output: 200000,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const modelLine = lines.find((l) => l.includes('model'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).toContain('input 2.0M (cache 75%)');
+  });
+
+  // ---- multi-model --------------------------------------------------------
+
+  it('mixed cache states — one cached model, one not, total shows aggregated hit rate', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          'claude-sonnet': {
+            inputOther: 2000,
+            inputCacheRead: 6000,
+            inputCacheCreation: 2000,
+            output: 1000,
+          },
+          'gpt-5': {
+            inputOther: 3000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const claudeLine = lines.find((l) => l.includes('claude-sonnet'));
+    expect(claudeLine).toBeDefined();
+    expect(claudeLine).toContain('input 10.0k (cache 60%)');
+
+    const gptLine = lines.find((l) => l.includes('gpt-5'));
+    expect(gptLine).toBeDefined();
+    expect(gptLine).toContain('input 3.0k');
+    expect(gptLine).not.toContain('(cache');
+
+    const totalLine = lines.find((l) => l.startsWith('  total'));
+    expect(totalLine).toBeDefined();
+    // 6000 / 13000 ≈ 46.15% → 46%
+    expect(totalLine).toContain('input 13.0k (cache 46%)');
+  });
+
+  it('multi-model, no cache at all — all rows and total omit suffix', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          a: {
+            inputOther: 1000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+          b: {
+            inputOther: 2000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 300,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    for (const model of ['a', 'b']) {
+      const modelLine = lines.find((l) => l.includes(`  ${model}`));
+      expect(modelLine).toBeDefined();
+      expect(modelLine).not.toContain('(cache');
+    }
+
+    const totalLine = lines.find((l) => l.startsWith('  total'));
+    expect(totalLine).toBeDefined();
+    expect(totalLine).not.toContain('(cache');
+  });
+
+  it('one model 100% cache, one model no cache — total shows aggregated', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          a: {
+            inputOther: 0,
+            inputCacheRead: 5000,
+            inputCacheCreation: 0,
+            output: 1000,
+          },
+          b: {
+            inputOther: 3000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const lineA = lines.find((l) => l.includes('  a'));
+    expect(lineA).toBeDefined();
+    expect(lineA).toContain('input 5.0k (cache 100%)');
+
+    const lineB = lines.find((l) => l.includes('  b'));
+    expect(lineB).toBeDefined();
+    expect(lineB).toContain('input 3.0k');
+    expect(lineB).not.toContain('(cache');
+
+    const totalLine = lines.find((l) => l.startsWith('  total'));
+    expect(totalLine).toBeDefined();
+    // 5000 / 8000 = 62.5% → 62%
+    expect(totalLine).toContain('input 8.0k (cache 62%)');
+  });
+
+  it('three models with different hit rates, total shows aggregated', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          a: {
+            inputOther: 1000,
+            inputCacheRead: 4000,
+            inputCacheCreation: 0,
+            output: 500,
+          },
+          b: {
+            inputOther: 2000,
+            inputCacheRead: 2000,
+            inputCacheCreation: 1000,
+            output: 300,
+          },
+          c: {
+            inputOther: 500,
+            inputCacheRead: 500,
+            inputCacheCreation: 9000,
+            output: 200,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const lineA = lines.find((l) => l.includes('  a'));
+    expect(lineA).toBeDefined();
+    // 4000 / 5000 = 80%
+    expect(lineA).toContain('input 5.0k (cache 80%)');
+
+    const lineB = lines.find((l) => l.includes('  b'));
+    expect(lineB).toBeDefined();
+    // 2000 / 5000 = 40%
+    expect(lineB).toContain('input 5.0k (cache 40%)');
+
+    const lineC = lines.find((l) => l.includes('  c'));
+    expect(lineC).toBeDefined();
+    // 500 / 10000 = 5%
+    expect(lineC).toContain('input 10.0k (cache 5%)');
+
+    const totalLine = lines.find((l) => l.startsWith('  total'));
+    expect(totalLine).toBeDefined();
+    // total cache read = 4000 + 2000 + 500 = 6500
+    // total input = 5000 + 5000 + 10000 = 20000
+    // 6500 / 20000 = 32.5% → 32%
+    expect(totalLine).toContain('input 20.0k (cache 32%)');
+  });
+
+  // ---- regression and error states ----------------------------------------
+
+  it('full output preserved when no cache data — no regression', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          byf: {
+            inputOther: 1000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 250,
+          },
+        },
+      } as never,
+      contextUsage: 0.25,
+      contextTokens: 2500,
+      maxContextTokens: 10000,
+      managedUsage: {
+        summary: {
+          label: 'daily',
+          used: 20,
+          limit: 100,
+          resetHint: 'resets tomorrow',
+        },
+        limits: [],
+      },
+    }).map(strip);
+
+    expect(lines).toContain('Session usage');
+    expect(lines).toContain('Context window');
+    expect(lines.join('\n')).toContain('25.0%');
+    expect(lines).toContain('Plan usage');
+    expect(lines.join('\n')).toContain('80% left');
+    expect(lines.join('\n')).toContain('(resets tomorrow)');
+
+    const modelLine = lines.find((l) => l.includes('byf'));
+    expect(modelLine).toBeDefined();
+    expect(modelLine).not.toContain('(cache');
+  });
+
+  it('shows error message when sessionUsageError present', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsageError: 'Failed to fetch usage',
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('  Failed to fetch usage');
+    // No cache-related content should appear in error path
+    expect(lines.join('\n')).not.toContain('(cache');
+  });
+
+  it('shows empty message when byModel has no models recorded', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {},
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('  No token usage recorded yet.');
+    // No cache-related content should appear in empty path
+    expect(lines.join('\n')).not.toContain('(cache');
   });
 });

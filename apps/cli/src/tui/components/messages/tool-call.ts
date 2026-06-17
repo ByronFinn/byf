@@ -21,6 +21,7 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
+import { computeCacheHitRate, formatCacheHitRate } from '#/utils/usage/usage-format';
 
 import { ShellExecutionComponent } from './shell-execution';
 import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
@@ -111,12 +112,27 @@ function usageInputTotal(usage: SubagentTokenUsage): number {
   );
 }
 
-function formatSubagentTokens(usage: SubagentTokenUsage | undefined): string | undefined {
+export function formatSubagentTokens(usage: SubagentTokenUsage | undefined): string | undefined {
   if (usage === undefined) return undefined;
   const total = usageInputTotal(usage) + usage.output;
   if (total <= 0) return undefined;
   const formatted = total >= 1000 ? `${(total / 1000).toFixed(1)}k` : String(total);
-  return `${formatted} tok`;
+
+  // Cache hit-rate suffix — use breakdown fields from SubagentTokenUsage.
+  // When legacy `input` is present, skip (denominator mismatch).
+  let cacheSuffix = '';
+  if (usage.input === undefined || usage.input === 0) {
+    const hitRate = computeCacheHitRate(
+      usage.inputOther ?? 0,
+      usage.inputCacheRead ?? 0,
+      usage.inputCacheCreation ?? 0,
+    );
+    const hitRateStr = formatCacheHitRate(hitRate);
+    if (hitRateStr !== undefined) {
+      cacheSuffix = ` (${hitRateStr})`;
+    }
+  }
+  return `${formatted} tok${cacheSuffix}`;
 }
 
 function formatByteSize(bytes: number): string {
