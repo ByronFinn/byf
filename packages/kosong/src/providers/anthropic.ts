@@ -42,9 +42,8 @@ import type {
 import { getAnthropicModelCapability } from './capability-registry';
 import {
   mergeRequestHeaders,
-  requireProviderApiKey,
-  resolveAuthBackedClient,
 } from './request-auth';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
 
 /**
  * Normalize an Anthropic `stop_reason` string to the unified
@@ -90,6 +89,7 @@ export interface AnthropicOptions {
 }
 
 interface AnthropicGenerationKwargs {
+  [key: string]: unknown;
   max_tokens?: number | undefined;
   temperature?: number | undefined;
   top_k?: number | undefined;
@@ -782,40 +782,42 @@ class AnthropicStreamedMessage implements StreamedMessage {
     }
   }
 }
-export class AnthropicChatProvider implements ChatProvider {
+export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationKwargs> {
   readonly name: string = 'anthropic';
 
-  private _model: string;
   private _stream: boolean;
-  private _client: Anthropic | undefined;
-  private _generationKwargs: AnthropicGenerationKwargs;
   private _metadata: Record<string, string> | undefined;
-  private _apiKey: string | undefined;
-  private _baseUrl: string | undefined;
-  private _defaultHeaders: Record<string, string> | undefined;
-  private _clientFactory: ((auth: ProviderRequestAuth) => Anthropic) | undefined;
 
   constructor(options: AnthropicOptions) {
-    this._model = options.model;
-    this._stream = options.stream ?? true;
-    this._metadata = options.metadata;
-    const apiKey = options.apiKey ?? process.env['ANTHROPIC_API_KEY'];
-    this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl;
-    this._defaultHeaders = options.defaultHeaders;
-    this._clientFactory = options.clientFactory;
-    this._client = this._apiKey === undefined ? undefined : this._buildClient(this._apiKey);
-    this._generationKwargs = {
+    const apiKey =
+      options.apiKey === undefined || options.apiKey.length === 0
+        ? (process.env['ANTHROPIC_API_KEY'] ?? undefined)
+        : options.apiKey;
+    const apiKeyResolved = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
+    const baseUrl = options.baseUrl;
+    const client = apiKeyResolved === undefined ? undefined : AnthropicChatProvider.buildClient(apiKeyResolved, baseUrl, options.defaultHeaders);
+    const generationKwargs: AnthropicGenerationKwargs = {
       max_tokens: resolveDefaultMaxTokens(options.model, options.defaultMaxTokens),
       betaFeatures: options.betaFeatures ?? [INTERLEAVED_THINKING_BETA],
     };
+    super(
+      options.model,
+      generationKwargs,
+      apiKeyResolved,
+      baseUrl ?? '',
+      options.defaultHeaders,
+      client,
+      options.clientFactory,
+    );
+    this._stream = options.stream ?? true;
+    this._metadata = options.metadata;
   }
 
-  get modelName(): string {
+  override get modelName(): string {
     return this._model;
   }
 
-  get thinkingEffort(): ThinkingEffort | null {
+  override get thinkingEffort(): ThinkingEffort | null {
     const thinkingConfig = this._generationKwargs.thinking;
     if (thinkingConfig === undefined || thinkingConfig === null) {
       return null;
@@ -839,18 +841,18 @@ export class AnthropicChatProvider implements ChatProvider {
     return 'high';
   }
 
-  get modelParameters(): Record<string, unknown> {
+  override get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       ...this._generationKwargs,
     };
   }
 
-  getCapability(model?: string): ModelCapability {
+  override getCapability(model?: string): ModelCapability {
     return getAnthropicModelCapability(model ?? this._model);
   }
 
-  async generate(
+  override async generate(
     systemPrompt: string,
     tools: Tool[],
     history: Message[],
@@ -949,7 +951,7 @@ export class AnthropicChatProvider implements ChatProvider {
       requestOptions['signal'] = options.signal;
     }
     const finalRequestOptions = Object.keys(requestOptions).length > 0 ? requestOptions : undefined;
-    const client = this._createClient(options?.auth);
+    const client = this._createClient(options?.auth) as Anthropic;
 
     if (this._stream) {
       // Use the raw Messages stream instead of the SDK MessageStream helper.
@@ -978,27 +980,30 @@ export class AnthropicChatProvider implements ChatProvider {
     }
   }
 
-  private _createClient(auth: ProviderRequestAuth | undefined): Anthropic {
-    return resolveAuthBackedClient(
-      { cachedClient: this._client, clientFactory: this._clientFactory },
-      auth,
-      (a) => this._buildClient(requireProviderApiKey('AnthropicChatProvider', a, this._apiKey)),
-    );
+  private static buildClient(
+    apiKey: string,
+    baseUrl: string | undefined,
+    defaultHeaders: Record<string, string> | undefined,
+  ): Anthropic {
+    return new Anthropic({ apiKey, baseURL: baseUrl, defaultHeaders });
   }
 
-  private _buildClient(apiKey: string): Anthropic {
+  protected createRawClient(
+    auth: ResolvedAuth,
+    _defaultHeaders: Record<string, string> | undefined,
+  ): Anthropic {
     return new Anthropic({
-      apiKey,
+      apiKey: auth.apiKey,
       baseURL: this._baseUrl,
       defaultHeaders: this._defaultHeaders,
     });
   }
 
-  withThinking(effort: ThinkingEffort): AnthropicChatProvider {
+  override withThinking(effort: ThinkingEffort): AnthropicChatProvider {
     if (effort === 'off') {
       let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
       newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
-      const clone = this._withGenerationKwargs({
+      const clone = this.withGenerationKwargs({
         thinking: { type: 'disabled' },
         betaFeatures: newBetas,
       });
@@ -1014,29 +1019,11 @@ export class AnthropicChatProvider implements ChatProvider {
     let newBetas = [...(this._generationKwargs.betaFeatures ?? [])];
     newBetas = newBetas.filter((b) => b !== INTERLEAVED_THINKING_BETA);
 
-    return this._withGenerationKwargs({
+    return this.withGenerationKwargs({
       thinking: { type: 'adaptive', display: 'summarized' },
       output_config: { effort: effectiveEffort },
       betaFeatures: newBetas,
     });
   }
 
-  withGenerationKwargs(kwargs: Partial<AnthropicGenerationKwargs>): AnthropicChatProvider {
-    return this._withGenerationKwargs(kwargs);
-  }
-
-  private _withGenerationKwargs(kwargs: Partial<AnthropicGenerationKwargs>): AnthropicChatProvider {
-    const clone = this._clone();
-    clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
-    return clone;
-  }
-
-  private _clone(): AnthropicChatProvider {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as AnthropicChatProvider,
-      this,
-    );
-    clone._generationKwargs = { ...this._generationKwargs };
-    return clone;
-  }
 }
