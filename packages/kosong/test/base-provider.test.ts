@@ -66,12 +66,18 @@ class FakeProvider extends BaseChatProvider<FakeKwargs> implements ChatProvider 
 // --- BaseStreamedMessage: a minimal concrete subclass must compile ---
 
 class FakeStreamedMessage extends BaseStreamedMessage {
+  private readonly parts: StreamedMessagePart[];
+
   constructor(parts: StreamedMessagePart[]) {
-    super({
-      async *[Symbol.asyncIterator]() {
-        for (const p of parts) yield p;
-      },
-    });
+    super();
+    this.parts = parts;
+  }
+
+  protected _buildIter(): AsyncIterable<StreamedMessagePart> {
+    const parts = this.parts;
+    return (async function* () {
+      for (const p of parts) yield p;
+    })();
   }
 }
 

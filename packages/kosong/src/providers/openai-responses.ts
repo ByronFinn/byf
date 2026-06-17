@@ -12,7 +12,6 @@ import type {
   ThinkingEffort,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
 
 import {
@@ -27,6 +26,7 @@ import {
 } from './openai-common';
 import { extractCacheUsage } from './provider-common';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 
 /**
  * Normalize the Responses API status / incomplete_details into the unified
@@ -489,39 +489,21 @@ function convertTool(tool: Tool): ResponseToolParam {
     strict: false,
   };
 }
-export class OpenAIResponsesStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage | null = null;
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
+  private readonly _response: unknown;
+  private readonly _isStream: boolean;
 
   constructor(response: unknown, isStream: boolean) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(response as AsyncIterable<RawObject>);
-    } else {
-      this._iter = this._convertNonStreamResponse(response as RawObject);
+    super();
+    this._response = response;
+    this._isStream = isStream;
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(this._response as AsyncIterable<RawObject>);
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(this._response as RawObject);
   }
 
   private _captureFinishReasonFromResponse(response: RawObject): void {

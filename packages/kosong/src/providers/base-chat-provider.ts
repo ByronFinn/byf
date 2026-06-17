@@ -10,12 +10,16 @@
  * See ADR 0015 for the rationale.
  */
 
-import type { ChatProvider, GenerateOptions, ThinkingEffort } from '#/provider';
+import type {
+  ChatProvider,
+  GenerateOptions,
+  ProviderRequestAuth,
+  StreamedMessage,
+  ThinkingEffort,
+} from '#/provider';
 import type { Message } from '#/message';
 import type { ModelCapability } from '#/capability';
 import type { Tool } from '#/tool';
-import type { StreamedMessage } from '#/provider';
-import type { ProviderRequestAuth } from '#/provider';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,

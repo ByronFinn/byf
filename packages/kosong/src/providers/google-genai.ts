@@ -9,13 +9,13 @@ import type {
   ThinkingEffort,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import { ApiError as GoogleApiError, GoogleGenAI as GenAIClient } from '@google/genai';
 
 import { getGoogleGenAIModelCapability } from './capability-registry';
 import { requireProviderApiKey, resolveAuthBackedClient } from './request-auth';
 import { convertProviderError, extractCacheUsage } from './provider-common';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 
 /**
  * Normalize a Google GenAI (Gemini) `finishReason` value to the unified
@@ -446,46 +446,30 @@ export function messagesToGoogleGenAIContents(messages: Message[]): GoogleConten
 
   return contents;
 }
-export class GoogleGenAIStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage | null = null;
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+export class GoogleGenAIStreamedMessage extends BaseStreamedMessage {
+  private readonly _response: AsyncIterable<Record<string, unknown>> | Record<string, unknown>;
+  private readonly _isStream: boolean;
+  private readonly _signal: AbortSignal | undefined;
 
   constructor(
     response: AsyncIterable<Record<string, unknown>> | Record<string, unknown>,
     isStream: boolean,
     signal?: AbortSignal,
   ) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(
-        response as AsyncIterable<Record<string, unknown>>,
-        signal,
+    super();
+    this._response = response;
+    this._isStream = isStream;
+    this._signal = signal;
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(
+        this._response as AsyncIterable<Record<string, unknown>>,
+        this._signal,
       );
-    } else {
-      this._iter = this._convertNonStreamResponse(response as Record<string, unknown>, signal);
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(this._response as Record<string, unknown>, this._signal);
   }
 
   private _captureFinishReason(response: Record<string, unknown>): void {
@@ -843,7 +827,7 @@ export class GoogleGenAIChatProvider extends BaseChatProvider<GoogleGenAIGenerat
             headers: undefined,
           },
           undefined,
-        ) as GenAIClient;
+        );
       },
     );
   }

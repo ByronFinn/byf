@@ -7,7 +7,6 @@ import {
 } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
-  ChatProvider,
   FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
@@ -16,7 +15,6 @@ import type {
 } from '#/provider';
 import type { PromptPlan } from '#/prompt-plan';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import Anthropic, {
   APIError as AnthropicAPIError,
   APIConnectionError as AnthropicConnectionError,
@@ -44,6 +42,17 @@ import {
   mergeRequestHeaders,
 } from './request-auth';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
+import { makeFinishReasonNormalizer } from './provider-common';
+
+const ANTHROPIC_STOP_REASON_MAP: Readonly<Record<string, FinishReason>> = {
+  end_turn: 'completed',
+  stop_sequence: 'completed',
+  max_tokens: 'truncated',
+  tool_use: 'tool_calls',
+  pause_turn: 'paused',
+  refusal: 'filtered',
+};
 
 /**
  * Normalize an Anthropic `stop_reason` string to the unified
@@ -52,29 +61,7 @@ import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
  * Source: `message.stop_reason` (non-stream) or the last `message_delta`
  * event's `delta.stop_reason` (stream).
  */
-function normalizeAnthropicStopReason(raw: string | null | undefined): {
-  finishReason: FinishReason | null;
-  rawFinishReason: string | null;
-} {
-  if (raw === null || raw === undefined) {
-    return { finishReason: null, rawFinishReason: null };
-  }
-  switch (raw) {
-    case 'end_turn':
-    case 'stop_sequence':
-      return { finishReason: 'completed', rawFinishReason: raw };
-    case 'max_tokens':
-      return { finishReason: 'truncated', rawFinishReason: raw };
-    case 'tool_use':
-      return { finishReason: 'tool_calls', rawFinishReason: raw };
-    case 'pause_turn':
-      return { finishReason: 'paused', rawFinishReason: raw };
-    case 'refusal':
-      return { finishReason: 'filtered', rawFinishReason: raw };
-    default:
-      return { finishReason: 'other', rawFinishReason: raw };
-  }
-}
+const normalizeAnthropicStopReason = makeFinishReasonNormalizer(ANTHROPIC_STOP_REASON_MAP);
 export interface AnthropicOptions {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
@@ -522,65 +509,50 @@ export function convertAnthropicError(error: unknown): ChatProviderError {
   }
   return new ChatProviderError(`Error: ${String(error)}`);
 }
-class AnthropicStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage = {
-    inputOther: 0,
-    output: 0,
-    inputCacheRead: 0,
-    inputCacheCreation: 0,
-  };
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+class AnthropicStreamedMessage extends BaseStreamedMessage {
+  private readonly _response: unknown;
+  private readonly _isStream: boolean;
 
   constructor(response: unknown, isStream: boolean) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(response as AsyncIterable<MessageStreamEvent>);
-    } else {
-      this._iter = this._convertNonStreamResponse(
-        response as {
-          id: string;
-          stop_reason?: string | null;
-          usage: {
-            input_tokens: number;
-            output_tokens: number;
-            cache_read_input_tokens?: number;
-            cache_creation_input_tokens?: number;
-          };
-          content: Array<{
-            type: string;
-            text?: string;
-            thinking?: string;
-            signature?: string;
-            data?: string;
-            id?: string;
-            name?: string;
-            input?: unknown;
-          }>;
-        },
-      );
+    super();
+    this._response = response;
+    this._isStream = isStream;
+    // Anthropic reports usage on every response, so default to a zeroed
+    // usage object rather than null until the first event arrives.
+    this._usage = {
+      inputOther: 0,
+      output: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    };
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(this._response as AsyncIterable<MessageStreamEvent>);
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(
+      this._response as {
+        id: string;
+        stop_reason?: string | null;
+        usage: {
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_input_tokens?: number;
+          cache_creation_input_tokens?: number;
+        };
+        content: Array<{
+          type: string;
+          text?: string;
+          thinking?: string;
+          signature?: string;
+          data?: string;
+          id?: string;
+          name?: string;
+          input?: unknown;
+        }>;
+      },
+    );
   }
 
   private _captureStopReason(raw: string | null | undefined): void {
@@ -749,16 +721,16 @@ class AnthropicStreamedMessage implements StreamedMessage {
           const deltaUsage = (evt as { usage?: Record<string, unknown> }).usage;
           if (deltaUsage !== undefined) {
             if (typeof deltaUsage['output_tokens'] === 'number') {
-              this._usage.output = deltaUsage['output_tokens'];
+              this._usage!.output = deltaUsage['output_tokens'];
             }
             if (typeof deltaUsage['cache_read_input_tokens'] === 'number') {
-              this._usage.inputCacheRead = deltaUsage['cache_read_input_tokens'];
+              this._usage!.inputCacheRead = deltaUsage['cache_read_input_tokens'];
             }
             if (typeof deltaUsage['cache_creation_input_tokens'] === 'number') {
-              this._usage.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
+              this._usage!.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
             }
             if (typeof deltaUsage['input_tokens'] === 'number') {
-              this._usage.inputOther = deltaUsage['input_tokens'];
+              this._usage!.inputOther = deltaUsage['input_tokens'];
             }
           }
           // The terminal `stop_reason` lives on `delta.stop_reason` of the

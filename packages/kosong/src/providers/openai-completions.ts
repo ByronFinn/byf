@@ -3,8 +3,6 @@ import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { PromptPlan } from '#/prompt-plan';
 import type {
-  ChatProvider,
-  FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
   StreamedMessage,
@@ -12,7 +10,6 @@ import type {
   VideoUploadInput,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
 import { createHash } from 'node:crypto';
 
@@ -36,6 +33,7 @@ import {
   type ToolMessageConversion,
 } from './openai-common';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both
@@ -275,49 +273,35 @@ export function extractUsageFromChunk(
   return null;
 }
 
-class OpenAICompletionsStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage | null = null;
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+class OpenAICompletionsStreamedMessage extends BaseStreamedMessage {
+  private readonly _response:
+    | OpenAI.Chat.ChatCompletion
+    | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+  private readonly _isStream: boolean;
+  private readonly _reasoningKey: string | undefined;
 
   constructor(
     response: OpenAI.Chat.ChatCompletion | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
     isStream: boolean,
     reasoningKey: string | undefined,
   ) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(
-        response as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
-        reasoningKey,
-      );
-    } else {
-      this._iter = this._convertNonStreamResponse(
-        response as OpenAI.Chat.ChatCompletion,
-        reasoningKey,
+    super();
+    this._response = response;
+    this._isStream = isStream;
+    this._reasoningKey = reasoningKey;
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(
+        this._response as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
+        this._reasoningKey,
       );
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(
+      this._response as OpenAI.Chat.ChatCompletion,
+      this._reasoningKey,
+    );
   }
 
   private _captureFinishReason(raw: string | null | undefined): void {

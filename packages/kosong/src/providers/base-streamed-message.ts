@@ -2,10 +2,12 @@
  * Shared abstract base for the per-provider `StreamedMessage` implementations.
  *
  * Holds the field quartet (`_id` / `_usage` / `_finishReason` /
- * `_rawFinishReason`), the backing `_iter`, `[Symbol.asyncIterator]`
- * forwarding, and the four getters — boilerplate that was previously
+ * `_rawFinishReason`) and the four getters — boilerplate that was previously
  * copy-pasted across the four adapters. Subclasses own the protocol-specific
- * stream-conversion generator and populate the fields as the stream progresses.
+ * stream-conversion generator and implement `_buildIter()`.
+ *
+ * The iterator is built lazily on first iteration so subclasses can initialize
+ * any instance state after `super()` and before the generator runs.
  *
  * See ADR 0015 for the rationale.
  */
@@ -19,17 +21,7 @@ export abstract class BaseStreamedMessage implements StreamedMessage {
   protected _usage: TokenUsage | null = null;
   protected _finishReason: FinishReason | null = null;
   protected _rawFinishReason: string | null = null;
-  protected readonly _iter: AsyncIterable<StreamedMessagePart>;
-
-  /**
-   * @param iter The protocol-specific async iterable of message parts. The
-   *   subclass constructs this (typically an async generator that drives the
-   *   provider's stream and populates `_id` / `_usage` / `_finishReason` /
-   *   `_rawFinishReason` as it runs).
-   */
-  constructor(iter: AsyncIterable<StreamedMessagePart>) {
-    this._iter = iter;
-  }
+  private _iter: AsyncIterable<StreamedMessagePart> | undefined;
 
   get id(): string | null {
     return this._id;
@@ -48,6 +40,14 @@ export abstract class BaseStreamedMessage implements StreamedMessage {
   }
 
   async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+    this._iter ??= this._buildIter();
     yield* this._iter;
   }
+
+  /**
+   * Build the protocol-specific async iterable of message parts. The subclass
+   * drives the provider's stream and populates `_id` / `_usage` /
+   * `_finishReason` / `_rawFinishReason` as it runs.
+   */
+  protected abstract _buildIter(): AsyncIterable<StreamedMessagePart>;
 }
