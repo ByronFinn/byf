@@ -567,11 +567,14 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
     cache_read_input_tokens?: number;
     cache_creation_input_tokens?: number;
   }): void {
+    const inputTokens = usage.input_tokens ?? 0;
+    const cacheRead = usage.cache_read_input_tokens ?? 0;
+    const cacheCreation = usage.cache_creation_input_tokens ?? 0;
     this._usage = {
-      inputOther: usage.input_tokens ?? 0,
+      inputOther: Math.max(0, inputTokens - cacheRead - cacheCreation),
       output: usage.output_tokens ?? 0,
-      inputCacheRead: usage.cache_read_input_tokens ?? 0,
-      inputCacheCreation: usage.cache_creation_input_tokens ?? 0,
+      inputCacheRead: cacheRead,
+      inputCacheCreation: cacheCreation,
     };
   }
 
@@ -723,6 +726,11 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
             if (typeof deltaUsage['output_tokens'] === 'number') {
               this._usage!.output = deltaUsage['output_tokens'];
             }
+            // Capture current total before updating cache values
+            const prevInputOther = this._usage!.inputOther;
+            const prevCacheRead = this._usage!.inputCacheRead;
+            const prevCacheCreation = this._usage!.inputCacheCreation;
+
             if (typeof deltaUsage['cache_read_input_tokens'] === 'number') {
               this._usage!.inputCacheRead = deltaUsage['cache_read_input_tokens'];
             }
@@ -730,7 +738,17 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
               this._usage!.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
             }
             if (typeof deltaUsage['input_tokens'] === 'number') {
-              this._usage!.inputOther = deltaUsage['input_tokens'];
+              this._usage!.inputOther = Math.max(
+                0,
+                deltaUsage['input_tokens'] - this._usage!.inputCacheRead - this._usage!.inputCacheCreation,
+              );
+            } else {
+              // Recalculate inputOther: assume total input unchanged, subtract new cache
+              const totalInput = prevInputOther + prevCacheRead + prevCacheCreation;
+              this._usage!.inputOther = Math.max(
+                0,
+                totalInput - this._usage!.inputCacheRead - this._usage!.inputCacheCreation,
+              );
             }
           }
           // The terminal `stop_reason` lives on `delta.stop_reason` of the

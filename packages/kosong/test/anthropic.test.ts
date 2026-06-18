@@ -1278,10 +1278,66 @@ describe('AnthropicChatProvider', () => {
         },
       ]);
       expect(stream.usage).toEqual({
-        inputOther: 15,
+        inputOther: 10,
         output: 10,
         inputCacheRead: 5,
         inputCacheCreation: 0,
+      });
+    });
+
+    it('subtracts both cache_read and cache_creation from inputOther in non-stream response', async () => {
+      const provider = createProvider();
+      (provider as any)._client.messages.create = vi.fn().mockResolvedValue({
+        id: 'msg_both_cache',
+        content: [{ type: 'text', text: 'ok' }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 5,
+          cache_read_input_tokens: 30,
+          cache_creation_input_tokens: 20,
+        },
+      });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+      );
+
+      await collectParts(stream);
+      expect(stream.usage).toEqual({
+        inputOther: 50,
+        output: 5,
+        inputCacheRead: 30,
+        inputCacheCreation: 20,
+      });
+    });
+
+    it('clamps inputOther to 0 when cache tokens exceed input tokens', async () => {
+      const provider = createProvider();
+      (provider as any)._client.messages.create = vi.fn().mockResolvedValue({
+        id: 'msg_clamped',
+        content: [{ type: 'text', text: 'ok' }],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_read_input_tokens: 7,
+          cache_creation_input_tokens: 6,
+        },
+      });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+      );
+
+      await collectParts(stream);
+      expect(stream.usage).toEqual({
+        inputOther: 0,
+        output: 5,
+        inputCacheRead: 7,
+        inputCacheCreation: 6,
       });
     });
   });
@@ -1321,7 +1377,7 @@ describe('AnthropicChatProvider', () => {
       ]);
       expect(result.id).toBe('msg_stream_001');
       expect(result.usage).toEqual({
-        inputOther: 10,
+        inputOther: 5,
         output: 5,
         inputCacheRead: 3,
         inputCacheCreation: 2,
@@ -1670,10 +1726,57 @@ describe('AnthropicChatProvider', () => {
       await collectParts(result);
 
       expect(result.usage).toEqual({
-        inputOther: 105,
+        inputOther: 25,
         output: 42,
         inputCacheRead: 55,
         inputCacheCreation: 25,
+      });
+    });
+
+    it('updates inputOther when message_delta sends cache values without input_tokens', async () => {
+      const provider = createStreamProvider();
+      const stream = mockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_cache_only_delta',
+            usage: {
+              input_tokens: 50,
+              output_tokens: 0,
+              cache_read_input_tokens: 10,
+              cache_creation_input_tokens: 5,
+            },
+          },
+        },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+        {
+          type: 'message_delta',
+          delta: {},
+          usage: {
+            output_tokens: 8,
+            cache_read_input_tokens: 20,
+            cache_creation_input_tokens: 10,
+          },
+        },
+        { type: 'message_stop' },
+      ]);
+
+      (provider as any)._client.messages.create = vi.fn().mockResolvedValue(stream) as never;
+
+      const result = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      );
+
+      await collectParts(result);
+      // inputOther should be recalculated: 50 - 20 - 10 = 20
+      expect(result.usage).toEqual({
+        inputOther: 20,
+        output: 8,
+        inputCacheRead: 20,
+        inputCacheCreation: 10,
       });
     });
 
