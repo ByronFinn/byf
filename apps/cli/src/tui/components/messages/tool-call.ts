@@ -63,6 +63,8 @@ interface SubToolActivity {
   args: Record<string, unknown>;
   phase: 'ongoing' | 'done' | 'failed';
   readonly orderSeq: number;
+  output?: string;
+  isError?: boolean;
 }
 
 /**
@@ -86,6 +88,35 @@ export interface ToolCallSubagentSnapshot {
   readonly isError: boolean;
   readonly errorText: string | undefined;
   readonly latestActivity: string | undefined;
+  readonly elapsedSeconds: number | undefined;
+}
+
+/**
+ * Full subagent activity detail for the live viewer.
+ * Contains the complete tool-call sequence (not truncated), all text output,
+ * and thinking text.
+ */
+export interface SubagentActivityLine {
+  readonly orderSeq: number;
+  readonly name: string;
+  readonly args: Record<string, unknown>;
+  readonly phase: 'ongoing' | 'done' | 'failed';
+  readonly output?: string;
+  readonly isError?: boolean;
+}
+
+export interface SubagentActivityDetail {
+  readonly toolCallId: string;
+  readonly agentName: string | undefined;
+  readonly phase: ToolCallSubagentSnapshot['phase'];
+  readonly toolCount: number;
+  readonly tokens: number;
+  readonly elapsedSeconds: number | undefined;
+  readonly activities: readonly SubagentActivityLine[];
+  readonly text: string;
+  readonly thinkingText: string;
+  readonly resultSummary: string | undefined;
+  readonly errorText: string | undefined;
 }
 
 /**
@@ -431,14 +462,13 @@ export class ToolCallComponent extends Container {
   private static readonly MAX_PROGRESS_LINES = 24;
 
   /**
-   * Registered by a group container (`AgentGroupComponent` or
-   * `ReadGroupComponent`) when this component is borrowed as a hidden state
-   * container. Any state change (subagent meta, phase, sub-tool, result, etc.)
-   * triggers a throttled group re-render. `undefined` means no group is
-   * subscribed and standalone rendering is unaffected. A ToolCallComponent can
-   * only belong to one group at a time, so one listener slot is enough.
+   * Registered by group containers (`AgentGroupComponent` or
+   * `ReadGroupComponent`) and the sub-agent live viewer. Any state change
+   * (subagent meta, phase, sub-tool, result, etc.) notifies all listeners.
+   * Multiple listeners are supported so a grouped component can still be
+   * inspected by the live viewer without breaking group re-renders.
    */
-  private onSnapshotChange: (() => void) | undefined;
+  private readonly snapshotListeners = new Set<() => void>();
 
   constructor(
     toolCall: ToolCallBlockData,
@@ -578,11 +608,28 @@ export class ToolCallComponent extends Container {
    * Lets group containers (AgentGroup or ReadGroup) subscribe to this card's
    * state changes. Registration immediately calls back so the group receives
    * the current snapshot without separately calling getSubagentSnapshot or
-   * getReadSnapshot. Pass `undefined` to unsubscribe.
+   * getReadSnapshot. Pass `undefined` to unsubscribe all listeners.
+   *
+   * @deprecated Prefer `addSnapshotListener` when multiple observers may be
+   * interested in the same component (e.g., a grouped sub-agent inspected by
+   * the live viewer).
    */
   setSnapshotListener(cb: (() => void) | undefined): void {
-    this.onSnapshotChange = cb;
-    if (cb !== undefined) cb();
+    this.snapshotListeners.clear();
+    if (cb !== undefined) this.addSnapshotListener(cb);
+  }
+
+  /**
+   * Adds a snapshot-change listener. Returns an unsubscribe function.
+   * Registration immediately calls back so the observer receives the current
+   * snapshot without separately calling getSubagentSnapshot/getReadSnapshot.
+   */
+  addSnapshotListener(cb: () => void): () => void {
+    this.snapshotListeners.add(cb);
+    cb();
+    return () => {
+      this.snapshotListeners.delete(cb);
+    };
   }
 
   getSubagentSnapshot(): ToolCallSubagentSnapshot {
@@ -622,6 +669,39 @@ export class ToolCallComponent extends Container {
       errorText:
         this.subagentError ?? (derivedPhase === 'failed' ? this.result?.output : undefined),
       latestActivity,
+      elapsedSeconds: this.getSubagentElapsedSeconds(),
+    };
+  }
+
+  /**
+   * Returns the full subagent activity detail for the live viewer.
+   * Contains all tool-call activities (not truncated), all text, and thinking.
+   */
+  getSubagentActivityDetail(): SubagentActivityDetail {
+    const snap = this.getSubagentSnapshot();
+    const activities: SubagentActivityLine[] = [...this.subToolActivities.values()]
+      .toSorted((a, b) => a.orderSeq - b.orderSeq)
+      .map((act) => ({
+        orderSeq: act.orderSeq,
+        name: act.name,
+        args: act.args,
+        phase: act.phase,
+        output: act.output,
+        isError: act.isError,
+      }));
+
+    return {
+      toolCallId: snap.toolCallId,
+      agentName: snap.agentName,
+      phase: snap.phase,
+      toolCount: snap.toolCount,
+      tokens: snap.tokens,
+      elapsedSeconds: snap.elapsedSeconds,
+      activities,
+      text: this.subagentText,
+      thinkingText: this.subagentThinkingText,
+      resultSummary: this.subagentResultSummary,
+      errorText: snap.errorText,
     };
   }
 
@@ -657,9 +737,11 @@ export class ToolCallComponent extends Container {
     return this.toolCall;
   }
 
-  /** Notifies the listener when internal state changes, if a group is attached. */
+  /** Notifies all listeners when internal state changes. */
   private notifySnapshotChange(): void {
-    this.onSnapshotChange?.();
+    for (const cb of this.snapshotListeners) {
+      cb();
+    }
   }
 
   private upsertSubToolActivity(
@@ -903,6 +985,12 @@ export class ToolCallComponent extends Container {
       ongoing.args,
       result.is_error === true ? 'failed' : 'done',
     );
+    // Store output in the activity for the live viewer
+    const activity = this.subToolActivities.get(result.tool_call_id);
+    if (activity !== undefined) {
+      activity.output = result.output;
+      activity.isError = result.is_error === true;
+    }
     while (this.finishedSubCalls.length > MAX_SUB_TOOL_CALLS_SHOWN) {
       this.finishedSubCalls.shift();
       this.hiddenSubCallCount += 1;
@@ -1194,7 +1282,9 @@ export class ToolCallComponent extends Container {
       return `${bullet}${success.bold(labelText)} ${success(`Completed${descriptionPlain}${statsText}`)}`;
     }
     const stats = chalk.dim(statsText);
-    return `${bullet}${label} ${status}${descriptionText}${stats}`;
+    // Show hint only while running/spawning (not failed/backgrounded)
+    const hint = (phase === 'running' || phase === 'spawning') ? chalk.dim(' · /agent to inspect') : '';
+    return `${bullet}${label} ${status}${descriptionText}${stats}${hint}`;
   }
 
   private formatSingleSubagentStatus(

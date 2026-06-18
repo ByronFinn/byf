@@ -96,6 +96,7 @@ import { CompactionComponent } from './components/dialogs/compaction';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
+import { SubagentsController, type SubagentListEntry, type SubagentsEnv } from './components/dialogs/subagents';
 import { CustomEditor } from './components/editor/custom-editor';
 import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
@@ -451,6 +452,7 @@ export class ByfTui implements DialogHost {
   private isShuttingDown = false;
   private readonly turnEventHandler: TurnEventHandler;
   private readonly tasksBrowserController: TasksBrowserController;
+  private readonly agentsController: SubagentsController;
   private readonly dialogManager: DialogManager;
 
   public onExit?: (exitCode?: number) => Promise<void>;
@@ -502,6 +504,7 @@ export class ByfTui implements DialogHost {
     this.setupEditorHandlers();
     this.buildLayout();
     this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
+    this.agentsController = new SubagentsController(this.createSubagentsEnv());
   }
 
   // =========================================================================
@@ -1362,6 +1365,13 @@ export class ByfTui implements DialogHost {
           return;
         }
         void this.tasksBrowserController.show();
+        return;
+      case 'agent':
+        if (this.session === undefined) {
+          this.showError('No active session.');
+          return;
+        }
+        void this.agentsController.show();
         return;
       case 'mcp':
         void this.showMcpServers();
@@ -3306,9 +3316,126 @@ export class ByfTui implements DialogHost {
         this.showError(message);
       },
     };
-  }
+	  }
 
-  // Persists and applies the selected external editor command.
+	  private createSubagentsEnv(): SubagentsEnv {
+	    return {
+	      host: {
+	        showFullscreen: (component) => {
+	          const saved = [...this.state.ui.children];
+	          this.state.ui.clear();
+	          this.state.ui.addChild(component);
+	          this.state.ui.setFocus(component);
+	          this.state.ui.requestRender(true);
+	          return saved;
+	        },
+	        closeFullscreen: (savedChildren) => {
+	          this.state.ui.clear();
+	          for (const child of savedChildren) {
+	            this.state.ui.addChild(child);
+	          }
+	          this.state.ui.setFocus(this.state.editor);
+	          this.state.ui.requestRender(true);
+	        },
+	        focus: (component) => {
+	          this.state.ui.setFocus(component);
+	        },
+	        requestRender: (full) => {
+	          this.state.ui.requestRender(full);
+	        },
+	      },
+	      getTerminal: () => this.state.terminal,
+	      getColors: () => this.state.theme.colors,
+	      showError: (message) => {
+	        this.showError(message);
+	      },
+	      collectItems: () => {
+	        const seen = new Set<string>();
+	        const entries: SubagentListEntry[] = [];
+
+        // 1. Active — from pendingToolComponents
+        for (const [toolCallId, tc] of this.state.pendingToolComponents) {
+          if (tc.toolCallView.name !== 'Agent') continue;
+          if (seen.has(toolCallId)) continue;
+          const snap = tc.getSubagentSnapshot();
+          // Background agents are handled by /tasks, not /agent.
+          if (snap.phase === 'backgrounded') continue;
+          seen.add(toolCallId);
+          entries.push({
+            toolCallId,
+            agentName: snap.agentName,
+            description: snap.toolCallDescription,
+            phase: snap.phase,
+            toolCount: snap.toolCount,
+            tokens: snap.tokens,
+            elapsedSeconds: snap.elapsedSeconds,
+          });
+        }
+
+        // 2. Completed — from transcriptContainer children
+        for (const child of this.state.transcriptContainer.children) {
+          // Solo ToolCallComponent with subagent state
+          if (child instanceof ToolCallComponent && child.toolCallView.name === 'Agent') {
+            const id = child.toolCallView.id;
+            if (seen.has(id)) continue;
+            const snap = child.getSubagentSnapshot();
+            if (snap.phase === 'backgrounded') continue;
+            seen.add(id);
+            entries.push({
+              toolCallId: id,
+              agentName: snap.agentName,
+              description: snap.toolCallDescription,
+              phase: snap.phase,
+              toolCount: snap.toolCount,
+              tokens: snap.tokens,
+              elapsedSeconds: snap.elapsedSeconds,
+            });
+            continue;
+          }
+          // AgentGroupComponent — get entries via getSubagentEntries
+          if (child instanceof AgentGroupComponent) {
+            for (const entry of child.getSubagentEntries()) {
+              if (seen.has(entry.toolCallId)) continue;
+              const snap = entry.tc.getSubagentSnapshot();
+              if (snap.phase === 'backgrounded') continue;
+              seen.add(entry.toolCallId);
+              entries.push({
+                toolCallId: entry.toolCallId,
+                agentName: snap.agentName,
+                description: snap.toolCallDescription,
+                phase: snap.phase,
+                toolCount: snap.toolCount,
+                tokens: snap.tokens,
+                elapsedSeconds: snap.elapsedSeconds,
+              });
+            }
+          }
+        }
+
+
+	        return entries;
+	      },
+	      getComponentById: (toolCallId: string) => {
+	        // Check pendingToolComponents first
+	        const active = this.state.pendingToolComponents.get(toolCallId);
+	        if (active !== undefined) return active;
+
+	        // Check transcriptContainer (solo or inside group)
+	        for (const child of this.state.transcriptContainer.children) {
+	          if (child instanceof ToolCallComponent && child.toolCallView.id === toolCallId) return child;
+	          if (child instanceof AgentGroupComponent) {
+	            for (const entry of child.getSubagentEntries()) {
+	              if (entry.toolCallId === toolCallId) return entry.tc;
+	            }
+	          }
+	        }
+
+	        return undefined;
+	      },
+	    };
+	  }
+
+	  // Persists and applies the selected external editor command.
   private async applyEditorChoice(value: string): Promise<void> {
     const previous = this.state.appState.editorCommand ?? '';
     if (value === previous && value.length > 0) {

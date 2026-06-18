@@ -96,6 +96,7 @@ describe('built-in slash command registry', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toEqual(
       expect.arrayContaining([
+        'agent',
         'compact',
         'editor',
         'exit',
@@ -125,5 +126,17 @@ describe('built-in slash command registry', () => {
     const entries = buildAutocompleteSlashCommands(BUILTIN_SLASH_COMMANDS);
     expect(entries.some((entry) => entry.name === 'exit')).toBe(true);
     expect(entries.some((entry) => entry.name === 'quit')).toBe(true);
+  });
+
+  it('finds the agent command by name', () => {
+    const agent = findBuiltInSlashCommand('agent');
+    expect(agent).toBeDefined();
+    expect(agent!.name).toBe('agent');
+    expect(agent!.description).toBeTruthy();
+  });
+
+  it('includes agent in autocomplete entries', () => {
+    const entries = buildAutocompleteSlashCommands(BUILTIN_SLASH_COMMANDS);
+    expect(entries.some((entry) => entry.name === 'agent')).toBe(true);
   });
 });

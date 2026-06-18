@@ -483,6 +483,66 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('Used Agent');
   });
 
+  it('shows /agent to inspect hint for running subagents (AC8)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_hint',
+        name: 'Agent',
+        args: { description: 'test hint' },
+      },
+      undefined,
+      darkColors,
+    );
+
+    // Spawning phase — hint should appear
+    component.onSubagentSpawned({
+      agentId: 'sub_hint',
+      agentName: 'explore',
+      runInBackground: false,
+    });
+    let out = strip(component.render(120).join('\n'));
+    expect(out).toContain('/agent to inspect');
+
+    // Running phase — hint should still appear
+    component.appendSubagentText('working...', 'text');
+    component.appendSubToolCall({
+      id: 'sub_hint:read',
+      name: 'Read',
+      args: { path: 'src/foo.ts' },
+    });
+    out = strip(component.render(120).join('\n'));
+    expect(out).toContain('/agent to inspect');
+
+    // Completed phase — hint should be gone
+    component.onSubagentCompleted({ resultSummary: 'Done' });
+    out = strip(component.render(120).join('\n'));
+    expect(out).not.toContain('/agent to inspect');
+  });
+
+  it('hides /agent to inspect hint for failed subagents (AC8)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_hint_fail',
+        name: 'Agent',
+        args: { description: 'test hint fail' },
+      },
+      undefined,
+      darkColors,
+    );
+    component.onSubagentSpawned({
+      agentId: 'sub_hint_fail',
+      agentName: 'explore',
+      runInBackground: false,
+    });
+    component.onSubagentFailed({ error: 'error' });
+    const out = strip(component.render(120).join('\n'));
+    expect(out).not.toContain('/agent to inspect');
+  });
+
   it('scrolls the Write streaming preview to the last COMMAND_PREVIEW_LINES', () => {
     const lines: string[] = [];
     for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
@@ -1025,5 +1085,67 @@ describe('formatSubagentTokens', () => {
       output: 5000,
     });
     expect(result).toBe('15.0k tok');
+  });
+});
+
+describe('ToolCallComponent snapshot listeners', () => {
+  it('supports multiple concurrent listeners via addSnapshotListener', () => {
+    const component = new ToolCallComponent(
+      { id: 'call_a', name: 'Read', args: { path: 'a.ts' } },
+      undefined,
+      darkColors,
+    );
+
+    const calls: string[] = [];
+    const unsubscribeA = component.addSnapshotListener(() => {
+      calls.push('A');
+    });
+    const unsubscribeB = component.addSnapshotListener(() => {
+      calls.push('B');
+    });
+
+    // Both listeners should have been called immediately on registration.
+    expect(calls).toEqual(['A', 'B']);
+
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['A', 'B']);
+
+    unsubscribeA();
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['B']);
+
+    unsubscribeB();
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual([]);
+  });
+
+  it('setSnapshotListener clears existing listeners for backward compatibility', () => {
+    const component = new ToolCallComponent(
+      { id: 'call_b', name: 'Read', args: { path: 'b.ts' } },
+      undefined,
+      darkColors,
+    );
+
+    const calls: string[] = [];
+    const unsubscribe = component.addSnapshotListener(() => {
+      calls.push('added');
+    });
+
+    calls.length = 0;
+    component.setSnapshotListener(() => {
+      calls.push('set');
+    });
+
+    // The previous listener should have been replaced.
+    expect(calls).toEqual(['set']);
+
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['set']);
+
+    unsubscribe(); // no-op, already cleared
   });
 });
