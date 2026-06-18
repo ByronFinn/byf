@@ -162,7 +162,7 @@
 - **Sliced into**:
   - #145 — [PRD-0002] 类型选择步骤 + openai-completions 端到端贯通 (AFK) — Done (#153)
   - #146 — [PRD-0002] Anthropic 原生类型支持 (AFK, blocked by #145) — Done (#154)
-  - #149 — [PRD-0002] OpenAI Responses 类型支持 (AFK, blocked by #145)
+  - #149 — [PRD-0002] OpenAI Responses 类型支持 (AFK, blocked by #145) — Done (#155)
   - #152 — [PRD-0002] Catalog enrichment 与手填 fallback 跨类型回归 (AFK, blocked by #145, #146)
 
 ## Domain Terms
