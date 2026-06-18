@@ -26,6 +26,7 @@ export class TextInputDialogComponent extends Container implements Focusable {
   private readonly title: string;
   private readonly subtitle: string;
   private readonly placeholder: string;
+  private readonly allowEmpty: boolean;
   private done = false;
   private emptyHinted = false;
 
@@ -35,6 +36,7 @@ export class TextInputDialogComponent extends Container implements Focusable {
       readonly subtitle: string;
       readonly placeholder?: string;
       readonly initialValue?: string;
+      readonly allowEmpty?: boolean;
       readonly colors: ColorPalette;
       readonly onDone: (result: TextInputDialogResult) => void;
     },
@@ -45,6 +47,7 @@ export class TextInputDialogComponent extends Container implements Focusable {
     this.title = opts.title;
     this.subtitle = opts.subtitle;
     this.placeholder = opts.placeholder ?? '';
+    this.allowEmpty = opts.allowEmpty ?? false;
     if (opts.initialValue) {
       this.input.handleInput(opts.initialValue);
     }
@@ -120,7 +123,7 @@ export class TextInputDialogComponent extends Container implements Focusable {
   private submit(value: string): void {
     if (this.done) return;
     const trimmed = value.trim();
-    if (trimmed.length === 0) {
+    if (trimmed.length === 0 && !this.allowEmpty) {
       this.emptyHinted = true;
       return;
     }

@@ -120,6 +120,15 @@ export async function fetchModels(
   fetchImpl: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<ModelInfo[]> {
+  return fetchOpenAICompatModels(baseUrl, apiKey, fetchImpl, signal);
+}
+
+async function fetchOpenAICompatModels(
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
   const url = `${baseUrl.replace(/\/+$/, '')}/models`;
   const res = await fetchImpl(url, {
     headers: {
@@ -141,6 +150,29 @@ export async function fetchModels(
   return payload['data']
     .map((item) => toModelInfo(item))
     .filter((item): item is ModelInfo => item !== undefined);
+}
+
+/**
+ * Lists models from a provider using its native wire-type endpoint. Dispatches
+ * per `type` so each protocol gets its correct auth header and response shape.
+ * `openai-completions` and `openai_responses` share the OpenAI-compatible
+ * `/models` endpoint; other types have dedicated native fetchers (added in
+ * later slices).
+ */
+export async function fetchModelsByType(
+  type: string,
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
+  switch (type) {
+    case 'openai-completions':
+    case 'openai_responses':
+      return fetchOpenAICompatModels(baseUrl, apiKey, fetchImpl, signal);
+    default:
+      throw new Error(`fetchModelsByType: unsupported provider type "${type}".`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +216,7 @@ export function applyProviderConfig(
   config: ConfigShape,
   options: {
     readonly name: string;
+    readonly type?: string | undefined;
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly models: readonly ModelInfo[];
@@ -195,7 +228,7 @@ export function applyProviderConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'openai-completions',
+    type: options.type ?? 'openai-completions',
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     thinkingEffortKey: options.selectedModel.reasoningEffortKey,

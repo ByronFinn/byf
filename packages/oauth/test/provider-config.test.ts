@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   fetchModels,
+  fetchModelsByType,
   ProviderApiError,
   applyProviderConfig,
   removeProviderConfig,
@@ -207,6 +208,81 @@ describe('applyProviderConfig', () => {
 
     expect(config.models?.['deepseek/stale']).toBeUndefined();
     expect(config.models?.['other/model']).toBeDefined();
+  });
+
+  it('writes the provider type from the `type` option when provided', () => {
+    const config: ConfigShape = { providers: {} };
+    const models: ModelInfo[] = [
+      { id: 'claude-opus-4-7', contextLength: 200000, supportsReasoning: true, supportsImageIn: false, supportsVideoIn: false },
+    ];
+
+    applyProviderConfig(config, {
+      name: 'anthropic',
+      type: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      apiKey: 'sk-ant-test',
+      models,
+      selectedModel: models[0]!,
+      thinking: false,
+    });
+
+    expect(config.providers['anthropic']).toMatchObject({
+      type: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      apiKey: 'sk-ant-test',
+    });
+  });
+
+  it('defaults the provider type to openai-completions when `type` is omitted', () => {
+    const config: ConfigShape = { providers: {} };
+    const models: ModelInfo[] = [
+      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+    ];
+
+    applyProviderConfig(config, {
+      name: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'sk-test',
+      models,
+      selectedModel: models[0]!,
+      thinking: false,
+    });
+
+    expect(config.providers['openai']?.type).toBe('openai-completions');
+  });
+});
+
+describe('fetchModelsByType', () => {
+  it('dispatches openai-completions to the OpenAI-compatible fetcher', async () => {
+    const fetchMock = vi.fn(async () => makeModelsResponse(SAMPLE_MODELS));
+
+    const models = await fetchModelsByType(
+      'openai-completions',
+      'https://api.deepseek.com/v1',
+      'sk-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.deepseek.com/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer sk-test' }),
+      }),
+    );
+  });
+
+  it('dispatches openai_responses to the OpenAI-compatible fetcher', async () => {
+    const fetchMock = vi.fn(async () => makeModelsResponse(SAMPLE_MODELS));
+
+    const models = await fetchModelsByType(
+      'openai_responses',
+      'https://api.openai.com/v1',
+      'sk-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(3);
   });
 });
 

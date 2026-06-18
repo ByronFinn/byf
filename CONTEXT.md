@@ -32,7 +32,7 @@ The unified provider type for any OpenAI Chat Completions-compatible API (OpenAI
 A well-known provider (OpenAI, Anthropic, etc.) configured through `/connect`, which fetches metadata from the models.dev catalog. Distinct from user-configured providers from `/login`.
 
 ### /login
-CLI command to add a custom OpenAI-compatible provider. Flow: name → base_url → api_key → select model. Supports multiple providers.
+CLI command to add a custom provider via BYO API key + base URL. Supports three interface types: `openai-completions` (OpenAI Chat Completions-compatible), `openai_responses` (OpenAI Responses API), and `anthropic` (Anthropic native). `google-genai` and `vertexai` are deferred until the base-URL propagation to the runtime provider is implemented. Flow: type → name → base_url → api_key → select model. Supports multiple providers. Catalog enrichment (ADR 0012) applies to all types.
 
 ### /connect
 CLI command to configure a catalog provider from models.dev. Complements `/login`.
@@ -75,6 +75,15 @@ A permission gate before a tool is executed. The agent presents a tool call to t
 
 ### Sub-agent Activity Trace
 A user-visible account of what a sub-agent did while working: lifecycle status, visible assistant output, tool activity, approval waits, errors, and final result. It is not the model's private chain-of-thought.
+
+### Foreground Sub-agent
+A sub-agent spawned via the Agent tool call that blocks the parent agent. Its events are routed via `routeSubagentEvent` to the parent `ToolCallComponent`. While running it lives in `pendingToolComponents`; after completion the component survives in `transcriptContainer` (solo or inside an `AgentGroupComponent`). Distinct from background agents (covered by `/tasks` via `listBackgroundTasks()`).
+
+### Live Viewer
+The full-screen, scrollable, real-time viewer of a foreground sub-agent's activity, opened via `/agent`. Subscribes to the parent `ToolCallComponent`'s live state (not a one-shot snapshot). The rendering carrier of the Sub-agent Activity Trace.
+
+### /agent
+CLI command to open the foreground sub-agent list + live viewer. Singular form, aligned with Codex's `/agent` (single-session sub-agent threads). Distinct from Claude Code's plural `/agents` (cross-session independent sessions).
 
 ### Context Minimization
 A first-class engineering concern in the agent engine. The discipline of curating the smallest set of high-signal tokens that maximize the likelihood of desired outcomes. Encompasses system prompt size, tool definition tokens, conversation history, tool outputs, and prompt caching.

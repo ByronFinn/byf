@@ -21,7 +21,7 @@ import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 import {
   applyProviderConfig,
-  fetchModels,
+  fetchModelsByType,
   log,
 } from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
@@ -3819,7 +3819,7 @@ export class ByfTui implements DialogHost {
       dialogHost: this,
       getConfig: () => this.harness.getConfig(),
       setConfig: (cfg) => this.harness.setConfig(cfg),
-      fetchModels: (baseUrl, apiKey) => fetchModels(baseUrl, apiKey),
+      fetchModels: (type, baseUrl, apiKey) => fetchModelsByType(type, baseUrl, apiKey),
       applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
       showStatus: (msg, color?) =>{  this.showStatus(msg, color); },

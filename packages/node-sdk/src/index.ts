@@ -53,5 +53,5 @@ export type * from '#/types';
 
 // Provider config — re-exported from @byfriends/oauth so consumers don't
 // need a direct dependency on the oauth package.
-export { applyProviderConfig, fetchModels } from '@byfriends/oauth';
+export { applyProviderConfig, fetchModels, fetchModelsByType } from '@byfriends/oauth';
 export type { ModelInfo } from '@byfriends/oauth';
