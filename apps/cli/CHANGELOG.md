@@ -1,5 +1,153 @@
 # @byfriends/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- da47401: Cache observability: display cache hit-rate across four CLI surfaces
+
+  Add cache hit-rate visibility so users can see prompt cache efficiency at a glance:
+
+  - `/usage` panel: per-model and total-row `(cache XX%)` suffix when hit rate > 0
+  - Footer line 2: `cache: XX%` badge (per-turn, from `currentTurn` usage)
+  - `/status` panel: `Cache` section with session-cumulative hit rate + read/write breakdown
+  - Subagent chip: `(XX%)` suffix when `inputCacheRead > 0`
+
+  New shared helpers in `usage-format.ts`:
+
+  - `computeCacheHitRate(inputOther, inputCacheRead, inputCacheCreation)` — pure function, returns `undefined` for zero denominator
+  - `formatCacheHitRate(rate)` — integer percentage with banker's rounding, returns `undefined` for rates that round to 0%
+  - `safeNumber(value)` — defensive coercion for RPC/serialized token values
+
+  All surfaces degrade gracefully: no cache data → no cache display (identical to previous behavior).
+
+- 17651c3: Foreground sub-agent live viewer: `/agent` command with full-screen list and real-time activity viewer
+
+  Add the ability to inspect foreground sub-agents during and after execution:
+
+  - **`/agent` command** — new slash command to open the foreground sub-agent list
+  - **SubagentsListApp** — full-screen list showing all foreground sub-agents (running + completed) with agent name, description, phase, tool count, tokens, and elapsed time; 1-second polling for live updates; `Enter` to drill into the live viewer
+  - **SubagentLiveViewer** — full-screen scrollable viewer that renders the complete tool-call sequence (not truncated to 4 rows), sub-agent text output, and conditionally-visible thinking stream; real-time updates via `setSnapshotListener` with follow-tail when scrolled to bottom; vim-style scrolling (`j`/`k`/`g`/`G`/`PgUp`/`PgDn`); `t` to toggle thinking visibility
+  - **Card hint** — running sub-agent cards show `· /agent to inspect` so the viewer is discoverable
+  - **Sub-agent activity detail API** — `ToolCallComponent.getSubagentActivityDetail()` exposes the full ordered activity trail for consumption by the live viewer
+  - **Group support** — `AgentGroupComponent.getSubagentEntries()` getter enables locating ToolCallComponents inside groups for the list layer
+  - **Frame alignment fix** — `SubagentsListApp` and `SubagentLiveViewer` now use `@earendil-works/pi-tui`'s ANSI-aware width helpers, preventing colored text from shifting frame borders
+  - **Render loop fix** — `SubagentsController` now requests a TUI re-render after every poll update and live-viewer snapshot update, so the list/viewer refresh and keyboard input keep working instead of appearing frozen
+  - **Selection-change refresh** — moving the selection with ↑/↓ (or `j`/`k`) immediately refreshes the Detail and Output panes instead of waiting for the next poll tick
+  - **Tool status accuracy** — the Detail pane now distinguishes ongoing (`… Name`), done (`• Name`) and failed (`✗ Name`) sub-tools, so active tools are no longer misreported as done
+  - **Output preview stream** — the Output pane now shows the real-time sub-tool activity stream while the sub-agent is running, instead of staying blank until tools finish
+  - **Streaming render throttle** — the live viewer now coalesces high-frequency snapshot callbacks (one per streamed token) into a single render every 80ms, preventing the terminal diff renderer from being overwhelmed by full-trail redraws on every delta (which froze the UI and garbled the layout). Mirrors the throttle approach used by `AgentGroupComponent`
+  - **Control-character sanitization** — streamed sub-agent text, tool output, error text, and preview activity lines are now stripped of raw C0 control characters (`\r`, `\b`, `\x07`, vertical tab, form feed, …) that moved the cursor and produced the "one character per line" garble; `\t` is expanded to spaces for stable alignment
+  - **Soft-wrap instead of truncation** — long viewer body lines now wrap across rows (`wrapTextWithAnsi`) instead of being hard-truncated with an ellipsis, so streamed content stays fully readable at any terminal width
+
+  New files:
+
+  - `apps/cli/src/tui/components/dialogs/subagents/controller.ts`
+  - `apps/cli/src/tui/components/dialogs/subagents/list-app.ts`
+  - `apps/cli/src/tui/components/dialogs/subagents/live-viewer.ts`
+  - `apps/cli/src/tui/utils/sanitize-text.ts`
+
+  Test files:
+
+  - `apps/cli/test/tui/subagents-controller.test.ts`
+  - `apps/cli/test/tui/subagents-list-app.test.ts`
+  - `apps/cli/test/tui/subagent-live-viewer.test.ts`
+  - `apps/cli/test/tui/components/messages/agent-group.test.ts`
+
+- 05bd355: Add API interface-type selection as the first `/login` step (PRD-0002, issue #145)
+
+  Foundation slice for multi-type `/login`. The flow now starts with a type picker
+  (`openai-completions` / `openai_responses` / `anthropic`); selecting a type
+  prefills the Base URL placeholder with the official default, and leaving Base URL
+  empty falls back to that default. This release wires the scaffolding end-to-end
+  for the existing `openai-completions` type with zero behavior regression —
+  per-type native fetchers land in follow-up issues (#146 anthropic, #149 responses).
+
+  - `@byfriends/oauth`: `applyProviderConfig` accepts an optional `type` (defaults
+    to `'openai-completions'`, so existing callers are unaffected); new
+    `fetchModelsByType(type, baseUrl, apiKey)` dispatches to the OpenAI-compatible
+    fetcher for `openai-completions` / `openai_responses`. Both re-exported via SDK.
+  - `@byfriends/cli`: new `promptApiTypeSelection`; `LoginFlow` runs the type step
+    first, threads the selected type into `applyProviderConfig`, and
+    `LoginFlowDeps.fetchModels` is now `(type, baseUrl, apiKey)`.
+  - `TextInputDialog` gains an opt-in `allowEmpty` so the Base URL prompt can be
+    submitted empty (= use the official default).
+
+- e072434: Cross-type regression guard for /login manual fallback type preservation (PRD-0002, issue #152)
+
+  Add tests verifying that when model fetching fails and the user enters a model
+  manually, the selected interface type (`anthropic` / `openai_responses`) is
+  preserved in the provider config rather than falling back to
+  `openai-completions`. Dual type-keys are covered: anthropic manual entry and
+  openai_responses manual entry, both driven through the full login flow.
+
+- 338e6ed: Wire openai_responses type in /login model listing (PRD-0002, issue #149)
+
+  The `openai_responses` type dispatches to the same OpenAI-compatible `/models`
+  endpoint as `openai-completions` (they share the model registry), but writes
+  `type: 'openai_responses'` into the provider config so the runtime uses the
+  Responses API wire format. The `/login` type picker already listed this option
+  since #145; this slice adds the end-to-end test coverage verifying the correct
+  type is written to config when the user selects it.
+
+### Patch Changes
+
+- 2cc24d5: Add a full border to the approval panel when it is shown as an overlay on top of fullscreen views such as `/agent` and `/tasks`, making it visually distinct from the background content.
+- fad42cd: Extract `DialogManager` from `ByfTui` to own the editor-replacement picker/dialog methods (help, session, model, theme, permission, settings, editor selectors). No user-facing behavior change.
+- 754c123: Fix /agent page: approval no longer force-dismisses fullscreen, and Output pane no longer overflows
+
+  Two fixes for the `/agent` fullscreen page:
+
+  **Approval now shows as overlay when fullscreen is active**
+
+  Previously `showApprovalPanel` / `showQuestionDialog` would call
+  `dismissFullscreenControllers()` to force-close the agent page before
+  mounting the dialog into the editor — losing the user's place. Now when
+  the agent page (or tasks browser) is open the approval / question dialog
+  is rendered as a pi-tui overlay on top of the fullscreen. Input is
+  captured by the overlay while the fullscreen stays intact underneath, and
+  closing the overlay returns focus to the fullscreen. In normal mode
+  (no fullscreen) the existing editor-replacement path is unchanged.
+
+  **Output pane no longer overflows its frame**
+
+  The Output preview pane in the sub-agent list constructs `toolOutputs`
+  by joining up-to-3 output lines with `\n`. `renderPreviewFrame` pushed
+  each joined string as a single visual line, so the embedded newlines
+  broke through the frame border and corrupted the layout. The renderer
+  now splits each `toolOutput` on `\n` so every visual line stays inside
+  the frame — fixing the overflow and the associated flicker/duplicate-page
+  artifacts that occurred when switching between sub-agents.
+
+- 8b7b3e2: Fix: `/agent` records disappear after session resume
+
+  After resuming a session, the `/agent` panel showed empty Agent tool-call
+  cards — the child agent's name, tool calls, text, and token count were all
+  lost. Root cause: those fields are read from per-card subagent runtime state,
+  which only the live event stream populates; the replay-projection path that
+  resume uses never reconstructed it.
+
+  - **Persist `parentToolCallId`** — `AgentMeta` (state.json) now records the
+    parent tool-call id that spawned each sub-agent, so a resumed main-agent
+    `Agent` tool-call can be mapped back to its child. `createAgent`/`spawn`
+    thread it through; `ResumedAgentState` exposes it.
+  - **Project child activity onto resumed cards** — `distillSubagents` distills
+    each non-main agent's resumed state (replay → tool calls + text, profileName,
+    usage.total) into a `SubagentReplayBlockData` keyed by `parentToolCallId`.
+    `projectReplayRecords` attaches it to the matching `Agent` tool-call, and the
+    existing `applySubagentReplay` pipeline (now also consuming `usage`) fills the
+    card — so `/agent` shows the child's name, tools, text, and token count.
+  - **Fix Agent grouping after resume** — replay projection now assigns
+    `step`/`turnId` to projected tool-calls (one assistant message = one step,
+    turnId increments per user turn), so adjacent resumed Agent calls group into
+    an `AgentGroupComponent` again, matching live behavior.
+  - **Graceful degradation** — old sessions persisted before `parentToolCallId`
+    still resume without crashing; their Agent cards render from the result
+    summary as before. Token count is restored; elapsed time is not (replay
+    records carry no timestamps) and is left for a follow-up.
+
+  All new fields are optional; no wire-format or breaking change.
+
 ## 0.2.5
 
 ### Patch Changes

@@ -1,5 +1,67 @@
 # @byfriends/agent-core
 
+## 0.3.0
+
+### Minor Changes
+
+- ef167a8: Prompt cache optimization: three-tier overhaul
+
+  Tier 1 — Remove DirectoryTreeInjector:
+
+  - Deleted `DirectoryTreeInjector` and its test file
+  - The model discovers project structure via tools (Glob, Bash) when needed
+  - Eliminates persistent `<system-reminder>` pollution in conversation history
+
+  Tier 2 — System prompt cache block restructuring:
+
+  - Reordered `system.md`: `# Project Information` now precedes `# Working Environment`
+  - Added `# Working Environment` to `IMPLICIT_BOUNDARY_HEADERS` in prompt-plan builder
+  - Creates 4 cache blocks: base (global), projectInstructions (project), workingEnvironment (session), sessionContext (session)
+  - Block 0 (global) is now truly session-independent — no per-session variables (BYF_OS, BYF_WORK_DIR) in the cache key hash
+
+  Tier 3 — Activate ephemeral injection pipeline:
+
+  - Implemented `before_user` position in `project()` — appends dynamic content after history, zero cache prefix impact
+  - Added optional `getEphemeral?()` to `DynamicInjector` base class
+  - New `TimestampInjector`: fresh ISO timestamp each step at `before_user` position
+  - Converted `PermissionModeInjector` from persistent transition-based to ephemeral state-based — always reflects current mode, survives compaction
+  - Wired `InjectionManager.getEphemeralInjections()` through `buildMessages` in turn loop
+
+### Patch Changes
+
+- 77387fa: Refactor `BackgroundProcessManager` to use a `TaskEntry` discriminated union (`ProcessTaskEntry | PromiseTaskEntry`), eliminating the `as unknown as KaosProcess` cast for agent tasks. `BackgroundTaskInfo.pid` is now typed as `number | null` to accurately reflect that promise-based agent tasks have no OS process id.
+- 8b7b3e2: Fix: `/agent` records disappear after session resume
+
+  After resuming a session, the `/agent` panel showed empty Agent tool-call
+  cards — the child agent's name, tool calls, text, and token count were all
+  lost. Root cause: those fields are read from per-card subagent runtime state,
+  which only the live event stream populates; the replay-projection path that
+  resume uses never reconstructed it.
+
+  - **Persist `parentToolCallId`** — `AgentMeta` (state.json) now records the
+    parent tool-call id that spawned each sub-agent, so a resumed main-agent
+    `Agent` tool-call can be mapped back to its child. `createAgent`/`spawn`
+    thread it through; `ResumedAgentState` exposes it.
+  - **Project child activity onto resumed cards** — `distillSubagents` distills
+    each non-main agent's resumed state (replay → tool calls + text, profileName,
+    usage.total) into a `SubagentReplayBlockData` keyed by `parentToolCallId`.
+    `projectReplayRecords` attaches it to the matching `Agent` tool-call, and the
+    existing `applySubagentReplay` pipeline (now also consuming `usage`) fills the
+    card — so `/agent` shows the child's name, tools, text, and token count.
+  - **Fix Agent grouping after resume** — replay projection now assigns
+    `step`/`turnId` to projected tool-calls (one assistant message = one step,
+    turnId increments per user turn), so adjacent resumed Agent calls group into
+    an `AgentGroupComponent` again, matching live behavior.
+  - **Graceful degradation** — old sessions persisted before `parentToolCallId`
+    still resume without crashing; their Agent cards render from the result
+    summary as before. Token count is restored; elapsed time is not (replay
+    records carry no timestamps) and is left for a follow-up.
+
+  All new fields are optional; no wire-format or breaking change.
+
+- Updated dependencies [fad42cd]
+  - @byfriends/kosong@0.2.3
+
 ## 0.2.5
 
 ### Patch Changes
