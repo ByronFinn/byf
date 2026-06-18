@@ -1,4 +1,4 @@
-# PRD-0001: macOS Native GUI
+# PRD-0009: macOS Native GUI
 
 **Status**: Draft
 **Created**: 2026-06-18

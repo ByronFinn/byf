@@ -1,4 +1,4 @@
-# PRD: Rebrand Kimi Code to BYF
+# PRD-0001: Rebrand Kimi Code to BYF
 
 ## Problem Statement
 

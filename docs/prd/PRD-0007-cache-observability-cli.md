@@ -1,4 +1,4 @@
-# PRD: 缓存可观测性增强 — CLI Usage 面板
+# PRD-0007: 缓存可观测性增强 — CLI Usage 面板
 
 ## Child Issues
 
