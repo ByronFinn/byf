@@ -3674,8 +3674,25 @@ export class ByfTui implements DialogHost {
     }
   }
 
+  /**
+   * Dismisses any active fullscreen controller (agent page, tasks browser)
+   * so that a replacement panel (approval, question dialog) can be mounted
+   * into the normal layout with correct focus routing.
+   */
+  private dismissFullscreenControllers(): void {
+    if (this.agentsController.isOpen) this.agentsController.close();
+    if (this.tasksBrowserController.isOpen) this.tasksBrowserController.close();
+  }
+
   // Shows an approval panel and connects its response callback.
   private showApprovalPanel(payload: ApprovalPanelData): void {
+    // Dismiss any active fullscreen (agent page, tasks browser) so the
+    // approval panel is visible and focus routing works correctly.
+    // Otherwise the approval panel steals focus while the fullscreen
+    // component is still rendered, making all keypresses silently
+    // disappear — including q/Esc to close the fullscreen.
+    this.dismissFullscreenControllers();
+
     this.patchLivePane({ pendingApproval: { data: payload } });
     notifyTerminalOnce(this.state, `approval:${payload.id}`, {
       title: 'Byf Code approval required',
@@ -3733,6 +3750,10 @@ export class ByfTui implements DialogHost {
 
   // Shows a question dialog and connects its response callback.
   private showQuestionDialog(payload: QuestionPanelData): void {
+    // Dismiss any active fullscreen so the question dialog is visible and
+    // focus routing works correctly (same reasoning as showApprovalPanel).
+    this.dismissFullscreenControllers();
+
     this.patchLivePane({ pendingQuestion: { data: payload } });
     notifyTerminalOnce(this.state, `question:${payload.id}`, {
       title: 'Byf Code needs your answer',
