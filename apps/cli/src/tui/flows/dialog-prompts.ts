@@ -18,6 +18,7 @@ export function promptTextInput(
     readonly subtitle: string;
     readonly initialValue?: string;
     readonly placeholder?: string;
+    readonly allowEmpty?: boolean;
   },
 ): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -26,6 +27,7 @@ export function promptTextInput(
       subtitle: opts.subtitle,
       initialValue: opts.initialValue,
       placeholder: opts.placeholder,
+      allowEmpty: opts.allowEmpty,
       colors,
       onDone: (result) => {
         host.close();
@@ -78,6 +80,37 @@ export function promptConfiguredProviderSelection(
       title: 'Select a provider to log out',
       options,
       currentValue: defaultProvider,
+      colors,
+      searchable: false,
+      onSelect: (value) => {
+        host.close();
+        resolve(value);
+      },
+      onCancel: () => {
+        host.close();
+        resolve(undefined);
+      },
+    });
+    host.show(picker);
+  });
+}
+
+/**
+ * Opens the API interface-type picker shown as the first `/login` step.
+ * Returns the chosen ProviderType string, or `undefined` when cancelled.
+ *
+ * Options are owned by the caller (`options`) so login-flow can keep the
+ * per-type base-URL defaults next to the dispatch logic.
+ */
+export function promptApiTypeSelection(
+  host: DialogHost,
+  colors: ColorPalette,
+  options: readonly ChoiceOption[],
+): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const picker = new ChoicePickerComponent({
+      title: 'Select API type',
+      options,
       colors,
       searchable: false,
       onSelect: (value) => {

@@ -29,6 +29,7 @@ const THROTTLE_MS = 200;
 interface AgentEntry {
   readonly toolCallId: string;
   readonly tc: ToolCallComponent;
+  unsubscribe: (() => void) | undefined;
 }
 
 export class AgentGroupComponent extends Container {
@@ -54,6 +55,11 @@ export class AgentGroupComponent extends Container {
     return this.entries.length;
   }
 
+  /** Exposes internal entries so the /agent list layer can locate ToolCallComponents inside a group. */
+  getSubagentEntries(): readonly { toolCallId: string; tc: ToolCallComponent }[] {
+    return this.entries;
+  }
+
   /**
    * Borrows a standalone `ToolCallComponent` into the group as a hidden state
    * container. Snapshot changes trigger throttled refreshes. Re-attaching the
@@ -61,10 +67,14 @@ export class AgentGroupComponent extends Container {
    */
   attach(toolCallId: string, tc: ToolCallComponent): void {
     if (this.entries.some((e) => e.toolCallId === toolCallId)) return;
-    this.entries.push({ toolCallId, tc });
-    tc.setSnapshotListener(() => {
-      this.scheduleRender();
-    });
+    const entry: AgentEntry = {
+      toolCallId,
+      tc,
+      unsubscribe: tc.addSnapshotListener(() => {
+        this.scheduleRender();
+      }),
+    };
+    this.entries.push(entry);
     this.flushRender();
   }
 
@@ -193,14 +203,15 @@ export class AgentGroupComponent extends Container {
     this.bodyContainer.addChild(new Text(`  ${branch2}    ${dim(activity)}`, 0, 0));
   }
 
-  /** Releases throttle timers so destroyed components cannot refresh later. */
+  /** Releases throttle timers and snapshot listeners so destroyed components cannot refresh later. */
   dispose(): void {
     if (this.throttleTimer !== null) {
       clearTimeout(this.throttleTimer);
       this.throttleTimer = null;
     }
     for (const e of this.entries) {
-      e.tc.setSnapshotListener(undefined);
+      e.unsubscribe?.();
+      e.unsubscribe = undefined;
     }
   }
 }

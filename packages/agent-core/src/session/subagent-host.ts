@@ -89,6 +89,7 @@ export class SessionSubagentHost {
       { type: 'sub', generate: parent.rawGenerate },
       undefined,
       this.ownerAgentId,
+      options.parentToolCallId,
     );
     const controller = new AbortController();
     const unlinkAbortSignal = linkAbortSignal(options.signal, controller);

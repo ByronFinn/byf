@@ -10,9 +10,12 @@ import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import {
+  computeCacheHitRate,
+  formatCacheHitRate,
   formatTokenCount,
   ratioSeverity,
   renderProgressBar,
+  safeNumber,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
 import type { ColorPalette } from '#/tui/theme/colors';
@@ -52,15 +55,12 @@ export interface ManagedUsageReportLineOptions {
   readonly managedUsageError?: string;
 }
 
-function usageNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
-}
 
 function usageInputTotal(usage: TokenUsage): number {
   return (
-    usageNumber(usage.inputOther) +
-    usageNumber(usage.inputCacheRead) +
-    usageNumber(usage.inputCacheCreation)
+    safeNumber(usage.inputOther) +
+    safeNumber(usage.inputCacheRead) +
+    safeNumber(usage.inputCacheCreation)
   );
 }
 
@@ -80,20 +80,44 @@ function buildSessionUsageSection(
   const lines: string[] = [];
   let totalInput = 0;
   let totalOutput = 0;
+  let totalOther = 0;
+  let totalCacheRead = 0;
+  let totalCacheCreation = 0;
   for (const [model, row] of entries) {
     const input = usageInputTotal(row);
-    const output = usageNumber(row.output);
+    const output = safeNumber(row.output);
+    const other = safeNumber(row.inputOther);
+    const cacheRead = safeNumber(row.inputCacheRead);
+    const cacheCreation = safeNumber(row.inputCacheCreation);
     totalInput += input;
     totalOutput += output;
+    totalOther += other;
+    totalCacheRead += cacheRead;
+    totalCacheCreation += cacheCreation;
+
+    const hitRate = computeCacheHitRate(other, cacheRead, cacheCreation);
+    const hitRateStr = formatCacheHitRate(hitRate);
+    const cacheSuffix =
+      hitRateStr !== undefined
+        ? muted(' (cache ') + value(hitRateStr) + muted(')')
+        : '';
+
     lines.push(
-      `  ${muted(model)}  input ${value(formatTokenCount(input))}  output ${value(
+      `  ${muted(model)}  input ${value(formatTokenCount(input))}${cacheSuffix}  output ${value(
         formatTokenCount(output),
       )}  total ${value(formatTokenCount(input + output))}`,
     );
   }
   if (entries.length > 1) {
+    const totalHitRate = computeCacheHitRate(totalOther, totalCacheRead, totalCacheCreation);
+    const totalHitRateStr = formatCacheHitRate(totalHitRate);
+    const totalCacheSuffix =
+      totalHitRateStr !== undefined
+        ? muted(' (cache ') + value(totalHitRateStr) + muted(')')
+        : '';
+
     lines.push(
-      `  ${muted('total')}  input ${value(formatTokenCount(totalInput))}  output ${value(
+      `  ${muted('total')}  input ${value(formatTokenCount(totalInput))}${totalCacheSuffix}  output ${value(
         formatTokenCount(totalOutput),
       )}  total ${value(formatTokenCount(totalInput + totalOutput))}`,
     );

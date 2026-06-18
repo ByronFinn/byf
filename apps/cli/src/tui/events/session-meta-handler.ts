@@ -10,6 +10,7 @@ import { errorReportHintLine } from '#/tui/constant/feedback';
 import type { AppState } from '#/tui/types';
 import { stringValue } from '#/tui/utils/event-payload';
 import { setProcessTitle } from '#/tui/utils/proctitle';
+import { computeCacheHitRate, safeNumber } from '#/utils/usage/usage-format';
 
 export interface SessionMetaCallbacks {
   flushStreamingUiUpdatesNow: () => void;
@@ -38,6 +39,10 @@ export function handleStatusUpdate(
     patch.yolo = event.permission === 'yolo';
   }
   if (event.model !== undefined) patch.model = event.model;
+  const ct = event.usage?.currentTurn;
+  if (ct !== undefined) {
+    patch.cacheHitRate = computeCacheHitRate(safeNumber(ct.inputOther), safeNumber(ct.inputCacheRead), safeNumber(ct.inputCacheCreation));
+  }
   if (Object.keys(patch).length > 0) setAppState(patch);
 }
 

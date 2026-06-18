@@ -35,3 +35,46 @@ export function ratioSeverity(ratio: number): 'ok' | 'warn' | 'danger' {
   if (ratio >= 0.5) return 'warn';
   return 'ok';
 }
+
+/**
+ * Coerce RPC/serialized values to a safe non-negative finite number, defaulting to 0.
+ */
+export function safeNumber(value: unknown): number {
+  return Number.isFinite(value) && (value as number) >= 0 ? (value as number) : 0;
+}
+
+/**
+ * Compute cache hit rate (0..1).
+ * Formula: inputCacheRead / (inputOther + inputCacheRead + inputCacheCreation)
+ * Returns undefined when denominator is zero (signal: "no data").
+ */
+export function computeCacheHitRate(
+  inputOther: number,
+  inputCacheRead: number,
+  inputCacheCreation: number,
+): number | undefined {
+  const denom = inputOther + inputCacheRead + inputCacheCreation;
+  if (denom === 0) return undefined;
+  return inputCacheRead / denom;
+}
+
+/**
+ * Format cache hit rate as integer percentage string like "87%".
+ * Uses round-half-to-even (banker's rounding) for exact .5 ties.
+ * Returns undefined when rate is undefined or ≤ 0 (signal: "don't display").
+ */
+export function formatCacheHitRate(rate: number | undefined): string | undefined {
+  if (rate === undefined || rate <= 0) return undefined;
+  const rounded = roundHalfToEven(rate * 100);
+  if (rounded === 0) return undefined; // Too small to display as a percentage
+  return `${rounded}%`;
+}
+
+function roundHalfToEven(n: number): number {
+  const floor = Math.floor(n);
+  const frac = n - floor;
+  if (frac < 0.5) return floor;
+  if (frac > 0.5) return floor + 1;
+  // frac ≈ 0.5: round to nearest even
+  return floor % 2 === 0 ? floor : floor + 1;
+}

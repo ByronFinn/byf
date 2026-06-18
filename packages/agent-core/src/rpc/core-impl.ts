@@ -717,6 +717,7 @@ async function resumeSessionResult(
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),
       background: agent.background.list(false),
+      parentToolCallId: session.metadata.agents[agentId]?.parentToolCallId,
     };
   }
   return {

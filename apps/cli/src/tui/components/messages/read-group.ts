@@ -34,6 +34,7 @@ const THROTTLE_MS = 200;
 interface ReadEntry {
   readonly toolCallId: string;
   readonly tc: ToolCallComponent;
+  unsubscribe: (() => void) | undefined;
 }
 
 export class ReadGroupComponent extends Container {
@@ -66,10 +67,14 @@ export class ReadGroupComponent extends Container {
    */
   attach(toolCallId: string, tc: ToolCallComponent): void {
     if (this.entries.some((e) => e.toolCallId === toolCallId)) return;
-    this.entries.push({ toolCallId, tc });
-    tc.setSnapshotListener(() => {
-      this.scheduleRender();
-    });
+    const entry: ReadEntry = {
+      toolCallId,
+      tc,
+      unsubscribe: tc.addSnapshotListener(() => {
+        this.scheduleRender();
+      }),
+    };
+    this.entries.push(entry);
     this.flushRender();
   }
 
@@ -175,14 +180,15 @@ export class ReadGroupComponent extends Container {
     return `  ${branch} ${pathPart}${tail}`;
   }
 
-  /** Releases throttle timers so destroyed components cannot refresh later. */
+  /** Releases throttle timers and snapshot listeners so destroyed components cannot refresh later. */
   dispose(): void {
     if (this.throttleTimer !== null) {
       clearTimeout(this.throttleTimer);
       this.throttleTimer = null;
     }
     for (const e of this.entries) {
-      e.tc.setSnapshotListener(undefined);
+      e.unsubscribe?.();
+      e.unsubscribe = undefined;
     }
   }
 }

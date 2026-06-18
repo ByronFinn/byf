@@ -559,4 +559,57 @@ describe('ApprovalPanelComponent', () => {
     expect(out).not.toContain('line25');
     expect(out).toContain('20 more lines hidden (ctrl+e to view)');
   });
+
+  it('renders a full border when bordered mode is enabled', () => {
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_bordered',
+        tool_call_id: 'tool_bordered',
+        tool_name: 'Bash',
+        action: 'run',
+        description: '',
+        display: [{ type: 'shell', language: 'bash', command: 'echo hi' }],
+        choices: [
+          { label: 'Approve once', response: 'approved' },
+          { label: 'Reject', response: 'rejected' },
+        ],
+      },
+    };
+    const dialog = new ApprovalPanelComponent(
+      pending,
+      () => {},
+      COLORS,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    const width = 60;
+    const lines = dialog.render(width);
+    const plain = lines.map(strip);
+
+    expect(plain.length).toBeGreaterThanOrEqual(3);
+    expect(plain[0]).toContain('┌');
+    expect(plain[0]).toContain('┐');
+    expect(plain.at(-1)).toContain('└');
+    expect(plain.at(-1)).toContain('┘');
+
+    for (let i = 1; i < lines.length - 1; i++) {
+      expect(plain[i]).toMatch(/^│/);
+      expect(plain[i]).toMatch(/│$/);
+    }
+
+    // All lines (border + body) must have the same visible width.
+    const expectedWidth = plain[0].length;
+    for (const line of plain) {
+      expect(line.length).toBe(expectedWidth);
+    }
+
+    // Content should still be visible inside the bordered box.
+    const joined = plain.join('\n');
+    expect(joined).toContain('Run this command?');
+    expect(joined).toContain('1. Approve once');
+    expect(joined).toContain('2. Reject');
+    expect(joined).toContain('echo hi');
+  });
 });

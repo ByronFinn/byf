@@ -120,6 +120,15 @@ export async function fetchModels(
   fetchImpl: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<ModelInfo[]> {
+  return fetchOpenAICompatModels(baseUrl, apiKey, fetchImpl, signal);
+}
+
+async function fetchOpenAICompatModels(
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
   const url = `${baseUrl.replace(/\/+$/, '')}/models`;
   const res = await fetchImpl(url, {
     headers: {
@@ -141,6 +150,103 @@ export async function fetchModels(
   return payload['data']
     .map((item) => toModelInfo(item))
     .filter((item): item is ModelInfo => item !== undefined);
+}
+
+/**
+ * Lists models from a provider using its native wire-type endpoint. Dispatches
+ * per `type` so each protocol gets its correct auth header and response shape.
+ * `openai-completions` and `openai_responses` share the OpenAI-compatible
+ * `/models` endpoint; `anthropic` uses its native `x-api-key` endpoint with
+ * pagination. Other types have dedicated native fetchers (added in
+ * later slices).
+ */
+export async function fetchModelsByType(
+  type: string,
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
+  switch (type) {
+    case 'openai-completions':
+    case 'openai_responses':
+      return fetchOpenAICompatModels(baseUrl, apiKey, fetchImpl, signal);
+    case 'anthropic':
+      return fetchAnthropicModels(baseUrl, apiKey, fetchImpl, signal);
+    default:
+      throw new Error(`fetchModelsByType: unsupported provider type "${type}".`);
+  }
+}
+
+/**
+ * Anthropic native `/v1/models` listing. Uses `x-api-key` + `anthropic-version`
+ * headers (not Bearer). Response is paginated via `has_more` + `last_id`;
+ * follow pages by passing `?after_id=<last_id>`. Defensive guards: a page that
+ * claims `has_more` but omits `last_id` stops pagination (returns what we have)
+ * rather than looping forever; a hard cap (10 pages) also bounds the loop.
+ */
+async function fetchAnthropicModels(
+  baseUrl: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ModelInfo[]> {
+  const base = baseUrl.replace(/\/+$/, '');
+  const ANTHROPIC_VERSION = '2023-06-01';
+  const MAX_PAGES = 10;
+  const collected: ModelInfo[] = [];
+  let afterId: string | undefined;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const url = afterId === undefined
+      ? `${base}/models`
+      : `${base}/models?after_id=${encodeURIComponent(afterId)}`;
+    const res = await fetchImpl(url, {
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        Accept: 'application/json',
+      },
+      signal,
+    });
+    if (!res.ok) {
+      throw new ProviderApiError(
+        await readApiErrorMessage(res, `Failed to list models (HTTP ${res.status}).`),
+        res.status,
+      );
+    }
+    const payload: unknown = await res.json();
+    if (!isRecord(payload) || !Array.isArray(payload['data'])) {
+      throw new Error(`Unexpected models response for ${baseUrl}.`);
+    }
+    for (const item of payload['data']) {
+      const info = anthropicModelToInfo(item);
+      if (info !== undefined) collected.push(info);
+    }
+
+    const hasMore = payload['has_more'] === true;
+    const lastId = typeof payload['last_id'] === 'string' ? payload['last_id'] : undefined;
+    if (!hasMore || lastId === undefined || lastId.length === 0) break;
+    afterId = lastId;
+  }
+  return collected;
+}
+
+function anthropicModelToInfo(item: unknown): ModelInfo | undefined {
+  if (!isRecord(item) || typeof item['id'] !== 'string' || item['id'].length === 0) {
+    return undefined;
+  }
+  const displayName = item['display_name'];
+  return {
+    id: item['id'],
+    // Anthropic /v1/models does not report context_length; default to a safe
+    // ceiling. Catalog enrichment (ADR 0012) overrides this when a match exists.
+    contextLength: 200_000,
+    supportsReasoning: true,
+    supportsImageIn: true,
+    supportsVideoIn: false,
+    displayName: typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +290,7 @@ export function applyProviderConfig(
   config: ConfigShape,
   options: {
     readonly name: string;
+    readonly type?: string | undefined;
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly models: readonly ModelInfo[];
@@ -195,7 +302,7 @@ export function applyProviderConfig(
   const modelKey = `${providerKey}/${options.selectedModel.id}`;
 
   config.providers[providerKey] = {
-    type: 'openai-completions',
+    type: options.type ?? 'openai-completions',
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     thinkingEffortKey: options.selectedModel.reasoningEffortKey,

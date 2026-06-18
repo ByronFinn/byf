@@ -8,12 +8,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
+import { ProviderManager } from '../../src/providers/provider-manager';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import { SessionSubagentHost } from '../../src/session/subagent-host';
 import { testAgent } from '../agent/harness/agent';
+import { createScriptedGenerate } from '../agent/harness/scripted-generate';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 
 // Git context collection is exercised in git-context.test.ts; here it is
@@ -937,6 +939,216 @@ describe('Session resume permission parent chain', () => {
   });
 });
 
+describe('parentToolCallId persistence', () => {
+  // AC1: after a subagent is spawned, the parent tool-call id MUST be persisted
+  // into session.metadata.agents[childId] (the AgentMeta) AND threaded through
+  // to ResumedAgentState.parentToolCallId, so the TUI can map a resumed
+  // main-agent Agent tool-call back to its child agent's activity.
+  //
+  // Today AgentMeta has parentAgentId but NOT parentToolCallId, and spawn
+  // forwards options.parentToolCallId into events but never persists it.
+
+  it('persists parentToolCallId into the child AgentMeta via a real spawn', async () => {
+    // Scenario 1 — drives the REAL Session.createAgent path through spawn (like
+    // the real-Session tests above), NOT the fakeSession mock which stubs it.
+    const dir = await mkdtemp(join(tmpdir(), 'byf-ptcid-spawn-'));
+    tempDirs.push(dir);
+    const sessionDir = join(dir, 'session');
+    const workDir = join(dir, 'work');
+    await mkdir(workDir, { recursive: true });
+
+    const scripted = createScriptedGenerate();
+    const session = new Session({
+      id: 'test-parent-tool-call-id-spawn',
+      runtime: { kaos: localKaos, osEnv: TEST_OS_ENV },
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      providerManager: ptcidProviderManager(),
+    });
+
+    try {
+      const { agent: mainAgent } = await session.createAgent(
+        { type: 'main', generate: scripted.generate },
+        ptcidProfile(),
+      );
+      mainAgent.config.update({ modelAlias: 'mock-model', thinkingLevel: 'off' });
+      mainAgent.tools.setActiveTools([]);
+      // The child returns a long-enough summary so the Agent tool completes.
+      scripted.mockNextResponse({ type: 'text', text: 'A'.repeat(300) });
+
+      const handle = await mainAgent.subagentHost!.spawn('coder', {
+        parentToolCallId: 'call_agent_1',
+        prompt: 'Implement the fix',
+        description: 'Fix bug',
+        runInBackground: false,
+        signal,
+      });
+      await handle.completion;
+
+      expect(session.metadata.agents[handle.agentId]).toMatchObject({
+        type: 'sub',
+        parentAgentId: 'main',
+        parentToolCallId: 'call_agent_1',
+      });
+    } finally {
+      await session.close();
+    }
+  });
+
+  it('leaves parentToolCallId undefined when createAgent is called without it', async () => {
+    // Scenario 3a — backward-compat guard: an absent parentToolCallId must not
+    // be invented (no null/'' placeholder). Per AGENTS.md optional props use
+    // `undefined`, not conditional spread.
+    const session = new Session({
+      id: 'test-parent-tool-call-id-absent',
+      runtime: {
+        kaos: createFakeKaos({
+          mkdir: vi.fn().mockResolvedValue(undefined),
+          writeText: vi.fn().mockResolvedValue(0),
+        }),
+        osEnv: TEST_OS_ENV,
+      },
+      homedir: '/tmp/byf-session',
+      rpc: createSessionRpc(),
+      initializeMainAgent: false,
+    });
+
+    const created = await session.createAgent({ type: 'sub' }, undefined, 'main');
+
+    expect(session.metadata.agents[created.id]).toMatchObject({
+      type: 'sub',
+      parentAgentId: 'main',
+    });
+    expect(session.metadata.agents[created.id]?.parentToolCallId).toBeUndefined();
+  });
+
+  it('resumes a session whose persisted AgentMeta predates parentToolCallId', async () => {
+    // Scenario 3b — an old state.json written before this field existed still
+    // loads and resume() does not throw. Mirrors the 'Session resume permission
+    // parent chain' block above.
+    const dir = await mkdtemp(join(tmpdir(), 'byf-ptcid-legacy-'));
+    tempDirs.push(dir);
+    const sessionDir = join(dir, 'session');
+    const workDir = join(dir, 'work');
+    const mainDir = join(sessionDir, 'agents', 'main');
+    const childDir = join(sessionDir, 'agents', 'agent-0');
+    await mkdir(workDir, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      join(sessionDir, 'state.json'),
+      JSON.stringify(
+        {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          title: 'Legacy',
+          isCustomTitle: false,
+          agents: {
+            'agent-0': {
+              homedir: childDir,
+              type: 'sub',
+              parentAgentId: 'main',
+              // NOTE: no parentToolCallId — legacy on-disk shape.
+            },
+            main: { homedir: mainDir, type: 'main', parentAgentId: null },
+          },
+          custom: {},
+        },
+        null,
+        2,
+      ),
+      'utf-8',
+    );
+    await writeWire(mainDir, [{ type: 'permission.set_mode', mode: 'default' }]);
+    await writeWire(childDir, []);
+
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: TEST_OS_ENV },
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      initializeMainAgent: false,
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+    });
+
+    try {
+      await session.resume();
+      // Legacy metadata loads cleanly; the field is simply absent (undefined).
+      expect(session.metadata.agents['agent-0']).toMatchObject({
+        type: 'sub',
+        parentAgentId: 'main',
+      });
+      expect(session.metadata.agents['agent-0']?.parentToolCallId).toBeUndefined();
+      expect(session.agents.get('agent-0')).toBeDefined();
+    } finally {
+      await session.close();
+    }
+  });
+
+  it('keeps parentToolCallId on AgentMeta across a resume (the data source for ResumedAgentState)', async () => {
+    // Scenario 2 — resumeSessionResult (rpc/core-impl.ts, private) threads each
+    // agent's state from session.metadata.agents[id].parentToolCallId. That
+    // function has no clean public unit seam (only reachable via the full
+    // ByfCore RPC path), so this asserts the data source it must read: after a
+    // resume, a child whose metadata carried parentToolCallId still exposes it
+    // on session.metadata. The type-level contract (ResumedAgentState /
+    // AgentMeta carry the field) is enforced by `pnpm typecheck` in gate 3.
+    const dir = await mkdtemp(join(tmpdir(), 'byf-ptcid-resume-'));
+    tempDirs.push(dir);
+    const sessionDir = join(dir, 'session');
+    const workDir = join(dir, 'work');
+    const mainDir = join(sessionDir, 'agents', 'main');
+    const childDir = join(sessionDir, 'agents', 'agent-0');
+    await mkdir(workDir, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      join(sessionDir, 'state.json'),
+      JSON.stringify(
+        {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          title: 'WithToolCallId',
+          isCustomTitle: false,
+          agents: {
+            'agent-0': {
+              homedir: childDir,
+              type: 'sub',
+              parentAgentId: 'main',
+              parentToolCallId: 'call_agent_1',
+            },
+            main: { homedir: mainDir, type: 'main', parentAgentId: null },
+          },
+          custom: {},
+        },
+        null,
+        2,
+      ),
+      'utf-8',
+    );
+    await writeWire(mainDir, [{ type: 'permission.set_mode', mode: 'default' }]);
+    await writeWire(childDir, []);
+
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: TEST_OS_ENV },
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      initializeMainAgent: false,
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+    });
+
+    try {
+      await session.resume();
+      // The persisted parentToolCallId survives the resume load — this is the
+      // exact field resumeSessionResult reads to populate ResumedAgentState.
+      expect(session.metadata.agents['agent-0']?.parentToolCallId).toBe('call_agent_1');
+    } finally {
+      await session.close();
+    }
+  });
+});
+
 describe('Session.createAgent', () => {
   it('uses the Kaos current directory when the session cwd is omitted', async () => {
     const workDir = '/remote/project';
@@ -1193,6 +1405,24 @@ function profile(input: {
     tools: [...input.tools],
     subagents: input.subagents,
   };
+}
+
+// Minimal provider/profile for the parentToolCallId persistence tests: the
+// child agent's generate is scripted, so the provider only needs a registered
+// model that config.update({ modelAlias }) can resolve.
+function ptcidProviderManager(): ProviderManager {
+  return new ProviderManager({
+    config: {
+      providers: { test: { type: 'openai-completions', apiKey: 'test-key' } },
+      models: {
+        'mock-model': { provider: 'test', model: 'mock-model', maxContextSize: 1_000_000 },
+      },
+    },
+  });
+}
+
+function ptcidProfile(): ResolvedAgentProfile {
+  return { name: 'test', systemPrompt: () => '<system-prompt>', tools: [] };
 }
 
 function stat(kind: 'dir' | 'file') {

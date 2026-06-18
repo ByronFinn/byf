@@ -286,7 +286,6 @@ describe('Agent tools', () => {
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Look up moon" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Look up moon" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<auto-mode-enter-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "permission_mode" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "I will look it up." }
@@ -324,9 +323,10 @@ describe('Agent tools', () => {
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
       messages:
-        <last>
+        user: text "Look up moon"
         assistant: text "I will look it up."  calls call_lookup:Lookup { "query": "moon" }
         tool[call_lookup]: text "moon-result"
+        user: text <auto-mode-enter-reminder>
     `);
 
     await ctx.rpc.unregisterTool({ name: 'Lookup' });
@@ -351,9 +351,12 @@ describe('Agent tools', () => {
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
       tools: []
       messages:
-        <last>
+        user: text "Look up moon"
+        assistant: text "I will look it up."  calls call_lookup:Lookup { "query": "moon" }
+        tool[call_lookup]: text "moon-result"
         assistant: text "The lookup result is moon-result."
         user: text "Can you still use Lookup?"
+        user: text <auto-mode-enter-reminder>
     `);
     await ctx.expectResumeMatches();
   });

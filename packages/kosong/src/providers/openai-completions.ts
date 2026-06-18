@@ -3,8 +3,6 @@ import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { PromptPlan } from '#/prompt-plan';
 import type {
-  ChatProvider,
-  FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
   StreamedMessage,
@@ -12,7 +10,6 @@ import type {
   VideoUploadInput,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
 import { createHash } from 'node:crypto';
 
@@ -35,11 +32,8 @@ import {
   toolToOpenAI,
   type ToolMessageConversion,
 } from './openai-common';
-import {
-  mergeRequestHeaders,
-  requireProviderApiKey,
-  resolveAuthBackedClient,
-} from './request-auth';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both
@@ -279,49 +273,35 @@ export function extractUsageFromChunk(
   return null;
 }
 
-class OpenAICompletionsStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage | null = null;
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+class OpenAICompletionsStreamedMessage extends BaseStreamedMessage {
+  private readonly _response:
+    | OpenAI.Chat.ChatCompletion
+    | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+  private readonly _isStream: boolean;
+  private readonly _reasoningKey: string | undefined;
 
   constructor(
     response: OpenAI.Chat.ChatCompletion | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
     isStream: boolean,
     reasoningKey: string | undefined,
   ) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(
-        response as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
-        reasoningKey,
-      );
-    } else {
-      this._iter = this._convertNonStreamResponse(
-        response as OpenAI.Chat.ChatCompletion,
-        reasoningKey,
+    super();
+    this._response = response;
+    this._isStream = isStream;
+    this._reasoningKey = reasoningKey;
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(
+        this._response as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>,
+        this._reasoningKey,
       );
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(
+      this._response as OpenAI.Chat.ChatCompletion,
+      this._reasoningKey,
+    );
   }
 
   private _captureFinishReason(raw: string | null | undefined): void {
@@ -417,29 +397,27 @@ class OpenAICompletionsStreamedMessage implements StreamedMessage {
   }
 }
 
-export class OpenAICompletionsChatProvider implements ChatProvider {
+export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKwargs> {
   readonly name: string = 'openai-completions';
 
-  private _model: string;
   private _stream: boolean;
-  private _apiKey: string | undefined;
-  private _baseUrl: string;
-  private _defaultHeaders: Record<string, string> | undefined;
-  private _generationKwargs: GenerationKwargs;
   private _thinkingEffortKey: string;
   private _reasoningKey: string | undefined;
   private _toolMessageConversion: ToolMessageConversion;
-  private _client: OpenAI | undefined;
-  private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
   private _files: OpenAICompatFiles | undefined;
 
   constructor(options: OpenAICompletionsOptions) {
-    const apiKey = options.apiKey;
-    this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl ?? '';
-    this._defaultHeaders = options.defaultHeaders;
-    this._clientFactory = options.clientFactory;
-    this._model = options.model;
+    const apiKey = options.apiKey === undefined || options.apiKey.length === 0 ? undefined : options.apiKey;
+    const baseUrl = options.baseUrl ?? '';
+    const generationKwargs = { ...options.generationKwargs };
+    const client =
+      apiKey === undefined
+        ? undefined
+        : new OpenAI({ apiKey, baseURL: baseUrl, defaultHeaders: options.defaultHeaders });
+    // Shared fields (_model, _generationKwargs, _apiKey, _baseUrl,
+    // _defaultHeaders, _client, _clientFactory) live on BaseChatProvider.
+    super(options.model, generationKwargs, apiKey, baseUrl, options.defaultHeaders, client, options.clientFactory);
+    // OpenAI-specific fields stay here.
     this._stream = options.stream ?? true;
     const normalizedThinkingEffortKey = options.thinkingEffortKey?.trim();
     this._thinkingEffortKey =
@@ -451,23 +429,10 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
       normalizedReasoningKey !== undefined && normalizedReasoningKey.length > 0
         ? normalizedReasoningKey
         : undefined;
-    this._generationKwargs = { ...options.generationKwargs };
     this._toolMessageConversion = options.toolMessageConversion ?? null;
-    this._client =
-      this._apiKey === undefined
-        ? undefined
-        : new OpenAI({
-            apiKey: this._apiKey,
-            baseURL: this._baseUrl,
-            defaultHeaders: this._defaultHeaders,
-          });
   }
 
-  get modelName(): string {
-    return this._model;
-  }
-
-  get thinkingEffort(): ThinkingEffort | null {
+  override get thinkingEffort(): ThinkingEffort | null {
     const customValue = this._generationKwargs[this._thinkingEffortKey];
     if (typeof customValue === 'string') {
       return reasoningEffortToThinkingEffort(customValue);
@@ -481,7 +446,7 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
       apiKey: this._apiKey,
       baseUrl: this._baseUrl,
       defaultHeaders: this._defaultHeaders,
-      clientFactory: this._clientFactory,
+      clientFactory: this._clientFactory as ((auth: ProviderRequestAuth) => OpenAI) | undefined,
     });
     return this._files;
   }
@@ -490,7 +455,7 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     return this.files.uploadVideo(input, options);
   }
 
-  get modelParameters(): Record<string, unknown> {
+  override get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       baseUrl: this._baseUrl,
@@ -498,11 +463,11 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     };
   }
 
-  getCapability(model?: string): ModelCapability {
+  override getCapability(model?: string): ModelCapability {
     return getOpenAILegacyModelCapability(model ?? this._model);
   }
 
-  async generate(
+  override async generate(
     systemPrompt: string,
     tools: Tool[],
     history: Message[],
@@ -577,7 +542,7 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     }
 
     try {
-      const client = this._createClient(options?.auth);
+      const client = this._createClient(options?.auth) as OpenAI;
       const response = (await client.chat.completions.create(
         createParams as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
         options?.signal ? { signal: options.signal } : undefined,
@@ -588,7 +553,7 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     }
   }
 
-  withThinking(effort: ThinkingEffort): OpenAICompletionsChatProvider {
+  override withThinking(effort: ThinkingEffort): OpenAICompletionsChatProvider {
     const thinking: ThinkingConfig = {
       type: effort === 'off' ? 'disabled' : 'enabled',
     };
@@ -617,10 +582,6 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     });
   }
 
-  withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompletionsChatProvider {
-    return this._withGenerationKwargs(kwargs);
-  }
-
   withMaxCompletionTokens(maxCompletionTokens: number): OpenAICompletionsChatProvider {
     return this._withGenerationKwargs({ max_completion_tokens: maxCompletionTokens });
   }
@@ -636,34 +597,28 @@ export class OpenAICompletionsChatProvider implements ChatProvider {
     return this._withGenerationKwargs({ extra_body: merged });
   }
 
-  private _createClient(auth: ProviderRequestAuth | undefined): OpenAI {
-    return resolveAuthBackedClient(
-      { cachedClient: this._client, clientFactory: this._clientFactory },
-      auth,
-      (a) => {
-        const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, a?.headers);
-        return new OpenAI({
-          apiKey: requireProviderApiKey('OpenAICompletionsChatProvider', a, this._apiKey),
-          baseURL: this._baseUrl,
-          defaultHeaders,
-        });
-      },
-    );
-  }
-
   private _withGenerationKwargs(kwargs: GenerationKwargs): OpenAICompletionsChatProvider {
-    const clone = this._clone();
-    clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
+    // Inherited withGenerationKwargs does the clone+merge; the _files reset
+    // is handled by our _clone override below.
+    return this.withGenerationKwargs(kwargs);
+  }
+
+  protected override _clone(): this {
+    const clone = super._clone();
+    // Reset the lazy OpenAICompatFiles cache on every clone so the clone
+    // does not share file-upload state with the original.
+    (clone as OpenAICompletionsChatProvider)._files = undefined;
     return clone;
   }
 
-  private _clone(): OpenAICompletionsChatProvider {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as OpenAICompletionsChatProvider,
-      this,
-    );
-    clone._generationKwargs = { ...this._generationKwargs };
-    clone._files = undefined;
-    return clone;
+  protected createRawClient(
+    auth: ResolvedAuth,
+    defaultHeaders: Record<string, string> | undefined,
+  ): OpenAI {
+    return new OpenAI({
+      apiKey: auth.apiKey,
+      baseURL: this._baseUrl,
+      defaultHeaders,
+    });
   }
 }

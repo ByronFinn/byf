@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **partially superseded by [ADR 0016](0016-login-multi-type-providers.md)**: the decision "Provider type is always `'openai-compat'`" (decision point #7 below) was reversed; `/login` now supports multiple interface types. All other decisions in this ADR remain in force.
 
 ## Context
 

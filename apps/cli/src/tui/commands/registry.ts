@@ -62,6 +62,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'agent',
+    aliases: [],
+    description: 'Inspect foreground sub-agents',
+    priority: 80,
+    availability: 'always',
+  },
+  {
     name: 'mcp',
     aliases: [],
     description: 'Show MCP server status',

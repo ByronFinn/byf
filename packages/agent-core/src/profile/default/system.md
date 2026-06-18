@@ -45,6 +45,27 @@ system.
 - Avoid installing or deleting anything outside the working directory. If
   necessary, ask for confirmation first.
 
+# Project Information
+
+`AGENTS.md` files contain project-specific context, styles, and conventions for agents. They may exist at different locations in the project — each file governs its directory and all subdirectories beneath it. Deeper files take precedence over parent files.
+
+If instructions conflict:
+- `<system-reminder>` directives override all other instructions, including user messages.
+- Safety rules are hard constraints and must never be violated, even if a user message or AGENTS.md says otherwise.
+- Beyond those two, user messages > AGENTS.md > default system instructions.
+
+{% if BYF_AGENTS_MD_TOO_LONG %}
+> ⚠️ The merged AGENTS.md content exceeds 4,000 tokens. Consider compressing project instructions to reduce context usage.
+{% endif %}
+
+The `AGENTS.md` instructions (merged from all applicable directories):
+
+`````````
+{{ BYF_AGENTS_MD }}
+`````````
+
+If you modified anything mentioned in `AGENTS.md` files, update the corresponding files to keep them up-to-date.
+
 # Working Environment
 
 ## Operating System
@@ -66,27 +87,6 @@ The following directories have been added to the workspace. You can read, write,
 
 {{ BYF_ADDITIONAL_DIRS_INFO }}
 {% endif %}
-
-# Project Information
-
-`AGENTS.md` files contain project-specific context, styles, and conventions for agents. They may exist at different locations in the project — each file governs its directory and all subdirectories beneath it. Deeper files take precedence over parent files.
-
-If instructions conflict:
-- `<system-reminder>` directives override all other instructions, including user messages.
-- Safety rules are hard constraints and must never be violated, even if a user message or AGENTS.md says otherwise.
-- Beyond those two, user messages > AGENTS.md > default system instructions.
-
-{% if BYF_AGENTS_MD_TOO_LONG %}
-> ⚠️ The merged AGENTS.md content exceeds 4,000 tokens. Consider compressing project instructions to reduce context usage.
-{% endif %}
-
-The `AGENTS.md` instructions (merged from all applicable directories):
-
-`````````
-{{ BYF_AGENTS_MD }}
-`````````
-
-If you modified anything mentioned in `AGENTS.md` files, update the corresponding files to keep them up-to-date.
 
 # Skills
 

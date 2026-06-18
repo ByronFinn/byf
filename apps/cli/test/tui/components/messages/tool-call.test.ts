@@ -1,7 +1,10 @@
 import type { TUI } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import {
+  formatSubagentTokens,
+  ToolCallComponent,
+} from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
@@ -480,6 +483,104 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('Used Agent');
   });
 
+  it('S2b: surfaces the resumed child usage in the subagent snapshot tokens (AC2)', () => {
+    // AC2 "补 token": a resumed Agent card is constructed with a subagent block
+    // carrying the child's usage (the resume projection path). applySubagentReplay
+    // must populate subagentUsage so getSubagentSnapshot().tokens is non-zero and
+    // equals input+output — matching the live path.
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_resumed',
+        name: 'Agent',
+        args: { description: 'resumed work' },
+        subagent: {
+          id: 'agent-0',
+          name: 'Coder',
+          text: 'done',
+          toolCalls: [
+            {
+              id: 's1',
+              name: 'Read',
+              args: { path: '/a' },
+              result: { tool_call_id: 's1', output: 'file contents' },
+            },
+          ],
+          usage: { inputOther: 1300, inputCacheRead: 8700, inputCacheCreation: 0, output: 5000 },
+        },
+      },
+      { tool_call_id: 'call_resumed', output: 'summary', is_error: false },
+      darkColors,
+    );
+
+    const snapshot = component.getSubagentSnapshot();
+    // usageInputTotal(usage) = 1300 + 8700 + 0 = 10000; + output 5000 = 15000
+    expect(snapshot.tokens).toBe(15000);
+    expect(snapshot.agentName).toBe('Coder');
+    expect(snapshot.toolCount).toBe(1);
+  });
+
+  it('shows /agent to inspect hint for running subagents (AC8)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_hint',
+        name: 'Agent',
+        args: { description: 'test hint' },
+      },
+      undefined,
+      darkColors,
+    );
+
+    // Spawning phase — hint should appear
+    component.onSubagentSpawned({
+      agentId: 'sub_hint',
+      agentName: 'explore',
+      runInBackground: false,
+    });
+    let out = strip(component.render(120).join('\n'));
+    expect(out).toContain('/agent to inspect');
+
+    // Running phase — hint should still appear
+    component.appendSubagentText('working...', 'text');
+    component.appendSubToolCall({
+      id: 'sub_hint:read',
+      name: 'Read',
+      args: { path: 'src/foo.ts' },
+    });
+    out = strip(component.render(120).join('\n'));
+    expect(out).toContain('/agent to inspect');
+
+    // Completed phase — hint should be gone
+    component.onSubagentCompleted({ resultSummary: 'Done' });
+    out = strip(component.render(120).join('\n'));
+    expect(out).not.toContain('/agent to inspect');
+  });
+
+  it('hides /agent to inspect hint for failed subagents (AC8)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_hint_fail',
+        name: 'Agent',
+        args: { description: 'test hint fail' },
+      },
+      undefined,
+      darkColors,
+    );
+    component.onSubagentSpawned({
+      agentId: 'sub_hint_fail',
+      agentName: 'explore',
+      runInBackground: false,
+    });
+    component.onSubagentFailed({ error: 'error' });
+    const out = strip(component.render(120).join('\n'));
+    expect(out).not.toContain('/agent to inspect');
+  });
+
   it('scrolls the Write streaming preview to the last COMMAND_PREVIEW_LINES', () => {
     const lines: string[] = [];
     for (let i = 1; i <= 30; i++) lines.push(`line${String(i)}`);
@@ -884,5 +985,205 @@ describe('ToolCallComponent', () => {
     } finally {
       stderr.restore();
     }
+  });
+});
+
+describe('formatSubagentTokens', () => {
+  it('appends cache hit-rate suffix when inputCacheRead > 0', () => {
+    // scenario 1: 87% with k-suffix
+    const result = formatSubagentTokens({
+      inputOther: 1300,
+      inputCacheRead: 8700,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (87%)');
+  });
+
+  it('omits cache suffix when inputCacheRead is 0', () => {
+    // scenario 2: hit rate = 0, no suffix
+    const result = formatSubagentTokens({
+      inputOther: 10000,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('omits cache suffix when all input breakdown fields are 0', () => {
+    // scenario 3: denominator = 0, computeCacheHitRate → undefined, no suffix
+    const result = formatSubagentTokens({
+      inputOther: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('5.0k tok');
+  });
+
+  it('returns undefined for undefined input', () => {
+    // scenario 4
+    expect(formatSubagentTokens(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined when total tokens is 0', () => {
+    // scenario 5: all fields 0
+    const result = formatSubagentTokens({
+      inputOther: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+      output: 0,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it('formats percentage without decimals', () => {
+    // scenario 6: 88% exactly, no decimal
+    const result = formatSubagentTokens({
+      inputOther: 1200,
+      inputCacheRead: 8800,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (88%)');
+  });
+
+  it('uses banker rounding for exact .5 ties', () => {
+    // scenario 7: 87.5 → 88 (round-half-to-even: 87 is odd, round up)
+    const result = formatSubagentTokens({
+      inputOther: 1250,
+      inputCacheRead: 8750,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (88%)');
+  });
+
+  it('formats small token counts without k-suffix', () => {
+    // scenario 8: total < 1000, no k-suffix; 10/17 ≈ 59%
+    const result = formatSubagentTokens({
+      inputOther: 5,
+      inputCacheRead: 10,
+      inputCacheCreation: 2,
+      output: 3,
+    });
+    expect(result).toBe('20 tok (59%)');
+  });
+
+  it('computes hit rate with inputCacheCreation in denominator', () => {
+    // scenario 9: 5000 / (1000+5000+4000) = 50%
+    const result = formatSubagentTokens({
+      inputOther: 1000,
+      inputCacheRead: 5000,
+      inputCacheCreation: 4000,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok (50%)');
+  });
+
+  it('skips cache suffix when legacy input field is present without breakdown', () => {
+    // scenario 10: legacy input, no breakdown fields — no suffix
+    const result = formatSubagentTokens({
+      input: 10000,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('skips cache suffix when legacy input is present even with breakdown fields', () => {
+    // scenario 11: legacy input present, skip cache computation entirely
+    const result = formatSubagentTokens({
+      input: 10000,
+      inputOther: 1300,
+      inputCacheRead: 8700,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+
+  it('rounds up to 100% when close to full cache read', () => {
+    // scenario 14: 24900/25000 = 99.6% → rounds to 100%
+    const result = formatSubagentTokens({
+      inputOther: 100,
+      inputCacheRead: 24900,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('30.0k tok (100%)');
+  });
+
+  it('hides suffix for tiny hit rates that round to 0%', () => {
+    // scenario 15: 50/10000 = 0.5% → banker's rounding → 0% → hidden
+    const result = formatSubagentTokens({
+      inputOther: 9950,
+      inputCacheRead: 50,
+      inputCacheCreation: 0,
+      output: 5000,
+    });
+    expect(result).toBe('15.0k tok');
+  });
+});
+
+describe('ToolCallComponent snapshot listeners', () => {
+  it('supports multiple concurrent listeners via addSnapshotListener', () => {
+    const component = new ToolCallComponent(
+      { id: 'call_a', name: 'Read', args: { path: 'a.ts' } },
+      undefined,
+      darkColors,
+    );
+
+    const calls: string[] = [];
+    const unsubscribeA = component.addSnapshotListener(() => {
+      calls.push('A');
+    });
+    const unsubscribeB = component.addSnapshotListener(() => {
+      calls.push('B');
+    });
+
+    // Both listeners should have been called immediately on registration.
+    expect(calls).toEqual(['A', 'B']);
+
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['A', 'B']);
+
+    unsubscribeA();
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['B']);
+
+    unsubscribeB();
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual([]);
+  });
+
+  it('setSnapshotListener clears existing listeners for backward compatibility', () => {
+    const component = new ToolCallComponent(
+      { id: 'call_b', name: 'Read', args: { path: 'b.ts' } },
+      undefined,
+      darkColors,
+    );
+
+    const calls: string[] = [];
+    const unsubscribe = component.addSnapshotListener(() => {
+      calls.push('added');
+    });
+
+    calls.length = 0;
+    component.setSnapshotListener(() => {
+      calls.push('set');
+    });
+
+    // The previous listener should have been replaced.
+    expect(calls).toEqual(['set']);
+
+    calls.length = 0;
+    component['notifySnapshotChange']();
+    expect(calls).toEqual(['set']);
+
+    unsubscribe(); // no-op, already cleared
   });
 });

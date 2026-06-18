@@ -1,5 +1,7 @@
 import type { Agent } from '..';
 
+import type { EphemeralInjection } from '../context/projector';
+
 export abstract class DynamicInjector {
   protected injectedAt: number | null = null;
 
@@ -30,4 +32,12 @@ export abstract class DynamicInjector {
   protected abstract readonly injectionVariant: string;
 
   protected abstract getInjection(): string | Promise<string | undefined> | undefined;
+
+  /**
+   * If implemented, produces ephemeral injections rendered fresh each step
+   * at request time. Unlike persistent injections (via {@link inject}),
+   * ephemeral injections are not stored in history and do not pollute the
+   * cached prefix when placed at the `'before_user'` position.
+   */
+  getEphemeral?(): readonly EphemeralInjection[];
 }

@@ -1,4 +1,4 @@
-# ADR 0007: Decompose ByfTui into Independent Modules
+# ADR 0017: Decompose ByfTui into Independent Modules
 
 ## Status
 

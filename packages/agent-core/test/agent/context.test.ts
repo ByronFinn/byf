@@ -556,6 +556,50 @@ describe('Agent context notification projection', () => {
     expect(textOf(messages[0]!)).toContain('Task done');
     expect(textOf(messages[1]!)).toBe('Actual user prompt');
   });
+
+  it('places before_user injections after history (dynamic zone)', () => {
+    const messages = project(
+      [userMessage('Hello'), assistantMessage('Hi there'), userMessage('Do something')],
+      [
+        {
+          kind: 'system_reminder',
+          content: 'After system content',
+          position: 'after_system',
+        },
+        {
+          kind: 'system_reminder',
+          content: 'Before user content',
+          position: 'before_user',
+        },
+      ],
+    );
+
+    // Expected order: [after_system] [history...] [before_user]
+    // before_user injections go at the end so they don't break the cached prefix
+    expect(messages).toHaveLength(5);
+    expect(textOf(messages[0]!)).toContain('After system content');
+    expect(textOf(messages[1]!)).toBe('Hello');
+    expect(textOf(messages[2]!)).toBe('Hi there');
+    expect(textOf(messages[3]!)).toBe('Do something');
+    expect(textOf(messages[4]!)).toContain('Before user content');
+  });
+
+  it('places before_user injections at the end even with no after_system injections', () => {
+    const messages = project(
+      [userMessage('Question')],
+      [
+        {
+          kind: 'system_reminder',
+          content: 'Dynamic context',
+          position: 'before_user',
+        },
+      ],
+    );
+
+    expect(messages).toHaveLength(2);
+    expect(textOf(messages[0]!)).toBe('Question');
+    expect(textOf(messages[1]!)).toContain('Dynamic context');
+  });
 });
 
 function appendAssistantText(ctx: TestAgentContext, step: number, text: string) {

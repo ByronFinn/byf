@@ -21,7 +21,9 @@ import {
   promptTextInput as promptTextInputViaHost,
   promptApiKey as promptApiKeyViaHost,
   promptModelSelector as promptModelSelectorViaHost,
+  promptApiTypeSelection as promptApiTypeSelectionViaHost,
 } from '#/tui/flows/dialog-prompts';
+import type { ChoiceOption } from '#/tui/components/dialogs/choice-picker';
 
 export interface ModelSelection {
   alias: string;
@@ -32,12 +34,42 @@ export interface SpinnerHandle {
   stop(opts: { ok: boolean; label: string }): void;
 }
 
+/**
+ * Interface types offered by `/login`. Each entry maps to its native
+ * model-listing fetcher and its official default base URL (used when the user
+ * leaves the base-URL input empty). `google-genai` / `vertexai` are deferred —
+ * their runtime does not consume a user-supplied baseUrl (ADR 0016).
+ */
+const API_TYPE_OPTIONS: readonly ChoiceOption[] = [
+  {
+    value: 'openai-completions',
+    label: 'OpenAI Chat Completions 兼容',
+    description: 'https://api.openai.com/v1',
+  },
+  {
+    value: 'openai_responses',
+    label: 'OpenAI Responses API',
+    description: 'https://api.openai.com/v1',
+  },
+  {
+    value: 'anthropic',
+    label: 'Anthropic 原生',
+    description: 'https://api.anthropic.com/v1',
+  },
+];
+
+const DEFAULT_BASE_URL: Record<string, string> = {
+  'openai-completions': 'https://api.openai.com/v1',
+  'openai_responses': 'https://api.openai.com/v1',
+  'anthropic': 'https://api.anthropic.com/v1',
+};
+
 export interface LoginFlowDeps {
   readonly colors: ColorPalette;
   readonly dialogHost: DialogHost;
   getConfig(): Promise<ByfConfig>;
   setConfig(config: ByfConfigPatch): Promise<unknown>;
-  fetchModels(baseUrl: string, apiKey: string): Promise<OAuthModelInfo[]>;
+  fetchModels(type: string, baseUrl: string, apiKey: string): Promise<OAuthModelInfo[]>;
   applyProviderConfig: typeof applyProviderConfig;
   refreshConfigAfterLogin(): Promise<void>;
   showStatus(message: string, color?: string): void;
@@ -52,6 +84,10 @@ export class LoginFlow {
 
   async run(): Promise<void> {
     const { dialogHost, colors } = this.deps;
+
+    const type = await promptApiTypeSelectionViaHost(dialogHost, colors, API_TYPE_OPTIONS);
+    if (type === undefined) return;
+
     const name = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Provider name',
       subtitle: 'A short name for this provider (e.g. deepseek, openrouter)',
@@ -69,12 +105,15 @@ export class LoginFlow {
       return;
     }
 
-    const baseUrl = await promptTextInputViaHost(dialogHost, colors, {
+    const defaultUrl = DEFAULT_BASE_URL[type] ?? '';
+    const baseUrlInput = await promptTextInputViaHost(dialogHost, colors, {
       title: 'Base URL',
-      subtitle: 'The OpenAI-compatible API endpoint',
-      placeholder: 'https://api.openai.com/v1',
+      subtitle: 'The API endpoint (leave empty for the official default)',
+      placeholder: defaultUrl,
+      allowEmpty: true,
     });
-    if (baseUrl === undefined) return;
+    if (baseUrlInput === undefined) return;
+    const baseUrl = baseUrlInput.length > 0 ? baseUrlInput : defaultUrl;
 
     const apiKey = await promptApiKeyViaHost(dialogHost, colors, name);
     if (apiKey === undefined) return;
@@ -82,7 +121,7 @@ export class LoginFlow {
     let models: OAuthModelInfo[];
     const spinner = this.deps.showLoginProgressSpinner(`Fetching models from ${baseUrl}`);
     try {
-      models = await this.deps.fetchModels(baseUrl, apiKey);
+      models = await this.deps.fetchModels(type, baseUrl, apiKey);
       spinner.stop({ ok: true, label: `Found ${String(models.length)} model(s).` });
     } catch (error: unknown) {
       spinner.stop({ ok: false, label: 'Failed' });
@@ -91,12 +130,12 @@ export class LoginFlow {
       } else {
         this.deps.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
       }
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
+      return this.handleManualModelEntry(type, name, baseUrl, apiKey);
     }
 
     if (models.length === 0) {
       this.deps.showStatus('No models found at this endpoint. Enter model ID manually.');
-      return this.handleManualModelEntry(name, baseUrl, apiKey);
+      return this.handleManualModelEntry(type, name, baseUrl, apiKey);
     }
 
     const catalog = await this.fetchCatalogWithFallback();
@@ -129,12 +168,13 @@ export class LoginFlow {
     const selectedModel = models.find((m) => m.id === selectedId);
     if (selectedModel === undefined) return;
 
-    await this.applyConfig(name, baseUrl, apiKey, models, selectedModel, selection.thinkingEffort !== 'off', enriched);
+    await this.applyConfig(type, name, baseUrl, apiKey, models, selectedModel, selection.thinkingEffort !== 'off', enriched);
     this.deps.track('login', { provider: name, model: selectedModel.id });
     this.deps.showStatus(`Connected: ${name} · ${selectedModel.id}`);
   }
 
   private async handleManualModelEntry(
+    type: string,
     name: string,
     baseUrl: string,
     apiKey: string,
@@ -168,12 +208,13 @@ export class LoginFlow {
       supportsVideoIn: false,
     };
 
-    await this.applyConfig(name, baseUrl, apiKey, [manualModelInfo], manualModelInfo, false, {});
+    await this.applyConfig(type, name, baseUrl, apiKey, [manualModelInfo], manualModelInfo, false, {});
     this.deps.track('login', { provider: name, model: manualModel });
     this.deps.showStatus(`Connected: ${name} · ${manualModel}`);
   }
 
   private async applyConfig(
+    type: string,
     name: string,
     baseUrl: string,
     apiKey: string,
@@ -185,6 +226,7 @@ export class LoginFlow {
     const config = await this.deps.getConfig();
     this.deps.applyProviderConfig(config, {
       name,
+      type,
       baseUrl,
       apiKey,
       models,
@@ -232,8 +274,8 @@ export class LoginFlow {
 function capabilitiesForModel(m: OAuthModelInfo): string[] {
   const caps: string[] = [];
   if (m.supportsReasoning) caps.push('thinking');
-  if (m.supportsImageIn) caps.push('image');
-  if (m.supportsVideoIn) caps.push('video');
+  if (m.supportsImageIn) caps.push('image_in');
+  if (m.supportsVideoIn) caps.push('video_in');
   return caps;
 }
 

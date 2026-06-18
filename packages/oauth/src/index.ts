@@ -1,6 +1,7 @@
 export {
   capabilitiesForModel,
   fetchModels,
+  fetchModelsByType,
   filterModelsByPrefix,
   ProviderApiError,
   removeProviderConfig,

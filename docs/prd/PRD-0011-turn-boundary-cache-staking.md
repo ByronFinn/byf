@@ -1,3 +1,5 @@
+# PRD-0011: Turn-Boundary Cache Staking
+
 ## Problem Statement
 
 BYF's prompt caching currently only covers the system prompt and tool definitions. Conversation history — which dominates token usage in multi-turn CLI sessions — is sent without any cache breakpoints. In a 10-turn session where tool results (file contents, test output) accumulate, every turn re-transmits the entire history at full input price.

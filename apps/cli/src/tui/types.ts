@@ -58,6 +58,7 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
+  cacheHitRate?: number;
   isStreaming: boolean;
   isCompacting: boolean;
   isReplaying: boolean;
@@ -106,11 +107,32 @@ export interface SubagentReplayToolCallData {
   result?: ToolResultBlockData;
 }
 
+/**
+ * Sub-agent token usage shape: the input breakdown (cache read/creation/other)
+ * plus output. Mirrors `TokenUsage` from `@byfriends/kosong`, which is what
+ * `ResumedAgentState.usage.total` carries. Shared by the live path
+ * (`ToolCallComponent.subagentUsage`) and the replay path
+ * (`SubagentReplayBlockData.usage`).
+ */
+export interface SubagentTokenUsage {
+  readonly input?: number;
+  readonly inputOther?: number;
+  readonly inputCacheRead?: number;
+  readonly inputCacheCreation?: number;
+  readonly output: number;
+}
+
 export interface SubagentReplayBlockData {
   id: string;
   name?: string;
   text?: string;
   toolCalls?: readonly SubagentReplayToolCallData[];
+  /**
+   * The child agent's total token usage, sourced from
+   * `ResumedAgentState.usage.total`. Consumed by `applySubagentReplay` to set
+   * `subagentUsage`, so a resumed `/agent` card shows a non-zero token count.
+   */
+  usage?: SubagentTokenUsage;
 }
 
 export interface BackgroundAgentMetadata {

@@ -20,21 +20,22 @@ const CACHE_BOUNDARY_MARKER = '__CACHE_BOUNDARY__';
  *
  * These headers mark natural breaks in the system prompt where cache boundaries should be placed:
  * - "# Project Information" marks the start of project-specific content
+ * - "# Working Environment" marks the start of session-specific environment (OS, working directory)
  * - "# Skills" marks the start of session-specific skills listing
  */
-const IMPLICIT_BOUNDARY_HEADERS = ['# Project Information', '# Skills'] as const;
+const IMPLICIT_BOUNDARY_HEADERS = ['# Project Information', '# Working Environment', '# Skills'] as const;
 
 /**
  * Block names by position.
  *
  * - First block (before first marker): 'base'
  * - Last block (after last marker): 'sessionContext'
- * - Intermediate blocks: Sequential names from 'projectInstructions', 'skillsListing', etc.
+ * - Intermediate blocks: Sequential names from 'projectInstructions', 'workingEnvironment', etc.
  */
 const BLOCK_NAMES = [
   'base',
   'projectInstructions',
-  'skillsListing',
+  'workingEnvironment',
   'sessionContext',
 ] as const;
 
@@ -46,7 +47,7 @@ const BLOCK_NAMES = [
 const DEFAULT_BLOCK_SCOPES: CacheScope[] = [
   'global', // base
   'project', // projectInstructions
-  'session', // skillsListing and beyond
+  'session', // workingEnvironment, sessionContext and beyond
 ];
 
 /**

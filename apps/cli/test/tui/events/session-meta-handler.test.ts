@@ -17,6 +17,7 @@ import {
   type SessionMetaCallbacks,
   type SessionMetaState,
 } from '#/tui/events/session-meta-handler';
+import { computeCacheHitRate } from '#/utils/usage/usage-format';
 
 const OAUTH_LOGIN_REQUIRED_CODE = 'auth.login_required';
 
@@ -107,6 +108,159 @@ describe('handleStatusUpdate', () => {
     expect(setAppState).not.toHaveBeenCalled();
   });
 
+  // ── cache hit-rate: data plumbing from event.usage.currentTurn ──
+
+  it('A1: computes cacheHitRate from currentTurn with cache reads', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: {
+        currentTurn: { inputOther: 500, inputCacheRead: 8700, inputCacheCreation: 0 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate!).toBeCloseTo(0.9457, 4);
+  });
+
+  it('A2: computes cacheHitRate = 0 when no reads (first turn)', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: {
+        currentTurn: { inputOther: 10000, inputCacheRead: 0, inputCacheCreation: 2000 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate).toBe(0);
+  });
+
+  it('A3: returns cacheHitRate = undefined when denominator is zero', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: {
+        currentTurn: { inputOther: 0, inputCacheRead: 0, inputCacheCreation: 0 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate).toBeUndefined();
+  });
+
+  it('A4: does not include cacheHitRate when usage is undefined', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: undefined,
+    };
+    handleStatusUpdate(event, setAppState);
+    // No other fields, so patch is empty → no setAppState call
+    expect(setAppState).not.toHaveBeenCalled();
+  });
+
+  it('A5: does not include cacheHitRate when currentTurn is undefined', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: { currentTurn: undefined },
+    };
+    handleStatusUpdate(event, setAppState);
+    // No other fields, so patch is empty → no setAppState call
+    expect(setAppState).not.toHaveBeenCalled();
+  });
+
+  it('A6: all fields coexist with cacheHitRate: 0.7', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      contextUsage: 0.42,
+      contextTokens: 4200,
+      maxContextTokens: 10000,
+      permission: 'auto',
+      model: 'claude-sonnet',
+      usage: {
+        currentTurn: { inputOther: 300, inputCacheRead: 700, inputCacheCreation: 0 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch.contextUsage).toBe(0.42);
+    expect(patch.contextTokens).toBe(4200);
+    expect(patch.maxContextTokens).toBe(10000);
+    expect(patch.permissionMode).toBe('auto');
+    expect(patch.yolo).toBe(false);
+    expect(patch.model).toBe('claude-sonnet');
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate).toBe(0.7);
+  });
+
+  it('A7: only old fields, no usage — patch identical to pre-change behavior', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      contextUsage: 0.65,
+      permission: 'auto',
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch.contextUsage).toBe(0.65);
+    expect(patch.permissionMode).toBe('auto');
+    expect(patch.yolo).toBe(false);
+    expect(patch).not.toHaveProperty('cacheHitRate');
+  });
+
+  it('A8: 100% cache hit rate', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: {
+        currentTurn: { inputOther: 0, inputCacheRead: 5000, inputCacheCreation: 0 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate).toBe(1.0);
+  });
+
+  it('A9: 1% hit rate', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      usage: {
+        currentTurn: { inputOther: 9900, inputCacheRead: 100, inputCacheCreation: 0 } as never,
+      },
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch).toHaveProperty('cacheHitRate');
+    expect(patch.cacheHitRate!).toBeCloseTo(0.01, 4);
+  });
+
+  it('A10: no usage key — existing fields extracted, no cacheHitRate', () => {
+    const setAppState = vi.fn();
+    const event: AgentStatusUpdatedEvent = {
+      type: 'agent.status.updated',
+      contextTokens: 12345,
+    };
+    handleStatusUpdate(event, setAppState);
+    expect(setAppState).toHaveBeenCalledOnce();
+    const patch = setAppState.mock.calls[0]![0];
+    expect(patch.contextTokens).toBe(12345);
+    expect(patch).not.toHaveProperty('cacheHitRate');
+  });
 
 });
 

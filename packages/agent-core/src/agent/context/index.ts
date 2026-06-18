@@ -16,7 +16,7 @@ import {
   DEFAULT_OFFLOADING_CONFIG,
   offloadOutput,
 } from './output-offloading';
-import { project } from './projector';
+import { project, type EphemeralInjection } from './projector';
 import { ScratchManager } from './scratch-manager';
 import {
   USER_PROMPT_ORIGIN,
@@ -154,7 +154,16 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   get messages(): Message[] {
-    return project(this.history);
+    return this.getMessages();
+  }
+
+  /**
+   * Project history into provider-ready messages, optionally with
+   * ephemeral injections (e.g. timestamp, permission mode) appended
+   * at the `'before_user'` position.
+   */
+  getMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
+    return project(this.history, ephemeral);
   }
 
   applyObservationMasking(config?: MaskingConfig): MaskingResult {

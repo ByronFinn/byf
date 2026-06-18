@@ -3,12 +3,13 @@ import type {
   BackgroundTaskInfo,
   ContentPart,
   PromptOrigin,
+  ResumedAgentState,
   Role,
   ToolCall,
 } from '@byfriends/sdk';
 import { describe, expect, it } from 'vitest';
 
-import { projectReplayRecords } from '#/tui/actions/replay-ops';
+import { distillSubagents, projectReplayRecords } from '#/tui/actions/replay-ops';
 
 interface ReplayMessageExtra {
   readonly toolCalls?: readonly ToolCall[];
@@ -537,5 +538,376 @@ describe('projectReplayRecords', () => {
     ]);
 
     expect(projected.entries.map((e) => [e.kind, e.content])).toEqual([['user', 'visible']]);
+  });
+});
+
+describe('projectReplayRecords — subagent activity projection (AC2)', () => {
+  // AC2: after resume, each child agent's activity is projected onto the
+  // matching main-agent `Agent` tool-call card so /agent shows the child's
+  // name, tool calls, text, and token count. The child state is supplied as a
+  // map keyed by the parent tool-call id (parentToolCallId).
+
+  function agentToolCall(id: string, description: string): ToolCall {
+    return {
+      type: 'function',
+      id,
+      name: 'Agent',
+      arguments: JSON.stringify({ description, subagent_type: 'coder' }),
+    };
+  }
+
+  it('S0: leaves subagent undefined when no child map is passed (backward compat)', () => {
+    const projected = projectReplayRecords([
+      message('assistant', [], { toolCalls: [agentToolCall('tc_a', 'Fix bug')] }),
+      message('tool', [{ type: 'text', text: 'summary' }], { toolCallId: 'tc_a' }),
+    ]);
+
+    expect(projected.entries[0]?.toolCallData?.subagent).toBeUndefined();
+  });
+
+  it('S1: attaches the child name, tool calls, and text when ids match', () => {
+    const subagents = new Map([
+      [
+        'tc_a',
+        {
+          id: 'c1',
+          name: 'Coder',
+          text: 'done',
+          toolCalls: [{ id: 'sub1', name: 'Bash', args: { command: 'ls' } }],
+        },
+      ],
+    ]);
+
+    const projected = projectReplayRecords(
+      [message('assistant', [], { toolCalls: [agentToolCall('tc_a', 'Fix bug')] })],
+      [],
+      subagents,
+    );
+
+    expect(projected.entries[0]?.toolCallData?.subagent).toMatchObject({
+      id: 'c1',
+      name: 'Coder',
+      text: 'done',
+      toolCalls: [{ id: 'sub1', name: 'Bash', args: { command: 'ls' } }],
+    });
+  });
+
+  it('S2a: threads the child usage into the projected subagent block', () => {
+    const subagents = new Map([
+      [
+        'tc_a',
+        {
+          id: 'c1',
+          name: 'Coder',
+          usage: { inputOther: 1300, inputCacheRead: 8700, inputCacheCreation: 0, output: 5000 },
+        },
+      ],
+    ]);
+
+    const projected = projectReplayRecords(
+      [message('assistant', [], { toolCalls: [agentToolCall('tc_a', 'Fix bug')] })],
+      [],
+      subagents,
+    );
+
+    expect(projected.entries[0]?.toolCallData?.subagent?.usage).toMatchObject({
+      inputOther: 1300,
+      inputCacheRead: 8700,
+      output: 5000,
+    });
+  });
+
+  it('S3: attaches each child to its own Agent tool-call with no cross-wiring', () => {
+    const subagents = new Map([
+      ['tc_a', { id: 'c1', name: 'Coder', text: 'A out' }],
+      ['tc_b', { id: 'c2', name: 'Reviewer', text: 'B out' }],
+    ]);
+
+    const projected = projectReplayRecords(
+      [
+        message('assistant', [], {
+          toolCalls: [agentToolCall('tc_a', 'Implement'), agentToolCall('tc_b', 'Review')],
+        }),
+      ],
+      [],
+      subagents,
+    );
+
+    const calls = projected.entries.filter((e) => e.kind === 'tool_call');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.toolCallData?.subagent?.name).toBe('Coder');
+    expect(calls[1]?.toolCallData?.subagent?.name).toBe('Reviewer');
+  });
+
+  it('S4: preserves multiple child tool calls in order with their results', () => {
+    const subagents = new Map([
+      [
+        'tc_a',
+        {
+          id: 'c1',
+          name: 'Coder',
+          text: 'line1\nline2',
+          toolCalls: [
+            { id: 's1', name: 'Read', args: { path: '/a' }, result: { tool_call_id: 's1', output: 'x' } },
+            { id: 's2', name: 'Bash', args: { command: 'pwd' }, result: { tool_call_id: 's2', output: '/', is_error: false } },
+            { id: 's3', name: 'Grep', args: { pattern: 'foo' } },
+          ],
+        },
+      ],
+    ]);
+
+    const projected = projectReplayRecords(
+      [message('assistant', [], { toolCalls: [agentToolCall('tc_a', 'Fix bug')] })],
+      [],
+      subagents,
+    );
+
+    const toolCalls = projected.entries[0]?.toolCallData?.subagent?.toolCalls ?? [];
+    expect(toolCalls).toHaveLength(3);
+    expect(toolCalls[2]).toMatchObject({ id: 's3', name: 'Grep' });
+    // Finished calls keep their result; the ongoing one (s3) has no result.
+    expect(toolCalls[0]?.result).toMatchObject({ tool_call_id: 's1', output: 'x' });
+    expect(toolCalls[2]?.result).toBeUndefined();
+    expect(projected.entries[0]?.toolCallData?.subagent?.text).toBe('line1\nline2');
+  });
+
+  it('S5: leaves subagent undefined for an Agent tool-call with no matching child, but keeps the result', () => {
+    const projected = projectReplayRecords(
+      [
+        message('assistant', [], { toolCalls: [agentToolCall('tc_orphan', 'Fix bug')] }),
+        message('tool', [{ type: 'text', text: 'summary' }], { toolCallId: 'tc_orphan' }),
+      ],
+      [],
+      new Map(),
+    );
+
+    expect(projected.entries[0]?.toolCallData?.subagent).toBeUndefined();
+    expect(projected.entries[0]?.toolCallData?.result).toMatchObject({
+      tool_call_id: 'tc_orphan',
+      output: 'summary',
+    });
+  });
+
+  it('S6: never attaches a subagent block to a non-Agent tool-call even when ids collide', () => {
+    const subagents = new Map([
+      ['tc_x', { id: 'c1', name: 'Coder' }],
+    ]);
+
+    const projected = projectReplayRecords(
+      [
+        message('assistant', [], {
+          toolCalls: [
+            { type: 'function', id: 'tc_x', name: 'Bash', arguments: '{"command":"pwd"}' },
+          ],
+        }),
+      ],
+      [],
+      subagents,
+    );
+
+    expect(projected.entries[0]?.toolCallData?.name).toBe('Bash');
+    expect(projected.entries[0]?.toolCallData?.subagent).toBeUndefined();
+  });
+});
+
+describe('distillSubagents — child state → subagent block (AC2 wiring, S8)', () => {
+  // S8: the wiring helper that turns each non-main agent's ResumedAgentState
+  // into a SubagentReplayBlockData keyed by parentToolCallId. This is the seam
+  // between agent-core (which now threads parentToolCallId + child replay) and
+  // the projection above.
+
+  function childState(overrides: Partial<ResumedAgentState> = {}): ResumedAgentState {
+    return {
+      type: 'sub',
+      config: { profileName: 'Coder' } as ResumedAgentState['config'],
+      context: {} as ResumedAgentState['context'],
+      replay: [],
+      permission: {} as ResumedAgentState['permission'],
+      plan: null,
+      usage: { total: { inputOther: 1000, inputCacheRead: 0, inputCacheCreation: 0, output: 500 } },
+      tools: [],
+      background: [],
+      parentToolCallId: 'tc_a',
+      ...overrides,
+    };
+  }
+
+  it('distills a child with tool calls and text, keyed by parentToolCallId', () => {
+    const child = childState({
+      replay: [
+        message('user', [{ type: 'text', text: 'do the work' }]),
+        message('assistant', [{ type: 'text', text: 'working on it' }]),
+        message('assistant', [], {
+          toolCalls: [
+            { type: 'function', id: 'sub1', name: 'Read', arguments: '{"path":"/a"}' },
+          ],
+        }),
+        message('tool', [{ type: 'text', text: 'file contents' }], { toolCallId: 'sub1' }),
+        message('assistant', [{ type: 'text', text: 'done' }]),
+      ],
+    });
+
+    const map = distillSubagents({ main: childState({ type: 'main', parentToolCallId: undefined }), 'agent-0': child });
+    const block = map.get('tc_a');
+
+    expect(block).toMatchObject({
+      id: 'agent-0',
+      name: 'Coder',
+      text: 'working on it\ndone',
+    });
+    expect(block?.toolCalls).toHaveLength(1);
+    expect(block?.toolCalls?.[0]).toMatchObject({
+      id: 'sub1',
+      name: 'Read',
+      result: { tool_call_id: 'sub1', output: 'file contents' },
+    });
+    // usage flows through from the child's total.
+    expect(block?.usage).toMatchObject({ inputOther: 1000, output: 500 });
+  });
+
+  it('skips the main agent and children without a parentToolCallId', () => {
+    const map = distillSubagents({
+      main: childState({ type: 'main', parentToolCallId: undefined }),
+      'agent-0': childState({ parentToolCallId: undefined }),
+    });
+
+    expect(map.size).toBe(0);
+  });
+
+  it('handles a child with no tool calls and no assistant text', () => {
+    const map = distillSubagents({ 'agent-0': childState() });
+
+    const block = map.get('tc_a');
+    expect(block).toMatchObject({ id: 'agent-0', name: 'Coder' });
+    expect(block?.text).toBeUndefined();
+    expect(block?.toolCalls).toBeUndefined();
+  });
+});
+
+describe('projectReplayRecords — Agent grouping precondition (AC3)', () => {
+  // AC3: adjacent Agent tool-calls in the same step/turn must share step and
+  // turnId so hydrateProjectedEntries groups them into an AgentGroupComponent.
+  // Live uses provider step_uuid; in replay, "one assistant message = one
+  // step" and turnId increments at each user-turn boundary.
+
+  function agentToolCall(id: string): ToolCall {
+    return {
+      type: 'function',
+      id,
+      name: 'Agent',
+      arguments: JSON.stringify({ description: 'work', subagent_type: 'coder' }),
+    };
+  }
+
+  it('G1: two Agent calls in one assistant message share step and turnId', () => {
+    const projected = projectReplayRecords([
+      message('user', [{ type: 'text', text: 'run two agents' }]),
+      message('assistant', [], { toolCalls: [agentToolCall('tc_a'), agentToolCall('tc_b')] }),
+    ]);
+
+    const calls = projected.entries.filter((e) => e.kind === 'tool_call');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.toolCallData?.step).toBeDefined();
+    expect(calls[0]?.toolCallData?.step).toBe(calls[1]?.toolCallData?.step);
+    expect(calls[0]?.toolCallData?.turnId).toBe(calls[1]?.toolCallData?.turnId);
+  });
+
+  it('G2: Agent calls across separate user turns get different turnIds', () => {
+    const projected = projectReplayRecords([
+      message('user', [{ type: 'text', text: 'turn 1' }]),
+      message('assistant', [], { toolCalls: [agentToolCall('tc_a')] }),
+      message('user', [{ type: 'text', text: 'turn 2' }]),
+      message('assistant', [], { toolCalls: [agentToolCall('tc_b')] }),
+    ]);
+
+    const calls = projected.entries.filter((e) => e.kind === 'tool_call');
+    expect(calls[0]?.toolCallData?.turnId).not.toBe(calls[1]?.toolCallData?.turnId);
+  });
+
+  it('G3: Agent calls in separate assistant messages (same turn) get different steps', () => {
+    // Two assistant messages in one turn = two steps, so they do NOT group.
+    const projected = projectReplayRecords([
+      message('user', [{ type: 'text', text: 'one turn' }]),
+      message('assistant', [], { toolCalls: [agentToolCall('tc_a')] }),
+      message('assistant', [], { toolCalls: [agentToolCall('tc_b')] }),
+    ]);
+
+    const calls = projected.entries.filter((e) => e.kind === 'tool_call');
+    expect(calls[0]?.toolCallData?.step).not.toBe(calls[1]?.toolCallData?.step);
+    // Same turn, though.
+    expect(calls[0]?.toolCallData?.turnId).toBe(calls[1]?.toolCallData?.turnId);
+  });
+});
+
+describe('resume degradation for sessions without parentToolCallId (AC4)', () => {
+  // AC4: an old session persisted before parentToolCallId existed still resumes
+  // without crashing, and Agent cards degrade to result-derived rendering.
+  // This composes distillSubagents (S8: empty map) + projection (S5: no child)
+  // + grouping precondition (AC3) end-to-end at the projection layer.
+
+  it('renders Agent cards from their result when no child activity is available', () => {
+    // Old-session resume snapshot: a main agent whose Agent tool-call has no
+    // matching child (children lack parentToolCallId, so distillSubagents
+    // returns an empty map).
+    const resumeState = {
+      main: {
+        type: 'main' as const,
+        config: {} as ResumedAgentState['config'],
+        context: {} as ResumedAgentState['context'],
+        replay: [
+          message('user', [{ type: 'text', text: 'run an agent' }]),
+          message('assistant', [], {
+            toolCalls: [
+              {
+                type: 'function',
+                id: 'tc_legacy',
+                name: 'Agent',
+                arguments: JSON.stringify({ description: 'legacy work' }),
+              },
+            ],
+          }),
+          message('tool', [{ type: 'text', text: 'legacy summary' }], {
+            toolCallId: 'tc_legacy',
+          }),
+        ],
+        permission: {} as ResumedAgentState['permission'],
+        plan: null,
+        usage: {},
+        tools: [],
+        background: [],
+      },
+      // Legacy child: no parentToolCallId → skipped by distillSubagents.
+      'agent-0': {
+        type: 'sub' as const,
+        config: { profileName: 'Coder' } as ResumedAgentState['config'],
+        context: {} as ResumedAgentState['context'],
+        replay: [],
+        permission: {} as ResumedAgentState['permission'],
+        plan: null,
+        usage: {},
+        tools: [],
+        background: [],
+      },
+    };
+
+    const subagents = distillSubagents(resumeState);
+    expect(subagents.size).toBe(0);
+
+    const projected = projectReplayRecords(
+      resumeState.main.replay,
+      resumeState.main.background,
+      subagents,
+    );
+
+    const call = projected.entries.find((e) => e.kind === 'tool_call');
+    // No subagent block (degraded), but the result-derived card still renders.
+    expect(call?.toolCallData?.subagent).toBeUndefined();
+    expect(call?.toolCallData?.result).toMatchObject({
+      tool_call_id: 'tc_legacy',
+      output: 'legacy summary',
+    });
+    // step/turnId are still set so grouping could apply to multi-Agent turns.
+    expect(call?.toolCallData?.step).toBeDefined();
+    expect(call?.toolCallData?.turnId).toBeDefined();
   });
 });

@@ -37,12 +37,27 @@ export function project(
   });
   const merged = mergeAdjacentUserMessages(usable);
 
-  const injectionMessages = ephemeralInjections?.map((injection) => renderInjection(injection));
+  if (!ephemeralInjections?.length) return merged;
 
-  // Ephemeral injections sit before the first history message
-  // (before_user) so things like system_reminder land right before the
-  // user turn they contextualise.
-  return injectionMessages ? [...injectionMessages, ...merged] : merged;
+  // Split injections by position:
+  // - 'after_system' (default): prepended before all history — these are
+  //   part of the cached prefix and should be stable across steps.
+  //   ⚠️ CAUTION: `after_system` injections shift all history indices.
+  //   The cache-staking logic in `applyCacheStaking` uses indices derived
+  //   from `context.messages` (which excludes ephemerals). If an
+  //   `after_system` injector is ever added, cache staking will tag the
+  //   wrong messages. Prefer `before_user` for all new injectors.
+  // - 'before_user': appended after all history — these are dynamic,
+  //   per-request content (timestamp, permission state) that must not
+  //   break the cached prefix.
+  const afterSystemMsgs = ephemeralInjections
+    .filter((injection) => !injection.position || injection.position === 'after_system')
+    .map((injection) => renderInjection(injection));
+  const beforeUserMsgs = ephemeralInjections
+    .filter((injection) => injection.position === 'before_user')
+    .map((injection) => renderInjection(injection));
+
+  return [...afterSystemMsgs, ...merged, ...beforeUserMsgs];
 }
 
 function isTranscriptOnlyHookResult(message: ProjectableMessage): boolean {

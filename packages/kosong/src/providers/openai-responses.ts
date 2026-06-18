@@ -5,7 +5,6 @@ import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { extractText } from '#/message';
 import type {
-  ChatProvider,
   FinishReason,
   GenerateOptions,
   ProviderRequestAuth,
@@ -13,7 +12,6 @@ import type {
   ThinkingEffort,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
 import OpenAI from 'openai';
 
 import {
@@ -26,11 +24,9 @@ import {
   reasoningEffortToThinkingEffort,
   thinkingEffortToReasoningEffort,
 } from './openai-common';
-import {
-  mergeRequestHeaders,
-  requireProviderApiKey,
-  resolveAuthBackedClient,
-} from './request-auth';
+import { extractCacheUsage } from './provider-common';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 
 /**
  * Normalize the Responses API status / incomplete_details into the unified
@@ -493,39 +489,21 @@ function convertTool(tool: Tool): ResponseToolParam {
     strict: false,
   };
 }
-export class OpenAIResponsesStreamedMessage implements StreamedMessage {
-  private _id: string | null = null;
-  private _usage: TokenUsage | null = null;
-  private _finishReason: FinishReason | null = null;
-  private _rawFinishReason: string | null = null;
-  private readonly _iter: AsyncGenerator<StreamedMessagePart>;
+export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
+  private readonly _response: unknown;
+  private readonly _isStream: boolean;
 
   constructor(response: unknown, isStream: boolean) {
-    if (isStream) {
-      this._iter = this._convertStreamResponse(response as AsyncIterable<RawObject>);
-    } else {
-      this._iter = this._convertNonStreamResponse(response as RawObject);
+    super();
+    this._response = response;
+    this._isStream = isStream;
+  }
+
+  protected _buildIter(): AsyncGenerator<StreamedMessagePart> {
+    if (this._isStream) {
+      return this._convertStreamResponse(this._response as AsyncIterable<RawObject>);
     }
-  }
-
-  get id(): string | null {
-    return this._id;
-  }
-
-  get usage(): TokenUsage | null {
-    return this._usage;
-  }
-
-  get finishReason(): FinishReason | null {
-    return this._finishReason;
-  }
-
-  get rawFinishReason(): string | null {
-    return this._rawFinishReason;
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
-    yield* this._iter;
+    return this._convertNonStreamResponse(this._response as RawObject);
   }
 
   private _captureFinishReasonFromResponse(response: RawObject): void {
@@ -542,12 +520,7 @@ export class OpenAIResponsesStreamedMessage implements StreamedMessage {
     const outputTokens = readNumberField(usage, 'output_tokens') ?? 0;
     const details = readObjectField(usage, 'input_tokens_details');
     const cached = details ? (readNumberField(details, 'cached_tokens') ?? 0) : 0;
-    this._usage = {
-      inputOther: inputTokens - cached,
-      output: outputTokens,
-      inputCacheRead: cached,
-      inputCacheCreation: 0,
-    };
+    this._usage = extractCacheUsage(inputTokens, cached, outputTokens);
   }
 
   private async *_convertNonStreamResponse(
@@ -824,48 +797,46 @@ export class OpenAIResponsesStreamedMessage implements StreamedMessage {
     }
   }
 }
-export class OpenAIResponsesChatProvider implements ChatProvider {
+export class OpenAIResponsesChatProvider extends BaseChatProvider<OpenAIResponsesGenerationKwargs> {
   readonly name: string = 'openai-responses';
 
-  private _model: string;
   private _stream: boolean;
-  private _apiKey: string | undefined;
-  private _baseUrl: string | undefined;
-  private _defaultHeaders: Record<string, string> | undefined;
-  private _generationKwargs: OpenAIResponsesGenerationKwargs;
   private _toolMessageConversion: ToolMessageConversion;
-  private _client: OpenAI | undefined;
   private _httpClient: unknown;
-  private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
 
   constructor(options: OpenAIResponsesOptions) {
     const apiKey = options.apiKey ?? process.env['OPENAI_API_KEY'];
-    this._apiKey = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
-    this._baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
-    this._defaultHeaders = options.defaultHeaders;
-    this._model = options.model;
+    const apiKeyResolved = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
+    const baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
+    const generationKwargs: OpenAIResponsesGenerationKwargs = {};
+    if (options.maxOutputTokens !== undefined) {
+      generationKwargs.max_output_tokens = options.maxOutputTokens;
+    }
+    const client = apiKeyResolved === undefined ? undefined : OpenAIResponsesChatProvider.buildClient(
+      apiKeyResolved,
+      baseUrl,
+      options.defaultHeaders,
+      options.httpClient,
+    );
+    super(
+      options.model,
+      generationKwargs,
+      apiKeyResolved,
+      baseUrl,
+      options.defaultHeaders,
+      client,
+      options.clientFactory,
+    );
     this._stream = true; // Responses API always supports streaming
-    this._generationKwargs = {};
     this._toolMessageConversion = options.toolMessageConversion ?? null;
     this._httpClient = options.httpClient;
-    this._clientFactory = options.clientFactory;
-
-    if (options.maxOutputTokens !== undefined) {
-      this._generationKwargs.max_output_tokens = options.maxOutputTokens;
-    }
-
-    this._client = this._apiKey === undefined ? undefined : this._buildClient(this._apiKey);
   }
 
-  get modelName(): string {
-    return this._model;
-  }
-
-  get thinkingEffort(): ThinkingEffort | null {
+  override get thinkingEffort(): ThinkingEffort | null {
     return reasoningEffortToThinkingEffort(this._generationKwargs.reasoning_effort);
   }
 
-  get modelParameters(): Record<string, unknown> {
+  override get modelParameters(): Record<string, unknown> {
     return {
       model: this._model,
       baseUrl: this._baseUrl,
@@ -873,7 +844,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     };
   }
 
-  getCapability(model?: string): ModelCapability {
+  override getCapability(model?: string): ModelCapability {
     return getOpenAIResponsesModelCapability(model ?? this._model);
   }
 
@@ -917,7 +888,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     }
 
     try {
-      const client = this._createClient(options?.auth);
+      const client = this._createClient(options?.auth) as OpenAI;
       const createParams: Record<string, unknown> = {
         model: this._model,
         input,
@@ -955,52 +926,35 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     }
   }
 
-  withThinking(effort: ThinkingEffort): OpenAIResponsesChatProvider {
+  override withThinking(effort: ThinkingEffort): OpenAIResponsesChatProvider {
     const reasoningEffort = thinkingEffortToReasoningEffort(effort, this._model);
-    const clone = this._clone();
-    clone._generationKwargs = {
-      ...clone._generationKwargs,
-      reasoning_effort: reasoningEffort,
-    };
-    return clone;
+    return this.withGenerationKwargs({ reasoning_effort: reasoningEffort });
   }
 
-  withGenerationKwargs(kwargs: OpenAIResponsesGenerationKwargs): OpenAIResponsesChatProvider {
-    const clone = this._clone();
-    clone._generationKwargs = { ...clone._generationKwargs, ...kwargs };
-    return clone;
-  }
-
-  private _clone(): OpenAIResponsesChatProvider {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as OpenAIResponsesChatProvider,
-      this,
-    );
-    clone._generationKwargs = { ...this._generationKwargs };
-    return clone;
-  }
-
-  private _createClient(auth: ProviderRequestAuth | undefined): OpenAI {
-    return resolveAuthBackedClient(
-      { cachedClient: this._client, clientFactory: this._clientFactory },
-      auth,
-      (a) =>
-        this._buildClient(requireProviderApiKey('OpenAIResponsesChatProvider', a, this._apiKey), a),
+  protected createRawClient(
+    auth: ResolvedAuth,
+    defaultHeaders: Record<string, string> | undefined,
+  ): OpenAI {
+    return OpenAIResponsesChatProvider.buildClient(
+      auth.apiKey,
+      this._baseUrl,
+      defaultHeaders,
+      this._httpClient,
     );
   }
 
-  private _buildClient(apiKey: string, auth?: ProviderRequestAuth): OpenAI {
+  private static buildClient(
+    apiKey: string,
+    baseURL: string,
+    defaultHeaders: Record<string, string> | undefined,
+    httpClient: unknown,
+  ): OpenAI {
     const clientOpts: Record<string, unknown> = {
       apiKey,
-      baseURL: this._baseUrl,
+      baseURL,
+      ...(defaultHeaders !== undefined ? { defaultHeaders } : {}),
+      ...(httpClient !== undefined ? { httpClient } : {}),
     };
-    const defaultHeaders = mergeRequestHeaders(this._defaultHeaders, auth?.headers);
-    if (defaultHeaders !== undefined) {
-      clientOpts['defaultHeaders'] = defaultHeaders;
-    }
-    if (this._httpClient !== undefined) {
-      clientOpts['httpClient'] = this._httpClient;
-    }
     return new OpenAI(clientOpts as ConstructorParameters<typeof OpenAI>[0]);
   }
 }

@@ -1,4 +1,4 @@
-# Approval Fullscreen Viewer
+# PRD-0005: Approval Fullscreen Viewer
 
 **Status**: Done
 **Created**: 2026-06-11
