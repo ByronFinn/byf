@@ -274,8 +274,8 @@ export class LoginFlow {
 function capabilitiesForModel(m: OAuthModelInfo): string[] {
   const caps: string[] = [];
   if (m.supportsReasoning) caps.push('thinking');
-  if (m.supportsImageIn) caps.push('image');
-  if (m.supportsVideoIn) caps.push('video');
+  if (m.supportsImageIn) caps.push('image_in');
+  if (m.supportsVideoIn) caps.push('video_in');
   return caps;
 }
 

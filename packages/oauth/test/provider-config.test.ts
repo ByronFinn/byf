@@ -360,6 +360,16 @@ describe('fetchModelsByType', () => {
     );
   });
 
+  it('throws for an unsupported provider type', async () => {
+    await expect(
+      fetchModelsByType(
+        'google-genai',
+        'https://api.google.com/v1',
+        'sk-test',
+      ),
+    ).rejects.toThrow(/unsupported provider type "google-genai"/);
+  });
+
   it('stops pagination when has_more is true but last_id is missing (defensive)', async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
@@ -381,6 +391,35 @@ describe('fetchModelsByType', () => {
 
     expect(models).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops pagination at the MAX_PAGES hard cap', async () => {
+    const makePage = (id: string) => ({
+      data: [{ id, type: 'model', display_name: `Model ${id}` }],
+      has_more: true,
+      last_id: id,
+    });
+    // Generate exactly 10 pages — all claim has_more so the loop must
+    // terminate on the upper-bound without requesting an 11th page.
+    const pages = Array.from({ length: 10 }, (_, i) => makePage(`m${i}`));
+    const fetchMock = vi.fn(async () => {
+      const page = pages.shift();
+      return new Response(JSON.stringify(page ?? { data: [], has_more: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const models = await fetchModelsByType(
+      'anthropic',
+      'https://api.anthropic.com/v1',
+      'sk-ant-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(10);
+    // The loop bound is MAX_PAGES = 10, so 10 fetches, not 11.
+    expect(fetchMock).toHaveBeenCalledTimes(10);
   });
 });
 
