@@ -32,7 +32,6 @@ import type {
   CompactOptions,
   ShellExecPayload,
   ShellExecResult,
-  SessionPlan,
   SessionStatus,
   SessionUsage,
   PromptInput,
@@ -242,22 +241,6 @@ export class SDKRpcClient {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       mode: input.mode,
-    });
-  }
-
-  async getPlan(input: SessionIdRpcInput): Promise<SessionPlan> {
-    const rpc = await this.getRpc();
-    return rpc.getPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async clearPlan(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    await rpc.clearPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
     });
   }
 

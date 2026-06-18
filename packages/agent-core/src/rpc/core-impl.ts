@@ -15,7 +15,6 @@ import type {
   ActivateSkillPayload,
   BeginCompactionPayload,
   CancelPayload,
-  CancelPlanPayload,
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
@@ -405,18 +404,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getModel(payload);
   }
 
-  enterPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).enterPlan(payload);
-  }
-
-  cancelPlan({ sessionId, ...payload }: SessionAgentPayload<CancelPlanPayload>) {
-    return this.sessionApi(sessionId).cancelPlan(payload);
-  }
-
-  clearPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).clearPlan(payload);
-  }
-
   beginCompaction({ sessionId, ...payload }: SessionAgentPayload<BeginCompactionPayload>) {
     return this.sessionApi(sessionId).beginCompaction(payload);
   }
@@ -473,10 +460,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getPermission({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getPermission(payload);
-  }
-
-  getPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getPlan(payload);
   }
 
   getUsage({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {

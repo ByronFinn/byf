@@ -313,15 +313,6 @@ export class Agent {
       getModel: () => {
         return this.config.modelAlias ?? '';
       },
-      enterPlan: async () => {
-        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
-      },
-      cancelPlan: async () => {
-        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
-      },
-      clearPlan: async () => {
-        throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, 'Plan mode has been removed');
-      },
       beginCompaction: (payload) => {
         this.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });
       },
@@ -357,7 +348,6 @@ export class Agent {
       getContext: () => this.context.data(),
       getConfig: () => this.config.data(),
       getPermission: () => this.permission.data(),
-      getPlan: async () => null,
       getUsage: () => this.usage.data(),
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),

@@ -112,15 +112,6 @@ export interface CompactOptions {
   readonly instruction?: string | undefined;
 }
 
-export interface PlanInfo {
-  readonly id: string;
-  readonly exists: boolean;
-  readonly content: string;
-  readonly path: string;
-}
-
-export type SessionPlan = PlanInfo | null;
-
 export interface TokenUsage {
   readonly inputOther: number;
   readonly output: number;
