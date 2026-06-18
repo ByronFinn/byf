@@ -429,9 +429,9 @@ export class SubagentsListApp extends Container implements Focusable {
     const preview = this.props.selectedPreview;
     const lines: string[] = [];
 
-    // Real-time activity stream (ongoing + done tools, ordered by time)
+    // Real-time activity stream — show latest (tail-follow), not oldest
     if (preview !== undefined && preview.activityLines !== undefined && preview.activityLines.length > 0) {
-      for (const line of preview.activityLines.slice(0, innerHeight)) {
+      for (const line of preview.activityLines.slice(-innerHeight)) {
         lines.push(dim(line));
       }
       if (lines.length < innerHeight && preview.resultSummary !== undefined && preview.resultSummary.length > 0) {
@@ -464,9 +464,9 @@ export class SubagentsListApp extends Container implements Focusable {
       }
     }
 
-    // Agent text output (fallback)
+    // Agent text output (fallback) — show latest lines
     if (lines.length === 0 && preview !== undefined && preview.lines.length > 0) {
-      for (const line of preview.lines.slice(0, innerHeight)) {
+      for (const line of preview.lines.slice(-innerHeight)) {
         lines.push(dim(line));
       }
     }
