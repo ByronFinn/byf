@@ -1,5 +1,71 @@
 # @byfriends/sdk
 
+## 0.3.0
+
+### Minor Changes
+
+- 0733fbb: Add Anthropic native model fetching to `/login` (PRD-0002, issue #146)
+
+  Selecting the `anthropic` interface type in `/login` now lists models from the
+  native Anthropic endpoint instead of impersonating OpenAI-compatible:
+  `fetchModelsByType('anthropic', ...)` calls `{baseUrl}/models` with `x-api-key`
+
+  - `anthropic-version: 2023-06-01` headers (not Bearer), follows `has_more` /
+    `last_id` pagination with `?after_id=`, and maps `display_name`. Defensive
+    guards: stops pagination when `has_more` is true but `last_id` is missing, and a
+    10-page cap bounds the loop. The runtime already consumes the provider
+    `baseUrl` for anthropic (verified), so custom/gateway URLs take effect end-to-end.
+
+- 05bd355: Add API interface-type selection as the first `/login` step (PRD-0002, issue #145)
+
+  Foundation slice for multi-type `/login`. The flow now starts with a type picker
+  (`openai-completions` / `openai_responses` / `anthropic`); selecting a type
+  prefills the Base URL placeholder with the official default, and leaving Base URL
+  empty falls back to that default. This release wires the scaffolding end-to-end
+  for the existing `openai-completions` type with zero behavior regression —
+  per-type native fetchers land in follow-up issues (#146 anthropic, #149 responses).
+
+  - `@byfriends/oauth`: `applyProviderConfig` accepts an optional `type` (defaults
+    to `'openai-completions'`, so existing callers are unaffected); new
+    `fetchModelsByType(type, baseUrl, apiKey)` dispatches to the OpenAI-compatible
+    fetcher for `openai-completions` / `openai_responses`. Both re-exported via SDK.
+  - `@byfriends/cli`: new `promptApiTypeSelection`; `LoginFlow` runs the type step
+    first, threads the selected type into `applyProviderConfig`, and
+    `LoginFlowDeps.fetchModels` is now `(type, baseUrl, apiKey)`.
+  - `TextInputDialog` gains an opt-in `allowEmpty` so the Base URL prompt can be
+    submitted empty (= use the official default).
+
+### Patch Changes
+
+- 8b7b3e2: Fix: `/agent` records disappear after session resume
+
+  After resuming a session, the `/agent` panel showed empty Agent tool-call
+  cards — the child agent's name, tool calls, text, and token count were all
+  lost. Root cause: those fields are read from per-card subagent runtime state,
+  which only the live event stream populates; the replay-projection path that
+  resume uses never reconstructed it.
+
+  - **Persist `parentToolCallId`** — `AgentMeta` (state.json) now records the
+    parent tool-call id that spawned each sub-agent, so a resumed main-agent
+    `Agent` tool-call can be mapped back to its child. `createAgent`/`spawn`
+    thread it through; `ResumedAgentState` exposes it.
+  - **Project child activity onto resumed cards** — `distillSubagents` distills
+    each non-main agent's resumed state (replay → tool calls + text, profileName,
+    usage.total) into a `SubagentReplayBlockData` keyed by `parentToolCallId`.
+    `projectReplayRecords` attaches it to the matching `Agent` tool-call, and the
+    existing `applySubagentReplay` pipeline (now also consuming `usage`) fills the
+    card — so `/agent` shows the child's name, tools, text, and token count.
+  - **Fix Agent grouping after resume** — replay projection now assigns
+    `step`/`turnId` to projected tool-calls (one assistant message = one step,
+    turnId increments per user turn), so adjacent resumed Agent calls group into
+    an `AgentGroupComponent` again, matching live behavior.
+  - **Graceful degradation** — old sessions persisted before `parentToolCallId`
+    still resume without crashing; their Agent cards render from the result
+    summary as before. Token count is restored; elapsed time is not (replay
+    records carry no timestamps) and is left for a follow-up.
+
+  All new fields are optional; no wire-format or breaking change.
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @byfriends/vis-server
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [77387fa]
+- Updated dependencies [ef167a8]
+- Updated dependencies [8b7b3e2]
+  - @byfriends/agent-core@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes
