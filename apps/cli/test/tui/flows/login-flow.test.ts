@@ -94,6 +94,13 @@ function selectHighlighted(host: FakeDialogHost): void {
   activePanel(host).handleInput('\r');
 }
 
+/** Move the ChoicePicker highlight down `n` items, then select. */
+function selectNth(host: FakeDialogHost, n: number): void {
+  const panel = activePanel(host);
+  for (let i = 0; i < n; i += 1) panel.handleInput('\x1b[B'); // Down arrow
+  panel.handleInput('\r');
+}
+
 function makeDeps(overrides: Partial<LoginFlowDeps> = {}): LoginFlowDeps {
   return {
     colors: COLORS as any,
@@ -161,6 +168,54 @@ describe('LoginFlow', () => {
     expect(deps.refreshConfigAfterLogin).toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('login', { provider: 'myprovider', model: 'gpt-4o' });
     expect(deps.showStatus).toHaveBeenCalledWith('Connected: myprovider · gpt-4o');
+  });
+
+  it('completes the full flow when the anthropic type is selected', async () => {
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [
+        { id: 'claude-opus-4-7', contextLength: 200000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: false, displayName: 'Claude Opus 4.7' },
+      ]),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select anthropic (3rd option → down x2)
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    selectNth(host, 2);
+
+    // Provider name
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'anthropic');
+
+    // Base URL left empty → anthropic default
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    activePanel(host).handleInput('\r');
+
+    // API key
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'sk-ant-test');
+
+    // Model select
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    // Empty base URL fell back to the anthropic official default.
+    expect(deps.fetchModels).toHaveBeenCalledWith(
+      'anthropic',
+      'https://api.anthropic.com/v1',
+      'sk-ant-test',
+    );
+    expect(deps.applyProviderConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: 'anthropic',
+        type: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+      }),
+    );
   });
 
   it('uses the type default base URL when left empty', async () => {

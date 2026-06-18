@@ -284,6 +284,104 @@ describe('fetchModelsByType', () => {
 
     expect(models).toHaveLength(3);
   });
+
+  it('fetches anthropic models with x-api-key + anthropic-version headers', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' },
+            { id: 'claude-sonnet-4-5', type: 'model', display_name: 'Claude Sonnet 4.5' },
+          ],
+          has_more: false,
+          last_id: 'claude-sonnet-4-5',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const models = await fetchModelsByType(
+      'anthropic',
+      'https://api.anthropic.com/v1',
+      'sk-ant-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(2);
+    expect(models[0]).toMatchObject({
+      id: 'claude-opus-4-7',
+      displayName: 'Claude Opus 4.7',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.anthropic.com/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-api-key': 'sk-ant-test',
+          'anthropic-version': '2023-06-01',
+        }),
+      }),
+    );
+    // Must NOT use Bearer auth.
+    const firstCallHeaders = (fetchMock.mock.calls[0]![1] as { headers: Record<string, string> }).headers;
+    expect(firstCallHeaders['Authorization']).toBeUndefined();
+  });
+
+  it('follows anthropic pagination via has_more + after_id', async () => {
+    const page1 = {
+      data: [{ id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' }],
+      has_more: true,
+      last_id: 'claude-opus-4-7',
+    };
+    const page2 = {
+      data: [{ id: 'claude-sonnet-4-5', type: 'model', display_name: 'Claude Sonnet 4.5' }],
+      has_more: false,
+      last_id: 'claude-sonnet-4-5',
+    };
+    const responses = [page1, page2];
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify(responses.shift()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const models = await fetchModelsByType(
+      'anthropic',
+      'https://api.anthropic.com/v1',
+      'sk-ant-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Second request carries after_id from the first page's last_id.
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      'https://api.anthropic.com/v1/models?after_id=claude-opus-4-7',
+    );
+  });
+
+  it('stops pagination when has_more is true but last_id is missing (defensive)', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [{ id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' }],
+          has_more: true,
+          // last_id missing — must not loop forever
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const models = await fetchModelsByType(
+      'anthropic',
+      'https://api.anthropic.com/v1',
+      'sk-ant-test',
+      fetchMock as unknown as typeof fetch,
+    );
+
+    expect(models).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('capabilitiesForModel', () => {
