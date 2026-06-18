@@ -600,7 +600,7 @@ describe('ApprovalPanelComponent', () => {
     }
 
     // All lines (border + body) must have the same visible width.
-    const expectedWidth = plain[0].length;
+    const expectedWidth = plain[0]!.length;
     for (const line of plain) {
       expect(line.length).toBe(expectedWidth);
     }

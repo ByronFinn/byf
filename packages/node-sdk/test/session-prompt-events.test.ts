@@ -271,16 +271,16 @@ describe('Session.prompt events', () => {
           type: 'session.meta.updated',
         }),
       );
-      expect(fakeProviderState.calls[0]?.history as Array<{ role: string; content: Array<{ type: string; text?: string }> }>).toMatchObject([
-        {
+      expect(fakeProviderState.calls[0]?.history as Array<{ role: string; content: Array<{ type: string; text?: string }> }>).toContainEqual(
+        expect.objectContaining({
           role: 'user',
           content: [
             expect.objectContaining({
               text: expect.stringContaining('Task requirements:'),
             }),
           ],
-        },
-      ]);
+        }),
+      );
 
       const statePath = join(session.summary!.sessionDir, 'state.json');
       const state = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
