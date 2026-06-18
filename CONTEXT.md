@@ -1,17 +1,13 @@
 # Context: BYF (Be Your Friend)
 
-An AI coding agent that runs in the terminal. Originally forked from Kimi Code (by Moonshot AI), now an independent product.
+An AI coding agent that runs in the terminal.
 
 ## Glossary
 
 ### BYF
 The product name. Short for "Be Your Friend". An AI coding agent that runs in the terminal.
 
-### Upstream
-The original Kimi Code project by Moonshot AI (`ByronFinn/byf` on GitHub). BYF was forked from this codebase but is now fully independent.
 
-## Fork Strategy: Full Independence
-BYF is a hard fork. No future merges or cherry-picks from upstream. All upstream references (Moonshot AI, Kimi) will be completely removed from the codebase.
 
 ## License Terms
 - Users may copy and redistribute unmodified BYF software
@@ -145,33 +141,4 @@ Writing full tool outputs exceeding a threshold (~8,000 tokens) to scratch files
 ### AGENTS.md Budget
 A soft limit (4,000 tokens) that triggers a warning when merged AGENTS.md content exceeds it. Encourages concise project instructions. AGENTS.md is always loaded into the system prompt (not moved to messages) to preserve instruction following.
 
-## Renaming Map
 
-| Aspect | Upstream Value | BYF Value |
-|--------|---------------|-----------|
-| Product name | Kimi Code | BYF (Be Your Friend) |
-| Product description | "Kimi Code is an AI coding agent..." | "BYF (Be Your Friend) is an AI coding agent..." |
-| CLI command | `kimi` | `byf` |
-| NPM scope | `@moonshot-ai` | `@byf` |
-| NPM main package | `@byfriends/cli` | `@byfriends/cli` |
-| NPM SDK | `@byfriends/sdk` | `@byfriends/sdk` |
-| NPM OAuth | `@byfriends/oauth` | `@byfriends/oauth` |
-| NPM telemetry | `@byfriends/telemetry` | Deleted |
-| NPM agent-core | `@byfriends/agent-core` | `@byfriends/agent-core` |
-| NPM kosong | `@byfriends/kosong` | `@byfriends/kosong` |
-| NPM kaos | `@byfriends/kaos` | `@byfriends/kaos` |
-| NPM vis | `@byfriends/vis` | `@byfriends/vis` |
-| NPM monorepo | `@byfriends/monorepo` | `@byfriends/monorepo` |
-| Docs package | `byf-docs` | `byf-docs` |
-| App directory | `apps/cli/` | `apps/cli/` |
-| Data dir | `.kimi-code` | `.byf` |
-| Home env var | `KIMI_CODE_HOME` | `BYF_HOME` |
-| CDN / Install | `code.kimi.com` CDN | GitHub Releases |
-| Feedback URL | `ByronFinn/byf/issues` | `ByronFinn/byf/issues` |
-| Docs site | `moonshotai.github.io/kimi-code` | README only for now |
-| Telemetry | Kimi backend | Removed entirely — no `@byfriends/telemetry` package, no device_id, no event writing, no config option |
-| OAuth provider | `managed:kimi-code` | User-configured via `/login` |
-| migration-legacy pkg | `@byfriends/migration-legacy` | Deleted |
-| Version | `0.2.0` | `0.0.1` |
-| GitHub repo | `ByronFinn/byf` | `ByronFinn/byf` |
-| License | MIT | Proprietary |

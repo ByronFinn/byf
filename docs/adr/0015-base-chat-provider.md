@@ -19,11 +19,11 @@ The existing shared module `openai-common.ts` serves only 2 of 4 adapters (the O
 
 ### Origin (why the design started this way)
 
-Git history (`git log --diff-filter=A`) confirms all four providers arrived in the initial commit `f4a0872` — a fork of Kimi Code (Moonshot AI). The upstream design was inherited, not chosen by BYF. Three real reasons explain the upstream structure:
+Git history (`git log --diff-filter=A`) confirms all four providers arrived in the initial commit `f4a0872` from the upstream codebase. The upstream design was inherited, not chosen by BYF. Three real reasons explain the upstream structure:
 
 1. Each adapter wraps a **different official SDK** (`@anthropic-ai/sdk`, `openai`, `@google/genai`) with incompatible client types and constructors.
-2. Upstream Kimi was itself OpenAI-compatible, so `openai-common.ts` was an OpenAI-family-internal toolkit, never a cross-provider abstraction.
-3. BYF is a hard fork (CONTEXT.md: no upstream merges). Subsequent work (caching, observability) added fields by copy-pasting across 4 files because per-change cost was lower than refactor cost — debt accumulated silently.
+2. The upstream codebase was itself OpenAI-compatible, so `openai-common.ts` was an OpenAI-family-internal toolkit, never a cross-provider abstraction.
+3. Subsequent work (caching, observability) added fields by copy-pasting across 4 files because per-change cost was lower than refactor cost — debt accumulated silently.
 
 ### Why act now
 

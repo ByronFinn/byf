@@ -47,18 +47,18 @@ function copyText(value: string, key: string) {
 </script>
 
 <template>
-  <section class="KimiHome__section KimiQuick">
-    <h2 class="KimiHome__sectionTitle">{{ copy.title }}</h2>
-    <p class="KimiHome__sectionLede">{{ copy.lede }}</p>
+  <section class="ByfHome__section ByfQuick">
+    <h2 class="ByfHome__sectionTitle">{{ copy.title }}</h2>
+    <p class="ByfHome__sectionLede">{{ copy.lede }}</p>
 
-    <div class="KimiQuick__installs">
-      <div class="KimiQuick__block">
-        <div class="KimiQuick__label">{{ copy.macLabel }}</div>
-        <div class="KimiQuick__cmd">
-          <code><span class="KimiQuick__prompt">$</span> {{ installMacCommand }}</code>
+    <div class="ByfQuick__installs">
+      <div class="ByfQuick__block">
+        <div class="ByfQuick__label">{{ copy.macLabel }}</div>
+        <div class="ByfQuick__cmd">
+          <code><span class="ByfQuick__prompt">$</span> {{ installMacCommand }}</code>
           <button
             type="button"
-            class="KimiQuick__copy"
+            class="ByfQuick__copy"
             @click="copyText(installMacCommand, 'mac')"
             :aria-label="copy.copyHint"
           >
@@ -68,13 +68,13 @@ function copyText(value: string, key: string) {
         </div>
       </div>
 
-      <div class="KimiQuick__block">
-        <div class="KimiQuick__label">{{ copy.winLabel }}</div>
-        <div class="KimiQuick__cmd">
-          <code><span class="KimiQuick__prompt">PS&gt;</span> {{ installWinCommand }}</code>
+      <div class="ByfQuick__block">
+        <div class="ByfQuick__label">{{ copy.winLabel }}</div>
+        <div class="ByfQuick__cmd">
+          <code><span class="ByfQuick__prompt">PS&gt;</span> {{ installWinCommand }}</code>
           <button
             type="button"
-            class="KimiQuick__copy"
+            class="ByfQuick__copy"
             @click="copyText(installWinCommand, 'win')"
             :aria-label="copy.copyHint"
           >
@@ -85,13 +85,13 @@ function copyText(value: string, key: string) {
       </div>
     </div>
 
-    <div class="KimiQuick__block KimiQuick__block--run">
-      <div class="KimiQuick__label">{{ copy.runLabel }}</div>
-      <div class="KimiQuick__cmd">
-        <code><span class="KimiQuick__prompt">$</span> {{ runCommand }}</code>
+    <div class="ByfQuick__block ByfQuick__block--run">
+      <div class="ByfQuick__label">{{ copy.runLabel }}</div>
+      <div class="ByfQuick__cmd">
+        <code><span class="ByfQuick__prompt">$</span> {{ runCommand }}</code>
         <button
           type="button"
-          class="KimiQuick__copy"
+          class="ByfQuick__copy"
           @click="copyText(runCommand, 'run')"
           :aria-label="copy.copyHint"
         >
@@ -101,7 +101,7 @@ function copyText(value: string, key: string) {
       </div>
     </div>
 
-    <a class="KimiQuick__more" :href="withBase(copy.ctaHref)">
+    <a class="ByfQuick__more" :href="withBase(copy.ctaHref)">
       {{ copy.ctaText }}
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -111,24 +111,24 @@ function copyText(value: string, key: string) {
 </template>
 
 <style scoped>
-.KimiQuick__installs {
+.ByfQuick__installs {
   display: flex;
   flex-direction: column;
   gap: 16px;
   margin-bottom: 16px;
 }
 
-.KimiQuick__block {
+.ByfQuick__block {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.KimiQuick__block--run {
+.ByfQuick__block--run {
   margin-bottom: 28px;
 }
 
-.KimiQuick__label {
+.ByfQuick__label {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -136,26 +136,26 @@ function copyText(value: string, key: string) {
   color: var(--vp-c-text-3);
 }
 
-.KimiQuick__cmd {
+.ByfQuick__cmd {
   position: relative;
   display: flex;
   align-items: center;
   padding: 18px 22px;
   background: var(--vp-c-bg-soft);
   border: 1px solid var(--vp-c-divider);
-  border-radius: var(--kimi-radius-code);
+  border-radius: var(--byf-radius-code);
   font-family: var(--vp-font-family-mono);
   font-size: 14.5px;
   line-height: 1.4;
   color: var(--vp-c-text-1);
   overflow: hidden;
-  transition: border-color var(--kimi-transition), box-shadow var(--kimi-transition);
+  transition: border-color var(--byf-transition), box-shadow var(--byf-transition);
 }
-.KimiQuick__cmd:hover {
+.ByfQuick__cmd:hover {
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--vp-shadow-2);
 }
-.KimiQuick__cmd code {
+.ByfQuick__cmd code {
   flex: 1;
   white-space: pre;
   overflow-x: auto;
@@ -166,14 +166,14 @@ function copyText(value: string, key: string) {
   font-family: inherit;
   border-radius: 0;
 }
-.KimiQuick__prompt {
+.ByfQuick__prompt {
   color: var(--vp-c-brand-1);
   margin-right: 8px;
   user-select: none;
   font-weight: 600;
 }
 
-.KimiQuick__copy {
+.ByfQuick__copy {
   flex: none;
   margin-left: 12px;
   padding: 6px 12px;
@@ -186,14 +186,14 @@ function copyText(value: string, key: string) {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   cursor: pointer;
-  transition: color var(--kimi-transition), border-color var(--kimi-transition), background var(--kimi-transition);
+  transition: color var(--byf-transition), border-color var(--byf-transition), background var(--byf-transition);
 }
-.KimiQuick__copy:hover {
+.ByfQuick__copy:hover {
   color: var(--vp-c-brand-1);
   border-color: var(--vp-c-brand-1);
 }
 
-.KimiQuick__more {
+.ByfQuick__more {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -201,9 +201,9 @@ function copyText(value: string, key: string) {
   font-weight: 600;
   color: var(--vp-c-brand-1);
   text-decoration: none;
-  transition: transform var(--kimi-transition), color var(--kimi-transition);
+  transition: transform var(--byf-transition), color var(--byf-transition);
 }
-.KimiQuick__more:hover {
+.ByfQuick__more:hover {
   color: var(--vp-c-brand-2);
   transform: translateX(3px);
 }

@@ -122,36 +122,36 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
 </script>
 
 <template>
-  <section class="KimiHome__section KimiHighlights">
-    <h2 class="KimiHome__sectionTitle">{{ highlightsTitle }}</h2>
-    <p class="KimiHome__sectionLede">{{ highlightsLede }}</p>
-    <div class="KimiHighlights__grid">
+  <section class="ByfHome__section ByfHighlights">
+    <h2 class="ByfHome__sectionTitle">{{ highlightsTitle }}</h2>
+    <p class="ByfHome__sectionLede">{{ highlightsLede }}</p>
+    <div class="ByfHighlights__grid">
       <div
         v-for="h in highlights"
         :key="h.title"
-        class="KimiHighlights__card"
+        class="ByfHighlights__card"
       >
-        <div class="KimiHighlights__icon" aria-hidden="true">{{ h.icon }}</div>
-        <h3 class="KimiHighlights__title">{{ h.title }}</h3>
-        <p class="KimiHighlights__desc">{{ h.desc }}</p>
+        <div class="ByfHighlights__icon" aria-hidden="true">{{ h.icon }}</div>
+        <h3 class="ByfHighlights__title">{{ h.title }}</h3>
+        <p class="ByfHighlights__desc">{{ h.desc }}</p>
       </div>
     </div>
   </section>
 
-  <section class="KimiHome__section KimiFeatures">
-    <h2 class="KimiHome__sectionTitle">{{ featuresTitle }}</h2>
-    <p class="KimiHome__sectionLede">{{ featuresLede }}</p>
-    <div class="KimiFeatures__grid">
+  <section class="ByfHome__section ByfFeatures">
+    <h2 class="ByfHome__sectionTitle">{{ featuresTitle }}</h2>
+    <p class="ByfHome__sectionLede">{{ featuresLede }}</p>
+    <div class="ByfFeatures__grid">
       <a
         v-for="f in features"
         :key="f.title"
-        class="KimiFeatures__card"
+        class="ByfFeatures__card"
         :href="withBase(f.href)"
       >
-        <div class="KimiFeatures__icon" aria-hidden="true">{{ f.icon }}</div>
-        <h3 class="KimiFeatures__title">{{ f.title }}</h3>
-        <p class="KimiFeatures__desc">{{ f.desc }}</p>
-        <span class="KimiFeatures__cta">
+        <div class="ByfFeatures__icon" aria-hidden="true">{{ f.icon }}</div>
+        <h3 class="ByfFeatures__title">{{ f.title }}</h3>
+        <p class="ByfFeatures__desc">{{ f.desc }}</p>
+        <span class="ByfFeatures__cta">
           {{ ctaText }}
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -164,41 +164,41 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
 
 <style scoped>
 /* === Highlights (top section: non-clickable product attributes) === */
-.KimiHighlights__grid {
+.ByfHighlights__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
 @media (max-width: 720px) {
-  .KimiHighlights__grid {
+  .ByfHighlights__grid {
     grid-template-columns: 1fr;
   }
 }
 
-.KimiHighlights__card {
+.ByfHighlights__card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 22px 22px 24px;
-  border-radius: var(--kimi-radius-card);
+  border-radius: var(--byf-radius-card);
   border: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
 }
 
-.KimiHighlights__icon {
+.ByfHighlights__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--kimi-brand-soft);
+  background: var(--byf-brand-soft);
   font-size: 18px;
   margin-bottom: 14px;
 }
 
-.KimiHighlights__title {
+.ByfHighlights__title {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -206,7 +206,7 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
   color: var(--vp-c-text-1);
 }
 
-.KimiHighlights__desc {
+.ByfHighlights__desc {
   font-size: 14px;
   line-height: 1.55;
   color: var(--vp-c-text-2);
@@ -214,60 +214,60 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
 }
 
 /* === Features (bottom section: clickable extension points) === */
-.KimiFeatures__grid {
+.ByfFeatures__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 
 @media (max-width: 1024px) {
-  .KimiFeatures__grid {
+  .ByfFeatures__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
-  .KimiFeatures__grid {
+  .ByfFeatures__grid {
     grid-template-columns: 1fr;
   }
 }
 
-.KimiFeatures__card {
+.ByfFeatures__card {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 28px 24px 26px;
-  border-radius: var(--kimi-radius-card);
+  border-radius: var(--byf-radius-card);
   border: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg);
   color: var(--vp-c-text-1);
   text-decoration: none;
-  transition: transform var(--kimi-transition), border-color var(--kimi-transition),
-              box-shadow var(--kimi-transition), background var(--kimi-transition);
+  transition: transform var(--byf-transition), border-color var(--byf-transition),
+              box-shadow var(--byf-transition), background var(--byf-transition);
   overflow: hidden;
 }
 
-.KimiFeatures__card::before {
+.ByfFeatures__card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--kimi-brand-gradient-soft);
+  background: var(--byf-brand-gradient-soft);
   opacity: 0;
-  transition: opacity var(--kimi-transition);
+  transition: opacity var(--byf-transition);
   pointer-events: none;
   border-radius: inherit;
 }
 
-.KimiFeatures__card:hover {
+.ByfFeatures__card:hover {
   transform: translateY(-3px);
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--vp-shadow-3);
 }
-.KimiFeatures__card:hover::before {
+.ByfFeatures__card:hover::before {
   opacity: 1;
 }
 
-.KimiFeatures__icon {
+.ByfFeatures__icon {
   position: relative;
   z-index: 1;
   display: inline-flex;
@@ -276,12 +276,12 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--kimi-brand-soft);
+  background: var(--byf-brand-soft);
   font-size: 22px;
   margin-bottom: 18px;
 }
 
-.KimiFeatures__title {
+.ByfFeatures__title {
   position: relative;
   z-index: 1;
   font-size: 18px;
@@ -291,7 +291,7 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
   color: var(--vp-c-text-1);
 }
 
-.KimiFeatures__desc {
+.ByfFeatures__desc {
   position: relative;
   z-index: 1;
   font-size: 14.5px;
@@ -300,7 +300,7 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
   margin: 0 0 20px;
 }
 
-.KimiFeatures__cta {
+.ByfFeatures__cta {
   position: relative;
   z-index: 1;
   display: inline-flex;
@@ -310,10 +310,10 @@ const ctaText = computed(() => isZh.value ? '了解' : 'Learn more')
   font-weight: 600;
   color: var(--vp-c-brand-1);
   margin-top: auto;
-  transition: transform var(--kimi-transition);
+  transition: transform var(--byf-transition);
 }
 
-.KimiFeatures__card:hover .KimiFeatures__cta {
+.ByfFeatures__card:hover .ByfFeatures__cta {
   transform: translateX(3px);
 }
 </style>

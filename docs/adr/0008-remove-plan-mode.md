@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Plan mode was inherited from the upstream Kimi Code codebase as a planning state where the agent enters a read-only investigation phase before implementation, writes a plan artifact, and presents it to the user for approval via `ExitPlanMode`.
+Plan mode was inherited from the upstream codebase as a planning state where the agent enters a read-only investigation phase before implementation, writes a plan artifact, and presents it to the user for approval via `ExitPlanMode`.
 
 During a comprehensive context-minimization review, we evaluated whether plan mode provides enough value to justify its complexity footprint:
 
