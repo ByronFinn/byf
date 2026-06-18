@@ -1,0 +1,37 @@
+{
+  "name": "@byfriends/gui-core",
+  "version": "0.1.0",
+  "description": "Stdio JSON-RPC 2.0 transport layer wrapping ByfHarness for native GUI hosts",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@byfriends/sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "tsdown": "0.22.0",
+    "typescript": "6.0.2",
+    "vitest": "^4.1.4"
+  }
+}
