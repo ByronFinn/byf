@@ -3744,6 +3744,7 @@ export class ByfTui implements DialogHost {
       },
       undefined,
       onViewFullscreen,
+      useOverlay,
     );
 
     if (useOverlay) {

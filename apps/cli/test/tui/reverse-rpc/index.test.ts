@@ -171,6 +171,61 @@ describe('registerReverseRPCHandlers', () => {
     expect(uiHooks.showQuestionDialog).not.toHaveBeenCalled();
   });
 
+  it('hides the active approval before showing the next when same type is queued', async () => {
+    const approvalController = new ApprovalController();
+    const questionController = new QuestionController();
+    const uiHooks = {
+      showApprovalPanel: vi.fn(),
+      hideApprovalPanel: vi.fn(),
+      showQuestionDialog: vi.fn(),
+      hideQuestionDialog: vi.fn(),
+    };
+
+    registerReverseRPCHandlers(approvalController, questionController, uiHooks);
+
+    // Queue two approvals — second is queued behind the first
+    const pending1 = approvalController.show({
+      id: 'approval-1',
+      tool_call_id: 'tc-1',
+      tool_name: 'Bash',
+      action: 'run',
+      description: '',
+      display: [],
+      choices: [],
+    });
+    const pending2 = approvalController.show({
+      id: 'approval-2',
+      tool_call_id: 'tc-2',
+      tool_name: 'Bash',
+      action: 'run',
+      description: '',
+      display: [],
+      choices: [],
+    });
+
+    expect(uiHooks.showApprovalPanel).toHaveBeenCalledTimes(1);
+    expect(uiHooks.showApprovalPanel).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'approval-1' }),
+    );
+
+    // Resolve the first — this should trigger hide(old) then show(next)
+    approvalController.respond({ decision: 'approved' });
+    await expect(pending1).resolves.toEqual({ decision: 'approved' });
+
+    expect(uiHooks.hideApprovalPanel).toHaveBeenCalledTimes(1);
+    expect(uiHooks.showApprovalPanel).toHaveBeenCalledTimes(2);
+    expect(uiHooks.showApprovalPanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'approval-2' }),
+    );
+
+    // Resolve the second — no more queued, just hide
+    approvalController.respond({ decision: 'rejected' });
+    await expect(pending2).resolves.toEqual({ decision: 'rejected' });
+
+    expect(uiHooks.hideApprovalPanel).toHaveBeenCalledTimes(2);
+    expect(uiHooks.showApprovalPanel).toHaveBeenCalledTimes(2);
+  });
+
   it('clears active and queued modals without showing queued entries', async () => {
     const approvalController = new ApprovalController();
     const questionController = new QuestionController();

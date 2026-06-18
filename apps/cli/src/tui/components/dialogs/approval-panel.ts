@@ -63,6 +63,13 @@ function makeBlockStyles(colors: ColorPalette): BlockStyles {
   };
 }
 
+function padToWidth(line: string, width: number): string {
+  const w = visibleWidth(line);
+  if (w === width) return line;
+  if (w > width) return truncateToWidth(line, width, '…');
+  return line + ' '.repeat(width - w);
+}
+
 function renderDisplayBlock(
   block: DisplayBlock,
   s: BlockStyles,
@@ -236,6 +243,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
   private readonly onToggleToolOutput: (() => void) | undefined;
   private readonly onTogglePlanExpand: (() => void) | undefined;
   private readonly onViewFullscreen: (() => void) | undefined;
+  private readonly bordered: boolean;
 
   constructor(
     request: PendingApproval,
@@ -244,6 +252,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     onToggleToolOutput?: () => void,
     onTogglePlanExpand?: () => void,
     onViewFullscreen?: () => void,
+    bordered?: boolean,
   ) {
     super();
     this.request = request;
@@ -252,6 +261,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     this.onToggleToolOutput = onToggleToolOutput;
     this.onTogglePlanExpand = onTogglePlanExpand;
     this.onViewFullscreen = onViewFullscreen;
+    this.bordered = bordered === true;
     this.feedbackInput.onSubmit = (value) => {
       this.submit(this.selectedIndex, value);
     };
@@ -342,21 +352,41 @@ export class ApprovalPanelComponent extends Container implements Focusable {
     this.clear();
     this.ensureValidSelection();
     this.feedbackInput.focused = this.focused && this.feedbackMode;
+    const contentWidth = this.bordered ? Math.max(1, width - 4) : width;
+    const innerLines = this.renderContent(contentWidth);
+
+    if (!this.bordered) {
+      const borderColor = chalk.hex(this.colors.borderFocus);
+      const horizontalBar = borderColor('─'.repeat(width));
+      return [horizontalBar, ...innerLines, horizontalBar].map((line) =>
+        truncateToWidth(line, width),
+      );
+    }
+
+    const border = (s: string): string => chalk.hex(this.colors.primary)(s);
+    const top = border('┌' + '─'.repeat(Math.max(0, width - 2)) + '┐');
+    const bottom = border('└' + '─'.repeat(Math.max(0, width - 2)) + '┘');
+    const body = innerLines.map(
+      (line) => border('│') + ' ' + padToWidth(line, contentWidth) + ' ' + border('│'),
+    );
+    return [top, ...body, bottom];
+  }
+
+  private renderContent(width: number): string[] {
     const { data } = this.request;
     const blockStyles = makeBlockStyles(this.colors);
-    const borderColor = chalk.hex(this.colors.borderFocus);
-    const borderColorBold = chalk.bold.hex(this.colors.borderFocus);
-    const selectColorBold = chalk.bold.hex(this.colors.accent);
+    const borderColorBold = this.bordered
+      ? chalk.bold.hex(this.colors.primary)
+      : chalk.bold.hex(this.colors.borderFocus);
+    const selectColorBold = this.bordered
+      ? chalk.bold.hex(this.colors.primary)
+      : chalk.bold.hex(this.colors.accent);
     const dim = chalk.hex(this.colors.textDim);
     const strong = chalk.hex(this.colors.textStrong);
-    const horizontalBar = borderColor('─'.repeat(width));
     const indent = (s: string): string => `  ${s}`;
 
     const title = headerFor(data.tool_name);
-    const lines: string[] = [
-      horizontalBar,
-      indent(`${borderColorBold('▶')} ${borderColorBold(title)}`),
-    ];
+    const lines: string[] = [indent(`${borderColorBold('▶')} ${borderColorBold(title)}`)];
 
     const dedupedBlocks = data.display.filter(
       (block) => !isDuplicateBriefBlock(block, data.description),
@@ -390,7 +420,7 @@ export class ApprovalPanelComponent extends Container implements Focusable {
 
       const labelWithNum = `${String(num)}. ${option.label}`;
       if (this.feedbackMode && option.requires_feedback === true && isSelected) {
-        lines.push(indent(this.renderInlineFeedbackLine(width - 2, labelWithNum)));
+        lines.push(indent(this.renderInlineFeedbackLine(Math.max(4, width - 2), labelWithNum)));
       } else if (isSelected) {
         lines.push(indent(`${selectColorBold('▶')} ${selectColorBold(labelWithNum)}`));
       } else {
@@ -411,9 +441,8 @@ export class ApprovalPanelComponent extends Container implements Focusable {
         ),
       );
     }
-    lines.push(horizontalBar);
 
-    return lines.map((line) => truncateToWidth(line, width));
+    return lines;
   }
 
   private choiceAt(index: number): ApprovalPanelChoice | undefined {

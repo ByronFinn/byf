@@ -74,6 +74,7 @@ export class ReverseRpcModalCoordinator {
     }
 
     if (active.owner === entry.owner) {
+      active.hide();
       this.active = entry;
       entry.show();
       return;
