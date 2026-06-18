@@ -764,4 +764,74 @@ describe('LoginFlow', () => {
 
     expect(deps.applyProviderConfig).not.toHaveBeenCalled();
   });
+
+  it('manual entry preserves the anthropic type after fetch fails', async () => {
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Select anthropic (3rd option)
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    selectNth(host, 2);
+
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'antprovider');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'https://api.anthropic.com/v1');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'sk-ant-test');
+    // manual model ID
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'claude-manual');
+    // context size
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await clearTypeAndEnter(host, '200000');
+
+    await flowPromise;
+
+    expect(deps.applyProviderConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: 'antprovider',
+        type: 'anthropic',
+      }),
+    );
+  });
+
+  it('manual entry preserves the openai_responses type after fetch fails', async () => {
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // openai_responses (2nd)
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    selectNth(host, 1);
+
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'resp');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'https://api.openai.com/v1');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'sk-test');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'gpt-manual');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await clearTypeAndEnter(host, '128000');
+
+    await flowPromise;
+
+    expect(deps.applyProviderConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: 'resp',
+        type: 'openai_responses',
+      }),
+    );
+  });
 });
