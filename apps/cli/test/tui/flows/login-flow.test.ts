@@ -170,6 +170,40 @@ describe('LoginFlow', () => {
     expect(deps.showStatus).toHaveBeenCalledWith('Connected: myprovider · gpt-4o');
   });
 
+  it('completes the full flow with openai_responses type', async () => {
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [
+        { id: 'gpt-5.5', contextLength: 128000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: false },
+      ]),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select openai_responses (2nd option → down 1)
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    selectNth(host, 1);
+
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'responses');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'https://api.openai.com/v1');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await typeAndEnter(host, 'sk-test');
+    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    expect(deps.fetchModels).toHaveBeenCalledWith(
+      'openai_responses', 'https://api.openai.com/v1', 'sk-test',
+    );
+    expect(deps.applyProviderConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'openai_responses' }),
+    );
+  });
+
   it('completes the full flow when the anthropic type is selected', async () => {
     const deps = makeDeps({
       fetchModels: vi.fn(async () => [
