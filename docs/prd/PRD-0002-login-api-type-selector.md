@@ -160,7 +160,7 @@
 - **Grilled by**: `/grill` (completed 2026-06-18) — 9 items resolved: 3 代码矛盾验证（google-genai baseUrl 静默丢弃→范围收缩至 3 类型；anthropic/openai_responses baseUrl 已验证端到端生效）；1 术语冲突（CONTEXT.md `/login` 定义过时→已同步）；1 分页边界（anthropic has_more/last_id 防御性处理）；1 降级体验（自定义代理版本路径约定写入 Consequences）；1 changeset 级别（定为 minor，代码可答）；1 ADR 关系（新建 ADR-0016，ADR-0002 决策 #7 标记部分被取代）；1 enrichment 交互（对 anthropic 自动生效）。
 - **Sliced by**: `/story` → Child Issues below
 - **Sliced into**:
-  - #145 — [PRD-0002] 类型选择步骤 + openai-completions 端到端贯通 (AFK)
+  - #145 — [PRD-0002] 类型选择步骤 + openai-completions 端到端贯通 (AFK) — Done (#153)
   - #146 — [PRD-0002] Anthropic 原生类型支持 (AFK, blocked by #145)
   - #149 — [PRD-0002] OpenAI Responses 类型支持 (AFK, blocked by #145)
   - #152 — [PRD-0002] Catalog enrichment 与手填 fallback 跨类型回归 (AFK, blocked by #145, #146)
