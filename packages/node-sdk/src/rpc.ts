@@ -13,6 +13,7 @@ import {
   type SDKRPCClient,
   type ToolCallRequest,
   type ToolCallResponse,
+  type RuntimeConfig,
 } from '@byfriends/agent-core';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
@@ -49,6 +50,7 @@ export interface SDKRpcClientOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly skillDirs?: readonly string[];
+  readonly runtime?: RuntimeConfig | undefined;
 }
 
 export interface SessionPromptRpcInput {
@@ -109,6 +111,7 @@ export class SDKRpcClient {
       homeDir: options.homeDir,
       configPath: options.configPath,
       skillDirs: options.skillDirs,
+      runtime: options.runtime,
     });
     this.ready = sdkRpc(new ClientAPI(this)).then((rpc) => {
       this.rpc = rpc;

@@ -54,6 +54,7 @@ export class ByfHarness {
       homeDir: options.homeDir,
       configPath: this.configPath,
       skillDirs: options.skillDirs,
+      runtime: options.runtime,
     });
   }
 

@@ -3,6 +3,7 @@ import type {
   ResumeSessionResult,
 } from '@byfriends/agent-core';
 import type { ContentPart } from '@byfriends/kosong';
+import type { RuntimeConfig } from '@byfriends/agent-core';
 
 export interface HostIdentity {
   readonly userAgentProduct: string;
@@ -56,6 +57,7 @@ export interface ByfHarnessOptions {
   readonly identity?: HostIdentity | undefined;
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
+  readonly runtime?: RuntimeConfig | undefined;
   readonly autoLoadConfig?: boolean | undefined;
   readonly uiMode?: string;
   readonly skillDirs?: readonly string[];
