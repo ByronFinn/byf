@@ -322,7 +322,7 @@ describe('fetchModelsByType', () => {
       }),
     );
     // Must NOT use Bearer auth.
-    const firstCallHeaders = (fetchMock.mock.calls[0]![1] as { headers: Record<string, string> }).headers;
+    const firstCallHeaders = ((fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>)[0]![1]!).headers;
     expect(firstCallHeaders['Authorization']).toBeUndefined();
   });
 
@@ -355,7 +355,7 @@ describe('fetchModelsByType', () => {
     expect(models).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     // Second request carries after_id from the first page's last_id.
-    expect(fetchMock.mock.calls[1]![0]).toBe(
+    expect((fetchMock.mock.calls as unknown as Array<[string, unknown]>)[1]![0]).toBe(
       'https://api.anthropic.com/v1/models?after_id=claude-opus-4-7',
     );
   });

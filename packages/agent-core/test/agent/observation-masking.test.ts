@@ -147,9 +147,9 @@ describe('applyObservationMasking thresholds', () => {
     const bashMessage = result.history.find((m) => m.toolCallId === 'call_2');
     const writeMessage = result.history.find((m) => m.toolCallId === 'call_3');
 
-    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0]!.text.startsWith('[Read:') : false).toBe(true);
-    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0]!.text.startsWith('line') : false).toBe(true);
-    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0]!.text.startsWith('line') : false).toBe(true);
+    expect(readMessage?.content[0]?.type === 'text' ? readMessage.content[0].text.startsWith('[Read:') : false).toBe(true);
+    expect(bashMessage?.content[0]?.type === 'text' ? bashMessage.content[0].text.startsWith('line') : false).toBe(true);
+    expect(writeMessage?.content[0]?.type === 'text' ? writeMessage.content[0].text.startsWith('line') : false).toBe(true);
   });
 
   it('masks low and medium priority when pressure is 80-85%', () => {
