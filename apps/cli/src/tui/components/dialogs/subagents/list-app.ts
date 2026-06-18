@@ -449,10 +449,18 @@ export class SubagentsListApp extends Container implements Focusable {
       }
     }
 
-    // Tool outputs (factual results from each tool)
+    // Tool outputs (factual results from each tool).
+    // Each output string may contain embedded newlines (controller joins
+    // up to 3 lines with \n).  Split them so every visual line stays
+    // inside the frame — a single logical entry with \n would otherwise
+    // bleed across the border and corrupt the layout.
     if (preview !== undefined && preview.toolOutputs.length > 0) {
-      for (const output of preview.toolOutputs.slice(0, Math.max(1, innerHeight - lines.length))) {
-        lines.push(dim(output));
+      for (const output of preview.toolOutputs) {
+        for (const sub of output.split('\n')) {
+          if (lines.length >= innerHeight) break;
+          lines.push(dim(sub));
+        }
+        if (lines.length >= innerHeight) break;
       }
     }
 

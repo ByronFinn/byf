@@ -455,6 +455,11 @@ export class ByfTui implements DialogHost {
   private readonly agentsController: SubagentsController;
   private readonly dialogManager: DialogManager;
 
+  /** Hide function for an active approval overlay, or undefined. */
+  private approvalOverlayHide: (() => void) | undefined;
+  /** Hide function for an active question overlay, or undefined. */
+  private questionOverlayHide: (() => void) | undefined;
+
   public onExit?: (exitCode?: number) => Promise<void>;
 
   private track(
@@ -3675,24 +3680,15 @@ export class ByfTui implements DialogHost {
   }
 
   /**
-   * Dismisses any active fullscreen controller (agent page, tasks browser)
-   * so that a replacement panel (approval, question dialog) can be mounted
-   * into the normal layout with correct focus routing.
+   * Returns true when a fullscreen controller (agent page or tasks browser)
+   * is currently open and taking over the whole TUI area.
    */
-  private dismissFullscreenControllers(): void {
-    if (this.agentsController.isOpen) this.agentsController.close();
-    if (this.tasksBrowserController.isOpen) this.tasksBrowserController.close();
+  private get isFullscreenActive(): boolean {
+    return this.agentsController.isOpen || this.tasksBrowserController.isOpen;
   }
 
   // Shows an approval panel and connects its response callback.
   private showApprovalPanel(payload: ApprovalPanelData): void {
-    // Dismiss any active fullscreen (agent page, tasks browser) so the
-    // approval panel is visible and focus routing works correctly.
-    // Otherwise the approval panel steals focus while the fullscreen
-    // component is still rendered, making all keypresses silently
-    // disappear — including q/Esc to close the fullscreen.
-    this.dismissFullscreenControllers();
-
     this.patchLivePane({ pendingApproval: { data: payload } });
     notifyTerminalOnce(this.state, `approval:${payload.id}`, {
       title: 'Byf Code approval required',
@@ -3703,8 +3699,17 @@ export class ByfTui implements DialogHost {
       (b): b is DiffDisplayBlock | FileContentDisplayBlock =>
         b.type === 'diff' || b.type === 'file_content',
     );
+
+    // When a fullscreen page (agent, tasks) is active the editor container
+    // is *not* in the TUI tree, so mounting the panel into the editor
+    // would leave it invisible while stealing focus.  Show it as a centred
+    // overlay on top of the fullscreen instead, and hide the overlay when
+    // the approval resolves.  Ctrl+E (view-fullscreen) is only wired in the
+    // normal editor-replacement path — the overlay path omits it.
+    const useOverlay = this.isFullscreenActive;
+
     const onViewFullscreen =
-      expandableBlocks.length > 0
+      !useOverlay && expandableBlocks.length > 0
         ? () => {
             const sections = expandableBlocks.map((b) => resolveSection(b, colors));
             const saved = [...this.state.ui.children];
@@ -3727,6 +3732,7 @@ export class ByfTui implements DialogHost {
             this.state.ui.requestRender(true);
           }
         : undefined;
+
     const panel = new ApprovalPanelComponent(
       { data: payload },
       (response: ApprovalPanelResponse) => {
@@ -3739,26 +3745,39 @@ export class ByfTui implements DialogHost {
       undefined,
       onViewFullscreen,
     );
-    this.mountEditorReplacement(panel);
+
+    if (useOverlay) {
+      // pi-tui overlay: captures input, composites on top, restores focus on hide.
+      const handle = this.state.ui.showOverlay(panel, {
+        anchor: 'center',
+        width: Math.min(80, Math.floor(this.state.terminal.columns * 0.85)),
+        maxHeight: Math.floor(this.state.terminal.rows * 0.82),
+      });
+      this.approvalOverlayHide = () => handle.hide();
+    } else {
+      this.mountEditorReplacement(panel);
+    }
   }
 
   // Hides the active approval panel.
   private hideApprovalPanel(): void {
     this.patchLivePane({ pendingApproval: null });
-    this.restoreEditor();
+    if (this.approvalOverlayHide !== undefined) {
+      this.approvalOverlayHide();
+      this.approvalOverlayHide = undefined;
+    } else {
+      this.restoreEditor();
+    }
   }
 
   // Shows a question dialog and connects its response callback.
   private showQuestionDialog(payload: QuestionPanelData): void {
-    // Dismiss any active fullscreen so the question dialog is visible and
-    // focus routing works correctly (same reasoning as showApprovalPanel).
-    this.dismissFullscreenControllers();
-
     this.patchLivePane({ pendingQuestion: { data: payload } });
     notifyTerminalOnce(this.state, `question:${payload.id}`, {
       title: 'Byf Code needs your answer',
       body: payload.questions[0]?.question,
     });
+
     const dialog = new QuestionDialogComponent(
       { data: payload },
       (response) => {
@@ -3770,13 +3789,28 @@ export class ByfTui implements DialogHost {
         this.toggleToolOutputExpansion();
       },
     );
-    this.mountEditorReplacement(dialog);
+
+    if (this.isFullscreenActive) {
+      const handle = this.state.ui.showOverlay(dialog, {
+        anchor: 'center',
+        width: Math.min(76, Math.floor(this.state.terminal.columns * 0.82)),
+        maxHeight: Math.floor(this.state.terminal.rows * 0.78),
+      });
+      this.questionOverlayHide = () => handle.hide();
+    } else {
+      this.mountEditorReplacement(dialog);
+    }
   }
 
   // Hides the active question dialog.
   private hideQuestionDialog(): void {
     this.patchLivePane({ pendingQuestion: null });
-    this.restoreEditor();
+    if (this.questionOverlayHide !== undefined) {
+      this.questionOverlayHide();
+      this.questionOverlayHide = undefined;
+    } else {
+      this.restoreEditor();
+    }
   }
 
   // =========================================================================
