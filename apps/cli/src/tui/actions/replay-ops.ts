@@ -25,6 +25,8 @@ import type {
   AppState,
   BackgroundAgentMetadata,
   BackgroundAgentStatusData,
+  SubagentReplayBlockData,
+  SubagentReplayToolCallData,
   ToolCallBlockData,
   TranscriptEntry,
   TUIState,
@@ -70,6 +72,22 @@ interface ProjectionState {
   backgroundAgents: Set<string>;
   backgroundAgentMetadata: Map<string, BackgroundAgentMetadata>;
   backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
+  /**
+   * Child-agent activity keyed by the parent's tool-call id, distilled from
+   * each non-main agent's `ResumedAgentState`. When a main-agent `Agent`
+   * tool-call's id matches a key, its activity is attached as
+   * `ToolCallBlockData.subagent` so the resumed `/agent` card shows the child's
+   * name, tool calls, text, and token count.
+   */
+  subagents: ReadonlyMap<string, SubagentReplayBlockData>;
+  /** Monotonic user-turn counter, assigned to projected tool-call turnIds. */
+  currentTurnId: number;
+  /**
+   * Monotonic assistant-step counter. One assistant message = one step, so
+   * tool calls in the same message share a step and can group into an
+   * AgentGroupComponent (matching the live provider step_uuid semantics).
+   */
+  currentStep: number;
 }
 
 type BackgroundTaskOrigin = Extract<PromptOrigin, { kind: 'background_task' }>;
@@ -83,13 +101,15 @@ export async function hydrateTranscriptFromReplay(
 ): Promise<boolean> {
   hooks.setAppState({ isReplaying: true });
   try {
-    const main = session.getResumeState()?.agents['main'];
+    const resumeState = session.getResumeState()?.agents;
+    const main = resumeState?.['main'];
     if (main === undefined) {
       hooks.emitError('Session history is unavailable for this session.');
       return false;
     }
 
-    const projection = projectReplayRecords(main.replay, main.background);
+    const subagents = distillSubagents(resumeState ?? {});
+    const projection = projectReplayRecords(main.replay, main.background, subagents);
     hydrateProjectedEntries(state, projection.entries, hooks.appendEntry);
     hydrateTodoPanelFromResume(main, hooks);
     state.backgroundAgents = new Set(projection.backgroundAgents);
@@ -190,6 +210,7 @@ function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppState> {
 export function projectReplayRecords(
   records: readonly AgentReplayRecord[],
   backgroundTasks: readonly BackgroundTaskInfo[] = [],
+  subagents: ReadonlyMap<string, SubagentReplayBlockData> = new Map(),
 ): ReplayProjection {
   const state: ProjectionState = {
     entries: [],
@@ -199,6 +220,9 @@ export function projectReplayRecords(
     backgroundAgents: new Set<string>(),
     backgroundAgentMetadata: new Map<string, BackgroundAgentMetadata>(),
     backgroundTasks: new Map(backgroundTasks.map((info) => [info.taskId, info])),
+    subagents,
+    currentTurnId: 0,
+    currentStep: 0,
   };
 
   for (const record of limitReplayRecordsByTurn(records, REPLAY_TURN_LIMIT)) {
@@ -211,6 +235,55 @@ export function projectReplayRecords(
     backgroundAgents: state.backgroundAgents,
     backgroundAgentMetadata: state.backgroundAgentMetadata,
   };
+}
+
+/**
+ * Distills each non-main agent's resumed state into a `SubagentReplayBlockData`
+ * keyed by its `parentToolCallId`. The child's own replay is projected to
+ * recover its assistant text and its tool calls (paired with their results),
+ * and its `profileName` and total usage are attached. The resulting map lets
+ * `projectReplayRecords` attach child activity onto the matching main-agent
+ * `Agent` tool-call card so a resumed `/agent` view shows the child's work.
+ *
+ * Children without a `parentToolCallId` (main agent, or sessions persisted
+ * before the field existed) are skipped — their cards degrade to the existing
+ * result-derived rendering.
+ */
+export function distillSubagents(
+  agents: Readonly<Record<string, ResumedAgentState>>,
+): ReadonlyMap<string, SubagentReplayBlockData> {
+  const subagents = new Map<string, SubagentReplayBlockData>();
+  for (const [agentId, agent] of Object.entries(agents)) {
+    if (agent.type === 'main') continue;
+    const parentToolCallId = agent.parentToolCallId;
+    if (parentToolCallId === undefined) continue;
+
+    const child = projectReplayRecords(agent.replay);
+    const text = child.entries
+      .filter((entry) => entry.kind === 'assistant')
+      .map((entry) => entry.content)
+      .join('\n');
+    const toolCalls: SubagentReplayToolCallData[] = [];
+    for (const entry of child.entries) {
+      if (entry.kind !== 'tool_call') continue;
+      const data = entry.toolCallData;
+      if (data === undefined) continue;
+      toolCalls.push({
+        id: data.id,
+        name: data.name,
+        args: data.args,
+        result: data.result,
+      });
+    }
+    subagents.set(parentToolCallId, {
+      id: agentId,
+      name: agent.config.profileName,
+      text: text.length > 0 ? text : undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      usage: agent.usage.total,
+    });
+  }
+  return subagents;
 }
 
 function limitReplayRecordsByTurn(
@@ -329,7 +402,12 @@ function projectContextMessage(state: ProjectionState, message: ContextMessage):
         projectSkillActivation(state, skill);
         return;
       }
-      state.entries.push(entry('user', contentPartsToText(message.content), 'plain'));
+      state.currentTurnId += 1;
+      state.entries.push(
+        entry('user', contentPartsToText(message.content), 'plain', {
+          turnId: String(state.currentTurnId),
+        }),
+      );
       return;
     }
     case 'assistant':
@@ -340,6 +418,9 @@ function projectContextMessage(state: ProjectionState, message: ContextMessage):
       }
       collectMessageContent(state.assistant, message.content);
       flushAssistant(state);
+      if (message.toolCalls.length > 0) {
+        state.currentStep += 1;
+      }
       projectMessageToolCalls(state, message.toolCalls);
       return;
     case 'tool':
@@ -354,13 +435,30 @@ function projectContextMessage(state: ProjectionState, message: ContextMessage):
 }
 
 function projectMessageToolCalls(state: ProjectionState, toolCalls: readonly ToolCall[]): void {
+  const step = state.currentStep;
+  const turnId = String(state.currentTurnId);
   for (const rawToolCall of toolCalls) {
     const toolCall = toolCallFromMessage(rawToolCall);
     if (toolCall === undefined) continue;
+    // step/turnId let hydrateProjectedEntries group adjacent Agent calls
+    // (same step + turnId) into an AgentGroupComponent, matching live behavior.
+    toolCall.step = step;
+    toolCall.turnId = turnId;
+    // Attach the child agent's distilled activity when this is an `Agent`
+    // tool-call whose id (the parent tool-call id) maps to a resumed child.
+    // Gated on `name === 'Agent'` so a colliding id on another tool never
+    // receives a subagent block.
+    if (toolCall.name === 'Agent') {
+      const subagent = state.subagents.get(toolCall.id);
+      if (subagent !== undefined) {
+        toolCall.subagent = subagent;
+      }
+    }
     state.toolCalls.set(toolCall.id, toolCall);
     state.entries.push(
       entry('tool_call', '', 'plain', {
         toolCallData: toolCall,
+        turnId,
       }),
     );
   }

@@ -31,6 +31,13 @@ export interface ResumedAgentState {
   readonly tools: readonly ToolInfo[];
   readonly toolStore?: Readonly<Record<string, unknown>>;
   readonly background: readonly BackgroundTaskInfo[];
+  /**
+   * For sub-agents: the parent agent's tool-call id that spawned this agent.
+   * Absent for the main agent and for sessions persisted before this field
+   * existed. The TUI uses it to attach a resumed main-agent `Agent` tool-call
+   * to this child's activity (replay/usage/text).
+   */
+  readonly parentToolCallId?: string | undefined;
 }
 
 export interface ResumeSessionResult extends SessionSummary {

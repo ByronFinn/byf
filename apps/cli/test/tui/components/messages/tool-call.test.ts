@@ -483,6 +483,44 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('Used Agent');
   });
 
+  it('S2b: surfaces the resumed child usage in the subagent snapshot tokens (AC2)', () => {
+    // AC2 "补 token": a resumed Agent card is constructed with a subagent block
+    // carrying the child's usage (the resume projection path). applySubagentReplay
+    // must populate subagentUsage so getSubagentSnapshot().tokens is non-zero and
+    // equals input+output — matching the live path.
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_resumed',
+        name: 'Agent',
+        args: { description: 'resumed work' },
+        subagent: {
+          id: 'agent-0',
+          name: 'Coder',
+          text: 'done',
+          toolCalls: [
+            {
+              id: 's1',
+              name: 'Read',
+              args: { path: '/a' },
+              result: { tool_call_id: 's1', output: 'file contents' },
+            },
+          ],
+          usage: { inputOther: 1300, inputCacheRead: 8700, inputCacheCreation: 0, output: 5000 },
+        },
+      },
+      { tool_call_id: 'call_resumed', output: 'summary', is_error: false },
+      darkColors,
+    );
+
+    const snapshot = component.getSubagentSnapshot();
+    // usageInputTotal(usage) = 1300 + 8700 + 0 = 10000; + output 5000 = 15000
+    expect(snapshot.tokens).toBe(15000);
+    expect(snapshot.agentName).toBe('Coder');
+    expect(snapshot.toolCount).toBe(1);
+  });
+
   it('shows /agent to inspect hint for running subagents (AC8)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);

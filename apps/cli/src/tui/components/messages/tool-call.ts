@@ -18,7 +18,7 @@ import {
 } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import type { ColorPalette } from '#/tui/theme/colors';
-import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
+import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { computeCacheHitRate, formatCacheHitRate } from '#/utils/usage/usage-format';
@@ -35,14 +35,6 @@ const SUBAGENT_ELAPSED_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
 
 type SubagentTextKind = 'thinking' | 'text';
-
-interface SubagentTokenUsage {
-  readonly input?: number | undefined;
-  readonly inputOther?: number | undefined;
-  readonly inputCacheRead?: number | undefined;
-  readonly inputCacheCreation?: number | undefined;
-  readonly output: number;
-}
 
 interface FinishedSubCall {
   readonly name: string;
@@ -567,6 +559,11 @@ export class ToolCallComponent extends Container {
     this.subagentAgentId = subagent.id;
     this.subagentAgentName = subagent.name;
     this.subagentText = subagent.text ?? '';
+    // The child's total token usage, sourced from ResumedAgentState.usage.total,
+    // so a resumed /agent card shows a non-zero token count like the live path.
+    if (subagent.usage !== undefined) {
+      this.subagentUsage = subagent.usage;
+    }
     for (const call of subagent.toolCalls ?? []) {
       if (call.result === undefined) {
         this.ongoingSubCalls.set(call.id, { name: call.name, args: call.args });

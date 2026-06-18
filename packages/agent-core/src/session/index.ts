@@ -66,6 +66,13 @@ export interface AgentMeta {
   readonly homedir: string;
   readonly type: AgentType;
   readonly parentAgentId: string | null;
+  /**
+   * The parent agent's tool-call id that spawned this agent. Absent for the
+   * main agent and for sessions persisted before this field existed. The TUI
+   * uses it on resume to map a main-agent `Agent` tool-call back to its child
+   * agent's activity (the child's own replay/usage/text).
+   */
+  readonly parentToolCallId?: string | undefined;
 }
 
 export interface SessionMeta {
@@ -229,6 +236,7 @@ export class Session {
     config: Partial<AgentConfig>,
     profile?: ResolvedAgentProfile,
     parentAgentId?: string | undefined,
+    parentToolCallId?: string | undefined,
   ): Promise<{ readonly id: string; readonly agent: Agent }> {
     await this.skillsReady;
     const type = config.type ?? 'main';
@@ -246,6 +254,7 @@ export class Session {
       homedir,
       type,
       parentAgentId: parentAgentId ?? null,
+      parentToolCallId,
     };
     void this.writeMetadata();
 
