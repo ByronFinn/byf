@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowController: MainWindowController?
     private var engineService: ByfEngineService?
     private var rpcClient: RpcClient?
+    private let dialogManager = DialogManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Resolve homeDir and configPath per ADR 0019
@@ -80,31 +81,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleReverseRequest(method: String, params: Any, respond: @escaping (Any?, Error?) -> Void) {
         switch method {
         case "requestApproval":
-            guard let params = params as? [String: Any] else { return }
-            // Show approval dialog
+            guard let params = params as? [String: Any] else { return respond(nil, RpcError.responseError("Invalid params")) }
             let toolName = params["toolName"] as? String ?? "Unknown"
             let action = params["action"] as? String ?? ""
-            let alert = NSAlert()
-            alert.messageText = "Approve: \(toolName)"
-            alert.informativeText = action
-            alert.addButton(withTitle: "Approve")
-            alert.addButton(withTitle: "Reject")
-            alert.addButton(withTitle: "Cancel")
-
-            let response = alert.runModal()
-            switch response {
-            case .alertFirstButtonReturn:
-                respond(["decision": "approved"], nil)
-            case .alertSecondButtonReturn:
-                respond(["decision": "rejected", "feedback": "User rejected via dialog"], nil)
-            default:
-                respond(["decision": "cancelled"], nil)
-            }
+            let display = params["display"]
+            dialogManager.showApproval(toolName: toolName, action: action, display: display, respond: respond)
 
         case "requestQuestion":
-            // Show multi-option question dialog
-            // Placeholder — full implementation in #167
-            respond(nil, nil)
+            guard let params = params as? [String: Any] else { return respond(nil, RpcError.responseError("Invalid params")) }
+            let question = params["question"] as? String ?? ""
+            let options = params["options"] as? [[String: Any]] ?? []
+            let multiSelect = params["multiSelect"] as? Bool ?? false
+            dialogManager.showQuestion(question: question, options: options, multiSelect: multiSelect, respond: respond)
 
         default:
             respond(nil, RpcError.responseError("Unknown reverse method: \(method)"))
