@@ -11,8 +11,10 @@ import { SdkBridge } from './sdk-bridge';
 import {
   type JsonRpcRequest,
   type JsonRpcResponse,
+  METHOD_WORKSPACE_SUGGEST_FILES,
 } from './protocol/frames';
 import { JSONRPC_ERROR_PARSE, JSONRPC_ERROR_INVALID_REQUEST, toJsonRpcError } from './errors';
+import { suggestFiles } from './workspace/suggest-files';
 
 export interface GuiCoreServerOptions {
   readonly transport?: Transport;
@@ -65,6 +67,12 @@ export class GuiCoreServer {
     this.router.register('core.closeSession', async (params) => {
       await h.closeSession(params as any);
       return { result: null };
+    });
+
+    // Workspace utilities (GUI-specific, not through ByfHarness)
+    this.router.register(METHOD_WORKSPACE_SUGGEST_FILES, async (params) => {
+      const result = await suggestFiles(params as any);
+      return { result };
     });
   }
 

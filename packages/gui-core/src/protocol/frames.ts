@@ -42,6 +42,9 @@ export const METHOD_CORE_SET_BYF_CONFIG = 'core.setByfConfig';
 export const METHOD_CORE_LIST_MCP_SERVERS = 'core.listMcpServers';
 export const METHOD_CORE_RECONNECT_MCP_SERVER = 'core.reconnectMcpServer';
 
+// Workspace namespace (GUI-specific utilities)
+export const METHOD_WORKSPACE_SUGGEST_FILES = 'workspace.suggestFiles';
+
 export const METHOD_SESSION_PROMPT = 'session.prompt';
 export const METHOD_SESSION_STEER = 'session.steer';
 export const METHOD_SESSION_CANCEL = 'session.cancel';

@@ -28,7 +28,7 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
     }()
 
     private lazy var inputBar: InputBarView = {
-        let bar = InputBarView()
+        let bar = InputBarView(rpcClient: rpcClient)
         bar.translatesAutoresizingMaskIntoConstraints = false
         return bar
     }()

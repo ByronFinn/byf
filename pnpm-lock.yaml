@@ -60,7 +60,7 @@ importers:
         version: 2.13.1
       tsdown:
         specifier: 0.22.0
-        version: 0.22.0(@arethetypeswrong/core@0.18.2)(publint@0.3.18)(tsx@4.21.0)(typescript@6.0.2)(unrun@0.2.34(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0))
+        version: 0.22.0(@arethetypeswrong/core@0.18.2)(publint@0.3.18)(tsx@4.21.0)(typescript@6.0.2)(unrun@0.2.34)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -116,6 +116,18 @@ importers:
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
+
+  apps/gui:
+    devDependencies:
+      '@byfriends/gui-core':
+        specifier: workspace:^
+        version: link:../../packages/gui-core
+      '@byfriends/sdk':
+        specifier: workspace:^
+        version: link:../../packages/node-sdk
+      typescript:
+        specifier: 6.0.2
+        version: 6.0.2
 
   apps/vis:
     devDependencies:
@@ -284,6 +296,22 @@ importers:
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
+
+  packages/gui-core:
+    dependencies:
+      '@byfriends/sdk':
+        specifier: workspace:^
+        version: link:../node-sdk
+    devDependencies:
+      tsdown:
+        specifier: 0.22.0
+        version: 0.22.0(@arethetypeswrong/core@0.18.2)(publint@0.3.18)(tsx@4.21.0)(typescript@6.0.2)(unrun@0.2.34(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0))
+      typescript:
+        specifier: 6.0.2
+        version: 6.0.2
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@22.19.17)(@vitest/coverage-v8@4.1.4)(vite@8.0.8(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/kaos: {}
 
@@ -4941,6 +4969,11 @@ snapshots:
 
   '@mozilla/readability@0.6.0': {}
 
+  '@napi-rs/wasm-runtime@1.1.4':
+    dependencies:
+      '@tybys/wasm-util': 0.10.1
+    optional: true
+
   '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
       '@emnapi/core': 1.10.0
@@ -5184,6 +5217,14 @@ snapshots:
     optional: true
 
   '@rolldown/binding-openharmony-arm64@1.0.1':
+    optional: true
+
+  '@rolldown/binding-wasm32-wasi@1.0.0-rc.12':
+    dependencies:
+      '@napi-rs/wasm-runtime': 1.1.4
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
     optional: true
 
   '@rolldown/binding-wasm32-wasi@1.0.0-rc.12(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
@@ -5661,7 +5702,7 @@ snapshots:
 
   ast-kit@3.0.0-beta.1:
     dependencies:
-      '@babel/parser': 8.0.0-rc.4
+      '@babel/parser': 8.0.0-rc.5
       estree-walker: 3.0.3
       pathe: 2.0.3
 
@@ -7192,6 +7233,31 @@ snapshots:
     transitivePeerDependencies:
       - oxc-resolver
 
+  rolldown@1.0.0-rc.12:
+    dependencies:
+      '@oxc-project/types': 0.122.0
+      '@rolldown/pluginutils': 1.0.0-rc.12
+    optionalDependencies:
+      '@rolldown/binding-android-arm64': 1.0.0-rc.12
+      '@rolldown/binding-darwin-arm64': 1.0.0-rc.12
+      '@rolldown/binding-darwin-x64': 1.0.0-rc.12
+      '@rolldown/binding-freebsd-x64': 1.0.0-rc.12
+      '@rolldown/binding-linux-arm-gnueabihf': 1.0.0-rc.12
+      '@rolldown/binding-linux-arm64-gnu': 1.0.0-rc.12
+      '@rolldown/binding-linux-arm64-musl': 1.0.0-rc.12
+      '@rolldown/binding-linux-ppc64-gnu': 1.0.0-rc.12
+      '@rolldown/binding-linux-s390x-gnu': 1.0.0-rc.12
+      '@rolldown/binding-linux-x64-gnu': 1.0.0-rc.12
+      '@rolldown/binding-linux-x64-musl': 1.0.0-rc.12
+      '@rolldown/binding-openharmony-arm64': 1.0.0-rc.12
+      '@rolldown/binding-wasm32-wasi': 1.0.0-rc.12
+      '@rolldown/binding-win32-arm64-msvc': 1.0.0-rc.12
+      '@rolldown/binding-win32-x64-msvc': 1.0.0-rc.12
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+    optional: true
+
   rolldown@1.0.0-rc.12(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0):
     dependencies:
       '@oxc-project/types': 0.122.0
@@ -7651,7 +7717,7 @@ snapshots:
       rolldown-plugin-dts: 0.25.1(rolldown@1.0.1)(typescript@6.0.2)
       semver: 7.7.4
       tinyexec: 1.1.2
-      tinyglobby: 0.2.16
+      tinyglobby: 0.2.17
       tree-kill: 1.2.2
       unconfig-core: 7.5.0
     optionalDependencies:
@@ -7660,6 +7726,35 @@ snapshots:
       tsx: 4.21.0
       typescript: 6.0.2
       unrun: 0.2.34(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
+    transitivePeerDependencies:
+      - '@ts-macro/tsc'
+      - '@typescript/native-preview'
+      - oxc-resolver
+      - vue-tsc
+
+  tsdown@0.22.0(@arethetypeswrong/core@0.18.2)(publint@0.3.18)(tsx@4.21.0)(typescript@6.0.2)(unrun@0.2.34):
+    dependencies:
+      ansis: 4.2.0
+      cac: 7.0.0
+      defu: 6.1.7
+      empathic: 2.0.0
+      hookable: 6.1.1
+      import-without-cache: 0.4.0
+      obug: 2.1.1
+      picomatch: 4.0.4
+      rolldown: 1.0.1
+      rolldown-plugin-dts: 0.25.1(rolldown@1.0.1)(typescript@6.0.2)
+      semver: 7.7.4
+      tinyexec: 1.1.2
+      tinyglobby: 0.2.17
+      tree-kill: 1.2.2
+      unconfig-core: 7.5.0
+    optionalDependencies:
+      '@arethetypeswrong/core': 0.18.2
+      publint: 0.3.18
+      tsx: 4.21.0
+      typescript: 6.0.2
+      unrun: 0.2.34
     transitivePeerDependencies:
       - '@ts-macro/tsc'
       - '@typescript/native-preview'
@@ -7745,6 +7840,14 @@ snapshots:
   universalify@2.0.1: {}
 
   unpipe@1.0.0: {}
+
+  unrun@0.2.34:
+    dependencies:
+      rolldown: 1.0.0-rc.12
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+    optional: true
 
   unrun@0.2.34(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0):
     dependencies:
