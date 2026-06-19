@@ -44,9 +44,9 @@ final class TabViewController: NSViewController {
         let tabItem = NSTabViewItem(identifier: sessionId)
         tabItem.label = title
 
-        // Placeholder content — ChatViewController will be added in #163
-        let placeholderVC = PlaceholderContentViewController()
-        tabItem.viewController = placeholderVC
+        // Use ChatViewController for the session content (#163)
+        let chatVC = ChatViewController(rpcClient: rpcClient)
+        tabItem.viewController = chatVC
 
         tabView.addTabViewItem(tabItem)
         tabView.selectTabViewItem(tabItem)
