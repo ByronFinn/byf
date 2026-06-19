@@ -56,6 +56,29 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // Listen for command notifications from input bar
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleClearConversation),
+            name: .commandClearConversation,
+            object: inputBar
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleActivateSkill(_:)),
+            name: .commandActivateSkill,
+            object: inputBar
+        )
+
+        // Load skills for command completion
+        Task { @MainActor in
+            await inputBar.loadCommands()
+        }
+    }
+
     override func loadView() {
         let rootView = NSView()
         rootView.wantsLayer = true
@@ -132,6 +155,32 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
     func clearConversation() {
         messageStore.clear()
         reloadTableView()
+    }
+
+    // MARK: - Command Handling
+
+    @objc private func handleClearConversation() {
+        clearConversation()
+    }
+
+    @objc private func handleActivateSkill(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let skillName = userInfo["skillName"] as? String else { return }
+
+        Task { @MainActor in
+            do {
+                try await rpcClient.call(
+                    method: "agent.activateSkill",
+                    params: ["name": skillName]
+                )
+            } catch {
+                print("Failed to activate skill '\(skillName)': \(error)")
+            }
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Private

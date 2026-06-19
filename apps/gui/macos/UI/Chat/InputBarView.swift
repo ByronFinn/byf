@@ -1,11 +1,18 @@
 import Cocoa
 
-/// Input bar with text field, send button, and @file completion popover.
+/// The type of completion currently active.
+private enum CompletionMode {
+    case file(query: String)
+    case command(query: String)
+    case none
+}
+
+/// Input bar with text field, send button, @file and /command completions.
 final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
     private let rpcClient: any RpcClientProtocol
     private let textField: NSTextField = {
         let field = NSTextField()
-        field.placeholderString = "Type a message… (@ to mention files)"
+        field.placeholderString = "Type a message… (@file, /command)"
         field.bezelStyle = .roundedBezel
         field.font = NSFont.systemFont(ofSize: 13)
         field.translatesAutoresizingMaskIntoConstraints = false
@@ -23,16 +30,23 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
     /// Called when the user clicks Send or presses Return.
     var onSend: ((String) -> Void)?
 
-    // Completion popover state
+    // Popover + completion state
     private var completionPopover: NSPopover?
-    private let completionVC = FileCompletionViewController()
-    private var currentQuery = ""
+    private var completionMode: CompletionMode = .none
     private var debounceTimer: Timer?
     private var workDir: String
+
+    // File completion
+    private let fileCompletionVC = FileCompletionViewController()
+
+    // Command completion
+    private let commandRegistry: CommandRegistry
+    private let commandCompletionVC = CommandCompletionViewController()
 
     init(rpcClient: any RpcClientProtocol, workDir: String = FileManager.default.currentDirectoryPath) {
         self.rpcClient = rpcClient
         self.workDir = workDir
+        self.commandRegistry = CommandRegistry(rpcClient: rpcClient)
         super.init(frame: .zero)
         setupView()
     }
@@ -67,12 +81,17 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
         workDir = newWorkDir
     }
 
+    /// Load commands from the engine (called after session start).
+    func loadCommands() async {
+        await commandRegistry.loadSkills()
+    }
+
     // MARK: - Actions
 
     @objc private func didPressSend() {
         let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        completionPopover?.close()
+        dismissPopover()
         onSend?(text)
         textField.stringValue = ""
     }
@@ -80,72 +99,89 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
     // MARK: - NSTextFieldDelegate
 
     func controlTextDidChange(_ obj: Notification) {
-        // Use sendButton action for Return key
         checkForCompletion()
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(insertNewline(_:)) {
+            if completionPopover?.isShown == true {
+                // Accept current completion on Enter
+                return acceptCompletion()
+            }
             didPressSend()
-            return true // Handled
+            return true
         }
         if commandSelector == #selector(moveUp(_:)) {
-            completionVC.selectPrevious()
+            movePopoverSelection(up: true)
             return true
         }
         if commandSelector == #selector(moveDown(_:)) {
-            completionVC.selectNext()
+            movePopoverSelection(up: false)
             return true
         }
-        if commandSelector == #selector(insertTab(_:)) || commandSelector == #selector(insertNewline(_:)) {
-            if completionPopover?.isShown == true, let selected = completionVC.selectedFile {
-                insertCompletion(selected)
-                return true
+        if commandSelector == #selector(insertTab(_:)) {
+            if completionPopover?.isShown == true {
+                return acceptCompletion()
             }
+            return false
         }
         if commandSelector == #selector(cancelOperation(_:)) {
-            completionPopover?.close()
+            dismissPopover()
             return true
         }
         return false
     }
 
-    // MARK: - @file Completion
+    // MARK: - Completion Detection
 
     private func checkForCompletion() {
         let text = textField.stringValue
         let cursorPos = textField.currentEditor()?.selectedRange.location ?? text.count
-
-        // Find the last @ before cursor
         let prefix = String(text.prefix(cursorPos))
+
+        // Check for @file completion
         if let atRange = prefix.lastRangeOf("@") {
             let queryStart = text.index(after: atRange.lowerBound)
             let queryEnd = text.index(text.startIndex, offsetBy: cursorPos)
-            currentQuery = String(text[queryStart..<queryEnd])
+            let query = String(text[queryStart..<queryEnd])
 
-            // Only trigger if query is reasonably short
-            if currentQuery.count <= 100 {
-                showCompletionPopover()
-                // Debounce the actual RPC call
-                debounceTimer?.invalidate()
-                debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
-                    Task { @MainActor in
-                        self?.fetchCompletions()
-                    }
-                }
+            if query.count <= 100 {
+                completionMode = .file(query: query)
+                showCompletionPopover(contentVC: fileCompletionVC)
+                debounceWith { [weak self] in self?.fetchFileCompletions(query: query) }
                 return
             }
         }
 
-        // No @ detected, close popover
-        completionPopover?.close()
+        // Check for /command completion (only at start of text or after whitespace)
+        if let slashRange = prefix.lastRangeOf("/") {
+            // Only if slash is the first char or preceded by whitespace
+            if slashRange.lowerBound == text.startIndex || text[text.index(before: slashRange.lowerBound)].isWhitespace {
+                let queryStart = text.index(after: slashRange.lowerBound)
+                let queryEnd = text.index(text.startIndex, offsetBy: cursorPos)
+                let query = String(text[queryStart..<queryEnd])
+
+                if query.count <= 100 {
+                    completionMode = .command(query: query)
+                    showCompletionPopover(contentVC: commandCompletionVC)
+                    updateCommandCompletions(query: query)
+                    return
+                }
+            }
+        }
+
+        // No completion trigger, close popover
+        completionMode = .none
+        dismissPopover()
     }
 
-    private func showCompletionPopover() {
+    // MARK: - Popover Management
+
+    private func showCompletionPopover(contentVC: NSViewController) {
         guard completionPopover == nil || !(completionPopover?.isShown ?? false) else { return }
 
         let popover = NSPopover()
-        popover.contentViewController = completionVC
+        popover.contentViewController = contentVC
         popover.behavior = .transient
         popover.delegate = self
         popover.show(
@@ -156,12 +192,57 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
         completionPopover = popover
     }
 
-    private func fetchCompletions() {
+    private func dismissPopover() {
+        completionPopover?.close()
+        completionPopover = nil
+    }
+
+    private func debounceWith(_ action: @escaping () -> Void) {
+        debounceTimer?.invalidate()
+        debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { _ in
+            Task { @MainActor in action() }
+        }
+    }
+
+    private func movePopoverSelection(up: Bool) {
+        guard completionPopover?.isShown == true else { return }
+        switch completionMode {
+        case .file:
+            up ? fileCompletionVC.selectPrevious() : fileCompletionVC.selectNext()
+        case .command:
+            up ? commandCompletionVC.selectPrevious() : commandCompletionVC.selectNext()
+        case .none:
+            break
+        }
+    }
+
+    private func acceptCompletion() -> Bool {
+        guard completionPopover?.isShown == true else { return false }
+        switch completionMode {
+        case .file:
+            if let selected = fileCompletionVC.selectedFile {
+                insertFileCompletion(selected)
+                return true
+            }
+        case .command:
+            if let selected = commandCompletionVC.selectedCommand {
+                executeCommand(selected)
+                return true
+            }
+        case .none:
+            break
+        }
+        return false
+    }
+
+    // MARK: - @file Completion
+
+    private func fetchFileCompletions(query: String) {
         Task { @MainActor in
             do {
                 let result = try await rpcClient.call(
                     method: "workspace.suggestFiles",
-                    params: ["workDir": workDir, "query": currentQuery]
+                    params: ["workDir": workDir, "query": query]
                 )
 
                 if let dict = result as? [String: Any],
@@ -171,18 +252,17 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
                         let name = f["name"] as? String ?? path
                         return FileCompletionItem(path: path, name: name)
                     }
-                    completionVC.updateItems(suggestions) { [weak self] selected in
-                        self?.insertCompletion(selected)
+                    fileCompletionVC.updateItems(suggestions) { [weak self] selected in
+                        self?.insertFileCompletion(selected)
                     }
                 }
             } catch {
-                // Silently fail — no completions to show
-                completionPopover?.close()
+                dismissPopover()
             }
         }
     }
 
-    private func insertCompletion(_ item: FileCompletionItem) {
+    private func insertFileCompletion(_ item: FileCompletionItem) {
         let text = textField.stringValue
         let cursorPos = textField.currentEditor()?.selectedRange.location ?? text.count
         let prefix = String(text.prefix(cursorPos))
@@ -192,21 +272,17 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
         let beforeAt = String(text[..<atRange.lowerBound])
         let afterQuery = String(text.suffix(from: text.index(text.startIndex, offsetBy: cursorPos)))
 
-        // Properly escape the file path
         let escapedPath = escapeFilePath(item.path)
         textField.stringValue = "\(beforeAt)@\(escapedPath) \(afterQuery)"
 
-        // Move cursor after the inserted path
         let newCursor = beforeAt.count + 1 + escapedPath.count + 1
         if let editor = textField.currentEditor() {
             editor.selectedRange = NSRange(location: newCursor, length: 0)
         }
 
-        completionPopover?.close()
+        dismissPopover()
     }
 
-    /// Escape a file path for safe insertion into the prompt.
-    /// Adds quotes if path contains spaces or special characters.
     private func escapeFilePath(_ path: String) -> String {
         if path.contains(" ") || path.contains("'") || path.contains("\"") || path.contains("\\") {
             let escaped = path
@@ -216,126 +292,65 @@ final class InputBarView: NSView, NSTextFieldDelegate, NSPopoverDelegate {
         }
         return path
     }
+
+    // MARK: - /command Completion
+
+    private func updateCommandCompletions(query: String) {
+        let results = commandRegistry.search(query: query)
+        commandCompletionVC.updateCommands(results) { [weak self] command in
+            self?.executeCommand(command)
+        }
+    }
+
+    private func executeCommand(_ command: CommandDefinition) {
+        switch command.action {
+        case "builtin.clear":
+            // Signal to clear conversation via notification
+            NotificationCenter.default.post(name: .commandClearConversation, object: self)
+            textField.stringValue = ""
+            dismissPopover()
+
+        case "builtin.help":
+            textField.stringValue = "/help"
+            didPressSend()
+
+        case "session.compact":
+            textField.stringValue = "/compact"
+            didPressSend()
+
+        case "agent.activateSkill":
+            // Extract skill name from command (format: "skill:<name>")
+            let skillName = command.name.replacingOccurrences(of: "skill:", with: "")
+            textField.stringValue = "" // Clear input
+            dismissPopover()
+
+            // Signal to activate skill via notification
+            NotificationCenter.default.post(
+                name: .commandActivateSkill,
+                object: self,
+                userInfo: ["skillName": skillName]
+            )
+
+        default:
+            textField.stringValue = "/\(command.name)"
+            didPressSend()
+        }
+    }
 }
 
 // MARK: - String Helpers
 
 private extension String {
-    /// Find the last occurrence of a substring.
     func lastRangeOf(_ search: String) -> Range<String.Index>? {
         range(of: search, options: .backwards)
     }
 }
 
-// MARK: - File Completion Model
+// MARK: - Notifications
 
-struct FileCompletionItem {
-    let path: String
-    let name: String
-}
-
-/// Popover content for file completion list.
-final class FileCompletionViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
-    private let tableView = NSTableView()
-    private var items: [FileCompletionItem] = []
-    private var onSelect: ((FileCompletionItem) -> Void)?
-
-    var selectedFile: FileCompletionItem? {
-        let row = tableView.selectedRow
-        guard row >= 0, row < items.count else { return nil }
-        return items[row]
-    }
-
-    override func loadView() {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = false
-        scrollView.borderType = .noBorder
-
-        let column = NSTableColumn(identifier: .fileCompletionColumn)
-        column.title = "File"
-        column.minWidth = 200
-        column.maxWidth = 400
-        tableView.addTableColumn(column)
-        tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        tableView.headerView = nil
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.selectionHighlightStyle = .regular
-        tableView.backgroundColor = .windowBackgroundColor
-
-        scrollView.documentView = tableView
-
-        view = scrollView
-        preferredContentSize = NSSize(width: 320, height: 200)
-    }
-
-    func updateItems(_ newItems: [FileCompletionItem], onSelect: @escaping (FileCompletionItem) -> Void) {
-        self.items = newItems
-        self.onSelect = onSelect
-        tableView.reloadData()
-
-        // Auto-select first item
-        if !items.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-        }
-    }
-
-    func selectPrevious() {
-        let current = tableView.selectedRow
-        let prev = max(0, current - 1)
-        tableView.selectRowIndexes(IndexSet(integer: prev), byExtendingSelection: false)
-        tableView.scrollRowToVisible(prev)
-    }
-
-    func selectNext() {
-        let current = tableView.selectedRow
-        let next = min(items.count - 1, current + 1)
-        if next > current {
-            tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
-            tableView.scrollRowToVisible(next)
-        }
-    }
-
-    // MARK: - NSTableViewDataSource
-
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        items.count
-    }
-
-    // MARK: - NSTableViewDelegate
-
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row < items.count else { return nil }
-
-        let cell = tableView.makeView(withIdentifier: .fileCompletionCell, owner: nil)
-            as? NSTableCellView ?? NSTableCellView()
-
-        let item = items[row]
-        let textField = NSTextField(labelWithString: item.name)
-        textField.font = NSFont.systemFont(ofSize: 12)
-        cell.textField = textField
-        cell.addSubview(textField)
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
-            textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
-            textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        ])
-        cell.identifier = .fileCompletionCell
-
-        // Tooltip shows full path
-        cell.toolTip = item.path
-
-        return cell
-    }
-
-    func tableViewSelectionDidChange(_ notification: Notification) {
-        guard let selected = selectedFile else { return }
-        onSelect?(selected)
-    }
-}
-
-private extension NSUserInterfaceItemIdentifier {
-    static let fileCompletionColumn = NSUserInterfaceItemIdentifier("fileCompletionColumn")
-    static let fileCompletionCell = NSUserInterfaceItemIdentifier("fileCompletionCell")
+extension Notification.Name {
+    /// Posted when user wants to clear conversation.
+    static let commandClearConversation = Notification.Name("byf.command.clearConversation")
+    /// Posted when user wants to activate a skill.
+    static let commandActivateSkill = Notification.Name("byf.command.activateSkill")
 }
