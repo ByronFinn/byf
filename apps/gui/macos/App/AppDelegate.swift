@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dialogManager = DialogManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set up main menu
+        setupMainMenu()
+
         // Resolve homeDir and configPath per ADR 0019
         let homeDir = NSHomeDirectory().appending("/Library/Application Support/byfDesktop")
         let configPath = NSHomeDirectory().appending("/.byf/config.toml")
@@ -97,5 +100,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             respond(nil, RpcError.responseError("Unknown reverse method: \(method)"))
         }
+    }
+
+    // MARK: - Menu
+
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // BYF Desktop menu
+        let appMenuItem = NSMenuItem()
+        appMenuItem.submenu = NSMenu(title: "BYF Desktop")
+        appMenuItem.submenu?.items = [
+            NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ","),
+            NSMenuItem.separator(),
+            NSMenuItem(title: "Quit BYF Desktop", action: #selector(NSApp.terminate(_:)), keyEquivalent: "q"),
+        ]
+        mainMenu.addItem(appMenuItem)
+
+        // Window menu
+        let windowMenuItem = NSMenuItem()
+        windowMenuItem.submenu = NSMenu(title: "Window")
+        windowMenuItem.submenu?.items = [
+            NSMenuItem(title: "Minimize", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m"),
+        ]
+        mainMenu.addItem(windowMenuItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    @objc private func showSettings() {
+        guard let rpcClient = rpcClient,
+              let mainWindow = mainWindowController?.window else { return }
+
+        // For now, show settings in a simple alert with model text field
+        // Full implementation would use a proper SettingsViewController
+        let alert = NSAlert()
+        alert.messageText = "Session Settings"
+        alert.informativeText = "Runtime configuration will be available in the settings panel."
+        alert.addButton(withTitle: "OK")
+        alert.beginSheetModal(for: mainWindow, completionHandler: nil)
     }
 }
