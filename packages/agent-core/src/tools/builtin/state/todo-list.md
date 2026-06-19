@@ -2,8 +2,10 @@ Use this tool to maintain a structured TODO list as you work through a multi-ste
 
 Use for multi-step tasks, tracking investigation progress, or planning a sequence of edits. Do not use for single-shot answers or trivial requests.
 
-**Avoid churn:**
-- Do not re-call this tool when nothing meaningful has changed since the last call — update the list only after real progress.
+**Update discipline:**
+- Update status immediately when you start or complete a subtask: mark it `in_progress` when you begin working on it, and `done` when finished.
+- Do not skip the `in_progress` state — the user should always see what you are currently working on.
+- Avoid redundant calls: do not re-call this tool when nothing meaningful has changed since the last call.
 - When unsure of the current state, call query mode first (omit `todos`) to check the list before deciding what to update.
 - If no available tool can move any task forward, tell the user where you are stuck instead of repeatedly re-ordering the same todos.
 

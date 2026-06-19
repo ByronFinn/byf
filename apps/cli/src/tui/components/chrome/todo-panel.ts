@@ -22,6 +22,8 @@ export interface TodoItem {
   readonly status: TodoStatus;
 }
 
+const MAX_VISIBLE_TODOS = 5;
+
 export class TodoPanelComponent implements Component {
   private todos: readonly TodoItem[] = [];
   private colors: ColorPalette;
@@ -59,8 +61,14 @@ export class TodoPanelComponent implements Component {
       chalk.hex(c.border)('─'.repeat(width)),
       chalk.hex(c.primary).bold(' Todo'),
     ];
-    for (const todo of this.todos) {
+    const visible = this.todos.slice(0, MAX_VISIBLE_TODOS);
+    for (const todo of visible) {
       lines.push(renderRow(todo, c));
+    }
+
+    const remaining = this.todos.length - MAX_VISIBLE_TODOS;
+    if (remaining > 0) {
+      lines.push(`  ${chalk.hex(c.textDim)(`+${remaining} more`)}`);
     }
 
     return lines.map((line) => truncateToWidth(line, width));
