@@ -26,8 +26,17 @@ export class StdioTransport implements Transport {
   private messageHandler: ((frame: string) => void) | null = null;
   private closed = false;
   private readonly stderrTail = new BoundedTail(4096);
+  private readonly writeOut: (chunk: string | Uint8Array) => void;
 
-  constructor() {
+  /**
+   * @param writeOut Optional stdout writer. When omitted, writes to
+   *   `process.stdout`. gui-core's entry captures the real `process.stdout.write`
+   *   before locking it down, then passes the captured handle here so the
+   *   transport can still emit frames while every other `process.stdout.write`
+   *   caller throws.
+   */
+  constructor(writeOut?: (chunk: string | Uint8Array) => void) {
+    this.writeOut = writeOut ?? ((chunk) => process.stdout.write(chunk));
     process.stdin.setEncoding('utf-8');
 
     let buffer = '';
@@ -68,7 +77,7 @@ export class StdioTransport implements Transport {
     if (frame.includes('\n')) {
       throw new Error('NDJSON frame must not contain bare newlines');
     }
-    process.stdout.write(frame + '\n');
+    this.writeOut(frame + '\n');
   }
 
   close(): void {

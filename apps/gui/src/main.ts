@@ -1,19 +1,6 @@
 import process from 'node:process';
 
-import type { HostIdentity } from '@byfriends/sdk';
-import { GuiCoreServer } from '@byfriends/gui-core';
-
-/**
- * GUI version: read from BUILD_INFO or package.json at SEA build time.
- */
-const GUI_VERSION: string | undefined = undefined; // Set during SEA build via BUILD_INFO
-
-function createIdentity(): HostIdentity {
-  return {
-    userAgentProduct: 'byf-desktop',
-    version: GUI_VERSION ?? '0.0.0',
-  };
-}
+import { GuiCoreServer, StdioTransport } from '@byfriends/gui-core';
 
 async function main(): Promise<void> {
   // Enforce pipe mode — stdin/stdout are pipes, not TTY
@@ -22,10 +9,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // All non-protocol logging must go to stderr
-  process.stdout.write = () => false as unknown as boolean; // Block accidental protocol pollution
+  // stdout carries ONLY JSON-RPC frames. Capture the real write, then replace
+  // process.stdout.write with a guard that rejects every other caller — the
+  // transport re-injects the captured handle, so only protocol frames survive.
+  const realStdoutWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = () => {
+    throw new Error(
+      'gui-core: direct process.stdout.write is forbidden — use the JSON-RPC transport or stderr',
+    );
+  };
 
-  const server = new GuiCoreServer();
+  const server = new GuiCoreServer({ transport: new StdioTransport(realStdoutWrite) });
 
   // Keep alive until stdin closes or signal received
   process.stdin.on('end', () => {
@@ -40,15 +34,15 @@ async function main(): Promise<void> {
     process.exit(0);
   });
 
-  process.on('uncaughtException', (err) => {
-    process.stderr.write(`gui-core: uncaught exception: ${err.message}\n`);
+  process.on('uncaughtException', (error) => {
+    process.stderr.write(`gui-core: uncaught exception: ${error.message}\n`);
     process.exit(1);
   });
 
   await server.start();
 }
 
-main().catch((err) => {
-  process.stderr.write(`gui-core: fatal startup error: ${(err as Error).message}\n`);
+main().catch((error) => {
+  process.stderr.write(`gui-core: fatal startup error: ${(error as Error).message}\n`);
   process.exit(1);
 });
