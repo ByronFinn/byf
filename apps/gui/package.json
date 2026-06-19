@@ -1,0 +1,17 @@
+{
+  "name": "@byfriends/gui-desktop",
+  "version": "0.1.0",
+  "description": "BYF macOS native desktop application (engine binary entry)",
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@byfriends/gui-core": "workspace:^",
+    "@byfriends/sdk": "workspace:^",
+    "typescript": "6.0.2"
+  }
+}

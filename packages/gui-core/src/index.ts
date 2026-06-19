@@ -1,4 +1,5 @@
-export type { GuiCoreServer, GuiCoreServerOptions } from './server';
+export { GuiCoreServer } from './server';
+export type { GuiCoreServerOptions } from './server';
 export type { Transport } from './transport/transport';
 export { StdioTransport } from './transport/stdio-transport';
 export { parseFrame, serializeFrame } from './transport/framed-stream';
