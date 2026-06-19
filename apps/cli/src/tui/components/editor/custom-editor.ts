@@ -97,6 +97,8 @@ export class CustomEditor extends Editor {
   // returns false (no plan in the transcript) the keystroke falls through
   // to pi-tui's default ctrl+e binding (move cursor to end of line).
   public onTogglePlanExpand?: () => boolean;
+  /** Toggle the todo-panel between collapsed (5 items) and expanded (all items). */
+  public onToggleTodoExpand?: () => void;
   public onOpenExternalEditor?: () => void;
   public onCtrlS?: () => void;
   public onUndo?: () => void;
@@ -235,6 +237,11 @@ export class CustomEditor extends Editor {
 
     if (matchesKey(normalized, Key.ctrl('o'))) {
       this.onToggleToolExpand?.();
+      return;
+    }
+
+    if (matchesKey(normalized, Key.ctrl('t'))) {
+      this.onToggleTodoExpand?.();
       return;
     }
 
