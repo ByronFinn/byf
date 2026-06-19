@@ -127,8 +127,15 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
             messageStore.handleEvent(dict)
             reloadTableView()
 
+        case "tool.call.started", "tool.call.delta", "tool.result",
+             "thinking.delta",
+             "background.task.started", "background.task.updated", "background.task.terminated":
+            // These events bypass coalescer
+            messageStore.handleEvent(dict)
+            reloadTableView()
+
         default:
-            // Other events (user message echo, tool calls, etc.)
+            // Other events (user message echo, etc.)
             messageStore.handleEvent(dict)
             reloadTableView()
         }
