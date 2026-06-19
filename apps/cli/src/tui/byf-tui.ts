@@ -1080,6 +1080,11 @@ export class ByfTui implements DialogHost {
       this.toggleToolOutputExpansion();
     };
 
+    editor.onToggleTodoExpand = () => {
+      this.track('shortcut_todo_expand');
+      this.toggleTodoExpansion();
+    };
+
     editor.onCtrlS = () => {
       if (!this.state.appState.isStreaming || this.state.appState.isCompacting) return;
       const text = editor.getText().trim();
@@ -3145,6 +3150,15 @@ export class ByfTui implements DialogHost {
         child.setExpanded(this.state.toolOutputExpanded);
       }
     }
+    this.state.ui.requestRender();
+  }
+
+  // Toggles the todo-panel between collapsed (5 items + +N more) and
+  // expanded (full list + collapse hint).
+  private toggleTodoExpansion(): void {
+    const panel = this.state.todoPanel;
+    const next = !panel.isExpanded();
+    panel.setExpanded(next);
     this.state.ui.requestRender();
   }
 
