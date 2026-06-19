@@ -55,4 +55,51 @@ describe('TodoPanelComponent', () => {
     expect(out).toMatch(/○ foo/);
     expect(out).not.toMatch(/hacked/);
   });
+
+  it('shows at most 5 todos with +N more for excess items', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'in_progress' },
+      { title: 'Task 2', status: 'pending' },
+      { title: 'Task 3', status: 'pending' },
+      { title: 'Task 4', status: 'pending' },
+      { title: 'Task 5', status: 'pending' },
+      { title: 'Task 6', status: 'pending' },
+      { title: 'Task 7', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    // Should show 5 tasks + 1 "+N more" line
+    const taskMatches = lines.match(/Task \d/g);
+    expect(taskMatches).toHaveLength(5);
+    expect(lines).toMatch(/\+2 more/);
+  });
+
+  it('shows all todos when 5 or fewer items', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'A', status: 'pending' },
+      { title: 'B', status: 'pending' },
+      { title: 'C', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    expect(lines).toMatch(/○ A/);
+    expect(lines).toMatch(/○ B/);
+    expect(lines).toMatch(/○ C/);
+    expect(lines).not.toMatch(/more/);
+  });
+
+  it('renders +N more text in dimmed style', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'x', status: 'pending' },
+      { title: 'y', status: 'pending' },
+      { title: 'z', status: 'pending' },
+      { title: 'w', status: 'pending' },
+      { title: 'v', status: 'pending' },
+      { title: 'u', status: 'pending' },
+    ]);
+    const lines = panel.render(80);
+    const plain = strip(lines.join('\n'));
+    expect(plain).toMatch(/\+1 more/);
+  });
 });
