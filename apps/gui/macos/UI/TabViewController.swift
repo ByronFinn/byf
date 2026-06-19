@@ -162,31 +162,3 @@ final class TabViewController: NSViewController {
 protocol EventHandlerProtocol: AnyObject {
     func handleEvent(_ event: Any)
 }
-
-/// Placeholder content view controller for sessions without a ChatViewController yet.
-final class PlaceholderContentViewController: NSViewController, EventHandlerProtocol {
-    private let label = NSTextField(labelWithString: "Session tab — ChatViewController coming in #163")
-
-    override func loadView() {
-        let view = NSView()
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-
-        label.font = NSFont.systemFont(ofSize: 14)
-        label.textColor = .secondaryLabelColor
-        label.alignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
-
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        ])
-
-        self.view = view
-    }
-
-    func handleEvent(_ event: Any) {
-        // Ignore events — ChatViewController will handle them in #163
-    }
-}

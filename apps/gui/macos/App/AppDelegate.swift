@@ -1,4 +1,5 @@
 import Cocoa
+import UserNotifications
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dialogManager = DialogManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Request notification authorization for crash alerts
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+
         // Set up main menu
         setupMainMenu()
 
@@ -162,11 +166,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch state {
         case .crashed(let exitCode):
             print("Engine crashed with exit code \(exitCode). Attempting restart...")
-            // Show crash notification
-            let notification = NSUserNotification()
-            notification.title = "Engine Crashed"
-            notification.informativeText = "The engine has crashed (exit code \(exitCode)). Restarting..."
-            NSUserNotificationCenter.default.deliver(notification)
+            // Show crash notification via UserNotifications framework
+            let content = UNMutableNotificationContent()
+            content.title = "Engine Crashed"
+            content.body = "The engine has crashed (exit code \(exitCode)). Restarting..."
+            let request = UNNotificationRequest(
+                identifier: "engine-crash-\(Date().timeIntervalSince1970)",
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().add(request)
         default:
             break
         }
@@ -222,15 +231,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showSettings() {
-        guard let rpcClient = rpcClient,
+        guard let client = rpcClient,
               let mainWindow = mainWindowController?.window else { return }
 
-        // For now, show settings in a simple alert with model text field
-        // Full implementation would use a proper SettingsViewController
-        let alert = NSAlert()
-        alert.messageText = "Session Settings"
-        alert.informativeText = "Runtime configuration will be available in the settings panel."
-        alert.addButton(withTitle: "OK")
-        alert.beginSheetModal(for: mainWindow, completionHandler: nil)
+        // Get active session ID from the selected tab
+        let activeSessionId = mainWindowController?.tabViewController.tabView.selectedTabViewItem?.identifier as? String ?? ""
+
+        let settingsVC = SettingsViewController(rpcClient: client, sessionId: activeSessionId)
+        let settingsWindow = NSWindow(contentViewController: settingsVC)
+        settingsWindow.title = "Session Settings"
+        settingsWindow.styleMask = [.titled, .closable]
+        mainWindow.beginSheet(settingsWindow) { _ in }
     }
 }

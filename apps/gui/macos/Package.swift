@@ -24,5 +24,21 @@ let package = Package(
                 "Models/",
             ]
         ),
+        // Test target requires Xcode (XCTest framework). Not buildable with CLI-only tools.
+        // Run `swift test` from Xcode or with `xcodebuild` after opening the project.
+        .testTarget(
+            name: "ByfDesktopTests",
+            dependencies: ["ByfDesktop"],
+            path: "Tests",
+            sources: [
+                "MainWindowControllerTests.swift",
+                "SidebarViewControllerTests.swift",
+                "TabViewControllerTests.swift",
+                "ChatViewControllerTests.swift",
+                "MessageStoreTests.swift",
+                "DeltaCoalescerTests.swift",
+                "MockRpcClient.swift",
+            ]
+        ),
     ]
 )

@@ -59,7 +59,8 @@ final class DeltaCoalescer {
         }
 
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
+            // Timer fires on the main run loop, so Task @MainActor is safe
+            Task { @MainActor in
                 self?.flush()
                 self?.isScheduled = false
             }

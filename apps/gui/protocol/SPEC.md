@@ -104,6 +104,41 @@ Methods are namespaced to mirror the CoreAPI/SessionAPI/AgentAPI layering:
 | `core.*` | Global engine lifecycle | `core.createSession`, `core.resumeSession`, `core.listSessions`, `core.closeSession` |
 | `session.*` | Per-session operations | `session.prompt`, `session.cancel`, `session.setModel`, `session.compact` |
 | `agent.*` | Per-agent introspection | `agent.getConfig`, `agent.getUsage`, `agent.listSkills`, `agent.activateSkill`, `agent.getBackground` |
+| `workspace.*` | GUI-specific workspace utilities (not passed through ByfHarness) | `workspace.suggestFiles` |
+
+### `workspace.suggestFiles`
+
+Suggest files in a workspace directory based on a query. File-suggestion logic lives in the subprocess (gui-core), not in the GUI host, so sorting (git recency, mtime) is single-source-of-truth.
+
+**Request:**
+```json
+{"jsonrpc":"2.0","id":1,"method":"workspace.suggestFiles","params":{"workDir":"/path/to/project","query":"main"}}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workDir` | `string` | ✅ | Workspace directory to search |
+| `query` | `string` | Optional | Search query. Empty = most recently edited files (top 15). Non-empty = starts-with → contains → fuzzy (top 50). |
+
+**Response:**
+```json
+{"jsonrpc":"2.0","id":1,"result":{"files":[{"path":"src/main.ts","name":"main.ts","mtime":1718000000000,"score":150},{"path":"src/main.test.ts","name":"main.test.ts","mtime":1717990000000,"score":100}]}}
+```
+
+Each file entry:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | `string` | Relative path from `workDir` |
+| `name` | `string` | Base filename |
+| `mtime` | `number` | Last modification timestamp (epoch ms) |
+| `score` | `number` | Relevance score (higher = better match) |
+
+**Scoring rules:**
+- Git recency (from `git log --name-only`): earlier in log = higher bonus (max 100)
+- mtime recency: files modified within last 50 hours get proportional bonus
+- Query match: exact name = +200, prefix = +100, substring = +50, path-contains = +20, fuzzy = +10
+- No match = score -1 (filtered out)
 
 The following methods are **NOT registered** (plan mode removed per ADR 0008):
 

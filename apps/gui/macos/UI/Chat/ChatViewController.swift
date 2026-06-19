@@ -154,6 +154,13 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
                 )
             } catch {
                 print("Failed to send prompt: \(error)")
+                // Show error to user via alert
+                if let window = view.window {
+                    let alert = NSAlert()
+                    alert.messageText = "Failed to Send Message"
+                    alert.informativeText = error.localizedDescription
+                    alert.beginSheetModal(for: window, completionHandler: nil)
+                }
             }
         }
     }
@@ -182,6 +189,12 @@ final class ChatViewController: NSViewController, NSTableViewDataSource, NSTable
                 )
             } catch {
                 print("Failed to activate skill '\(skillName)': \(error)")
+                if let window = view.window {
+                    let alert = NSAlert()
+                    alert.messageText = "Failed to Activate Skill"
+                    alert.informativeText = error.localizedDescription
+                    alert.beginSheetModal(for: window, completionHandler: nil)
+                }
             }
         }
     }
