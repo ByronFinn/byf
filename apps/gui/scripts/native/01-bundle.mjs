@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { nativeDir, intermediatesDir, srcDir, artifactsDir } from './paths.mjs';
 import { run } from './exec.mjs';
 
-export async function runBundleStep(): Promise<void> {
+export async function runBundleStep() {
   console.log('==> Bundle gui-core engine');
 
   const bundleEntry = resolve(srcDir(), 'main.ts');

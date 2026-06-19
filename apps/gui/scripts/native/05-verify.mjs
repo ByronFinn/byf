@@ -3,7 +3,7 @@ import { binDir, targetTriple, seaBinaryName } from './paths.mjs';
 
 export async function runVerifyStep({
   requireGatekeeper,
-}: { requireGatekeeper: boolean }): Promise<void> {
+}) {
   console.log('==> Verify SEA binary');
 
   const binTarget = resolve(binDir(), targetTriple());

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { intermediatesDir, binDir, targetTriple, seaBlobPath, seaBinaryName } from './paths.mjs';
 import { run } from './exec.mjs';
 
-export async function runInjectStep(): Promise<void> {
+export async function runInjectStep() {
   console.log('==> Inject SEA blob');
 
   const binTarget = resolve(binDir(), targetTriple());

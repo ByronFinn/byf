@@ -4,38 +4,38 @@ import { resolve, dirname } from 'node:path';
 const __filename = fileURLToPath(import.meta.url);
 const scriptDir = dirname(__filename);
 
-export function appRoot(): string {
+export function appRoot() {
   return resolve(scriptDir, '../..');
 }
 
-export function srcDir(): string {
+export function srcDir() {
   return resolve(appRoot(), 'src');
 }
 
-export function nativeDir(): string {
+export function nativeDir() {
   return resolve(appRoot(), 'scripts/native');
 }
 
-export function intermediatesDir(): string {
+export function intermediatesDir() {
   return resolve(appRoot(), 'dist-native/intermediates');
 }
 
-export function binDir(): string {
+export function binDir() {
   return resolve(appRoot(), 'dist-native/bin');
 }
 
-export function artifactsDir(): string {
+export function artifactsDir() {
   return resolve(appRoot(), 'dist-native/artifacts');
 }
 
-export function targetTriple(): string {
+export function targetTriple() {
   return `${process.platform}-${process.arch}`;
 }
 
-export function seaBlobPath(): string {
+export function seaBlobPath() {
   return resolve(intermediatesDir(), 'gui-core.blob');
 }
 
-export function seaBinaryName(): string {
+export function seaBinaryName() {
   return 'gui-core-engine';
 }

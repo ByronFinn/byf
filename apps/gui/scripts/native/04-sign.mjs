@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { binDir, targetTriple, seaBinaryName } from './paths.mjs';
 
-export async function runSignStep({ identity }: { identity: string }): Promise<void> {
+export async function runSignStep({ identity }) {
   console.log('==> Sign SEA binary');
 
   const binTarget = resolve(binDir(), targetTriple());

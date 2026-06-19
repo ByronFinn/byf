@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { intermediatesDir, seaBlobPath } from './paths.mjs';
 import { run } from './exec.mjs';
 
-export async function runSeaBlobStep(): Promise<void> {
+export async function runSeaBlobStep() {
   console.log('==> Create SEA blob');
 
   const cwd = intermediatesDir();
