@@ -118,6 +118,7 @@ async function withServer(
 ): Promise<void> {
   const fake = buildFakeHarness();
   const transport = createLoopbackTransport();
+  const closedSessionIds: string[] = [];
   const server = new GuiCoreServer({
     transport,
     harnessFactory: (() => ({
@@ -125,14 +126,17 @@ async function withServer(
       listSessions: async () => [],
       createSession: async () => fake.createSession('sess-1'),
       resumeSession: async () => fake.createSession('sess-2'),
-      closeSession: async () => {},
+      closeSession: async (id: string) => {
+        closedSessionIds.push(id);
+        fake.sessions.delete(id);
+      },
       getConfig: async () => ({}),
       setConfig: async () => ({}),
       getSession: (id: string) => fake.sessions.get(id) as any,
     })) as any,
   });
   await server.start();
-  await fn(server, transport, fake);
+  await fn(server, transport, fake, closedSessionIds);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -230,6 +234,40 @@ describe('GuiCoreServer integration', () => {
       transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'session.getPlan', params: {} }));
       await vi.waitFor(() => expect(transport.sent).toHaveLength(1));
       expect(parseOutgoing<JsonRpcResponse>(transport).error?.code).toBe(-32601);
+    });
+  });
+
+  it('createSession response carries `sessionId` (SPEC + Swift TabViewController contract)', async () => {
+    await withServer(async (_server, transport) => {
+      transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'core.createSession', params: {} }));
+      await vi.waitFor(() => expect(transport.sent).toHaveLength(1));
+      const result = parseOutgoing<JsonRpcResponse>(transport).result as Record<string, unknown>;
+      // SPEC.md:48 specifies {"sessionId":...,"workDir":...}; Swift reads dict["sessionId"].
+      expect(result['sessionId']).toBe('sess-1');
+      expect(result['workDir']).toBe('/tmp/sess-1');
+      // Regression guard: the prior shape used `id`, which left Swift's tab
+      // creation reading undefined.
+      expect(result['id']).toBeUndefined();
+    });
+  });
+
+  it('core.closeSession resolves the id from `sessionId` (not just `id`)', async () => {
+    await withServer(async (_server, transport, _fake, closedSessionIds) => {
+      // Create first so the session exists.
+      transport.deliver(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'core.createSession', params: {} }));
+      await vi.waitFor(() => expect(transport.sent).toHaveLength(1));
+
+      // Swift sends {"sessionId": ...} (TabViewController.swift:111).
+      transport.sent.length = 0;
+      transport.deliver(
+        JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'core.closeSession', params: { sessionId: 'sess-1' } }),
+      );
+      await vi.waitFor(() => expect(transport.sent).toHaveLength(1));
+      const response = parseOutgoing<JsonRpcResponse>(transport);
+      expect(response.error).toBeUndefined();
+      // Regression guard: previously the server read `.id` only, so closeSession
+      // received undefined and silently no-op'd, leaking the session.
+      expect(closedSessionIds).toEqual(['sess-1']);
     });
   });
 });

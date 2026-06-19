@@ -119,7 +119,7 @@ export class GuiCoreServer {
       return { result: this.sessionRef(session) };
     });
     this.router.register(METHOD_CORE_CLOSE_SESSION, async (params) => {
-      await h.closeSession((params as any).id);
+      await h.closeSession(this.readSessionId(params));
       return { result: null };
     });
     this.router.register(METHOD_CORE_GET_BYF_CONFIG, async (params) => {
@@ -219,9 +219,11 @@ export class GuiCoreServer {
       return { result };
     });
     this.router.register(METHOD_AGENT_GET_TOOLS, async (params) => {
-      const session = await this.requireSession(params);
-      const status = await session.getStatus();
-      return { result: { model: status.model, usage: status.usage } };
+      // Session does not expose a tool list. Return an honest empty list rather
+      // than a misleading {model, usage} payload; no host consumer calls this
+      // today. A real tool-list passthrough can be added when a host needs it.
+      await this.requireSession(params);
+      return { result: { tools: [] } };
     });
     this.router.register(METHOD_AGENT_LIST_SKILLS, async (params) => {
       const session = await this.requireSession(params);
@@ -262,12 +264,22 @@ export class GuiCoreServer {
 
   // ── Helpers ────────────────────────────────────────────────────────
 
-  private async requireSession(params: unknown): Promise<Session> {
-    const id = (params as { sessionId?: string; id?: string } | null | undefined)?.sessionId
-      ?? (params as { sessionId?: string; id?: string } | null | undefined)?.id;
+  /**
+   * Read the session id from request params. The SPEC and Swift host use
+   * `sessionId`; `id` is accepted as a fallback. Used by every session-scoped
+   * method so they all resolve the id the same way.
+   */
+  private readSessionId(params: unknown): string {
+    const p = params as { sessionId?: string; id?: string } | null | undefined;
+    const id = p?.sessionId ?? p?.id;
     if (typeof id !== 'string' || id.length === 0) {
       throw new Error('sessionId is required');
     }
+    return id;
+  }
+
+  private async requireSession(params: unknown): Promise<Session> {
+    const id = this.readSessionId(params);
     const session = this.harness.getSession(id);
     if (session === undefined) {
       throw new Error(`Session not found: ${id}`);
@@ -275,8 +287,13 @@ export class GuiCoreServer {
     return session;
   }
 
-  private sessionRef(session: Session): { id: string; workDir: string } {
-    return { id: session.id, workDir: session.workDir };
+  /**
+   * Session reference returned to the host. Field name is `sessionId` to match
+   * `apps/gui/protocol/SPEC.md` and the Swift `TabViewController` consumer
+   * (which reads `dict["sessionId"]`).
+   */
+  private sessionRef(session: Session): { sessionId: string; workDir: string } {
+    return { sessionId: session.id, workDir: session.workDir };
   }
 
   // ── Frame dispatch ─────────────────────────────────────────────────
