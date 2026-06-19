@@ -21,6 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             configPath: configPath
         )
 
+        // Handle engine state changes (crashes, restarts)
+        engine.onStateChange = { [weak self] state in
+            Task { @MainActor in
+                self?.handleEngineStateChange(state)
+            }
+        }
+
         // Create RPC client
         let client = RpcClient(engine: engine)
 
@@ -67,15 +74,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engineService?.stop()
     }
 
-    // MARK: - Healthcheck
+    // MARK: - Healthcheck & Session Recovery
 
     private func performHealthcheck(client: RpcClient) async {
         do {
-            let result = try await client.call(method: "core.listSessions", params: ["workDir": FileManager.default.currentDirectoryPath])
+            let workDir = FileManager.default.currentDirectoryPath
+            let result = try await client.call(method: "core.listSessions", params: ["workDir": workDir])
             print("Engine healthcheck OK: \(result)")
+
+            // Try to resume sessions
+            if let dict = result as? [String: Any],
+               let sessions = dict["sessions"] as? [[String: Any]] {
+                if sessions.isEmpty {
+                    // Show welcome screen when no sessions exist
+                    await showWelcome()
+                } else if let lastSession = sessions.first,
+                          let sessionId = lastSession["id"] as? String {
+                    // Resume the most recent session
+                    await resumeSession(sessionId: sessionId)
+                }
+            }
         } catch {
             print("Engine healthcheck failed: \(error)")
-            // Engine is not ready; show error state
+            // Engine is not ready; show welcome/error state
+        }
+    }
+
+    private func resumeSession(sessionId: String) async {
+        guard let client = rpcClient else { return }
+        do {
+            let result = try await client.call(method: "core.resumeSession", params: ["sessionId": sessionId])
+            if let dict = result as? [String: Any],
+               let id = dict["id"] as? String {
+                // Check for warnings (incomplete turns)
+                let warning = dict["warning"] as? String
+                mainWindowController?.tabViewController.addTab(sessionId: id, title: "Resumed Session")
+
+                if let warning = warning {
+                    // Show incomplete turn warning
+                    await showCrashWarning(warning)
+                }
+            }
+        } catch {
+            print("Failed to resume session \(sessionId): \(error)")
+        }
+    }
+
+    private func showWelcome() async {
+        guard let client = rpcClient,
+              let mainWindow = mainWindowController?.window else { return }
+
+        let welcomeVC = WelcomeViewController(rpcClient: client)
+        welcomeVC.onCreateSession = { [weak self] in
+            Task { @MainActor in
+                try? await self?.mainWindowController?.tabViewController.createSessionTab()
+            }
+        }
+        welcomeVC.onResumeSession = { [weak self] sessionId in
+            Task { @MainActor in
+                await self?.resumeSession(sessionId: sessionId)
+            }
+        }
+
+        let welcomeWindow = NSWindow(contentViewController: welcomeVC)
+        welcomeWindow.title = "Welcome"
+        welcomeWindow.styleMask = [.titled, .closable]
+        welcomeWindow.makeKeyAndOrderFront(nil)
+    }
+
+    private func showCrashWarning(_ warning: String) async {
+        guard let mainWindow = mainWindowController?.window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Previous Session Incomplete"
+        alert.informativeText = warning
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Start Fresh")
+        alert.beginSheetModal(for: mainWindow) { response in
+            if response == .alertSecondButtonReturn {
+                // Start fresh — clear the current session state
+                print("User chose to start fresh")
+            }
+        }
+    }
+
+    private func handleEngineStateChange(_ state: ByfEngineService.State) {
+        switch state {
+        case .crashed(let exitCode):
+            print("Engine crashed with exit code \(exitCode). Attempting restart...")
+            // Show crash notification
+            let notification = NSUserNotification()
+            notification.title = "Engine Crashed"
+            notification.informativeText = "The engine has crashed (exit code \(exitCode)). Restarting..."
+            NSUserNotificationCenter.default.deliver(notification)
+        default:
+            break
         }
     }
 
