@@ -7,7 +7,7 @@ import Foundation
 /// - Routes frames by shape: responses → pending promises, notifications → event stream, reverse requests → approval/question handlers
 /// - Applies `event.sessionId` to route events to the correct session tab
 @MainActor
-public final class RpcClient {
+public final class RpcClient: RpcClientProtocol {
     public typealias EventHandler = (Any) -> Void
     public typealias ReverseRequestHandler = (String, Any, @escaping (Any?, Error?) -> Void) -> Void
 
@@ -26,8 +26,8 @@ public final class RpcClient {
     }
 
     /// Start the client by connecting to the engine's stdout stream.
-    public func start() {
-        engine.start { [weak self] line in
+    public func start() throws {
+        try engine.start { [weak self] line in
             self?.handleFrame(line)
         }
     }

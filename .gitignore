@@ -4,6 +4,7 @@ dist-native/
 .tmp-api-extractor/
 coverage/
 *.tsbuildinfo
+.build/
 .vitest-results/
 .DS_Store
 .playwright-mcp/

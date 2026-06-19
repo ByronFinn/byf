@@ -23,7 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire up event handling
         client.onEvent = { [weak self] event in
             // Route event to the active session tab
-            guard let sessionId = event["sessionId"] as? String ?? event["_sessionId"] as? String else { return }
+            guard let eventDict = event as? [String: Any],
+                  let sessionId = eventDict["sessionId"] as? String ?? eventDict["_sessionId"] as? String else { return }
             Task { @MainActor in
                 self?.mainWindowController?.routeEvent(sessionId: sessionId, event: event)
             }
@@ -39,11 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.engineService = engine
         self.rpcClient = client
 
-        // Start the engine
+        // Start the client (which starts the engine subprocess)
         do {
-            try engine.start(rpcHandler: { [weak client] line in
-                client?.handleFrame(line)
-            })
+            try client.start()
         } catch {
             NSAlert(error: error).runModal()
             NSApp.terminate(nil)
