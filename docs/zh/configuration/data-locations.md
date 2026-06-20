@@ -46,7 +46,6 @@ $BYF_HOME  (默认 ~/.byf)
 │           └── agents/
 │               ├── main/
 │               │   ├── wire.jsonl
-│               │   └── plans/  # Plan 模式计划文件
 │               └── agent-0/
 │                   └── wire.jsonl
 ├── bin/

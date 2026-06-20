@@ -46,7 +46,6 @@ $BYF_HOME  (default ~/.byf)
 │           └── agents/
 │               ├── main/
 │               │   ├── wire.jsonl
-│               │   └── plans/  # Plan mode plan files
 │               └── agent-0/
 │                   └── wire.jsonl
 ├── bin/

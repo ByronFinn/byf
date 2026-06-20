@@ -1,6 +1,6 @@
 # byf Command
 
-`byf` is the main command of BYF, used to start an interactive session in the terminal. When run without any arguments, it opens a new session in the current working directory; with different flags, you can resume a previous session, skip approvals, start in Plan mode, or point at custom Skills directories.
+`byf` is the main command of BYF, used to start an interactive session in the terminal. When run without any arguments, it opens a new session in the current working directory; with different flags, you can resume a previous session, skip approvals, or point at custom Skills directories.
 
 ```sh
 byf [options]
@@ -20,14 +20,13 @@ The table below lists all options supported by the `byf` main command. All flags
 | `--model <model>` | `-m` | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model. |
 | `--prompt <prompt>` | `-p` | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI. |
 | `--output-format <format>` | | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`. |
-| `--yolo` | `-y` | Auto-approve ordinary tool calls, skipping approval requests; Plan mode `Bash` approval and Plan mode exit approval are not skipped. |
-| `--plan` | | Start a new session in Plan mode, where the AI favors read-only tools for exploration and planning and can write the current plan file; Plan mode `Bash` is handled separately according to the permission mode. |
+| `--yolo` | `-y` | Auto-approve ordinary tool calls, skipping approval requests. |
 | `--skills-dir <dir>` | | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below. |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo`. They do not appear in the help output and behave identically to their official counterparts.
 
 ::: warning Note
-`--yolo` skips human confirmation for ordinary tool calls, including file writes and shell command execution. Use it only inside trusted working directories. Plan mode exit approval is not skipped by `--yolo`; in Plan mode, `Bash` also follows the same ordinary allow rules as `--yolo`.
+`--yolo` skips human confirmation for ordinary tool calls, including file writes and shell command execution. Use it only inside trusted working directories.
 :::
 
 ### Flag conflict rules
@@ -36,12 +35,11 @@ The following combinations are rejected at startup:
 
 - `--continue` and `--session` are mutually exclusive: both mean "resume a previous session" and overlap in meaning.
 - `--yolo` cannot be combined with `--continue` or `--session`: when resuming a session, the original session's approval settings are preserved. This rule only applies to interactive mode; in `--prompt` mode, `--yolo` is rejected earlier because it is mutually exclusive with `--prompt`.
-- `--plan` cannot be combined with `--continue` or `--session`: Plan mode only applies to new sessions.
-- `--prompt` cannot be combined with `--yolo` or `--plan`: non-interactive mode always uses `auto` permission and does not enter Plan mode.
+- `--prompt` cannot be combined with `--yolo`: non-interactive mode always uses `auto` permission.
 - `--prompt` can be combined with `--continue` or `--session <id>` with an ID; bare `--session` without an ID would open the interactive picker and therefore cannot be used in non-interactive mode.
 - `--output-format` can only be used with `--prompt`; the interactive TUI does not support writing the full event stream as stdout JSONL.
 
-If you need to force YOLO or Plan mode while resuming a session, switch into them from inside the interactive session via slash commands instead.
+If you need to force YOLO mode while resuming a session, switch into it from inside the interactive session via slash commands instead.
 
 ## Typical usage
 
@@ -69,10 +67,10 @@ When the task is trivial and you don't want to be interrupted by frequent approv
 byf --yolo
 ```
 
-If you want the AI to read the code and produce an implementation plan first, rather than immediately editing files, use `--plan` to enter Plan mode:
+If you want the AI to read the code and produce an implementation plan first, rather than immediately editing files, simply ask it to make a plan before acting:
 
-```sh
-byf --plan
+```
+Walk me through the overall architecture of this repository and propose an implementation plan.
 ```
 
 ### Custom Skills directories

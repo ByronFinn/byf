@@ -2,7 +2,7 @@
 
 Built-in tools are the toolset that BYF ships with its core engine — no MCP server installation required. During each conversation, the agent automatically selects and invokes these tools based on the task at hand; users can also inspect every tool call in detail through the approval request interface.
 
-Compared to MCP tools, built-in tools are managed directly by the runtime, their lifecycle is bound to the session, and no external process is needed. Both follow a unified approval mechanism: **read-only tools** (such as `Read`, `Grep`, `Glob`, and `WebSearch`) are auto-approved by default, while **write and execute tools** (such as `Write`, `Edit`, `Bash`, and `TaskStop`) require user approval by default. In YOLO mode, approval for ordinary tool calls is skipped, but exit approval in Plan mode is not affected.
+Compared to MCP tools, built-in tools are managed directly by the runtime, their lifecycle is bound to the session, and no external process is needed. Both follow a unified approval mechanism: **read-only tools** (such as `Read`, `Grep`, `Glob`, and `WebSearch`) are auto-approved by default, while **write and execute tools** (such as `Write`, `Edit`, `Bash`, and `TaskStop`) require user approval by default. In YOLO mode, approval for ordinary tool calls is skipped.
 
 ## File tools
 
@@ -49,19 +49,6 @@ In foreground mode `Bash` blocks the current turn until the command finishes or 
 **`WebSearch`** accepts `query` (search terms) and the optional `limit` (number of results to return, 1–20, default 5) and `include_content` (whether to return the page body; default false — enabling this consumes significantly more tokens). This tool requires the host to provide a search implementation; if no implementation is injected, it does not appear in the tool list.
 
 **`FetchURL`** accepts a single `url` parameter and returns the page content. For HTML pages, the host extracts the main article body (`extracted`) rather than returning the full HTML; plain-text or Markdown pages are passed through directly (`passthrough`). Likewise requires a host-injected implementation.
-
-## Plan mode
-
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `EnterPlanMode` | Auto-approved | Enter Plan mode |
-| `ExitPlanMode` | Auto-approved (requires user plan confirmation) | Exit Plan mode and submit the plan |
-
-Plan mode is a constrained working state: once entered, `Write` and `Edit` are tightened — they may only write to the current plan file, and other paths are blocked; `TaskStop` is also blocked entirely. The remaining tools (including `Bash`) are still governed by the current permission rules, so a `Bash` command can in principle still modify files — whether it is allowed depends on the active approval policy.
-
-**`EnterPlanMode`** takes no parameters. On success it returns workflow instructions, including the plan file path if one was provided by the host.
-
-**`ExitPlanMode`** reads the current plan file contents, presents the plan to the user for approval, and then exits Plan mode. The optional `options` parameter lets the agent provide 1–3 alternative proposals (each with a `label` and `description`; the `label` is capped at 80 characters) for the user to choose from during approval. Labels must be unique and cannot use the reserved words `Approve`, `Reject`, `Reject and Exit`, or `Revise` (the system uses these to mark approval results). Once the user approves, all tools become available again; if the user requests changes, the agent remains in Plan mode.
 
 ## State management
 

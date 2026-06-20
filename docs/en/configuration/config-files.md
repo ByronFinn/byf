@@ -25,7 +25,6 @@ TOML field names always use snake_case (for example, `default_model`, `max_conte
 | `default_model` | `string` | — | Default model alias; must be defined in `models` |
 | `default_thinking` | `boolean` | `false` | Initial value of the Thinking toggle for new sessions; can be flipped from the model menu inside a session. Even when this is `true`, setting `[thinking].mode = "off"` will still force Thinking off. See [`thinking`](#thinking) below |
 | `default_permission_mode` | `string` | `manual` | Default permission mode for new sessions; one of `manual`, `auto`, `yolo` |
-| `default_plan_mode` | `boolean` | `false` | Whether new sessions start in Plan mode by default; omitting it is equivalent to `false` |
 | `merge_all_available_skills` | `boolean` | `true` | Whether to merge Agent Skills from all available directories |
 | `extra_skill_dirs` | `array<string>` | — | Extra skill search directories, layered on top of the default directories |
 | `telemetry` | `boolean` | `true` | Whether anonymous telemetry is enabled; only disabled when explicitly set to `false` |
@@ -44,7 +43,6 @@ TOML field names always use snake_case (for example, `default_model`, `max_conte
 default_model = "byf/byf-default"
 default_thinking = true
 default_permission_mode = "manual"
-default_plan_mode = false
 merge_all_available_skills = true
 telemetry = true
 

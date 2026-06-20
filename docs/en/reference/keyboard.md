@@ -21,14 +21,6 @@ Pressing `Ctrl-C` **during streaming output** cancels immediately with no second
 
 **Exiting the program** (pressing `Ctrl-C` when the input box is empty, or pressing `Ctrl-D`) uses a "double-press to confirm" mechanism: the first press shows a hint in the status bar (for example, `Press Ctrl+C again to exit`), and only a second press of the same key actually exits. Pressing any other key in between clears the confirmation state.
 
-## Mode switching
-
-| Shortcut | Action |
-| --- | --- |
-| `Shift-Tab` | Toggle Plan mode |
-
-Press `Shift-Tab` to turn Plan mode on or off. While Plan mode is on, the agent favors read-only tools for research and planning and can write the current plan file; when needed, it can also call `Bash`, which follows the current permission mode and ordinary rules without triggering an extra independent approval just because Plan mode is active. Toggling the mode alone does not create an empty plan file. Press `Shift-Tab` again to leave Plan mode.
-
 ## Input and editing
 
 | Shortcut | Action |
@@ -36,7 +28,6 @@ Press `Shift-Tab` to turn Plan mode on or off. While Plan mode is on, the agent 
 | `Ctrl-G` | Edit the current input in an external editor |
 | `Ctrl-V` | Paste an image or video from the clipboard (Unix / macOS) |
 | `Alt-V` | Paste an image or video from the clipboard (Windows) |
-| `Ctrl-E` | Expand or collapse the Plan card (when no Plan card is present, follows the system default behavior of moving the cursor to the end of the line) |
 | `Ctrl--` | Undo |
 
 Pressing `Ctrl-G` opens an external editor to edit the current input. The editor is chosen in the following order of priority:

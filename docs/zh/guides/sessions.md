@@ -53,7 +53,7 @@ byf --session
 ```
 
 ::: warning 注意
-`--continue` 与 `--session` 互斥；`--yolo` 和 `--plan` 也不能与它们共用。
+`--continue` 与 `--session` 互斥；`--yolo` 也不能与它们共用。
 :::
 
 ## 在 TUI 中切换会话

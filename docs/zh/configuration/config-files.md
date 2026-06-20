@@ -25,7 +25,6 @@ TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_cont
 | `default_model` | `string` | — | 默认使用的模型别名，必须在 `models` 中定义 |
 | `default_thinking` | `boolean` | `false` | 新会话启动时 Thinking 开关的初始值，可在会话内通过模型菜单切换。即使该字段为 `true`，`[thinking].mode = "off"` 也会强制禁用 Thinking。详见下文 [`thinking`](#thinking) |
 | `default_permission_mode` | `string` | `manual` | 新会话的默认权限模式，可选 `manual`、`auto`、`yolo` |
-| `default_plan_mode` | `boolean` | `false` | 新会话是否默认以 Plan 模式启动；省略等同 `false` |
 | `merge_all_available_skills` | `boolean` | `true` | 是否合并所有可用目录中的 Agent Skills |
 | `extra_skill_dirs` | `array<string>` | — | 额外的 Skill 搜索目录，会叠加到默认目录之上 |
 | `telemetry` | `boolean` | `true` | 是否启用匿名遥测；仅在显式设为 `false` 时关闭 |
@@ -44,7 +43,6 @@ TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_cont
 default_model = "byf/byf-default"
 default_thinking = true
 default_permission_mode = "manual"
-default_plan_mode = false
 merge_all_available_skills = true
 telemetry = true
 
