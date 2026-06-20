@@ -29,24 +29,22 @@ describe('ByfCore runtime config', () => {
     const workDir = join(tmp, 'work');
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
-    await writeFile(
-      join(homeDir, 'config.toml'),
-      `
-[services.byf_search]
-base_url = "https://search.example/v1"
-oauth = { storage = "file", key = "oauth/custom-byf" }
-custom_headers = { "X-Test" = "1" }
-`,
-    );
+	    await writeFile(
+	      join(homeDir, 'config.toml'),
+	      `
+	[services.fetch_url]
+	base_url = "https://fetch.example/v1"
+	oauth = { storage = "file", key = "oauth/custom-byf" }
+	custom_headers = { "X-Test" = "1" }
+	`,
+	    );
 
     const getAccessToken = vi.fn().mockResolvedValue('service-token');
     const resolveOAuthTokenProvider = vi.fn<OAuthTokenProviderResolver>(() => ({
       getAccessToken,
     }));
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ search_results: [] }), {
-        status: 200,
-      }),
+      new Response('ok', { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchImpl);
 
@@ -73,9 +71,11 @@ custom_headers = { "X-Test" = "1" }
       storage: 'file',
       key: 'oauth/custom-byf',
     });
-    expect(session?.config.runtime.webSearcher).toBeDefined();
+    expect(session?.config.runtime.urlFetcher).toBeDefined();
 
-    await session!.config.runtime.webSearcher!.search('byf');
+    // The fetch triggers the RemoteFetchURLProvider's remote call, which
+    // sets up the OAuth bearer token and custom/default request headers.
+    await session!.config.runtime.urlFetcher!.fetch('https://example.com/page');
 
     expect(getAccessToken).toHaveBeenCalledWith();
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;

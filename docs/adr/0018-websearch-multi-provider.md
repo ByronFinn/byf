@@ -24,7 +24,7 @@ WebSearch providers (Exa, Brave, Firecrawl) communicate via direct REST API call
 
 ### 2. Priority-based first-wins fallback
 
-Multiple providers are tried in ascending `priority` order. The first provider to return results (including empty results) wins. Fallback is triggered only on actual errors (auth failure, rate limit, server error, timeout). Empty results do NOT trigger fallback — a provider legitimately finding no matches is a valid answer.
+Multiple providers are tried in ascending `priority` order. The first provider to return results (including empty results) wins. Fallback is triggered on **any thrown error** (auth failure, rate limit, server error, timeout, bad request). Empty results do NOT trigger fallback — a provider legitimately finding no matches is a valid answer.
 
 This was chosen over multi-provider result merging because:
 - Lower latency (no waiting for the slowest provider)
@@ -35,13 +35,13 @@ This was chosen over multi-provider result merging because:
 
 Each provider entry supports multiple API keys (`api_keys = ["sk-1", "sk-2"]`). Within a single `search()` call, keys are tried sequentially — first key fails, second key is tried. Each new `search()` call resets to the first key. This is stateless and simple: a recovered key is automatically reused.
 
-### 4. Static provider registry
+### 4. Static `webSearchProviderRegistry` as single source of truth
 
-Provider types (`exa`, `brave`, `firecrawl`) are mapped to classes via a static registry object in code. No dynamic/plugin registration. Adding a new provider = one file + one registry line. This maximizes type safety and predictability.
+Provider types (`exa`, `brave`, `firecrawl`) are mapped to their class AND default URL in one static registry object. The Zod `type` enum and `DEFAULT_BASE_URLS` are derived from this registry, not maintained separately. Adding a new provider = one registry entry; type safety guarantees consistency across the Zod schema, defaults, and factory function.
 
-### 5. Config key rename + deprecation
+### 5. Config key rename (no deprecation needed)
 
-`byfSearch` → `web_search` (code: `webSearch`), `byfFetch` → `fetch_url` (code: `fetchUrl`). Old keys produce a deprecation warning pointing to the new key name. The old `RemoteWebSearchProvider` (BYF-private protocol) is deleted — it was never publicly documented and the config key mismatch means no user could have successfully configured it anyway.
+`byfSearch` → `web_search` (code: `webSearch`), `byfFetch` → `fetch_url` (code: `fetchUrl`). Old keys (`byfSearch`/`byfFetch`) are removed without a deprecation path: the code and documentation were never aligned (docs documented `web_search`/`web_fetch`, code accepted `byfSearch`/`byfFetch`), so no user could have successfully configured the old keys. The old `RemoteWebSearchProvider` (BYF-private protocol) is deleted — it was never publicly documented and the config key mismatch means no user could have successfully configured it anyway.
 
 ### 6. AllProvidersFailedError propagation
 

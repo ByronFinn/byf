@@ -171,7 +171,48 @@ max_context_size = 1047576
 
 ## `services`
 
-`services` configures the built-in external services BYF calls. Only the configured external service keys are recognized; other keys are ignored. Both entries share the same fields:
+`services` configures the built-in external services BYF calls. Two optional services are recognized: `web_search` (web search with multi-provider support) and `fetch_url` (URL content fetching). Other keys are ignored.
+
+### `web_search`
+
+Configures web search backends. Supports multiple search providers with priority-based automatic fallback. Each provider entry in the `[[services.web_search.providers]]` array-of-tables has the following fields:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `type` | `string` | Yes | Provider type: `exa`, `brave`, or `firecrawl` |
+| `api_keys` | `array<string>` | Yes | One or more API keys; keys are tried sequentially within a single search call |
+| `priority` | `integer` | Yes | Priority order (lower number = tried first) |
+| `base_url` | `string` | No | Custom base URL override; defaults to the provider's built-in endpoint |
+
+```toml
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-exa-primary", "sk-exa-secondary"]
+priority = 1
+
+[[services.web_search.providers]]
+type = "brave"
+api_keys = ["sk-brave"]
+priority = 2
+base_url = "https://custom.brave.api/search"
+
+[[services.web_search.providers]]
+type = "firecrawl"
+api_keys = ["sk-firecrawl"]
+priority = 3
+```
+
+**Behavior**: Providers are tried in ascending `priority` order. The first provider to return results (including empty results) wins. Fallback to the next provider is triggered automatically on any error (auth failure, rate limit, server error, timeout, bad request). Empty results do NOT trigger fallback — a provider saying "no results" is a valid answer.
+
+If all providers fail, the WebSearch tool returns an error message to the LLM describing the last error.
+
+When no `[services.web_search]` section is configured, the WebSearch tool is not registered (same as before).
+
+### `fetch_url`
+
+Configures URL content fetching (via `[services.fetch_url]`). Uses the same flat structure as the original single-service format:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -180,12 +221,10 @@ max_context_size = 1047576
 | `oauth` | `table` | No | OAuth credential reference, same structure as `providers.*.oauth` |
 | `custom_headers` | `table<string, string>` | No | Custom HTTP headers attached to each request |
 
-```toml
-[services.web_search]
-base_url = "https://api.example.com/v1/search"
-api_key = "sk-xxx"
+If no `base_url` is configured, a local fallback is used (downloads and extracts page content directly).
 
-[services.web_fetch]
+```toml
+[services.fetch_url]
 base_url = "https://api.example.com/v1/fetch"
 api_key = "sk-xxx"
 ```

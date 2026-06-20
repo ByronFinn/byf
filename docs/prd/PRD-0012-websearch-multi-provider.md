@@ -1,6 +1,6 @@
 # [TODO] PRD-0012: WebSearch Multi-Provider Support
 
-## Status: Grilled
+## Status: Sliced
 
 ## Problem Statement
 
@@ -33,17 +33,28 @@ LLM → WebSearchTool (unchanged, single tool)
 
 ### Provider Registry
 
-Static mapping in `providers/registry.ts`:
+Static mapping in `providers/registry.ts` — single source of truth for provider type → class + default URL:
 
 ```typescript
-const registry = {
-  exa: ExaWebSearchProvider,
-  brave: BraveWebSearchProvider,
-  firecrawl: FirecrawlWebSearchProvider,
+export const webSearchProviderRegistry = {
+  exa: {
+    Provider: ExaWebSearchProvider,
+    defaultBaseUrl: 'https://api.exa.ai/search',
+  },
+  brave: {
+    Provider: BraveWebSearchProvider,
+    defaultBaseUrl: 'https://api.search.brave.com/res/v1/web/search',
+  },
+  firecrawl: {
+    Provider: FirecrawlWebSearchProvider,
+    defaultBaseUrl: 'https://api.firecrawl.dev/v2/search',
+  },
 } as const;
+
+export type ProviderType = keyof typeof webSearchProviderRegistry;
 ```
 
-Adding a new provider = one file + one registry entry.
+Zod `type` enum and `DEFAULT_BASE_URLS` are derived from this registry, ensuring consistency when adding a new provider.
 
 ## User Stories
 
@@ -59,13 +70,13 @@ Adding a new provider = one file + one registry entry.
 
 1. **Multi-provider config**: Support `[[services.web_search.providers]]` array-of-tables in TOML with `type`, `api_keys`, `priority`, optional `base_url`.
 2. **Priority ordering**: Providers are tried in ascending `priority` order.
-3. **Fallback logic**: Only trigger fallback on auth errors (401/403), rate limiting (429), server errors (5xx), and network timeouts. Do NOT fallback on empty results or 400 Bad Request.
+3. **Fallback logic**: Any error thrown by a provider triggers fallback to the next provider (auth 401/403, rate-limit 429, server 5xx, client 400, network timeout, etc.). Empty results (`[]`) do NOT trigger fallback — a provider legitimately finding nothing is a valid answer.
 4. **All-providers-failed behavior**: Return empty results with last error description. Do not throw.
 5. **Provider signatures**:
    - Exa: `POST { query, numResults }` → `results[].{ title, url, text }`
    - Brave: `GET ?q=&count=` → `web.results[].{ title, url, description, age }`
    - Firecrawl: `POST { query, limit }` → `data.web[].{ title, url, description }`
-6. **Config key rename**: `byfSearch` → `web_search` (TOML key, maps to `webSearch` in code). `byfFetch` → `fetch_url` (TOML key, maps to `fetchUrl` in code).
+6. **Config key rename**: `byfSearch` → `web_search` (TOML key, maps to `webSearch` in code). `byfFetch` → `fetch_url` (TOML key, maps to `fetchUrl` in code). Old keys (`byfSearch`, `byfFetch`) were never publicly usable (docs/code mismatch), so no deprecation path is needed — clean rename.
 7. **Default base URLs**: Each built-in type has a known default `base_url`. User only needs `type` + `api_keys` + `priority`.
 
 ### Non-functional
@@ -73,7 +84,7 @@ Adding a new provider = one file + one registry entry.
 1. **Zero-config-not-required**: If no `[services.web_search]` is configured, WebSearchTool is not registered (same as today's behavior).
 2. **Provider isolation**: One provider's bug must not affect others.
 3. **No MCP dependency**: Search works entirely through direct REST calls, no MCP infrastructure needed.
-4. **Backward compatibility**: Old `byfSearch`/`byfFetch` config keys should produce a helpful error or deprecation warning (not silent failure).
+4. **No backward compatibility concern**: Old `byfSearch`/`byfFetch` keys were never aligned with documentation and could not have been successfully used; clean rename with no migration path needed.
 
 ## Acceptance Criteria
 
@@ -84,21 +95,23 @@ Adding a new provider = one file + one registry entry.
 5. When all providers fail, tool returns `{ isError: true }` with error message via `classifySearchError` (PriorityRouter throws `AllProvidersFailedError`, WebSearchTool catches and formats it).
 6. A single provider with multiple api_keys rotates through them before falling back.
 7. `base_url` override works (user-specified URL takes precedence over default).
-8. Old config with `[services.byfSearch]` logs a deprecation warning pointing to the new key.
+8. Old config keys (`byfSearch`/`byfFetch`) do not exist in the schema; the rename is clean since the old keys were never usable (docs/code mismatch prevented any real-world adoption).
 
 ## Definition of Done
 
-- [ ] Zod schema updated for `services.web_search` and `services.fetch_url`
+- [ ] Zod schema updated for `services.web_search` (with `providers[]`) and `services.fetch_url`
+- [ ] `webSearchProviderRegistry` created as single source of truth for type → class + default URL mapping
 - [ ] `createRuntimeConfig()` builds `PriorityRouter` from config
-- [ ] `ExaWebSearchProvider` implemented
-- [ ] `BraveWebSearchProvider` implemented
-- [ ] `FirecrawlWebSearchProvider` implemented
-- [ ] `PriorityRouter` with fallback logic implemented
-- [ ] `registry.ts` mapping created
+- [ ] `ExaWebSearchProvider` implemented with field mapping (snippet = text truncated 300 chars, content = text full when `includeContent`)
+- [ ] `BraveWebSearchProvider` implemented with field mapping (snippet = description, content always undefined)
+- [ ] `FirecrawlWebSearchProvider` implemented with field mapping (snippet = description, content = undefined initially; no scrape call)
+- [ ] `PriorityRouter` with fallback logic implemented (all errors trigger fallback, empty results do not)
+- [ ] All providers follow error convention: `Error('{ProviderName} search failed: HTTP {status} {statusText}')`
+- [ ] `transformServiceData` handles `providers[]` array recursion for snakeToCamel
+- [ ] `servicesToToml()` writes `[[services.web_search.providers]]` as array-of-tables, key `fetch_url` for fetch
 - [ ] `RemoteWebSearchProvider` removed (replaced by per-type providers)
-- [ ] Deprecation warning for old `byfSearch`/`byfFetch` keys
 - [ ] English and Chinese config docs updated
-- [ ] Changeset generated (`minor` bump for new feature, not `major` since old config gets a deprecation warning, not removal)
+- [ ] Changeset generated (`minor` bump for new feature)
 
 ## Out of Scope
 
@@ -200,21 +213,39 @@ class PriorityRouter implements WebSearchProvider {
 **Error flow**: PriorityRouter throws `AllProvidersFailedError` when all providers fail. WebSearchTool's existing `catch` block catches it, `classifySearchError()` classifies it as `Search failed:`, and returns `{ isError: true }` to the LLM. Empty results (`[]`) pass through as a normal success with "No search results found." output.
 ```
 
-### Helper: `shouldFallback()` and `isNonFallbackError()`
+### Provider Error Convention
 
-~~Errors are classified by provider implementations into typed error classes:~~
+All provider implementations follow a simple convention: on HTTP error, throw a plain `Error` with the provider name and HTTP status:
 
-Error classification is no longer needed at the Router level — all errors from individual Search Provider implementations trigger fallback to the next provider. The Router does not need to distinguish error types because:
+```typescript
+if (!response.ok) {
+  throw new Error(`Exa search failed: HTTP ${response.status} ${response.statusText}`);
+}
+```
 
-- Empty results (search legitimately found nothing) → provider returns `[]`, not an error → no fallback
-- All actual errors (401/403/429/5xx/timeout/400) → thrown by provider → Router catches and tries next
-- All providers exhausted → Router throws `AllProvidersFailedError` → WebSearchTool's `classifySearchError` handles it
+The PriorityRouter does not distinguish error types — any thrown error triggers fallback. The last error message flows into `AllProvidersFailedError` and is surfaced to the LLM via `classifySearchError`, so error messages should be meaningful.
 
-The distinction between "should fallback" and "should not fallback" lives inside each provider: a provider returns `[]` for empty results (no throw), and throws for actual errors.
+### Field Mapping: API Response → WebSearchResult
+
+Each provider maps its API response fields to the unified `WebSearchResult` interface:
+
+| WebSearchResult | Exa (`results[]`) | Brave (`web.results[]`) | Firecrawl (`data.web[]`) |
+|---|---|---|---|
+| `title` | `title` | `title` | `title` |
+| `url` | `url` | `url` | `url` |
+| `snippet` | `text` truncated to 300 chars | `description` | `description` |
+| `date` | `publishedDate` | `age` | _(not available)_ |
+| `content` | `text` full (only when `includeContent`) | _(not available)_ | _(not available initially; scrape call deferred)_ |
+
+Principles:
+- **Honest capability boundaries**: Brave has no full-text, Firecrawl has no date — don't fake it. The LLM adapts.
+- **`snippet` always present**: gives the LLM enough context to judge relevance without `includeContent`.
+- **`content` is best-effort**: populated only when `includeContent` is true AND the provider supports it.
 
 ### Default base_urls
 
 ```typescript
+// Centralized in webSearchProviderRegistry — single source of truth
 const DEFAULT_BASE_URLS: Record<string, string> = {
   exa: 'https://api.exa.ai/search',
   brave: 'https://api.search.brave.com/res/v1/web/search',
@@ -229,8 +260,8 @@ const DEFAULT_BASE_URLS: Record<string, string> = {
 ```
 1. config/schema.ts        — new WebSearch schema + fetchUrl rename
 2. config/toml.ts          — transformServiceData: recurse into providers[] for snakeToCamel
-3. config/toml.ts          — deprecation warning for byfSearch/byfFetch
-4. providers/registry.ts   — static provider type → class mapping
+3. config/toml.ts          — servicesToToml: write [[services.web_search.providers]] as array-of-tables
+4. providers/registry.ts   — webSearchProviderRegistry: static provider type → { class, defaultBaseUrl } mapping (single source of truth for Zod enum + defaults)
 5. providers/exa.ts        — ExaWebSearchProvider
 6. providers/brave.ts      — BraveWebSearchProvider
 7. providers/firecrawl.ts  — FirecrawlWebSearchProvider
@@ -254,7 +285,7 @@ const DEFAULT_BASE_URLS: Record<string, string> = {
 | Array-of-tables (`[[providers]]`) over nested tables | TOML-native, simple Zod validation, flat priority ordering |
 | `api_keys` always `string[]` | Unified, minimal mental model; single key is `["sk-..."]` |
 | Priority-based first-wins over result merging | Lower latency, simpler logic, sufficient for fault tolerance |
-| Static provider registry (not dynamic) | Type-safe, predictable, no plugin infrastructure needed |
+| Static `webSearchProviderRegistry` as single source of truth | Type-safe; Zod enum + default URLs derived from registry keys; predictable, no plugin infrastructure needed |
 | Provider-specific params excluded from tool schema | Keep LLM interface clean; provider handles defaults internally |
 | `base_url` optional with defaults | Users only need `type` + `api_keys` + `priority` to start |
 | Empty results don't trigger fallback | Prevent false positives; a provider saying "no results" is valid |
@@ -275,6 +306,13 @@ const DEFAULT_BASE_URLS: Record<string, string> = {
 
 ## Traceability
 
-- Grilled by: `/grill` session on 2026-06-20
+- Grilled by: `/grill` session on 2026-06-20 (re-grill: 12 items resolved)
 - ADR: `docs/adr/0018-websearch-multi-provider.md`
 - CONTEXT.md: added "Search Provider" term
+- **Sliced by**: `/story` → Child Issues below
+- **Sliced into**:
+  - #171 — [PRD-0012] Exa Provider — End-to-End Tracer Bullet (AFK) — In Progress
+  - #172 — [PRD-0012] Brave Provider (AFK, blocked by #171) — In Progress
+  - #173 — [PRD-0012] Firecrawl Provider (AFK, blocked by #171) — In Progress
+  - #174 — [PRD-0012] Documentation, Changeset & AC Validation (AFK, blocked by #173) — In Progress
+- **Implemented by**: `/tdd` (issues #171, #172, #173, #174) — all acceptance criteria passing

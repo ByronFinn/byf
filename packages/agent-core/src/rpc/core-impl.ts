@@ -8,7 +8,12 @@ import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
 import { detectSystemProxy } from '#/tools/providers/system-proxy';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
-import { RemoteWebSearchProvider } from '#/tools/providers/remote-web-search';
+import { PriorityRouter } from '#/tools/providers/router';
+import { createProvider } from '#/tools/providers/registry';
+// Side-effect imports — register Exa, Brave, and Firecrawl providers in the registry
+import '#/tools/providers/exa';
+import '#/tools/providers/brave';
+import '#/tools/providers/firecrawl';
 import { detectEnvironmentFromNode } from '#/utils/environment';
 import { getCoreVersion } from '#/version';
 import type {
@@ -613,8 +618,8 @@ async function createRuntimeConfig(input: {
     systemProxy: () => detectSystemProxy(),
   });
   const localFetcher = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
-  const searchService = input.config.services?.byfSearch;
-  const fetchService = input.config.services?.byfFetch;
+  const fetchService = input.config.services?.fetchUrl;
+  const webSearchConfig = input.config.services?.webSearch;
 
   return {
     kaos: localKaos,
@@ -631,14 +636,22 @@ async function createRuntimeConfig(input: {
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
     webSearcher:
-      searchService?.baseUrl === undefined
+      webSearchConfig === undefined
         ? undefined
-        : new RemoteWebSearchProvider({
-            baseUrl: searchService.baseUrl,
-            defaultHeaders: input.byfRequestHeaders,
-            fetchImpl: proxiedFetch,
-            ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),
-          }),
+        : (() => {
+            const sorted = [...webSearchConfig.providers].sort(
+              (a, b) => a.priority - b.priority,
+            );
+            return new PriorityRouter(
+              sorted.map((p) =>
+                createProvider(p.type, {
+                  apiKeys: p.apiKeys,
+                  baseUrl: p.baseUrl,
+                  fetchImpl: proxiedFetch,
+                }),
+              ),
+            );
+          })(),
   };
 }
 

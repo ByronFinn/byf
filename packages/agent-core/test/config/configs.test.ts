@@ -110,12 +110,14 @@ timeout = 5
 event = "Stop"
 command = "echo stop"
 
-[services.byf_search]
-base_url = "https://api.example.test/v1/search"
-api_key = "sk-search"
-custom_headers = { "X-Search" = "1" }
+[services.web_search]
 
-[services.byf_fetch]
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-search"]
+priority = 1
+
+[services.fetch_url]
 base_url = "https://api.example.test/v1/fetch"
 api_key = "sk-fetch"
 
@@ -182,8 +184,8 @@ describe('harness config TOML loader', () => {
         command: 'echo stop',
       },
     ]);
-    expect(config.services?.byfSearch?.customHeaders).toEqual({ 'X-Search': '1' });
-    expect(config.services?.byfFetch?.apiKey).toBe('sk-fetch');
+    expect(config.services?.webSearch?.providers[0]?.apiKeys[0]).toBe('sk-search');
+    expect(config.services?.fetchUrl?.apiKey).toBe('sk-fetch');
 
     expect('theme' in config).toBe(false);
     expect(config.raw?.['theme']).toBe('dark');
@@ -229,6 +231,159 @@ describe('harness config TOML loader', () => {
     expect(reloaded.loopControl?.maxStepsPerTurn).toBe(7);
     expect(reloaded.hooks?.[0]?.event).toBe('PreToolUse');
     expect(reloaded.raw?.['theme']).toBe('dark');
+  });
+
+  // ── Web search multi-provider config (PRD-0012) ──────────────
+
+  it('parses web_search providers from TOML [[services.web_search.providers]]', () => {
+    const config = parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-exa-1"]
+priority = 1
+
+[[services.web_search.providers]]
+type = "brave"
+api_keys = ["sk-brave"]
+priority = 2
+base_url = "https://custom.brave.api/search"
+
+[services.fetch_url]
+base_url = "https://api.example.test/v1/fetch"
+api_key = "sk-fetch"
+`);
+
+    expect(config.services?.webSearch).toBeDefined();
+    expect(config.services?.webSearch!.providers).toHaveLength(2);
+    expect(config.services?.webSearch!.providers[0]!.type).toBe('exa');
+    expect(config.services?.webSearch!.providers[0]!.apiKeys).toEqual(['sk-exa-1']);
+    expect(config.services?.webSearch!.providers[0]!.priority).toBe(1);
+    expect(config.services?.webSearch!.providers[1]!.type).toBe('brave');
+    expect(config.services?.webSearch!.providers[1]!.apiKeys).toEqual(['sk-brave']);
+    expect(config.services?.webSearch!.providers[1]!.baseUrl).toBe('https://custom.brave.api/search');
+    expect(config.services?.webSearch!.providers[1]!.priority).toBe(2);
+    expect(config.services?.fetchUrl?.apiKey).toBe('sk-fetch');
+    expect(config.services?.fetchUrl?.baseUrl).toBe('https://api.example.test/v1/fetch');
+  });
+
+  it('rejects web_search providers with empty api_keys', () => {
+    expect(() => parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = []
+priority = 1
+`)).toThrow(/too_small|1 items/);
+  });
+
+  it('rejects web_search providers with missing priority', () => {
+    expect(() => parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-1"]
+`)).toThrow(/priority/);
+  });
+
+  it('rejects unknown provider type in web_search', () => {
+    expect(() => parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "unknown"
+api_keys = ["sk-1"]
+priority = 1
+`)).toThrow(/type/);
+  });
+
+  it('round-trips web_search providers through TOML write', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'config.toml');
+
+    const config = parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-exa"]
+priority = 1
+
+[[services.web_search.providers]]
+type = "firecrawl"
+api_keys = ["sk-fc"]
+priority = 2
+base_url = "https://proxy.firecrawl.test/search"
+`);
+
+    await writeConfigFile(configPath, config);
+
+    const reloaded = readConfigFile(configPath);
+    expect(reloaded.services?.webSearch?.providers).toHaveLength(2);
+    expect(reloaded.services?.webSearch?.providers[0]!.type).toBe('exa');
+    expect(reloaded.services?.webSearch?.providers[0]!.apiKeys).toEqual(['sk-exa']);
+    expect(reloaded.services?.webSearch?.providers[0]!.priority).toBe(1);
+    expect(reloaded.services?.webSearch?.providers[1]!.type).toBe('firecrawl');
+    expect(reloaded.services?.webSearch?.providers[1]!.apiKeys).toEqual(['sk-fc']);
+    expect(reloaded.services?.webSearch?.providers[1]!.baseUrl).toBe('https://proxy.firecrawl.test/search');
+    expect(reloaded.services?.webSearch?.providers[1]!.priority).toBe(2);
+  });
+
+  it('writes services.fetch_url (not byf_fetch) in TOML output', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'config.toml');
+
+    const config = parseConfigString(`
+[services.fetch_url]
+base_url = "https://fetch.test"
+api_key = "sk-fetch"
+`);
+
+    await writeConfigFile(configPath, config);
+
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).toContain('[services.fetch_url]');
+    expect(text).not.toContain('byf_fetch');
+  });
+
+  it('does not accept byfSearch or byfFetch in the new schema', () => {
+    const config = parseConfigString(`
+[services.byf_search]
+base_url = "https://old.test"
+api_key = "sk-old"
+
+[services.byf_fetch]
+base_url = "https://old-fetch.test"
+api_key = "sk-old-fetch"
+`);
+    // Old keys are stripped by Zod (strip mode), leaving an empty services object
+    expect((config.services as Record<string, unknown> | undefined)?.['byfSearch']).toBeUndefined();
+    expect((config.services as Record<string, unknown> | undefined)?.['byfFetch']).toBeUndefined();
+    expect(Object.keys(config.services ?? {})).toHaveLength(0);
+  });
+
+  it('webSearch providers are sorted by priority in the parsed config', () => {
+    const config = parseConfigString(`
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-exa"]
+priority = 3
+
+[[services.web_search.providers]]
+type = "brave"
+api_keys = ["sk-brave"]
+priority = 1
+`);
+
+    expect(config.services?.webSearch?.providers).toHaveLength(2);
+    // Providers should remain in TOML order; PriorityRouter sorts them at runtime
+    expect(config.services?.webSearch?.providers[0]!.priority).toBe(3);
+    expect(config.services?.webSearch?.providers[1]!.priority).toBe(1);
   });
 
   it('creates a parseable default config scaffold without changing runtime defaults', async () => {

@@ -228,11 +228,23 @@ function transformServiceData(data: Record<string, unknown>): Record<string, unk
       out[targetKey] = isPlainObject(value) ? transformPlainObject(value) : value;
     } else if (targetKey === 'customHeaders') {
       out[targetKey] = cloneObjectValue(value);
+    } else if (Array.isArray(value)) {
+      // Recurse into array items (e.g. [[services.web_search.providers]])
+      out[targetKey] = value.map((item) =>
+        isPlainObject(item) ? transformRecord(item as Record<string, unknown>, identity, snakeToCamel) : item,
+      );
+    } else if (isPlainObject(value)) {
+      // Flat sub-table — apply key conversion to direct children
+      out[targetKey] = transformPlainObject(value);
     } else {
       out[targetKey] = value;
     }
   }
   return out;
+}
+
+function identity<T>(v: T): T {
+  return v;
 }
 
 function transformLoopControlData(data: Record<string, unknown>): Record<string, unknown> {
@@ -394,16 +406,31 @@ function permissionRuleToToml(
 
 function servicesToToml(services: ServicesConfig, rawServices: unknown): Record<string, unknown> {
   const out = cloneRecord(rawServices);
-  if (services.byfSearch !== undefined) {
-    out['byf_search'] = serviceToToml(services.byfSearch);
+
+  // webSearch → [[services.web_search.providers]]
+  if (services.webSearch !== undefined && services.webSearch.providers.length > 0) {
+    const providersToml = services.webSearch.providers.map((p) => {
+      const providerOut: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(p)) {
+        setDefined(providerOut, camelToSnake(key), value);
+      }
+      return providerOut;
+    });
+    // smol-toml stringify handles arrays-of-tables at nested paths
+    // when the parent table header already exists.
+    out['web_search'] = out['web_search'] ?? {};
+    (out['web_search'] as Record<string, unknown>)['providers'] = providersToml;
   } else {
-    delete out['byf_search'];
+    delete out['web_search'];
   }
-  if (services.byfFetch !== undefined) {
-    out['byf_fetch'] = serviceToToml(services.byfFetch);
+
+  // fetchUrl → [services.fetch_url]
+  if (services.fetchUrl !== undefined) {
+    out['fetch_url'] = serviceToToml(services.fetchUrl);
   } else {
-    delete out['byf_fetch'];
+    delete out['fetch_url'];
   }
+
   return out;
 }
 
