@@ -14,27 +14,17 @@ Anything starting with `/` is recognized as a slash command, covering session ma
 
 Type `/` to open the command completion menu, which also includes commands from [Agent Skills](../customization/skills.md). If a skill name collides with a built-in command, use the full `/skill:<name>` form. Press `Esc` to dismiss.
 
-Some commands are only available while the agent is idle; interrupt the current turn first if the agent is streaming. Mode-switch and query commands such as `/yolo`, `/plan`, and `/help` are always available.
+Some commands are only available while the agent is idle; interrupt the current turn first if the agent is streaming. Mode-switch and query commands such as `/yolo` and `/help` are always available.
 
 Type `@` to trigger file-path completion. Selecting an entry inserts the relative path, and the agent can read the file directly. Dot-prefixed directories are hidden by default; write `@.github/` to include them explicitly.
-
-## Plan mode
-
-In Plan mode, the agent spells out its plan before taking action. Press `Shift-Tab` or `/plan` to toggle; `/plan clear` clears the current plan file (available while idle only).
-
-The agent outputs a plan and waits for your confirmation instead of making changes directly. Once the plan is ready, you can reject it (staying in Plan mode) or request changes. Leaving Plan mode still requires your confirmation, even when YOLO mode is on.
 
 ## YOLO mode
 
 YOLO mode automatically approves most tool calls, skipping the approval step. Enter `/yolo` (or `/yes`) to toggle; available both idle and streaming.
 
-::: warning Note
-YOLO mode skips ordinary approvals, but not the approval required to leave Plan mode.
-:::
-
 ## Approval flow
 
-When the agent invokes a tool with side effects (such as modifying a file or running a command), an approval panel pops up for your confirmation. This is skipped in YOLO mode and for plan-file writes in Plan mode.
+When the agent invokes a tool with side effects (such as modifying a file or running a command), an approval panel pops up for your confirmation. This is skipped in YOLO mode.
 
 Use arrow keys to select an option and `Enter` to confirm; press `1` / `2` / `3` to select by position directly. `Esc`, `Ctrl-C`, and `Ctrl-D` all reject the request. The panel usually also offers an "Approve for this session" option to auto-allow similar calls going forward.
 

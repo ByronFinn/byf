@@ -25,7 +25,6 @@ TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_cont
 | `default_model` | `string` | — | 默认使用的模型别名，必须在 `models` 中定义 |
 | `default_thinking` | `boolean` | `false` | 新会话启动时 Thinking 开关的初始值，可在会话内通过模型菜单切换。即使该字段为 `true`，`[thinking].mode = "off"` 也会强制禁用 Thinking。详见下文 [`thinking`](#thinking) |
 | `default_permission_mode` | `string` | `manual` | 新会话的默认权限模式，可选 `manual`、`auto`、`yolo` |
-| `default_plan_mode` | `boolean` | `false` | 新会话是否默认以 Plan 模式启动；省略等同 `false` |
 | `merge_all_available_skills` | `boolean` | `true` | 是否合并所有可用目录中的 Agent Skills |
 | `extra_skill_dirs` | `array<string>` | — | 额外的 Skill 搜索目录，会叠加到默认目录之上 |
 | `telemetry` | `boolean` | `true` | 是否启用匿名遥测；仅在显式设为 `false` 时关闭 |
@@ -44,7 +43,6 @@ TOML 中的字段名一律使用 snake_case（例如 `default_model`、`max_cont
 default_model = "byf/byf-default"
 default_thinking = true
 default_permission_mode = "manual"
-default_plan_mode = false
 merge_all_available_skills = true
 telemetry = true
 
@@ -171,7 +169,48 @@ max_context_size = 1047576
 
 ## `services`
 
-`services` 配置 BYF 调用的内置外部服务。当前仅识别 `web_search`（网页搜索）和 `web_fetch`（网页抓取）两个固定 key，其他 key 会被忽略。两项的字段相同：
+`services` 配置 BYF 调用的内置外部服务。识别两个可选服务：`web_search`（网页搜索，支持多 provider）和 `fetch_url`（网页内容抓取）。其他 key 会被忽略。
+
+### `web_search`
+
+配置网页搜索后端。支持多个搜索 provider，按优先级自动回退。每个 provider 在 `[[services.web_search.providers]]` 数组表中写出一条：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `type` | `string` | 是 | Provider 类型：`exa`、`brave` 或 `firecrawl` |
+| `api_keys` | `array<string>` | 是 | 一个或多个 API key；单次 search 调用内顺序尝试 |
+| `priority` | `integer` | 是 | 优先级顺序（数值越小越先尝试） |
+| `base_url` | `string` | 否 | 自定义 base URL 覆盖；默认为 provider 内置端点 |
+
+```toml
+[services.web_search]
+
+[[services.web_search.providers]]
+type = "exa"
+api_keys = ["sk-exa-primary", "sk-exa-secondary"]
+priority = 1
+
+[[services.web_search.providers]]
+type = "brave"
+api_keys = ["sk-brave"]
+priority = 2
+base_url = "https://custom.brave.api/search"
+
+[[services.web_search.providers]]
+type = "firecrawl"
+api_keys = ["sk-firecrawl"]
+priority = 3
+```
+
+**行为**: Provider 按 `priority` 升序尝试。首个返回结果（包括空结果）即视为成功。任一错误（认证失败、限流、服务端错误、超时、请求错误）会自动回退到下一个 provider。空结果不会触发回退——provider 反馈"无结果"是有效回答。
+
+所有 provider 均失败时，WebSearch 工具会向 LLM 返回错误信息，描述最后一次错误。
+
+当未配置 `[services.web_search]` 时，WebSearch 工具不会被注册（与之前一致）。
+
+### `fetch_url`
+
+配置网页内容抓取服务（通过 `[services.fetch_url]`）。沿用扁平结构：
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -180,12 +219,10 @@ max_context_size = 1047576
 | `oauth` | `table` | 否 | OAuth 凭据引用，结构同 `providers.*.oauth` |
 | `custom_headers` | `table<string, string>` | 否 | 请求时附加的自定义 HTTP 头 |
 
-```toml
-[services.web_search]
-base_url = "https://api.example.com/v1/search"
-api_key = "sk-xxx"
+如果未配置 `base_url`，会使用本地回退（直接下载并提取页面内容）。
 
-[services.web_fetch]
+```toml
+[services.fetch_url]
 base_url = "https://api.example.com/v1/fetch"
 api_key = "sk-xxx"
 ```

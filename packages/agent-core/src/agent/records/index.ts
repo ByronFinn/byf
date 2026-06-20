@@ -96,7 +96,6 @@ export class AgentRecords {
       usage: 'usage',
       background: 'background',
       full_compaction: 'fullCompaction',
-      plan_mode: 'planMode',
     };
 
     return mapping[prefix] ?? null;

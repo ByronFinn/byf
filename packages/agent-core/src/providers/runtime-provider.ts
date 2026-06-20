@@ -203,6 +203,46 @@ function isAuthLoginRequired(error: unknown): boolean {
   return isByfError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Capability definitions (single source of truth)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Each entry maps a TOML-visible capability name to its return key in
+ * {@link ModelCapability}.  Multiple capability names can map to the same
+ * return key — e.g. `thinking` and `always_thinking` both enable the
+ * `thinking` feature — which is handled by the `resolveModelCapabilities`
+ * OR-grouping logic.
+ */
+export interface CapabilityDef {
+  readonly name: string;
+  readonly returnKey: keyof ModelCapability;
+}
+
+export const CAPABILITY_DEFINITIONS: readonly CapabilityDef[] = [
+  { name: 'image_in', returnKey: 'image_in' },
+  { name: 'video_in', returnKey: 'video_in' },
+  { name: 'audio_in', returnKey: 'audio_in' },
+  { name: 'thinking', returnKey: 'thinking' },
+  { name: 'always_thinking', returnKey: 'thinking' },
+  { name: 'tool_use', returnKey: 'tool_use' },
+  { name: 'thinking_effort', returnKey: 'thinking_effort' },
+  { name: 'thinking_xhigh', returnKey: 'thinking_xhigh' },
+  { name: 'thinking_max', returnKey: 'thinking_max' },
+];
+
+/**
+ * The list of every valid capability name that can appear in a model
+ * alias's `capabilities` array.
+ *
+ * Derives directly from {@link CAPABILITY_DEFINITIONS} so that adding a
+ * new capability in one place automatically keeps both the validation
+ * gate (`update-config`) and the runtime resolver in sync.
+ */
+export const VALID_CAPABILITIES: readonly string[] = CAPABILITY_DEFINITIONS.map(
+  (d) => d.name,
+);
+
 function resolveModelCapabilities(
   alias: ModelAlias & { maxContextSize: number },
   provider: KosongProviderConfig,
@@ -215,15 +255,24 @@ function resolveModelCapabilities(
   const providerCapability =
     capabilityProvider.getCapability?.(provider.model) ?? UNKNOWN_CAPABILITY;
 
+  // Group capability definitions by return key so that aliased capabilities
+  // (e.g. thinking + always_thinking both → thinking) are OR'd together.
+  const returnKeyToNames = new Map<string, string[]>();
+  for (const def of CAPABILITY_DEFINITIONS) {
+    const names = returnKeyToNames.get(def.returnKey) ?? [];
+    names.push(def.name);
+    returnKeyToNames.set(def.returnKey, names);
+  }
+
+  const resolved: Record<string, boolean> = {};
+  for (const [returnKey, names] of returnKeyToNames) {
+    resolved[returnKey] =
+      names.some((n) => has(n)) ||
+      Boolean((providerCapability as unknown as Record<string, boolean>)[returnKey]);
+  }
+
   return {
-    image_in: has('image_in') || providerCapability.image_in,
-    video_in: has('video_in') || providerCapability.video_in,
-    audio_in: has('audio_in') || providerCapability.audio_in,
-    thinking: has('thinking') || has('always_thinking') || providerCapability.thinking,
-    tool_use: has('tool_use') || providerCapability.tool_use,
-    thinking_effort: has('thinking_effort') || providerCapability.thinking_effort,
-    thinking_xhigh: has('thinking_xhigh') || providerCapability.thinking_xhigh,
-    thinking_max: has('thinking_max') || providerCapability.thinking_max,
+    ...(resolved as unknown as Omit<ModelCapability, 'max_context_tokens'>),
     max_context_tokens: alias.maxContextSize,
   };
 }

@@ -7,7 +7,6 @@ import type {
   AgentAPI,
   BeginCompactionPayload,
   CancelPayload,
-  CancelPlanPayload,
   EmptyPayload,
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
@@ -165,18 +164,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return this.getAgent(agentId).getModel(payload);
   }
 
-  enterPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return this.getAgent(agentId).enterPlan(payload);
-  }
-
-  cancelPlan({ agentId, ...payload }: AgentScopedPayload<CancelPlanPayload>) {
-    return this.getAgent(agentId).cancelPlan(payload);
-  }
-
-  clearPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return this.getAgent(agentId).clearPlan(payload);
-  }
-
   beginCompaction({ agentId, ...payload }: AgentScopedPayload<BeginCompactionPayload>) {
     return this.getAgent(agentId).beginCompaction(payload);
   }
@@ -233,10 +220,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   getPermission({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return this.getAgent(agentId).getPermission(payload);
-  }
-
-  getPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return this.getAgent(agentId).getPlan(payload);
   }
 
   getUsage({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {

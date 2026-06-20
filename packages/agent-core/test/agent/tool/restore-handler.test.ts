@@ -82,7 +82,7 @@ describe('ToolManager restore handler', () => {
 
       // Verify the active tools were set
       const data = ctx.agent.tools.data();
-      expect(data.filter(t => t.active).map(t => t.name).sort()).toEqual(['Bash', 'Read', 'Write']);
+      expect(data.filter(t => t.active).map(t => t.name).toSorted()).toEqual(['Bash', 'Read', 'Write']);
     });
 
     it('should restore tools.update_store records', () => {

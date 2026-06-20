@@ -1,5 +1,5 @@
 /**
- * Covers: WebSearchTool.
+ * Covers: WebSearchTool, PriorityRouter, and provider implementations.
  *
  * Uses a fake WebSearchProvider to test tool behaviour in isolation.
  */
@@ -11,10 +11,18 @@ import {
   WebSearchTool,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
-import { createProxiedFetch } from '../../src/tools/providers/proxied-fetch';
-import { RemoteWebSearchProvider } from '../../src/tools/providers/remote-web-search';
+import {
+  webSearchProviderRegistry,
+  registerProvider,
+  createProvider,
+  type ProviderType,
+} from '../../src/tools/providers/registry';
+import { PriorityRouter, AllProvidersFailedError } from '../../src/tools/providers/router';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
+import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
+import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
 
 const signal = new AbortController().signal;
 
@@ -266,134 +274,407 @@ describe('WebSearchTool', () => {
   });
 });
 
-describe('RemoteWebSearchProvider', () => {
-  it('does not force-refresh request auth after a 401 response', async () => {
-    const getAccessToken = vi.fn().mockResolvedValue('fresh-token');
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(new Response('unauthorized', { status: 401 }));
-    const provider = new RemoteWebSearchProvider({
-      tokenProvider: { getAccessToken },
-      baseUrl: 'https://search.example/v1',
-      fetchImpl,
-    });
+// ── webSearchProviderRegistry ─────────────────────────────────────────
 
-    await expect(provider.search('query')).rejects.toThrow(/HTTP 401/);
+describe('webSearchProviderRegistry', () => {
+  it('has entries for exa, brave, and firecrawl', () => {
+    expect(webSearchProviderRegistry).toHaveProperty('exa');
+    expect(webSearchProviderRegistry).toHaveProperty('brave');
+    expect(webSearchProviderRegistry).toHaveProperty('firecrawl');
+  });
 
-    expect(getAccessToken).toHaveBeenCalledTimes(1);
-    expect(getAccessToken).toHaveBeenCalledWith();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(fetchImpl.mock.calls[0]?.[1]?.headers).toMatchObject({
-      Authorization: 'Bearer fresh-token',
-    });
+  it('each entry has a defaultBaseUrl', () => {
+    for (const [type, entry] of Object.entries(webSearchProviderRegistry)) {
+      expect(typeof entry.defaultBaseUrl).toBe('string');
+      expect(entry.defaultBaseUrl).toMatch(/^https?:\/\//);
+    }
+  });
+
+  it('ProviderType is derived from registry keys', () => {
+    const types: ProviderType[] = ['exa', 'brave', 'firecrawl'];
+    for (const t of types) {
+      expect(webSearchProviderRegistry).toHaveProperty(t);
+    }
+  });
+
+  it('does not contain unexpected provider types', () => {
+    const keys = Object.keys(webSearchProviderRegistry);
+    expect(keys).toEqual(['exa', 'brave', 'firecrawl']);
+    const allowed: readonly string[] = keys;
+    for (const key of keys) {
+      expect(allowed).toContain(key);
+    }
+  });
+
+  it('createProvider creates an instance of the registered class', () => {
+    class MockExaProvider implements WebSearchProvider {
+      search = vi.fn().mockResolvedValue([]);
+    }
+    registerProvider('exa', MockExaProvider);
+
+    const instance = createProvider('exa', {}) as MockExaProvider;
+    expect(instance).toBeInstanceOf(MockExaProvider);
   });
 });
 
-// ── Proxy fallback tests ─────────────────────────────────────────────
+// ── PriorityRouter ────────────────────────────────────────────────────
 
-function networkError(code: string): TypeError {
-  const err = new TypeError(`fetch failed: ${code}`);
-  (err as any).cause = { code };
-  return err;
+describe('PriorityRouter', () => {
+  it('returns results from the first provider when it succeeds', async () => {
+    const p1: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([{ title: 'From P1', url: 'https://p1', snippet: 'p1' }]),
+    };
+    const p2: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([{ title: 'From P2', url: 'https://p2', snippet: 'p2' }]),
+    };
+    const router = new PriorityRouter([p1, p2]);
+    const results = await router.search('test');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.title).toBe('From P1');
+    expect(p2.search).not.toHaveBeenCalled();
+  });
+
+  it('falls back to next provider when the first throws', async () => {
+    const p1: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('Exa search failed: HTTP 503')),
+    };
+    const p2: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([{ title: 'Fallback', url: 'https://fb', snippet: 'ok' }]),
+    };
+    const router = new PriorityRouter([p1, p2]);
+    const results = await router.search('test');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.title).toBe('Fallback');
+    expect(p1.search).toHaveBeenCalledTimes(1);
+    expect(p2.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT fall back on empty results (no throw)', async () => {
+    const p1: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([]),
+    };
+    const p2: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([{ title: 'ShouldNotReach', url: 'https://x', snippet: 'x' }]),
+    };
+    const router = new PriorityRouter([p1, p2]);
+    const results = await router.search('nothing');
+    expect(results).toEqual([]);
+    expect(p2.search).not.toHaveBeenCalled();
+  });
+
+  it('throws AllProvidersFailedError when all providers fail', async () => {
+    const p1: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('Provider 1 failed')),
+    };
+    const p2: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('Provider 2 failed')),
+    };
+    const router = new PriorityRouter([p1, p2]);
+    await expect(router.search('test')).rejects.toThrow(AllProvidersFailedError);
+    await expect(router.search('test')).rejects.toThrow(/All search providers failed/);
+  });
+
+  it('preserves last error in AllProvidersFailedError', async () => {
+    const p1: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('Exa search failed: HTTP 503')),
+    };
+    const p2: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('Brave search failed: HTTP 429')),
+    };
+    const router = new PriorityRouter([p1, p2]);
+    try {
+      await router.search('test');
+      throw new Error('expected exception');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AllProvidersFailedError);
+      expect((error as AllProvidersFailedError).lastError).toContain('Brave search failed');
+    }
+  });
+
+  it('tries providers in ascending priority order', async () => {
+    const p10: WebSearchProvider = {
+      search: vi.fn().mockRejectedValue(new Error('P10 fail')),
+    };
+    const p5: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([{ title: 'P5 wins', url: 'https://p5', snippet: 'low priority' }]),
+    };
+    // PriorityRouter uses the order of the array it receives. The caller sorts by priority.
+    const router = new PriorityRouter([p5, p10]);
+    const results = await router.search('test');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.title).toBe('P5 wins');
+  });
+});
+
+// ── ExaWebSearchProvider ─────────────────────────────────────────────
+
+function exaFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
+  return vi.fn<typeof fetch>().mockResolvedValue(
+    new Response(JSON.stringify({ results }), { status: 200 }),
+  );
 }
 
-describe('RemoteWebSearchProvider with proxy fallback', () => {
-  const mockSearchResults = {
-    search_results: [
-      { title: 'Proxy result', url: 'https://example.com/proxy', snippet: 'via proxy' },
-    ],
-  };
-
-  it('returns results directly when search succeeds without needing proxy', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(mockSearchResults), { status: 200 }),
-      );
-
-    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
-    const proxiedFetch = createProxiedFetch({
-      envLookup: (key) => env[key],
-      innerFetch,
+describe('ExaWebSearchProvider', () => {
+  it('sends POST with query, numResults, and contents.highlights by default', async () => {
+    const fetchImpl = exaFetchOk([]);
+    const provider = new ExaWebSearchProvider({
+      apiKeys: ['test-key'],
+      fetchImpl,
     });
-
-    const provider = new RemoteWebSearchProvider({
-      baseUrl: 'https://search.example/v1',
-      apiKey: 'test-key',
-      fetchImpl: proxiedFetch,
+    await provider.search('hello', { limit: 3 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.exa.ai/search');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({
+      query: 'hello',
+      numResults: 3,
+      contents: { highlights: { query: 'hello', maxCharacters: 300 } },
     });
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer test-key');
+  });
 
-    const results = await provider.search('test query');
+  it('sends POST with contents.text when includeContent=true', async () => {
+    const fetchImpl = exaFetchOk([]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { includeContent: true });
+    const body = JSON.parse((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.contents).toEqual({ text: { maxCharacters: 10000 } });
+  });
+
+  it('maps response fields with includeContent=true (text → snippet + content)', async () => {
+    const fetchImpl = exaFetchOk([
+      {
+        title: 'Exa Result',
+        url: 'https://exa.example/page',
+        text: 'Full content text for checking snippet and content mapping',
+        publishedDate: '2025-03-15',
+      },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('Proxy result');
-    expect(innerFetch).toHaveBeenCalledTimes(1);
+    expect(results[0]!.title).toBe('Exa Result');
+    expect(results[0]!.url).toBe('https://exa.example/page');
+    expect(results[0]!.snippet).toBe('Full content text for checking snippet and content mapping');
+    expect(results[0]!.content).toBe('Full content text for checking snippet and content mapping');
+    expect(results[0]!.date).toBe('2025-03-15');
   });
 
-  it('retries through proxy when direct fetch fails with ECONNREFUSED', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(mockSearchResults), { status: 200 }),
-      );
-
-    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
-    const proxiedFetch = createProxiedFetch({
-      envLookup: (key) => env[key],
-      innerFetch,
-    });
-
-    const provider = new RemoteWebSearchProvider({
-      baseUrl: 'https://search.example/v1',
-      apiKey: 'test-key',
-      fetchImpl: proxiedFetch,
-    });
-
-    const results = await provider.search('test query');
+  it('maps highlights[0] to snippet when includeContent=false', async () => {
+    const fetchImpl = exaFetchOk([
+      {
+        title: 'Exa Result',
+        url: 'https://exa.example/page',
+        highlights: ['Highlighted relevant snippet'],
+        publishedDate: '2025-03-15',
+      },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: false });
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('Proxy result');
-    expect(innerFetch).toHaveBeenCalledTimes(2);
+    expect(results[0]!.snippet).toBe('Highlighted relevant snippet');
+    expect(results[0]!.content).toBeUndefined();
+    expect(results[0]!.date).toBe('2025-03-15');
   });
 
-  it('does not retry on HTTP 401 even when proxy is configured', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }));
-
-    const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
-    const proxiedFetch = createProxiedFetch({
-      envLookup: (key) => env[key],
-      innerFetch,
-    });
-
-    const provider = new RemoteWebSearchProvider({
-      baseUrl: 'https://search.example/v1',
-      apiKey: 'test-key',
-      fetchImpl: proxiedFetch,
-    });
-
-    await expect(provider.search('test query')).rejects.toThrow(/HTTP 401/);
-    expect(innerFetch).toHaveBeenCalledTimes(1);
+  it('snippet from highlights is truncated to 300 chars', async () => {
+    const longHighlight = 'x'.repeat(500);
+    const fetchImpl = exaFetchOk([
+      { title: 'Long', url: 'https://exa.example/long', highlights: [longHighlight] },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.snippet.length).toBe(300);
   });
 
-  it('does not retry when no proxy is configured', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'));
+  it('snippet from text is truncated to 300 chars when includeContent=true', async () => {
+    const longText = 'x'.repeat(500);
+    const fetchImpl = exaFetchOk([
+      { title: 'Long', url: 'https://exa.example/long', text: longText },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results).toHaveLength(1);
+    expect(results[0]!.snippet.length).toBe(300);
+    expect(results[0]!.content!.length).toBe(500);
+  });
 
-    const env: Record<string, string> = {};
-    const proxiedFetch = createProxiedFetch({
-      envLookup: (key) => env[key],
-      innerFetch,
+  it('snippet is empty string when highlights array is empty', async () => {
+    const fetchImpl = exaFetchOk([
+      { title: 'Empty', url: 'https://exa.example/empty', highlights: [] },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results[0]!.snippet).toBe('');
+  });
+
+  it('snippet is empty string when highlights is undefined', async () => {
+    const fetchImpl = exaFetchOk([
+      { title: 'No Highlights', url: 'https://exa.example/no' },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results[0]!.snippet).toBe('');
+  });
+
+  it('throws errors with convention: "Exa search failed: HTTP {status}"', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await expect(provider.search('test')).rejects.toThrow('Exa search failed: HTTP 429');
+  });
+
+  it('throws on network errors', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await expect(provider.search('test')).rejects.toThrow('fetch failed');
+  });
+});
+
+// ── BraveWebSearchProvider ────────────────────────────────────────────
+
+function braveFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
+  return vi.fn<typeof fetch>().mockResolvedValue(
+    new Response(JSON.stringify({ web: { results } }), { status: 200 }),
+  );
+}
+
+describe('BraveWebSearchProvider', () => {
+  it('sends GET request with q and count parameters', async () => {
+    const fetchImpl = braveFetchOk([]);
+    const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { limit: 3 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const parsed = new URL(url);
+    expect(parsed.hostname).toContain('brave.com');
+    expect(parsed.searchParams.get('q')).toBe('hello');
+    expect(parsed.searchParams.get('count')).toBe('3');
+  });
+
+  it('maps response fields (snippet=description, date=age)', async () => {
+    const fetchImpl = braveFetchOk([
+      { title: 'Brave Result', url: 'https://brave.example/page', description: 'A description', age: '2025-03-15' },
+    ]);
+    const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results[0]!.title).toBe('Brave Result');
+    expect(results[0]!.snippet).toBe('A description');
+    expect(results[0]!.date).toBe('2025-03-15');
+  });
+
+  it('content is always undefined (Brave does not return full text)', async () => {
+    const fetchImpl = braveFetchOk([
+      { title: 'No Content', url: 'https://brave.example/page', description: 'snippet' },
+    ]);
+    const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.content).toBeUndefined();
+  });
+
+  it('throws errors with convention: "Brave search failed: HTTP {status}"', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await expect(provider.search('test')).rejects.toThrow('Brave search failed: HTTP 429');
+  });
+});
+
+// ── FirecrawlWebSearchProvider ────────────────────────────────────────
+
+function firecrawlFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
+  return vi.fn<typeof fetch>().mockResolvedValue(
+    new Response(JSON.stringify({ data: { web: results } }), { status: 200 }),
+  );
+}
+
+describe('FirecrawlWebSearchProvider', () => {
+  it('sends POST request with query and limit (no scrapeOptions by default)', async () => {
+    const fetchImpl = firecrawlFetchOk([]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { limit: 3 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('firecrawl.dev');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({ query: 'hello', limit: 3 });
+    expect(body).not.toHaveProperty('scrapeOptions');
+  });
+
+  it('includes scrapeOptions.formats when includeContent is true', async () => {
+    const fetchImpl = firecrawlFetchOk([]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { limit: 3, includeContent: true });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({
+      query: 'hello',
+      limit: 3,
+      scrapeOptions: { formats: ['markdown'] },
     });
+  });
 
-    const provider = new RemoteWebSearchProvider({
-      baseUrl: 'https://search.example/v1',
-      apiKey: 'test-key',
-      fetchImpl: proxiedFetch,
-    });
+  it('maps response fields (snippet=description, no date, no content by default)', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      { title: 'FC Result', url: 'https://fc.example/page', description: 'FC snippet' },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results[0]!.title).toBe('FC Result');
+    expect(results[0]!.snippet).toBe('FC snippet');
+    expect(results[0]!.date).toBeUndefined();
+    expect(results[0]!.content).toBeUndefined();
+  });
 
-    await expect(provider.search('test query')).rejects.toThrow(/ECONNREFUSED/);
-    expect(innerFetch).toHaveBeenCalledTimes(1);
+  it('maps markdown to content when includeContent is true', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC Content',
+        url: 'https://fc.example/page',
+        description: 'FC snippet',
+        markdown: '# Full\n\nMarkdown content',
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.title).toBe('FC Content');
+    expect(results[0]!.snippet).toBe('FC snippet');
+    expect(results[0]!.content).toBe('# Full\n\nMarkdown content');
+  });
+
+  it('markdown null does not set content (even with includeContent=true)', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC NoMd',
+        url: 'https://fc.example/page',
+        description: 'snippet only',
+        markdown: null,
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.content).toBeUndefined();
+    expect(results[0]!.snippet).toBe('snippet only');
+  });
+
+  it('markdown undefined does not set content (even with includeContent=true)', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC NoMd',
+        url: 'https://fc.example/page',
+        description: 'snippet only',
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.content).toBeUndefined();
+  });
+
+  it('throws errors with convention: "Firecrawl search failed: HTTP {status}"', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await expect(provider.search('test')).rejects.toThrow('Firecrawl search failed: HTTP 429');
   });
 });

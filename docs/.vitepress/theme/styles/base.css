@@ -47,7 +47,7 @@ body {
   width: 3px;
   height: 16px;
   border-radius: 2px;
-  background: var(--kimi-brand-gradient);
+  background: var(--byf-brand-gradient);
 }
 
 /* --- Headings: tighter tracking, no underline on h2 --- */
@@ -69,7 +69,7 @@ body {
   text-decoration-color: transparent;
   text-underline-offset: 4px;
   text-decoration-thickness: 2px;
-  transition: text-decoration-color var(--kimi-transition), color var(--kimi-transition);
+  transition: text-decoration-color var(--byf-transition), color var(--byf-transition);
   font-weight: 500;
 }
 .vp-doc a:not(.header-anchor):hover {
@@ -79,7 +79,7 @@ body {
 
 /* --- Inline code --- */
 .vp-doc :not(pre) > code {
-  background: var(--kimi-brand-soft);
+  background: var(--byf-brand-soft);
   color: var(--vp-c-brand-1);
   padding: 2px 6px;
   border-radius: 6px;
@@ -100,7 +100,7 @@ body {
 
 /* --- Code blocks --- */
 .vp-doc div[class*='language-'] {
-  border-radius: var(--kimi-radius-code);
+  border-radius: var(--byf-radius-code);
   background: var(--vp-c-bg-soft);
   margin: 20px 0;
   box-shadow: var(--vp-shadow-1);
@@ -124,9 +124,9 @@ body {
 /* --- Blockquote --- */
 .vp-doc blockquote {
   border-left: 3px solid var(--vp-c-brand-1);
-  background: var(--kimi-brand-soft);
+  background: var(--byf-brand-soft);
   padding: 14px 18px;
-  border-radius: 0 var(--kimi-radius-code) var(--kimi-radius-code) 0;
+  border-radius: 0 var(--byf-radius-code) var(--byf-radius-code) 0;
   margin: 20px 0;
 }
 .vp-doc blockquote > p {
@@ -136,7 +136,7 @@ body {
 
 /* --- Custom blocks (tip / warning / danger / info) --- */
 .vp-doc .custom-block {
-  border-radius: var(--kimi-radius-code);
+  border-radius: var(--byf-radius-code);
   border: none;
   padding: 16px 20px;
   margin: 20px 0;
@@ -172,7 +172,7 @@ body {
 
 /* --- Tables --- */
 .vp-doc table {
-  border-radius: var(--kimi-radius-code);
+  border-radius: var(--byf-radius-code);
   overflow: hidden;
   border-collapse: separate;
   border-spacing: 0;
@@ -198,10 +198,10 @@ body {
 
 /* --- Buttons globally (e.g. hero CTAs) --- */
 .VPButton.brand {
-  background: var(--kimi-brand-gradient) !important;
+  background: var(--byf-brand-gradient) !important;
   border: none !important;
   box-shadow: var(--vp-shadow-3);
-  transition: transform var(--kimi-transition), box-shadow var(--kimi-transition);
+  transition: transform var(--byf-transition), box-shadow var(--byf-transition);
 }
 .VPButton.brand:hover {
   transform: translateY(-2px);
@@ -211,7 +211,7 @@ body {
   background: transparent !important;
   border: 1px solid var(--vp-c-divider) !important;
   color: var(--vp-c-text-1) !important;
-  transition: border-color var(--kimi-transition), transform var(--kimi-transition);
+  transition: border-color var(--byf-transition), transform var(--byf-transition);
 }
 .VPButton.alt:hover {
   border-color: var(--vp-c-brand-1) !important;

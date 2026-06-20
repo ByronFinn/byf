@@ -10,7 +10,6 @@ import type {
   PromptInput,
   ResumedSessionState,
   ShellExecResult,
-  SessionPlan,
   SessionStatus,
   SessionSummary,
   SessionUsage,
@@ -145,16 +144,6 @@ export class Session {
       );
     }
     await this.rpc.setPermission({ sessionId: this.id, mode });
-  }
-
-  async getPlan(): Promise<SessionPlan> {
-    this.ensureOpen();
-    return null;
-  }
-
-  async clearPlan(): Promise<void> {
-    this.ensureOpen();
-    // Plan mode has been removed; this is now a no-op.
   }
 
   async compact(options: CompactOptions = {}): Promise<void> {

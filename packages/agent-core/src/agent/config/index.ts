@@ -134,6 +134,7 @@ export class ConfigState implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores config.* records; other record types are handled by sibling subsystems
     switch (record.type) {
       case 'config.update':
         // During restore, we call the normal update method but it should not log

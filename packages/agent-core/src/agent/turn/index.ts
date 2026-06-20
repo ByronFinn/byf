@@ -644,6 +644,7 @@ export class TurnFlow implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores turn.* records
     switch (record.type) {
       case 'turn.prompt':
         // During restore, we need to process each turn.prompt record

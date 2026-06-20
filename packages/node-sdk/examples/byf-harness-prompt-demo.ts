@@ -70,6 +70,7 @@ function handleEvent(
   activeTurnId: number | undefined,
   setActiveTurnId: (turnId: number) => void,
 ): void {
+  // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- demo only logs selected events
   switch (event.type) {
     case 'turn.started':
       setActiveTurnId(event.turnId);

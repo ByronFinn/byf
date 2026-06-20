@@ -57,14 +57,15 @@ describe('RecordRestoreHandler', () => {
         created_at: Date.now(),
       };
 
-      expect(() => handler.restoreRecord(mockRecord)).not.toThrow();
+      expect(() =>{  handler.restoreRecord(mockRecord); }).not.toThrow();
     });
 
     it('接口方法签名正确', () => {
       class MockRestoreHandler implements RecordRestoreHandler {
+        restored: AgentRecord | undefined;
+
         restoreRecord(record: AgentRecord): void {
-          expect(record).toBeDefined();
-          expect(typeof record.type).toBe('string');
+          this.restored = record;
         }
       }
 
@@ -76,6 +77,9 @@ describe('RecordRestoreHandler', () => {
       };
 
       handler.restoreRecord(mockRecord);
+      const impl = handler as MockRestoreHandler;
+      expect(impl.restored).toBe(mockRecord);
+      expect(typeof impl.restored!.type).toBe('string');
     });
   });
 });

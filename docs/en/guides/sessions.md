@@ -53,7 +53,7 @@ byf --session
 ```
 
 ::: warning Note
-`--continue` and `--session` are mutually exclusive; `--yolo` and `--plan` also cannot be combined with them.
+`--continue` and `--session` are mutually exclusive; `--yolo` also cannot be combined with them.
 :::
 
 ## Switching sessions inside the TUI

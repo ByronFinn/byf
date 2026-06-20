@@ -56,14 +56,6 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
   });
 
-  it('marks plan clear as idle-only while normal plan toggles are always available', () => {
-    const plan = findBuiltInSlashCommand('plan');
-    expect(plan).toBeDefined();
-    expect(resolveSlashCommandAvailability(plan!, '')).toBe('always');
-    expect(resolveSlashCommandAvailability(plan!, 'on')).toBe('always');
-    expect(resolveSlashCommandAvailability(plan!, 'clear')).toBe('idle-only');
-  });
-
   it('defaults commands without explicit availability to idle-only', () => {
     const command: ByfSlashCommand = {
       name: 'example',
@@ -109,7 +101,6 @@ describe('built-in slash command registry', () => {
         'model',
         'new',
         'permission',
-        'plan',
         'sessions',
         'settings',
         'status',

@@ -8,14 +8,18 @@ import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
 import { detectSystemProxy } from '#/tools/providers/system-proxy';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
-import { RemoteWebSearchProvider } from '#/tools/providers/remote-web-search';
+import { PriorityRouter } from '#/tools/providers/router';
+import { createProvider } from '#/tools/providers/registry';
+// Side-effect imports — register Exa, Brave, and Firecrawl providers in the registry
+import '#/tools/providers/exa';
+import '#/tools/providers/brave';
+import '#/tools/providers/firecrawl';
 import { detectEnvironmentFromNode } from '#/utils/environment';
 import { getCoreVersion } from '#/version';
 import type {
   ActivateSkillPayload,
   BeginCompactionPayload,
   CancelPayload,
-  CancelPlanPayload,
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
@@ -405,18 +409,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getModel(payload);
   }
 
-  enterPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).enterPlan(payload);
-  }
-
-  cancelPlan({ sessionId, ...payload }: SessionAgentPayload<CancelPlanPayload>) {
-    return this.sessionApi(sessionId).cancelPlan(payload);
-  }
-
-  clearPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).clearPlan(payload);
-  }
-
   beginCompaction({ sessionId, ...payload }: SessionAgentPayload<BeginCompactionPayload>) {
     return this.sessionApi(sessionId).beginCompaction(payload);
   }
@@ -473,10 +465,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getPermission({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getPermission(payload);
-  }
-
-  getPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getPlan(payload);
   }
 
   getUsage({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
@@ -630,8 +618,8 @@ async function createRuntimeConfig(input: {
     systemProxy: () => detectSystemProxy(),
   });
   const localFetcher = new LocalFetchURLProvider({ fetchImpl: proxiedFetch });
-  const searchService = input.config.services?.byfSearch;
-  const fetchService = input.config.services?.byfFetch;
+  const fetchService = input.config.services?.fetchUrl;
+  const webSearchConfig = input.config.services?.webSearch;
 
   return {
     kaos: localKaos,
@@ -648,14 +636,22 @@ async function createRuntimeConfig(input: {
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
     webSearcher:
-      searchService?.baseUrl === undefined
+      webSearchConfig === undefined
         ? undefined
-        : new RemoteWebSearchProvider({
-            baseUrl: searchService.baseUrl,
-            defaultHeaders: input.byfRequestHeaders,
-            fetchImpl: proxiedFetch,
-            ...serviceCredentials(searchService, input.resolveOAuthTokenProvider),
-          }),
+        : (() => {
+            const sorted = [...webSearchConfig.providers].toSorted(
+              (a, b) => a.priority - b.priority,
+            );
+            return new PriorityRouter(
+              sorted.map((p) =>
+                createProvider(p.type, {
+                  apiKeys: p.apiKeys,
+                  baseUrl: p.baseUrl,
+                  fetchImpl: proxiedFetch,
+                }),
+              ),
+            );
+          })(),
   };
 }
 
@@ -712,7 +708,6 @@ async function resumeSessionResult(
       context,
       replay: agent.replayBuilder.buildResult(),
       permission,
-      plan: null,
       usage,
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),

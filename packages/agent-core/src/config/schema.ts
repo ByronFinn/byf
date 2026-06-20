@@ -2,6 +2,7 @@ import { HOOK_EVENT_TYPES } from '#/agent/hooks/types';
 import { parsePattern } from '#/agent/permission/parse-pattern';
 import { ErrorCodes, ByfError } from '#/errors';
 import { z } from 'zod';
+import { PROVIDER_TYPE_VALUES } from '#/tools/providers/registry';
 
 export const ProviderTypeSchema = z.enum([
   'anthropic',
@@ -123,9 +124,29 @@ export const ByfServiceConfigSchema = z.object({
 
 export type ByfServiceConfig = z.infer<typeof ByfServiceConfigSchema>;
 
+// ── Web Search Multi-Provider (PRD-0012) ─────────────────────────────
+
+/** Provider type enum derived from webSearchProviderRegistry keys. */
+const WebSearchProviderTypeSchema = z.enum(PROVIDER_TYPE_VALUES);
+
+export const WebSearchProviderConfigSchema = z.object({
+  type: WebSearchProviderTypeSchema,
+  apiKeys: z.array(z.string().min(1)).nonempty(),
+  baseUrl: z.string().optional(),
+  priority: z.number().int().positive(),
+});
+
+export type WebSearchProviderConfig = z.infer<typeof WebSearchProviderConfigSchema>;
+
+export const WebSearchConfigSchema = z.object({
+  providers: z.array(WebSearchProviderConfigSchema).nonempty(),
+});
+
+export type WebSearchConfig = z.infer<typeof WebSearchConfigSchema>;
+
 export const ServicesConfigSchema = z.object({
-  byfSearch: ByfServiceConfigSchema.optional(),
-  byfFetch: ByfServiceConfigSchema.optional(),
+  webSearch: WebSearchConfigSchema.optional(),
+  fetchUrl: ByfServiceConfigSchema.optional(),
 });
 
 export type ServicesConfig = z.infer<typeof ServicesConfigSchema>;
@@ -209,8 +230,8 @@ const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
 const ByfServiceConfigPatchSchema = ByfServiceConfigSchema.partial();
 const ServicesConfigPatchSchema = z.object({
-  byfSearch: ByfServiceConfigPatchSchema.optional(),
-  byfFetch: ByfServiceConfigPatchSchema.optional(),
+  webSearch: WebSearchConfigSchema.optional(),
+  fetchUrl: ByfServiceConfigPatchSchema.optional(),
 });
 
 export const ByfConfigPatchSchema = z

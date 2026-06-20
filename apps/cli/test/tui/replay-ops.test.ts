@@ -507,23 +507,19 @@ describe('projectReplayRecords', () => {
     expect(JSON.parse(output)).toEqual(mediaContent);
   });
 
-  it('projects plan and permission replay records as notices', () => {
+  it('projects permission replay records as notices', () => {
     const projected = projectReplayRecords([
-      { type: 'plan_updated', enabled: true },
       { type: 'permission_updated', mode: 'auto' },
       { type: 'permission_updated', mode: 'yolo' },
       { type: 'permission_updated', mode: 'manual' },
-      { type: 'plan_updated', enabled: false },
     ]);
 
     expect(projected.entries.map((e) => [e.kind, e.renderMode, e.content])).toEqual([
-      ['status', 'notice', 'Plan mode: ON'],
       ['status', 'notice', 'Permission mode: auto'],
       ['status', 'notice', 'YOLO mode: ON'],
       ['status', 'notice', 'YOLO mode: OFF'],
-      ['status', 'notice', 'Plan mode: OFF'],
     ]);
-    expect(projected.entries[2]?.detail).toBe(
+    expect(projected.entries[1]?.detail).toBe(
       'All actions will be approved automatically. Use with caution.',
     );
   });
@@ -723,7 +719,6 @@ describe('distillSubagents — child state → subagent block (AC2 wiring, S8)',
       context: {} as ResumedAgentState['context'],
       replay: [],
       permission: {} as ResumedAgentState['permission'],
-      plan: null,
       usage: { total: { inputOther: 1000, inputCacheRead: 0, inputCacheCreation: 0, output: 500 } },
       tools: [],
       background: [],
@@ -871,7 +866,6 @@ describe('resume degradation for sessions without parentToolCallId (AC4)', () =>
           }),
         ],
         permission: {} as ResumedAgentState['permission'],
-        plan: null,
         usage: {},
         tools: [],
         background: [],
@@ -883,7 +877,6 @@ describe('resume degradation for sessions without parentToolCallId (AC4)', () =>
         context: {} as ResumedAgentState['context'],
         replay: [],
         permission: {} as ResumedAgentState['permission'],
-        plan: null,
         usage: {},
         tools: [],
         background: [],

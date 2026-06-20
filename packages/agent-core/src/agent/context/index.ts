@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
-import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
+import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import type { RecordRestoreHandler } from '../restore-handler';
 import {
@@ -388,6 +388,7 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores context.* records it owns
     switch (record.type) {
       case 'context.append_message':
         this.appendMessage(record.message);

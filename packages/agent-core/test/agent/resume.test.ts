@@ -320,31 +320,6 @@ describe('Agent resume', () => {
       }),
     });
   });
-
-  it('gracefully replays legacy plan_mode records as no-ops', async () => {
-    const persistence = new RecordingAgentPersistence([
-      {
-        type: 'plan_mode.enter',
-        id: 'legacy-plan',
-      },
-      {
-        type: 'plan_mode.cancel',
-        id: 'legacy-plan',
-      },
-      {
-        type: 'plan_mode.enter',
-        id: 'legacy-plan-2',
-      },
-      {
-        type: 'plan_mode.exit',
-        id: 'legacy-plan-2',
-      },
-    ]);
-    const ctx = testAgent({ persistence });
-
-    await expect(ctx.agent.resume()).resolves.not.toThrow();
-    expect(findRpcEvent(ctx.allEvents, 'error')).toBeUndefined();
-  });
 });
 
 class RecordingAgentPersistence extends InMemoryAgentRecordPersistence {
@@ -494,10 +469,6 @@ function resumeHistory(): AgentRecord[] {
       compactedCount: 3,
       tokensBefore: 12,
       tokensAfter: 4,
-    },
-    {
-      type: 'plan_mode.enter',
-      id: 'resume-plan',
     },
   ];
 }

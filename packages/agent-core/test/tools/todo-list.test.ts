@@ -62,17 +62,21 @@ describe('TodoListTool', () => {
     });
   });
 
-  it('description includes an Avoid churn section with the anti-spin guardrails', () => {
+  it('description includes an Update discipline section that encourages timely status updates while preventing churn', () => {
     const { tool } = makeTool();
     const { description } = tool;
 
-    expect(description).toContain('**Avoid churn:**');
-    // (1) do not re-call the tool when nothing meaningful changed between calls.
+    expect(description).toContain('**Update discipline:**');
+    // (1) update status immediately on state transitions (pending → in_progress → done).
+    expect(description).toMatch(/update status immediately/i);
+    expect(description).toMatch(/in_progress/i);
+    // (2) do not skip the in_progress state.
+    expect(description).toMatch(/do not skip/i);
+    // (3) when nothing meaningful changed, avoid redundant calls.
     expect(description).toMatch(/nothing meaningful has changed/i);
-    expect(description).toMatch(/real progress/i);
-    // (2) when unsure of the current state, use query mode first.
+    // (4) when unsure of the current state, use query mode first.
     expect(description).toMatch(/query mode/i);
-    // (3) when stuck, tell the user instead of repeatedly re-ordering todos.
+    // (5) when stuck, tell the user instead of repeatedly re-ordering todos.
     expect(description).toMatch(/tell the user/i);
   });
 

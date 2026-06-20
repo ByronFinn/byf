@@ -1,17 +1,14 @@
-import { applyProviderConfig } from '@byfriends/sdk';
-import type { ModelInfo as OAuthModelInfo } from '@byfriends/sdk';
-import type {
-  ByfConfig,
-  ByfConfigPatch,
-  ModelAlias,
-  ProviderConfig,
-} from '@byfriends/sdk';
 import {
+  applyProviderConfig,
   enrichWithCatalog,
   findCatalogModel,
   fetchCatalog,
   loadBuiltInCatalog,
   DEFAULT_CATALOG_URL,
+  type ByfConfig,
+  type ByfConfigPatch,
+  type ModelAlias,
+  type ModelInfo as OAuthModelInfo,
   type Catalog,
 } from '@byfriends/sdk';
 

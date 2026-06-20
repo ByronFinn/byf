@@ -122,7 +122,7 @@ describe('handleStatusUpdate', () => {
     expect(setAppState).toHaveBeenCalledOnce();
     const patch = setAppState.mock.calls[0]![0];
     expect(patch).toHaveProperty('cacheHitRate');
-    expect(patch.cacheHitRate!).toBeCloseTo(0.9457, 4);
+    expect(patch.cacheHitRate).toBeCloseTo(0.9457, 4);
   });
 
   it('A2: computes cacheHitRate = 0 when no reads (first turn)', () => {
@@ -246,7 +246,7 @@ describe('handleStatusUpdate', () => {
     expect(setAppState).toHaveBeenCalledOnce();
     const patch = setAppState.mock.calls[0]![0];
     expect(patch).toHaveProperty('cacheHitRate');
-    expect(patch.cacheHitRate!).toBeCloseTo(0.01, 4);
+    expect(patch.cacheHitRate).toBeCloseTo(0.01, 4);
   });
 
   it('A10: no usage key — existing fields extracted, no cacheHitRate', () => {

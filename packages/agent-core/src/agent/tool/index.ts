@@ -410,12 +410,12 @@ export class ToolManager implements RecordRestoreHandler {
     // 1. Builtin tools first: stable, never change during session (alphabetical)
     const builtinNames = [...this.builtinTools.keys()]
       .filter((name) => this.enabledTools.has(name))
-      .sort();
+      .toSorted();
 
     // 2. User tools: alphabetically sorted
     const userNames = [...this.userTools.keys()]
       .filter((name) => this.enabledTools.has(name))
-      .sort();
+      .toSorted();
 
     // 3. MCP tools last: grouped by server, connection order preserved
     const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
@@ -428,6 +428,7 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores tools.* records
     switch (record.type) {
       case 'tools.register_user_tool':
         // Call the normal registerUserTool method but it should not log

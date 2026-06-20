@@ -29,6 +29,17 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/quit')).toMatchObject({ kind: 'builtin', name: 'exit', args: '' });
     expect(resolve('/clear')).toMatchObject({ kind: 'builtin', name: 'new', args: '' });
     expect(resolve('/fork')).toMatchObject({ kind: 'builtin', name: 'fork', args: '' });
+    expect(resolve('/connect provider')).toMatchObject({
+      kind: 'builtin',
+      name: 'connect',
+      args: 'provider',
+    });
+    expect(resolve('/update-config --fix')).toMatchObject({
+      kind: 'builtin',
+      name: 'update-config',
+      args: '--fix',
+    });
+    expect(resolve('/uc')).toMatchObject({ kind: 'builtin', name: 'update-config', args: '' });
     expect(resolve('/title New title')).toMatchObject({
       kind: 'builtin',
       name: 'title',
@@ -88,11 +99,6 @@ describe('resolveSlashCommandInput', () => {
   });
 
   it('allows always-available built-ins while streaming', () => {
-    expect(resolve('/plan on', { isStreaming: true })).toMatchObject({
-      kind: 'builtin',
-      name: 'plan',
-      args: 'on',
-    });
     expect(resolve('/mcp', { isStreaming: true })).toMatchObject({
       kind: 'builtin',
       name: 'mcp',
@@ -102,14 +108,6 @@ describe('resolveSlashCommandInput', () => {
       kind: 'builtin',
       name: 'mcp',
       args: '',
-    });
-  });
-
-  it('blocks plan clear while compacting because it is idle-only', () => {
-    expect(resolve('/plan clear', { isCompacting: true })).toEqual({
-      kind: 'blocked',
-      commandName: 'plan',
-      reason: 'compacting',
     });
   });
 

@@ -1,7 +1,6 @@
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
-export type PlanData = null;
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
@@ -131,9 +130,6 @@ export interface SetModelResult {
   readonly model: string;
   readonly providerName?: string | undefined;
 }
-export interface CancelPlanPayload {
-  readonly id?: string;
-}
 export interface BeginCompactionPayload {
   readonly instruction?: string;
 }
@@ -236,9 +232,6 @@ export interface AgentAPI {
   setPermission: (payload: SetPermissionPayload) => void;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
-  enterPlan: (payload: EmptyPayload) => void;
-  cancelPlan: (payload: CancelPlanPayload) => void;
-  clearPlan: (payload: EmptyPayload) => void;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
   registerTool: (payload: RegisterToolPayload) => void;
@@ -252,7 +245,6 @@ export interface AgentAPI {
   getContext: (payload: EmptyPayload) => AgentContextData;
   getConfig: (payload: EmptyPayload) => AgentConfigData;
   getPermission: (payload: EmptyPayload) => PermissionData;
-  getPlan: (payload: EmptyPayload) => PlanData;
   getUsage: (payload: EmptyPayload) => UsageStatus;
   getTools: (payload: EmptyPayload) => readonly ToolInfo[];
   getBackground: (payload: GetBackgroundPayload) => readonly BackgroundTaskInfo[];

@@ -3,12 +3,7 @@
 
 import type {
   AgentRecord,
-  CompactionBeginData,
-  CompactionResult,
-  PermissionApprovalResultRecord,
   PermissionMode,
-  UsageRecordScope,
-  ToolStoreUpdate,
   LoopRecordedEvent,
   ContextMessage,
   PromptOrigin,

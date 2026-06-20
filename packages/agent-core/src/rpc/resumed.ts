@@ -6,16 +6,14 @@ import type {
   PermissionData,
   PermissionMode,
 } from '#/agent/permission';
-import type { PlanData } from '#/rpc/core-api';
-import type { ToolInfo } from '#/agent/tool';
 import type { SessionSummary } from '#/rpc/core-api';
+import type { ToolInfo } from '#/agent/tool';
 import type { UsageStatus } from '#/rpc/events';
 import type { SessionMeta } from '#/session';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
 
 export type AgentReplayRecord =
   | { type: 'message'; message: ContextMessage }
-  | { type: 'plan_updated'; enabled: boolean }
   | { type: 'config_updated'; config: AgentConfigUpdateData }
   | { type: 'permission_updated'; mode: PermissionMode }
   | { type: 'approval_result'; record: PermissionApprovalResultRecord };
@@ -26,7 +24,6 @@ export interface ResumedAgentState {
   readonly context: AgentContextData;
   readonly replay: readonly AgentReplayRecord[];
   readonly permission: PermissionData;
-  readonly plan: PlanData;
   readonly usage: UsageStatus;
   readonly tools: readonly ToolInfo[];
   readonly toolStore?: Readonly<Record<string, unknown>>;

@@ -97,7 +97,7 @@ function selectHighlighted(host: FakeDialogHost): void {
 /** Move the ChoicePicker highlight down `n` items, then select. */
 function selectNth(host: FakeDialogHost, n: number): void {
   const panel = activePanel(host);
-  for (let i = 0; i < n; i += 1) panel.handleInput('\x1b[B'); // Down arrow
+  for (let i = 0; i < n; i += 1) panel.handleInput('\u001B[B'); // Down arrow
   panel.handleInput('\r');
 }
 

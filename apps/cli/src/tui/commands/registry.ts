@@ -23,13 +23,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'plan',
-    aliases: [],
-    description: 'Toggle plan mode',
-    priority: 100,
-    availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
-  },
-  {
     name: 'model',
     aliases: [],
     description: 'Switch LLM model',
@@ -80,6 +73,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Compact the conversation context',
     priority: 80,
+  },
+  {
+    name: 'update-config',
+    aliases: ['uc'],
+    description: 'Scan config.toml for deprecated or unknown fields',
+    priority: 60,
+    availability: 'always',
   },
   {
     name: 'init',

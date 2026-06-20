@@ -61,7 +61,6 @@ Parameters supplied via CLI flags at launch have the highest priority and only a
 | `-S, --session [id]` | Resume the specified session; without an id, enters interactive selection |
 | `-C, --continue` | Continue the most recent session for the current working directory |
 | `-y, --yolo` | Auto-approve ordinary tool calls (aliases: `--yes`, `--auto-approve`) |
-| `--plan` | Launch in Plan mode |
 | `-m, --model <model>` | Specify the model alias to use for this launch |
 | `-p, --prompt <prompt>` | Execute a single prompt in non-interactive mode and exit |
 | `--output-format <format>` | Specify the output format for `-p` mode: `text` or `stream-json` |
@@ -70,11 +69,10 @@ Parameters supplied via CLI flags at launch have the highest priority and only a
 Mutually exclusive flag rules:
 
 - `--output-format` can only be used in prompt mode (`-p / --prompt`).
-- `--prompt` cannot be combined with `--yolo`, nor with `--plan`.
+- `--prompt` cannot be combined with `--yolo`.
 - In prompt mode, `-S / --session` must be given an id; the interactive selector (bare `--session`) is not accepted.
 - `--continue` and `--session` cannot be used together.
-- Outside prompt mode, `--yolo` cannot be combined with `--continue` or `--session`; `--plan` cannot be combined with `--continue` or `--session`.
-- `--yolo` and `--plan` can be used together.
+- Outside prompt mode, `--yolo` cannot be combined with `--continue` or `--session`.
 
 ::: tip Tip
 `--skills-dir` replaces the auto-discovered Skills directory for this launch and is suitable for one-off use. To persistently append search directories, set `extra_skill_dirs` at the top level of `config.toml` (see [Agent Skills](../customization/skills.md)). The two options have different semantics and can be chosen based on your needs.
@@ -101,10 +99,4 @@ You can also set `api_key` directly on the provider; see [Provider credentials](
 
 ```sh
 byf --yolo
-```
-
-**Enter Plan mode for this launch.** If you want the same default behavior, set `default_plan_mode = true` in the config file:
-
-```sh
-byf --plan
 ```

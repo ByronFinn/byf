@@ -68,7 +68,7 @@ The `'off'` value is intentionally part of `ThinkingEffort` even though it is no
 
 ### 7. Deprecate `defaultThinking` boolean field
 
-The top-level `defaultThinking = true/false` config field overlaps with the `[thinking]` section: `true` is equivalent to `mode = "on"` with `effort = "high"`, and `false` is equivalent to `mode = "off"`. When both are configured contradictorily, `defaultThinking` takes precedence silently, which confuses users.
+The top-level `defaultThinking = true/false` config field overlaps with the `[thinking]` section: `true` is equivalent to `mode = "on"` with `effort = "high"`, and `false` is equivalent to `mode = "off"`. When both are configured, the `[thinking]` section takes precedence — its `mode` and `effort` are consulted first, and `defaultThinking` is only applied as a fallback when no `[thinking]` value covers the case (see `apps/cli/src/tui/byf-tui.ts:960-969`). This is a correction of the original wording, which stated `defaultThinking` takes precedence silently; the implemented behavior has always been the opposite.
 
 Deprecate `defaultThinking` in favor of the `[thinking]` section which provides full control over both mode and effort. Emit a deprecation warning when `defaultThinking` is present in config.
 

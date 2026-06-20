@@ -66,7 +66,7 @@ describe('ToolManager.loopTools stability ordering', () => {
     const builtinNames = names.filter((n) => !n.startsWith('mcp__'));
 
     // Should be sorted alphabetically
-    const sorted = [...builtinNames].sort();
+    const sorted = [...builtinNames].toSorted();
     expect(builtinNames).toEqual(sorted);
   });
 

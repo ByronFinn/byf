@@ -658,7 +658,7 @@ M5`;
       const plan = buildPromptPlan(prompt, createCapability(['global', 'project', 'session']));
 
       // All blocks after the last marker should be 'sessionContext'
-      expect(plan.blocks[plan.blocks.length - 1]!.name).toBe('sessionContext');
+      expect(plan.blocks.at(-1)!.name).toBe('sessionContext');
     });
   });
 

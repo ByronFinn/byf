@@ -1,6 +1,6 @@
 import type { ContentPart } from '@byfriends/kosong';
 
-import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
+import { estimateTokensForMessages } from '../../utils/tokens';
 import type { ContextMessage } from './types';
 
 export interface MaskingConfig {

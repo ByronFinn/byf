@@ -757,10 +757,10 @@ describe('SessionSubagentHost', () => {
     child2.mockNextResponse({ type: 'text', text: summary });
     const session = fakeSession(parent.agent, child1.agent);
     (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(
-      async (
-        config: Parameters<Session['createAgent']>[0],
-        profile?: ResolvedAgentProfile,
-        parentAgentId?: string,
+      (
+        _config: Parameters<Session['createAgent']>[0],
+        _profile?: ResolvedAgentProfile,
+        _parentAgentId?: string,
       ) => {
         const id = `agent-${agentCounter}`;
         const child = agentCounter === 0 ? child1 : child2;
@@ -813,7 +813,7 @@ describe('SessionSubagentHost', () => {
     child1.mockNextResponse({ type: 'text', text: summary });
     const session = fakeSession(parent.agent, child1.agent);
     (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => ({ id: 'agent-0', agent: child1.agent }),
+      () => ({ id: 'agent-0', agent: child1.agent }),
     );
     const host = new SessionSubagentHost(session, 'main', undefined, 1);
 

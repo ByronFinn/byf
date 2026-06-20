@@ -1,8 +1,6 @@
 import type {
   ContentPart,
   ContextMessage,
-  PermissionMode,
-  AgentConfigUpdateData,
   TokenUsage,
   ToolCall,
   WireEntry,
@@ -164,11 +162,6 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
       }
       case 'permission.set_mode':
         permissionMode = rec.mode;
-        break;
-      case 'plan_mode.enter':
-      case 'plan_mode.cancel':
-      case 'plan_mode.exit':
-        // Legacy plan mode records are no-ops in projection.
         break;
       default:
         break;

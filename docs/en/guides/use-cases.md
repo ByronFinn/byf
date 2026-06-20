@@ -4,7 +4,7 @@ Below are typical scenarios and prompt samples for BYF.
 
 ## Understanding an unfamiliar project
 
-Use `byf --plan` or press `Shift-Tab` to enter Plan mode for large-scale research. Ask it to produce a plan first and approve before execution:
+When taking over an unfamiliar repository, ask the agent to explore and produce a research summary before making changes:
 
 ```
 Walk me through the overall architecture of this repository. Focus on:
@@ -28,7 +28,7 @@ For large investigations, the main agent can spawn **subagents** to handle subta
 
 ## Implementing a new feature
 
-State the requirement and acceptance criteria clearly. Use Plan mode for complex or risky changes.
+State the requirement and acceptance criteria clearly. For complex or risky changes, ask the agent to propose a plan first.
 
 ```
 Add a retry utility under src/utils:
@@ -81,7 +81,7 @@ src/parser/markdown.ts currently has almost no tests. Add a set of unit tests co
 Extract the repeated "read body → validate → write log → return" logic under src/handlers into a middleware. Run the tests after the changes and make sure existing behavior is unchanged.
 ```
 
-For multi-file refactors, use Plan mode to confirm the plan first. Use `/fork` to explore alternative approaches.
+For multi-file refactors, ask the agent to propose a plan first. Use `/fork` to explore alternative approaches.
 
 ## One-off scripts and automation tasks
 

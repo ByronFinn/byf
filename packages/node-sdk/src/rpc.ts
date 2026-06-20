@@ -13,6 +13,7 @@ import {
   type SDKRPCClient,
   type ToolCallRequest,
   type ToolCallResponse,
+  type RuntimeConfig,
 } from '@byfriends/agent-core';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
@@ -32,7 +33,6 @@ import type {
   CompactOptions,
   ShellExecPayload,
   ShellExecResult,
-  SessionPlan,
   SessionStatus,
   SessionUsage,
   PromptInput,
@@ -50,6 +50,7 @@ export interface SDKRpcClientOptions {
   readonly homeDir?: string | undefined;
   readonly configPath?: string | undefined;
   readonly skillDirs?: readonly string[];
+  readonly runtime?: RuntimeConfig | undefined;
 }
 
 export interface SessionPromptRpcInput {
@@ -110,6 +111,7 @@ export class SDKRpcClient {
       homeDir: options.homeDir,
       configPath: options.configPath,
       skillDirs: options.skillDirs,
+      runtime: options.runtime,
     });
     this.ready = sdkRpc(new ClientAPI(this)).then((rpc) => {
       this.rpc = rpc;
@@ -242,22 +244,6 @@ export class SDKRpcClient {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       mode: input.mode,
-    });
-  }
-
-  async getPlan(input: SessionIdRpcInput): Promise<SessionPlan> {
-    const rpc = await this.getRpc();
-    return rpc.getPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async clearPlan(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    await rpc.clearPlan({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
     });
   }
 

@@ -1,17 +1,13 @@
 # Context: BYF (Be Your Friend)
 
-An AI coding agent that runs in the terminal. Originally forked from Kimi Code (by Moonshot AI), now an independent product.
+An AI coding agent that runs in the terminal.
 
 ## Glossary
 
 ### BYF
 The product name. Short for "Be Your Friend". An AI coding agent that runs in the terminal.
 
-### Upstream
-The original Kimi Code project by Moonshot AI (`ByronFinn/byf` on GitHub). BYF was forked from this codebase but is now fully independent.
 
-## Fork Strategy: Full Independence
-BYF is a hard fork. No future merges or cherry-picks from upstream. All upstream references (Moonshot AI, Kimi) will be completely removed from the codebase.
 
 ## License Terms
 - Users may copy and redistribute unmodified BYF software
@@ -40,6 +36,9 @@ CLI command to configure a catalog provider from models.dev. Complements `/login
 ### /logout
 CLI command to open an interactive selector to remove a configured provider. The provider for `defaultModel` is highlighted by default. The `/disconnect` alias behaves identically.
 
+### update-config
+CLI subcommand (`byf update-config`) that audits and optionally rewrites `~/.byf/config.toml` against the current schema: removes deprecated fields, migrates `default_thinking` into the `[thinking]` section, clears stale keys that survive the normal read→write roundtrip via `config.raw`, and reports (never auto-deletes) dangling references to non-existent providers. Runs as dry-run by default; `--fix` applies changes after a timestamped backup. Rules ship with BYF and evolve per release.
+
 ### Agent
 The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, FullCompaction, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
 
@@ -56,13 +55,13 @@ Event-sourced persistence layer (`AgentRecords`). Logs every state-changing acti
 The LLM provider interface in `kosong`. Defines `generate()` returning a `StreamedMessage` (async iterable of `TextPart`, `ThinkPart`, `ToolCall`, `ToolCallPart`). Adapters: `openai-completions`, `openai_responses`, `anthropic`, `google-genai`, `vertexai`. Created via `createProvider(config)` factory.
 
 ### Kaos
-The execution environment abstraction. `Kaos` interface bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely. Currently only `LocalKaos` (local filesystem) is implemented; `SSHKaos` (remote via SSH/SFTP) is aspirational per ADR 0006 but not yet implemented in code. `RuntimeConfig` carries the active `Kaos` instance; `ByfCoreOptions.runtime?` allows injecting a custom one (the `node-sdk` harness does not yet forward it — see PRD-0009 Long-term Design).
+The execution environment abstraction. `Kaos` interface bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely. Currently only `LocalKaos` (local filesystem) is implemented; `SSHKaos` (remote via SSH/SFTP) is aspirational per ADR 0006 but not yet implemented in code. `RuntimeConfig` carries the active `Kaos` instance; `ByfCoreOptions.runtime?` allows injecting a custom one (the `node-sdk` harness does not yet forward it).
 
 ### ByfHarness
-The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object. A host passes `homeDir` (session storage location) and `configPath` (config.toml location) separately — they are independent. The GUI host uses a distinct `homeDir` (`~/Library/Application Support/byfDesktop/`) to isolate its sessions from the CLI's, while sharing `configPath` (`~/.byf/config.toml`) so provider/auth config is configured once.
+The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object. A host passes `homeDir` (session storage location) and `configPath` (config.toml location) separately — they are independent.
 
 ### uiMode
-A free-form string tag on `ByfHarnessOptions` (default `'shell'`) used as the `source` of the `SessionStart` hook. Distinguishes how a session was launched: `'shell'` (interactive TUI), `'print'` (headless `--print`), `'gui'` (native desktop host).
+A free-form string tag on `ByfHarnessOptions` (default `'shell'`) used as the `source` of the `SessionStart` hook. Distinguishes how a session was launched: `'shell'` (interactive TUI), `'print'` (headless `--print`).
 
 ### MCP (Model Context Protocol)
 External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP), tool discovery, OAuth, and reconnection.
@@ -109,6 +108,9 @@ An agent-core module that analyzes conversation history and attaches `CacheHint`
 ### PromptPlan
 A structured representation of the system prompt as ordered, named blocks (`PromptBlock[]`), each with a `CacheScope`. Produced by the builder in agent-core, consumed by provider adapters via `GenerateOptions.promptPlan`. Manages static, non-array content (system instructions, AGENTS.md, tool schemas).
 
+### Search Provider
+A configured web search backend (exa, brave, firecrawl, etc.) with its API keys and priority level. The WebSearch tool maintains a list of Search Providers and tries them in priority order, falling back automatically on failure. Distinct from Provider (LLM API endpoint).
+
 ### Turn Boundary
 The division point between consecutive Turns in the conversation history. Identified by `previousTurnMessageCount` from TurnFlow. Used by `CacheStakingStrategy` to place the history cache stake at the previous turn's last assistant message, ensuring the entire preceding conversation (including tool results) is cached.
 
@@ -145,33 +147,4 @@ Writing full tool outputs exceeding a threshold (~8,000 tokens) to scratch files
 ### AGENTS.md Budget
 A soft limit (4,000 tokens) that triggers a warning when merged AGENTS.md content exceeds it. Encourages concise project instructions. AGENTS.md is always loaded into the system prompt (not moved to messages) to preserve instruction following.
 
-## Renaming Map
 
-| Aspect | Upstream Value | BYF Value |
-|--------|---------------|-----------|
-| Product name | Kimi Code | BYF (Be Your Friend) |
-| Product description | "Kimi Code is an AI coding agent..." | "BYF (Be Your Friend) is an AI coding agent..." |
-| CLI command | `kimi` | `byf` |
-| NPM scope | `@moonshot-ai` | `@byf` |
-| NPM main package | `@byfriends/cli` | `@byfriends/cli` |
-| NPM SDK | `@byfriends/sdk` | `@byfriends/sdk` |
-| NPM OAuth | `@byfriends/oauth` | `@byfriends/oauth` |
-| NPM telemetry | `@byfriends/telemetry` | Deleted |
-| NPM agent-core | `@byfriends/agent-core` | `@byfriends/agent-core` |
-| NPM kosong | `@byfriends/kosong` | `@byfriends/kosong` |
-| NPM kaos | `@byfriends/kaos` | `@byfriends/kaos` |
-| NPM vis | `@byfriends/vis` | `@byfriends/vis` |
-| NPM monorepo | `@byfriends/monorepo` | `@byfriends/monorepo` |
-| Docs package | `byf-docs` | `byf-docs` |
-| App directory | `apps/cli/` | `apps/cli/` |
-| Data dir | `.kimi-code` | `.byf` |
-| Home env var | `KIMI_CODE_HOME` | `BYF_HOME` |
-| CDN / Install | `code.kimi.com` CDN | GitHub Releases |
-| Feedback URL | `ByronFinn/byf/issues` | `ByronFinn/byf/issues` |
-| Docs site | `moonshotai.github.io/kimi-code` | README only for now |
-| Telemetry | Kimi backend | Removed entirely — no `@byfriends/telemetry` package, no device_id, no event writing, no config option |
-| OAuth provider | `managed:kimi-code` | User-configured via `/login` |
-| migration-legacy pkg | `@byfriends/migration-legacy` | Deleted |
-| Version | `0.2.0` | `0.0.1` |
-| GitHub repo | `ByronFinn/byf` | `ByronFinn/byf` |
-| License | MIT | Proprietary |

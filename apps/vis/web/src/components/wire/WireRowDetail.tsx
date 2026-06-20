@@ -96,6 +96,7 @@ function sameJson(a: unknown, b: unknown): boolean {
 }
 
 function renderFriendly(record: AgentRecord) {
+  // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of record kinds have a friendly rendering; the rest fall through
   switch (record.type) {
     case 'context.append_message':
       return <MessageDetail message={record.message} />;

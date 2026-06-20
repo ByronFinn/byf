@@ -150,7 +150,7 @@ describe('SubagentLiveViewer', () => {
     viewer.handleInput('\u001B[6~'); // PgDn
     expect(viewer['scrollTop']).toBeGreaterThan(0);
 
-    const afterDown = viewer['scrollTop'] as number;
+    const afterDown = viewer['scrollTop'];
     viewer.handleInput('\u001B[5~'); // PgUp
     expect(viewer['scrollTop']).toBeLessThan(afterDown);
   });
@@ -185,7 +185,7 @@ describe('SubagentLiveViewer', () => {
     }, 10);
     viewer.render(120);
     viewer.handleInput('G'); // park at bottom
-    const bottomBefore = viewer['scrollTop'] as number;
+    const bottomBefore = viewer['scrollTop'];
 
     // More content arrives via streaming -> viewer must stay pinned to bottom.
     viewer.setProps(makeProps({
@@ -196,7 +196,7 @@ describe('SubagentLiveViewer', () => {
         text: '', thinkingText: '',
       }),
     }));
-    expect(viewer['scrollTop'] as number).toBeGreaterThan(bottomBefore);
+    expect(viewer['scrollTop']).toBeGreaterThan(bottomBefore);
   });
 
   it('preserves scroll position when the user is NOT at the bottom (AC4)', () => {

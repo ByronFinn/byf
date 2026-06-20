@@ -158,6 +158,120 @@ describe('GlobTool', () => {
     expect(glob).toHaveBeenCalledWith('/extra', 'pkg/**/*.ts');
   });
 
+  it('searches an explicit absolute path outside the workspace roots', async () => {
+    // `absolute-outside-allowed` (matching Grep): an explicit absolute path
+    // is searched even when it is not the workspace dir nor an
+    // additionalDir. The base for relativizing display paths follows the
+    // search root, so matches are shown relative to that outside path.
+    const glob = vi.fn().mockReturnValue(asyncPaths(['/external/project/src/a.ts']));
+    const tool = new GlobTool(
+      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
+      { workspaceDir: '/workspace', additionalDirs: [] },
+    );
+
+    const result = await executeTool(tool, context({ pattern: 'src/**/*.ts', path: '/external/project' }));
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toBe('src/a.ts');
+    expect(glob).toHaveBeenCalledTimes(1);
+    expect(glob).toHaveBeenCalledWith('/external/project', 'src/**/*.ts');
+  });
+
+  it('filters sensitive files out of the result set and reports the count', async () => {
+    // Mirrors Grep's filterSensitiveLines: sensitive basenames (.env,
+    // id_rsa, .aws/credentials, ...) are dropped before the output is
+    // built, with a trailing "Filtered N sensitive file(s)" notice listing
+    // the relativized paths.
+    const glob = vi.fn().mockReturnValue(
+      asyncPaths([
+        '/external/project/src/a.ts',
+        '/external/project/src/.env',
+        '/external/project/src/.env.prod',
+        '/external/project/src/keys/id_rsa',
+      ]),
+    );
+    const tool = new GlobTool(
+      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
+      { workspaceDir: '/workspace', additionalDirs: [] },
+    );
+
+    const result = await executeTool(tool, context({ pattern: 'src/**/*', path: '/external/project' }));
+
+    expect(result.isError).toBeFalsy();
+    // Non-sensitive matches appear as display lines...
+    expect(result.output).toContain('a.ts');
+    // ...sensitive basenames never appear as a returned match line...
+    expect(result.output).not.toContain('\n.env\n');
+    expect(result.output).not.toContain('\n.env.prod\n');
+    expect(result.output).not.toContain('\nkeys/id_rsa\n');
+    // ...but they DO appear in the trailing "Filtered" notice (mirroring
+    // Grep's filterSensitiveLines disclosure), relativized to the root.
+    expect(result.output).toContain('Filtered 3 sensitive file(s)');
+    expect(result.output).toContain('src/.env.prod');
+    expect(result.output).toContain('src/keys/id_rsa');
+  });
+
+  it('filters sensitive files inside the workspace too, not only outside paths', async () => {
+    // The sensitive filter is independent of the path policy — it applies
+    // to any search root, including the default workspace dir. This locks
+    // down that the filter is not gated on the outside-workspace path.
+    const glob = vi.fn().mockReturnValue(
+      asyncPaths(['/workspace/src/a.ts', '/workspace/src/.env']),
+    );
+    const tool = new GlobTool(
+      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
+      workspace,
+    );
+
+    const result = await executeTool(tool, context({ pattern: 'src/**/*' }));
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('a.ts');
+    expect(result.output).not.toContain('.env\n');
+    expect(result.output).toContain('Filtered 1 sensitive file(s)');
+    expect(result.output).toContain('.env');
+  });
+
+  it('reports "No non-sensitive matches found" when every hit is sensitive', async () => {
+    const glob = vi
+      .fn()
+      .mockReturnValue(asyncPaths(['/external/secrets/conf/.env', '/external/secrets/conf/id_rsa']));
+    const tool = new GlobTool(
+      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
+      { workspaceDir: '/workspace', additionalDirs: [] },
+    );
+
+    const result = await executeTool(tool, context({ pattern: 'conf/*', path: '/external/secrets' }));
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('No non-sensitive matches found');
+    expect(result.output).toContain('filtered 2 sensitive file(s)');
+  });
+
+  it('keeps .env.example and id_rsa.pub in the result set (sensitive exemptions)', async () => {
+    // Lockdown: the exemption list in sensitive.ts (.env.example, public
+    // keys) must survive the filter — otherwise docs/templates would be
+    // silently dropped.
+    const glob = vi.fn().mockReturnValue(
+      asyncPaths([
+        '/external/project/conf/.env.example',
+        '/external/project/conf/id_rsa.pub',
+        '/external/project/conf/.env',
+      ]),
+    );
+    const tool = new GlobTool(
+      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
+      { workspaceDir: '/workspace', additionalDirs: [] },
+    );
+
+    const result = await executeTool(tool, context({ pattern: 'conf/*', path: '/external/project' }));
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('.env.example');
+    expect(result.output).toContain('id_rsa.pub');
+    expect(result.output).toContain('Filtered 1 sensitive file(s)');
+  });
+
   it('filters directories when include_dirs is false', async () => {
     const glob = vi.fn().mockReturnValue(asyncPaths(['/workspace/src', '/workspace/src/a.ts']));
     const tool = new GlobTool(
@@ -265,10 +379,11 @@ describe('GlobTool', () => {
   });
 
   it('rejects "**/" prefix patterns even with a literal anchor', async () => {
-    // py rejects every pattern starting with "**/". TS only rejects pure-
-    // wildcard patterns and accepts "**/*.py" because the `.py` literal
-    // anchors the walk. Test as a lockdown of the py contract — expected
-    // to fail under the current TS policy.
+    // Both py and TS reject any pattern starting with "**/" via
+    // `startsWithDoubleStarPrefix` — the leading "**/" has no literal
+    // anchor in front of it. This is a true lockdown: even though the
+    // trailing `.py` literal would otherwise anchor the walk, the leading
+    // "**/" prefix alone is grounds for rejection.
     const glob = vi.fn();
     const tool = new GlobTool(
       createFakeKaos({
@@ -483,11 +598,12 @@ describe('GlobTool', () => {
     expect(result.output).toContain('.github/workflows/ci.yml');
   });
 
-  it('picks up a freshly appended additionalDir without rebuilding the tool', async () => {
-    // py rejects `/extra` before it is registered in additional_dirs, then
-    // allows it after a runtime append. TS Glob runs with the
-    // `absolute-outside-allowed` policy so the first call is NOT rejected.
-    // Divergence lockdown — captures the cost of TS's looser default.
+  it('searches an absolute path outside the workspace even before it is registered as an additionalDir', async () => {
+    // Glob runs with the `absolute-outside-allowed` policy, so an explicit
+    // absolute path is searched whether or not it is listed in
+    // `additionalDirs`. Lockdown: both calls run the walk against `/extra`;
+    // the runtime `additionalDirs` append only affects the workspace-guard
+    // for relative paths, not absolute ones.
     const additionalDirs: string[] = [];
     const mutable: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs };
     const glob = vi.fn((root: string) =>
@@ -499,8 +615,9 @@ describe('GlobTool', () => {
     );
 
     const before = await executeTool(tool, context({ pattern: '*.py', path: '/extra' }));
-    expect(before).toMatchObject({ isError: true });
-    expect(before.output).toContain('outside the working directory');
+    expect(before.isError).toBeFalsy();
+    expect(before.output).toContain('test.py');
+    expect(glob).toHaveBeenCalledWith('/extra', '*.py');
 
     additionalDirs.push('/extra');
 
@@ -509,10 +626,11 @@ describe('GlobTool', () => {
     expect(after.output).toContain('test.py');
   });
 
-  it('rejects a relative path argument before resolving it against any cwd', async () => {
-    // py rejects any relative `directory` outright with "not an absolute
-    // path". TS currently joins relative paths onto the workspace cwd and
-    // proceeds — divergence lockdown.
+  it('resolves a relative path argument against the workspace cwd and searches it', async () => {
+    // Under `absolute-outside-allowed`, a relative path that canonicalizes
+    // INSIDE the workspace is resolved against the workspace cwd and
+    // searched (matching Grep). A relative path that escapes the workspace
+    // is still rejected — that path is covered separately below.
     const glob = vi.fn().mockReturnValue(asyncPaths([]));
     const tool = new GlobTool(
       createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
@@ -521,19 +639,15 @@ describe('GlobTool', () => {
 
     const result = await executeTool(tool, context({ pattern: '*.py', path: 'relative/path' }));
 
-    expect(result).toMatchObject({ isError: true });
-    expect(result.output).toContain('not an absolute path');
+    expect(result.isError).toBeFalsy();
+    expect(glob).toHaveBeenCalledWith('/workspace/relative/path', '*.py');
   });
 
-  it('expands a leading "~/" path before applying the workspace guard', async () => {
-    // py: `~/` is expanded to the home dir, which is outside the
-    // workspace; the guard then rejects with "outside the workspace".
-    // The key invariant under test is that tilde expansion happens BEFORE
-    // the absolute-path check — otherwise the user would see the misleading
-    // "not an absolute path" error. TS currently runs Glob with
-    // `absolute-outside-allowed` so the workspace check does NOT reject
-    // outside paths once tilde expansion makes them absolute — divergence
-    // lockdown.
+  it('expands a leading "~/" to the home directory before searching', async () => {
+    // Tilde expansion happens before the absolute-path check, turning `~/`
+    // into an absolute home path. Under `absolute-outside-allowed` that
+    // outside path is searched (not rejected), so the lockdown verifies the
+    // expansion by inspecting where the walk actually runs.
     const glob = vi.fn().mockReturnValue(asyncPaths([]));
     const tool = new GlobTool(
       createFakeKaos({ glob, gethome: () => '/home/test', stat: vi.fn().mockResolvedValue(stat(1)) }),
@@ -542,16 +656,16 @@ describe('GlobTool', () => {
 
     const result = await executeTool(tool, context({ pattern: '*.py', path: '~/' }));
 
-    expect(result).toMatchObject({ isError: true });
-    expect(result.output).toContain('outside the workspace');
-    expect(result.output).not.toContain('not an absolute path');
+    expect(result.isError).toBeFalsy();
+    expect(glob).toHaveBeenCalledWith('/home/test', '*.py');
   });
 
-  it('rejects a path sharing the workspace prefix but outside it', async () => {
-    // py rejects shared-prefix outside paths with "outside the workspace".
-    // TS Glob uses `absolute-outside-allowed`, so an absolute path outside
-    // the workspace is accepted by design. Divergence lockdown.
-    const glob = vi.fn().mockReturnValue(asyncPaths([]));
+  it('searches an absolute path that shares the workspace prefix but sits outside it', async () => {
+    // Under `absolute-outside-allowed`, an absolute path outside the
+    // workspace is searched by design even when it shares a prefix with the
+    // workspace dir (the guard uses path-component boundaries, so
+    // `/parent/workdir-sneaky` is not treated as inside `/parent/workdir`).
+    const glob = vi.fn().mockReturnValue(asyncPaths(['/parent/workdir-sneaky/leaf.py']));
     const tool = new GlobTool(
       createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
       { workspaceDir: '/parent/workdir', additionalDirs: [] },
@@ -561,8 +675,9 @@ describe('GlobTool', () => {
       context({ pattern: '*.py', path: '/parent/workdir-sneaky' }),
     );
 
-    expect(result).toMatchObject({ isError: true });
-    expect(result.output).toMatch(/outside the workspace|outside the working directory/);
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('leaf.py');
+    expect(glob).toHaveBeenCalledWith('/parent/workdir-sneaky', '*.py');
   });
 
   it('locks down rejection phrasing and large-directory caveats in the description', () => {
@@ -590,7 +705,7 @@ describe('GlobTool', () => {
     const tool = new GlobTool(createFakeKaos(), workspace);
 
     expect(tool.description).toMatch(/literal anchor|no literal anchor/i);
-    expect(tool.description).toContain('pure wildcard');
-    expect(tool.description).toContain('brace expansion');
+    expect(tool.description).toContain('Pure wildcards');
+    expect(tool.description).toContain('Brace expansion');
   });
 });

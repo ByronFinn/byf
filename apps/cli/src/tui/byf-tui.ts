@@ -1080,6 +1080,11 @@ export class ByfTui implements DialogHost {
       this.toggleToolOutputExpansion();
     };
 
+    editor.onToggleTodoExpand = () => {
+      this.track('shortcut_todo_expand');
+      this.toggleTodoExpansion();
+    };
+
     editor.onCtrlS = () => {
       if (!this.state.appState.isStreaming || this.state.appState.isCompacting) return;
       const text = editor.getText().trim();
@@ -1128,6 +1133,11 @@ export class ByfTui implements DialogHost {
         return true;
       }
       return false;
+    };
+
+    editor.onShiftTab = () => {
+      this.track('shortcut_permission_mode');
+      this.cyclePermissionMode();
     };
 
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
@@ -1376,7 +1386,7 @@ export class ByfTui implements DialogHost {
           this.showError('No active session.');
           return;
         }
-        void this.agentsController.show();
+         this.agentsController.show();
         return;
       case 'mcp':
         void this.showMcpServers();
@@ -1423,6 +1433,9 @@ export class ByfTui implements DialogHost {
       case 'connect':
         await this.handleConnectCommand(args);
         return;
+      case 'update-config':
+        await this.handleUpdateConfigCommand(args);
+        return;
       case 'login':
         await this.handleLoginCommand();
         return;
@@ -1430,6 +1443,8 @@ export class ByfTui implements DialogHost {
         await this.handleLogoutCommand(args);
         return;
       default:
+        // Unreachable: every BuiltinSlashCommandName has a case above. Kept as
+        // a runtime guard; String() widens the narrowed `never` for the message.
         this.showError(`Unknown slash command: /${String(name)}`);
         return;
     }
@@ -1763,7 +1778,7 @@ export class ByfTui implements DialogHost {
     return this.session;
   }
 
-  // Creates a session using the current model, known session runtime, permission, and plan state.
+  // Creates a session using the current model, known session runtime, and permission state.
   private async createSessionFromCurrentState(): Promise<Session> {
     const model = this.state.appState.model.trim();
     if (model.length === 0) {
@@ -1803,7 +1818,7 @@ export class ByfTui implements DialogHost {
     });
   }
 
-  // Applies current permission and plan settings to the active session.
+  // Applies current permission settings to the active session.
   private async activateRuntime(): Promise<void> {
     const session = this.requireSession();
     await session.setPermission(this.state.appState.permissionMode);
@@ -2049,6 +2064,7 @@ export class ByfTui implements DialogHost {
       this.state.currentTurnId = String(event.turnId);
     }
 
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- observation/pruning events are intentional no-ops handled by default
     switch (event.type) {
       case 'turn.started':
         this.turnEventHandler.handleTurnBegin(event);
@@ -3148,6 +3164,15 @@ export class ByfTui implements DialogHost {
     this.state.ui.requestRender();
   }
 
+  // Toggles the todo-panel between collapsed (5 items + +N more) and
+  // expanded (full list + collapse hint).
+  private toggleTodoExpansion(): void {
+    const panel = this.state.todoPanel;
+    const next = !panel.isExpanded();
+    panel.setExpanded(next);
+    this.state.ui.requestRender();
+  }
+
   // Updates the editor border color for slash command context.
   private updateEditorBorderHighlight(text?: string): void {
     const trimmed = (text ?? this.state.editor.getText()).trimStart();
@@ -3570,6 +3595,17 @@ export class ByfTui implements DialogHost {
     this.showNotice(`Permission mode: ${mode}`);
   }
 
+  // Cycles permission mode: manual → yolo → auto → manual.
+  private cyclePermissionMode(): void {
+    const nextMode: Record<PermissionMode, PermissionMode> = {
+      manual: 'yolo',
+      yolo: 'auto',
+      auto: 'manual',
+    };
+    const next = nextMode[this.state.appState.permissionMode] ?? 'manual';
+    void this.applyPermissionChoice(next);
+  }
+
   // Persists and applies a theme choice.
   private async applyThemeChoice(theme: Theme): Promise<void> {
     if (theme === this.state.appState.theme) {
@@ -3754,7 +3790,7 @@ export class ByfTui implements DialogHost {
         width: Math.min(80, Math.floor(this.state.terminal.columns * 0.85)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.82),
       });
-      this.approvalOverlayHide = () => handle.hide();
+      this.approvalOverlayHide = () =>{  handle.hide(); };
     } else {
       this.mountEditorReplacement(panel);
     }
@@ -3797,7 +3833,7 @@ export class ByfTui implements DialogHost {
         width: Math.min(76, Math.floor(this.state.terminal.columns * 0.82)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.78),
       });
-      this.questionOverlayHide = () => handle.hide();
+      this.questionOverlayHide = () =>{  handle.hide(); };
     } else {
       this.mountEditorReplacement(dialog);
     }
@@ -3992,6 +4028,53 @@ export class ByfTui implements DialogHost {
     }
   }
 
+  // Handles the /update-config command.
+  private async handleUpdateConfigCommand(args: string): Promise<void> {
+    const fix = args.includes('--fix') || args.includes('fix');
+    try {
+      const result = await this.harness.updateConfig({ fix });
+      const { findings, fixed, backupPath } = result;
+
+      if (findings.length === 0) {
+        this.showStatus('No deprecated fields found. Config is up to date.');
+        return;
+      }
+
+      // Build a summary string grouped by kind
+      const summary: string[] = [];
+      const groups = new Map<string, string[]>();
+      for (const f of findings) {
+        const list = groups.get(f.kind) ?? [];
+        list.push(f.path);
+        groups.set(f.kind, list);
+      }
+      for (const [kind, items] of groups) {
+        summary.push(`${kind} (${items.length}):`);
+        for (const item of items) {
+          summary.push(`  ${item}`);
+        }
+      }
+      if (fixed) {
+        summary.push('');
+        summary.push('Config has been updated.');
+        if (backupPath) {
+          summary.push(`Backup: ${backupPath}`);
+        }
+      } else {
+        summary.push('');
+        summary.push('Run with --fix to apply these changes.');
+      }
+
+      this.showNotice(
+        `Config scan: ${findings.length} issue${findings.length > 1 ? 's' : ''} found`,
+        summary.join('\n'),
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.showError(`Config scan failed: ${msg}`);
+    }
+  }
+
   // =========================================================================
   // /login — add a custom OpenAI-compatible provider
   // =========================================================================
@@ -4022,7 +4105,7 @@ export class ByfTui implements DialogHost {
       this,
       this.state.theme.colors,
       config,
-      (msg) => this.showError(msg),
+      (msg) =>{  this.showError(msg); },
     );
     if (providerName === undefined) {
       return;

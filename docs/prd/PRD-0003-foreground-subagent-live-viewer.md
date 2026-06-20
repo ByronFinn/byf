@@ -1,9 +1,9 @@
-# PRD-0003: 前台 Sub-agent 实时查看器
+# [DONE] PRD-0003: 前台 Sub-agent 实时查看器
 
 **Status**: Sliced
 **Created**: 2026-06-18
 **Author**: BYF
-**Related**: ADR 0006（monorepo 分层），PRD-0001（GUI 的 RPC 事件模型同源）
+**Related**: ADR 0006（monorepo 分层）
 
 ## Problem
 
@@ -210,12 +210,12 @@
 
 | Issue | Title | Type | Status |
 |---|---|---|---|
-| #147 | `/agent` 命令骨架打通 — 命令注册 + 全屏 takeover + 空列表态 | AFK | **In Progress** |
-| #148 | 前台 sub-agent 列表层 — 双源收集 + group getter + 选择交互 (blocked by #147) | AFK | **In Progress** |
-| #150 | 实时 live viewer 钻取 — 全屏可滚动 + 订阅实时流 + 贴底跟随 (blocked by #148) | HITL | **In Progress (HITL gate pending)** |
-| #151 | 打磨与测试 — thinking 切换 + 卡片 hint + 完成态刷新 + 单测 (blocked by #150) | AFK | **In Progress** |
+| #147 | `/agent` 命令骨架打通 — 命令注册 + 全屏 takeover + 空列表态 | AFK | **Done (v0.3.0)** |
+| #148 | 前台 sub-agent 列表层 — 双源收集 + group getter + 选择交互 (blocked by #147) | AFK | **Done (v0.3.0)** |
+| #150 | 实时 live viewer 钻取 — 全屏可滚动 + 订阅实时流 + 贴底跟随 (blocked by #148) | HITL | **Done (v0.3.0)** |
+| #151 | 打磨与测试 — thinking 切换 + 卡片 hint + 完成态刷新 + 单测 (blocked by #150) | AFK | **Done (v0.3.0)** |
 
-依赖链：#147 → #148 → #150 → #151。每片为端到端可演示的 vertical slice。
+依赖链：#147 → #148 → #150 → #151。每片为端到端可演示的 vertical slice。全部已随 v0.3.0 发布完成。
 
 ## Traceability
 

@@ -47,6 +47,7 @@ function readTmuxOptionFromProcess(option: string): Promise<string | undefined> 
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      // oxlint-disable-next-line promise/no-multiple-resolved -- the `settled` guard above guarantees resolve runs at most once
       resolve(value);
     };
 
