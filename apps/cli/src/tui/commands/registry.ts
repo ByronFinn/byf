@@ -23,13 +23,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'plan',
-    aliases: [],
-    description: 'Toggle plan mode',
-    priority: 100,
-    availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
-  },
-  {
     name: 'model',
     aliases: [],
     description: 'Switch LLM model',

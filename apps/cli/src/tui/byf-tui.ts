@@ -1352,7 +1352,6 @@ export class ByfTui implements DialogHost {
     name: BuiltinSlashCommandName,
     args: string,
   ): Promise<void> {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- registered command 'plan' has no handler yet; default arm reports unknown commands
     switch (name) {
       case 'exit':
         void this.stop();
@@ -1436,7 +1435,9 @@ export class ByfTui implements DialogHost {
         await this.handleLogoutCommand(args);
         return;
       default:
-        this.showError(`Unknown slash command: /${name}`);
+        // Unreachable: every BuiltinSlashCommandName has a case above. Kept as
+        // a runtime guard; String() widens the narrowed `never` for the message.
+        this.showError(`Unknown slash command: /${String(name)}`);
         return;
     }
   }
