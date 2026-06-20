@@ -65,7 +65,7 @@
     }
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node scripts/rewrite-dts-subpaths.mjs",
     "test": "vitest run",
     "test:baseline": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
