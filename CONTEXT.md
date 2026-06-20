@@ -52,13 +52,13 @@ Event-sourced persistence layer (`AgentRecords`). Logs every state-changing acti
 The LLM provider interface in `kosong`. Defines `generate()` returning a `StreamedMessage` (async iterable of `TextPart`, `ThinkPart`, `ToolCall`, `ToolCallPart`). Adapters: `openai-completions`, `openai_responses`, `anthropic`, `google-genai`, `vertexai`. Created via `createProvider(config)` factory.
 
 ### Kaos
-The execution environment abstraction. `Kaos` interface bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely. Currently only `LocalKaos` (local filesystem) is implemented; `SSHKaos` (remote via SSH/SFTP) is aspirational per ADR 0006 but not yet implemented in code. `RuntimeConfig` carries the active `Kaos` instance; `ByfCoreOptions.runtime?` allows injecting a custom one (the `node-sdk` harness does not yet forward it — see PRD-0009 Long-term Design).
+The execution environment abstraction. `Kaos` interface bound to async context via `AsyncLocalStorage` — code calls `readText()`, `exec()` etc. without knowing whether it runs locally or remotely. Currently only `LocalKaos` (local filesystem) is implemented; `SSHKaos` (remote via SSH/SFTP) is aspirational per ADR 0006 but not yet implemented in code. `RuntimeConfig` carries the active `Kaos` instance; `ByfCoreOptions.runtime?` allows injecting a custom one (the `node-sdk` harness does not yet forward it).
 
 ### ByfHarness
-The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object. A host passes `homeDir` (session storage location) and `configPath` (config.toml location) separately — they are independent. The GUI host uses a distinct `homeDir` (`~/Library/Application Support/byfDesktop/`) to isolate its sessions from the CLI's, while sharing `configPath` (`~/.byf/config.toml`) so provider/auth config is configured once.
+The top-level SDK entry point in `node-sdk`. Manages session lifecycle, config. CLI creates a `ByfHarness`, then calls `createSession()` / `resumeSession()` to get a `Session` object. A host passes `homeDir` (session storage location) and `configPath` (config.toml location) separately — they are independent.
 
 ### uiMode
-A free-form string tag on `ByfHarnessOptions` (default `'shell'`) used as the `source` of the `SessionStart` hook. Distinguishes how a session was launched: `'shell'` (interactive TUI), `'print'` (headless `--print`), `'gui'` (native desktop host).
+A free-form string tag on `ByfHarnessOptions` (default `'shell'`) used as the `source` of the `SessionStart` hook. Distinguishes how a session was launched: `'shell'` (interactive TUI), `'print'` (headless `--print`).
 
 ### MCP (Model Context Protocol)
 External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP), tool discovery, OAuth, and reconnection.
