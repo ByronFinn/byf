@@ -58,7 +58,7 @@ function loopEventSummary(ev: LoopRecordedEvent): string {
       return `result#${ev.toolCallId.slice(-8)}${ev.result.isError === true ? ' (error)' : ''}`;
     default: {
       const exhaustive: never = ev;
-      return String((exhaustive as { type?: string }).type ?? 'unknown');
+      return (exhaustive as { type?: string }).type ?? 'unknown';
     }
   }
 }

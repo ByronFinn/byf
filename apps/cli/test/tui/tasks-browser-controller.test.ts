@@ -177,7 +177,9 @@ describe('TasksBrowserController', () => {
   it('repaint is a no-op when browser is closed', () => {
     const env = makeEnv();
     const controller = new TasksBrowserController(env);
-    expect(() => controller.repaint()).not.toThrow();
+    expect(() => {
+      controller.repaint();
+    }).not.toThrow();
   });
 
   it('picks the first running task as initial selection', async () => {

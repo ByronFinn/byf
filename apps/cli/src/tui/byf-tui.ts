@@ -1436,7 +1436,7 @@ export class ByfTui implements DialogHost {
         await this.handleLogoutCommand(args);
         return;
       default:
-        this.showError(`Unknown slash command: /${String(name)}`);
+        this.showError(`Unknown slash command: /${name}`);
         return;
     }
   }
