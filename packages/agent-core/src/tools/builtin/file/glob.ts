@@ -18,14 +18,28 @@
  *   - Patterns using brace expansion (`{a,b,c}`) are rejected up-front
  *     because the underlying `_globWalk` treats `{` / `}` as literals,
  *     so such patterns would silently match zero files.
- *   - `path` is validated by `resolvePathAccess` in strict mode. Explicit
- *     paths must be absolute and within the workspace roots.
+ *   - `path` is validated by `resolvePathAccess` with the
+ *     `absolute-outside-allowed` policy (matching Grep). Explicit paths must
+ *     be absolute; absolute paths outside the workspace roots are allowed,
+ *     but relative paths that escape the workspace are rejected.
+ *   - Sensitive files (`.env`, `id_rsa`, `.aws/credentials`, ...) are
+ *     filtered out of the result set via `isSensitiveFile`, mirroring Grep's
+ *     `filterSensitiveLines`. Only paths are ever exposed — never contents,
+ *     which Read's `checkSensitive` still blocks — but because Glob runs with
+ *     an auto_allow default and the policy accepts arbitrary absolute roots,
+ *     withholding the directory structure of sensitive areas is worth doing.
  *   - match count is capped at `MAX_MATCHES`; a separate `YIELD_SAFETY_CAP`
  *     (MAX_MATCHES × 2) on the raw yield stream is a secondary belt that
  *     still terminates the stream if the kaos layer's own symlink-cycle
  *     detection were ever absent or bypassed. Primary cycle defense lives
  *     in `packages/kaos/src/local.ts:_globWalk` via a path-local visited
  *     inode set.
+ *   - Canonicalization is lexical only (`resolvePathAccess` does not call
+ *     `realpath`), and the kaos walk follows symlinks via `stat`. The trust
+ *     boundary is therefore "the directory you name, plus whatever it links
+ *     to" — a symlink inside an allowed root can redirect the walk beyond the
+ *     canonicalized path. The `_globWalk` inode set stops infinite cycles but
+ *     does not confine the walk to the canonical root.
  */
 
 import type { Kaos } from '@byfriends/kaos';
@@ -36,6 +50,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import type { PathClass } from '../../policies/path-access';
+import { isSensitiveFile } from '../../policies/sensitive';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { listDirectory } from '../../support/list-directory';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -55,7 +70,10 @@ export const GlobInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Absolute path to the directory to search in. Defaults to the current working directory.',
+      'Absolute path to the directory to search in. Defaults to the current working directory. ' +
+      'Explicit absolute paths outside the workspace are allowed (e.g. to search a dependency ' +
+      'installed elsewhere); relative paths are resolved against the working directory and ' +
+      'rejected if they escape it.',
     ),
   include_dirs: z
     .boolean()
@@ -118,7 +136,7 @@ export class GlobTool implements BuiltinTool<GlobInput> {
         kaos: this.kaos,
         workspace: this.workspace,
         operation: 'search',
-        policy: { guardMode: 'strict', checkSensitive: false },
+        policy: { guardMode: 'absolute-outside-allowed', checkSensitive: false },
       });
     }
     const searchRoots = [path ?? this.workspace.workspaceDir];
@@ -150,8 +168,8 @@ export class GlobTool implements BuiltinTool<GlobInput> {
     }
 
     if (isPureWildcard(args.pattern)) {
-      const allowedRoots = [this.workspace.workspaceDir, ...this.workspace.additionalDirs];
-      const rootList = allowedRoots.map((d) => `  - ${d}`).join('\n');
+      const workspaceRoots = [this.workspace.workspaceDir, ...this.workspace.additionalDirs];
+      const rootList = workspaceRoots.map((d) => `  - ${d}`).join('\n');
       let tree: string;
       try {
         tree = await listDirectory(this.kaos, this.workspace.workspaceDir);
@@ -167,7 +185,7 @@ export class GlobTool implements BuiltinTool<GlobInput> {
           `large trees. Add an extension ` +
           `("${args.pattern === '**' || args.pattern === '**/*' ? '**/*.ts' : '**/*.md'}") ` +
           `or a subdirectory ("src/**/*.ts") to constrain the walk.\n\n` +
-          `Allowed roots for explicit path searches:\n${rootList}\n\n` +
+          `Workspace roots:\n${rootList}\n\n` +
           `Top of ${this.workspace.workspaceDir}:\n${tree}`,
       };
     }
@@ -235,6 +253,17 @@ export class GlobTool implements BuiltinTool<GlobInput> {
       //     depend on the kaos implementation for cycle safety.
       const seen = new Set<string>();
       const entries: Array<{ path: string; mtime: number }> = [];
+      // Mirrors Grep's filterSensitiveLines: paths matching a sensitive-file
+      // pattern are dropped before reaching the output. Glob's
+      // `absolute-outside-allowed` policy accepts explicit absolute roots
+      // outside the workspace, and the kaos walk follows symlinks, so without
+      // this filter a `**/.env`-style pattern could enumerate sensitive
+      // basenames (`.env`, `id_rsa`, `.aws/credentials`, ...) anywhere the
+      // root reaches. Only paths are exposed — never contents, which Read's
+      // checkSensitive still blocks — but the directory structure itself is
+      // worth withholding from an auto_allow tool.
+      const pathClass = this.kaos.pathClass();
+      const filteredSensitive: string[] = [];
       const YIELD_SAFETY_CAP = MAX_MATCHES * 2;
       let yielded = 0;
       let truncated = false;
@@ -252,6 +281,14 @@ export class GlobTool implements BuiltinTool<GlobInput> {
             break outer;
           }
           seen.add(filePath);
+          // Sensitive filtering happens *after* marking seen so a filtered
+          // path doesn't re-enter via a later duplicate yield, and *before*
+          // pushing to entries so MAX_MATCHES continues to cap output
+          // (not pre-filter) size — same reasoning as include_dirs below.
+          if (isSensitiveFile(filePath, pathClass)) {
+            filteredSensitive.push(filePath);
+            continue;
+          }
           let mtime = 0;
           let isDir = false;
           try {
@@ -276,12 +313,16 @@ export class GlobTool implements BuiltinTool<GlobInput> {
       // Content shown to the LLM uses paths relative to the search base
       // to save tokens; `output.paths` keeps the absolute form so callers
       // can feed them into Read/Edit without further resolution.
-      const pathClass = this.kaos.pathClass();
       const relBase = searchRoots[0] ?? this.workspace.workspaceDir;
       const displayLines = paths.map((p) => relativizeIfUnder(p, relBase, pathClass));
 
+      const filteredSome = filteredSensitive.length > 0;
       if (entries.length === 0 && !truncated) {
-        return { output: 'No matches found' };
+        return {
+          output: filteredSome
+            ? `No non-sensitive matches found (filtered ${String(filteredSensitive.length)} sensitive file(s))`
+            : 'No matches found',
+        };
       }
       const lines: string[] = [];
       if (truncated) {
@@ -291,6 +332,14 @@ export class GlobTool implements BuiltinTool<GlobInput> {
       lines.push(...displayLines);
       if (!truncated && entries.length === MAX_MATCHES) {
         lines.push(`Found ${String(entries.length)} matches`);
+      }
+      if (filteredSome) {
+        // Relative to the search base, matching how non-sensitive matches
+        // are displayed, so the model can locate the filtered entries.
+        const displayedFiltered = filteredSensitive.map((p) =>
+          relativizeIfUnder(p, relBase, pathClass),
+        );
+        lines.push(`Filtered ${String(filteredSensitive.length)} sensitive file(s): ${displayedFiltered.join(', ')}`);
       }
       return { output: lines.join('\n') };
     } catch (error) {
