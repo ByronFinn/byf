@@ -593,7 +593,7 @@ function firecrawlFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fe
 }
 
 describe('FirecrawlWebSearchProvider', () => {
-  it('sends POST request with query and limit', async () => {
+  it('sends POST request with query and limit (no scrapeOptions by default)', async () => {
     const fetchImpl = firecrawlFetchOk([]);
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await provider.search('hello', { limit: 3 });
@@ -603,9 +603,23 @@ describe('FirecrawlWebSearchProvider', () => {
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body as string);
     expect(body).toMatchObject({ query: 'hello', limit: 3 });
+    expect(body).not.toHaveProperty('scrapeOptions');
   });
 
-  it('maps response fields (snippet=description, no date, no content)', async () => {
+  it('includes scrapeOptions.formats when includeContent is true', async () => {
+    const fetchImpl = firecrawlFetchOk([]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { limit: 3, includeContent: true });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({
+      query: 'hello',
+      limit: 3,
+      scrapeOptions: { formats: ['markdown'] },
+    });
+  });
+
+  it('maps response fields (snippet=description, no date, no content by default)', async () => {
     const fetchImpl = firecrawlFetchOk([
       { title: 'FC Result', url: 'https://fc.example/page', description: 'FC snippet' },
     ]);
@@ -614,6 +628,50 @@ describe('FirecrawlWebSearchProvider', () => {
     expect(results[0]!.title).toBe('FC Result');
     expect(results[0]!.snippet).toBe('FC snippet');
     expect(results[0]!.date).toBeUndefined();
+    expect(results[0]!.content).toBeUndefined();
+  });
+
+  it('maps markdown to content when includeContent is true', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC Content',
+        url: 'https://fc.example/page',
+        description: 'FC snippet',
+        markdown: '# Full\n\nMarkdown content',
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.title).toBe('FC Content');
+    expect(results[0]!.snippet).toBe('FC snippet');
+    expect(results[0]!.content).toBe('# Full\n\nMarkdown content');
+  });
+
+  it('markdown null does not set content (even with includeContent=true)', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC NoMd',
+        url: 'https://fc.example/page',
+        description: 'snippet only',
+        markdown: null,
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
+    expect(results[0]!.content).toBeUndefined();
+    expect(results[0]!.snippet).toBe('snippet only');
+  });
+
+  it('markdown undefined does not set content (even with includeContent=true)', async () => {
+    const fetchImpl = firecrawlFetchOk([
+      {
+        title: 'FC NoMd',
+        url: 'https://fc.example/page',
+        description: 'snippet only',
+      },
+    ]);
+    const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: true });
     expect(results[0]!.content).toBeUndefined();
   });
 

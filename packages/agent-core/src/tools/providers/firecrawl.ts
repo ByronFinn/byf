@@ -3,11 +3,12 @@
  *
  * API docs: https://docs.firecrawl.dev/api-reference/endpoint/search
  *
- * Field mapping (PRD-0012, initial version):
- *   data.web[].{ title, url, description }
- *   → WebSearchResult { title, url, snippet=description, date=undefined, content=undefined }
+ * Field mapping (PRD-0012):
+ *   data.web[].{ title, url, description, markdown }
+ *   → WebSearchResult { title, url, snippet=description, content=markdown }
  *
- * Note: `content` is deferred — initial version returns only snippets.
+ * When includeContent is true, the request includes scrapeOptions.formats: ["markdown"]
+ * so the API returns full page markdown content.
  *
  * Supports multiple apiKeys with sequential fallback within a single search() call
  * (stateless — each new call resets to the first key).
@@ -26,6 +27,7 @@ interface FirecrawlWebResult {
   title?: string;
   url?: string;
   description?: string;
+  markdown?: string | null;
 }
 
 interface FirecrawlSearchResponse {
@@ -48,7 +50,16 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
     options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
   ): Promise<WebSearchResult[]> {
     const limit = options?.limit ?? 5;
-    const body = JSON.stringify({ query, limit });
+    const includeContent = options?.includeContent ?? false;
+
+    // Build request body — include scrapeOptions only when full content is needed.
+    // Without scrapeOptions, the API returns only title, url, description.
+    // With scrapeOptions.formats: ["markdown"], each result gets a markdown field.
+    const requestBody: Record<string, unknown> = { query, limit };
+    if (includeContent) {
+      requestBody.scrapeOptions = { formats: ['markdown'] };
+    }
+    const body = JSON.stringify(requestBody);
     let lastError: Error | undefined;
 
     for (const apiKey of this.apiKeys) {
@@ -72,11 +83,17 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
         const json = (await response.json()) as FirecrawlSearchResponse;
         const raw = Array.isArray(json.data?.web) ? json.data.web : [];
 
-        return raw.map((r): WebSearchResult => ({
-          title: r.title ?? '',
-          url: r.url ?? '',
-          snippet: r.description ?? '',
-        }));
+        return raw.map((r): WebSearchResult => {
+          const out: WebSearchResult = {
+            title: r.title ?? '',
+            url: r.url ?? '',
+            snippet: r.description ?? '',
+          };
+          if (includeContent && typeof r.markdown === 'string' && r.markdown.length > 0) {
+            out.content = r.markdown;
+          }
+          return out;
+        });
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
       }
