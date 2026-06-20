@@ -40,6 +40,7 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   { keys: 'Ctrl-C', description: 'Interrupt stream / clear input' },
   { keys: 'Ctrl-D', description: 'Exit (on empty input)' },
   { keys: 'Esc', description: 'Close dialogs / interrupt streaming' },
+  { keys: 'Shift-Tab', description: 'Cycle permission mode (manual/yolo/auto)' },
   { keys: '↑ / ↓', description: 'Browse input history' },
   { keys: 'Enter', description: 'Submit' },
 ];

@@ -1135,6 +1135,11 @@ export class ByfTui implements DialogHost {
       return false;
     };
 
+    editor.onShiftTab = () => {
+      this.track('shortcut_permission_mode');
+      this.cyclePermissionMode();
+    };
+
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
   }
 
@@ -3585,6 +3590,17 @@ export class ByfTui implements DialogHost {
 
     this.setAppState({ permissionMode: mode, yolo: mode === 'yolo' });
     this.showNotice(`Permission mode: ${mode}`);
+  }
+
+  // Cycles permission mode: manual → yolo → auto → manual.
+  private cyclePermissionMode(): void {
+    const nextMode: Record<PermissionMode, PermissionMode> = {
+      manual: 'yolo',
+      yolo: 'auto',
+      auto: 'manual',
+    };
+    const next = nextMode[this.state.appState.permissionMode] ?? 'manual';
+    void this.applyPermissionChoice(next);
   }
 
   // Persists and applies a theme choice.
