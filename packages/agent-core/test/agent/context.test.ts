@@ -818,7 +818,7 @@ function assistantToolCallMessage(ids: readonly string[]): Message {
     });
 
     // The Agent tool result must remain intact — not replaced by a scratch-file preview
-    const lastMessage = ctx.agent.context.history[ctx.agent.context.history.length - 1]!;
+    const lastMessage = ctx.agent.context.history.at(-1)!;
     expect(lastMessage.role).toBe('tool');
     expect(textOf(lastMessage)).toBe(largeOutput);
 
@@ -861,7 +861,7 @@ function assistantToolCallMessage(ids: readonly string[]): Message {
     });
 
     // Bash tool results should be offloaded to scratch
-    const lastMessage = ctx.agent.context.history[ctx.agent.context.history.length - 1]!;
+    const lastMessage = ctx.agent.context.history.at(-1)!;
     expect(lastMessage.role).toBe('tool');
     expect(textOf(lastMessage)).toContain('[Tool output offloaded to scratch file');
 

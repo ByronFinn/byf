@@ -105,6 +105,9 @@ An agent-core module that analyzes conversation history and attaches `CacheHint`
 ### PromptPlan
 A structured representation of the system prompt as ordered, named blocks (`PromptBlock[]`), each with a `CacheScope`. Produced by the builder in agent-core, consumed by provider adapters via `GenerateOptions.promptPlan`. Manages static, non-array content (system instructions, AGENTS.md, tool schemas).
 
+### Search Provider
+A configured web search backend (exa, brave, firecrawl, etc.) with its API keys and priority level. The WebSearch tool maintains a list of Search Providers and tries them in priority order, falling back automatically on failure. Distinct from Provider (LLM API endpoint).
+
 ### Turn Boundary
 The division point between consecutive Turns in the conversation history. Identified by `previousTurnMessageCount` from TurnFlow. Used by `CacheStakingStrategy` to place the history cache stake at the previous turn's last assistant message, ensuring the entire preceding conversation (including tool results) is cached.
 

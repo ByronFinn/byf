@@ -181,7 +181,7 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
 
     // Create a merged AbortController with 60s timeout.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() =>{  controller.abort(); }, REQUEST_TIMEOUT_MS);
 
     // Forward external signal abort.
     if (init?.signal) {
@@ -189,7 +189,7 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
         clearTimeout(timeoutId);
         controller.abort();
       } else {
-        init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        init.signal.addEventListener('abort', () =>{  controller.abort(); }, { once: true });
       }
     }
 
@@ -210,7 +210,7 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
 
       // If the error is retryable and proxy is available, retry.
       if (isRetryableError(error) && proxyUrl && !noProxyMatch) {
-        return await retryViaProxy(input, init, proxyUrl, innerFetch);
+        return  retryViaProxy(input, init, proxyUrl, innerFetch);
       }
 
       throw error;
@@ -229,14 +229,14 @@ async function retryViaProxy(
   innerFetch: typeof fetch,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() =>{  controller.abort(); }, REQUEST_TIMEOUT_MS);
 
   if (init?.signal) {
     if (init.signal.aborted) {
       clearTimeout(timeoutId);
       controller.abort();
     } else {
-      init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      init.signal.addEventListener('abort', () =>{  controller.abort(); }, { once: true });
     }
   }
 

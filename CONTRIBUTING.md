@@ -44,17 +44,19 @@ BYF is developed primarily on macOS and Linux. Windows is supported but on a bes
 ```sh
 git clone https://github.com/ByronFinn/byf.git
 cd byf
-pnpm install
+make prepare    # equivalent to `pnpm install`; also runs the pnpm prepare lifecycle
 ```
 
-Useful scripts:
+Useful make targets (run `make help` to see them all):
 
-- `pnpm dev:cli` — run the CLI in dev mode
-- `pnpm test` — run tests (vitest)
-- `pnpm typecheck` — TypeScript check (note: builds packages first)
-- `pnpm lint` — oxlint
-- `pnpm lint:fix` — oxlint with auto-fix
-- `pnpm build` — build all packages
+- `make dev` — run the CLI in dev mode
+- `make test` — run tests (vitest)
+- `make typecheck` — TypeScript check (note: builds packages first)
+- `make lint` — oxlint
+- `make fix` — oxlint with auto-fix
+- `make build` — build all packages
+
+The Makefile is a thin wrapper around the `pnpm run` scripts defined in `package.json`; you can always invoke those directly.
 
 ## Commit Convention
 
@@ -81,7 +83,7 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 - Every PR that affects release artifacts (code, behavior, public API) **must** include a changeset.
 - Docs-only, test-only, or CI-only PRs may skip changesets.
-- Generate one with `pnpm changeset` and follow the prompts (which packages are touched, which bump level).
+- Generate one with `make changeset` and follow the prompts (which packages are touched, which bump level).
 - For repo-specific conventions on package selection and bump levels, see `.changeset/README.md`. When working in this repo with coding agents, use the `gen-changesets` skill.
 
 ## Pull Requests
@@ -94,7 +96,7 @@ PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm 
 
 - TypeScript across the codebase.
 - Linting via `oxlint` (config in `.oxlintrc.json`).
-- Auto-formatting via `pnpm lint:fix`.
+- Auto-formatting via `make fix`.
 - Follow existing local patterns when the lint rules do not cover a style choice.
 
 ## Reporting Security Issues

@@ -115,7 +115,7 @@ describe('ContextMemory restore handler', () => {
 
       // Verify the last user prompt was marked as blocked
       const history = agent.context.history;
-      expect(history[history.length - 1]).toMatchObject({
+      expect(history.at(-1)).toMatchObject({
         role: 'user',
         origin: {
           kind: 'user',

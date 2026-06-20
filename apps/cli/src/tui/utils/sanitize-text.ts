@@ -15,7 +15,7 @@
  * `lastIndex` state to manage — `.replace()` does not leak `lastIndex` to the
  * caller for a single invocation.
  */
-const CONTROL_CHAR_RE = /[\x00-\x08\x0B\x0C\x0D\x0E-\x1F\x7F]/g;
+const CONTROL_CHAR_RE = /[\u0000-\u0008\u000B\u000C\u000D\u000E-\u001F\u007F]/g;
 
 export function sanitizeForDisplay(text: string): string {
   if (text.length === 0) return text;
