@@ -351,7 +351,6 @@ function runPromptTurn(
         case 'compaction.cancelled':
         case 'compaction.completed':
         case 'compaction.started':
-        case 'error':
         case 'mcp.server.status':
         case 'observation_masking.applied':
         case 'pruning.applied':
