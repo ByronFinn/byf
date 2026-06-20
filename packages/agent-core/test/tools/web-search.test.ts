@@ -414,7 +414,7 @@ function exaFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> 
 }
 
 describe('ExaWebSearchProvider', () => {
-  it('sends POST request with query and numResults', async () => {
+  it('sends POST with query, numResults, and contents.highlights by default', async () => {
     const fetchImpl = exaFetchOk([]);
     const provider = new ExaWebSearchProvider({
       apiKeys: ['test-key'],
@@ -426,11 +426,23 @@ describe('ExaWebSearchProvider', () => {
     expect(url).toBe('https://api.exa.ai/search');
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body as string);
-    expect(body).toMatchObject({ query: 'hello', numResults: 3 });
+    expect(body).toMatchObject({
+      query: 'hello',
+      numResults: 3,
+      contents: { highlights: { query: 'hello', maxCharacters: 300 } },
+    });
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer test-key');
   });
 
-  it('maps response fields to WebSearchResult (title, url, snippet, content, date)', async () => {
+  it('sends POST with contents.text when includeContent=true', async () => {
+    const fetchImpl = exaFetchOk([]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    await provider.search('hello', { includeContent: true });
+    const body = JSON.parse((fetchImpl.mock.calls[0] as [string, RequestInit])[1]!.body as string);
+    expect(body.contents).toEqual({ text: { maxCharacters: 10000 } });
+  });
+
+  it('maps response fields with includeContent=true (text → snippet + content)', async () => {
     const fetchImpl = exaFetchOk([
       {
         title: 'Exa Result',
@@ -444,34 +456,67 @@ describe('ExaWebSearchProvider', () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.title).toBe('Exa Result');
     expect(results[0]!.url).toBe('https://exa.example/page');
-    expect(results[0]!.snippet).toBeDefined();
+    expect(results[0]!.snippet).toBe('Full content text for checking snippet and content mapping');
     expect(results[0]!.content).toBe('Full content text for checking snippet and content mapping');
     expect(results[0]!.date).toBe('2025-03-15');
   });
 
-  it('snippet is truncated to 300 chars', async () => {
+  it('maps highlights[0] to snippet when includeContent=false', async () => {
+    const fetchImpl = exaFetchOk([
+      {
+        title: 'Exa Result',
+        url: 'https://exa.example/page',
+        highlights: ['Highlighted relevant snippet'],
+        publishedDate: '2025-03-15',
+      },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test', { includeContent: false });
+    expect(results).toHaveLength(1);
+    expect(results[0]!.snippet).toBe('Highlighted relevant snippet');
+    expect(results[0]!.content).toBeUndefined();
+    expect(results[0]!.date).toBe('2025-03-15');
+  });
+
+  it('snippet from highlights is truncated to 300 chars', async () => {
+    const longHighlight = 'x'.repeat(500);
+    const fetchImpl = exaFetchOk([
+      { title: 'Long', url: 'https://exa.example/long', highlights: [longHighlight] },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results).toHaveLength(1);
+    expect(results[0]!.snippet!.length).toBe(300);
+  });
+
+  it('snippet from text is truncated to 300 chars when includeContent=true', async () => {
     const longText = 'x'.repeat(500);
     const fetchImpl = exaFetchOk([
       { title: 'Long', url: 'https://exa.example/long', text: longText },
     ]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
-    const results = await provider.search('test');
+    const results = await provider.search('test', { includeContent: true });
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet!.length).toBeLessThanOrEqual(303); // 300 + '…'
+    expect(results[0]!.snippet!.length).toBe(300);
+    expect(results[0]!.content!.length).toBe(500);
   });
 
-  it('content is undefined when includeContent is false', async () => {
+  it('snippet is empty string when highlights array is empty', async () => {
     const fetchImpl = exaFetchOk([
-      {
-        title: 'No Content',
-        url: 'https://exa.example/page',
-        text: 'some text',
-      },
+      { title: 'Empty', url: 'https://exa.example/empty', highlights: [] },
     ]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
-    const results = await provider.search('test', { includeContent: false });
-    expect(results[0]!.snippet).toBeDefined();
-    expect(results[0]!.content).toBeUndefined();
+    const results = await provider.search('test');
+    expect(results[0]!.snippet).toBe('');
+  });
+
+  it('snippet is empty string when highlights is undefined', async () => {
+    const fetchImpl = exaFetchOk([
+      { title: 'No Highlights', url: 'https://exa.example/no' },
+    ]);
+    const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
+    const results = await provider.search('test');
+    expect(results[0]!.snippet).toBe('');
   });
 
   it('throws errors with convention: "Exa search failed: HTTP {status}"', async () => {

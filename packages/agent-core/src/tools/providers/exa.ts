@@ -25,6 +25,8 @@ interface ExaSearchResult {
   url?: string;
   text?: string;
   publishedDate?: string;
+  highlights?: string[];
+  highlightScores?: number[];
 }
 
 interface ExaSearchResponse {
@@ -47,7 +49,18 @@ export class ExaWebSearchProvider implements WebSearchProvider {
     options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
   ): Promise<WebSearchResult[]> {
     const limit = options?.limit ?? 5;
-    const body = JSON.stringify({ query, numResults: limit });
+    const includeContent = options?.includeContent ?? false;
+
+    // Build the request body with conditional contents based on what we need.
+    // includeContent=false → request highlights only (cheaper, query-relevant snippets)
+    // includeContent=true  → request full text (for both snippet + content)
+    const contents: Record<string, unknown> = {};
+    if (includeContent) {
+      contents.text = { maxCharacters: 10000 };
+    } else {
+      contents.highlights = { query, maxCharacters: 300 };
+    }
+    const body = JSON.stringify({ query, numResults: limit, contents });
     let lastError: Error | undefined;
 
     for (const apiKey of this.apiKeys) {
@@ -70,19 +83,26 @@ export class ExaWebSearchProvider implements WebSearchProvider {
 
         const json = (await response.json()) as ExaSearchResponse;
         const raw = Array.isArray(json.results) ? json.results : [];
-        const includeContent = options?.includeContent ?? false;
 
         return raw.map((r): WebSearchResult => {
           const out: WebSearchResult = {
             title: r.title ?? '',
             url: r.url ?? '',
-            snippet: (r.text ?? '').slice(0, 300),
+            snippet: '',
           };
+
+          if (includeContent && typeof r.text === 'string') {
+            // Full text requested — snippet from truncated text, content from full text
+            out.snippet = r.text.slice(0, 300);
+            if (r.text.length > 0) out.content = r.text;
+          } else if (Array.isArray(r.highlights) && r.highlights.length > 0) {
+            // Highlights requested — snippet from first highlight
+            out.snippet = r.highlights[0]!.slice(0, 300);
+          }
+          // else: no content available → snippet stays ''
+
           if (typeof r.publishedDate === 'string' && r.publishedDate.length > 0) {
             out.date = r.publishedDate;
-          }
-          if (includeContent && typeof r.text === 'string' && r.text.length > 0) {
-            out.content = r.text;
           }
           return out;
         });
