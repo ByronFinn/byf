@@ -138,7 +138,7 @@ async function rewrite() {
     let rewritten = content;
     const selfPath = `./${base.replace(/\.d\.mts$/, '.mjs')}`;
     for (const match of matches) {
-      const [fullLine, prefix, subpathName] = match;
+      const [fullLine, prefix] = match;
       const replacement = `${prefix}"${selfPath}";`;
       rewritten = rewritten.replace(fullLine, replacement);
       totalRewritten += 1;

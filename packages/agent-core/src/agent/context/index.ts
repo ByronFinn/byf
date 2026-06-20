@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
-import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
+import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import type { RecordRestoreHandler } from '../restore-handler';
 import {

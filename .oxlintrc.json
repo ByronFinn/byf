@@ -148,7 +148,9 @@
     "dist/",
     "coverage/",
     "node_modules/",
+    "scripts/",
     "apps/*/scripts/",
+    "packages/*/scripts/",
     "docs/smoke-archive/",
     "*.generated.ts"
   ]

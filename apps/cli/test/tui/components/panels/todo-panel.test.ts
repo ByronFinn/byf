@@ -105,7 +105,7 @@ describe('TodoPanelComponent', () => {
 
   it('implements the Expandable interface', () => {
     const panel = new TodoPanelComponent(darkColors) as unknown;
-    expect(typeof (panel as Record<string, unknown>).setExpanded).toBe('function');
+    expect(typeof (panel as Record<string, unknown>)['setExpanded']).toBe('function');
   });
 
   it('setExpanded(true) reveals all items when collapsed', () => {

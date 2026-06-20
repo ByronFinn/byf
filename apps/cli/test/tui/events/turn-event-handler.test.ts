@@ -542,7 +542,7 @@ describe('TurnEventHandler', () => {
 
     it('ignores unknown tool call IDs', () => {
       const { handler } = makeHandler();
-      handler.handleToolProgress(toolProgress('unknown-tc', 'status', 'Working...'));
+      expect(() => handler.handleToolProgress(toolProgress('unknown-tc', 'status', 'Working...'))).not.toThrow();
     });
   });
 
@@ -654,7 +654,7 @@ describe('TurnEventHandler', () => {
       handler.handleAssistantDelta(assistantDelta('x'));
       handler.handleThinkingDelta(thinkingDelta('y'));
       handler.discardPendingStreamingUiUpdates();
-      handler.flushStreamingUiUpdatesNow();
+      expect(() => handler.flushStreamingUiUpdatesNow()).not.toThrow();
     });
   });
 

@@ -1,8 +1,6 @@
 import type {
   ContentPart,
   ContextMessage,
-  PermissionMode,
-  AgentConfigUpdateData,
   TokenUsage,
   ToolCall,
   WireEntry,

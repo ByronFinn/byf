@@ -177,7 +177,7 @@ describe('TasksBrowserController', () => {
   it('repaint is a no-op when browser is closed', () => {
     const env = makeEnv();
     const controller = new TasksBrowserController(env);
-    controller.repaint(); // should not throw
+    expect(() => controller.repaint()).not.toThrow();
   });
 
   it('picks the first running task as initial selection', async () => {
@@ -237,7 +237,7 @@ describe('TasksBrowserController', () => {
 
     const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
 
-    await onStopConfirmed('bash-aaa');
+    onStopConfirmed('bash-aaa');
     expect(stopFn).toHaveBeenCalledWith('bash-aaa', { reason: 'stopped from /tasks' });
   });
 
@@ -253,7 +253,7 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
 
     expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
   });
@@ -270,9 +270,9 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
     const countAfterFirst = env.host.fullscreenPanels.length;
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
 
     expect(env.host.fullscreenPanels).toHaveLength(countAfterFirst);
   });
@@ -289,7 +289,7 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
 
     controller.close();
     expect(controller.isOpen).toBe(false);
@@ -427,7 +427,7 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
 
     expect(lastProps(spy)['flashMessage']).toContain('Cannot open output');
   });
@@ -446,7 +446,7 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
 
-    await onStopConfirmed('bash-aaa');
+    onStopConfirmed('bash-aaa');
 
     expect(lastProps(spy)['flashMessage']).toContain('Stop failed');
   });
@@ -463,7 +463,7 @@ describe('TasksBrowserController', () => {
     controller.repaint();
     const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
 
-    await onOpenOutput('bash-aaa');
+    onOpenOutput('bash-aaa');
     expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
 
     controller.close();

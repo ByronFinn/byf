@@ -74,7 +74,7 @@ export class ByfHarness {
     this.rpc.interactiveAgentId = agentId;
   }
 
-  track(event: string, properties?: Record<string, unknown>): void {
+  track(_event: string, _properties?: Record<string, unknown>): void {
     // No-op: telemetry has been removed.
   }
 

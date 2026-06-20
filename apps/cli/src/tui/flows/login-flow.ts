@@ -4,7 +4,6 @@ import type {
   ByfConfig,
   ByfConfigPatch,
   ModelAlias,
-  ProviderConfig,
 } from '@byfriends/sdk';
 import {
   enrichWithCatalog,

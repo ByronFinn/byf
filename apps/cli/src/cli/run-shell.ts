@@ -16,8 +16,6 @@ export async function runShell(
   opts: CLIOptions,
   version: string,
 ): Promise<void> {
-  const startedAt = Date.now();
-  const configStartedAt = startedAt;
   let tuiConfig: TuiConfig;
   let configWarning: string | undefined;
   try {

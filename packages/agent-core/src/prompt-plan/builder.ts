@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type {
   CacheScope,
   PromptBlock,
@@ -38,27 +36,6 @@ const BLOCK_NAMES = [
   'workingEnvironment',
   'sessionContext',
 ] as const;
-
-/**
- * Default cache scopes by block position.
- *
- * These are the default scopes assigned before filtering by provider capability.
- */
-const DEFAULT_BLOCK_SCOPES: CacheScope[] = [
-  'global', // base
-  'project', // projectInstructions
-  'session', // workingEnvironment, sessionContext and beyond
-];
-
-/**
- * SHA256 hash function (consistent with fingerprint() in agent/index.ts).
- *
- * @param content - The content to hash
- * @returns The hexadecimal SHA256 hash
- */
-function fingerprint(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
-}
 
 /**
  * Get the cache scope for a block by its position.
@@ -111,34 +88,6 @@ function filterScopeByCapability(
 }
 
 /**
- * Get the block name for a given position.
- *
- * @param position - The block position (0-indexed)
- * @param totalBlocks - Total number of blocks
- * @returns The block name
- */
-function getBlockName(position: number, totalBlocks: number): string {
-  // First block is always 'base'
-  if (position === 0) return 'base';
-
-  // Last block is always 'sessionContext'
-  if (position === totalBlocks - 1) return 'sessionContext';
-
-  // Intermediate blocks use sequential names from BLOCK_NAMES[1..]
-  // Starting from index 1 (projectInstructions)
-  const intermediateIndex = position - 1;
-  const nameIndex = intermediateIndex + 1;
-  if (nameIndex < BLOCK_NAMES.length && nameIndex < BLOCK_NAMES.length - 1) {
-    // -1 to exclude 'sessionContext' from being used for intermediate blocks
-    const name = BLOCK_NAMES[nameIndex];
-    if (name !== undefined) return name;
-  }
-
-  // If we have more intermediate blocks than named, use 'sessionContext'
-  return 'sessionContext';
-}
-
-/**
  * Find implicit boundary positions in the system prompt.
  *
  * Searches for section headers that mark natural cache boundaries.
@@ -158,7 +107,7 @@ function findImplicitBoundaries(prompt: string): number[] {
   }
 
   // Sort boundaries by position (in case headers appear out of order)
-  return boundaries.sort((a, b) => a - b);
+  return boundaries.toSorted((a, b) => a - b);
 }
 
 /**
