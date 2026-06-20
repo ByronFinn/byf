@@ -382,9 +382,9 @@ describe('PriorityRouter', () => {
     try {
       await router.search('test');
       throw new Error('expected exception');
-    } catch (err) {
-      expect(err).toBeInstanceOf(AllProvidersFailedError);
-      expect((err as AllProvidersFailedError).lastError).toContain('Brave search failed');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AllProvidersFailedError);
+      expect((error as AllProvidersFailedError).lastError).toContain('Brave search failed');
     }
   });
 
@@ -438,7 +438,7 @@ describe('ExaWebSearchProvider', () => {
     const fetchImpl = exaFetchOk([]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await provider.search('hello', { includeContent: true });
-    const body = JSON.parse((fetchImpl.mock.calls[0] as [string, RequestInit])[1]!.body as string);
+    const body = JSON.parse((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body as string);
     expect(body.contents).toEqual({ text: { maxCharacters: 10000 } });
   });
 
@@ -486,7 +486,7 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet!.length).toBe(300);
+    expect(results[0]!.snippet.length).toBe(300);
   });
 
   it('snippet from text is truncated to 300 chars when includeContent=true', async () => {
@@ -497,7 +497,7 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet!.length).toBe(300);
+    expect(results[0]!.snippet.length).toBe(300);
     expect(results[0]!.content!.length).toBe(500);
   });
 

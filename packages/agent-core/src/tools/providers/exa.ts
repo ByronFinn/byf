@@ -20,6 +20,11 @@ export interface ExaWebSearchProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
+interface ExaSearchContents {
+  text?: { maxCharacters: number };
+  highlights?: { query: string; maxCharacters: number };
+}
+
 interface ExaSearchResult {
   title?: string;
   url?: string;
@@ -54,7 +59,7 @@ export class ExaWebSearchProvider implements WebSearchProvider {
     // Build the request body with conditional contents based on what we need.
     // includeContent=false → request highlights only (cheaper, query-relevant snippets)
     // includeContent=true  → request full text (for both snippet + content)
-    const contents: Record<string, unknown> = {};
+    const contents: ExaSearchContents = {};
     if (includeContent) {
       contents.text = { maxCharacters: 10000 };
     } else {
@@ -106,8 +111,8 @@ export class ExaWebSearchProvider implements WebSearchProvider {
           }
           return out;
         });
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 

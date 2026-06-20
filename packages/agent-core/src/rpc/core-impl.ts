@@ -639,7 +639,7 @@ async function createRuntimeConfig(input: {
       webSearchConfig === undefined
         ? undefined
         : (() => {
-            const sorted = [...webSearchConfig.providers].sort(
+            const sorted = [...webSearchConfig.providers].toSorted(
               (a, b) => a.priority - b.priority,
             );
             return new PriorityRouter(

@@ -32,8 +32,8 @@ export class PriorityRouter implements WebSearchProvider {
         const results = await provider.search(query, options);
         // Empty results are a valid response — do NOT fall back
         return results;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
         // Fall through to next provider
       }
     }

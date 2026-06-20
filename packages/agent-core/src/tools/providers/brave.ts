@@ -84,8 +84,8 @@ export class BraveWebSearchProvider implements WebSearchProvider {
           }
           return out;
         });
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 

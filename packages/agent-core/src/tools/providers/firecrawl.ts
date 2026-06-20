@@ -23,6 +23,12 @@ export interface FirecrawlWebSearchProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
+interface FirecrawlSearchRequestBody {
+  query: string;
+  limit: number;
+  scrapeOptions?: { formats: string[] };
+}
+
 interface FirecrawlWebResult {
   title?: string;
   url?: string;
@@ -55,7 +61,7 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
     // Build request body — include scrapeOptions only when full content is needed.
     // Without scrapeOptions, the API returns only title, url, description.
     // With scrapeOptions.formats: ["markdown"], each result gets a markdown field.
-    const requestBody: Record<string, unknown> = { query, limit };
+    const requestBody: FirecrawlSearchRequestBody = { query, limit };
     if (includeContent) {
       requestBody.scrapeOptions = { formats: ['markdown'] };
     }
@@ -94,8 +100,8 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
           }
           return out;
         });
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 

@@ -231,7 +231,7 @@ function transformServiceData(data: Record<string, unknown>): Record<string, unk
     } else if (Array.isArray(value)) {
       // Recurse into array items (e.g. [[services.web_search.providers]])
       out[targetKey] = value.map((item) =>
-        isPlainObject(item) ? transformRecord(item as Record<string, unknown>, identity, snakeToCamel) : item,
+        isPlainObject(item) ? transformRecord(item, identity, snakeToCamel) : item,
       );
     } else if (isPlainObject(value)) {
       // Flat sub-table — apply key conversion to direct children
