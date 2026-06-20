@@ -1,5 +1,11 @@
 # @byfriends/oauth
 
+## 0.1.2
+
+### Patch Changes
+
+- fix: clear oxlint no-unnecessary-type-assertion warning in provider-config test
+
 ## 0.1.1
 
 ### Patch Changes

@@ -322,7 +322,7 @@ describe('fetchModelsByType', () => {
       }),
     );
     // Must NOT use Bearer auth.
-    const firstCallHeaders = ((fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>)[0]![1]!).headers;
+    const firstCallHeaders = ((fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>)[0]![1]).headers;
     expect(firstCallHeaders['Authorization']).toBeUndefined();
   });
 

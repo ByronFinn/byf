@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/oauth",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Custom OAuth provider configuration for BYF",
   "license": "Proprietary",
   "author": "ByronFinn",

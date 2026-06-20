@@ -1,5 +1,91 @@
 # @byfriends/cli
 
+## 0.3.1
+
+### Patch Changes
+
+- 64b9114: Fix published type declarations and clear the lint/typecheck/pubcheck gates.
+
+  - agent-core: the dts bundler left development-time `#/...` subpath imports
+    (e.g. `#/rpc`, `#/config`) untouched in the bundled `.d.mts` chunk. Since
+    `src/` is not shipped, consumers could not resolve those specifiers, breaking
+    the package's types (attw InternalResolutionError). A post-build step now
+    rewrites each leaked import to a self-reference against the chunk that
+    inlined the referenced module. Public type surface is unchanged.
+  - The release validation script (`lint:pkg`) now packs each package with
+    `pnpm pack` (which expands `publishConfig`, matching real `pnpm publish`)
+    before running attw, instead of `attw --pack` (which uses `npm pack` and
+    does not expand `publishConfig`, producing false NoResolution failures).
+  - Clear all lint errors/warnings and the lone typecheck error across the
+    workspace: drop refactor-residue dead code, tidy imports, and resolve
+    switch-exhaustiveness findings (real missing cases added; intentional
+    fan-out dispatchers suppressed with documented reasons).
+
+- a3c89a0: Remove the last plan-mode remnants left over from ADR 0008.
+
+  The earlier removal (`.changeset/plan-removed-157.md`) deleted the engine and
+  SDK methods but left a shell of always-null / never-produced types and a replay
+  branch that could never fire. This cleans up that shell so the RPC and wire
+  contracts no longer carry dead plan surface area:
+
+  - `PlanData` type, `ResumedAgentState.plan` field, and the `plan_updated` arm of
+    `AgentReplayRecord` are removed (`plan` was always `null` and no code produced
+    `plan_updated` records).
+  - The `plan_mode.enter` / `cancel` / `exit` wire record event types and their
+    record-router mapping are removed. Per the user's decision, backward
+    compatibility for old sessions containing these legacy records is no longer
+    maintained; such records are now unknown types during replay.
+  - The CLI `replay-ops` projection no longer handles the unreachable
+    `plan_updated` branch.
+  - vis no longer renders or projects `plan_mode.*` records.
+  - User docs (interaction guide, slash-command reference, data locations) drop the
+    obsolete `/plan` command, Shift-Tab shortcut, and Plan mode sections (EN + ZH).
+
+- 5823202: Add Shift+Tab keyboard shortcut to cycle permission mode (manual → yolo → auto → manual).
+
+  - `editor.onShiftTab` callback now wired to cycle through the three permission modes
+  - Help panel (`/help`) updated with the new shortcut entry
+
+- 12aa97b: fix(todo): update TodoList tool description to encourage timely status updates
+
+  Change the "Avoid churn" section to "Update discipline" that:
+
+  - Instructs the LLM to update todo status immediately at state transitions (pending → in_progress → done)
+  - Instructs the LLM not to skip the in_progress state
+  - Retains anti-spam guardrails (avoid redundant calls, use query mode, tell user when stuck)
+
+  fix(todo): truncate TodoPanel to 5 visible items with +N more indicator
+
+  Limit the TodoPanelComponent render output to a maximum of 5 visible todo items,
+  with any excess summarized as "+N more" in dimmed text, preventing the todo panel
+  from dominating terminal space on large task lists.
+
+  feat(todo): add expand/collapse for todo panel via Ctrl+T
+
+  TodoPanelComponent now implements the Expandable interface, allowing users to
+  toggle between collapsed view (5 items + "+N more") and expanded view (all items
+
+  - "▲ collapse" hint) using the Ctrl+T keybinding. Follows the existing
+    Expandable pattern used by tool output expansion (Ctrl+O).
+
+- a81140d: feat: add `byf update-config` command for config.toml schema migration
+
+  - **agent-core**: New `config/update-rules.ts` with `Finding` type (removed/renamed/migrated/dangling/unknown/invalid-value) and `DEPRECATED_FIELD_RULES` whitelist
+  - **agent-core**: New `config/update.ts` with `analyzeConfig` (scans config.raw for deprecated fields) and `applyFixes` (cleans up and migrates)
+  - **agent-core**: Added `CAPABILITY_DEFINITIONS` / `VALID_CAPABILITIES` exports from runtime-provider.ts (single source of truth for capability validation and resolution)
+  - **agent-core**: Detection of 6 finding categories (the PRD's `ghost` category is deferred):
+    - `removed`: `default_yolo`/`defaultYolo`, `byf_search`, `byf_fetch`
+    - `renamed`: `loop_control.max_steps_per_run` → `max_steps_per_turn`
+    - `migrated`: `default_thinking` → `[thinking]` block (mode="on"/"off" + effort="high")
+    - `dangling`: model aliases/defaults referencing nonexistent providers/models
+    - `unknown`: schema-unrecognized fields (via zod `.shape`, non-hardcoded; includes nested container scanning)
+    - `invalid-value`: invalid capability values in model aliases
+  - **SDK**: New `ByfHarness.updateConfig({ fix?, configPath? })` method with automatic backup (chmod 0o600), validation, and rollback
+  - **CLI**: New `byf update-config` subcommand with `--fix`, `--config <path>`, `--output-format <pretty|json>` flags
+  - **CLI**: Pretty-printed categorized report in dry-run mode; JSON output for pipeline integration
+  - **TUI**: New `/update-config` slash command (alias `/uc`) for in-TUI config auditing
+  - **Tests**: 97+ tests across all layers (agent-core 72 new / 105 total, SDK 11, CLI 14 + TUI resolve tests)
+
 ## 0.3.0
 
 ### Minor Changes
