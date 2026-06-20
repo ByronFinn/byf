@@ -73,6 +73,7 @@ export class UsageRecorder implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores usage.record records
     switch (record.type) {
       case 'usage.record':
         // During restore, we always use 'session' scope regardless of the original scope

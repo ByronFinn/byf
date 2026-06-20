@@ -115,6 +115,7 @@ export function routeSubagentEvent(
   if (toolCall === undefined) return true;
   toolCall.setSubagentMeta(subagentId, sourceName);
 
+  // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only sub-agent-streamed events are forwarded; others are no-ops via default
   switch (event.type) {
     case 'hook.result': {
       const hookEvent = event as HookResultEvent;

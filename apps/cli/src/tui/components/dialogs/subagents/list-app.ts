@@ -265,6 +265,7 @@ export class SubagentsListApp extends Container implements Focusable {
     const error = chalk.hex(colors.error);
 
     let bullet: string;
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- backgrounded/undefined phases render via the default bullet
     switch (entry.phase) {
       case 'running':
       case 'spawning':
@@ -401,6 +402,7 @@ export class SubagentsListApp extends Container implements Focusable {
     error: (s: string) => string,
     accent: (s: string) => string,
   ): string {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- undefined phase renders via default label
     switch (phase) {
       case 'done': return success('✓ Completed');
       case 'failed': return error('✗ Failed');

@@ -65,6 +65,7 @@ function loopEventSummary(ev: LoopRecordedEvent): string {
 
 /** Render the collapsed-headline for a wire record. */
 export function renderHeadline(r: AgentRecord): HeadlineRender {
+  // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- minor context.* record kinds fall through to the unknown-record fallback below
   switch (r.type) {
     case 'metadata':
       return {

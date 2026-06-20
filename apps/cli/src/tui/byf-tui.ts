@@ -1352,6 +1352,7 @@ export class ByfTui implements DialogHost {
     name: BuiltinSlashCommandName,
     args: string,
   ): Promise<void> {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- registered command 'plan' has no handler yet; default arm reports unknown commands
     switch (name) {
       case 'exit':
         void this.stop();
@@ -1381,7 +1382,7 @@ export class ByfTui implements DialogHost {
           this.showError('No active session.');
           return;
         }
-        void this.agentsController.show();
+         this.agentsController.show();
         return;
       case 'mcp':
         void this.showMcpServers();
@@ -2054,6 +2055,7 @@ export class ByfTui implements DialogHost {
       this.state.currentTurnId = String(event.turnId);
     }
 
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- observation/pruning events are intentional no-ops handled by default
     switch (event.type) {
       case 'turn.started':
         this.turnEventHandler.handleTurnBegin(event);
@@ -3768,7 +3770,7 @@ export class ByfTui implements DialogHost {
         width: Math.min(80, Math.floor(this.state.terminal.columns * 0.85)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.82),
       });
-      this.approvalOverlayHide = () => handle.hide();
+      this.approvalOverlayHide = () =>{  handle.hide(); };
     } else {
       this.mountEditorReplacement(panel);
     }
@@ -3811,7 +3813,7 @@ export class ByfTui implements DialogHost {
         width: Math.min(76, Math.floor(this.state.terminal.columns * 0.82)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.78),
       });
-      this.questionOverlayHide = () => handle.hide();
+      this.questionOverlayHide = () =>{  handle.hide(); };
     } else {
       this.mountEditorReplacement(dialog);
     }
@@ -4036,7 +4038,7 @@ export class ByfTui implements DialogHost {
       this,
       this.state.theme.colors,
       config,
-      (msg) => this.showError(msg),
+      (msg) =>{  this.showError(msg); },
     );
     if (providerName === undefined) {
       return;

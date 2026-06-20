@@ -194,6 +194,7 @@ function hasTurnId(event: Event): event is Event & { readonly turnId: number } {
 }
 
 function logEvent(event: Event): void {
+  // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- smoke test only logs selected events
   switch (event.type) {
     case 'turn.started':
       process.stdout.write(`[turn ${String(event.turnId)} started]\n`);

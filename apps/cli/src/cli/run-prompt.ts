@@ -39,7 +39,6 @@ export async function runPrompt(
   version: string,
   io: PromptRunIO = {},
 ): Promise<void> {
-  const startedAt = Date.now();
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;
   const promptProcess = io.process ?? process;
@@ -75,7 +74,7 @@ export async function runPrompt(
   try {
     await harness.ensureConfigFile();
     const config = await harness.getConfig();
-    const { session, resumed, restorePermission } = await resolvePromptSession(
+    const { session, restorePermission } = await resolvePromptSession(
       harness,
       opts,
       workDir,
@@ -223,7 +222,7 @@ function installPromptTerminationCleanup(
 
   let onSighup: (() => void) | undefined;
   if (process.platform !== 'win32') {
-    onSighup = () => emergencyExit();
+    onSighup = () =>{  emergencyExit(); };
     process.prependListener('SIGHUP', onSighup);
   }
 
@@ -352,7 +351,10 @@ function runPromptTurn(
         case 'compaction.cancelled':
         case 'compaction.completed':
         case 'compaction.started':
+        case 'error':
         case 'mcp.server.status':
+        case 'observation_masking.applied':
+        case 'pruning.applied':
         case 'session.meta.updated':
         case 'skill.activated':
         case 'subagent.completed':

@@ -346,6 +346,7 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores permission.* records
     switch (record.type) {
       case 'permission.set_mode':
         // Call the normal setMode method but it should not log

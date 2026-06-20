@@ -56,6 +56,7 @@ export function computeIssues(
   for (const entry of entries) {
     const r = entry.data;
     const lineNo = entry.lineNo;
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- lint pass inspects only a subset of record kinds
     switch (r.type) {
       case 'context.append_loop_event': {
         const ev = r.event;

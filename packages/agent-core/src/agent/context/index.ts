@@ -388,6 +388,7 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores context.* records it owns
     switch (record.type) {
       case 'context.append_message':
         this.appendMessage(record.message);

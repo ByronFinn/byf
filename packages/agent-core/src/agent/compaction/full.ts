@@ -558,6 +558,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores full_compaction.* records
     switch (record.type) {
       case 'full_compaction.begin':
         // During restore, we call begin but it should not start the worker

@@ -277,6 +277,7 @@ export class SubagentLiveViewer extends Container implements Focusable {
     phase: SubagentActivityDetail['phase'],
     colors: ColorPalette,
   ): string {
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- backgrounded/undefined phases render as idle via default
     switch (phase) {
       case 'done':
         return chalk.hex(colors.success)('✓ Completed');
