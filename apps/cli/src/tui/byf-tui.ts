@@ -1770,7 +1770,7 @@ export class ByfTui implements DialogHost {
     return this.session;
   }
 
-  // Creates a session using the current model, known session runtime, permission, and plan state.
+  // Creates a session using the current model, known session runtime, and permission state.
   private async createSessionFromCurrentState(): Promise<Session> {
     const model = this.state.appState.model.trim();
     if (model.length === 0) {
@@ -1810,7 +1810,7 @@ export class ByfTui implements DialogHost {
     });
   }
 
-  // Applies current permission and plan settings to the active session.
+  // Applies current permission settings to the active session.
   private async activateRuntime(): Promise<void> {
     const session = this.requireSession();
     await session.setPermission(this.state.appState.permissionMode);

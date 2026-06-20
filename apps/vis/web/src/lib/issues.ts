@@ -48,7 +48,7 @@ export function computeIssues(
   const out: Issue[] = [];
 
   // Track in-flight tool calls keyed by toolCallId, step begins by uuid,
-  // compaction begin lineNo, and plan mode enter id.
+  // and compaction begin lineNo.
   const toolCallById = new Map<string, { lineNo: number; name: string }>();
   const stepBeginByUuid = new Map<string, { lineNo: number; step: number; turnId: string }>();
   let lastCompactionBegin: { lineNo: number; source: string } | null = null;

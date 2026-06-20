@@ -25,9 +25,6 @@ export const TYPE_TONE: Record<RecordType, PillTone> = {
   'full_compaction.begin':                 'compaction',
   'full_compaction.cancel':                'warning',
   'full_compaction.complete':              'success',
-  'plan_mode.enter':                       'lifecycle',
-  'plan_mode.cancel':                      'warning',
-  'plan_mode.exit':                        'success',
   'background.stop':                       'warning',
 };
 
@@ -53,8 +50,5 @@ export const TYPE_LABEL: Record<RecordType, string> = {
   'full_compaction.begin': 'compact↻',
   'full_compaction.cancel': 'compact×',
   'full_compaction.complete': 'compact✓',
-  'plan_mode.enter': 'plan↻',
-  'plan_mode.cancel': 'plan×',
-  'plan_mode.exit': 'plan✓',
   'background.stop': 'bg-stop',
 };

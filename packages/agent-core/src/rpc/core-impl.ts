@@ -695,7 +695,6 @@ async function resumeSessionResult(
       context,
       replay: agent.replayBuilder.buildResult(),
       permission,
-      plan: null,
       usage,
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),

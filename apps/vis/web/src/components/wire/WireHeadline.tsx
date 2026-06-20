@@ -314,34 +314,6 @@ export function renderHeadline(r: AgentRecord): HeadlineRender {
         ),
       };
 
-    case 'plan_mode.enter':
-      return {
-        main: (
-          <span className="flex items-center gap-2">
-            <Pill tone="lifecycle" variant="soft">
-              enter
-            </Pill>
-            <Mono>{r.id}</Mono>
-          </span>
-        ),
-      };
-
-    case 'plan_mode.cancel':
-    case 'plan_mode.exit':
-      return {
-        main: (
-          <span className="flex items-center gap-2">
-            <Pill
-              tone={r.type === 'plan_mode.exit' ? 'success' : 'warning'}
-              variant="soft"
-            >
-              {r.type === 'plan_mode.exit' ? 'exit' : 'cancel'}
-            </Pill>
-            <Mono>{r.id ?? '(latest)'}</Mono>
-          </span>
-        ),
-      };
-
     case 'background.stop':
       return {
         main: (

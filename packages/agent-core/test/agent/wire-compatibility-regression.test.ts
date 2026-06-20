@@ -242,39 +242,6 @@ describe('Wire.jsonl compatibility regression tests', () => {
   });
 
   describe('向后兼容性保证', () => {
-    it('应该支持包含legacy plan_mode记录的旧文件', async () => {
-      const legacyRecords: AgentRecord[] = [
-        {
-          type: 'metadata',
-          protocol_version: '1.0',
-          created_at: 1000000,
-        },
-        {
-          type: 'plan_mode.enter',
-          input: [{ type: 'text', text: 'Plan request' }],
-          origin: { kind: 'user' },
-        } as unknown as AgentRecord,
-        {
-          type: 'context.append_message',
-          message: {
-            role: 'user',
-            content: [{ type: 'text', text: 'After planning' }],
-            toolCalls: [],
-            origin: { kind: 'user' },
-          },
-        },
-      ];
-
-      const persistence = new InMemoryAgentRecordPersistence(legacyRecords);
-      const { agent } = testAgent({ persistence });
-
-      const result = await agent.resume();
-
-      // Legacy plan_mode records should be treated as no-ops during replay
-      expect(result.error).toBeUndefined();
-      expect(agent.context.history.length).toBeGreaterThan(0);
-    });
-
     it('应该正确处理部分缺失或损坏的记录', async () => {
       // 测试对边缘情况的处理
       const edgeCaseRecords: AgentRecord[] = [

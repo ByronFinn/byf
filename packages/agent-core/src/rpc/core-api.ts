@@ -11,8 +11,6 @@ import type { ContentPart } from '@byfriends/kosong';
 import type { UsageStatus } from './events';
 import type { WithAgentId, WithSessionId } from './types';
 
-export type PlanData = null;
-
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
 export type JsonObject = { readonly [key: string]: JsonValue };

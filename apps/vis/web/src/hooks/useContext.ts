@@ -6,7 +6,7 @@ import { api } from '../api';
  *
  * The `/api/sessions/:id/context?agent=<agentId>` route returns the
  * full `ContextProjection` (messages, usage totals, config snapshot,
- * permission mode, plan mode). Defaults to `main` when no agent id
+ * permission mode). Defaults to `main` when no agent id
  * is provided, but callers should pass an explicit id for clarity.
  */
 export function useContext(sessionId: string, agentId: string) {

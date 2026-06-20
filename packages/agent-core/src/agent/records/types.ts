@@ -34,16 +34,6 @@ export interface AgentRecordEvents {
 
   'full_compaction.begin': CompactionBeginData;
 
-  'plan_mode.enter': {
-    id: string;
-  };
-  'plan_mode.cancel': {
-    id?: string;
-  };
-  'plan_mode.exit': {
-    id?: string;
-  };
-
   'tools.register_user_tool': UserToolRegistration;
   'tools.unregister_user_tool': {
     name: string;

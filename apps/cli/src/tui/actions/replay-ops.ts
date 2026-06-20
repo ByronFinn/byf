@@ -324,10 +324,6 @@ function projectReplayRecord(state: ProjectionState, record: AgentReplayRecord):
     case 'message':
       projectContextMessage(state, record.message);
       return;
-    case 'plan_updated':
-      flushAssistant(state);
-      state.entries.push(entry('status', `Plan mode: ${record.enabled ? 'ON' : 'OFF'}`, 'notice'));
-      return;
     case 'permission_updated':
       flushAssistant(state);
       projectPermissionUpdate(state, record.mode);

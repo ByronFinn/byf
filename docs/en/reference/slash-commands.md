@@ -37,12 +37,10 @@ Some commands are only available in the idle state. Running them while the sessi
 
 | Command | Alias | Description | Always available |
 | --- | --- | --- | --- |
-| `/yolo [on\|off]` | `/yes` | Toggle auto-approve mode. Without arguments, flip the current state; pass `on`/`off` explicitly to force the corresponding state. When enabled, ordinary tool call approvals are skipped; the Plan mode exit approval is not skipped. | Yes |
-| `/plan [on\|off]` | — | Toggle Plan mode. Without arguments, flip the current state; pass `on`/`off` explicitly to force the corresponding state. Toggling alone does not create an empty plan file. | Yes |
-| `/plan clear` | — | Clear the current plan. | No |
+| `/yolo [on\|off]` | `/yes` | Toggle auto-approve mode. Without arguments, flip the current state; pass `on`/`off` explicitly to force the corresponding state. When enabled, ordinary tool call approvals are skipped. | Yes |
 
 ::: warning Note
-`/yolo` skips approval confirmation for ordinary tool calls. Make sure you understand the potential risks before enabling it. It does not skip the approval required to leave Plan mode; in Plan mode, `Bash` follows the same ordinary allow rules as `/yolo`.
+`/yolo` skips approval confirmation for ordinary tool calls. Make sure you understand the potential risks before enabling it.
 :::
 
 ## Information and status
