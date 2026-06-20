@@ -1,4 +1,4 @@
-# PRD-0004: AgentRecords 恢复机制重构
+# [DONE] PRD-0004: AgentRecords 恢复机制重构
 
 ## Problem Statement
 

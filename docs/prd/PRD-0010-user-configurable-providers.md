@@ -1,4 +1,4 @@
-# PRD-0010: User-Configurable Providers via /login
+# [DONE] PRD-0010: User-Configurable Providers via /login
 
 ## Problem Statement
 

@@ -1,4 +1,4 @@
-# PRD-0003: 前台 Sub-agent 实时查看器
+# [DONE] PRD-0003: 前台 Sub-agent 实时查看器
 
 **Status**: Sliced
 **Created**: 2026-06-18

@@ -1,4 +1,4 @@
-# PRD-0002: /login API Type Selector
+# [DONE] PRD-0002: /login API Type Selector
 
 **Status**: Sliced
 **Created**: 2026-06-18

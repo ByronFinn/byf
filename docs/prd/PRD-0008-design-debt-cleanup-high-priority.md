@@ -1,4 +1,4 @@
-# PRD-0008: 设计债清理 — 三个 High 项
+# [DONE] PRD-0008: 设计债清理 — 三个 High 项
 
 **Status**: Approved
 **Created**: 2026-06-17

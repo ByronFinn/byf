@@ -1,4 +1,4 @@
-# PRD-0006: Prompt Cache 优化 — 三层改造
+# [DONE] PRD-0006: Prompt Cache 优化 — 三层改造
 
 ## 问题陈述
 
