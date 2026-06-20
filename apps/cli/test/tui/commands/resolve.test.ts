@@ -29,6 +29,17 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/quit')).toMatchObject({ kind: 'builtin', name: 'exit', args: '' });
     expect(resolve('/clear')).toMatchObject({ kind: 'builtin', name: 'new', args: '' });
     expect(resolve('/fork')).toMatchObject({ kind: 'builtin', name: 'fork', args: '' });
+    expect(resolve('/connect provider')).toMatchObject({
+      kind: 'builtin',
+      name: 'connect',
+      args: 'provider',
+    });
+    expect(resolve('/update-config --fix')).toMatchObject({
+      kind: 'builtin',
+      name: 'update-config',
+      args: '--fix',
+    });
+    expect(resolve('/uc')).toMatchObject({ kind: 'builtin', name: 'update-config', args: '' });
     expect(resolve('/title New title')).toMatchObject({
       kind: 'builtin',
       name: 'title',

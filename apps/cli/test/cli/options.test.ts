@@ -210,7 +210,7 @@ describe('CLI options parsing', () => {
     it('registers the diagnostic sub-commands during alpha', () => {
       const program = createProgram('0.0.0', () => {});
       const commandNames: string[] = program.commands.map((command) => command.name());
-      expect(commandNames).toEqual(['export']);
+      expect(commandNames).toEqual(['export', 'update-config']);
     });
   });
 

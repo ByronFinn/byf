@@ -1,11 +1,18 @@
+import { existsSync } from 'node:fs';
+import { chmod, copyFile } from 'node:fs/promises';
+
 import {
+  analyzeConfig,
+  applyFixes,
   ensureConfigFile,
   ErrorCodes,
   ByfError,
   getRootLogger,
+  readConfigFile,
   resolveConfigPath,
   resolveByfHome,
   resolveLoggingConfig,
+  writeConfigFile,
 } from '@byfriends/agent-core';
 
 import { ByfAuthFacade } from '#/auth';
@@ -25,6 +32,8 @@ import type {
   ResumeSessionInput,
   ShellExecResult,
   SessionSummary,
+  UpdateConfigInput,
+  UpdateConfigResult,
 } from '#/types';
 
 export class ByfHarness {
@@ -173,6 +182,52 @@ export class ByfHarness {
     return this.rpc.removeProvider(providerId);
   }
 
+  async updateConfig(input: UpdateConfigInput = {}): Promise<UpdateConfigResult> {
+    const configPath = input.configPath ?? this.configPath;
+
+    if (!existsSync(configPath)) {
+      return { findings: [], fixed: false };
+    }
+
+    const config = readConfigFile(configPath);
+    const findings = analyzeConfig(config);
+
+    if (!input.fix || findings.length === 0) {
+      return { findings, fixed: false };
+    }
+
+    // Backup before writing
+    const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
+    const backupPath = `${configPath}.bak.${timestamp}`;
+    await copyFile(configPath, backupPath);
+    await chmod(backupPath, 0o600);
+
+    try {
+      const fixedConfig = applyFixes(config, findings);
+      await writeConfigFile(configPath, fixedConfig);
+
+      // Re-read to verify the file is valid
+      readConfigFile(configPath);
+
+      return { findings, fixed: true, backupPath };
+    } catch (error) {
+      // Rollback: restore backup on write/validation failure
+      try {
+        await copyFile(backupPath, configPath);
+      } catch (rollbackError) {
+        // Best-effort rollback — if restore also fails, the original error is
+        // re-thrown with the rollback error attached as `cause` so that the
+        // backup path is still available in logs/crash reports.
+        throw new Error(
+          `[update-config] Rollback failed: could not restore backup at ${backupPath}. ` +
+            `Original error: ${errorMessage(error)}. Rollback error: ${errorMessage(rollbackError)}.`,
+          { cause: rollbackError },
+        );
+      }
+      throw error;
+    }
+  }
+
   async shellExec(
     command: string,
     options: { cwd?: string; timeout?: number } = {},
@@ -222,4 +277,8 @@ function normalizeSessionId(value: string): string {
     throw new ByfError(ErrorCodes.SESSION_ID_EMPTY, 'Session id cannot be empty.');
   }
   return normalized;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

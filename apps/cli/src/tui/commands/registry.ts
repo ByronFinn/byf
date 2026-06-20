@@ -75,6 +75,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 80,
   },
   {
+    name: 'update-config',
+    aliases: ['uc'],
+    description: 'Scan config.toml for deprecated or unknown fields',
+    priority: 60,
+    availability: 'always',
+  },
+  {
     name: 'init',
     aliases: [],
     description: 'Analyze the codebase and generate AGENTS.md',

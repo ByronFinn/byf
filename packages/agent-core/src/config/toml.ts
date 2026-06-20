@@ -273,13 +273,13 @@ export function configToTomlData(config: ByfConfig): Record<string, unknown> {
   delete out['default_yolo'];
   delete out['defaultYolo'];
   delete out['defaultPermissionMode'];
+  delete out['default_thinking'];
 
   // Top-level scalar fields
   const scalarFields: (keyof ByfConfig)[] = [
     'defaultProvider',
     'defaultModel',
     'yolo',
-    'defaultThinking',
     'defaultPermissionMode',
     'mergeAllAvailableSkills',
     'extraSkillDirs',

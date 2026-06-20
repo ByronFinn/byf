@@ -36,6 +36,9 @@ CLI command to configure a catalog provider from models.dev. Complements `/login
 ### /logout
 CLI command to open an interactive selector to remove a configured provider. The provider for `defaultModel` is highlighted by default. The `/disconnect` alias behaves identically.
 
+### update-config
+CLI subcommand (`byf update-config`) that audits and optionally rewrites `~/.byf/config.toml` against the current schema: removes deprecated fields, migrates `default_thinking` into the `[thinking]` section, clears stale keys that survive the normal read→write roundtrip via `config.raw`, and reports (never auto-deletes) dangling references to non-existent providers. Runs as dry-run by default; `--fix` applies changes after a timestamped backup. Rules ship with BYF and evolve per release.
+
 ### Agent
 The central class in `agent-core`. Holds subsystem references (ContextMemory, ConfigState, ToolManager, PermissionManager, FullCompaction, BackgroundManager, AgentRecords, TurnFlow, InjectionManager, UsageRecorder, SkillManager, HookEngine, ReplayBuilder). Must be usable on its own — the constructor must not force the caller to create a Session instance, nor require an `agentId` or `session`.
 

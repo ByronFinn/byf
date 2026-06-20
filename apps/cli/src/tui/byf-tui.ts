@@ -1433,6 +1433,9 @@ export class ByfTui implements DialogHost {
       case 'connect':
         await this.handleConnectCommand(args);
         return;
+      case 'update-config':
+        await this.handleUpdateConfigCommand(args);
+        return;
       case 'login':
         await this.handleLoginCommand();
         return;
@@ -4022,6 +4025,53 @@ export class ByfTui implements DialogHost {
       this.failSessionRequest(`Init failed: ${msg}`);
     } finally {
       this.deferUserMessages = false;
+    }
+  }
+
+  // Handles the /update-config command.
+  private async handleUpdateConfigCommand(args: string): Promise<void> {
+    const fix = args.includes('--fix') || args.includes('fix');
+    try {
+      const result = await this.harness.updateConfig({ fix });
+      const { findings, fixed, backupPath } = result;
+
+      if (findings.length === 0) {
+        this.showStatus('No deprecated fields found. Config is up to date.');
+        return;
+      }
+
+      // Build a summary string grouped by kind
+      const summary: string[] = [];
+      const groups = new Map<string, string[]>();
+      for (const f of findings) {
+        const list = groups.get(f.kind) ?? [];
+        list.push(f.path);
+        groups.set(f.kind, list);
+      }
+      for (const [kind, items] of groups) {
+        summary.push(`${kind} (${items.length}):`);
+        for (const item of items) {
+          summary.push(`  ${item}`);
+        }
+      }
+      if (fixed) {
+        summary.push('');
+        summary.push('Config has been updated.');
+        if (backupPath) {
+          summary.push(`Backup: ${backupPath}`);
+        }
+      } else {
+        summary.push('');
+        summary.push('Run with --fix to apply these changes.');
+      }
+
+      this.showNotice(
+        `Config scan: ${findings.length} issue${findings.length > 1 ? 's' : ''} found`,
+        summary.join('\n'),
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.showError(`Config scan failed: ${msg}`);
     }
   }
 
