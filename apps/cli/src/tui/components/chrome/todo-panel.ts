@@ -85,7 +85,7 @@ export class TodoPanelComponent implements Component, Expandable {
         lines.push(renderRow(todo, c));
       }
       if (this.todos.length > MAX_VISIBLE_TODOS) {
-        lines.push(`  ${chalk.hex(c.textDim)('▲ collapse')}`);
+        lines.push(`  ${chalk.hex(c.textDim)('▲ collapse (ctrl+t)')}`);
       }
     } else {
       const visible = this.todos.slice(0, MAX_VISIBLE_TODOS);
@@ -94,7 +94,7 @@ export class TodoPanelComponent implements Component, Expandable {
       }
       const remaining = this.todos.length - MAX_VISIBLE_TODOS;
       if (remaining > 0) {
-        lines.push(`  ${chalk.hex(c.textDim)(`+${remaining} more`)}`);
+        lines.push(`  ${chalk.hex(c.textDim)(`+${remaining} more (ctrl+t to expand)`)}`);
       }
     }
 
