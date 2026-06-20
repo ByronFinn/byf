@@ -1,7 +1,6 @@
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
-export type PlanData = null;
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
@@ -11,6 +10,8 @@ import type { ContentPart } from '@byfriends/kosong';
 
 import type { UsageStatus } from './events';
 import type { WithAgentId, WithSessionId } from './types';
+
+export type PlanData = null;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };

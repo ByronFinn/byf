@@ -1,5 +1,10 @@
-import type { ModelAlias, Catalog, CatalogModel } from '@byfriends/sdk';
-import { catalogModelToAlias, inferWireType } from '@byfriends/sdk';
+import {
+  catalogModelToAlias,
+  inferWireType,
+  type ModelAlias,
+  type Catalog,
+  type CatalogModel,
+} from '@byfriends/sdk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
 import { ApiKeyInputDialogComponent } from '#/tui/components/dialogs/api-key-input-dialog';
@@ -7,8 +12,7 @@ import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialo
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import { TextInputDialogComponent } from '#/tui/components/dialogs/text-input-dialog';
 
-import type { DialogHost } from '../types';
-import type { ThinkingEffortLevel } from '../types';
+import type { DialogHost, ThinkingEffortLevel } from '../types';
 
 export function promptTextInput(
   host: DialogHost,

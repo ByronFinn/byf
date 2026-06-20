@@ -1,9 +1,9 @@
 import type {
   ExportSessionManifest,
   ResumeSessionResult,
+  RuntimeConfig,
 } from '@byfriends/agent-core';
 import type { ContentPart } from '@byfriends/kosong';
-import type { RuntimeConfig } from '@byfriends/agent-core';
 
 export interface HostIdentity {
   readonly userAgentProduct: string;
