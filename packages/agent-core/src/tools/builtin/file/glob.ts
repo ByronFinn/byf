@@ -42,7 +42,15 @@ import type { WorkspaceConfig } from '../../support/workspace';
 import GLOB_DESCRIPTION from './glob.md';
 
 export const GlobInputSchema = z.object({
-  pattern: z.string().describe('Glob pattern to match files/directories.'),
+  pattern: z
+    .string()
+    .describe(
+      'Glob pattern to match files/directories. ' +
+      'IMPORTANT: pattern MUST contain a literal anchor like a file extension (.ts) or a ' +
+      'subdirectory name (src/). Patterns starting with **/ (e.g. **/*.py, **/main/*.ts), ' +
+      'pure wildcards (**, **/*, */*, *), and brace expansion (*.{ts,tsx}) are REJECTED. ' +
+      'Example: src/**/*.ts searches all .ts files under src/.',
+    ),
   path: z
     .string()
     .optional()
