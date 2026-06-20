@@ -237,9 +237,9 @@ describe('TasksBrowserController', () => {
     const spy = spySetProps(comp);
     controller.repaint();
 
-    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
+    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => Promise<void>;
 
-    onStopConfirmed('bash-aaa');
+    await onStopConfirmed('bash-aaa');
     expect(stopFn).toHaveBeenCalledWith('bash-aaa', { reason: 'stopped from /tasks' });
   });
 
@@ -253,9 +253,9 @@ describe('TasksBrowserController', () => {
 
     const spy = spySetProps(comp);
     controller.repaint();
-    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => Promise<void>;
 
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
 
     expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
   });
@@ -270,11 +270,11 @@ describe('TasksBrowserController', () => {
 
     const spy = spySetProps(comp);
     controller.repaint();
-    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => Promise<void>;
 
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
     const countAfterFirst = env.host.fullscreenPanels.length;
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
 
     expect(env.host.fullscreenPanels).toHaveLength(countAfterFirst);
   });
@@ -289,9 +289,9 @@ describe('TasksBrowserController', () => {
 
     const spy = spySetProps(comp);
     controller.repaint();
-    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => Promise<void>;
 
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
 
     controller.close();
     expect(controller.isOpen).toBe(false);
@@ -427,9 +427,9 @@ describe('TasksBrowserController', () => {
     const spy = spySetProps(comp);
 
     controller.repaint();
-    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => Promise<void>;
 
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
 
     expect(lastProps(spy)['flashMessage']).toContain('Cannot open output');
   });
@@ -446,9 +446,9 @@ describe('TasksBrowserController', () => {
     const spy = spySetProps(comp);
 
     controller.repaint();
-    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => void;
+    const onStopConfirmed = lastProps(spy)['onStopConfirmed'] as (taskId: string) => Promise<void>;
 
-    onStopConfirmed('bash-aaa');
+    await onStopConfirmed('bash-aaa');
 
     expect(lastProps(spy)['flashMessage']).toContain('Stop failed');
   });
@@ -463,9 +463,9 @@ describe('TasksBrowserController', () => {
     const spy = spySetProps(comp);
 
     controller.repaint();
-    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => void;
+    const onOpenOutput = lastProps(spy)['onOpenOutput'] as (taskId: string) => Promise<void>;
 
-    onOpenOutput('bash-aaa');
+    await onOpenOutput('bash-aaa');
     expect(env.host.fullscreenPanels.length).toBeGreaterThanOrEqual(2);
 
     controller.close();
