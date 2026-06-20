@@ -590,7 +590,7 @@ describe('GlobTool', () => {
     const tool = new GlobTool(createFakeKaos(), workspace);
 
     expect(tool.description).toMatch(/literal anchor|no literal anchor/i);
-    expect(tool.description).toContain('pure wildcard');
-    expect(tool.description).toContain('brace expansion');
+    expect(tool.description).toContain('Pure wildcards');
+    expect(tool.description).toContain('Brace expansion');
   });
 });
