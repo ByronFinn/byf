@@ -28,6 +28,7 @@
     "@arethetypeswrong/cli": "0.18.2",
     "@changesets/changelog-github": "0.7.0",
     "@changesets/cli": "2.30.0",
+    "@mariozechner/clipboard": "^0.3.9",
     "@microsoft/api-extractor": "7.58.7",
     "@types/node": "^22.15.3",
     "@vitest/coverage-v8": "4.1.4",
@@ -59,8 +60,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
-  },
-  "dependencies": {
-    "@mariozechner/clipboard": "0.3.9"
   }
 }

@@ -20,6 +20,9 @@ import {
 import { PriorityRouter, AllProvidersFailedError } from '../../src/tools/providers/router';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
+import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
+import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
 
 const signal = new AbortController().signal;
 
@@ -405,8 +408,6 @@ describe('PriorityRouter', () => {
 
 // ── ExaWebSearchProvider ─────────────────────────────────────────────
 
-import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
-
 function exaFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
   return vi.fn<typeof fetch>().mockResolvedValue(
     new Response(JSON.stringify({ results }), { status: 200 }),
@@ -534,8 +535,6 @@ describe('ExaWebSearchProvider', () => {
 
 // ── BraveWebSearchProvider ────────────────────────────────────────────
 
-import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
-
 function braveFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
   return vi.fn<typeof fetch>().mockResolvedValue(
     new Response(JSON.stringify({ web: { results } }), { status: 200 }),
@@ -583,8 +582,6 @@ describe('BraveWebSearchProvider', () => {
 });
 
 // ── FirecrawlWebSearchProvider ────────────────────────────────────────
-
-import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
 
 function firecrawlFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
   return vi.fn<typeof fetch>().mockResolvedValue(
