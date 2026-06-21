@@ -26,32 +26,18 @@ import {
 } from '@byfriends/sdk';
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import type {
-  AgentStatusUpdatedEvent,
   BackgroundTaskInfo,
-  BackgroundTaskStartedEvent,
-  BackgroundTaskTerminatedEvent,
-  BackgroundTaskUpdatedEvent,
-  CompactionCancelledEvent,
-  CompactionCompletedEvent,
-  CompactionStartedEvent,
   CreateSessionOptions,
-  ErrorEvent,
   Event,
   ByfHarness,
   McpServerInfo,
   PermissionMode,
   PromptPart,
   Session,
-  SessionMetaUpdatedEvent,
   SessionStatus,
   SessionUsage,
   ShellExecResult,
-  SkillActivatedEvent,
-  SubagentCompletedEvent,
-  SubagentFailedEvent,
-  SubagentSpawnedEvent,
   TurnEndedEvent,
-  WarningEvent,
 } from '@byfriends/sdk';
 import chalk from 'chalk';
 
@@ -160,8 +146,6 @@ import {
   type TranscriptEntry,
   type ThinkingEffortLevel,
 } from './types';
-import { formatBackgroundAgentTranscript } from './utils/background-agent-status';
-import { formatBackgroundTaskTranscript } from './utils/background-task-status';
 import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import {
@@ -185,7 +169,6 @@ import {
   handleSessionWarning,
   handleStatusUpdate,
   type SessionMetaCallbacks,
-  type SessionMetaState,
 } from './events/session-meta-handler';
 import {
   handleSubagentSpawned as handleSubagentSpawnedImpl,
@@ -200,6 +183,19 @@ import {
   type TurnEventCallbacks,
   type TurnEventState,
 } from './events/turn-event-handler';
+import {
+  CompactionHandler,
+  type CompactionCallbacks,
+  type CompactionState,
+} from './events/compaction-handler';
+import {
+  handleSkillActivated,
+} from './events/skill-activation-handler';
+import {
+  BackgroundTaskHandler,
+  type BackgroundTaskCallbacks,
+  type BackgroundTaskState,
+} from './events/background-task-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -454,6 +450,8 @@ export class ByfTui implements DialogHost {
   private readonly tasksBrowserController: TasksBrowserController;
   private readonly agentsController: SubagentsController;
   private readonly dialogManager: DialogManager;
+  private readonly compactionHandler: CompactionHandler;
+  private readonly backgroundTaskHandler: BackgroundTaskHandler;
 
   /** Hide function for an active approval overlay, or undefined. */
   private approvalOverlayHide: (() => void) | undefined;
@@ -488,6 +486,11 @@ export class ByfTui implements DialogHost {
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
     this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
     this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
+    this.compactionHandler = new CompactionHandler(this.compactionState(), this.compactionCallbacks());
+    this.backgroundTaskHandler = new BackgroundTaskHandler(
+      this.backgroundTaskState(),
+      this.backgroundTaskCallbacks(),
+    );
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -2066,9 +2069,16 @@ export class ByfTui implements DialogHost {
       case 'turn.started':
         this.turnEventHandler.handleTurnBegin(event);
         break;
-      case 'turn.ended':
-        this.handleTurnEnd(event, sendQueued);
+      case 'turn.ended': {
+        this.turnEventHandler.flushStreamingUiUpdatesNow();
+        const todos = this.state.todoPanel.getTodos();
+        if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
+          this.setTodoList([]);
+        }
+        this.turnEventHandler.resetLiveToolUiState();
+        this.turnEventHandler.handleTurnEnd(event, sendQueued);
         break;
+      }
       case 'turn.step.started':
         this.turnEventHandler.handleStepBegin(event);
         break;
@@ -2102,44 +2112,62 @@ export class ByfTui implements DialogHost {
         this.turnEventHandler.handleToolResult(event);
         break;
       case 'agent.status.updated':
-        this.handleStatusUpdate(event);
+        handleStatusUpdate(event, (patch) =>{ this.setAppState(patch); });
         break;
       case 'session.meta.updated':
-        this.handleSessionMetaChanged(event);
+        handleSessionMetaChanged(event, (patch) =>{ this.setAppState(patch); });
         break;
       case 'skill.activated':
-        this.handleSkillActivated(event);
+        handleSkillActivated(
+          event,
+          { renderedSkillActivationIds: this.state.renderedSkillActivationIds },
+          { appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); } },
+        );
         break;
       case 'error':
-        this.handleSessionError(event);
+        handleSessionError(
+          event,
+          {
+            sessionId: this.state.appState.sessionId,
+            theme: { colors: { warning: this.state.theme.colors.warning } },
+          },
+          this.sessionMetaCallbacks(),
+        );
         break;
       case 'warning':
-        this.handleSessionWarning(event);
+        handleSessionWarning(
+          event,
+          {
+            sessionId: this.state.appState.sessionId,
+            theme: { colors: { warning: this.state.theme.colors.warning } },
+          },
+          (msg, color) => { this.showStatus(msg, color); },
+        );
         break;
       case 'compaction.started':
-        this.handleCompactionBegin(event);
+        this.compactionHandler.handleBegin(event);
         break;
       case 'compaction.completed':
-        this.handleCompactionEnd(event, sendQueued);
+        this.compactionHandler.handleEnd(event, sendQueued);
         break;
       case 'compaction.blocked':
         break;
       case 'compaction.cancelled':
-        this.handleCompactionCancel(event, sendQueued);
+        this.compactionHandler.handleCancel(event, sendQueued);
         break;
       case 'subagent.spawned':
-        this.handleSubagentSpawned(event);
+        handleSubagentSpawnedImpl(event, this.subagentEventState(), this.subagentCallbacks());
         break;
       case 'subagent.completed':
-        this.handleSubagentCompleted(event);
+        handleSubagentCompletedImpl(event, this.subagentEventState(), this.subagentCallbacks());
         break;
       case 'subagent.failed':
-        this.handleSubagentFailed(event);
+        handleSubagentFailedImpl(event, this.subagentEventState(), this.subagentCallbacks());
         break;
       case 'background.task.started':
       case 'background.task.updated':
       case 'background.task.terminated':
-        this.handleBackgroundTaskEvent(event);
+        this.backgroundTaskHandler.handleEvent(event);
         break;
       case 'mcp.server.status':
         this.renderMcpServerStatus(event.server);
@@ -2154,18 +2182,6 @@ export class ByfTui implements DialogHost {
   // Routes child-agent events into their parent tool-call component.
   private routeSubagentEvent(event: Event): boolean {
     return routeSubagentEventImpl(event, this.subagentEventState());
-  }
-
-
-  // Finalizes turn-scoped state when the SDK completes a turn.
-  private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
-    this.turnEventHandler.flushStreamingUiUpdatesNow();
-    const todos = this.state.todoPanel.getTodos();
-    if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
-      this.setTodoList([]);
-    }
-    this.turnEventHandler.resetLiveToolUiState();
-    this.turnEventHandler.handleTurnEnd(event, sendQueued);
   }
 
 
@@ -2267,28 +2283,42 @@ export class ByfTui implements DialogHost {
     };
   }
 
-  private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    handleStatusUpdate(event, (patch) =>{  this.setAppState(patch); });
-  }
-
-  private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
-    handleSessionMetaChanged(event, (patch) =>{  this.setAppState(patch); });
-  }
-
-  private handleSessionError(event: ErrorEvent): void {
-    const metaState: SessionMetaState = {
-      sessionId: this.state.appState.sessionId,
-      theme: { colors: { warning: this.state.theme.colors.warning } },
+  private compactionState(): CompactionState {
+    const state = this.state;
+    return {
+      get appState() { return state.appState; },
+      get queuedMessages() { return state.queuedMessages; },
+      set queuedMessages(v: QueuedMessage[]) { state.queuedMessages = v; },
     };
-    handleSessionError(event, metaState, this.sessionMetaCallbacks());
   }
 
-  private handleSessionWarning(event: WarningEvent): void {
-    const metaState: SessionMetaState = {
-      sessionId: this.state.appState.sessionId,
-      theme: { colors: { warning: this.state.theme.colors.warning } },
+  private compactionCallbacks(): CompactionCallbacks {
+    return {
+      finalizeLiveTextBuffers: (mode) => { this.finalizeLiveTextBuffers(mode); },
+      setAppState: (patch) => { this.setAppState(patch); },
+      resetLivePane: () => { this.resetLivePane(); },
+      beginCompactionBlock: (instruction) => { this.beginCompaction(instruction); },
+      endCompactionBlock: (tokensBefore, tokensAfter) => { this.endCompaction(tokensBefore, tokensAfter); },
+      cancelCompactionBlock: () => { this.cancelCompactionBlock(); },
     };
-    handleSessionWarning(event, metaState, (msg, color) =>{  this.showStatus(msg, color); });
+  }
+
+  private backgroundTaskState(): BackgroundTaskState {
+    const state = this.state;
+    return {
+      get backgroundTasks() { return state.backgroundTasks; },
+      get backgroundTaskTranscriptedTerminal() { return state.backgroundTaskTranscriptedTerminal; },
+      get currentTurnId() { return state.currentTurnId; },
+    };
+  }
+
+  private backgroundTaskCallbacks(): BackgroundTaskCallbacks {
+    return {
+      appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); },
+      requestRender: () => { this.state.ui.requestRender(); },
+      setBackgroundCounts: (counts) => { this.state.footer.setBackgroundCounts(counts); },
+      repaintTasksBrowser: () => { this.tasksBrowserController.repaint(); },
+    };
   }
 
   private renderMcpServerStatus(server: McpServerStatusSnapshot): void {
@@ -2368,78 +2398,13 @@ export class ByfTui implements DialogHost {
     this.state.mcpServerStatusSpinners.clear();
   }
 
-  // Adds a skill activation entry to the transcript once.
-  private handleSkillActivated(event: SkillActivatedEvent): void {
-    if (this.state.renderedSkillActivationIds.has(event.activationId)) return;
-    this.state.renderedSkillActivationIds.add(event.activationId);
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'skill_activation',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: `Activated skill: ${event.skillName}`,
-      skillActivationId: event.activationId,
-      skillName: event.skillName,
-      skillArgs: event.skillArgs,
-    });
-  }
-
-  // Starts the compaction UI block and marks the app as compacting.
-  private handleCompactionBegin(event: CompactionStartedEvent): void {
-    this.finalizeLiveTextBuffers('waiting');
-    this.setAppState({
-      isCompacting: true,
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
-    this.beginCompaction(event.instruction);
-  }
-
-  // Finishes compaction and resumes queued work when possible.
-  private handleCompactionEnd(
-    event: CompactionCompletedEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
-    this.endCompaction(event.result.tokensBefore, event.result.tokensAfter);
-    this.finishCompaction(sendQueued);
-  }
-
-  private handleCompactionCancel(
-    _event: CompactionCancelledEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
-    this.cancelCompactionBlock();
-    this.finishCompaction(sendQueued);
-  }
-
-  private finishCompaction(sendQueued: (item: QueuedMessage) => void): void {
-    if (!this.state.appState.isStreaming) {
-      this.setAppState({
-        isCompacting: false,
-        streamingPhase: 'idle',
-      });
-      this.resetLivePane();
-      if (this.state.queuedMessages.length > 0) {
-        const [next, ...rest] = this.state.queuedMessages;
-        this.state.queuedMessages = rest;
-        if (next !== undefined) {
-          setTimeout(() => {
-            sendQueued(next);
-          }, 0);
-        }
-      }
-    } else {
-      this.setAppState({ isCompacting: false });
-    }
-  }
-
   private subagentCallbacks(): SubagentCallbacks {
     return {
       appendBackgroundAgentEntry: (phase, meta, extras) => {
-        this.appendBackgroundAgentEntry(phase, meta, extras);
+        this.backgroundTaskHandler.appendBackgroundAgentEntry(phase, meta, extras);
       },
       syncBackgroundAgentBadge: () => {
-        this.syncBackgroundAgentBadge();
+        this.backgroundTaskHandler.syncBackgroundAgentBadge();
       },
       appendTranscriptEntry: (entry) => {
         this.appendTranscriptEntry(entry);
@@ -2499,140 +2464,6 @@ export class ByfTui implements DialogHost {
       get currentStep() { return state.currentStep; },
       get currentTurnId() { return state.currentTurnId; },
     };
-  }
-
-  // Registers a spawned subagent and renders foreground or background status.
-  private handleSubagentSpawned(event: SubagentSpawnedEvent): void {
-    handleSubagentSpawnedImpl(event, this.subagentEventState(), this.subagentCallbacks());
-  }
-
-  // Completes a subagent in its parent tool call or background transcript entry.
-  private handleSubagentCompleted(event: SubagentCompletedEvent): void {
-    handleSubagentCompletedImpl(event, this.subagentEventState(), this.subagentCallbacks());
-  }
-
-  // Marks a subagent failure in its parent tool call or background transcript entry.
-  private handleSubagentFailed(event: SubagentFailedEvent): void {
-    handleSubagentFailedImpl(event, this.subagentEventState(), this.subagentCallbacks());
-  }
-
-  // Appends a background-agent status row to the transcript.
-  private appendBackgroundAgentEntry(
-    phase: 'started' | 'completed' | 'failed',
-    meta: BackgroundAgentMetadata,
-    extras: { resultSummary?: string; error?: string } | undefined = undefined,
-  ): void {
-    const status = formatBackgroundAgentTranscript(phase, meta, extras);
-    const entry: TranscriptEntry = {
-      id: nextTranscriptId(),
-      kind: 'status',
-      turnId: this.state.currentTurnId,
-      renderMode: 'plain',
-      content: status.headline,
-      detail: status.detail,
-      backgroundAgentStatus: status,
-    };
-    this.appendTranscriptEntry(entry);
-  }
-
-  // Updates the footer badge for active background agents.
-  private syncBackgroundAgentBadge(): void {
-    this.syncBackgroundTaskBadge();
-  }
-
-  // =========================================================================
-  // Background task lifecycle (BPM-derived, covers both bash + agent tasks)
-  // =========================================================================
-
-  private handleBackgroundTaskEvent(
-    event: BackgroundTaskStartedEvent | BackgroundTaskUpdatedEvent | BackgroundTaskTerminatedEvent,
-  ): void {
-    const { info } = event;
-    const previous = this.state.backgroundTasks.get(info.taskId);
-    this.state.backgroundTasks.set(info.taskId, info);
-
-    const isTerminal =
-      info.status === 'completed' ||
-      info.status === 'failed' ||
-      info.status === 'killed' ||
-      info.status === 'lost';
-
-    if (event.type === 'background.task.started') {
-      // For agent-* tasks, the legacy subagent.spawned flow already
-      // pushed a 'started' transcript card; skip to avoid duplicates.
-      if (info.taskId.startsWith('agent-')) {
-        this.syncBackgroundTaskBadge();
-        this.tasksBrowserController.repaint();
-        return;
-      }
-      this.appendBackgroundTaskEntry(info);
-      this.syncBackgroundTaskBadge();
-      this.tasksBrowserController.repaint();
-      return;
-    }
-
-    if (event.type === 'background.task.terminated' && isTerminal) {
-      if (!this.state.backgroundTaskTranscriptedTerminal.has(info.taskId)) {
-        // For agent-* tasks, the older subagent.completed/failed flow
-        // may also produce a terminal card; whoever wins records the
-        // dedupe marker first. See handleSubagentCompleted/Failed.
-        if (info.taskId.startsWith('bash-')) {
-          this.appendBackgroundTaskEntry(info);
-        }
-        this.state.backgroundTaskTranscriptedTerminal.add(info.taskId);
-      }
-      this.syncBackgroundTaskBadge();
-      this.tasksBrowserController.repaint();
-      return;
-    }
-
-    // updated: status flipped between running and awaiting_approval.
-    // No transcript card — just sync the badge if the active count
-    // changed (awaiting_approval still counts as active).
-    if (previous?.status !== info.status) {
-      this.syncBackgroundTaskBadge();
-    }
-    this.tasksBrowserController.repaint();
-  }
-
-  private appendBackgroundTaskEntry(info: BackgroundTaskInfo): void {
-    const status = formatBackgroundTaskTranscript(info);
-    const entry: TranscriptEntry = {
-      id: nextTranscriptId(),
-      kind: 'status',
-      turnId: this.state.currentTurnId,
-      renderMode: 'plain',
-      content: status.headline,
-      detail: status.detail,
-      backgroundAgentStatus: status,
-    };
-    this.appendTranscriptEntry(entry);
-  }
-
-  // Footer counts are BPM-derived: every task that is not terminal,
-  // split by id prefix so bash and agent badges render independently.
-  // awaiting_approval still counts as active; lost/killed/completed/
-  // failed do not.
-  private syncBackgroundTaskBadge(): void {
-    let bashTasks = 0;
-    let agentTasks = 0;
-    for (const info of this.state.backgroundTasks.values()) {
-      if (
-        info.status === 'completed' ||
-        info.status === 'failed' ||
-        info.status === 'killed' ||
-        info.status === 'lost'
-      ) {
-        continue;
-      }
-      if (info.taskId.startsWith('agent-')) {
-        agentTasks += 1;
-      } else {
-        bashTasks += 1;
-      }
-    }
-    this.state.footer.setBackgroundCounts({ bashTasks, agentTasks });
-    this.state.ui.requestRender();
   }
 
   // =========================================================================

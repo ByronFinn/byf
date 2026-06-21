@@ -33,14 +33,17 @@ Three goals drive the decomposition:
 | `ConnectFlow` | `src/tui/flows/connect-flow.ts` | 200 | Slash Command Handlers (`/connect`) |
 | `TasksBrowserController` | `src/tui/components/dialogs/tasks-browser/` | 840 | Background tasks browser |
 | `DialogHost` interface | `src/tui/types.ts` | 20 | New abstraction over `mountEditorReplacement` |
+| `BackgroundTaskHandler` | `src/tui/events/background-task-handler.ts` | 159 | Background task lifecycle |
+| `CompactionHandler` | `src/tui/events/compaction-handler.ts` | 74 | Session Runtime (compaction lifecycle) |
+| `handleSkillActivated` | `src/tui/events/skill-activation-handler.ts` | 37 | Session Events (skill activation) |
 
 ### What stays in ByfTui
 
 - Types & state creation, Startup Helpers, Lifecycle, Auth/Model Bootstrap
 - Layout / Editor Setup, Input Dispatch
 - Session Requests / Queues, State Helpers (29 lines)
-- Session Runtime, Background task lifecycle
-- Panes / Presentation State, Dialogs / Selectors (mount logic)
+- Session Runtime (turn dispatch, streaming state), Panes / Presentation State
+- Dialogs / Selectors (mount logic)
 - Simple slash commands and selector-triggered commands
 
 ### DialogHost interface
