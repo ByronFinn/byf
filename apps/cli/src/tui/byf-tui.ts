@@ -169,6 +169,7 @@ import {
   handleSessionWarning,
   handleStatusUpdate,
   type SessionMetaCallbacks,
+  type SessionMetaState,
 } from './events/session-meta-handler';
 import {
   handleSubagentSpawned as handleSubagentSpawnedImpl,
@@ -190,6 +191,8 @@ import {
 } from './events/compaction-handler';
 import {
   handleSkillActivated,
+  type SkillActivationCallbacks,
+  type SkillActivationState,
 } from './events/skill-activation-handler';
 import {
   BackgroundTaskHandler,
@@ -1727,13 +1730,21 @@ export class ByfTui implements DialogHost {
     this.turnEventHandler.finalizeLiveTextBuffers(nextMode);
   }
 
+  // turn.ended: clear the todo panel when every task is done, then delegate the
+  // rest (flush/reset/finalize) to the handler, which self-orchestrates them.
+  // The todo policy stays here — todoPanel is TUI chrome the handler must not see.
+  private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
+    const todos = this.state.todoPanel.getTodos();
+    if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
+      this.setTodoList([]);
+    }
+    this.turnEventHandler.handleTurnEnd(event, sendQueued);
+  }
+
   // Completes a turn, dispatches queued work, and sends completion notification.
   private finalizeTurn(sendQueued: (item: QueuedMessage) => void): void {
     this.deferUserMessages = false;
-    this.turnEventHandler.handleTurnEnd(
-      { type: 'turn.ended', turnId: 0 } as TurnEndedEvent,
-      sendQueued,
-    );
+    this.turnEventHandler.finalizeTurn(sendQueued);
   }
 
   // =========================================================================
@@ -2069,16 +2080,9 @@ export class ByfTui implements DialogHost {
       case 'turn.started':
         this.turnEventHandler.handleTurnBegin(event);
         break;
-      case 'turn.ended': {
-        this.turnEventHandler.flushStreamingUiUpdatesNow();
-        const todos = this.state.todoPanel.getTodos();
-        if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
-          this.setTodoList([]);
-        }
-        this.turnEventHandler.resetLiveToolUiState();
-        this.turnEventHandler.handleTurnEnd(event, sendQueued);
+      case 'turn.ended':
+        this.handleTurnEnd(event, sendQueued);
         break;
-      }
       case 'turn.step.started':
         this.turnEventHandler.handleStepBegin(event);
         break;
@@ -2118,31 +2122,13 @@ export class ByfTui implements DialogHost {
         handleSessionMetaChanged(event, (patch) =>{ this.setAppState(patch); });
         break;
       case 'skill.activated':
-        handleSkillActivated(
-          event,
-          { renderedSkillActivationIds: this.state.renderedSkillActivationIds },
-          { appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); } },
-        );
+        handleSkillActivated(event, this.skillActivationState(), this.skillActivationCallbacks());
         break;
       case 'error':
-        handleSessionError(
-          event,
-          {
-            sessionId: this.state.appState.sessionId,
-            theme: { colors: { warning: this.state.theme.colors.warning } },
-          },
-          this.sessionMetaCallbacks(),
-        );
+        handleSessionError(event, this.sessionMetaState(), this.sessionMetaCallbacks());
         break;
       case 'warning':
-        handleSessionWarning(
-          event,
-          {
-            sessionId: this.state.appState.sessionId,
-            theme: { colors: { warning: this.state.theme.colors.warning } },
-          },
-          (msg, color) => { this.showStatus(msg, color); },
-        );
+        handleSessionWarning(event, this.sessionMetaState(), this.sessionMetaCallbacks());
         break;
       case 'compaction.started':
         this.compactionHandler.handleBegin(event);
@@ -2264,6 +2250,21 @@ export class ByfTui implements DialogHost {
       showStatus: (msg, color) =>{  this.showStatus(msg, color); },
       setAppState: (patch) =>{  this.setAppState(patch); },
     };
+  }
+
+  private sessionMetaState(): SessionMetaState {
+    return {
+      sessionId: this.state.appState.sessionId,
+      theme: { colors: { warning: this.state.theme.colors.warning } },
+    };
+  }
+
+  private skillActivationState(): SkillActivationState {
+    return { renderedSkillActivationIds: this.state.renderedSkillActivationIds };
+  }
+
+  private skillActivationCallbacks(): SkillActivationCallbacks {
+    return { appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); } };
   }
 
   private dialogManagerCallbacks(): DialogManagerCallbacks {
