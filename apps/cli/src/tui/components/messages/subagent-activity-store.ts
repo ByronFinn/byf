@@ -59,7 +59,7 @@ export interface SubToolActivity {
 
 /**
  * Immutable subagent state snapshot. `AgentGroupComponent` reads one-time
- * views via `ToolCallComponent.getSubagentSnapshot(); `onSnapshotChange`
+ * views via `ToolCallComponent.getSubagentSnapshot()`; `onSnapshotChange`
  * notifies it when state changes.
  *
  * `latestActivity` priority, used only while running:
@@ -451,9 +451,7 @@ export class SubagentActivityStore {
     this.ongoingSubCalls.set(call.id, {
       name: call.name,
       args: call.args,
-      ...(existing?.streamingArguments !== undefined
-        ? { streamingArguments: existing.streamingArguments }
-        : {}),
+      streamingArguments: existing?.streamingArguments,
     });
     this.upsertSubToolActivity(call.id, call.name, call.args, 'ongoing');
     if (this.subagentPhase === undefined || this.subagentPhase === 'spawning') {

@@ -22,6 +22,11 @@ consistent with the rest of the switch:
 - `error` / `warning`: extract `sessionMetaState()` and reuse the existing
   `sessionMetaCallbacks()` for both, instead of inline state objects and ad-hoc
   arrow functions.
+- Unify `handleStatusUpdate`, `handleSessionMetaChanged`, and `handleSessionWarning`
+  from a single-callback parameter (`SessionMetaCallbacks['setAppState']` /
+  `['showStatus']`) to the whole `SessionMetaCallbacks` object, matching
+  `handleSessionError`'s existing shape. Their unit tests are updated to use the
+  shared `makeCallbacks()` mock.
 
-No handler function signatures change (the `(event, state, callbacks)` triplet is
-preserved), so existing handler unit tests are unaffected. Behavior is unchanged.
+The dispatch-case delegation shape (single-line `fn(event, ...)`) is preserved
+across all cases. Behavior is unchanged.

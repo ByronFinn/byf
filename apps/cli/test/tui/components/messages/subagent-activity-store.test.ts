@@ -210,7 +210,7 @@ describe('SubagentActivityStore', () => {
     expect(listener).toHaveBeenCalledTimes(2); // completed → notifySnapshotChange
 
     // After completed, further live updates should be ignored
-    vi.fn(listener).mockClear();
+    listener.mockClear();
     store.updateSubagentLiveUsage({ inputOther: 999, output: 999 });
     expect(store.usageTokens).toBe(300); // still the completed value (200 + 100)
     expect(listener).not.toHaveBeenCalled();
@@ -534,5 +534,86 @@ describe('SubagentActivityStore', () => {
     expect(recent.length).toBe(4); // MAX_SINGLE_SUBAGENT_TOOL_ROWS
     expect(recent[0]!.id).toBe('tc_2');
     expect(recent[3]!.id).toBe('tc_5');
+  });
+
+  // ── syncElapsedTimer / stopElapsedTimer ────────────────────────────
+
+  it('syncElapsedTimer starts an interval that ticks onTick + requestRender every second', () => {
+    const store = new SubagentActivityStore();
+    store.onSubagentSpawned({ agentId: 's', runInBackground: false });
+    const requestRender = vi.fn();
+    const onTick = vi.fn();
+
+    store.syncElapsedTimer(undefined, { requestRender } as never, onTick);
+    // No tick before the 1s interval fires.
+    expect(onTick).not.toHaveBeenCalled();
+    expect(requestRender).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1000);
+    expect(onTick).toHaveBeenCalledTimes(1);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1000);
+    expect(onTick).toHaveBeenCalledTimes(2);
+    expect(requestRender).toHaveBeenCalledTimes(2);
+
+    store.stopElapsedTimer();
+  });
+
+  it('syncElapsedTimer is a no-op when ui is undefined', () => {
+    const store = new SubagentActivityStore();
+    store.onSubagentSpawned({ agentId: 's', runInBackground: false });
+    const onTick = vi.fn();
+
+    store.syncElapsedTimer(undefined, undefined, onTick);
+    vi.advanceTimersByTime(3000);
+    expect(onTick).not.toHaveBeenCalled();
+  });
+
+  it('syncElapsedTimer does not start a second interval when already ticking', () => {
+    const store = new SubagentActivityStore();
+    store.onSubagentSpawned({ agentId: 's', runInBackground: false });
+    const ui = { requestRender: vi.fn() } as never;
+    const onTick = vi.fn();
+
+    store.syncElapsedTimer(undefined, ui, onTick);
+    store.syncElapsedTimer(undefined, ui, onTick); // second call: already ticking
+
+    vi.advanceTimersByTime(1000);
+    // Only one tick despite two syncElapsedTimer calls.
+    expect(onTick).toHaveBeenCalledTimes(1);
+    store.stopElapsedTimer();
+  });
+
+  it('syncElapsedTimer stops the interval when phase is terminal', () => {
+    const store = new SubagentActivityStore();
+    store.onSubagentSpawned({ agentId: 's', runInBackground: false });
+    const ui = { requestRender: vi.fn() } as never;
+    const onTick = vi.fn();
+
+    store.syncElapsedTimer(undefined, ui, onTick);
+    // Transition to a terminal phase, then re-sync: should stop, not start.
+    store.onSubagentCompleted({ resultSummary: 'done' });
+    store.syncElapsedTimer(undefined, ui, onTick);
+
+    vi.advanceTimersByTime(3000);
+    // The pre-existing interval was cleared by stopElapsedTimer; no further ticks.
+    expect(onTick).not.toHaveBeenCalled();
+  });
+
+  it('stopElapsedTimer is a no-op when no timer is running', () => {
+    const store = new SubagentActivityStore();
+    // Calling stop before any sync should not throw.
+    expect(() => store.stopElapsedTimer()).not.toThrow();
+  });
+
+  it('stopElapsedTimer is idempotent', () => {
+    const store = new SubagentActivityStore();
+    store.onSubagentSpawned({ agentId: 's', runInBackground: false });
+    const ui = { requestRender: vi.fn() } as never;
+    store.syncElapsedTimer(undefined, ui, vi.fn());
+
+    store.stopElapsedTimer();
+    expect(() => store.stopElapsedTimer()).not.toThrow();
   });
 });
