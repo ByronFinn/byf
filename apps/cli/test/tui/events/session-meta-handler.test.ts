@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type {
   AgentStatusUpdatedEvent,
@@ -73,112 +73,111 @@ function makeState(overrides: Partial<SessionMetaState> = {}): SessionMetaState 
 
 describe('handleStatusUpdate', () => {
   it('applies context usage patch', () => {
-    const { calls } = makeCallbacks();
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       contextUsage: 0.75,
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0]![0]).toEqual({ contextUsage: 0.75 });
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    expect(calls.setAppState[0]).toEqual({ contextUsage: 0.75 });
   });
 
   it('applies model and permission patches together', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       model: 'k2',
       permission: 'yolo',
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch.model).toBe('k2');
     expect(patch.permissionMode).toBe('yolo');
     expect(patch.yolo).toBe(true);
   });
 
   it('does not call setAppState for empty patch', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).not.toHaveBeenCalled();
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(0);
   });
 
   // ── cache hit-rate: data plumbing from event.usage.currentTurn ──
 
   it('A1: computes cacheHitRate from currentTurn with cache reads', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
         currentTurn: { inputOther: 500, inputCacheRead: 8700, inputCacheCreation: 0 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.9457, 4);
   });
 
   it('A2: computes cacheHitRate = 0 when no reads (first turn)', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
         currentTurn: { inputOther: 10000, inputCacheRead: 0, inputCacheCreation: 2000 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(0);
   });
 
   it('A3: returns cacheHitRate = undefined when denominator is zero', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
         currentTurn: { inputOther: 0, inputCacheRead: 0, inputCacheCreation: 0 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeUndefined();
   });
 
   it('A4: does not include cacheHitRate when usage is undefined', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: undefined,
     };
-    handleStatusUpdate(event, setAppState);
+    handleStatusUpdate(event, callbacks);
     // No other fields, so patch is empty → no setAppState call
-    expect(setAppState).not.toHaveBeenCalled();
+    expect(calls.setAppState).toHaveLength(0);
   });
 
   it('A5: does not include cacheHitRate when currentTurn is undefined', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: { currentTurn: undefined },
     };
-    handleStatusUpdate(event, setAppState);
+    handleStatusUpdate(event, callbacks);
     // No other fields, so patch is empty → no setAppState call
-    expect(setAppState).not.toHaveBeenCalled();
+    expect(calls.setAppState).toHaveLength(0);
   });
 
   it('A6: all fields coexist with cacheHitRate: 0.7', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       contextUsage: 0.42,
@@ -190,9 +189,9 @@ describe('handleStatusUpdate', () => {
         currentTurn: { inputOther: 300, inputCacheRead: 700, inputCacheCreation: 0 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch.contextUsage).toBe(0.42);
     expect(patch.contextTokens).toBe(4200);
     expect(patch.maxContextTokens).toBe(10000);
@@ -204,15 +203,15 @@ describe('handleStatusUpdate', () => {
   });
 
   it('A7: only old fields, no usage — patch identical to pre-change behavior', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       contextUsage: 0.65,
       permission: 'auto',
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch.contextUsage).toBe(0.65);
     expect(patch.permissionMode).toBe('auto');
     expect(patch.yolo).toBe(false);
@@ -220,44 +219,44 @@ describe('handleStatusUpdate', () => {
   });
 
   it('A8: 100% cache hit rate', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
         currentTurn: { inputOther: 0, inputCacheRead: 5000, inputCacheCreation: 0 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(1.0);
   });
 
   it('A9: 1% hit rate', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
         currentTurn: { inputOther: 9900, inputCacheRead: 100, inputCacheCreation: 0 } as never,
       },
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.01, 4);
   });
 
   it('A10: no usage key — existing fields extracted, no cacheHitRate', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       contextTokens: 12345,
     };
-    handleStatusUpdate(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    const patch = setAppState.mock.calls[0]![0];
+    handleStatusUpdate(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    const patch = calls.setAppState[0]!;
     expect(patch.contextTokens).toBe(12345);
     expect(patch).not.toHaveProperty('cacheHitRate');
   });
@@ -266,34 +265,34 @@ describe('handleStatusUpdate', () => {
 
 describe('handleSessionMetaChanged', () => {
   it('sets sessionTitle from event.title', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: SessionMetaUpdatedEvent = {
       type: 'session.meta.updated',
       title: 'My Session',
     };
-    handleSessionMetaChanged(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0]![0]).toEqual({ sessionTitle: 'My Session' });
+    handleSessionMetaChanged(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    expect(calls.setAppState[0]).toEqual({ sessionTitle: 'My Session' });
   });
 
   it('sets sessionTitle from patch.title when event.title is undefined', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: SessionMetaUpdatedEvent = {
       type: 'session.meta.updated',
       patch: { title: 'Patched Title' },
     };
-    handleSessionMetaChanged(event, setAppState);
-    expect(setAppState).toHaveBeenCalledOnce();
-    expect(setAppState.mock.calls[0]![0]).toEqual({ sessionTitle: 'Patched Title' });
+    handleSessionMetaChanged(event, callbacks);
+    expect(calls.setAppState).toHaveLength(1);
+    expect(calls.setAppState[0]).toEqual({ sessionTitle: 'Patched Title' });
   });
 
   it('does nothing when neither title nor patch.title is present', () => {
-    const setAppState = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: SessionMetaUpdatedEvent = {
       type: 'session.meta.updated',
     };
-    handleSessionMetaChanged(event, setAppState);
-    expect(setAppState).not.toHaveBeenCalled();
+    handleSessionMetaChanged(event, callbacks);
+    expect(calls.setAppState).toHaveLength(0);
   });
 });
 

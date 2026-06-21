@@ -2116,10 +2116,10 @@ export class ByfTui implements DialogHost {
         this.turnEventHandler.handleToolResult(event);
         break;
       case 'agent.status.updated':
-        handleStatusUpdate(event, (patch) =>{ this.setAppState(patch); });
+        handleStatusUpdate(event, this.sessionMetaCallbacks());
         break;
       case 'session.meta.updated':
-        handleSessionMetaChanged(event, (patch) =>{ this.setAppState(patch); });
+        handleSessionMetaChanged(event, this.sessionMetaCallbacks());
         break;
       case 'skill.activated':
         handleSkillActivated(event, this.skillActivationState(), this.skillActivationCallbacks());
