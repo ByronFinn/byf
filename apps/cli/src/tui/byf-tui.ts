@@ -2128,7 +2128,7 @@ export class ByfTui implements DialogHost {
         handleSessionError(event, this.sessionMetaState(), this.sessionMetaCallbacks());
         break;
       case 'warning':
-        handleSessionWarning(event, this.sessionMetaState(), this.sessionMetaCallbacks());
+        handleSessionWarning(event, this.sessionMetaState(), (msg, color) =>{  this.showStatus(msg, color); });
         break;
       case 'compaction.started':
         this.compactionHandler.handleBegin(event);
