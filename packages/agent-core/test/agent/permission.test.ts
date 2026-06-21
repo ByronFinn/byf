@@ -364,13 +364,10 @@ describe('Permission auto mode', () => {
   );
 
   it.each([
-    ['Read', { path: '/tmp/notes.md' }, 'read'],
-    ['ReadMediaFile', { path: '/tmp/image.png' }, 'read'],
     ['Write', { path: '/tmp/notes.md', content: 'x' }, 'write'],
     ['Edit', { path: '/tmp/notes.md', old_string: 'a', new_string: 'b' }, 'edit'],
-    ['Grep', { pattern: 'TODO', path: '/tmp' }, 'grep'],
   ] as const)(
-    'requests approval for %s outside the workspace in yolo mode',
+    'requests approval for %s outside the workspace in yolo mode (non-auto_allow tools)',
     async (toolName, args, operation) => {
       const { manager, requestApproval } = makePermissionManager(async () => ({
         decision: 'approved',
@@ -393,6 +390,26 @@ describe('Permission auto mode', () => {
         }),
         expect.any(Object),
       );
+    },
+  );
+
+  it.each([
+    ['Read', { path: '/tmp/notes.md' }],
+    ['ReadMediaFile', { path: '/tmp/image.png' }],
+    ['Grep', { pattern: 'TODO', path: '/tmp' }],
+  ] as const)(
+    'does not request approval for auto_allow %s outside the workspace in yolo mode',
+    async (toolName, args) => {
+      const { manager, requestApproval } = makePermissionManager(async () => ({
+        decision: 'approved',
+      }));
+      manager.setMode('yolo');
+
+      await expect(
+        manager.beforeToolCall(hookContext({ id: `call_${toolName}`, toolName, args })),
+      ).resolves.toBeUndefined();
+
+      expect(requestApproval).not.toHaveBeenCalled();
     },
   );
 
@@ -467,7 +484,7 @@ describe('Permission auto mode', () => {
     expect(requestApproval).not.toHaveBeenCalled();
   });
 
-  it('reuses approve-for-session for repeated outside-workspace reads in yolo mode', async () => {
+  it('reuses approve-for-session for repeated outside-workspace writes in yolo mode', async () => {
     const { manager, requestApproval } = makePermissionManager(async () => ({
       decision: 'approved',
       scope: 'session',
@@ -477,9 +494,9 @@ describe('Permission auto mode', () => {
     const call = () =>
       manager.beforeToolCall(
         hookContext({
-          id: 'call_read_session',
-          toolName: 'Read',
-          args: { path: '/tmp/notes.md' },
+          id: 'call_write_session',
+          toolName: 'Write',
+          args: { path: '/tmp/notes.md', content: 'x' },
         }),
       );
 
@@ -490,8 +507,8 @@ describe('Permission auto mode', () => {
     expect(manager.data().rules).toContainEqual({
       decision: 'allow',
       scope: 'session-runtime',
-      pattern: 'Read',
-      reason: 'approve_for_session: read file',
+      pattern: 'Write',
+      reason: 'approve_for_session: write file',
     });
   });
 });
