@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/vis",
-  "version": "0.1.0",
+  "version": "0.3.2",
   "private": true,
   "description": "Visual debugging tools for BYF sessions and replays",
   "license": "Proprietary",
