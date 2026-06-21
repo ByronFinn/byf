@@ -92,7 +92,59 @@ describe('HarnessAPI session skills', () => {
       source: 'builtin',
     });
     expect(listed?.path).toBe('builtin://mcp-config');
+
+    const updateConfig = skills.find((skill) => skill.name === 'update-config');
+    expect(updateConfig).toMatchObject({
+      name: 'update-config',
+      source: 'builtin',
+      disableModelInvocation: true,
+    });
+    expect(updateConfig?.path).toBe('builtin://update-config');
+
     expect(JSON.stringify(skills)).not.toContain('Your tool list contains one synthetic tool');
+  });
+
+  it('hides the update-config skill from the model and activates it via slash', async () => {
+    const { core, events, rpc } = await createTestRpc();
+    const created = await rpc.createSession({ id: 'ses_skill_update_config', workDir });
+
+    const session = core.sessions.get(created.id);
+    expect(session).toBeDefined();
+    // disableModelInvocation: the model cannot invoke it via the Skill tool,
+    // and it is absent from the model-visible skill listing.
+    const invocable = session!.skills.listInvocableSkills();
+    expect(invocable.some((skill) => skill.name === 'update-config')).toBe(false);
+    expect(session!.skills.getModelSkillListing()).not.toContain('update-config');
+
+    await rpc.activateSkill({
+      sessionId: created.id,
+      agentId: 'main',
+      name: 'update-config',
+    });
+    const activated = await waitForEvent(events, (event) => event.type === 'skill.activated');
+    expect(activated).toMatchObject({
+      type: 'skill.activated',
+      skillName: 'update-config',
+      trigger: 'user-slash',
+      skillSource: 'builtin',
+    });
+
+    await session?.flushMetadata();
+    const records = await readMainWire(created.sessionDir);
+    const prompt = records.find((record) => record['type'] === 'turn.prompt');
+    expect(prompt).toMatchObject({
+      type: 'turn.prompt',
+      origin: {
+        kind: 'skill_activation',
+        skillName: 'update-config',
+        skillSource: 'builtin',
+      },
+    });
+    // The skill body must carry the secret-handling instruction (config.toml
+    // holds plaintext api_key values) and point at the schema source of truth.
+    const promptInput = (prompt as { input?: ReadonlyArray<{ text?: string }> } | undefined)?.input;
+    expect(promptInput?.[0]?.text).toContain('Never echo secrets');
+    expect(promptInput?.[0]?.text).toContain('schema.ts');
   });
 
   it('resolves user skills from the OS home directory, not from the byf home', async () => {

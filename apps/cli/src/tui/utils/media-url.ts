@@ -1,9 +1,11 @@
+import { formatBytes } from '#/utils/format';
+
 export type MediaUrlKind = 'audio' | 'image' | 'video';
 
 export function mediaUrlPartToText(kind: MediaUrlKind, url: string): string {
   const summary = summarizeDataUrl(url);
   if (summary !== undefined) {
-    const size = summary.bytes !== undefined ? `, ${formatByteSize(summary.bytes)}` : '';
+    const size = summary.bytes !== undefined ? `, ${formatBytes(summary.bytes)}` : '';
     return `[${kind} ${summary.mime}${size}]`;
   }
   return `<${kind} url="${escapeAttribute(url)}">`;
@@ -29,17 +31,6 @@ function estimateBase64Bytes(data: string): number {
   if (compact.length === 0) return 0;
   const padding = compact.endsWith('==') ? 2 : compact.endsWith('=') ? 1 : 0;
   return Math.max(0, Math.floor((compact.length * 3) / 4) - padding);
-}
-
-function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  const kib = bytes / 1024;
-  if (kib < 1024) return `${formatOneDecimal(kib)} KB`;
-  return `${formatOneDecimal(kib / 1024)} MB`;
-}
-
-function formatOneDecimal(value: number): string {
-  return value >= 10 ? value.toFixed(0) : value.toFixed(1);
 }
 
 function escapeAttribute(value: string): string {

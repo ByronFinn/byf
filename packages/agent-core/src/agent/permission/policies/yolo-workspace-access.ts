@@ -1,3 +1,4 @@
+import { isDefaultAutoAllowTool } from '../../../tools/policies/default-permissions';
 import type { ToolInputDisplay } from '../../../tools/display';
 import {
   DEFAULT_WORKSPACE_ACCESS_POLICY,
@@ -24,6 +25,9 @@ export const YoloOutsideWorkspacePermissionPolicy: PermissionPolicy = {
     if (mode !== 'yolo') return undefined;
 
     const toolName = toolCallContext.toolCall.name;
+    // auto_allow tools (Read, Grep, etc.) are already trusted in all modes;
+    // the workspace boundary check should not re-introduce approval for them.
+    if (isDefaultAutoAllowTool(toolName)) return undefined;
     const toolAccess = FILE_ACCESS_TOOLS[toolName];
     if (toolAccess === undefined) return undefined;
     const [operation, displayOperation] = toolAccess;

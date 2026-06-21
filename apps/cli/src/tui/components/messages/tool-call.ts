@@ -3,8 +3,6 @@
  * Supports expand/collapse via Ctrl+O.
  */
 
-import { isAbsolute, relative, sep } from 'node:path';
-
 import { Container, Text, Spacer, visibleWidth } from '@earendil-works/pi-tui';
 import type { Component, MarkdownTheme, TUI } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -13,103 +11,31 @@ import { highlightLines, langFromPath } from '#/tui/components/media/code-highli
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
 import {
-  STREAMING_ARGS_FIELD_RE,
   STREAMING_ARGS_PREVIEW_MAX_CHARS,
 } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
-import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
-import { computeCacheHitRate, formatCacheHitRate } from '#/utils/usage/usage-format';
+import { formatBytes, formatElapsed } from '#/utils/format';
 
 import { ShellExecutionComponent } from './shell-execution';
 import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
 import { pickResultRenderer } from './tool-renderers/registry';
+import {
+  SubagentActivityStore,
+  makeWorkspaceRelativePath,
+  extractKeyArgument,
+  formatSubagentTokens,
+  type ToolCallSubagentSnapshot,
+  type SubagentActivityLine,
+  type SubagentActivityDetail,
+  type SubToolActivity,
+  type SubagentTextKind,
+} from './subagent-activity-store';
 
-const MAX_ARG_LENGTH = 60;
-const MAX_SUB_TOOL_CALLS_SHOWN = 4;
-const MAX_SINGLE_SUBAGENT_TOOL_ROWS = 4;
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
-const SUBAGENT_ELAPSED_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
-
-type SubagentTextKind = 'thinking' | 'text';
-
-interface FinishedSubCall {
-  readonly name: string;
-  readonly args: Record<string, unknown>;
-  readonly output: string;
-  readonly isError: boolean;
-}
-
-interface OngoingSubCall {
-  readonly name: string;
-  readonly args: Record<string, unknown>;
-  readonly streamingArguments?: string | undefined;
-}
-
-interface SubToolActivity {
-  readonly id: string;
-  name: string;
-  args: Record<string, unknown>;
-  phase: 'ongoing' | 'done' | 'failed';
-  readonly orderSeq: number;
-  output?: string;
-  isError?: boolean;
-}
-
-/**
- * Immutable subagent state snapshot. `AgentGroupComponent` reads one-time
- * views via `ToolCallComponent.getSubagentSnapshot()` and renders its own
- * branch lines; `onSnapshotChange` notifies it when state changes.
- *
- * `latestActivity` priority, used only while running:
- *   1. latest ongoing sub-tool (`Using {name} ({keyArg})`)
- *   2. latest finished sub-tool (`Used {name} ({keyArg})`)
- *   3. last non-empty line from accumulated subagent text
- */
-export interface ToolCallSubagentSnapshot {
-  readonly toolCallId: string;
-  readonly toolName: string;
-  readonly toolCallDescription: string;
-  readonly agentName: string | undefined;
-  readonly phase: 'spawning' | 'running' | 'done' | 'failed' | 'backgrounded' | undefined;
-  readonly toolCount: number;
-  readonly tokens: number;
-  readonly isError: boolean;
-  readonly errorText: string | undefined;
-  readonly latestActivity: string | undefined;
-  readonly elapsedSeconds: number | undefined;
-}
-
-/**
- * Full subagent activity detail for the live viewer.
- * Contains the complete tool-call sequence (not truncated), all text output,
- * and thinking text.
- */
-export interface SubagentActivityLine {
-  readonly orderSeq: number;
-  readonly name: string;
-  readonly args: Record<string, unknown>;
-  readonly phase: 'ongoing' | 'done' | 'failed';
-  readonly output?: string;
-  readonly isError?: boolean;
-}
-
-export interface SubagentActivityDetail {
-  readonly toolCallId: string;
-  readonly agentName: string | undefined;
-  readonly phase: ToolCallSubagentSnapshot['phase'];
-  readonly toolCount: number;
-  readonly tokens: number;
-  readonly elapsedSeconds: number | undefined;
-  readonly activities: readonly SubagentActivityLine[];
-  readonly text: string;
-  readonly thinkingText: string;
-  readonly resultSummary: string | undefined;
-  readonly errorText: string | undefined;
-}
 
 /**
  * Immutable Read tool state snapshot. `ReadGroupComponent` reads one-time
@@ -126,237 +52,6 @@ export interface ToolCallReadSnapshot {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
-}
-
-function usageInputTotal(usage: SubagentTokenUsage): number {
-  return (
-    usage.input ??
-    (usage.inputOther ?? 0) + (usage.inputCacheRead ?? 0) + (usage.inputCacheCreation ?? 0)
-  );
-}
-
-export function formatSubagentTokens(usage: SubagentTokenUsage | undefined): string | undefined {
-  if (usage === undefined) return undefined;
-  const total = usageInputTotal(usage) + usage.output;
-  if (total <= 0) return undefined;
-  const formatted = total >= 1000 ? `${(total / 1000).toFixed(1)}k` : String(total);
-
-  // Cache hit-rate suffix — use breakdown fields from SubagentTokenUsage.
-  // When legacy `input` is present, skip (denominator mismatch).
-  let cacheSuffix = '';
-  if (usage.input === undefined || usage.input === 0) {
-    const hitRate = computeCacheHitRate(
-      usage.inputOther ?? 0,
-      usage.inputCacheRead ?? 0,
-      usage.inputCacheCreation ?? 0,
-    );
-    const hitRateStr = formatCacheHitRate(hitRate);
-    if (hitRateStr !== undefined) {
-      cacheSuffix = ` (${hitRateStr})`;
-    }
-  }
-  return `${formatted} tok${cacheSuffix}`;
-}
-
-function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${String(seconds)}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${String(minutes)}m ${String(remainder)}s`;
-}
-
-function unescapeJsonString(s: string): string {
-  return s.replaceAll(/\\(["\\/bfnrt])/g, (_, ch: string) => {
-    switch (ch) {
-      case 'n':
-        return '\n';
-      case 't':
-        return '\t';
-      case 'r':
-        return '\r';
-      case 'b':
-        return '\b';
-      case 'f':
-        return '\f';
-      case '"':
-        return '"';
-      case '\\':
-        return '\\';
-      case '/':
-        return '/';
-      default:
-        return ch;
-    }
-  });
-}
-
-/**
- * Pull the live value of a JSON string field out of partially-streamed
- * arguments, even if the closing quote hasn't arrived yet. Handles the
- * common JSON string escapes so `\n` in a streamed `content` becomes a
- * real newline we can highlight. Returns `undefined` if the field hasn't
- * started streaming yet.
- */
-function extractPartialStringField(text: string, key: string): string | undefined {
-  const opener = new RegExp(`"${key}"\\s*:\\s*"`);
-  const match = opener.exec(text);
-  if (match === null) return undefined;
-  const start = match.index + match[0].length;
-  let out = '';
-  let i = start;
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === '\\') {
-      const next = text[i + 1];
-      if (next === undefined) return out;
-      switch (next) {
-        case 'n':
-          out += '\n';
-          break;
-        case 't':
-          out += '\t';
-          break;
-        case 'r':
-          out += '\r';
-          break;
-        case 'b':
-          out += '\b';
-          break;
-        case 'f':
-          out += '\f';
-          break;
-        case '"':
-          out += '"';
-          break;
-        case '\\':
-          out += '\\';
-          break;
-        case '/':
-          out += '/';
-          break;
-        case 'u': {
-          if (i + 5 >= text.length) return out;
-          const hex = text.slice(i + 2, i + 6);
-          const code = Number.parseInt(hex, 16);
-          if (Number.isNaN(code)) return out;
-          out += String.fromCodePoint(code);
-          i += 6;
-          continue;
-        }
-        default:
-          out += next;
-      }
-      i += 2;
-      continue;
-    }
-    if (ch === '"') return out;
-    out += ch;
-    i++;
-  }
-  return out;
-}
-
-function parseArgsPreview(value: string): Record<string, unknown> {
-  const previewText = value.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
-  if (previewText.trim().length === 0) return {};
-  if (
-    value.length <= STREAMING_ARGS_PREVIEW_MAX_CHARS &&
-    previewText.trimEnd().endsWith('}')
-  ) {
-    try {
-      const parsed = JSON.parse(previewText) as unknown;
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // fall through to partial scan
-    }
-  }
-  const result: Record<string, unknown> = {};
-  for (const match of previewText.matchAll(STREAMING_ARGS_FIELD_RE)) {
-    const key = match[1];
-    const rawValue = match[2];
-    if (key === undefined || rawValue === undefined) continue;
-    if (!(key in result)) result[key] = unescapeJsonString(rawValue);
-  }
-  return result;
-}
-
-const PATH_KEYS = new Set(['path', 'file_path']);
-
-function truncateArgValue(key: string, value: string): string {
-  if (value.length <= MAX_ARG_LENGTH) return value;
-  if (PATH_KEYS.has(key)) {
-    // Preserve the tail (filename) — drop the prefix so the user can
-    // still tell which file is being touched.
-    return '…' + value.slice(value.length - (MAX_ARG_LENGTH - 1));
-  }
-  return value.slice(0, MAX_ARG_LENGTH - 3) + '...';
-}
-
-function makeWorkspaceRelativePath(filePath: string, workspaceDir: string | undefined): string {
-  if (workspaceDir === undefined || workspaceDir.length === 0 || !isAbsolute(filePath)) {
-    return filePath;
-  }
-  const relativePath = relative(workspaceDir, filePath);
-  if (
-    relativePath.length === 0 ||
-    relativePath === '..' ||
-    relativePath.startsWith(`..${sep}`) ||
-    isAbsolute(relativePath)
-  ) {
-    return filePath;
-  }
-  return relativePath;
-}
-
-function formatKeyArgument(
-  toolName: string,
-  key: string,
-  value: string,
-  workspaceDir: string | undefined,
-): string {
-  const displayValue =
-    toolName === 'Read' && PATH_KEYS.has(key)
-      ? makeWorkspaceRelativePath(value, workspaceDir)
-      : value;
-  return truncateArgValue(key, displayValue);
-}
-
-function extractKeyArgument(
-  toolName: string,
-  args: Record<string, unknown>,
-  workspaceDir?: string,
-): string | null {
-  const keyMap: Record<string, string[]> = {
-    Bash: ['command'],
-    Read: ['path', 'file_path'],
-    Write: ['path', 'file_path'],
-    Edit: ['path', 'file_path'],
-    Grep: ['pattern'],
-    Glob: ['pattern'],
-    FetchURL: ['url'],
-    WebSearch: ['query'],
-    // Prefer the short `description` so the header preview never spills a
-    // multi-line `prompt` into the TUI chrome.
-    Agent: ['description', 'prompt'],
-  };
-
-  const candidates = keyMap[toolName] ?? Object.keys(args);
-  for (const key of candidates) {
-    const val = args[key];
-    if (typeof val === 'string' && val.length > 0) {
-      const firstLine = val.split('\n')[0] ?? val;
-      return formatKeyArgument(toolName, key, firstLine, workspaceDir);
-    }
-  }
-  return null;
 }
 
 function formatSubagentLabel(agentName: string | undefined): string {
@@ -402,6 +97,54 @@ class PrefixedWrappedLine implements Component {
   }
 }
 
+// ── Streaming args preview in buildStreamingPreview ──────────────────
+
+/**
+ * Pull the live value of a JSON string field out of partially-streamed
+ * arguments, even if the closing quote hasn't arrived yet.
+ */
+function extractPartialStringField(text: string, key: string): string | undefined {
+  const opener = new RegExp(`"${key}"\\s*:\\s*"`);
+  const match = opener.exec(text);
+  if (match === null) return undefined;
+  const start = match.index + match[0].length;
+  let out = '';
+  let i = start;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') {
+      const next = text[i + 1];
+      if (next === undefined) return out;
+      switch (next) {
+        case 'n': out += '\n'; break;
+        case 't': out += '\t'; break;
+        case 'r': out += '\r'; break;
+        case 'b': out += '\b'; break;
+        case 'f': out += '\f'; break;
+        case '"': out += '"'; break;
+        case '\\': out += '\\'; break;
+        case '/': out += '/'; break;
+        case 'u': {
+          if (i + 5 >= text.length) return out;
+          const hex = text.slice(i + 2, i + 6);
+          const code = Number.parseInt(hex, 16);
+          if (Number.isNaN(code)) return out;
+          out += String.fromCodePoint(code);
+          i += 6;
+          continue;
+        }
+        default: out += next;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"') return out;
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 export class ToolCallComponent extends Container {
   private expanded = false;
   private toolCall: ToolCallBlockData;
@@ -414,33 +157,14 @@ export class ToolCallComponent extends Container {
 
   // ── Subagent state ───────────────────────────────────────────────
   //
-  // Populated by `setSubagentMeta` / `appendSubToolCall` / `finishSubToolCall`
-  // when ByfTui routes a `subagent.event` with this tool call
-  // id as its `parent_tool_call_id`. Rendered at the tail of
-  // buildContent so it shows up both during streaming and after the
-  // parent tool call resolves.
-  private subagentAgentId: string | undefined;
-  private subagentAgentName: string | undefined;
-  private readonly ongoingSubCalls = new Map<string, OngoingSubCall>();
-  private readonly finishedSubCalls: FinishedSubCall[] = [];
-  private readonly subToolActivities = new Map<string, SubToolActivity>();
-  private subToolOrderSeq = 0;
-  private hiddenSubCallCount = 0;
-  /**
-   * Recent normal-output lines from the child agent. Historical replay can also
-   * store mixed text here.
-   */
-  private subagentText = '';
-  private subagentThinkingText = '';
-  // ── Subagent lifecycle state from subagent.spawned/completed/failed ──
-  private subagentPhase: 'spawning' | 'running' | 'done' | 'failed' | 'backgrounded' | undefined;
-  private subagentUsage: SubagentTokenUsage | undefined;
-  private subagentResultSummary: string | undefined;
-  private subagentError: string | undefined;
-  private streamingProgressTimer: ReturnType<typeof setInterval> | undefined;
-  private subagentElapsedTimer: ReturnType<typeof setInterval> | undefined;
-  private subagentStartedAtMs: number | undefined;
-  private subagentEndedAtMs: number | undefined;
+  // Owned by SubagentActivityStore. Retrieved on construction from
+  // toolCall.subagent (replay path) and mutated via delegate methods
+  // called by SubagentEventHandler when the SDK streams sub-agent
+  // lifecycle events.
+  // Owned by SubagentActivityStore. Retrieved on construction from
+  // toolCall.subagent (replay path) and mutated via delegate methods
+  // called by SubagentEventHandler when the SDK streams sub-agent
+  // lifecycle events.
 
   // ── Live progress lines ──────────────────────────────────────────
   //
@@ -460,7 +184,9 @@ export class ToolCallComponent extends Container {
    * Multiple listeners are supported so a grouped component can still be
    * inspected by the live viewer without breaking group re-renders.
    */
-  private readonly snapshotListeners = new Set<() => void>();
+  private readonly subagentStore: SubagentActivityStore;
+
+  private streamingProgressTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     toolCall: ToolCallBlockData,
@@ -476,18 +202,30 @@ export class ToolCallComponent extends Container {
     this.colors = colors;
     this.ui = ui;
     this.markdownTheme = markdownTheme;
-    this.applySubagentReplay(toolCall.subagent);
+    this.subagentStore = new SubagentActivityStore(toolCall.subagent);
 
     this.addChild(new Spacer(1));
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
+
+    // Anchor callPreviewEndIndex BEFORE registering the snapshot listener,
+    // because addSnapshotListener calls the callback immediately and
+    // rebuildContent removes children from callPreviewEndIndex onward.
+    this.callPreviewEndIndex = this.children.length;
+
+    // Re-render when the subagent store notifies of changes.
+    this.subagentStore.addSnapshotListener(() => {
+      this.headerText.setText(this.buildHeader());
+      this.rebuildContent();
+      this.ui?.requestRender();
+    });
     this.buildCallPreview();
     this.callPreviewEndIndex = this.children.length;
     this.buildProgressBlock();
     this.buildContent();
     this.buildSubagentBlock();
     this.syncStreamingProgressTimer();
-    this.syncSubagentElapsedTimer();
+    this.syncElapsedTimer();
   }
 
   setExpanded(expanded: boolean): void {
@@ -507,9 +245,9 @@ export class ToolCallComponent extends Container {
     // authoritative final state. Without this clear, a finished tool would
     // show both the streamed status lines and the final output stacked.
     this.progressLines = [];
-    this.finalizeSubagentElapsedIfNeeded();
+    this.subagentStore.finalizeElapsedIfNeeded(result);
     this.syncStreamingProgressTimer();
-    this.syncSubagentElapsedTimer();
+    this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
     // rebuildBody (not rebuildContent) so the call preview re-renders
     // with the collapsed cap applied — Write streaming previews and
@@ -517,7 +255,7 @@ export class ToolCallComponent extends Container {
     // result.
     this.rebuildBody();
     // Final results affect group summaries, especially failed/done counts.
-    this.notifySnapshotChange();
+    this.subagentStore.notifySnapshotChange();
   }
 
   updateToolCall(toolCall: ToolCallBlockData): void {
@@ -525,7 +263,7 @@ export class ToolCallComponent extends Container {
     this.syncStreamingProgressTimer();
     this.headerText.setText(this.buildHeader());
     this.rebuildBody();
-    this.notifySnapshotChange();
+    this.subagentStore.notifySnapshotChange();
     this.ui?.requestRender();
   }
 
@@ -545,60 +283,19 @@ export class ToolCallComponent extends Container {
       this.progressLines.shift();
     }
     this.rebuildBody();
-    this.notifySnapshotChange();
+    this.subagentStore.notifySnapshotChange();
     this.ui?.requestRender();
   }
 
   dispose(): void {
     this.stopStreamingProgressTimer();
-    this.stopSubagentElapsedTimer();
-  }
-
-  private applySubagentReplay(subagent: ToolCallBlockData['subagent']): void {
-    if (subagent === undefined) return;
-    this.subagentAgentId = subagent.id;
-    this.subagentAgentName = subagent.name;
-    this.subagentText = subagent.text ?? '';
-    // The child's total token usage, sourced from ResumedAgentState.usage.total,
-    // so a resumed /agent card shows a non-zero token count like the live path.
-    if (subagent.usage !== undefined) {
-      this.subagentUsage = subagent.usage;
-    }
-    for (const call of subagent.toolCalls ?? []) {
-      if (call.result === undefined) {
-        this.ongoingSubCalls.set(call.id, { name: call.name, args: call.args });
-        this.upsertSubToolActivity(call.id, call.name, call.args, 'ongoing');
-        continue;
-      }
-      this.finishedSubCalls.push({
-        name: call.name,
-        args: call.args,
-        output: call.result.output,
-        isError: call.result.is_error ?? false,
-      });
-      this.upsertSubToolActivity(
-        call.id,
-        call.name,
-        call.args,
-        call.result.is_error === true ? 'failed' : 'done',
-      );
-    }
-    while (this.finishedSubCalls.length > MAX_SUB_TOOL_CALLS_SHOWN) {
-      this.finishedSubCalls.shift();
-      this.hiddenSubCallCount += 1;
-    }
+    this.subagentStore.stopElapsedTimer();
   }
 
   // ── Subagent API (called by ByfTui event routing) ───────────────
 
   setSubagentMeta(agentId: string, agentName?: string): void {
-    if (this.subagentAgentId === agentId && this.subagentAgentName === agentName) return;
-    this.subagentAgentId = agentId;
-    this.subagentAgentName = agentName;
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.setSubagentMeta(agentId, agentName);
   }
 
   /**
@@ -612,8 +309,7 @@ export class ToolCallComponent extends Container {
    * the live viewer).
    */
   setSnapshotListener(cb: (() => void) | undefined): void {
-    this.snapshotListeners.clear();
-    if (cb !== undefined) this.addSnapshotListener(cb);
+    this.subagentStore.setSnapshotListener(cb);
   }
 
   /**
@@ -622,52 +318,18 @@ export class ToolCallComponent extends Container {
    * snapshot without separately calling getSubagentSnapshot/getReadSnapshot.
    */
   addSnapshotListener(cb: () => void): () => void {
-    this.snapshotListeners.add(cb);
-    cb();
-    return () => {
-      this.snapshotListeners.delete(cb);
-    };
+    return this.subagentStore.addSnapshotListener(cb);
   }
 
   getSubagentSnapshot(): ToolCallSubagentSnapshot {
-    const finished = this.finishedSubCalls.length + this.hiddenSubCallCount;
-    const tokens =
-      this.subagentUsage === undefined
-        ? 0
-        : usageInputTotal(this.subagentUsage) + this.subagentUsage.output;
-    const latestActivity = computeLatestActivity(
-      this.ongoingSubCalls,
-      this.finishedSubCalls,
-      this.getCombinedSubagentText(),
+    const description = str(this.toolCall.args['description']) || str(this.toolCall.description);
+    return this.subagentStore.getSubagentSnapshot(
+      this.toolCall.id,
+      this.toolCall.name,
+      description,
+      this.result,
       this.workspaceDir,
     );
-    // Terminal-state priority: SDK `tool.result` is authoritative for Agent
-    // tool calls. Once it arrives, force done/failed over intermediate
-    // spawning/running states for two reasons:
-    //   1. Replay does not replay spawned/completed/failed events, so
-    //      `subagentPhase` stays undefined and result must be used.
-    //   2. Live type-validation failures may skip `subagent.failed`, or
-    //      `tool.result` may arrive first; otherwise the UI can stay stuck at
-    //      'spawning' and keep showing `Initializing...`.
-    // Intermediate states without a result still use `subagentPhase`.
-    // `backgrounded` has no result because background agents do not enter the
-    // transcript.
-    const derivedPhase: ToolCallSubagentSnapshot['phase'] =
-      this.result !== undefined ? (this.result.is_error ? 'failed' : 'done') : this.subagentPhase;
-    return {
-      toolCallId: this.toolCall.id,
-      toolName: this.toolCall.name,
-      toolCallDescription: str(this.toolCall.args['description']) || str(this.toolCall.description),
-      agentName: this.subagentAgentName,
-      phase: derivedPhase,
-      toolCount: finished,
-      tokens,
-      isError: derivedPhase === 'failed',
-      errorText:
-        this.subagentError ?? (derivedPhase === 'failed' ? this.result?.output : undefined),
-      latestActivity,
-      elapsedSeconds: this.getSubagentElapsedSeconds(),
-    };
   }
 
   /**
@@ -675,31 +337,13 @@ export class ToolCallComponent extends Container {
    * Contains all tool-call activities (not truncated), all text, and thinking.
    */
   getSubagentActivityDetail(): SubagentActivityDetail {
-    const snap = this.getSubagentSnapshot();
-    const activities: SubagentActivityLine[] = [...this.subToolActivities.values()]
-      .toSorted((a, b) => a.orderSeq - b.orderSeq)
-      .map((act) => ({
-        orderSeq: act.orderSeq,
-        name: act.name,
-        args: act.args,
-        phase: act.phase,
-        output: act.output,
-        isError: act.isError,
-      }));
-
-    return {
-      toolCallId: snap.toolCallId,
-      agentName: snap.agentName,
-      phase: snap.phase,
-      toolCount: snap.toolCount,
-      tokens: snap.tokens,
-      elapsedSeconds: snap.elapsedSeconds,
-      activities,
-      text: this.subagentText,
-      thinkingText: this.subagentThinkingText,
-      resultSummary: this.subagentResultSummary,
-      errorText: snap.errorText,
-    };
+    const description = str(this.toolCall.args['description']) || str(this.toolCall.description);
+    return this.subagentStore.getSubagentActivityDetail(
+      this.toolCall.id,
+      description,
+      this.result,
+      this.workspaceDir,
+    );
   }
 
   /**
@@ -736,35 +380,7 @@ export class ToolCallComponent extends Container {
 
   /** Notifies all listeners when internal state changes. */
   private notifySnapshotChange(): void {
-    for (const cb of this.snapshotListeners) {
-      cb();
-    }
-  }
-
-  private upsertSubToolActivity(
-    id: string,
-    name: string,
-    args: Record<string, unknown>,
-    phase: SubToolActivity['phase'],
-  ): void {
-    const existing = this.subToolActivities.get(id);
-    if (existing !== undefined) {
-      existing.name = name;
-      existing.args = args;
-      existing.phase = phase;
-      return;
-    }
-    this.subToolActivities.set(id, {
-      id,
-      name,
-      args,
-      phase,
-      orderSeq: ++this.subToolOrderSeq,
-    });
-  }
-
-  private getCombinedSubagentText(): string {
-    return [this.subagentThinkingText, this.subagentText].filter((s) => s.length > 0).join('\n');
+    this.subagentStore.notifySnapshotChange();
   }
 
   private isStreamingEditPreview(): boolean {
@@ -797,43 +413,15 @@ export class ToolCallComponent extends Container {
     this.streamingProgressTimer = undefined;
   }
 
-  private syncSubagentElapsedTimer(): void {
-    const phase = this.getDerivedSubagentPhase();
-    const shouldTick =
-      this.isSingleSubagentView() &&
-      this.subagentStartedAtMs !== undefined &&
-      (phase === 'spawning' || phase === 'running');
-    if (!shouldTick) {
-      this.stopSubagentElapsedTimer();
-      return;
-    }
-    if (this.ui === undefined || this.subagentElapsedTimer !== undefined) return;
-    this.subagentElapsedTimer = setInterval(() => {
-      const latestPhase = this.getDerivedSubagentPhase();
-      if (latestPhase !== 'spawning' && latestPhase !== 'running') {
-        this.stopSubagentElapsedTimer();
-        return;
-      }
+  /**
+   * Sync the elapsed timer for the subagent. Delegates to the store which
+   * handles its own timer; the callback updates the header on each tick.
+   */
+  private syncElapsedTimer(): void {
+    this.subagentStore.syncElapsedTimer(this.result, this.ui, () => {
       this.headerText.setText(this.buildHeader());
       this.invalidate();
-      this.ui?.requestRender();
-    }, SUBAGENT_ELAPSED_INTERVAL_MS);
-  }
-
-  private stopSubagentElapsedTimer(): void {
-    if (this.subagentElapsedTimer === undefined) return;
-    clearInterval(this.subagentElapsedTimer);
-    this.subagentElapsedTimer = undefined;
-  }
-
-  private finalizeSubagentElapsedIfNeeded(): void {
-    if (
-      this.toolCall.name === 'Agent' &&
-      this.subagentStartedAtMs !== undefined &&
-      this.subagentEndedAtMs === undefined
-    ) {
-      this.subagentEndedAtMs = Date.now();
-    }
+    });
   }
 
   /**
@@ -847,15 +435,10 @@ export class ToolCallComponent extends Container {
     agentName?: string | undefined;
     runInBackground: boolean;
   }): void {
-    this.subagentAgentId = meta.agentId;
-    this.subagentAgentName = meta.agentName;
-    this.subagentPhase = meta.runInBackground ? 'backgrounded' : 'spawning';
-    this.subagentStartedAtMs = Date.now();
-    this.subagentEndedAtMs = undefined;
-    this.syncSubagentElapsedTimer();
+    this.subagentStore.onSubagentSpawned(meta);
+    this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
     this.rebuildContent();
-    this.notifySnapshotChange();
     this.ui?.requestRender();
   }
 
@@ -867,76 +450,33 @@ export class ToolCallComponent extends Container {
     usage?: SubagentTokenUsage | undefined;
     resultSummary: string;
   }): void {
-    this.subagentPhase = 'done';
-    this.subagentEndedAtMs ??= Date.now();
-    this.subagentUsage = payload.usage;
-    this.subagentResultSummary =
-      payload.resultSummary.length > 0 ? payload.resultSummary : undefined;
-    if (this.subagentText.trim().length === 0 && this.subagentResultSummary !== undefined) {
-      this.subagentText = this.subagentResultSummary;
-    }
-    this.syncSubagentElapsedTimer();
+    this.subagentStore.onSubagentCompleted(payload);
+    this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
     this.rebuildContent();
-    this.notifySnapshotChange();
     this.ui?.requestRender();
   }
 
   /** Handles SDK `subagent.failed`. */
   onSubagentFailed(payload: { error: string }): void {
-    this.subagentPhase = 'failed';
-    this.subagentEndedAtMs ??= Date.now();
-    this.subagentError = payload.error;
-    this.syncSubagentElapsedTimer();
+    this.subagentStore.onSubagentFailed(payload);
+    this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
     this.rebuildContent();
-    this.notifySnapshotChange();
     this.ui?.requestRender();
   }
 
   /** Receives live cumulative token usage from `agent.status.updated` while running. */
   updateSubagentLiveUsage(usage: SubagentTokenUsage | undefined): void {
-    if (usage === undefined) return;
-    if (this.subagentPhase !== 'spawning' && this.subagentPhase !== 'running') return;
-    this.subagentUsage = usage;
-    this.headerText.setText(this.buildHeader());
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.updateSubagentLiveUsage(usage);
   }
 
   appendSubagentText(text: string, kind: SubagentTextKind = 'text'): void {
-    if (kind === 'thinking') {
-      this.subagentThinkingText += text;
-    } else {
-      this.subagentText += text;
-    }
-    // Child-agent activity means it is running unless already terminal/backgrounded.
-    if (this.subagentPhase === undefined || this.subagentPhase === 'spawning') {
-      this.subagentPhase = 'running';
-    }
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.appendSubagentText(text, kind);
   }
 
   appendSubToolCall(call: { id: string; name: string; args: Record<string, unknown> }): void {
-    const existing = this.ongoingSubCalls.get(call.id);
-    this.ongoingSubCalls.set(call.id, {
-      name: call.name,
-      args: call.args,
-      ...(existing?.streamingArguments !== undefined
-        ? { streamingArguments: existing.streamingArguments }
-        : {}),
-    });
-    this.upsertSubToolActivity(call.id, call.name, call.args, 'ongoing');
-    if (this.subagentPhase === undefined || this.subagentPhase === 'spawning') {
-      this.subagentPhase = 'running';
-    }
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.appendSubToolCall(call);
   }
 
   appendSubToolCallDelta(delta: {
@@ -944,22 +484,7 @@ export class ToolCallComponent extends Container {
     name?: string | undefined;
     argumentsPart: string | null;
   }): void {
-    const existing = this.ongoingSubCalls.get(delta.id);
-    const nextArgsText = appendStreamingArgsPreview(
-      existing?.streamingArguments,
-      delta.argumentsPart,
-    );
-    const parsed = parseArgsPreview(nextArgsText);
-    this.ongoingSubCalls.set(delta.id, {
-      name: delta.name ?? existing?.name ?? 'Tool',
-      args: parsed,
-      streamingArguments: nextArgsText,
-    });
-    this.upsertSubToolActivity(delta.id, delta.name ?? existing?.name ?? 'Tool', parsed, 'ongoing');
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.appendSubToolCallDelta(delta);
   }
 
   finishSubToolCall(result: {
@@ -967,35 +492,7 @@ export class ToolCallComponent extends Container {
     output: string;
     is_error?: boolean | undefined;
   }): void {
-    const ongoing = this.ongoingSubCalls.get(result.tool_call_id);
-    if (ongoing === undefined) return;
-    this.ongoingSubCalls.delete(result.tool_call_id);
-    this.finishedSubCalls.push({
-      name: ongoing.name,
-      args: ongoing.args,
-      output: result.output,
-      isError: result.is_error ?? false,
-    });
-    this.upsertSubToolActivity(
-      result.tool_call_id,
-      ongoing.name,
-      ongoing.args,
-      result.is_error === true ? 'failed' : 'done',
-    );
-    // Store output in the activity for the live viewer
-    const activity = this.subToolActivities.get(result.tool_call_id);
-    if (activity !== undefined) {
-      activity.output = result.output;
-      activity.isError = result.is_error === true;
-    }
-    while (this.finishedSubCalls.length > MAX_SUB_TOOL_CALLS_SHOWN) {
-      this.finishedSubCalls.shift();
-      this.hiddenSubCallCount += 1;
-    }
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    this.ui?.requestRender();
+    this.subagentStore.finishSubToolCall(result);
   }
 
   private buildHeader(): string {
@@ -1109,18 +606,11 @@ export class ToolCallComponent extends Container {
     }
   }
 
-  private buildSubagentBlock(): void {
-    if (
-      this.subagentAgentId === undefined &&
-      this.ongoingSubCalls.size === 0 &&
-      this.finishedSubCalls.length === 0 &&
-      this.subagentText.length === 0 &&
-      this.subagentPhase === undefined
-    ) {
-      return;
-    }
+private buildSubagentBlock(): void {
+    const store = this.subagentStore;
+    if (!store.hasSubagentState()) return;
 
-    if (this.isSingleSubagentView()) {
+    if (store.isSingleSubagentView(this.toolCall.name)) {
       this.buildSingleSubagentBlock();
       return;
     }
@@ -1128,23 +618,23 @@ export class ToolCallComponent extends Container {
     const dim = chalk.dim;
     const phaseChip = this.formatPhaseChip();
     const headerLabel =
-      this.subagentAgentName !== undefined
-        ? `subagent ${this.subagentAgentName} (${this.formatAgentId()})`
-        : `subagent (${this.formatAgentId()})`;
+      store.agentName !== undefined
+        ? `subagent ${store.agentName} (${store.formatAgentId()})`
+        : `subagent (${store.formatAgentId()})`;
     this.addChild(new Text(`  ${dim(`↳ ${headerLabel}`)}${phaseChip}`, 0, 0));
 
-    if (this.hiddenSubCallCount > 0) {
-      const suffix = this.hiddenSubCallCount > 1 ? 's' : '';
+    if (store.hiddenSubCallCount > 0) {
+      const suffix = store.hiddenSubCallCount > 1 ? 's' : '';
       this.addChild(
         new Text(
-          dim.italic(`    ${String(this.hiddenSubCallCount)} more tool call${suffix} ...`),
+          dim.italic(`    ${String(store.hiddenSubCallCount)} more tool call${suffix} ...`),
           0,
           0,
         ),
       );
     }
 
-    for (const sub of this.finishedSubCalls) {
+    for (const sub of store.finishedSubCalls) {
       const mark = sub.isError
         ? chalk.hex(this.colors.error)('✗')
         : chalk.hex(this.colors.success)('•');
@@ -1154,32 +644,31 @@ export class ToolCallComponent extends Container {
       this.addChild(new Text(`    ${mark} Used ${nameCol}${argCol}`, 0, 0));
     }
 
-    for (const [id, call] of this.ongoingSubCalls) {
+    for (const call of store.ongoingSubCalls.values()) {
       const keyArg = extractKeyArgument(call.name, call.args, this.workspaceDir);
       const nameCol = chalk.hex(this.colors.primary)(call.name);
       const argCol = keyArg ? dim(` (${keyArg})`) : '';
-      void id;
       this.addChild(new Text(`    ${dim('…')} Using ${nameCol}${argCol}`, 0, 0));
     }
 
-    if (this.subagentText.length > 0) {
-      const tailLines = this.subagentText.split('\n').slice(-3);
+    if (store.subagentText.length > 0) {
+      const tailLines = store.subagentText.split('\n').slice(-3);
       for (const line of tailLines) {
         this.addChild(new Text(`    ${dim(line)}`, 0, 0));
       }
     }
 
     // Result summary from subagent.completed.
-    if (this.subagentPhase === 'done' && this.subagentResultSummary !== undefined) {
-      const summaryLines = this.subagentResultSummary.split('\n').slice(0, 2);
+    if (store.subagentPhase === 'done' && store.subagentResultSummary !== undefined) {
+      const summaryLines = store.subagentResultSummary.split('\n').slice(0, 2);
       for (const line of summaryLines) {
         this.addChild(new Text(`    ${dim('└')} ${line}`, 0, 0));
       }
     }
 
     // Full error text from subagent.failed; do not collapse it.
-    if (this.subagentPhase === 'failed' && this.subagentError !== undefined) {
-      const errLines = this.subagentError.split('\n');
+    if (store.subagentPhase === 'failed' && store.subagentError !== undefined) {
+      const errLines = store.subagentError.split('\n');
       for (const line of errLines) {
         this.addChild(new Text(`    ${chalk.hex(this.colors.error)('└')} ${line}`, 0, 0));
       }
@@ -1195,24 +684,25 @@ export class ToolCallComponent extends Container {
    *   backgrounded  -> backgrounded
    */
   private formatPhaseChip(): string {
-    if (this.subagentPhase === undefined) return '';
+    const store = this.subagentStore;
+    if (store.subagentPhase === undefined) return '';
     const dim = chalk.dim;
     const parts: string[] = [];
-    switch (this.subagentPhase) {
+    switch (store.subagentPhase) {
       case 'spawning':
         parts.push('↻ starting…');
         break;
       case 'running': {
         parts.push('↻ running');
-        const liveTokens = formatSubagentTokens(this.subagentUsage);
+        const liveTokens = formatSubagentTokens(store.agentUsage);
         if (liveTokens !== undefined) parts.push(liveTokens);
         break;
       }
       case 'done': {
         parts.push(chalk.hex(this.colors.success)('✓ done'));
-        const toolCount = this.finishedSubCalls.length + this.hiddenSubCallCount;
+        const toolCount = store.finishedSubCalls.length + store.hiddenSubCallCount;
         if (toolCount > 0) parts.push(`${String(toolCount)} tool${toolCount > 1 ? 's' : ''}`);
-        const tokens = formatSubagentTokens(this.subagentUsage);
+        const tokens = formatSubagentTokens(store.agentUsage);
         if (tokens !== undefined) parts.push(tokens);
         break;
       }
@@ -1226,25 +716,8 @@ export class ToolCallComponent extends Container {
     return parts.length > 0 ? dim(` · ${parts.join(' · ')}`) : '';
   }
 
-  private formatAgentId(): string {
-    const id = this.subagentAgentId ?? '';
-    return id.length > 10 ? id.slice(0, 10) + '…' : id;
-  }
-
-  private hasSubagentState(): boolean {
-    return (
-      this.subagentAgentId !== undefined ||
-      this.ongoingSubCalls.size > 0 ||
-      this.finishedSubCalls.length > 0 ||
-      this.subToolActivities.size > 0 ||
-      this.subagentText.length > 0 ||
-      this.subagentThinkingText.length > 0 ||
-      this.subagentPhase !== undefined
-    );
-  }
-
   private isSingleSubagentView(): boolean {
-    return this.toolCall.name === 'Agent' && this.hasSubagentState();
+    return this.subagentStore.isSingleSubagentView(this.toolCall.name);
   }
 
   private getDerivedSubagentPhase():
@@ -1254,11 +727,11 @@ export class ToolCallComponent extends Container {
     | 'failed'
     | 'backgrounded'
     | undefined {
-    if (this.result !== undefined) return this.result.is_error ? 'failed' : 'done';
-    return this.subagentPhase;
+    return this.subagentStore.getDerivedPhase(this.result);
   }
 
   private buildSingleSubagentHeader(): string {
+    const store = this.subagentStore;
     const phase = this.getDerivedSubagentPhase();
     const isFailed = phase === 'failed';
     const isDone = phase === 'done';
@@ -1267,7 +740,7 @@ export class ToolCallComponent extends Container {
       : isDone
         ? chalk.hex(this.colors.success)(STATUS_BULLET)
         : chalk.hex(this.colors.roleAssistant)(STATUS_BULLET);
-    const labelText = formatSubagentLabel(this.subagentAgentName);
+    const labelText = formatSubagentLabel(store.agentName);
     const label = chalk.hex(this.colors.primary).bold(labelText);
     const status = this.formatSingleSubagentStatus(phase);
     const description = str(this.toolCall.args['description']);
@@ -1303,22 +776,18 @@ export class ToolCallComponent extends Container {
   }
 
   private formatSingleSubagentStatsText(): string {
+    const store = this.subagentStore;
     const parts = [
-      `${String(this.subToolActivities.size)} tool${this.subToolActivities.size === 1 ? '' : 's'}`,
+      `${String(store.subToolActivities.size)} tool${store.subToolActivities.size === 1 ? '' : 's'}`,
     ];
-    const elapsed = this.getSubagentElapsedSeconds();
+    const elapsed = store.getElapsedSeconds();
     if (elapsed !== undefined) parts.push(formatElapsed(elapsed));
     return ` · ${parts.join(' · ')}`;
   }
 
-  private getSubagentElapsedSeconds(): number | undefined {
-    if (this.subagentStartedAtMs === undefined) return undefined;
-    const end = this.subagentEndedAtMs ?? Date.now();
-    return Math.max(0, Math.floor((end - this.subagentStartedAtMs) / 1000));
-  }
-
   private buildSingleSubagentBlock(): void {
-    for (const activity of this.getRecentSubToolActivities()) {
+    const store = this.subagentStore;
+    for (const activity of store.getRecentSubToolActivities()) {
       const mark =
         activity.phase === 'failed'
           ? chalk.hex(this.colors.error)('✗')
@@ -1329,8 +798,8 @@ export class ToolCallComponent extends Container {
       this.addChild(new Text(`  ${mark} ${this.formatSubToolActivity(verb, activity)}`, 0, 0));
     }
 
-    if (this.getDerivedSubagentPhase() === 'failed' && this.subagentError !== undefined) {
-      const errorLine = tailNonEmptyLines(this.subagentError, 1).at(-1);
+    if (store.getDerivedPhase(this.result) === 'failed' && store.subagentError !== undefined) {
+      const errorLine = tailNonEmptyLines(store.subagentError, 1).at(-1);
       if (errorLine !== undefined) {
         this.addChild(
           new PrefixedWrappedLine(
@@ -1343,9 +812,9 @@ export class ToolCallComponent extends Container {
       return;
     }
 
-    const outputLine = tailNonEmptyLines(this.subagentText, 1).at(-1);
-    const thinkingLine = tailNonEmptyLines(this.subagentThinkingText, 1).at(-1);
-    if (this.getDerivedSubagentPhase() !== 'done' && thinkingLine !== undefined) {
+    const outputLine = tailNonEmptyLines(store.subagentText, 1).at(-1);
+    const thinkingLine = tailNonEmptyLines(store.subagentThinkingText, 1).at(-1);
+    if (store.getDerivedPhase(this.result) !== 'done' && thinkingLine !== undefined) {
       this.addChild(
         new PrefixedWrappedLine(`  ${chalk.dim('◌')} `, '    ', chalk.dim(thinkingLine)),
       );
@@ -1359,12 +828,6 @@ export class ToolCallComponent extends Container {
         ),
       );
     }
-  }
-
-  private getRecentSubToolActivities(): SubToolActivity[] {
-    return [...this.subToolActivities.values()]
-      .toSorted((a, b) => a.orderSeq - b.orderSeq)
-      .slice(-MAX_SINGLE_SUBAGENT_TOOL_ROWS);
   }
 
   private formatSubToolActivity(verb: string, activity: SubToolActivity): string {
@@ -1481,7 +944,7 @@ export class ToolCallComponent extends Container {
       const elapsedSeconds =
         startedAtMs === undefined ? 0 : Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
       const target = filePath.length > 0 ? ` for ${filePath}` : '';
-      const progress = `Preparing changes${target}... ${formatByteSize(bytes)} · ${formatElapsed(
+      const progress = `Preparing changes${target}... ${formatBytes(bytes)} · ${formatElapsed(
         elapsedSeconds,
       )} elapsed`;
       this.addChild(new Text(chalk.dim(progress), 2, 0));
@@ -1587,46 +1050,7 @@ export class ToolCallComponent extends Container {
   }
 }
 
-/**
- * Computes the second-level "latest activity" line for group rows:
- *   1. latest ongoing sub-tool (`Using {name} ({keyArg})`)
- *   2. latest finished sub-tool (`Used {name} ({keyArg})`)
- *   3. last non-empty line from accumulated subagent text
- */
-function computeLatestActivity(
-  ongoing: ReadonlyMap<string, OngoingSubCall>,
-  finished: readonly FinishedSubCall[],
-  text: string,
-  workspaceDir?: string,
-): string | undefined {
-  if (ongoing.size > 0) {
-    const lastOngoing = [...ongoing.values()].at(-1);
-    if (lastOngoing !== undefined) {
-      return formatActivityLine('Using', lastOngoing.name, lastOngoing.args, workspaceDir);
-    }
-  }
-  if (finished.length > 0) {
-    const last = finished.at(-1);
-    if (last !== undefined) {
-      return formatActivityLine('Used', last.name, last.args, workspaceDir);
-    }
-  }
-  if (text.length > 0) {
-    const tail = text
-      .split('\n')
-      .toReversed()
-      .find((l) => l.trim().length > 0);
-    if (tail !== undefined) return tail.trim();
-  }
-  return undefined;
-}
-
-function formatActivityLine(
-  verb: string,
-  toolName: string,
-  args: Record<string, unknown>,
-  workspaceDir?: string,
-): string {
-  const keyArg = extractKeyArgument(toolName, args, workspaceDir);
-  return keyArg ? `${verb} ${toolName} (${keyArg})` : `${verb} ${toolName}`;
-}
+// Re-export types and values that moved to SubagentActivityStore so consumers
+// importing from './tool-call' do not need to update import paths.
+export type { ToolCallSubagentSnapshot, SubagentActivityLine, SubagentActivityDetail } from './subagent-activity-store';
+export { formatSubagentTokens } from './subagent-activity-store';

@@ -9,6 +9,8 @@
  * Falls back to single-pane list on narrow terminals (< 80 cols).
  */
 
+import { formatElapsed } from '#/utils/format';
+
 import { Container, Key, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import type { Focusable, Terminal } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -539,9 +541,4 @@ function formatTokens(n: number): string {
   return `${String(n)} tok`;
 }
 
-function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${String(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m)}m ${String(s)}s`;
-}
+

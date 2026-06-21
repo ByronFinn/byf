@@ -28,7 +28,7 @@ export interface SessionMetaState {
 
 export function handleStatusUpdate(
   event: AgentStatusUpdatedEvent,
-  setAppState: SessionMetaCallbacks['setAppState'],
+  callbacks: SessionMetaCallbacks,
 ): void {
   const patch: Partial<AppState> = {};
   if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
@@ -43,16 +43,16 @@ export function handleStatusUpdate(
   if (ct !== undefined) {
     patch.cacheHitRate = computeCacheHitRate(safeNumber(ct.inputOther), safeNumber(ct.inputCacheRead), safeNumber(ct.inputCacheCreation));
   }
-  if (Object.keys(patch).length > 0) setAppState(patch);
+  if (Object.keys(patch).length > 0) callbacks.setAppState(patch);
 }
 
 export function handleSessionMetaChanged(
   event: SessionMetaUpdatedEvent,
-  setAppState: SessionMetaCallbacks['setAppState'],
+  callbacks: SessionMetaCallbacks,
 ): void {
   const title = event.title ?? stringValue(event.patch?.['title']);
   if (title !== undefined) {
-    setAppState({ sessionTitle: title });
+    callbacks.setAppState({ sessionTitle: title });
     setProcessTitle(title, '');
   }
 }
@@ -79,7 +79,7 @@ export function handleSessionError(
 export function handleSessionWarning(
   event: WarningEvent,
   state: SessionMetaState,
-  showStatus: SessionMetaCallbacks['showStatus'],
+  callbacks: SessionMetaCallbacks,
 ): void {
-  showStatus(`Warning: ${event.message}`, state.theme.colors.warning);
+  callbacks.showStatus(`Warning: ${event.message}`, state.theme.colors.warning);
 }

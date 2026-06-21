@@ -291,6 +291,52 @@ describe('TurnEventHandler', () => {
   });
 
   // =========================================================================
+  // finalizeTurn
+  // =========================================================================
+
+  describe('finalizeTurn', () => {
+    // finalizeTurn is the /init path entry — it skips the flush+reset that
+    // handleTurnEnd does (those already ran in beginSessionRequest), so it
+    // must NOT touch streamingToolCallArguments or pending tool components.
+    it('finalizes turn without flushing or resetting live tool UI', () => {
+      const { handler, state, calls } = makeHandler({
+        appState: makeAppState({ isStreaming: true }),
+        currentTurnId: 'turn-42',
+      });
+      state.streamingToolCallArguments.set('tc-1', {
+        name: 'Bash',
+        argumentsText: '{"cmd": "ls"}',
+        startedAtMs: Date.now(),
+      });
+      handler.finalizeTurn(vi.fn());
+      expect(calls.notifyTurnComplete).toEqual(['turn-42']);
+      expect(calls.setAppState).toContainEqual({ isStreaming: false, streamingPhase: 'idle' });
+      // Key distinction from handleTurnEnd: live tool UI state is left untouched.
+      expect(state.streamingToolCallArguments.size).toBe(1);
+      expect(calls.disposeAndClearPendingToolComponents).toBe(0);
+    });
+
+    it('sends queued message when available', () => {
+      const queuedMsg: QueuedMessage = { text: 'next message' };
+      const { handler, state } = makeHandler({
+        appState: makeAppState({ isStreaming: true }),
+        currentTurnId: 'turn-1',
+        queuedMessages: [queuedMsg],
+      });
+      const sendQueued = vi.fn();
+      handler.finalizeTurn(sendQueued);
+      expect(state.queuedMessages).toHaveLength(0);
+      expect(sendQueued).not.toHaveBeenCalled();
+    });
+
+    it('does nothing if not streaming', () => {
+      const { handler, calls } = makeHandler();
+      handler.finalizeTurn(vi.fn());
+      expect(calls.notifyTurnComplete).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
   // handleStepBegin
   // =========================================================================
 

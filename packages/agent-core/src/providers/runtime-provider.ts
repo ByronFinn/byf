@@ -236,8 +236,9 @@ export const CAPABILITY_DEFINITIONS: readonly CapabilityDef[] = [
  * alias's `capabilities` array.
  *
  * Derives directly from {@link CAPABILITY_DEFINITIONS} so that adding a
- * new capability in one place automatically keeps both the validation
- * gate (`update-config`) and the runtime resolver in sync.
+ * new capability in one place automatically keeps both the runtime
+ * resolver and any config-governance consumer (e.g. the `update-config`
+ * builtin skill, which reads this export as its source of truth) in sync.
  */
 export const VALID_CAPABILITIES: readonly string[] = CAPABILITY_DEFINITIONS.map(
   (d) => d.name,

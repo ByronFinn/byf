@@ -137,10 +137,21 @@ export class TurnEventHandler {
 
   handleTurnEnd(_event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
     void _event;
+    // Self-orchestrate flush+reset, mirroring handleStepBegin/handleStepInterrupted,
+    // so callers (the dispatch switch) stay single-line delegations.
     this.flushStreamingUiUpdatesNow();
+    this.resetLiveToolUiState();
     const completedTurnKey =
       this.state.currentTurnId ?? `local:${String(this.state.appState.streamingStartTime)}`;
-    this.finalizeTurn(sendQueued, completedTurnKey);
+    this.finalizeInternal(sendQueued, completedTurnKey);
+  }
+
+  // Public entry for paths without a real turn.ended event (e.g. /init).
+  // Avoids forcing callers to synthesize a fake TurnEndedEvent.
+  finalizeTurn(sendQueued: (item: QueuedMessage) => void): void {
+    const completedTurnKey =
+      this.state.currentTurnId ?? `local:${String(this.state.appState.streamingStartTime)}`;
+    this.finalizeInternal(sendQueued, completedTurnKey);
   }
 
   handleStepBegin(event: TurnStepStartedEvent): void {
@@ -508,7 +519,7 @@ export class TurnEventHandler {
     this.callbacks.requestRender();
   }
 
-  private finalizeTurn(sendQueued: (item: QueuedMessage) => void, completedTurnKey: string): void {
+  private finalizeInternal(sendQueued: (item: QueuedMessage) => void, completedTurnKey: string): void {
     if (!this.state.appState.isStreaming) return;
     this.finalizeLiveTextBuffers('idle');
     this.resetToolCallState();

@@ -48,8 +48,6 @@ export {
 } from '@byfriends/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-core';
 
-export type { Finding } from '@byfriends/agent-core';
-
 export * from '#/events';
 export type * from '#/types';
 

@@ -2,7 +2,6 @@ import type {
   ExportSessionManifest,
   ResumeSessionResult,
   RuntimeConfig,
-  Finding,
 } from '@byfriends/agent-core';
 import type { ContentPart } from '@byfriends/kosong';
 
@@ -27,7 +26,6 @@ export type {
   ExportSessionManifest,
   ByfConfig,
   ByfConfigPatch,
-  Finding,
   LoopControl,
   McpServerInfo,
   McpStartupMetrics,
@@ -110,17 +108,6 @@ export interface ListSessionsOptions {
 
 export interface GetConfigOptions {
   readonly reload?: boolean | undefined;
-}
-
-export interface UpdateConfigInput {
-  readonly fix?: boolean;
-  readonly configPath?: string;
-}
-
-export interface UpdateConfigResult {
-  readonly findings: readonly Finding[];
-  readonly fixed: boolean;
-  readonly backupPath?: string;
 }
 
 export interface CompactOptions {

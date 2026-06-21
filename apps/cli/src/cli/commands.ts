@@ -4,7 +4,6 @@ import { CLI_COMMAND_NAME } from '#/constant/app';
 
 import type { CLIOptions } from './options';
 import { registerExportCommand } from './sub/export';
-import { registerUpdateConfigCommand } from './sub/update-config';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 
@@ -68,7 +67,6 @@ export function createProgram(
     .addOption(new Option('--auto-approve').hideHelp().default(false));
 
   registerExportCommand(program);
-  registerUpdateConfigCommand(program);
 
   program.action(() => {
     // When the user types a positional arg that is not a known subcommand
