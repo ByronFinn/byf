@@ -79,7 +79,7 @@ export function handleSessionError(
 export function handleSessionWarning(
   event: WarningEvent,
   state: SessionMetaState,
-  showStatus: SessionMetaCallbacks['showStatus'],
+  callbacks: SessionMetaCallbacks,
 ): void {
-  showStatus(`Warning: ${event.message}`, state.theme.colors.warning);
+  callbacks.showStatus(`Warning: ${event.message}`, state.theme.colors.warning);
 }

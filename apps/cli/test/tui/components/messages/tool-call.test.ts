@@ -835,12 +835,13 @@ describe('ToolCallComponent', () => {
     expect(ui.requestRender).toHaveBeenCalled();
     expect(strip(component.render(100).join('\n'))).toContain('1s elapsed');
 
-    ui.requestRender.mockClear();
     component.setResult({
       tool_call_id: 'call_edit_timer',
       output: 'Replaced 1 occurrence in foo.ts',
       is_error: false,
     });
+    // Clear calls that may have been made during setResult (e.g. snapshot listener).
+    ui.requestRender.mockClear();
     vi.advanceTimersByTime(1000);
     expect(ui.requestRender).not.toHaveBeenCalled();
 
