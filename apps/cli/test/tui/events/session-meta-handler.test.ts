@@ -356,14 +356,14 @@ describe('handleSessionError', () => {
 describe('handleSessionWarning', () => {
   it('shows warning status with warning color', () => {
     const state = makeState();
-    const showStatus = vi.fn();
+    const { callbacks, calls } = makeCallbacks();
     const event: WarningEvent = {
       type: 'warning',
       message: 'deprecated model',
     };
-    handleSessionWarning(event, state, showStatus);
-    expect(showStatus).toHaveBeenCalledOnce();
-    expect(showStatus.mock.calls[0]![0]).toBe('Warning: deprecated model');
-    expect(showStatus.mock.calls[0]![1]).toBe(state.theme.colors.warning);
+    handleSessionWarning(event, state, callbacks);
+    expect(calls.showStatus).toHaveLength(1);
+    expect(calls.showStatus[0]!.message).toBe('Warning: deprecated model');
+    expect(calls.showStatus[0]!.color).toBe(state.theme.colors.warning);
   });
 });
