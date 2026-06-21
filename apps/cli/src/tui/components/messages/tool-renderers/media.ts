@@ -18,6 +18,7 @@ import { Text } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import type { ChipProvider } from './chip';
+import { formatBytes } from '#/utils/format';
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 
@@ -105,12 +106,6 @@ export function parseReadMediaOutput(output: string): ReadMediaSummary | null {
   if (url !== undefined) summary.url = url;
   if (originalSize !== undefined) summary.originalSize = originalSize;
   return summary;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function metaSegments(summary: ReadMediaSummary): string[] {

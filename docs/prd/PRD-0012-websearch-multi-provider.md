@@ -1,6 +1,6 @@
-# [TODO] PRD-0012: WebSearch Multi-Provider Support
+# [DONE] PRD-0012: WebSearch Multi-Provider Support
 
-## Status: Sliced
+## Status: Done
 
 ## Problem Statement
 

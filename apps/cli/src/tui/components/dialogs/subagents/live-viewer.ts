@@ -13,6 +13,7 @@ import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
 import { printableChar } from '#/tui/utils/printable-key';
+import { formatElapsed } from '#/utils/format';
 import { sanitizeForDisplay } from '#/tui/utils/sanitize-text';
 import type { SubagentActivityDetail } from '#/tui/components/messages/tool-call';
 
@@ -348,13 +349,6 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M tok`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k tok`;
   return `${String(n)} tok`;
-}
-
-function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${String(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m)}m ${String(s)}s`;
 }
 
 /** Inline key-arg extraction for live viewer display. */

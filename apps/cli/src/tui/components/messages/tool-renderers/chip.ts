@@ -13,6 +13,7 @@ import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import { readMediaChip } from './media';
 import { strArg } from './types';
+import { formatBytes } from '#/utils/format';
 
 export type ChipProvider = (toolCall: ToolCallBlockData, result: ToolResultBlockData) => string;
 
@@ -25,12 +26,6 @@ export function countNonEmptyLines(text: string): number {
 
 function pluralize(n: number, singular: string, plural?: string): string {
   return `${String(n)} ${n === 1 ? singular : (plural ?? `${singular}s`)}`;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export interface EditStats {

@@ -22,6 +22,7 @@ import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from 
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { computeCacheHitRate, formatCacheHitRate } from '#/utils/usage/usage-format';
+import { formatBytes, formatElapsed } from '#/utils/format';
 
 import { ShellExecutionComponent } from './shell-execution';
 import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
@@ -156,19 +157,6 @@ export function formatSubagentTokens(usage: SubagentTokenUsage | undefined): str
     }
   }
   return `${formatted} tok${cacheSuffix}`;
-}
-
-function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${String(seconds)}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${String(minutes)}m ${String(remainder)}s`;
 }
 
 function unescapeJsonString(s: string): string {
@@ -1481,7 +1469,7 @@ export class ToolCallComponent extends Container {
       const elapsedSeconds =
         startedAtMs === undefined ? 0 : Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
       const target = filePath.length > 0 ? ` for ${filePath}` : '';
-      const progress = `Preparing changes${target}... ${formatByteSize(bytes)} · ${formatElapsed(
+      const progress = `Preparing changes${target}... ${formatBytes(bytes)} · ${formatElapsed(
         elapsedSeconds,
       )} elapsed`;
       this.addChild(new Text(chalk.dim(progress), 2, 0));
