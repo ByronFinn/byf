@@ -10,6 +10,8 @@ import {
   type ModelAlias,
   type ModelInfo as OAuthModelInfo,
   type Catalog,
+  getLoginProviderOptions,
+  loginProviderRegistry,
 } from '@byfriends/sdk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
