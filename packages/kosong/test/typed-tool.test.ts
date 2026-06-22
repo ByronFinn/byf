@@ -1,8 +1,9 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
+
 import { SimpleToolset, toolError, toolOk } from './fixtures/simple-toolset';
 import type { ToolReturnValue } from './fixtures/simple-toolset';
 import { createTypedTool } from './fixtures/typed-tool';
-import { describe, expect, test } from 'vitest';
-import { z } from 'zod';
 
 describe('createTypedTool', () => {
   test('creates a tool with zod schema and typed handler', async () => {
@@ -100,7 +101,8 @@ describe('createTypedTool', () => {
     const result = await toolset.handle({
       type: 'function',
       id: 'tc_001',
-      name: 'echo', arguments: JSON.stringify({ text: 'hello' }),
+      name: 'echo',
+      arguments: JSON.stringify({ text: 'hello' }),
     });
 
     expect(result.returnValue.isError).toBe(false);

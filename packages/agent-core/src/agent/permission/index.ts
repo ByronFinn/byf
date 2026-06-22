@@ -1,8 +1,8 @@
 import type { Agent } from '..';
 import type { PrepareToolExecutionResult, ToolExecutionHookContext } from '../../loop';
 import type { TelemetryPropertyValue } from '../../telemetry';
-import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import type { ToolInputDisplay } from '../../tools/display';
+import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
@@ -167,7 +167,8 @@ export class PermissionManager implements RecordRestoreHandler {
     const name = context.toolCall.name;
     const args = context.args;
     const display =
-      options.display ?? ({
+      options.display ??
+      ({
         kind: 'generic',
         summary: `Approve ${name}`,
         detail: args,

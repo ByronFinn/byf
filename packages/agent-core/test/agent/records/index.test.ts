@@ -40,10 +40,7 @@ describe('AgentRecords persistence metadata', () => {
     });
     await records.flush();
 
-    expect(persistence.records.map((record) => record.type)).toEqual([
-      'metadata',
-      'turn.prompt',
-    ]);
+    expect(persistence.records.map((record) => record.type)).toEqual(['metadata', 'turn.prompt']);
   });
 
   it('rejects replaying a non-empty stream without metadata', async () => {

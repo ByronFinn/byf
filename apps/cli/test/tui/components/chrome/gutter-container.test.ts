@@ -4,9 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GutterContainer } from '#/tui/components/chrome/gutter-container';
 
 class FakeChild implements Component {
-  constructor(
-    private readonly lines: (innerWidth: number) => string[],
-  ) {}
+  constructor(private readonly lines: (innerWidth: number) => string[]) {}
   invalidate(): void {}
   render(width: number): string[] {
     return this.lines(width);

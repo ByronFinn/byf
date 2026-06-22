@@ -19,8 +19,8 @@ import {
   InMemoryAgentRecordPersistence,
 } from '../../../src/agent/records';
 import type { ByfConfig } from '../../../src/config';
-import type { ExecutableToolResult } from '../../../src/loop';
 import type { Logger } from '../../../src/logging';
+import type { ExecutableToolResult } from '../../../src/loop';
 import { ProviderManager } from '../../../src/providers/provider-manager';
 import type { QuestionResult, RPCCallOptions, SDKAgentRPC } from '../../../src/rpc';
 import type { AgentAPI } from '../../../src/rpc/core-api';
@@ -159,7 +159,8 @@ export class AgentTestContext {
   constructor(options: TestAgentOptions = {}) {
     this.options = options;
     this.emitter.on('error', () => {});
-    const providerManager = options.providerManager ?? new ProviderManager({ config: emptyConfig() });
+    const providerManager =
+      options.providerManager ?? new ProviderManager({ config: emptyConfig() });
 
     const runtime = options.runtime ?? {
       kaos: options.kaos ?? localKaos,
@@ -187,7 +188,9 @@ export class AgentTestContext {
     // Suppress TimestampInjector in tests so snapshots and message-order
     // assertions remain stable (timestamps are non-deterministic).
     // Dedicated injection tests opt-in explicitly.
-    const mgr = this.agent.injection as unknown as { injectors: Array<{ injectionVariant: string }> };
+    const mgr = this.agent.injection as unknown as {
+      injectors: Array<{ injectionVariant: string }>;
+    };
     mgr.injectors = mgr.injectors.filter((i) => i.injectionVariant !== 'timestamp');
     this.rpc = this.createPromiseAgentApi(this.agent);
   }
@@ -594,9 +597,10 @@ function configWithProvider(
   const newProvider = providerConfigForAlias(provider);
   // When the existing provider has OAuth configured, keep it and drop the
   // apiKey from the runtime override — apiKey + oauth are mutually exclusive.
-  const mergedProvider = existingProvider?.oauth !== undefined
-    ? { ...newProvider, oauth: existingProvider.oauth, apiKey: undefined }
-    : newProvider;
+  const mergedProvider =
+    existingProvider?.oauth !== undefined
+      ? { ...newProvider, oauth: existingProvider.oauth, apiKey: undefined }
+      : newProvider;
   return {
     ...config,
     providers: {

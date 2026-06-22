@@ -212,9 +212,11 @@ describe('HttpMcpClient', () => {
       // (e.g. "Maximum reconnection attempts (3) exceeded.") — there is no
       // matching `onclose` for HTTP. Simulate that path directly to exercise
       // the terminal-error branch without rigging an SSE reconnect storm.
-      const internal = (client as unknown as {
-        client: { onerror?: (error: Error) => void };
-      }).client;
+      const internal = (
+        client as unknown as {
+          client: { onerror?: (error: Error) => void };
+        }
+      ).client;
       internal.onerror?.(new Error('Maximum reconnection attempts (3) exceeded.'));
       // Listener may fire in a later microtask; give it a chance.
       await new Promise((r) => setTimeout(r, 25));
@@ -234,9 +236,11 @@ describe('HttpMcpClient', () => {
     client.onUnexpectedClose(() => closes.push(Date.now()));
     try {
       await client.connect();
-      const internal = (client as unknown as {
-        client: { onerror?: (error: Error) => void };
-      }).client;
+      const internal = (
+        client as unknown as {
+          client: { onerror?: (error: Error) => void };
+        }
+      ).client;
       // SSE flap that the SDK will retry on its own — should NOT flip the
       // entry to failed; otherwise a brief network blip would tear down every
       // HTTP MCP connection.

@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest';
+
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { StreamedMessage } from '#/provider';
 import { OpenAIResponsesChatProvider } from '#/providers/openai-responses';
 import type { Tool } from '#/tool';
-import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness, type FakeProviderHarness } from './fake-provider-harness';
 
@@ -96,7 +97,8 @@ describe('e2e: openai-responses adapter', () => {
             {
               type: 'function',
               id: 'call_weather',
-              name: 'lookup_weather', arguments: '{"city":"Shanghai"}',
+              name: 'lookup_weather',
+              arguments: '{"city":"Shanghai"}',
             } satisfies ToolCall,
           ],
         },
@@ -168,7 +170,8 @@ describe('e2e: openai-responses adapter', () => {
       expect(result.parts[1]).toMatchObject({
         type: 'function',
         id: 'call_weather',
-        name: 'lookup_weather', arguments: '{"city":"Shanghai"}',
+        name: 'lookup_weather',
+        arguments: '{"city":"Shanghai"}',
       });
     });
   });

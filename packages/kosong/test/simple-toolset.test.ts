@@ -1,13 +1,16 @@
+import { describe, expect, it } from 'vitest';
+
 import type { ToolCall } from '#/message';
+
 import type { JsonValue } from './fixtures/args-validator';
 import { SimpleToolset, toolOk } from './fixtures/simple-toolset';
 import type { ToolReturnValue } from './fixtures/simple-toolset';
-import { describe, expect, it } from 'vitest';
 function makeToolCall(id: string, name: string, args: string | null): ToolCall {
   return {
     type: 'function',
     id,
-    name, arguments: args,
+    name,
+    arguments: args,
   };
 }
 describe('SimpleToolset', () => {

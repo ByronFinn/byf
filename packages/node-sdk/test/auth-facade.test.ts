@@ -26,9 +26,7 @@ describe('ByfHarness.auth', () => {
   it('reports no config when no providers are configured', async () => {
     const harness = new ByfHarness({ homeDir });
     const status = await harness.auth.status('my-provider');
-    expect(status.providers).toEqual([
-      { providerName: 'my-provider', hasConfig: false },
-    ]);
+    expect(status.providers).toEqual([{ providerName: 'my-provider', hasConfig: false }]);
   });
 
   it('reports hasConfig when a provider is configured', async () => {
@@ -42,9 +40,7 @@ api_key = "sk-test-123"
     );
     const harness = new ByfHarness({ homeDir });
     const status = await harness.auth.status('my-provider');
-    expect(status.providers).toEqual([
-      { providerName: 'my-provider', hasConfig: true },
-    ]);
+    expect(status.providers).toEqual([{ providerName: 'my-provider', hasConfig: true }]);
   });
 
   it('removes provider and its models on removeProvider', async () => {

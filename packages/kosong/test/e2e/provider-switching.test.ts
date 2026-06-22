@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import { extractText } from '#/message';
 import type { Message, StreamedMessagePart } from '#/message';
 import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 /**
  * A configurable mock provider that tracks its own identity and config.

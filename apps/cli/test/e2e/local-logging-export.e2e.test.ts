@@ -3,12 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as zlib from 'node:zlib';
 
+import { ByfHarness, log } from '@byfriends/sdk';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { registerExportCommand } from '#/cli/sub/export';
 import { createByfHostIdentity } from '#/cli/version';
-import { ByfHarness, log } from '@byfriends/sdk';
+
 import { __resetRootLoggerForTest } from '../../../../packages/agent-core/src/logging/logger';
 
 const SESSION_LOG = 'logs/byf.log';

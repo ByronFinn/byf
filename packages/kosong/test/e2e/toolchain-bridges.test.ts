@@ -1,14 +1,16 @@
-import { derefJsonSchema } from '#/providers/openai-compat-schema';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
 import { createToolMessage, extractText } from '#/message';
 import type { Message, StreamedMessagePart } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import { derefJsonSchema } from '#/providers/openai-compat-schema';
+import type { Tool } from '#/tool';
+
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
 import { createTypedTool } from '../fixtures/typed-tool';
-import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
 
 function createStream(parts: StreamedMessagePart[], opts?: { id?: string }): StreamedMessage {
   return {
@@ -113,13 +115,13 @@ describe('e2e: kosong toolchain bridges', () => {
           type: 'function',
           id: 'tc-route',
           name: 'route_address',
-            arguments: JSON.stringify({
-              shipment: {
-                id: 'pkg-42',
-                address: { city: 'Shanghai', zip: '200000' },
-              },
-              urgent: true,
-            }),
+          arguments: JSON.stringify({
+            shipment: {
+              id: 'pkg-42',
+              address: { city: 'Shanghai', zip: '200000' },
+            },
+            urgent: true,
+          }),
         },
       ]),
       createStream([{ type: 'text', text: 'Shipment routed.' }]),
@@ -198,10 +200,10 @@ describe('e2e: kosong toolchain bridges', () => {
           type: 'function',
           id: 'tc-ship',
           name: 'ship_package',
-            arguments: JSON.stringify({
-              shipping: { city: 'Hangzhou', zip: '310000' },
-              billing: { city: 'Shenzhen', zip: '518000' },
-            }),
+          arguments: JSON.stringify({
+            shipping: { city: 'Hangzhou', zip: '310000' },
+            billing: { city: 'Shenzhen', zip: '518000' },
+          }),
         },
       ]),
       createStream([{ type: 'text', text: 'Shipment booked.' }]),

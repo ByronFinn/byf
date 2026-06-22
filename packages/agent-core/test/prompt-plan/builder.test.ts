@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import { describe, expect, it } from 'vitest';
-
 import type { CacheScope, ProviderCacheCapability } from '@byfriends/kosong';
+import { describe, expect, it } from 'vitest';
 
 import { buildPromptPlan } from '#/prompt-plan/builder';
 
@@ -310,25 +309,25 @@ Skills listing here.`;
 
       it('hashes the content correctly', () => {
         const prompt = 'You are a helpful assistant.';
-      const capability = createCapability(['global', 'project', 'session']);
+        const capability = createCapability(['global', 'project', 'session']);
 
-      const plan = buildPromptPlan(prompt, capability);
+        const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks[0]!.text).toBe(prompt);
-      // The text field should contain the original content
-      expect(fingerprint(plan.blocks[0]!.text)).toBe(fingerprint(prompt));
-    });
+        expect(plan.blocks[0]!.text).toBe(prompt);
+        // The text field should contain the original content
+        expect(fingerprint(plan.blocks[0]!.text)).toBe(fingerprint(prompt));
+      });
 
       it('handles empty prompt', () => {
         const prompt = '';
-      const capability = createCapability(['global', 'project', 'session']);
+        const capability = createCapability(['global', 'project', 'session']);
 
-      const plan = buildPromptPlan(prompt, capability);
+        const plan = buildPromptPlan(prompt, capability);
 
-      expect(plan.blocks).toHaveLength(1);
-      expect(plan.blocks[0]!.text).toBe('');
-      expect(plan.blocks[0]!.name).toBe('base');
-      expect(plan.blocks[0]!.cacheScope).toBe('none');
+        expect(plan.blocks).toHaveLength(1);
+        expect(plan.blocks[0]!.text).toBe('');
+        expect(plan.blocks[0]!.name).toBe('base');
+        expect(plan.blocks[0]!.cacheScope).toBe('none');
       });
     });
   });

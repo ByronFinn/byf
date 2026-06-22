@@ -51,9 +51,9 @@ describe('TodoListTool', () => {
     expect(tool.name).toBe('TodoList');
     expect(tool.description.length).toBeGreaterThan(0);
     expect(TodoListInputSchema.safeParse({}).success).toBe(true);
-    expect(
-      TodoListInputSchema.safeParse({ todos: [{ title: 'x', status: 'wip' }] }).success,
-    ).toBe(false);
+    expect(TodoListInputSchema.safeParse({ todos: [{ title: 'x', status: 'wip' }] }).success).toBe(
+      false,
+    );
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: {

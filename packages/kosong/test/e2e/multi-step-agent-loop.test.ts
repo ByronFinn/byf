@@ -1,14 +1,16 @@
-import { ScriptedEchoChatProvider } from '../fixtures/echo-provider';
+import { describe, expect, it } from 'vitest';
+
 import { extractText } from '#/message';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
+import type { JsonValue } from '../fixtures/args-validator';
+import { ScriptedEchoChatProvider } from '../fixtures/echo-provider';
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
-import type { JsonValue } from '../fixtures/args-validator';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 function createMockStream(
   parts: StreamedMessagePart[],
   opts?: { id?: string; usage?: TokenUsage },
@@ -112,7 +114,8 @@ describe('e2e: multi-step agent loop', () => {
     const toolCall: ToolCall = {
       type: 'function',
       id: 'tc-1',
-      name: 'search', arguments: '{"query":"vitest"}',
+      name: 'search',
+      arguments: '{"query":"vitest"}',
     };
 
     const provider = new QueuedMockProvider([
@@ -147,12 +150,14 @@ describe('e2e: multi-step agent loop', () => {
     const tcSearch: ToolCall = {
       type: 'function',
       id: 'tc-search',
-      name: 'search', arguments: '{"query":"vitest"}',
+      name: 'search',
+      arguments: '{"query":"vitest"}',
     };
     const tcRead: ToolCall = {
       type: 'function',
       id: 'tc-read',
-      name: 'read_file', arguments: '{"path":"/docs/vitest.md"}',
+      name: 'read_file',
+      arguments: '{"path":"/docs/vitest.md"}',
     };
 
     const provider = new QueuedMockProvider([
@@ -183,17 +188,20 @@ describe('e2e: multi-step agent loop', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'tc-a',
-      name: 'fetch_url', arguments: '{"url":"https://a.com"}',
+      name: 'fetch_url',
+      arguments: '{"url":"https://a.com"}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'tc-b',
-      name: 'fetch_url', arguments: '{"url":"https://b.com"}',
+      name: 'fetch_url',
+      arguments: '{"url":"https://b.com"}',
     };
     const tc3: ToolCall = {
       type: 'function',
       id: 'tc-c',
-      name: 'fetch_url', arguments: '{"url":"https://c.com"}',
+      name: 'fetch_url',
+      arguments: '{"url":"https://c.com"}',
     };
 
     const provider = new QueuedMockProvider([
@@ -236,12 +244,14 @@ describe('e2e: multi-step agent loop', () => {
     const tcList: ToolCall = {
       type: 'function',
       id: 'tc-list',
-      name: 'list_files', arguments: '{"dir":"/src"}',
+      name: 'list_files',
+      arguments: '{"dir":"/src"}',
     };
     const tcRead: ToolCall = {
       type: 'function',
       id: 'tc-read',
-      name: 'read_file', arguments: '{"path":"/src/main.ts"}',
+      name: 'read_file',
+      arguments: '{"path":"/src/main.ts"}',
     };
 
     // The provider sees history growing—tool A result is in history when
@@ -277,12 +287,14 @@ describe('e2e: multi-step agent loop', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'tc-1',
-      name: 'calc', arguments: '{"expr":"2+2"}',
+      name: 'calc',
+      arguments: '{"expr":"2+2"}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'tc-2',
-      name: 'calc', arguments: '{"expr":"4*3"}',
+      name: 'calc',
+      arguments: '{"expr":"4*3"}',
     };
 
     const provider = new QueuedMockProvider([
@@ -338,7 +350,8 @@ describe('e2e: multi-step agent loop', () => {
     const tc: ToolCall = {
       type: 'function',
       id: 'tc-no-args',
-      name: 'get_time', arguments: null,
+      name: 'get_time',
+      arguments: null,
     };
 
     const provider = new QueuedMockProvider([

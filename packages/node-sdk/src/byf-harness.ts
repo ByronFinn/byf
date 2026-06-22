@@ -32,7 +32,9 @@ export class ByfHarness {
   readonly configPath: string;
   readonly auth: ByfAuthFacade;
 
-  private readonly identity: { readonly userAgentProduct: string; readonly version: string } | undefined;
+  private readonly identity:
+    | { readonly userAgentProduct: string; readonly version: string }
+    | undefined;
   private readonly uiMode: string;
   private readonly activeSessions = new Map<string, Session>();
   private readonly rpc: SDKRpcClient;

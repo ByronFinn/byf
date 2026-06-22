@@ -17,16 +17,12 @@ import { isAbsolute, relative, sep } from 'node:path';
 
 import type { TUI } from '@earendil-works/pi-tui';
 
-import type {
-  SubagentTokenUsage,
-  ToolCallBlockData,
-  ToolResultBlockData,
-} from '#/tui/types';
-import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import {
   STREAMING_ARGS_FIELD_RE,
   STREAMING_ARGS_PREVIEW_MAX_CHARS,
 } from '#/tui/constant/streaming';
+import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
+import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 
 // ── Internal types ─────────────────────────────────────────────────────
 
@@ -177,7 +173,10 @@ function roundHalfToEven(n: number): number {
 const MAX_ARG_LENGTH = 60;
 const PATH_KEYS = new Set(['path', 'file_path']);
 
-export function makeWorkspaceRelativePath(filePath: string, workspaceDir: string | undefined): string {
+export function makeWorkspaceRelativePath(
+  filePath: string,
+  workspaceDir: string | undefined,
+): string {
   if (workspaceDir === undefined || workspaceDir.length === 0 || !isAbsolute(filePath)) {
     return filePath;
   }
@@ -634,13 +633,9 @@ export class SubagentActivityStore {
     return toolName === 'Agent' && this.hasSubagentState();
   }
 
-  getDerivedPhase(result?: ToolResultBlockData):
-    | 'spawning'
-    | 'running'
-    | 'done'
-    | 'failed'
-    | 'backgrounded'
-    | undefined {
+  getDerivedPhase(
+    result?: ToolResultBlockData,
+  ): 'spawning' | 'running' | 'done' | 'failed' | 'backgrounded' | undefined {
     if (result !== undefined) return result.is_error ? 'failed' : 'done';
     return this.subagentPhase;
   }
@@ -715,8 +710,7 @@ export class SubagentActivityStore {
       toolCount: finished,
       tokens: this.usageTokens,
       isError: derivedPhase === 'failed',
-      errorText:
-        this.subagentError ?? (derivedPhase === 'failed' ? result?.output : undefined),
+      errorText: this.subagentError ?? (derivedPhase === 'failed' ? result?.output : undefined),
       latestActivity,
       elapsedSeconds: this.getElapsedSeconds(),
     };
@@ -790,10 +784,7 @@ function unescapeJsonString(s: string): string {
 function parseArgsPreview(value: string): Record<string, unknown> {
   const previewText = value.slice(0, STREAMING_ARGS_PREVIEW_MAX_CHARS);
   if (previewText.trim().length === 0) return {};
-  if (
-    value.length <= STREAMING_ARGS_PREVIEW_MAX_CHARS &&
-    previewText.trimEnd().endsWith('}')
-  ) {
+  if (value.length <= STREAMING_ARGS_PREVIEW_MAX_CHARS && previewText.trimEnd().endsWith('}')) {
     try {
       const parsed = JSON.parse(previewText) as unknown;
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {

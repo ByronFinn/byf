@@ -6,8 +6,9 @@
  * Usage: node scripts/color-showcase.mjs [dark|light|auto]
  */
 
-import chalk from 'chalk';
 import { createRequire } from 'node:module';
+
+import chalk from 'chalk';
 
 const require = createRequire(import.meta.url);
 
@@ -97,23 +98,23 @@ const lightColors = {
 function createStyles(c) {
   return {
     colors: c,
-    primary:  (s) => chalk.hex(c.primary)(s),
-    accent:   (s) => chalk.hex(c.accent)(s),
-    dim:      (s) => chalk.hex(c.textDim)(s),
-    muted:    (s) => chalk.hex(c.textMuted)(s),
-    text:     (s) => chalk.hex(c.text)(s),
-    strong:   (s) => chalk.hex(c.textStrong)(s),
-    error:    (s) => chalk.hex(c.error)(s),
-    warning:  (s) => chalk.hex(c.warning)(s),
-    success:  (s) => chalk.hex(c.success)(s),
-    label:    (s) => chalk.bold.hex(c.textDim)(s),
-    value:    (s) => chalk.hex(c.text)(s),
-    diffAdd:      (s) => chalk.hex(c.diffAdded)(s),
-    diffDel:      (s) => chalk.hex(c.diffRemoved)(s),
-    diffAddBold:  (s) => chalk.bold.hex(c.diffAddedStrong)(s),
-    diffDelBold:  (s) => chalk.bold.hex(c.diffRemovedStrong)(s),
-    diffGutter:   (s) => chalk.hex(c.diffGutter)(s),
-    diffMeta:     (s) => chalk.hex(c.diffMeta)(s),
+    primary: (s) => chalk.hex(c.primary)(s),
+    accent: (s) => chalk.hex(c.accent)(s),
+    dim: (s) => chalk.hex(c.textDim)(s),
+    muted: (s) => chalk.hex(c.textMuted)(s),
+    text: (s) => chalk.hex(c.text)(s),
+    strong: (s) => chalk.hex(c.textStrong)(s),
+    error: (s) => chalk.hex(c.error)(s),
+    warning: (s) => chalk.hex(c.warning)(s),
+    success: (s) => chalk.hex(c.success)(s),
+    label: (s) => chalk.bold.hex(c.textDim)(s),
+    value: (s) => chalk.hex(c.text)(s),
+    diffAdd: (s) => chalk.hex(c.diffAdded)(s),
+    diffDel: (s) => chalk.hex(c.diffRemoved)(s),
+    diffAddBold: (s) => chalk.bold.hex(c.diffAddedStrong)(s),
+    diffDelBold: (s) => chalk.bold.hex(c.diffRemovedStrong)(s),
+    diffGutter: (s) => chalk.hex(c.diffGutter)(s),
+    diffMeta: (s) => chalk.hex(c.diffMeta)(s),
   };
 }
 
@@ -144,37 +145,37 @@ function renderPalette(name, colors) {
   section(`${name} Theme — Semantic Styles`);
 
   console.log(chalk.bold('\n  ▸ Brand'));
-  row('primary',  s.primary,  colors.primary);
-  row('accent',   s.accent,   colors.accent);
+  row('primary', s.primary, colors.primary);
+  row('accent', s.accent, colors.accent);
 
   console.log(chalk.bold('\n  ▸ Text'));
-  row('text',       s.text,       colors.text);
-  row('textStrong', s.strong,     colors.textStrong);
-  row('textDim',    s.dim,        colors.textDim);
-  row('textMuted',  s.muted,      colors.textMuted);
+  row('text', s.text, colors.text);
+  row('textStrong', s.strong, colors.textStrong);
+  row('textDim', s.dim, colors.textDim);
+  row('textMuted', s.muted, colors.textMuted);
 
   console.log(chalk.bold('\n  ▸ Surface'));
-  row('border',      s.label,     colors.border);
-  row('borderFocus', s.accent,    colors.borderFocus);
+  row('border', s.label, colors.border);
+  row('borderFocus', s.accent, colors.borderFocus);
 
   console.log(chalk.bold('\n  ▸ State'));
   row('success', s.success, colors.success);
   row('warning', s.warning, colors.warning);
-  row('error',   s.error,   colors.error);
+  row('error', s.error, colors.error);
 
   console.log(chalk.bold('\n  ▸ Diff'));
-  row('diffAdded',        s.diffAdd,     colors.diffAdded);
-  row('diffRemoved',      s.diffDel,     colors.diffRemoved);
-  row('diffAddedStrong',  s.diffAddBold, colors.diffAddedStrong);
-  row('diffRemovedStrong',s.diffDelBold, colors.diffRemovedStrong);
-  row('diffGutter',       s.diffGutter,  colors.diffGutter);
-  row('diffMeta',         s.diffMeta,    colors.diffMeta);
+  row('diffAdded', s.diffAdd, colors.diffAdded);
+  row('diffRemoved', s.diffDel, colors.diffRemoved);
+  row('diffAddedStrong', s.diffAddBold, colors.diffAddedStrong);
+  row('diffRemovedStrong', s.diffDelBold, colors.diffRemovedStrong);
+  row('diffGutter', s.diffGutter, colors.diffGutter);
+  row('diffMeta', s.diffMeta, colors.diffMeta);
 
   console.log(chalk.bold('\n  ▸ Roles'));
-  row('roleUser',      s.primary, colors.roleUser);
-  row('roleAssistant', s.text,    colors.roleAssistant);
-  row('roleThinking',  s.dim,     colors.roleThinking);
-  row('roleTool',      s.warning, colors.roleTool);
+  row('roleUser', s.primary, colors.roleUser);
+  row('roleAssistant', s.text, colors.roleAssistant);
+  row('roleThinking', s.dim, colors.roleThinking);
+  row('roleTool', s.warning, colors.roleTool);
 
   console.log(chalk.bold('\n  ▸ Status'));
   row('status', s.dim, colors.status);
@@ -187,20 +188,38 @@ function renderPalette(name, colors) {
   section(`${name} Theme — Simulated Messages`);
 
   console.log('');
-  console.log(`  ${s.success('✔')}  ${s.success('Success:')} ${s.text('Session restored successfully.')}`);
-  console.log(`  ${s.warning('⚠')}  ${s.warning('Warning:')} ${s.text('Token usage is at 87%. Consider compacting.')}`);
-  console.log(`  ${s.error('✖')}  ${s.error('Error:')}   ${s.text('Failed to connect to provider. Retrying…')}`);
-  console.log(`  ${s.primary('ℹ')}  ${s.primary('Info:')}    ${s.text('Using model ')}${s.strong('claude-sonnet-4-20250514')}`);
+  console.log(
+    `  ${s.success('✔')}  ${s.success('Success:')} ${s.text('Session restored successfully.')}`,
+  );
+  console.log(
+    `  ${s.warning('⚠')}  ${s.warning('Warning:')} ${s.text('Token usage is at 87%. Consider compacting.')}`,
+  );
+  console.log(
+    `  ${s.error('✖')}  ${s.error('Error:')}   ${s.text('Failed to connect to provider. Retrying…')}`,
+  );
+  console.log(
+    `  ${s.primary('ℹ')}  ${s.primary('Info:')}    ${s.text('Using model ')}${s.strong('claude-sonnet-4-20250514')}`,
+  );
   console.log('');
   console.log(`  ${s.label('User')}      ${s.value('>')} ${s.strong('Fix the auth middleware')}`);
-  console.log(`  ${s.label('Assistant')} ${s.value('>')} ${s.text('I\'ll update the JWT validation logic in auth.ts')}`);
-  console.log(`  ${s.label('Tool')}      ${s.value('>')} ${s.accent('Read')} ${s.dim('src/middleware/auth.ts')}`);
-  console.log(`  ${s.label('Thinking')} ${s.value('>')} ${s.dim('The token expiry check is missing a clock skew margin…')}`);
+  console.log(
+    `  ${s.label('Assistant')} ${s.value('>')} ${s.text("I'll update the JWT validation logic in auth.ts")}`,
+  );
+  console.log(
+    `  ${s.label('Tool')}      ${s.value('>')} ${s.accent('Read')} ${s.dim('src/middleware/auth.ts')}`,
+  );
+  console.log(
+    `  ${s.label('Thinking')} ${s.value('>')} ${s.dim('The token expiry check is missing a clock skew margin…')}`,
+  );
   console.log('');
   console.log(`  ${s.diffGutter(' 1 ')} ${s.diffMeta('// before')}`);
   console.log(`  ${s.diffGutter(' 2 ')} ${s.diffDel('-  if (token.expired) throw new Error();')}`);
-  console.log(`  ${s.diffGutter(' 3 ')} ${s.diffAdd('+  if (token.expired && !isWithinSkew(token)) {')}`);
-  console.log(`  ${s.diffGutter(' 4 ')} ${s.diffAdd('+    throw new AuthError("Token expired", { skew: true });')}`);
+  console.log(
+    `  ${s.diffGutter(' 3 ')} ${s.diffAdd('+  if (token.expired && !isWithinSkew(token)) {')}`,
+  );
+  console.log(
+    `  ${s.diffGutter(' 4 ')} ${s.diffAdd('+    throw new AuthError("Token expired", { skew: true });')}`,
+  );
   console.log(`  ${s.diffGutter(' 5 ')} ${s.diffAdd('+  }')}`);
   console.log(`  ${s.diffGutter(' 6 ')} ${s.diffMeta('// after')}`);
 }

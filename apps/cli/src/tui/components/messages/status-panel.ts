@@ -49,7 +49,6 @@ export interface StatusReportOptions {
 
 type Colorize = (text: string) => string;
 
-
 function displayModelName(alias: string, models: Record<string, ModelAlias>): string {
   const model = models[alias];
   return model?.displayName ?? model?.model ?? alias;
@@ -59,9 +58,8 @@ function formatModelStatus(options: StatusReportOptions): string {
   const model = options.status?.model ?? options.model;
   if (model.trim().length === 0) return 'not set';
 
-  const thinking = (options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off')) === 'off'
-    ? 'off'
-    : 'on';
+  const thinking =
+    (options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off')) === 'off' ? 'off' : 'on';
   return `${displayModelName(model, options.availableModels)} (thinking ${thinking})`;
 }
 
@@ -114,10 +112,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     rows.push({ label: 'Warning', value: options.statusError, severity: 'error' });
   }
 
-  const lines: string[] = [
-    `${accent(`>_ ${PRODUCT_NAME}`)} ${muted(`(v${options.version})`)}`,
-    '',
-  ];
+  const lines: string[] = [`${accent(`>_ ${PRODUCT_NAME}`)} ${muted(`(v${options.version})`)}`, ''];
   addFieldRows(lines, rows, muted, value, errorStyle);
 
   const { ratio, tokens, maxTokens } = contextValues(options);

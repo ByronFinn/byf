@@ -8,8 +8,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createProxiedFetch } from '../../../src/tools/providers/proxied-fetch';
 import { LocalFetchURLProvider } from '../../../src/tools/providers/local-fetch-url';
+import { createProxiedFetch } from '../../../src/tools/providers/proxied-fetch';
 
 function htmlResponse(body: string, contentType: string): Response {
   return new Response(body, {
@@ -70,9 +70,11 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('returns content without proxy when direct fetch succeeds', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response('direct content', { status: 200, headers: { 'content-type': 'text/plain' } }),
-    );
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response('direct content', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      );
     const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],
@@ -118,7 +120,9 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('does not retry on non-retryable HTTP error (404)', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response('not found', { status: 404 }));
+    const innerFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('not found', { status: 404 }));
     const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],

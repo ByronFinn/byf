@@ -6,7 +6,10 @@ import { runShell } from '#/cli/run-shell';
 
 import { captureProcessWrite, ExitCalled, mockProcessExit } from '../helpers/process';
 
-type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
+type CreateByfDeviceId = (
+  homeDir: string,
+  options?: { onFirstLaunch?: (id: string) => void },
+) => string;
 
 const mocks = vi.hoisted(() => {
   type TuiConfigFallback = {
@@ -117,9 +120,7 @@ describe('runShell', () => {
     mocks.tuiGetCurrentSessionId.mockReturnValue('');
     mocks.tuiHasSessionContent.mockReturnValue(false);
     mocks.createByfDeviceId.mockImplementation(() => 'device-1');
-    mocks.resolveByfHome.mockImplementation(
-      (homeDir?: string) => homeDir ?? '/tmp/byf-test-home',
-    );
+    mocks.resolveByfHome.mockImplementation((homeDir?: string) => homeDir ?? '/tmp/byf-test-home');
     mocks.harnessCreatesDeviceIdOnConstruction = false;
   });
 
@@ -137,7 +138,7 @@ describe('runShell', () => {
       session: undefined,
       continue: false,
       yolo: true,
-      
+
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
@@ -190,7 +191,7 @@ describe('runShell', () => {
         session: '',
         continue: false,
         yolo: false,
-        
+
         model: undefined,
         outputFormat: undefined,
         prompt: undefined,
@@ -226,7 +227,7 @@ describe('runShell', () => {
           session: undefined,
           continue: false,
           yolo: false,
-          
+
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,
@@ -259,7 +260,7 @@ describe('runShell', () => {
           session: undefined,
           continue: false,
           yolo: false,
-          
+
           model: undefined,
           outputFormat: undefined,
           prompt: undefined,

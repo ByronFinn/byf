@@ -295,10 +295,7 @@ export function resolvePathAccess(
   return { path: canonical, outsideWorkspace };
 }
 
-export function resolvePathAccessPath(
-  path: string,
-  options: ResolvePathAccessPathOptions,
-): string {
+export function resolvePathAccessPath(path: string, options: ResolvePathAccessPathOptions): string {
   const { kaos, workspace, operation, policy, expandHome = true } = options;
   return resolvePathAccess(path, workspace.workspaceDir, workspace, {
     operation,

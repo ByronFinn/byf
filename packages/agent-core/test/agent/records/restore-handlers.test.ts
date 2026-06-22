@@ -5,8 +5,8 @@ import {
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../src/agent/records';
-import { testAgent } from '../harness/agent';
 import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
+import { testAgent } from '../harness/agent';
 
 describe('AgentRecords handler registration and routing', () => {
   describe('registerHandlers method', () => {
@@ -20,7 +20,9 @@ describe('AgentRecords handler registration and routing', () => {
       };
 
       // Test that registerHandlers method exists and can be called
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
 
       expect(typeof agentRecords.registerHandlers).toBe('function');
 
@@ -41,7 +43,9 @@ describe('AgentRecords handler registration and routing', () => {
         restoreRecord: (_record: AgentRecord) => {},
       };
 
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
 
       agentRecords.registerHandlers({ test: firstHandler });
       agentRecords.registerHandlers({ test: secondHandler });
@@ -67,7 +71,9 @@ describe('AgentRecords handler registration and routing', () => {
         },
       };
 
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
       agentRecords.registerHandlers({ context: contextHandler });
 
       const testRecord: AgentRecord = {
@@ -97,7 +103,9 @@ describe('AgentRecords handler registration and routing', () => {
         },
       };
 
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
       agentRecords.registerHandlers({ config: configHandler });
 
       const testRecord: AgentRecord = {
@@ -121,7 +129,9 @@ describe('AgentRecords handler registration and routing', () => {
         },
       };
 
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
       agentRecords.registerHandlers({ context: contextHandler });
 
       // This record type is not registered, should be silently skipped
@@ -152,7 +162,9 @@ describe('AgentRecords handler registration and routing', () => {
         },
       };
 
-      const agentRecords = records as unknown as AgentRecords & { registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void };
+      const agentRecords = records as unknown as AgentRecords & {
+        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
+      };
       agentRecords.registerHandlers({ fullCompaction: fullCompactionHandler });
 
       const testRecord: AgentRecord = {

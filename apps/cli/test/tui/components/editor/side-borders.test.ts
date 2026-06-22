@@ -36,13 +36,7 @@ describe('wrapWithSideBorders', () => {
   });
 
   it('handles autocomplete rows that come after the bottom border (still wrap with │)', () => {
-    const lines = [
-      '──────────',
-      '   q      ',
-      '──────────',
-      '   item1  ',
-      '   item2  ',
-    ];
+    const lines = ['──────────', '   q      ', '──────────', '   item1  ', '   item2  '];
     const out = wrapWithSideBorders(lines, id);
     expect(out[0]?.startsWith('╭')).toBe(true);
     expect(out[2]?.startsWith('╰')).toBe(true);

@@ -67,11 +67,7 @@ export function Pill({
             color,
           };
   return (
-    <span
-      className={`pill ${className}`}
-      style={style}
-      title={title}
-    >
+    <span className={`pill ${className}`} style={style} title={title}>
       {children}
     </span>
   );

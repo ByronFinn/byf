@@ -13,15 +13,12 @@ import {
   type UrlFetcher,
 } from '../../src/tools/builtin/web/fetch-url';
 import { RemoteFetchURLProvider } from '../../src/tools/providers/remote-fetch-url';
-import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { toolContentString } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
-function fakeFetcher(
-  content = '',
-  kind: 'passthrough' | 'extracted' = 'extracted',
-): UrlFetcher {
+function fakeFetcher(content = '', kind: 'passthrough' | 'extracted' = 'extracted'): UrlFetcher {
   return { fetch: vi.fn().mockResolvedValue({ content, kind }) };
 }
 
@@ -178,7 +175,7 @@ describe('FetchURLTool', () => {
     ].join('\n');
     const tool = new FetchURLTool(fakeFetcher(extracted));
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_html',
       args: { url: 'https://example.com/bug' },
@@ -204,7 +201,7 @@ describe('FetchURLTool', () => {
     };
     const tool = new FetchURLTool(fetcher);
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_404',
       args: { url: 'https://example.com/missing' },
@@ -223,7 +220,7 @@ describe('FetchURLTool', () => {
     };
     const tool = new FetchURLTool(fetcher);
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_empty',
       args: { url: '' },
@@ -244,7 +241,7 @@ describe('FetchURLTool', () => {
     };
     const tool = new FetchURLTool(fetcher);
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_md',
       args: { url: 'https://example.com/page.md' },

@@ -2,24 +2,24 @@
   "name": "@byfriends/cli",
   "version": "0.3.2",
   "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
+  "keywords": [
+    "ai",
+    "byf",
+    "cli",
+    "coding-agent",
+    "terminal",
+    "tui"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "cli",
-    "terminal",
-    "ai",
-    "coding-agent",
-    "tui"
-  ],
   "bin": {
     "byf": "dist/main.mjs"
   },

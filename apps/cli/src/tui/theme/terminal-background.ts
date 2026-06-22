@@ -1,6 +1,6 @@
-import { OSC11_RESPONSE } from "#/tui/constant/terminal";
+import { OSC11_RESPONSE } from '#/tui/constant/terminal';
 
-import type { ResolvedTheme } from "./colors";
+import type { ResolvedTheme } from './colors';
 
 export function parseOsc11BackgroundTheme(data: string): ResolvedTheme | null {
   const match = OSC11_RESPONSE.exec(data);
@@ -17,7 +17,7 @@ export function themeFromHexChannels(rHex: string, gHex: string, bHex: string): 
   // Relative luminance, sRGB-linearised. Threshold 0.5 splits dark/light
   // backgrounds reliably for both pure-black (#000) and pure-white (#fff).
   const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luma > 0.5 ? "light" : "dark";
+  return luma > 0.5 ? 'light' : 'dark';
 }
 
 function normalizeChannel(hex: string): number {

@@ -149,6 +149,9 @@ export interface SessionSummary {
   readonly metadata?: JsonObject | undefined;
 }
 
-export type ResumedSessionState = Pick<ResumeSessionResult, 'sessionMetadata' | 'agents' | 'warning'>;
+export type ResumedSessionState = Pick<
+  ResumeSessionResult,
+  'sessionMetadata' | 'agents' | 'warning'
+>;
 
 export interface ResumedSessionSummary extends SessionSummary, ResumedSessionState {}

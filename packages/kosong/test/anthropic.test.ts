@@ -1,10 +1,11 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
-import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic';
-import type { ThinkingEffort } from '#/provider';
 import type { PromptPlan } from '#/prompt-plan';
+import type { ThinkingEffort } from '#/provider';
+import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic';
 import type { Tool } from '#/tool';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function makeAnthropicResponse(model: string = 'k25') {
   return {
@@ -45,10 +46,7 @@ type AnthropicGenerationState = {
   temperature?: number | undefined;
   top_k?: number | undefined;
   top_p?: number | undefined;
-  thinking?:
-    | { type: 'disabled' }
-    | { type: 'adaptive'; display?: string | undefined }
-    | undefined;
+  thinking?: { type: 'disabled' } | { type: 'adaptive'; display?: string | undefined } | undefined;
   output_config?: { effort: string } | undefined;
   betaFeatures?: string[] | undefined;
 };
@@ -275,7 +273,8 @@ describe('AnthropicChatProvider', () => {
       const toolCall: ToolCall = {
         type: 'function',
         id: 'call_abc123',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Add 2 and 3' }], toolCalls: [] },
@@ -326,7 +325,8 @@ describe('AnthropicChatProvider', () => {
       const toolCall: ToolCall = {
         type: 'function',
         id: 'call_abc123',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Add 2 and 3' }], toolCalls: [] },
@@ -372,12 +372,14 @@ describe('AnthropicChatProvider', () => {
       const tcAdd: ToolCall = {
         type: 'function',
         id: 'call_add',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const tcMul: ToolCall = {
         type: 'function',
         id: 'call_mul',
-        name: 'multiply', arguments: '{"a": 4, "b": 5}',
+        name: 'multiply',
+        arguments: '{"a": 4, "b": 5}',
       };
       const history: Message[] = [
         {
@@ -477,12 +479,14 @@ describe('AnthropicChatProvider', () => {
       const tcAdd: ToolCall = {
         type: 'function',
         id: 'call_add',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const tcMul: ToolCall = {
         type: 'function',
         id: 'call_mul',
-        name: 'multiply', arguments: '{"a": 4, "b": 5}',
+        name: 'multiply',
+        arguments: '{"a": 4, "b": 5}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Calculate 2+3 and 4*5' }], toolCalls: [] },
@@ -533,7 +537,8 @@ describe('AnthropicChatProvider', () => {
       const tcAdd: ToolCall = {
         type: 'function',
         id: 'call_add',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'What is 2+3?' }], toolCalls: [] },
@@ -567,7 +572,8 @@ describe('AnthropicChatProvider', () => {
       const makeTc = (id: string, name: string): ToolCall => ({
         type: 'function',
         id,
-        name, arguments: '{"a": 1, "b": 1}',
+        name,
+        arguments: '{"a": 1, "b": 1}',
       });
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Do three things' }], toolCalls: [] },
@@ -601,12 +607,14 @@ describe('AnthropicChatProvider', () => {
       const tcAdd: ToolCall = {
         type: 'function',
         id: 'call_add',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const tcMul: ToolCall = {
         type: 'function',
         id: 'call_mul',
-        name: 'multiply', arguments: '{"a": 4, "b": 5}',
+        name: 'multiply',
+        arguments: '{"a": 4, "b": 5}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Do both' }], toolCalls: [] },
@@ -1007,19 +1015,16 @@ describe('AnthropicChatProvider', () => {
         ['claude-opus-4-8', 'max', 'max'],
         ['claude-opus-5-0', 'max', 'max'],
         ['claude-opus-5-0', 'xhigh', 'high'],
-      ] as const)(
-        'clamp adaptive: %s + %s -> effort=%s',
-        async (model, effort, expected) => {
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const provider = createProvider(model).withThinking(effort);
-          const body = await captureRequestBody(provider, '', [], thinkHistory);
+      ] as const)('clamp adaptive: %s + %s -> effort=%s', async (model, effort, expected) => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const provider = createProvider(model).withThinking(effort);
+        const body = await captureRequestBody(provider, '', [], thinkHistory);
 
-          expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
-          expect(body['output_config']).toEqual({ effort: expected });
-          expect(body['thinking']).not.toHaveProperty('budget_tokens');
-          warnSpy.mockRestore();
-        },
-      );
+        expect(body['thinking']).toEqual({ type: 'adaptive', display: 'summarized' });
+        expect(body['output_config']).toEqual({ effort: expected });
+        expect(body['thinking']).not.toHaveProperty('budget_tokens');
+        warnSpy.mockRestore();
+      });
 
       // All models now use adaptive + output_config (no more budget_tokens paths)
       it.each([
@@ -1274,7 +1279,8 @@ describe('AnthropicChatProvider', () => {
         {
           type: 'function',
           id: 'tool_1',
-          name: 'add', arguments: '{"a":2,"b":3}',
+          name: 'add',
+          arguments: '{"a":2,"b":3}',
         },
       ]);
       expect(stream.usage).toEqual({
@@ -1496,7 +1502,8 @@ describe('AnthropicChatProvider', () => {
         {
           type: 'function',
           id: 'toolu_abc',
-          name: 'add', arguments: '',
+          name: 'add',
+          arguments: '',
           _streamIndex: 1,
         },
         { type: 'tool_call_part', argumentsPart: '{"a":', index: 1 },
@@ -1570,13 +1577,15 @@ describe('AnthropicChatProvider', () => {
         {
           type: 'function',
           id: 'toolu_a',
-          name: 'tool_a', arguments: '',
+          name: 'tool_a',
+          arguments: '',
           _streamIndex: 0,
         },
         {
           type: 'function',
           id: 'toolu_b',
-          name: 'tool_b', arguments: '',
+          name: 'tool_b',
+          arguments: '',
           _streamIndex: 1,
         },
         { type: 'tool_call_part', argumentsPart: '{"x":', index: 0 },
@@ -1906,7 +1915,11 @@ describe('AnthropicChatProvider', () => {
 
       // Without promptPlan, the entire prompt is sent as a single block
       expect(body['system']).toEqual([
-        { type: 'text', text: 'Static part\n__CACHE_BOUNDARY__\nDynamic part', cache_control: { type: 'ephemeral' } },
+        {
+          type: 'text',
+          text: 'Static part\n__CACHE_BOUNDARY__\nDynamic part',
+          cache_control: { type: 'ephemeral' },
+        },
       ]);
     });
 
@@ -1946,7 +1959,11 @@ describe('AnthropicChatProvider', () => {
 
       // Without promptPlan, the entire prompt is sent as-is
       expect(body['system']).toEqual([
-        { type: 'text', text: '  Static  \n__B__\n  Dynamic  ', cache_control: { type: 'ephemeral' } },
+        {
+          type: 'text',
+          text: '  Static  \n__B__\n  Dynamic  ',
+          cache_control: { type: 'ephemeral' },
+        },
       ]);
     });
   });
@@ -2167,7 +2184,11 @@ describe('AnthropicChatProvider PromptPlan support', () => {
       const body = await captureRequestBody(provider, '', [], history, { promptPlan });
 
       expect(body['system']).toEqual([
-        { type: 'text', text: 'Project-specific instructions.', cache_control: { type: 'ephemeral' } },
+        {
+          type: 'text',
+          text: 'Project-specific instructions.',
+          cache_control: { type: 'ephemeral' },
+        },
       ]);
     });
 
@@ -2177,9 +2198,7 @@ describe('AnthropicChatProvider PromptPlan support', () => {
         { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
       ];
       const promptPlan: PromptPlan = {
-        blocks: [
-          { name: 'session', text: 'Session context.', cacheScope: 'session' },
-        ],
+        blocks: [{ name: 'session', text: 'Session context.', cacheScope: 'session' }],
       };
       const body = await captureRequestBody(provider, '', [], history, { promptPlan });
 
@@ -2205,7 +2224,11 @@ describe('AnthropicChatProvider PromptPlan support', () => {
         { type: 'text', text: 'Cached system prompt.', cache_control: { type: 'ephemeral' } },
         { type: 'text', text: 'Dynamic user query.' },
       ]);
-      expect((body['system'] as Array<{ type: string; text: string; cache_control?: { type: string } }>)[1]).not.toHaveProperty('cache_control');
+      expect(
+        (
+          body['system'] as Array<{ type: string; text: string; cache_control?: { type: string } }>
+        )[1],
+      ).not.toHaveProperty('cache_control');
     });
 
     it('produces correct block count for mixed scopes', async () => {
@@ -2223,7 +2246,11 @@ describe('AnthropicChatProvider PromptPlan support', () => {
       };
       const body = await captureRequestBody(provider, '', [], history, { promptPlan });
 
-      const system = body['system'] as Array<{ type: string; text: string; cache_control?: { type: string } }>;
+      const system = body['system'] as Array<{
+        type: string;
+        text: string;
+        cache_control?: { type: string };
+      }>;
       expect(system).toHaveLength(4);
       expect(system[0]!.cache_control).toEqual({ type: 'ephemeral' });
       expect(system[1]!.cache_control).toEqual({ type: 'ephemeral' });
@@ -2369,9 +2396,7 @@ describe('AnthropicChatProvider cacheHint on history messages', () => {
     }>;
 
     // Find the user message containing the tool result
-    const toolResultMsg = messages.find((m) =>
-      m.content.some((b) => b.type === 'tool_result'),
-    );
+    const toolResultMsg = messages.find((m) => m.content.some((b) => b.type === 'tool_result'));
     expect(toolResultMsg).toBeDefined();
     const toolResultBlock = toolResultMsg!.content.find((b) => b.type === 'tool_result');
     expect(toolResultBlock!.cache_control).toEqual({ type: 'ephemeral' });

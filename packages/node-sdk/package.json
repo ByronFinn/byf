@@ -2,23 +2,23 @@
   "name": "@byfriends/sdk",
   "version": "0.3.2",
   "description": "Public TypeScript SDK for BYF agents and sessions",
+  "keywords": [
+    "agent",
+    "api",
+    "byf",
+    "sdk",
+    "typescript"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "sdk",
-    "typescript",
-    "agent",
-    "api"
-  ],
   "files": [
     "dist",
     "README.md"
@@ -37,7 +37,6 @@
     }
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
@@ -45,6 +44,7 @@
         "default": "./dist/index.mjs"
       }
     },
+    "access": "public",
     "provenance": false
   },
   "scripts": {

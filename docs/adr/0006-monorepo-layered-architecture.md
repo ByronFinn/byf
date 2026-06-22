@@ -20,16 +20,16 @@ apps/vis  ──→  (types only from agent-core & kosong)
 
 ### Layer responsibilities
 
-| Layer | Package | Role |
-|-------|---------|------|
-| Application | `apps/cli` | CLI / TUI. Consumes core capabilities **only** through `@byfriends/sdk`. Must not import `@byfriends/agent-core` directly. |
-| Application | `apps/vis` | Visual debugging. Reads session data from filesystem. Only imports **types** from `agent-core` and `kosong` — no runtime dependency. |
-| SDK | `packages/node-sdk` | Public TypeScript SDK. Bridges host applications to agent-core via typed RPC channel (`createRPC<CoreAPI, SDKAPI>`). Isolation seam between CLI and engine internals. |
-| Engine | `packages/agent-core` | Unified agent engine: Agent, Session, Profile, Skill, Tool, Plan, Permission, Background, Records, Compaction, RPC, Config. Depends on kosong (LLM) and kaos (execution environment). |
-| LLM | `packages/kosong` | Provider abstraction layer. `ChatProvider` interface with adapters for OpenAI, Anthropic, Google GenAI. Stateless `generate()` loop handles streaming, tool call routing, abort. |
-| Environment | `packages/kaos` | Execution environment abstraction. `Kaos` interface with `LocalKaos` and `SSHKaos` adapters. Bound to async context. No knowledge of agents or LLMs. |
-| Utility | `packages/oauth` | OAuth and authentication utilities. Retained for transition period. |
-| Utility | `packages/telemetry` | Telemetry infrastructure. Disabled in BYF. |
+| Layer       | Package               | Role                                                                                                                                                                                  |
+| ----------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application | `apps/cli`            | CLI / TUI. Consumes core capabilities **only** through `@byfriends/sdk`. Must not import `@byfriends/agent-core` directly.                                                            |
+| Application | `apps/vis`            | Visual debugging. Reads session data from filesystem. Only imports **types** from `agent-core` and `kosong` — no runtime dependency.                                                  |
+| SDK         | `packages/node-sdk`   | Public TypeScript SDK. Bridges host applications to agent-core via typed RPC channel (`createRPC<CoreAPI, SDKAPI>`). Isolation seam between CLI and engine internals.                 |
+| Engine      | `packages/agent-core` | Unified agent engine: Agent, Session, Profile, Skill, Tool, Plan, Permission, Background, Records, Compaction, RPC, Config. Depends on kosong (LLM) and kaos (execution environment). |
+| LLM         | `packages/kosong`     | Provider abstraction layer. `ChatProvider` interface with adapters for OpenAI, Anthropic, Google GenAI. Stateless `generate()` loop handles streaming, tool call routing, abort.      |
+| Environment | `packages/kaos`       | Execution environment abstraction. `Kaos` interface with `LocalKaos` and `SSHKaos` adapters. Bound to async context. No knowledge of agents or LLMs.                                  |
+| Utility     | `packages/oauth`      | OAuth and authentication utilities. Retained for transition period.                                                                                                                   |
+| Utility     | `packages/telemetry`  | Telemetry infrastructure. Disabled in BYF.                                                                                                                                            |
 
 ### Key invariants
 

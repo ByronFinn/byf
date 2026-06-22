@@ -16,6 +16,7 @@
 import type { ContentPart } from '@byfriends/kosong';
 
 import type { Logger } from '#/logging/types';
+
 import {
   compileToolArgsValidator,
   validateToolArgs,
@@ -23,7 +24,6 @@ import {
   type ToolArgsValidator,
 } from '../tools/args-validator';
 import { PathSecurityError } from '../tools/policies/path-access';
-
 import { errorMessage, isAbortError } from './errors';
 import type { LoopEventDispatcher, LoopToolCallEvent } from './events';
 import type { LLM, LLMChatResponse } from './llm';
@@ -78,8 +78,18 @@ interface RejectedToolCall {
 
 type PrepareToolExecutionDecision =
   | { readonly kind: 'allowed'; readonly args: unknown; readonly metadata?: unknown }
-  | { readonly kind: 'synthetic'; readonly args: unknown; readonly result: ExecutableToolResult }
-  | { readonly kind: 'blocked'; readonly args: unknown; readonly output: string; readonly blockedReason?: 'rejected' | 'cancelled' | undefined }
+  | {
+      readonly kind: 'synthetic';
+      readonly args: unknown;
+      readonly result: ExecutableToolResult;
+      readonly skip?: boolean | undefined;
+    }
+  | {
+      readonly kind: 'blocked';
+      readonly args: unknown;
+      readonly output: string;
+      readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+    }
   | { readonly kind: 'hookFailed'; readonly args: unknown; readonly output: string };
 
 interface PendingToolResult {
@@ -93,6 +103,12 @@ interface PendingToolResult {
 interface PreparedToolCallTask {
   readonly task: ToolCallTask<PendingToolResult>;
   readonly stopBatchAfterThis?: boolean | undefined;
+  /**
+   * When true, the tool call was deduplicated (same-step dedup) and was never
+   * actually executed. Skip both `tool.call` and `tool.result` events — the
+   * original call already covers them.
+   */
+  readonly skip?: boolean | undefined;
 }
 
 type ToolCallDisplayFields = Pick<LoopToolCallEvent, 'description' | 'display'>;
@@ -115,6 +131,7 @@ export async function runToolCallBatch(
     for (let index = 0; index < calls.length; index += 1) {
       const call = calls[index]!;
       const prepared = await prepareToolCall(step, call);
+      if (prepared.skip === true) continue;
       pendingResults.push(scheduler.add(prepared.task));
 
       if (prepared.stopBatchAfterThis === true) {
@@ -247,11 +264,14 @@ async function prepareToolCall(
   }
 
   if (decision.kind === 'synthetic') {
-    await dispatchToolCall(step, call, decision.args);
     const coerced = coerceToolResult(decision.result, call.toolName);
+    if (decision.skip !== true) {
+      await dispatchToolCall(step, call, decision.args);
+    }
     return {
       task: makeResolvedToolCallTask(makeToolResult(call, decision.args, coerced)),
       stopBatchAfterThis: toolResultStopsTurn(coerced),
+      skip: decision.skip === true,
     };
   }
 
@@ -383,7 +403,12 @@ async function runPrepareToolExecutionHook(
   }
 
   if (hookResult?.syntheticResult !== undefined) {
-    return { kind: 'synthetic', args: effectiveArgs, result: hookResult.syntheticResult };
+    return {
+      kind: 'synthetic',
+      args: effectiveArgs,
+      result: hookResult.syntheticResult,
+      skip: hookResult.skip === true,
+    };
   }
 
   return { kind: 'allowed', args: effectiveArgs, metadata: hookResult?.executionMetadata };

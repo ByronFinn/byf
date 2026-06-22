@@ -1,10 +1,7 @@
 import type { TUI } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  formatSubagentTokens,
-  ToolCallComponent,
-} from '#/tui/components/messages/tool-call';
+import { formatSubagentTokens, ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';

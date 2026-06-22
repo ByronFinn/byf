@@ -1,3 +1,5 @@
+import { ApiError as GoogleApiError, GoogleGenAI as GenAIClient } from '@google/genai';
+
 import type { ModelCapability } from '#/capability';
 import { ChatProviderError, normalizeAPIStatusError } from '#/errors';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
@@ -9,13 +11,12 @@ import type {
   ThinkingEffort,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import { ApiError as GoogleApiError, GoogleGenAI as GenAIClient } from '@google/genai';
 
-import { getGoogleGenAIModelCapability } from './capability-registry';
-import { requireProviderApiKey, resolveAuthBackedClient } from './request-auth';
-import { convertProviderError, extractCacheUsage } from './provider-common';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
 import { BaseStreamedMessage } from './base-streamed-message';
+import { getGoogleGenAIModelCapability } from './capability-registry';
+import { convertProviderError, extractCacheUsage } from './provider-common';
+import { requireProviderApiKey, resolveAuthBackedClient } from './request-auth';
 
 /**
  * Normalize a Google GenAI (Gemini) `finishReason` value to the unified
@@ -653,15 +654,7 @@ export class GoogleGenAIChatProvider extends BaseChatProvider<GoogleGenAIGenerat
             options.location,
           )
         : undefined;
-    super(
-      options.model,
-      {},
-      apiKeyResolved,
-      '',
-      undefined,
-      client,
-      options.clientFactory,
-    );
+    super(options.model, {}, apiKeyResolved, '', undefined, client, options.clientFactory);
     this._stream = options.stream ?? true;
     this._vertexai = options.vertexai ?? false;
     this._project = options.project;

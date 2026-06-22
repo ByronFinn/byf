@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { api } from '../api';
-import { CopyButton } from '../components/shared/CopyButton';
-import { TabBar, useActiveTab } from '../components/layout/TabBar';
 import { ContextTab } from '../components/context/ContextTab';
+import { TabBar, useActiveTab } from '../components/layout/TabBar';
+import { CopyButton } from '../components/shared/CopyButton';
 import { StateTab } from '../components/state/StateTab';
 import { SubagentsTab } from '../components/subagents/SubagentsTab';
 import { WireTab } from '../components/wire/WireTab';
@@ -24,9 +24,7 @@ export function SessionDetailPage() {
   }
   if (error) {
     return (
-      <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
-        {error.message}
-      </div>
+      <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">{error.message}</div>
     );
   }
   if (!session) return null;
@@ -69,10 +67,7 @@ export function SessionDetailPage() {
             </span>
           ) : null}
         </div>
-        <div
-          className="mt-1 truncate font-mono text-[10px] text-fg-3"
-          title={session.sessionDir}
-        >
+        <div className="mt-1 truncate font-mono text-[10px] text-fg-3" title={session.sessionDir}>
           {session.sessionDir}
         </div>
         {state?.lastPrompt ? (

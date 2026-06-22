@@ -11,17 +11,17 @@ byf <subcommand> [options]
 
 The table below lists all options supported by the `byf` main command. All flags are optional — running `byf` on its own is enough to enter an interactive session.
 
-| Option | Short | Description |
-| --- | --- | --- |
-| `--version` | `-V` | Print the version number and exit. |
-| `--help` | `-h` | Show help information and exit. |
-| `--session [id]` | `-S` | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions. |
-| `--continue` | `-C` | Continue the most recent session in the current working directory, without manually specifying an ID. |
-| `--model <model>` | `-m` | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model. |
-| `--prompt <prompt>` | `-p` | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI. |
-| `--output-format <format>` | | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`. |
-| `--yolo` | `-y` | Auto-approve ordinary tool calls, skipping approval requests. |
-| `--skills-dir <dir>` | | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below. |
+| Option                     | Short | Description                                                                                                                                                                                                                         |
+| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`                | `-V`  | Print the version number and exit.                                                                                                                                                                                                  |
+| `--help`                   | `-h`  | Show help information and exit.                                                                                                                                                                                                     |
+| `--session [id]`           | `-S`  | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions.                                                                                  |
+| `--continue`               | `-C`  | Continue the most recent session in the current working directory, without manually specifying an ID.                                                                                                                               |
+| `--model <model>`          | `-m`  | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model.                                                                   |
+| `--prompt <prompt>`        | `-p`  | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI.                                                                                  |
+| `--output-format <format>` |       | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`.                                                                                               |
+| `--yolo`                   | `-y`  | Auto-approve ordinary tool calls, skipping approval requests.                                                                                                                                                                       |
+| `--skills-dir <dir>`       |       | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below. |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo`. They do not appear in the help output and behave identically to their official counterparts.
 
@@ -119,12 +119,12 @@ Bundle a session into a ZIP file for sharing, archival, or bug reports. The expo
 byf export [sessionId] [options]
 ```
 
-| Argument / Option | Short | Description |
-| --- | --- | --- |
-| `sessionId` | | The ID of the session to export. When omitted, the most recent session under the current working directory is selected automatically and a confirmation is requested. |
-| `--output <path>` | `-o` | Output path for the ZIP file. When omitted, writes to a default filename in the current directory. |
-| `--yes` | `-y` | Skip the confirmation prompt for the default session and export directly. |
-| `--no-include-global-log` | | Skip bundling the active global diagnostic log, `~/.byf/logs/byf.log`. It is included by default. |
+| Argument / Option         | Short | Description                                                                                                                                                           |
+| ------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sessionId`               |       | The ID of the session to export. When omitted, the most recent session under the current working directory is selected automatically and a confirmation is requested. |
+| `--output <path>`         | `-o`  | Output path for the ZIP file. When omitted, writes to a default filename in the current directory.                                                                    |
+| `--yes`                   | `-y`  | Skip the confirmation prompt for the default session and export directly.                                                                                             |
+| `--no-include-global-log` |       | Skip bundling the active global diagnostic log, `~/.byf/logs/byf.log`. It is included by default.                                                                     |
 
 By default, export includes files inside the target session directory. If that directory contains `logs/byf.log`, it appears in the ZIP as `logs/byf.log`. The global diagnostic log at `~/.byf/logs/byf.log` is also bundled by default, because it may contain events from other sessions or projects. Add `--no-include-global-log` when you do not want to share it. When included, its ZIP path is `logs/global/byf.log`; rotated files such as `byf.log.1` are not bundled.
 

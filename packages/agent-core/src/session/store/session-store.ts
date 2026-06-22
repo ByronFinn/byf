@@ -4,10 +4,10 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { z } from 'zod';
 
 import { ErrorCodes, ByfError } from '#/errors';
+import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
 import type { SessionIndexEntry } from '#/session/store/session-index';
 import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
-import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
 
 const SessionSummaryStateSchema = z.object({
   customTitle: z.string().optional(),
@@ -75,12 +75,18 @@ export class SessionStore {
     assertSafeSessionId(input.targetId);
     const indexed = await this.findSessionEntry(input.targetId);
     if (indexed !== undefined) {
-      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(
+        ErrorCodes.SESSION_ALREADY_EXISTS,
+        `Session "${input.targetId}" already exists`,
+      );
     }
 
     const targetDir = this.sessionDirFor({ id: input.targetId, workDir: source.workDir });
     if (await isDirectory(targetDir)) {
-      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(
+        ErrorCodes.SESSION_ALREADY_EXISTS,
+        `Session "${input.targetId}" already exists`,
+      );
     }
 
     await mkdir(dirname(targetDir), { recursive: true, mode: 0o700 });
@@ -120,9 +126,13 @@ export class SessionStore {
     try {
       parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
     } catch (error) {
-      throw new ByfError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
-        cause: error,
-      });
+      throw new ByfError(
+        ErrorCodes.SESSION_STATE_NOT_FOUND,
+        `Session "${id}" state.json was not found`,
+        {
+          cause: error,
+        },
+      );
     }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
@@ -350,7 +360,10 @@ function timestampOrFallback(value: number, fallback: number): number {
 
 function assertSafeSessionId(id: string): void {
   if (isSafeSessionId(id)) return;
-  throw new ByfError(ErrorCodes.SESSION_ID_INVALID, 'Session id contains unsupported path characters');
+  throw new ByfError(
+    ErrorCodes.SESSION_ID_INVALID,
+    'Session id contains unsupported path characters',
+  );
 }
 
 function isSafeSessionId(id: string): boolean {

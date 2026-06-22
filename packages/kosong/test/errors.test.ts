@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   APIConnectionError,
   APIContextOverflowError,
@@ -7,7 +9,6 @@ import {
   ChatProviderError,
   normalizeAPIStatusError,
 } from '#/errors';
-import { describe, expect, it } from 'vitest';
 
 describe('ChatProviderError', () => {
   it('is an instance of Error', () => {

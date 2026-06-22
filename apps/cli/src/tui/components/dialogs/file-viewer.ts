@@ -194,8 +194,7 @@ export class FileViewerComponent extends Container implements Focusable {
     const total = this.lines.length;
     const viewRows = Math.max(1, bodyHeight - 2);
     const maxScroll = Math.max(0, total - viewRows);
-    const percent =
-      maxScroll === 0 ? 100 : Math.round((this.scrollTop / maxScroll) * 100);
+    const percent = maxScroll === 0 ? 100 : Math.round((this.scrollTop / maxScroll) * 100);
     const lineFrom = this.scrollTop + 1;
     const lineTo = Math.min(total, this.scrollTop + viewRows);
 

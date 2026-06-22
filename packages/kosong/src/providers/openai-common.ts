@@ -1,4 +1,11 @@
 import {
+  APIConnectionError as OpenAIConnectionError,
+  APIConnectionTimeoutError as OpenAITimeoutError,
+  APIError as OpenAIAPIError,
+  OpenAIError,
+} from 'openai';
+
+import {
   APIConnectionError,
   APITimeoutError,
   ChatProviderError,
@@ -9,13 +16,8 @@ import type { ContentPart, Message } from '#/message';
 import type { FinishReason, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
+
 import { makeFinishReasonNormalizer } from './provider-common';
-import {
-  APIConnectionError as OpenAIConnectionError,
-  APIConnectionTimeoutError as OpenAITimeoutError,
-  APIError as OpenAIAPIError,
-  OpenAIError,
-} from 'openai';
 export interface OpenAIContentPart {
   type: string;
   text?: string | undefined;
@@ -157,12 +159,7 @@ export function isFunctionToolCall<T extends { type: string }>(
  * effort level.  All other OpenAI-compatible models clamp `xhigh` / `max`
  * down to `high`.
  */
-const XHIGH_SUPPORT_PREFIXES = [
-  'gpt-5.',
-  'gpt-5-',
-  'o3-pro',
-  'o4-mini',
-] as const;
+const XHIGH_SUPPORT_PREFIXES = ['gpt-5.', 'gpt-5-', 'o3-pro', 'o4-mini'] as const;
 
 function supportsXhighReasoningEffort(model: string): boolean {
   const normalized = model.toLowerCase();

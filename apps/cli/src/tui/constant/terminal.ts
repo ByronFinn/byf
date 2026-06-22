@@ -1,6 +1,6 @@
-import { BEL, ESC, ST } from "#/constant/terminal";
+import { BEL, ESC, ST } from '#/constant/terminal';
 
-export { BEL, ESC, ST } from "#/constant/terminal";
+export { BEL, ESC, ST } from '#/constant/terminal';
 
 // Terminal theme reporting uses private CSI sequences: enable reporting,
 // query once, then parse dark/light reports from the input stream.
@@ -25,10 +25,10 @@ export const OSC11_QUERY = `${ESC}]11;?${BEL}`;
 const OSC11_RESPONSE_TERMINATOR_PATTERN = `(?:${BEL}|${ESC}\\\\)`;
 export const OSC11_RESPONSE = new RegExp(
   String.raw`${ESC}?\]11;rgb:([0-9a-f]{1,4})\/([0-9a-f]{1,4})\/([0-9a-f]{1,4})${OSC11_RESPONSE_TERMINATOR_PATTERN}`,
-  "i",
+  'i',
 );
 export const OSC11_RESPONSE_PREFIX = `${ESC}]11;rgb:`;
-export const OSC11_RESPONSE_PREFIX_NO_ESC = "]11;rgb:";
+export const OSC11_RESPONSE_PREFIX_NO_ESC = ']11;rgb:';
 
 // Keep notification/title payloads bounded so terminal tabs and desktop
 // notifications stay readable.

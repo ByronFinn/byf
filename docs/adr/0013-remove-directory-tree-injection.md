@@ -16,6 +16,7 @@ For prefix-match cache providers (OpenAI-compatible: GLM, DeepSeek, Kimi, etc.),
 Production cache analysis on GLM-5.2 measured ~19,712 tokens of cache loss from a single injection event. In a 50-step session with 3 tree changes, this amounted to ~300K tokens of unnecessary re-billing.
 
 Meanwhile, the directory tree injection had diminishing value:
+
 - Many projects include a high-level project map in AGENTS.md (e.g., `## Project Map`).
 - The model discovers file-level structure through tools (Glob, Bash, Read) when needed.
 - The injected tree becomes stale as the session progresses — it only refreshes when the injector detects a change.
@@ -45,12 +46,12 @@ Reorder `system.md` so that `# Project Information` (AGENTS.md) comes **before**
 
 The resulting 4-block structure:
 
-| Block | Name | Scope | Content |
-|-------|------|-------|---------|
-| 0 | `base` | `global` | Agent identity, principles, safety — zero per-session variables |
-| 1 | `projectInstructions` | `project` | AGENTS.md |
-| 2 | `workingEnvironment` | `session` | OS, shell, working directory |
-| 3 | `sessionContext` | `session` | Skills listing |
+| Block | Name                  | Scope     | Content                                                         |
+| ----- | --------------------- | --------- | --------------------------------------------------------------- |
+| 0     | `base`                | `global`  | Agent identity, principles, safety — zero per-session variables |
+| 1     | `projectInstructions` | `project` | AGENTS.md                                                       |
+| 2     | `workingEnvironment`  | `session` | OS, shell, working directory                                    |
+| 3     | `sessionContext`      | `session` | Skills listing                                                  |
 
 **Rationale**: Block 0 is now truly stable across sessions. For OpenAI-compatible providers, `prompt_cache_key = SHA256(global blocks)` is identical for every session in the same project. For Anthropic, the global cache breakpoint covers only stable agent rules. This maximizes cross-session cache reuse without any per-session contamination.
 

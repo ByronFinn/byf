@@ -1,8 +1,9 @@
-import { ErrorCodes, ByfError } from '#/errors';
+import type { Tool } from '@byfriends/kosong';
+
 import type { McpServerConfig } from '#/config/schema';
+import { ErrorCodes, ByfError } from '#/errors';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
-import type { Tool } from '@byfriends/kosong';
 
 import { abortable } from '../utils/abort';
 import { HttpMcpClient } from './client-http';
@@ -131,15 +132,9 @@ export class McpConnectionManager {
    */
   resolved(
     name: string,
-  ):
-    | { client: MCPClient; tools: readonly Tool[]; enabledNames: ReadonlySet<string> }
-    | undefined {
+  ): { client: MCPClient; tools: readonly Tool[]; enabledNames: ReadonlySet<string> } | undefined {
     const entry = this.entries.get(name);
-    if (
-      entry?.status !== 'connected' ||
-      entry.tools === undefined ||
-      entry.client === undefined
-    ) {
+    if (entry?.status !== 'connected' || entry.tools === undefined || entry.client === undefined) {
       return undefined;
     }
     return {

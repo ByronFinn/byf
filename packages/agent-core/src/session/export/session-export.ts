@@ -3,14 +3,10 @@ import { resolve } from 'node:path';
 
 import { ErrorCodes, ByfError } from '#/errors';
 import { resolveGlobalLogPath } from '#/logging/logger';
+import type { ExportSessionPayload, ExportSessionResult, SessionSummary } from '#/rpc/core-api';
 import { buildExportManifest } from '#/session/export/manifest';
 import { scanSessionWire } from '#/session/export/wire-scan';
-import {
-  type ExtraZipEntry,
-  collectFilesRecursive,
-  writeExportZip,
-} from '#/session/export/zip';
-import type { ExportSessionPayload, ExportSessionResult, SessionSummary } from '#/rpc/core-api';
+import { type ExtraZipEntry, collectFilesRecursive, writeExportZip } from '#/session/export/zip';
 
 const SESSION_LOG_REL = 'logs/byf.log';
 const GLOBAL_LOG_REL = 'logs/global/byf.log';
@@ -24,14 +20,19 @@ export async function exportSessionDirectory(input: {
   const sessionDir = input.summary.sessionDir;
   const sessionFiles = await collectFilesRecursive(sessionDir);
   if (sessionFiles.length === 0) {
-    throw new ByfError(ErrorCodes.SESSION_EXPORT_NOT_FOUND, `Session "${input.summary.id}" has no exportable directory at "${sessionDir}"`, {
-      details: { sessionId: input.summary.id, sessionDir },
-    });
+    throw new ByfError(
+      ErrorCodes.SESSION_EXPORT_NOT_FOUND,
+      `Session "${input.summary.id}" has no exportable directory at "${sessionDir}"`,
+      {
+        details: { sessionId: input.summary.id, sessionDir },
+      },
+    );
   }
 
   const sessionScan = await scanSessionWire(sessionDir);
-  const hasSessionLog = sessionFiles.some((f) =>
-    f.endsWith(`/${SESSION_LOG_REL}`) || f.endsWith(`\\${SESSION_LOG_REL.replaceAll('/', '\\')}`),
+  const hasSessionLog = sessionFiles.some(
+    (f) =>
+      f.endsWith(`/${SESSION_LOG_REL}`) || f.endsWith(`\\${SESSION_LOG_REL.replaceAll('/', '\\')}`),
   );
 
   const extras: ExtraZipEntry[] = [];

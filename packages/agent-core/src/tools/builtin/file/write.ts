@@ -5,18 +5,16 @@
  * Path access policy is resolved before any Kaos I/O.
  */
 
-import type { Kaos } from '@byfriends/kaos';
 import * as posixPath from 'node:path/posix';
 import * as win32Path from 'node:path/win32';
+
+import type { Kaos } from '@byfriends/kaos';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import {
-  type PathClass,
-  resolvePathAccessPath,
-} from '../../policies/path-access';
+import { type PathClass, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import WRITE_DESCRIPTION from './write.md';

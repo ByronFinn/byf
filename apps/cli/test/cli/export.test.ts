@@ -9,21 +9,24 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Command } from 'commander';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { handleExport, registerExportCommand } from '#/cli/sub/export';
-import type { ExportDeps } from '#/cli/sub/export';
 import type {
   ExportSessionInput,
   ExportSessionManifest,
   ExportSessionResult,
   SessionSummary,
 } from '@byfriends/sdk';
+import { Command } from 'commander';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { handleExport, registerExportCommand } from '#/cli/sub/export';
+import type { ExportDeps } from '#/cli/sub/export';
 
 let tmp: string;
 
-type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
+type CreateByfDeviceId = (
+  homeDir: string,
+  options?: { onFirstLaunch?: (id: string) => void },
+) => string;
 
 const mocks = vi.hoisted(() => ({
   byfHarnessConstructor: vi.fn(),
@@ -81,9 +84,7 @@ afterEach(() => {
     telemetry: true,
   });
   mocks.createByfDeviceId.mockImplementation(() => 'device-1');
-  mocks.resolveByfHome.mockImplementation(
-    (homeDir?: string) => homeDir ?? '/tmp/byf-export-home',
-  );
+  mocks.resolveByfHome.mockImplementation((homeDir?: string) => homeDir ?? '/tmp/byf-export-home');
   mocks.harnessCreatesDeviceIdOnConstruction = false;
 });
 
@@ -198,7 +199,9 @@ describe('byf export', () => {
     expect(exitCodes).toEqual([]);
     expect(stderr).toEqual([]);
     expect(listedWorkDirs).toEqual([]);
-    expect(exportInputs).toEqual([{ id: 'ses_test123456', outputPath: output, includeGlobalLog: true, version: '1.0.0-test' }]);
+    expect(exportInputs).toEqual([
+      { id: 'ses_test123456', outputPath: output, includeGlobalLog: true, version: '1.0.0-test' },
+    ]);
     expect(stdout.join('').trim()).toBe(output);
   });
 
@@ -207,7 +210,9 @@ describe('byf export', () => {
 
     await runExport(deps, { sessionId: 'session_default_output' });
 
-    expect(exportInputs).toEqual([{ id: 'session_default_output', includeGlobalLog: true, version: '1.0.0-test' }]);
+    expect(exportInputs).toEqual([
+      { id: 'session_default_output', includeGlobalLog: true, version: '1.0.0-test' },
+    ]);
     expect(stdout.join('').trim()).toBe(join(tmp, 'session_default_output.zip'));
   });
 
@@ -245,7 +250,9 @@ describe('byf export', () => {
     await runExport(deps, { output });
 
     expect(exitCodes).toEqual([]);
-    expect(exportInputs).toEqual([{ id: 'ses_fallback', outputPath: output, includeGlobalLog: true, version: '1.0.0-test' }]);
+    expect(exportInputs).toEqual([
+      { id: 'ses_fallback', outputPath: output, includeGlobalLog: true, version: '1.0.0-test' },
+    ]);
     expect(stdout.join('').trim()).toBe(output);
   });
 
@@ -287,7 +294,14 @@ describe('byf export', () => {
     await runExport(deps, { output: join(tmp, 'yes.zip'), yes: true });
 
     expect(exitCodes).toEqual([]);
-    expect(exportInputs).toEqual([{ id: 'ses_yes', outputPath: join(tmp, 'yes.zip'), includeGlobalLog: true, version: '1.0.0-test' }]);
+    expect(exportInputs).toEqual([
+      {
+        id: 'ses_yes',
+        outputPath: join(tmp, 'yes.zip'),
+        includeGlobalLog: true,
+        version: '1.0.0-test',
+      },
+    ]);
   });
 
   it('describes the user-facing command without implementation details', () => {
@@ -339,5 +353,4 @@ describe('byf export', () => {
       { id: 'ses_after_id', outputPath: output, version: '1.0.0-test' },
     ]);
   });
-
 });

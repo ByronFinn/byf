@@ -232,9 +232,7 @@ describe('BackgroundManager — RPC event emission', () => {
       await agent.background.loadFromDisk();
       await agent.background.reconcile();
 
-      const terminated = agent.emittedEvents.filter(
-        (e) => e.type === 'background.task.terminated',
-      );
+      const terminated = agent.emittedEvents.filter((e) => e.type === 'background.task.terminated');
       expect(terminated.length).toBe(1);
       expect(terminated[0]!.info.taskId).toBe('bash-orphan00');
       expect(terminated[0]!.info.status).toBe('lost');
@@ -263,9 +261,7 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'completed',
       notificationId: `task:${taskId}:completed`,
     });
-    expect((content as Array<{ text: string }>)[0]!.text).toContain(
-      'Background agent completed',
-    );
+    expect((content as Array<{ text: string }>)[0]!.text).toContain('Background agent completed');
     expect((content as Array<{ text: string }>)[0]!.text).toContain('final subagent summary');
   });
 
@@ -287,9 +283,7 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'completed',
       notificationId: `task:${taskId}:completed`,
     });
-    expect((content as Array<{ text: string }>)[0]!.text).toContain(
-      'Background task completed',
-    );
+    expect((content as Array<{ text: string }>)[0]!.text).toContain('Background task completed');
     expect((content as Array<{ text: string }>)[0]!.text).toContain('shell task completed.');
   });
 
@@ -365,9 +359,7 @@ describe('BackgroundManager — RPC event emission', () => {
         status: 'completed',
         notificationId: 'task:agent-done0000:completed',
       });
-      expect((content as Array<{ text: string }>)[0]!.text).toContain(
-        'Background agent completed',
-      );
+      expect((content as Array<{ text: string }>)[0]!.text).toContain('Background agent completed');
       expect((content as Array<{ text: string }>)[0]!.text).toContain('restored subagent summary');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
@@ -405,9 +397,7 @@ describe('BackgroundManager — RPC event emission', () => {
         status: 'completed',
         notificationId: 'task:bash-done0000:completed',
       });
-      expect((content as Array<{ text: string }>)[0]!.text).toContain(
-        'Background task completed',
-      );
+      expect((content as Array<{ text: string }>)[0]!.text).toContain('Background task completed');
       expect((content as Array<{ text: string }>)[0]!.text).toContain('restored shell output');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });

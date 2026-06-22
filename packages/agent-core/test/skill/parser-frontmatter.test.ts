@@ -4,9 +4,16 @@ import { FrontmatterError, parseFrontmatter } from '../../src/skill/parser';
 
 describe('parseFrontmatter', () => {
   it('parses a leading YAML block and discards it from body', () => {
-    const text = ['---', 'name: test-skill', 'description: A test skill', 'extra: 123', '---', '', '# Body', ''].join(
-      '\n',
-    );
+    const text = [
+      '---',
+      'name: test-skill',
+      'description: A test skill',
+      'extra: 123',
+      '---',
+      '',
+      '# Body',
+      '',
+    ].join('\n');
 
     const { data, body } = parseFrontmatter(text);
 

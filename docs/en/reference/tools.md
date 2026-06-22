@@ -8,14 +8,14 @@ Compared to MCP tools, built-in tools are managed directly by the runtime, their
 
 File tools handle reading, writing, and searching the local filesystem, and are the foundational tools for code analysis and modification tasks.
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `Read` | Auto-approved | Read the contents of a text file |
-| `Write` | Requires approval | Create or overwrite a file |
-| `Edit` | Requires approval | Exact string replacement |
-| `Grep` | Auto-approved | Full-text search powered by ripgrep |
-| `Glob` | Auto-approved | Find files by glob pattern |
-| `ReadMediaFile` | Auto-approved | Read an image or video file |
+| Tool            | Default approval  | Description                         |
+| --------------- | ----------------- | ----------------------------------- |
+| `Read`          | Auto-approved     | Read the contents of a text file    |
+| `Write`         | Requires approval | Create or overwrite a file          |
+| `Edit`          | Requires approval | Exact string replacement            |
+| `Grep`          | Auto-approved     | Full-text search powered by ripgrep |
+| `Glob`          | Auto-approved     | Find files by glob pattern          |
+| `ReadMediaFile` | Auto-approved     | Read an image or video file         |
 
 **`Read`** accepts a file path (`path`) along with the optional `line_offset` (starting line number; negative values count from the end) and `n_lines` (maximum number of lines to read). At most 1000 lines or 100 KB are returned per call, with a truncation notice appended for anything beyond that limit. If the file is an image or video, the tool suggests using `ReadMediaFile` instead.
 
@@ -31,8 +31,8 @@ File tools handle reading, writing, and searching the local filesystem, and are 
 
 ## Shell
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
+| Tool   | Default approval  | Description             |
+| ------ | ----------------- | ----------------------- |
 | `Bash` | Requires approval | Execute a shell command |
 
 **`Bash`** is the most versatile and the most permission-sensitive tool. It accepts `command` (required) along with the optional `cwd` (working directory), `timeout` (milliseconds), `description` (background task description, required when `run_in_background=true`), `run_in_background` (whether to run as a background task), and `disable_timeout` (whether to disable the timeout for a background task). The foreground `timeout` defaults to 60 seconds and is capped at 5 minutes; the background `timeout` defaults to 10 minutes and is also capped at 10 minutes.
@@ -41,10 +41,10 @@ In foreground mode `Bash` blocks the current turn until the command finishes or 
 
 ## Network tools
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `WebSearch` | Auto-approved | Search the web |
-| `FetchURL` | Auto-approved | Fetch the content of a given URL |
+| Tool        | Default approval | Description                      |
+| ----------- | ---------------- | -------------------------------- |
+| `WebSearch` | Auto-approved    | Search the web                   |
+| `FetchURL`  | Auto-approved    | Fetch the content of a given URL |
 
 **`WebSearch`** accepts `query` (search terms) and the optional `limit` (number of results to return, 1–20, default 5) and `include_content` (whether to return the page body; default false — enabling this consumes significantly more tokens). This tool requires the host to provide a search implementation; if no implementation is injected, it does not appear in the tool list.
 
@@ -52,9 +52,9 @@ In foreground mode `Bash` blocks the current turn until the command finishes or 
 
 ## State management
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `TodoList` | Auto-approved | Manage the task to-do list |
+| Tool       | Default approval | Description                |
+| ---------- | ---------------- | -------------------------- |
+| `TodoList` | Auto-approved    | Manage the task to-do list |
 
 **`TodoList`** maintains a visible subtask list across multi-step operations; state is stored within the agent session. The `todos` parameter accepts an array where each item has a `title` and a `status` (`pending` / `in_progress` / `done`). Omitting `todos` queries the current list; passing an empty array clears it.
 
@@ -62,11 +62,11 @@ In foreground mode `Bash` blocks the current turn until the command finishes or 
 
 Collaboration tools handle inter-agent coordination, user interaction, and skill invocation.
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `Agent` | Auto-approved | Spawn a subagent to execute a subtask |
-| `AskUserQuestion` | Auto-approved | Ask the user a question to obtain structured input |
-| `Skill` | Auto-approved | Invoke a registered inline skill |
+| Tool              | Default approval | Description                                        |
+| ----------------- | ---------------- | -------------------------------------------------- |
+| `Agent`           | Auto-approved    | Spawn a subagent to execute a subtask              |
+| `AskUserQuestion` | Auto-approved    | Ask the user a question to obtain structured input |
+| `Skill`           | Auto-approved    | Invoke a registered inline skill                   |
 
 **`Agent`** delegates a subtask to a subagent. Required parameters are `prompt` (the full task description) and `description` (a short 3–5 word summary for UI display). Optional parameters include `subagent_type` (agent type, default `coder`), `resume` (the ID of an existing agent to resume), `run_in_background` (whether to run in the background, default false), and `timeout` (timeout in seconds, 30–3600). `subagent_type` and `resume` are mutually exclusive: when resuming an existing agent, addressing is done solely by ID. When the foreground `timeout` is omitted, the subagent runs to completion with no time limit; when the background `timeout` is omitted, it falls back to `[background] agent_task_timeout_s` in `config.toml`, and if that field is also unset, there is no time limit. In foreground mode the parent agent waits for the subagent to complete before continuing; in background mode it returns a task ID immediately, and upon completion a synthetic user message automatically routes control back to the main agent, with no polling required. For details on the subagent system, see [Subagents](../customization/agents.md).
 
@@ -78,11 +78,11 @@ Collaboration tools handle inter-agent coordination, user interaction, and skill
 
 Background task tools manage background tasks started via `Bash` or `Agent`. When a background task reaches a terminal state such as completed, failed, stopped, or lost, its status and tail output are automatically sent back to the agent; use `TaskOutput` only when you want to inspect progress before that automatic notification arrives.
 
-| Tool | Default approval | Description |
-| --- | --- | --- |
-| `TaskList` | Auto-approved | List background tasks |
-| `TaskOutput` | Auto-approved | View the output of a background task |
-| `TaskStop` | Requires approval | Stop a running background task |
+| Tool         | Default approval  | Description                          |
+| ------------ | ----------------- | ------------------------------------ |
+| `TaskList`   | Auto-approved     | List background tasks                |
+| `TaskOutput` | Auto-approved     | View the output of a background task |
+| `TaskStop`   | Requires approval | Stop a running background task       |
 
 **`TaskList`** returns a list of background tasks; each record includes the task ID, status, command, description, and PID. Optional parameters: `active_only` (default true, lists only running tasks) and `limit` (maximum number of entries to return, default 20, range 1–100). Tasks that have reached a terminal state also include `exit_code`; tasks explicitly terminated by `TaskStop` additionally include `reason`.
 

@@ -41,7 +41,9 @@ export class WelcomeComponent implements Component {
     const dim = chalk.hex(this.colors.textDim);
     const labelStyle = chalk.bold.hex(this.colors.textDim);
     const rightRow1 = truncateToWidth(
-      dim(isLoggedOut ? 'Run /login or /connect to get started.' : 'Send /help for help information.'),
+      dim(
+        isLoggedOut ? 'Run /login or /connect to get started.' : 'Send /help for help information.',
+      ),
       textWidth,
       '…',
     );

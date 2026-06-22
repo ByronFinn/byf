@@ -5,6 +5,7 @@
 ### 背景
 
 BYF 的 prompt cache 架构（ADR 0009 + ADR 0011）已实现多层级缓存策略：
+
 - **PromptPlan**：system prompt 静态分块 + `cacheScope` 标记
 - **CacheStakingStrategy**：基于 turn boundary 的 `CacheHint`（`isLastTurnEnd` / `isSuddenLargeContext`）
 - **Provider 适配**：Anthropic 显式 `cache_control` 断点；OpenAI 兼容 provider（含智谱 GLM）靠自动前缀匹配 + `prompt_cache_key`
@@ -72,6 +73,7 @@ DYNAMIC ZONE (每步请求，在末尾，零缓存影响):
 移除 `DirectoryTreeInjector` 类及其全部依赖（`buildTree()`、`collectEntries()`、`EXCLUDED_DIRS`、`HIDDEN_DIR_WHITELIST`、`Entry` 接口、辅助函数），并从 `InjectionManager` 的 injector 列表中移除。
 
 项目结构的发现从"注入式"变为"渐进式"：
+
 - **AGENTS.md Project Map**：许多项目的 AGENTS.md 包含 `## Project Map` 段落（如本仓库），为模型提供高层结构概览。
 - **工具发现**：模型通过 Glob、Bash ls、Read 等工具按需发现文件级结构。
 - **用户 prompt 引导**：用户的任务描述通常指明了目标文件或模块。
@@ -83,6 +85,7 @@ DYNAMIC ZONE (每步请求，在末尾，零缓存影响):
 **核心变更**：在 `system.md` 中，`# Project Information` 现在位于 `# Working Environment` **之前**。在 `builder.ts` 中，`# Working Environment` 加入 `IMPLICIT_BOUNDARY_HEADERS`。
 
 **改造前**（3 个缓存块）：
+
 - Block 0 (global): Agent 规则 **+ Working Environment（含 BYF_OS 等变量）**
 - Block 1 (project): AGENTS.md
 - Block 2 (session): Skills
@@ -90,19 +93,25 @@ DYNAMIC ZONE (每步请求，在末尾，零缓存影响):
 Block 0 虽标记为 `global`，但实际包含 per-session 变量，导致 OpenAI 的 `prompt_cache_key`（Block 0 文本的 SHA256）并非真正跨 session 稳定。
 
 **改造后**（4 个缓存块）：
+
 - Block 0 (global): 纯 Agent 规则（身份、原则、安全）— **无任何 per-session 变量**
 - Block 1 (project): AGENTS.md
 - Block 2 (session): Working Environment（OS、shell、cwd）
 - Block 3 (session): Skills 列表
 
 **关键收益**：
+
 - 对 OpenAI 型 provider：`prompt_cache_key = SHA256(global blocks)` 现在真正跨 session 稳定（不含 per-session cwd/OS）。
 - 对 Anthropic：全局缓存断点只覆盖稳定的 agent 规则。
 
 **涉及的 `IMPLICIT_BOUNDARY_HEADERS`**：
 
 ```typescript
-const IMPLICIT_BOUNDARY_HEADERS = ['# Project Information', '# Working Environment', '# Skills'] as const;
+const IMPLICIT_BOUNDARY_HEADERS = [
+  '# Project Information',
+  '# Working Environment',
+  '# Skills',
+] as const;
 ```
 
 ### Tier 3: 激活 Ephemeral Injection 管线
@@ -218,25 +227,25 @@ this.injectors = [new PermissionModeInjector(agent), new TimestampInjector(agent
 
 ## 风险与缓解
 
-| 风险 | 影响 | 缓解 |
-|---|---|---|
-| 模型在会话开始时不知道项目文件级结构 | 可能需要额外的工具调用来发现结构 | AGENTS.md Project Map 提供高层概览；模型可通过 Glob/Bash 按需发现；用户 prompt 通常指明目标 |
-| 外部进程改变目录结构后模型不感知 | 模型可能基于过时假设做决策 | 模型通过工具调用结果发现自己创建/修改的文件；如需确认当前状态可主动调用 Glob |
-| 时间戳每步变化 | 不影响缓存前缀（ephemeral，在 history 末尾） | 设计如此——每步新鲜时间戳对模型决策有利 |
-| 权限模式注入不再持久化 | compaction 后权限提醒不会被历史消息保留 | ephemeral 注入每步反映当前状态，compaction 无影响——这正是从 transition 改为 state 的优势 |
+| 风险                                 | 影响                                         | 缓解                                                                                        |
+| ------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 模型在会话开始时不知道项目文件级结构 | 可能需要额外的工具调用来发现结构             | AGENTS.md Project Map 提供高层概览；模型可通过 Glob/Bash 按需发现；用户 prompt 通常指明目标 |
+| 外部进程改变目录结构后模型不感知     | 模型可能基于过时假设做决策                   | 模型通过工具调用结果发现自己创建/修改的文件；如需确认当前状态可主动调用 Glob                |
+| 时间戳每步变化                       | 不影响缓存前缀（ephemeral，在 history 末尾） | 设计如此——每步新鲜时间戳对模型决策有利                                                      |
+| 权限模式注入不再持久化               | compaction 后权限提醒不会被历史消息保留      | ephemeral 注入每步反映当前状态，compaction 无影响——这正是从 transition 改为 state 的优势    |
 
 ## 实现计划
 
-| 阶段 | 任务 | 依赖 |
-|---|---|---|
-| 1 | 在 `system.md` 中将 `# Project Information` 移到 `# Working Environment` 之前 | 无 |
-| 2 | 在 `builder.ts` 的 `IMPLICIT_BOUNDARY_HEADERS` 加入 `# Working Environment` | 阶段 1 |
-| 3 | 在 `projector.ts` 实现 `before_user` 位置（追加在 history 末尾） | 无 |
-| 4 | 在 `injector.ts` 的 `DynamicInjector` 添加 `getEphemeral?()` 方法 | 阶段 3 |
-| 5 | 在 `manager.ts` 添加 `getEphemeralInjections()` 方法 | 阶段 4 |
-| 6 | 新增 `timestamp.ts`（`TimestampInjector`，ephemeral 时间戳） | 阶段 4 |
-| 7 | 改造 `permission-mode.ts`（从持久注入转为 ephemeral） | 阶段 4 |
-| 8 | 在 `context/index.ts` 添加 `getMessages(ephemeral?)` 方法 | 阶段 3 |
-| 9 | 在 `turn/index.ts` 集成 `buildMessages` 回调 | 阶段 5、8 |
-| 10 | 删除 `directory-tree.ts` 及其测试，从 `InjectionManager` 移除引用 | 无 |
-| 11 | 更新或清理受影响的测试 | 全部 |
+| 阶段 | 任务                                                                          | 依赖      |
+| ---- | ----------------------------------------------------------------------------- | --------- |
+| 1    | 在 `system.md` 中将 `# Project Information` 移到 `# Working Environment` 之前 | 无        |
+| 2    | 在 `builder.ts` 的 `IMPLICIT_BOUNDARY_HEADERS` 加入 `# Working Environment`   | 阶段 1    |
+| 3    | 在 `projector.ts` 实现 `before_user` 位置（追加在 history 末尾）              | 无        |
+| 4    | 在 `injector.ts` 的 `DynamicInjector` 添加 `getEphemeral?()` 方法             | 阶段 3    |
+| 5    | 在 `manager.ts` 添加 `getEphemeralInjections()` 方法                          | 阶段 4    |
+| 6    | 新增 `timestamp.ts`（`TimestampInjector`，ephemeral 时间戳）                  | 阶段 4    |
+| 7    | 改造 `permission-mode.ts`（从持久注入转为 ephemeral）                         | 阶段 4    |
+| 8    | 在 `context/index.ts` 添加 `getMessages(ephemeral?)` 方法                     | 阶段 3    |
+| 9    | 在 `turn/index.ts` 集成 `buildMessages` 回调                                  | 阶段 5、8 |
+| 10   | 删除 `directory-tree.ts` 及其测试，从 `InjectionManager` 移除引用             | 无        |
+| 11   | 更新或清理受影响的测试                                                        | 全部      |

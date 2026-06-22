@@ -64,9 +64,7 @@ describe('SubagentActivityStore', () => {
     // thinking text
     store.appendSubagentText('(thinking about strategy)', 'thinking');
     expect(store.subagentThinkingText).toBe('(thinking about strategy)');
-    expect(store.getCombinedText()).toBe(
-      '(thinking about strategy)\nExploring the project...',
-    );
+    expect(store.getCombinedText()).toBe('(thinking about strategy)\nExploring the project...');
     expect(listener).toHaveBeenCalledTimes(3);
 
     // start a sub-tool call
@@ -431,7 +429,12 @@ describe('SubagentActivityStore', () => {
       name: 'replay-agent',
       text: 'Replayed text content',
       toolCalls: [
-        { id: 't1', name: 'Glob', args: { pattern: '*.ts' }, result: { tool_call_id: 't1', output: 'matches', is_error: false } },
+        {
+          id: 't1',
+          name: 'Glob',
+          args: { pattern: '*.ts' },
+          result: { tool_call_id: 't1', output: 'matches', is_error: false },
+        },
         { id: 't2', name: 'Read', args: { path: 'main.ts' } },
       ],
       usage: { inputOther: 1000, output: 500 },
@@ -454,7 +457,11 @@ describe('SubagentActivityStore', () => {
     store.onSubagentSpawned({ agentId: 'sub_trim', runInBackground: false });
 
     for (let i = 0; i < 6; i++) {
-      store.appendSubToolCall({ id: `tc_${String(i)}`, name: 'Read', args: { path: `f${String(i)}.ts` } });
+      store.appendSubToolCall({
+        id: `tc_${String(i)}`,
+        name: 'Read',
+        args: { path: `f${String(i)}.ts` },
+      });
       store.finishSubToolCall({ tool_call_id: `tc_${String(i)}`, output: 'ok', is_error: false });
     }
 
@@ -527,7 +534,11 @@ describe('SubagentActivityStore', () => {
     store.onSubagentSpawned({ agentId: 'sub_recent', runInBackground: false });
 
     for (let i = 0; i < 6; i++) {
-      store.appendSubToolCall({ id: `tc_${String(i)}`, name: 'Read', args: { path: `f${String(i)}.ts` } });
+      store.appendSubToolCall({
+        id: `tc_${String(i)}`,
+        name: 'Read',
+        args: { path: `f${String(i)}.ts` },
+      });
     }
 
     const recent = store.getRecentSubToolActivities();
@@ -604,7 +615,9 @@ describe('SubagentActivityStore', () => {
   it('stopElapsedTimer is a no-op when no timer is running', () => {
     const store = new SubagentActivityStore();
     // Calling stop before any sync should not throw.
-    expect(() => store.stopElapsedTimer()).not.toThrow();
+    expect(() => {
+      store.stopElapsedTimer();
+    }).not.toThrow();
   });
 
   it('stopElapsedTimer is idempotent', () => {
@@ -614,6 +627,8 @@ describe('SubagentActivityStore', () => {
     store.syncElapsedTimer(undefined, ui, vi.fn());
 
     store.stopElapsedTimer();
-    expect(() => store.stopElapsedTimer()).not.toThrow();
+    expect(() => {
+      store.stopElapsedTimer();
+    }).not.toThrow();
   });
 });

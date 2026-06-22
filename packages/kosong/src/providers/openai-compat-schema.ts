@@ -119,7 +119,9 @@ const NUMERIC_STRUCTURE_KEYS = new Set([
  * typeless property schemas. The root schema object is treated as a container
  * and is not itself normalized.
  */
-export function normalizeOpenAICompatToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
+export function normalizeOpenAICompatToolSchema(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
   return ensureOpenAICompatPropertyTypes(derefJsonSchema(schema));
 }
 
@@ -347,7 +349,9 @@ function inferTypeFromValues(values: unknown[]): JsonSchemaType {
     }
     return onlyType;
   }
-  throw new Error('Mixed JSON Schema enum or const types are not supported by OpenAI-compatible tool schemas.');
+  throw new Error(
+    'Mixed JSON Schema enum or const types are not supported by OpenAI-compatible tool schemas.',
+  );
 }
 
 function inferValueType(value: unknown): JsonSchemaType | undefined {

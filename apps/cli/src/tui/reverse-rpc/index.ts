@@ -1,6 +1,6 @@
 import type { ApprovalController } from './approval/controller';
-import type { QuestionController } from './question/controller';
 import { ReverseRpcModalCoordinator } from './modal-coordinator';
+import type { QuestionController } from './question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from './types';
 
 export interface ReverseRPCUIHooks {

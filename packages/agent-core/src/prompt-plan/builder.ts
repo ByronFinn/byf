@@ -21,7 +21,11 @@ const CACHE_BOUNDARY_MARKER = '__CACHE_BOUNDARY__';
  * - "# Working Environment" marks the start of session-specific environment (OS, working directory)
  * - "# Skills" marks the start of session-specific skills listing
  */
-const IMPLICIT_BOUNDARY_HEADERS = ['# Project Information', '# Working Environment', '# Skills'] as const;
+const IMPLICIT_BOUNDARY_HEADERS = [
+  '# Project Information',
+  '# Working Environment',
+  '# Skills',
+] as const;
 
 /**
  * Block names by position.

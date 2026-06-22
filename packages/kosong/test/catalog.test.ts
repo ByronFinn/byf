@@ -49,9 +49,9 @@ describe('catalogBaseUrl', () => {
   });
 
   it('passes openai-family base URLs through unchanged (SDK appends /chat/completions)', () => {
-    expect(catalogBaseUrl({ id: 'o', api: 'https://api.openai.com/v1' }, 'openai-completions')).toBe(
-      'https://api.openai.com/v1',
-    );
+    expect(
+      catalogBaseUrl({ id: 'o', api: 'https://api.openai.com/v1' }, 'openai-completions'),
+    ).toBe('https://api.openai.com/v1');
   });
 
   it('returns undefined for a missing or empty api', () => {
@@ -90,9 +90,9 @@ describe('catalogModelToCapability', () => {
   });
 
   it('defaults tool_use to true and skips models without a positive context', () => {
-    expect(catalogModelToCapability({ id: 'm', limit: { context: 1000 } })?.capability.tool_use).toBe(
-      true,
-    );
+    expect(
+      catalogModelToCapability({ id: 'm', limit: { context: 1000 } })?.capability.tool_use,
+    ).toBe(true);
     expect(catalogModelToCapability({ id: 'm' })).toBeUndefined();
     expect(catalogModelToCapability({ id: 'm', limit: { context: 0 } })).toBeUndefined();
   });

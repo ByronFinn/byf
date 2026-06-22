@@ -3,6 +3,7 @@ Retrieve output from a running or completed background task.
 Use this after `Bash(run_in_background=true)` when you need to inspect progress or wait for completion.
 
 Guidelines:
+
 - Prefer automatic completion notifications. Use this tool only when you need output before it arrives.
 - Non-blocking by default; returns a current status/output snapshot.
 - Use block=true only when you want to wait for completion or timeout.

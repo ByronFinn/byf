@@ -8,5 +8,5 @@ catalog:
   zod: ^4.3.6
 
 overrides:
-  "ssh2@1.17.0>cpu-features": "-"
-  "ssh2@1.17.0>nan": "-"
+  'ssh2@1.17.0>cpu-features': '-'
+  'ssh2@1.17.0>nan': '-'

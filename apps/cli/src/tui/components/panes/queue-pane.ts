@@ -1,8 +1,8 @@
 import { Container, Text } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import type { QueuedMessage } from '../../types';
 import type { ColorPalette } from '../../theme/colors';
+import type { QueuedMessage } from '../../types';
 
 export interface QueuePaneOptions {
   readonly messages: readonly QueuedMessage[];
@@ -29,7 +29,7 @@ export class QueuePaneComponent extends Container {
           ? '  ↑ to edit · will send after compaction'
           : !options.canSteerImmediately
             ? '  ↑ to edit · will send after current task'
-          : '  ↑ to edit · ctrl-s to steer immediately';
+            : '  ↑ to edit · ctrl-s to steer immediately';
       this.addChild(new Text(dim(hint), 0, 0));
     }
   }

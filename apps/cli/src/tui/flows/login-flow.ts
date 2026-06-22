@@ -15,15 +15,14 @@ import {
   type LoginProviderType,
 } from '@byfriends/sdk';
 
-import type { ColorPalette } from '#/tui/theme/colors';
-import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
 import {
   promptTextInput as promptTextInputViaHost,
   promptApiKey as promptApiKeyViaHost,
   promptModelSelector as promptModelSelectorViaHost,
   promptApiTypeSelection as promptApiTypeSelectionViaHost,
 } from '#/tui/flows/dialog-prompts';
-
+import type { ColorPalette } from '#/tui/theme/colors';
+import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
 
 export interface ModelSelection {
   alias: string;
@@ -40,7 +39,6 @@ export interface SpinnerHandle {
  * leaves the base-URL input empty). `google-genai` / `vertexai` are deferred —
  * their runtime does not consume a user-supplied baseUrl (ADR 0016).
  */
-
 
 export interface LoginFlowDeps {
   readonly colors: ColorPalette;
@@ -73,13 +71,17 @@ export class LoginFlow {
     if (name === undefined) return;
 
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      this.deps.showError('Provider name must contain only letters, numbers, hyphens, and underscores.');
+      this.deps.showError(
+        'Provider name must contain only letters, numbers, hyphens, and underscores.',
+      );
       return;
     }
 
     const existingConfig = await this.deps.getConfig();
     if (existingConfig.providers[name] !== undefined) {
-      this.deps.showError(`Provider "${name}" already exists. Use a different name or /logout ${name} first.`);
+      this.deps.showError(
+        `Provider "${name}" already exists. Use a different name or /logout ${name} first.`,
+      );
       return;
     }
 
@@ -104,7 +106,9 @@ export class LoginFlow {
     } catch (error: unknown) {
       spinner.stop({ ok: false, label: 'Failed' });
       if (isProviderApiError(error)) {
-        this.deps.showError(`Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`);
+        this.deps.showError(
+          `Failed to fetch models (HTTP ${String(error.status)}): ${error.message}`,
+        );
       } else {
         this.deps.showError(`Failed to fetch models: ${formatErrorMessage(error)}`);
       }
@@ -122,9 +126,8 @@ export class LoginFlow {
     const modelDict: Record<string, ModelAlias> = {};
     for (const m of models) {
       const aliasKey = `${name}/${m.id}`;
-      const enrichedData = catalog !== undefined
-        ? this.enrichModelFromCatalog(m, catalog)
-        : undefined;
+      const enrichedData =
+        catalog !== undefined ? this.enrichModelFromCatalog(m, catalog) : undefined;
       if (enrichedData !== undefined) {
         enriched[aliasKey] = enrichedData;
       }
@@ -146,7 +149,16 @@ export class LoginFlow {
     const selectedModel = models.find((m) => m.id === selectedId);
     if (selectedModel === undefined) return;
 
-    await this.applyConfig(type, name, baseUrl, apiKey, models, selectedModel, selection.thinkingEffort !== 'off', enriched);
+    await this.applyConfig(
+      type,
+      name,
+      baseUrl,
+      apiKey,
+      models,
+      selectedModel,
+      selection.thinkingEffort !== 'off',
+      enriched,
+    );
     this.deps.track('login', { provider: name, model: selectedModel.id });
     this.deps.showStatus(`Connected: ${name} · ${selectedModel.id}`);
   }
@@ -186,7 +198,16 @@ export class LoginFlow {
       supportsVideoIn: false,
     };
 
-    await this.applyConfig(type, name, baseUrl, apiKey, [manualModelInfo], manualModelInfo, false, {});
+    await this.applyConfig(
+      type,
+      name,
+      baseUrl,
+      apiKey,
+      [manualModelInfo],
+      manualModelInfo,
+      false,
+      {},
+    );
     this.deps.track('login', { provider: name, model: manualModel });
     this.deps.showStatus(`Connected: ${name} · ${manualModel}`);
   }
@@ -258,12 +279,7 @@ function capabilitiesForModel(m: OAuthModelInfo): string[] {
 }
 
 function isProviderApiError(error: unknown): error is { status: number; message: string } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    'message' in error
-  );
+  return typeof error === 'object' && error !== null && 'status' in error && 'message' in error;
 }
 
 function formatErrorMessage(error: unknown): string {

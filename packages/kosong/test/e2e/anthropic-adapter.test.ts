@@ -1,9 +1,10 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { describe, expect, it } from 'vitest';
+
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
-import Anthropic from '@anthropic-ai/sdk';
-import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness } from './fake-provider-harness';
 
@@ -192,7 +193,8 @@ describe('e2e: Anthropic adapter bridge', () => {
         {
           type: 'function',
           id: 'toolu_1',
-          name: 'add', arguments: '',
+          name: 'add',
+          arguments: '',
           _streamIndex: 1,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: '{"a":2', index: 1 },

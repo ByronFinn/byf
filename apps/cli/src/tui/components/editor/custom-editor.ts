@@ -387,10 +387,7 @@ function stripVisiblePrefix(input: string, expected: string): string | null {
  * only if they're literal spaces — that protects the cursor-overflow
  * case where the rightmost column is an SGR-tagged inverse cursor.
  */
-export function wrapWithSideBorders(
-  lines: string[],
-  paint: (s: string) => string,
-): string[] {
+export function wrapWithSideBorders(lines: string[], paint: (s: string) => string): string[] {
   let seenTop = false;
   return lines.map((line) => {
     const plain = stripSgr(line);
@@ -406,8 +403,7 @@ export function wrapWithSideBorders(
     const firstCh = line[0];
     const lastCh = line.at(-1);
     const head = firstCh === ' ' ? paint('│') : (firstCh ?? '');
-    const tail =
-      line.length > 1 && lastCh === ' ' ? paint('│') : (lastCh ?? '');
+    const tail = line.length > 1 && lastCh === ' ' ? paint('│') : (lastCh ?? '');
     if (line.length === 1) return head;
     return head + line.slice(1, -1) + tail;
   });

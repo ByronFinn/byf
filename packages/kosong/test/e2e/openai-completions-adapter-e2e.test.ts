@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest';
+
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { StreamedMessage } from '#/provider';
 import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import type { Tool } from '#/tool';
-import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness, type FakeProviderHarness } from './fake-provider-harness';
 

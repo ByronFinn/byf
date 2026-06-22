@@ -26,12 +26,12 @@ During `/login`, after fetching models from the provider API, attempt to match e
 
 A provider model ID matches a catalog entry when the catalog ID is a prefix of the provider ID and the next character (if any) is `-`. Examples:
 
-| Provider ID | Catalog ID | Match |
-|---|---|---|
-| `gpt-5.5` | `gpt-5.5` | Yes (exact) |
-| `gpt-5.5-2025-06-01` | `gpt-5.5` | Yes (prefix + `-` boundary) |
+| Provider ID                | Catalog ID        | Match                       |
+| -------------------------- | ----------------- | --------------------------- |
+| `gpt-5.5`                  | `gpt-5.5`         | Yes (exact)                 |
+| `gpt-5.5-2025-06-01`       | `gpt-5.5`         | Yes (prefix + `-` boundary) |
 | `claude-opus-4-7-20250605` | `claude-opus-4-7` | Yes (prefix + `-` boundary) |
-| `gpt-5.5-turbo` | `gpt-5` | No (`.` is not `-`) |
+| `gpt-5.5-turbo`            | `gpt-5`           | No (`.` is not `-`)         |
 
 ### 4. Merge strategy: catalog priority, provider fallback
 

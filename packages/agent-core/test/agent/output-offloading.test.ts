@@ -109,7 +109,12 @@ describe('offloadOutput', () => {
     const { manager, written } = createScratchManager();
     const largeError = 'error '.repeat(10_000);
 
-    const result = await offloadOutput('call_1', 'Bash', { output: largeError, isError: true }, manager);
+    const result = await offloadOutput(
+      'call_1',
+      'Bash',
+      { output: largeError, isError: true },
+      manager,
+    );
 
     expect(result.offloaded).toBe(true);
     expect(written.get('/scratch/call_1.txt')).toBe(largeError);

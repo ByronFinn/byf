@@ -1162,7 +1162,9 @@ describe('project root discovery (.git walk-up)', () => {
     });
     const projectPaths = roots.filter((r) => r.source === 'project').map((r) => r.path);
 
-    expect(projectPaths.some((p) => p.includes(path.join('project', '.byf', 'skills')))).toBe(false);
+    expect(projectPaths.some((p) => p.includes(path.join('project', '.byf', 'skills')))).toBe(
+      false,
+    );
   });
 });
 

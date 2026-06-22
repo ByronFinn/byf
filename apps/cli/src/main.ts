@@ -5,15 +5,11 @@
  * outer update preflight, then delegates to the requested UI runner.
  */
 
-import {
-  flushDiagnosticLogs,
-  log,
-  resolveGlobalLogPath,
-  resolveByfHome,
-} from '@byfriends/sdk';
+import { flushDiagnosticLogs, log, resolveGlobalLogPath, resolveByfHome } from '@byfriends/sdk';
+
+import { PRODUCT_NAME } from '#/constant/app';
 
 import { createProgram } from './cli/commands';
-import { PRODUCT_NAME } from '#/constant/app';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';
 import { runPrompt } from './cli/run-prompt';
@@ -21,8 +17,8 @@ import { runShell } from './cli/run-shell';
 import { formatStartupError } from './cli/startup-error';
 import { runUpdatePreflight } from './cli/update/preflight';
 import { getVersion } from './cli/version';
-import { cleanupStaleNativeCacheForCurrent } from './native/native-assets';
 import { installNativeModuleHook } from './native/module-hook';
+import { cleanupStaleNativeCacheForCurrent } from './native/native-assets';
 import { runNativeAssetSmokeIfRequested } from './native/smoke';
 import { initProcessName } from './utils/process/proctitle';
 
@@ -70,22 +66,19 @@ export function main(): void {
 
   const version = getVersion();
 
-  const program = createProgram(
-    `${PRODUCT_NAME} ${version}`,
-    (opts) => {
-      void handleMainCommand(opts, version).catch(async (error: unknown) => {
-        const operation = opts.prompt !== undefined ? 'run prompt' : 'start shell';
-        await logStartupFailure(operation, error);
-        process.stderr.write(
-          formatStartupError(error, {
-            operation,
-          }),
-        );
-        process.stderr.write(`See log: ${resolveGlobalLogPath(resolveByfHome())}\n`);
-        process.exit(1);
-      });
-    },
-  );
+  const program = createProgram(`${PRODUCT_NAME} ${version}`, (opts) => {
+    void handleMainCommand(opts, version).catch(async (error: unknown) => {
+      const operation = opts.prompt !== undefined ? 'run prompt' : 'start shell';
+      await logStartupFailure(operation, error);
+      process.stderr.write(
+        formatStartupError(error, {
+          operation,
+        }),
+      );
+      process.stderr.write(`See log: ${resolveGlobalLogPath(resolveByfHome())}\n`);
+      process.exit(1);
+    });
+  });
 
   program.parse(process.argv);
 }

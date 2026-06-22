@@ -1,11 +1,7 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import {
-  collectNativeAssets,
-  nativeAssetManifestKey,
-  nativeAssetSummary,
-} from './assets.mjs';
+import { collectNativeAssets, nativeAssetManifestKey, nativeAssetSummary } from './assets.mjs';
 import { fail, run } from './exec.mjs';
 import {
   appRoot,
@@ -42,9 +38,7 @@ async function writeSeaConfig(target) {
   const config = {
     main: nativeJsBundlePath(),
     output: nativeBlobPath(),
-    assets: Object.fromEntries(
-      Object.entries(seaAssets).sort(([a], [b]) => a.localeCompare(b)),
-    ),
+    assets: Object.fromEntries(Object.entries(seaAssets).sort(([a], [b]) => a.localeCompare(b))),
     disableExperimentalSEAWarning: true,
     useCodeCache: false,
     useSnapshot: false,

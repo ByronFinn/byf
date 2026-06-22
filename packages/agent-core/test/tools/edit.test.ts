@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { type EditInput, EditInputSchema, EditTool } from '../../src/tools/builtin/file/edit';
-import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
@@ -66,7 +66,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'beta', new_string: 'gamma' }),
     );
 
@@ -79,7 +80,8 @@ describe('EditTool', () => {
     const writeText = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(createFakeKaos({ readText, writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '~/notes/today.txt', old_string: 'beta', new_string: 'gamma' }),
     );
 
@@ -98,7 +100,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'beta', new_string: "$& $$ $` $'" }),
     );
 
@@ -116,7 +119,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'a', new_string: '$&', replace_all: true }),
     );
 
@@ -134,7 +138,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'alpha\nbeta', new_string: 'one\ntwo' }),
     );
 
@@ -152,7 +157,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'alpha\nbeta', new_string: 'one\r\ntwo' }),
     );
 
@@ -170,7 +176,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'alpha\nbeta', new_string: 'one\ntwo' }),
     );
 
@@ -189,7 +196,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'alpha\r\nbeta', new_string: 'one\r\ntwo' }),
     );
 
@@ -207,7 +215,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'a', new_string: 'x', replace_all: true }),
     );
 
@@ -220,7 +229,8 @@ describe('EditTool', () => {
     const writeText = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(createFakeKaos({ readText, writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         path: '/tmp/a.txt',
         old_string: 'same',
@@ -245,7 +255,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'delta', new_string: 'gamma' }),
     );
 
@@ -264,7 +275,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a.txt', old_string: 'same', new_string: 'other' }),
     );
 
@@ -282,7 +294,8 @@ describe('EditTool', () => {
       additionalDirs: [],
     });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '../outside.txt', old_string: 'secret', new_string: 'x' }),
     );
 
@@ -301,7 +314,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/u.txt', old_string: '世界', new_string: '地球' }),
     );
 
@@ -320,7 +334,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/n.txt', old_string: 'notfound', new_string: 'replacement' }),
     );
 
@@ -345,7 +360,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/dir', old_string: 'old', new_string: 'new' }),
     );
 
@@ -363,7 +379,8 @@ describe('EditTool', () => {
       PERMISSIVE_WORKSPACE,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/e.txt', old_string: 'world', new_string: '' }),
     );
 
@@ -381,7 +398,8 @@ describe('EditTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/outside.txt', old_string: 'old', new_string: 'new' }),
     );
 
@@ -401,7 +419,8 @@ describe('EditTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/workspace-sneaky/test.txt', old_string: 'content', new_string: 'new' }),
     );
 

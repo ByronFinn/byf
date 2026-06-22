@@ -104,9 +104,9 @@ describe('RotatingFileSink', () => {
     });
     badSink.enqueue('x\n');
     expect(await badSink.flush()).toBe(false);
-    expect(
-      stderrSpy.mock.calls.some((c) => String(c[0]).includes('[logger] write failed')),
-    ).toBe(true);
+    expect(stderrSpy.mock.calls.some((c) => String(c[0]).includes('[logger] write failed'))).toBe(
+      true,
+    );
     stderrSpy.mockRestore();
   });
 

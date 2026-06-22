@@ -128,11 +128,7 @@ describe('BackgroundProcessManager — readOutput / getOutputPath', () => {
   });
 
   it('readOutput respects tail length', async () => {
-    const taskId = manager.register(
-      immediateProcess(0, 'aaaaa-bbbbb-ccccc-ddddd'),
-      'echo',
-      'demo',
-    );
+    const taskId = manager.register(immediateProcess(0, 'aaaaa-bbbbb-ccccc-ddddd'), 'echo', 'demo');
     await new Promise((r) => setTimeout(r, 30));
     const tail = await manager.readOutput(taskId, 5);
     expect(tail.length).toBeLessThanOrEqual(5);

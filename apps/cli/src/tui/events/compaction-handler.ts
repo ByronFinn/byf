@@ -36,18 +36,12 @@ export class CompactionHandler {
     this.callbacks.beginCompactionBlock(event.instruction);
   }
 
-  handleEnd(
-    event: CompactionCompletedEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
+  handleEnd(event: CompactionCompletedEvent, sendQueued: (item: QueuedMessage) => void): void {
     this.callbacks.endCompactionBlock(event.result.tokensBefore, event.result.tokensAfter);
     this.finishCompaction(sendQueued);
   }
 
-  handleCancel(
-    _event: CompactionCancelledEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
+  handleCancel(_event: CompactionCancelledEvent, sendQueued: (item: QueuedMessage) => void): void {
     this.callbacks.cancelCompactionBlock();
     this.finishCompaction(sendQueued);
   }

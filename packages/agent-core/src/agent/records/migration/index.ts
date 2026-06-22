@@ -43,18 +43,14 @@ export function migrateWireRecord(
   record: WireMigrationRecord,
   migrations: readonly WireMigration[],
 ): WireMigrationRecord {
-  return migrations.reduce(
-    (current, migration) => migration.migrateRecord(current),
-    record,
-  );
+  return migrations.reduce((current, migration) => migration.migrateRecord(current), record);
 }
 
 export function migrateWireRecords(
   records: readonly WireMigrationRecord[],
   readVersion: string | undefined,
 ): WireMigrationRecord[] {
-  const migrations =
-    readVersion === undefined ? MIGRATIONS : resolveWireMigrations(readVersion);
+  const migrations = readVersion === undefined ? MIGRATIONS : resolveWireMigrations(readVersion);
   return records.map((record) => migrateWireRecord(record, migrations));
 }
 

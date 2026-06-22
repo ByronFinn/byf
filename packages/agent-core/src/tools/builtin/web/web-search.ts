@@ -10,7 +10,11 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
-import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type {
+  ExecutableToolContext,
+  ExecutableToolResult,
+  ToolExecution,
+} from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolResultBuilder } from '../../support/result-builder';
 import DESCRIPTION from './web-search.md';
@@ -76,9 +80,7 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
 
   private async execution(
     args: WebSearchInput,
-    {
-    toolCallId,
-    }: ExecutableToolContext,
+    { toolCallId }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     try {
       const opts: { limit?: number; includeContent?: boolean; toolCallId?: string } = {
@@ -114,7 +116,6 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
       };
     }
   }
-
 }
 
 // ── Error classification ─────────────────────────────────────────────

@@ -23,7 +23,7 @@ function sortSessions(sessions: readonly SessionSummary[], key: SessionSortKey):
     case 'most_records':
       return sessions.toSorted((a, b) => b.mainWireRecordCount - a.mainWireRecordCount);
     case 'most_subagents':
-      return sessions.toSorted((a, b) => (b.agentCount - 1) - (a.agentCount - 1));
+      return sessions.toSorted((a, b) => b.agentCount - 1 - (a.agentCount - 1));
   }
 }
 
@@ -42,12 +42,7 @@ export function SessionRail() {
     return data.filter((s) => {
       if (healthFilter !== 'all' && s.health !== healthFilter) return false;
       if (!q) return true;
-      const hay = [
-        s.sessionId,
-        s.title ?? '',
-        s.lastPrompt ?? '',
-        s.workDir ?? '',
-      ]
+      const hay = [s.sessionId, s.title ?? '', s.lastPrompt ?? '', s.workDir ?? '']
         .join(' ')
         .toLowerCase();
       return hay.includes(q);

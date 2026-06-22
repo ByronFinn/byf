@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ToolAccesses } from '../../src/loop';
 import type { Logger, LogPayload } from '../../src/logging';
+import { ToolAccesses } from '../../src/loop';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
@@ -14,9 +14,9 @@ function context<Input>(args: Input, toolCallId = 'call_agent') {
   return { turnId: '0', toolCallId, args, signal };
 }
 
-function mockSubagentHost<T extends Pick<SessionSubagentHost, 'spawn'> & Partial<SessionSubagentHost>>(
-  host: T,
-): T & SessionSubagentHost {
+function mockSubagentHost<
+  T extends Pick<SessionSubagentHost, 'spawn'> & Partial<SessionSubagentHost>,
+>(host: T): T & SessionSubagentHost {
   return { resume: vi.fn(), ...host } as unknown as T & SessionSubagentHost;
 }
 
@@ -28,10 +28,9 @@ interface CapturedLogEntry {
 
 function captureLogs(): { logger: Logger; entries: CapturedLogEntry[] } {
   const entries: CapturedLogEntry[] = [];
-  const capture =
-    (level: CapturedLogEntry['level']) => (message: string, payload?: LogPayload) => {
-      entries.push({ level, message, payload });
-    };
+  const capture = (level: CapturedLogEntry['level']) => (message: string, payload?: LogPayload) => {
+    entries.push({ level, message, payload });
+  };
   const logger: Logger = {
     error: capture('error'),
     warn: capture('warn'),
@@ -217,7 +216,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -248,7 +248,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host);
 
-    await executeTool(tool,
+    await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -276,7 +277,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Continue',
         description: 'Continue work',
@@ -304,7 +306,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Continue',
         description: 'Continue work',
@@ -334,7 +337,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host, background);
 
-    const invalid = await executeTool(tool,
+    const invalid = await executeTool(
+      tool,
       context({
         prompt: 'Continue',
         description: 'Invalid background resume',
@@ -343,7 +347,8 @@ describe('AgentTool', () => {
         run_in_background: true,
       }),
     );
-    const valid = await executeTool(tool,
+    const valid = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -372,7 +377,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Continue',
         description: 'Continue work',
@@ -435,7 +441,8 @@ describe('AgentTool', () => {
     const background = new BackgroundProcessManager();
     const tool = new AgentTool(host, background);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -466,7 +473,8 @@ describe('AgentTool', () => {
     const background = new BackgroundProcessManager();
     const tool = new AgentTool(host, background);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -499,7 +507,8 @@ describe('AgentTool', () => {
     expect(tool.description).toContain('Background agent execution is disabled for this agent.');
     expect(tool.description).not.toContain('the subagent runs detached from this turn');
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -528,7 +537,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host, background);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -563,14 +573,16 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host, background);
 
-    const first = executeTool(tool,
+    const first = executeTool(
+      tool,
       context({
         prompt: 'Investigate first',
         description: 'Find first',
         run_in_background: true,
       }),
     );
-    const second = executeTool(tool,
+    const second = executeTool(
+      tool,
       context({
         prompt: 'Investigate second',
         description: 'Find second',
@@ -600,7 +612,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host, undefined, undefined, { log: logger });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ prompt: 'Investigate', description: 'Find cause' }),
     );
 
@@ -640,7 +653,8 @@ describe('AgentTool', () => {
     });
     const tool = new AgentTool(host, background, undefined, { log: logger });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({
         prompt: 'Investigate',
         description: 'Find cause',
@@ -689,7 +703,8 @@ describe('AgentTool', () => {
       });
       const tool = new AgentTool(host);
 
-      const resultPromise = executeTool(tool,
+      const resultPromise = executeTool(
+        tool,
         context({
           prompt: 'Investigate',
           description: 'Find cause',

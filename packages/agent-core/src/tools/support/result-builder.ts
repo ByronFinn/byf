@@ -1,7 +1,4 @@
-import type {
-  ExecutableToolErrorResult,
-  ExecutableToolSuccessResult,
-} from '../../loop/types';
+import type { ExecutableToolErrorResult, ExecutableToolSuccessResult } from '../../loop/types';
 
 const DEFAULT_MAX_CHARS = 50_000;
 const DEFAULT_MAX_LINE_LENGTH = 2000;
@@ -71,9 +68,7 @@ export class ToolResultBuilder {
 
       const remainingChars = this.maxChars - this.nCharsValue;
       const limit =
-        this.maxLineLength === null
-          ? remainingChars
-          : Math.min(remainingChars, this.maxLineLength);
+        this.maxLineLength === null ? remainingChars : Math.min(remainingChars, this.maxLineLength);
       let line = originalLine;
       if (line.length > limit) {
         const lineBreak = /[\r\n]+$/.exec(line)?.[0] ?? '';

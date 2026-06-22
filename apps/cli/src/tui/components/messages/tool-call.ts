@@ -10,9 +10,7 @@ import chalk from 'chalk';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import { COMMAND_PREVIEW_LINES } from '#/tui/constant/rendering';
-import {
-  STREAMING_ARGS_PREVIEW_MAX_CHARS,
-} from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
@@ -20,8 +18,6 @@ import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { formatBytes, formatElapsed } from '#/utils/format';
 
 import { ShellExecutionComponent } from './shell-execution';
-import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
-import { pickResultRenderer } from './tool-renderers/registry';
 import {
   SubagentActivityStore,
   makeWorkspaceRelativePath,
@@ -33,6 +29,8 @@ import {
   type SubToolActivity,
   type SubagentTextKind,
 } from './subagent-activity-store';
+import { countNonEmptyLines, pickChip } from './tool-renderers/chip';
+import { pickResultRenderer } from './tool-renderers/registry';
 
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
@@ -80,9 +78,9 @@ class PrefixedWrappedLine implements Component {
     private readonly firstPrefix: string,
     private readonly continuationPrefix: string,
     private readonly text: string,
-  ) { }
+  ) {}
 
-  invalidate(): void { }
+  invalidate(): void {}
 
   render(width: number): string[] {
     const prefixWidth = Math.max(
@@ -116,14 +114,30 @@ function extractPartialStringField(text: string, key: string): string | undefine
       const next = text[i + 1];
       if (next === undefined) return out;
       switch (next) {
-        case 'n': out += '\n'; break;
-        case 't': out += '\t'; break;
-        case 'r': out += '\r'; break;
-        case 'b': out += '\b'; break;
-        case 'f': out += '\f'; break;
-        case '"': out += '"'; break;
-        case '\\': out += '\\'; break;
-        case '/': out += '/'; break;
+        case 'n':
+          out += '\n';
+          break;
+        case 't':
+          out += '\t';
+          break;
+        case 'r':
+          out += '\r';
+          break;
+        case 'b':
+          out += '\b';
+          break;
+        case 'f':
+          out += '\f';
+          break;
+        case '"':
+          out += '"';
+          break;
+        case '\\':
+          out += '\\';
+          break;
+        case '/':
+          out += '/';
+          break;
         case 'u': {
           if (i + 5 >= text.length) return out;
           const hex = text.slice(i + 2, i + 6);
@@ -133,7 +147,8 @@ function extractPartialStringField(text: string, key: string): string | undefine
           i += 6;
           continue;
         }
-        default: out += next;
+        default:
+          out += next;
       }
       i += 2;
       continue;
@@ -527,16 +542,18 @@ export class ToolCallComponent extends Container {
     }
 
     const verb =
-      isFinished && result?.blockedReason === 'rejected' ? 'Rejected'
-      : isFinished && result?.blockedReason === 'cancelled' ? 'Cancelled'
-      : isFinished ? 'Used'
-      : isTruncated ? 'Truncated'
-      : 'Using';
+      isFinished && result?.blockedReason === 'rejected'
+        ? 'Rejected'
+        : isFinished && result?.blockedReason === 'cancelled'
+          ? 'Cancelled'
+          : isFinished
+            ? 'Used'
+            : isTruncated
+              ? 'Truncated'
+              : 'Using';
     const keyArg = extractKeyArgument(toolCall.name, toolCall.args, this.workspaceDir);
     const decoded = decodeMcpToolName(toolCall.name);
-    const verbStyled = isTruncated
-      ? chalk.hex(colors.error)(verb)
-      : verb;
+    const verbStyled = isTruncated ? chalk.hex(colors.error)(verb) : verb;
     const toolLabel =
       decoded !== null
         ? `${chalk.hex(colors.primary).bold(decoded.toolName)}${chalk.dim(` · MCP/${decoded.serverName}`)}`
@@ -597,16 +614,16 @@ export class ToolCallComponent extends Container {
       PROGRESS_URL_RE.lastIndex = 0;
       const styled = PROGRESS_URL_RE.test(raw)
         ? raw.replace(PROGRESS_URL_RE, (url) => {
-          const visible = chalk.hex(this.colors.warning).underline(url);
-          return `\u001B]8;;${url}\u001B\\${visible}\u001B]8;;\u001B\\`;
-        })
+            const visible = chalk.hex(this.colors.warning).underline(url);
+            return `\u001B]8;;${url}\u001B\\${visible}\u001B]8;;\u001B\\`;
+          })
         : chalk.dim(raw);
       PROGRESS_URL_RE.lastIndex = 0;
       this.addChild(new Text(styled, 2, 0));
     }
   }
 
-private buildSubagentBlock(): void {
+  private buildSubagentBlock(): void {
     const store = this.subagentStore;
     if (!store.hasSubagentState()) return;
 
@@ -753,7 +770,8 @@ private buildSubagentBlock(): void {
     }
     const stats = chalk.dim(statsText);
     // Show hint only while running/spawning (not failed/backgrounded)
-    const hint = (phase === 'running' || phase === 'spawning') ? chalk.dim(' · /agent to inspect') : '';
+    const hint =
+      phase === 'running' || phase === 'spawning' ? chalk.dim(' · /agent to inspect') : '';
     return `${bullet}${label} ${status}${descriptionText}${stats}${hint}`;
   }
 
@@ -921,14 +939,9 @@ private buildSubagentBlock(): void {
       const allLines = highlightLines(content, lang);
       const maxLines = COMMAND_PREVIEW_LINES;
       const scrollLines =
-        allLines.length > maxLines
-          ? allLines.slice(allLines.length - maxLines)
-          : allLines;
+        allLines.length > maxLines ? allLines.slice(allLines.length - maxLines) : allLines;
       for (const [i, line] of scrollLines.entries()) {
-        const originalLineNumber =
-          allLines.length > maxLines
-            ? allLines.length - maxLines + i
-            : i;
+        const originalLineNumber = allLines.length > maxLines ? allLines.length - maxLines + i : i;
         const lineNum = chalk.dim(String(originalLineNumber + 1).padStart(4) + '  ');
         this.addChild(new Text(lineNum + line, 2, 0));
       }
@@ -1052,5 +1065,9 @@ private buildSubagentBlock(): void {
 
 // Re-export types and values that moved to SubagentActivityStore so consumers
 // importing from './tool-call' do not need to update import paths.
-export type { ToolCallSubagentSnapshot, SubagentActivityLine, SubagentActivityDetail } from './subagent-activity-store';
+export type {
+  ToolCallSubagentSnapshot,
+  SubagentActivityLine,
+  SubagentActivityDetail,
+} from './subagent-activity-store';
 export { formatSubagentTokens } from './subagent-activity-store';

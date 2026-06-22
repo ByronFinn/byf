@@ -18,8 +18,8 @@ import type {
   ToolCall,
 } from '@byfriends/sdk';
 
-import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
+import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import type {
   AppState,
@@ -31,8 +31,8 @@ import type {
   TranscriptEntry,
   TUIState,
 } from '#/tui/types';
-import { formatErrorMessage, isTodoItemShape } from '#/tui/utils/event-payload';
 import { formatBackgroundAgentTranscript } from '#/tui/utils/background-agent-status';
+import { formatErrorMessage, isTodoItemShape } from '#/tui/utils/event-payload';
 import { mediaUrlPartToText } from '#/tui/utils/media-url';
 import { nextTranscriptId } from '#/tui/utils/transcript-id';
 
@@ -147,10 +147,7 @@ export async function hydrateTranscriptFromReplay(
   }
 }
 
-function hydrateTodoPanelFromResume(
-  agent: ResumedAgentState,
-  hooks: ReplayHydrationHooks,
-): void {
+function hydrateTodoPanelFromResume(agent: ResumedAgentState, hooks: ReplayHydrationHooks): void {
   const rawTodos = agent.toolStore?.['todo'];
   if (!Array.isArray(rawTodos)) {
     hooks.setTodoList([]);
@@ -542,8 +539,7 @@ function projectHookResultMessage(state: ProjectionState, message: ContextMessag
   );
 }
 
-const HOOK_RESULT_RE =
-  /<hook_result\s+hook_event="([^"]+)">\n?([\s\S]*?)\n?<\/hook_result>/g;
+const HOOK_RESULT_RE = /<hook_result\s+hook_event="([^"]+)">\n?([\s\S]*?)\n?<\/hook_result>/g;
 
 function formatHookResultMessageForTranscript(
   text: string,

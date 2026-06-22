@@ -13,28 +13,28 @@
  * the OSC reply gets eaten by the input loop.
  */
 
-import { OSC11_QUERY, TERMINAL_THEME_DETECT_TIMEOUT_MS } from "#/tui/constant/terminal";
+import { OSC11_QUERY, TERMINAL_THEME_DETECT_TIMEOUT_MS } from '#/tui/constant/terminal';
 
-import type { ResolvedTheme } from "./colors";
-import { parseOsc11BackgroundTheme } from "./terminal-background";
+import type { ResolvedTheme } from './colors';
+import { parseOsc11BackgroundTheme } from './terminal-background';
 
 export interface DetectOptions {
   readonly timeoutMs?: number;
 }
 
 export async function detectTerminalTheme(opts: DetectOptions = {}): Promise<ResolvedTheme> {
-  if (!isInteractiveTerminal()) return "dark";
-  if (isColorOptOut()) return "dark";
+  if (!isInteractiveTerminal()) return 'dark';
+  if (isColorOptOut()) return 'dark';
 
   const fromOsc = await queryOsc11({
     timeoutMs: opts.timeoutMs ?? TERMINAL_THEME_DETECT_TIMEOUT_MS,
   });
   if (fromOsc !== null) return fromOsc;
 
-  const fromColorFgBg = parseColorFgBg(process.env["COLORFGBG"]);
+  const fromColorFgBg = parseColorFgBg(process.env['COLORFGBG']);
   if (fromColorFgBg !== null) return fromColorFgBg;
 
-  return "dark";
+  return 'dark';
 }
 
 function isInteractiveTerminal(): boolean {
@@ -43,28 +43,28 @@ function isInteractiveTerminal(): boolean {
 
 function isColorOptOut(): boolean {
   const env = process.env;
-  if (env["NO_COLOR"] !== undefined && env["NO_COLOR"] !== "") return true;
-  if (env["FORCE_COLOR"] === "0") return true;
-  if (env["CI"] !== undefined && env["CI"] !== "" && env["CI"] !== "0") return true;
+  if (env['NO_COLOR'] !== undefined && env['NO_COLOR'] !== '') return true;
+  if (env['FORCE_COLOR'] === '0') return true;
+  if (env['CI'] !== undefined && env['CI'] !== '' && env['CI'] !== '0') return true;
   return false;
 }
 
 interface RawModeStdin {
   isRaw?: boolean;
   setRawMode(mode: boolean): NodeJS.ReadStream;
-  on(event: "data", listener: (data: Buffer) => void): NodeJS.ReadStream;
-  off(event: "data", listener: (data: Buffer) => void): NodeJS.ReadStream;
+  on(event: 'data', listener: (data: Buffer) => void): NodeJS.ReadStream;
+  off(event: 'data', listener: (data: Buffer) => void): NodeJS.ReadStream;
 }
 
 async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | null> {
   const stdin = process.stdin as unknown as RawModeStdin;
-  if (typeof stdin.setRawMode !== "function") return null;
+  if (typeof stdin.setRawMode !== 'function') return null;
   // If something else is already listening on stdin (e.g. another raw-mode
   // consumer), don't fight for it — punt to COLORFGBG instead.
-  if (process.stdin.listenerCount("data") > 0) return null;
+  if (process.stdin.listenerCount('data') > 0) return null;
 
   const wasRaw = stdin.isRaw === true;
-  let buffer = "";
+  let buffer = '';
   let listener: ((data: Buffer) => void) | null = null;
   let timer: NodeJS.Timeout | null = null;
 
@@ -73,11 +73,11 @@ async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | 
 
     const result = await new Promise<ResolvedTheme | null>((resolve) => {
       listener = (chunk: Buffer): void => {
-        buffer += chunk.toString("utf8");
+        buffer += chunk.toString('utf8');
         const theme = parseOsc11BackgroundTheme(buffer);
         if (theme !== null) resolve(theme);
       };
-      stdin.on("data", listener);
+      stdin.on('data', listener);
       timer = setTimeout(() => {
         resolve(null);
       }, opts.timeoutMs);
@@ -93,7 +93,7 @@ async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | 
     return null;
   } finally {
     if (timer !== null) clearTimeout(timer);
-    if (listener !== null) stdin.off("data", listener);
+    if (listener !== null) stdin.off('data', listener);
     if (!wasRaw) {
       try {
         stdin.setRawMode(false);
@@ -109,13 +109,13 @@ async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | 
  * the background ANSI 16-color index; 0–6 and 8 are dark, the rest light.
  */
 export function parseColorFgBg(value: string | undefined): ResolvedTheme | null {
-  if (value === undefined || value === "") return null;
-  const parts = value.split(";");
+  if (value === undefined || value === '') return null;
+  const parts = value.split(';');
   const bgRaw = parts.at(-1);
   if (bgRaw === undefined) return null;
   const bg = parseInt(bgRaw, 10);
   if (!Number.isInteger(bg)) return null;
   // ANSI 0=black, 1=red, 2=green, 3=yellow, 4=blue, 5=magenta, 6=cyan, 8=bright black.
   const darkBgs = new Set([0, 1, 2, 3, 4, 5, 6, 8]);
-  return darkBgs.has(bg) ? "dark" : "light";
+  return darkBgs.has(bg) ? 'dark' : 'light';
 }

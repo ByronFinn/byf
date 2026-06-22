@@ -14,8 +14,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { TaskListTool } from '../../src/tools/background/task-list';
 import { compileToolArgsValidator, validateToolArgs } from '../../src/tools/args-validator';
+import { TaskListTool } from '../../src/tools/background/task-list';
 import { AskUserQuestionTool } from '../../src/tools/builtin/collaboration/ask-user';
 
 /** Collect every `required` array nested anywhere inside a JSON Schema. */

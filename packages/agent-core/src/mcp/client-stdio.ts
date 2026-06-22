@@ -1,7 +1,8 @@
-import { ErrorCodes, ByfError } from '#/errors';
-import type { McpServerStdioConfig } from '#/config/schema';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+import type { McpServerStdioConfig } from '#/config/schema';
+import { ErrorCodes, ByfError } from '#/errors';
 
 import {
   buildRequestOptions,
@@ -54,7 +55,10 @@ export class StdioMcpClient implements MCPClient {
 
   constructor(config: McpServerStdioConfig, options: StdioMcpClientOptions = {}) {
     if (config.executor !== undefined && config.executor !== 'local') {
-      throw new ByfError(ErrorCodes.NOT_IMPLEMENTED, `MCP stdio executor '${config.executor}' is not yet implemented`);
+      throw new ByfError(
+        ErrorCodes.NOT_IMPLEMENTED,
+        `MCP stdio executor '${config.executor}' is not yet implemented`,
+      );
     }
     this.transport = new StdioClientTransport({
       command: config.command,

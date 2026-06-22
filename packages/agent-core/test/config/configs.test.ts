@@ -5,7 +5,6 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ErrorCodes, ByfError } from '../../src/errors';
 import {
   ByfConfigSchema,
   ensureConfigFile,
@@ -20,6 +19,7 @@ import {
   writeConfigFile,
 } from '../../src/config';
 import type { ByfConfig } from '../../src/config/schema';
+import { ErrorCodes, ByfError } from '../../src/errors';
 
 const tempDirs: string[] = [];
 
@@ -263,42 +263,50 @@ api_key = "sk-fetch"
     expect(config.services?.webSearch!.providers[0]!.priority).toBe(1);
     expect(config.services?.webSearch!.providers[1]!.type).toBe('brave');
     expect(config.services?.webSearch!.providers[1]!.apiKeys).toEqual(['sk-brave']);
-    expect(config.services?.webSearch!.providers[1]!.baseUrl).toBe('https://custom.brave.api/search');
+    expect(config.services?.webSearch!.providers[1]!.baseUrl).toBe(
+      'https://custom.brave.api/search',
+    );
     expect(config.services?.webSearch!.providers[1]!.priority).toBe(2);
     expect(config.services?.fetchUrl?.apiKey).toBe('sk-fetch');
     expect(config.services?.fetchUrl?.baseUrl).toBe('https://api.example.test/v1/fetch');
   });
 
   it('rejects web_search providers with empty api_keys', () => {
-    expect(() => parseConfigString(`
+    expect(() =>
+      parseConfigString(`
 [services.web_search]
 
 [[services.web_search.providers]]
 type = "exa"
 api_keys = []
 priority = 1
-`)).toThrow(/too_small|1 items/);
+`),
+    ).toThrow(/too_small|1 items/);
   });
 
   it('rejects web_search providers with missing priority', () => {
-    expect(() => parseConfigString(`
+    expect(() =>
+      parseConfigString(`
 [services.web_search]
 
 [[services.web_search.providers]]
 type = "exa"
 api_keys = ["sk-1"]
-`)).toThrow(/priority/);
+`),
+    ).toThrow(/priority/);
   });
 
   it('rejects unknown provider type in web_search', () => {
-    expect(() => parseConfigString(`
+    expect(() =>
+      parseConfigString(`
 [services.web_search]
 
 [[services.web_search.providers]]
 type = "unknown"
 api_keys = ["sk-1"]
 priority = 1
-`)).toThrow(/type/);
+`),
+    ).toThrow(/type/);
   });
 
   it('round-trips web_search providers through TOML write', async () => {
@@ -329,7 +337,9 @@ base_url = "https://proxy.firecrawl.test/search"
     expect(reloaded.services?.webSearch?.providers[0]!.priority).toBe(1);
     expect(reloaded.services?.webSearch?.providers[1]!.type).toBe('firecrawl');
     expect(reloaded.services?.webSearch?.providers[1]!.apiKeys).toEqual(['sk-fc']);
-    expect(reloaded.services?.webSearch?.providers[1]!.baseUrl).toBe('https://proxy.firecrawl.test/search');
+    expect(reloaded.services?.webSearch?.providers[1]!.baseUrl).toBe(
+      'https://proxy.firecrawl.test/search',
+    );
     expect(reloaded.services?.webSearch?.providers[1]!.priority).toBe(2);
   });
 
@@ -430,10 +440,7 @@ priority = 1
   });
 
   it('rejects invalid TOML and invalid schema with ByfError(config.invalid)', () => {
-    expectByfErrorCode(
-      () => parseConfigString('[[[', 'broken.toml'),
-      ErrorCodes.CONFIG_INVALID,
-    );
+    expectByfErrorCode(() => parseConfigString('[[[', 'broken.toml'), ErrorCodes.CONFIG_INVALID);
     expectByfErrorCode(
       () =>
         parseConfigString(

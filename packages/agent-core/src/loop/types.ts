@@ -13,8 +13,8 @@
 import type { ContentPart, Message, TokenUsage, Tool, ToolCall } from '@byfriends/kosong';
 
 import type { ToolInputDisplay } from '../tools/display';
-import type { ToolAccesses } from './tool-access';
 import type { LLM } from './llm';
+import type { ToolAccesses } from './tool-access';
 
 export type { ToolCall };
 
@@ -155,6 +155,14 @@ export interface PrepareToolExecutionResult {
   readonly syntheticResult?: ExecutableToolResult | undefined;
   readonly executionMetadata?: unknown;
   readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+  /**
+   * When true, the tool call is a same-step duplicate and was never actually
+   * executed. The loop will skip both `tool.call` and `tool.result` events
+   * for this call — the original already covers them.
+   *
+   * This is an internal implementation detail; external hooks need not set it.
+   */
+  readonly skip?: boolean | undefined;
 }
 
 export interface FinalizeToolResultContext extends ToolExecutionHookContext {

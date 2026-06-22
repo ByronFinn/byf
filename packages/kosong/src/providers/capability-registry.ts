@@ -37,20 +37,11 @@ const OPENAI_RESPONSES_DEVELOPER_ROLE_MODELS = new Set([
   'o4-mini',
 ]);
 
-const OPENAI_VISION_TOOL_PREFIXES = [
-  'gpt-4o',
-  'gpt-4-turbo',
-  'gpt-4.1',
-  'gpt-4.5',
-] as const;
+const OPENAI_VISION_TOOL_PREFIXES = ['gpt-4o', 'gpt-4-turbo', 'gpt-4.1', 'gpt-4.5'] as const;
 
 const CLAUDE_3_PREFIXES = ['claude-3-', 'claude-3.5-', 'claude-3.7-'] as const;
 
-const CLAUDE_4_PREFIXES = [
-  'claude-opus-4',
-  'claude-sonnet-4',
-  'claude-haiku-4',
-] as const;
+const CLAUDE_4_PREFIXES = ['claude-opus-4', 'claude-sonnet-4', 'claude-haiku-4'] as const;
 
 const GEMINI_CATALOGUED_PREFIXES = [
   'gemini-1.5-pro',

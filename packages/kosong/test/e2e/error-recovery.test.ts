@@ -1,14 +1,16 @@
+import { describe, expect, it } from 'vitest';
+
 import { APIConnectionError, APIStatusError, ChatProviderError } from '#/errors';
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
+import type { JsonValue } from '../fixtures/args-validator';
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
-import type { JsonValue } from '../fixtures/args-validator';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 function createMockStream(
   parts: StreamedMessagePart[],
   opts?: { id?: string; usage?: TokenUsage },
@@ -181,7 +183,8 @@ describe('e2e: error recovery', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-1',
-        name: 'slow_tool', arguments: '{}',
+        name: 'slow_tool',
+        arguments: '{}',
       };
 
       const provider = createStreamErrorProvider(
@@ -219,17 +222,20 @@ describe('e2e: error recovery', () => {
       const tc1: ToolCall = {
         type: 'function',
         id: 'tc-ok',
-        name: 'good_tool', arguments: '{}',
+        name: 'good_tool',
+        arguments: '{}',
       };
       const tc2: ToolCall = {
         type: 'function',
         id: 'tc-fail',
-        name: 'bad_tool', arguments: '{}',
+        name: 'bad_tool',
+        arguments: '{}',
       };
       const tc3: ToolCall = {
         type: 'function',
         id: 'tc-ok-2',
-        name: 'good_tool', arguments: '{}',
+        name: 'good_tool',
+        arguments: '{}',
       };
 
       const stream = createMockStream([tc1, tc2, tc3]);
@@ -276,7 +282,8 @@ describe('e2e: error recovery', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-missing',
-        name: 'nonexistent_tool', arguments: '{}',
+        name: 'nonexistent_tool',
+        arguments: '{}',
       };
 
       const stream = createMockStream([{ type: 'text', text: 'calling' }, tc]);
@@ -297,7 +304,8 @@ describe('e2e: error recovery', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-bad-json',
-        name: 'my_tool', arguments: '{invalid json',
+        name: 'my_tool',
+        arguments: '{invalid json',
       };
 
       const stream = createMockStream([{ type: 'text', text: 'calling' }, tc]);
@@ -326,7 +334,8 @@ describe('e2e: error recovery', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-str-throw',
-        name: 'throws_string', arguments: '{}',
+        name: 'throws_string',
+        arguments: '{}',
       };
 
       const stream = createMockStream([tc]);
@@ -357,7 +366,8 @@ describe('e2e: error recovery', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-cleanup',
-        name: 'cleanup_test', arguments: '{}',
+        name: 'cleanup_test',
+        arguments: '{}',
       };
 
       let handlerInvoked = false;

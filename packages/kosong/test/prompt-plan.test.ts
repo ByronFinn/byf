@@ -1,8 +1,8 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
+import type { ModelCapability, ProviderCacheCapability } from '#/capability';
 import type { CacheScope, CacheStrategy, PromptBlock, PromptPlan } from '#/prompt-plan';
 import type { GenerateOptions } from '#/provider';
-import type { ModelCapability, ProviderCacheCapability } from '#/capability';
 
 describe('PromptPlan types', () => {
   describe('CacheScope', () => {
@@ -53,29 +53,51 @@ describe('PromptPlan types', () => {
     });
 
     it('is a union of four literal types', () => {
-      expectTypeOf<CacheStrategy>().toEqualTypeOf<'explicit-block' | 'prompt-cache-key' | 'prefix-match' | 'none'>();
+      expectTypeOf<CacheStrategy>().toEqualTypeOf<
+        'explicit-block' | 'prompt-cache-key' | 'prefix-match' | 'none'
+      >();
     });
   });
 
   describe('PromptBlock', () => {
     it('has required name field of type string', () => {
-      const block: PromptBlock = { name: 'instructions', text: 'You are helpful', cacheScope: 'global' };
+      const block: PromptBlock = {
+        name: 'instructions',
+        text: 'You are helpful',
+        cacheScope: 'global',
+      };
       expectTypeOf(block.name).toEqualTypeOf<string>();
     });
 
     it('has required text field of type string', () => {
-      const block: PromptBlock = { name: 'instructions', text: 'You are helpful', cacheScope: 'global' };
+      const block: PromptBlock = {
+        name: 'instructions',
+        text: 'You are helpful',
+        cacheScope: 'global',
+      };
       expectTypeOf(block.text).toEqualTypeOf<string>();
     });
 
     it('has required cacheScope field of type CacheScope', () => {
-      const block: PromptBlock = { name: 'instructions', text: 'You are helpful', cacheScope: 'global' };
+      const block: PromptBlock = {
+        name: 'instructions',
+        text: 'You are helpful',
+        cacheScope: 'global',
+      };
       expectTypeOf(block.cacheScope).toEqualTypeOf<CacheScope>();
     });
 
     it('is readonly', () => {
-      const block: PromptBlock = { name: 'instructions', text: 'You are helpful', cacheScope: 'global' };
-      expectTypeOf(block).toMatchTypeOf<{ readonly name: string; readonly text: string; readonly cacheScope: CacheScope }>();
+      const block: PromptBlock = {
+        name: 'instructions',
+        text: 'You are helpful',
+        cacheScope: 'global',
+      };
+      expectTypeOf(block).toMatchTypeOf<{
+        readonly name: string;
+        readonly text: string;
+        readonly cacheScope: CacheScope;
+      }>();
     });
 
     it('accepts all CacheScope values', () => {
@@ -137,7 +159,10 @@ describe('ProviderCacheCapability', () => {
   });
 
   it('has optional maxCacheableBlocks field of type number', () => {
-    const capability: ProviderCacheCapability = { strategy: 'explicit-block', maxCacheableBlocks: 4 };
+    const capability: ProviderCacheCapability = {
+      strategy: 'explicit-block',
+      maxCacheableBlocks: 4,
+    };
     expectTypeOf(capability.maxCacheableBlocks).toEqualTypeOf<number | undefined>();
   });
 
@@ -266,7 +291,9 @@ describe('GenerateOptions promptPlan extension', () => {
       },
     };
     expectTypeOf(options.signal).toEqualTypeOf<AbortSignal | undefined>();
-    expectTypeOf(options.auth).toEqualTypeOf<{ apiKey?: string; headers?: Record<string, string> } | undefined>();
+    expectTypeOf(options.auth).toEqualTypeOf<
+      { apiKey?: string; headers?: Record<string, string> } | undefined
+    >();
     expectTypeOf(options.promptPlan).toEqualTypeOf<PromptPlan | undefined>();
   });
 });

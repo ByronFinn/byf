@@ -19,11 +19,7 @@ export async function withProviderRequestAuth<T>(
     try {
       return await request(auth);
     } catch (error) {
-      if (
-        auth === undefined ||
-        !(error instanceof APIStatusError) ||
-        error.statusCode !== 401
-      ) {
+      if (auth === undefined || !(error instanceof APIStatusError) || error.statusCode !== 401) {
         throw error;
       }
       if (!refreshed && resolveAuth !== undefined) {

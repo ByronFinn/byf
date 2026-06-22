@@ -3,6 +3,4 @@
 declare const __BYF_CODE_BUILT_IN_CATALOG__: string | undefined;
 
 export const BUILT_IN_CATALOG_JSON: string | undefined =
-  typeof __BYF_CODE_BUILT_IN_CATALOG__ === 'string'
-    ? __BYF_CODE_BUILT_IN_CATALOG__
-    : undefined;
+  typeof __BYF_CODE_BUILT_IN_CATALOG__ === 'string' ? __BYF_CODE_BUILT_IN_CATALOG__ : undefined;

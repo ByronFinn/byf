@@ -17,11 +17,11 @@ The `effort` parameter controls the intensity of model thinking/reasoning across
 
 All three major providers have converged on **categorical effort levels** (not numeric token budgets):
 
-| Provider | Old mechanism | Current mechanism | Status |
-|---|---|---|---|
-| **Anthropic** | `thinking.budget_tokens` (integer) | `output_config.effort` (`low/medium/high/xhigh/max`) | budget_tokens deprecated; rejected with 400 on Opus 4.7+ |
-| **OpenAI** | N/A | `reasoning_effort` (`none/minimal/low/medium/high/xhigh`) | Standard API parameter |
-| **Google Gemini** | 2.5: `thinkingBudget` (integer) | 3.x: `thinkingLevel` (`minimal/low/medium/high`) | Transitioning |
+| Provider          | Old mechanism                      | Current mechanism                                         | Status                                                   |
+| ----------------- | ---------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
+| **Anthropic**     | `thinking.budget_tokens` (integer) | `output_config.effort` (`low/medium/high/xhigh/max`)      | budget_tokens deprecated; rejected with 400 on Opus 4.7+ |
+| **OpenAI**        | N/A                                | `reasoning_effort` (`none/minimal/low/medium/high/xhigh`) | Standard API parameter                                   |
+| **Google Gemini** | 2.5: `thinkingBudget` (integer)    | 3.x: `thinkingLevel` (`minimal/low/medium/high`)          | Transitioning                                            |
 
 BYF's existing `ThinkingEffort` categorical type aligns with this industry direction. The problem is that the Anthropic adapter still uses the deprecated `budget_tokens` mechanism with a hardcoded numeric mapping table.
 
@@ -43,14 +43,14 @@ When a provider clamps an effort level (Anthropic non-Opus: xhigh/max → high; 
 
 Replace the `budgetTokensForEffort` numeric mapping with a direct categorical mapping to Anthropic's `output_config.effort` parameter:
 
-| ThinkingEffort | Anthropic `output_config.effort` | OpenAI `reasoning_effort` |
-|---|---|---|
-| off | thinking disabled | undefined |
-| low | `low` | `low` |
-| medium | `medium` | `medium` |
-| high | `high` | `high` |
-| xhigh | `xhigh` (Opus 4.7/4.8 only) | `xhigh` (if supported, else clamp to `high`) |
-| max | `max` (Opus 4.6+) | clamp to `high` or `xhigh` based on model |
+| ThinkingEffort | Anthropic `output_config.effort` | OpenAI `reasoning_effort`                    |
+| -------------- | -------------------------------- | -------------------------------------------- |
+| off            | thinking disabled                | undefined                                    |
+| low            | `low`                            | `low`                                        |
+| medium         | `medium`                         | `medium`                                     |
+| high           | `high`                           | `high`                                       |
+| xhigh          | `xhigh` (Opus 4.7/4.8 only)      | `xhigh` (if supported, else clamp to `high`) |
+| max            | `max` (Opus 4.6+)                | clamp to `high` or `xhigh` based on model    |
 
 This removes the need for a hardcoded budget_tokens mapping table entirely. The effort level is passed directly to the API as a categorical value, and the provider decides how many tokens to allocate.
 
@@ -75,6 +75,7 @@ Deprecate `defaultThinking` in favor of the `[thinking]` section which provides 
 ### 8. Anthropic support scope: Opus 4.7+ only
 
 BYF only supports Anthropic models from Opus 4.7 onwards. This means:
+
 - The `budget_tokens` compatibility path is unnecessary — all supported Anthropic models use `output_config.effort`.
 - The `budgetTokensForEffort` function and its numeric mapping table can be removed entirely from the Anthropic adapter.
 - The Anthropic adapter only needs to handle `off | low | medium | high | xhigh | max` → `output_config.effort` with clamping for models that don't support `xhigh`/`max`.

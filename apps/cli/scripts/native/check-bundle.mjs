@@ -1,15 +1,12 @@
-import { builtinModules } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
 
 import { nativeJsBundlePath } from './paths.mjs';
 
 const bundlePath = nativeJsBundlePath();
 const text = readFileSync(bundlePath, 'utf-8');
 
-const builtins = new Set([
-  ...builtinModules,
-  ...builtinModules.map((name) => `node:${name}`),
-]);
+const builtins = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 
 const optionalRuntimeRequires = new Set([
   'ajv-formats/dist/formats',

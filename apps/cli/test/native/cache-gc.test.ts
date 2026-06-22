@@ -1,4 +1,12 @@
-import { mkdirSync, statSync, utimesSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+  readdirSync,
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 

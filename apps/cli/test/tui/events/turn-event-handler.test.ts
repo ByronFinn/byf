@@ -1,5 +1,3 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import type {
   AssistantDeltaEvent,
   HookResultEvent,
@@ -14,15 +12,22 @@ import type {
   TurnStepInterruptedEvent,
   TurnStepStartedEvent,
 } from '@byfriends/sdk';
-
-import type { ColorPalette } from '#/tui/theme/colors';
-import type { AppState, LivePaneState, QueuedMessage, ToolCallBlockData, ToolResultBlockData, TranscriptEntry } from '#/tui/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   TurnEventHandler,
   type TurnEventCallbacks,
   type TurnEventState,
 } from '#/tui/events/turn-event-handler';
+import type { ColorPalette } from '#/tui/theme/colors';
+import type {
+  AppState,
+  LivePaneState,
+  QueuedMessage,
+  ToolCallBlockData,
+  ToolResultBlockData,
+  TranscriptEntry,
+} from '#/tui/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -134,22 +139,38 @@ function makeCallbacks(): { callbacks: TurnEventCallbacks; calls: CallbackCalls 
   const callbacks: TurnEventCallbacks = {
     setAppState: (patch) => calls.setAppState.push(patch),
     patchLivePane: (patch) => calls.patchLivePane.push(patch),
-    resetLivePane: () => { calls.resetLivePane++; },
+    resetLivePane: () => {
+      calls.resetLivePane++;
+    },
     showStatus: (message, color) => calls.showStatus.push({ message, color }),
     showError: (msg) => calls.showError.push(msg),
     showNotice: (title, detail) => calls.showNotice.push({ title, detail }),
-    requestRender: () => { calls.requestRender++; },
-    onStreamingTextStart: () => { calls.onStreamingTextStart++; },
+    requestRender: () => {
+      calls.requestRender++;
+    },
+    onStreamingTextStart: () => {
+      calls.onStreamingTextStart++;
+    },
     onStreamingTextUpdate: (text) => calls.onStreamingTextUpdate.push(text),
-    onStreamingTextEnd: () => { calls.onStreamingTextEnd++; },
+    onStreamingTextEnd: () => {
+      calls.onStreamingTextEnd++;
+    },
     onThinkingUpdate: (text) => calls.onThinkingUpdate.push(text),
-    onThinkingEnd: () => { calls.onThinkingEnd++; },
+    onThinkingEnd: () => {
+      calls.onThinkingEnd++;
+    },
     onToolCallStart: (tc) => calls.onToolCallStart.push(tc),
     onToolCallEnd: (id, result) => calls.onToolCallEnd.push({ toolCallId: id, result }),
     appendTranscriptEntry: (entry) => calls.appendTranscriptEntry.push(entry),
-    updateActivityPane: () => { calls.updateActivityPane++; },
-    disposeActiveThinkingComponent: () => { calls.disposeActiveThinkingComponent++; },
-    disposeAndClearPendingToolComponents: () => { calls.disposeAndClearPendingToolComponents++; },
+    updateActivityPane: () => {
+      calls.updateActivityPane++;
+    },
+    disposeActiveThinkingComponent: () => {
+      calls.disposeActiveThinkingComponent++;
+    },
+    disposeAndClearPendingToolComponents: () => {
+      calls.disposeAndClearPendingToolComponents++;
+    },
     setTodoList: (todos) => calls.setTodoList.push(todos),
     isAnthropicSessionActive: () => calls.isAnthropicSessionActive,
     notifyTurnComplete: (key) => calls.notifyTurnComplete.push(key),
@@ -182,12 +203,26 @@ function stepStarted(turnId = 1, step = 0): TurnStepStartedEvent {
   return { type: 'turn.step.started', turnId, step } as unknown as TurnStepStartedEvent;
 }
 
-function stepCompleted(turnId = 1, step = 0, finishReason: string = 'end_turn'): TurnStepCompletedEvent {
-  return { type: 'turn.step.completed', turnId, step, finishReason } as unknown as TurnStepCompletedEvent;
+function stepCompleted(
+  turnId = 1,
+  step = 0,
+  finishReason: string = 'end_turn',
+): TurnStepCompletedEvent {
+  return {
+    type: 'turn.step.completed',
+    turnId,
+    step,
+    finishReason,
+  } as unknown as TurnStepCompletedEvent;
 }
 
 function stepInterrupted(turnId = 1, step = 0, reason?: string): TurnStepInterruptedEvent {
-  return { type: 'turn.step.interrupted', turnId, step, reason } as unknown as TurnStepInterruptedEvent;
+  return {
+    type: 'turn.step.interrupted',
+    turnId,
+    step,
+    reason,
+  } as unknown as TurnStepInterruptedEvent;
 }
 
 function thinkingDelta(delta: string): ThinkingDeltaEvent {
@@ -210,19 +245,42 @@ function hookResult(overrides: Partial<HookResultEvent> = {}): HookResultEvent {
 }
 
 function toolCallStarted(id: string, name: string, args: unknown = {}): ToolCallStartedEvent {
-  return { type: 'tool.call.started', turnId: 1, toolCallId: id, name, args } as unknown as ToolCallStartedEvent;
+  return {
+    type: 'tool.call.started',
+    turnId: 1,
+    toolCallId: id,
+    name,
+    args,
+  } as unknown as ToolCallStartedEvent;
 }
 
 function toolCallDelta(id: string, name?: string, argumentsPart?: string): ToolCallDeltaEvent {
-  return { type: 'tool.call.delta', turnId: 1, toolCallId: id, name, argumentsPart } as unknown as ToolCallDeltaEvent;
+  return {
+    type: 'tool.call.delta',
+    turnId: 1,
+    toolCallId: id,
+    name,
+    argumentsPart,
+  } as unknown as ToolCallDeltaEvent;
 }
 
 function toolProgress(toolCallId: string, kind: string, text?: string): ToolProgressEvent {
-  return { type: 'tool.progress', turnId: 1, toolCallId, update: { kind, text } } as unknown as ToolProgressEvent;
+  return {
+    type: 'tool.progress',
+    turnId: 1,
+    toolCallId,
+    update: { kind, text },
+  } as unknown as ToolProgressEvent;
 }
 
 function toolResult(toolCallId: string, output: unknown, isError = false): ToolResultEvent {
-  return { type: 'tool.result', turnId: 1, toolCallId, output, isError } as unknown as ToolResultEvent;
+  return {
+    type: 'tool.result',
+    turnId: 1,
+    toolCallId,
+    output,
+    isError,
+  } as unknown as ToolResultEvent;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,9 +409,7 @@ describe('TurnEventHandler', () => {
         pendingApproval: null,
         pendingQuestion: null,
       });
-      expect(calls.setAppState[0]).toEqual(
-        expect.objectContaining({ streamingPhase: 'waiting' }),
-      );
+      expect(calls.setAppState[0]).toEqual(expect.objectContaining({ streamingPhase: 'waiting' }));
     });
   });
 
@@ -444,9 +500,7 @@ describe('TurnEventHandler', () => {
     it('sets streamingPhase to thinking', () => {
       const { handler, calls } = makeHandler();
       handler.handleThinkingDelta(thinkingDelta('Hmm'));
-      expect(calls.setAppState[0]).toEqual(
-        expect.objectContaining({ streamingPhase: 'thinking' }),
-      );
+      expect(calls.setAppState[0]).toEqual(expect.objectContaining({ streamingPhase: 'thinking' }));
     });
   });
 
@@ -485,11 +539,13 @@ describe('TurnEventHandler', () => {
   describe('handleHookResult', () => {
     it('appends transcript entry with formatted hook result', () => {
       const { handler, calls } = makeHandler();
-      handler.handleHookResult(hookResult({
-        hookEvent: 'PreToolUse',
-        content: 'Hook output',
-        blocked: false,
-      }));
+      handler.handleHookResult(
+        hookResult({
+          hookEvent: 'PreToolUse',
+          content: 'Hook output',
+          blocked: false,
+        }),
+      );
       expect(calls.appendTranscriptEntry).toHaveLength(1);
       const entry = calls.appendTranscriptEntry[0]!;
       expect(entry.kind).toBe('assistant');
@@ -500,11 +556,13 @@ describe('TurnEventHandler', () => {
 
     it('includes blocked in title when blocked is true', () => {
       const { handler, calls } = makeHandler();
-      handler.handleHookResult(hookResult({
-        hookEvent: 'PostToolUse',
-        content: 'blocked it',
-        blocked: true,
-      }));
+      handler.handleHookResult(
+        hookResult({
+          hookEvent: 'PostToolUse',
+          content: 'blocked it',
+          blocked: true,
+        }),
+      );
       expect(calls.appendTranscriptEntry[0]!.content).toContain('blocked');
     });
   });
@@ -732,9 +790,7 @@ describe('TurnEventHandler', () => {
       handler.handleTurnBegin(turnStarted());
       state.currentTurnId = '1';
       state.appState.isStreaming = true;
-      expect(calls.setAppState[0]).toEqual(
-        expect.objectContaining({ isStreaming: true }),
-      );
+      expect(calls.setAppState[0]).toEqual(expect.objectContaining({ isStreaming: true }));
 
       handler.handleAssistantDelta(assistantDelta('Hello '));
       handler.handleAssistantDelta(assistantDelta('World'));

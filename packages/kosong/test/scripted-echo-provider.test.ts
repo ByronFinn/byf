@@ -1,4 +1,5 @@
-import { ScriptedEchoChatProvider } from './fixtures/echo-provider';
+import { describe, it, expect } from 'vitest';
+
 import { ChatProviderError } from '#/errors';
 import type {
   AudioURLPart,
@@ -8,7 +9,8 @@ import type {
   ToolCallPart,
   VideoURLPart,
 } from '#/message';
-import { describe, it, expect } from 'vitest';
+
+import { ScriptedEchoChatProvider } from './fixtures/echo-provider';
 
 describe('ScriptedEchoChatProvider', () => {
   it('streams parts from first and second scripts', async () => {
@@ -62,7 +64,8 @@ describe('ScriptedEchoChatProvider', () => {
       {
         type: 'function',
         id: 'call-1',
-        name: 'search', arguments: '{"q":"python"',
+        name: 'search',
+        arguments: '{"q":"python"',
       } satisfies ToolCall,
       { type: 'tool_call_part', argumentsPart: '}' } satisfies ToolCallPart,
     ]);

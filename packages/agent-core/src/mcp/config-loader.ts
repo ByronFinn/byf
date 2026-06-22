@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { z } from 'zod';
+
 import { resolveByfHome } from '#/config/path';
 import { McpServerConfigSchema, type McpServerConfig } from '#/config/schema';
 import { ErrorCodes, ByfError } from '#/errors';
-import { z } from 'zod';
 
 const McpJsonFileSchema = z.object({
   mcpServers: z.record(z.string(), McpServerConfigSchema).default({}),
@@ -56,9 +57,13 @@ async function readMcpJson(filePath: string): Promise<Record<string, McpServerCo
     text = await readFile(filePath, 'utf-8');
   } catch (error: unknown) {
     if (isFileNotFound(error)) return {};
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Failed to read ${filePath}: ${describeError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Failed to read ${filePath}: ${describeError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 
   if (text.trim().length === 0) return {};
@@ -67,17 +72,25 @@ async function readMcpJson(filePath: string): Promise<Record<string, McpServerCo
   try {
     data = JSON.parse(text);
   } catch (error: unknown) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid JSON in ${filePath}: ${describeError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid JSON in ${filePath}: ${describeError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 
   try {
     return McpJsonFileSchema.parse(data).mcpServers;
   } catch (error: unknown) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid MCP server config in ${filePath}: ${describeError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid MCP server config in ${filePath}: ${describeError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 

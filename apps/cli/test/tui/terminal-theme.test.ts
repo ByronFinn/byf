@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-import type { TUIState } from "#/tui/byf-tui";
+import type { TUIState } from '#/tui/byf-tui';
 import {
   DISABLE_TERMINAL_THEME_REPORTING,
   ENABLE_TERMINAL_THEME_REPORTING,
@@ -12,21 +12,21 @@ import {
   hasTerminalThemeReport,
   handleTerminalThemeInput,
   installTerminalThemeTracking,
-} from "#/tui/utils/terminal-theme";
+} from '#/tui/utils/terminal-theme';
 
-type InputListener = Parameters<TUIState["ui"]["addInputListener"]>[0];
-const DARK_OSC11_REPORT = "\u001B]11;rgb:2828/2c2c/3434\u0007";
-const LIGHT_OSC11_REPORT = "\u001B]11;rgb:fafa/fbfb/fcfc\u0007";
+type InputListener = Parameters<TUIState['ui']['addInputListener']>[0];
+const DARK_OSC11_REPORT = '\u001B]11;rgb:2828/2c2c/3434\u0007';
+const LIGHT_OSC11_REPORT = '\u001B]11;rgb:fafa/fbfb/fcfc\u0007';
 
-describe("terminal theme tracking", () => {
-  it("recognizes terminal theme reports as change notifications", () => {
+describe('terminal theme tracking', () => {
+  it('recognizes terminal theme reports as change notifications', () => {
     expect(hasTerminalThemeReport(TERMINAL_THEME_DARK)).toBe(true);
     expect(hasTerminalThemeReport(TERMINAL_THEME_LIGHT)).toBe(true);
     expect(hasTerminalThemeReport(`x${TERMINAL_THEME_LIGHT}y`)).toBe(true);
-    expect(hasTerminalThemeReport("x")).toBe(false);
+    expect(hasTerminalThemeReport('x')).toBe(false);
   });
 
-  it("consumes theme reports by querying the terminal background", () => {
+  it('consumes theme reports by querying the terminal background', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
 
@@ -42,84 +42,84 @@ describe("terminal theme tracking", () => {
     expect(onTheme).not.toHaveBeenCalled();
   });
 
-  it("strips terminal theme reports without dropping coalesced input", () => {
+  it('strips terminal theme reports without dropping coalesced input', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
 
     expect(handleTerminalThemeInput(`a${TERMINAL_THEME_LIGHT}b`, terminal, onTheme)).toEqual({
-      data: "ab",
+      data: 'ab',
     });
 
     expect(terminal.write).toHaveBeenCalledWith(OSC11_QUERY);
     expect(onTheme).not.toHaveBeenCalled();
   });
 
-  it("consumes OSC 11 background reports and forwards resolved themes", () => {
+  it('consumes OSC 11 background reports and forwards resolved themes', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
 
     expect(handleTerminalThemeInput(DARK_OSC11_REPORT, terminal, onTheme)).toEqual({
       consume: true,
     });
-    expect(onTheme).toHaveBeenLastCalledWith("dark");
+    expect(onTheme).toHaveBeenLastCalledWith('dark');
 
     expect(handleTerminalThemeInput(LIGHT_OSC11_REPORT, terminal, onTheme)).toEqual({
       consume: true,
     });
-    expect(onTheme).toHaveBeenLastCalledWith("light");
+    expect(onTheme).toHaveBeenLastCalledWith('light');
 
-    expect(handleTerminalThemeInput("x", terminal, onTheme)).toBeUndefined();
-    expect(handleTerminalThemeInput("]", terminal, onTheme)).toBeUndefined();
+    expect(handleTerminalThemeInput('x', terminal, onTheme)).toBeUndefined();
+    expect(handleTerminalThemeInput(']', terminal, onTheme)).toBeUndefined();
     expect(onTheme).toHaveBeenCalledTimes(2);
     expect(terminal.write).not.toHaveBeenCalled();
   });
 
-  it("strips OSC 11 background reports without dropping coalesced input", () => {
+  it('strips OSC 11 background reports without dropping coalesced input', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
 
     expect(handleTerminalThemeInput(`a${DARK_OSC11_REPORT}b`, terminal, onTheme)).toEqual({
-      data: "ab",
+      data: 'ab',
     });
 
-    expect(onTheme).toHaveBeenCalledWith("dark");
+    expect(onTheme).toHaveBeenCalledWith('dark');
     expect(terminal.write).not.toHaveBeenCalled();
   });
 
-  it("accumulates fragmented OSC 11 background reports", () => {
+  it('accumulates fragmented OSC 11 background reports', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
     const inputState = createTerminalThemeInputState();
 
     expect(
-      handleTerminalThemeInput("\u001B]11;rgb:2828/2c2c/3", terminal, onTheme, inputState),
+      handleTerminalThemeInput('\u001B]11;rgb:2828/2c2c/3', terminal, onTheme, inputState),
     ).toEqual({ consume: true });
     expect(onTheme).not.toHaveBeenCalled();
 
-    expect(handleTerminalThemeInput("434\u0007", terminal, onTheme, inputState)).toEqual({
+    expect(handleTerminalThemeInput('434\u0007', terminal, onTheme, inputState)).toEqual({
       consume: true,
     });
-    expect(onTheme).toHaveBeenCalledWith("dark");
-    expect(inputState.osc11Buffer).toBe("");
+    expect(onTheme).toHaveBeenCalledWith('dark');
+    expect(inputState.osc11Buffer).toBe('');
   });
 
-  it("forwards input that follows a fragmented OSC 11 background report", () => {
+  it('forwards input that follows a fragmented OSC 11 background report', () => {
     const terminal = { write: vi.fn() };
     const onTheme = vi.fn();
     const inputState = createTerminalThemeInputState();
 
     expect(
-      handleTerminalThemeInput("\u001B]11;rgb:2828/2c2c/3", terminal, onTheme, inputState),
+      handleTerminalThemeInput('\u001B]11;rgb:2828/2c2c/3', terminal, onTheme, inputState),
     ).toEqual({ consume: true });
 
-    expect(handleTerminalThemeInput("434\u0007x", terminal, onTheme, inputState)).toEqual({
-      data: "x",
+    expect(handleTerminalThemeInput('434\u0007x', terminal, onTheme, inputState)).toEqual({
+      data: 'x',
     });
-    expect(onTheme).toHaveBeenCalledWith("dark");
-    expect(inputState.osc11Buffer).toBe("");
+    expect(onTheme).toHaveBeenCalledWith('dark');
+    expect(inputState.osc11Buffer).toBe('');
   });
 
-  it("enables reporting, queries current theme, and disables on dispose", () => {
+  it('enables reporting, queries current theme, and disables on dispose', () => {
     const listeners: InputListener[] = [];
     const removeInputListener = vi.fn();
     const onTheme = vi.fn();
@@ -133,7 +133,7 @@ describe("terminal theme tracking", () => {
           return removeInputListener;
         }),
       },
-    } as unknown as Pick<TUIState, "terminal" | "ui">;
+    } as unknown as Pick<TUIState, 'terminal' | 'ui'>;
 
     const dispose = installTerminalThemeTracking(state, onTheme);
 
@@ -146,11 +146,11 @@ describe("terminal theme tracking", () => {
     expect(state.terminal.write).toHaveBeenCalledWith(OSC11_QUERY);
     expect(onTheme).not.toHaveBeenCalled();
 
-    expect(listeners[0]?.("\u001B]11;rgb:2828/2c2c/3")).toEqual({ consume: true });
+    expect(listeners[0]?.('\u001B]11;rgb:2828/2c2c/3')).toEqual({ consume: true });
     expect(onTheme).not.toHaveBeenCalled();
 
-    expect(listeners[0]?.("434\u0007")).toEqual({ consume: true });
-    expect(onTheme).toHaveBeenCalledWith("dark");
+    expect(listeners[0]?.('434\u0007')).toEqual({ consume: true });
+    expect(onTheme).toHaveBeenCalledWith('dark');
 
     dispose();
 

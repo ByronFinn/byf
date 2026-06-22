@@ -12,12 +12,13 @@
  * `ModelCapability`) do not churn every row.
  */
 
+import { describe, expect, it } from 'vitest';
+
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import { AnthropicChatProvider } from '#/providers/anthropic';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
 import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { OpenAIResponsesChatProvider } from '#/providers/openai-responses';
-import { describe, expect, it } from 'vitest';
 describe('OpenAICompletionsChatProvider.getCapability', () => {
   function make(model: string): OpenAICompletionsChatProvider {
     return new OpenAICompletionsChatProvider({ model, apiKey: 'test-key' });

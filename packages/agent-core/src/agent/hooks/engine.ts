@@ -48,10 +48,7 @@ export class HookEngine {
     return blockDecision(event, await this.trigger(event, args));
   }
 
-  fireAndForgetTrigger(
-    event: string,
-    args: HookEngineTriggerArgs = {},
-  ): Promise<HookResult[]> {
+  fireAndForgetTrigger(event: string, args: HookEngineTriggerArgs = {}): Promise<HookResult[]> {
     let promise: Promise<HookResult[]>;
     try {
       promise = this.trigger(event, args).catch((): HookResult[] => []);
@@ -65,10 +62,7 @@ export class HookEngine {
     return promise;
   }
 
-  private async triggerInner(
-    event: string,
-    args: HookEngineTriggerArgs,
-  ): Promise<HookResult[]> {
+  private async triggerInner(event: string, args: HookEngineTriggerArgs): Promise<HookResult[]> {
     const matcherValue = matcherValueText(args.matcherValue);
     const inputData = toHookInputData({
       hookEventName: event,

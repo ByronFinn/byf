@@ -17,10 +17,7 @@ import {
 import { checkMatchingRules } from '../../src/agent/permission/check-rules';
 import { matchesRule } from '../../src/agent/permission/matches-rule';
 import { parsePattern } from '../../src/agent/permission/parse-pattern';
-import type {
-  PermissionPolicy,
-  PermissionPolicyResult,
-} from '../../src/agent/permission/policy';
+import type { PermissionPolicy, PermissionPolicyResult } from '../../src/agent/permission/policy';
 import type { ToolExecutionHookContext } from '../../src/loop';
 import type { ToolInputDisplay } from '../../src/tools/display';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
@@ -517,13 +514,15 @@ describe('Permission policy chain', () => {
   it('runs custom policies after deny rules and before generic approval', async () => {
     const policy: PermissionPolicy = {
       name: 'test.block-bash',
-      evaluate: vi.fn(async (): Promise<PermissionPolicyResult> => ({
-        kind: 'result',
-        result: {
-          block: true,
-          reason: 'blocked by custom policy',
-        },
-      })),
+      evaluate: vi.fn(
+        async (): Promise<PermissionPolicyResult> => ({
+          kind: 'result',
+          result: {
+            block: true,
+            reason: 'blocked by custom policy',
+          },
+        }),
+      ),
     };
     const { manager, requestApproval } = makePermissionManager(
       async () => ({ decision: 'approved' }),
@@ -606,8 +605,9 @@ describe('Permission live derive', () => {
       reason: 'child allow',
     });
 
-    await expect(child.manager.beforeToolCall(hookContext({ id: 'call_allow' }))).resolves
-      .toBeUndefined();
+    await expect(
+      child.manager.beforeToolCall(hookContext({ id: 'call_allow' })),
+    ).resolves.toBeUndefined();
     expect(child.requestApproval).not.toHaveBeenCalled();
 
     const parentAllow = makePermissionManager(async () => ({ decision: 'approved' }));
@@ -627,11 +627,12 @@ describe('Permission live derive', () => {
       reason: 'child deny',
     });
 
-    await expect(childDeny.manager.beforeToolCall(hookContext({ id: 'call_deny' }))).resolves
-      .toMatchObject({
-        block: true,
-        reason: 'Tool "Bash" was denied by permission rule. Reason: child deny',
-      });
+    await expect(
+      childDeny.manager.beforeToolCall(hookContext({ id: 'call_deny' })),
+    ).resolves.toMatchObject({
+      block: true,
+      reason: 'Tool "Bash" was denied by permission rule. Reason: child deny',
+    });
     expect(childDeny.requestApproval).not.toHaveBeenCalled();
   });
 
@@ -652,8 +653,9 @@ describe('Permission live derive', () => {
       parent: parent.manager,
     });
 
-    await expect(child.manager.beforeToolCall(hookContext({ id: 'call_child' }))).resolves
-      .toBeUndefined();
+    await expect(
+      child.manager.beforeToolCall(hookContext({ id: 'call_child' })),
+    ).resolves.toBeUndefined();
 
     expect(child.requestApproval).not.toHaveBeenCalled();
     expect(child.manager.rules).toEqual([]);
@@ -667,24 +669,28 @@ describe('Permission live derive', () => {
       parent: parent.manager,
     });
 
-    await expect(child.manager.beforeToolCall(hookContext({ id: 'call_inherited_yolo' }))).resolves
-      .toBeUndefined();
+    await expect(
+      child.manager.beforeToolCall(hookContext({ id: 'call_inherited_yolo' })),
+    ).resolves.toBeUndefined();
     expect(child.requestApproval).not.toHaveBeenCalled();
 
     child.manager.setMode('manual');
-    await expect(child.manager.beforeToolCall(hookContext({ id: 'call_local_manual' }))).resolves
-      .toBeUndefined();
+    await expect(
+      child.manager.beforeToolCall(hookContext({ id: 'call_local_manual' })),
+    ).resolves.toBeUndefined();
     expect(child.requestApproval).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('Agent-local approve for session', () => {
   it('turns approved session-scoped responses into an agent-local allow cache', async () => {
-    const { manager, record, requestApproval, telemetryTrack } = makePermissionManager(async () => ({
-      decision: 'approved',
-      scope: 'session',
-      selectedLabel: 'Approve for this session',
-    }));
+    const { manager, record, requestApproval, telemetryTrack } = makePermissionManager(
+      async () => ({
+        decision: 'approved',
+        scope: 'session',
+        selectedLabel: 'Approve for this session',
+      }),
+    );
 
     await expect(manager.beforeToolCall(hookContext({ id: 'call_1' }))).resolves.toBeUndefined();
 
@@ -892,13 +898,15 @@ describe('Default git CWD Write/Edit permission', () => {
     return error;
   }
 
-  function gitKaos(options: {
-    readonly markerPath?: string | undefined;
-    readonly markerMode?: number | undefined;
-    readonly statModes?: Readonly<Record<string, number>> | undefined;
-    readonly readText?: Kaos['readText'] | undefined;
-    readonly missingError?: (path: string) => Error;
-  } = {}): { kaos: Kaos; stat: ReturnType<typeof vi.fn<Kaos['stat']>> } {
+  function gitKaos(
+    options: {
+      readonly markerPath?: string | undefined;
+      readonly markerMode?: number | undefined;
+      readonly statModes?: Readonly<Record<string, number>> | undefined;
+      readonly readText?: Kaos['readText'] | undefined;
+      readonly missingError?: (path: string) => Error;
+    } = {},
+  ): { kaos: Kaos; stat: ReturnType<typeof vi.fn<Kaos['stat']>> } {
     const markerPath = options.markerPath ?? '/workspace/.git';
     const statModes: Readonly<Record<string, number>> = {
       '/workspace': DIR_MODE,
@@ -906,13 +914,11 @@ describe('Default git CWD Write/Edit permission', () => {
       [markerPath]: options.markerMode ?? DIR_MODE,
       ...options.statModes,
     };
-    const stat = vi
-      .fn<Kaos['stat']>()
-      .mockImplementation(async (path) => {
-        const mode = statModes[path];
-        if (mode !== undefined) return statResult(mode);
-        throw options.missingError?.(path) ?? notFound(path);
-      });
+    const stat = vi.fn<Kaos['stat']>().mockImplementation(async (path) => {
+      const mode = statModes[path];
+      if (mode !== undefined) return statResult(mode);
+      throw options.missingError?.(path) ?? notFound(path);
+    });
     return {
       kaos: createFakeKaos({ stat, readText: options.readText }),
       stat,
@@ -940,8 +946,9 @@ describe('Default git CWD Write/Edit permission', () => {
       { kaos },
     );
 
-    await expect(manager.beforeToolCall(hookContext({ id: 'call_bash_git_cwd' }))).resolves
-      .toBeUndefined();
+    await expect(
+      manager.beforeToolCall(hookContext({ id: 'call_bash_git_cwd' })),
+    ).resolves.toBeUndefined();
 
     expect(requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1068,8 +1075,9 @@ describe('Default git CWD Write/Edit permission', () => {
         { kaos },
       );
 
-      await expect(manager.beforeToolCall(writeHook({ path, content: 'x' }))).resolves
-        .toBeUndefined();
+      await expect(
+        manager.beforeToolCall(writeHook({ path, content: 'x' })),
+      ).resolves.toBeUndefined();
 
       expect(requestApproval).toHaveBeenCalledTimes(1);
       expect(telemetryTrack).not.toHaveBeenCalledWith(
@@ -1187,8 +1195,9 @@ describe('Default git CWD Write/Edit permission', () => {
         { kaos },
       );
 
-      await expect(manager.beforeToolCall(writeHook({ path, content: 'secret' }))).resolves
-        .toBeUndefined();
+      await expect(
+        manager.beforeToolCall(writeHook({ path, content: 'secret' })),
+      ).resolves.toBeUndefined();
 
       expect(requestApproval).toHaveBeenCalledTimes(1);
       expect(telemetryTrack).not.toHaveBeenCalledWith(
@@ -1318,9 +1327,7 @@ describe('Default git CWD Write/Edit permission', () => {
     const stat = vi
       .fn<Kaos['stat']>()
       .mockImplementation(async (path) =>
-        path === '/workspace/.git'
-          ? statResult(0o040_755)
-          : Promise.reject(new Error('ENOENT')),
+        path === '/workspace/.git' ? statResult(0o040_755) : Promise.reject(new Error('ENOENT')),
       );
     const kaos = createFakeKaos({ stat, pathClass: () => 'win32' });
     const { manager, requestApproval, telemetryTrack } = makePermissionManager(
@@ -1350,7 +1357,9 @@ describe('Default git CWD Write/Edit permission', () => {
       manager.beforeToolCall(writeHook({ path: 'src/a.ts', content: 'x' }, 'call_1')),
     ).resolves.toBeUndefined();
     await expect(
-      manager.beforeToolCall(editHook({ path: 'src/b.ts', old_string: 'A', new_string: 'B' }, 'call_2')),
+      manager.beforeToolCall(
+        editHook({ path: 'src/b.ts', old_string: 'A', new_string: 'B' }, 'call_2'),
+      ),
     ).resolves.toBeUndefined();
 
     expect(requestApproval).not.toHaveBeenCalled();
@@ -1470,12 +1479,7 @@ describe('Permission rule helpers', () => {
   it('applies explicit rule priority and mode overlay in order', () => {
     expect(checkMatchingRules([], 'Write', { path: '/tmp/a' }, 'manual')).toBeUndefined();
     expect(
-      checkMatchingRules(
-        [permissionRule('Write', 'allow')],
-        'Write',
-        { path: '/tmp/a' },
-        'manual',
-      ),
+      checkMatchingRules([permissionRule('Write', 'allow')], 'Write', { path: '/tmp/a' }, 'manual'),
     ).toMatchObject({
       decision: 'allow',
     });
@@ -1584,7 +1588,7 @@ function hookContext(input: {
     type: 'function',
     id: input.id,
     name: toolName,
-      arguments: JSON.stringify(args),
+    arguments: JSON.stringify(args),
   };
   return {
     turnId: '0',

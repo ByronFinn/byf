@@ -75,11 +75,13 @@ All providers can see it. Anthropic reads it. Others ignore it during serializat
 A new module that takes a messages array and a context object, and returns the same array with `cacheHint` tags applied. It does NOT know about provider types.
 
 The context object includes:
+
 - `previousTurnMessageCount`: The message count at the end of the previous turn, provided by TurnFlow
 - `currentTurnStartIndex`: Derived from `previousTurnMessageCount`
 - A size threshold for the dynamic anchor (default ~2000 characters)
 
 Staking logic:
+
 1. Tag `isLastTurnEnd` on the message at index `previousTurnMessageCount - 1` (if it's an assistant message)
 2. Scan current-turn messages for content above the threshold, tag the largest with `isSuddenLargeContext`
 
@@ -96,6 +98,7 @@ This is a separate code path from the existing PromptPlan consumption — Prompt
 ### Tool Stability Ordering
 
 When assembling the tool list for a generate call, tools are ordered by stability:
+
 1. Builtin tools (alphabetically sorted, never change)
 2. MCP tools (grouped by server, order of first connection)
 
@@ -108,6 +111,7 @@ A fixed sentinel marker is appended after all tools to ensure the tools cache en
 ### Two Parallel Mechanisms
 
 PromptPlan and CacheStakingStrategy coexist as parallel mechanisms:
+
 - **PromptPlan**: Manages non-array structures (system prompt text, tool schemas). Carried via `GenerateOptions.promptPlan`.
 - **CacheStakingStrategy**: Manages array-structured conversation history. Carried inline via `Message.cacheHint`.
 
@@ -117,13 +121,13 @@ These are not redundant — they handle different physical data models.
 
 ### Test Seams
 
-| Seam | Type | Module | What's tested |
-|---|---|---|---|
-| `CacheStakingStrategy` unit tests | Unit (new) | agent-core | Message tagging: correct `isLastTurnEnd` position, `isSuddenLargeContext` threshold and selection, edge cases (empty history, single turn, no qualifying large block) |
-| `kosong-llm-integration.test.ts` | Integration (existing) | agent-core | Full flow: CacheHint on messages → provider receives correct cache directives |
-| `anthropic.test.ts` | Unit (existing) | kosong | Anthropic adapter translates `isLastTurnEnd` → `cache_control` on history message blocks |
-| `directory-tree.test.ts` | Unit (existing) | agent-core | Timestamp fixed on first injection, unchanged on subsequent calls |
-| Tool ordering test | Unit (new) | agent-core | `loopTools` returns Builtin first, MCP after, sentinel present |
+| Seam                              | Type                   | Module     | What's tested                                                                                                                                                         |
+| --------------------------------- | ---------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CacheStakingStrategy` unit tests | Unit (new)             | agent-core | Message tagging: correct `isLastTurnEnd` position, `isSuddenLargeContext` threshold and selection, edge cases (empty history, single turn, no qualifying large block) |
+| `kosong-llm-integration.test.ts`  | Integration (existing) | agent-core | Full flow: CacheHint on messages → provider receives correct cache directives                                                                                         |
+| `anthropic.test.ts`               | Unit (existing)        | kosong     | Anthropic adapter translates `isLastTurnEnd` → `cache_control` on history message blocks                                                                              |
+| `directory-tree.test.ts`          | Unit (existing)        | agent-core | Timestamp fixed on first injection, unchanged on subsequent calls                                                                                                     |
+| Tool ordering test                | Unit (new)             | agent-core | `loopTools` returns Builtin first, MCP after, sentinel present                                                                                                        |
 
 ### Test Characteristics
 

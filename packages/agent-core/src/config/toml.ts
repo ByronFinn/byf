@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { ErrorCodes, ByfError } from '#/errors';
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
+
 import {
   ByfConfigSchema,
   formatConfigValidationError,
@@ -20,8 +21,8 @@ import {
   type ThinkingConfig,
   validateConfig,
 } from '#/config/schema';
+import { ErrorCodes, ByfError } from '#/errors';
 import { atomicWrite } from '#/utils/fs';
-import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 
 /* ------------------------------------------------------------------ */
 /*  Key helpers – reuse generic snake / camel conversion instead of    */
@@ -77,9 +78,13 @@ export function parseConfigString(tomlText: string, filePath = 'config.toml'): B
   try {
     data = parseToml(tomlText) as Record<string, unknown>;
   } catch (error) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid TOML in ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 
   return parseConfigData(data, filePath);
@@ -93,9 +98,13 @@ function parseConfigData(data: Record<string, unknown>, filePath: string): ByfCo
   try {
     return ByfConfigSchema.parse(transformed);
   } catch (error) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid configuration in ${filePath}: ${formatConfigValidationError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
@@ -525,8 +534,6 @@ function setDefined(target: Record<string, unknown>, key: string, value: unknown
 
 function isFileExistsError(error: unknown): boolean {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: unknown }).code === 'EEXIST'
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'EEXIST'
   );
 }

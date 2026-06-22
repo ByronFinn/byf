@@ -17,8 +17,8 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
-import { materializeModelText, toModelTextView } from './line-endings';
 import EDIT_DESCRIPTION from './edit.md';
+import { materializeModelText, toModelTextView } from './line-endings';
 
 // `old_string` must be non-empty: the non-replace_all branch walks
 // occurrences with `content.indexOf("", pos)`, which would loop forever
@@ -102,8 +102,11 @@ export class EditTool implements BuiltinTool<EditInput> {
         }
 
         if (count === 0) {
-          return { isError: true, output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
-` };
+          return {
+            isError: true,
+            output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
+`,
+          };
         }
         if (count > 1) {
           return {
@@ -125,8 +128,11 @@ export class EditTool implements BuiltinTool<EditInput> {
       const parts = content.split(args.old_string);
       const replacementCount = parts.length - 1;
       if (replacementCount === 0) {
-        return { isError: true, output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
-` };
+        return {
+          isError: true,
+          output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
+`,
+        };
       }
 
       const newContent = parts.join(args.new_string);

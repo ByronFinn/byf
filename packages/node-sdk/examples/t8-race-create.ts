@@ -14,7 +14,14 @@ async function run(label: string, h: ByfHarness): Promise<void> {
     const s = await h.createSession({ workDir, id: sessionId, model: 'byf/byf-for-coding' });
     console.log(JSON.stringify({ label, ok: true, id: s.id, dir: s.summary?.sessionDir }));
   } catch (error: any) {
-    console.log(JSON.stringify({ label, ok: false, msg: String(error.message ?? error), code: error.code ?? error.cause?.code }));
+    console.log(
+      JSON.stringify({
+        label,
+        ok: false,
+        msg: String(error.message ?? error),
+        code: error.code ?? error.cause?.code,
+      }),
+    );
   } finally {
     await h.close();
   }

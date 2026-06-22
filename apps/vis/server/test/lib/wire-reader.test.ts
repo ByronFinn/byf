@@ -1,9 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildSessionFixture } from '../fixtures/build';
+
+import { describe, it, expect, afterEach } from 'vitest';
+
 import { readAgentWire } from '../../src/lib/wire-reader';
+import { buildSessionFixture } from '../fixtures/build';
 
 describe('wire-reader', () => {
   let cleanup: (() => Promise<void>) | null = null;
@@ -76,7 +78,9 @@ describe('wire-reader', () => {
 
       // `raw` keeps the on-disk (nested) shape — this is what the "as
       // written" view in the detail panel relies on.
-      const rawMsg = (entry.raw as { message: { toolCalls: Array<{ function: unknown; name?: unknown }> } }).message;
+      const rawMsg = (
+        entry.raw as { message: { toolCalls: Array<{ function: unknown; name?: unknown }> } }
+      ).message;
       expect(rawMsg.toolCalls[0]).toHaveProperty('function');
       expect(rawMsg.toolCalls[0].function).toEqual({ name: 'Read', arguments: '{"path":"/x"}' });
       expect(rawMsg.toolCalls[0]).not.toHaveProperty('name');
@@ -96,9 +100,7 @@ describe('wire-reader', () => {
     const result = await readAgentWire(path);
     expect(result.metadata.protocolVersion).toBe('2.2');
     expect(result.records.length).toBeGreaterThan(0);
-    expect(result.warnings.some((w) => /unrecognised protocol_version.*2\.2/i.test(w))).toBe(
-      true,
-    );
+    expect(result.warnings.some((w) => /unrecognised protocol_version.*2\.2/i.test(w))).toBe(true);
   });
 
   it('collects warnings for malformed body lines', async () => {

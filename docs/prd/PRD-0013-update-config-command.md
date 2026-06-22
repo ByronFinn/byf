@@ -39,25 +39,30 @@ byf 的用户配置文件 `~/.byf/config.toml` **没有 version 字段,也没有
 ## What I Already Know (ground truth from code)
 
 ### skill 系统机制
+
 - **builtin skill 注册**:`packages/agent-core/src/skill/builtin/index.ts` 的 `registerBuiltinSkills()`,目前只注册 mcp-config。新增 skill 参照 `mcp-config.ts`(`SkillDefinition` + `parseSkillText` + `disableModelInvocation: true`)。
 - **skill body 注入**:激活时 body 注入 context **2 次**(turn prompt + system reminder,`agent/skill/index.ts:36-53`)。body 大小直接影响 context 预算 → Context Minimization 是一等关注点(CONTEXT.md L90-91)。
 - **skill 不是代码**:它是注入 LLM context 的 markdown 指令,LLM 用既有工具(Read/Write/Edit/Bash)执行。
 - **触发路径**:`/skill:<name>`(resolve.ts:92-97)。skill 不支持自定义 alias。
 
 ### mcp-config skill 既有模式(直接复用)
+
 - **引用源文件作真相源**:`mcp-config.md:62-63` 指引 LLM "the source of truth is `McpServerStdioConfigSchema`...in `schema.ts`"。不抄录 schema。
 - **坏文件不覆盖**:`mcp-config.md:78-80` "If JSON parsing fails, surface the error verbatim and stop"。
 - **展示后写**:`mcp-config.md:80-85` 展示当前内容 + 计划写入,权限弹窗是真正的安全门。
 - **测试先例**:`skill-session.test.ts:82-96, 389-434` 测 builtin skill 的注册/触发/注入/body 关键词。
 
 ### 治理知识来源(从 analyzer/fixer 迁移到规则文档)
+
 原 `update-rules.ts`/`update.ts` 的知识,迁移到 `update-config-rules.md`:
+
 - **废弃字段白名单**:`default_yolo`/`defaultYolo`(removed)、`services.byf_search`/`services.byf_fetch`(removed)、`loop_control.max_steps_per_run`(renamed → `max_steps_per_turn`)。
 - **default_thinking 迁移语义**(对齐 ADR-0005 decision 7,以代码优先级为准):`true` → `[thinking] mode="on" effort="high"`;`false` → `mode="off"`;若已有 `[thinking]` 块的 mode/effort,则 default_thinking 本就不生效,只删原字段。
 - **raw passthrough 盲点**:zod strip 的字段落入 `config.raw` 后 read→write 清不掉。
 - **capabilities 合法值**:规则文档指引 LLM 读 `runtime-provider.ts` 的 `VALID_CAPABILITIES`/`CAPABILITY_DEFINITIONS`(单一真相源,不硬编码)。
 
 ### 删除影响(blast radius,已验证)
+
 - **公开 API 删除**(breaking):`@byfriends/sdk` 和 `@byfriends/agent-core` 移除 `Finding`/`UpdateConfigInput`/`UpdateConfigResult`/`analyzeConfig`/`applyFixes`/`DEPRECATED_FIELD_RULES` 导出 → major bump(用户已授权)。
 - **wire records 无残留**:command 路线从不经过 agent/wire 系统(host 同步代码),删除无 replay 兼容问题(比 ADR-0008 删 plan mode 更干净)。
 - **config 单文件**:`resolveConfigPath`(path.ts:9-14)只认 `$BYF_HOME/config.toml`,无项目级 config.toml 机制。skill 只处理单文件。
@@ -94,12 +99,15 @@ byf 的用户配置文件 `~/.byf/config.toml` **没有 version 字段,也没有
 ## Technical Approach
 
 ### 新增(参照 mcp-config 模式)
+
 - `update-config.md` body 结构:触发分流 → 读取(含 $ARGUMENTS 路径) → 对照 schema.ts + 规则文档 → 三层检查(废弃/迁移、raw 盲点、语义矛盾) → 展示后写 → 密钥安全提示。
 - `update-config-rules.md`:废弃字段表、default_thinking 迁移语义、raw 盲点说明、capabilities 引用 runtime-provider.ts。
 - `update-config.ts` + `index.ts` 注册。
 
 ### 删除(blast radius 已验证)
+
 **整文件删除**:
+
 - `packages/agent-core/src/config/update-rules.ts`
 - `packages/agent-core/src/config/update.ts`
 - `apps/cli/src/cli/sub/update-config.ts`
@@ -107,6 +115,7 @@ byf 的用户配置文件 `~/.byf/config.toml` **没有 version 字段,也没有
 - `apps/cli/test/cli/update-config.test.ts`
 
 **部分编辑**:
+
 - `packages/agent-core/src/config/index.ts`(删 update-rules/update re-export)
 - `packages/agent-core/src/providers/runtime-provider.ts:240`(改注释,删 update-config 提及)
 - `packages/agent-core/test/config/configs.test.ts`(删 import + 5 个 update-config describe 块)
@@ -135,6 +144,7 @@ byf 的用户配置文件 `~/.byf/config.toml` **没有 version 字段,也没有
 **Think + Grilled by**: 2026-06-21 session
 
 **Resolved items**:
+
 - G1 (密钥安全):接受风险,skill body 轻提示不泄露 api_key 明文。
 - G2 (触发模型):`disableModelInvocation: true`,用户专用,对齐 mcp-config。
 - G3 (body 体量):原计划 body 精简 + 独立规则文档(冷热知识分离)。**实现时修订**:builtin skill 的 `dir` 是 pseudo-path,sibling 规则文件无法被 LLM Read,故规则内嵌进 body(单文件 ~100 行,与 mcp-config 96 行相当),未实质违反 Context Minimization。

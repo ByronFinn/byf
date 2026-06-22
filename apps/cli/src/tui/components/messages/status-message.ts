@@ -6,7 +6,8 @@ import type { ColorPalette } from '../../theme/colors';
 export class StatusMessageComponent extends Container {
   constructor(content: string, colors: ColorPalette, color?: string) {
     super();
-    const text = color === undefined ? chalk.hex(colors.textDim)(content) : chalk.hex(color)(content);
+    const text =
+      color === undefined ? chalk.hex(colors.textDim)(content) : chalk.hex(color)(content);
     this.addChild(new Text(`  ${text}`, 0, 0));
   }
 }

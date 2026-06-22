@@ -358,7 +358,11 @@ describe('sniffImageDimensions', () => {
     data: Buffer;
     expected: ImageDimensions;
   }> = [
-    { name: 'PNG (IHDR big-endian uint32)', data: buildPng(800, 600), expected: { width: 800, height: 600 } },
+    {
+      name: 'PNG (IHDR big-endian uint32)',
+      data: buildPng(800, 600),
+      expected: { width: 800, height: 600 },
+    },
     {
       name: 'GIF87a (logical screen little-endian uint16)',
       data: buildGif('GIF87a', 320, 240),
@@ -369,7 +373,11 @@ describe('sniffImageDimensions', () => {
       data: buildGif('GIF89a', 1024, 768),
       expected: { width: 1024, height: 768 },
     },
-    { name: 'BMP (DIB little-endian int32)', data: buildBmp(640, 480), expected: { width: 640, height: 480 } },
+    {
+      name: 'BMP (DIB little-endian int32)',
+      data: buildBmp(640, 480),
+      expected: { width: 640, height: 480 },
+    },
     {
       name: 'BMP top-down (negative height → absolute value)',
       data: buildBmp(640, -480),

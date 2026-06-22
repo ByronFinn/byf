@@ -13,8 +13,8 @@ import {
   ReadMediaFileTool,
 } from '../../src/tools/builtin/file/read-media';
 import { MEDIA_SNIFF_BYTES } from '../../src/tools/support/file-type';
-import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
@@ -422,28 +422,34 @@ describe('ReadMediaFileTool', () => {
   });
 
   it('rejects empty files and files exceeding the media size limit', async () => {
-    const empty = await executeTool(makeReadMediaTool({
-      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: 0 }),
-    }), {
-      turnId: 't1',
-      toolCallId: 'c_empty',
-      args: { path: '/workspace/empty.png' },
-      signal,
-    });
+    const empty = await executeTool(
+      makeReadMediaTool({
+        stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: 0 }),
+      }),
+      {
+        turnId: 't1',
+        toolCallId: 'c_empty',
+        args: { path: '/workspace/empty.png' },
+        signal,
+      },
+    );
     expect(empty).toMatchObject({ isError: true });
     expect(empty.output).toMatch(/empty/i);
 
-    const huge = await executeTool(makeReadMediaTool({
-      stat: vi.fn<Kaos['stat']>().mockResolvedValue({
-        ...DEFAULT_STAT,
-        stSize: 200 * 1024 * 1024,
+    const huge = await executeTool(
+      makeReadMediaTool({
+        stat: vi.fn<Kaos['stat']>().mockResolvedValue({
+          ...DEFAULT_STAT,
+          stSize: 200 * 1024 * 1024,
+        }),
       }),
-    }), {
-      turnId: 't1',
-      toolCallId: 'c_huge',
-      args: { path: '/workspace/huge.png' },
-      signal,
-    });
+      {
+        turnId: 't1',
+        toolCallId: 'c_huge',
+        args: { path: '/workspace/huge.png' },
+        signal,
+      },
+    );
     expect(huge).toMatchObject({ isError: true });
     expect(huge.output).toMatch(/exceeds|100/i);
   });
@@ -467,7 +473,7 @@ describe('ReadMediaFileTool', () => {
       readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(png),
     });
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_size',
       args: { path: '/workspace/valid.png' },
@@ -491,7 +497,7 @@ describe('ReadMediaFileTool', () => {
       readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
     });
 
-    const result = await executeTool(tool,{
+    const result = await executeTool(tool, {
       turnId: 't1',
       toolCallId: 'c_extless_msg',
       args: { path: '/workspace/sample' },

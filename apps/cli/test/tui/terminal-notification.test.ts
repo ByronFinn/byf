@@ -10,13 +10,15 @@ import {
   supportsOsc9Notification,
 } from '#/tui/utils/terminal-notification';
 
-function makeNotificationState(args: {
-  readonly enabled?: boolean;
-  readonly condition?: 'unfocused' | 'always';
-  readonly focused?: boolean;
-  readonly supportsOsc9?: boolean;
-  readonly insideTmux?: boolean;
-} = {}): TUIState {
+function makeNotificationState(
+  args: {
+    readonly enabled?: boolean;
+    readonly condition?: 'unfocused' | 'always';
+    readonly focused?: boolean;
+    readonly supportsOsc9?: boolean;
+    readonly insideTmux?: boolean;
+  } = {},
+): TUIState {
   return {
     appState: {
       notifications: {

@@ -684,11 +684,9 @@ describe('BackgroundProcessManager — registration semantics', () => {
   // `completed` with the output captured.
   it('launches a real worker and waits to completion', async () => {
     const { spawn } = await import('node:child_process');
-    const child = spawn(
-      process.execPath,
-      ['-e', "process.stdout.write('bg-ok\\n')"],
-      { stdio: 'pipe' },
-    );
+    const child = spawn(process.execPath, ['-e', "process.stdout.write('bg-ok\\n')"], {
+      stdio: 'pipe',
+    });
     const proc: KaosProcess = {
       stdin: { write: vi.fn(), end: vi.fn() } as unknown as Writable,
       stdout: child.stdout,

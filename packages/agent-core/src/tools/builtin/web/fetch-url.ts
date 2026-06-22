@@ -10,7 +10,11 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
-import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type {
+  ExecutableToolContext,
+  ExecutableToolResult,
+  ToolExecution,
+} from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolResultBuilder } from '../../support/result-builder';
 import DESCRIPTION from './fetch-url.md';
@@ -80,9 +84,7 @@ export class FetchURLTool implements BuiltinTool<FetchURLInput> {
 
   private async execution(
     args: FetchURLInput,
-    {
-    toolCallId,
-    }: ExecutableToolContext,
+    { toolCallId }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     try {
       const { content, kind } = await this.fetcher.fetch(args.url, { toolCallId });
@@ -118,5 +120,4 @@ export class FetchURLTool implements BuiltinTool<FetchURLInput> {
       };
     }
   }
-
 }

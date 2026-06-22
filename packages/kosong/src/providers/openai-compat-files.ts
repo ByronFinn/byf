@@ -1,11 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type OpenAI from 'openai';
+import OpenAIClient from 'openai';
+
 import { ChatProviderError } from '#/errors';
 import type { VideoURLPart } from '#/message';
 import type { ProviderRequestAuth, VideoUploadInput } from '#/provider';
-import type OpenAI from 'openai';
-import OpenAIClient from 'openai';
 
 import { convertOpenAIError } from './openai-common';
 import {

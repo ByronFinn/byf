@@ -37,16 +37,16 @@ Entries with `command` are stdio servers; entries with `url` are HTTP servers, s
 
 Optional fields:
 
-| Field | Type | Applies to | Description |
-| --- | --- | --- | --- |
-| `env` | `Record<string, string>` | stdio | Environment variables injected into the subprocess |
-| `cwd` | `string` | stdio | Working directory for the subprocess |
-| `headers` | `Record<string, string>` | HTTP | Static headers appended to every request |
-| `enabled` | `boolean` | both | Set to `false` to disable the server without removing the entry |
-| `startupTimeoutMs` | `number` | both | Connection timeout in milliseconds, default `30000` |
-| `toolTimeoutMs` | `number` | both | Per-tool-call timeout in milliseconds |
-| `enabledTools` | `string[]` | both | Allowlist: only expose the tools in this list |
-| `disabledTools` | `string[]` | both | Blocklist: exclude the tools in this list |
+| Field              | Type                     | Applies to | Description                                                     |
+| ------------------ | ------------------------ | ---------- | --------------------------------------------------------------- |
+| `env`              | `Record<string, string>` | stdio      | Environment variables injected into the subprocess              |
+| `cwd`              | `string`                 | stdio      | Working directory for the subprocess                            |
+| `headers`          | `Record<string, string>` | HTTP       | Static headers appended to every request                        |
+| `enabled`          | `boolean`                | both       | Set to `false` to disable the server without removing the entry |
+| `startupTimeoutMs` | `number`                 | both       | Connection timeout in milliseconds, default `30000`             |
+| `toolTimeoutMs`    | `number`                 | both       | Per-tool-call timeout in milliseconds                           |
+| `enabledTools`     | `string[]`               | both       | Allowlist: only expose the tools in this list                   |
+| `disabledTools`    | `string[]`               | both       | Blocklist: exclude the tools in this list                       |
 
 ::: warning Note
 Stdio entries in a project-level `.byf/mcp.json` execute local commands when the session starts. Only enable project-level MCP servers in repositories you trust.

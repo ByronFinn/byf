@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { HookEngine } from '../../src/agent/hooks';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
+import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent } from './harness/agent';
-import { executeTool } from '../tools/fixtures/execute-tool';
 
 const signal = new AbortController().signal;
 
@@ -377,10 +377,10 @@ function agentCall(): ToolCall {
     id: 'call_agent',
     name: 'Agent',
     arguments: JSON.stringify({
-        prompt: 'Investigate deeply',
-        description: 'Investigate deeply',
-        subagent_type: 'coder',
-      }),
+      prompt: 'Investigate deeply',
+      description: 'Investigate deeply',
+      subagent_type: 'coder',
+    }),
   };
 }
 

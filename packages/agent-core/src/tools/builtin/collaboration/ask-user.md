@@ -1,6 +1,7 @@
 Use this tool ONLY to present structured multiple-choice questions to the user. Use it to collect preferences, resolve ambiguity, or present options when multiple valid directions exist.
 
 **When NOT to use:**
+
 - For simple greetings, direct questions, or casual conversation — reply in text instead
 - When you can infer the answer from context — be decisive and proceed
 - Trivial decisions that don't materially affect the outcome
@@ -8,6 +9,7 @@ Use this tool ONLY to present structured multiple-choice questions to the user. 
 Only use this tool when the user's input genuinely changes your next action.
 
 **Usage notes:**
+
 - Users always have an "Other" option — don't create one yourself
 - Use multi_select to allow multiple answers per question
 - Keep option labels concise (1-5 words), use descriptions for trade-offs

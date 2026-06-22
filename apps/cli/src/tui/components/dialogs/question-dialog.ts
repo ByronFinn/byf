@@ -531,9 +531,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
         } else if (isCursor) {
           lines.push(...wrapWithPrefix(label, width, firstPrefix, contPrefix, accent));
         } else {
-          lines.push(
-            ...wrapWithPrefix(label, width, `    [${String(num)}] `, contPrefix, dim),
-          );
+          lines.push(...wrapWithPrefix(label, width, `    [${String(num)}] `, contPrefix, dim));
         }
       }
 
@@ -542,9 +540,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
         option.description.length > 0 &&
         !(this.isEditingOther() && isCursor && isOther)
       ) {
-        lines.push(
-          ...wrapWithPrefix(option.description, width, '        ', '        ', dim),
-        );
+        lines.push(...wrapWithPrefix(option.description, width, '        ', '        ', dim));
       }
     }
 
@@ -776,7 +772,7 @@ export class QuestionDialogComponent extends Container implements Focusable {
   }
 
   private otherDraftValue(questionIdx: number): string {
-    return (this.otherDrafts[questionIdx] ?? this.committedOtherValues[questionIdx]) ?? '';
+    return this.otherDrafts[questionIdx] ?? this.committedOtherValues[questionIdx] ?? '';
   }
 
   private syncOtherDraft(questionIdx: number): void {

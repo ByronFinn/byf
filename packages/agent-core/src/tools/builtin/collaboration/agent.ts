@@ -21,7 +21,11 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { Logger } from '../../../logging';
 import { ToolAccesses } from '../../../loop/tool-access';
-import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type {
+  ExecutableToolContext,
+  ExecutableToolResult,
+  ToolExecution,
+} from '../../../loop/types';
 import type { ResolvedAgentProfile } from '../../../profile';
 import type { SessionSubagentHost, SubagentHandle } from '../../../session/subagent-host';
 import { createDeadlineAbortSignal, type DeadlineAbortSignal } from '../../../utils/abort';
@@ -150,10 +154,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
 
   private async execution(
     args: AgentToolInput,
-    {
-    toolCallId,
-    signal,
-    }: ExecutableToolContext,
+    { toolCallId, signal }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     let foregroundDeadline: DeadlineAbortSignal | undefined;
     try {
@@ -167,7 +168,8 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         requestedProfileName !== undefined
       ) {
         return {
-          output: 'Cannot set subagent_type when resuming an existing agent. Resume by agent id only.',
+          output:
+            'Cannot set subagent_type when resuming an existing agent. Resume by agent id only.',
           isError: true,
         };
       }
@@ -208,7 +210,8 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
       };
 
       let handle: SubagentHandle;
-      const operation = resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
+      const operation =
+        resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
       try {
         if (resumeAgentId !== undefined && resumeAgentId.length > 0) {
           handle = await this.subagentHost.resume(resumeAgentId, options);
@@ -223,7 +226,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
           runInBackground,
           operation,
           agentId: resumeAgentId,
-          subagentType: operation === 'spawn' ? requestedProfileName ?? 'coder' : undefined,
+          subagentType: operation === 'spawn' ? (requestedProfileName ?? 'coder') : undefined,
           error,
         });
         throw error;

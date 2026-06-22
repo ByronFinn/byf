@@ -298,11 +298,7 @@ class LoggerImpl implements Logger {
     return new LoggerImpl({ ...this.boundCtx, ...ctx });
   }
 
-  private emitAt(
-    level: Exclude<LogLevel, 'off'>,
-    message: string,
-    payload: LogPayload,
-  ): void {
+  private emitAt(level: Exclude<LogLevel, 'off'>, message: string, payload: LogPayload): void {
     const root = getRootInternal();
     if (!root.isConfigured()) return;
     try {
@@ -355,9 +351,10 @@ function sameLoggingConfig(a: LoggingConfig, b: LoggingConfig): boolean {
   );
 }
 
-function resolvePayload(
-  payload: LogPayload,
-): { ctx: LogContext | undefined; error: LogEntry['error'] } {
+function resolvePayload(payload: LogPayload): {
+  ctx: LogContext | undefined;
+  error: LogEntry['error'];
+} {
   if (payload === undefined || payload === null) {
     return { ctx: undefined, error: undefined };
   }

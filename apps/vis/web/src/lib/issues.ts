@@ -41,10 +41,7 @@ const SEVERITY_ORDER: Record<IssueSeverity, number> = {
 
 /** Scan `records` + `warnings` and produce an ordered issue list.
  *  Sorted by severity first, then lineNo ascending. Warnings (no lineNo) go last. */
-export function computeIssues(
-  entries: readonly WireEntry[],
-  warnings: readonly string[],
-): Issue[] {
+export function computeIssues(entries: readonly WireEntry[], warnings: readonly string[]): Issue[] {
   const out: Issue[] = [];
 
   // Track in-flight tool calls keyed by toolCallId, step begins by uuid,

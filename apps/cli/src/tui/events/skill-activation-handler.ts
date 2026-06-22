@@ -1,4 +1,5 @@
 import type { SkillActivatedEvent } from '@byfriends/sdk';
+
 import type { TranscriptEntry } from '#/tui/types';
 import { nextTranscriptId } from '#/tui/utils/transcript-id';
 

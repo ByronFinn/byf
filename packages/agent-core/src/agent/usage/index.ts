@@ -1,5 +1,6 @@
-import type { UsageStatus } from '#/rpc';
 import { addUsage, cacheHitRate, type TokenUsage } from '@byfriends/kosong';
+
+import type { UsageStatus } from '#/rpc';
 
 import type { Agent } from '..';
 import type { RecordRestoreHandler } from '../restore-handler';

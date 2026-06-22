@@ -136,9 +136,8 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
     max_context_tokens: context,
   };
   const registry = resolveCapabilityFromRegistry(model.id);
-  const capability = registry !== undefined
-    ? { ...base, ...registry, max_context_tokens: context }
-    : base;
+  const capability =
+    registry !== undefined ? { ...base, ...registry, max_context_tokens: context } : base;
   return {
     id: model.id,
     name: typeof model.name === 'string' && model.name.length > 0 ? model.name : undefined,

@@ -6,12 +6,9 @@ import { OptionConflictError, validateOptions } from '#/cli/options';
 
 function parse(argv: string[]): CLIOptions {
   let captured: CLIOptions | undefined;
-  const program = createProgram(
-    '0.0.0-test',
-    (opts) => {
-      captured = opts;
-    },
-  );
+  const program = createProgram('0.0.0-test', (opts) => {
+    captured = opts;
+  });
   program.exitOverride();
   program.configureOutput({
     writeOut: () => {},

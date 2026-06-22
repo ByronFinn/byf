@@ -3,9 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { afterEach, describe, expect, it } from 'vitest';
+
 import { ByfHarness } from '#/index';
 import type { ByfError } from '#/index';
-import { afterEach, describe, expect, it } from 'vitest';
 
 import { waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';

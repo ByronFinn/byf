@@ -271,7 +271,12 @@ describe('Session.prompt events', () => {
           type: 'session.meta.updated',
         }),
       );
-      expect(fakeProviderState.calls[0]?.history as Array<{ role: string; content: Array<{ type: string; text?: string }> }>).toContainEqual(
+      expect(
+        fakeProviderState.calls[0]?.history as Array<{
+          role: string;
+          content: Array<{ type: string; text?: string }>;
+        }>,
+      ).toContainEqual(
         expect.objectContaining({
           role: 'user',
           content: [

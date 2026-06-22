@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest';
+
 import type { TokenUsage } from '#/usage';
 import { addUsage, emptyUsage, grandTotal, inputTotal } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 describe('emptyUsage', () => {
   it('returns all zeros', () => {

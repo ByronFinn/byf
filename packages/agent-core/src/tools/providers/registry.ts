@@ -22,9 +22,10 @@ export const webSearchProviderRegistry = {
 export type ProviderType = keyof typeof webSearchProviderRegistry;
 
 /** The Zod `z.enum` literal inferred from registry keys. */
-export const PROVIDER_TYPE_VALUES = Object.keys(
-  webSearchProviderRegistry,
-) as [ProviderType, ...ProviderType[]];
+export const PROVIDER_TYPE_VALUES = Object.keys(webSearchProviderRegistry) as [
+  ProviderType,
+  ...ProviderType[],
+];
 
 // ── Runtime provider class registry ──────────────────────────────────
 

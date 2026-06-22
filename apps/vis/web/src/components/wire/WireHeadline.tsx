@@ -134,16 +134,19 @@ export function renderHeadline(r: AgentRecord): HeadlineRender {
             >
               {m.role}
             </Pill>
-            <Dim>({m.content.length} part{m.content.length === 1 ? '' : 's'})</Dim>
+            <Dim>
+              ({m.content.length} part{m.content.length === 1 ? '' : 's'})
+            </Dim>
             {tc ? <Dim>· {tc}</Dim> : null}
             {m.origin?.kind ? <Dim>· origin={m.origin.kind}</Dim> : null}
           </span>
         ),
-        right: m.isError === true ? (
-          <Pill tone="error" variant="solid">
-            error
-          </Pill>
-        ) : undefined,
+        right:
+          m.isError === true ? (
+            <Pill tone="error" variant="solid">
+              error
+            </Pill>
+          ) : undefined,
       };
     }
 
@@ -180,7 +183,8 @@ export function renderHeadline(r: AgentRecord): HeadlineRender {
               compacted
             </Pill>
             <Dim>
-              summary {r.summary.length}b · {r.tokensBefore}→{r.tokensAfter} tok · {r.compactedCount} msgs
+              summary {r.summary.length}b · {r.tokensBefore}→{r.tokensAfter} tok ·{' '}
+              {r.compactedCount} msgs
             </Dim>
           </span>
         ),
@@ -292,9 +296,7 @@ export function renderHeadline(r: AgentRecord): HeadlineRender {
             <Pill tone="compaction" variant="soft">
               {r.source}
             </Pill>
-            {r.instruction ? (
-              <Dim className="truncate">"{truncate(r.instruction, 40)}"</Dim>
-            ) : null}
+            {r.instruction ? <Dim className="truncate">"{truncate(r.instruction, 40)}"</Dim> : null}
           </span>
         ),
       };
@@ -329,9 +331,7 @@ export function renderHeadline(r: AgentRecord): HeadlineRender {
   // whose `type` is outside the AgentRecord union. Without this fallback
   // WireRow would dereference `undefined` and crash the whole tab.
   return {
-    main: (
-      <Dim>(unknown record type: {(r as { type: string }).type})</Dim>
-    ),
+    main: <Dim>(unknown record type: {(r as { type: string }).type})</Dim>,
   };
 }
 

@@ -1,10 +1,11 @@
-import { Hono } from 'hono';
 import { join } from 'node:path';
 
+import { Hono } from 'hono';
+
 import { BYF_HOME } from '../config';
+import { projectContext } from '../lib/context-projector';
 import { isSafeAgentId, readSessionDetail } from '../lib/session-store';
 import { readAgentWire } from '../lib/wire-reader';
-import { projectContext } from '../lib/context-projector';
 
 export function contextRoute(): Hono {
   const r = new Hono();
@@ -23,9 +24,7 @@ export function contextRoute(): Hono {
       return c.json({ error: 'agent wire not found', code: 'NOT_FOUND' }, 404);
     }
     try {
-      const wire = await readAgentWire(
-        join(detail.sessionDir, 'agents', agentId, 'wire.jsonl'),
-      );
+      const wire = await readAgentWire(join(detail.sessionDir, 'agents', agentId, 'wire.jsonl'));
       const proj = projectContext(wire.records);
       return c.json({
         sessionId: id,

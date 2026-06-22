@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import type {
   AudioURLPart,
   ImageURLPart,
@@ -8,7 +10,6 @@ import type {
   ToolCallPart,
   VideoURLPart,
 } from '#/message';
-import { describe, expect, it } from 'vitest';
 /**
  * This function exercises TypeScript's discriminated-union narrowing.
  * If the type system is correct, every branch accesses only properties
@@ -76,7 +77,8 @@ describe('StreamedMessagePart discriminated union narrowing', () => {
     const part: StreamedMessagePart = {
       type: 'function',
       id: 'call-1',
-      name: 'search', arguments: '{"q":"test"}',
+      name: 'search',
+      arguments: '{"q":"test"}',
     };
     expect(processPartSafely(part)).toBe('search');
   });

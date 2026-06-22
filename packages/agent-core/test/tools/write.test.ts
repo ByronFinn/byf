@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { type WriteInput, WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
-import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
@@ -82,7 +82,10 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(5);
     const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool, context({ path: '~/notes/today.txt', content: 'hello' }));
+    const result = await executeTool(
+      tool,
+      context({ path: '~/notes/today.txt', content: 'hello' }),
+    );
 
     expect(writeText).toHaveBeenCalledWith('/home/test/notes/today.txt', 'hello');
     expect(result.output).toContain('Wrote 5 bytes');
@@ -92,7 +95,8 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(6);
     const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/existing.txt', content: '\nhello', mode: 'append' }),
     );
 
@@ -149,7 +153,8 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(content.length);
     const tool = new WriteTool(createFakeKaos({ writeText, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/menu.txt', content, mode: 'append' }),
     );
 
@@ -164,7 +169,8 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(4);
     const tool = new WriteTool(createFakeKaos({ stat, writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/missing-dir/file.txt', content: 'data' }),
     );
 
@@ -180,7 +186,8 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(4);
     const tool = new WriteTool(createFakeKaos({ stat, writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/a-file/child.txt', content: 'data' }),
     );
 
@@ -194,7 +201,10 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(4);
     const tool = new WriteTool(createFakeKaos({ stat, writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool, context({ path: '/tmp/exists/file.txt', content: 'data' }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/exists/file.txt', content: 'data' }),
+    );
 
     expect(result.isError).toBeUndefined();
     expect(writeText).toHaveBeenCalledWith('/tmp/exists/file.txt', 'data');
@@ -260,7 +270,7 @@ describe('WriteTool', () => {
     const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
     const content = 'Hello 世界 🌍\nUnicode: café, naïve, résumé';
 
-    const result = await executeTool(tool,context({ path: '/tmp/unicode.txt', content }));
+    const result = await executeTool(tool, context({ path: '/tmp/unicode.txt', content }));
 
     expect(result.isError).toBeFalsy();
     expect(writeText).toHaveBeenCalledWith('/tmp/unicode.txt', content);
@@ -270,7 +280,7 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(0);
     const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,context({ path: '/tmp/empty.txt', content: '' }));
+    const result = await executeTool(tool, context({ path: '/tmp/empty.txt', content: '' }));
 
     expect(result.isError).toBeFalsy();
     expect(writeText).toHaveBeenCalledWith('/tmp/empty.txt', '');
@@ -286,7 +296,8 @@ describe('WriteTool', () => {
       );
     const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/missing-dir/file.txt', content: 'data' }),
     );
 
@@ -300,7 +311,8 @@ describe('WriteTool', () => {
     const writeText = vi.fn().mockResolvedValue(11);
     const tool = new WriteTool(createFakeKaos({ writeText }), PERMISSIVE_WORKSPACE);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/new-append.txt', content: 'New content', mode: 'append' }),
     );
 
@@ -318,7 +330,8 @@ describe('WriteTool', () => {
       additionalDirs: [],
     });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/workspace-sneaky/file.txt', content: 'content' }),
     );
 

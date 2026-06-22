@@ -1,4 +1,3 @@
-import type { Component, Container, Focusable, ProcessTerminal, TUI } from '@earendil-works/pi-tui';
 import type {
   BackgroundTaskInfo,
   ModelAlias,
@@ -7,23 +6,24 @@ import type {
   PromptPart,
   ToolInputDisplay,
 } from '@byfriends/sdk';
+import type { Component, Container, Focusable, ProcessTerminal, TUI } from '@earendil-works/pi-tui';
 
-import type { NotificationsConfig } from './config';
-import type { AssistantMessageComponent } from './components/messages/assistant-message';
+import type { FooterComponent } from './components/chrome/footer';
+import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
+import type { TodoPanelComponent } from './components/chrome/todo-panel';
 import type { CompactionComponent } from './components/dialogs/compaction';
+import type { SessionRow } from './components/dialogs/session-picker';
 import type { CustomEditor } from './components/editor/custom-editor';
 import type { AgentGroupComponent } from './components/messages/agent-group';
+import type { AssistantMessageComponent } from './components/messages/assistant-message';
 import type { ReadGroupComponent } from './components/messages/read-group';
 import type { ThinkingComponent } from './components/messages/thinking';
 import type { ToolCallComponent } from './components/messages/tool-call';
-import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
-import type { TodoPanelComponent } from './components/chrome/todo-panel';
-import type { FooterComponent } from './components/chrome/footer';
-import type { SessionRow } from './components/dialogs/session-picker';
-import type { ByfTuiThemeBundle } from './theme/bundle';
-import type { TerminalState } from './utils/terminal-state';
+import type { NotificationsConfig } from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { Theme } from './theme';
+import type { ByfTuiThemeBundle } from './theme/bundle';
+import type { TerminalState } from './utils/terminal-state';
 
 export interface DialogHost {
   show(panel: Component & Focusable): void;
@@ -183,12 +183,7 @@ export interface TranscriptEntry {
   skillArgs?: string;
 }
 
-export type LivePaneMode =
-  | 'idle'
-  | 'waiting'
-  | 'thinking'
-  | 'tool'
-  | 'session';
+export type LivePaneMode = 'idle' | 'waiting' | 'thinking' | 'tool' | 'session';
 
 export interface LivePaneState {
   mode: LivePaneMode;

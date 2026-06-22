@@ -12,10 +12,7 @@ const packageJson = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
 ) as { version: string };
 
-const builtins = new Set([
-  ...builtinModules,
-  ...builtinModules.map((name) => `node:${name}`),
-]);
+const builtins = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 const optionalNativeDependencies = new Set(['cpu-features']);
 
 function shouldAlwaysBundle(id: string): boolean {

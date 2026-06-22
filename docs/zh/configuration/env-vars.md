@@ -24,18 +24,18 @@ export BYF_HOME="/path/to/custom/byf"
 
 下列键名出现在 `config.toml` 的 `[providers.<name>.env]` 子表中，用作供应商 `api_key` / `base_url` 的回退来源。**`byf` 主进程不会从 `process.env` 直接读取它们**；只有 `[providers.<name>.env]` 子表内对应键的值才会被供应商客户端识别。详细解析顺序见 [配置覆盖：供应商凭证](./overrides.md#供应商凭证)。
 
-| 键名 | 适用供应商 | 用途 | 默认值 |
-| --- | --- | --- | --- |
-| `BYF_API_KEY` | BYF | API 密钥 | 无 |
-| `BYF_BASE_URL` | BYF | API 基础 URL | `https://api.example.com/v1` |
-| `ANTHROPIC_API_KEY` | Anthropic | API 密钥 | 无 |
-| `ANTHROPIC_BASE_URL` | Anthropic | API 基础 URL | 跟随 Anthropic SDK 默认值 |
-| `OPENAI_API_KEY` | OpenAI（`openai` 与 `openai_responses` 均使用） | API 密钥 | 无 |
-| `OPENAI_BASE_URL` | OpenAI（`openai` 与 `openai_responses` 均使用） | API 基础 URL | `https://api.openai.com/v1` |
-| `GOOGLE_API_KEY` | Google GenAI、Vertex AI（作为 `VERTEXAI_API_KEY` 的备用） | API 密钥 | 无 |
-| `VERTEXAI_API_KEY` | Vertex AI | API 密钥（未使用 ADC 时） | 无 |
-| `GOOGLE_CLOUD_PROJECT` | Vertex AI | GCP 项目 ID | 无 |
-| `GOOGLE_CLOUD_LOCATION` | Vertex AI | GCP 区域 | 无 |
+| 键名                    | 适用供应商                                                | 用途                      | 默认值                       |
+| ----------------------- | --------------------------------------------------------- | ------------------------- | ---------------------------- |
+| `BYF_API_KEY`           | BYF                                                       | API 密钥                  | 无                           |
+| `BYF_BASE_URL`          | BYF                                                       | API 基础 URL              | `https://api.example.com/v1` |
+| `ANTHROPIC_API_KEY`     | Anthropic                                                 | API 密钥                  | 无                           |
+| `ANTHROPIC_BASE_URL`    | Anthropic                                                 | API 基础 URL              | 跟随 Anthropic SDK 默认值    |
+| `OPENAI_API_KEY`        | OpenAI（`openai` 与 `openai_responses` 均使用）           | API 密钥                  | 无                           |
+| `OPENAI_BASE_URL`       | OpenAI（`openai` 与 `openai_responses` 均使用）           | API 基础 URL              | `https://api.openai.com/v1`  |
+| `GOOGLE_API_KEY`        | Google GenAI、Vertex AI（作为 `VERTEXAI_API_KEY` 的备用） | API 密钥                  | 无                           |
+| `VERTEXAI_API_KEY`      | Vertex AI                                                 | API 密钥（未使用 ADC 时） | 无                           |
+| `GOOGLE_CLOUD_PROJECT`  | Vertex AI                                                 | GCP 项目 ID               | 无                           |
+| `GOOGLE_CLOUD_LOCATION` | Vertex AI                                                 | GCP 区域                  | 无                           |
 
 例如在 `config.toml` 中预置 BYF 凭证：
 
@@ -55,11 +55,11 @@ BYF_BASE_URL = "https://api.example.com/v1"
 
 OAuth 流程默认连接 BYF 官方的认证与托管端点，下列变量可以将它们指向自建或测试环境。
 
-| 环境变量 | 用途 | 默认值 |
-| --- | --- | --- |
-| `BYF_OAUTH_HOST` | OAuth 认证 host，优先级最高 | —（未设置时回退到 `BYF_OAUTH_HOST`，再回退到下面的硬编码默认） |
-| `BYF_OAUTH_HOST` | OAuth 认证 host，作为 `BYF_OAUTH_HOST` 的 fallback | —（未设置时回退到下面的硬编码默认） |
-| `BYF_HOSTED_BASE_URL` | 托管 BYF API 的 base URL，用于 OAuth 登录后的 API 调用 | `https://api.byf.dev/coding/v1` |
+| 环境变量              | 用途                                                   | 默认值                                                         |
+| --------------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
+| `BYF_OAUTH_HOST`      | OAuth 认证 host，优先级最高                            | —（未设置时回退到 `BYF_OAUTH_HOST`，再回退到下面的硬编码默认） |
+| `BYF_OAUTH_HOST`      | OAuth 认证 host，作为 `BYF_OAUTH_HOST` 的 fallback     | —（未设置时回退到下面的硬编码默认）                            |
+| `BYF_HOSTED_BASE_URL` | 托管 BYF API 的 base URL，用于 OAuth 登录后的 API 调用 | `https://api.byf.dev/coding/v1`                                |
 
 当 `BYF_OAUTH_HOST` 和 `BYF_OAUTH_HOST` 都未设置时，OAuth 认证 host 使用硬编码常量 `https://auth.byf.dev`。
 
@@ -69,12 +69,12 @@ OAuth 流程默认连接 BYF 官方的认证与托管端点，下列变量可以
 
 ## 运行时开关
 
-| 环境变量 | 用途 | 合法值 / 默认值 |
-| --- | --- | --- |
-| `BYF_DISABLE_TELEMETRY` | 关闭遥测上报 | `1`、`true`、`t`、`yes`、`y`（不区分大小写） |
-| `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` | 覆盖 `[background].keep_alive_on_exit`，控制会话关闭时是否保留仍在运行的后台任务 | 真值：`1`、`true`、`yes`、`on`；假值：`0`、`false`、`no`、`off`；未设置时读取 `config.toml`，再回退到 `true` |
-| `BYF_SHELL_PATH` | 覆盖 Windows 上 Git Bash (`bash.exe`) 的绝对路径，仅在 Windows 自动探测失败时需要 | 无 |
-| `BYF_MODEL_MAX_COMPLETION_TOKENS` | 单步 LLM 请求 `max_completion_tokens` 的显式硬上限。未设置时，对于已知上下文窗口的模型，BYF 会使用安全的剩余上下文窗口；设为 `0` 或负数则完全禁用 clamp。**目前只对 `byf` 类型的供应商生效**；Anthropic 等其它供应商请改用 `[models.<alias>].max_output_size`（详见 [配置文件](./config-files.md#models)） | 未设置：按剩余上下文计算；未知上下文窗口时回退到 `loop_control.reserved_context_size`，再回退到 32000 |
+| 环境变量                            | 用途                                                                                                                                                                                                                                                                                                       | 合法值 / 默认值                                                                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `BYF_DISABLE_TELEMETRY`             | 关闭遥测上报                                                                                                                                                                                                                                                                                               | `1`、`true`、`t`、`yes`、`y`（不区分大小写）                                                                 |
+| `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` | 覆盖 `[background].keep_alive_on_exit`，控制会话关闭时是否保留仍在运行的后台任务                                                                                                                                                                                                                           | 真值：`1`、`true`、`yes`、`on`；假值：`0`、`false`、`no`、`off`；未设置时读取 `config.toml`，再回退到 `true` |
+| `BYF_SHELL_PATH`                    | 覆盖 Windows 上 Git Bash (`bash.exe`) 的绝对路径，仅在 Windows 自动探测失败时需要                                                                                                                                                                                                                          | 无                                                                                                           |
+| `BYF_MODEL_MAX_COMPLETION_TOKENS`   | 单步 LLM 请求 `max_completion_tokens` 的显式硬上限。未设置时，对于已知上下文窗口的模型，BYF 会使用安全的剩余上下文窗口；设为 `0` 或负数则完全禁用 clamp。**目前只对 `byf` 类型的供应商生效**；Anthropic 等其它供应商请改用 `[models.<alias>].max_output_size`（详见 [配置文件](./config-files.md#models)） | 未设置：按剩余上下文计算；未知上下文窗口时回退到 `loop_control.reserved_context_size`，再回退到 32000        |
 
 例如在共享主机上禁用遥测：
 
@@ -88,13 +88,13 @@ export BYF_DISABLE_TELEMETRY="1"
 
 下列变量控制 `byf` 的诊断日志。日志会写入两个位置：全局诊断日志在 `$BYF_HOME/logs/byf.log`，每个会话自身的诊断日志在 `<sessionDir>/logs/byf.log`（路径细节见 [数据路径](./data-locations.md#日志与更新状态)）。所有变量都只在进程启动时读取一次。
 
-| 环境变量 | 用途 | 默认值 |
-| --- | --- | --- |
-| `BYF_LOG_LEVEL` | 日志级别，可选 `off`、`error`、`warn`、`info`、`debug` | `info` |
-| `BYF_LOG_GLOBAL_MAX_BYTES` | 全局日志文件单个最大字节数 | `6291456`（6 MB） |
-| `BYF_LOG_GLOBAL_FILES` | 全局日志文件保留份数 | `5` |
-| `BYF_LOG_SESSION_MAX_BYTES` | 会话级日志文件单个最大字节数 | `5242880`（5 MB） |
-| `BYF_LOG_SESSION_FILES` | 会话级日志文件保留份数 | `3` |
+| 环境变量                    | 用途                                                   | 默认值            |
+| --------------------------- | ------------------------------------------------------ | ----------------- |
+| `BYF_LOG_LEVEL`             | 日志级别，可选 `off`、`error`、`warn`、`info`、`debug` | `info`            |
+| `BYF_LOG_GLOBAL_MAX_BYTES`  | 全局日志文件单个最大字节数                             | `6291456`（6 MB） |
+| `BYF_LOG_GLOBAL_FILES`      | 全局日志文件保留份数                                   | `5`               |
+| `BYF_LOG_SESSION_MAX_BYTES` | 会话级日志文件单个最大字节数                           | `5242880`（5 MB） |
+| `BYF_LOG_SESSION_FILES`     | 会话级日志文件保留份数                                 | `3`               |
 
 整数类变量解析失败（非正整数、非数字）时静默回落到默认值。
 

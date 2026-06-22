@@ -104,14 +104,15 @@ export class McpOAuthService {
     serverUrl: string | URL,
     options: BeginAuthorizationOptions = {},
   ): Promise<BeginAuthorizationResult> {
-    const provider = options.clientLabel === undefined
-      ? this.getProvider(serverName, serverUrl)
-      : new McpOAuthClientProvider({
-          serverName,
-          serverUrl,
-          store: this.store,
-          clientLabel: options.clientLabel,
-        });
+    const provider =
+      options.clientLabel === undefined
+        ? this.getProvider(serverName, serverUrl)
+        : new McpOAuthClientProvider({
+            serverName,
+            serverUrl,
+            store: this.store,
+            clientLabel: options.clientLabel,
+          });
     if (options.clientLabel !== undefined) {
       this.providers.set(provider.storeKey, provider);
     }

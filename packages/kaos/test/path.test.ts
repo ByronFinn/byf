@@ -3,12 +3,13 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as win32Path from 'node:path/win32';
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { resetCurrentKaos, setCurrentKaos } from '#/current';
 import type { KaosToken } from '#/current';
 import type { Kaos } from '#/kaos';
 import { LocalKaos } from '#/local';
 import { KaosPath } from '#/path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 function makeMockKaos(pathClass: 'posix' | 'win32', overrides: Partial<Kaos> = {}): Kaos {
   return {

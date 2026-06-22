@@ -4,12 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createRPC,
-  ByfCore,
-  type CoreAPI,
-  type SDKAPI,
-} from '../../src';
+import { createRPC, ByfCore, type CoreAPI, type SDKAPI } from '../../src';
 
 const CONFIG = `
 default_model = "byf/byf-for-coding"

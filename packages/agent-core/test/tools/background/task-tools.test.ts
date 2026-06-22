@@ -18,8 +18,8 @@ import { writeTask } from '../../../src/tools/background/persist';
 import { TaskListTool } from '../../../src/tools/background/task-list';
 import { TaskOutputTool } from '../../../src/tools/background/task-output';
 import { TaskStopTool } from '../../../src/tools/background/task-stop';
-import { toolContentString } from '../fixtures/fake-kaos';
 import { executeTool } from '../fixtures/execute-tool';
+import { toolContentString } from '../fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
@@ -164,7 +164,10 @@ describe('TaskListTool', () => {
       manager.register(proc, 'sleep 60', 'running list latency test');
 
       let settled = false;
-      const resultPromise = executeTool(tool, context('c_running_list_latency', { active_only: true }));
+      const resultPromise = executeTool(
+        tool,
+        context('c_running_list_latency', { active_only: true }),
+      );
       void resultPromise.then(() => {
         settled = true;
       });
@@ -320,7 +323,8 @@ describe('TaskOutputTool', () => {
         status: 'completed',
       });
 
-      const result = await executeTool(new TaskOutputTool(ownManager),
+      const result = await executeTool(
+        new TaskOutputTool(ownManager),
         context('c2', { task_id: taskId }),
       );
       expect(result.isError).toBe(false);
@@ -419,7 +423,8 @@ describe('TaskOutputTool', () => {
     const taskId = manager.register(proc, 'sleep 60', 'approval blocking output test');
     manager.markAwaitingApproval(taskId, 'waiting for root approval');
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context('c_awaiting_output_block', { task_id: taskId, block: true, timeout: 0 }),
     );
 
@@ -600,7 +605,8 @@ describe('TaskOutputTool — large output truncation + paging protocol', () => {
       // The preview window and the reported metadata must agree regardless.
       vi.spyOn(manager, 'getOutputSizeBytes').mockResolvedValue(30_000);
 
-      const result = await executeTool(new TaskOutputTool(manager),
+      const result = await executeTool(
+        new TaskOutputTool(manager),
         context('c_grow', { task_id: taskId }),
       );
       expect(result.isError).toBe(false);
@@ -626,9 +632,13 @@ describe('TaskOutputTool — terminal metadata fields', () => {
     try {
       // An agent task whose completion never resolves, with a 0ms deadline:
       // the external deadline fires and finalizes the task with timedOut=true.
-      const taskId = manager.registerAgentTask(new Promise<{ result: string }>(() => {}), 'slow agent', {
-        timeoutMs: 1,
-      });
+      const taskId = manager.registerAgentTask(
+        new Promise<{ result: string }>(() => {}),
+        'slow agent',
+        {
+          timeoutMs: 1,
+        },
+      );
       await expect(manager.wait(taskId, 5_000)).resolves.toMatchObject({
         status: 'failed',
         timedOut: true,
@@ -781,7 +791,8 @@ describe('TaskStopTool', () => {
   it('stops a running task', async () => {
     const proc = pendingProcess();
     const taskId = manager.register(proc, 'sleep 60', 'stop test');
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context('c2', { task_id: taskId, reason: 'custom stop reason' }),
     );
     expect(result.isError).toBe(false);
@@ -809,7 +820,8 @@ describe('TaskStopTool', () => {
       writer.attachSessionDir(sessionDir);
       const taskId = writer.register(pendingProcess(), 'sleep 60', 'persist stop reason test');
 
-      const result = await executeTool(new TaskStopTool(writer),
+      const result = await executeTool(
+        new TaskStopTool(writer),
         context('c_stop_reason', { task_id: taskId, reason: 'operator cancelled' }),
       );
       expect(result.isError).toBe(false);
@@ -834,9 +846,7 @@ describe('TaskStopTool', () => {
   ])('falls back to default reason given $label', async ({ reason }) => {
     const proc = pendingProcess();
     const taskId = manager.register(proc, 'sleep 60', 'empty reason test');
-    const result = await executeTool(tool,
-      context('c_empty_reason', { task_id: taskId, reason }),
-    );
+    const result = await executeTool(tool, context('c_empty_reason', { task_id: taskId, reason }));
     expect(result.isError).toBe(false);
     expect(toolContentString(result)).toContain('reason: Stopped by TaskStop');
     expect(manager.getTask(taskId)?.stopReason).toBe('Stopped by TaskStop');
@@ -924,7 +934,10 @@ describe('TaskOutputTool — py envelope contract', () => {
       const proc = immediateProcess(0, 'build line 1\nbuild line 2\n');
       const taskId = m2.register(proc, 'make build', 'completed envelope');
       await m2.wait(taskId, 5_000);
-      const result = await executeTool(t, context('c_env', { task_id: taskId, block: true, timeout: 1 }));
+      const result = await executeTool(
+        t,
+        context('c_env', { task_id: taskId, block: true, timeout: 1 }),
+      );
       expect(result.isError).toBe(false);
       const text = toolContentString(result);
       expect(text).toContain('retrieval_status: success');
@@ -1032,7 +1045,10 @@ describe('TaskOutputTool — py envelope contract', () => {
       await m2.wait(taskId, 5_000);
 
       const t = new TaskOutputTool(m2);
-      const r = await executeTool(t, context('c_trunc', { task_id: taskId, block: true, timeout: 1 }));
+      const r = await executeTool(
+        t,
+        context('c_trunc', { task_id: taskId, block: true, timeout: 1 }),
+      );
       expect(r.isError).toBe(false);
       const text = toolContentString(r);
       expect(text).toContain('output_preview_bytes: 32768');

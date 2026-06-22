@@ -1,14 +1,13 @@
+import type { Component, Focusable } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { LoginFlow, type LoginFlowDeps } from '#/tui/flows/login-flow';
-
-import type { Component, Focusable } from '@earendil-works/pi-tui';
 
 // fetchCatalog makes a real HTTP request to DEFAULT_CATALOG_URL. Mock it to
 // throw so fetchCatalogWithFallback falls through to loadBuiltInCatalog
 // (which returns undefined when no builtInCatalogJson is provided).
 vi.mock('@byfriends/sdk', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     fetchCatalog: vi.fn().mockRejectedValue(new Error('test: no network')),
@@ -33,7 +32,8 @@ class FakeDialogHost {
   }
 }
 
-const COLORS = {  primary: '#ffffff',
+const COLORS = {
+  primary: '#ffffff',
   success: '#00ff00',
   error: '#ff0000',
   warning: '#ffff00',
@@ -121,7 +121,14 @@ function makeDeps(overrides: Partial<LoginFlowDeps> = {}): LoginFlowDeps {
 describe('LoginFlow', () => {
   it('completes the full flow with model selection', async () => {
     const models = [
-      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false, displayName: 'GPT-4o' },
+      {
+        id: 'gpt-4o',
+        contextLength: 128000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+        displayName: 'GPT-4o',
+      },
     ];
 
     const deps = makeDeps({
@@ -133,28 +140,42 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Step 1: select API type (first option = openai-completions)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Step 2: type provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Step 3: type base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // Step 4: type API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Step 5: select model (first item is already highlighted, press Enter)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
 
-    expect(deps.fetchModels).toHaveBeenCalledWith('openai-completions', 'https://api.example.com/v1', 'sk-test-key');
+    expect(deps.fetchModels).toHaveBeenCalledWith(
+      'openai-completions',
+      'https://api.example.com/v1',
+      'sk-test-key',
+    );
     expect(deps.applyProviderConfig).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -173,7 +194,13 @@ describe('LoginFlow', () => {
   it('completes the full flow with openai_responses type', async () => {
     const deps = makeDeps({
       fetchModels: vi.fn(async () => [
-        { id: 'gpt-5.5', contextLength: 128000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: false },
+        {
+          id: 'gpt-5.5',
+          contextLength: 128000,
+          supportsReasoning: true,
+          supportsImageIn: true,
+          supportsVideoIn: false,
+        },
       ]),
     });
     const host = getHost(deps);
@@ -181,22 +208,34 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Step 1: select openai_responses (2nd option → down 1)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectNth(host, 1);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'responses');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.openai.com/v1');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
 
     expect(deps.fetchModels).toHaveBeenCalledWith(
-      'openai_responses', 'https://api.openai.com/v1', 'sk-test',
+      'openai_responses',
+      'https://api.openai.com/v1',
+      'sk-test',
     );
     expect(deps.applyProviderConfig).toHaveBeenCalledWith(
       expect.anything(),
@@ -207,7 +246,14 @@ describe('LoginFlow', () => {
   it('completes the full flow when the anthropic type is selected', async () => {
     const deps = makeDeps({
       fetchModels: vi.fn(async () => [
-        { id: 'claude-opus-4-7', contextLength: 200000, supportsReasoning: true, supportsImageIn: true, supportsVideoIn: false, displayName: 'Claude Opus 4.7' },
+        {
+          id: 'claude-opus-4-7',
+          contextLength: 200000,
+          supportsReasoning: true,
+          supportsImageIn: true,
+          supportsVideoIn: false,
+          displayName: 'Claude Opus 4.7',
+        },
       ]),
     });
     const host = getHost(deps);
@@ -215,23 +261,33 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Step 1: select anthropic (3rd option → down x2)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectNth(host, 2);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'anthropic');
 
     // Base URL left empty → anthropic default
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-ant-test');
 
     // Model select
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
@@ -255,7 +311,13 @@ describe('LoginFlow', () => {
   it('uses the type default base URL when left empty', async () => {
     const deps = makeDeps({
       fetchModels: vi.fn(async () => [
-        { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+        {
+          id: 'gpt-4o',
+          contextLength: 128000,
+          supportsReasoning: false,
+          supportsImageIn: false,
+          supportsVideoIn: false,
+        },
       ]),
     });
     const host = getHost(deps);
@@ -263,23 +325,33 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions (first option)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'openai');
 
     // Base URL: leave empty (press Enter on empty text input)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test');
 
     // Model select
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
@@ -299,7 +371,13 @@ describe('LoginFlow', () => {
   it('passes the selected type to applyProviderConfig', async () => {
     const deps = makeDeps({
       fetchModels: vi.fn(async () => [
-        { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+        {
+          id: 'gpt-4o',
+          contextLength: 128000,
+          supportsReasoning: false,
+          supportsImageIn: false,
+          supportsVideoIn: false,
+        },
       ]),
     });
     const host = getHost(deps);
@@ -307,16 +385,26 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions (first option)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     activePanel(host).handleInput('\r');
 
     await flowPromise;
@@ -333,7 +421,9 @@ describe('LoginFlow', () => {
 
     const flowPromise = new LoginFlow(deps).run();
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -349,10 +439,14 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'bad name!');
 
     await flowPromise;
@@ -374,10 +468,14 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'existing');
 
     await flowPromise;
@@ -394,10 +492,14 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -412,15 +514,21 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Type provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Cancel at base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -433,17 +541,25 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // Cancel at API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -462,27 +578,39 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'gpt-4o-manual');
 
     // Context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, '64000');
 
     await flowPromise;
@@ -496,7 +624,10 @@ describe('LoginFlow', () => {
         apiKey: 'sk-test-key',
       }),
     );
-    expect(deps.track).toHaveBeenCalledWith('login', { provider: 'myprovider', model: 'gpt-4o-manual' });
+    expect(deps.track).toHaveBeenCalledWith('login', {
+      provider: 'myprovider',
+      model: 'gpt-4o-manual',
+    });
   });
 
   it('falls back to manual model entry when no models found', async () => {
@@ -508,39 +639,62 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'manual-model');
 
     // Context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, '128000');
 
     await flowPromise;
 
-    expect(deps.showStatus).toHaveBeenCalledWith('No models found at this endpoint. Enter model ID manually.');
+    expect(deps.showStatus).toHaveBeenCalledWith(
+      'No models found at this endpoint. Enter model ID manually.',
+    );
     expect(deps.applyProviderConfig).toHaveBeenCalled();
-    expect(deps.track).toHaveBeenCalledWith('login', { provider: 'myprovider', model: 'manual-model' });
+    expect(deps.track).toHaveBeenCalledWith('login', {
+      provider: 'myprovider',
+      model: 'manual-model',
+    });
   });
 
   it('ends login flow when fetched model selector is cancelled', async () => {
     const models = [
-      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'gpt-4o',
+        contextLength: 128000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
     const deps = makeDeps({
       fetchModels: vi.fn(async () => models),
@@ -550,23 +704,33 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel model selector
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -578,30 +742,42 @@ describe('LoginFlow', () => {
 
   it('cancels at manual model ID step', async () => {
     const deps = makeDeps({
-      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+      fetchModels: vi.fn(async () => {
+        throw new Error('fail');
+      }),
     });
     const host = getHost(deps);
 
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel manual model entry
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -611,34 +787,48 @@ describe('LoginFlow', () => {
 
   it('cancels at manual context size step', async () => {
     const deps = makeDeps({
-      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+      fetchModels: vi.fn(async () => {
+        throw new Error('fail');
+      }),
     });
     const host = getHost(deps);
 
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'manual-model');
 
     // Cancel context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -648,34 +838,48 @@ describe('LoginFlow', () => {
 
   it('rejects invalid context size in manual entry', async () => {
     const deps = makeDeps({
-      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+      fetchModels: vi.fn(async () => {
+        throw new Error('fail');
+      }),
     });
     const host = getHost(deps);
 
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'manual-model');
 
     // Invalid context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, 'not-a-number');
 
     await flowPromise;
@@ -698,40 +902,56 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'manual-model');
 
     // Context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, '128000');
 
     await flowPromise;
 
-    expect(deps.showError).toHaveBeenCalledWith(
-      'Failed to fetch models (HTTP 401): Unauthorized',
-    );
+    expect(deps.showError).toHaveBeenCalledWith('Failed to fetch models (HTTP 401): Unauthorized');
     expect(deps.applyProviderConfig).toHaveBeenCalled();
   });
 
   it('cancels at model selector step (with fetched models)', async () => {
     const models = [
-      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'gpt-4o',
+        contextLength: 128000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
     const deps = makeDeps({
       fetchModels: vi.fn(async () => models),
@@ -741,23 +961,33 @@ describe('LoginFlow', () => {
     const flowPromise = new LoginFlow(deps).run();
 
     // Select openai-completions type
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectHighlighted(host);
 
     // Provider name
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'myprovider');
 
     // Base URL
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.example.com/v1');
 
     // API key
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test-key');
 
     // Cancel model selector
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     pressEscape(host);
 
     await flowPromise;
@@ -767,27 +997,41 @@ describe('LoginFlow', () => {
 
   it('manual entry preserves the anthropic type after fetch fails', async () => {
     const deps = makeDeps({
-      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+      fetchModels: vi.fn(async () => {
+        throw new Error('fail');
+      }),
     });
     const host = getHost(deps);
 
     const flowPromise = new LoginFlow(deps).run();
 
     // Select anthropic (3rd option)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectNth(host, 2);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'antprovider');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.anthropic.com/v1');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-ant-test');
     // manual model ID
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'claude-manual');
     // context size
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, '200000');
 
     await flowPromise;
@@ -803,25 +1047,39 @@ describe('LoginFlow', () => {
 
   it('manual entry preserves the openai_responses type after fetch fails', async () => {
     const deps = makeDeps({
-      fetchModels: vi.fn(async () => { throw new Error('fail'); }),
+      fetchModels: vi.fn(async () => {
+        throw new Error('fail');
+      }),
     });
     const host = getHost(deps);
 
     const flowPromise = new LoginFlow(deps).run();
 
     // openai_responses (2nd)
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     selectNth(host, 1);
 
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'resp');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'https://api.openai.com/v1');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'sk-test');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await typeAndEnter(host, 'gpt-manual');
-    await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
     await clearTypeAndEnter(host, '128000');
 
     await flowPromise;
@@ -858,7 +1116,9 @@ describe('LoginFlow', () => {
       const flowPromise = new LoginFlow(deps).run();
 
       // Step 1: select the i-th type option
-      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await vi.waitFor(() => {
+        expect(host.panel).not.toBeNull();
+      });
       if (i === 0) {
         selectHighlighted(host);
       } else {
@@ -866,19 +1126,27 @@ describe('LoginFlow', () => {
       }
 
       // Step 2: enter provider name
-      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await vi.waitFor(() => {
+        expect(host.panel).not.toBeNull();
+      });
       await typeAndEnter(host, `provider-${i}`);
 
       // Step 3: leave base URL empty → default base URL fallback
-      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await vi.waitFor(() => {
+        expect(host.panel).not.toBeNull();
+      });
       activePanel(host).handleInput('\r');
 
       // Step 4: enter API key
-      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await vi.waitFor(() => {
+        expect(host.panel).not.toBeNull();
+      });
       await typeAndEnter(host, 'sk-test-key');
 
       // Step 5: select the model
-      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await vi.waitFor(() => {
+        expect(host.panel).not.toBeNull();
+      });
       activePanel(host).handleInput('\r');
 
       await flowPromise;

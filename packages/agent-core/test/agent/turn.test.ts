@@ -15,8 +15,8 @@ import {
 } from '@byfriends/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
-import { HookEngine } from '../../src/agent/hooks';
 import type { AgentConfig } from '../../src/agent';
+import { HookEngine } from '../../src/agent/hooks';
 import type { ByfConfig } from '../../src/config';
 import type { Logger, LogPayload } from '../../src/logging';
 import { ProviderManager } from '../../src/providers/provider-manager';
@@ -26,9 +26,9 @@ import {
   estimateTokensForTools,
 } from '../../src/utils/tokens';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
+import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent } from './harness/agent';
-import { executeTool } from '../tools/fixtures/execute-tool';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -40,10 +40,9 @@ interface CapturedLogEntry {
 
 function captureLogs(): { logger: Logger; entries: CapturedLogEntry[] } {
   const entries: CapturedLogEntry[] = [];
-  const capture =
-    (level: CapturedLogEntry['level']) => (message: string, payload?: LogPayload) => {
-      entries.push({ level, message, payload });
-    };
+  const capture = (level: CapturedLogEntry['level']) => (message: string, payload?: LogPayload) => {
+    entries.push({ level, message, payload });
+  };
   const logger: Logger = {
     error: capture('error'),
     warn: capture('warn'),
@@ -92,16 +91,6 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     expect(records).toContainEqual({
-      event: 'tool_call_dedup_detected',
-      properties: {
-        turn_id: 0,
-        step_no: 1,
-        tool_name: 'Bash',
-        dup_type: 'same_step',
-        args_hash: expect.any(String),
-      },
-    });
-    expect(records).toContainEqual({
       event: 'hook_triggered',
       properties: {
         event_type: 'PreToolUse',
@@ -148,26 +137,16 @@ describe('Agent turn flow', () => {
     });
   });
 
-  it('fires PostToolUse for same-step dups with the original real output, not the dedup placeholder', async () => {
-    // Hook command asserts the dup's PostToolUse payload carries the real
-    // stdout ('dup'), not the placeholder ('').
-    const assertScript = [
-      "let input = '';",
-      "process.stdin.on('data', (chunk) => { input += chunk; });",
-      "process.stdin.on('end', () => {",
-      '  const payload = JSON.parse(input);',
-      "  if (typeof payload.tool_output === 'string' && payload.tool_output.includes('dup')) process.exit(0);",
-      "  console.error('bad tool_output: ' + JSON.stringify(payload.tool_output));",
-      '  process.exit(2);',
-      '});',
-    ].join('');
+  it('does not fire PostToolUse for same-step dups (they were never executed)', async () => {
+    // Same-step dups are skipped entirely — no tool.call, no tool.result,
+    // no PostToolUse hook. The original call covers the tool execution.
     const resolved: Array<[string, string, string]> = [];
     const hookEngine = new HookEngine(
       [
         {
           event: 'PostToolUse',
           matcher: 'Bash',
-          command: `node -e ${JSON.stringify(assertScript)}`,
+          command: `node -e "process.exit(0)"`,
         },
       ],
       {
@@ -190,10 +169,8 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     await vi.waitFor(() => {
-      expect(resolved).toEqual([
-        ['PostToolUse', 'Bash', 'allow'],
-        ['PostToolUse', 'Bash', 'allow'],
-      ]);
+      // Only the original call fires PostToolUse; the dup is skipped.
+      expect(resolved).toEqual([['PostToolUse', 'Bash', 'allow']]);
     });
   });
 
@@ -1291,7 +1268,9 @@ describe('Agent turn flow', () => {
 
     await ctx.rpc.steer({ input: [{ type: 'text', text: 'Also mention the steer.' }] });
     expect(ctx.llmCalls).toHaveLength(1);
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`[wire] turn.steer   { "input": [ { "type": "text", "text": "Also mention the steer." } ], "origin": { "kind": "user" }, "time": "<time>" }`);
+    expect(ctx.newEvents()).toMatchInlineSnapshot(
+      `[wire] turn.steer   { "input": [ { "type": "text", "text": "Also mention the steer." } ], "origin": { "kind": "user" }, "time": "<time>" }`,
+    );
 
     ctx.mockNextResponse({ type: 'text', text: 'Approved, and I saw the steer.' });
     approval.respond({
@@ -1470,7 +1449,7 @@ function createOAuthProviderManager(
       },
     },
     models: {
-      'byf': {
+      byf: {
         provider: 'test-provider',
         model: 'byf-for-coding',
         maxContextSize: 1_000_000,

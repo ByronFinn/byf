@@ -33,36 +33,45 @@
 ## What I Already Know (ground truth from code)
 
 ### 数据源已就绪：事件已路由到父侧
+
 - `routeSubagentEvent()`（`subagent-event-handler.ts:104-170`）把 `assistant.delta` / `thinking.delta` / `tool.call.started` / `tool.call.delta` / `tool.result` / `agent.status.updated` / `hook.result` 全部路由进父 `ToolCallComponent`。
 - 父组件持有：`ongoingSubCalls` / `finishedSubCalls` / `subToolActivities`（带 `orderSeq` 的完整序列）/ `subagentText` / `subagentThinkingText` / `subagentUsage` / `subagentPhase` / `subagentStartedAtMs` / `subagentError` / `subagentResultSummary`。
 
 ### 变更通知钩子已就绪
+
 - `ToolCallComponent.setSnapshotListener(cb)` + `onSnapshotChange()`（`tool-call.ts:583-663`）。`AgentGroupComponent` 已用此模式订阅子 agent 状态。live viewer 可用同一模式订阅实时更新。
 
 ### 全屏容器替换机制已就绪
+
 - `showFullscreen(component)` / `closeFullscreen(savedChildren)`（`byf-tui.ts:3263-3278`）：保存 `ui.children` → 清空 → 挂单个组件 → setFocus → Esc 还原。当前接在 `TasksBrowserEnv` 上。
 
 ### 全屏可滚动查看器模板已就绪
+
 - `TaskOutputViewer`（`apps/cli/src/tui/components/dialogs/task-output-viewer.ts`）：全屏 header/body/footer、j/k/PgUp/g/G 滚动、`setProps` 已带"贴底跟随"逻辑（`task-output-viewer.ts:97-107`）。骨架可复用，需从"一次性快照"改成"订阅实时流"。
 
 ### 触发范式已验证
+
 - `/tasks` → `tasksBrowserController.show()`（`byf-tui.ts:1364`）是本仓"斜杠命令打开全屏查看器"的成熟模板。`/agents` 照搬结构。
 - 斜杠命令注册：`apps/cli/src/tui/commands/registry.ts`（`BUILTIN_SLASH_COMMANDS` 数组 + `findBuiltInSlashCommand`）。
 - 命令分发：`handleBuiltInSlashCommand`（`byf-tui.ts:1338`）的 switch。
 
 ### 快捷键分发点已存在（修正评估）
+
 - `CustomEditor.handleInput`（`custom-editor.ts:194-278`）已是成熟的 app 级 Ctrl 快捷键分发点，已有 `onToggleToolExpand`（Ctrl+O）、`onCtrlS`、`onUndo`、`onOpenExternalEditor`（Ctrl+G）。v2 补上下文快捷键的成本**低于初始评估**（只需在既有分发点加一个 `matchesKey` + 回调，与 Ctrl+O 同构）。
 
 ### 数据源差异（关键约束）
+
 - `tasksBrowser` 列的是 `listBackgroundTasks()`。前台 sub-agent **不在 background tasks 里**，存在于 `pendingToolComponents` 中 `name==='Agent'` 的 `ToolCallComponent`。live viewer 的数据源是 `pendingToolComponents`，不能直接复用 tasks browser 的数据层。
 
 ## Requirements
 
 ### R1 触发入口
+
 - 新增斜杠命令 `/agent`，注册到 `BUILTIN_SLASH_COMMANDS`，进入 `/help` 补全。
 - `/agent` 打开全屏 sub-agent 列表层（始终先列表，见决策 D1）。
 
 ### R2 列表层
+
 - 列出当前所有前台 sub-agent。**数据源（双源，见 G1 修订）**：
   - 运行中：`pendingToolComponents` 中 `name==='Agent'` 的项。
   - 已完成：遍历 `transcriptContainer` 收集所有带 subagent 状态的 `ToolCallComponent`（含被 `AgentGroupComponent` 包裹的，经其新增的 `getSubagentEntries()` 只读 getter 定位）。
@@ -71,18 +80,22 @@
 - **空列表边界（G7）**：无任何前台 sub-agent 时，显示 "No foreground sub-agents" + 指引 "Use /tasks for background agents"，`Q/Esc` 返回。
 
 ### R3 Live Viewer（实时）
+
 - 全屏，基于 `TaskOutputViewer` 骨架。
 - 内容：完整子工具调用序列（`subToolActivities`，按 `orderSeq`）+ 每个工具的关键参数与输出 + 子 agent 的 text 输出。
 - 实时更新：通过 `setSnapshotListener` 订阅；有新内容且用户贴底时自动跟随（复用 `TaskOutputViewer` 的贴底逻辑）。
 - 键位：与 `TaskOutputViewer` 一致（j/k/PgUp/PgDn/g/G），`t` 切换思考流可见性（D2），`Q/Esc` 返回列表层。
 
 ### R4 思考流处理
+
 - 子 agent 思考流（`subagentThinkingText`）默认折叠，按 `t` 切换可见（D2）。
 
 ### R5 完成后只读保留
+
 - 前台 sub-agent 结束后，查看器不自动关闭，降级为只读历史（D3）。重新打开 `/agents` 时刷新列表。
 
 ### R6 发现性 hint
+
 - 在 `buildSingleSubagentHeader`（`tool-call.ts:1176`）加 hint `· /agent to inspect`，让用户知道有查看器。
 
 ## Acceptance Criteria
@@ -108,15 +121,19 @@
 ## Technical Approach
 
 ### 选定方案：B. 实时聚焦查看器（全屏容器替换）
+
 复用 `showFullscreen`/`closeFullscreen` 全屏容器替换 + `TaskOutputViewer` 骨架 + `setSnapshotListener` 实时订阅。详见"决策依据"。
 
 ### 触发方式：斜杠命令 `/agent`
+
 （见 D-触发）
 
 ### 对接抽象：`FullscreenHost`（G2 修订）
+
 - `SubagentsController` 通过 `FullscreenHost` 接口（`apps/cli/src/tui/types.ts:33`，即 `TasksBrowserController` 用的 `TasksBrowserEnv.host`）对接，不直接戳 `byf-tui` 内部——符合 ADR 0016"ByfTui remains sole state owner"，controller 经 env 注入访问器。
 
 ### 新增组件
+
 1. `SubagentsController`（仿 `TasksBrowserController`）：管理列表层 + viewer 层的生命周期、全屏 takeover、轮询/订阅刷新。
 2. `SubagentsListApp`（仿 `TasksBrowserApp`）：全屏列表组件。
 3. `SubagentLiveViewer`（基于 `TaskOutputViewer` 骨架，对齐 `approval-fullscreen-viewer` 先例的 G3 要点）：全屏可滚动实时 viewer。
@@ -127,6 +144,7 @@
    - 内部维护 `showThinking: boolean`（默认 false，`t` 切换）。
 
 ### 接线点（`byf-tui.ts`）
+
 - `BUILTIN_SLASH_COMMANDS` 注册 `agent` 命令。
 - `handleBuiltInSlashCommand` 加 `case 'agent'` → `this.subagentsController.show()`。
 - 新增 `subagentsController` 实例（仿 `tasksBrowserController`），其 env 注入 `FullscreenHost` + 两个访问器：
@@ -136,6 +154,7 @@
 - `buildSingleSubagentHeader` 加 hint。
 
 ### 数据流（G1 修订：双源）
+
 ```
 运行中: pendingToolComponents(name==='Agent')
          └─ ToolCallComponent ─ setSnapshotListener(cb) ─┐
@@ -149,6 +168,7 @@
 ```
 
 ### 小步拆分（implementation plan）
+
 - **Step 1**：注册 `/agent` 命令 + `SubagentsController` 空壳 + `show()` 接 `FullscreenHost`，打开一个占位全屏。验证全屏 takeover 链路通。
 - **Step 2**：`SubagentsListApp` 列表渲染，数据双源（`collectActiveSubagents` + `collectCompletedSubagents`）；`AgentGroupComponent.getSubagentEntries()` getter（G5）；上下选择 + Enter + 空列表态（G7）。
 - **Step 3**：`SubagentLiveViewer`，基于 `TaskOutputViewer` 骨架（对齐 approval viewer 先例 G3），渲染完整 `subToolActivities` + text；订阅 `setSnapshotListener` 实时刷新 + 贴底跟随。
@@ -159,11 +179,13 @@
 ## Decision (ADR-lite)
 
 ### D-触发：斜杠命令 `/agent`（vs 上下文快捷键 / 卡片按键 / 命令名复数）
+
 - **决策**：`/agent` 斜杠命令（单数）。
 - **理由**：① 完全复用 `/tasks` 验证过的全屏 takeover + controller 范式，零新机制；② 命名与 **Codex `/agent`** 完全同名且语义对齐——Codex 的 `/agent` 正是单 session 内 sub-agent threads（inspect/switch active agent），与本仓场景一致；③ 数据源（`pendingToolComponents` + transcript 双源）就绪；④ 发现性靠命令补全 + 卡片 hint 补救。
 - **否决**：上下文快捷键（v2 补——成本低于初始评估，见 "What I Already Know"）；卡片按键（transcript 无焦点模型，走不通）；`/agents` 复数（Claude Code 的 `/agents` agent view 列的是跨 session 独立 sessions，文档明说 "Subagents aren't listed as separate rows"，语义不对应）；`/subagent`（更长且偏离业界习惯）。
 
 ### D-方案：全屏容器替换（B）
+
 - **决策**：方案 B（实时聚焦查看器）。
 - **理由**：
   - **A 内联展开不成立**：① Ctrl+O 是全局开关（`toggleToolOutputExpansion` 遍历所有 `isExpandable` 子节点，`byf-tui.ts:3126-3134`），会同时展开所有卡片；② `setExpanded` 当前只影响 Write/Edit 的 args 预览，`buildSingleSubagentBlock` 完全不读 `this.expanded`，仍需新写渲染；③ 致命伤——subagent transcript 可达数百行，塞进固定垂直栈会顶掉编辑区，且 transcript 内无区域级滚动，展开后无法滚动查看。
@@ -171,14 +193,17 @@
   - **C 常驻面板最重**：布局是手动组合的固定垂直栈，常驻面板需永久抢占竖向空间（与紧凑 CLI 定位冲突），改动面最大。
 
 ### D1：首屏——始终先列表
+
 - **决策**：`/agent` 始终先显示列表（运行中高亮 + 已完成历史），再 `Enter` 进入。
 - **理由**：用户在 D1 中明确选择；更统一，且完成后的只读历史浏览（D3）也依赖列表存在。前台 sub-agent 虽通常唯一，但列表层为完成态浏览和多 agent 场景提供一致性。
 
 ### D2：思考流——默认折叠，t 切换
+
 - **决策**：live viewer 内默认只渲染工具调用序列 + 输出摘要；完整 `subagentThinkingText` 默认折叠，`t` 切换可见。
 - **理由**：思考流可能很长且含中间推理，默认展开易刷屏；`t` 切换给需要完整推理的用户。
 
 ### D3：完成后只读保留
+
 - **决策**：子 agent 完成后查看器仍可打开查看其完整 transcript（只读历史），不自动关闭。
 - **理由**：用户在 D3 中明确选择；简单够用，符合"观察 + 事后回看"诉求。
 
@@ -196,24 +221,24 @@
 
 ## Grill 修订记录
 
-| # | 项 | 性质 | 解决方案 |
-|---|---|---|---|
-| G1 | R5 数据源矛盾：完成后 `pendingToolComponents` 已删除（`byf-tui.ts:2713`），PRD 却说"从 pendingToolComponents 取"且"完成后只读保留" | 代码证伪 | 改双源：运行中取 `pendingToolComponents`；已完成遍历 `transcriptContainer`（含 group 内）。已完成组件 `setResult` 后仅清 `progressLines`，subagent 字段完整保留。 |
-| G2 | `SubagentsController` 对接抽象未指明 | 代码补全 | 明确用 `FullscreenHost`（`types.ts:33`），与 `TasksBrowserController` 同构，符合 ADR 0016。 |
-| G3 | 全屏 viewer 应对齐 `approval-fullscreen-viewer`（已 Done 先例） | 代码补全 | props 预计算、`onClose` 焦点恢复、footer 样式三项对齐。 |
-| G4 | 术语与 CONTEXT.md "Sub-agent Activity Trace" 关系未定义 | 术语检查 | live viewer 定位为该 Trace 的展示载体；新增 2 词进 CONTEXT.md。 |
-| G5 | group 形态下定位目标组件：`AgentGroupComponent.entries` 是 private | 设计缺口 | 新增 `getSubagentEntries()` 只读 getter。 |
-| G6 | 命令名 | 用户决策 | `/agent`（单数，对齐 Codex）。 |
-| G7 | 空列表边界 | 边界 | 显示空状态提示 + `/tasks` 指引（AC10）。 |
+| #   | 项                                                                                                                                 | 性质     | 解决方案                                                                                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | R5 数据源矛盾：完成后 `pendingToolComponents` 已删除（`byf-tui.ts:2713`），PRD 却说"从 pendingToolComponents 取"且"完成后只读保留" | 代码证伪 | 改双源：运行中取 `pendingToolComponents`；已完成遍历 `transcriptContainer`（含 group 内）。已完成组件 `setResult` 后仅清 `progressLines`，subagent 字段完整保留。 |
+| G2  | `SubagentsController` 对接抽象未指明                                                                                               | 代码补全 | 明确用 `FullscreenHost`（`types.ts:33`），与 `TasksBrowserController` 同构，符合 ADR 0016。                                                                       |
+| G3  | 全屏 viewer 应对齐 `approval-fullscreen-viewer`（已 Done 先例）                                                                    | 代码补全 | props 预计算、`onClose` 焦点恢复、footer 样式三项对齐。                                                                                                           |
+| G4  | 术语与 CONTEXT.md "Sub-agent Activity Trace" 关系未定义                                                                            | 术语检查 | live viewer 定位为该 Trace 的展示载体；新增 2 词进 CONTEXT.md。                                                                                                   |
+| G5  | group 形态下定位目标组件：`AgentGroupComponent.entries` 是 private                                                                 | 设计缺口 | 新增 `getSubagentEntries()` 只读 getter。                                                                                                                         |
+| G6  | 命令名                                                                                                                             | 用户决策 | `/agent`（单数，对齐 Codex）。                                                                                                                                    |
+| G7  | 空列表边界                                                                                                                         | 边界     | 显示空状态提示 + `/tasks` 指引（AC10）。                                                                                                                          |
 
 ## Child Issues
 
-| Issue | Title | Type | Status |
-|---|---|---|---|
-| #147 | `/agent` 命令骨架打通 — 命令注册 + 全屏 takeover + 空列表态 | AFK | **Done (v0.3.0)** |
-| #148 | 前台 sub-agent 列表层 — 双源收集 + group getter + 选择交互 (blocked by #147) | AFK | **Done (v0.3.0)** |
-| #150 | 实时 live viewer 钻取 — 全屏可滚动 + 订阅实时流 + 贴底跟随 (blocked by #148) | HITL | **Done (v0.3.0)** |
-| #151 | 打磨与测试 — thinking 切换 + 卡片 hint + 完成态刷新 + 单测 (blocked by #150) | AFK | **Done (v0.3.0)** |
+| Issue | Title                                                                        | Type | Status            |
+| ----- | ---------------------------------------------------------------------------- | ---- | ----------------- |
+| #147  | `/agent` 命令骨架打通 — 命令注册 + 全屏 takeover + 空列表态                  | AFK  | **Done (v0.3.0)** |
+| #148  | 前台 sub-agent 列表层 — 双源收集 + group getter + 选择交互 (blocked by #147) | AFK  | **Done (v0.3.0)** |
+| #150  | 实时 live viewer 钻取 — 全屏可滚动 + 订阅实时流 + 贴底跟随 (blocked by #148) | HITL | **Done (v0.3.0)** |
+| #151  | 打磨与测试 — thinking 切换 + 卡片 hint + 完成态刷新 + 单测 (blocked by #150) | AFK  | **Done (v0.3.0)** |
 
 依赖链：#147 → #148 → #150 → #151。每片为端到端可演示的 vertical slice。全部已随 v0.3.0 发布完成。
 

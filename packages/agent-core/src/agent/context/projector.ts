@@ -32,7 +32,11 @@ export function project(
     return (
       !isTranscriptOnlyHookResult(message) &&
       message.partial !== true &&
-      !(message.role === 'assistant' && message.content.length === 0 && message.toolCalls.length === 0)
+      !(
+        message.role === 'assistant' &&
+        message.content.length === 0 &&
+        message.toolCalls.length === 0
+      )
     );
   });
   const merged = mergeAdjacentUserMessages(usable);

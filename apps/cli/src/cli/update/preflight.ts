@@ -1,9 +1,6 @@
 import { spawn } from 'node:child_process';
 
-import {
-  NATIVE_INSTALL_COMMAND_UNIX,
-  NATIVE_INSTALL_COMMAND_WIN,
-} from '#/constant/app';
+import { NATIVE_INSTALL_COMMAND_UNIX, NATIVE_INSTALL_COMMAND_WIN } from '#/constant/app';
 
 import { readUpdateCache } from './cache';
 import { promptForInstallConfirmation, type InstallPromptOptions } from './prompt';
@@ -81,11 +78,20 @@ function spawnForSource(
 ): SpawnCommand {
   switch (source) {
     case 'npm-global':
-      return { cmd: withCmdSuffix('npm', platform), args: ['install', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
+      return {
+        cmd: withCmdSuffix('npm', platform),
+        args: ['install', '-g', `${NPM_PACKAGE_NAME}@${version}`],
+      };
     case 'pnpm-global':
-      return { cmd: withCmdSuffix('pnpm', platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
+      return {
+        cmd: withCmdSuffix('pnpm', platform),
+        args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`],
+      };
     case 'yarn-global':
-      return { cmd: withCmdSuffix('yarn', platform), args: ['global', 'add', `${NPM_PACKAGE_NAME}@${version}`] };
+      return {
+        cmd: withCmdSuffix('yarn', platform),
+        args: ['global', 'add', `${NPM_PACKAGE_NAME}@${version}`],
+      };
     case 'bun-global':
       return { cmd: bunCommand(platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
     case 'native':
@@ -184,8 +190,7 @@ export async function runUpdatePreflight(
     const target = selectUpdateTarget(currentVersion, latest);
     refreshInBackground();
 
-    const isInteractive =
-      options.isTTY ?? (process.stdin.isTTY && process.stdout.isTTY);
+    const isInteractive = options.isTTY ?? (process.stdin.isTTY && process.stdout.isTTY);
     const source: InstallSource =
       target === null || !isInteractive
         ? 'unsupported'

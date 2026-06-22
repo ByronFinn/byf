@@ -37,16 +37,16 @@ MCP server 配置写在 `mcp.json` 中，分为两层：
 
 可选字段：
 
-| 字段 | 类型 | 适用 transport | 说明 |
-| --- | --- | --- | --- |
-| `env` | `Record<string, string>` | stdio | 注入子进程的环境变量 |
-| `cwd` | `string` | stdio | 子进程工作目录 |
-| `headers` | `Record<string, string>` | HTTP | 附加到每次请求的静态请求头 |
-| `enabled` | `boolean` | 两者 | 设为 `false` 可禁用该 server |
-| `startupTimeoutMs` | `number` | 两者 | 连接超时，默认 `30000` |
-| `toolTimeoutMs` | `number` | 两者 | 单次工具调用超时 |
-| `enabledTools` | `string[]` | 两者 | 白名单 |
-| `disabledTools` | `string[]` | 两者 | 黑名单 |
+| 字段               | 类型                     | 适用 transport | 说明                         |
+| ------------------ | ------------------------ | -------------- | ---------------------------- |
+| `env`              | `Record<string, string>` | stdio          | 注入子进程的环境变量         |
+| `cwd`              | `string`                 | stdio          | 子进程工作目录               |
+| `headers`          | `Record<string, string>` | HTTP           | 附加到每次请求的静态请求头   |
+| `enabled`          | `boolean`                | 两者           | 设为 `false` 可禁用该 server |
+| `startupTimeoutMs` | `number`                 | 两者           | 连接超时，默认 `30000`       |
+| `toolTimeoutMs`    | `number`                 | 两者           | 单次工具调用超时             |
+| `enabledTools`     | `string[]`               | 两者           | 白名单                       |
+| `disabledTools`    | `string[]`               | 两者           | 黑名单                       |
 
 ::: warning 注意
 项目级 `.byf/mcp.json` 中的 stdio 条目会在会话启动时执行本地命令，只在你信任的仓库里启用。

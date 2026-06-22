@@ -1,18 +1,20 @@
 import type { Component, MarkdownTheme, TUI } from '@earendil-works/pi-tui';
 
-import type { ColorPalette } from '#/tui/theme/colors';
-import type { TranscriptEntry } from '#/tui/types';
-import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
-
 import { CompactionComponent } from '#/tui/components/dialogs/compaction';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';
-import { NoticeMessageComponent, StatusMessageComponent } from '#/tui/components/messages/status-message';
 import { ShellExecutionComponent } from '#/tui/components/messages/shell-execution';
 import { SkillActivationComponent } from '#/tui/components/messages/skill-activation';
+import {
+  NoticeMessageComponent,
+  StatusMessageComponent,
+} from '#/tui/components/messages/status-message';
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
+import type { ColorPalette } from '#/tui/theme/colors';
+import type { TranscriptEntry } from '#/tui/types';
+import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 
 export interface TranscriptRenderContext {
   readonly colors: ColorPalette;

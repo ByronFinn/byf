@@ -42,10 +42,7 @@ function makeSkill(name: string, metadata: SkillDefinition['metadata'] = {}): Sk
   };
 }
 
-function makeAgent(
-  skills?: SkillRegistry,
-  persistence?: AgentRecordPersistence,
-): Agent {
+function makeAgent(skills?: SkillRegistry, persistence?: AgentRecordPersistence): Agent {
   const rpc = {
     emitEvent: vi.fn(),
     requestApproval: vi.fn(),

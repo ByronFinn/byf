@@ -36,9 +36,15 @@ const model: CatalogModel = {
 
 describe('fetchCatalog', () => {
   it('fetches and returns the catalog map', async () => {
-    const catalog = { anthropic: { id: 'anthropic', models: { x: { id: 'x', limit: { context: 1000 } } } } };
+    const catalog = {
+      anthropic: { id: 'anthropic', models: { x: { id: 'x', limit: { context: 1000 } } } },
+    };
     const fetchMock = vi.fn(async () => catalogResponse(catalog));
-    const result = await fetchCatalog('https://x/api.json', undefined, fetchMock as unknown as typeof fetch);
+    const result = await fetchCatalog(
+      'https://x/api.json',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
     expect(result).toEqual(catalog);
   });
 

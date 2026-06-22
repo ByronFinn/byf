@@ -76,6 +76,7 @@ Restore from stub in `byf-tui.ts`:
 ### Data format
 
 Provider config written by `/login`:
+
 ```
 providers:
   deepseek:
@@ -96,6 +97,7 @@ This is identical to the format `applyOpenPlatformConfig` produces today, just w
 ## Testing Decisions
 
 ### Module 1: Provider config functions (oauth package)
+
 - **Unit tests** in `test/provider-config.test.ts` replacing `test/open-platform.test.ts`.
 - Test `fetchModels` with mock `fetch`: success case, HTTP error case, malformed response case, network error case.
 - Test `applyProviderConfig`: adds provider and models to empty config, replaces existing models for same provider, preserves other providers' models.
@@ -104,17 +106,20 @@ This is identical to the format `applyOpenPlatformConfig` produces today, just w
 - Prior art: existing `open-platform.test.ts` covers the same scenarios with the old signatures.
 
 ### Module 2: /login command handler
+
 - **Integration tests** using the existing TUI test patterns in `apps/cli/test/`.
 - Test the full flow: mock fetch returning models → verify config written correctly.
 - Test the fallback flow: mock fetch failing → manual model input → verify config written correctly.
 - Test validation: empty name, name collision, empty base_url, empty api_key.
 
 ### Module 3: /logout command handler
+
 - **Unit tests**: verify `removeProviderConfig` is called with correct provider name.
 - Test error case: non-existent provider name.
 - Test active model cleared when its provider is removed.
 
 ### Module 4: First-run guidance
+
 - **Snapshot tests** on welcome panel output: verify both `/login` and `/connect` are mentioned.
 - Grep-based test: ensure no remaining "Use /connect to configure" messages without also mentioning `/login`.
 

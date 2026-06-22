@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { Terminal } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
+import { describe, expect, it, vi } from 'vitest';
 
-import { SubagentsListApp, type SubagentListEntry, type SubagentPreviewPane, type SubagentDetailPane } from '#/tui/components/dialogs/subagents/list-app';
+import {
+  SubagentsListApp,
+  type SubagentListEntry,
+  type SubagentPreviewPane,
+  type SubagentDetailPane,
+} from '#/tui/components/dialogs/subagents/list-app';
 import { darkColors } from '#/tui/theme/colors';
 
 const ANSI_SGR = /\[[0-9;]*m/g;
@@ -22,9 +27,15 @@ function fakeTerminal(rows: number, columns = 120): Terminal {
     stop: () => {},
     drainInput: () => Promise.resolve(),
     write: () => {},
-    get columns() { return columns; },
-    get rows() { return rows; },
-    get kittyProtocolActive() { return false; },
+    get columns() {
+      return columns;
+    },
+    get rows() {
+      return rows;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
     moveBy: () => {},
     hideCursor: () => {},
     showCursor: () => {},
@@ -55,7 +66,10 @@ function makeApp(
   rows = 30,
   onSelect?: (toolCallId: string) => void,
 ) {
-  return new SubagentsListApp({ entries, colors: darkColors, onClose, onSelect }, fakeTerminal(rows));
+  return new SubagentsListApp(
+    { entries, colors: darkColors, onClose, onSelect },
+    fakeTerminal(rows),
+  );
 }
 
 describe('SubagentsListApp', () => {
@@ -87,7 +101,9 @@ describe('SubagentsListApp', () => {
     // guards that, IF filtering is ever removed, a backgrounded entry renders
     // with a recognizable label rather than crashing or vanishing silently —
     // so the regression is immediately visible.
-    const entries = [entry({ toolCallId: 'bg', phase: 'backgrounded' as const, agentName: 'Explore' })];
+    const entries = [
+      entry({ toolCallId: 'bg', phase: 'backgrounded' as const, agentName: 'Explore' }),
+    ];
     const out = strip(makeApp(entries).render(120).join('\n'));
     expect(out).toContain('Backgrounded');
   });
@@ -225,15 +241,17 @@ describe('SubagentsListApp', () => {
   });
 
   it('renders detail frame with agent name and stats', () => {
-    const entries = [entry({
-      toolCallId: 'agent-abc-123',
-      agentName: 'Explorer',
-      phase: 'running',
-      description: 'Searching files',
-      toolCount: 3,
-      tokens: 5400,
-      elapsedSeconds: 12,
-    })];
+    const entries = [
+      entry({
+        toolCallId: 'agent-abc-123',
+        agentName: 'Explorer',
+        phase: 'running',
+        description: 'Searching files',
+        toolCount: 3,
+        tokens: 5400,
+        elapsedSeconds: 12,
+      }),
+    ];
     const app = makeApp(entries);
     app.setProps({
       entries,
@@ -261,7 +279,11 @@ describe('SubagentsListApp', () => {
     app.setProps({
       entries,
       colors: darkColors,
-      selectedPreview: { lines: ['line1', 'line2', 'line3'], resultSummary: undefined, toolOutputs: [] },
+      selectedPreview: {
+        lines: ['line1', 'line2', 'line3'],
+        resultSummary: undefined,
+        toolOutputs: [],
+      },
       onClose: vi.fn(),
     });
     const out = strip(app.render(100).join('\n'));
@@ -323,37 +345,39 @@ describe('SubagentsListApp', () => {
     const previousLevel = chalk.level;
     chalk.level = 3;
     try {
-    const entries = [entry({
-      toolCallId: 'agent-abc-123',
-      agentName: 'Explore',
-      phase: 'running',
-      description: 'Search codebase',
-      toolCount: 3,
-      tokens: 5400,
-      elapsedSeconds: 12,
-    })];
-    const app = makeApp(entries);
-    app.setProps({
-      entries,
-      colors: darkColors,
-      selectedDetail: {
-        latestActivity: 'Using Grep (pattern)',
-        toolList: ['• Grep', '• Read'],
-        errorText: undefined,
-      } as SubagentDetailPane,
-      selectedPreview: {
-        lines: ['line one', 'line two'],
-        resultSummary: undefined,
-        toolOutputs: [],
-      },
-      onClose: vi.fn(),
-    });
+      const entries = [
+        entry({
+          toolCallId: 'agent-abc-123',
+          agentName: 'Explore',
+          phase: 'running',
+          description: 'Search codebase',
+          toolCount: 3,
+          tokens: 5400,
+          elapsedSeconds: 12,
+        }),
+      ];
+      const app = makeApp(entries);
+      app.setProps({
+        entries,
+        colors: darkColors,
+        selectedDetail: {
+          latestActivity: 'Using Grep (pattern)',
+          toolList: ['• Grep', '• Read'],
+          errorText: undefined,
+        } as SubagentDetailPane,
+        selectedPreview: {
+          lines: ['line one', 'line two'],
+          resultSummary: undefined,
+          toolOutputs: [],
+        },
+        onClose: vi.fn(),
+      });
 
-    const width = 100;
-    const lines = app.render(width);
-    for (const line of lines) {
-      expect(stripAnsi(line).length).toBe(width);
-    }
+      const width = 100;
+      const lines = app.render(width);
+      for (const line of lines) {
+        expect(stripAnsi(line).length).toBe(width);
+      }
     } finally {
       chalk.level = previousLevel;
     }

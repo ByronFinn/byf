@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
+
 import type { Session } from '#/index';
 
 describe('SDK plan exports removed (PRD-0009)', () => {

@@ -15,18 +15,16 @@ export function Drawer({ open, onClose, title, children, width = 560 }: DrawerPr
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handler);
-    return () =>{  window.removeEventListener('keydown', handler); };
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-40">
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
       <aside
         className="absolute right-0 top-0 flex h-full flex-col border-l border-border bg-surface-1 shadow-2xl"
         style={{ width }}

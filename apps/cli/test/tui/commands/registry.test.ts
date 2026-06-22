@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   BUILTIN_SLASH_COMMANDS,
   buildAutocompleteSlashCommands,
@@ -8,7 +10,6 @@ import {
   sortSlashCommands,
   type ByfSlashCommand,
 } from '#/tui/commands/index';
-import { describe, expect, it } from 'vitest';
 
 describe('parseSlashInput', () => {
   it('parses command names and trimmed args', () => {

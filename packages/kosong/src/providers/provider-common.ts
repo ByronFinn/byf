@@ -8,14 +8,14 @@
  * See ADR 0015 (BaseChatProvider) for the rationale.
  */
 
-import type { FinishReason } from '#/provider';
-import type { TokenUsage } from '#/usage';
 import {
   APIConnectionError,
   APITimeoutError,
   ChatProviderError,
   normalizeAPIStatusError,
 } from '#/errors';
+import type { FinishReason } from '#/provider';
+import type { TokenUsage } from '#/usage';
 
 /**
  * Build a finish-reason normalizer from a per-provider raw-string → FinishReason table.
@@ -27,9 +27,9 @@ import {
  *
  * The returned function is stateless and safe to call repeatedly.
  */
-export function makeFinishReasonNormalizer(
-  mapping: Readonly<Record<string, FinishReason>>,
-): (raw: string | null | undefined) => {
+export function makeFinishReasonNormalizer(mapping: Readonly<Record<string, FinishReason>>): (
+  raw: string | null | undefined,
+) => {
   finishReason: FinishReason | null;
   rawFinishReason: string | null;
 } {
@@ -52,11 +52,7 @@ export function makeFinishReasonNormalizer(
  * negative usage field). Anthropic is excluded: it reports a real
  * `inputCacheCreation` field that does not fit this formula.
  */
-export function extractCacheUsage(
-  total: number,
-  cached: number,
-  output: number,
-): TokenUsage {
+export function extractCacheUsage(total: number, cached: number, output: number): TokenUsage {
   return {
     inputOther: Math.max(0, total - cached),
     output,
@@ -111,8 +107,7 @@ export function convertProviderError(
   if (error instanceof ChatProviderError) {
     return error;
   }
-  const message =
-    error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
 
   if (typeof opts.status === 'number') {
     return normalizeAPIStatusError(opts.status, message, opts.requestId);

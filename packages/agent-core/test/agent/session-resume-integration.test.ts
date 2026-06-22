@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { testAgent } from './harness/agent';
-import type { AgentRecord } from '../../src/agent/records/types';
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
+import type { AgentRecord } from '../../src/agent/records/types';
+import { testAgent } from './harness/agent';
 
 describe('Session.resume() integration tests', () => {
   describe('主agent和subagent错误处理', () => {
@@ -116,9 +116,10 @@ describe('Session.resume() integration tests', () => {
       });
 
       // 模拟记录历史
-      const recordHistory = originalAgent.constructor.name === 'MockAgent'
-        ? []
-        : (originalAgent as unknown as { recordHistory: AgentRecord[] }).recordHistory || [];
+      const recordHistory =
+        originalAgent.constructor.name === 'MockAgent'
+          ? []
+          : (originalAgent as unknown as { recordHistory: AgentRecord[] }).recordHistory || [];
 
       if (recordHistory.length > 0) {
         // 创建新的agent实例进行恢复测试

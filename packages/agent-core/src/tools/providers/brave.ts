@@ -57,7 +57,7 @@ export class BraveWebSearchProvider implements WebSearchProvider {
         const response = await this.fetchImpl(url.toString(), {
           method: 'GET',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Accept-Encoding': 'gzip',
             'X-Subscription-Token': apiKey,
           },

@@ -116,19 +116,18 @@ describe('SessionStore.list', () => {
     expect(forkState.forkedFrom).toBe(source.id);
     expect(forkState.agents?.main?.homedir).toBe(join(fork.sessionDir, 'agents', 'main'));
     expect(forkState.custom).toMatchObject({ source: true, child: true });
-    await expect(readFile(join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8')).resolves.toBe(
-      '{"type":"context.clear"}\n',
-    );
+    await expect(
+      readFile(join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8'),
+    ).resolves.toBe('{"type":"context.clear"}\n');
 
     const sourceState = JSON.parse(
       await readFile(join(source.sessionDir, 'state.json'), 'utf-8'),
     ) as { forkedFrom?: string };
     expect(sourceState.forkedFrom).toBeUndefined();
     const sessions = await store.list({ workDir });
-    expect(sessions.map((session) => session.id).toSorted()).toEqual([
-      source.id,
-      fork.id,
-    ].toSorted());
+    expect(sessions.map((session) => session.id).toSorted()).toEqual(
+      [source.id, fork.id].toSorted(),
+    );
   });
 
   it('returns only sessions from the requested workDir bucket', async () => {

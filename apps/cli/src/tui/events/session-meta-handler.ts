@@ -5,7 +5,10 @@ import type {
   WarningEvent,
 } from '@byfriends/sdk';
 
-import { OAUTH_LOGIN_REQUIRED_CODE, OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '#/tui/constant/byf-tui';
+import {
+  OAUTH_LOGIN_REQUIRED_CODE,
+  OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
+} from '#/tui/constant/byf-tui';
 import { errorReportHintLine } from '#/tui/constant/feedback';
 import type { AppState } from '#/tui/types';
 import { stringValue } from '#/tui/utils/event-payload';
@@ -41,7 +44,11 @@ export function handleStatusUpdate(
   if (event.model !== undefined) patch.model = event.model;
   const ct = event.usage?.currentTurn;
   if (ct !== undefined) {
-    patch.cacheHitRate = computeCacheHitRate(safeNumber(ct.inputOther), safeNumber(ct.inputCacheRead), safeNumber(ct.inputCacheCreation));
+    patch.cacheHitRate = computeCacheHitRate(
+      safeNumber(ct.inputOther),
+      safeNumber(ct.inputCacheRead),
+      safeNumber(ct.inputCacheCreation),
+    );
   }
   if (Object.keys(patch).length > 0) callbacks.setAppState(patch);
 }

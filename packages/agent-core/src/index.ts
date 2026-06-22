@@ -39,10 +39,7 @@ export type {
 } from './tools/background/manager';
 export type { RuntimeConfig } from './runtime-types';
 export type { TelemetryClient, TelemetryProperties } from './telemetry';
-export type {
-  BearerTokenProvider,
-  OAuthTokenProviderResolver,
-} from './providers/runtime-provider';
+export type { BearerTokenProvider, OAuthTokenProviderResolver } from './providers/runtime-provider';
 export { buildPromptPlan } from './prompt-plan';
 
 // ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
@@ -55,10 +52,7 @@ export type {
 export { AGENT_WIRE_PROTOCOL_VERSION } from './agent/records';
 export type { AgentConfigUpdateData } from './agent/config';
 export type { CompactionBeginData, CompactionResult } from './agent/compaction';
-export type {
-  PermissionApprovalResultRecord,
-  PermissionMode,
-} from './agent/permission';
+export type { PermissionApprovalResultRecord, PermissionMode } from './agent/permission';
 export type { UsageRecordScope } from './agent/usage';
 export type { ToolStoreUpdate } from './tools/store';
 export type {

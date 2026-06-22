@@ -2,24 +2,24 @@
   "name": "@byfriends/agent-core",
   "version": "0.3.2",
   "description": "Unified agent engine for BYF",
+  "keywords": [
+    "agent",
+    "ai",
+    "byf",
+    "session",
+    "terminal",
+    "tools"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "agent",
-    "ai",
-    "session",
-    "tools",
-    "terminal"
-  ],
   "files": [
     "dist"
   ],
@@ -45,7 +45,6 @@
     }
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
@@ -62,7 +61,8 @@
         "import": "./dist/session/store/index.mjs",
         "default": "./dist/session/store/index.mjs"
       }
-    }
+    },
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown && node scripts/rewrite-dts-subpaths.mjs",

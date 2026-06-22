@@ -182,8 +182,7 @@ describe('projectReplayRecords', () => {
   });
 
   it('preserves literal hook result XML from normal assistant replies', () => {
-    const hookResult =
-      '<hook_result hook_event="UserPromptSubmit">\nhook response\n</hook_result>';
+    const hookResult = '<hook_result hook_event="UserPromptSubmit">\nhook response\n</hook_result>';
     const projected = projectReplayRecords([
       message('user', [{ type: 'text', text: 'show me the hook XML' }]),
       message('assistant', [{ type: 'text', text: hookResult }]),
@@ -274,46 +273,53 @@ describe('projectReplayRecords', () => {
       '</task-notification>',
       '</notification>',
     ].join('\n');
-    const projected = projectReplayRecords([
-      message('assistant', [], {
-        toolCalls: [
-          {
-            type: 'function',
-            id: 'call_agent',
-            name: 'Agent',
+    const projected = projectReplayRecords(
+      [
+        message('assistant', [], {
+          toolCalls: [
+            {
+              type: 'function',
+              id: 'call_agent',
+              name: 'Agent',
               arguments: JSON.stringify({
                 description: 'Optimize summary',
                 subagent_type: 'coder',
                 run_in_background: true,
               }),
+            },
+          ],
+        }),
+        message(
+          'tool',
+          [
+            {
+              type: 'text',
+              text: [
+                'task_id: agent-bg123',
+                'status: running',
+                'agent_id: agent-child123',
+                'actual_subagent_type: coder',
+                'automatic_notification: true',
+                '',
+                'description: Optimize summary',
+              ].join('\n'),
+            },
+          ],
+          {
+            toolCallId: 'call_agent',
           },
-        ],
-      }),
-      message('tool', [
-        {
-          type: 'text',
-          text: [
-            'task_id: agent-bg123',
-            'status: running',
-            'agent_id: agent-child123',
-            'actual_subagent_type: coder',
-            'automatic_notification: true',
-            '',
-            'description: Optimize summary',
-          ].join('\n'),
-        },
-      ], {
-        toolCallId: 'call_agent',
-      }),
-      message('user', [{ type: 'text', text: notificationXml }], {
-        origin: {
-          kind: 'background_task',
-          taskId: 'agent-bg123',
-          status: 'completed',
-          notificationId: 'task:agent-bg123:completed',
-        },
-      }),
-    ], [backgroundTask('agent-bg123', 'Optimize summary', 'completed')]);
+        ),
+        message('user', [{ type: 'text', text: notificationXml }], {
+          origin: {
+            kind: 'background_task',
+            taskId: 'agent-bg123',
+            status: 'completed',
+            notificationId: 'task:agent-bg123:completed',
+          },
+        }),
+      ],
+      [backgroundTask('agent-bg123', 'Optimize summary', 'completed')],
+    );
 
     expect(projected.entries.map((entry) => [entry.kind, entry.content])).toEqual([
       ['tool_call', ''],
@@ -329,27 +335,34 @@ describe('projectReplayRecords', () => {
   });
 
   it('uses background notification origin over XML attributes', () => {
-    const projected = projectReplayRecords([
-      message('user', [
-        {
-          type: 'text',
-          text: [
-            '<notification id="task:wrong:completed" category="task" type="task.completed" source_kind="background_task" source_id="wrong">',
-            'Title: Background agent completed',
-            'Severity: info',
-            'Optimize ch03 lost.',
-            '</notification>',
-          ].join('\n'),
-        },
-      ], {
-        origin: {
-          kind: 'background_task',
-          taskId: 'agent-real',
-          status: 'lost',
-          notificationId: 'task:agent-real:lost',
-        },
-      }),
-    ], [backgroundTask('agent-real', 'Real task description', 'lost')]);
+    const projected = projectReplayRecords(
+      [
+        message(
+          'user',
+          [
+            {
+              type: 'text',
+              text: [
+                '<notification id="task:wrong:completed" category="task" type="task.completed" source_kind="background_task" source_id="wrong">',
+                'Title: Background agent completed',
+                'Severity: info',
+                'Optimize ch03 lost.',
+                '</notification>',
+              ].join('\n'),
+            },
+          ],
+          {
+            origin: {
+              kind: 'background_task',
+              taskId: 'agent-real',
+              status: 'lost',
+              notificationId: 'task:agent-real:lost',
+            },
+          },
+        ),
+      ],
+      [backgroundTask('agent-real', 'Real task description', 'lost')],
+    );
 
     expect(projected.entries).toHaveLength(1);
     expect(projected.entries[0]).toEqual(
@@ -400,7 +413,7 @@ describe('projectReplayRecords', () => {
             type: 'function',
             id: 'tc_1',
             name: 'Bash',
-              arguments: '{"command":"pwd"}',
+            arguments: '{"command":"pwd"}',
           },
         ],
       }),
@@ -425,7 +438,7 @@ describe('projectReplayRecords', () => {
             type: 'function',
             id: 'tc_1',
             name: 'Bash',
-              arguments: '{"command":"false"}',
+            arguments: '{"command":"false"}',
           },
         ],
       }),
@@ -457,7 +470,7 @@ describe('projectReplayRecords', () => {
               type: 'function',
               id: 'call_resume_bash',
               name: 'Bash',
-                arguments: '{"command":"echo ok"}',
+              arguments: '{"command":"echo ok"}',
             },
           ],
         },
@@ -494,7 +507,7 @@ describe('projectReplayRecords', () => {
             type: 'function',
             id: 'tc_media',
             name: 'ReadMediaFile',
-              arguments: '{"path":"/tmp/a.png"}',
+            arguments: '{"path":"/tmp/a.png"}',
           },
         ],
       }),
@@ -644,8 +657,18 @@ describe('projectReplayRecords — subagent activity projection (AC2)', () => {
           name: 'Coder',
           text: 'line1\nline2',
           toolCalls: [
-            { id: 's1', name: 'Read', args: { path: '/a' }, result: { tool_call_id: 's1', output: 'x' } },
-            { id: 's2', name: 'Bash', args: { command: 'pwd' }, result: { tool_call_id: 's2', output: '/', is_error: false } },
+            {
+              id: 's1',
+              name: 'Read',
+              args: { path: '/a' },
+              result: { tool_call_id: 's1', output: 'x' },
+            },
+            {
+              id: 's2',
+              name: 'Bash',
+              args: { command: 'pwd' },
+              result: { tool_call_id: 's2', output: '/', is_error: false },
+            },
             { id: 's3', name: 'Grep', args: { pattern: 'foo' } },
           ],
         },
@@ -685,9 +708,7 @@ describe('projectReplayRecords — subagent activity projection (AC2)', () => {
   });
 
   it('S6: never attaches a subagent block to a non-Agent tool-call even when ids collide', () => {
-    const subagents = new Map([
-      ['tc_x', { id: 'c1', name: 'Coder' }],
-    ]);
+    const subagents = new Map([['tc_x', { id: 'c1', name: 'Coder' }]]);
 
     const projected = projectReplayRecords(
       [
@@ -733,16 +754,17 @@ describe('distillSubagents — child state → subagent block (AC2 wiring, S8)',
         message('user', [{ type: 'text', text: 'do the work' }]),
         message('assistant', [{ type: 'text', text: 'working on it' }]),
         message('assistant', [], {
-          toolCalls: [
-            { type: 'function', id: 'sub1', name: 'Read', arguments: '{"path":"/a"}' },
-          ],
+          toolCalls: [{ type: 'function', id: 'sub1', name: 'Read', arguments: '{"path":"/a"}' }],
         }),
         message('tool', [{ type: 'text', text: 'file contents' }], { toolCallId: 'sub1' }),
         message('assistant', [{ type: 'text', text: 'done' }]),
       ],
     });
 
-    const map = distillSubagents({ main: childState({ type: 'main', parentToolCallId: undefined }), 'agent-0': child });
+    const map = distillSubagents({
+      main: childState({ type: 'main', parentToolCallId: undefined }),
+      'agent-0': child,
+    });
     const block = map.get('tc_a');
 
     expect(block).toMatchObject({

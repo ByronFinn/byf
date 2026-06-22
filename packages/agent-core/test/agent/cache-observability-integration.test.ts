@@ -4,9 +4,8 @@
  * These tests verify the implementation of cache observability helper functions.
  */
 
-import { describe, expect, it } from 'vitest';
-
 import type { PromptPlan, ProviderCacheCapability } from '@byfriends/kosong';
+import { describe, expect, it } from 'vitest';
 
 describe('Cache Observability - Helper Functions', () => {
   describe('extractCacheBlockHashes', () => {
@@ -34,19 +33,19 @@ describe('Cache Observability - Helper Functions', () => {
       const { createHash } = require('node:crypto');
 
       const plan1: PromptPlan = {
-        blocks: [
-          { name: 'base', text: 'Original content', cacheScope: 'global' },
-        ],
+        blocks: [{ name: 'base', text: 'Original content', cacheScope: 'global' }],
       };
 
       const plan2: PromptPlan = {
-        blocks: [
-          { name: 'base', text: 'Modified content', cacheScope: 'global' },
-        ],
+        blocks: [{ name: 'base', text: 'Modified content', cacheScope: 'global' }],
       };
 
-      const hash1 = createHash('sha256').update(plan1.blocks[0]?.text ?? '').digest('hex');
-      const hash2 = createHash('sha256').update(plan2.blocks[0]?.text ?? '').digest('hex');
+      const hash1 = createHash('sha256')
+        .update(plan1.blocks[0]?.text ?? '')
+        .digest('hex');
+      const hash2 = createHash('sha256')
+        .update(plan2.blocks[0]?.text ?? '')
+        .digest('hex');
 
       expect(hash1).not.toBe(hash2);
 
@@ -61,7 +60,10 @@ describe('Cache Observability - Helper Functions', () => {
 
       const hashes: Record<string, string> = {};
       for (const block of emptyPlan.blocks) {
-        hashes[block.name] = require('node:crypto').createHash('sha256').update(block.text).digest('hex');
+        hashes[block.name] = require('node:crypto')
+          .createHash('sha256')
+          .update(block.text)
+          .digest('hex');
       }
 
       expect(Object.keys(hashes)).toHaveLength(0);
@@ -71,9 +73,7 @@ describe('Cache Observability - Helper Functions', () => {
       const { createHash } = require('node:crypto');
 
       const plan: PromptPlan = {
-        blocks: [
-          { name: 'base', text: 'Single block content', cacheScope: 'none' },
-        ],
+        blocks: [{ name: 'base', text: 'Single block content', cacheScope: 'none' }],
       };
 
       const hashes: Record<string, string> = {};
@@ -119,9 +119,10 @@ describe('Cache Observability - Helper Functions', () => {
       };
 
       const hasGetCapability = typeof provider.getCapability === 'function';
-      const capability = hasGetCapability && provider.getCapability !== undefined
-        ? provider.getCapability()
-        : undefined;
+      const capability =
+        hasGetCapability && provider.getCapability !== undefined
+          ? provider.getCapability()
+          : undefined;
 
       expect(capability).toBeUndefined();
       expect(hasGetCapability).toBe(false);

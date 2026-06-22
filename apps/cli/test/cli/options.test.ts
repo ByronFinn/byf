@@ -7,12 +7,9 @@ import { OptionConflictError, validateOptions } from '#/cli/options';
 function parse(argv: string[]): CLIOptions {
   let captured: CLIOptions | undefined;
 
-  const program = createProgram(
-    '0.1.0-test',
-    (opts) => {
-      captured = opts;
-    },
-  );
+  const program = createProgram('0.1.0-test', (opts) => {
+    captured = opts;
+  });
 
   program.exitOverride();
   program.configureOutput({
@@ -168,7 +165,9 @@ describe('CLI options parsing', () => {
     it('rejects prompt mode with bare --session picker', () => {
       const opts = parse(['-p', 'resume here', '--session']);
       expect(() => validateOptions(opts)).toThrow(OptionConflictError);
-      expect(() => validateOptions(opts)).toThrow('Cannot use --session without an id in prompt mode.');
+      expect(() => validateOptions(opts)).toThrow(
+        'Cannot use --session without an id in prompt mode.',
+      );
     });
 
     it('rejects prompt mode with --yolo because prompt mode always uses auto permission', () => {

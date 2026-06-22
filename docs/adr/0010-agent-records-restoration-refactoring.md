@@ -85,21 +85,21 @@ class AgentRecords {
     if (record.type === 'metadata') return;
 
     const handlerKey = this.typePrefixToHandlerKey[record.type.split('.')[0]];
-    if (!handlerKey) return;  // 未注册的处理器静默跳过（纯日志记录）
+    if (!handlerKey) return; // 未注册的处理器静默跳过（纯日志记录）
 
     const handler = this.handlers[handlerKey];
     handler?.restoreRecord(record);
   }
 
   private readonly typePrefixToHandlerKey: Record<string, string> = {
-    'context': 'context',
-    'config': 'config',
-    'turn': 'turn',
-    'permission': 'permission',
-    'tools': 'tools',
-    'usage': 'usage',
-    'background': 'background',
-    'full_compaction': 'fullCompaction',
+    context: 'context',
+    config: 'config',
+    turn: 'turn',
+    permission: 'permission',
+    tools: 'tools',
+    usage: 'usage',
+    background: 'background',
+    full_compaction: 'fullCompaction',
   };
 }
 ```
@@ -176,7 +176,7 @@ class Agent {
       this.turn.finishResume();
       return { warning: result.warning };
     } catch (error) {
-      return { error: error as Error };  // 返回错误而不是抛出
+      return { error: error as Error }; // 返回错误而不是抛出
     }
   }
 }

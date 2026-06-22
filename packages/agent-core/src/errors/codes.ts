@@ -352,7 +352,8 @@ export const BYF_ERROR_INFO = {
     title: 'Git Bash not found',
     retryable: false,
     public: true,
-    action: 'Install Git for Windows from https://gitforwindows.org/ or set BYF_SHELL_PATH to a bash.exe.',
+    action:
+      'Install Git for Windows from https://gitforwindows.org/ or set BYF_SHELL_PATH to a bash.exe.',
   },
 
   not_implemented: {

@@ -222,7 +222,9 @@ function installPromptTerminationCleanup(
 
   let onSighup: (() => void) | undefined;
   if (process.platform !== 'win32') {
-    onSighup = () =>{  emergencyExit(); };
+    onSighup = () => {
+      emergencyExit();
+    };
     process.prependListener('SIGHUP', onSighup);
   }
 

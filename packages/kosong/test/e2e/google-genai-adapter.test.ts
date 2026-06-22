@@ -1,9 +1,10 @@
+import { GoogleGenAI } from '@google/genai';
+import { describe, expect, it } from 'vitest';
+
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
-import { GoogleGenAI } from '@google/genai';
-import { describe, expect, it } from 'vitest';
 
 import { createFakeProviderHarness } from './fake-provider-harness';
 
@@ -145,12 +146,14 @@ describe('e2e: Google GenAI adapter bridge', () => {
             {
               type: 'function',
               id: 'call_add',
-              name: 'add', arguments: '{"a":2,"b":3}',
+              name: 'add',
+              arguments: '{"a":2,"b":3}',
             },
             {
               type: 'function',
               id: 'call_mul',
-              name: 'multiply', arguments: '{"a":4,"b":5}',
+              name: 'multiply',
+              arguments: '{"a":4,"b":5}',
             },
           ],
         },
@@ -180,7 +183,8 @@ describe('e2e: Google GenAI adapter bridge', () => {
         {
           type: 'function',
           id: 'notify_call-1',
-          name: 'notify', arguments: '{"ok":true}',
+          name: 'notify',
+          arguments: '{"ok":true}',
           extras: { thought_signature_b64: 'sig-1' },
         } satisfies ToolCall,
       ]);

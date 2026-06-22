@@ -1,10 +1,6 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import { ErrorCodes, ByfError, makeErrorPayload } from '#/errors';
-import { log } from '#/logging/logger';
-import type { Logger } from '#/logging/types';
-import type { AgentAPI, AgentEvent, SDKAgentRPC, UsageStatus } from '#/rpc';
 import {
   generate,
   type CacheStrategy,
@@ -13,6 +9,11 @@ import {
   type PromptPlan,
   type Tool,
 } from '@byfriends/kosong';
+
+import { ErrorCodes, ByfError, makeErrorPayload } from '#/errors';
+import { log } from '#/logging/logger';
+import type { Logger } from '#/logging/types';
+import type { AgentAPI, AgentEvent, SDKAgentRPC, UsageStatus } from '#/rpc';
 
 import type { McpConnectionManager } from '../mcp';
 import {
@@ -26,11 +27,7 @@ import type { RuntimeConfig } from '../runtime-types';
 import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
-import {
-  estimateTokens,
-  estimateTokensForMessages,
-  estimateTokensForTools,
-} from '../utils/tokens';
+import { estimateTokens, estimateTokensForMessages, estimateTokensForTools } from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
@@ -39,7 +36,6 @@ import { ContextMemory } from './context';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
-
 import {
   AgentRecords,
   FileSystemAgentRecordPersistence,
@@ -445,11 +441,7 @@ function buildLlmRequestContext(options: Parameters<typeof generate>[5]): LlmReq
     turnId: context.turnId,
     step: context.step,
   };
-  if (
-    context.attempt !== undefined &&
-    context.maxAttempts !== undefined &&
-    context.attempt > 1
-  ) {
+  if (context.attempt !== undefined && context.maxAttempts !== undefined && context.attempt > 1) {
     fields.attempt = context.attempt;
     fields.maxAttempts = context.maxAttempts;
   }

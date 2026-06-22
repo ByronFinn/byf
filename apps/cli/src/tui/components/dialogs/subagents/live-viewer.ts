@@ -7,15 +7,22 @@
  * updates; follow-tail when user is parked at the bottom.
  */
 
-import { Container, Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui';
+import {
+  Container,
+  Key,
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from '@earendil-works/pi-tui';
 import type { Focusable, Terminal } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
+import type { SubagentActivityDetail } from '#/tui/components/messages/tool-call';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { printableChar } from '#/tui/utils/printable-key';
-import { formatElapsed } from '#/utils/format';
 import { sanitizeForDisplay } from '#/tui/utils/sanitize-text';
-import type { SubagentActivityDetail } from '#/tui/components/messages/tool-call';
+import { formatElapsed } from '#/utils/format';
 
 export interface SubagentLiveViewerProps {
   readonly data: SubagentActivityDetail;
@@ -136,11 +143,15 @@ export class SubagentLiveViewer extends Container implements Focusable {
     const agentName = d.agentName ?? 'Agent';
     const title = accent.bold(` ${agentName} `);
     const phase = this.formatPhaseTag(d.phase, colors);
-    const stats = dim(` · ${String(d.toolCount)} tool${d.toolCount === 1 ? '' : 's'} · ${formatTokens(d.tokens)}`);
-    const elapsed = d.elapsedSeconds !== undefined ? dim(` · ${formatElapsed(d.elapsedSeconds)}`) : '';
-    const thinkingHint = d.thinkingText.length > 0
-      ? dim(this.showThinking ? ' · thinking: ON' : ' · thinking: OFF')
-      : '';
+    const stats = dim(
+      ` · ${String(d.toolCount)} tool${d.toolCount === 1 ? '' : 's'} · ${formatTokens(d.tokens)}`,
+    );
+    const elapsed =
+      d.elapsedSeconds !== undefined ? dim(` · ${formatElapsed(d.elapsedSeconds)}`) : '';
+    const thinkingHint =
+      d.thinkingText.length > 0
+        ? dim(this.showThinking ? ' · thinking: ON' : ' · thinking: OFF')
+        : '';
     return truncateToWidth(`${title}${phase}${stats}${elapsed}${thinkingHint}`, width, '…', true);
   }
 
@@ -172,7 +183,9 @@ export class SubagentLiveViewer extends Container implements Focusable {
     const lineFrom = this.scrollTop + 1;
     const lineTo = Math.min(total, this.scrollTop + viewH);
 
-    const position = dim(` ${String(lineFrom)}-${String(lineTo)} / ${String(total)} (${String(percent)}%) `);
+    const position = dim(
+      ` ${String(lineFrom)}-${String(lineTo)} / ${String(total)} (${String(percent)}%) `,
+    );
     let keys =
       `${key('↑↓/jk')} ${dim('line')}  ` +
       `${key('PgUp/PgDn')} ${dim('page')}  ` +
@@ -206,15 +219,14 @@ export class SubagentLiveViewer extends Container implements Focusable {
     const accent = chalk.hex(colors.primary);
 
     // ── Phase header ────────────────────────────────────────────────
-    const phaseLine = dim('─'.repeat(4)) + ` ${this.formatPhaseTag(data.phase, colors)} ` + dim('─'.repeat(40));
+    const phaseLine =
+      dim('─'.repeat(4)) + ` ${this.formatPhaseTag(data.phase, colors)} ` + dim('─'.repeat(40));
     lines.push(phaseLine);
 
     // ── Tool activities (ordered) ───────────────────────────────────
     for (const act of data.activities) {
       const bullet =
-        act.phase === 'failed' ? error('✗')
-        : act.phase === 'done' ? success('•')
-        : dim('…');
+        act.phase === 'failed' ? error('✗') : act.phase === 'done' ? success('•') : dim('…');
       const verb = act.phase === 'ongoing' ? 'Using' : 'Used';
       const keyArg = toolKeyArg(act.name, act.args);
       const nameStr = accent(act.name);
@@ -274,10 +286,7 @@ export class SubagentLiveViewer extends Container implements Focusable {
     return lines;
   }
 
-  private formatPhaseTag(
-    phase: SubagentActivityDetail['phase'],
-    colors: ColorPalette,
-  ): string {
+  private formatPhaseTag(phase: SubagentActivityDetail['phase'], colors: ColorPalette): string {
     // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- backgrounded/undefined phases render as idle via default
     switch (phase) {
       case 'done':

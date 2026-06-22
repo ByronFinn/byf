@@ -1,16 +1,8 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "lib": [
-      "ESNext",
-      "DOM"
-    ]
+    "lib": ["ESNext", "DOM"]
   },
-  "include": [
-    "src",
-    "test"
-  ],
-  "exclude": [
-    "test/type-safety-negative.ts"
-  ]
+  "include": ["src", "test"],
+  "exclude": ["test/type-safety-negative.ts"]
 }

@@ -27,12 +27,12 @@ command = "terminal-notifier -title BYF -message 'Background task finished'"
 
 The fields are:
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `event` | `string` | Yes | Event name. The value must be one of the entries in the "Events" table below; any other value causes the entire config to fail to load |
-| `matcher` | `string` | No | Regular expression matched against the event target. Missing or empty means match everything |
-| `command` | `string` | Yes | Shell command to run. Must be non-empty |
-| `timeout` | `integer` | No | Timeout in seconds, range 1–600. Defaults to 30 seconds when unset |
+| Field     | Type      | Required | Description                                                                                                                            |
+| --------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `event`   | `string`  | Yes      | Event name. The value must be one of the entries in the "Events" table below; any other value causes the entire config to fail to load |
+| `matcher` | `string`  | No       | Regular expression matched against the event target. Missing or empty means match everything                                           |
+| `command` | `string`  | Yes      | Shell command to run. Must be non-empty                                                                                                |
+| `timeout` | `integer` | No       | Timeout in seconds, range 1–600. Defaults to 30 seconds when unset                                                                     |
 
 Each `[[hooks]]` table accepts only these four fields. Misspelled or extra fields cause the configuration file to fail to parse.
 
@@ -56,12 +56,12 @@ Additional fields depend on the event type, as shown in the event table below.
 
 Hook command exit codes and stdout are interpreted as follows:
 
-| Result | Behavior |
-| --- | --- |
-| Exit code `0` | Allow. If stdout is JSON, text may be read from `message` or `hookSpecificOutput.message` |
-| Exit code `2` | Block. stderr is used as the blocking reason |
-| Any other non-zero exit code | Fail open and allow |
-| Timeout or process error | Fail open and allow |
+| Result                       | Behavior                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| Exit code `0`                | Allow. If stdout is JSON, text may be read from `message` or `hookSpecificOutput.message` |
+| Exit code `2`                | Block. stderr is used as the blocking reason                                              |
+| Any other non-zero exit code | Fail open and allow                                                                       |
+| Timeout or process error     | Fail open and allow                                                                       |
 
 If stdout is JSON and `hookSpecificOutput.permissionDecision` is `deny`, the result is also treated as a block:
 
@@ -82,21 +82,21 @@ When a block takes effect, if the script does not provide a reason through stder
 
 The following events are triggered automatically today:
 
-| Event | Matcher | Main payload | Behavior |
-| --- | --- | --- | --- |
-| `UserPromptSubmit` | Text content submitted by the user | `prompt` (`ContentPart[]` array) | Fires only for real user messages. Text returned by the hook is wrapped as a hook result, written into session history for transcript/replay, shown to the user, and the current LLM turn continues without sending the hook result to the model; if the hook blocks, the block reason is returned to the user as an assistant message and no model call is made; if all hooks produce no output, the normal LLM turn continues |
-| `PreToolUse` | Tool name | `tool_name`, `tool_input`, `tool_call_id` | Fires before permission checks. If blocked, the tool does not run |
-| `PostToolUse` | Tool name | `tool_name`, `tool_input`, `tool_call_id`, `tool_output` | Fires after a successful tool call. `tool_output` is truncated to the first 2000 characters |
-| `PostToolUseFailure` | Tool name | `tool_name`, `tool_input`, `tool_call_id`, `error` | Fires after a tool call fails or is blocked by a hook |
-| `Stop` | Empty string | `stop_hook_active` | Fires when the model is about to stop. If blocked, the reason is appended directly to context as a system-triggered user message, and the turn may continue once |
-| `StopFailure` | Error type | `error_type`, `error_message` | Fires after the current turn fails with a non-cancellation error |
-| `SessionStart` | `startup` or `resume` | `source` | Fires after the main agent is created for a new session, or after a historical session is resumed |
-| `SessionEnd` | `exit` | `reason` | Fires after the session is closed and its metadata is flushed |
-| `SubagentStart` | Subagent name | `agent_name`, `prompt` | Fires after a subagent is configured and before it actually starts running. `prompt` is truncated to the first 500 characters |
-| `SubagentStop` | Subagent name | `agent_name`, `response` | Fires asynchronously after a subagent completes successfully; does not fire on failure. `response` is truncated to the first 500 characters |
-| `PreCompact` | `manual` or `auto` | `trigger`, `token_count` | Fires before context compaction actually starts. This event is invoked with `trigger` (not `triggerBlock`); its return value is completely ignored and blocking decisions are not read |
-| `PostCompact` | `manual` or `auto` | `trigger`, `estimated_token_count` | Fires asynchronously after context compaction is successfully written. Blocking results do not change the main flow |
-| `Notification` | Notification type | `sink`, `notification_type`, `title`, `body`, `severity`, `source_kind`, `source_id` | Currently fires when a background subagent result is written into context. `notification_type` is one of `task.completed`, `task.failed`, `task.killed`, or `task.lost`; the sink is `context` |
+| Event                | Matcher                            | Main payload                                                                         | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UserPromptSubmit`   | Text content submitted by the user | `prompt` (`ContentPart[]` array)                                                     | Fires only for real user messages. Text returned by the hook is wrapped as a hook result, written into session history for transcript/replay, shown to the user, and the current LLM turn continues without sending the hook result to the model; if the hook blocks, the block reason is returned to the user as an assistant message and no model call is made; if all hooks produce no output, the normal LLM turn continues |
+| `PreToolUse`         | Tool name                          | `tool_name`, `tool_input`, `tool_call_id`                                            | Fires before permission checks. If blocked, the tool does not run                                                                                                                                                                                                                                                                                                                                                               |
+| `PostToolUse`        | Tool name                          | `tool_name`, `tool_input`, `tool_call_id`, `tool_output`                             | Fires after a successful tool call. `tool_output` is truncated to the first 2000 characters                                                                                                                                                                                                                                                                                                                                     |
+| `PostToolUseFailure` | Tool name                          | `tool_name`, `tool_input`, `tool_call_id`, `error`                                   | Fires after a tool call fails or is blocked by a hook                                                                                                                                                                                                                                                                                                                                                                           |
+| `Stop`               | Empty string                       | `stop_hook_active`                                                                   | Fires when the model is about to stop. If blocked, the reason is appended directly to context as a system-triggered user message, and the turn may continue once                                                                                                                                                                                                                                                                |
+| `StopFailure`        | Error type                         | `error_type`, `error_message`                                                        | Fires after the current turn fails with a non-cancellation error                                                                                                                                                                                                                                                                                                                                                                |
+| `SessionStart`       | `startup` or `resume`              | `source`                                                                             | Fires after the main agent is created for a new session, or after a historical session is resumed                                                                                                                                                                                                                                                                                                                               |
+| `SessionEnd`         | `exit`                             | `reason`                                                                             | Fires after the session is closed and its metadata is flushed                                                                                                                                                                                                                                                                                                                                                                   |
+| `SubagentStart`      | Subagent name                      | `agent_name`, `prompt`                                                               | Fires after a subagent is configured and before it actually starts running. `prompt` is truncated to the first 500 characters                                                                                                                                                                                                                                                                                                   |
+| `SubagentStop`       | Subagent name                      | `agent_name`, `response`                                                             | Fires asynchronously after a subagent completes successfully; does not fire on failure. `response` is truncated to the first 500 characters                                                                                                                                                                                                                                                                                     |
+| `PreCompact`         | `manual` or `auto`                 | `trigger`, `token_count`                                                             | Fires before context compaction actually starts. This event is invoked with `trigger` (not `triggerBlock`); its return value is completely ignored and blocking decisions are not read                                                                                                                                                                                                                                          |
+| `PostCompact`        | `manual` or `auto`                 | `trigger`, `estimated_token_count`                                                   | Fires asynchronously after context compaction is successfully written. Blocking results do not change the main flow                                                                                                                                                                                                                                                                                                             |
+| `Notification`       | Notification type                  | `sink`, `notification_type`, `title`, `body`, `severity`, `source_kind`, `source_id` | Currently fires when a background subagent result is written into context. `notification_type` is one of `task.completed`, `task.failed`, `task.killed`, or `task.lost`; the sink is `context`                                                                                                                                                                                                                                  |
 
 `UserPromptSubmit` return text is wrapped as a hook result:
 

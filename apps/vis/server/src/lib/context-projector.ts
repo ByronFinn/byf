@@ -131,18 +131,20 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         // `packages/agent-core/src/agent/context/index.ts`). Using
         // 'system' here would skew role counts and any downstream tool
         // that diffs the projected timeline against agent-core history.
-        messages = [{
-          lineNo: entry.lineNo,
-          time: rec.time,
-          source: 'compaction_summary',
-          message: {
-            role: 'assistant',
-            content: [{ type: 'text', text: rec.summary }],
-            toolCalls: [],
-            origin: { kind: 'compaction_summary' },
-          } as ContextMessage,
-          toolStepUuids: [],
-        }];
+        messages = [
+          {
+            lineNo: entry.lineNo,
+            time: rec.time,
+            source: 'compaction_summary',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: rec.summary }],
+              toolCalls: [],
+              origin: { kind: 'compaction_summary' },
+            } as ContextMessage,
+            toolStepUuids: [],
+          },
+        ];
         break;
       case 'usage.record': {
         const scope = rec.usageScope ?? 'session';
@@ -152,11 +154,19 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         break;
       }
       case 'config.update': {
-        const typeChecked = rec as { type: 'config.update'; cwd?: string; modelAlias?: string; profileName?: string; thinkingLevel?: string; systemPrompt?: string };
+        const typeChecked = rec as {
+          type: 'config.update';
+          cwd?: string;
+          modelAlias?: string;
+          profileName?: string;
+          thinkingLevel?: string;
+          systemPrompt?: string;
+        };
         if (typeChecked.cwd !== undefined) config.cwd = typeChecked.cwd;
         if (typeChecked.modelAlias !== undefined) config.modelAlias = typeChecked.modelAlias;
         if (typeChecked.profileName !== undefined) config.profileName = typeChecked.profileName;
-        if (typeChecked.thinkingLevel !== undefined) config.thinkingLevel = typeChecked.thinkingLevel;
+        if (typeChecked.thinkingLevel !== undefined)
+          config.thinkingLevel = typeChecked.thinkingLevel;
         if (typeChecked.systemPrompt !== undefined) config.systemPrompt = typeChecked.systemPrompt;
         break;
       }

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import type { ActivateSkillPayload } from '#/rpc';
 import type { ContentPart } from '@byfriends/kosong';
 
-import type { Agent } from '..';
 import { ErrorCodes, ByfError } from '#/errors';
+import type { ActivateSkillPayload } from '#/rpc';
+
+import type { Agent } from '..';
 import { isUserActivatableSkillType, type SkillRegistry } from '../../skill';
 import type { SkillActivationOrigin } from '../context';
 
@@ -20,7 +21,10 @@ export class SkillManager {
       throw new ByfError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${input.name}" was not found`);
     }
     if (!isUserActivatableSkillType(skill.metadata.type)) {
-      throw new ByfError(ErrorCodes.SKILL_TYPE_UNSUPPORTED, `Skill "${skill.name}" cannot be activated by the user`);
+      throw new ByfError(
+        ErrorCodes.SKILL_TYPE_UNSUPPORTED,
+        `Skill "${skill.name}" cannot be activated by the user`,
+      );
     }
 
     const origin: SkillActivationOrigin = {
@@ -35,15 +39,12 @@ export class SkillManager {
     };
     const skillContent = this.registry.renderSkillPrompt(skill, input.args ?? '');
 
-    this.recordActivation(
-      origin,
-      [
-        {
-          type: 'text',
-          text: skillContent,
-        },
-      ],
-    );
+    this.recordActivation(origin, [
+      {
+        type: 'text',
+        text: skillContent,
+      },
+    ]);
 
     // Append a <byf-skill-loaded> reminder so the model knows the skill
     // is already loaded and does not redundantly invoke the Skill tool.

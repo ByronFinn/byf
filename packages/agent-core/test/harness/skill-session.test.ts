@@ -155,7 +155,9 @@ describe('HarnessAPI session skills', () => {
     const { rpc } = await createTestRpc();
     const created = await rpc.createSession({ id: 'ses_skill_sandbox_home', workDir });
 
-    const names = new Set((await rpc.listSkills({ sessionId: created.id })).map((skill) => skill.name));
+    const names = new Set(
+      (await rpc.listSkills({ sessionId: created.id })).map((skill) => skill.name),
+    );
 
     expect(names.has('real-home-only')).toBe(true);
     expect(names.has('sandbox-only')).toBe(false);
@@ -170,7 +172,9 @@ describe('HarnessAPI session skills', () => {
     const { rpc } = await createTestRpc({});
     const created = await rpc.createSession({ id: 'ses_skill_env_home', workDir });
 
-    const names = new Set((await rpc.listSkills({ sessionId: created.id })).map((skill) => skill.name));
+    const names = new Set(
+      (await rpc.listSkills({ sessionId: created.id })).map((skill) => skill.name),
+    );
 
     expect(names.has('env-real-home-only')).toBe(true);
     expect(names.has('env-sandbox-only')).toBe(false);
@@ -296,7 +300,8 @@ describe('HarnessAPI session skills', () => {
     // A system-reminder message containing <byf-skill-loaded>
     const reminder = context.history.find((msg) =>
       msg.content.some(
-        (part) => part.type === 'text' && part.text.includes('<byf-skill-loaded name="phase-one-review">'),
+        (part) =>
+          part.type === 'text' && part.text.includes('<byf-skill-loaded name="phase-one-review">'),
       ),
     );
     expect(reminder).toBeDefined();
@@ -542,7 +547,11 @@ describe('HarnessAPI session skills', () => {
     await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
   }
 
-  async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
+  async function writeUserSkill(
+    userHomeDir: string,
+    name: string,
+    description: string,
+  ): Promise<void> {
     const dir = join(userHomeDir, '.byf', 'skills', name);
     await mkdir(dir, { recursive: true });
     await writeFile(
@@ -559,9 +568,7 @@ describe('HarnessAPI session skills', () => {
     await writeFile(join(dir, `${name}.md`), lines.join('\n'));
   }
 
-  async function createTestRpc(options?: {
-    readonly homeDir?: string;
-  }): Promise<{
+  async function createTestRpc(options?: { readonly homeDir?: string }): Promise<{
     core: ByfCore;
     events: Event[];
     rpc: CoreRPC;
@@ -569,10 +576,7 @@ describe('HarnessAPI session skills', () => {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
     const events: Event[] = [];
     const configuredHomeDir = options === undefined ? homeDir : options.homeDir;
-    const core = new ByfCore(
-      coreRpc,
-      { homeDir: configuredHomeDir },
-    );
+    const core = new ByfCore(coreRpc, { homeDir: configuredHomeDir });
     const rpc = await sdkRpc({
       emitEvent: (event) => {
         events.push(event);

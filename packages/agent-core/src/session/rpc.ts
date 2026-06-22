@@ -1,7 +1,9 @@
-import { ErrorCodes, ByfError } from '#/errors';
-import type { KaosProcess } from '@byfriends/kaos';
-import { StringDecoder } from 'node:string_decoder';
 import type { Readable } from 'node:stream';
+import { StringDecoder } from 'node:string_decoder';
+
+import type { KaosProcess } from '@byfriends/kaos';
+
+import { ErrorCodes, ByfError } from '#/errors';
 import type {
   ActivateSkillPayload,
   AgentAPI,
@@ -301,7 +303,10 @@ function normalizeShellTimeoutMs(timeout: number | undefined): number {
   return Math.floor(timeout);
 }
 
-async function waitForShellExecution(proc: KaosProcess, timeoutMs: number): Promise<ShellExecResult> {
+async function waitForShellExecution(
+  proc: KaosProcess,
+  timeoutMs: number,
+): Promise<ShellExecResult> {
   let timedOut = false;
   let killed = false;
 

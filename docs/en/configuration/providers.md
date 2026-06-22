@@ -6,14 +6,14 @@ BYF integrates with multiple LLM platforms through a unified provider abstractio
 
 The `type` field of each entry in the `providers` table determines which implementation is used. The currently supported types are:
 
-| Type | Protocol | Typical platforms |
-| --- | --- | --- |
-| `byf` | OpenAI-compatible (chat completions style) | BYF, BYF API |
-| `anthropic` | Anthropic Messages | Claude API |
-| `openai` | OpenAI Chat Completions | OpenAI and compatible services |
-| `openai_responses` | OpenAI Responses API | OpenAI's newer Responses endpoint |
-| `google-genai` | Google GenAI | Gemini API |
-| `vertexai` | Google GenAI on Vertex | Google Cloud Vertex AI |
+| Type               | Protocol                                   | Typical platforms                 |
+| ------------------ | ------------------------------------------ | --------------------------------- |
+| `byf`              | OpenAI-compatible (chat completions style) | BYF, BYF API                      |
+| `anthropic`        | Anthropic Messages                         | Claude API                        |
+| `openai`           | OpenAI Chat Completions                    | OpenAI and compatible services    |
+| `openai_responses` | OpenAI Responses API                       | OpenAI's newer Responses endpoint |
+| `google-genai`     | Google GenAI                               | Gemini API                        |
+| `vertexai`         | Google GenAI on Vertex                     | Google Cloud Vertex AI            |
 
 All providers stream model interactions by default. Thinking, vision, and tool-call capabilities are matched automatically by model name prefix, so you do not need to spell them out in the config.
 

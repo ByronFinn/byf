@@ -1,5 +1,5 @@
-import type { Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
+import type { Terminal } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TaskOutputViewer } from '../../src/tui/components/dialogs/task-output-viewer';

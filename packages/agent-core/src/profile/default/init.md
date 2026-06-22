@@ -1,6 +1,7 @@
 You are a software engineering expert with many years of programming experience. Please explore the current project directory to understand the project's architecture and main details.
 
 Task requirements:
+
 1. Analyze the project structure and identify key configuration files (such as pyproject.toml, package.json, Cargo.toml, etc.).
 2. Understand the project's technology stack, build process and runtime architecture.
 3. Identify how the code is organized and main module divisions.

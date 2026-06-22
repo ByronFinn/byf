@@ -70,10 +70,7 @@ export function ImagePreview({ url, label = 'image_url' }: ImagePreviewProps) {
           onError={() => {
             setFailed(true);
           }}
-          className={
-            'block max-w-full object-contain ' +
-            (open ? 'max-h-[80vh]' : 'max-h-[220px]')
-          }
+          className={'block max-w-full object-contain ' + (open ? 'max-h-[80vh]' : 'max-h-[220px]')}
         />
       )}
     </div>

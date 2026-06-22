@@ -32,15 +32,9 @@ export function WireRowDetail({ entry }: WireRowDetailProps) {
     <div className="pl-[120px] pr-2 py-1 font-mono text-[12px]">
       {renderFriendly(entry.data)}
       <div className="mt-2 flex items-center justify-end gap-3">
-        <CopyButton
-          value={JSON.stringify(entry.raw, null, 2)}
-          label="copy raw"
-        />
+        <CopyButton value={JSON.stringify(entry.raw, null, 2)} label="copy raw" />
         {migrated ? (
-          <CopyButton
-            value={JSON.stringify(entry.data, null, 2)}
-            label="copy projected"
-          />
+          <CopyButton value={JSON.stringify(entry.data, null, 2)} label="copy projected" />
         ) : null}
         <button
           onClick={() => {
@@ -72,15 +66,10 @@ export function WireRowDetail({ entry }: WireRowDetailProps) {
           <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-3">
             {view === 'raw' ? 'as written on disk' : 'after vis migration'}
             {migrated && view === 'raw' ? (
-              <span className="ml-2 text-[var(--color-sev-warning)]">
-                — differs from projected
-              </span>
+              <span className="ml-2 text-[var(--color-sev-warning)]">— differs from projected</span>
             ) : null}
           </div>
-          <JsonViewer
-            value={view === 'raw' ? entry.raw : entry.data}
-            defaultOpenDepth={2}
-          />
+          <JsonViewer value={view === 'raw' ? entry.raw : entry.data} defaultOpenDepth={2} />
         </div>
       ) : null}
     </div>
@@ -178,7 +167,9 @@ function MessageDetail({ message }: { message: ContextMessage }) {
 
       {message.content.length > 0 ? (
         <div>
-          <div className="mb-1 text-fg-2">content ({message.content.length} part{message.content.length === 1 ? '' : 's'})</div>
+          <div className="mb-1 text-fg-2">
+            content ({message.content.length} part{message.content.length === 1 ? '' : 's'})
+          </div>
           <div className="space-y-1">
             {message.content.map((part, i) => (
               <ContentPartView key={i} part={part} />
@@ -189,9 +180,7 @@ function MessageDetail({ message }: { message: ContextMessage }) {
 
       {message.toolCalls.length > 0 ? (
         <div>
-          <div className="mb-1 text-fg-2">
-            toolCalls ({message.toolCalls.length})
-          </div>
+          <div className="mb-1 text-fg-2">toolCalls ({message.toolCalls.length})</div>
           <div className="space-y-1">
             {message.toolCalls.map((tc) => (
               <ToolCallView key={tc.id} call={tc} />
@@ -295,9 +284,7 @@ function LoopEventDetail({ event }: { event: LoopRecordedEvent }) {
             </FieldRow>
             {event.description ? (
               <FieldRow label="description" wide>
-                <pre className="whitespace-pre-wrap break-words text-fg-1">
-                  {event.description}
-                </pre>
+                <pre className="whitespace-pre-wrap break-words text-fg-1">{event.description}</pre>
               </FieldRow>
             ) : null}
           </div>

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../src/agent/records/types';
-
 // 验证接口可以被正确导入
 import type { RecordRestoreHandler } from '../../src/agent/restore-handler';
 
@@ -57,7 +56,9 @@ describe('RecordRestoreHandler', () => {
         created_at: Date.now(),
       };
 
-      expect(() =>{  handler.restoreRecord(mockRecord); }).not.toThrow();
+      expect(() => {
+        handler.restoreRecord(mockRecord);
+      }).not.toThrow();
     });
 
     it('接口方法签名正确', () => {

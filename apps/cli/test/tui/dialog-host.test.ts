@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import type { Component, Focusable } from '@earendil-works/pi-tui';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 import type { DialogHost } from '#/tui/types';

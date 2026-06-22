@@ -446,10 +446,7 @@ export class BashTool implements BuiltinTool<BashInput> {
   }
 }
 
-async function readStreamIntoBuilder(
-  stream: Readable,
-  builder: ToolResultBuilder,
-): Promise<void> {
+async function readStreamIntoBuilder(stream: Readable, builder: ToolResultBuilder): Promise<void> {
   const decoder = new StringDecoder('utf8');
   for await (const chunk of stream) {
     const buf: Buffer = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer);

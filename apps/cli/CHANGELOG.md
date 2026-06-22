@@ -288,7 +288,6 @@
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
-
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -299,7 +298,6 @@
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
-
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -308,7 +306,6 @@
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
-
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -321,7 +318,6 @@
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
-
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -344,7 +340,6 @@
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
-
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -357,7 +352,6 @@
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
-
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

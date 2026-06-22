@@ -122,7 +122,9 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const hint = this.opts.hint ?? navParts.join(' · ');
 
     const titleSuffix =
-      searchable && view.query.length === 0 ? chalk.hex(colors.textMuted)('  (type to search)') : '';
+      searchable && view.query.length === 0
+        ? chalk.hex(colors.textMuted)('  (type to search)')
+        : '';
     const lines: string[] = [
       chalk.hex(colors.primary)('─'.repeat(width)),
       chalk.hex(colors.primary).bold(` ${this.opts.title}`) + titleSuffix,

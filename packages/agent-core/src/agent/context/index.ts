@@ -1,5 +1,6 @@
-import { createToolMessage, type ContentPart, type Message } from '@byfriends/kosong';
 import { join } from 'node:path';
+
+import { createToolMessage, type ContentPart, type Message } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
@@ -12,10 +13,7 @@ import {
   type MaskingConfig,
   type MaskingResult,
 } from './observation-masking';
-import {
-  DEFAULT_OFFLOADING_CONFIG,
-  offloadOutput,
-} from './output-offloading';
+import { DEFAULT_OFFLOADING_CONFIG, offloadOutput } from './output-offloading';
 import { project, type EphemeralInjection } from './projector';
 import { ScratchManager } from './scratch-manager';
 import {
@@ -425,7 +423,9 @@ export class ContextMemory implements RecordRestoreHandler {
     this.agent.emitStatusUpdated();
   }
 
-  private restoreApplyCompaction(record: Extract<import('../records/types').AgentRecord, { type: 'context.apply_compaction' }>): void {
+  private restoreApplyCompaction(
+    record: Extract<import('../records/types').AgentRecord, { type: 'context.apply_compaction' }>,
+  ): void {
     const compactedCount = record.compactedCount;
     const summary = record.summary;
     const tokensAfter = record.tokensAfter;
@@ -447,7 +447,12 @@ export class ContextMemory implements RecordRestoreHandler {
     this.agent.emitStatusUpdated();
   }
 
-  private restoreMarkLastUserPromptBlocked(record: Extract<import('../records/types').AgentRecord, { type: 'context.mark_last_user_prompt_blocked' }>): void {
+  private restoreMarkLastUserPromptBlocked(
+    record: Extract<
+      import('../records/types').AgentRecord,
+      { type: 'context.mark_last_user_prompt_blocked' }
+    >,
+  ): void {
     const hookEvent = record.hookEvent;
     for (let i = this._history.length - 1; i >= 0; i--) {
       const message = this._history[i];
@@ -460,7 +465,9 @@ export class ContextMemory implements RecordRestoreHandler {
     }
   }
 
-  private async restoreAppendLoopEvent(record: Extract<import('../records/types').AgentRecord, { type: 'context.append_loop_event' }>): Promise<void> {
+  private async restoreAppendLoopEvent(
+    record: Extract<import('../records/types').AgentRecord, { type: 'context.append_loop_event' }>,
+  ): Promise<void> {
     // During restore, we call the normal appendLoopEvent but it should not log
     // The restoring flag prevents logging
     await this.appendLoopEvent(record.event);
@@ -468,11 +475,7 @@ export class ContextMemory implements RecordRestoreHandler {
 
   private restoreObservationMasking(): void {
     const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
-    const { history } = applyObservationMasking(
-      this._history,
-      maxContextSize,
-      this.toolCallInfo,
-    );
+    const { history } = applyObservationMasking(this._history, maxContextSize, this.toolCallInfo);
     this._history = history;
     this.agent.emitStatusUpdated();
   }

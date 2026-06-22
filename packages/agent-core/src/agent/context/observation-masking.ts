@@ -16,8 +16,8 @@ export interface MaskingConfig {
 
 export const DEFAULT_MASKING_CONFIG: MaskingConfig = {
   effectiveCapacityRatio: 0.6,
-  lowPriorityThreshold: 0.60,
-  mediumPriorityThreshold: 0.80,
+  lowPriorityThreshold: 0.6,
+  mediumPriorityThreshold: 0.8,
   highPriorityThreshold: 0.85,
 };
 
@@ -56,7 +56,9 @@ interface ToolCallInfo {
 function extractTextFromContent(content: string | ContentPart[]): string {
   if (typeof content === 'string') return content;
   return content
-    .filter((part): part is Extract<(typeof content)[number], { type: 'text' }> => part.type === 'text')
+    .filter(
+      (part): part is Extract<(typeof content)[number], { type: 'text' }> => part.type === 'text',
+    )
     .map((part) => part.text)
     .join('');
 }
@@ -78,7 +80,12 @@ function headTailLines(text: string, headCount: number, tailCount: number): stri
   return `${head}\n...\n${tail}`;
 }
 
-function formatSummary(toolName: string, _args: unknown, lineCount: number, isError: boolean): string {
+function formatSummary(
+  toolName: string,
+  _args: unknown,
+  lineCount: number,
+  isError: boolean,
+): string {
   const errorTag = isError ? ', error' : '';
   return `[${toolName}: ${String(lineCount)} lines${errorTag}]`;
 }

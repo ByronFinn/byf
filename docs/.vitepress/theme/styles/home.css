@@ -45,8 +45,11 @@
   font-weight: 600;
   letter-spacing: -0.005em;
   text-decoration: none;
-  transition: transform var(--byf-transition), box-shadow var(--byf-transition),
-              border-color var(--byf-transition), background var(--byf-transition);
+  transition:
+    transform var(--byf-transition),
+    box-shadow var(--byf-transition),
+    border-color var(--byf-transition),
+    background var(--byf-transition);
   white-space: nowrap;
   cursor: pointer;
   border: 1px solid transparent;

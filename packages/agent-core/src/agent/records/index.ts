@@ -11,10 +11,7 @@ import type { AgentRecord, AgentRecordPersistence } from './types';
 
 export * from './types';
 export { AGENT_WIRE_PROTOCOL_VERSION } from './migration';
-export {
-  FileSystemAgentRecordPersistence,
-  InMemoryAgentRecordPersistence,
-} from './persistence';
+export { FileSystemAgentRecordPersistence, InMemoryAgentRecordPersistence } from './persistence';
 export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
 
 export class AgentRecords {
@@ -31,7 +28,9 @@ export class AgentRecords {
     return this._restoring;
   }
 
-  registerHandlers(handlers: Record<string, import('../restore-handler').RecordRestoreHandler>): void {
+  registerHandlers(
+    handlers: Record<string, import('../restore-handler').RecordRestoreHandler>,
+  ): void {
     this.handlers = { ...handlers };
   }
 

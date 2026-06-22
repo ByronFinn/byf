@@ -73,7 +73,7 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
         const response = await this.fetchImpl(this.baseUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body,

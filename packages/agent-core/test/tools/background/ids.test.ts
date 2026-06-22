@@ -59,15 +59,7 @@ describe('background task id format', () => {
   // Negative invariant: empty / too-short / wrong-prefix / uppercase /
   // underscore / path-traversal must all be rejected.
   it('explicit rejection set', () => {
-    const cases = [
-      '',
-      'x',
-      '-bash',
-      'BASH-12345678',
-      'bash_12345678',
-      '../escape',
-      'a'.repeat(26),
-    ];
+    const cases = ['', 'x', '-bash', 'BASH-12345678', 'bash_12345678', '../escape', 'a'.repeat(26)];
     for (const bad of cases) {
       expect(VALID_TASK_ID.test(bad)).toBe(false);
     }

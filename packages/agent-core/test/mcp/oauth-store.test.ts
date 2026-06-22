@@ -2,9 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { McpOAuthClientProvider, McpOAuthService } from '../../src/mcp/oauth';
 import { JsonFileStore, sanitizeStoreKey } from '../../src/mcp/oauth/store';
 
@@ -120,9 +120,7 @@ describe('MCP OAuth credential identity', () => {
 
   it('scopes hasTokens to the server URL, not just the configured name', () => {
     const service = new McpOAuthService({ store: new JsonFileStore(dir) });
-    service
-      .getProvider('linear', 'https://first.example.com/mcp')
-      .saveTokens(token('first-token'));
+    service.getProvider('linear', 'https://first.example.com/mcp').saveTokens(token('first-token'));
 
     expect(service.hasTokens('linear', 'https://first.example.com/mcp')).toBe(true);
     expect(service.hasTokens('linear', 'https://second.example.com/mcp')).toBe(false);

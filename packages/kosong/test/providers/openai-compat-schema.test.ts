@@ -1,5 +1,6 @@
-import { derefJsonSchema, normalizeOpenAICompatToolSchema } from '#/providers/openai-compat-schema';
 import { describe, expect, it } from 'vitest';
+
+import { derefJsonSchema, normalizeOpenAICompatToolSchema } from '#/providers/openai-compat-schema';
 
 describe('derefJsonSchema', () => {
   it('returns schema unchanged when there are no $ref', () => {

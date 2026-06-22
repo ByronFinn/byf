@@ -226,9 +226,7 @@ export class Session {
     });
     if (keepAliveOnExit) return;
     await Promise.all(
-      Array.from(this.agents.values(), (agent) =>
-        agent.background.stopAll('Session closed'),
-      ),
+      Array.from(this.agents.values(), (agent) => agent.background.stopAll('Session closed')),
     );
   }
 
@@ -266,10 +264,7 @@ export class Session {
    * an agent. Fresh creation and resume-of-an-incomplete-wire both route
    * through here so the two paths cannot drift apart.
    */
-  private async bootstrapAgentProfile(
-    agent: Agent,
-    profile: ResolvedAgentProfile,
-  ): Promise<void> {
+  private async bootstrapAgentProfile(agent: Agent, profile: ResolvedAgentProfile): Promise<void> {
     if (this.config.cwd !== undefined) {
       agent.config.update({ cwd: this.config.cwd });
     }
@@ -441,7 +436,8 @@ export class Session {
       sessionId: this.config.id,
       hookEngine: config.hookEngine ?? this.hookEngine,
       subagentHost:
-        config.subagentHost ?? new SessionSubagentHost(
+        config.subagentHost ??
+        new SessionSubagentHost(
           this,
           id,
           this.backgroundTaskTimeoutMs(),

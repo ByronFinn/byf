@@ -17,11 +17,8 @@ import {
 import chalk from 'chalk';
 
 import type { FileViewerSection } from '#/tui/components/dialogs/file-viewer';
-import {
-  computeDiffLines,
-  renderDiffLinesClustered,
-} from '#/tui/components/media/diff-preview';
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import { computeDiffLines, renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import type {
   ApprovalPanelChoice,
   DiffDisplayBlock,
@@ -70,11 +67,7 @@ function padToWidth(line: string, width: number): string {
   return line + ' '.repeat(width - w);
 }
 
-function renderDisplayBlock(
-  block: DisplayBlock,
-  s: BlockStyles,
-  colors: ColorPalette,
-): string[] {
+function renderDisplayBlock(block: DisplayBlock, s: BlockStyles, colors: ColorPalette): string[] {
   switch (block.type) {
     case 'diff':
       return renderDiffLinesClustered(block.old_text, block.new_text, block.path, colors, {
@@ -224,8 +217,8 @@ export function resolveSection(
       const lang = block.language ?? langFromPath(block.path);
       const highlighted = highlightLines(block.content, lang);
       const header = block.path;
-      const lines = highlighted.map((line, i) =>
-        chalk.hex(colors.diffGutter)(String(i + 1).padStart(4) + '  ') + line,
+      const lines = highlighted.map(
+        (line, i) => chalk.hex(colors.diffGutter)(String(i + 1).padStart(4) + '  ') + line,
       );
       return { header, lines };
     }

@@ -8,8 +8,8 @@ import type { ProviderConfig } from '@byfriends/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCodes } from '../../src/errors';
-import { ProviderManager } from '../../src/providers/provider-manager';
 import type { ResolvedAgentProfile } from '../../src/profile';
+import { ProviderManager } from '../../src/providers/provider-manager';
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { SessionAPIImpl } from '../../src/session/rpc';

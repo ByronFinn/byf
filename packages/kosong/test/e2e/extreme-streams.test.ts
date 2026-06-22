@@ -1,8 +1,10 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { StreamedMessagePart } from '#/message';
 import { extractText } from '#/message';
+
 import { MockChatProvider } from '../fixtures/mock-provider';
-import { describe, expect, it } from 'vitest';
 
 /**
  * Stresses stream merging for quadratic merges, routing regressions, accumulator
@@ -78,7 +80,8 @@ describe('e2e: extreme streaming scenarios', () => {
         parts.push({
           type: 'function',
           id: `tc_${i}`,
-          name: 'f', arguments: null,
+          name: 'f',
+          arguments: null,
           _streamIndex: i,
         });
       }
@@ -119,7 +122,8 @@ describe('e2e: extreme streaming scenarios', () => {
         {
           type: 'function',
           id: 'tc_big',
-          name: 'writeBlob', arguments: '{"blob":"',
+          name: 'writeBlob',
+          arguments: '{"blob":"',
           _streamIndex: 0,
         },
       ];
@@ -159,7 +163,8 @@ describe('e2e: extreme streaming scenarios', () => {
         parts.push({
           type: 'function',
           id: `tc_${i}`,
-          name: 'f', arguments: null,
+          name: 'f',
+          arguments: null,
           _streamIndex: i,
         });
       }

@@ -1,11 +1,15 @@
-import { generate } from '#/generate';
-import { UNKNOWN_CAPABILITY } from '#/capability';
-import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
-import { OpenAICompletionsChatProvider, extractUsageFromChunk } from '#/providers/openai-completions';
-import { extractUsage } from '#/providers/openai-common';
-import type { PromptPlan } from '#/prompt-plan';
-import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
+
+import { UNKNOWN_CAPABILITY } from '#/capability';
+import { generate } from '#/generate';
+import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
+import { extractUsage } from '#/providers/openai-common';
+import {
+  OpenAICompletionsChatProvider,
+  extractUsageFromChunk,
+} from '#/providers/openai-completions';
+import type { Tool } from '#/tool';
 
 function makeChatCompletionResponse(model: string = 'test-model') {
   return {
@@ -589,9 +593,11 @@ describe('OpenAICompletionsChatProvider', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -618,9 +624,11 @@ describe('OpenAICompletionsChatProvider', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -647,9 +655,11 @@ describe('OpenAICompletionsChatProvider', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -677,9 +687,11 @@ describe('OpenAICompletionsChatProvider', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -703,9 +715,11 @@ describe('OpenAICompletionsChatProvider', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -727,13 +741,13 @@ describe('OpenAICompletionsChatProvider', () => {
         yield { id: 'c1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] };
       }
 
-      (provider as any)._client.chat.completions.create = vi
-        .fn()
-        .mockResolvedValue(mockedStream());
+      (provider as any)._client.chat.completions.create = vi.fn().mockResolvedValue(mockedStream());
 
-      const stream = await provider.generate('', [], [
-        { role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] },
-      ]);
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'q' }], toolCalls: [] }],
+      );
       const parts: StreamedMessagePart[] = [];
       for await (const part of stream) parts.push(part);
 
@@ -1042,8 +1056,12 @@ describe('OpenAICompletionsChatProvider', () => {
         { name: 'system', text: 'You are very helpful.', cacheScope: 'global' },
       ]);
 
-      const body1 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan1 });
-      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+      const body1 = await captureRequestBody(provider, '', [], history, {
+        promptPlan: promptPlan1,
+      });
+      const body2 = await captureRequestBody(provider, '', [], history, {
+        promptPlan: promptPlan2,
+      });
 
       expect(body1['prompt_cache_key']).not.toBe(body2['prompt_cache_key']);
     });
@@ -1074,7 +1092,9 @@ describe('OpenAICompletionsChatProvider', () => {
         { name: 'user', text: 'Different user input.', cacheScope: 'none' },
       ]);
 
-      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+      const body2 = await captureRequestBody(provider, '', [], history, {
+        promptPlan: promptPlan2,
+      });
       const hash2 = body2['prompt_cache_key'] as string;
 
       // Hashes should be the same since global blocks are identical
@@ -1107,7 +1127,9 @@ describe('OpenAICompletionsChatProvider', () => {
         { name: 'user', text: 'User input.', cacheScope: 'none' },
       ]);
 
-      const body = await captureRequestBody(provider, '', [], history, { promptPlan: nonGlobalPlan });
+      const body = await captureRequestBody(provider, '', [], history, {
+        promptPlan: nonGlobalPlan,
+      });
 
       // Hash should still be generated (of empty concatenation)
       expect(body['prompt_cache_key']).toBeDefined();
@@ -1115,7 +1137,9 @@ describe('OpenAICompletionsChatProvider', () => {
 
       // Should match empty plan hash
       const emptyPlan: PromptPlan = makePromptPlan([]);
-      const emptyBody = await captureRequestBody(provider, '', [], history, { promptPlan: emptyPlan });
+      const emptyBody = await captureRequestBody(provider, '', [], history, {
+        promptPlan: emptyPlan,
+      });
       expect(emptyBody['prompt_cache_key']).toBe(emptyHash);
     });
 
@@ -1135,8 +1159,12 @@ describe('OpenAICompletionsChatProvider', () => {
         { name: 'first', text: 'AAA', cacheScope: 'global' },
       ]);
 
-      const body1 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan1 });
-      const body2 = await captureRequestBody(provider, '', [], history, { promptPlan: promptPlan2 });
+      const body1 = await captureRequestBody(provider, '', [], history, {
+        promptPlan: promptPlan1,
+      });
+      const body2 = await captureRequestBody(provider, '', [], history, {
+        promptPlan: promptPlan2,
+      });
 
       // Hashes should differ since block order changes the concatenated content
       expect(body1['prompt_cache_key']).not.toBe(body2['prompt_cache_key']);

@@ -237,7 +237,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
         <div className="p-6 font-mono text-[12px] text-fg-3">loading wire…</div>
       ) : error ? (
         <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
-          {(error).message}
+          {error.message}
         </div>
       ) : (
         <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -256,8 +256,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
                 const e = filtered[vi.index];
                 if (!e) return null;
                 const pair = pairByLineNo.get(e.lineNo);
-                const highlighted =
-                  pair !== undefined && hoveredPairId === pair.toolCallId;
+                const highlighted = pair !== undefined && hoveredPairId === pair.toolCallId;
                 return (
                   <div
                     key={vi.key}

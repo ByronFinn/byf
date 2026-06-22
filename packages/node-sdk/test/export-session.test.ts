@@ -6,16 +6,10 @@ import * as zlib from 'node:zlib';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  ByfError,
-  ByfHarness,
-  type SessionSummary,
-} from '#/index';
+import { ByfError, ByfHarness, type SessionSummary } from '#/index';
+
 import { resolveGlobalLogPath } from '../../agent-core/src/logging/logger';
-import {
-  WIRE_PROTOCOL_VERSION,
-  exportSessionDirectory,
-} from '../../agent-core/src/session/export';
+import { WIRE_PROTOCOL_VERSION, exportSessionDirectory } from '../../agent-core/src/session/export';
 import { TEST_IDENTITY } from './test-identity';
 
 const tempDirs: string[] = [];
@@ -281,7 +275,11 @@ describe('ByfHarness.exportSession', () => {
     await writeFile(join(sessionDir, 'subagents', 'demo.txt'), 'demo', 'utf-8');
 
     const outputPath = join(workDir, 'export.zip');
-    const result = await harness.exportSession({ id: session.id, outputPath, version: '1.0.0-test' });
+    const result = await harness.exportSession({
+      id: session.id,
+      outputPath,
+      version: '1.0.0-test',
+    });
 
     expect(result.zipPath).toBe(outputPath);
     expect(result.entries).toContain('manifest.json');

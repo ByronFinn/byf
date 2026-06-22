@@ -17,7 +17,11 @@ import type { Agent } from '../../../agent';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ErrorCodes, ByfError } from '../../../errors';
 import { isAbortError } from '../../../loop/errors';
-import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type {
+  ExecutableToolContext,
+  ExecutableToolResult,
+  ToolExecution,
+} from '../../../loop/types';
 import type {
   QuestionAnswers,
   QuestionAnswerMethod,
@@ -96,11 +100,7 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
 
   private async execution(
     args: AskUserQuestionInput,
-    {
-      toolCallId,
-      signal,
-      turnId,
-    }: ExecutableToolContext,
+    { toolCallId, signal, turnId }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     try {
       const result = await this.agent.rpc.requestQuestion(
@@ -166,9 +166,10 @@ function numericTurnId(turnId: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function normalizeQuestionResult(
-  result: QuestionResult,
-): { readonly answers: QuestionAnswers; readonly method?: QuestionAnswerMethod | undefined } | null {
+function normalizeQuestionResult(result: QuestionResult): {
+  readonly answers: QuestionAnswers;
+  readonly method?: QuestionAnswerMethod | undefined;
+} | null {
   if (result === null) return null;
   if (isQuestionResponse(result)) {
     return {

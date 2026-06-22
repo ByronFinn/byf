@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
 
-type CreateByfDeviceId = (homeDir: string, options?: { onFirstLaunch?: (id: string) => void }) => string;
+type CreateByfDeviceId = (
+  homeDir: string,
+  options?: { onFirstLaunch?: (id: string) => void },
+) => string;
 
 const mocks = vi.hoisted(() => {
   const eventHandlers = new Set<(event: any) => void>();
@@ -29,9 +32,7 @@ const mocks = vi.hoisted(() => {
     }),
     prompt: vi.fn(async () => {
       for (const handler of eventHandlers) {
-        handler(
-          mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }),
-        );
+        handler(mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
         handler(mainEvent({ type: 'assistant.delta', turnId: 1, delta: 'hello' }));
         handler(mainEvent({ type: 'assistant.delta', turnId: 1, delta: ' world' }));
         handler(mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
@@ -153,9 +154,7 @@ describe('runPrompt', () => {
     vi.clearAllMocks();
     mocks.eventHandlers.clear();
     mocks.createByfDeviceId.mockImplementation(() => 'device-1');
-    mocks.resolveByfHome.mockImplementation(
-      (homeDir?: string) => homeDir ?? '/tmp/byf-test-home',
-    );
+    mocks.resolveByfHome.mockImplementation((homeDir?: string) => homeDir ?? '/tmp/byf-test-home');
     mocks.harnessCreatesDeviceIdOnConstruction = false;
   });
 
@@ -198,9 +197,7 @@ describe('runPrompt', () => {
   it('formats thinking and assistant output as transcript blocks', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }));
         handler(
           mocks.mainEvent({
             type: 'thinking.delta',
@@ -236,9 +233,7 @@ describe('runPrompt', () => {
   it('formats hook results as their own transcript block', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 3, origin: { kind: 'user' } }));
         handler(
           mocks.mainEvent({
             type: 'hook.result',
@@ -263,9 +258,7 @@ describe('runPrompt', () => {
   it('wraps transcript blocks with hanging indentation when terminal width is known', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 4, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 4, origin: { kind: 'user' } }));
         handler(mocks.mainEvent({ type: 'thinking.delta', turnId: 4, delta: 'thinking-wrap' }));
         handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 4, delta: 'answer-wrap' }));
         handler(mocks.mainEvent({ type: 'turn.ended', turnId: 4, reason: 'completed' }));
@@ -276,7 +269,9 @@ describe('runPrompt', () => {
 
     await runPrompt(opts(), '1.2.3-test', { stdout, stderr });
 
-    expect(stderr.text()).toBe('• thinking\n  -wrap\n\nTo resume this session: byf -r ses_prompt\n');
+    expect(stderr.text()).toBe(
+      '• thinking\n  -wrap\n\nTo resume this session: byf -r ses_prompt\n',
+    );
     expect(stdout.text()).toBe('• answer-w\n  rap\n\n');
   });
 
@@ -387,9 +382,7 @@ describe('runPrompt', () => {
   it('writes stream-json tool calls and tool results as JSONL messages', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 8, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 8, origin: { kind: 'user' } }));
         handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 8, delta: 'checking' }));
         handler(
           mocks.mainEvent({
@@ -472,9 +465,7 @@ describe('runPrompt', () => {
   it('restores resumed session permission even when the turn fails', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 5, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 5, origin: { kind: 'user' } }));
         handler(
           mocks.mainEvent({
             type: 'turn.ended',
@@ -504,9 +495,7 @@ describe('runPrompt', () => {
     let releasePrompt!: () => void;
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 6, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 6, origin: { kind: 'user' } }));
       }
       await new Promise<void>((resolve) => {
         releasePrompt = resolve;
@@ -552,9 +541,7 @@ describe('runPrompt', () => {
     });
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 7, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 7, origin: { kind: 'user' } }));
       }
       await new Promise<void>((resolve) => {
         releasePrompt = resolve;
@@ -625,9 +612,7 @@ describe('runPrompt', () => {
   it('rejects when the turn fails and still closes resources', async () => {
     mocks.session.prompt.mockImplementationOnce(async () => {
       for (const handler of mocks.eventHandlers) {
-        handler(
-          mocks.mainEvent({ type: 'turn.started', turnId: 2, origin: { kind: 'user' } }),
-        );
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 2, origin: { kind: 'user' } }));
         handler(
           mocks.mainEvent({
             type: 'turn.ended',
@@ -684,7 +669,9 @@ describe('runPrompt', () => {
       capturedStderrError = undefined;
 
       prependSpy = vi.spyOn(process, 'prependListener');
-      (prependSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
+      (
+        prependSpy as unknown as { mockImplementation: (fn: unknown) => unknown }
+      ).mockImplementation(
         (event: string | symbol, listener: (...args: unknown[]) => void): NodeJS.Process => {
           if (event === 'SIGHUP') {
             capturedSighup = listener as () => void;
@@ -694,24 +681,24 @@ describe('runPrompt', () => {
       );
 
       stdoutOnSpy = vi.spyOn(process.stdout, 'on');
-      (stdoutOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
-        (event: string | symbol, listener: (...args: unknown[]) => void) => {
-          if (event === 'error') {
-            capturedStdoutError = listener as (error: Error) => void;
-          }
-          return process.stdout;
-        },
-      );
+      (
+        stdoutOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }
+      ).mockImplementation((event: string | symbol, listener: (...args: unknown[]) => void) => {
+        if (event === 'error') {
+          capturedStdoutError = listener as (error: Error) => void;
+        }
+        return process.stdout;
+      });
 
       stderrOnSpy = vi.spyOn(process.stderr, 'on');
-      (stderrOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }).mockImplementation(
-        (event: string | symbol, listener: (...args: unknown[]) => void) => {
-          if (event === 'error') {
-            capturedStderrError = listener as (error: Error) => void;
-          }
-          return process.stderr;
-        },
-      );
+      (
+        stderrOnSpy as unknown as { mockImplementation: (fn: unknown) => unknown }
+      ).mockImplementation((event: string | symbol, listener: (...args: unknown[]) => void) => {
+        if (event === 'error') {
+          capturedStderrError = listener as (error: Error) => void;
+        }
+        return process.stderr;
+      });
     }
 
     beforeEach(() => {

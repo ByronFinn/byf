@@ -2,20 +2,47 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 
 import { localKaos } from '@byfriends/kaos';
+
 import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
-import { detectSystemProxy } from '#/tools/providers/system-proxy';
+import { createProvider } from '#/tools/providers/registry';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
 import { PriorityRouter } from '#/tools/providers/router';
-import { createProvider } from '#/tools/providers/registry';
+import { detectSystemProxy } from '#/tools/providers/system-proxy';
 // Side-effect imports — register Exa, Brave, and Firecrawl providers in the registry
 import '#/tools/providers/exa';
 import '#/tools/providers/brave';
 import '#/tools/providers/firecrawl';
 import { detectEnvironmentFromNode } from '#/utils/environment';
+import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
+
+import {
+  ensureByfHome,
+  mergeConfigPatch,
+  readConfigFile,
+  resolveConfigPath,
+  resolveByfHome,
+  writeConfigFile,
+  type ByfConfig,
+  type ByfServiceConfig,
+} from '../config';
+import type { Logger } from '../logging/types';
+import { resolveSessionMcpConfig } from '../mcp';
+import { ProviderManager } from '../providers/provider-manager';
+import {
+  type BearerTokenProvider,
+  type OAuthTokenProviderResolver,
+} from '../providers/runtime-provider';
+import type { RuntimeConfig } from '../runtime-types';
+import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
+import { exportSessionDirectory } from '../session/export';
+import { SessionAPIImpl } from '../session/rpc';
+import { normalizeWorkDir, SessionStore } from '../session/store';
+import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import type { CoreRPCClient } from './client';
 import type {
   ActivateSkillPayload,
   BeginCompactionPayload,
@@ -55,35 +82,9 @@ import type {
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
 } from './core-api';
-import type { CoreRPCClient } from './client';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { proxyWithExtraPayload } from './types';
-import type { PromisableMethods } from '#/utils/types';
-
-import { resolveSessionMcpConfig } from '../mcp';
-import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
-import { SessionAPIImpl } from '../session/rpc';
-import {
-  ensureByfHome,
-  mergeConfigPatch,
-  readConfigFile,
-  resolveConfigPath,
-  resolveByfHome,
-  writeConfigFile,
-  type ByfConfig,
-  type ByfServiceConfig,
-} from '../config';
-import { exportSessionDirectory } from '../session/export';
-import { ProviderManager } from '../providers/provider-manager';
-import {
-  type BearerTokenProvider,
-  type OAuthTokenProviderResolver,
-} from '../providers/runtime-provider';
-import type { Logger } from '../logging/types';
-import type { RuntimeConfig } from '../runtime-types';
-import { normalizeWorkDir, SessionStore } from '../session/store';
-import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 
 const BYF_CODE_PROVIDER_NAME = 'byf';
 
@@ -305,8 +306,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     const active = this.sessions.get(input.sessionId);
     // Closed sessions have no `Session.log`; create an ad-hoc child bound to
     // their id so the entries still route to the session log file.
-    const exportLog =
-      active?.log ?? log.createChild({ sessionId: input.sessionId });
+    const exportLog = active?.log ?? log.createChild({ sessionId: input.sessionId });
     if (active !== undefined) {
       try {
         await active.flushMetadata();
@@ -563,10 +563,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     return config;
   }
 
-  private async refreshSessionRuntimeConfig(
-    session: Session,
-    config: ByfConfig,
-  ): Promise<void> {
+  private async refreshSessionRuntimeConfig(session: Session, config: ByfConfig): Promise<void> {
     const api = new SessionAPIImpl(session);
     // A session migrated from an external tool carries no model, and any
     // session may reference a model alias that no longer exists in config.toml.
@@ -587,11 +584,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
         // no credentials, bad max_context_size) is an actionable config error
         // the user must see; surface it instead of silently swapping models.
         const aliasMissing = config.models?.[model] === undefined;
-        if (
-          aliasMissing &&
-          error instanceof ByfError &&
-          error.code === ErrorCodes.CONFIG_INVALID
-        ) {
+        if (aliasMissing && error instanceof ByfError && error.code === ErrorCodes.CONFIG_INVALID) {
           continue;
         }
         throw error;

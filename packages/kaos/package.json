@@ -2,24 +2,24 @@
   "name": "@byfriends/kaos",
   "version": "0.3.2",
   "description": "Execution environment and filesystem/process abstractions for BYF",
+  "keywords": [
+    "agent",
+    "byf",
+    "execution",
+    "filesystem",
+    "process",
+    "sandbox"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "agent",
-    "execution",
-    "sandbox",
-    "process",
-    "filesystem"
-  ],
   "files": [
     "dist"
   ],
@@ -36,19 +36,19 @@
       "default": "./src/index.ts"
     }
   },
-  "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
-  },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs",
         "default": "./dist/index.mjs"
       }
-    }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
   }
 }

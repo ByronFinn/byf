@@ -42,7 +42,9 @@ export async function editInExternalEditor(
     const code = await new Promise<number>((resolve, reject) => {
       const shellCmd = `${command} ${shellQuote(file)}`;
       const child = spawn('/bin/sh', ['-c', shellCmd], { stdio: 'inherit' });
-      child.on('exit', (c) =>{  resolve(c ?? 0); });
+      child.on('exit', (c) => {
+        resolve(c ?? 0);
+      });
       child.on('error', reject);
     });
     if (code !== 0) return undefined;
@@ -56,5 +58,5 @@ export async function editInExternalEditor(
 
 function shellQuote(path: string): string {
   // Single-quote and escape any embedded single quotes.
-  return `'${path.replaceAll('\'', "'\\''")}'`;
+  return `'${path.replaceAll("'", "'\\''")}'`;
 }

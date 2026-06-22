@@ -1,10 +1,10 @@
+import { parseSlashInput } from './parse';
 import {
   findBuiltInSlashCommand,
   resolveSlashCommandAvailability,
   type BuiltinSlashCommand,
   type BuiltinSlashCommandName,
 } from './registry';
-import { parseSlashInput } from './parse';
 import type { SlashCommandBusyReason, SlashCommandInvalidReason } from './types';
 
 export type SlashCommandIntent =
@@ -104,10 +104,7 @@ export function slashCommandBusyReason(
   return undefined;
 }
 
-export function slashBusyMessage(
-  commandName: string,
-  reason: SlashCommandBusyReason,
-): string {
+export function slashBusyMessage(commandName: string, reason: SlashCommandBusyReason): string {
   if (reason === 'streaming') {
     return `Cannot /${commandName} while streaming — press Esc or Ctrl-C first.`;
   }

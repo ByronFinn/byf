@@ -14,7 +14,11 @@ import { homedir } from 'node:os';
 import { dirname, join, win32 as pathWin32 } from 'node:path';
 
 import { BYF_BUILD_INFO } from '#/cli/build-info';
-import { NATIVE_ASSET_MANIFEST_VERSION as MANIFEST_VERSION, buildManifestKey } from '../../scripts/native/manifest.mjs';
+
+import {
+  NATIVE_ASSET_MANIFEST_VERSION as MANIFEST_VERSION,
+  buildManifestKey,
+} from '../../scripts/native/manifest.mjs';
 
 export const NATIVE_ASSET_MANIFEST_VERSION = MANIFEST_VERSION;
 
@@ -218,8 +222,7 @@ export function ensureNativeAssetTree(options: NativeAssetOptions = {}): string 
   const source = options.source ?? getSeaAssetSource();
   if (source === null) return null;
 
-  const manifest =
-    options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
+  const manifest = options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
   if (manifest === null) return null;
 
   const cacheRoot = getNativeAssetCacheRoot(manifest, options);
@@ -246,8 +249,7 @@ export function getNativePackageRoot(
   const source = options.source ?? getSeaAssetSource();
   if (source === null) return null;
 
-  const manifest =
-    options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
+  const manifest = options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
   if (manifest === null) return null;
 
   const pkg = manifest.packages.find((entry) => entry.name === packageName);
@@ -354,8 +356,7 @@ export function cleanupStaleNativeCacheForCurrent(
   const source = options.source ?? getSeaAssetSource();
   if (source === null) return null;
 
-  const manifest =
-    options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
+  const manifest = options.manifest ?? getEmbeddedNativeAssetManifest(source, currentTarget());
   if (manifest === null) return null;
 
   const cacheBase = getNativeCacheBase(options);

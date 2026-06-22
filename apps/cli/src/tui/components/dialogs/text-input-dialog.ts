@@ -30,17 +30,15 @@ export class TextInputDialogComponent extends Container implements Focusable {
   private done = false;
   private emptyHinted = false;
 
-  constructor(
-    opts: {
-      readonly title: string;
-      readonly subtitle: string;
-      readonly placeholder?: string;
-      readonly initialValue?: string;
-      readonly allowEmpty?: boolean;
-      readonly colors: ColorPalette;
-      readonly onDone: (result: TextInputDialogResult) => void;
-    },
-  ) {
+  constructor(opts: {
+    readonly title: string;
+    readonly subtitle: string;
+    readonly placeholder?: string;
+    readonly initialValue?: string;
+    readonly allowEmpty?: boolean;
+    readonly colors: ColorPalette;
+    readonly onDone: (result: TextInputDialogResult) => void;
+  }) {
     super();
     this.onDone = opts.onDone;
     this.colors = opts.colors;

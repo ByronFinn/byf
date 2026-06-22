@@ -56,9 +56,7 @@ export class ToolScheduler<Result> {
     task: ToolCallTask<Result>,
     candidates: readonly ToolCallTask<Result>[],
   ): boolean {
-    return candidates.some((candidate) =>
-      ToolAccesses.conflict(task.accesses, candidate.accesses),
-    );
+    return candidates.some((candidate) => ToolAccesses.conflict(task.accesses, candidate.accesses));
   }
 
   private start(task: ScheduledToolCallTask<Result>): void {

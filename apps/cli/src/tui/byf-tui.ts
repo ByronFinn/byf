@@ -7,24 +7,10 @@
  * flows back to the harness.
  */
 
-import {
-  deleteAllKittyImages,
-  type Component,
-  type Focusable,
-  getCapabilities,
-  ProcessTerminal,
-  type SlashCommand,
-  Spacer,
-  TUI,
-} from '@earendil-works/pi-tui';
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
-import {
-  applyProviderConfig,
-  fetchModelsByType,
-  log,
-} from '@byfriends/sdk';
-import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
+
+import { applyProviderConfig, fetchModelsByType, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
   CreateSessionOptions,
@@ -39,6 +25,16 @@ import type {
   ShellExecResult,
   TurnEndedEvent,
 } from '@byfriends/sdk';
+import {
+  deleteAllKittyImages,
+  type Component,
+  type Focusable,
+  getCapabilities,
+  ProcessTerminal,
+  type SlashCommand,
+  Spacer,
+  TUI,
+} from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import type { CLIOptions } from '#/cli/options';
@@ -51,6 +47,7 @@ import { getInputHistoryFile } from '#/utils/paths';
 import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/external-editor';
 import { detectFdPath } from '#/utils/process/fd-detect';
 
+import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
@@ -66,10 +63,8 @@ import {
   type ByfSlashCommand,
   type SkillListSession,
 } from './commands';
-
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
-import { CHROME_GUTTER } from './constant/rendering';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent, type TodoItem } from './components/chrome/todo-panel';
 import { WelcomeComponent } from './components/chrome/welcome';
@@ -81,10 +76,13 @@ import {
 import { CompactionComponent } from './components/dialogs/compaction';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
+import {
+  SubagentsController,
+  type SubagentListEntry,
+  type SubagentsEnv,
+} from './components/dialogs/subagents';
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
-import { SubagentsController, type SubagentListEntry, type SubagentsEnv } from './components/dialogs/subagents';
 import { CustomEditor } from './components/editor/custom-editor';
-import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
@@ -97,16 +95,10 @@ import {
 import { buildStatusReportLines } from './components/messages/status-panel';
 import { ThinkingComponent } from './components/messages/thinking';
 import { ToolCallComponent } from './components/messages/tool-call';
-import {
-  buildUsageReportLines,
-  UsagePanelComponent,
-} from './components/messages/usage-panel';
+import { buildUsageReportLines, UsagePanelComponent } from './components/messages/usage-panel';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
-import {
-  FEEDBACK_ISSUE_URL,
-} from './constant/feedback';
 import {
   CTRL_C_HINT,
   CTRL_D_HINT,
@@ -117,6 +109,48 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from './constant/byf-tui';
+import { FEEDBACK_ISSUE_URL } from './constant/feedback';
+import { CHROME_GUTTER } from './constant/rendering';
+import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
+import {
+  BackgroundTaskHandler,
+  type BackgroundTaskCallbacks,
+  type BackgroundTaskState,
+} from './events/background-task-handler';
+import {
+  CompactionHandler,
+  type CompactionCallbacks,
+  type CompactionState,
+} from './events/compaction-handler';
+import {
+  handleSessionError,
+  handleSessionMetaChanged,
+  handleSessionWarning,
+  handleStatusUpdate,
+  type SessionMetaCallbacks,
+  type SessionMetaState,
+} from './events/session-meta-handler';
+import {
+  handleSkillActivated,
+  type SkillActivationCallbacks,
+  type SkillActivationState,
+} from './events/skill-activation-handler';
+import {
+  handleSubagentSpawned as handleSubagentSpawnedImpl,
+  handleSubagentCompleted as handleSubagentCompletedImpl,
+  handleSubagentFailed as handleSubagentFailedImpl,
+  routeSubagentEvent as routeSubagentEventImpl,
+  type SubagentCallbacks,
+  type SubagentEventState,
+} from './events/subagent-event-handler';
+import {
+  TurnEventHandler,
+  type TurnEventCallbacks,
+  type TurnEventState,
+} from './events/turn-event-handler';
+import { ConnectFlow } from './flows/connect-flow';
+import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
+import { LoginFlow } from './flows/login-flow';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -148,10 +182,8 @@ import {
 } from './types';
 import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
-import {
-  formatErrorMessage,
-} from './utils/event-payload';
 import { isAbortError } from './utils/errors';
+import { formatErrorMessage } from './utils/event-payload';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';
 import { McpOAuthAuthorizationUrlOpener } from './utils/mcp-oauth';
@@ -163,42 +195,6 @@ import {
 } from './utils/mcp-server-status';
 import { hasPatchChanges } from './utils/object-patch';
 import { openUrl } from './utils/open-url';
-import {
-  handleSessionError,
-  handleSessionMetaChanged,
-  handleSessionWarning,
-  handleStatusUpdate,
-  type SessionMetaCallbacks,
-  type SessionMetaState,
-} from './events/session-meta-handler';
-import {
-  handleSubagentSpawned as handleSubagentSpawnedImpl,
-  handleSubagentCompleted as handleSubagentCompletedImpl,
-  handleSubagentFailed as handleSubagentFailedImpl,
-  routeSubagentEvent as routeSubagentEventImpl,
-  type SubagentCallbacks,
-  type SubagentEventState,
-} from './events/subagent-event-handler';
-import {
-  TurnEventHandler,
-  type TurnEventCallbacks,
-  type TurnEventState,
-} from './events/turn-event-handler';
-import {
-  CompactionHandler,
-  type CompactionCallbacks,
-  type CompactionState,
-} from './events/compaction-handler';
-import {
-  handleSkillActivated,
-  type SkillActivationCallbacks,
-  type SkillActivationState,
-} from './events/skill-activation-handler';
-import {
-  BackgroundTaskHandler,
-  type BackgroundTaskCallbacks,
-  type BackgroundTaskState,
-} from './events/background-task-handler';
 import { setProcessTitle } from './utils/proctitle';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
@@ -207,9 +203,6 @@ import { createTerminalState } from './utils/terminal-state';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { nextTranscriptId } from './utils/transcript-id';
-import { LoginFlow } from './flows/login-flow';
-import { ConnectFlow } from './flows/connect-flow';
-import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
 
 export type { TUIState } from './types';
 
@@ -377,7 +370,12 @@ function parseSimpleCdPathToken(target: string): string | null {
 }
 
 function parseSimpleCdTarget(command: string): string | null {
-  if (command.includes('&&') || command.includes('||') || command.includes('|') || command.includes(';')) {
+  if (
+    command.includes('&&') ||
+    command.includes('||') ||
+    command.includes('|') ||
+    command.includes(';')
+  ) {
     return null;
   }
   const match = SIMPLE_CD_ONLY.exec(command.trim());
@@ -463,10 +461,7 @@ export class ByfTui implements DialogHost {
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
-  private track(
-    event: string,
-    properties?: Parameters<ByfHarness['track']>[1],
-  ): void {
+  private track(event: string, properties?: Parameters<ByfHarness['track']>[1]): void {
     this.harness.track(event, properties);
   }
 
@@ -489,7 +484,10 @@ export class ByfTui implements DialogHost {
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
     this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
     this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
-    this.compactionHandler = new CompactionHandler(this.compactionState(), this.compactionCallbacks());
+    this.compactionHandler = new CompactionHandler(
+      this.compactionState(),
+      this.compactionCallbacks(),
+    );
     this.backgroundTaskHandler = new BackgroundTaskHandler(
       this.backgroundTaskState(),
       this.backgroundTaskCallbacks(),
@@ -1304,7 +1302,9 @@ export class ByfTui implements DialogHost {
         this.setAppState({ shellWorkDir: nextCwd });
       }
     } catch (error) {
-      this.showError(error instanceof Error ? error.message : 'Failed to update shell working directory.');
+      this.showError(
+        error instanceof Error ? error.message : 'Failed to update shell working directory.',
+      );
     }
   }
 
@@ -1392,7 +1392,7 @@ export class ByfTui implements DialogHost {
           this.showError('No active session.');
           return;
         }
-         this.agentsController.show();
+        this.agentsController.show();
         return;
       case 'mcp':
         void this.showMcpServers();
@@ -1798,8 +1798,7 @@ export class ByfTui implements DialogHost {
     return this.harness.createSession({
       workDir: this.state.appState.workDir,
       model,
-      thinking:
-        this.session === undefined ? undefined : this.state.appState.thinkingEffort,
+      thinking: this.session === undefined ? undefined : this.state.appState.thinkingEffort,
       permission: this.state.appState.permissionMode,
     });
   }
@@ -2170,67 +2169,131 @@ export class ByfTui implements DialogHost {
     return routeSubagentEventImpl(event, this.subagentEventState());
   }
 
-
-
   private isAnthropicSessionActive(): boolean {
     const providerKey = this.state.appState.availableModels[this.state.appState.model]?.provider;
     if (providerKey === undefined) return false;
     return this.state.appState.availableProviders[providerKey]?.type === 'anthropic';
   }
 
-
-
-
-
-
-
-
-
   private turnEventState(): TurnEventState {
     const state = this.state;
     return {
-      get appState() { return state.appState; },
-      get colors() { return state.theme.colors; },
-      get currentTurnId() { return state.currentTurnId; },
-      set currentTurnId(v: string | undefined) { state.currentTurnId = v; },
-      get currentStep() { return state.currentStep; },
-      set currentStep(v: number) { state.currentStep = v; },
-      get assistantDraft() { return state.assistantDraft; },
-      set assistantDraft(v: string) { state.assistantDraft = v; },
-      get assistantStreamActive() { return state.assistantStreamActive; },
-      set assistantStreamActive(v: boolean) { state.assistantStreamActive = v; },
-      get thinkingDraft() { return state.thinkingDraft; },
-      set thinkingDraft(v: string) { state.thinkingDraft = v; },
-      get activeToolCalls() { return state.activeToolCalls; },
-      get streamingToolCallArguments() { return state.streamingToolCallArguments; },
-      get pendingToolComponents() { return state.pendingToolComponents; },
-      get transcriptEntries() { return state.transcriptEntries; },
-      get queuedMessages() { return state.queuedMessages; },
-      set queuedMessages(v: QueuedMessage[]) { state.queuedMessages = v; },
+      get appState() {
+        return state.appState;
+      },
+      get colors() {
+        return state.theme.colors;
+      },
+      get currentTurnId() {
+        return state.currentTurnId;
+      },
+      set currentTurnId(v: string | undefined) {
+        state.currentTurnId = v;
+      },
+      get currentStep() {
+        return state.currentStep;
+      },
+      set currentStep(v: number) {
+        state.currentStep = v;
+      },
+      get assistantDraft() {
+        return state.assistantDraft;
+      },
+      set assistantDraft(v: string) {
+        state.assistantDraft = v;
+      },
+      get assistantStreamActive() {
+        return state.assistantStreamActive;
+      },
+      set assistantStreamActive(v: boolean) {
+        state.assistantStreamActive = v;
+      },
+      get thinkingDraft() {
+        return state.thinkingDraft;
+      },
+      set thinkingDraft(v: string) {
+        state.thinkingDraft = v;
+      },
+      get activeToolCalls() {
+        return state.activeToolCalls;
+      },
+      get streamingToolCallArguments() {
+        return state.streamingToolCallArguments;
+      },
+      get pendingToolComponents() {
+        return state.pendingToolComponents;
+      },
+      get transcriptEntries() {
+        return state.transcriptEntries;
+      },
+      get queuedMessages() {
+        return state.queuedMessages;
+      },
+      set queuedMessages(v: QueuedMessage[]) {
+        state.queuedMessages = v;
+      },
     };
   }
 
   private turnEventCallbacks(): TurnEventCallbacks {
     return {
-      setAppState: (patch) =>{  this.setAppState(patch); },
-      patchLivePane: (patch) =>{  this.patchLivePane(patch); },
-      resetLivePane: () =>{  this.resetLivePane(); },
-      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
-      showError: (msg) =>{  this.showError(msg); },
-      showNotice: (title, detail) =>{  this.showNotice(title, detail); },
-      requestRender: () =>{  this.state.ui.requestRender(); },
-      onStreamingTextStart: () =>{  this.onStreamingTextStart(); },
-      onStreamingTextUpdate: (text) =>{  this.onStreamingTextUpdate(text); },
-      onStreamingTextEnd: () =>{  this.onStreamingTextEnd(); },
-      onThinkingUpdate: (text) =>{  this.onThinkingUpdate(text); },
-      onThinkingEnd: () =>{  this.onThinkingEnd(); },
-      onToolCallStart: (tc) =>{  this.onToolCallStart(tc); },
-      onToolCallEnd: (id, result) =>{  this.onToolCallEnd(id, result); },
-      appendTranscriptEntry: (entry) =>{  this.appendTranscriptEntry(entry); },
-      updateActivityPane: () =>{  this.updateActivityPane(); },
-      disposeActiveThinkingComponent: () =>{  this.disposeActiveThinkingComponent(); },
-      disposeAndClearPendingToolComponents: () =>{  this.disposeAndClearPendingToolComponents(); },
-      setTodoList: (todos) =>{  this.setTodoList(todos); },
+      setAppState: (patch) => {
+        this.setAppState(patch);
+      },
+      patchLivePane: (patch) => {
+        this.patchLivePane(patch);
+      },
+      resetLivePane: () => {
+        this.resetLivePane();
+      },
+      showStatus: (msg, color) => {
+        this.showStatus(msg, color);
+      },
+      showError: (msg) => {
+        this.showError(msg);
+      },
+      showNotice: (title, detail) => {
+        this.showNotice(title, detail);
+      },
+      requestRender: () => {
+        this.state.ui.requestRender();
+      },
+      onStreamingTextStart: () => {
+        this.onStreamingTextStart();
+      },
+      onStreamingTextUpdate: (text) => {
+        this.onStreamingTextUpdate(text);
+      },
+      onStreamingTextEnd: () => {
+        this.onStreamingTextEnd();
+      },
+      onThinkingUpdate: (text) => {
+        this.onThinkingUpdate(text);
+      },
+      onThinkingEnd: () => {
+        this.onThinkingEnd();
+      },
+      onToolCallStart: (tc) => {
+        this.onToolCallStart(tc);
+      },
+      onToolCallEnd: (id, result) => {
+        this.onToolCallEnd(id, result);
+      },
+      appendTranscriptEntry: (entry) => {
+        this.appendTranscriptEntry(entry);
+      },
+      updateActivityPane: () => {
+        this.updateActivityPane();
+      },
+      disposeActiveThinkingComponent: () => {
+        this.disposeActiveThinkingComponent();
+      },
+      disposeAndClearPendingToolComponents: () => {
+        this.disposeAndClearPendingToolComponents();
+      },
+      setTodoList: (todos) => {
+        this.setTodoList(todos);
+      },
       isAnthropicSessionActive: () => this.isAnthropicSessionActive(),
       notifyTurnComplete: (key) => {
         notifyTerminalOnce(this.state, `turn-complete:${key}`, {
@@ -2243,12 +2306,24 @@ export class ByfTui implements DialogHost {
 
   private sessionMetaCallbacks(): SessionMetaCallbacks {
     return {
-      flushStreamingUiUpdatesNow: () =>{  this.turnEventHandler.flushStreamingUiUpdatesNow(); },
-      resetLiveToolUiState: () =>{  this.turnEventHandler.resetLiveToolUiState(); },
-      finalizeLiveTextBuffers: (mode) =>{  this.turnEventHandler.finalizeLiveTextBuffers(mode); },
-      showError: (msg) =>{  this.showError(msg); },
-      showStatus: (msg, color) =>{  this.showStatus(msg, color); },
-      setAppState: (patch) =>{  this.setAppState(patch); },
+      flushStreamingUiUpdatesNow: () => {
+        this.turnEventHandler.flushStreamingUiUpdatesNow();
+      },
+      resetLiveToolUiState: () => {
+        this.turnEventHandler.resetLiveToolUiState();
+      },
+      finalizeLiveTextBuffers: (mode) => {
+        this.turnEventHandler.finalizeLiveTextBuffers(mode);
+      },
+      showError: (msg) => {
+        this.showError(msg);
+      },
+      showStatus: (msg, color) => {
+        this.showStatus(msg, color);
+      },
+      setAppState: (patch) => {
+        this.setAppState(patch);
+      },
     };
   }
 
@@ -2264,7 +2339,11 @@ export class ByfTui implements DialogHost {
   }
 
   private skillActivationCallbacks(): SkillActivationCallbacks {
-    return { appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); } };
+    return {
+      appendTranscriptEntry: (entry) => {
+        this.appendTranscriptEntry(entry);
+      },
+    };
   }
 
   private dialogManagerCallbacks(): DialogManagerCallbacks {
@@ -2287,38 +2366,70 @@ export class ByfTui implements DialogHost {
   private compactionState(): CompactionState {
     const state = this.state;
     return {
-      get appState() { return state.appState; },
-      get queuedMessages() { return state.queuedMessages; },
-      set queuedMessages(v: QueuedMessage[]) { state.queuedMessages = v; },
+      get appState() {
+        return state.appState;
+      },
+      get queuedMessages() {
+        return state.queuedMessages;
+      },
+      set queuedMessages(v: QueuedMessage[]) {
+        state.queuedMessages = v;
+      },
     };
   }
 
   private compactionCallbacks(): CompactionCallbacks {
     return {
-      finalizeLiveTextBuffers: (mode) => { this.finalizeLiveTextBuffers(mode); },
-      setAppState: (patch) => { this.setAppState(patch); },
-      resetLivePane: () => { this.resetLivePane(); },
-      beginCompactionBlock: (instruction) => { this.beginCompaction(instruction); },
-      endCompactionBlock: (tokensBefore, tokensAfter) => { this.endCompaction(tokensBefore, tokensAfter); },
-      cancelCompactionBlock: () => { this.cancelCompactionBlock(); },
+      finalizeLiveTextBuffers: (mode) => {
+        this.finalizeLiveTextBuffers(mode);
+      },
+      setAppState: (patch) => {
+        this.setAppState(patch);
+      },
+      resetLivePane: () => {
+        this.resetLivePane();
+      },
+      beginCompactionBlock: (instruction) => {
+        this.beginCompaction(instruction);
+      },
+      endCompactionBlock: (tokensBefore, tokensAfter) => {
+        this.endCompaction(tokensBefore, tokensAfter);
+      },
+      cancelCompactionBlock: () => {
+        this.cancelCompactionBlock();
+      },
     };
   }
 
   private backgroundTaskState(): BackgroundTaskState {
     const state = this.state;
     return {
-      get backgroundTasks() { return state.backgroundTasks; },
-      get backgroundTaskTranscriptedTerminal() { return state.backgroundTaskTranscriptedTerminal; },
-      get currentTurnId() { return state.currentTurnId; },
+      get backgroundTasks() {
+        return state.backgroundTasks;
+      },
+      get backgroundTaskTranscriptedTerminal() {
+        return state.backgroundTaskTranscriptedTerminal;
+      },
+      get currentTurnId() {
+        return state.currentTurnId;
+      },
     };
   }
 
   private backgroundTaskCallbacks(): BackgroundTaskCallbacks {
     return {
-      appendTranscriptEntry: (entry) => { this.appendTranscriptEntry(entry); },
-      requestRender: () => { this.state.ui.requestRender(); },
-      setBackgroundCounts: (counts) => { this.state.footer.setBackgroundCounts(counts); },
-      repaintTasksBrowser: () => { this.tasksBrowserController.repaint(); },
+      appendTranscriptEntry: (entry) => {
+        this.appendTranscriptEntry(entry);
+      },
+      requestRender: () => {
+        this.state.ui.requestRender();
+      },
+      setBackgroundCounts: (counts) => {
+        this.state.footer.setBackgroundCounts(counts);
+      },
+      repaintTasksBrowser: () => {
+        this.tasksBrowserController.repaint();
+      },
     };
   }
 
@@ -2462,8 +2573,12 @@ export class ByfTui implements DialogHost {
         }
         return match;
       },
-      get currentStep() { return state.currentStep; },
-      get currentTurnId() { return state.currentTurnId; },
+      get currentStep() {
+        return state.currentStep;
+      },
+      get currentTurnId() {
+        return state.currentTurnId;
+      },
     };
   }
 
@@ -2561,7 +2676,6 @@ export class ByfTui implements DialogHost {
       this.state.transcriptContainer.addChild(tc);
       this.state.ui.requestRender();
     }
-
   }
 
   // Applies a tool result to a live or completed tool-call component.
@@ -3175,42 +3289,42 @@ export class ByfTui implements DialogHost {
         this.showError(message);
       },
     };
-	  }
+  }
 
-	  private createSubagentsEnv(): SubagentsEnv {
-	    return {
-	      host: {
-	        showFullscreen: (component) => {
-	          const saved = [...this.state.ui.children];
-	          this.state.ui.clear();
-	          this.state.ui.addChild(component);
-	          this.state.ui.setFocus(component);
-	          this.state.ui.requestRender(true);
-	          return saved;
-	        },
-	        closeFullscreen: (savedChildren) => {
-	          this.state.ui.clear();
-	          for (const child of savedChildren) {
-	            this.state.ui.addChild(child);
-	          }
-	          this.state.ui.setFocus(this.state.editor);
-	          this.state.ui.requestRender(true);
-	        },
-	        focus: (component) => {
-	          this.state.ui.setFocus(component);
-	        },
-	        requestRender: (full) => {
-	          this.state.ui.requestRender(full);
-	        },
-	      },
-	      getTerminal: () => this.state.terminal,
-	      getColors: () => this.state.theme.colors,
-	      showError: (message) => {
-	        this.showError(message);
-	      },
-	      collectItems: () => {
-	        const seen = new Set<string>();
-	        const entries: SubagentListEntry[] = [];
+  private createSubagentsEnv(): SubagentsEnv {
+    return {
+      host: {
+        showFullscreen: (component) => {
+          const saved = [...this.state.ui.children];
+          this.state.ui.clear();
+          this.state.ui.addChild(component);
+          this.state.ui.setFocus(component);
+          this.state.ui.requestRender(true);
+          return saved;
+        },
+        closeFullscreen: (savedChildren) => {
+          this.state.ui.clear();
+          for (const child of savedChildren) {
+            this.state.ui.addChild(child);
+          }
+          this.state.ui.setFocus(this.state.editor);
+          this.state.ui.requestRender(true);
+        },
+        focus: (component) => {
+          this.state.ui.setFocus(component);
+        },
+        requestRender: (full) => {
+          this.state.ui.requestRender(full);
+        },
+      },
+      getTerminal: () => this.state.terminal,
+      getColors: () => this.state.theme.colors,
+      showError: (message) => {
+        this.showError(message);
+      },
+      collectItems: () => {
+        const seen = new Set<string>();
+        const entries: SubagentListEntry[] = [];
 
         // 1. Active — from pendingToolComponents
         for (const [toolCallId, tc] of this.state.pendingToolComponents) {
@@ -3271,30 +3385,30 @@ export class ByfTui implements DialogHost {
           }
         }
 
+        return entries;
+      },
+      getComponentById: (toolCallId: string) => {
+        // Check pendingToolComponents first
+        const active = this.state.pendingToolComponents.get(toolCallId);
+        if (active !== undefined) return active;
 
-	        return entries;
-	      },
-	      getComponentById: (toolCallId: string) => {
-	        // Check pendingToolComponents first
-	        const active = this.state.pendingToolComponents.get(toolCallId);
-	        if (active !== undefined) return active;
+        // Check transcriptContainer (solo or inside group)
+        for (const child of this.state.transcriptContainer.children) {
+          if (child instanceof ToolCallComponent && child.toolCallView.id === toolCallId)
+            return child;
+          if (child instanceof AgentGroupComponent) {
+            for (const entry of child.getSubagentEntries()) {
+              if (entry.toolCallId === toolCallId) return entry.tc;
+            }
+          }
+        }
 
-	        // Check transcriptContainer (solo or inside group)
-	        for (const child of this.state.transcriptContainer.children) {
-	          if (child instanceof ToolCallComponent && child.toolCallView.id === toolCallId) return child;
-	          if (child instanceof AgentGroupComponent) {
-	            for (const entry of child.getSubagentEntries()) {
-	              if (entry.toolCallId === toolCallId) return entry.tc;
-	            }
-	          }
-	        }
+        return undefined;
+      },
+    };
+  }
 
-	        return undefined;
-	      },
-	    };
-	  }
-
-	  // Persists and applies the selected external editor command.
+  // Persists and applies the selected external editor command.
   private async applyEditorChoice(value: string): Promise<void> {
     const previous = this.state.appState.editorCommand ?? '';
     if (value === previous && value.length > 0) {
@@ -3326,7 +3440,10 @@ export class ByfTui implements DialogHost {
   }
 
   // Applies model and thinking changes to the active or newly created session.
-  private async performModelSwitch(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<void> {
+  private async performModelSwitch(
+    alias: string,
+    thinkingEffort: ThinkingEffortLevel,
+  ): Promise<void> {
     if (this.state.appState.isStreaming) {
       this.showError('Cannot switch models while streaming — press Esc or Ctrl-C first.');
       return;
@@ -3382,7 +3499,10 @@ export class ByfTui implements DialogHost {
   }
 
   // Persists the selected model and thinking state as the startup defaults.
-  private async persistModelSelection(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<boolean> {
+  private async persistModelSelection(
+    alias: string,
+    thinkingEffort: ThinkingEffortLevel,
+  ): Promise<boolean> {
     const config = await this.harness.getConfig({ reload: true });
     const defaultThinking = thinkingEffort !== 'off';
     const thinkingConfig =
@@ -3619,7 +3739,9 @@ export class ByfTui implements DialogHost {
         width: Math.min(80, Math.floor(this.state.terminal.columns * 0.85)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.82),
       });
-      this.approvalOverlayHide = () =>{  handle.hide(); };
+      this.approvalOverlayHide = () => {
+        handle.hide();
+      };
     } else {
       this.mountEditorReplacement(panel);
     }
@@ -3662,7 +3784,9 @@ export class ByfTui implements DialogHost {
         width: Math.min(76, Math.floor(this.state.terminal.columns * 0.82)),
         maxHeight: Math.floor(this.state.terminal.rows * 0.78),
       });
-      this.questionOverlayHide = () =>{  handle.hide(); };
+      this.questionOverlayHide = () => {
+        handle.hide();
+      };
     } else {
       this.mountEditorReplacement(dialog);
     }
@@ -3870,15 +3994,20 @@ export class ByfTui implements DialogHost {
       fetchModels: (type, baseUrl, apiKey) => fetchModelsByType(type, baseUrl, apiKey),
       applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
-      showError: (msg) =>{  this.showError(msg); },
+      showStatus: (msg, color?) => {
+        this.showStatus(msg, color);
+      },
+      showError: (msg) => {
+        this.showError(msg);
+      },
       showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
-      track: (event, props?) =>{  this.track(event, props); },
+      track: (event, props?) => {
+        this.track(event, props);
+      },
       builtInCatalogJson: BUILT_IN_CATALOG_JSON,
     });
     await flow.run();
   }
-
 
   private async handleLogoutCommand(_args: string | undefined): Promise<void> {
     const config = await this.harness.getConfig();
@@ -3887,7 +4016,9 @@ export class ByfTui implements DialogHost {
       this,
       this.state.theme.colors,
       config,
-      (msg) =>{  this.showError(msg); },
+      (msg) => {
+        this.showError(msg);
+      },
     );
     if (providerName === undefined) {
       return;
@@ -3920,14 +4051,22 @@ export class ByfTui implements DialogHost {
       setConfig: (cfg) => this.harness.setConfig(cfg),
       removeProvider: (id) => this.harness.removeProvider(id),
       refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) =>{  this.showStatus(msg, color); },
-      showError: (msg) =>{  this.showError(msg); },
+      showStatus: (msg, color?) => {
+        this.showStatus(msg, color);
+      },
+      showError: (msg) => {
+        this.showError(msg);
+      },
       showSpinner: (label) => this.showLoginProgressSpinner(label),
-      setCancelInFlight: (cancel) => { this.cancelInFlight = cancel; },
+      setCancelInFlight: (cancel) => {
+        this.cancelInFlight = cancel;
+      },
       clearCancelInFlight: (cancel) => {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
       },
-      track: (event, props?) =>{  this.track(event, props); },
+      track: (event, props?) => {
+        this.track(event, props);
+      },
     });
     await flow.run(args);
   }
@@ -3937,7 +4076,6 @@ export class ByfTui implements DialogHost {
     this.showStatus(FEEDBACK_ISSUE_URL);
     openUrl(FEEDBACK_ISSUE_URL);
   }
-
 }
 
 function toShellExecTranscriptResult(

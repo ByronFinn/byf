@@ -12,9 +12,18 @@ import type {
   TurnStepInterruptedEvent,
   TurnStepStartedEvent,
 } from '@byfriends/sdk';
+
 import type { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { STREAMING_UI_FLUSH_MS } from '#/tui/constant/streaming';
 import type { ColorPalette } from '#/tui/theme/colors';
-import type { AppState, LivePaneState, QueuedMessage, ToolCallBlockData, ToolResultBlockData, TranscriptEntry } from '#/tui/types';
+import type {
+  AppState,
+  LivePaneState,
+  QueuedMessage,
+  ToolCallBlockData,
+  ToolResultBlockData,
+  TranscriptEntry,
+} from '#/tui/types';
 import {
   appendStreamingArgsPreview,
   argsRecord,
@@ -23,8 +32,6 @@ import {
   serializeToolResultOutput,
 } from '#/tui/utils/event-payload';
 import { nextTranscriptId } from '#/tui/utils/transcript-id';
-
-import { STREAMING_UI_FLUSH_MS } from '#/tui/constant/streaming';
 
 // ---------------------------------------------------------------------------
 // Streaming argument entry stored per in-flight tool call
@@ -86,7 +93,9 @@ export interface TurnEventCallbacks {
   disposeAndClearPendingToolComponents(): void;
 
   // Todo
-  setTodoList(todos: readonly { title: string; status: 'pending' | 'in_progress' | 'done' }[]): void;
+  setTodoList(
+    todos: readonly { title: string; status: 'pending' | 'in_progress' | 'done' }[],
+  ): void;
 
   // Agent check for stepCompleted
   isAnthropicSessionActive(): boolean;
@@ -314,10 +323,7 @@ export class TurnEventHandler {
     if (event.toolCallId.length === 0) return;
     const id = event.toolCallId;
     const existing = this.state.streamingToolCallArguments.get(id);
-    const argumentsText = appendStreamingArgsPreview(
-      existing?.argumentsText,
-      event.argumentsPart,
-    );
+    const argumentsText = appendStreamingArgsPreview(existing?.argumentsText, event.argumentsPart);
     const name = event.name ?? existing?.name ?? this.state.activeToolCalls.get(id)?.name ?? 'Tool';
     const startedAtMs = existing?.startedAtMs ?? Date.now();
     this.state.streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
@@ -519,7 +525,10 @@ export class TurnEventHandler {
     this.callbacks.requestRender();
   }
 
-  private finalizeInternal(sendQueued: (item: QueuedMessage) => void, completedTurnKey: string): void {
+  private finalizeInternal(
+    sendQueued: (item: QueuedMessage) => void,
+    completedTurnKey: string,
+  ): void {
     if (!this.state.appState.isStreaming) return;
     this.finalizeLiveTextBuffers('idle');
     this.resetToolCallState();

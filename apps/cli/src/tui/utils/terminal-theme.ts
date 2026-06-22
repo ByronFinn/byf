@@ -9,10 +9,10 @@ import {
   TERMINAL_THEME_INPUT_BUFFER_MAX_LENGTH,
   TERMINAL_THEME_DARK,
   TERMINAL_THEME_LIGHT,
-} from "#/tui/constant/terminal";
-import type { TUIState } from "#/tui/types";
-import type { ResolvedTheme } from "#/tui/theme/colors";
-import { parseOsc11BackgroundTheme } from "#/tui/theme/terminal-background";
+} from '#/tui/constant/terminal';
+import type { ResolvedTheme } from '#/tui/theme/colors';
+import { parseOsc11BackgroundTheme } from '#/tui/theme/terminal-background';
+import type { TUIState } from '#/tui/types';
 
 export {
   DISABLE_TERMINAL_THEME_REPORTING,
@@ -21,7 +21,7 @@ export {
   QUERY_TERMINAL_THEME,
   TERMINAL_THEME_DARK,
   TERMINAL_THEME_LIGHT,
-} from "#/tui/constant/terminal";
+} from '#/tui/constant/terminal';
 
 export function hasTerminalThemeReport(data: string): boolean {
   return data.includes(TERMINAL_THEME_DARK) || data.includes(TERMINAL_THEME_LIGHT);
@@ -39,27 +39,27 @@ export type TerminalThemeInputResult =
   | undefined;
 
 export function createTerminalThemeInputState(): TerminalThemeInputState {
-  return { osc11Buffer: "" };
+  return { osc11Buffer: '' };
 }
 
 export function handleTerminalThemeInput(
   data: string,
-  terminal: Pick<TUIState["terminal"], "write">,
+  terminal: Pick<TUIState['terminal'], 'write'>,
   onTheme: (theme: ResolvedTheme) => void,
   inputState: TerminalThemeInputState = createTerminalThemeInputState(),
 ): TerminalThemeInputResult {
   let remaining = data;
 
-  if (inputState.osc11Buffer !== "") {
+  if (inputState.osc11Buffer !== '') {
     const candidate = `${inputState.osc11Buffer}${data}`;
     const stripped = stripOsc11Reports(candidate, onTheme);
     if (stripped !== candidate) {
-      inputState.osc11Buffer = "";
+      inputState.osc11Buffer = '';
       return resultFromRemaining(stripped);
     }
 
     inputState.osc11Buffer =
-      candidate.length > TERMINAL_THEME_INPUT_BUFFER_MAX_LENGTH ? "" : candidate;
+      candidate.length > TERMINAL_THEME_INPUT_BUFFER_MAX_LENGTH ? '' : candidate;
     return { consume: true };
   }
 
@@ -93,14 +93,14 @@ function stripOsc11Reports(data: string, onTheme: (theme: ResolvedTheme) => void
 
 function stripTerminalThemeReports(
   data: string,
-  terminal: Pick<TUIState["terminal"], "write">,
+  terminal: Pick<TUIState['terminal'], 'write'>,
 ): string {
   let remaining = data;
   let strippedReport = false;
 
   for (const report of [TERMINAL_THEME_DARK, TERMINAL_THEME_LIGHT]) {
     if (!remaining.includes(report)) continue;
-    remaining = remaining.split(report).join("");
+    remaining = remaining.split(report).join('');
     strippedReport = true;
   }
 
@@ -121,7 +121,7 @@ function findPartialOsc11Start(data: string): number {
   for (let i = 0; i < data.length; i++) {
     const suffix = data.slice(i);
     if (OSC11_RESPONSE_PREFIX.startsWith(suffix) && suffix.length > 1) return i;
-    if (OSC11_RESPONSE_PREFIX_NO_ESC.startsWith(suffix) && suffix.startsWith("]11;")) {
+    if (OSC11_RESPONSE_PREFIX_NO_ESC.startsWith(suffix) && suffix.startsWith(']11;')) {
       return i;
     }
   }
@@ -135,7 +135,7 @@ function resultFromRemaining(data: string): TerminalThemeInputResult {
 }
 
 export function installTerminalThemeTracking(
-  state: Pick<TUIState, "terminal" | "ui">,
+  state: Pick<TUIState, 'terminal' | 'ui'>,
   onTheme: (theme: ResolvedTheme) => void,
 ): () => void {
   const inputState = createTerminalThemeInputState();

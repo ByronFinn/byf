@@ -1,13 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
 import type {
   AgentStatusUpdatedEvent,
   ErrorEvent,
   SessionMetaUpdatedEvent,
   WarningEvent,
 } from '@byfriends/sdk';
-
-import type { AppState } from '#/tui/types';
+import { describe, expect, it } from 'vitest';
 
 import {
   handleSessionError,
@@ -17,6 +14,7 @@ import {
   type SessionMetaCallbacks,
   type SessionMetaState,
 } from '#/tui/events/session-meta-handler';
+import type { AppState } from '#/tui/types';
 import { computeCacheHitRate } from '#/utils/usage/usage-format';
 
 const OAUTH_LOGIN_REQUIRED_CODE = 'auth.login_required';
@@ -260,7 +258,6 @@ describe('handleStatusUpdate', () => {
     expect(patch.contextTokens).toBe(12345);
     expect(patch).not.toHaveProperty('cacheHitRate');
   });
-
 });
 
 describe('handleSessionMetaChanged', () => {

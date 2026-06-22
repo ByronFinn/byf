@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
+import type { AddressInfo as HttpAddress } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -6,24 +9,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { localKaos } from '@byfriends/kaos';
 import type { ProviderConfig } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
-
-import { randomUUID } from 'node:crypto';
-import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
-import type { AddressInfo as HttpAddress } from 'node:net';
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {
   OAuthClientInformationFull,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ByfError } from '../../src/errors';
-import { ProviderManager } from '../../src/providers/provider-manager';
 import { McpConnectionManager, type McpServerEntry } from '../../src/mcp/connection-manager';
 import { JsonFileStore, McpOAuthService } from '../../src/mcp/oauth';
+import { ProviderManager } from '../../src/providers/provider-manager';
 import type { AgentEvent, SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { SessionAPIImpl } from '../../src/session/rpc';
@@ -50,10 +48,12 @@ function stdioConfig(args: string[] = [stdioFixture]) {
   };
 }
 
-function sessionRpc(options: {
-  readonly events?: SessionRpcEvent[] | undefined;
-  readonly onEvent?: ((event: SessionRpcEvent) => void) | undefined;
-} = {}): SDKSessionRPC {
+function sessionRpc(
+  options: {
+    readonly events?: SessionRpcEvent[] | undefined;
+    readonly onEvent?: ((event: SessionRpcEvent) => void) | undefined;
+  } = {},
+): SDKSessionRPC {
   return {
     emitEvent: async (event: SessionRpcEvent) => {
       options.events?.push(event);
@@ -341,7 +341,8 @@ describe('McpConnectionManager', () => {
     const server: HttpServer = createHttpServer((_req, res) => {
       res.writeHead(401, {
         'content-type': 'application/json',
-        'www-authenticate': 'Bearer realm="mcp", resource_metadata="http://x/.well-known/oauth-protected-resource"',
+        'www-authenticate':
+          'Bearer realm="mcp", resource_metadata="http://x/.well-known/oauth-protected-resource"',
       });
       res.end(JSON.stringify({ error: 'unauthorized' }));
     });
@@ -588,9 +589,11 @@ describe('McpConnectionManager', () => {
       expect(cm.get('remote')?.status).toBe('connected');
 
       // Reach into the live client to invoke the same hook the SDK uses.
-      const internalClient = (cm as unknown as {
-        entries: Map<string, { client?: { client: { onerror?: (e: Error) => void } } }>;
-      }).entries.get('remote')?.client?.client;
+      const internalClient = (
+        cm as unknown as {
+          entries: Map<string, { client?: { client: { onerror?: (e: Error) => void } } }>;
+        }
+      ).entries.get('remote')?.client?.client;
       internalClient?.onerror?.(new Error('Maximum reconnection attempts (3) exceeded.'));
 
       // Listener fires asynchronously through our wrapper; allow microtasks.
@@ -685,10 +688,7 @@ describe('Session MCP startup', () => {
       } satisfies OAuthTokens);
 
       await expect(
-        readFile(
-          join(byfHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
-          'utf-8',
-        ),
+        readFile(join(byfHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`), 'utf-8'),
       ).resolves.toContain('session-token');
       await expect(
         readFile(

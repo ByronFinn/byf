@@ -69,9 +69,7 @@ export function StateTab({ state }: StateTabProps) {
 
         <Card label="forkedFrom">
           {s.forkedFrom !== undefined && s.forkedFrom !== '' ? (
-            <span className="font-mono text-[12px] text-fg-0 break-all">
-              {s.forkedFrom}
-            </span>
+            <span className="font-mono text-[12px] text-fg-0 break-all">{s.forkedFrom}</span>
           ) : (
             <span className="font-mono text-[12px] text-fg-3">(none)</span>
           )}
@@ -87,10 +85,7 @@ export function StateTab({ state }: StateTabProps) {
 
         <Card label="lastPrompt">
           {s.lastPrompt !== undefined && s.lastPrompt !== '' ? (
-            <span
-              className="font-mono text-[12px] text-fg-0 line-clamp-3"
-              title={s.lastPrompt}
-            >
+            <span className="font-mono text-[12px] text-fg-0 line-clamp-3" title={s.lastPrompt}>
               {s.lastPrompt}
             </span>
           ) : (
@@ -118,9 +113,7 @@ export function StateTab({ state }: StateTabProps) {
 
       {/* Custom blob */}
       <section className="mt-6">
-        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3">
-          custom
-        </h3>
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-3">custom</h3>
         <div className="mt-2 border border-border bg-surface-0 p-3">
           {s.custom === undefined || Object.keys(s.custom).length === 0 ? (
             <span className="font-mono text-[11px] text-fg-3">(empty)</span>
@@ -146,9 +139,7 @@ export function StateTab({ state }: StateTabProps) {
 function Card({ label, children }: { label: string; children: import('react').ReactNode }) {
   return (
     <div className="border border-border bg-surface-0 px-3 py-2">
-      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-3">
-        {label}
-      </div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-fg-3">{label}</div>
       <div className="mt-1 flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
@@ -164,12 +155,8 @@ function TsValue({ ms, raw }: { ms: number | null; raw: string | undefined }) {
   }
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <span className="font-mono text-[12px] text-fg-0 tabular">
-        {formatAbsoluteTime(ms)}
-      </span>
-      <span className="font-mono text-[11px] text-fg-3">
-        ({formatRelativeTime(ms)})
-      </span>
+      <span className="font-mono text-[12px] text-fg-0 tabular">{formatAbsoluteTime(ms)}</span>
+      <span className="font-mono text-[11px] text-fg-3">({formatRelativeTime(ms)})</span>
     </span>
   );
 }

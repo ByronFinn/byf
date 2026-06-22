@@ -1,8 +1,8 @@
 import type { PermissionMode } from '@byfriends/sdk';
 
-import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
-
 import type { ColorPalette } from '#/tui/theme/colors';
+
+import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 
 const PERMISSION_OPTIONS: readonly ChoiceOption[] = [
   {
