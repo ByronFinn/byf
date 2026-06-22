@@ -40,8 +40,8 @@ export function getLoginProviderOptions(): ReadonlyArray<{
   label: string;
   description: string;
 }> {
-  return Object.entries(loginProviderRegistry).map(([value, { label, defaultBaseUrl }]) => ({
-    value,
+  return Object.entries(loginProviderRegistry).map(([k, { label, defaultBaseUrl }]) => ({
+    value: k as LoginProviderType,
     label,
     description: defaultBaseUrl,
   }));

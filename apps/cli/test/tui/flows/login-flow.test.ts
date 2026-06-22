@@ -834,4 +834,60 @@ describe('LoginFlow', () => {
       }),
     );
   });
+
+  it('registers all loginProviderRegistry types as selectable options', async () => {
+    const { getLoginProviderOptions, loginProviderRegistry } = await import('@byfriends/sdk');
+    const registryOptions = getLoginProviderOptions();
+    const model = {
+      id: 'test-model',
+      contextLength: 128000,
+      supportsReasoning: false,
+      supportsImageIn: false,
+      supportsVideoIn: false,
+    };
+
+    for (let i = 0; i < registryOptions.length; i++) {
+      const expectedType = registryOptions[i]!.value;
+      const expectedBaseUrl = loginProviderRegistry[expectedType].defaultBaseUrl;
+
+      const deps = makeDeps({
+        fetchModels: vi.fn(async () => [model]),
+      });
+      const host = getHost(deps);
+
+      const flowPromise = new LoginFlow(deps).run();
+
+      // Step 1: select the i-th type option
+      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      if (i === 0) {
+        selectHighlighted(host);
+      } else {
+        selectNth(host, i);
+      }
+
+      // Step 2: enter provider name
+      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await typeAndEnter(host, `provider-${i}`);
+
+      // Step 3: leave base URL empty → default base URL fallback
+      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      activePanel(host).handleInput('\r');
+
+      // Step 4: enter API key
+      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      await typeAndEnter(host, 'sk-test-key');
+
+      // Step 5: select the model
+      await vi.waitFor(() =>{  expect(host.panel).not.toBeNull(); });
+      activePanel(host).handleInput('\r');
+
+      await flowPromise;
+
+      expect(deps.fetchModels).toHaveBeenCalledWith(expectedType, expectedBaseUrl, 'sk-test-key');
+      expect(deps.applyProviderConfig).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ type: expectedType }),
+      );
+    }
+  });
 });

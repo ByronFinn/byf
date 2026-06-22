@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   loginProviderRegistry,
-  LoginProviderType,
+  type LoginProviderType,
   getLoginProviderOptions,
 } from '#/config/login-provider-registry';
 
@@ -49,9 +49,9 @@ describe('loginProviderRegistry', () => {
 
     it('preserves the correct display order', () => {
       const options = getLoginProviderOptions();
-      expect(options[0].value).toBe('openai-completions');
-      expect(options[1].value).toBe('openai_responses');
-      expect(options[2].value).toBe('anthropic');
+      expect(options[0]!.value).toBe('openai-completions');
+      expect(options[1]!.value).toBe('openai_responses');
+      expect(options[2]!.value).toBe('anthropic');
     });
   });
 });
