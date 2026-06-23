@@ -223,22 +223,26 @@ export class ToolCallComponent extends Container {
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
 
-    // Anchor callPreviewEndIndex BEFORE registering the snapshot listener,
-    // because addSnapshotListener calls the callback immediately and
-    // rebuildContent removes children from callPreviewEndIndex onward.
+    this.buildCallPreview();
+    // Anchor callPreviewEndIndex at the boundary between "preview" children
+    // (spacer + header + call preview) and result-driven children (progress
+    // block + content + subagent block). rebuildContent clears everything
+    // from here onward so the anchor must be set before buildContent runs.
     this.callPreviewEndIndex = this.children.length;
+    this.buildProgressBlock();
+    this.buildContent();
+    this.buildSubagentBlock();
 
-    // Re-render when the subagent store notifies of changes.
+    // Register the snapshot listener AFTER the initial build so the
+    // immediate callback (addSnapshotListener always calls back once on
+    // registration) does not race with the constructor's own buildContent
+    // call and produce duplicate result children.
     this.subagentStore.addSnapshotListener(() => {
       this.headerText.setText(this.buildHeader());
       this.rebuildContent();
       this.ui?.requestRender();
     });
-    this.buildCallPreview();
-    this.callPreviewEndIndex = this.children.length;
-    this.buildProgressBlock();
-    this.buildContent();
-    this.buildSubagentBlock();
+
     this.syncStreamingProgressTimer();
     this.syncElapsedTimer();
   }
