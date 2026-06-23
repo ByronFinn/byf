@@ -15,7 +15,6 @@
  */
 
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
-import { registerProvider } from './registry';
 
 export interface FirecrawlWebSearchProviderOptions {
   apiKeys: string[];
@@ -108,6 +107,3 @@ export class FirecrawlWebSearchProvider implements WebSearchProvider {
     throw lastError ?? new Error('Firecrawl search failed: no API keys configured');
   }
 }
-
-// Self-registration
-registerProvider('firecrawl', FirecrawlWebSearchProvider);

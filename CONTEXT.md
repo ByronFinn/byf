@@ -80,7 +80,7 @@ A free-form string tag on `ByfHarnessOptions` (default `'shell'`) used as the `s
 
 ### MCP (Model Context Protocol)
 
-External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP), tool discovery, OAuth, and reconnection.
+External tool integration. `McpConnectionManager` in agent-core manages MCP server connections (stdio/HTTP/SSE), tool discovery, OAuth, and reconnection. SSE is the legacy HTTP transport (long-lived GET stream + POST), superseded by Streamable HTTP (`http` config literal) in the MCP spec but still supported for backwards compatibility.
 
 ### Compaction
 

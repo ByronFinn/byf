@@ -1,6 +1,6 @@
-# [GRILLED] PRD-0013: update-config builtin skill
+# [DONE] PRD-0013: update-config builtin skill
 
-**Status**: Grilled
+**Status**: Done
 **Created**: 2026-06-20
 **Revised**: 2026-06-21 (command → skill 方向重设计,经 think + grill 收敛)
 **Author**: BYF
@@ -160,3 +160,7 @@ byf 的用户配置文件 `~/.byf/config.toml` **没有 version 字段,也没有
 - 发散 4 (多 config 文件):config.toml 只单文件,无项目级机制。
 
 **Code cross-checked**: mcp-config.ts/md、skill-session.test.ts、skill/index.ts、resolve.ts、path.ts、byf-harness.ts、schema.ts、runtime-provider.ts、wire records(无 update-config 事件)。
+
+**Implemented by**: builtin skill `update-config`(`packages/agent-core/src/skill/builtin/update-config.{md,ts}`)注册于 `registerBuiltinSkills()`;旧 command 全套(`config/update-rules.ts`、`config/update.ts`、`cli/sub/update-config.ts` 及 SDK `Finding`/`analyzeConfig`/`applyFixes`/`UpdateConfigInput`/`UpdateConfigResult` 导出)已删除;`major` changeset 覆盖 `@byfriends/agent-core`、`@byfriends/sdk`、`apps/cli`。所有 Acceptance Criteria 已满足(代码核验 2026-06-22)。
+
+- **Arch reviewed by**: `/improve-architecture` (2026-06-22) — L3 PRD 状态滞后(标题原为 [GRILLED] 但功能已完成),已修正;High/Medium 发现均与本 PRD 无关。

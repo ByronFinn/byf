@@ -186,9 +186,20 @@ export const McpServerHttpConfigSchema = z.object({
 
 export type McpServerHttpConfig = z.infer<typeof McpServerHttpConfigSchema>;
 
+export const McpServerSseConfigSchema = z.object({
+  transport: z.literal('sse'),
+  url: z.string().url(),
+  headers: StringRecordSchema.optional(),
+  bearerTokenEnvVar: z.string().min(1).optional(),
+  ...McpServerCommonFields,
+});
+
+export type McpServerSseConfig = z.infer<typeof McpServerSseConfigSchema>;
+
 const McpServerConfigDiscriminatedSchema = z.discriminatedUnion('transport', [
   McpServerStdioConfigSchema,
   McpServerHttpConfigSchema,
+  McpServerSseConfigSchema,
 ]);
 
 export const McpServerConfigSchema = z.preprocess((raw) => {

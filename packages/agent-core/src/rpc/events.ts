@@ -277,7 +277,7 @@ export interface McpServerStatusEvent {
 
 export interface McpServerStatusPayload {
   readonly name: string;
-  readonly transport: 'stdio' | 'http';
+  readonly transport: 'stdio' | 'http' | 'sse';
   readonly status: 'pending' | 'connected' | 'failed' | 'disabled' | 'needs-auth';
   readonly toolCount: number;
   readonly error?: string | undefined;

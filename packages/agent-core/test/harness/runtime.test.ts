@@ -4,8 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRPC, ByfCore, type ApprovalResponse, type CoreAPI, type SDKAPI } from '../../src';
+import { createRPC, type ApprovalResponse, type CoreAPI, type SDKAPI } from '../../src';
 import type { OAuthTokenProviderResolver } from '../../src/providers/runtime-provider';
+// `ByfCore` is an engine-internal concrete class (not part of the public
+// package surface — see src/rpc/index.ts). Engine tests import it directly
+// from its module so the public API stays narrowed to the CoreAPI contract.
+import { ByfCore } from '../../src/rpc/core-impl';
 
 describe('ByfCore runtime config', () => {
   let tmp: string;

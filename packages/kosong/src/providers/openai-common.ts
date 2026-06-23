@@ -5,19 +5,14 @@ import {
   OpenAIError,
 } from 'openai';
 
-import {
-  APIConnectionError,
-  APITimeoutError,
-  ChatProviderError,
-  normalizeAPIStatusError,
-} from '#/errors';
+import { ChatProviderError } from '#/errors';
 import { extractText } from '#/message';
 import type { ContentPart, Message } from '#/message';
 import type { FinishReason, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 
-import { makeFinishReasonNormalizer } from './provider-common';
+import { convertProviderError, makeFinishReasonNormalizer } from './provider-common';
 export interface OpenAIContentPart {
   type: string;
   text?: string | undefined;
@@ -87,37 +82,27 @@ export function toolToOpenAI(tool: Tool): OpenAIToolParam {
     },
   };
 }
-const NETWORK_RE = /network|connection|connect|disconnect/i;
-const TIMEOUT_RE = /timed?\s*out|timeout|deadline/i;
-
-function classifyBaseApiError(message: string): ChatProviderError {
-  if (TIMEOUT_RE.test(message)) {
-    return new APITimeoutError(message);
-  }
-  if (NETWORK_RE.test(message)) {
-    return new APIConnectionError(message);
-  }
-  return new ChatProviderError(`Error: ${message}`);
-}
-
 /**
  * Convert an OpenAI SDK error (or raw Error) to a kosong `ChatProviderError`.
+ *
+ * Unwraps SDK-specific classes (`APIConnectionTimeoutError`,
+ * `APIConnectionError`, `APIError`) into `(message, status?, requestId?)`
+ * then delegates to the shared {@link convertProviderError} classification
+ * ladder. The base-`APIError` heuristic (no status, no body) still falls back
+ * to message-based classification.
  */
 export function convertOpenAIError(error: unknown): ChatProviderError {
-  if (error instanceof ChatProviderError) {
-    return error;
-  }
   // v6: APIConnectionTimeoutError extends APIConnectionError, check timeout first
   if (error instanceof OpenAITimeoutError) {
-    return new APITimeoutError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   if (error instanceof OpenAIConnectionError) {
-    return new APIConnectionError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   // APIError with a status code => status error
   if (error instanceof OpenAIAPIError && typeof error.status === 'number') {
     const reqId = error.requestID ?? null;
-    return normalizeAPIStatusError(error.status, error.message, reqId);
+    return convertProviderError(error, { status: error.status, requestId: reqId });
   }
   // Base APIError with no status and no body => transport-layer failure.
   // When the error has a body (e.g. SSE error events from the server),
@@ -127,15 +112,12 @@ export function convertOpenAIError(error: unknown): ChatProviderError {
     error.constructor === OpenAIAPIError &&
     error.error === undefined
   ) {
-    return classifyBaseApiError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   if (error instanceof OpenAIError) {
     return new ChatProviderError(`Error: ${error.message}`);
   }
-  if (error instanceof Error) {
-    return new ChatProviderError(`Error: ${error.message}`);
-  }
-  return new ChatProviderError(`Error: ${String(error)}`);
+  return convertProviderError(error);
 }
 /** Shape of a function-type tool call (subset used by the guard). */
 export interface FunctionToolCallShape {

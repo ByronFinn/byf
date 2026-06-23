@@ -21,12 +21,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
 
 import type { ModelCapability } from '#/capability';
-import {
-  APIConnectionError,
-  APITimeoutError,
-  ChatProviderError,
-  normalizeAPIStatusError,
-} from '#/errors';
+import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { PromptPlan } from '#/prompt-plan';
 import type {
@@ -41,7 +36,7 @@ import type { Tool } from '#/tool';
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
 import { BaseStreamedMessage } from './base-streamed-message';
 import { getAnthropicModelCapability } from './capability-registry';
-import { makeFinishReasonNormalizer } from './provider-common';
+import { convertProviderError, makeFinishReasonNormalizer } from './provider-common';
 import { mergeRequestHeaders } from './request-auth';
 
 const ANTHROPIC_STOP_REASON_MAP: Readonly<Record<string, FinishReason>> = {
@@ -489,23 +484,20 @@ function convertMessage(message: Message): MessageParam {
 export function convertAnthropicError(error: unknown): ChatProviderError {
   // Check timeout before connection (APIConnectionTimeoutError extends APIConnectionError)
   if (error instanceof AnthropicTimeoutError) {
-    return new APITimeoutError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   if (error instanceof AnthropicConnectionError) {
-    return new APIConnectionError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   // APIError with a status code => status error
   if (error instanceof AnthropicAPIError && typeof error.status === 'number') {
     const reqId = error.requestID ?? null;
-    return normalizeAPIStatusError(error.status, error.message, reqId);
+    return convertProviderError(error, { status: error.status, requestId: reqId });
   }
   if (error instanceof AnthropicError) {
     return new ChatProviderError(`Anthropic error: ${error.message}`);
   }
-  if (error instanceof Error) {
-    return new ChatProviderError(`Error: ${error.message}`);
-  }
-  return new ChatProviderError(`Error: ${String(error)}`);
+  return convertProviderError(error);
 }
 class AnthropicStreamedMessage extends BaseStreamedMessage {
   private readonly _response: unknown;

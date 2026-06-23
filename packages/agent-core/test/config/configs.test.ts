@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   ByfConfigSchema,
   ensureConfigFile,
+  McpServerConfigSchema,
   mergeConfigPatch,
   parseConfigString,
   parseBooleanEnv,
@@ -763,5 +764,69 @@ describe('config value env override helpers', () => {
         parseEnv: parseBooleanEnv,
       }),
     ).toBe(false);
+  });
+});
+
+describe('McpServerConfigSchema (SSE)', () => {
+  it('parses a valid SSE config with transport: "sse" and a url', () => {
+    const result = McpServerConfigSchema.parse({
+      transport: 'sse',
+      url: 'http://example.com/mcp',
+    });
+    expect(result).toMatchObject({
+      transport: 'sse',
+      url: 'http://example.com/mcp',
+    });
+  });
+
+  it('parses SSE config with all optional fields (headers, bearerTokenEnvVar, common fields)', () => {
+    const result = McpServerConfigSchema.parse({
+      transport: 'sse',
+      url: 'http://example.com/mcp',
+      headers: { 'X-Custom': 'val' },
+      bearerTokenEnvVar: 'MCP_TOKEN',
+      enabled: false,
+      startupTimeoutMs: 10_000,
+      toolTimeoutMs: 60_000,
+      enabledTools: ['tool-a'],
+      disabledTools: ['tool-b'],
+    });
+    expect(result.transport).toBe('sse');
+    if (result.transport !== 'sse') throw new Error('expected sse');
+    expect(result.url).toBe('http://example.com/mcp');
+    expect(result.headers).toEqual({ 'X-Custom': 'val' });
+    expect(result.bearerTokenEnvVar).toBe('MCP_TOKEN');
+    expect(result.enabled).toBe(false);
+    expect(result.startupTimeoutMs).toBe(10_000);
+    expect(result.toolTimeoutMs).toBe(60_000);
+    expect(result.enabledTools).toEqual(['tool-a']);
+    expect(result.disabledTools).toEqual(['tool-b']);
+  });
+
+  it('rejects SSE config without url', () => {
+    expect(() => McpServerConfigSchema.parse({ transport: 'sse' })).toThrow();
+  });
+
+  it('rejects SSE config with invalid url', () => {
+    expect(() => McpServerConfigSchema.parse({ transport: 'sse', url: 'not-a-url' })).toThrow();
+  });
+
+  it('bare url (no transport) still defaults to "http"', () => {
+    const result = McpServerConfigSchema.parse({ url: 'http://example.com/mcp' });
+    expect(result.transport).toBe('http');
+  });
+
+  it('bare command (no transport) still defaults to "stdio" (regression)', () => {
+    const result = McpServerConfigSchema.parse({
+      command: 'some-binary',
+    });
+    expect(result.transport).toBe('stdio');
+  });
+
+  it('rejects config with transport "sse" but missing required url', () => {
+    const result = McpServerConfigSchema.safeParse({
+      transport: 'sse',
+    });
+    expect(result.success).toBe(false);
   });
 });

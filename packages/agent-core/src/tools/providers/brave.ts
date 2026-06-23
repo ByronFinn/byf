@@ -12,7 +12,6 @@
  */
 
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
-import { registerProvider } from './registry';
 
 export interface BraveWebSearchProviderOptions {
   apiKeys: string[];
@@ -92,6 +91,3 @@ export class BraveWebSearchProvider implements WebSearchProvider {
     throw lastError ?? new Error('Brave search failed: no API keys configured');
   }
 }
-
-// Self-registration
-registerProvider('brave', BraveWebSearchProvider);

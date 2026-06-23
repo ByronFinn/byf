@@ -1,3 +1,4 @@
+export * from './client-sse';
 export * from './connection-manager';
 export * from './oauth';
 export * from './session-config';

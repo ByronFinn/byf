@@ -12,7 +12,6 @@
  */
 
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
-import { registerProvider } from './registry';
 
 export interface ExaWebSearchProviderOptions {
   apiKeys: string[];
@@ -119,6 +118,3 @@ export class ExaWebSearchProvider implements WebSearchProvider {
     throw lastError ?? new Error('Exa search failed: no API keys configured');
   }
 }
-
-// Self-registration
-registerProvider('exa', ExaWebSearchProvider);

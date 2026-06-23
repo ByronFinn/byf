@@ -7,15 +7,16 @@ import { ErrorCodes, ByfError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '#/tools/providers/proxied-fetch';
-import { createProvider } from '#/tools/providers/registry';
+import { createProvider, registerBuiltinWebSearchProviders } from '#/tools/providers/registry';
 import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
 import { PriorityRouter } from '#/tools/providers/router';
 import { detectSystemProxy } from '#/tools/providers/system-proxy';
-// Side-effect imports — register Exa, Brave, and Firecrawl providers in the registry
-import '#/tools/providers/exa';
-import '#/tools/providers/brave';
-import '#/tools/providers/firecrawl';
 import { detectEnvironmentFromNode } from '#/utils/environment';
+
+// Register builtin web-search providers (Exa, Brave, Firecrawl) once at module
+// load. Done explicitly here instead of via side-effect imports in each provider
+// module so registration is order-independent and discoverable from one place.
+registerBuiltinWebSearchProviders();
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
 
@@ -101,6 +102,39 @@ export interface ByfCoreOptions {
   readonly byfRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
+}
+
+/**
+ * Narrow handle returned by {@link createByfCore}.
+ *
+ * SDK consumers only need the RPC channel (a `PromisableMethods<CoreAPI>`
+ * that can be fed to `createRPC`) plus the two resolved paths. Exposing the
+ * full `ByfCore` concrete class would leak the engine's 40+ internal members
+ * (sessions map, sdk Promise, providerManager, sessionStore, telemetry, …)
+ * through the SDK type surface and break the ADR 0006 isolation seam.
+ * See ADR 0006 (Monorepo Layered Architecture).
+ */
+export interface CoreEngineHandle {
+  /** CoreRPC-ready core: pass to the first slot of `createRPC<CoreAPI, SDKAPI>()`. */
+  readonly core: PromisableMethods<CoreAPI>;
+  readonly homeDir: string;
+  readonly configPath: string;
+}
+
+/**
+ * Construct a {@link ByfCore} engine and return a narrow {@link CoreEngineHandle}.
+ *
+ * This is the supported way for the SDK layer to bootstrap the engine. The
+ * concrete `ByfCore` class is intentionally not re-exported from the package
+ * public surface (see `rpc/index.ts`); callers program against the
+ * {@link CoreAPI} contract via this factory.
+ */
+export function createByfCore(
+  rpcClient: CoreRPCClient,
+  options: ByfCoreOptions = {},
+): CoreEngineHandle {
+  const core = new ByfCore(rpcClient, options);
+  return { core, homeDir: core.homeDir, configPath: core.configPath };
 }
 
 export class ByfCore implements PromisableMethods<CoreAPI> {

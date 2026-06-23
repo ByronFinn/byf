@@ -7,13 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
-  ByfCore,
   type ApprovalResponse,
   type CoreAPI,
   type CoreRPC,
   type Event,
   type SDKAPI,
 } from '../../src';
+// `ByfCore` is an engine-internal concrete class (not part of the public
+// package surface — see src/rpc/index.ts). Engine tests import it directly
+// from its module so the public API stays narrowed to the CoreAPI contract.
+import { ByfCore } from '../../src/rpc/core-impl';
 
 describe('HarnessAPI session skills', () => {
   let tmp: string;

@@ -2,17 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
-import {
-  buildMcpHttpHeaders,
-  HttpMcpClient,
-  isTerminalTransportError,
-} from '../../src/mcp/client-http';
+import { HttpMcpClient, isTerminalTransportError } from '../../src/mcp/client-http';
+import { buildMcpHttpHeaders } from '../../src/mcp/client-shared';
 import { createProxiedFetch } from '../../src/tools/providers/proxied-fetch';
 
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -36,62 +34,40 @@ function expectConfigInvalid(fn: () => unknown): void {
 
 describe('buildMcpHttpHeaders', () => {
   it('returns undefined when no headers and no bearer are configured', () => {
-    expect(
-      buildMcpHttpHeaders({ transport: 'http', url: 'https://x' }, () => undefined),
-    ).toBeUndefined();
+    expect(buildMcpHttpHeaders({}, () => undefined)).toBeUndefined();
   });
 
   it('passes through configured static headers', () => {
-    expect(
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', headers: { 'X-Tenant': 'byf' } },
-        () => undefined,
-      ),
-    ).toEqual({ 'X-Tenant': 'byf' });
+    expect(buildMcpHttpHeaders({ headers: { 'X-Tenant': 'byf' } }, () => undefined)).toEqual({
+      'X-Tenant': 'byf',
+    });
   });
 
   it('injects Authorization Bearer when env lookup yields a token', () => {
     expect(
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'TOK' },
-        (name) => (name === 'TOK' ? 'secret' : undefined),
+      buildMcpHttpHeaders({ bearerTokenEnvVar: 'TOK' }, (name) =>
+        name === 'TOK' ? 'secret' : undefined,
       ),
     ).toEqual({ Authorization: 'Bearer secret' });
   });
 
   it('throws ByfError(config.invalid) when a configured bearer token env var is empty or missing', () => {
     expectConfigInvalid(() =>
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'MISSING' },
-        () => undefined,
-      ),
+      buildMcpHttpHeaders({ bearerTokenEnvVar: 'MISSING' }, () => undefined),
     );
-    expect(() =>
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'MISSING' },
-        () => undefined,
-      ),
-    ).toThrow(/"MISSING" is not set or is empty/);
-    expectConfigInvalid(() =>
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'EMPTY' },
-        () => '',
-      ),
+    expect(() => buildMcpHttpHeaders({ bearerTokenEnvVar: 'MISSING' }, () => undefined)).toThrow(
+      /"MISSING" is not set or is empty/,
     );
-    expect(() =>
-      buildMcpHttpHeaders(
-        { transport: 'http', url: 'https://x', bearerTokenEnvVar: 'EMPTY' },
-        () => '',
-      ),
-    ).toThrow(/"EMPTY" is not set or is empty/);
+    expectConfigInvalid(() => buildMcpHttpHeaders({ bearerTokenEnvVar: 'EMPTY' }, () => ''));
+    expect(() => buildMcpHttpHeaders({ bearerTokenEnvVar: 'EMPTY' }, () => '')).toThrow(
+      /"EMPTY" is not set or is empty/,
+    );
   });
 
   it('merges bearer over the same Authorization key from static headers', () => {
     expect(
       buildMcpHttpHeaders(
         {
-          transport: 'http',
-          url: 'https://x',
           headers: { Authorization: 'Bearer stale', 'X-Trace': '1' },
           bearerTokenEnvVar: 'TOK',
         },
@@ -101,8 +77,7 @@ describe('buildMcpHttpHeaders', () => {
   });
 
   it('flags errors the SDK uses to signal a dead HTTP transport as terminal', () => {
-    const unauthorized = new Error('Unauthorized');
-    unauthorized.name = 'UnauthorizedError';
+    const unauthorized = new UnauthorizedError('Unauthorized');
     expect(isTerminalTransportError(unauthorized)).toBe(true);
     expect(isTerminalTransportError(new Error('Maximum reconnection attempts (3) exceeded.'))).toBe(
       true,
@@ -119,8 +94,6 @@ describe('buildMcpHttpHeaders', () => {
     expect(
       buildMcpHttpHeaders(
         {
-          transport: 'http',
-          url: 'https://x',
           headers: { authorization: 'Bearer stale', AUTHORIZATION: 'Bearer older', 'X-Trace': '1' },
           bearerTokenEnvVar: 'TOK',
         },

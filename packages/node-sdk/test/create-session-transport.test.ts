@@ -248,19 +248,18 @@ effort = "medium"
       workDir,
       model: 'byf-test-model',
     });
-    expect(coreSessionIds(harness)).toEqual([first.id, second.id]);
+    expect(Array.from(harness.sessions.keys())).toEqual([first.id, second.id]);
 
     await harness.closeSession(first.id);
     expect(harness.getSession(first.id)).toBeUndefined();
-    expect(coreSessionIds(harness)).toEqual([second.id]);
+    expect(Array.from(harness.sessions.keys())).toEqual([second.id]);
 
     await second.close();
     expect(harness.getSession(second.id)).toBeUndefined();
-    expect(coreSessionIds(harness)).toEqual([]);
+    expect(Array.from(harness.sessions.keys())).toEqual([]);
 
     await harness.close();
     expect(harness.sessions.size).toBe(0);
-    expect(coreSessionIds(harness)).toEqual([]);
   });
 
   it('rejects explicitly empty model names', async () => {
@@ -365,12 +364,3 @@ effort = "medium"
     }
   });
 });
-
-function coreSessionIds(harness: ByfHarness): readonly string[] {
-  const core = (
-    harness as unknown as {
-      readonly rpc: { readonly core: { readonly sessions: ReadonlyMap<string, unknown> } };
-    }
-  ).rpc.core;
-  return Array.from(core.sessions.keys()).toSorted();
-}

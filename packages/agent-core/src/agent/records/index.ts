@@ -85,7 +85,10 @@ export class AgentRecords {
     // Extract the prefix from the record type
     const prefix = recordType.split('.')[0]!;
 
-    // Map prefixes to handler keys
+    // Map prefixes to handler keys. Each entry must correspond to a handler
+    // registered in Agent's `records.registerHandlers({...})`. `background.*`
+    // records are restored through a separate persistence path (BackgroundProcessManager),
+    // so they have no handler here and are silently skipped on replay.
     const mapping: Record<string, string> = {
       context: 'context',
       config: 'config',
@@ -93,7 +96,6 @@ export class AgentRecords {
       permission: 'permission',
       tools: 'tools',
       usage: 'usage',
-      background: 'background',
       full_compaction: 'fullCompaction',
     };
 
