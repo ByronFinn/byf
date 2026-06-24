@@ -1,6 +1,6 @@
 # Fork Step Rewind
 
-> **Status**: Sliced | **PRD**: PRD-0015 | **Created**: 2026-06-24 | **Last updated**: 2026-06-24
+> **Status**: Done | **PRD**: PRD-0015 | **Created**: 2026-06-24 | **Last updated**: 2026-06-24
 
 ## Goal
 
@@ -166,7 +166,7 @@
 - **Grilled by**: `/grill` (completed 2026-06-24) — 推翻了原"用 loop 事件 turnId 定位"的技术假设（代码证伪：turnId 不进 wire、无 turn.end 锚点）；将语义从"checkpoint 型"改为"edit-message 型"（回到选中提问之前）；新增孤儿子 agent 清理需求（R7）；术语 Fork/upToMessage/Fork Rewind 锐化入 CONTEXT.md；截断点选择创建 ADR-0020。6 项代码交叉验证全部完成，Open Questions 清零。
 - **Sliced by**: `/story` (completed 2026-06-24)
 - **Sliced into**:
-  - #184 — [PRD-0015] fork rewind 端到端骨架 — 选提问截断 main wire (AFK)
-  - #185 — [PRD-0015] fork rewind 孤儿子 agent 清理 — 截断后无悬空 agent (AFK, blocked by #184)
-  - #186 — [PRD-0015] fork rewind 边界与兜底 — cancel/compaction/越界 (AFK, blocked by #184)
-  - #187 — [PRD-0015] fork rewind 溯源元信息与文档/changeset (AFK, blocked by #184, #185)
+  - #184 — [PRD-0015] fork rewind 端到端骨架 — 选提问截断 main wire (AFK) — Done
+  - #185 — [PRD-0015] fork rewind 孤儿子 agent 清理 — 截断后无悬空 agent (AFK, blocked by #184) — Done
+  - #186 — [PRD-0015] fork rewind 边界与兜底 — cancel/compaction/越界 (AFK, blocked by #184) — Done
+  - #187 — [PRD-0015] fork rewind 溯源元信息与文档/changeset (AFK, blocked by #184, #185) — Done
