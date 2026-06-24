@@ -230,6 +230,7 @@ export class SessionStore {
       title,
       isCustomTitle: input.title === undefined ? parsed['isCustomTitle'] === true : true,
       forkedFrom: input.sourceId,
+      forkedFromMessage: input.upToMessage,
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: Object.assign({}, isRecord(parsed['custom']) ? parsed['custom'] : {}, input.metadata),
     };

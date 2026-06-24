@@ -646,6 +646,63 @@ describe('SessionStore.fork with upToMessage truncation', () => {
     expect(forkedRaw).toContain('compacted');
     expect(forkedRaw).not.toContain('q2');
   });
+
+  it('records forkedFromMessage provenance when upToMessage is set (AC9)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q3"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_prov',
+      upToMessage: 2,
+    });
+
+    const forkState = JSON.parse(await readFile(join(fork.sessionDir, 'state.json'), 'utf-8')) as {
+      forkedFrom?: string;
+      forkedFromMessage?: number;
+    };
+
+    // Both provenance fields are present: the source session id and the
+    // message ordinal the fork branched from.
+    expect(forkState.forkedFrom).toBe(source.id);
+    expect(forkState.forkedFromMessage).toBe(2);
+  });
+
+  it('omits forkedFromMessage when upToMessage is not set (full copy)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_full_prov',
+    });
+
+    const forkState = JSON.parse(await readFile(join(fork.sessionDir, 'state.json'), 'utf-8')) as {
+      forkedFrom?: string;
+      forkedFromMessage?: number;
+    };
+
+    // Full copy still records forkedFrom, but must NOT record forkedFromMessage
+    // (no rewind happened).
+    expect(forkState.forkedFrom).toBe(source.id);
+    expect(forkState.forkedFromMessage).toBeUndefined();
+  });
 });
 
 describe('SessionStore.fork orphan sub-agent cleanup', () => {
