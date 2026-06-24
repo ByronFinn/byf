@@ -56,7 +56,19 @@ The outer lifecycle container in `agent-core`. Owns a `SkillRegistry`, `McpConne
 
 ### Turn
 
-A single conversational cycle: user prompt → LLM loop → tool calls → response. Orchestrated by `TurnFlow` which drives the stateless `loop/runTurn()`. A session consists of multiple turns.
+A single conversational cycle: user prompt → LLM loop → tool calls → response. Orchestrated by `TurnFlow` which drives the stateless `loop/runTurn()`. A session consists of multiple turns. Each turn's start is anchored in wire records by a `turn.prompt` (or `turn.steer`) record; the turnId itself is an in-memory counter (not persisted in wire) and resets on fork, so the wire anchor is the only stable way to locate a turn. See ADR-0020.
+
+### Fork (Session Fork)
+
+Creating a new session from an existing one, leaving the source unchanged. Implemented as a full directory copy + `state.json` rewrite, optionally followed by truncation at a user-selected message (`upToMessage`). Distinct from git branching — operates on session records, not working-tree files.
+
+### upToMessage
+
+The optional fork parameter: a 1-based ordinal of a user message (`turn.prompt`/`turn.steer` record with `origin.kind === 'user'`). When set, the forked session's main `wire.jsonl` is truncated before that record — the selected message and everything after it is dropped, so the new session resumes from just before that message and the user can re-enter it. Omitted → full copy (backwards compatible).
+
+### Fork Rewind
+
+The `/fork` command's optional rewind capability: fork a new session that branches from a user-selected historical message, discarding that message and all subsequent content (including sub-agents it spawned). Edit-message semantics (à la Claude Code's edit-message fork), not checkpoint semantics. The selected message is identified by ordinal, not turnId (turnId is unstable across fork).
 
 ### Wire Records
 
