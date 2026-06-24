@@ -570,6 +570,132 @@ describe('SessionStore.fork with upToMessage truncation', () => {
   });
 });
 
+describe('SessionStore.fork orphan sub-agent cleanup', () => {
+  // Issue #185: truncating the main wire must also remove sub-agents spawned
+  // by the dropped turns. A sub-agent is "referenced" when its
+  // parentToolCallId appears as a tool.call in the retained wire prefix.
+  // Orphans are removed from state.json metadata.agents AND their
+  // agents/<id>/ wire directory is deleted. Retained sub-agents survive.
+
+  async function seedSessionWithSubagents(
+    store: SessionStore,
+    workDir: string,
+  ): Promise<{
+    source: { id: string; sessionDir: string };
+    mainWire: string;
+    keptSubAgentDir: string;
+    orphanSubAgentDir: string;
+  }> {
+    const source = await store.create({ id: 'ses_orphan_source', workDir });
+    const mainAgentDir = join(source.sessionDir, 'agents', 'main');
+    await mkdir(mainAgentDir, { recursive: true });
+
+    // Two user turns, each spawns a sub-agent via an Agent tool call.
+    // Turn 1's tool call (call_keep) is RETAINED when forking at message 2.
+    // Turn 2's tool call (call_drop) is DROPPED.
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"tool.call","toolCallId":"call_keep","name":"Agent","args":{"prompt":"sub1"}}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"tool.call","toolCallId":"call_drop","name":"Agent","args":{"prompt":"sub2"}}}\n';
+    await writeFile(join(mainAgentDir, 'wire.jsonl'), mainWire, 'utf-8');
+
+    const keptSubAgentDir = join(source.sessionDir, 'agents', 'agent-keep');
+    const orphanSubAgentDir = join(source.sessionDir, 'agents', 'agent-drop');
+    await mkdir(keptSubAgentDir, { recursive: true });
+    await mkdir(orphanSubAgentDir, { recursive: true });
+    await writeFile(
+      join(keptSubAgentDir, 'wire.jsonl'),
+      '{"type":"metadata","version":1}\n',
+      'utf-8',
+    );
+    await writeFile(
+      join(orphanSubAgentDir, 'wire.jsonl'),
+      '{"type":"metadata","version":1}\n',
+      'utf-8',
+    );
+
+    await writeSessionState(source.sessionDir, {
+      createdAt: '2030-01-01T00:00:00.000Z',
+      updatedAt: '2030-01-01T00:00:00.000Z',
+      title: 'Orphan source',
+      agents: {
+        main: { homedir: mainAgentDir, type: 'main', parentAgentId: null },
+        'agent-keep': {
+          homedir: keptSubAgentDir,
+          type: 'sub',
+          parentAgentId: 'main',
+          parentToolCallId: 'call_keep',
+        },
+        'agent-drop': {
+          homedir: orphanSubAgentDir,
+          type: 'sub',
+          parentAgentId: 'main',
+          parentToolCallId: 'call_drop',
+        },
+      },
+    });
+
+    return { source, mainWire, keptSubAgentDir, orphanSubAgentDir };
+  }
+
+  it('removes orphaned sub-agents from state.json and deletes their wire directory', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const { source } = await seedSessionWithSubagents(store, workDir);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_orphan_fork',
+      upToMessage: 2,
+    });
+
+    const forkState = JSON.parse(await readFile(join(fork.sessionDir, 'state.json'), 'utf-8')) as {
+      agents: Record<string, { parentToolCallId?: string }>;
+    };
+
+    // Retained sub-agent (spawned in the kept turn 1) survives.
+    expect(forkState.agents['agent-keep']).toBeDefined();
+    expect(forkState.agents['agent-keep']?.parentToolCallId).toBe('call_keep');
+    await expect(
+      readFile(join(fork.sessionDir, 'agents', 'agent-keep', 'wire.jsonl'), 'utf-8'),
+    ).resolves.toBeDefined();
+
+    // Orphaned sub-agent (spawned in the dropped turn 2) is gone.
+    expect(forkState.agents['agent-drop']).toBeUndefined();
+    await expect(
+      readFile(join(fork.sessionDir, 'agents', 'agent-drop', 'wire.jsonl'), 'utf-8'),
+    ).rejects.toThrow();
+  });
+
+  it('keeps all sub-agents when upToMessage is omitted (full copy)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const { source } = await seedSessionWithSubagents(store, workDir);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_orphan_full',
+    });
+
+    const forkState = JSON.parse(await readFile(join(fork.sessionDir, 'state.json'), 'utf-8')) as {
+      agents: Record<string, unknown>;
+    };
+
+    expect(forkState.agents['agent-keep']).toBeDefined();
+    expect(forkState.agents['agent-drop']).toBeDefined();
+    await expect(
+      readFile(join(fork.sessionDir, 'agents', 'agent-drop', 'wire.jsonl'), 'utf-8'),
+    ).resolves.toBeDefined();
+  });
+});
+
 describe('ByfHarness.listSessions', () => {
   it('rejects whitespace-only workDir with request.work_dir_required', async () => {
     const homeDir = await makeTempDir();

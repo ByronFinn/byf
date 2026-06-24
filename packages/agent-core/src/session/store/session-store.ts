@@ -106,6 +106,7 @@ export class SessionStore {
       await this.writeForkedState(input, source.sessionDir, targetDir);
       if (input.upToMessage !== undefined) {
         await truncateMainWireUpToMessage(targetDir, input.upToMessage);
+        await cleanupOrphanedAgents(targetDir);
       }
       const summary = await this.summaryFromDir(input.targetId, targetDir, source.workDir);
       await appendSessionIndexEntry(this.homeDir, {
@@ -452,4 +453,85 @@ function isUserTurnBoundary(record: unknown): boolean {
   if (type !== 'turn.prompt' && type !== 'turn.steer') return false;
   const origin = record['origin'];
   return isRecord(origin) && origin['kind'] === 'user';
+}
+
+/**
+ * Removes sub-agents spawned by dropped turns after a truncation fork.
+ *
+ * A sub-agent is "referenced" when its `parentToolCallId` appears as a
+ * `tool.call` event in the retained main wire prefix. Orphans (whose
+ * parentToolCallId is absent from the prefix) are removed from state.json's
+ * `agents` map and their `agents/<id>/` directory is deleted. The main agent
+ * and any sub-agent without a parentToolCallId are always retained.
+ *
+ * See PRD-0015 R7 / Issue #185.
+ */
+async function cleanupOrphanedAgents(sessionDir: string): Promise<void> {
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  let mainContent = '';
+  try {
+    mainContent = await readFile(mainWirePath, 'utf-8');
+  } catch {
+    return;
+  }
+
+  const retainedToolCallIds = collectToolCallIds(mainContent);
+
+  const statePath = join(sessionDir, 'state.json');
+  const parsed = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
+  const agents = isRecord(parsed['agents']) ? parsed['agents'] : {};
+  if (!isRecord(agents)) return;
+
+  const survivors: Record<string, unknown> = {};
+  const orphans: string[] = [];
+  for (const [agentId, meta] of Object.entries(agents)) {
+    if (!isRecord(meta)) {
+      survivors[agentId] = meta;
+      continue;
+    }
+    const parentToolCallId = meta['parentToolCallId'];
+    // main agent + legacy agents without parentToolCallId are always kept.
+    if (typeof parentToolCallId !== 'string') {
+      survivors[agentId] = meta;
+      continue;
+    }
+    if (retainedToolCallIds.has(parentToolCallId)) {
+      survivors[agentId] = meta;
+    } else {
+      orphans.push(agentId);
+    }
+  }
+
+  if (orphans.length === 0) return;
+
+  parsed['agents'] = survivors;
+  await writeFile(statePath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf-8');
+
+  for (const agentId of orphans) {
+    await rm(join(sessionDir, 'agents', agentId), { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Collects every `tool.call` toolCallId from a wire.jsonl content string by
+ * scanning `context.append_loop_event` records whose embedded event is a
+ * tool.call. Returns the set of retained ids (used for orphan detection).
+ */
+function collectToolCallIds(mainWireContent: string): Set<string> {
+  const ids = new Set<string>();
+  for (const line of mainWireContent.split('\n')) {
+    if (line.trim().length === 0) continue;
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isRecord(record) || record['type'] !== 'context.append_loop_event') continue;
+    const event = record['event'];
+    if (!isRecord(event) || event['type'] !== 'tool.call') continue;
+    const toolCallId = event['toolCallId'];
+    if (typeof toolCallId === 'string') ids.add(toolCallId);
+  }
+  return ids;
 }
