@@ -23,6 +23,7 @@ import {
 } from '#/tui/constant/streaming';
 import type { SubagentTokenUsage, ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
+import { computeCacheHitRate, formatCacheHitRate } from '#/utils/usage/usage-format';
 
 // ── Internal types ─────────────────────────────────────────────────────
 
@@ -139,33 +140,6 @@ export function formatSubagentTokens(usage: SubagentTokenUsage | undefined): str
     }
   }
   return `${formatted} tok${cacheSuffix}`;
-}
-
-// Inline copies from usage-format.ts to avoid an import dependency.
-function computeCacheHitRate(
-  inputOther: number,
-  inputCacheRead: number,
-  inputCacheCreation: number,
-): number | undefined {
-  const denom = inputOther + inputCacheRead + inputCacheCreation;
-  if (denom === 0) return undefined;
-  return inputCacheRead / denom;
-}
-
-function formatCacheHitRate(rate: number | undefined): string | undefined {
-  if (rate === undefined || rate <= 0) return undefined;
-  const rounded = roundHalfToEven(rate * 100);
-  if (rounded === 0) return undefined; // Too small to display as a percentage
-  return `${rounded}%`;
-}
-
-function roundHalfToEven(n: number): number {
-  const floor = Math.floor(n);
-  const frac = n - floor;
-  if (frac < 0.5) return floor;
-  if (frac > 0.5) return floor + 1;
-  // frac ≈ 0.5: round to nearest even
-  return floor % 2 === 0 ? floor : floor + 1;
 }
 
 // ── Key-argument extraction helpers (shared with rendering code) ───────

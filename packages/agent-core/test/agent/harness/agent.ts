@@ -13,6 +13,12 @@ import {
   type AgentRecordPersistence,
 } from '../../../src/agent';
 import type { CompactionStrategy } from '../../../src/agent/compaction';
+import {
+  HookEngine,
+  createKaosHookExec,
+  type HookDef,
+  type HookEngineOptions,
+} from '../../../src/agent/hooks';
 import type { ApprovalResponse } from '../../../src/agent/permission';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
@@ -132,6 +138,19 @@ export function createCommandKaos(stdout: string): Kaos {
     mkdir: vi.fn().mockResolvedValue(undefined),
     writeText: vi.fn(async (_path: string, content: string) => content.length),
   });
+}
+
+/**
+ * Build a {@link HookEngine} whose commands execute through the real local
+ * Kaos environment, mirroring production. Tests that assert on hook side
+ * effects (stderr output, exit codes) should use this rather than
+ * constructing `HookEngine` directly.
+ */
+export function createTestHookEngine(
+  hooks: readonly HookDef[],
+  options: HookEngineOptions = {},
+): HookEngine {
+  return new HookEngine(hooks, options, createKaosHookExec(localKaos, TEST_OS_ENV.shellPath));
 }
 
 export function testAgent(options: TestAgentOptions = {}): AgentTestContext {

@@ -316,8 +316,9 @@ const DEFAULT_BASE_URLS: Record<string, string> = {
 - CONTEXT.md: added "Search Provider" term
 - **Sliced by**: `/story` → Child Issues below
 - **Sliced into**:
-  - #171 — [PRD-0012] Exa Provider — End-to-End Tracer Bullet (AFK) — In Progress
-  - #172 — [PRD-0012] Brave Provider (AFK, blocked by #171) — In Progress
-  - #173 — [PRD-0012] Firecrawl Provider (AFK, blocked by #171) — In Progress
-  - #174 — [PRD-0012] Documentation, Changeset & AC Validation (AFK, blocked by #173) — In Progress
+  - #171 — [PRD-0012] Exa Provider — End-to-End Tracer Bullet — Done
+  - #172 — [PRD-0012] Brave Provider — Done
+  - #173 — [PRD-0012] Firecrawl Provider — Done
+  - #174 — [PRD-0012] Documentation, Changeset & AC Validation — Done
 - **Implemented by**: `/tdd` (issues #171, #172, #173, #174) — all acceptance criteria passing
+- **Arch reviewed by**: `/improve-architecture` (2026-06-24) — 子 issue 状态已核实（#171-#174 均 CLOSED，原表误标 In Progress，已修正）；PriorityRouter 静态 registry 模式合规，无漂移。

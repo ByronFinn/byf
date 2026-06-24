@@ -1,11 +1,10 @@
 import type { ToolCall } from '@byfriends/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
-import { HookEngine } from '../../src/agent/hooks';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
-import { createCommandKaos, testAgent } from './harness/agent';
+import { createCommandKaos, createTestHookEngine, testAgent } from './harness/agent';
 
 const signal = new AbortController().signal;
 
@@ -13,7 +12,7 @@ describe('Agent tools', () => {
   it('blocks tools through PreToolUse before permission and emits PostToolUseFailure', async () => {
     const execWithEnv = vi.fn().mockRejectedValue(new Error('Bash should not execute'));
     const triggered: Array<[string, string, number]> = [];
-    const hookEngine = new HookEngine(
+    const hookEngine = createTestHookEngine(
       [
         {
           event: 'PreToolUse',
@@ -54,7 +53,7 @@ describe('Agent tools', () => {
 
   it('emits PostToolUse after successful tools', async () => {
     const triggered: Array<[string, string, number]> = [];
-    const hookEngine = new HookEngine(
+    const hookEngine = createTestHookEngine(
       [
         {
           event: 'PostToolUse',
@@ -159,7 +158,7 @@ describe('Agent tools', () => {
       arguments: '{"query":"moon"}',
     };
     const resolved: Array<[string, string, string]> = [];
-    const hookEngine = new HookEngine(
+    const hookEngine = createTestHookEngine(
       [
         {
           event: 'PostToolUseFailure',

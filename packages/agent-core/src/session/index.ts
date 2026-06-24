@@ -8,7 +8,7 @@ import type { SDKSessionRPC } from '#/rpc';
 import { proxyWithExtraPayload } from '#/rpc/types';
 
 import { Agent, type AgentConfig, type AgentType } from '../agent';
-import { HookEngine, type HookDef } from '../agent/hooks';
+import { HookEngine, createKaosHookExec, type HookDef } from '../agent/hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
 import { parseBooleanEnv, resolveConfigValue, type BackgroundConfig } from '../config';
 import { makeErrorPayload } from '../errors';
@@ -124,10 +124,17 @@ export class Session {
       this.logHandle?.logger ??
       (config.id === undefined ? log : log.createChild({ sessionId: config.id }));
     this.rpc = config.rpc;
-    this.hookEngine = new HookEngine(config.hooks, {
-      cwd: config.cwd,
-      sessionId: config.id,
-    });
+    this.hookEngine = new HookEngine(
+      config.hooks ?? [],
+      {
+        cwd: config.cwd,
+        sessionId: config.id,
+      },
+      // Route hook execution through the active Kaos environment (ADR 0006)
+      // instead of spawning on the BYF host directly — hooks run in the user's
+      // project cwd, which becomes remote under SSHKaos.
+      createKaosHookExec(config.runtime.kaos, config.runtime.osEnv.shellPath),
+    );
     this.telemetry = config.telemetry ?? noopTelemetryClient;
     this.skills = new SkillRegistry({ sessionId: config.id });
     this.mcp = new McpConnectionManager({

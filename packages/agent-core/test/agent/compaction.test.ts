@@ -18,8 +18,8 @@ import { HookEngine, type HookEngineTriggerArgs } from '../../src/agent/hooks';
 import type { ByfConfig } from '../../src/config';
 import { ProviderManager } from '../../src/providers/provider-manager';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
+import { createTestHookEngine, testAgent } from './harness/agent';
 import type { TestAgentContext } from './harness/agent';
-import { testAgent } from './harness/agent';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -317,7 +317,7 @@ describe('Agent compaction', () => {
     const hookLog = join(dir, 'hooks.jsonl');
     const hookCommand = hookPayloadLoggerCommand(hookLog);
     const ctx = testAgent({
-      hookEngine: new HookEngine(
+      hookEngine: createTestHookEngine(
         [
           { event: 'PreCompact', matcher: 'auto', command: hookCommand, timeout: 5 },
           { event: 'PostCompact', matcher: 'auto', command: hookCommand, timeout: 5 },

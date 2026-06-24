@@ -16,7 +16,6 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';
-import { HookEngine } from '../../src/agent/hooks';
 import type { ByfConfig } from '../../src/config';
 import type { Logger, LogPayload } from '../../src/logging';
 import { ProviderManager } from '../../src/providers/provider-manager';
@@ -28,7 +27,7 @@ import {
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
-import { createCommandKaos, testAgent } from './harness/agent';
+import { createCommandKaos, createTestHookEngine, testAgent } from './harness/agent';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -141,7 +140,7 @@ describe('Agent turn flow', () => {
     // Same-step dups are skipped entirely — no tool.call, no tool.result,
     // no PostToolUse hook. The original call covers the tool execution.
     const resolved: Array<[string, string, string]> = [];
-    const hookEngine = new HookEngine(
+    const hookEngine = createTestHookEngine(
       [
         {
           event: 'PostToolUse',
@@ -242,7 +241,7 @@ describe('Agent turn flow', () => {
   });
 
   it('continues the turn after showing UserPromptSubmit hook output without injecting it', async () => {
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'UserPromptSubmit',
         matcher: 'hooked input',
@@ -308,7 +307,7 @@ describe('Agent turn flow', () => {
   });
 
   it('shows structured UserPromptSubmit stdout without injecting it', async () => {
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'UserPromptSubmit',
         matcher: 'hooked input',
@@ -370,7 +369,7 @@ describe('Agent turn flow', () => {
   });
 
   it('stops the turn when a UserPromptSubmit hook blocks', async () => {
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'UserPromptSubmit',
         matcher: 'bad words',
@@ -424,7 +423,7 @@ describe('Agent turn flow', () => {
   });
 
   it('cancels while waiting for a UserPromptSubmit hook without appending stale output', async () => {
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'UserPromptSubmit',
         command: 'node -e "setTimeout(() => process.stdout.write(\\"late hook\\"), 250)"',
@@ -461,7 +460,7 @@ describe('Agent turn flow', () => {
   });
 
   it('uses a Stop hook block reason as a one-shot turn continuation', async () => {
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'Stop',
         command: "echo 'continue from hook' >&2; exit 2",
@@ -511,7 +510,7 @@ describe('Agent turn flow', () => {
       `fs.writeFileSync(${JSON.stringify(marker)}, 'started');`,
       "setTimeout(() => process.stderr.write('late stop hook'), 250);",
     ].join('');
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'Stop',
         command: `node -e ${JSON.stringify(script)}`,
@@ -546,7 +545,7 @@ describe('Agent turn flow', () => {
       "setTimeout(() => process.stdout.write('late pre tool hook'), 250);",
     ].join('');
     const execWithEnv = vi.fn().mockRejectedValue(new Error('Bash should not execute'));
-    const hookEngine = new HookEngine([
+    const hookEngine = createTestHookEngine([
       {
         event: 'PreToolUse',
         matcher: 'Bash',
@@ -582,7 +581,7 @@ describe('Agent turn flow', () => {
 
   it('fires StopFailure when a turn fails', async () => {
     const triggered: Array<[string, string, number]> = [];
-    const hookEngine = new HookEngine(
+    const hookEngine = createTestHookEngine(
       [
         {
           event: 'StopFailure',

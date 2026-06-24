@@ -1,4 +1,4 @@
-import { runHook } from './runner';
+import { runHook, type HookExec } from './runner';
 import type {
   HookBlockDecision,
   HookDef,
@@ -17,6 +17,13 @@ export class HookEngine {
   constructor(
     hooks: readonly HookDef[] = [],
     private readonly options: HookEngineOptions = {},
+    /**
+     * Execution backend used to spawn hook commands. Defaults to the local
+     * {@link Kaos} environment; production wiring (Session) injects the
+     * runtime's active Kaos + shell so hook execution follows the user's
+     * working directory, including under future SSHKaos (ADR 0006).
+     */
+    private readonly exec?: HookExec,
   ) {
     for (const hook of hooks) {
       const entries = this.byEvent.get(hook.event) ?? [];
@@ -81,6 +88,7 @@ export class HookEngine {
           timeout: hook.timeout ?? DEFAULT_HOOK_TIMEOUT_SECONDS,
           cwd: this.options.cwd === '' ? undefined : this.options.cwd,
           signal: args.signal,
+          exec: this.exec,
         }),
       ),
     );

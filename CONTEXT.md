@@ -20,7 +20,7 @@ The product name. Short for "Be Your Friend". An AI coding agent that runs in th
 
 ### Provider
 
-A named API endpoint configured by the user. Each provider has a user-chosen name (e.g. "deepseek"), a `type` (e.g. `openai-completions`, `anthropic`, `google-genai`), a `base_url`, an `api_key`, and an optional `allowedPrefixes` for model filtering. Stored in config under `providers[name]`.
+A named API endpoint configured by the user. Each provider has a user-chosen name (e.g. "deepseek"), a `type` (e.g. `openai-completions`, `anthropic`, `google-genai`), a `base_url`, an `api_key`, and an optional `allowedPrefixes` for model filtering. Stored in config under `providers[name]`. Implemented as a `ChatProvider` adapter in `packages/kosong` (created via `createProvider`). Unrelated to Search Provider (web search backend, different package and abstraction).
 
 ### openai-completions
 
@@ -152,7 +152,7 @@ A structured representation of the system prompt as ordered, named blocks (`Prom
 
 ### Search Provider
 
-A configured web search backend (exa, brave, firecrawl, etc.) with its API keys and priority level. The WebSearch tool maintains a list of Search Providers and tries them in priority order, falling back automatically on failure. Distinct from Provider (LLM API endpoint).
+A configured web search backend (exa, brave, firecrawl, etc.) with its API keys and priority level. The WebSearch tool maintains a list of Search Providers and tries them in priority order, falling back automatically on failure. Distinct from Provider (LLM API endpoint): a Search Provider lives in `packages/agent-core` (PriorityRouter + static `webSearchProviderRegistry`) and is **deliberately not** an instance of kosong's `ChatProvider` — the two have incompatible lifecycles (streaming chat generation vs. one-shot ranked search with fallback), so they do not share an abstraction.
 
 ### Turn Boundary
 
