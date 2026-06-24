@@ -4,6 +4,12 @@ packages:
   - apps/vis/server
   - apps/vis/web
 
+allowBuilds:
+  esbuild: true
+  koffi: true
+  protobufjs: true
+  simple-git-hooks: true
+
 catalog:
   zod: ^4.3.6
 

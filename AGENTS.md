@@ -25,7 +25,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 ## Environment Requirements
 
 - **Node.js**: `>=24.15.0` (from the root `package.json` `engines`; `.nvmrc` is `24.15.0`, used by nvm / fnm / mise to pick the minimum recommended version).
-- **pnpm**: `10.33.0` (from the root `package.json` `packageManager`).
+- **pnpm**: `11.9.0` (from the root `package.json` `packageManager`).
 - `pnpm install` will fail when the Node version is not satisfied, because `.npmrc` sets `engine-strict=true`.
 
 ## General Coding Rules
