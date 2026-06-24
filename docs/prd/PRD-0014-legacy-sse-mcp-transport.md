@@ -1,6 +1,6 @@
 # PRD-0014: Legacy SSE MCP Transport Support
 
-**Status**: Sliced
+**Status**: Done
 **Created**: 2026-06-22
 **Author**: BYF
 **Related**: CONTEXT.md (MCP glossary), docs/en/customization/mcp.md (user config guide)
