@@ -19,6 +19,7 @@ import {
   type TurnEventCallbacks,
   type TurnEventState,
 } from '#/tui/events/turn-event-handler';
+import type { ByfTuiThemeBundle } from '#/tui/theme/bundle';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type {
   AppState,
@@ -73,7 +74,7 @@ function makeAppState(overrides: Partial<AppState> = {}): AppState {
 function makeState(overrides: Partial<TurnEventState> = {}): TurnEventState {
   return {
     appState: makeAppState(),
-    colors: makeColors(),
+    theme: { colors: makeColors() } as unknown as ByfTuiThemeBundle,
     currentTurnId: undefined,
     currentStep: 0,
     assistantDraft: '',
@@ -461,10 +462,25 @@ describe('TurnEventHandler', () => {
   // =========================================================================
 
   describe('handleStepInterrupted', () => {
-    it('shows user interrupted status for aborted reason', () => {
+    it('shows user interrupted status with error color for aborted reason', () => {
       const { handler, calls } = makeHandler();
       handler.handleStepInterrupted(stepInterrupted(1, 0, 'aborted'));
       expect(calls.showStatus[0]!.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]!.color).toBe('#ff0000');
+    });
+
+    it('shows user interrupted status when reason is undefined', () => {
+      const { handler, calls } = makeHandler();
+      handler.handleStepInterrupted(stepInterrupted(1, 0, undefined));
+      expect(calls.showStatus[0]!.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]!.color).toBe('#ff0000');
+    });
+
+    it('shows user interrupted status when reason is empty string', () => {
+      const { handler, calls } = makeHandler();
+      handler.handleStepInterrupted(stepInterrupted(1, 0, ''));
+      expect(calls.showStatus[0]!.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]!.color).toBe('#ff0000');
     });
 
     it('shows error for max_steps', () => {

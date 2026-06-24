@@ -115,13 +115,8 @@ import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import {
   BackgroundTaskHandler,
   type BackgroundTaskCallbacks,
-  type BackgroundTaskState,
 } from './events/background-task-handler';
-import {
-  CompactionHandler,
-  type CompactionCallbacks,
-  type CompactionState,
-} from './events/compaction-handler';
+import { CompactionHandler, type CompactionCallbacks } from './events/compaction-handler';
 import {
   handleSessionError,
   handleSessionMetaChanged,
@@ -143,11 +138,7 @@ import {
   type SubagentCallbacks,
   type SubagentEventState,
 } from './events/subagent-event-handler';
-import {
-  TurnEventHandler,
-  type TurnEventCallbacks,
-  type TurnEventState,
-} from './events/turn-event-handler';
+import { TurnEventHandler, type TurnEventCallbacks } from './events/turn-event-handler';
 import { ConnectFlow } from './flows/connect-flow';
 import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
 import { LoginFlow } from './flows/login-flow';
@@ -482,14 +473,11 @@ export class ByfTui implements DialogHost {
     this.options = tuiOptions;
     this.state = createTUIState(tuiOptions);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
-    this.turnEventHandler = new TurnEventHandler(this.turnEventState(), this.turnEventCallbacks());
+    this.turnEventHandler = new TurnEventHandler(this.state, this.turnEventCallbacks());
     this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
-    this.compactionHandler = new CompactionHandler(
-      this.compactionState(),
-      this.compactionCallbacks(),
-    );
+    this.compactionHandler = new CompactionHandler(this.state, this.compactionCallbacks());
     this.backgroundTaskHandler = new BackgroundTaskHandler(
-      this.backgroundTaskState(),
+      this.state,
       this.backgroundTaskCallbacks(),
     );
 
@@ -2175,66 +2163,6 @@ export class ByfTui implements DialogHost {
     return this.state.appState.availableProviders[providerKey]?.type === 'anthropic';
   }
 
-  private turnEventState(): TurnEventState {
-    const state = this.state;
-    return {
-      get appState() {
-        return state.appState;
-      },
-      get colors() {
-        return state.theme.colors;
-      },
-      get currentTurnId() {
-        return state.currentTurnId;
-      },
-      set currentTurnId(v: string | undefined) {
-        state.currentTurnId = v;
-      },
-      get currentStep() {
-        return state.currentStep;
-      },
-      set currentStep(v: number) {
-        state.currentStep = v;
-      },
-      get assistantDraft() {
-        return state.assistantDraft;
-      },
-      set assistantDraft(v: string) {
-        state.assistantDraft = v;
-      },
-      get assistantStreamActive() {
-        return state.assistantStreamActive;
-      },
-      set assistantStreamActive(v: boolean) {
-        state.assistantStreamActive = v;
-      },
-      get thinkingDraft() {
-        return state.thinkingDraft;
-      },
-      set thinkingDraft(v: string) {
-        state.thinkingDraft = v;
-      },
-      get activeToolCalls() {
-        return state.activeToolCalls;
-      },
-      get streamingToolCallArguments() {
-        return state.streamingToolCallArguments;
-      },
-      get pendingToolComponents() {
-        return state.pendingToolComponents;
-      },
-      get transcriptEntries() {
-        return state.transcriptEntries;
-      },
-      get queuedMessages() {
-        return state.queuedMessages;
-      },
-      set queuedMessages(v: QueuedMessage[]) {
-        state.queuedMessages = v;
-      },
-    };
-  }
-
   private turnEventCallbacks(): TurnEventCallbacks {
     return {
       setAppState: (patch) => {
@@ -2363,21 +2291,6 @@ export class ByfTui implements DialogHost {
     };
   }
 
-  private compactionState(): CompactionState {
-    const state = this.state;
-    return {
-      get appState() {
-        return state.appState;
-      },
-      get queuedMessages() {
-        return state.queuedMessages;
-      },
-      set queuedMessages(v: QueuedMessage[]) {
-        state.queuedMessages = v;
-      },
-    };
-  }
-
   private compactionCallbacks(): CompactionCallbacks {
     return {
       finalizeLiveTextBuffers: (mode) => {
@@ -2397,21 +2310,6 @@ export class ByfTui implements DialogHost {
       },
       cancelCompactionBlock: () => {
         this.cancelCompactionBlock();
-      },
-    };
-  }
-
-  private backgroundTaskState(): BackgroundTaskState {
-    const state = this.state;
-    return {
-      get backgroundTasks() {
-        return state.backgroundTasks;
-      },
-      get backgroundTaskTranscriptedTerminal() {
-        return state.backgroundTaskTranscriptedTerminal;
-      },
-      get currentTurnId() {
-        return state.currentTurnId;
       },
     };
   }

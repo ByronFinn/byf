@@ -15,7 +15,7 @@ import type {
 
 import type { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { STREAMING_UI_FLUSH_MS } from '#/tui/constant/streaming';
-import type { ColorPalette } from '#/tui/theme/colors';
+import type { ByfTuiThemeBundle } from '#/tui/theme/bundle';
 import type {
   AppState,
   LivePaneState,
@@ -49,7 +49,7 @@ export interface StreamingToolCallArgs {
 
 export interface TurnEventState {
   appState: AppState;
-  colors: ColorPalette;
+  theme: ByfTuiThemeBundle;
   currentTurnId: string | undefined;
   currentStep: number;
   assistantDraft: string;
@@ -216,7 +216,7 @@ export class TurnEventHandler {
     const reason = event.reason;
     if (reason === 'error') return;
     if (reason === 'aborted' || reason === undefined || reason === '') {
-      this.callbacks.showStatus('Interrupted by user', this.state.colors.error);
+      this.callbacks.showStatus('Interrupted by user', this.state.theme.colors.error);
       return;
     }
     this.callbacks.showError(

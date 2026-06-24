@@ -22,6 +22,19 @@ Three goals drive the decomposition:
 - **Pure logic becomes independent functions.** Modules that don't depend on UI state are extracted as plain functions.
 - **No pass-through modules.** Simple slash commands (3–5 lines each) and state helpers stay in ByfTui — extracting them would create shallow wrappers.
 
+### State injection: direct reference, not snapshot assembly (2026-06-24 revision)
+
+The original wording above ("never hold mutable references to TUIState") was implemented by having ByfTui assemble a fresh getter/setter snapshot object per handler — e.g. `turnEventState()` returned a 59-line object of `get x() { return state.x; }` forwarders. This created an **adapter-layer tax**: every extracted class-based handler forced ByfTui to grow a new `xxxState()` assembly method (~540 lines aggregate). The decomposition path was fighting itself — the more modules ADR-0017 extracted, the larger ByfTui became.
+
+First-principles review showed the "never hold" rule was misapplied: ByfTui and its handlers are objects in the **same compilation unit**, not services across a trust boundary. The least-privilege guarantee that rule sought is already provided by **TypeScript's structural type system at compile time** — a handler typed against `TurnEventState` cannot reach `state.sessions` regardless of what runtime object it holds. The runtime getter snapshots only duplicated this compile-time guarantee (and incompletely — reference types like `appState` were still mutable through the snapshot).
+
+**Revised rule:** class-based handlers (`TurnEventHandler`, `CompactionHandler`, `BackgroundTaskHandler`) now receive `this.state` directly at construction and hold it for their lifetime. ByfTui's `*State()` assembly methods for these three were deleted (~85 lines). The handlers' `XxxState` interfaces remain the narrow contract declaring which fields each handler reads, enforced by the compiler — `CompactionState` and `BackgroundTaskState` are untouched; only `TurnEventState` was realigned to TUIState's real shape (`colors: ColorPalette` -> `theme: ByfTuiThemeBundle`, since the handler reads `theme.colors.error` and TUIState stores colors nested under `theme`).
+
+**Scope of this revision — intentionally limited:**
+
+- **Class-based handlers**: state assembly deleted; handler holds `this.state` directly. Callbacks assembly (`*Callbacks()`) is retained — callbacks are a _behavior_ adapter (binding ByfTui methods + inlining logic like `notifyTurnComplete`), which has genuine encapsulation value, unlike pure field forwarding.
+- **Free-function handlers** (`handleStatusUpdate`, `handleSkillActivated`, `subagentEventHandler`): their `*State()` projections are retained. These perform real field remapping (e.g. `SessionMetaState` lifts `appState.sessionId` to a top-level field) or are method-adapters (`SubagentEventState` is a 20-method interface over Map operations), so they are narrow projections, not pass-through shells.
+
 ### Module map
 
 | Module                   | Location                                     | Lines (approx) | Extracted from                                    |
