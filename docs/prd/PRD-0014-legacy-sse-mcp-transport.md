@@ -55,17 +55,18 @@ Add a third MCP transport option, `transport: "sse"`, that connects to legacy SS
 
 ### ⚠️ Critical difference: terminal-error semantics
 
-| Aspect | `StreamableHTTPClientTransport` | `SSEClientTransport` |
-|---|---|---|
-| Reconnect budget | Built-in (`maxRetries: 2`); exhaustion → `"Maximum reconnection attempts exceeded"` | **None**. Underlying `eventsource` library reconnects **indefinitely** on transient errors |
-| Terminal signal | `UnauthorizedError` + reconnect-exhaustion message | `UnauthorizedError` + `SseError` with `code === 204` (server-forced close via HTTP 204) |
-| Existing `isTerminalTransportError()` | ✅ Works (matches UnauthorizedError + reconnect message) | ❌ **Does NOT work** — SSE never emits "Maximum reconnection attempts" |
+| Aspect                                | `StreamableHTTPClientTransport`                                                     | `SSEClientTransport`                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Reconnect budget                      | Built-in (`maxRetries: 2`); exhaustion → `"Maximum reconnection attempts exceeded"` | **None**. Underlying `eventsource` library reconnects **indefinitely** on transient errors |
+| Terminal signal                       | `UnauthorizedError` + reconnect-exhaustion message                                  | `UnauthorizedError` + `SseError` with `code === 204` (server-forced close via HTTP 204)    |
+| Existing `isTerminalTransportError()` | ✅ Works (matches UnauthorizedError + reconnect message)                            | ❌ **Does NOT work** — SSE never emits "Maximum reconnection attempts"                     |
 
 **Implication**: `SseMcpClient` needs its own terminal-error predicate. Reusing `client-http.ts`'s `isTerminalTransportError` would mean SSE flaps never resolve as terminal (except Unauthorized).
 
 ### Reusable helpers (`client-shared.ts`)
 
 All transport-agnostic, safe to reuse in `client-sse.ts`:
+
 - `BYF_MCP_CLIENT_NAME`, `BYF_MCP_CLIENT_VERSION`
 - `buildRequestOptions(toolCallTimeoutMs, signal)`
 - `toMcpToolDefinition(tool)`, `toMcpToolResult(result)`
@@ -102,42 +103,51 @@ All transport-agnostic, safe to reuse in `client-sse.ts`:
 ### Decision (ADR-lite)
 
 **D1 — Explicit `transport: "sse"` (no shorthand inference)**
+
 - SSE and HTTP have identical config fields (`url`/`headers`/`bearerTokenEnvVar`). Shorthand inference cannot disambiguate.
 - Requiring explicit `transport: "sse"` is consistent with the discriminated-union pattern and makes user intent unambiguous.
 - Users connecting to legacy SSE servers know they need SSE; the explicit declaration aids debugging.
 
 **D2 — Minimal terminal detection (no wall-clock / retry-cap)**
+
 - Only `UnauthorizedError` and `SseError(code===204)` are treated as terminal failures.
 - Transient errors rely on `eventsource` library's built-in auto-reconnect.
 - Trade-off: a server that goes permanently offline (non-204) may leave the entry stuck in `connected` with ongoing reconnect attempts. Accepted for MVP — adding liveness probes adds complexity and config surface without demonstrated real-world need. The factory structure does not preclude adding a liveness probe later.
 
 **D3 — SSE-specific `isTerminalSseError`, not a shared predicate**
+
 - SSE and streamable-HTTP have fundamentally different terminal-error signals. A shared function with transport-conditional logic would be less clear than two focused predicates.
 - `isTerminalTransportError` stays in `client-http.ts`; `isTerminalSseError` lives in `client-sse.ts`.
 
 **D4 — OAuth flow extended to SSE**
+
 - `SSEClientTransport` accepts the same `authProvider` option. The `resolveOAuthProvider()` and `shouldMarkNeedsAuth()` gates widen from `transport === 'http'` to `transport === 'http' || transport === 'sse'`.
 - SSE servers that need OAuth get the same `needs-auth` → synthetic authenticate tool → browser flow → reconnect path as HTTP.
 
 **D5 — `client-sse.ts` structurally mirrors `client-http.ts`**
+
 - Same class structure: constructor builds SDK transport + `Client`, `connect()` installs hooks before handshake, `onUnexpectedClose()` with buffered replay, `listTools()`/`callTool()` delegate to SDK client.
 - Reuses `buildMcpHttpHeaders` for header building. **Note**: `buildMcpHttpHeaders`'s parameter type must be narrowed from `McpServerHttpConfig` to `Pick<McpServerHttpConfig, 'headers' | 'bearerTokenEnvVar'>` so SSE config can be passed — the full `McpServerHttpConfig` type has a required `transport: 'http'` literal that blocks `'sse'` structurally (code-verified: TypeScript rejects `transport: 'sse'` → `transport: 'http'`).
 
 ### Implementation touch-points (4 code files + 1 new + 2 docs)
 
 **New file:**
+
 - `packages/agent-core/src/mcp/client-sse.ts` — `SseMcpClient` class + `isTerminalSseError()`.
 
 **Edit — `packages/agent-core/src/mcp/client-http.ts`:**
+
 - Narrow `buildMcpHttpHeaders` parameter type from `McpServerHttpConfig` to `Pick<McpServerHttpConfig, 'headers' | 'bearerTokenEnvVar'>` so SSE config can be passed without a `transport: 'http'` literal mismatch.
 
 **Edit — `packages/agent-core/src/config/schema.ts`:**
+
 - Add `McpServerSseConfigSchema` (z.object with `transport: z.literal('sse')`, same fields as HTTP).
 - Add to `McpServerConfigDiscriminatedSchema` discriminated union array.
 - Export `McpServerSseConfig` type.
 - Preprocess: **no change** (bare `url` → `'http'` stays as-is; SSE must be explicit).
 
 **Edit — `packages/agent-core/src/mcp/connection-manager.ts`:**
+
 - `RuntimeMcpClient` type: add `| SseMcpClient`.
 - `McpServerEntry.transport`: widen to `'stdio' | 'http' | 'sse'`.
 - `createClient()`: add `if (config.transport === 'sse')` branch → `new SseMcpClient(config, {...})`.
@@ -146,9 +156,11 @@ All transport-agnostic, safe to reuse in `client-sse.ts`:
 - `getHttpServerUrl()`: widen transport gate to include `'sse'` (used by the synthetic auth tool for OAuth discovery against the server URL; SSE servers participating in OAuth need the same URL resolution).
 
 **Edit — `packages/agent-core/src/mcp/index.ts`:**
+
 - Re-export `SseMcpClient` and `McpServerSseConfig`.
 
 **Edit — `docs/en/customization/mcp.md` + `docs/zh/customization/mcp.md`:**
+
 - Add `sse` to transport options, with a note about legacy SSE servers and that `http` (streamable HTTP) is preferred for new servers.
 
 ### Tests (in existing test files)
@@ -176,6 +188,7 @@ All transport-agnostic, safe to reuse in `client-sse.ts`:
 **Think session**: 2026-06-22. **Grilled**: 2026-06-23. Code cross-checked: `config/schema.ts`, `connection-manager.ts`, `client-http.ts`, `client-shared.ts`, `types.ts`, SDK `client/sse.d.ts` + `sse.js`, SDK `client/auth.js`, `tsconfig.json`, `.oxlintrc.json`.
 
 **Grill resolved items:**
+
 - G1 (buildMcpHttpHeaders typing): PRD claim "structural typing works" was **false** — `transport: 'http'` literal blocks `'sse'`. Fix: narrow parameter to `Pick<McpServerHttpConfig, 'headers' | 'bearerTokenEnvVar'>`.
 - G2 (missing touch-point): `getHttpServerUrl()` in connection-manager gates on `transport !== 'http'` — must widen to include `'sse'` for OAuth discovery. Added to implementation touch-points.
 - G3 (isTerminalSseError detection): SDK's `SseError` and `UnauthorizedError` never set `this.name` (always `'Error'`). Must use `error instanceof SseError` + `error.code === 204`, not `error.name` checks.
@@ -186,9 +199,11 @@ All transport-agnostic, safe to reuse in `client-sse.ts`:
 - G9/G10 (test file structure): Actual paths are `packages/agent-core/test/mcp/{client-http,client-stdio,connection-manager,tool-manager-mcp}.test.ts`. New test: `client-sse.test.ts` (new file, mirrors `client-http.test.ts`). Updated PRD.
 
 **Sliced into:**
+
 - #182 — [PRD-0014] SSE transport core — config + client + manager wiring (AFK, open) — In Progress
 - #183 — [PRD-0014] SSE docs + changeset — ship readiness (AFK, blocked by #182, open) — In Progress
 
 **Implemented by:**
+
 - #182: `packages/agent-core/src/mcp/client-sse.ts`, `packages/agent-core/src/config/schema.ts`, `packages/agent-core/src/mcp/connection-manager.ts`, `packages/agent-core/src/mcp/client-http.ts`, `packages/agent-core/src/mcp/index.ts`, `packages/agent-core/src/rpc/core-api.ts`, `packages/agent-core/src/rpc/events.ts`
 - #183: `docs/en/customization/mcp.md`, `docs/zh/customization/mcp.md`, `.changeset/sse-mcp-transport-support.md`

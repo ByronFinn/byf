@@ -496,6 +496,13 @@ async function cleanupOrphanedAgents(sessionDir: string): Promise<void> {
       survivors[agentId] = meta;
       continue;
     }
+    // Sentinel parentToolCallIds (e.g. the /init-spawned agent uses
+    // 'generate-agents-md') are never recorded as wire tool.call events, so
+    // they must be exempt from orphan detection regardless of truncation.
+    if (SENTINEL_PARENT_TOOL_CALL_IDS.has(parentToolCallId)) {
+      survivors[agentId] = meta;
+      continue;
+    }
     if (retainedToolCallIds.has(parentToolCallId)) {
       survivors[agentId] = meta;
     } else {
@@ -536,3 +543,12 @@ function collectToolCallIds(mainWireContent: string): Set<string> {
   }
   return ids;
 }
+
+/**
+ * parentToolCallId values that are programmatic sentinels rather than real
+ * model-emitted tool-call ids. Such agents (e.g. the `/init`-spawned
+ * generate-agents-md agent) are never recorded as wire `tool.call` events, so
+ * they would be wrongly classified as orphans after a truncation fork. They
+ * are always retained.
+ */
+const SENTINEL_PARENT_TOOL_CALL_IDS: ReadonlySet<string> = new Set(['generate-agents-md']);

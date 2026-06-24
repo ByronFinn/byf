@@ -21,7 +21,7 @@ contract), and Interface Segregation (the SDK only needed
 
 - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
   narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
-  homeDir, configPath }`). The `ByfCore` concrete class is no longer
+homeDir, configPath }`). The `ByfCore` concrete class is no longer
   re-exported from the package public index.
 - `agent-core`: `PromisableMethods` / `Promisify` / `Promisable` contract
   types are now re-exported so SDK callers can type the handle.

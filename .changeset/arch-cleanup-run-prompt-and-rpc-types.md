@@ -17,4 +17,4 @@ refactor: dedupe run-prompt session resume and tighten `proxyWithExtraPayload` c
   handler too. The target is now typed; the unavoidable output-type
   assertion (the Proxy's return signature genuinely differs from the
   target's) is moved to a single result-level `as unknown as
-  RPCMethods<T>`, so the handler body stays type-checked.
+RPCMethods<T>`, so the handler body stays type-checked.

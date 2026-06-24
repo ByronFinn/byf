@@ -451,12 +451,17 @@ describe('SessionStore.fork with upToMessage truncation', () => {
         targetId: 'ses_trunc_oor',
         upToMessage: 4,
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({
+      code: 'session.fork_upto_message_out_of_range',
+    });
 
     await expect(store.get('ses_trunc_oor')).rejects.toMatchObject({
       code: 'session.not_found',
     });
-    expect(existsSync(join(homeDir, 'sessions', 'ses_trunc_oor'))).toBe(false);
+    // The real target directory lives under the workDir-keyed bucket, not
+    // directly under sessions/. Use the public helper to compute the path.
+    const targetDir = store.sessionDirFor({ id: 'ses_trunc_oor', workDir });
+    expect(existsSync(targetDir)).toBe(false);
   });
 
   it('counts only user-origin turns and ignores background_task turn.prompt records', async () => {
@@ -827,6 +832,62 @@ describe('SessionStore.fork orphan sub-agent cleanup', () => {
     expect(forkState.agents['agent-drop']).toBeDefined();
     await expect(
       readFile(join(fork.sessionDir, 'agents', 'agent-drop', 'wire.jsonl'), 'utf-8'),
+    ).resolves.toBeDefined();
+  });
+
+  it('retains sentinel-spawned sub-agents (e.g. /init) even after rewind', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    // A session that ran /init (spawning a generate-agents-md sub-agent with a
+    // sentinel parentToolCallId that is NOT a wire tool.call event), then had
+    // a user turn. Forking with rewind must NOT treat the sentinel agent as
+    // an orphan.
+    const source = await store.create({ id: 'ses_sentinel_source', workDir });
+    const mainAgentDir = join(source.sessionDir, 'agents', 'main');
+    await mkdir(mainAgentDir, { recursive: true });
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n';
+    await writeFile(join(mainAgentDir, 'wire.jsonl'), mainWire, 'utf-8');
+
+    const initAgentDir = join(source.sessionDir, 'agents', 'agent-init');
+    await mkdir(initAgentDir, { recursive: true });
+    await writeFile(join(initAgentDir, 'wire.jsonl'), '{"type":"metadata","version":1}\n', 'utf-8');
+
+    await writeSessionState(source.sessionDir, {
+      createdAt: '2030-01-01T00:00:00.000Z',
+      updatedAt: '2030-01-01T00:00:00.000Z',
+      title: 'Sentinel source',
+      agents: {
+        main: { homedir: mainAgentDir, type: 'main', parentAgentId: null },
+        'agent-init': {
+          homedir: initAgentDir,
+          type: 'sub',
+          parentAgentId: 'main',
+          // Sentinel — never appears as a wire tool.call event.
+          parentToolCallId: 'generate-agents-md',
+        },
+      },
+    });
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_sentinel_fork',
+      upToMessage: 2,
+    });
+
+    const forkState = JSON.parse(await readFile(join(fork.sessionDir, 'state.json'), 'utf-8')) as {
+      agents: Record<string, unknown>;
+    };
+
+    // The sentinel-spawned agent survives the rewind.
+    expect(forkState.agents['agent-init']).toBeDefined();
+    await expect(
+      readFile(join(fork.sessionDir, 'agents', 'agent-init', 'wire.jsonl'), 'utf-8'),
     ).resolves.toBeDefined();
   });
 });

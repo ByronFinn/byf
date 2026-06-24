@@ -3904,11 +3904,20 @@ export class ByfTui implements DialogHost {
         label: `${ordinal}. ${summary}`,
       };
     });
+    // A trailing "after last message" option = full copy, equivalent to the
+    // pre-rewind behavior. Lets the user fork the whole session without
+    // dropping anything (PRD-0015 R2 / AC4).
+    options.push({
+      value: '0',
+      label: `${userMessages.length + 1}. After last message (full copy)`,
+    });
 
     this.dialogManager.showForkRewindPicker(
       options,
       (value) => {
-        const upToMessage = Number.parseInt(value, 10);
+        const ordinal = Number.parseInt(value, 10);
+        // value 0 = full copy (no rewind); omit upToMessage.
+        const upToMessage = ordinal > 0 ? ordinal : undefined;
         void this.performForkRewind(session, upToMessage);
       },
       () => {
@@ -3917,8 +3926,12 @@ export class ByfTui implements DialogHost {
     );
   }
 
-  // Executes a fork that rewinds to just before the Nth user message.
-  private async performForkRewind(session: Session, upToMessage: number): Promise<void> {
+  // Executes a fork. upToMessage undefined = full copy; otherwise rewinds to
+  // just before the Nth user message.
+  private async performForkRewind(
+    session: Session,
+    upToMessage: number | undefined,
+  ): Promise<void> {
     const sourceTitle = this.forkSourceTitle(session);
     let forked: Session;
     try {
@@ -3934,7 +3947,11 @@ export class ByfTui implements DialogHost {
     }
 
     try {
-      await this.switchToSession(forked, `Session forked (rewound to message ${upToMessage}).`);
+      const status =
+        upToMessage === undefined
+          ? `Session forked (${forked.id}).`
+          : `Session forked (rewound to message ${upToMessage}).`;
+      await this.switchToSession(forked, status);
     } catch (error) {
       const msg = formatErrorMessage(error);
       this.showError(`Failed to switch to forked session: ${msg}`);

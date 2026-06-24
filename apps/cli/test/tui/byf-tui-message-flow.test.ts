@@ -1779,8 +1779,27 @@ describe('ByfTui message flow', () => {
     const forkSession = vi.fn(async () => forked);
     const { driver, harness } = await makeDriver(source, { forkSession });
 
+    // /fork now opens a rewind picker; seed one user message so the picker
+    // has content, then select "full copy" (the last option) to reproduce the
+    // pre-rewind whole-session fork behavior.
+    driver.state.transcriptEntries.push({
+      id: 'msg-1',
+      kind: 'user',
+      renderMode: 'plain',
+      content: 'hello',
+    });
+
     try {
       driver.handleUserInput('/fork ignored args');
+
+      const picker = await vi.waitFor(() => {
+        const p = driver.state.editorContainer.children[0];
+        expect(p).toBeInstanceOf(ChoicePickerComponent);
+        return p as ChoicePickerComponent;
+      });
+      // Navigate to the trailing "full copy" option and confirm.
+      picker.handleInput('\u001B[B');
+      picker.handleInput('\r');
 
       await vi.waitFor(() => {
         expect(forkSession).toHaveBeenCalledWith({
@@ -1807,7 +1826,23 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(makeSession({ id: 'ses-source' }), { forkSession });
 
+    driver.state.transcriptEntries.push({
+      id: 'msg-1',
+      kind: 'user',
+      renderMode: 'plain',
+      content: 'hello',
+    });
+
     driver.handleUserInput('/fork');
+
+    const picker = await vi.waitFor(() => {
+      const p = driver.state.editorContainer.children[0];
+      expect(p).toBeInstanceOf(ChoicePickerComponent);
+      return p as ChoicePickerComponent;
+    });
+    // Select "full copy" (last option).
+    picker.handleInput('\u001B[B');
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(forkSession).toHaveBeenCalledWith({

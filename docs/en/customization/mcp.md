@@ -43,17 +43,17 @@ HTTP and SSE servers can provide static credentials through `headers` or `bearer
 
 Optional fields:
 
-| Field              | Type                     | Applies to  | Description                                                     |
-| ------------------ | ------------------------ | ----------- | --------------------------------------------------------------- |
-| `env`              | `Record<string, string>` | stdio       | Environment variables injected into the subprocess              |
-| `cwd`              | `string`                 | stdio       | Working directory for the subprocess                            |
-| `headers`          | `Record<string, string>` | HTTP / SSE  | Static headers appended to every request                        |
-| `bearerTokenEnvVar`| `string`                 | HTTP / SSE  | Env var name for bearer token, resolved at connection time      |
-| `enabled`          | `boolean`                | both        | Set to `false` to disable the server without removing the entry |
-| `startupTimeoutMs` | `number`                 | both        | Connection timeout in milliseconds, default `30000`             |
-| `toolTimeoutMs`    | `number`                 | both        | Per-tool-call timeout in milliseconds                           |
-| `enabledTools`     | `string[]`               | both        | Allowlist: only expose the tools in this list                   |
-| `disabledTools`    | `string[]`               | both        | Blocklist: exclude the tools in this list                       |
+| Field               | Type                     | Applies to | Description                                                     |
+| ------------------- | ------------------------ | ---------- | --------------------------------------------------------------- |
+| `env`               | `Record<string, string>` | stdio      | Environment variables injected into the subprocess              |
+| `cwd`               | `string`                 | stdio      | Working directory for the subprocess                            |
+| `headers`           | `Record<string, string>` | HTTP / SSE | Static headers appended to every request                        |
+| `bearerTokenEnvVar` | `string`                 | HTTP / SSE | Env var name for bearer token, resolved at connection time      |
+| `enabled`           | `boolean`                | both       | Set to `false` to disable the server without removing the entry |
+| `startupTimeoutMs`  | `number`                 | both       | Connection timeout in milliseconds, default `30000`             |
+| `toolTimeoutMs`     | `number`                 | both       | Per-tool-call timeout in milliseconds                           |
+| `enabledTools`      | `string[]`               | both       | Allowlist: only expose the tools in this list                   |
+| `disabledTools`     | `string[]`               | both       | Blocklist: exclude the tools in this list                       |
 
 ::: warning Note
 Stdio entries in a project-level `.byf/mcp.json` execute local commands when the session starts. Only enable project-level MCP servers in repositories you trust.
