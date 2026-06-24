@@ -141,6 +141,7 @@ export class SDKRpcClient {
       id: input.forkId,
       title: input.title,
       metadata: input.metadata,
+      upToMessage: input.upToMessage,
     });
   }
 

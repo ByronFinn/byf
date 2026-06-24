@@ -320,12 +320,253 @@ describe('SessionStore.fork (backward compatibility)', () => {
     expect(forkState.forkedFrom).toBe(source.id);
     // writeForkedState remaps nested agent homedirs into the target tree even
     // on a full copy — assert the main agent homedir now points at the fork.
-    expect(forkState.agents?.main?.homedir).toBe(join(fork.sessionDir, 'agents', 'main'));
+    expect(forkState.agents?.['main']?.homedir).toBe(join(fork.sessionDir, 'agents', 'main'));
     expect(forkState.agents?.['sub-agent-1']?.homedir).toBe(
       join(fork.sessionDir, 'agents', 'sub-agent-1'),
     );
     // Existing source custom metadata is carried through untouched.
     expect(forkState.custom).toMatchObject({ marker: 'source' });
+  });
+});
+
+describe('SessionStore.fork with upToMessage truncation', () => {
+  // AC1 / AC3 / Issue #184: when upToMessage is set, the forked session's main
+  // agent wire.jsonl keeps every record BEFORE the Nth user-origin
+  // turn.prompt/turn.steer record and drops that record + everything after it
+  // (edit-message semantics — see ADR-0020). The ordinal counts ONLY records
+  // whose origin.kind === 'user'; background_task / skill_activation /
+  // hook_result origins are not user-selectable rewind points.
+
+  async function seedSession(
+    store: SessionStore,
+    workDir: string,
+    mainWire: string,
+  ): Promise<{ source: { id: string; sessionDir: string }; mainAgentDir: string }> {
+    const source = await store.create({ id: 'ses_trunc_source', workDir });
+    const mainAgentDir = join(source.sessionDir, 'agents', 'main');
+    await mkdir(mainAgentDir, { recursive: true });
+    await writeFile(join(mainAgentDir, 'wire.jsonl'), mainWire, 'utf-8');
+
+    await writeSessionState(source.sessionDir, {
+      createdAt: '2030-01-01T00:00:00.000Z',
+      updatedAt: '2030-01-01T00:00:00.000Z',
+      title: 'Truncation source',
+      agents: {
+        main: { homedir: mainAgentDir, type: 'main' },
+      },
+    });
+
+    return { source, mainAgentDir };
+  }
+
+  async function readForkedWireTypes(fork: { sessionDir: string }): Promise<string[]> {
+    const raw = await readFile(join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8');
+    return raw
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => (JSON.parse(line) as { type: string }).type);
+  }
+
+  it('truncates the main wire to records before the 2nd user turn.prompt (upToMessage=2)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q3"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_two',
+      upToMessage: 2,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual([
+      'metadata',
+      'context.clear',
+      'turn.prompt', // q1 — the only surviving user turn
+      'context.append_loop_event',
+    ]);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).not.toContain('q2');
+    expect(forkedRaw).not.toContain('q3');
+  });
+
+  it('drops the first user message and everything after it when upToMessage=1', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_one',
+      upToMessage: 1,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual(['metadata', 'context.clear']);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).not.toContain('q1');
+    expect(forkedRaw).not.toContain('q2');
+  });
+
+  it('rejects and leaves no target directory when upToMessage exceeds the user-turn count', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    await expect(
+      store.fork({
+        sourceId: source.id,
+        targetId: 'ses_trunc_oor',
+        upToMessage: 4,
+      }),
+    ).rejects.toThrow();
+
+    await expect(store.get('ses_trunc_oor')).rejects.toMatchObject({
+      code: 'session.not_found',
+    });
+    expect(existsSync(join(homeDir, 'sessions', 'ses_trunc_oor'))).toBe(false);
+  });
+
+  it('counts only user-origin turns and ignores background_task turn.prompt records', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"user q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"bg task prompt"}],"origin":{"kind":"background_task","taskId":"bg-1"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"user q2"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"user q3"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_origin',
+      upToMessage: 2,
+    });
+
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).toContain('user q1');
+    expect(forkedRaw).toContain('bg task prompt');
+    expect(forkedRaw).not.toContain('user q2');
+    expect(forkedRaw).not.toContain('user q3');
+  });
+
+  it('preserves interleaved context records of a kept turn and drops those after the cut', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"keep me"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_message","message":{"role":"assistant","content":[{"type":"text","text":"reply1"}]}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"drop me"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_message","message":{"role":"assistant","content":[{"type":"text","text":"reply2"}]}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_interleave',
+      upToMessage: 2,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual([
+      'metadata',
+      'context.clear',
+      'turn.prompt',
+      'context.append_message',
+      'context.append_loop_event',
+    ]);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).toContain('keep me');
+    expect(forkedRaw).toContain('reply1');
+    expect(forkedRaw).not.toContain('drop me');
+    expect(forkedRaw).not.toContain('reply2');
+  });
+
+  it('counts turn.steer user-origin records in the ordinal alongside turn.prompt', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"prompt1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.steer","input":[{"type":"text","text":"steer1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"prompt2"}],"origin":{"kind":"user"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_steer',
+      upToMessage: 2,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual([
+      'metadata',
+      'context.clear',
+      'turn.prompt',
+      'context.append_loop_event',
+    ]);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).toContain('prompt1');
+    expect(forkedRaw).not.toContain('steer1');
+    expect(forkedRaw).not.toContain('prompt2');
   });
 });
 

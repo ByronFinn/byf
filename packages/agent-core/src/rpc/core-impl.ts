@@ -314,6 +314,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       targetId: id,
       title: input.title,
       metadata: input.metadata,
+      upToMessage: input.upToMessage,
     });
     return this.resumeSession({ sessionId: id });
   }

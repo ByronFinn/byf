@@ -29,6 +29,13 @@ export interface ForkSessionRecordInput {
   readonly targetId: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  /**
+   * 1-based ordinal of a user-origin message (`turn.prompt`/`turn.steer` with
+   * `origin.kind === 'user'`). When set, the forked session's main agent
+   * wire.jsonl is truncated before that record (edit-message semantics — see
+   * ADR-0020). Omitted → full copy (backwards compatible).
+   */
+  readonly upToMessage?: number;
 }
 
 export type SessionStoreOptions = Record<string, never>;
@@ -97,6 +104,9 @@ export class SessionStore {
         errorOnExist: true,
       });
       await this.writeForkedState(input, source.sessionDir, targetDir);
+      if (input.upToMessage !== undefined) {
+        await truncateMainWireUpToMessage(targetDir, input.upToMessage);
+      }
       const summary = await this.summaryFromDir(input.targetId, targetDir, source.workDir);
       await appendSessionIndexEntry(this.homeDir, {
         sessionId: input.targetId,
@@ -376,4 +386,70 @@ function compareSessionSummary(a: SessionSummary, b: SessionSummary): number {
   if (a.id < b.id) return -1;
   if (a.id > b.id) return 1;
   return 0;
+}
+
+/**
+ * Truncates the forked session's main agent wire.jsonl at the Nth user-origin
+ * message (edit-message semantics — see ADR-0020). Keeps every record BEFORE
+ * the Nth `turn.prompt`/`turn.steer` whose `origin.kind === 'user'`, and drops
+ * that record + everything after it. Non-user-origin turns (background_task,
+ * skill_activation, hook_result) are not counted toward the ordinal.
+ */
+async function truncateMainWireUpToMessage(sessionDir: string, upToMessage: number): Promise<void> {
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  let content: string;
+  try {
+    content = await readFile(mainWirePath, 'utf-8');
+  } catch {
+    // No main wire (e.g. an empty session). Nothing to truncate.
+    return;
+  }
+
+  const lines = content.split('\n');
+  // Preserve a possible trailing newline split into an empty last element,
+  // but operate only on non-empty lines when counting user messages.
+  let userMessageCount = 0;
+  let truncateAtIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined || line.trim().length === 0) continue;
+
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      // Skip unparseable lines without affecting the ordinal.
+      continue;
+    }
+    if (!isUserTurnBoundary(record)) continue;
+
+    userMessageCount += 1;
+    if (userMessageCount === upToMessage) {
+      // Truncate at this line: keep everything before index i.
+      truncateAtIndex = i;
+      break;
+    }
+  }
+
+  if (truncateAtIndex === -1) {
+    throw new ByfError(
+      ErrorCodes.SESSION_FORK_UPTO_MESSAGE_OUT_OF_RANGE,
+      `upToMessage ${upToMessage} exceeds the number of user messages (${userMessageCount}) in the session`,
+    );
+  }
+
+  // Keep lines [0, truncateAtIndex) and drop [truncateAtIndex, end). Preserve
+  // the trailing newline so the file stays well-formed JSONL.
+  const kept = lines.slice(0, truncateAtIndex);
+  const truncated = kept.join('\n') + (kept.length > 0 ? '\n' : '');
+  await writeFile(mainWirePath, truncated, 'utf-8');
+}
+
+function isUserTurnBoundary(record: unknown): boolean {
+  if (!isRecord(record)) return false;
+  const type = record['type'];
+  if (type !== 'turn.prompt' && type !== 'turn.steer') return false;
+  const origin = record['origin'];
+  return isRecord(origin) && origin['kind'] === 'user';
 }

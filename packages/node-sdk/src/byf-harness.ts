@@ -120,6 +120,7 @@ export class ByfHarness {
       forkId: input.forkId,
       title: input.title,
       metadata: input.metadata,
+      upToMessage: input.upToMessage,
     });
     const session = new Session({
       id: summary.id,

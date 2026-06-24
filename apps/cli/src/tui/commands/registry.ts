@@ -82,7 +82,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'fork',
     aliases: [],
-    description: 'Fork the current session',
+    description: 'Fork the session, optionally rewinding to an earlier message',
     priority: 80,
   },
   {

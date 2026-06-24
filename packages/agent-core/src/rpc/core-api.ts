@@ -50,6 +50,7 @@ export interface ForkSessionPayload {
   readonly id?: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  readonly upToMessage?: number;
 }
 
 export interface ExportSessionPayload {

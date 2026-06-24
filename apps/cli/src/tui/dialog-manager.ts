@@ -1,5 +1,6 @@
 import type { PermissionMode } from '@byfriends/sdk';
 
+import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialogs/choice-picker';
 import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
 import { HelpPanelComponent, type HelpPanelCommand } from '#/tui/components/dialogs/help-panel';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
@@ -223,5 +224,33 @@ export class DialogManager {
         void this.callbacks.showUsage();
         return;
     }
+  }
+
+  // Shows the fork rewind picker: lists user messages to branch from.
+  // `options` are built by the caller (ByfTui) from transcriptEntries; this
+  // method only handles display. `onSelect` receives the chosen value (the
+  // 1-based message ordinal as a string), `onCancel` when the user aborts.
+  showForkRewindPicker(
+    options: readonly ChoiceOption[],
+    onSelect: (value: string) => void,
+    onCancel: () => void,
+  ): void {
+    this.host.show(
+      new ChoicePickerComponent({
+        title: 'Fork from message',
+        hint: 'Select a message to branch from — it and everything after is dropped',
+        options,
+        colors: this.state.theme.colors,
+        searchable: false,
+        onSelect: (value) => {
+          this.host.close();
+          onSelect(value);
+        },
+        onCancel: () => {
+          this.host.close();
+          onCancel();
+        },
+      }),
+    );
   }
 }

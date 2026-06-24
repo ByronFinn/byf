@@ -3885,12 +3885,47 @@ export class ByfTui implements DialogHost {
       return;
     }
 
+    // Build the list of user messages from the transcript. Each `kind === 'user'`
+    // entry corresponds to a user-origin turn in wire (a turn.prompt/turn.steer
+    // record with origin.kind === 'user') — see ADR-0020. The ordinal passed to
+    // forkSession.upToMessage is 1-based and matches this list order.
+    const userMessages = this.state.transcriptEntries.filter((entry) => entry.kind === 'user');
+
+    if (userMessages.length === 0) {
+      this.showError('No user messages to fork from in this session.');
+      return;
+    }
+
+    const options = userMessages.map((entry, index) => {
+      const ordinal = index + 1;
+      const summary = summarizeUserMessage(entry.content);
+      return {
+        value: String(ordinal),
+        label: `${ordinal}. ${summary}`,
+      };
+    });
+
+    this.dialogManager.showForkRewindPicker(
+      options,
+      (value) => {
+        const upToMessage = Number.parseInt(value, 10);
+        void this.performForkRewind(session, upToMessage);
+      },
+      () => {
+        this.showStatus('Fork cancelled.');
+      },
+    );
+  }
+
+  // Executes a fork that rewinds to just before the Nth user message.
+  private async performForkRewind(session: Session, upToMessage: number): Promise<void> {
     const sourceTitle = this.forkSourceTitle(session);
     let forked: Session;
     try {
       forked = await this.harness.forkSession({
         id: session.id,
         title: `Fork: ${sourceTitle}`,
+        upToMessage,
       });
     } catch (error) {
       const msg = formatErrorMessage(error);
@@ -3899,7 +3934,7 @@ export class ByfTui implements DialogHost {
     }
 
     try {
-      await this.switchToSession(forked, `Session forked (${forked.id}).`);
+      await this.switchToSession(forked, `Session forked (rewound to message ${upToMessage}).`);
     } catch (error) {
       const msg = formatErrorMessage(error);
       this.showError(`Failed to switch to forked session: ${msg}`);
@@ -4099,4 +4134,14 @@ function toShellExecTranscriptResult(
     output: output.length > 0 ? output : '(no output)',
     is_error: result.exitCode !== 0 || result.timedOut,
   };
+}
+
+/**
+ * Builds a short single-line summary of a user message for the fork rewind
+ * picker. Collapses whitespace and truncates so the list stays scannable.
+ */
+function summarizeUserMessage(content: string): string {
+  const collapsed = content.replaceAll(/\s+/g, ' ').trim();
+  if (collapsed.length === 0) return '(empty message)';
+  return collapsed.length > 60 ? `${collapsed.slice(0, 60)}…` : collapsed;
 }

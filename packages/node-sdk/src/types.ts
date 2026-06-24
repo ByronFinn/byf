@@ -86,6 +86,7 @@ export interface ForkSessionInput {
   readonly forkId?: string | undefined;
   readonly title?: string | undefined;
   readonly metadata?: JsonObject;
+  readonly upToMessage?: number;
 }
 
 export interface ExportSessionInput {
