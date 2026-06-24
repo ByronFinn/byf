@@ -568,6 +568,84 @@ describe('SessionStore.fork with upToMessage truncation', () => {
     expect(forkedRaw).not.toContain('steer1');
     expect(forkedRaw).not.toContain('prompt2');
   });
+
+  it('drops a turn.cancel record together with its cancelled turn (AC10)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    // Turn 2 was interrupted by a turn.cancel. Selecting upToMessage=2 must
+    // drop the cancelled turn.prompt AND its turn.cancel — no half-state left.
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2 cancelled"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"turn.cancel","turnId":1}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_cancel',
+      upToMessage: 2,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual([
+      'metadata',
+      'context.clear',
+      'turn.prompt', // q1 only
+      'context.append_loop_event',
+    ]);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).not.toContain('q2 cancelled');
+    expect(forkedRaw).not.toContain('turn.cancel');
+  });
+
+  it('keeps compaction records in the retained prefix and stays self-consistent (AC5)', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    // A session that was compacted after turn 1, then had turn 2. Compaction
+    // is append-only, so the retained prefix (up to message 2) keeps turn 1,
+    // the compaction summary, and everything before — replay stays coherent.
+    const mainWire =
+      '{"type":"metadata","version":1}\n' +
+      '{"type":"context.clear"}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q1"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n' +
+      '{"type":"context.apply_compaction","summary":"compacted","compactedCount":1,"tokensBefore":100,"tokensAfter":50}\n' +
+      '{"type":"turn.prompt","input":[{"type":"text","text":"q2"}],"origin":{"kind":"user"}}\n' +
+      '{"type":"context.append_loop_event","event":{"type":"step.end"}}\n';
+    const { source } = await seedSession(store, workDir, mainWire);
+
+    const fork = await store.fork({
+      sourceId: source.id,
+      targetId: 'ses_trunc_compact',
+      upToMessage: 2,
+    });
+
+    const types = await readForkedWireTypes(fork);
+    expect(types).toEqual([
+      'metadata',
+      'context.clear',
+      'turn.prompt', // q1
+      'context.append_loop_event',
+      'context.apply_compaction', // compaction record survives in prefix
+    ]);
+    const forkedRaw = await readFile(
+      join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'),
+      'utf-8',
+    );
+    expect(forkedRaw).toContain('q1');
+    expect(forkedRaw).toContain('compacted');
+    expect(forkedRaw).not.toContain('q2');
+  });
 });
 
 describe('SessionStore.fork orphan sub-agent cleanup', () => {
