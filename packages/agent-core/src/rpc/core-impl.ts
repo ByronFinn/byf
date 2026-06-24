@@ -12,11 +12,6 @@ import { RemoteFetchURLProvider } from '#/tools/providers/remote-fetch-url';
 import { PriorityRouter } from '#/tools/providers/router';
 import { detectSystemProxy } from '#/tools/providers/system-proxy';
 import { detectEnvironmentFromNode } from '#/utils/environment';
-
-// Register builtin web-search providers (Exa, Brave, Firecrawl) once at module
-// load. Done explicitly here instead of via side-effect imports in each provider
-// module so registration is order-independent and discoverable from one place.
-registerBuiltinWebSearchProviders();
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
 
@@ -86,6 +81,11 @@ import type {
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { proxyWithExtraPayload } from './types';
+
+// Register builtin web-search providers (Exa, Brave, Firecrawl) once at module
+// load. Done explicitly here instead of via side-effect imports in each provider
+// module so registration is order-independent and discoverable from one place.
+registerBuiltinWebSearchProviders();
 
 const BYF_CODE_PROVIDER_NAME = 'byf';
 
