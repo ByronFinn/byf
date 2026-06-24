@@ -8,10 +8,10 @@ export default defineConfig({
   plugins: [rawTextPlugin()],
   resolve: {
     alias: {
-      '@byfriends/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
-      '@byfriends/oauth': fileURLToPath(
-        new URL('../oauth/src/index.ts', import.meta.url),
+      '@byfriends/agent-core': fileURLToPath(
+        new URL('../agent-core/src/index.ts', import.meta.url),
       ),
+      '@byfriends/oauth': fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
     },
   },
   test: {

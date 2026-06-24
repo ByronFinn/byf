@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { UrlFetcher } from '../../../src/tools/builtin/web/fetch-url';
 import { RemoteFetchURLProvider } from '../../../src/tools/providers/remote-fetch-url';
 
-function fakeFetcher(
-  content = '',
-  kind: 'passthrough' | 'extracted' = 'extracted',
-): UrlFetcher {
+function fakeFetcher(content = '', kind: 'passthrough' | 'extracted' = 'extracted'): UrlFetcher {
   return { fetch: vi.fn().mockResolvedValue({ content, kind }) };
 }
 

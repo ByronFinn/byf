@@ -1,8 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { Terminal } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
+import { describe, expect, it, vi } from 'vitest';
 
-import { SubagentLiveViewer, type SubagentLiveViewerProps } from '#/tui/components/dialogs/subagents/live-viewer';
+import {
+  SubagentLiveViewer,
+  type SubagentLiveViewerProps,
+} from '#/tui/components/dialogs/subagents/live-viewer';
 import type { SubagentActivityDetail } from '#/tui/components/messages/tool-call';
 import { darkColors } from '#/tui/theme/colors';
 
@@ -22,9 +25,15 @@ function fakeTerminal(rows: number, columns = 120): Terminal {
     stop: () => {},
     drainInput: () => Promise.resolve(),
     write: () => {},
-    get columns() { return columns; },
-    get rows() { return rows; },
-    get kittyProtocolActive() { return false; },
+    get columns() {
+      return columns;
+    },
+    get rows() {
+      return rows;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
     moveBy: () => {},
     hideCursor: () => {},
     showCursor: () => {},
@@ -45,8 +54,22 @@ function makeDetail(overrides: Partial<SubagentActivityDetail> = {}): SubagentAc
     tokens: 5400,
     elapsedSeconds: 12,
     activities: [
-      { orderSeq: 1, name: 'Grep', args: { pattern: 'foo' }, phase: 'done', output: 'src/foo.ts:1:bar', isError: false },
-      { orderSeq: 2, name: 'Read', args: { path: 'src/foo.ts' }, phase: 'done', output: 'file content here', isError: false },
+      {
+        orderSeq: 1,
+        name: 'Grep',
+        args: { pattern: 'foo' },
+        phase: 'done',
+        output: 'src/foo.ts:1:bar',
+        isError: false,
+      },
+      {
+        orderSeq: 2,
+        name: 'Read',
+        args: { path: 'src/foo.ts' },
+        phase: 'done',
+        output: 'file content here',
+        isError: false,
+      },
     ],
     text: 'Completed the search.',
     thinkingText: 'I should search for references...',
@@ -77,7 +100,11 @@ describe('SubagentLiveViewer', () => {
   });
 
   it('renders the agent name in the header', () => {
-    const out = strip(makeViewer({ data: makeDetail({ agentName: 'Review' }) }).render(120).join('\n'));
+    const out = strip(
+      makeViewer({ data: makeDetail({ agentName: 'Review' }) })
+        .render(120)
+        .join('\n'),
+    );
     expect(out).toContain('Review');
   });
 
@@ -88,7 +115,11 @@ describe('SubagentLiveViewer', () => {
   });
 
   it('renders subagent text output', () => {
-    const out = strip(makeViewer({ data: makeDetail({ text: 'Search results found.' }) }).render(120).join('\n'));
+    const out = strip(
+      makeViewer({ data: makeDetail({ text: 'Search results found.' }) })
+        .render(120)
+        .join('\n'),
+    );
     expect(out).toContain('Search results found.');
   });
 
@@ -113,13 +144,16 @@ describe('SubagentLiveViewer', () => {
       isError: false,
     }));
 
-    const viewer = makeViewer({
-      data: makeDetail({
-        activities: manyActivities,
-        text: '',
-        thinkingText: '',
-      }),
-    }, 10); // small terminal to force scrolling
+    const viewer = makeViewer(
+      {
+        data: makeDetail({
+          activities: manyActivities,
+          text: '',
+          thinkingText: '',
+        }),
+      },
+      10,
+    ); // small terminal to force scrolling
 
     expect(viewer['scrollTop']).toBe(0);
     viewer.handleInput('j');
@@ -138,13 +172,16 @@ describe('SubagentLiveViewer', () => {
       isError: false,
     }));
 
-    const viewer = makeViewer({
-      data: makeDetail({
-        activities: manyActivities,
-        text: '',
-        thinkingText: '',
-      }),
-    }, 10); // body height = 8, page delta = 7
+    const viewer = makeViewer(
+      {
+        data: makeDetail({
+          activities: manyActivities,
+          text: '',
+          thinkingText: '',
+        }),
+      },
+      10,
+    ); // body height = 8, page delta = 7
 
     expect(viewer['scrollTop']).toBe(0);
     viewer.handleInput('\u001B[6~'); // PgDn
@@ -156,15 +193,23 @@ describe('SubagentLiveViewer', () => {
   });
 
   it('scrolls to top with g and bottom with G', () => {
-    const viewer = makeViewer({
-      data: makeDetail({
-        activities: Array.from({ length: 30 }, (_, i) => ({
-          orderSeq: i + 1, name: 'Tool', args: {}, phase: 'done' as const, output: '', isError: false,
-        })),
-        text: '',
-        thinkingText: '',
-      }),
-    }, 10);
+    const viewer = makeViewer(
+      {
+        data: makeDetail({
+          activities: Array.from({ length: 30 }, (_, i) => ({
+            orderSeq: i + 1,
+            name: 'Tool',
+            args: {},
+            phase: 'done' as const,
+            output: '',
+            isError: false,
+          })),
+          text: '',
+          thinkingText: '',
+        }),
+      },
+      10,
+    );
 
     viewer.handleInput('g');
     expect(viewer['scrollTop']).toBe(0);
@@ -175,53 +220,87 @@ describe('SubagentLiveViewer', () => {
 
   it('follows new content when parked at the bottom (AC4)', () => {
     // Render once so lastBodyWidth + scroll math are valid, then park at bottom.
-    const viewer = makeViewer({
-      data: makeDetail({
-        activities: Array.from({ length: 30 }, (_, i) => ({
-          orderSeq: i + 1, name: 'Tool', args: {}, phase: 'done' as const, output: '', isError: false,
-        })),
-        text: '', thinkingText: '',
-      }),
-    }, 10);
+    const viewer = makeViewer(
+      {
+        data: makeDetail({
+          activities: Array.from({ length: 30 }, (_, i) => ({
+            orderSeq: i + 1,
+            name: 'Tool',
+            args: {},
+            phase: 'done' as const,
+            output: '',
+            isError: false,
+          })),
+          text: '',
+          thinkingText: '',
+        }),
+      },
+      10,
+    );
     viewer.render(120);
     viewer.handleInput('G'); // park at bottom
     const bottomBefore = viewer['scrollTop'];
 
     // More content arrives via streaming -> viewer must stay pinned to bottom.
-    viewer.setProps(makeProps({
-      data: makeDetail({
-        activities: Array.from({ length: 50 }, (_, i) => ({
-          orderSeq: i + 1, name: 'Tool', args: {}, phase: 'done' as const, output: '', isError: false,
-        })),
-        text: '', thinkingText: '',
+    viewer.setProps(
+      makeProps({
+        data: makeDetail({
+          activities: Array.from({ length: 50 }, (_, i) => ({
+            orderSeq: i + 1,
+            name: 'Tool',
+            args: {},
+            phase: 'done' as const,
+            output: '',
+            isError: false,
+          })),
+          text: '',
+          thinkingText: '',
+        }),
       }),
-    }));
+    );
     expect(viewer['scrollTop']).toBeGreaterThan(bottomBefore);
   });
 
   it('preserves scroll position when the user is NOT at the bottom (AC4)', () => {
-    const viewer = makeViewer({
-      data: makeDetail({
-        activities: Array.from({ length: 30 }, (_, i) => ({
-          orderSeq: i + 1, name: 'Tool', args: {}, phase: 'done' as const, output: '', isError: false,
-        })),
-        text: '', thinkingText: '',
-      }),
-    }, 10);
+    const viewer = makeViewer(
+      {
+        data: makeDetail({
+          activities: Array.from({ length: 30 }, (_, i) => ({
+            orderSeq: i + 1,
+            name: 'Tool',
+            args: {},
+            phase: 'done' as const,
+            output: '',
+            isError: false,
+          })),
+          text: '',
+          thinkingText: '',
+        }),
+      },
+      10,
+    );
     viewer.render(120);
     viewer.handleInput('g'); // scroll to top — user is NOT at bottom
     expect(viewer['scrollTop']).toBe(0);
 
     // Content grows while the user is reading near the top: scroll must NOT
     // jump to the new bottom.
-    viewer.setProps(makeProps({
-      data: makeDetail({
-        activities: Array.from({ length: 50 }, (_, i) => ({
-          orderSeq: i + 1, name: 'Tool', args: {}, phase: 'done' as const, output: '', isError: false,
-        })),
-        text: '', thinkingText: '',
+    viewer.setProps(
+      makeProps({
+        data: makeDetail({
+          activities: Array.from({ length: 50 }, (_, i) => ({
+            orderSeq: i + 1,
+            name: 'Tool',
+            args: {},
+            phase: 'done' as const,
+            output: '',
+            isError: false,
+          })),
+          text: '',
+          thinkingText: '',
+        }),
       }),
-    }));
+    );
     expect(viewer['scrollTop']).toBe(0);
   });
 
@@ -292,7 +371,14 @@ describe('SubagentLiveViewer', () => {
           tokens: 5400,
           elapsedSeconds: 12,
           activities: [
-            { orderSeq: 1, name: 'Grep', args: { pattern: 'foo' }, phase: 'done', output: 'src/foo.ts:1:bar', isError: false },
+            {
+              orderSeq: 1,
+              name: 'Grep',
+              args: { pattern: 'foo' },
+              phase: 'done',
+              output: 'src/foo.ts:1:bar',
+              isError: false,
+            },
           ],
           text: 'Search complete.',
           thinkingText: 'I should search...',
@@ -333,7 +419,14 @@ describe('SubagentLiveViewer', () => {
       data: makeDetail({
         phase: 'failed',
         activities: [
-          { orderSeq: 1, name: 'Bash', args: { command: 'x' }, phase: 'failed', output: 'err\u0007bell\u000Bvtab', isError: true },
+          {
+            orderSeq: 1,
+            name: 'Bash',
+            args: { command: 'x' },
+            phase: 'failed',
+            output: 'err\u0007bell\u000Bvtab',
+            isError: true,
+          },
         ],
         thinkingText: 'think\u0008back',
         errorText: 'boom\u0007',
@@ -354,13 +447,19 @@ describe('SubagentLiveViewer', () => {
     // A single very long output line must wrap across multiple rows; content
     // near the end of the line must still be visible somewhere in the body.
     const longLine = 'A'.repeat(300);
-    const viewer = makeViewer({
-      data: makeDetail({ text: longLine, activities: [] }),
-    }, 30);
+    const viewer = makeViewer(
+      {
+        data: makeDetail({ text: longLine, activities: [] }),
+      },
+      30,
+    );
 
     const out = strip(viewer.render(60).join('\n'));
     // The full content survives wrapping (300 A's), spread across rows.
-    const aCount = out.replaceAll('\n', '').split('').filter((c) => c === 'A').length;
+    const aCount = out
+      .replaceAll('\n', '')
+      .split('')
+      .filter((c) => c === 'A').length;
     expect(aCount).toBe(300);
   });
 });

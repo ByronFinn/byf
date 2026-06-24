@@ -73,7 +73,9 @@ describe('skill registry prompt rendering', () => {
   });
 
   it('end-to-end: a project skill that shadows other scopes renders once under Project', () => {
-    const registry = makeRegistry([makeSkill('foo', 'project', 'project version', '/tmp/proj/foo/SKILL.md')]);
+    const registry = makeRegistry([
+      makeSkill('foo', 'project', 'project version', '/tmp/proj/foo/SKILL.md'),
+    ]);
 
     const rendered = registry.getByfSkillsDescription();
 
@@ -126,7 +128,10 @@ describe('getModelSkillListing', () => {
   it('omits disabled-model-invocation and non-prompt skills', () => {
     const registry = makeRegistry([
       makeSkill('visible', 'user', 'Visible skill'),
-      { ...makeSkill('hidden', 'user', 'Hidden skill'), metadata: { disableModelInvocation: true } },
+      {
+        ...makeSkill('hidden', 'user', 'Hidden skill'),
+        metadata: { disableModelInvocation: true },
+      },
       { ...makeSkill('flow', 'user', 'Flow skill'), metadata: { type: 'flow' } },
     ]);
 
@@ -138,10 +143,7 @@ describe('getModelSkillListing', () => {
   });
 
   it('groups skills by scope', () => {
-    const registry = makeRegistry([
-      makeSkill('builtin-a', 'builtin'),
-      makeSkill('user-a', 'user'),
-    ]);
+    const registry = makeRegistry([makeSkill('builtin-a', 'builtin'), makeSkill('user-a', 'user')]);
 
     const listing = registry.getModelSkillListing();
 

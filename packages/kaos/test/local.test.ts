@@ -2,9 +2,10 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { afterEach, beforeEach, describe, expect, it, test } from 'vitest';
+
 import { KaosFileExistsError } from '#/errors';
 import { LocalKaos } from '#/local';
-import { afterEach, beforeEach, describe, expect, it, test } from 'vitest';
 
 function nodeArgs(code: string): string[] {
   return ['node', '-e', code];

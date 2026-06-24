@@ -37,14 +37,14 @@ Please handle the code according to the following conventions:
 
 ### Frontmatter fields
 
-| Field | Description |
-| --- | --- |
-| `name` | Skill name. Required in a directory-style `SKILL.md`; in a flat `.md` file the filename is used when omitted. Names are case-insensitive. |
-| `description` | A one-line summary. The model uses it to decide when to use this skill. Required in a directory-style `SKILL.md`; in a flat `.md` file falls back to the first non-empty line of the body (truncated to 240 characters) when omitted. |
-| `type` | Skill type. Supported values: `prompt` (default), `inline` (same semantics as `prompt`), or `flow` (manual invocation only, not auto-invoked by the model). Other values are skipped. |
-| `whenToUse` | Description of the trigger scenario. Aliases `when-to-use` and `when_to_use` are also accepted. |
-| `disableModelInvocation` | Set to `true` to forbid the model from invoking this skill automatically. Aliases `disable-model-invocation` and `disable_model_invocation` are also accepted. |
-| `arguments` | Named arguments the skill accepts. Can be written as an array of strings, or as a single whitespace-separated string (e.g. `arguments: target mode`). Once declared, the body can read them with `$<name>`. Purely numeric or empty entries are ignored. |
+| Field                    | Description                                                                                                                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                   | Skill name. Required in a directory-style `SKILL.md`; in a flat `.md` file the filename is used when omitted. Names are case-insensitive.                                                                                                                |
+| `description`            | A one-line summary. The model uses it to decide when to use this skill. Required in a directory-style `SKILL.md`; in a flat `.md` file falls back to the first non-empty line of the body (truncated to 240 characters) when omitted.                    |
+| `type`                   | Skill type. Supported values: `prompt` (default), `inline` (same semantics as `prompt`), or `flow` (manual invocation only, not auto-invoked by the model). Other values are skipped.                                                                    |
+| `whenToUse`              | Description of the trigger scenario. Aliases `when-to-use` and `when_to_use` are also accepted.                                                                                                                                                          |
+| `disableModelInvocation` | Set to `true` to forbid the model from invoking this skill automatically. Aliases `disable-model-invocation` and `disable_model_invocation` are also accepted.                                                                                           |
+| `arguments`              | Named arguments the skill accepts. Can be written as an array of strings, or as a single whitespace-separated string (e.g. `arguments: target mode`). Once declared, the body can read them with `$<name>`. Purely numeric or empty entries are ignored. |
 
 ::: warning Note
 In a directory-style `SKILL.md`, both `name` and `description` **must** be filled in explicitly. Omitting either one causes the skill to fail parsing.

@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
-import { ModelSelectorComponent, type ThinkingEffortLevel } from '#/tui/components/dialogs/model-selector';
+import {
+  ModelSelectorComponent,
+  type ThinkingEffortLevel,
+} from '#/tui/components/dialogs/model-selector';
 import { PermissionSelectorComponent } from '#/tui/components/dialogs/permission-selector';
 import { SettingsSelectorComponent } from '#/tui/components/dialogs/settings-selector';
 import { ThemeSelectorComponent } from '#/tui/components/dialogs/theme-selector';
@@ -443,7 +446,10 @@ function rendered(component: { render: (w: number) => string[] }, width = 80): s
 }
 
 describe('ChoicePickerComponent search and pagination', () => {
-  function makePicker(over: { options?: { value: string; label: string }[]; searchable?: boolean }) {
+  function makePicker(over: {
+    options?: { value: string; label: string }[];
+    searchable?: boolean;
+  }) {
     const onSelect = vi.fn();
     const onCancel = vi.fn();
     const picker = new ChoicePickerComponent({
@@ -551,7 +557,10 @@ describe('ModelSelectorComponent search and pagination', () => {
     return models;
   }
 
-  function makeSelector(models: Record<string, ModelAlias>, currentThinkingEffort: ThinkingEffortLevel = 'high') {
+  function makeSelector(
+    models: Record<string, ModelAlias>,
+    currentThinkingEffort: ThinkingEffortLevel = 'high',
+  ) {
     const onSelect = vi.fn();
     const onCancel = vi.fn();
     const firstAlias = Object.keys(models)[0] ?? '';

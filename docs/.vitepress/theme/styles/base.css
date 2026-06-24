@@ -69,7 +69,9 @@ body {
   text-decoration-color: transparent;
   text-underline-offset: 4px;
   text-decoration-thickness: 2px;
-  transition: text-decoration-color var(--byf-transition), color var(--byf-transition);
+  transition:
+    text-decoration-color var(--byf-transition),
+    color var(--byf-transition);
   font-weight: 500;
 }
 .vp-doc a:not(.header-anchor):hover {
@@ -153,22 +155,32 @@ body {
   background: rgba(61, 149, 255, 0.12);
 }
 .vp-doc .custom-block.warning {
-  background: rgba(234, 179, 8, 0.10);
+  background: rgba(234, 179, 8, 0.1);
   color: var(--vp-c-text-1);
 }
 .vp-doc .custom-block.danger {
-  background: rgba(239, 68, 68, 0.10);
+  background: rgba(239, 68, 68, 0.1);
   color: var(--vp-c-text-1);
 }
 .vp-doc .custom-block.info {
   background: rgba(148, 163, 184, 0.12);
   color: var(--vp-c-text-1);
 }
-.vp-doc .custom-block.tip .custom-block-title { color: var(--vp-c-brand-1); }
-.vp-doc .custom-block.warning .custom-block-title { color: #ca8a04; }
-.vp-doc .custom-block.danger .custom-block-title { color: #dc2626; }
-.dark .vp-doc .custom-block.warning .custom-block-title { color: #eab308; }
-.dark .vp-doc .custom-block.danger .custom-block-title { color: #ef4444; }
+.vp-doc .custom-block.tip .custom-block-title {
+  color: var(--vp-c-brand-1);
+}
+.vp-doc .custom-block.warning .custom-block-title {
+  color: #ca8a04;
+}
+.vp-doc .custom-block.danger .custom-block-title {
+  color: #dc2626;
+}
+.dark .vp-doc .custom-block.warning .custom-block-title {
+  color: #eab308;
+}
+.dark .vp-doc .custom-block.danger .custom-block-title {
+  color: #ef4444;
+}
 
 /* --- Tables --- */
 .vp-doc table {
@@ -183,7 +195,9 @@ body {
   background: transparent !important;
   border-top: 1px solid var(--vp-c-divider);
 }
-.vp-doc tr:first-child { border-top: none; }
+.vp-doc tr:first-child {
+  border-top: none;
+}
 .vp-doc th {
   background: var(--vp-c-bg-soft);
   font-weight: 600;
@@ -201,7 +215,9 @@ body {
   background: var(--byf-brand-gradient) !important;
   border: none !important;
   box-shadow: var(--vp-shadow-3);
-  transition: transform var(--byf-transition), box-shadow var(--byf-transition);
+  transition:
+    transform var(--byf-transition),
+    box-shadow var(--byf-transition);
 }
 .VPButton.brand:hover {
   transform: translateY(-2px);
@@ -211,7 +227,9 @@ body {
   background: transparent !important;
   border: 1px solid var(--vp-c-divider) !important;
   color: var(--vp-c-text-1) !important;
-  transition: border-color var(--byf-transition), transform var(--byf-transition);
+  transition:
+    border-color var(--byf-transition),
+    transform var(--byf-transition);
 }
 .VPButton.alt:hover {
   border-color: var(--vp-c-brand-1) !important;

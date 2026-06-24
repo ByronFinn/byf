@@ -13,6 +13,7 @@
  * fire the `on*` callbacks back to the controller.
  */
 
+import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 import {
   Container,
   Key,
@@ -22,7 +23,6 @@ import {
   visibleWidth,
   type Focusable,
 } from '@earendil-works/pi-tui';
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '../../theme/colors';
@@ -89,9 +89,7 @@ function statusColor(colors: ColorPalette, status: BackgroundTaskStatus): string
 }
 
 function isTerminal(status: BackgroundTaskStatus): boolean {
-  return (
-    status === 'completed' || status === 'failed' || status === 'killed' || status === 'lost'
-  );
+  return status === 'completed' || status === 'failed' || status === 'killed' || status === 'lost';
 }
 
 function formatRelativeTime(ts: number | null | undefined): string {
@@ -320,7 +318,9 @@ export class TasksBrowserApp extends Container implements Focusable {
 
     const lines: string[] = [header];
     for (let i = 0; i < bodyHeight; i++) {
-      lines.push((listFrame[i] ?? ' '.repeat(listWidth)) + (rightFrames[i] ?? ' '.repeat(rightWidth)));
+      lines.push(
+        (listFrame[i] ?? ' '.repeat(listWidth)) + (rightFrames[i] ?? ' '.repeat(rightWidth)),
+      );
     }
     lines.push(footer);
     return lines;
@@ -343,9 +343,7 @@ export class TasksBrowserApp extends Container implements Focusable {
     if (counts.completed > 0)
       countSegments.push(chalk.hex(colors.textDim)(` ${String(counts.completed)} completed `));
     if (counts.terminalFailed > 0)
-      countSegments.push(
-        chalk.hex(colors.error)(` ${String(counts.terminalFailed)} interrupted `),
-      );
+      countSegments.push(chalk.hex(colors.error)(` ${String(counts.terminalFailed)} interrupted `));
     const totals = chalk.hex(colors.textMuted)(` ${String(this.props.tasks.length)} total `);
 
     const composed = title + filterText + countSegments.join('') + totals;
@@ -467,9 +465,11 @@ export class TasksBrowserApp extends Container implements Focusable {
     const pointer = selected ? '> ' : '  ';
     const pointerStyled = chalk.hex(selected ? colors.primary : colors.textDim)(pointer);
 
-    const idColor = selected ? colors.primary : task.taskId.startsWith('agent-')
-      ? colors.success
-      : colors.accent;
+    const idColor = selected
+      ? colors.primary
+      : task.taskId.startsWith('agent-')
+        ? colors.success
+        : colors.accent;
     const idText = selected
       ? chalk.hex(idColor).bold(task.taskId)
       : chalk.hex(idColor)(task.taskId);

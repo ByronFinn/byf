@@ -1,12 +1,14 @@
+import { describe, expect, it } from 'vitest';
+
 import { ChatProviderError } from '#/errors';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
-import { step } from './fixtures/step';
 import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
 import { toolOk } from './fixtures/simple-toolset';
 import type { ToolResult, Toolset } from './fixtures/simple-toolset';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
+import { step } from './fixtures/step';
 function createMockStream(
   parts: StreamedMessagePart[],
   opts?: { id?: string; usage?: TokenUsage },
@@ -75,7 +77,8 @@ describe('step()', () => {
     const plusToolCall: ToolCall = {
       type: 'function',
       id: 'plus#123',
-      name: 'plus', arguments: '{"a": 1, "b": 2}',
+      name: 'plus',
+      arguments: '{"a": 1, "b": 2}',
     };
     const stream = createMockStream([{ type: 'text', text: 'Hello, world!' }, plusToolCall]);
     const provider = createMockProvider(stream);
@@ -103,7 +106,8 @@ describe('step()', () => {
     const plusToolCall: ToolCall = {
       type: 'function',
       id: 'plus#123',
-      name: 'plus', arguments: '{"a": 1, "b": 2}',
+      name: 'plus',
+      arguments: '{"a": 1, "b": 2}',
     };
     const stream = createMockStream([{ type: 'text', text: 'Hello, world!' }, plusToolCall]);
     const provider = createMockProvider(stream);
@@ -175,12 +179,14 @@ describe('step()', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'call-1',
-      name: 'plus', arguments: '{"a":1,"b":2}',
+      name: 'plus',
+      arguments: '{"a":1,"b":2}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'call-2',
-      name: 'plus', arguments: '{"a":3,"b":4}',
+      name: 'plus',
+      arguments: '{"a":3,"b":4}',
     };
     const stream = createMockStream([tc1, tc2]);
     const provider = createMockProvider(stream);
@@ -214,12 +220,14 @@ describe('step()', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'call-first',
-      name: 'slow', arguments: '{}',
+      name: 'slow',
+      arguments: '{}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'call-second',
-      name: 'slow', arguments: '{}',
+      name: 'slow',
+      arguments: '{}',
     };
 
     const throwingStream: StreamedMessage = {
@@ -272,12 +280,14 @@ describe('step()', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'call-rejected',
-      name: 'boom', arguments: '{}',
+      name: 'boom',
+      arguments: '{}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'call-next',
-      name: 'boom', arguments: '{}',
+      name: 'boom',
+      arguments: '{}',
     };
 
     const throwingStream: StreamedMessage = {
@@ -343,7 +353,8 @@ describe('step()', () => {
       {
         type: 'function',
         id: 'call-rejected',
-        name: 'plus', arguments: '{"a":1,"b":2}',
+        name: 'plus',
+        arguments: '{"a":1,"b":2}',
       },
     ]);
     const provider = createMockProvider(stream);
@@ -384,13 +395,15 @@ describe('step()', () => {
       {
         type: 'function',
         id: 'tc-a',
-        name: 'plus', arguments: null,
+        name: 'plus',
+        arguments: null,
         _streamIndex: 0,
       },
       {
         type: 'function',
         id: 'tc-b',
-        name: 'plus', arguments: null,
+        name: 'plus',
+        arguments: null,
         _streamIndex: 1,
       },
       { type: 'tool_call_part', argumentsPart: '{"a":1,', index: 0 },
@@ -429,7 +442,8 @@ describe('step()', () => {
     const tc: ToolCall = {
       type: 'function',
       id: 'call-sync',
-      name: 'plus', arguments: '{}',
+      name: 'plus',
+      arguments: '{}',
     };
     const stream = createMockStream([tc]);
     const provider = createMockProvider(stream);
@@ -502,7 +516,8 @@ describe('step()', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc-propagate',
-        name: 'plus', arguments: '{"a":1,"b":2}',
+        name: 'plus',
+        arguments: '{"a":1,"b":2}',
       };
       const stream = streamWithFinish([tc], 'tool_calls', 'tool_calls');
       const provider = createMockProvider(stream);

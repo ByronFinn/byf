@@ -1,5 +1,4 @@
 import type { Agent } from '..';
-
 import type { EphemeralInjection } from '../context/projector';
 
 export abstract class DynamicInjector {

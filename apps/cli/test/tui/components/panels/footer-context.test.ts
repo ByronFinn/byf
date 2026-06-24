@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import chalk from 'chalk';
+import { describe, it, expect } from 'vitest';
 
 import { FooterComponent, formatFooterGitBadge } from '#/tui/components/chrome/footer';
 import { darkColors } from '#/tui/theme/colors';

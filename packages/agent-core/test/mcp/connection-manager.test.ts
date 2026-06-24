@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
+import type { AddressInfo as HttpAddress } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -6,24 +9,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { localKaos } from '@byfriends/kaos';
 import type { ProviderConfig } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
-
-import { randomUUID } from 'node:crypto';
-import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
-import type { AddressInfo as HttpAddress } from 'node:net';
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {
   OAuthClientInformationFull,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ByfError } from '../../src/errors';
-import { ProviderManager } from '../../src/providers/provider-manager';
 import { McpConnectionManager, type McpServerEntry } from '../../src/mcp/connection-manager';
 import { JsonFileStore, McpOAuthService } from '../../src/mcp/oauth';
+import { ProviderManager } from '../../src/providers/provider-manager';
 import type { AgentEvent, SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { SessionAPIImpl } from '../../src/session/rpc';
@@ -50,10 +48,12 @@ function stdioConfig(args: string[] = [stdioFixture]) {
   };
 }
 
-function sessionRpc(options: {
-  readonly events?: SessionRpcEvent[] | undefined;
-  readonly onEvent?: ((event: SessionRpcEvent) => void) | undefined;
-} = {}): SDKSessionRPC {
+function sessionRpc(
+  options: {
+    readonly events?: SessionRpcEvent[] | undefined;
+    readonly onEvent?: ((event: SessionRpcEvent) => void) | undefined;
+  } = {},
+): SDKSessionRPC {
   return {
     emitEvent: async (event: SessionRpcEvent) => {
       options.events?.push(event);
@@ -341,7 +341,8 @@ describe('McpConnectionManager', () => {
     const server: HttpServer = createHttpServer((_req, res) => {
       res.writeHead(401, {
         'content-type': 'application/json',
-        'www-authenticate': 'Bearer realm="mcp", resource_metadata="http://x/.well-known/oauth-protected-resource"',
+        'www-authenticate':
+          'Bearer realm="mcp", resource_metadata="http://x/.well-known/oauth-protected-resource"',
       });
       res.end(JSON.stringify({ error: 'unauthorized' }));
     });
@@ -588,9 +589,11 @@ describe('McpConnectionManager', () => {
       expect(cm.get('remote')?.status).toBe('connected');
 
       // Reach into the live client to invoke the same hook the SDK uses.
-      const internalClient = (cm as unknown as {
-        entries: Map<string, { client?: { client: { onerror?: (e: Error) => void } } }>;
-      }).entries.get('remote')?.client?.client;
+      const internalClient = (
+        cm as unknown as {
+          entries: Map<string, { client?: { client: { onerror?: (e: Error) => void } } }>;
+        }
+      ).entries.get('remote')?.client?.client;
       internalClient?.onerror?.(new Error('Maximum reconnection attempts (3) exceeded.'));
 
       // Listener fires asynchronously through our wrapper; allow microtasks.
@@ -651,6 +654,115 @@ describe('McpConnectionManager', () => {
       await rm(storeDir, { recursive: true, force: true });
     }
   }, 15000);
+
+  it('connects to an SSE server and reports transport "sse"', async () => {
+    const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+    const { SSEServerTransport } = await import('@modelcontextprotocol/sdk/server/sse.js');
+    const { z } = await import('zod');
+
+    const mcpServer = new McpServer({ name: 'cm-sse', version: '0.0.1' });
+    mcpServer.registerTool(
+      'ping',
+      { description: 'responds pong', inputSchema: { msg: z.string() } },
+      ({ msg }) => ({ content: [{ type: 'text', text: `pong: ${msg}` }] }),
+    );
+    const sessions = new Map<string, InstanceType<typeof SSEServerTransport>>();
+    const httpServer: HttpServer = createHttpServer((req, res) => {
+      (async () => {
+        const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+        if (req.method === 'GET') {
+          const transport = new SSEServerTransport('/mcp', res);
+          sessions.set(transport.sessionId, transport);
+          await mcpServer.connect(transport);
+          await new Promise<void>((resolve) =>
+            req.on('close', () => {
+              sessions.delete(transport.sessionId);
+              resolve();
+            }),
+          );
+          return;
+        }
+        if (req.method === 'POST') {
+          const sessionId = url.searchParams.get('sessionId');
+          if (sessionId === null) {
+            res.writeHead(400).end('Missing sessionId');
+            return;
+          }
+          const transport = sessions.get(sessionId);
+          if (transport === undefined) {
+            res.writeHead(404).end('Session not found');
+            return;
+          }
+          await transport.handlePostMessage(req, res);
+          return;
+        }
+        res.writeHead(405).end();
+      })().catch((error) => {
+        console.error('HTTP server handler error:', error);
+      });
+    });
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+    const port = (httpServer.address() as HttpAddress).port;
+    const url = `http://127.0.0.1:${port}/mcp`;
+
+    const cm = new McpConnectionManager();
+    try {
+      await cm.connectAll({ sseEntry: { transport: 'sse', url, startupTimeoutMs: 10_000 } });
+      const entry = cm.get('sseEntry');
+      expect(entry?.transport).toBe('sse');
+      expect(entry?.status).toBe('connected');
+      expect(entry?.toolCount).toBe(1);
+    } finally {
+      await cm.shutdown();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
+  }, 15000);
+
+  it('flips SSE servers into needs-auth when the server returns 401 and no static token is set', async () => {
+    const server: HttpServer = createHttpServer((_req, res) => {
+      res.writeHead(401, {
+        'content-type': 'application/json',
+        'www-authenticate':
+          'Bearer realm="mcp", resource_metadata="http://x/.well-known/oauth-protected-resource"',
+      });
+      res.end(JSON.stringify({ error: 'unauthorized' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as HttpAddress).port;
+    const storeDir = await mkdtemp(join(tmpdir(), 'byf-mcp-sse-oauth-cm-'));
+    const oauthService = new McpOAuthService({ store: new JsonFileStore(storeDir) });
+    const cm = new McpConnectionManager({ oauthService });
+    try {
+      await cm.connectAll({
+        gated: {
+          transport: 'sse',
+          url: `http://127.0.0.1:${port}/mcp`,
+          startupTimeoutMs: 5_000,
+        },
+      });
+      const entry = cm.get('gated');
+      expect(entry?.status).toBe('needs-auth');
+      expect(entry?.error).toContain('run /mcp-config login gated');
+      expect(entry?.toolCount).toBe(0);
+    } finally {
+      await cm.shutdown();
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+      });
+      await rm(storeDir, { recursive: true, force: true });
+    }
+  }, 15000);
 });
 
 describe('Session MCP startup', () => {
@@ -685,10 +797,7 @@ describe('Session MCP startup', () => {
       } satisfies OAuthTokens);
 
       await expect(
-        readFile(
-          join(byfHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`),
-          'utf-8',
-        ),
+        readFile(join(byfHome, 'credentials', 'mcp', `${provider.storeKey}-tokens.json`), 'utf-8'),
       ).resolves.toContain('session-token');
       await expect(
         readFile(

@@ -24,7 +24,9 @@ export function SizePreview({
   return (
     <div className="my-1 border border-border bg-surface-0">
       <button
-        onClick={() =>{  setOpen((v) => !v); }}
+        onClick={() => {
+          setOpen((v) => !v);
+        }}
         className="flex w-full items-center justify-between gap-2 px-2 py-1 font-mono text-[11px] text-fg-2 hover:bg-surface-2 hover:text-fg-1"
       >
         <span className="flex items-center gap-2">
@@ -40,9 +42,7 @@ export function SizePreview({
         ) : null}
       </button>
       {open ? (
-        <div className="border-t border-border px-2 py-1 font-mono text-[12px]">
-          {children}
-        </div>
+        <div className="border-t border-border px-2 py-1 font-mono text-[12px]">{children}</div>
       ) : null}
     </div>
   );

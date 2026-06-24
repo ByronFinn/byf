@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Component, Focusable, Terminal } from '@earendil-works/pi-tui';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SubagentsController, type SubagentsEnv } from '#/tui/components/dialogs/subagents/controller';
-import type { FullscreenHost } from '#/tui/types';
+import {
+  SubagentsController,
+  type SubagentsEnv,
+} from '#/tui/components/dialogs/subagents/controller';
 import { darkColors } from '#/tui/theme/colors';
+import type { FullscreenHost } from '#/tui/types';
 
 function fakeTerminal(): Terminal {
   return {
@@ -11,9 +14,15 @@ function fakeTerminal(): Terminal {
     stop: () => {},
     drainInput: () => Promise.resolve(),
     write: () => {},
-    get columns() { return 120; },
-    get rows() { return 30; },
-    get kittyProtocolActive() { return false; },
+    get columns() {
+      return 120;
+    },
+    get rows() {
+      return 30;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
     moveBy: () => {},
     hideCursor: () => {},
     showCursor: () => {},
@@ -53,7 +62,9 @@ function makeEnv(overrides: Partial<SubagentsEnv> = {}) {
     host,
     getTerminal: fakeTerminal,
     getColors: () => darkColors,
-    showError(msg: string) { errors.push(msg); },
+    showError(msg: string) {
+      errors.push(msg);
+    },
     collectItems: () => [],
     getComponentById: () => undefined,
     ...overrides,
@@ -63,10 +74,18 @@ function makeEnv(overrides: Partial<SubagentsEnv> = {}) {
     errors,
     host,
     env,
-    get fullscreenPanels() { return fullscreenPanels; },
-    get restoredChildren() { return restoredChildren; },
-    get focusedComponents() { return focusedComponents; },
-    get renders() { return renders; },
+    get fullscreenPanels() {
+      return fullscreenPanels;
+    },
+    get restoredChildren() {
+      return restoredChildren;
+    },
+    get focusedComponents() {
+      return focusedComponents;
+    },
+    get renders() {
+      return renders;
+    },
   };
 }
 
@@ -165,15 +184,17 @@ describe('SubagentsController', () => {
     const tc = makeMockToolCallComponent();
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1',
-        agentName: 'Explore',
-        description: 'Search',
-        phase: 'running',
-        toolCount: 1,
-        tokens: 100,
-        elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
@@ -182,7 +203,8 @@ describe('SubagentsController', () => {
     const rendersAfterShow = envHelper.renders;
 
     // Simulate selecting the entry to open the live viewer
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n');
 
     // Snapshot listener should have fired and requested a render
@@ -193,26 +215,30 @@ describe('SubagentsController', () => {
     const tc = makeMockToolCallComponent();
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1',
-        agentName: 'Explore',
-        description: 'Search',
-        phase: 'running',
-        toolCount: 1,
-        tokens: 100,
-        elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
 
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n');
 
     // The viewer should be the current fullscreen panel and focused
     expect(envHelper.fullscreenPanels.length).toBe(2);
-    const viewer = envHelper.fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
+    const viewer = envHelper
+      .fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
     expect(envHelper.focusedComponents.at(-1)).toBe(viewer);
 
     // Pressing q closes the viewer and returns focus to the list
@@ -225,21 +251,24 @@ describe('SubagentsController', () => {
     const tc = makeMockToolCallComponent();
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1',
-        agentName: 'Explore',
-        description: 'Search',
-        phase: 'running',
-        toolCount: 1,
-        tokens: 100,
-        elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
 
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     listApp.handleInput('\n');
     listApp.handleInput('\n'); // second Enter should be ignored
@@ -253,15 +282,32 @@ describe('SubagentsController', () => {
 
     const envHelper = makeEnv({
       collectItems: () => [
-        { toolCallId: 'tc-a', agentName: 'Alpha', description: 'Alpha agent', phase: 'running', toolCount: 1, tokens: 100, elapsedSeconds: 5 },
-        { toolCallId: 'tc-b', agentName: 'Beta', description: 'Beta agent', phase: 'running', toolCount: 1, tokens: 100, elapsedSeconds: 5 },
+        {
+          toolCallId: 'tc-a',
+          agentName: 'Alpha',
+          description: 'Alpha agent',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+        {
+          toolCallId: 'tc-b',
+          agentName: 'Beta',
+          description: 'Beta agent',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
       ],
       getComponentById: (id) => (id === 'tc-a' ? tcA : tcB),
     });
     const ctrl = new SubagentsController(envHelper.env);
 
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     const initialDetail = listApp['props'].selectedDetail;
     const initialPreview = listApp['props'].selectedPreview;
@@ -277,27 +323,37 @@ describe('SubagentsController', () => {
   it('distinguishes ongoing and done tools in selectedDetail toolList', () => {
     const tc = makeMockToolCallComponent({
       activities: [
-        { orderSeq: 1, name: 'Grep', args: { pattern: 'foo' }, phase: 'done', output: 'src/foo.ts', isError: false },
+        {
+          orderSeq: 1,
+          name: 'Grep',
+          args: { pattern: 'foo' },
+          phase: 'done',
+          output: 'src/foo.ts',
+          isError: false,
+        },
         { orderSeq: 2, name: 'Read', args: { path: 'src/foo.ts' }, phase: 'ongoing' },
       ],
     });
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1',
-        agentName: 'Explore',
-        description: 'Search',
-        phase: 'running',
-        toolCount: 1,
-        tokens: 100,
-        elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
 
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     expect(listApp['props'].selectedDetail?.toolList).toContain('• Grep');
     expect(listApp['props'].selectedDetail?.toolList).toContain('… Read');
@@ -306,27 +362,37 @@ describe('SubagentsController', () => {
   it('includes ongoing tool activities in selectedPreview', () => {
     const tc = makeMockToolCallComponent({
       activities: [
-        { orderSeq: 1, name: 'Grep', args: { pattern: 'foo' }, phase: 'done', output: 'src/foo.ts', isError: false },
+        {
+          orderSeq: 1,
+          name: 'Grep',
+          args: { pattern: 'foo' },
+          phase: 'done',
+          output: 'src/foo.ts',
+          isError: false,
+        },
         { orderSeq: 2, name: 'Read', args: { path: 'src/foo.ts' }, phase: 'ongoing' },
       ],
     });
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1',
-        agentName: 'Explore',
-        description: 'Search',
-        phase: 'running',
-        toolCount: 1,
-        tokens: 100,
-        elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
 
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     expect(listApp['props'].selectedPreview?.activityLines).toContain('Using Read (src/foo.ts)');
   });
@@ -340,32 +406,55 @@ describe('SubagentsController', () => {
     let registeredCb: (() => void) | undefined;
     const tc = {
       getSubagentSnapshot: vi.fn(() => ({
-        agentName: 'Explore', toolCallDescription: 'Search', phase: 'running',
-        toolCount: 1, tokens: 100, elapsedSeconds: 5,
-        latestActivity: 'Using Read', errorText: undefined,
+        agentName: 'Explore',
+        toolCallDescription: 'Search',
+        phase: 'running',
+        toolCount: 1,
+        tokens: 100,
+        elapsedSeconds: 5,
+        latestActivity: 'Using Read',
+        errorText: undefined,
       })),
       getSubagentActivityDetail: vi.fn(() => ({
-        toolCallId: 'tc-1', agentName: 'Explore', phase: 'running',
-        toolCount: 1, tokens: 100, elapsedSeconds: 5,
-        activities: [], text: '', thinkingText: '', resultSummary: undefined, errorText: undefined,
+        toolCallId: 'tc-1',
+        agentName: 'Explore',
+        phase: 'running',
+        toolCount: 1,
+        tokens: 100,
+        elapsedSeconds: 5,
+        activities: [],
+        text: '',
+        thinkingText: '',
+        resultSummary: undefined,
+        errorText: undefined,
       })),
       addSnapshotListener: vi.fn((cb: () => void) => {
         registeredCb = cb;
         cb(); // firstCallback fires immediately on registration
-        return () => { registeredCb = undefined; };
+        return () => {
+          registeredCb = undefined;
+        };
       }),
     } as unknown as import('#/tui/components/messages/tool-call').ToolCallComponent;
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1', agentName: 'Explore', description: 'Search',
-        phase: 'running', toolCount: 1, tokens: 100, elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n'); // open viewer
 
     expect(registeredCb).toBeDefined();
@@ -400,33 +489,59 @@ describe('SubagentsController', () => {
     let registeredCb: (() => void) | undefined;
     const tc = {
       getSubagentSnapshot: vi.fn(() => ({
-        agentName: 'Explore', toolCallDescription: 'Search', phase: 'running',
-        toolCount: 1, tokens: 100, elapsedSeconds: 5,
-        latestActivity: 'Using Read', errorText: undefined,
+        agentName: 'Explore',
+        toolCallDescription: 'Search',
+        phase: 'running',
+        toolCount: 1,
+        tokens: 100,
+        elapsedSeconds: 5,
+        latestActivity: 'Using Read',
+        errorText: undefined,
       })),
       getSubagentActivityDetail: vi.fn(() => ({
-        toolCallId: 'tc-1', agentName: 'Explore', phase: 'running',
-        toolCount: 1, tokens: 100, elapsedSeconds: 5,
-        activities: [], text: '', thinkingText: '', resultSummary: undefined, errorText: undefined,
+        toolCallId: 'tc-1',
+        agentName: 'Explore',
+        phase: 'running',
+        toolCount: 1,
+        tokens: 100,
+        elapsedSeconds: 5,
+        activities: [],
+        text: '',
+        thinkingText: '',
+        resultSummary: undefined,
+        errorText: undefined,
       })),
-      addSnapshotListener: vi.fn((cb: () => void) => { registeredCb = cb; cb(); return () => {}; }),
+      addSnapshotListener: vi.fn((cb: () => void) => {
+        registeredCb = cb;
+        cb();
+        return () => {};
+      }),
     } as unknown as import('#/tui/components/messages/tool-call').ToolCallComponent;
 
     const envHelper = makeEnv({
-      collectItems: () => [{
-        toolCallId: 'tc-1', agentName: 'Explore', description: 'Search',
-        phase: 'running', toolCount: 1, tokens: 100, elapsedSeconds: 5,
-      }],
+      collectItems: () => [
+        {
+          toolCallId: 'tc-1',
+          agentName: 'Explore',
+          description: 'Search',
+          phase: 'running',
+          toolCount: 1,
+          tokens: 100,
+          elapsedSeconds: 5,
+        },
+      ],
       getComponentById: () => tc,
     });
     const ctrl = new SubagentsController(envHelper.env);
     ctrl.show();
-    const listApp = envHelper.fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+    const listApp = envHelper
+      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n'); // open viewer
 
     // Schedule a coalesced render, then close before the timer fires.
     registeredCb!();
-    const viewer = envHelper.fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
+    const viewer = envHelper
+      .fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
     viewer.handleInput('q'); // close viewer; restores list layer (+1 render)
 
     // After close, advancing the pending timer must NOT produce another render.
@@ -445,13 +560,10 @@ interface MockToolCallOptions {
   activities?: import('#/tui/components/messages/tool-call').SubagentActivityLine[];
 }
 
-function makeMockToolCallComponent(options: MockToolCallOptions = {}): import('#/tui/components/messages/tool-call').ToolCallComponent {
-  const {
-    latestActivity = 'Using Read',
-    text = '',
-    thinkingText = '',
-    activities = [],
-  } = options;
+function makeMockToolCallComponent(
+  options: MockToolCallOptions = {},
+): import('#/tui/components/messages/tool-call').ToolCallComponent {
+  const { latestActivity = 'Using Read', text = '', thinkingText = '', activities = [] } = options;
   return {
     getSubagentSnapshot: vi.fn(() => ({
       agentName: 'Explore',
@@ -476,6 +588,9 @@ function makeMockToolCallComponent(options: MockToolCallOptions = {}): import('#
       resultSummary: undefined,
       errorText: undefined,
     })),
-    addSnapshotListener: vi.fn((cb: (() => void) | undefined) => { cb?.(); return () => {}; }),
+    addSnapshotListener: vi.fn((cb: (() => void) | undefined) => {
+      cb?.();
+      return () => {};
+    }),
   } as unknown as import('#/tui/components/messages/tool-call').ToolCallComponent;
 }

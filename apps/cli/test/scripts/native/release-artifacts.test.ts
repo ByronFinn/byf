@@ -1,9 +1,9 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { inflateRawSync } from 'node:zlib';
 
@@ -129,9 +129,7 @@ describe('native release artifacts', () => {
 
     await execFileAsync(process.execPath, [manifestScript, releaseDir, '@byfriends/cli@0.5.0']);
 
-    const manifest = JSON.parse(
-      await readFile(join(releaseDir, 'manifest.json'), 'utf-8'),
-    ) as {
+    const manifest = JSON.parse(await readFile(join(releaseDir, 'manifest.json'), 'utf-8')) as {
       version: string;
       tag: string;
       platforms: Record<string, { filename: string; checksum: string }>;

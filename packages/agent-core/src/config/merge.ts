@@ -1,4 +1,3 @@
-import { ErrorCodes, ByfError } from '#/errors';
 import {
   ByfConfigPatchSchema,
   formatConfigValidationError,
@@ -6,6 +5,7 @@ import {
   type ByfConfigPatch,
   validateConfig,
 } from '#/config/schema';
+import { ErrorCodes, ByfError } from '#/errors';
 
 export function mergeConfigPatch(config: ByfConfig, patch: ByfConfigPatch): ByfConfig {
   const base = validateConfig(config);
@@ -18,9 +18,13 @@ function parsePatch(patch: ByfConfigPatch): ByfConfigPatch {
   try {
     return stripUndefinedDeep(ByfConfigPatchSchema.parse(patch)) as ByfConfigPatch;
   } catch (error) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration patch: ${formatConfigValidationError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid configuration patch: ${formatConfigValidationError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 

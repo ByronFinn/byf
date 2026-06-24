@@ -32,7 +32,12 @@ describe('CacheStakingStrategy', () => {
     it('does not tag when last turn message is not assistant', () => {
       const messages: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
-        { role: 'tool', content: [{ type: 'text', text: 'result' }], toolCalls: [], toolCallId: 'abc' },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'result' }],
+          toolCalls: [],
+          toolCallId: 'abc',
+        },
         { role: 'user', content: [{ type: 'text', text: 'Next' }], toolCalls: [] },
       ];
 
@@ -61,7 +66,12 @@ describe('CacheStakingStrategy', () => {
 
     it('preserves existing cacheHint fields when adding isLastTurnEnd', () => {
       const messages: Message[] = [
-        { role: 'assistant', content: [{ type: 'text', text: 'Hi' }], toolCalls: [], cacheHint: { isSuddenLargeContext: true } },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hi' }],
+          toolCalls: [],
+          cacheHint: { isSuddenLargeContext: true },
+        },
         { role: 'user', content: [{ type: 'text', text: 'Next' }], toolCalls: [] },
       ];
 
@@ -93,7 +103,12 @@ describe('CacheStakingStrategy', () => {
         { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
         { role: 'assistant', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] },
         { role: 'user', content: [{ type: 'text', text: shortText }], toolCalls: [] },
-        { role: 'tool', content: [{ type: 'text', text: longText }], toolCalls: [], toolCallId: 'tc1' },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: longText }],
+          toolCalls: [],
+          toolCallId: 'tc1',
+        },
         { role: 'user', content: [{ type: 'text', text: 'What now?' }], toolCalls: [] },
       ];
 
@@ -116,8 +131,18 @@ describe('CacheStakingStrategy', () => {
       const messages: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Hello' }], toolCalls: [] },
         { role: 'assistant', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] },
-        { role: 'tool', content: [{ type: 'text', text: mediumText }], toolCalls: [], toolCallId: 'tc1' },
-        { role: 'tool', content: [{ type: 'text', text: hugeText }], toolCalls: [], toolCallId: 'tc2' },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: mediumText }],
+          toolCalls: [],
+          toolCallId: 'tc1',
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: hugeText }],
+          toolCalls: [],
+          toolCallId: 'tc2',
+        },
       ];
 
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
@@ -160,7 +185,12 @@ describe('CacheStakingStrategy', () => {
 
     it('does not set isSuddenLargeContext on previous turn messages', () => {
       const messages: Message[] = [
-        { role: 'tool', content: [{ type: 'text', text: longText }], toolCalls: [], toolCallId: 'tc1' },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: longText }],
+          toolCalls: [],
+          toolCallId: 'tc1',
+        },
         { role: 'assistant', content: [{ type: 'text', text: 'Done' }], toolCalls: [] },
         { role: 'user', content: [{ type: 'text', text: 'Next' }], toolCalls: [] },
       ];

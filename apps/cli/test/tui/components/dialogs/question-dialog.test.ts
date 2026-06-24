@@ -550,7 +550,10 @@ describe('QuestionDialogComponent', () => {
         question: 'Q?',
         multi_select: false,
         options: [
-          { label: 'This is a very long answer that wraps in the review tab instead of being truncated' },
+          {
+            label:
+              'This is a very long answer that wraps in the review tab instead of being truncated',
+          },
           { label: 'B' },
         ],
       },
@@ -563,5 +566,4 @@ describe('QuestionDialogComponent', () => {
     expect(out).toContain('This is a very long');
     expect(out).toContain('truncated');
   });
-
 });

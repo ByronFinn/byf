@@ -1,9 +1,12 @@
-import type { ModelCapability } from '#/capability';
-import type { PromptPlan } from '#/prompt-plan';
 import { createHash } from 'node:crypto';
+
+import OpenAI from 'openai';
+
+import type { ModelCapability } from '#/capability';
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { extractText } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
 import type {
   FinishReason,
   GenerateOptions,
@@ -12,8 +15,9 @@ import type {
   ThinkingEffort,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import OpenAI from 'openai';
 
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
 import {
   getOpenAIResponsesModelCapability,
   usesOpenAIResponsesDeveloperRole,
@@ -25,8 +29,6 @@ import {
   thinkingEffortToReasoningEffort,
 } from './openai-common';
 import { extractCacheUsage } from './provider-common';
-import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
-import { BaseStreamedMessage } from './base-streamed-message';
 
 /**
  * Normalize the Responses API status / incomplete_details into the unified
@@ -165,10 +167,7 @@ function requireObjectField(object: RawObject, key: string, context: string): Ra
   return value;
 }
 
-function readResponseOutputItem(
-  value: unknown,
-  context: string,
-): ResponseOutputItemView {
+function readResponseOutputItem(value: unknown, context: string): ResponseOutputItemView {
   const item = asRawObject(value);
   if (item === null) {
     failResponsesDecode(context, 'must be an object.');
@@ -610,10 +609,7 @@ export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
           `received function-call arguments for unknown stream index ${formatResponseStreamIndex(streamIndex)}.`,
         );
       }
-      setFunctionCallArguments(
-        streamIndex,
-        getFunctionCallArguments(streamIndex) + argumentsPart,
-      );
+      setFunctionCallArguments(streamIndex, getFunctionCallArguments(streamIndex) + argumentsPart);
     };
 
     const yieldFinalArgumentsSuffix = function* (
@@ -812,12 +808,15 @@ export class OpenAIResponsesChatProvider extends BaseChatProvider<OpenAIResponse
     if (options.maxOutputTokens !== undefined) {
       generationKwargs.max_output_tokens = options.maxOutputTokens;
     }
-    const client = apiKeyResolved === undefined ? undefined : OpenAIResponsesChatProvider.buildClient(
-      apiKeyResolved,
-      baseUrl,
-      options.defaultHeaders,
-      options.httpClient,
-    );
+    const client =
+      apiKeyResolved === undefined
+        ? undefined
+        : OpenAIResponsesChatProvider.buildClient(
+            apiKeyResolved,
+            baseUrl,
+            options.defaultHeaders,
+            options.httpClient,
+          );
     super(
       options.model,
       generationKwargs,

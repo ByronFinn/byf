@@ -53,7 +53,7 @@ describe('ConfigState model capabilities', () => {
             },
           },
           models: {
-            'byf': {
+            byf: {
               provider: 'byf',
               model: 'byf',
               maxContextSize: 128_000,
@@ -98,7 +98,7 @@ describe('ConfigState model capabilities', () => {
             },
           },
           models: {
-            'byf': {
+            byf: {
               provider: 'byf',
               model: 'byf',
               maxContextSize: 128_000,

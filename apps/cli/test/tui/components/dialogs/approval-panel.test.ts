@@ -1,10 +1,7 @@
 import { CURSOR_MARKER } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  ApprovalPanelComponent,
-  resolveSection,
-} from '#/tui/components/dialogs/approval-panel';
+import { ApprovalPanelComponent, resolveSection } from '#/tui/components/dialogs/approval-panel';
 import type { PendingApproval } from '#/tui/reverse-rpc/types';
 import { getColorPalette } from '#/tui/theme/colors';
 
@@ -230,14 +227,11 @@ describe('ApprovalPanelComponent', () => {
     expect(out).toContain(CURSOR_MARKER);
   });
 
-  it.each(['\u0003', '\u0004', '\u001B'])(
-    'shortcut %j rejects approval immediately',
-    (key) => {
-      const { dialog, responses } = makeDialog();
-      dialog.handleInput(key);
-      expect(responses).toEqual([{ response: 'rejected' }]);
-    },
-  );
+  it.each(['\u0003', '\u0004', '\u001B'])('shortcut %j rejects approval immediately', (key) => {
+    const { dialog, responses } = makeDialog();
+    dialog.handleInput(key);
+    expect(responses).toEqual([{ response: 'rejected' }]);
+  });
 
   it('renders generic approval with custom choices', () => {
     const pending: PendingApproval = {
@@ -393,7 +387,12 @@ describe('ApprovalPanelComponent', () => {
       },
     };
     let globalToggleCalls = 0;
-    const dialog = new ApprovalPanelComponent(pending, () => {}, COLORS, () => globalToggleCalls++);
+    const dialog = new ApprovalPanelComponent(
+      pending,
+      () => {},
+      COLORS,
+      () => globalToggleCalls++,
+    );
 
     dialog.handleInput('\u000F'); // Ctrl+O — forwarded
 
@@ -500,9 +499,7 @@ describe('ApprovalPanelComponent', () => {
     dialog.handleInput('n');
     dialog.handleInput('o');
     dialog.handleInput('\r');
-    expect(responses).toEqual([
-      { response: 'rejected', feedback: 'no', selected_label: 'Revise' },
-    ]);
+    expect(responses).toEqual([{ response: 'rejected', feedback: 'no', selected_label: 'Revise' }]);
   });
 
   it('renderDisplayBlock always caps diff at max lines regardless of expanded state', () => {

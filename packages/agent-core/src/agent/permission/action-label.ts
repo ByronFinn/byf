@@ -131,10 +131,7 @@ export function describeApprovalAction(
  * table entry means the action should be cached by action label only,
  * without creating a broad PermissionRule.
  */
-export function actionToRulePattern(
-  action: string,
-  fallbackToolName: string,
-): string | undefined {
+export function actionToRulePattern(action: string, fallbackToolName: string): string | undefined {
   const mapped = ACTION_TO_PATTERN[action];
   if (mapped !== undefined) return mapped ?? undefined;
   return fallbackToolName;

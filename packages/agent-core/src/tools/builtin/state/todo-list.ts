@@ -17,8 +17,8 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ToolExecution } from '../../../loop/types';
-import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
+import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './todo-list.md';
 
 // ── TODO state shape ─────────────────────────────────────────────────
@@ -113,7 +113,9 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
         this.setTodos(args.todos);
         const stored = this.getTodos();
         const output =
-          stored.length === 0 ? 'Todo list cleared.' : `Todo list updated.\n${renderTodoList(stored)}`;
+          stored.length === 0
+            ? 'Todo list cleared.'
+            : `Todo list updated.\n${renderTodoList(stored)}`;
         return { isError: false, output };
       },
     };

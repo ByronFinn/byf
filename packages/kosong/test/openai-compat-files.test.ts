@@ -2,9 +2,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
-import { OpenAICompatFiles } from '#/providers/openai-compat-files';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+import { OpenAICompatFiles } from '#/providers/openai-compat-files';
+import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 
 function createProvider(): OpenAICompletionsChatProvider {
   return new OpenAICompletionsChatProvider({

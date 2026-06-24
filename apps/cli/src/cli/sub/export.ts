@@ -63,7 +63,9 @@ export async function handleExport(
     }
     resolvedId = previousSummary.id;
     if (!opts.yes) {
-      const confirmed = await deps.confirmPreviousSession(toPreviousSessionSummary(previousSummary));
+      const confirmed = await deps.confirmPreviousSession(
+        toPreviousSessionSummary(previousSummary),
+      );
       if (!confirmed) {
         deps.stdout.write('Export cancelled.\n');
         return;
@@ -128,7 +130,7 @@ function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDep
     exportSession:
       overrides.exportSession ??
       (async (input: ExportSessionInput) => {
-        return  getHarness().exportSession(input);
+        return getHarness().exportSession(input);
       }),
     version: overrides.version ?? identity.version,
     confirmPreviousSession: overrides.confirmPreviousSession ?? confirmPreviousSession,
@@ -139,9 +141,9 @@ function createDefaultExportDeps(overrides: Partial<ExportDeps> = {}): ExportDep
   };
 }
 
-async function findPreviousSession(deps: Pick<ExportDeps, 'cwd' | 'listSessions'>): Promise<
-  SessionSummary | undefined
-> {
+async function findPreviousSession(
+  deps: Pick<ExportDeps, 'cwd' | 'listSessions'>,
+): Promise<SessionSummary | undefined> {
   const sessions = await deps.listSessions(deps.cwd());
   return sessions[0];
 }
@@ -163,7 +165,8 @@ function normalizeOptionalSessionId(sessionId: string | undefined): string | und
 async function confirmPreviousSession(summary: PreviousSessionSummary): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    const title = summary.title === undefined ? summary.sessionId : `${summary.title} (${summary.sessionId})`;
+    const title =
+      summary.title === undefined ? summary.sessionId : `${summary.title} (${summary.sessionId})`;
     const answer = await rl.question(`Export previous session "${title}"? [Y/n] `);
     const trimmed = answer.trim().toLowerCase();
     return trimmed === '' || trimmed === 'y' || trimmed === 'yes';

@@ -23,6 +23,7 @@ A code review during `/grill` revealed an additional constraint that bounds the 
 3. `anthropic` — Anthropic native endpoint
 
 For each type:
+
 - A native model-listing fetcher is used (`fetchModelsByType` in `@byfriends/oauth`), rather than the OpenAI-compatible shape for all. The Anthropic fetcher uses `x-api-key` + `anthropic-version` headers and handles `has_more`/`last_id` pagination.
 - The provider's `type` field written to TOML matches the user's choice.
 - Base URL is entered via a placeholder hint (the type's official default), left empty = use the official default.
@@ -48,14 +49,14 @@ Catalog enrichment (ADR 0012) continues to apply uniformly across all `/login` t
 
 ## Alternatives Considered
 
-* **Keep ADR 0002 as-is (always openai-compat):** rejected — leaves the native-endpoint workflow unsupported, the original problem.
-* **Implement all five types including google-genai/vertexai now:** rejected — google-genai's runtime ignores `baseUrl` (verified in `runtime-provider.ts` + `GoogleGenAIChatProvider`), so shipping it would persist a silently-ignored config value, violating the custom-URL promise. Better to defer until the propagation fix lands.
-* **Derive type from the base URL heuristically:** rejected — fragile (many proxies impersonate multiple wire types) and removes the user's ability to be explicit about a non-obvious gateway.
-* **Route all non-OpenAI types through `/connect` only:** rejected — `/connect` requires the provider to be catalog-listed; custom/private Anthropic gateways are exactly the case `/login` exists for.
+- **Keep ADR 0002 as-is (always openai-compat):** rejected — leaves the native-endpoint workflow unsupported, the original problem.
+- **Implement all five types including google-genai/vertexai now:** rejected — google-genai's runtime ignores `baseUrl` (verified in `runtime-provider.ts` + `GoogleGenAIChatProvider`), so shipping it would persist a silently-ignored config value, violating the custom-URL promise. Better to defer until the propagation fix lands.
+- **Derive type from the base URL heuristically:** rejected — fragile (many proxies impersonate multiple wire types) and removes the user's ability to be explicit about a non-obvious gateway.
+- **Route all non-OpenAI types through `/connect` only:** rejected — `/connect` requires the provider to be catalog-listed; custom/private Anthropic gateways are exactly the case `/login` exists for.
 
 ## References
 
-* [ADR 0002 — User-Configurable Providers via /login](0002-user-configurable-providers.md) (decision point #7 superseded)
-* [ADR 0012 — Login-Time Catalog Enrichment](0012-login-catalog-enrichment.md) (enrichment continues to apply)
-* `packages/agent-core/src/providers/runtime-provider.ts:280-285` (google-genai omits baseUrl — the deferral trigger)
-* `packages/oauth/src/provider-config.ts:183-227` (`applyProviderConfig` hardcodes type today)
+- [ADR 0002 — User-Configurable Providers via /login](0002-user-configurable-providers.md) (decision point #7 superseded)
+- [ADR 0012 — Login-Time Catalog Enrichment](0012-login-catalog-enrichment.md) (enrichment continues to apply)
+- `packages/agent-core/src/providers/runtime-provider.ts:280-285` (google-genai omits baseUrl — the deferral trigger)
+- `packages/oauth/src/provider-config.ts:183-227` (`applyProviderConfig` hardcodes type today)

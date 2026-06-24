@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import type { EphemeralInjection } from '../../../src/agent/context/projector';
 import { DynamicInjector } from '../../../src/agent/injection/injector';
 import { InjectionManager } from '../../../src/agent/injection/manager';
 import { PermissionModeInjector } from '../../../src/agent/injection/permission-mode';
 import { TimestampInjector } from '../../../src/agent/injection/timestamp';
 import { testAgent } from '../harness/agent';
-
-import type { EphemeralInjection } from '../../../src/agent/context/projector';
 
 class RecordingInjector extends DynamicInjector {
   override readonly injectionVariant = 'recording_test';

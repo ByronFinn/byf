@@ -68,9 +68,8 @@ function toModelInfo(item: unknown): ModelInfo | undefined {
     return undefined;
   }
   const rawContextLength = Number(item['context_length']);
-  const contextLength = Number.isInteger(rawContextLength) && rawContextLength > 0
-    ? rawContextLength
-    : 200_000;
+  const contextLength =
+    Number.isInteger(rawContextLength) && rawContextLength > 0 ? rawContextLength : 200_000;
   const displayName = item['display_name'];
   const normalizedDisplayName =
     typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined;
@@ -198,9 +197,10 @@ async function fetchAnthropicModels(
   let afterId: string | undefined;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
-    const url = afterId === undefined
-      ? `${base}/models`
-      : `${base}/models?after_id=${encodeURIComponent(afterId)}`;
+    const url =
+      afterId === undefined
+        ? `${base}/models`
+        : `${base}/models?after_id=${encodeURIComponent(afterId)}`;
     const res = await fetchImpl(url, {
       headers: {
         'x-api-key': apiKey,
@@ -245,7 +245,8 @@ function anthropicModelToInfo(item: unknown): ModelInfo | undefined {
     supportsReasoning: true,
     supportsImageIn: true,
     supportsVideoIn: false,
-    displayName: typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined,
+    displayName:
+      typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined,
   };
 }
 

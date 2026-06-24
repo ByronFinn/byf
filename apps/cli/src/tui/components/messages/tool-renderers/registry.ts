@@ -10,8 +10,8 @@
  * choose, so adding a new tool means appending one case.
  */
 
-import { readMediaSummary } from './media';
 import { shellExecutionResultRenderer } from '../shell-execution';
+import { readMediaSummary } from './media';
 import {
   editSummary,
   fetchSummary,

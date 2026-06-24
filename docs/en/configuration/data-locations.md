@@ -115,15 +115,15 @@ Deleting the data root directory (default `~/.byf/`, or the path specified by `B
 
 To clean up only part of the data:
 
-| Goal | Action |
-| --- | --- |
-| Reset config | Delete `~/.byf/config.toml` |
-| Clear all sessions | Delete `~/.byf/sessions/` and `~/.byf/session_index.jsonl` |
-| Clear diagnostic logs | Delete the `~/.byf/logs/` directory |
-| Clear input history | Delete the `~/.byf/user-history/` directory |
-| Reset update check state | Delete `~/.byf/updates/latest.json` |
-| Force a ripgrep redownload | Delete the `~/.byf/bin/` directory |
-| Clear BYF OAuth login state | Run `/logout` (clears only the current provider's OAuth), or delete the corresponding `~/.byf/credentials/<name>.json` |
-| Clear MCP server OAuth login state | Delete the `~/.byf/credentials/mcp/` directory; `/logout` **does not** clear MCP OAuth credentials |
-| Remove user-level MCP declarations | Delete `~/.byf/mcp.json` |
-| Clear user-level Skills | Delete the `~/.byf/skills/` directory |
+| Goal                               | Action                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Reset config                       | Delete `~/.byf/config.toml`                                                                                            |
+| Clear all sessions                 | Delete `~/.byf/sessions/` and `~/.byf/session_index.jsonl`                                                             |
+| Clear diagnostic logs              | Delete the `~/.byf/logs/` directory                                                                                    |
+| Clear input history                | Delete the `~/.byf/user-history/` directory                                                                            |
+| Reset update check state           | Delete `~/.byf/updates/latest.json`                                                                                    |
+| Force a ripgrep redownload         | Delete the `~/.byf/bin/` directory                                                                                     |
+| Clear BYF OAuth login state        | Run `/logout` (clears only the current provider's OAuth), or delete the corresponding `~/.byf/credentials/<name>.json` |
+| Clear MCP server OAuth login state | Delete the `~/.byf/credentials/mcp/` directory; `/logout` **does not** clear MCP OAuth credentials                     |
+| Remove user-level MCP declarations | Delete `~/.byf/mcp.json`                                                                                               |
+| Clear user-level Skills            | Delete the `~/.byf/skills/` directory                                                                                  |

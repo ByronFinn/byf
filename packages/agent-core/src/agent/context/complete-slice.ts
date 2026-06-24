@@ -1,9 +1,6 @@
 import type { Message } from '@byfriends/kosong';
 
-export function sliceCompleteMessages(
-  messages: readonly Message[],
-  requestedEnd: number,
-): number {
+export function sliceCompleteMessages(messages: readonly Message[], requestedEnd: number): number {
   let normalized = Math.max(0, Math.min(messages.length, requestedEnd));
 
   for (let i = 0; i < messages.length; i += 1) {

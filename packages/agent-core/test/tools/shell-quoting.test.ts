@@ -52,12 +52,12 @@ function captureCommandRewrite(
     args: { command, timeout: 1000 },
     signal,
   }).then(() => {
-      const argv = execWithEnv.mock.calls[0]?.[0] as readonly string[];
-      // The shell wrapper is "cd '<cwd>' && <rewritten>"; isolate the rewrite.
-      const wrapped = argv[2]!;
-      const match = /^cd '[^']+' && (.*)$/.exec(wrapped)!;
-      return { rewritten: match[1]!, argv };
-    });
+    const argv = execWithEnv.mock.calls[0]?.[0] as readonly string[];
+    // The shell wrapper is "cd '<cwd>' && <rewritten>"; isolate the rewrite.
+    const wrapped = argv[2]!;
+    const match = /^cd '[^']+' && (.*)$/.exec(wrapped)!;
+    return { rewritten: match[1]!, argv };
+  });
 }
 
 // Helpers above test the same defensive rewrite the standalone util tests
@@ -122,14 +122,11 @@ describe('shell command unchanged paths (Windows Git Bash)', () => {
 });
 
 describe('shell command nul-redirect — non-Windows passthrough', () => {
-  it.each([
-    'ls >nul',
-    'ls 2>nul',
-    'ls &>nul',
-    'ls >>nul',
-    'foo >nul; bar 2>nul',
-  ])('does not rewrite %s on Linux', async (command) => {
-    const { rewritten } = await captureCommandRewrite(linuxEnv, command);
-    expect(rewritten).toBe(command);
-  });
+  it.each(['ls >nul', 'ls 2>nul', 'ls &>nul', 'ls >>nul', 'foo >nul; bar 2>nul'])(
+    'does not rewrite %s on Linux',
+    async (command) => {
+      const { rewritten } = await captureCommandRewrite(linuxEnv, command);
+      expect(rewritten).toBe(command);
+    },
+  );
 });

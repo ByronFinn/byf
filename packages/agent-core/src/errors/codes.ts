@@ -20,6 +20,7 @@ export const ErrorCodes = {
   SESSION_STATE_NOT_FOUND: 'session.state_not_found',
   SESSION_STATE_INVALID: 'session.state_invalid',
   SESSION_FORK_ACTIVE_TURN: 'session.fork_active_turn',
+  SESSION_FORK_UPTO_MESSAGE_OUT_OF_RANGE: 'session.fork_upto_message_out_of_range',
   SESSION_EXPORT_NOT_FOUND: 'session.export_not_found',
   SESSION_EXPORT_MISSING_VERSION: 'session.export_missing_version',
   SESSION_CLOSED: 'session.closed',
@@ -141,6 +142,12 @@ export const BYF_ERROR_INFO = {
     retryable: true,
     public: true,
     action: 'Wait for the active turn to complete before forking.',
+  },
+  'session.fork_upto_message_out_of_range': {
+    title: 'Fork rewind message out of range',
+    retryable: false,
+    public: true,
+    action: 'Select a message ordinal that exists in the session.',
   },
   'session.export_not_found': {
     title: 'Session export directory missing',
@@ -352,7 +359,8 @@ export const BYF_ERROR_INFO = {
     title: 'Git Bash not found',
     retryable: false,
     public: true,
-    action: 'Install Git for Windows from https://gitforwindows.org/ or set BYF_SHELL_PATH to a bash.exe.',
+    action:
+      'Install Git for Windows from https://gitforwindows.org/ or set BYF_SHELL_PATH to a bash.exe.',
   },
 
   not_implemented: {

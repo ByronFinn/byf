@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart } from '#/message';
 import { createAssistantMessage, createUserMessage } from '#/message';
 import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 function createMockStream(
   parts: StreamedMessagePart[],
@@ -82,7 +83,8 @@ describe('regression', () => {
           {
             type: 'function',
             id: 'call-1',
-            name: 'search', arguments: '{}',
+            name: 'search',
+            arguments: '{}',
           },
         ],
       );
@@ -90,7 +92,8 @@ describe('regression', () => {
         {
           type: 'function',
           id: 'call-1',
-          name: 'search', arguments: '{}',
+          name: 'search',
+          arguments: '{}',
         },
       ]);
     });

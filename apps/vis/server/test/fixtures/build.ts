@@ -1,6 +1,6 @@
 import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /** Copy a fixture session into a temp dir, rewriting state.json.agents.*.homedir
  *  to the real path so wire-reader / agent-tree can resolve them. */
@@ -42,7 +42,10 @@ export async function buildSessionFixture(name: string): Promise<{
 }
 
 async function mkdtemp(): Promise<string> {
-  const base = join(tmpdir(), `vis-fixture-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const base = join(
+    tmpdir(),
+    `vis-fixture-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   await mkdir(base, { recursive: true });
   return base;
 }

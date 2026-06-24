@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { testAgent } from './harness/agent';
-import type { AgentRecord } from '../../src/agent/records/types';
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
+import type { AgentRecord } from '../../src/agent/records/types';
+import { testAgent } from './harness/agent';
 
 describe('Agent.resume() integration tests', () => {
   describe('完整恢复流程测试', () => {
@@ -252,9 +252,25 @@ describe('Agent.resume() integration tests', () => {
       const records: AgentRecord[] = [
         { type: 'metadata', protocol_version: '1.1', created_at: 1 },
         { type: 'config.update', modelAlias: 'model1' },
-        { type: 'context.append_message', message: { role: 'user', content: [{ type: 'text', text: 'Msg1' }], toolCalls: [], origin: { kind: 'user' } } },
-        { type: 'context.append_message', message: { role: 'assistant', content: [{ type: 'text', text: 'Resp1' }], toolCalls: [] } },
-        { type: 'usage.record', model: 'model1', usage: { inputCacheCreation: 100, inputCacheRead: 0, inputOther: 200, output: 150 }, usageScope: 'session' },
+        {
+          type: 'context.append_message',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Msg1' }],
+            toolCalls: [],
+            origin: { kind: 'user' },
+          },
+        },
+        {
+          type: 'context.append_message',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Resp1' }], toolCalls: [] },
+        },
+        {
+          type: 'usage.record',
+          model: 'model1',
+          usage: { inputCacheCreation: 100, inputCacheRead: 0, inputOther: 200, output: 150 },
+          usageScope: 'session',
+        },
       ];
 
       const persistence = new InMemoryAgentRecordPersistence(records);

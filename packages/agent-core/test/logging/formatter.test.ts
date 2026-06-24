@@ -29,18 +29,15 @@ describe('formatter — logfmt rendering', () => {
   });
 
   it('renders ctx as k=v pairs', () => {
-    const { text } = formatEntry(
-      baseEntry({ ctx: { sessionId: 'ses_abc', workDir: '/repo' } }),
-    );
+    const { text } = formatEntry(baseEntry({ ctx: { sessionId: 'ses_abc', workDir: '/repo' } }));
     expect(text).toContain('sessionId=ses_abc');
     expect(text).toContain('workDir=/repo');
   });
 
   it('omits selected ctx keys', () => {
-    const { text } = formatEntry(
-      baseEntry({ ctx: { sessionId: 'ses_abc', workDir: '/repo' } }),
-      { omitContextKeys: ['sessionId'] },
-    );
+    const { text } = formatEntry(baseEntry({ ctx: { sessionId: 'ses_abc', workDir: '/repo' } }), {
+      omitContextKeys: ['sessionId'],
+    });
     expect(text).not.toContain('sessionId=ses_abc');
     expect(text).toContain('workDir=/repo');
   });
@@ -53,7 +50,14 @@ describe('formatter — logfmt rendering', () => {
   it('renders all level labels at fixed width', () => {
     for (const level of ['error', 'warn', 'info', 'debug'] as const) {
       const { text } = formatEntry(baseEntry({ level }));
-      const label = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN ' : level === 'info' ? 'INFO ' : 'DEBUG';
+      const label =
+        level === 'error'
+          ? 'ERROR'
+          : level === 'warn'
+            ? 'WARN '
+            : level === 'info'
+              ? 'INFO '
+              : 'DEBUG';
       expect(text).toContain(` ${label} `);
     }
   });
@@ -75,7 +79,13 @@ describe('formatter — error extraction', () => {
     const err = new Error('boom');
     err.stack = 'Error: boom\n    at fn (file.ts:1:1)';
     const ext = extractError(err);
-    const { text } = formatEntry(baseEntry({ level: 'error', msg: 'failure', error: { message: ext.message, stack: ext.stack ?? '' } }));
+    const { text } = formatEntry(
+      baseEntry({
+        level: 'error',
+        msg: 'failure',
+        error: { message: ext.message, stack: ext.stack ?? '' },
+      }),
+    );
     expect(text).toMatch(/\n  Error: boom\n {4}at fn/);
   });
 
@@ -177,8 +187,7 @@ describe('formatter — auto-redact', () => {
     const { text } = formatEntry(
       baseEntry({
         ctx: {
-          stderrTail:
-            'Authorization: Bearer abc123\napi_key=def456\ncookie: session=ghi789',
+          stderrTail: 'Authorization: Bearer abc123\napi_key=def456\ncookie: session=ghi789',
         },
       }),
     );

@@ -12,10 +12,7 @@ import { detectTerminalTheme } from '#/tui/theme/detect';
 import type { CLIOptions } from './options';
 import { createByfHostIdentity } from './version';
 
-export async function runShell(
-  opts: CLIOptions,
-  version: string,
-): Promise<void> {
+export async function runShell(opts: CLIOptions, version: string): Promise<void> {
   let tuiConfig: TuiConfig;
   let configWarning: string | undefined;
   try {

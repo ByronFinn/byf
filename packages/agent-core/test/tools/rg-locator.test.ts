@@ -174,10 +174,7 @@ describe('ensureRgPath download branch', () => {
   let savedPath: string | undefined;
   let savedFetch: typeof globalThis.fetch | undefined;
   beforeEach(() => {
-    fakeShare = join(
-      tmpdir(),
-      `byf-rg-dl-${String(Date.now())}-${String(Math.random()).slice(2)}`,
-    );
+    fakeShare = join(tmpdir(), `byf-rg-dl-${String(Date.now())}-${String(Math.random()).slice(2)}`);
     mkdirSync(join(fakeShare, 'bin'), { recursive: true });
     savedPath = process.env['PATH'];
     process.env['PATH'] = ''; // force the locator past `whichRg`

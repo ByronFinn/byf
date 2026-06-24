@@ -236,7 +236,10 @@ describe('getProxyForUrl', () => {
 
   it('for HTTPS: falls back to system HTTPS proxy, then system HTTP proxy', () => {
     const env = envFromRecord({});
-    const sys: ProxySettings = { httpsProxy: 'http://sys-https:8080', httpProxy: 'http://sys-http:8080' };
+    const sys: ProxySettings = {
+      httpsProxy: 'http://sys-https:8080',
+      httpProxy: 'http://sys-http:8080',
+    };
     expect(getProxyForUrl('https://example.com', env, sys)).toBe('http://sys-https:8080');
   });
 
@@ -440,9 +443,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('propagates original error when direct fetch fails and no proxy is configured', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'));
+    const innerFetch = vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED'));
     const env = envFromRecord({});
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -451,9 +452,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('propagates original error when direct fetch fails with non-retryable error', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(errorResponse(404));
+    const innerFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(404));
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -476,9 +475,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('skips proxy when host matches NO_PROXY', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'));
+    const innerFetch = vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED'));
     const env = envFromRecord({
       HTTPS_PROXY: 'http://proxy:8080',
       NO_PROXY: 'example.com',
@@ -522,9 +519,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('does NOT retry HTTP 401 through proxy', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(errorResponse(401));
+    const innerFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(401));
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 

@@ -170,7 +170,11 @@ export interface EnrichedModelAlias {
  * Provider provides: displayName (user chose this provider, keep its naming).
  */
 export function enrichWithCatalog(
-  providerModel: { readonly id: string; readonly contextLength: number; readonly displayName?: string },
+  providerModel: {
+    readonly id: string;
+    readonly contextLength: number;
+    readonly displayName?: string;
+  },
   catalogModel: CatalogModel,
 ): EnrichedModelAlias {
   return {

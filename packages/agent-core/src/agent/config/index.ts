@@ -9,8 +9,8 @@ import {
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';
 import type { RecordRestoreHandler } from '../restore-handler';
-import type { AgentConfigData, AgentConfigUpdateData } from './types';
 import { resolveThinkingEffort, type ThinkingEffort } from './thinking';
+import type { AgentConfigData, AgentConfigUpdateData } from './types';
 
 export * from './types';
 export { resolveThinkingEffort, type ThinkingEffort } from './thinking';

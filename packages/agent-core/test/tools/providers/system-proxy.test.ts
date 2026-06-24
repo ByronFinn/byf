@@ -6,7 +6,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { detectSystemProxy, type ProxySettings, type SystemProxyOptions } from '../../../src/tools/providers/system-proxy';
+import {
+  detectSystemProxy,
+  type ProxySettings,
+  type SystemProxyOptions,
+} from '../../../src/tools/providers/system-proxy';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

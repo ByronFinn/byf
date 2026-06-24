@@ -164,7 +164,9 @@ async function rewrite() {
 
     if (rewritten !== content) {
       await writeFile(file, rewritten, 'utf8');
-      console.log(`  rewrote ${base} (self-referenced ${matches.length} import(s), added ${toExport.size} export(s))`);
+      console.log(
+        `  rewrote ${base} (self-referenced ${matches.length} import(s), added ${toExport.size} export(s))`,
+      );
     }
   }
 

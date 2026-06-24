@@ -126,7 +126,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
       return;
     }
     const selected = this.list.selected();
-    const availability = selected !== undefined ? thinkingAvailability(selected.model) : 'unsupported';
+    const availability =
+      selected !== undefined ? thinkingAvailability(selected.model) : 'unsupported';
     // Left/Right control thinking effort; paging is on PgUp/PgDn so the
     // horizontal arrows stay free for the thinking control.
     if (availability === 'effort' && selected !== undefined) {
@@ -173,7 +174,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
     navParts.push('Enter apply', 'Esc cancel');
 
     const titleSuffix =
-      searchable && view.query.length === 0 ? chalk.hex(colors.textMuted)('  (type to search)') : '';
+      searchable && view.query.length === 0
+        ? chalk.hex(colors.textMuted)('  (type to search)')
+        : '';
     const lines: string[] = [
       chalk.hex(colors.primary)('─'.repeat(width)),
       chalk.hex(colors.primary).bold(' Select a model') + titleSuffix,
@@ -243,7 +246,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
         xhigh: 'XHigh',
         max: 'Max',
       };
-      return '  ' + levels.map((level) => segment(displayMap[level], this.effortDraft === level)).join('');
+      return (
+        '  ' +
+        levels.map((level) => segment(displayMap[level], this.effortDraft === level)).join('')
+      );
     }
     return `  ${segment('On', this.effortDraft !== 'off')}  ${segment('Off', this.effortDraft === 'off')}`;
   }

@@ -12,13 +12,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
-import type { Message, StreamedMessagePart } from '#/message';
+
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import type { ModelCapability } from '#/capability';
-import type { Tool } from '#/tool';
+import type { Message, StreamedMessagePart } from '#/message';
+import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
 import { BaseChatProvider, type ResolvedAuth } from '#/providers/base-chat-provider';
 import { BaseStreamedMessage } from '#/providers/base-streamed-message';
+import type { Tool } from '#/tool';
 
 // --- BaseChatProvider: a minimal concrete subclass must compile ---
 

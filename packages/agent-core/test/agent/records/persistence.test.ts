@@ -70,10 +70,7 @@ describe('FileSystemAgentRecordPersistence', () => {
 
     const lines = await readLines(wirePath);
     expect(lines).toHaveLength(2);
-    expect(lines.map((line) => JSON.parse(line)['type'])).toEqual([
-      'turn.prompt',
-      'turn.prompt',
-    ]);
+    expect(lines.map((line) => JSON.parse(line)['type'])).toEqual(['turn.prompt', 'turn.prompt']);
   });
 
   it('returns appended metadata records from read() output', async () => {
@@ -164,10 +161,7 @@ describe('FileSystemAgentRecordPersistence', () => {
     await persistence.flush();
 
     const lines = await readLines(wirePath);
-    expect(lines.map((line) => JSON.parse(line)['type'])).toEqual([
-      'metadata',
-      'turn.prompt',
-    ]);
+    expect(lines.map((line) => JSON.parse(line)['type'])).toEqual(['metadata', 'turn.prompt']);
     expect(JSON.parse(lines[1]!)['input'][0]['text']).toBe('new');
   });
 

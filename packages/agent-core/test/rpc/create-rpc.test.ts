@@ -89,10 +89,14 @@ describe('createRPC', () => {
     await connectRemote({
       async prompt(payload) {
         if (payload.input === '') {
-          throw new ByfError(ErrorCodes.REQUEST_PROMPT_INPUT_EMPTY, 'Prompt input cannot be empty', {
-            details: { hint: 'pass at least one content part' },
-            cause: new Error('local diagnostic — must not cross'),
-          });
+          throw new ByfError(
+            ErrorCodes.REQUEST_PROMPT_INPUT_EMPTY,
+            'Prompt input cannot be empty',
+            {
+              details: { hint: 'pass at least one content part' },
+              cause: new Error('local diagnostic — must not cross'),
+            },
+          );
         }
       },
     });

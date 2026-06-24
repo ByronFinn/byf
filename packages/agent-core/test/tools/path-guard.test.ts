@@ -303,11 +303,7 @@ describe('path access policy', () => {
 
   it('tolerates forward slashes in win32 mode for containment checks', () => {
     expect(
-      isWithinDirectory(
-        'C:/Users/user/project/src/main.py',
-        'C:/Users/user/project',
-        'win32',
-      ),
+      isWithinDirectory('C:/Users/user/project/src/main.py', 'C:/Users/user/project', 'win32'),
     ).toBe(true);
   });
 
@@ -349,7 +345,6 @@ describe('path access policy', () => {
     it('leaves leading tilde untouched (expansion happens elsewhere)', () => {
       expect(normalizeUserPath('~/Documents', 'win32')).toBe('~/Documents');
     });
-
   });
 
   describe('normalizeUserPath on posix', () => {

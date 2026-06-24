@@ -222,13 +222,7 @@ export class ReadTool implements BuiltinTool<ReadInput> {
       const effectiveLimit = Math.min(requestedLines, MAX_LINES);
 
       if (lineOffset < 0) {
-        return await this.readTail(
-          safePath,
-          args.path,
-          lineOffset,
-          effectiveLimit,
-          requestedLines,
-        );
+        return await this.readTail(safePath, args.path, lineOffset, effectiveLimit, requestedLines);
       }
       return await this.readForward(
         safePath,

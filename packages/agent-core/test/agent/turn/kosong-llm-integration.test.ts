@@ -10,8 +10,6 @@
  * - promptPlan is passed correctly to GenerateOptions
  */
 
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   emptyUsage,
   type GenerateOptions,
@@ -19,6 +17,7 @@ import {
   type PromptPlan,
   UNKNOWN_CAPABILITY,
 } from '@byfriends/kosong';
+import { describe, expect, it, vi } from 'vitest';
 
 import { KosongLLM, type KosongLLMConfig } from '../../../src/agent/turn/kosong-llm';
 import type { LLMChatParams } from '../../../src/loop';

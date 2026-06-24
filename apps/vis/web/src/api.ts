@@ -106,8 +106,7 @@ export const api = {
   getContext: (id: string, agentId: string) =>
     get<ContextResponse>(`/api/sessions/${enc(id)}/context?agent=${enc(agentId)}`),
 
-  getAgentTree: (id: string) =>
-    get<AgentTreeResponse>(`/api/sessions/${enc(id)}/agents`),
+  getAgentTree: (id: string) => get<AgentTreeResponse>(`/api/sessions/${enc(id)}/agents`),
 
   deleteSession: (id: string) => del<DeleteSessionResponse>(`/api/sessions/${enc(id)}`),
 

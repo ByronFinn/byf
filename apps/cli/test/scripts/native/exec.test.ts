@@ -18,12 +18,7 @@ describe('commandForExecFile', () => {
       ComSpec: 'C:\\Windows\\System32\\cmd.exe',
     });
     expect(result.command).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(result.args).toEqual([
-      '/d',
-      '/s',
-      '/c',
-      '""postject.cmd" "byf.exe" "NODE_SEA_BLOB""',
-    ]);
+    expect(result.args).toEqual(['/d', '/s', '/c', '""postject.cmd" "byf.exe" "NODE_SEA_BLOB""']);
     expect(result.options?.windowsVerbatimArguments).toBe(true);
   });
 

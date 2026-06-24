@@ -1,10 +1,7 @@
 import type { TUI } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  formatSubagentTokens,
-  ToolCallComponent,
-} from '#/tui/components/messages/tool-call';
+import { formatSubagentTokens, ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
@@ -173,6 +170,41 @@ describe('ToolCallComponent', () => {
     expect(out).toContain('Collected your answers');
     expect(out).toContain('Favorite editor?');
     expect(out).toContain('Vim');
+    expect(out).not.toContain('AskUserQuestion');
+  });
+
+  it('renders each AskUserQuestion answer exactly once (no duplicates)', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_question_dup',
+        name: 'AskUserQuestion',
+        args: {},
+      },
+      {
+        tool_call_id: 'call_question_dup',
+        output: JSON.stringify({
+          answers: {
+            'Favorite editor?': 'Vim',
+            'Preferred color scheme?': 'Dark',
+          },
+        }),
+        is_error: false,
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+
+    // Each question should appear exactly once
+    expect(out).toContain('Collected your answers');
+    const favEditorCount = (out.match(/Favorite editor\?/g) ?? []).length;
+    expect(favEditorCount).toBe(1);
+    const colorSchemeCount = (out.match(/Preferred color scheme\?/g) ?? []).length;
+    expect(colorSchemeCount).toBe(1);
+    const vimCount = (out.match(/Vim/g) ?? []).length;
+    expect(vimCount).toBe(1);
+    const darkCount = (out.match(/Dark/g) ?? []).length;
+    expect(darkCount).toBe(1);
     expect(out).not.toContain('AskUserQuestion');
   });
 

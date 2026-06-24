@@ -75,8 +75,18 @@ function captureOutput(): {
     stdout,
     stderr,
     options: {
-      stdout: { write: (chunk: string) => { stdout.push(chunk); return true; } },
-      stderr: { write: (chunk: string) => { stderr.push(chunk); return true; } },
+      stdout: {
+        write: (chunk: string) => {
+          stdout.push(chunk);
+          return true;
+        },
+      },
+      stderr: {
+        write: (chunk: string) => {
+          stderr.push(chunk);
+          return true;
+        },
+      },
       isTTY: true,
     },
   };
@@ -85,13 +95,17 @@ function captureOutput(): {
 function mockSpawnExit(code: number, signal: NodeJS.Signals | null = null): void {
   mocks.spawn.mockImplementation(() => {
     const child = new EventEmitter();
-    queueMicrotask(() => { child.emit('exit', code, signal); });
+    queueMicrotask(() => {
+      child.emit('exit', code, signal);
+    });
     return child;
   });
 }
 
 describe('runUpdatePreflight', () => {
-  afterEach(() => { vi.clearAllMocks(); });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('continues on first launch with empty cache, still refreshes in background', async () => {
     mocks.readUpdateCache.mockResolvedValue(emptyUpdateCache());
@@ -108,9 +122,9 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
-    await expect(
-      runUpdatePreflight('0.4.0', { ...options, isTTY: false }),
-    ).resolves.toBe('continue');
+    await expect(runUpdatePreflight('0.4.0', { ...options, isTTY: false })).resolves.toBe(
+      'continue',
+    );
     expect(detectInstallSource).not.toHaveBeenCalled();
   });
 
@@ -195,7 +209,12 @@ describe('runUpdatePreflight', () => {
       await runUpdatePreflight('0.4.0', options);
       expect(mocks.spawn).toHaveBeenCalledWith(
         'bash',
-        ['-c', expect.stringContaining('curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh')],
+        [
+          '-c',
+          expect.stringContaining(
+            'curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh',
+          ),
+        ],
         { stdio: 'inherit' },
       );
     } finally {
@@ -212,7 +231,9 @@ describe('runUpdatePreflight', () => {
     try {
       const { stdout, options } = captureOutput();
       await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-      expect(stdout.join('')).toContain('irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex');
+      expect(stdout.join('')).toContain(
+        'irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex',
+      );
       expect(promptForInstallConfirmation).not.toHaveBeenCalled();
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
@@ -250,5 +271,4 @@ describe('runUpdatePreflight', () => {
     await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(stderr.join('')).toContain('warning: failed to install');
   });
-
 });

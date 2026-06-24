@@ -4,12 +4,11 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createRPC,
-  ByfCore,
-  type CoreAPI,
-  type SDKAPI,
-} from '../../src';
+import { createRPC, type CoreAPI, type SDKAPI } from '../../src';
+// `ByfCore` is an engine-internal concrete class (not part of the public
+// package surface — see src/rpc/index.ts). Engine tests import it directly
+// from its module so the public API stays narrowed to the CoreAPI contract.
+import { ByfCore } from '../../src/rpc/core-impl';
 
 const CONFIG = `
 default_model = "byf/byf-for-coding"

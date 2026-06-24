@@ -13,9 +13,7 @@ export function SubagentsTab({ sessionId }: SubagentsTabProps) {
   }
   if (error) {
     return (
-      <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
-        {(error).message}
-      </div>
+      <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">{error.message}</div>
     );
   }
   if (!data) return null;

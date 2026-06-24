@@ -31,11 +31,11 @@ import {
   type ExecutableToolContext,
   type ExecutableToolResult,
 } from '../loop';
-import { toInputJsonSchema } from '../tools/support/input-schema';
 import {
   MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE,
   type McpOAuthAuthorizationUrlUpdateData,
 } from '../rpc/events';
+import { toInputJsonSchema } from '../tools/support/input-schema';
 import { AlreadyAuthorizedError, type McpOAuthService } from './oauth';
 import { qualifyMcpToolName } from './tool-naming';
 

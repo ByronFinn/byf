@@ -1,5 +1,6 @@
-import { Hono } from 'hono';
 import { join } from 'node:path';
+
+import { Hono } from 'hono';
 
 import { BYF_HOME } from '../config';
 import { isSafeAgentId, readSessionDetail } from '../lib/session-store';
@@ -25,9 +26,7 @@ export function wireRoute(): Hono {
       return c.json({ error: 'wire missing', code: 'NOT_FOUND' }, 404);
     }
     try {
-      const result = await readAgentWire(
-        join(detail.sessionDir, 'agents', agentId, 'wire.jsonl'),
-      );
+      const result = await readAgentWire(join(detail.sessionDir, 'agents', agentId, 'wire.jsonl'));
       return c.json({
         sessionId: id,
         agentId,

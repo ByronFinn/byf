@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import DefaultTheme from 'vitepress/theme'
-import { useData } from 'vitepress'
-import HomeHero from './HomeHero.vue'
-import HomeFeatures from './HomeFeatures.vue'
-import HomeQuickStart from './HomeQuickStart.vue'
+import { useData } from 'vitepress';
+import DefaultTheme from 'vitepress/theme';
 
-const { Layout } = DefaultTheme
-const { frontmatter } = useData()
+import HomeFeatures from './HomeFeatures.vue';
+import HomeHero from './HomeHero.vue';
+import HomeQuickStart from './HomeQuickStart.vue';
+
+const { Layout } = DefaultTheme;
+const { frontmatter } = useData();
 </script>
 
 <template>

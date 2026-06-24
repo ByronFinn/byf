@@ -4,7 +4,7 @@
 
 ## 集成范围
 
-BYF 支持通过 stdio（本地子进程）和 HTTP 两种方式接入外部 MCP 服务器。接入的 MCP 工具与内置工具一样，可以被 Agent 调用、受权限规则约束、参与审批流程，行为上没有差异。
+BYF 支持通过 stdio（本地子进程）、HTTP（Streamable HTTP）和 SSE（旧版 SSE 传输）三种方式接入外部 MCP 服务器。接入的 MCP 工具与内置工具一样，可以被 Agent 调用、受权限规则约束、参与审批流程，行为上没有差异。
 
 ## 配置与登录
 
@@ -28,25 +28,32 @@ MCP server 配置写在 `mcp.json` 中，分为两层：
     },
     "linear": {
       "url": "https://mcp.linear.app/mcp"
+    },
+    "legacy-db": {
+      "transport": "sse",
+      "url": "https://old-server.example.com/mcp"
     }
   }
 }
 ```
 
-含 `command` 字段的条目为 stdio server，含 `url` 字段的条目为 HTTP server，通常不需要手写 `transport` 字段。HTTP server 支持通过 `headers` 或 `bearerTokenEnvVar` 提供静态凭证；需要 OAuth 时，可运行 `/mcp-config login <server-name>` 完成浏览器授权。
+含 `command` 字段的条目为 stdio server。含 `url` 但未指定 `transport` 的条目默认为 HTTP server。对于仅支持旧版 SSE 的服务器，需要显式设置 `"transport": "sse"`。SSE 与 HTTP 支持相同的可选字段（`headers`、`bearerTokenEnvVar` 等）。注意：**HTTP（Streamable HTTP）是新服务器的首选** — SSE 仅用于与 2025-03-26 之前的旧版 MCP 服务器向后兼容。
+
+HTTP 和 SSE server 支持通过 `headers` 或 `bearerTokenEnvVar` 提供静态凭证；需要 OAuth 时，可运行 `/mcp-config login <server-name>` 完成浏览器授权。
 
 可选字段：
 
-| 字段 | 类型 | 适用 transport | 说明 |
-| --- | --- | --- | --- |
-| `env` | `Record<string, string>` | stdio | 注入子进程的环境变量 |
-| `cwd` | `string` | stdio | 子进程工作目录 |
-| `headers` | `Record<string, string>` | HTTP | 附加到每次请求的静态请求头 |
-| `enabled` | `boolean` | 两者 | 设为 `false` 可禁用该 server |
-| `startupTimeoutMs` | `number` | 两者 | 连接超时，默认 `30000` |
-| `toolTimeoutMs` | `number` | 两者 | 单次工具调用超时 |
-| `enabledTools` | `string[]` | 两者 | 白名单 |
-| `disabledTools` | `string[]` | 两者 | 黑名单 |
+| 字段                | 类型                     | 适用 transport | 说明                             |
+| ------------------- | ------------------------ | -------------- | -------------------------------- |
+| `env`               | `Record<string, string>` | stdio          | 注入子进程的环境变量             |
+| `cwd`               | `string`                 | stdio          | 子进程工作目录                   |
+| `headers`           | `Record<string, string>` | HTTP / SSE     | 附加到每次请求的静态请求头       |
+| `bearerTokenEnvVar` | `string`                 | HTTP / SSE     | 环境变量名称，连接时自动读取令牌 |
+| `enabled`           | `boolean`                | 两者           | 设为 `false` 可禁用该 server     |
+| `startupTimeoutMs`  | `number`                 | 两者           | 连接超时，默认 `30000`           |
+| `toolTimeoutMs`     | `number`                 | 两者           | 单次工具调用超时                 |
+| `enabledTools`      | `string[]`               | 两者           | 白名单                           |
+| `disabledTools`     | `string[]`               | 两者           | 黑名单                           |
 
 ::: warning 注意
 项目级 `.byf/mcp.json` 中的 stdio 条目会在会话启动时执行本地命令，只在你信任的仓库里启用。

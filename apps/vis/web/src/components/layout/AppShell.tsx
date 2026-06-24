@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { SessionRail } from '../sessions/SessionRail';
+
 import { useTheme, type ThemeChoice, type ResolvedTheme } from '../../hooks/useTheme';
+import { SessionRail } from '../sessions/SessionRail';
 
 interface AppShellProps {
   children: ReactNode;
@@ -91,7 +92,14 @@ function RefreshIcon() {
         fill="none"
         strokeLinecap="square"
       />
-      <path d="M7 1 L10 3 L7 5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="square" strokeLinejoin="miter" />
+      <path
+        d="M7 1 L10 3 L7 5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        fill="none"
+        strokeLinecap="square"
+        strokeLinejoin="miter"
+      />
     </svg>
   );
 }
@@ -117,10 +125,7 @@ function SunIcon() {
 function MoonIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
-      <path
-        d="M9 7.5 A4.5 4.5 0 1 1 4.5 3 A3.6 3.6 0 0 0 9 7.5 Z"
-        fill="currentColor"
-      />
+      <path d="M9 7.5 A4.5 4.5 0 1 1 4.5 3 A3.6 3.6 0 0 0 9 7.5 Z" fill="currentColor" />
     </svg>
   );
 }
@@ -128,10 +133,7 @@ function MoonIcon() {
 function AutoIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
-      <path
-        d="M6 1 A5 5 0 1 1 6 11 Z"
-        fill="currentColor"
-      />
+      <path d="M6 1 A5 5 0 1 1 6 11 Z" fill="currentColor" />
       <circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" strokeWidth="1" />
     </svg>
   );

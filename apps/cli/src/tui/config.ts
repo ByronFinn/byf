@@ -14,8 +14,7 @@ import { z } from 'zod';
 
 import { getDataDir } from '#/utils/paths';
 
-export const INVALID_TUI_CONFIG_MESSAGE =
-  'Invalid TUI config in ~/.byf/tui.toml; using defaults.';
+export const INVALID_TUI_CONFIG_MESSAGE = 'Invalid TUI config in ~/.byf/tui.toml; using defaults.';
 
 export const TuiThemeSchema = z.enum(['dark', 'light', 'auto']);
 

@@ -6,8 +6,8 @@ import type {
   PermissionData,
   PermissionMode,
 } from '#/agent/permission';
-import type { SessionSummary } from '#/rpc/core-api';
 import type { ToolInfo } from '#/agent/tool';
+import type { SessionSummary } from '#/rpc/core-api';
 import type { UsageStatus } from '#/rpc/events';
 import type { SessionMeta } from '#/session';
 import type { BackgroundTaskInfo } from '#/tools/builtin';

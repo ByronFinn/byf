@@ -89,9 +89,8 @@ describe('Cache Observability - Strategy Extraction', () => {
       modelName: 'basic-model',
     };
 
-    const capability = typeof provider.getCapability === 'function'
-      ? provider.getCapability?.()
-      : undefined;
+    const capability =
+      typeof provider.getCapability === 'function' ? provider.getCapability?.() : undefined;
 
     expect(capability).toBeUndefined();
   });

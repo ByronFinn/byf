@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   resolveSkillCommand,
   resolveSlashCommandInput,
   slashBusyMessage,
   slashCommandBusyReason,
 } from '#/tui/commands/index';
-import { describe, expect, it } from 'vitest';
 
 function resolve(
   input: string,

@@ -6,6 +6,7 @@ import * as zlib from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ByfHarness, log } from '#/index';
+
 import { __resetRootLoggerForTest, getRootLogger } from '../../agent-core/src/logging/logger';
 import { TEST_IDENTITY } from './test-identity';
 
@@ -113,9 +114,7 @@ describe('Local logging — harness integration', () => {
 
     // Drain the in-process logger via export's flush path is overkill; just
     // rely on the configured root logger's flush.
-    const summary = (await harness.listSessions({ workDir })).find(
-      (s) => s.id === session.id,
-    )!;
+    const summary = (await harness.listSessions({ workDir })).find((s) => s.id === session.id)!;
 
     const globalPath = join(homeDir, 'logs', 'byf.log');
     const sessionLogPath = join(summary.sessionDir, 'logs', 'byf.log');
@@ -145,16 +144,18 @@ describe('Local logging — harness integration', () => {
     log.warn('session export marker', { sessionId: session.id });
 
     const outputPath = join(workDir, 'default.zip');
-    const result = await harness.exportSession({ id: session.id, outputPath, version: '1.0.0-test' });
+    const result = await harness.exportSession({
+      id: session.id,
+      outputPath,
+      version: '1.0.0-test',
+    });
 
     const zipBuf = await readFile(result.zipPath);
     const entries = readZipEntries(zipBuf);
     expect(entries.has('agents/main/wire.jsonl')).toBe(true);
     expect(entries.has('logs/byf.log')).toBe(true);
     expect(entries.has('logs/global/byf.log')).toBe(false);
-    expect(entries.get('logs/byf.log')!.toString('utf-8')).toContain(
-      'session export marker',
-    );
+    expect(entries.get('logs/byf.log')!.toString('utf-8')).toContain('session export marker');
     expect(result.manifest.sessionLogPath).toBe('logs/byf.log');
     expect(result.manifest.globalLogPath).toBeUndefined();
     const manifest = JSON.parse(entries.get('manifest.json')!.toString('utf-8')) as Record<
@@ -172,7 +173,11 @@ describe('Local logging — harness integration', () => {
     const session = await harness.createSession({ id: 'ses_no_session_log', workDir });
 
     const outputPath = join(workDir, 'no-log.zip');
-    const result = await harness.exportSession({ id: session.id, outputPath, version: '1.0.0-test' });
+    const result = await harness.exportSession({
+      id: session.id,
+      outputPath,
+      version: '1.0.0-test',
+    });
 
     const entries = readZipEntries(await readFile(result.zipPath));
     expect(entries.has('agents/main/wire.jsonl')).toBe(true);
@@ -245,9 +250,7 @@ describe('Local logging — harness integration', () => {
     expect(entries.has('logs/global/byf.log')).toBe(true);
     expect(result.manifest.globalLogPath).toBe('logs/global/byf.log');
     // Global log carries entries that don't have a sessionId routed to a sink.
-    expect(entries.get('logs/global/byf.log')!.toString('utf-8')).toContain(
-      'untagged probe',
-    );
+    expect(entries.get('logs/global/byf.log')!.toString('utf-8')).toContain('untagged probe');
   });
 
   it('--include-global-log bundles the active root global log path', async () => {

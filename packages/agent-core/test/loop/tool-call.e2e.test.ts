@@ -11,9 +11,14 @@
 import type { ContentPart } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
-import { ToolAccesses } from '../../src/loop';
 import type { Logger } from '../../src/logging';
-import type { ExecutableTool, ExecutableToolResult, LoopHooks, ToolExecution } from '../../src/loop';
+import { ToolAccesses } from '../../src/loop';
+import type {
+  ExecutableTool,
+  ExecutableToolResult,
+  LoopHooks,
+  ToolExecution,
+} from '../../src/loop';
 import { PathSecurityError } from '../../src/tools/policies/path-access';
 import {
   makeEndTurnResponse,
@@ -60,9 +65,17 @@ function waitOneMacrotask(): Promise<void> {
 
 function makeTestLogger(): {
   readonly log: Logger;
-  readonly entries: Array<{ readonly level: string; readonly message: string; readonly payload: unknown }>;
+  readonly entries: Array<{
+    readonly level: string;
+    readonly message: string;
+    readonly payload: unknown;
+  }>;
 } {
-  const entries: Array<{ readonly level: string; readonly message: string; readonly payload: unknown }> = [];
+  const entries: Array<{
+    readonly level: string;
+    readonly message: string;
+    readonly payload: unknown;
+  }> = [];
   const log: Logger = {
     error: (message, payload) => entries.push({ level: 'error', message, payload }),
     warn: (message, payload) => entries.push({ level: 'warn', message, payload }),
@@ -163,7 +176,7 @@ describe('runTurn — tool-call behaviour', () => {
             type: 'function',
             id: 'tc-1',
             name: 'echo',
-              arguments: '{',
+            arguments: '{',
           },
         ]),
         makeEndTurnResponse('done'),

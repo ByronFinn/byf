@@ -1,4 +1,12 @@
 import {
+  APIError as OpenAIAPIError,
+  APIConnectionError as OpenAIConnectionError,
+  APIConnectionTimeoutError as OpenAITimeoutError,
+  APIUserAbortError as OpenAIUserAbortError,
+} from 'openai';
+import { describe, it, expect, vi } from 'vitest';
+
+import {
   APIConnectionError,
   APIContextOverflowError,
   APIStatusError,
@@ -13,13 +21,6 @@ import {
   thinkingEffortToReasoningEffort,
 } from '#/providers/openai-common';
 import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
-import {
-  APIError as OpenAIAPIError,
-  APIConnectionError as OpenAIConnectionError,
-  APIConnectionTimeoutError as OpenAITimeoutError,
-  APIUserAbortError as OpenAIUserAbortError,
-} from 'openai';
-import { describe, it, expect, vi } from 'vitest';
 describe('OpenAI client creation', () => {
   it('does not inject max_retries into OpenAI client', () => {
     const provider = new OpenAICompletionsChatProvider({
@@ -159,13 +160,13 @@ describe('OpenAI streaming error propagation', () => {
       stream: true,
     });
 
-    (provider as any)._client.chat.completions.create = vi
-      .fn()
-      .mockResolvedValue(failingStream());
+    (provider as any)._client.chat.completions.create = vi.fn().mockResolvedValue(failingStream());
 
-    const stream = await provider.generate('', [], [
-      { role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
-    ]);
+    const stream = await provider.generate(
+      '',
+      [],
+      [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+    );
 
     await expect(async () => {
       for await (const _ of stream) {
@@ -311,18 +312,14 @@ describe('thinkingEffortToReasoningEffort: model-aware clamping', () => {
   it('with non-supporting model: xhigh clamped to high + warn', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(thinkingEffortToReasoningEffort('xhigh', 'gpt-4.1')).toBe('high');
-    expect(warnSpy).toHaveBeenCalledWith(
-      "effort 'xhigh' clamped to 'high' for model gpt-4.1",
-    );
+    expect(warnSpy).toHaveBeenCalledWith("effort 'xhigh' clamped to 'high' for model gpt-4.1");
     warnSpy.mockRestore();
   });
 
   it('with non-supporting model: max clamped to high + warn', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(thinkingEffortToReasoningEffort('max', 'gpt-4.1')).toBe('high');
-    expect(warnSpy).toHaveBeenCalledWith(
-      "effort 'max' clamped to 'high' for model gpt-4.1",
-    );
+    expect(warnSpy).toHaveBeenCalledWith("effort 'max' clamped to 'high' for model gpt-4.1");
     warnSpy.mockRestore();
   });
 

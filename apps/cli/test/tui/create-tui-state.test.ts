@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 
 import { createTUIState, type ByfTuiOptions } from '#/tui/byf-tui';

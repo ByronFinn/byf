@@ -2,23 +2,23 @@
   "name": "@byfriends/kosong",
   "version": "0.3.2",
   "description": "LLM and provider abstraction layer for BYF",
+  "keywords": [
+    "agent",
+    "ai",
+    "byf",
+    "llm",
+    "provider"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "llm",
-    "ai",
-    "agent",
-    "provider"
-  ],
   "files": [
     "dist"
   ],
@@ -40,7 +40,6 @@
     }
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
@@ -67,7 +66,8 @@
         "import": "./dist/providers/openai-common.mjs",
         "default": "./dist/providers/openai-common.mjs"
       }
-    }
+    },
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",

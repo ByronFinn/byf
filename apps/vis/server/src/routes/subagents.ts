@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
+
 import { BYF_HOME } from '../config';
-import { readSessionDetail } from '../lib/session-store';
 import { buildAgentTree } from '../lib/agent-tree';
+import { readSessionDetail } from '../lib/session-store';
 
 export function subagentsRoute(): Hono {
   const r = new Hono();

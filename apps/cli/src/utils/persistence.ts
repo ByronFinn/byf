@@ -66,10 +66,7 @@ export async function writeJsonFile<T>(
   }
 }
 
-export async function readJsonlFile<T>(
-  filePath: string,
-  lineSchema: z.ZodType<T>,
-): Promise<T[]> {
+export async function readJsonlFile<T>(filePath: string, lineSchema: z.ZodType<T>): Promise<T[]> {
   let raw: string;
   try {
     raw = await readFile(filePath, 'utf-8');

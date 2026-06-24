@@ -1,10 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
-import type {
-  ContentPart,
-  ProjectedMessage,
-  ToolCall,
-} from '../../types';
+import type { ContentPart, ProjectedMessage, ToolCall } from '../../types';
 import { ImagePreview } from '../shared/ImagePreview';
 import { Pill } from '../shared/Pill';
 
@@ -32,12 +28,20 @@ function UserBubble({ m }: { m: ProjectedMessage }) {
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-user)' }}>
       <header className="mb-1 flex items-center gap-2">
-        <Pill tone="user" variant="solid">user</Pill>
+        <Pill tone="user" variant="solid">
+          user
+        </Pill>
         <span className="font-mono text-[10px] text-fg-3 tabular">line {m.lineNo}</span>
         {showsOriginBadge ? (
-          <Pill tone="meta" variant="outline">{originKind}</Pill>
+          <Pill tone="meta" variant="outline">
+            {originKind}
+          </Pill>
         ) : null}
-        {m.message.isError ? <Pill tone="error" variant="outline">error</Pill> : null}
+        {m.message.isError ? (
+          <Pill tone="error" variant="outline">
+            error
+          </Pill>
+        ) : null}
       </header>
       <MessageContent parts={m.message.content} />
     </article>
@@ -52,15 +56,25 @@ function AssistantBubble({ m }: { m: ProjectedMessage }) {
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-assistant)' }}>
       <header className="mb-1 flex items-center gap-2">
-        <Pill tone="assistant" variant="solid">assistant</Pill>
+        <Pill tone="assistant" variant="solid">
+          assistant
+        </Pill>
         <span className="font-mono text-[10px] text-fg-3 tabular">line {m.lineNo}</span>
-        {think ? <Pill tone="config" variant="outline">think</Pill> : null}
+        {think ? (
+          <Pill tone="config" variant="outline">
+            think
+          </Pill>
+        ) : null}
         {toolCalls.length > 0 ? (
           <Pill tone="tools" variant="outline">
             {toolCalls.length} tool call{toolCalls.length > 1 ? 's' : ''}
           </Pill>
         ) : null}
-        {m.message.partial ? <Pill tone="warning" variant="outline">partial</Pill> : null}
+        {m.message.partial ? (
+          <Pill tone="warning" variant="outline">
+            partial
+          </Pill>
+        ) : null}
       </header>
       {think ? <ThinkBlock text={think} /> : null}
       <MessageContent parts={visibleParts} />
@@ -95,20 +109,24 @@ function ToolBubble({ m }: { m: ProjectedMessage }) {
         className="flex w-full items-center gap-2 text-left"
       >
         <span className="text-fg-3">{open ? '▾' : '▸'}</span>
-        <Pill tone="tool" variant="solid">tool</Pill>
+        <Pill tone="tool" variant="solid">
+          tool
+        </Pill>
         {m.message.toolCallId ? (
           <span className="font-mono text-[11px] text-fg-1">
             call {m.message.toolCallId.slice(0, 12)}
           </span>
         ) : null}
         <span className="font-mono text-[10px] text-fg-3 tabular">line {m.lineNo}</span>
-        {m.message.isError ? <Pill tone="error" variant="outline">error</Pill> : null}
+        {m.message.isError ? (
+          <Pill tone="error" variant="outline">
+            error
+          </Pill>
+        ) : null}
         {!open ? (
           <span className="ml-1 flex min-w-0 flex-1 items-center gap-2 font-mono text-[11px] text-fg-3">
             <span className="truncate">{preview}</span>
-            <span className="shrink-0 tabular">
-              · {totalChars.toLocaleString()} chars
-            </span>
+            <span className="shrink-0 tabular">· {totalChars.toLocaleString()} chars</span>
           </span>
         ) : null}
       </button>
@@ -125,7 +143,9 @@ function SystemBubble({ m }: { m: ProjectedMessage }) {
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-cat-config)' }}>
       <header className="mb-1 flex items-center gap-2">
-        <Pill tone="config" variant="solid">system</Pill>
+        <Pill tone="config" variant="solid">
+          system
+        </Pill>
         <span className="font-mono text-[10px] text-fg-3 tabular">line {m.lineNo}</span>
       </header>
       <MessageContent parts={m.message.content} />
@@ -168,7 +188,9 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         className="flex w-full items-center gap-2 px-2 py-1 text-left font-mono text-[11px] hover:bg-surface-2"
       >
         <span className="text-fg-3">{open ? '▾' : '▸'}</span>
-        <Pill tone="tools" variant="soft">call</Pill>
+        <Pill tone="tools" variant="soft">
+          call
+        </Pill>
         <span className="text-fg-0">{call.name}</span>
         <span className="truncate text-fg-3">{truncate(argsStr, 80)}</span>
         <span className="ml-auto text-fg-3 tabular text-[10px]">{call.id.slice(0, 10)}</span>

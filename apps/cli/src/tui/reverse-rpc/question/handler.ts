@@ -1,9 +1,6 @@
 import type { QuestionHandler, QuestionRequest, QuestionResult } from '@byfriends/sdk';
 
-import type {
-  QuestionPanelData,
-  QuestionPanelResponse,
-} from '#/tui/reverse-rpc/types';
+import type { QuestionPanelData, QuestionPanelResponse } from '#/tui/reverse-rpc/types';
 
 import type { QuestionController } from './controller';
 
@@ -51,7 +48,5 @@ export function adaptQuestionAnswers(
     if (question === undefined || typeof answer !== 'string' || answer.length === 0) continue;
     result[question.question] = answer;
   }
-  return Object.keys(result).length > 0
-    ? { answers: result, method: response.method }
-    : null;
+  return Object.keys(result).length > 0 ? { answers: result, method: response.method } : null;
 }

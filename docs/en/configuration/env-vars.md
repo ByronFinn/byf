@@ -24,18 +24,18 @@ Make sure the directory is writable once you set it. Multiple `byf` instances th
 
 The following key names appear in the `[providers.<name>.env]` subtable of `config.toml`, where they serve as fallback sources for the provider's `api_key` / `base_url`. **The main `byf` process does not read them directly from `process.env`**; only the values keyed under a `[providers.<name>.env]` subtable are recognized by the provider clients. See [Configuration overrides: provider credentials](./overrides.md#provider-credentials) for the full resolution order.
 
-| Key name | Applicable provider | Purpose | Default |
-| --- | --- | --- | --- |
-| `BYF_API_KEY` | BYF | API key | None |
-| `BYF_BASE_URL` | BYF | API base URL | `https://api.example.com/v1` |
-| `ANTHROPIC_API_KEY` | Anthropic | API key | None |
-| `ANTHROPIC_BASE_URL` | Anthropic | API base URL | Follows the Anthropic SDK default |
-| `OPENAI_API_KEY` | OpenAI (used by both `openai` and `openai_responses`) | API key | None |
-| `OPENAI_BASE_URL` | OpenAI (used by both `openai` and `openai_responses`) | API base URL | `https://api.openai.com/v1` |
-| `GOOGLE_API_KEY` | Google GenAI, Vertex AI (as a fallback for `VERTEXAI_API_KEY`) | API key | None |
-| `VERTEXAI_API_KEY` | Vertex AI | API key (when not using ADC) | None |
-| `GOOGLE_CLOUD_PROJECT` | Vertex AI | GCP project ID | None |
-| `GOOGLE_CLOUD_LOCATION` | Vertex AI | GCP region | None |
+| Key name                | Applicable provider                                            | Purpose                      | Default                           |
+| ----------------------- | -------------------------------------------------------------- | ---------------------------- | --------------------------------- |
+| `BYF_API_KEY`           | BYF                                                            | API key                      | None                              |
+| `BYF_BASE_URL`          | BYF                                                            | API base URL                 | `https://api.example.com/v1`      |
+| `ANTHROPIC_API_KEY`     | Anthropic                                                      | API key                      | None                              |
+| `ANTHROPIC_BASE_URL`    | Anthropic                                                      | API base URL                 | Follows the Anthropic SDK default |
+| `OPENAI_API_KEY`        | OpenAI (used by both `openai` and `openai_responses`)          | API key                      | None                              |
+| `OPENAI_BASE_URL`       | OpenAI (used by both `openai` and `openai_responses`)          | API base URL                 | `https://api.openai.com/v1`       |
+| `GOOGLE_API_KEY`        | Google GenAI, Vertex AI (as a fallback for `VERTEXAI_API_KEY`) | API key                      | None                              |
+| `VERTEXAI_API_KEY`      | Vertex AI                                                      | API key (when not using ADC) | None                              |
+| `GOOGLE_CLOUD_PROJECT`  | Vertex AI                                                      | GCP project ID               | None                              |
+| `GOOGLE_CLOUD_LOCATION` | Vertex AI                                                      | GCP region                   | None                              |
 
 For example, to pre-populate BYF credentials in `config.toml`:
 
@@ -55,11 +55,11 @@ For the full description of provider types and fields, see [Providers](./provide
 
 The OAuth flow connects to BYF's official authentication and hosted endpoints by default. The variables below can point them at a self-hosted or test environment.
 
-| Environment variable | Purpose | Default |
-| --- | --- | --- |
-| `BYF_OAUTH_HOST` | OAuth authentication host; takes the highest precedence | — (falls back to `BYF_OAUTH_HOST`, then to the hardcoded default below) |
-| `BYF_OAUTH_HOST` | OAuth authentication host; used as a fallback for `BYF_OAUTH_HOST` | — (falls back to the hardcoded default below) |
-| `BYF_HOSTED_BASE_URL` | Base URL of the hosted BYF API, used for API calls after OAuth login | `https://api.byf.dev/coding/v1` |
+| Environment variable  | Purpose                                                              | Default                                                                 |
+| --------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `BYF_OAUTH_HOST`      | OAuth authentication host; takes the highest precedence              | — (falls back to `BYF_OAUTH_HOST`, then to the hardcoded default below) |
+| `BYF_OAUTH_HOST`      | OAuth authentication host; used as a fallback for `BYF_OAUTH_HOST`   | — (falls back to the hardcoded default below)                           |
+| `BYF_HOSTED_BASE_URL` | Base URL of the hosted BYF API, used for API calls after OAuth login | `https://api.byf.dev/coding/v1`                                         |
 
 When neither `BYF_OAUTH_HOST` nor `BYF_OAUTH_HOST` is set, the OAuth authentication host uses the hardcoded constant `https://auth.byf.dev`.
 
@@ -69,12 +69,12 @@ When neither `BYF_OAUTH_HOST` nor `BYF_OAUTH_HOST` is set, the OAuth authenticat
 
 ## Runtime switches
 
-| Environment variable | Purpose | Valid values / Default |
-| --- | --- | --- |
-| `BYF_DISABLE_TELEMETRY` | Disable telemetry reporting | `1`, `true`, `t`, `yes`, `y` (case-insensitive) |
-| `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Override `[background].keep_alive_on_exit`, controlling whether still-running background tasks are kept when the session closes | True values: `1`, `true`, `yes`, `on`; false values: `0`, `false`, `no`, `off`; when unset, reads `config.toml`, then falls back to `true` |
-| `BYF_SHELL_PATH` | Override the absolute path to Git Bash (`bash.exe`) on Windows; only needed when auto-detection fails on Windows | None |
-| `BYF_MODEL_MAX_COMPLETION_TOKENS` | Explicit hard cap for `max_completion_tokens` in a single-step LLM request. When unset, BYF uses the safe remaining context window for models with a known context size. Set to `0` or a negative value to disable clamping entirely. **Currently effective only for providers of type `byf`**; for Anthropic and other providers, use `[models.<alias>].max_output_size` instead (see [Config files](./config-files.md#models)) | Unset: computed from remaining context; unknown context falls back to `loop_control.reserved_context_size`, then 32000 |
+| Environment variable                | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                          | Valid values / Default                                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BYF_DISABLE_TELEMETRY`             | Disable telemetry reporting                                                                                                                                                                                                                                                                                                                                                                                                      | `1`, `true`, `t`, `yes`, `y` (case-insensitive)                                                                                            |
+| `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Override `[background].keep_alive_on_exit`, controlling whether still-running background tasks are kept when the session closes                                                                                                                                                                                                                                                                                                  | True values: `1`, `true`, `yes`, `on`; false values: `0`, `false`, `no`, `off`; when unset, reads `config.toml`, then falls back to `true` |
+| `BYF_SHELL_PATH`                    | Override the absolute path to Git Bash (`bash.exe`) on Windows; only needed when auto-detection fails on Windows                                                                                                                                                                                                                                                                                                                 | None                                                                                                                                       |
+| `BYF_MODEL_MAX_COMPLETION_TOKENS`   | Explicit hard cap for `max_completion_tokens` in a single-step LLM request. When unset, BYF uses the safe remaining context window for models with a known context size. Set to `0` or a negative value to disable clamping entirely. **Currently effective only for providers of type `byf`**; for Anthropic and other providers, use `[models.<alias>].max_output_size` instead (see [Config files](./config-files.md#models)) | Unset: computed from remaining context; unknown context falls back to `loop_control.reserved_context_size`, then 32000                     |
 
 For example, to disable telemetry on a shared host:
 
@@ -83,17 +83,18 @@ export BYF_DISABLE_TELEMETRY="1"
 ```
 
 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` has higher priority than `config.toml`. For example, running `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT=0 byf -p "..."` temporarily requests stopping background tasks before this process exits, even if the config file sets `keep_alive_on_exit = true`.
+
 ## Diagnostic logging
 
 The variables below control `byf`'s diagnostic logs. Logs are written to two locations: the global diagnostic log at `$BYF_HOME/logs/byf.log`, and each session's own diagnostic log at `<sessionDir>/logs/byf.log` (see [Data locations](./data-locations.md#logs-and-update-state) for path details). All of these variables are read only once at process startup.
 
-| Environment variable | Purpose | Default |
-| --- | --- | --- |
-| `BYF_LOG_LEVEL` | Log level; one of `off`, `error`, `warn`, `info`, `debug` | `info` |
-| `BYF_LOG_GLOBAL_MAX_BYTES` | Maximum bytes per global log file | `6291456` (6 MB) |
-| `BYF_LOG_GLOBAL_FILES` | Number of global log files to retain | `5` |
-| `BYF_LOG_SESSION_MAX_BYTES` | Maximum bytes per session log file | `5242880` (5 MB) |
-| `BYF_LOG_SESSION_FILES` | Number of session log files to retain | `3` |
+| Environment variable        | Purpose                                                   | Default          |
+| --------------------------- | --------------------------------------------------------- | ---------------- |
+| `BYF_LOG_LEVEL`             | Log level; one of `off`, `error`, `warn`, `info`, `debug` | `info`           |
+| `BYF_LOG_GLOBAL_MAX_BYTES`  | Maximum bytes per global log file                         | `6291456` (6 MB) |
+| `BYF_LOG_GLOBAL_FILES`      | Number of global log files to retain                      | `5`              |
+| `BYF_LOG_SESSION_MAX_BYTES` | Maximum bytes per session log file                        | `5242880` (5 MB) |
+| `BYF_LOG_SESSION_FILES`     | Number of session log files to retain                     | `3`              |
 
 When an integer variable fails to parse (non-positive integer or non-numeric), it silently falls back to the default value.
 

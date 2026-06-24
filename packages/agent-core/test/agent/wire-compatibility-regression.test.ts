@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { testAgent } from './harness/agent';
-import type { AgentRecord } from '../../src/agent/records/types';
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
+import type { AgentRecord } from '../../src/agent/records/types';
+import { testAgent } from './harness/agent';
 
 describe('Wire.jsonl compatibility regression tests', () => {
   describe('版本兼容性测试', () => {

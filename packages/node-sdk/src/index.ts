@@ -36,6 +36,11 @@ export {
   isByfError,
   toByfErrorPayload,
 } from '@byfriends/agent-core';
+export {
+  loginProviderRegistry,
+  getLoginProviderOptions,
+  type LoginProviderType,
+} from '@byfriends/agent-core';
 
 // Diagnostic logging — public surface only.
 // RootLogger / getRootLogger / LoggingConfig stay inside agent-core.

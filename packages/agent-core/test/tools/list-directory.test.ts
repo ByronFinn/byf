@@ -1,10 +1,7 @@
 import type { Kaos } from '@byfriends/kaos';
 import { describe, expect, it } from 'vitest';
 
-import {
-  LIST_DIR_CHILD_WIDTH,
-  listDirectory,
-} from '../../src/tools/support/list-directory';
+import { LIST_DIR_CHILD_WIDTH, listDirectory } from '../../src/tools/support/list-directory';
 import { createFakeKaos } from './fixtures/fake-kaos';
 
 describe('listDirectory', () => {

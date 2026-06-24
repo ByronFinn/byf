@@ -54,7 +54,9 @@ describe('CustomEditor autocomplete Escape handling', () => {
       getSuggestions: vi.fn(
         () =>
           new Promise<AutocompleteSuggestions | null>((resolve) => {
-            resolveSuggestions = (items) =>{  resolve({ items, prefix: '/' }); };
+            resolveSuggestions = (items) => {
+              resolve({ items, prefix: '/' });
+            };
           }),
       ),
       applyCompletion: vi.fn((lines, cursorLine, cursorCol) => ({ lines, cursorLine, cursorCol })),

@@ -1,9 +1,4 @@
-import type {
-  ChatProvider,
-  Message,
-  ModelCapability,
-  Tool,
-} from '@byfriends/kosong';
+import type { ChatProvider, Message, ModelCapability, Tool } from '@byfriends/kosong';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -200,9 +195,7 @@ describe('applyCompletionBudget', () => {
       thinkingEffort: null,
       generate: vi.fn() as unknown as ChatProvider['generate'],
       withThinking: vi.fn() as unknown as ChatProvider['withThinking'],
-      withMaxCompletionTokens: withMaxCompletionTokens as unknown as (
-        n: number,
-      ) => ChatProvider,
+      withMaxCompletionTokens: withMaxCompletionTokens as unknown as (n: number) => ChatProvider,
     };
   });
 

@@ -13,10 +13,10 @@ import {
 } from '../src/provider-config';
 
 function makeModelsResponse(models: unknown[] = []): Response {
-  return new Response(
-    JSON.stringify({ data: models }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  );
+  return new Response(JSON.stringify({ data: models }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 const SAMPLE_MODELS = [
@@ -114,10 +114,22 @@ describe('fetchModels', () => {
   it('uses default context_length for models without one', async () => {
     const fetchMock = vi.fn(async () =>
       makeModelsResponse([
-        { id: 'deepseek-chat', context_length: 65536, supports_reasoning: false, supports_image_in: false, supports_video_in: false },
+        {
+          id: 'deepseek-chat',
+          context_length: 65536,
+          supports_reasoning: false,
+          supports_image_in: false,
+          supports_video_in: false,
+        },
         { id: 'gpt-image-2' },
         { id: 'embedding-3', context_length: 'not-a-number' },
-        { id: 'deepseek-reasoner', context_length: 65536, supports_reasoning: true, supports_image_in: false, supports_video_in: false },
+        {
+          id: 'deepseek-reasoner',
+          context_length: 65536,
+          supports_reasoning: true,
+          supports_image_in: false,
+          supports_video_in: false,
+        },
       ]),
     );
 
@@ -150,7 +162,13 @@ describe('applyProviderConfig', () => {
         supportsVideoIn: false,
         displayName: 'DeepSeek Chat',
       },
-      { id: 'deepseek-reasoner', contextLength: 65536, supportsReasoning: true, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'deepseek-reasoner',
+        contextLength: 65536,
+        supportsReasoning: true,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     const result = applyProviderConfig(config, {
@@ -186,7 +204,11 @@ describe('applyProviderConfig', () => {
   it('clears stale models for the same provider but preserves others', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-old' },
+        deepseek: {
+          type: 'openai-completions',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiKey: 'sk-old',
+        },
       },
       models: {
         'deepseek/stale': { provider: 'deepseek', model: 'stale', maxContextSize: 1000 },
@@ -194,7 +216,13 @@ describe('applyProviderConfig', () => {
       },
     };
     const models: ModelInfo[] = [
-      { id: 'deepseek-chat', contextLength: 65536, supportsReasoning: true, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'deepseek-chat',
+        contextLength: 65536,
+        supportsReasoning: true,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     applyProviderConfig(config, {
@@ -213,7 +241,13 @@ describe('applyProviderConfig', () => {
   it('writes the provider type from the `type` option when provided', () => {
     const config: ConfigShape = { providers: {} };
     const models: ModelInfo[] = [
-      { id: 'claude-opus-4-7', contextLength: 200000, supportsReasoning: true, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'claude-opus-4-7',
+        contextLength: 200000,
+        supportsReasoning: true,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     applyProviderConfig(config, {
@@ -236,7 +270,13 @@ describe('applyProviderConfig', () => {
   it('defaults the provider type to openai-completions when `type` is omitted', () => {
     const config: ConfigShape = { providers: {} };
     const models: ModelInfo[] = [
-      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'gpt-4o',
+        contextLength: 128000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     applyProviderConfig(config, {
@@ -286,18 +326,19 @@ describe('fetchModelsByType', () => {
   });
 
   it('fetches anthropic models with x-api-key + anthropic-version headers', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: [
-            { id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' },
-            { id: 'claude-sonnet-4-5', type: 'model', display_name: 'Claude Sonnet 4.5' },
-          ],
-          has_more: false,
-          last_id: 'claude-sonnet-4-5',
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [
+              { id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' },
+              { id: 'claude-sonnet-4-5', type: 'model', display_name: 'Claude Sonnet 4.5' },
+            ],
+            has_more: false,
+            last_id: 'claude-sonnet-4-5',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
     );
 
     const models = await fetchModelsByType(
@@ -322,7 +363,9 @@ describe('fetchModelsByType', () => {
       }),
     );
     // Must NOT use Bearer auth.
-    const firstCallHeaders = ((fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>)[0]![1]).headers;
+    const firstCallHeaders = (
+      fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>
+    )[0]![1].headers;
     expect(firstCallHeaders['Authorization']).toBeUndefined();
   });
 
@@ -338,11 +381,12 @@ describe('fetchModelsByType', () => {
       last_id: 'claude-sonnet-4-5',
     };
     const responses = [page1, page2];
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify(responses.shift()), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify(responses.shift()), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
     );
 
     const models = await fetchModelsByType(
@@ -362,24 +406,21 @@ describe('fetchModelsByType', () => {
 
   it('throws for an unsupported provider type', async () => {
     await expect(
-      fetchModelsByType(
-        'google-genai',
-        'https://api.google.com/v1',
-        'sk-test',
-      ),
+      fetchModelsByType('google-genai', 'https://api.google.com/v1', 'sk-test'),
     ).rejects.toThrow(/unsupported provider type "google-genai"/);
   });
 
   it('stops pagination when has_more is true but last_id is missing (defensive)', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: [{ id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' }],
-          has_more: true,
-          // last_id missing — must not loop forever
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [{ id: 'claude-opus-4-7', type: 'model', display_name: 'Claude Opus 4.7' }],
+            has_more: true,
+            // last_id missing — must not loop forever
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
     );
 
     const models = await fetchModelsByType(
@@ -426,16 +467,25 @@ describe('fetchModelsByType', () => {
 describe('capabilitiesForModel', () => {
   it('returns undefined for a model with no capabilities', () => {
     const model: ModelInfo = {
-      id: 'plain', contextLength: 1000,
-      supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false, supportsToolUse: false,
+      id: 'plain',
+      contextLength: 1000,
+      supportsReasoning: false,
+      supportsImageIn: false,
+      supportsVideoIn: false,
+      supportsToolUse: false,
     };
     expect(capabilitiesForModel(model)).toBeUndefined();
   });
 
   it('returns all caps for a full-featured model', () => {
     const model: ModelInfo = {
-      id: 'full', contextLength: 1000,
-      supportsReasoning: true, supportsReasoningEffort: true, supportsImageIn: true, supportsVideoIn: true, supportsToolUse: true,
+      id: 'full',
+      contextLength: 1000,
+      supportsReasoning: true,
+      supportsReasoningEffort: true,
+      supportsImageIn: true,
+      supportsVideoIn: true,
+      supportsToolUse: true,
     };
     expect(capabilitiesForModel(model)).toEqual([
       'thinking',
@@ -451,11 +501,19 @@ describe('removeProviderConfig', () => {
   it('removes provider, its models, and defaultModel when matched', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
+        deepseek: {
+          type: 'openai-completions',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiKey: 'sk-test',
+        },
         other: { type: 'openai-completions', baseUrl: 'https://other.test/v1', apiKey: 'sk-other' },
       },
       models: {
-        'deepseek/deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 65536 },
+        'deepseek/deepseek-chat': {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          maxContextSize: 65536,
+        },
         'other/model': { provider: 'other', model: 'other-model', maxContextSize: 1000 },
       },
       defaultModel: 'deepseek/deepseek-chat',
@@ -473,10 +531,18 @@ describe('removeProviderConfig', () => {
   it('leaves defaultModel intact when it belongs to another provider', () => {
     const config: ConfigShape = {
       providers: {
-        deepseek: { type: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test' },
+        deepseek: {
+          type: 'openai-completions',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiKey: 'sk-test',
+        },
       },
       models: {
-        'deepseek/deepseek-chat': { provider: 'deepseek', model: 'deepseek-chat', maxContextSize: 65536 },
+        'deepseek/deepseek-chat': {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          maxContextSize: 65536,
+        },
       },
       defaultModel: 'other/model',
     };
@@ -490,8 +556,20 @@ describe('removeProviderConfig', () => {
 describe('filterModelsByPrefix', () => {
   it('filters by prefixes', () => {
     const models: ModelInfo[] = [
-      { id: 'deepseek-chat', contextLength: 65536, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
-      { id: 'gpt-4o', contextLength: 128000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'deepseek-chat',
+        contextLength: 65536,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
+      {
+        id: 'gpt-4o',
+        contextLength: 128000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     const filtered = filterModelsByPrefix(models, ['deepseek']);
@@ -501,8 +579,20 @@ describe('filterModelsByPrefix', () => {
 
   it('returns all models when prefixes is empty', () => {
     const models: ModelInfo[] = [
-      { id: 'model-a', contextLength: 1000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
-      { id: 'model-b', contextLength: 2000, supportsReasoning: false, supportsImageIn: false, supportsVideoIn: false },
+      {
+        id: 'model-a',
+        contextLength: 1000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
+      {
+        id: 'model-b',
+        contextLength: 2000,
+        supportsReasoning: false,
+        supportsImageIn: false,
+        supportsVideoIn: false,
+      },
     ];
 
     const filtered = filterModelsByPrefix(models);

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCodes, ByfError } from '@byfriends/sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { validateOptions } from '#/cli/options';
 import type { CLIOptions } from '#/cli/options';

@@ -7,10 +7,7 @@ import { registerExportCommand } from './sub/export';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 
-export function createProgram(
-  version: string,
-  onMain: MainCommandHandler,
-): Command {
+export function createProgram(version: string, onMain: MainCommandHandler): Command {
   const program = new Command(CLI_COMMAND_NAME)
     .description('The Starting Point for Next-Gen Agents')
     .version(version, '-V, --version')
@@ -18,10 +15,7 @@ export function createProgram(
     .allowExcessArguments(true)
     .configureHelp({ helpWidth: 100 })
     .helpOption('-h, --help', 'Show help.')
-    .addHelpText(
-      'after',
-      '\nDocumentation:        https://github.com/ByronFinn/byf\n'
-    );
+    .addHelpText('after', '\nDocumentation:        https://github.com/ByronFinn/byf\n');
 
   program
     .addOption(

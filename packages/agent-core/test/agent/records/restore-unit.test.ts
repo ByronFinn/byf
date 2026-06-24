@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentRecords, InMemoryAgentRecordPersistence } from '../../../src/agent/records';
-import { testAgent } from '../harness/agent';
 import type { AgentRecord } from '../../../src/agent/records/types';
 import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
+import { testAgent } from '../harness/agent';
 
 describe('AgentRecords.restore() unit tests', () => {
   describe('路由逻辑测试', () => {

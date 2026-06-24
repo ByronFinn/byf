@@ -404,7 +404,8 @@ function _typeOnlyChecks(): void {
   const toolCall: ToolCall = {
     type: 'function',
     id: 'tc1',
-    name: 'echo', arguments: '{"text":"hi"}',
+    name: 'echo',
+    arguments: '{"text":"hi"}',
   };
   void toolCall;
   const _badToolCall: ToolCall = {

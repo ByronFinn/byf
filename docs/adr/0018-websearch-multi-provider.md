@@ -27,6 +27,7 @@ WebSearch providers (Exa, Brave, Firecrawl) communicate via direct REST API call
 Multiple providers are tried in ascending `priority` order. The first provider to return results (including empty results) wins. Fallback is triggered on **any thrown error** (auth failure, rate limit, server error, timeout, bad request). Empty results do NOT trigger fallback — a provider legitimately finding no matches is a valid answer.
 
 This was chosen over multi-provider result merging because:
+
 - Lower latency (no waiting for the slowest provider)
 - Simpler logic (no deduplication, ranking, or conflict resolution)
 - Sufficient for the primary use case: fault tolerance across providers

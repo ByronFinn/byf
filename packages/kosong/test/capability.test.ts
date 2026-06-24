@@ -4,8 +4,9 @@
  * `capability-providers.test.ts`.
  */
 
-import { UNKNOWN_CAPABILITY, isUnknownCapability, type ModelCapability } from '#/capability';
 import { describe, expect, it } from 'vitest';
+
+import { UNKNOWN_CAPABILITY, isUnknownCapability, type ModelCapability } from '#/capability';
 
 describe('ModelCapability / UNKNOWN_CAPABILITY', () => {
   it('UNKNOWN_CAPABILITY has all boolean fields false', () => {

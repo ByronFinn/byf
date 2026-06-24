@@ -1,14 +1,16 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart } from '#/message';
 import { extractText } from '#/message';
 import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
+import type { JsonValue } from '../fixtures/args-validator';
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
-import type { JsonValue } from '../fixtures/args-validator';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 /**
  * When an in-flight step() is aborted, tool handlers must settle, the provider
@@ -30,7 +32,8 @@ function clonePart(part: StreamedMessagePart): StreamedMessagePart {
     return {
       type: 'function',
       id: part.id,
-      name: part.name, arguments: part.arguments,
+      name: part.name,
+      arguments: part.arguments,
       ...(part.extras !== undefined ? { extras: { ...part.extras } } : {}),
       _streamIndex: part._streamIndex,
     };
@@ -169,7 +172,8 @@ describe('e2e: abort cleanup', () => {
       {
         type: 'function',
         id: 'tc_slow',
-        name: 'slow', arguments: '{}',
+        name: 'slow',
+        arguments: '{}',
       },
     ];
     const provider = new TrackingProvider(parts, 0);

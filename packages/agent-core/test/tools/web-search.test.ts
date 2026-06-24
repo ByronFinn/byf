@@ -11,6 +11,9 @@ import {
   WebSearchTool,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
+import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
+import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
+import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
 import {
   webSearchProviderRegistry,
   registerProvider,
@@ -18,11 +21,8 @@ import {
   type ProviderType,
 } from '../../src/tools/providers/registry';
 import { PriorityRouter, AllProvidersFailedError } from '../../src/tools/providers/router';
-import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
-import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
-import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
-import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
+import { toolContentString } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 
@@ -183,9 +183,7 @@ describe('WebSearchTool', () => {
     const provider: WebSearchProvider = {
       search: vi
         .fn()
-        .mockRejectedValue(
-          new Error('Byf search request failed: HTTP 401 (auth/unauthorized).'),
-        ),
+        .mockRejectedValue(new Error('Byf search request failed: HTTP 401 (auth/unauthorized).')),
     };
     const tool = new WebSearchTool(provider);
     const result = await executeTool(tool, {
@@ -354,7 +352,9 @@ describe('PriorityRouter', () => {
       search: vi.fn().mockResolvedValue([]),
     };
     const p2: WebSearchProvider = {
-      search: vi.fn().mockResolvedValue([{ title: 'ShouldNotReach', url: 'https://x', snippet: 'x' }]),
+      search: vi
+        .fn()
+        .mockResolvedValue([{ title: 'ShouldNotReach', url: 'https://x', snippet: 'x' }]),
     };
     const router = new PriorityRouter([p1, p2]);
     const results = await router.search('nothing');
@@ -396,7 +396,9 @@ describe('PriorityRouter', () => {
       search: vi.fn().mockRejectedValue(new Error('P10 fail')),
     };
     const p5: WebSearchProvider = {
-      search: vi.fn().mockResolvedValue([{ title: 'P5 wins', url: 'https://p5', snippet: 'low priority' }]),
+      search: vi
+        .fn()
+        .mockResolvedValue([{ title: 'P5 wins', url: 'https://p5', snippet: 'low priority' }]),
     };
     // PriorityRouter uses the order of the array it receives. The caller sorts by priority.
     const router = new PriorityRouter([p5, p10]);
@@ -409,9 +411,9 @@ describe('PriorityRouter', () => {
 // ── ExaWebSearchProvider ─────────────────────────────────────────────
 
 function exaFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
-  return vi.fn<typeof fetch>().mockResolvedValue(
-    new Response(JSON.stringify({ results }), { status: 200 }),
-  );
+  return vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(JSON.stringify({ results }), { status: 200 }));
 }
 
 describe('ExaWebSearchProvider', () => {
@@ -512,16 +514,16 @@ describe('ExaWebSearchProvider', () => {
   });
 
   it('snippet is empty string when highlights is undefined', async () => {
-    const fetchImpl = exaFetchOk([
-      { title: 'No Highlights', url: 'https://exa.example/no' },
-    ]);
+    const fetchImpl = exaFetchOk([{ title: 'No Highlights', url: 'https://exa.example/no' }]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
     expect(results[0]!.snippet).toBe('');
   });
 
   it('throws errors with convention: "Exa search failed: HTTP {status}"', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('rate limited', { status: 429 }));
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await expect(provider.search('test')).rejects.toThrow('Exa search failed: HTTP 429');
   });
@@ -536,9 +538,9 @@ describe('ExaWebSearchProvider', () => {
 // ── BraveWebSearchProvider ────────────────────────────────────────────
 
 function braveFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
-  return vi.fn<typeof fetch>().mockResolvedValue(
-    new Response(JSON.stringify({ web: { results } }), { status: 200 }),
-  );
+  return vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(JSON.stringify({ web: { results } }), { status: 200 }));
 }
 
 describe('BraveWebSearchProvider', () => {
@@ -556,7 +558,12 @@ describe('BraveWebSearchProvider', () => {
 
   it('maps response fields (snippet=description, date=age)', async () => {
     const fetchImpl = braveFetchOk([
-      { title: 'Brave Result', url: 'https://brave.example/page', description: 'A description', age: '2025-03-15' },
+      {
+        title: 'Brave Result',
+        url: 'https://brave.example/page',
+        description: 'A description',
+        age: '2025-03-15',
+      },
     ]);
     const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
@@ -575,7 +582,9 @@ describe('BraveWebSearchProvider', () => {
   });
 
   it('throws errors with convention: "Brave search failed: HTTP {status}"', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('rate limited', { status: 429 }));
     const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await expect(provider.search('test')).rejects.toThrow('Brave search failed: HTTP 429');
   });
@@ -584,9 +593,9 @@ describe('BraveWebSearchProvider', () => {
 // ── FirecrawlWebSearchProvider ────────────────────────────────────────
 
 function firecrawlFetchOk(results: unknown[]): ReturnType<typeof vi.fn<typeof fetch>> {
-  return vi.fn<typeof fetch>().mockResolvedValue(
-    new Response(JSON.stringify({ data: { web: results } }), { status: 200 }),
-  );
+  return vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(JSON.stringify({ data: { web: results } }), { status: 200 }));
 }
 
 describe('FirecrawlWebSearchProvider', () => {
@@ -673,7 +682,9 @@ describe('FirecrawlWebSearchProvider', () => {
   });
 
   it('throws errors with convention: "Firecrawl search failed: HTTP {status}"', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('rate limited', { status: 429 }));
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('rate limited', { status: 429 }));
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await expect(provider.search('test')).rejects.toThrow('Firecrawl search failed: HTTP 429');
   });

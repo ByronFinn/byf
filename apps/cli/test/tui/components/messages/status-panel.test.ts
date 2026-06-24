@@ -228,7 +228,7 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('Cache');
   });
 
-  it('Scenario 6: rounds 86.5% down to 86% (banker\'s rounding)', () => {
+  it("Scenario 6: rounds 86.5% down to 86% (banker's rounding)", () => {
     const output = render({
       ...baseStatusOptions,
       status: {
@@ -251,7 +251,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('86%');
   });
 
-  it('Scenario 7: rounds 87.5% up to 88% (banker\'s rounding)', () => {
+  it("Scenario 7: rounds 87.5% up to 88% (banker's rounding)", () => {
     const output = render({
       ...baseStatusOptions,
       status: {

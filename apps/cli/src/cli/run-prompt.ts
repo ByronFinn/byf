@@ -108,53 +108,52 @@ async function resolvePromptSession(
   stderr: PromptOutput,
   setRestorePermission: (restorePermission: () => Promise<void>) => void,
 ): Promise<ResolvedPromptSession> {
-  if (opts.session !== undefined) {
-    const session = await harness.resumeSession({ id: opts.session });
-    const status = await session.getStatus();
-    const restorePermission = await forcePromptPermission(
-      session,
-      status.permission,
-      setRestorePermission,
-    );
-    if (opts.model !== undefined) {
-      await session.setModel(opts.model);
-    }
-    installHeadlessHandlers(session);
-    return {
-      session,
-      resumed: true,
-      restorePermission,
-    };
-  }
+  const resumeId =
+    opts.session ??
+    (opts.continue ? await mostRecentSessionId(harness, workDir, stderr) : undefined);
 
-  if (opts.continue) {
-    const sessions = await harness.listSessions({ workDir });
-    const previous = sessions[0];
-    if (previous !== undefined) {
-      const session = await harness.resumeSession({ id: previous.id });
-      const status = await session.getStatus();
-      const restorePermission = await forcePromptPermission(
-        session,
-        status.permission,
-        setRestorePermission,
-      );
-      if (opts.model !== undefined) {
-        await session.setModel(opts.model);
-      }
-      installHeadlessHandlers(session);
-      return {
-        session,
-        resumed: true,
-        restorePermission,
-      };
-    }
-    stderr.write(`No sessions to continue under "${workDir}"; starting a fresh session.\n`);
+  if (resumeId !== undefined) {
+    return resumePromptSession(harness, resumeId, opts, setRestorePermission);
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
   const session = await harness.createSession({ workDir, model, permission: 'auto' });
   installHeadlessHandlers(session);
   return { session, resumed: false, restorePermission: async () => {} };
+}
+
+async function mostRecentSessionId(
+  harness: ByfHarness,
+  workDir: string,
+  stderr: PromptOutput,
+): Promise<string | undefined> {
+  const sessions = await harness.listSessions({ workDir });
+  const previous = sessions[0];
+  if (previous === undefined) {
+    stderr.write(`No sessions to continue under "${workDir}"; starting a fresh session.\n`);
+    return undefined;
+  }
+  return previous.id;
+}
+
+async function resumePromptSession(
+  harness: ByfHarness,
+  sessionId: string,
+  opts: CLIOptions,
+  setRestorePermission: (restorePermission: () => Promise<void>) => void,
+): Promise<ResolvedPromptSession> {
+  const session = await harness.resumeSession({ id: sessionId });
+  const status = await session.getStatus();
+  const restorePermission = await forcePromptPermission(
+    session,
+    status.permission,
+    setRestorePermission,
+  );
+  if (opts.model !== undefined) {
+    await session.setModel(opts.model);
+  }
+  installHeadlessHandlers(session);
+  return { session, resumed: true, restorePermission };
 }
 
 async function forcePromptPermission(
@@ -222,7 +221,9 @@ function installPromptTerminationCleanup(
 
   let onSighup: (() => void) | undefined;
   if (process.platform !== 'win32') {
-    onSighup = () =>{  emergencyExit(); };
+    onSighup = () => {
+      emergencyExit();
+    };
     process.prependListener('SIGHUP', onSighup);
   }
 

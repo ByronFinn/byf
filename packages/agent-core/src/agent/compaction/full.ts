@@ -1,11 +1,4 @@
 import {
-  ErrorCodes,
-  ByfError,
-  isByfError,
-  makeErrorPayload,
-  toByfErrorPayload,
-} from '#/errors';
-import {
   APIConnectionError,
   APIEmptyResponseError,
   APIStatusError,
@@ -16,19 +9,13 @@ import {
   type TokenUsage,
 } from '@byfriends/kosong';
 
+import { ErrorCodes, ByfError, isByfError, makeErrorPayload, toByfErrorPayload } from '#/errors';
+
 import type { Agent } from '..';
-import type { RecordRestoreHandler } from '../restore-handler';
 import { isAbortError } from '../../loop/errors';
-import {
-  DEFAULT_MAX_RETRY_ATTEMPTS,
-  retryBackoffDelays,
-  sleepForRetry,
-} from '../../loop/retry';
+import { DEFAULT_MAX_RETRY_ATTEMPTS, retryBackoffDelays, sleepForRetry } from '../../loop/retry';
 import type { TelemetryPropertyValue } from '../../telemetry';
-import {
-  applyCompletionBudget,
-  resolveCompletionBudget,
-} from '../../utils/completion-budget';
+import { applyCompletionBudget, resolveCompletionBudget } from '../../utils/completion-budget';
 import { renderPrompt } from '../../utils/render-prompt';
 import {
   estimateTokens,
@@ -37,6 +24,7 @@ import {
 } from '../../utils/tokens';
 import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
+import type { RecordRestoreHandler } from '../restore-handler';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
 import { renderMessagesToText } from './render-messages';
@@ -116,7 +104,9 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
         break;
       }
       const canSplitBeforeMessage =
-        m1?.role !== m2.role && !(m1?.role === 'user' && m2.role === 'assistant') && m2.role !== 'tool';
+        m1?.role !== m2.role &&
+        !(m1?.role === 'user' && m2.role === 'assistant') &&
+        m2.role !== 'tool';
       if (canSplitBeforeMessage) {
         splitAt = i;
       }
@@ -330,9 +320,13 @@ export class FullCompaction implements RecordRestoreHandler {
     const maxCompactions = this.strategy.maxCompactionPerTurn;
     if (this.compactionCountInTurn >= maxCompactions) {
       if (throwOnLimit) {
-        throw new ByfError(ErrorCodes.CONTEXT_OVERFLOW, `Compaction limit exceeded (${String(maxCompactions)})`, {
-          details: { maxCompactions },
-        });
+        throw new ByfError(
+          ErrorCodes.CONTEXT_OVERFLOW,
+          `Compaction limit exceeded (${String(maxCompactions)})`,
+          {
+            details: { maxCompactions },
+          },
+        );
       }
       return false;
     }
@@ -483,8 +477,7 @@ export class FullCompaction implements RecordRestoreHandler {
     // returning empty `content` on reasoning models. The cloned provider
     // is local to this call and never persisted back to agent state.
     const completionBudget = resolveCompletionBudget({
-      reservedContextSize:
-        this.agent.providerManager?.config.loopControl?.reservedContextSize,
+      reservedContextSize: this.agent.providerManager?.config.loopControl?.reservedContextSize,
     });
     const effectiveProvider = applyCompletionBudget({
       provider: this.agent.config.provider,
@@ -586,9 +579,7 @@ function extractCompactionSummary(response: GenerateResult): string {
       : response.message.content.map((part) => (part.type === 'text' ? part.text : '')).join('');
 
   if (summary.trim().length === 0) {
-    throw new APIEmptyResponseError(
-      'The compaction response did not contain a non-empty summary.',
-    );
+    throw new APIEmptyResponseError('The compaction response did not contain a non-empty summary.');
   }
   return summary;
 }

@@ -12,8 +12,8 @@
  * See ADR 0015 for the rationale.
  */
 
-import type { FinishReason, StreamedMessage } from '#/provider';
 import type { StreamedMessagePart } from '#/message';
+import type { FinishReason, StreamedMessage } from '#/provider';
 import type { TokenUsage } from '#/usage';
 
 export abstract class BaseStreamedMessage implements StreamedMessage {

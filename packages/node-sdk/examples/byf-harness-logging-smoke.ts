@@ -34,7 +34,10 @@ async function readSessionLogs(sessionDir: string): Promise<{
   return { files, text: chunks.join('\n') };
 }
 
-async function assertRotatedFilesStayBounded(sessionDir: string, files: readonly string[]): Promise<void> {
+async function assertRotatedFilesStayBounded(
+  sessionDir: string,
+  files: readonly string[],
+): Promise<void> {
   assert(files.includes('byf.log.1'), 'session log did not rotate after exceeding max bytes');
   assert(!files.includes('byf.log.2'), 'session log kept more archives than configured');
   for (const file of files) {
@@ -123,7 +126,10 @@ async function main(): Promise<void> {
     if (sessionOnly.entries.includes(SESSION_LOG)) {
       assert(sessionOnly.manifest.sessionLogPath === SESSION_LOG, 'bad sessionLogPath');
     } else {
-      assert(sessionOnly.manifest.sessionLogPath === undefined, 'manifest pointed at a missing active session log');
+      assert(
+        sessionOnly.manifest.sessionLogPath === undefined,
+        'manifest pointed at a missing active session log',
+      );
     }
     assert(sessionOnly.manifest.globalLogPath === undefined, 'default export set globalLogPath');
 
@@ -159,7 +165,10 @@ async function main(): Promise<void> {
     assert(globalLog.includes(warning), 'global log missed session warning');
 
     const resultPath = join(TEST_HOME, 'SMOKE_RESULT.txt');
-    const sessionSizeLines = await describeFiles(join(summary.sessionDir, 'logs'), sessionLogs.files);
+    const sessionSizeLines = await describeFiles(
+      join(summary.sessionDir, 'logs'),
+      sessionLogs.files,
+    );
     const globalSizeLines = await describeFiles(join(TEST_HOME, 'logs'), globalFiles);
     await writeFile(
       resultPath,

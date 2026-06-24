@@ -4,14 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createRPC,
-  ByfCore,
-  type ApprovalResponse,
-  type CoreAPI,
-  type SDKAPI,
-} from '../../src';
+import { createRPC, type ApprovalResponse, type CoreAPI, type SDKAPI } from '../../src';
 import type { OAuthTokenProviderResolver } from '../../src/providers/runtime-provider';
+// `ByfCore` is an engine-internal concrete class (not part of the public
+// package surface — see src/rpc/index.ts). Engine tests import it directly
+// from its module so the public API stays narrowed to the CoreAPI contract.
+import { ByfCore } from '../../src/rpc/core-impl';
 
 describe('ByfCore runtime config', () => {
   let tmp: string;
@@ -29,23 +27,21 @@ describe('ByfCore runtime config', () => {
     const workDir = join(tmp, 'work');
     await mkdir(homeDir, { recursive: true });
     await mkdir(workDir, { recursive: true });
-	    await writeFile(
-	      join(homeDir, 'config.toml'),
-	      `
+    await writeFile(
+      join(homeDir, 'config.toml'),
+      `
 	[services.fetch_url]
 	base_url = "https://fetch.example/v1"
 	oauth = { storage = "file", key = "oauth/custom-byf" }
 	custom_headers = { "X-Test" = "1" }
 	`,
-	    );
+    );
 
     const getAccessToken = vi.fn().mockResolvedValue('service-token');
     const resolveOAuthTokenProvider = vi.fn<OAuthTokenProviderResolver>(() => ({
       getAccessToken,
     }));
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response('ok', { status: 200 }),
-    );
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
     vi.stubGlobal('fetch', fetchImpl);
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();

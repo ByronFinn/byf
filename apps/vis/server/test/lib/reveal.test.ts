@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { revealCommandFor } from '../../src/lib/reveal';
 
 describe('reveal', () => {

@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
+
+import OpenAI from 'openai';
+
 import type { ModelCapability } from '#/capability';
-import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { PromptPlan } from '#/prompt-plan';
 import type {
@@ -10,15 +13,14 @@ import type {
   VideoUploadInput,
 } from '#/provider';
 import type { Tool } from '#/tool';
-import OpenAI from 'openai';
-import { createHash } from 'node:crypto';
 
-import { OpenAICompatFiles } from './openai-compat-files';
+import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
+import { BaseStreamedMessage } from './base-streamed-message';
+import { getOpenAILegacyModelCapability } from './capability-registry';
 import {
   convertChatCompletionStreamToolCall,
   type BufferedChatCompletionToolCall,
 } from './chat-completions-stream';
-import { getOpenAILegacyModelCapability } from './capability-registry';
 import {
   convertContentPart,
   convertOpenAIError,
@@ -32,8 +34,8 @@ import {
   toolToOpenAI,
   type ToolMessageConversion,
 } from './openai-common';
-import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
-import { BaseStreamedMessage } from './base-streamed-message';
+import { OpenAICompatFiles } from './openai-compat-files';
+import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both
@@ -407,7 +409,8 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
   private _files: OpenAICompatFiles | undefined;
 
   constructor(options: OpenAICompletionsOptions) {
-    const apiKey = options.apiKey === undefined || options.apiKey.length === 0 ? undefined : options.apiKey;
+    const apiKey =
+      options.apiKey === undefined || options.apiKey.length === 0 ? undefined : options.apiKey;
     const baseUrl = options.baseUrl ?? '';
     const generationKwargs = { ...options.generationKwargs };
     const client =
@@ -416,7 +419,15 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
         : new OpenAI({ apiKey, baseURL: baseUrl, defaultHeaders: options.defaultHeaders });
     // Shared fields (_model, _generationKwargs, _apiKey, _baseUrl,
     // _defaultHeaders, _client, _clientFactory) live on BaseChatProvider.
-    super(options.model, generationKwargs, apiKey, baseUrl, options.defaultHeaders, client, options.clientFactory);
+    super(
+      options.model,
+      generationKwargs,
+      apiKey,
+      baseUrl,
+      options.defaultHeaders,
+      client,
+      options.clientFactory,
+    );
     // OpenAI-specific fields stay here.
     this._stream = options.stream ?? true;
     const normalizedThinkingEffortKey = options.thinkingEffortKey?.trim();
@@ -506,10 +517,7 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
     }
 
     // Normalize legacy max_tokens → max_completion_tokens
-    if (
-      kwargs['max_completion_tokens'] === undefined &&
-      kwargs['max_tokens'] !== undefined
-    ) {
+    if (kwargs['max_completion_tokens'] === undefined && kwargs['max_tokens'] !== undefined) {
       kwargs['max_completion_tokens'] = kwargs['max_tokens'];
     }
     // eslint-disable-next-line @typescript-eslint/no-dynamic-delete

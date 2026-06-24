@@ -1,12 +1,13 @@
 import {
+  createByfCore,
   createRPC,
   ErrorCodes,
-  ByfCore,
   makeErrorPayload,
   type ApprovalRequest,
   type ApprovalResponse,
   type CoreAPI,
   type Event,
+  type PromisableMethods,
   type QuestionRequest,
   type QuestionResult,
   type SDKAPI,
@@ -97,7 +98,9 @@ export interface SessionShellExecRpcInput extends SessionIdRpcInput {
 type ResolvedCoreAPI = Awaited<ReturnType<SDKRPCClient>>;
 
 export class SDKRpcClient {
-  readonly core: ByfCore;
+  readonly homeDir: string;
+  readonly configPath: string;
+  private readonly core: PromisableMethods<CoreAPI>;
   interactiveAgentId = MAIN_AGENT_ID;
   private readonly ready: Promise<void>;
   private rpc: ResolvedCoreAPI | undefined;
@@ -107,23 +110,18 @@ export class SDKRpcClient {
 
   constructor(options: SDKRpcClientOptions = {}) {
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
-    this.core = new ByfCore(coreRpc, {
+    const handle = createByfCore(coreRpc, {
       homeDir: options.homeDir,
       configPath: options.configPath,
       skillDirs: options.skillDirs,
       runtime: options.runtime,
     });
+    this.core = handle.core;
+    this.homeDir = handle.homeDir;
+    this.configPath = handle.configPath;
     this.ready = sdkRpc(new ClientAPI(this)).then((rpc) => {
       this.rpc = rpc;
     });
-  }
-
-  get homeDir(): string {
-    return this.core.homeDir;
-  }
-
-  get configPath(): string {
-    return this.core.configPath;
   }
 
   async createSession(input: CreateSessionOptions): Promise<SessionSummary> {
@@ -143,6 +141,7 @@ export class SDKRpcClient {
       id: input.forkId,
       title: input.title,
       metadata: input.metadata,
+      upToMessage: input.upToMessage,
     });
   }
 

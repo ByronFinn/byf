@@ -32,33 +32,38 @@
 ## What I Already Know (ground truth from code)
 
 ### `/login` 流程现状
+
 - `LoginFlow.run()`（`login-flow.ts:53-135`）顺序：provider 名 → Base URL → API key → fetchModels → catalog enrichment → 模型选择 → `applyConfig`。
 - `LoginFlowDeps.fetchModels(baseUrl, apiKey)`（`login-flow.ts:40`）是 ByfTUI 注入的双参数函数，统一返回 OpenAI 兼容形态的 `OAuthModelInfo[]`。
 - 失败路径：`login-flow.ts:87-95` catch 后 fallback 到 `handleManualModelEntry`；空模型列表（`login-flow.ts:97-100`）也走手填。降级路径健全，新 fetcher 失败时零行为回归。
 
 ### `applyProviderConfig` 现状
+
 - `packages/oauth/src/provider-config.ts:183-227`：写入 `config.providers[name] = { type: 'openai-completions', baseUrl, apiKey, thinkingEffortKey }`。
 - 已被 SDK 导出（`packages/node-sdk/src/index.ts:56`），是公共 API，签名变更需谨慎。
 
 ### `fetchModels` 现状（唯一存在的 fetcher）
+
 - `provider-config.ts:117-144`：`{baseUrl}/models` + `Authorization: Bearer` + 解析 `{ data: [{id, context_length, ...}] }`。
 - 拼接约定：`${baseUrl.replace(/\/+$/, '')}/models` —— **baseUrl 含版本路径**（`/v1`），fetcher 只追加 `/models`。
 
 ### 各原生 API 的形态差异（需新增 fetcher）
 
-| 类型 | 端点 | 认证头 | 响应形态 |
-|---|---|---|---|
-| `openai-completions` / `openai_responses` | `{baseUrl}/models` | `Authorization: Bearer {key}` | `{ data: [{id, context_length, ...}] }` |
-| `anthropic` | `{baseUrl}/models` | `x-api-key: {key}` + `anthropic-version: 2023-06-01` | `{ data: [{id, type, display_name}], has_more, last_id }` — **分页** |
+| 类型                                      | 端点               | 认证头                                               | 响应形态                                                             |
+| ----------------------------------------- | ------------------ | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `openai-completions` / `openai_responses` | `{baseUrl}/models` | `Authorization: Bearer {key}`                        | `{ data: [{id, context_length, ...}] }`                              |
+| `anthropic`                               | `{baseUrl}/models` | `x-api-key: {key}` + `anthropic-version: 2023-06-01` | `{ data: [{id, type, display_name}], has_more, last_id }` — **分页** |
 
 > `google-genai` 行已移除：见上方范围收缩说明。
 
 ### 现成 UI 原语
+
 - `ChoicePickerComponent` + `promptProviderSelection`（`dialog-prompts.ts:96-135`）已是 catalog 路径的类型选择范式，可直接照搬。
 - `promptTextInput` 已支持 `initialValue` 和 `placeholder`（`dialog-prompts.ts:13-37`），后者用于本 PRD 的 Base URL 占位提示。
 - `ChoiceOption` 带 `value` / `label` / `description`（`choice-picker.ts:24-31`），可在类型项下展示官方默认 URL 作为说明。
 
 ### 分层约束（ADR 0006）
+
 - `apps/cli` 只能通过 `@byfriends/sdk` 用核心能力（`apps/cli/AGENTS.md:43`），不得直接 import `@byfriends/agent-core`。
 - 新 fetcher 落在 `@byfriends/oauth` → 经 `@byfriends/sdk` 导出 → `/login` 注入调用，符合现有 `fetchModels` 的分层。
 
@@ -94,6 +99,7 @@
 ## Technical Approach
 
 ### 切片 1 — `@byfriends/oauth`：新增 `fetchModelsByType`
+
 - 新增 `fetchModelsByType(type, baseUrl, apiKey, fetchImpl?, signal?)`：按 `type` 分派。
 - 抽出 `fetchOpenAICompatModels`（现 `fetchModels` 的实现复用，openai-completions / openai_responses 共用）。
 - 新增 `fetchAnthropicModels`：`{baseUrl}/models` + `x-api-key` + `anthropic-version: 2023-06-01`；分页处理（见下方约定）；映射 `display_name` → `displayName`。
@@ -103,11 +109,13 @@
 - 经 `packages/node-sdk/src/index.ts` 导出 `fetchModelsByType`。
 
 ### 切片 2 — `@byfriends/oauth`：`applyProviderConfig` 增加 `type` 参数
+
 - `applyProviderConfig`（`provider-config.ts:183-227`）options 新增 `type: ProviderType`，默认 `'openai-completions'`（兼容现有调用方）。
 - 写入 `config.providers[name].type = options.type`。
 - 经 SDK 导出类型无变化（`ProviderType` 已在 kosong 导出）。
 
 ### 切片 3 — `apps/cli`：新增 `promptApiTypeSelection`
+
 - `dialog-prompts.ts` 新增 `promptApiTypeSelection(host, colors)`：返回所选 `ProviderType | undefined`。
 - 基于 `ChoicePickerComponent`，3 个 `ChoiceOption`：
   - `openai-completions` / "OpenAI Chat Completions 兼容" / desc 含 `https://api.openai.com/v1`
@@ -115,6 +123,7 @@
   - `anthropic` / "Anthropic 原生" / desc 含 `https://api.anthropic.com/v1`
 
 ### 切片 4 — `apps/cli`：`login-flow.ts` 改造
+
 - `LoginFlowDeps.fetchModels` 签名改为 `fetchModels(type, baseUrl, apiKey)`（感知类型），ByfTUI 注入处改为传 `fetchModelsByType`。
 - `run()` 第一步调用 `promptApiTypeSelection`，返回 `undefined` 则中止。
 - 每类型配一个 `DEFAULT_BASE_URL` 常量（`apps/cli/src/tui/flows/login-flow.ts` 内或同目录常量文件）。
@@ -124,6 +133,7 @@
 - `handleManualModelEntry` 同步透传 `type`。
 
 ### 切片 5 — 测试
+
 - `packages/oauth/test/provider-config.test.ts`：
   - `fetchModelsByType` 各类型的 HTTP 请求头/响应解析用例（mock fetch）。
   - `applyProviderConfig` 透传 `type` 用例。

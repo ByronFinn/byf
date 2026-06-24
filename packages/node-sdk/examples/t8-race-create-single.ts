@@ -11,9 +11,19 @@ const h = new ByfHarness({ identity, homeDir });
 
 try {
   const s = await h.createSession({ workDir, id: sessionId, model: 'byf/byf-for-coding' });
-  console.log(JSON.stringify({ label, ok: true, id: s.id, dir: s.summary?.sessionDir, pid: process.pid }));
+  console.log(
+    JSON.stringify({ label, ok: true, id: s.id, dir: s.summary?.sessionDir, pid: process.pid }),
+  );
 } catch (error: any) {
-  console.log(JSON.stringify({ label, ok: false, msg: String(error.message ?? error), code: error.code ?? error.cause?.code, pid: process.pid }));
+  console.log(
+    JSON.stringify({
+      label,
+      ok: false,
+      msg: String(error.message ?? error),
+      code: error.code ?? error.cause?.code,
+      pid: process.pid,
+    }),
+  );
 } finally {
   await h.close();
   process.exit(0);

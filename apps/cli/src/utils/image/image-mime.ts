@@ -183,7 +183,5 @@ function readUInt24LE(b: Uint8Array, off: number): number {
   return b[off]! | (b[off + 1]! << 8) | (b[off + 2]! << 16);
 }
 function readUInt32BE(b: Uint8Array, off: number): number {
-  return Math.trunc(
-    b[off]! * 0x100_0000 + (b[off + 1]! << 16) + (b[off + 2]! << 8) + b[off + 3]!,
-  );
+  return Math.trunc(b[off]! * 0x100_0000 + (b[off + 1]! << 16) + (b[off + 2]! << 8) + b[off + 3]!);
 }

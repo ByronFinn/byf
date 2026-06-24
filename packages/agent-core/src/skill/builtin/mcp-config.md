@@ -14,7 +14,7 @@ Pick the flow from the user's message and your tool list:
 
 - An `mcp__<server>__authenticate` tool is in your list, the user says
   "log in" / "auth" / "sign in", they invoke `/mcp-config login
-  <server>`, or they quote a `needs-auth` status → **Login**.
+<server>`, or they quote a `needs-auth` status → **Login**.
 - Add / edit / remove / list of an `mcp.json` entry → **Config edit**.
 - Bare `/mcp-config` with no `authenticate` tool in your list →
   **Config edit**. If there were a pending login, the authenticate tool
@@ -49,7 +49,13 @@ the user-global one:
 Both files wrap their entries the same way:
 
 ```json
-{ "mcpServers": { "<name>": { /* entry */ } } }
+{
+  "mcpServers": {
+    "<name>": {
+      /* entry */
+    }
+  }
+}
 ```
 
 A minimal stdio entry needs `command` (+ optional `args`, `env`, `cwd`).

@@ -1,4 +1,3 @@
-
 --- This message is a direct task, not part of the above conversation ---
 
 You are now given a task to compact this conversation context according to specific priorities and output requirements.

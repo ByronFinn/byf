@@ -1,9 +1,4 @@
-import type {
-  ByfConfig,
-  ByfConfigPatch,
-  Catalog,
-  CatalogModel,
-} from '@byfriends/sdk';
+import type { ByfConfig, ByfConfigPatch, Catalog, CatalogModel } from '@byfriends/sdk';
 import {
   applyCatalogProvider,
   catalogBaseUrl,
@@ -14,14 +9,14 @@ import {
   loadBuiltInCatalog,
 } from '@byfriends/sdk';
 
-import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
-import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
-import type { ColorPalette } from '#/tui/theme/colors';
 import {
   promptProviderSelection as promptProviderSelectionViaHost,
   promptModelSelectionForCatalog as promptModelSelectionViaHost,
   promptApiKey as promptApiKeyViaHost,
 } from '#/tui/flows/dialog-prompts';
+import type { ColorPalette } from '#/tui/theme/colors';
+import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
+import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
 
 export interface ModelSelection {
   model: CatalogModel;
@@ -74,7 +69,12 @@ export class ConnectFlow {
     if (catalog === undefined) return;
 
     const providerId = await promptProviderSelectionViaHost(
-      this.deps.dialogHost, this.deps.colors, catalog, (msg) =>{  this.deps.showError(msg); },
+      this.deps.dialogHost,
+      this.deps.colors,
+      catalog,
+      (msg) => {
+        this.deps.showError(msg);
+      },
     );
     if (providerId === undefined) return;
     const entry = catalog[providerId];
@@ -87,12 +87,17 @@ export class ConnectFlow {
     }
 
     const selection = await promptModelSelectionViaHost(
-      this.deps.dialogHost, this.deps.colors, providerId, models,
+      this.deps.dialogHost,
+      this.deps.colors,
+      providerId,
+      models,
     );
     if (selection === undefined) return;
 
     const apiKey = await promptApiKeyViaHost(
-      this.deps.dialogHost, this.deps.colors, entry.name ?? providerId,
+      this.deps.dialogHost,
+      this.deps.colors,
+      entry.name ?? providerId,
     );
     if (apiKey === undefined) return;
 

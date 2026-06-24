@@ -10,11 +10,7 @@ export interface ResolveConfigValueInput<T> {
 }
 
 export function resolveConfigValue<T>(input: ResolveConfigValueInput<T>): T {
-  return (
-    input.parseEnv(input.env?.[input.envKey]) ??
-    input.configValue ??
-    input.defaultValue
-  );
+  return input.parseEnv(input.env?.[input.envKey]) ?? input.configValue ?? input.defaultValue;
 }
 
 export function parseBooleanEnv(value: string | undefined): boolean | undefined {

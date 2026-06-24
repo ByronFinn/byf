@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { testAgent } from './harness/agent';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
+import { testAgent } from './harness/agent';
 
 describe('Output offloading integration', () => {
   it('offloads large tool result to scratch file', async () => {

@@ -44,10 +44,10 @@ function fakeManifest(files: Record<string, string>): {
   const manifestKey = 'native/test-target/manifest.json';
   const assets = new Map<string, Buffer>([
     [manifestKey, Buffer.from(JSON.stringify(manifest))],
-    ...Object.entries(files).map(([relativePath, content]) => [
-      `native/test-target/${relativePath}`,
-      Buffer.from(content),
-    ] as const),
+    ...Object.entries(files).map(
+      ([relativePath, content]) =>
+        [`native/test-target/${relativePath}`, Buffer.from(content)] as const,
+    ),
   ]);
   return {
     manifest,
@@ -87,7 +87,17 @@ describe('native assets', () => {
         source,
         version: 'test',
       });
-      expect(packageRoot).toBe(join(dir, 'native', 'test', 'test-target', sha256(JSON.stringify(manifest)), 'node_modules', 'fake-native'));
+      expect(packageRoot).toBe(
+        join(
+          dir,
+          'native',
+          'test',
+          'test-target',
+          sha256(JSON.stringify(manifest)),
+          'node_modules',
+          'fake-native',
+        ),
+      );
       expect(readFileSync(join(packageRoot ?? '', 'index.js'), 'utf-8')).toContain("value: 'ok'");
 
       writeFileSync(join(packageRoot ?? '', 'index.js'), 'broken');

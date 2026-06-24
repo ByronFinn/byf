@@ -577,11 +577,7 @@ export class BackgroundProcessManager {
    * task keeps growing its log. Returns an empty string when the manager
    * is detached, the task is unknown, or the log is absent.
    */
-  async readOutputBytesFromDisk(
-    taskId: string,
-    offset: number,
-    maxBytes: number,
-  ): Promise<string> {
+  async readOutputBytesFromDisk(taskId: string, offset: number, maxBytes: number): Promise<string> {
     const outputSessionDir = this.outputSessionDirFor(taskId);
     if (outputSessionDir === undefined) return '';
     return readTaskOutputBytes(outputSessionDir, taskId, offset, maxBytes);
@@ -1154,7 +1150,11 @@ export class BackgroundProcessManager {
   private observedExitCompletions(): Promise<void>[] {
     const completions: Promise<void>[] = [];
     for (const entry of this.processes.values()) {
-      if (entry.kind === 'process' && !TERMINAL_STATUSES.has(entry.status) && entry.proc.exitCode !== null) {
+      if (
+        entry.kind === 'process' &&
+        !TERMINAL_STATUSES.has(entry.status) &&
+        entry.proc.exitCode !== null
+      ) {
         completions.push(entry.lifecyclePromise);
       }
     }

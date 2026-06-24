@@ -62,18 +62,18 @@ The Makefile is a thin wrapper around the `pnpm run` scripts defined in `package
 
 All commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/).
 
-| Type     | Use for                                     | Example                                   |
-|----------|---------------------------------------------|-------------------------------------------|
-| feat     | A new feature                               | feat(agent-core): add tool dedup          |
-| fix      | A bug fix                                   | fix(tui): correct status bar alignment    |
-| docs     | Documentation only                          | docs: clarify install instructions        |
-| chore    | Tooling / housekeeping                      | chore: bump dependencies                  |
-| refactor | Internal refactor without behavior change   | refactor(kosong): extract retry helper    |
-| test     | Adding or improving tests                   | test(agent-core): cover skill resolver    |
-| ci       | CI / build pipeline changes                 | ci: cache pnpm store                      |
-| build    | Build system / artifact changes             | build(native): add win32-arm64 target     |
-| perf     | Performance improvement                     | perf(session): batch event flushes        |
-| style    | Formatting only (no logic)                  | style: apply oxlint --fix                 |
+| Type     | Use for                                   | Example                                |
+| -------- | ----------------------------------------- | -------------------------------------- |
+| feat     | A new feature                             | feat(agent-core): add tool dedup       |
+| fix      | A bug fix                                 | fix(tui): correct status bar alignment |
+| docs     | Documentation only                        | docs: clarify install instructions     |
+| chore    | Tooling / housekeeping                    | chore: bump dependencies               |
+| refactor | Internal refactor without behavior change | refactor(kosong): extract retry helper |
+| test     | Adding or improving tests                 | test(agent-core): cover skill resolver |
+| ci       | CI / build pipeline changes               | ci: cache pnpm store                   |
+| build    | Build system / artifact changes           | build(native): add win32-arm64 target  |
+| perf     | Performance improvement                   | perf(session): batch event flushes     |
+| style    | Formatting only (no logic)                | style: apply oxlint --fix              |
 
 PR titles are enforced by the `pr-title-checker` workflow — a non-conforming title will block merge.
 

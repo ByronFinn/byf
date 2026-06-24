@@ -11,8 +11,9 @@
  * their own `WorkspaceConfig` with narrower bounds.
  */
 
-import type { ExecutableToolResult } from '#/loop';
 import type { Kaos } from '@byfriends/kaos';
+
+import type { ExecutableToolResult } from '#/loop';
 
 import type { WorkspaceConfig } from '../../../src/tools/support/workspace';
 

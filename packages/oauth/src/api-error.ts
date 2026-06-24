@@ -41,10 +41,7 @@ export function extractApiErrorMessage(value: unknown): string | undefined {
   return undefined;
 }
 
-export async function readApiErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
+export async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
   let parsed: unknown;
   try {
     parsed = await response.json();

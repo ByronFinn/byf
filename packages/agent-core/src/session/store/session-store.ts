@@ -4,10 +4,10 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { z } from 'zod';
 
 import { ErrorCodes, ByfError } from '#/errors';
+import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
 import type { SessionIndexEntry } from '#/session/store/session-index';
 import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
-import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
 
 const SessionSummaryStateSchema = z.object({
   customTitle: z.string().optional(),
@@ -29,6 +29,13 @@ export interface ForkSessionRecordInput {
   readonly targetId: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  /**
+   * 1-based ordinal of a user-origin message (`turn.prompt`/`turn.steer` with
+   * `origin.kind === 'user'`). When set, the forked session's main agent
+   * wire.jsonl is truncated before that record (edit-message semantics — see
+   * ADR-0020). Omitted → full copy (backwards compatible).
+   */
+  readonly upToMessage?: number;
 }
 
 export type SessionStoreOptions = Record<string, never>;
@@ -75,12 +82,18 @@ export class SessionStore {
     assertSafeSessionId(input.targetId);
     const indexed = await this.findSessionEntry(input.targetId);
     if (indexed !== undefined) {
-      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(
+        ErrorCodes.SESSION_ALREADY_EXISTS,
+        `Session "${input.targetId}" already exists`,
+      );
     }
 
     const targetDir = this.sessionDirFor({ id: input.targetId, workDir: source.workDir });
     if (await isDirectory(targetDir)) {
-      throw new ByfError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
+      throw new ByfError(
+        ErrorCodes.SESSION_ALREADY_EXISTS,
+        `Session "${input.targetId}" already exists`,
+      );
     }
 
     await mkdir(dirname(targetDir), { recursive: true, mode: 0o700 });
@@ -91,6 +104,10 @@ export class SessionStore {
         errorOnExist: true,
       });
       await this.writeForkedState(input, source.sessionDir, targetDir);
+      if (input.upToMessage !== undefined) {
+        await truncateMainWireUpToMessage(targetDir, input.upToMessage);
+        await cleanupOrphanedAgents(targetDir);
+      }
       const summary = await this.summaryFromDir(input.targetId, targetDir, source.workDir);
       await appendSessionIndexEntry(this.homeDir, {
         sessionId: input.targetId,
@@ -120,9 +137,13 @@ export class SessionStore {
     try {
       parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
     } catch (error) {
-      throw new ByfError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
-        cause: error,
-      });
+      throw new ByfError(
+        ErrorCodes.SESSION_STATE_NOT_FOUND,
+        `Session "${id}" state.json was not found`,
+        {
+          cause: error,
+        },
+      );
     }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
@@ -209,6 +230,7 @@ export class SessionStore {
       title,
       isCustomTitle: input.title === undefined ? parsed['isCustomTitle'] === true : true,
       forkedFrom: input.sourceId,
+      forkedFromMessage: input.upToMessage,
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: Object.assign({}, isRecord(parsed['custom']) ? parsed['custom'] : {}, input.metadata),
     };
@@ -350,7 +372,10 @@ function timestampOrFallback(value: number, fallback: number): number {
 
 function assertSafeSessionId(id: string): void {
   if (isSafeSessionId(id)) return;
-  throw new ByfError(ErrorCodes.SESSION_ID_INVALID, 'Session id contains unsupported path characters');
+  throw new ByfError(
+    ErrorCodes.SESSION_ID_INVALID,
+    'Session id contains unsupported path characters',
+  );
 }
 
 function isSafeSessionId(id: string): boolean {
@@ -364,3 +389,166 @@ function compareSessionSummary(a: SessionSummary, b: SessionSummary): number {
   if (a.id > b.id) return 1;
   return 0;
 }
+
+/**
+ * Truncates the forked session's main agent wire.jsonl at the Nth user-origin
+ * message (edit-message semantics — see ADR-0020). Keeps every record BEFORE
+ * the Nth `turn.prompt`/`turn.steer` whose `origin.kind === 'user'`, and drops
+ * that record + everything after it. Non-user-origin turns (background_task,
+ * skill_activation, hook_result) are not counted toward the ordinal.
+ */
+async function truncateMainWireUpToMessage(sessionDir: string, upToMessage: number): Promise<void> {
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  let content: string;
+  try {
+    content = await readFile(mainWirePath, 'utf-8');
+  } catch {
+    // No main wire (e.g. an empty session). Nothing to truncate.
+    return;
+  }
+
+  const lines = content.split('\n');
+  // Preserve a possible trailing newline split into an empty last element,
+  // but operate only on non-empty lines when counting user messages.
+  let userMessageCount = 0;
+  let truncateAtIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined || line.trim().length === 0) continue;
+
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      // Skip unparseable lines without affecting the ordinal.
+      continue;
+    }
+    if (!isUserTurnBoundary(record)) continue;
+
+    userMessageCount += 1;
+    if (userMessageCount === upToMessage) {
+      // Truncate at this line: keep everything before index i.
+      truncateAtIndex = i;
+      break;
+    }
+  }
+
+  if (truncateAtIndex === -1) {
+    throw new ByfError(
+      ErrorCodes.SESSION_FORK_UPTO_MESSAGE_OUT_OF_RANGE,
+      `upToMessage ${upToMessage} exceeds the number of user messages (${userMessageCount}) in the session`,
+    );
+  }
+
+  // Keep lines [0, truncateAtIndex) and drop [truncateAtIndex, end). Preserve
+  // the trailing newline so the file stays well-formed JSONL.
+  const kept = lines.slice(0, truncateAtIndex);
+  const truncated = kept.join('\n') + (kept.length > 0 ? '\n' : '');
+  await writeFile(mainWirePath, truncated, 'utf-8');
+}
+
+function isUserTurnBoundary(record: unknown): boolean {
+  if (!isRecord(record)) return false;
+  const type = record['type'];
+  if (type !== 'turn.prompt' && type !== 'turn.steer') return false;
+  const origin = record['origin'];
+  return isRecord(origin) && origin['kind'] === 'user';
+}
+
+/**
+ * Removes sub-agents spawned by dropped turns after a truncation fork.
+ *
+ * A sub-agent is "referenced" when its `parentToolCallId` appears as a
+ * `tool.call` event in the retained main wire prefix. Orphans (whose
+ * parentToolCallId is absent from the prefix) are removed from state.json's
+ * `agents` map and their `agents/<id>/` directory is deleted. The main agent
+ * and any sub-agent without a parentToolCallId are always retained.
+ *
+ * See PRD-0015 R7 / Issue #185.
+ */
+async function cleanupOrphanedAgents(sessionDir: string): Promise<void> {
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  let mainContent = '';
+  try {
+    mainContent = await readFile(mainWirePath, 'utf-8');
+  } catch {
+    return;
+  }
+
+  const retainedToolCallIds = collectToolCallIds(mainContent);
+
+  const statePath = join(sessionDir, 'state.json');
+  const parsed = JSON.parse(await readFile(statePath, 'utf-8')) as Record<string, unknown>;
+  const agents = isRecord(parsed['agents']) ? parsed['agents'] : {};
+  if (!isRecord(agents)) return;
+
+  const survivors: Record<string, unknown> = {};
+  const orphans: string[] = [];
+  for (const [agentId, meta] of Object.entries(agents)) {
+    if (!isRecord(meta)) {
+      survivors[agentId] = meta;
+      continue;
+    }
+    const parentToolCallId = meta['parentToolCallId'];
+    // main agent + legacy agents without parentToolCallId are always kept.
+    if (typeof parentToolCallId !== 'string') {
+      survivors[agentId] = meta;
+      continue;
+    }
+    // Sentinel parentToolCallIds (e.g. the /init-spawned agent uses
+    // 'generate-agents-md') are never recorded as wire tool.call events, so
+    // they must be exempt from orphan detection regardless of truncation.
+    if (SENTINEL_PARENT_TOOL_CALL_IDS.has(parentToolCallId)) {
+      survivors[agentId] = meta;
+      continue;
+    }
+    if (retainedToolCallIds.has(parentToolCallId)) {
+      survivors[agentId] = meta;
+    } else {
+      orphans.push(agentId);
+    }
+  }
+
+  if (orphans.length === 0) return;
+
+  parsed['agents'] = survivors;
+  await writeFile(statePath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf-8');
+
+  for (const agentId of orphans) {
+    await rm(join(sessionDir, 'agents', agentId), { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Collects every `tool.call` toolCallId from a wire.jsonl content string by
+ * scanning `context.append_loop_event` records whose embedded event is a
+ * tool.call. Returns the set of retained ids (used for orphan detection).
+ */
+function collectToolCallIds(mainWireContent: string): Set<string> {
+  const ids = new Set<string>();
+  for (const line of mainWireContent.split('\n')) {
+    if (line.trim().length === 0) continue;
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isRecord(record) || record['type'] !== 'context.append_loop_event') continue;
+    const event = record['event'];
+    if (!isRecord(event) || event['type'] !== 'tool.call') continue;
+    const toolCallId = event['toolCallId'];
+    if (typeof toolCallId === 'string') ids.add(toolCallId);
+  }
+  return ids;
+}
+
+/**
+ * parentToolCallId values that are programmatic sentinels rather than real
+ * model-emitted tool-call ids. Such agents (e.g. the `/init`-spawned
+ * generate-agents-md agent) are never recorded as wire `tool.call` events, so
+ * they would be wrongly classified as orphans after a truncation fork. They
+ * are always retained.
+ */
+const SENTINEL_PARENT_TOOL_CALL_IDS: ReadonlySet<string> = new Set(['generate-agents-md']);

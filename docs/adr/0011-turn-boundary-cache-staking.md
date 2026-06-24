@@ -74,10 +74,10 @@ Before sending, scan current-turn messages for content exceeding a size threshol
 
 ### Two Parallel Mechanisms
 
-| Mechanism | Scope | Carrier | Module |
-|---|---|---|---|
-| PromptPlan | System prompt + tools (static blueprint) | `GenerateOptions.promptPlan` | `agent-core/prompt-plan` |
-| CacheStakingStrategy | Conversation history (dynamic coloring) | `Message.cacheHint` | `agent-core/cache-staking` |
+| Mechanism            | Scope                                    | Carrier                      | Module                     |
+| -------------------- | ---------------------------------------- | ---------------------------- | -------------------------- |
+| PromptPlan           | System prompt + tools (static blueprint) | `GenerateOptions.promptPlan` | `agent-core/prompt-plan`   |
+| CacheStakingStrategy | Conversation history (dynamic coloring)  | `Message.cacheHint`          | `agent-core/cache-staking` |
 
 These are not redundant. PromptPlan manages non-array structures (system text, tool schemas). CacheStakingStrategy manages array-structured conversation history. The different physical data models warrant different mechanisms.
 

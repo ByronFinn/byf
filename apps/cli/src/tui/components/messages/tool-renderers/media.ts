@@ -17,8 +17,9 @@ import type { Component } from '@earendil-works/pi-tui';
 import { Text } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
-import type { ChipProvider } from './chip';
 import { formatBytes } from '#/utils/format';
+
+import type { ChipProvider } from './chip';
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 

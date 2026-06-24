@@ -1,12 +1,15 @@
-import { ErrorCodes, ByfError } from '#/errors';
+import type { Tool } from '@byfriends/kosong';
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
+
 import type { McpServerConfig } from '#/config/schema';
+import { ErrorCodes, ByfError } from '#/errors';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
-import type { Tool } from '@byfriends/kosong';
 
 import { abortable } from '../utils/abort';
 import { HttpMcpClient } from './client-http';
 import type { UnexpectedCloseReason } from './client-shared';
+import { SseMcpClient } from './client-sse';
 import { StdioMcpClient } from './client-stdio';
 import type { McpOAuthService } from './oauth';
 import { assertMcpInputSchema, type MCPClient } from './types';
@@ -15,7 +18,7 @@ export type McpServerStatus = 'pending' | 'connected' | 'failed' | 'disabled' | 
 
 export interface McpServerEntry {
   readonly name: string;
-  readonly transport: 'stdio' | 'http';
+  readonly transport: 'stdio' | 'http' | 'sse';
   readonly status: McpServerStatus;
   readonly toolCount: number;
   readonly error?: string;
@@ -36,7 +39,7 @@ export type McpStatusListener = (entry: McpServerEntry) => void;
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 
-type RuntimeMcpClient = StdioMcpClient | HttpMcpClient;
+type RuntimeMcpClient = StdioMcpClient | HttpMcpClient | SseMcpClient;
 
 export interface McpConnectionManagerOptions {
   readonly envLookup?: (name: string) => string | undefined;
@@ -102,7 +105,7 @@ export class McpConnectionManager {
   getHttpServerUrl(name: string): string | undefined {
     const entry = this.entries.get(name);
     if (entry === undefined) return undefined;
-    if (entry.config.transport !== 'http') return undefined;
+    if (entry.config.transport !== 'http' && entry.config.transport !== 'sse') return undefined;
     return entry.config.url;
   }
 
@@ -131,15 +134,9 @@ export class McpConnectionManager {
    */
   resolved(
     name: string,
-  ):
-    | { client: MCPClient; tools: readonly Tool[]; enabledNames: ReadonlySet<string> }
-    | undefined {
+  ): { client: MCPClient; tools: readonly Tool[]; enabledNames: ReadonlySet<string> } | undefined {
     const entry = this.entries.get(name);
-    if (
-      entry?.status !== 'connected' ||
-      entry.tools === undefined ||
-      entry.client === undefined
-    ) {
+    if (entry?.status !== 'connected' || entry.tools === undefined || entry.client === undefined) {
       return undefined;
     }
     return {
@@ -298,6 +295,14 @@ export class McpConnectionManager {
     if (config.transport === 'stdio') {
       return new StdioMcpClient(config, { toolCallTimeoutMs });
     }
+    if (config.transport === 'sse') {
+      return new SseMcpClient(config, {
+        toolCallTimeoutMs,
+        envLookup: this.options.envLookup,
+        oauthProvider: this.resolveOAuthProvider(config, name),
+        fetch: this.options.fetch,
+      });
+    }
     return new HttpMcpClient(config, {
       toolCallTimeoutMs,
       envLookup: this.options.envLookup,
@@ -312,7 +317,7 @@ export class McpConnectionManager {
   ): ReturnType<McpOAuthService['getProvider']> | undefined {
     const oauthService = this.oauthService;
     if (oauthService === undefined) return undefined;
-    if (config.transport !== 'http') return undefined;
+    if (config.transport !== 'http' && config.transport !== 'sse') return undefined;
     if (config.bearerTokenEnvVar !== undefined) return undefined;
     // Only attach the provider once tokens have been minted; before that,
     // the transport should propagate a clean 401 so we can flip the entry
@@ -324,7 +329,7 @@ export class McpConnectionManager {
 
   private shouldMarkNeedsAuth(entry: InternalEntry, error: unknown): boolean {
     if (this.oauthService === undefined) return false;
-    if (entry.config.transport !== 'http') return false;
+    if (entry.config.transport !== 'http' && entry.config.transport !== 'sse') return false;
     if (entry.config.bearerTokenEnvVar !== undefined) return false;
     // If the user pinned a static `headers` block, treat 401s as a bad header
     // rather than hijacking them into the OAuth flow — the real error is more
@@ -414,7 +419,7 @@ function computeEnabledNames(config: McpServerConfig, tools: readonly Tool[]): S
 
 function isUnauthorizedLikeError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  if (error.name === 'UnauthorizedError') return true;
+  if (error instanceof UnauthorizedError) return true;
   // SDK transport errors typically expose the HTTP status as `.code`.
   const code = (error as { code?: unknown }).code;
   if (typeof code === 'number' && code === 401) return true;

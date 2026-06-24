@@ -68,9 +68,7 @@ describe('path helpers', () => {
   it('returns intermediate artifact paths', () => {
     expect(nativeJsBundlePath()).toBe(`${appRoot}/dist-native/intermediates/main.cjs`);
     expect(nativeBlobPath()).toBe(`${appRoot}/dist-native/intermediates/byf.blob`);
-    expect(nativeSeaConfigPath()).toBe(
-      `${appRoot}/dist-native/intermediates/sea-config.json`,
-    );
+    expect(nativeSeaConfigPath()).toBe(`${appRoot}/dist-native/intermediates/sea-config.json`);
   });
 
   it('returns manifest key for target', () => {

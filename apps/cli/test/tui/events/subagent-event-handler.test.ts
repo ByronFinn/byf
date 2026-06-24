@@ -1,13 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import type {
   Event,
   SubagentCompletedEvent,
   SubagentFailedEvent,
   SubagentSpawnedEvent,
 } from '@byfriends/sdk';
-
-import type { BackgroundAgentMetadata, ToolCallBlockData } from '#/tui/types';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildBackgroundAgentMetadata,
@@ -19,6 +16,7 @@ import {
   type SubagentEventState,
   type SubagentToolCall,
 } from '#/tui/events/subagent-event-handler';
+import type { BackgroundAgentMetadata, ToolCallBlockData } from '#/tui/types';
 
 function makeToolCall(): SubagentToolCall {
   return {
@@ -106,14 +104,21 @@ function makeState(store: AdapterStore = makeStore()): SubagentEventState {
       }
       return match;
     },
-    get currentStep() { return store.currentStep; },
-    get currentTurnId() { return store.currentTurnId; },
+    get currentStep() {
+      return store.currentStep;
+    },
+    get currentTurnId() {
+      return store.currentTurnId;
+    },
   };
 }
 
 // Convenience: build an (adapter, store) pair so tests can read the
 // underlying maps/sets after running a handler.
-function makeAdapter(overrides: Partial<AdapterStore> = {}): { state: SubagentEventState; store: AdapterStore } {
+function makeAdapter(overrides: Partial<AdapterStore> = {}): {
+  state: SubagentEventState;
+  store: AdapterStore;
+} {
   const store = makeStore(overrides);
   return { state: makeState(store), store };
 }
@@ -128,9 +133,7 @@ function makeCallbacks(overrides: Partial<SubagentCallbacks> = {}): SubagentCall
   };
 }
 
-function makeSpawnedEvent(
-  overrides: Partial<SubagentSpawnedEvent> = {},
-): SubagentSpawnedEvent {
+function makeSpawnedEvent(overrides: Partial<SubagentSpawnedEvent> = {}): SubagentSpawnedEvent {
   return {
     type: 'subagent.spawned',
     subagentId: 'sub-1',
@@ -263,11 +266,7 @@ describe('routeSubagentEvent', () => {
       subagentNames: new Map([['sub-1', 'coder']]),
       pendingToolComponents: new Map([['tc-1', makeToolCall()]]),
     });
-    for (const type of [
-      'subagent.spawned',
-      'subagent.completed',
-      'subagent.failed',
-    ] as const) {
+    for (const type of ['subagent.spawned', 'subagent.completed', 'subagent.failed'] as const) {
       const event = { type, agentId: 'sub-1' } as Event;
       expect(routeSubagentEvent(event, state)).toBe(true);
     }
@@ -384,10 +383,7 @@ describe('handleSubagentSpawned (background)', () => {
 
     expect(store.backgroundAgents.has('sub-1')).toBe(true);
     expect(store.backgroundAgentMetadata.has('sub-1')).toBe(true);
-    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith(
-      'started',
-      expect.anything(),
-    );
+    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith('started', expect.anything());
     expect(callbacks.syncBackgroundAgentBadge).toHaveBeenCalled();
   });
 });
@@ -499,11 +495,9 @@ describe('handleSubagentCompleted (background)', () => {
     expect(store.backgroundAgents.has('sub-1')).toBe(false);
     expect(store.backgroundAgentMetadata.has('sub-1')).toBe(false);
     expect(callbacks.syncBackgroundAgentBadge).toHaveBeenCalled();
-    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith(
-      'completed',
-      meta,
-      { resultSummary: 'all done' },
-    );
+    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith('completed', meta, {
+      resultSummary: 'all done',
+    });
   });
 
   it('skips transcript when matching agent-* task is already transcripted', () => {
@@ -515,9 +509,7 @@ describe('handleSubagentCompleted (background)', () => {
     const { state } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
-      backgroundTasks: new Map([
-        ['agent-task-1', { taskId: 'agent-task-1', description: 'test' }],
-      ]),
+      backgroundTasks: new Map([['agent-task-1', { taskId: 'agent-task-1', description: 'test' }]]),
       backgroundTaskTranscriptedTerminal: new Set(['agent-task-1']),
     });
     const callbacks = makeCallbacks();
@@ -608,11 +600,9 @@ describe('handleSubagentFailed (background)', () => {
       callbacks,
     );
 
-    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith(
-      'failed',
-      meta,
-      { error: 'timeout' },
-    );
+    expect(callbacks.appendBackgroundAgentEntry).toHaveBeenCalledWith('failed', meta, {
+      error: 'timeout',
+    });
     expect(store.backgroundAgents.has('sub-1')).toBe(false);
   });
 
@@ -625,9 +615,7 @@ describe('handleSubagentFailed (background)', () => {
     const { state } = makeAdapter({
       backgroundAgents: new Set(['sub-1']),
       backgroundAgentMetadata: new Map([['sub-1', meta]]),
-      backgroundTasks: new Map([
-        ['agent-task-1', { taskId: 'agent-task-1', description: 'test' }],
-      ]),
+      backgroundTasks: new Map([['agent-task-1', { taskId: 'agent-task-1', description: 'test' }]]),
       backgroundTaskTranscriptedTerminal: new Set(['agent-task-1']),
     });
     const callbacks = makeCallbacks();
@@ -656,7 +644,14 @@ describe('buildBackgroundAgentMetadata', () => {
     const event = makeSpawnedEvent({ runInBackground: true });
     const { state } = makeAdapter({
       activeToolCalls: new Map([
-        ['tc-1', { id: 'tc-1', name: 'Agent', args: { description: 'refactor module' } } as unknown as ToolCallBlockData],
+        [
+          'tc-1',
+          {
+            id: 'tc-1',
+            name: 'Agent',
+            args: { description: 'refactor module' },
+          } as unknown as ToolCallBlockData,
+        ],
       ]),
     });
 

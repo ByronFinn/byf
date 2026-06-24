@@ -56,8 +56,7 @@ export class BackgroundManager extends BackgroundProcessManager {
         case 'terminated': {
           this.agent.emitEvent({ type: 'background.task.terminated', info });
           const success = info.status === 'completed';
-          const duration_s =
-            info.endedAt !== null ? (info.endedAt - info.startedAt) / 1000 : null;
+          const duration_s = info.endedAt !== null ? (info.endedAt - info.startedAt) / 1000 : null;
           const properties: Record<string, TelemetryPropertyValue> = {
             kind: info.taskId.startsWith('agent-') ? 'agent' : 'bash',
             success,
@@ -65,11 +64,7 @@ export class BackgroundManager extends BackgroundProcessManager {
           };
           if (!success) {
             properties['reason'] =
-              info.timedOut === true
-                ? 'timeout'
-                : info.status === 'killed'
-                  ? 'killed'
-                  : 'error';
+              info.timedOut === true ? 'timeout' : info.status === 'killed' ? 'killed' : 'error';
           }
           this.agent.telemetry.track('background_task_completed', properties);
           return;
@@ -124,8 +119,7 @@ export class BackgroundManager extends BackgroundProcessManager {
     if (this.hasDeliveredNotification(origin)) return;
 
     this.scheduledNotificationKeys.add(key);
-    const tailOutput = (await this.getOutputSnapshot(info.taskId, NOTIFICATION_TAIL_BYTES))
-      .preview;
+    const tailOutput = (await this.getOutputSnapshot(info.taskId, NOTIFICATION_TAIL_BYTES)).preview;
     if (this.hasDeliveredNotification(origin)) return;
     const label = info.taskId.startsWith('agent-') ? 'agent' : 'task';
     const notification: BackgroundTaskNotification = {

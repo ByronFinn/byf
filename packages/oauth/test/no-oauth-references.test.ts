@@ -1,5 +1,6 @@
 import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 const SRC_DIR = join(import.meta.dirname, '..', 'src');
@@ -72,7 +73,7 @@ describe('oauth package: no upstream OAuth references', () => {
   });
 
   it('does not export OAuth functions', async () => {
-    const mod = await import('../src/index') as Record<string, unknown>;
+    const mod = (await import('../src/index')) as Record<string, unknown>;
     expect(mod['pollDeviceToken']).toBeUndefined();
     expect(mod['refreshAccessToken']).toBeUndefined();
     expect(mod['requestDeviceAuthorization']).toBeUndefined();

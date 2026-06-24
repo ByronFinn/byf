@@ -1,3 +1,5 @@
+import { describe, it, expect, vi } from 'vitest';
+
 import { ChatProviderError } from '#/errors';
 import { generate } from '#/generate';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
@@ -6,7 +8,6 @@ import {
   OpenAIResponsesStreamedMessage,
 } from '#/providers/openai-responses';
 import type { Tool } from '#/tool';
-import { describe, it, expect, vi } from 'vitest';
 
 function makeResponsesAPIResponse() {
   return {
@@ -376,7 +377,8 @@ describe('OpenAIResponsesChatProvider', () => {
             {
               type: 'function',
               id: 'call_x',
-              name: 'lookup', arguments: '{}',
+              name: 'lookup',
+              arguments: '{}',
             },
           ],
         },
@@ -417,12 +419,14 @@ describe('OpenAIResponsesChatProvider', () => {
             {
               type: 'function',
               id: 'call_add',
-              name: 'add', arguments: '{"a": 2, "b": 3}',
+              name: 'add',
+              arguments: '{"a": 2, "b": 3}',
             },
             {
               type: 'function',
               id: 'call_mul',
-              name: 'multiply', arguments: '{"a": 4, "b": 5}',
+              name: 'multiply',
+              arguments: '{"a": 4, "b": 5}',
             },
           ],
         },
@@ -552,7 +556,8 @@ describe('OpenAIResponsesChatProvider', () => {
       const toolCall: ToolCall = {
         type: 'function',
         id: 'call_abc123',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Add 2 and 3' }], toolCalls: [] },
@@ -652,7 +657,8 @@ describe('OpenAIResponsesChatProvider', () => {
       const toolCall: ToolCall = {
         type: 'function',
         id: 'call_audio',
-        name: 'tts', arguments: '{"text":"hi"}',
+        name: 'tts',
+        arguments: '{"text":"hi"}',
       };
       const dataUrl = 'data:audio/mp3;base64,QUJD';
       const httpsUrl = 'https://example.com/speech.wav';
@@ -695,7 +701,8 @@ describe('OpenAIResponsesChatProvider', () => {
       const toolCall: ToolCall = {
         type: 'function',
         id: 'call_abc123',
-        name: 'add', arguments: '{"a": 2, "b": 3}',
+        name: 'add',
+        arguments: '{"a": 2, "b": 3}',
       };
       const history: Message[] = [
         { role: 'user', content: [{ type: 'text', text: 'Add 2 and 3' }], toolCalls: [] },
@@ -920,7 +927,8 @@ describe('OpenAIResponsesChatProvider', () => {
         {
           type: 'function',
           id: 'call_xyz',
-          name: 'lookup', arguments: '{"q":"hi"}',
+          name: 'lookup',
+          arguments: '{"q":"hi"}',
         },
       ]);
     });
@@ -1221,7 +1229,8 @@ describe('OpenAIResponsesChatProvider', () => {
         {
           type: 'function',
           id: 'call_123',
-          name: 'add', arguments: '',
+          name: 'add',
+          arguments: '',
           _streamIndex: 'item_123',
         },
         { type: 'tool_call_part', argumentsPart: '{"a":', index: 'item_123' },
@@ -1277,7 +1286,8 @@ describe('OpenAIResponsesChatProvider', () => {
         {
           type: 'function',
           id: 'call_done_only',
-          name: 'add', arguments: '{"a": 2, "b": 3}',
+          name: 'add',
+          arguments: '{"a": 2, "b": 3}',
           extras: undefined,
         },
       ]);
@@ -1630,9 +1640,7 @@ describe('OpenAIResponsesChatProvider', () => {
       ];
       const stream = new OpenAIResponsesStreamedMessage(makeAsyncIterable(events), true);
 
-      await expect(collectStreamParts(stream)).rejects.toThrow(
-        /rate_limit_exceeded.*too many/,
-      );
+      await expect(collectStreamParts(stream)).rejects.toThrow(/rate_limit_exceeded.*too many/);
     });
 
     it('throws when a known stream event is missing a required field', async () => {

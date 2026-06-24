@@ -1,13 +1,14 @@
-import type { ByfConfig, ModelAlias, OAuthRef, ProviderConfig } from '#/config';
-import { ErrorCodes, ByfError, isByfError } from '#/errors';
-import { log as defaultLog } from '#/logging/logger';
-import type { Logger } from '#/logging/types';
 import {
   createProvider,
   UNKNOWN_CAPABILITY,
   type ModelCapability,
   type ProviderConfig as KosongProviderConfig,
 } from '@byfriends/kosong';
+
+import type { ByfConfig, ModelAlias, OAuthRef, ProviderConfig } from '#/config';
+import { ErrorCodes, ByfError, isByfError } from '#/errors';
+import { log as defaultLog } from '#/logging/logger';
+import type { Logger } from '#/logging/types';
 
 import type { ProviderRequestAuthResolver } from './request-auth';
 
@@ -240,9 +241,7 @@ export const CAPABILITY_DEFINITIONS: readonly CapabilityDef[] = [
  * resolver and any config-governance consumer (e.g. the `update-config`
  * builtin skill, which reads this export as its source of truth) in sync.
  */
-export const VALID_CAPABILITIES: readonly string[] = CAPABILITY_DEFINITIONS.map(
-  (d) => d.name,
-);
+export const VALID_CAPABILITIES: readonly string[] = CAPABILITY_DEFINITIONS.map((d) => d.name);
 
 function resolveModelCapabilities(
   alias: ModelAlias & { maxContextSize: number },
@@ -364,9 +363,9 @@ function toKosongProviderConfig(
 // fresh copy so resolved provider instances never share a header object, and
 // omits the key entirely when there are no headers (callers and tests rely on
 // `'defaultHeaders' in provider`).
-function defaultHeadersField(
-  headers: Record<string, string> | undefined,
-): { defaultHeaders?: Record<string, string> } {
+function defaultHeadersField(headers: Record<string, string> | undefined): {
+  defaultHeaders?: Record<string, string>;
+} {
   if (headers === undefined || Object.keys(headers).length === 0) return {};
   return { defaultHeaders: { ...headers } };
 }
@@ -424,8 +423,7 @@ function vertexAIProject(provider: ProviderConfig): string | undefined {
 
 function vertexAILocation(provider: ProviderConfig): string | undefined {
   return (
-    envValue(provider.env, 'GOOGLE_CLOUD_LOCATION') ??
-    locationFromVertexAIBaseUrl(provider.baseUrl)
+    envValue(provider.env, 'GOOGLE_CLOUD_LOCATION') ?? locationFromVertexAIBaseUrl(provider.baseUrl)
   );
 }
 

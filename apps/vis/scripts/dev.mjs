@@ -56,8 +56,10 @@ const child = spawn(
   'concurrently',
   [
     '-k',
-    '-n', 'server,web',
-    '-c', 'cyan,magenta',
+    '-n',
+    'server,web',
+    '-c',
+    'cyan,magenta',
     'pnpm --filter @byfriends/vis-server dev',
     'pnpm --filter @byfriends/vis-web dev',
   ],

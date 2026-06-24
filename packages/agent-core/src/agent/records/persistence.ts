@@ -109,11 +109,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
 
   async flush(): Promise<void> {
     this.throwIfError();
-    while (
-      this.flushPromise !== undefined ||
-      this.shouldClear ||
-      this.pendingRecords.length > 0
-    ) {
+    while (this.flushPromise !== undefined || this.shouldClear || this.pendingRecords.length > 0) {
       await this.ensureFlush();
       this.throwIfError();
     }
@@ -142,10 +138,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         if (this.flushPromise === promise) {
           this.flushPromise = undefined;
         }
-        if (
-          this.error === undefined &&
-          (this.shouldClear || this.pendingRecords.length > 0)
-        ) {
+        if (this.error === undefined && (this.shouldClear || this.pendingRecords.length > 0)) {
           this.scheduleFlush();
         }
       });

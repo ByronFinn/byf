@@ -26,8 +26,12 @@ describe('update-pnpm-deps.sh', () => {
     const fixture = await createFixtureRepo(currentHash);
     const result = await runUpdateScript(fixture, { currentValid: true });
 
-    await expect(readFile(join(fixture.root, 'flake.nix'), 'utf-8')).resolves.toContain(currentHash);
-    await expect(readFile(join(fixture.root, 'flake.nix'), 'utf-8')).resolves.not.toContain(fakeHash);
+    await expect(readFile(join(fixture.root, 'flake.nix'), 'utf-8')).resolves.toContain(
+      currentHash,
+    );
+    await expect(readFile(join(fixture.root, 'flake.nix'), 'utf-8')).resolves.not.toContain(
+      fakeHash,
+    );
     await expect(readFile(fixture.nixLogPath, 'utf-8')).resolves.toBe('current\n');
     expect(result.stdout).toContain('pnpmDeps hash still valid');
 
@@ -59,7 +63,9 @@ describe('update-pnpm-deps.sh', () => {
   });
 });
 
-async function createFixtureRepo(hash: string): Promise<{ binDir: string; nixLogPath: string; root: string }> {
+async function createFixtureRepo(
+  hash: string,
+): Promise<{ binDir: string; nixLogPath: string; root: string }> {
   const root = await mkdtemp(join(tmpdir(), 'byf-update-pnpm-deps-'));
   tempRoots.push(root);
 

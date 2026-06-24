@@ -3,7 +3,20 @@
   "version": "0.3.2",
   "private": true,
   "description": "Visual debugging tools for BYF sessions and replays",
+  "keywords": [
+    "byf",
+    "debugging",
+    "replay",
+    "sessions",
+    "visualizer"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
   "license": "Proprietary",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
   "type": "module",
   "scripts": {
     "build:deps": "pnpm --filter @byfriends/agent-core... build",
@@ -15,18 +28,5 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
-  },
-  "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ByronFinn/byf.git"
-  },
-  "keywords": [
-    "byf",
-    "visualizer",
-    "debugging",
-    "sessions",
-    "replay"
-  ]
+  }
 }

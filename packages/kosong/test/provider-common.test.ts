@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest';
+
+import { APIConnectionError, APIStatusError, APITimeoutError, ChatProviderError } from '#/errors';
 import type { FinishReason } from '#/provider';
-import {
-  APIConnectionError,
-  APIStatusError,
-  APITimeoutError,
-  ChatProviderError,
-} from '#/errors';
 import {
   convertProviderError,
   extractCacheUsage,
@@ -72,32 +68,47 @@ describe('extractCacheUsage', () => {
   it('splits total input into cache-read and other when some tokens were cached', () => {
     // total 1000, 700 cached → 300 other
     expect(extractCacheUsage(1000, 700, 50)).toEqual({
-      inputOther: 300, output: 50, inputCacheRead: 700, inputCacheCreation: 0,
+      inputOther: 300,
+      output: 50,
+      inputCacheRead: 700,
+      inputCacheCreation: 0,
     });
   });
 
   it('puts all input into inputOther when nothing was cached', () => {
     expect(extractCacheUsage(1000, 0, 50)).toEqual({
-      inputOther: 1000, output: 50, inputCacheRead: 0, inputCacheCreation: 0,
+      inputOther: 1000,
+      output: 50,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
     });
   });
 
   it('reports zero inputOther when everything was cached', () => {
     expect(extractCacheUsage(800, 800, 20)).toEqual({
-      inputOther: 0, output: 20, inputCacheRead: 800, inputCacheCreation: 0,
+      inputOther: 0,
+      output: 20,
+      inputCacheRead: 800,
+      inputCacheCreation: 0,
     });
   });
 
   it('clamps inputOther to 0 when cached exceeds total (defensive)', () => {
     // raw subtraction would be negative; ADR 0015 mandates clamp
     expect(extractCacheUsage(500, 700, 10)).toEqual({
-      inputOther: 0, output: 10, inputCacheRead: 700, inputCacheCreation: 0,
+      inputOther: 0,
+      output: 10,
+      inputCacheRead: 700,
+      inputCacheCreation: 0,
     });
   });
 
   it('handles a zero-token response', () => {
     expect(extractCacheUsage(0, 0, 0)).toEqual({
-      inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0,
+      inputOther: 0,
+      output: 0,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
     });
   });
 });
@@ -122,19 +133,18 @@ describe('convertProviderError', () => {
 
   it('classifies via an extraNetworkMatcher the default regex misses (e.g. Google fetch failed)', () => {
     // "fetch failed" is NOT in the default NETWORK_RE; google supplies it via the hook
-    const out = convertProviderError(
-      new TypeError('fetch failed'),
-      { extraNetworkMatchers: [/^fetch failed$/] },
-    );
+    const out = convertProviderError(new TypeError('fetch failed'), {
+      extraNetworkMatchers: [/^fetch failed$/],
+    });
     expect(out).toBeInstanceOf(APIConnectionError);
   });
 
   it('classifies a TypeError matching the extra matcher as a connection error (Google case)', () => {
     // Google: TypeError + msg includes 'fetch' → connection error
-    const out = convertProviderError(
-      new TypeError('TypeError: fetch failed'),
-      { extraNetworkMatchers: [/^fetch failed$/], extraTypeErrorMatch: 'fetch' },
-    );
+    const out = convertProviderError(new TypeError('TypeError: fetch failed'), {
+      extraNetworkMatchers: [/^fetch failed$/],
+      extraTypeErrorMatch: 'fetch',
+    });
     expect(out).toBeInstanceOf(APIConnectionError);
   });
 
@@ -166,5 +176,3 @@ describe('convertProviderError', () => {
     expect(out).toBeInstanceOf(ChatProviderError);
   });
 });
-
-

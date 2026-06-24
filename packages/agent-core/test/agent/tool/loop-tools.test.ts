@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { Tool } from '@byfriends/kosong';
+import { describe, expect, it } from 'vitest';
 
 import type { MCPClient } from '../../../src/mcp/types';
 import { testAgent } from '../harness/agent';
@@ -30,10 +29,7 @@ describe('ToolManager.loopTools stability ordering', () => {
 
     // Register MCP tools from two servers
     const client = mockMcpClient();
-    agent.tools.registerMcpServer('github', client, [
-      makeTool('search'),
-      makeTool('create_issue'),
-    ]);
+    agent.tools.registerMcpServer('github', client, [makeTool('search'), makeTool('create_issue')]);
     agent.tools.registerMcpServer('slack', client, [makeTool('send')]);
 
     const tools = agent.tools.loopTools;
@@ -80,10 +76,7 @@ describe('ToolManager.loopTools stability ordering', () => {
     const client = mockMcpClient();
 
     // Register servers in specific order: github first, then slack
-    agent.tools.registerMcpServer('github', client, [
-      makeTool('search'),
-      makeTool('create_issue'),
-    ]);
+    agent.tools.registerMcpServer('github', client, [makeTool('search'), makeTool('create_issue')]);
     agent.tools.registerMcpServer('slack', client, [makeTool('send')]);
 
     const tools = agent.tools.loopTools;

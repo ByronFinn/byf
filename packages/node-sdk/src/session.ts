@@ -1,4 +1,5 @@
 import { ErrorCodes, ByfError, type ByfErrorCode } from '@byfriends/agent-core';
+
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
 import type { SDKRpcClient } from '#/rpc';
 import type {
@@ -198,10 +199,7 @@ export class Session {
    * `<sessionDir>/tasks/<taskId>/output.log`. `tail` caps the returned
    * string to that many trailing characters.
    */
-  async getBackgroundTaskOutput(
-    taskId: string,
-    options: { tail?: number } = {},
-  ): Promise<string> {
+  async getBackgroundTaskOutput(taskId: string, options: { tail?: number } = {}): Promise<string> {
     this.ensureOpen();
     const trimmedTaskId = normalizeRequiredString(
       taskId,
@@ -222,10 +220,7 @@ export class Session {
    * for unknown or already-terminal task ids are no-ops at the core
    * level — this method does not throw in those cases.
    */
-  async stopBackgroundTask(
-    taskId: string,
-    options: { reason?: string } = {},
-  ): Promise<void> {
+  async stopBackgroundTask(taskId: string, options: { reason?: string } = {}): Promise<void> {
     this.ensureOpen();
     const trimmedTaskId = normalizeRequiredString(
       taskId,
@@ -363,11 +358,7 @@ function normalizePromptInput(input: string | PromptInput): PromptInput {
   return input;
 }
 
-function normalizeRequiredString(
-  value: string,
-  message: string,
-  code: ByfErrorCode,
-): string {
+function normalizeRequiredString(value: string, message: string, code: ByfErrorCode): string {
   const normalized = value.trim();
   if (normalized.length === 0) {
     throw new ByfError(code, message);

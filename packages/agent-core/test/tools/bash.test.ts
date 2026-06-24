@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
 import { type BashInput, BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';
 import type { Environment } from '../../src/utils/environment';
-import { createFakeKaos } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos } from './fixtures/fake-kaos';
 
 const posixEnv: Environment = {
   osKind: 'Linux',
@@ -451,7 +451,8 @@ describe('BashTool', () => {
     const execWithEnv = vi.fn().mockResolvedValue(proc);
     const withoutManager = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv);
 
-    const unavailable = await executeTool(withoutManager,
+    const unavailable = await executeTool(
+      withoutManager,
       context({ command: 'sleep 10', run_in_background: true, description: 'watch' }),
     );
     expect(unavailable).toMatchObject({ isError: true });
@@ -465,7 +466,8 @@ describe('BashTool', () => {
       posixEnv,
       manager,
     );
-    const missingDescription = await executeTool(withManager,
+    const missingDescription = await executeTool(
+      withManager,
       context({ command: 'sleep 10', run_in_background: true }),
     );
 
@@ -480,7 +482,8 @@ describe('BashTool', () => {
     const manager = new BackgroundProcessManager();
     const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ command: 'sleep 10', run_in_background: true, description: 'long running task' }),
     );
 
@@ -495,7 +498,8 @@ describe('BashTool', () => {
     const execWithEnv = vi.fn().mockResolvedValue(processWithOutput());
     const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ command: 'sleep 10', run_in_background: true, description: 'second task' }),
     );
 
@@ -518,10 +522,12 @@ describe('BashTool', () => {
       .mockResolvedValueOnce(processWithOutput());
     const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-    const first = executeTool(tool,
+    const first = executeTool(
+      tool,
       context({ command: 'sleep 10', run_in_background: true, description: 'first task' }),
     );
-    const second = executeTool(tool,
+    const second = executeTool(
+      tool,
       context({ command: 'sleep 10', run_in_background: true, description: 'second task' }),
     );
 
@@ -554,14 +560,16 @@ describe('BashTool', () => {
       manager,
     );
 
-    const first = executeTool(tool,
+    const first = executeTool(
+      tool,
       context({
         command: 'echo ok 2>nul',
         run_in_background: true,
         description: 'first task',
       }),
     );
-    const second = executeTool(tool,
+    const second = executeTool(
+      tool,
       context({
         command: 'echo second',
         run_in_background: true,
@@ -596,7 +604,8 @@ describe('BashTool', () => {
       const manager = new BackgroundProcessManager();
       const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-      const result = await executeTool(tool,
+      const result = await executeTool(
+        tool,
         context({
           command: 'sleep 10',
           run_in_background: true,
@@ -632,7 +641,8 @@ describe('BashTool', () => {
       const manager = new BackgroundProcessManager();
       const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-      const result = await executeTool(tool,
+      const result = await executeTool(
+        tool,
         context({
           command: 'sleep 999',
           run_in_background: true,
@@ -657,7 +667,8 @@ describe('BashTool', () => {
       const manager = new BackgroundProcessManager();
       const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv, manager);
 
-      const result = await executeTool(tool,
+      const result = await executeTool(
+        tool,
         context({
           command: 'sleep 999',
           run_in_background: true,
@@ -713,9 +724,7 @@ describe('BashTool', () => {
     const huge = Buffer.alloc(10 * 1024 * 1024 + 1, 'E');
     const tool = new BashTool(
       createFakeKaos({
-        execWithEnv: vi
-          .fn()
-          .mockResolvedValue(processWithOutput({ stdout: huge, exitCode: 1 })),
+        execWithEnv: vi.fn().mockResolvedValue(processWithOutput({ stdout: huge, exitCode: 1 })),
       }),
       '/workspace',
       posixEnv,
@@ -887,7 +896,8 @@ describe('BashTool prompt / runtime consistency', () => {
     );
 
     const tool = new BashTool(createFakeKaos({ execWithEnv }), '/workspace', posixEnv);
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ command: 'sleep 10', run_in_background: true, description: 'watch' }),
     );
 

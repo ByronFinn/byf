@@ -17,8 +17,6 @@ const PROFILE_SOURCES: Record<string, string> = {
 export const DEFAULT_INIT_PROMPT = initMd;
 
 export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
-  ['agent.yaml', 'coder.yaml', 'explore.yaml'].map(
-    (file) => `profile/default/${file}`,
-  ),
+  ['agent.yaml', 'coder.yaml', 'explore.yaml'].map((file) => `profile/default/${file}`),
   PROFILE_SOURCES,
 );

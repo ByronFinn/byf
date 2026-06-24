@@ -6,11 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ByfError, ByfHarness } from '#/index';
 
-import {
-  parseConfigString,
-  readConfigFile,
-  writeConfigFile,
-} from '../../agent-core/src/config';
+import { parseConfigString, readConfigFile, writeConfigFile } from '../../agent-core/src/config';
 import { TEST_IDENTITY } from './test-identity';
 
 const tempDirs: string[] = [];
@@ -227,27 +223,27 @@ describe('ByfHarness config API', () => {
 
     const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
 
-	    await harness.setConfig({
-	      providers: {
-	        'byf-for-coding': {
-	          apiKey: 'sk-updated',
-	        },
-	      },
-	      services: {
-	        fetchUrl: {
-	          apiKey: 'sk-fetch-updated',
-	        },
-	      },
-	    });
+    await harness.setConfig({
+      providers: {
+        'byf-for-coding': {
+          apiKey: 'sk-updated',
+        },
+      },
+      services: {
+        fetchUrl: {
+          apiKey: 'sk-fetch-updated',
+        },
+      },
+    });
 
-	    const config = await harness.getConfig({ reload: true });
-	    expect(config.providers['byf-for-coding']).toMatchObject({
-	      type: 'openai-completions',
-	      baseUrl: 'https://api.example.test/v1',
-	      apiKey: 'sk-updated',
-	      env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
-	    });
-	    expect(config.services?.fetchUrl?.apiKey).toBe('sk-fetch-updated');
+    const config = await harness.getConfig({ reload: true });
+    expect(config.providers['byf-for-coding']).toMatchObject({
+      type: 'openai-completions',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-updated',
+      env: { GOOGLE_CLOUD_PROJECT: 'project-1' },
+    });
+    expect(config.services?.fetchUrl?.apiKey).toBe('sk-fetch-updated');
     expect(config.raw?.['theme']).toBe('dark');
 
     const text = await readFile(configPath, 'utf-8');

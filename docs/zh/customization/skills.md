@@ -37,14 +37,14 @@ arguments:
 
 ### Frontmatter 字段
 
-| 字段 | 说明 |
-| --- | --- |
-| `name` | Skill 名称。目录型 `SKILL.md` 中为必填；扁平 `.md` 文件省略时使用文件名。名称大小写不敏感。 |
-| `description` | 一行总结。模型用它来判断何时使用这个 Skill。目录型 `SKILL.md` 中为必填；扁平 `.md` 文件省略时回退到正文第一行非空内容（截到 240 字符）。 |
-| `type` | Skill 类型。可选 `prompt`（默认）、`inline`（与 `prompt` 语义相同）、`flow`（仅支持手动调用，不支持模型自动调用）。其它值会被跳过。 |
-| `whenToUse` | 触发场景描述。也接受 `when-to-use`、`when_to_use` 写法。 |
-| `disableModelInvocation` | 设为 `true` 禁止模型自动调用此 Skill。也接受 `disable-model-invocation`、`disable_model_invocation` 写法。 |
-| `arguments` | 命名参数列表，可写成字符串数组或空白分隔的字符串（如 `arguments: target mode`）。声明后，正文可用 `$<name>` 读取参数；纯数字或空字符串会被忽略。 |
+| 字段                     | 说明                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                   | Skill 名称。目录型 `SKILL.md` 中为必填；扁平 `.md` 文件省略时使用文件名。名称大小写不敏感。                                                      |
+| `description`            | 一行总结。模型用它来判断何时使用这个 Skill。目录型 `SKILL.md` 中为必填；扁平 `.md` 文件省略时回退到正文第一行非空内容（截到 240 字符）。         |
+| `type`                   | Skill 类型。可选 `prompt`（默认）、`inline`（与 `prompt` 语义相同）、`flow`（仅支持手动调用，不支持模型自动调用）。其它值会被跳过。              |
+| `whenToUse`              | 触发场景描述。也接受 `when-to-use`、`when_to_use` 写法。                                                                                         |
+| `disableModelInvocation` | 设为 `true` 禁止模型自动调用此 Skill。也接受 `disable-model-invocation`、`disable_model_invocation` 写法。                                       |
+| `arguments`              | 命名参数列表，可写成字符串数组或空白分隔的字符串（如 `arguments: target mode`）。声明后，正文可用 `$<name>` 读取参数；纯数字或空字符串会被忽略。 |
 
 ::: warning 注意
 目录型 `SKILL.md` 中 `name` 和 `description` **必须**显式填写，省略任意一项均会导致解析失败。

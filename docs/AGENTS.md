@@ -45,44 +45,44 @@ Keep both locales in sync before release. Machine-assisted translation is fine; 
 
 Term mapping (Chinese <-> English, and proper noun handling):
 
-| Chinese | English | Proper noun (zh) | Proper noun (en) |
-| --- | --- | --- | --- |
-| Agent | agent | yes | no |
-| 主 Agent | main agent | yes (Agent) | no |
-| 子 Agent | subagent | yes (Agent) | no |
-| Shell | shell | yes | no |
-| Plan 模式 | Plan mode | yes | yes (Plan mode) |
-| YOLO 模式 | YOLO mode | yes | yes (YOLO mode) |
-| Thinking 模式 | Thinking mode | yes | yes (Thinking mode) |
-| MCP | MCP | yes | yes |
-| BYF CLI | BYF CLI | yes | yes |
-| Agent Skills | Agent Skills | yes | yes |
-| Skill | skill | yes | no |
-| 系统提示词 | system prompt | no | no |
-| 提示词 | prompt | no | no |
-| 会话 | session | no | no |
-| 上下文 | context | no | no |
-| API 密钥 | API key | yes | no |
-| JSON | JSON | yes | yes |
-| JSONL | JSONL | yes | yes |
-| OAuth | OAuth | yes | yes |
-| macOS | macOS | yes | yes |
-| TypeScript | TypeScript | yes | yes |
-| Node.js | Node.js | yes | yes |
-| npm | npm | yes | yes |
-| pnpm | pnpm | yes | yes |
-| byf | byf | yes | yes |
-| 审批请求 | approval request | no | no |
-| 斜杠命令 | slash command | no | no |
-| 工具调用 | tool call | no | no |
-| Frontmatter | frontmatter | yes | no |
-| User 消息 | user message | yes (User) | no |
-| Assistant 消息 | assistant message | yes (Assistant) | no |
-| Tool 消息 | tool message | yes (Tool) | no |
-| 轮次 | turn | no | no |
-| 供应商 | provider | no | no |
-| Prompt Flow | Prompt Flow | yes | yes |
-| Diff | diff | yes | no |
+| Chinese        | English           | Proper noun (zh) | Proper noun (en)    |
+| -------------- | ----------------- | ---------------- | ------------------- |
+| Agent          | agent             | yes              | no                  |
+| 主 Agent       | main agent        | yes (Agent)      | no                  |
+| 子 Agent       | subagent          | yes (Agent)      | no                  |
+| Shell          | shell             | yes              | no                  |
+| Plan 模式      | Plan mode         | yes              | yes (Plan mode)     |
+| YOLO 模式      | YOLO mode         | yes              | yes (YOLO mode)     |
+| Thinking 模式  | Thinking mode     | yes              | yes (Thinking mode) |
+| MCP            | MCP               | yes              | yes                 |
+| BYF CLI        | BYF CLI           | yes              | yes                 |
+| Agent Skills   | Agent Skills      | yes              | yes                 |
+| Skill          | skill             | yes              | no                  |
+| 系统提示词     | system prompt     | no               | no                  |
+| 提示词         | prompt            | no               | no                  |
+| 会话           | session           | no               | no                  |
+| 上下文         | context           | no               | no                  |
+| API 密钥       | API key           | yes              | no                  |
+| JSON           | JSON              | yes              | yes                 |
+| JSONL          | JSONL             | yes              | yes                 |
+| OAuth          | OAuth             | yes              | yes                 |
+| macOS          | macOS             | yes              | yes                 |
+| TypeScript     | TypeScript        | yes              | yes                 |
+| Node.js        | Node.js           | yes              | yes                 |
+| npm            | npm               | yes              | yes                 |
+| pnpm           | pnpm              | yes              | yes                 |
+| byf            | byf               | yes              | yes                 |
+| 审批请求       | approval request  | no               | no                  |
+| 斜杠命令       | slash command     | no               | no                  |
+| 工具调用       | tool call         | no               | no                  |
+| Frontmatter    | frontmatter       | yes              | no                  |
+| User 消息      | user message      | yes (User)       | no                  |
+| Assistant 消息 | assistant message | yes (Assistant)  | no                  |
+| Tool 消息      | tool message      | yes (Tool)       | no                  |
+| 轮次           | turn              | no               | no                  |
+| 供应商         | provider          | no               | no                  |
+| Prompt Flow    | Prompt Flow       | yes              | yes                 |
+| Diff           | diff              | yes              | no                  |
 
 ## Typography
 

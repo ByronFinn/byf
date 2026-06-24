@@ -10,6 +10,8 @@
  * See ADR 0015 for the rationale.
  */
 
+import type { ModelCapability } from '#/capability';
+import type { Message } from '#/message';
 import type {
   ChatProvider,
   GenerateOptions,
@@ -17,14 +19,12 @@ import type {
   StreamedMessage,
   ThinkingEffort,
 } from '#/provider';
-import type { Message } from '#/message';
-import type { ModelCapability } from '#/capability';
-import type { Tool } from '#/tool';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,
   resolveAuthBackedClient,
 } from '#/providers/request-auth';
+import type { Tool } from '#/tool';
 
 /**
  * Per-provider generation-keyword bag. Each subclass constrains this to its
@@ -54,9 +54,9 @@ export interface ResolvedAuth {
  * Subclasses inherit: `_clone`, `withGenerationKwargs`, `modelName`,
  * `modelParameters`, and the `_createClient` shell.
  */
-export abstract class BaseChatProvider<TKwargs extends BaseGenerationKwargs>
-  implements ChatProvider
-{
+export abstract class BaseChatProvider<
+  TKwargs extends BaseGenerationKwargs,
+> implements ChatProvider {
   /** Provider name; subclasses set via constructor. */
   abstract readonly name: string;
 
@@ -111,10 +111,7 @@ export abstract class BaseChatProvider<TKwargs extends BaseGenerationKwargs>
    * then apply their cleanup.
    */
   protected _clone(): this {
-    const clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this) as object) as this,
-      this,
-    );
+    const clone = Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this);
     clone._generationKwargs = { ...this._generationKwargs };
     return clone;
   }

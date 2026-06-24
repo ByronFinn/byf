@@ -1,7 +1,7 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
+import addFormats from 'ajv-formats';
 import Ajv2019 from 'ajv/dist/2019';
 import Ajv2020 from 'ajv/dist/2020';
-import addFormats from 'ajv-formats';
 
 const DRAFT_07_AJV = new Ajv({ strict: false, allErrors: true });
 addFormats(DRAFT_07_AJV);

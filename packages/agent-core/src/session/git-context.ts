@@ -127,7 +127,10 @@ export function parseProjectName(remoteUrl: string): string | null {
   const scp = /^[^/]+@[^/:]+:(.+)$/.exec(remoteUrl);
   const rawPath = scp?.[1] ?? tryUrlPath(remoteUrl);
   if (rawPath === null) return null;
-  const project = rawPath.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/, '');
+  const project = rawPath
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '');
   return project.length > 0 ? project : null;
 }
 

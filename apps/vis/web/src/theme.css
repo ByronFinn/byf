@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Design tokens. Tailwind v4 @theme registers the variables AND generates
@@ -7,8 +7,8 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 @theme {
-  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
-  --font-ui: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Surface (dark baseline) */
   --color-surface-0: #0b0d12;
@@ -57,7 +57,7 @@
    Accents get darker variants for AA contrast on light backgrounds.
    ───────────────────────────────────────────────────────────────────────── */
 
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   color-scheme: light;
 
   --color-surface-0: #fafbfc;
@@ -95,7 +95,7 @@
   --color-sev-error: #b91c1c;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -120,7 +120,7 @@ body {
 
 /* Subtle noise grain only on dark — adds industrial texture. On light it
    just looks dirty, so omit. */
-:root:not([data-theme="light"]) body {
+:root:not([data-theme='light']) body {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.9  0 0 0 0 0.92  0 0 0 0 0.98  0 0 0 0.035 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   background-repeat: repeat;
 }
@@ -128,7 +128,10 @@ body {
 /* Force-disable ligatures and contextual alternates in monospace — debug
    tool must render characters verbatim. */
 .font-mono {
-  font-feature-settings: "liga" 0, "calt" 0, "ss01" 0;
+  font-feature-settings:
+    'liga' 0,
+    'calt' 0,
+    'ss01' 0;
   font-variant-ligatures: none;
   font-family: var(--font-mono);
 }

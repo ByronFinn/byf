@@ -8,22 +8,11 @@ import type {
 } from '@byfriends/sdk';
 
 import { MAIN_AGENT_ID } from '#/tui/constant/byf-tui';
-import type {
-  BackgroundAgentMetadata,
-  ToolCallBlockData,
-  TranscriptEntry,
-} from '#/tui/types';
-import {
-  argsRecord,
-  serializeToolResultOutput,
-} from '#/tui/utils/event-payload';
+import type { BackgroundAgentMetadata, ToolCallBlockData, TranscriptEntry } from '#/tui/types';
+import { argsRecord, serializeToolResultOutput } from '#/tui/utils/event-payload';
 
 export interface SubagentToolCall {
-  onSubagentSpawned(meta: {
-    agentId: string;
-    agentName?: string;
-    runInBackground: boolean;
-  }): void;
+  onSubagentSpawned(meta: { agentId: string; agentName?: string; runInBackground: boolean }): void;
   onSubagentCompleted(payload: {
     usage?: SubagentCompletedEvent['usage'];
     resultSummary: string;
@@ -31,21 +20,9 @@ export interface SubagentToolCall {
   onSubagentFailed(payload: { error: string }): void;
   setSubagentMeta(agentId: string, agentName?: string): void;
   appendSubagentText(text: string, kind: 'text' | 'thinking'): void;
-  appendSubToolCall(call: {
-    id: string;
-    name: string;
-    args: Record<string, unknown>;
-  }): void;
-  appendSubToolCallDelta(delta: {
-    id: string;
-    name?: string;
-    argumentsPart: string | null;
-  }): void;
-  finishSubToolCall(result: {
-    tool_call_id: string;
-    output: string;
-    is_error?: boolean;
-  }): void;
+  appendSubToolCall(call: { id: string; name: string; args: Record<string, unknown> }): void;
+  appendSubToolCallDelta(delta: { id: string; name?: string; argumentsPart: string | null }): void;
+  finishSubToolCall(result: { tool_call_id: string; output: string; is_error?: boolean }): void;
   updateSubagentLiveUsage(usage: SubagentCompletedEvent['usage']): void;
 }
 
@@ -101,10 +78,7 @@ export interface SubagentCallbacks {
   onToolCallStart(toolCall: ToolCallBlockData): void;
 }
 
-export function routeSubagentEvent(
-  event: Event,
-  state: SubagentEventState,
-): boolean {
+export function routeSubagentEvent(event: Event, state: SubagentEventState): boolean {
   const subagentId = event.agentId;
   if (subagentId === MAIN_AGENT_ID) return false;
 
@@ -119,10 +93,7 @@ export function routeSubagentEvent(
   switch (event.type) {
     case 'hook.result': {
       const hookEvent = event as HookResultEvent;
-      toolCall.appendSubagentText(
-        formatHookResultPlain(hookEvent),
-        'text',
-      );
+      toolCall.appendSubagentText(formatHookResultPlain(hookEvent), 'text');
       return true;
     }
     case 'assistant.delta':
@@ -302,10 +273,7 @@ function createStandaloneSubagentToolCall(
   return state.getPendingToolCall(event.parentToolCallId);
 }
 
-function findAgentTaskId(
-  subagentId: string,
-  state: SubagentEventState,
-): string | undefined {
+function findAgentTaskId(subagentId: string, state: SubagentEventState): string | undefined {
   const meta = state.getBackgroundAgentMetadata(subagentId);
   const description = meta?.description ?? meta?.agentName;
   if (description === undefined) return undefined;

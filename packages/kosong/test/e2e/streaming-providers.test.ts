@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { GenerateCallbacks } from '#/generate';
 import type { Message, StreamedMessagePart, TextPart, ThinkPart, ToolCall } from '#/message';
@@ -5,7 +7,6 @@ import { extractText } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 /**
  * Build a StreamedMessage from an array of parts plus metadata.
@@ -77,7 +78,8 @@ describe('integration: streaming provider contracts', () => {
         {
           type: 'function',
           id: 'tc-byf-1',
-          name: 'search', arguments: null,
+          name: 'search',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: '{"query":' },
         { type: 'tool_call_part', argumentsPart: '"vitest"}' },
@@ -157,7 +159,8 @@ describe('integration: streaming provider contracts', () => {
         {
           type: 'function',
           id: 'toolu_01',
-          name: 'read_file', arguments: '',
+          name: 'read_file',
+          arguments: '',
         } satisfies ToolCall,
         // content_block_delta(input_json_delta)
         { type: 'tool_call_part', argumentsPart: '{"path":"/src/main.ts"}' },
@@ -256,7 +259,8 @@ describe('integration: streaming provider contracts', () => {
         {
           type: 'function',
           id: 'search_12345',
-          name: 'search', arguments: '{"query":"vitest docs"}',
+          name: 'search',
+          arguments: '{"query":"vitest docs"}',
         } satisfies ToolCall,
       ];
 
@@ -294,7 +298,8 @@ describe('integration: streaming provider contracts', () => {
         {
           type: 'function',
           id: 'read_file_9876',
-          name: 'read_file', arguments: '{"path":"/tmp/test.ts"}',
+          name: 'read_file',
+          arguments: '{"path":"/tmp/test.ts"}',
         } satisfies ToolCall,
         { type: 'text', text: 'Reading the file.' },
       ];
@@ -315,17 +320,20 @@ describe('integration: streaming provider contracts', () => {
         {
           type: 'function',
           id: 'read_file_001',
-          name: 'read_file', arguments: '{"path":"a.ts"}',
+          name: 'read_file',
+          arguments: '{"path":"a.ts"}',
         } satisfies ToolCall,
         {
           type: 'function',
           id: 'read_file_002',
-          name: 'read_file', arguments: '{"path":"b.ts"}',
+          name: 'read_file',
+          arguments: '{"path":"b.ts"}',
         } satisfies ToolCall,
         {
           type: 'function',
           id: 'write_file_003',
-          name: 'write_file', arguments: '{"path":"c.ts","content":"x"}',
+          name: 'write_file',
+          arguments: '{"path":"c.ts","content":"x"}',
         } satisfies ToolCall,
       ];
 

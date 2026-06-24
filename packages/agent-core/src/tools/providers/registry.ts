@@ -3,10 +3,13 @@
  *
  * Each entry maps a provider type (TOML `type` enum) to its default base URL.
  * The Zod `type` enum is derived from this registry's keys.
- * Provider implementation classes are registered via `registerProvider()`.
+ * Provider implementation classes are registered via `registerBuiltinWebSearchProviders()`.
  */
 
 import type { WebSearchProvider } from '../builtin/web/web-search';
+import { BraveWebSearchProvider } from './brave';
+import { ExaWebSearchProvider } from './exa';
+import { FirecrawlWebSearchProvider } from './firecrawl';
 
 /** Static entry for one search provider type. */
 export interface WebSearchProviderRegistryEntry {
@@ -22,9 +25,10 @@ export const webSearchProviderRegistry = {
 export type ProviderType = keyof typeof webSearchProviderRegistry;
 
 /** The Zod `z.enum` literal inferred from registry keys. */
-export const PROVIDER_TYPE_VALUES = Object.keys(
-  webSearchProviderRegistry,
-) as [ProviderType, ...ProviderType[]];
+export const PROVIDER_TYPE_VALUES = Object.keys(webSearchProviderRegistry) as [
+  ProviderType,
+  ...ProviderType[],
+];
 
 // ── Runtime provider class registry ──────────────────────────────────
 
@@ -48,4 +52,19 @@ export function createProvider(
     );
   }
   return new cls(options);
+}
+
+/**
+ * Register all builtin web-search provider implementations.
+ *
+ * Called once at core startup (`core-impl.ts`) so that provider classes are
+ * available through {@link createProvider}. Keeping this explicit (rather than
+ * relying on import side effects in each provider module) makes registration
+ * order-independent and isolates the provider modules from the registry's
+ * runtime state.
+ */
+export function registerBuiltinWebSearchProviders(): void {
+  registerProvider('exa', ExaWebSearchProvider);
+  registerProvider('brave', BraveWebSearchProvider);
+  registerProvider('firecrawl', FirecrawlWebSearchProvider);
 }

@@ -1,7 +1,6 @@
 import type { ContentPart } from '@byfriends/kosong';
 
 import type { ExecutableToolResult } from '../../loop/types';
-
 import { canonicalTelemetryArgs } from './canonical-args';
 
 const REMINDER_TEXT_1 =

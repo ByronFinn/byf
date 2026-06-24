@@ -33,7 +33,13 @@ describe('skill parser', () => {
 
   it('falls back to the first non-empty body line as description when frontmatter is absent', async () => {
     const root = await makeSkillsRoot();
-    await writeFlat(root, 'plain.md', ['', '', 'This is the headline description.', '', 'More body text here.']);
+    await writeFlat(root, 'plain.md', [
+      '',
+      '',
+      'This is the headline description.',
+      '',
+      'More body text here.',
+    ]);
 
     const skills = await discoverSkills({ roots: [userRoot(root)] });
     expect(skills).toHaveLength(1);
@@ -43,7 +49,12 @@ describe('skill parser', () => {
 
   it('prefers frontmatter description over body first-line fallback', async () => {
     const root = await makeSkillsRoot();
-    await writeFlat(root, 'a.md', ['---', 'description: From frontmatter', '---', 'Body first line']);
+    await writeFlat(root, 'a.md', [
+      '---',
+      'description: From frontmatter',
+      '---',
+      'Body first line',
+    ]);
 
     const skills = await discoverSkills({ roots: [userRoot(root)] });
     expect(skills).toHaveLength(1);
@@ -79,7 +90,13 @@ describe('skill parser', () => {
 
   it('flat skill frontmatter name wins over the filename stem', async () => {
     const root = await makeSkillsRoot();
-    await writeFlat(root, 'filename-stem.md', ['---', 'name: real-name', 'description: ok', '---', 'Body']);
+    await writeFlat(root, 'filename-stem.md', [
+      '---',
+      'name: real-name',
+      'description: ok',
+      '---',
+      'Body',
+    ]);
 
     const skills = await discoverSkills({ roots: [userRoot(root)] });
     expect(skills).toHaveLength(1);
@@ -185,9 +202,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'src/app.ts',
     );
 
-    expect(rendered).toBe(
-      'Use /skills/review/references/checklist.md.\n\nARGUMENTS: src/app.ts',
-    );
+    expect(rendered).toBe('Use /skills/review/references/checklist.md.\n\nARGUMENTS: src/app.ts');
   });
 
   it('does not treat longer variable names as declared argument placeholders', () => {

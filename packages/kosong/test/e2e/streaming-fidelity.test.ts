@@ -1,12 +1,14 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { GenerateCallbacks } from '#/generate';
 import type { StreamedMessagePart, TextPart, ThinkPart, ToolCall } from '#/message';
 import { extractText } from '#/message';
+
 import { MockChatProvider } from '../fixtures/mock-provider';
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import { describe, expect, it } from 'vitest';
 describe('e2e: streaming fidelity', () => {
   describe('TextPart delta merging', () => {
     it('100+ TextPart deltas merge into one text content part', async () => {
@@ -124,7 +126,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-1',
-          name: 'search', arguments: null,
+          name: 'search',
+          arguments: null,
         } satisfies ToolCall,
       ];
 
@@ -145,10 +148,7 @@ describe('e2e: streaming fidelity', () => {
       expect(result.message.toolCalls[0]!.arguments).toBe(fullArgs);
 
       // Verify JSON is parseable and complete
-      const parsed = JSON.parse(result.message.toolCalls[0]!.arguments!) as Record<
-        string,
-        unknown
-      >;
+      const parsed = JSON.parse(result.message.toolCalls[0]!.arguments!) as Record<string, unknown>;
       expect(parsed['query']).toBe('a very long search query with many words to ensure streaming');
       expect(parsed['limit']).toBe(100);
     });
@@ -162,7 +162,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-a',
-          name: 'read_file', arguments: null,
+          name: 'read_file',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: args1.slice(0, 5) },
         { type: 'tool_call_part', argumentsPart: args1.slice(5) },
@@ -170,7 +171,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-b',
-          name: 'read_file', arguments: null,
+          name: 'read_file',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: args2.slice(0, 5) },
         { type: 'tool_call_part', argumentsPart: args2.slice(5) },
@@ -191,7 +193,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-null',
-          name: 'tool_x', arguments: null,
+          name: 'tool_x',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: null },
         { type: 'tool_call_part', argumentsPart: '{"key":' },
@@ -264,7 +267,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-1',
-          name: 'tool', arguments: null,
+          name: 'tool',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: '{"a":' },
         { type: 'tool_call_part', argumentsPart: '1}' },
@@ -295,7 +299,8 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-1',
-          name: 'search', arguments: null,
+          name: 'search',
+          arguments: null,
         } satisfies ToolCall,
         { type: 'tool_call_part', argumentsPart: '{"query' },
         { type: 'tool_call_part', argumentsPart: '":"test' },
@@ -333,12 +338,14 @@ describe('e2e: streaming fidelity', () => {
         {
           type: 'function',
           id: 'tc-a',
-          name: 'tool_a', arguments: '{"x":1}',
+          name: 'tool_a',
+          arguments: '{"x":1}',
         } satisfies ToolCall,
         {
           type: 'function',
           id: 'tc-b',
-          name: 'tool_b', arguments: '{"y":2}',
+          name: 'tool_b',
+          arguments: '{"y":2}',
         } satisfies ToolCall,
         { type: 'text', text: 'done' },
       ];
@@ -388,7 +395,8 @@ describe('e2e: streaming fidelity', () => {
         parts.push({
           type: 'function',
           id: `tc-${i}`,
-          name: 'task', arguments: null,
+          name: 'task',
+          arguments: null,
         } satisfies ToolCall);
         // Stream args in 3 chunks
         const chunk = Math.ceil(args.length / 3);

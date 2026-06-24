@@ -4,9 +4,12 @@ import { createTranscriptComponent } from '#/tui/actions/transcript-renderer';
 import { CompactionComponent } from '#/tui/components/dialogs/compaction';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';
-import { NoticeMessageComponent, StatusMessageComponent } from '#/tui/components/messages/status-message';
 import { ShellExecutionComponent } from '#/tui/components/messages/shell-execution';
 import { SkillActivationComponent } from '#/tui/components/messages/skill-activation';
+import {
+  NoticeMessageComponent,
+  StatusMessageComponent,
+} from '#/tui/components/messages/status-message';
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
@@ -26,7 +29,11 @@ function makeCtx(overrides?: Partial<Parameters<typeof createTranscriptComponent
   };
 }
 
-function entry(kind: TranscriptEntry['kind'], content: string, extras?: Partial<TranscriptEntry>): TranscriptEntry {
+function entry(
+  kind: TranscriptEntry['kind'],
+  content: string,
+  extras?: Partial<TranscriptEntry>,
+): TranscriptEntry {
   return { id: 't1', kind, renderMode: 'plain', content, ...extras };
 }
 
@@ -41,7 +48,15 @@ describe('createTranscriptComponent', () => {
   });
 
   it('returns UserMessageComponent with image attachments', () => {
-    const fakeImage = { id: 1, kind: 'image' as const, bytes: new Uint8Array(), mime: 'image/png', width: 10, height: 10, placeholder: '[img]' };
+    const fakeImage = {
+      id: 1,
+      kind: 'image' as const,
+      bytes: new Uint8Array(),
+      mime: 'image/png',
+      width: 10,
+      height: 10,
+      placeholder: '[img]',
+    };
     const result = createTranscriptComponent(
       entry('user', 'hello', { imageAttachmentIds: [1] }),
       makeCtx({ getImageAttachment: () => fakeImage }),
@@ -68,7 +83,10 @@ describe('createTranscriptComponent', () => {
   });
 
   it('passes toolOutputExpanded to ThinkingComponent', () => {
-    const result = createTranscriptComponent(entry('thinking', 'hmm'), makeCtx({ toolOutputExpanded: true }));
+    const result = createTranscriptComponent(
+      entry('thinking', 'hmm'),
+      makeCtx({ toolOutputExpanded: true }),
+    );
     expect(result).toBeInstanceOf(ThinkingComponent);
     // Expanded is internal state; we just verify it doesn't throw.
   });
@@ -79,10 +97,7 @@ describe('createTranscriptComponent', () => {
       name: 'Read',
       args: { path: '/foo' },
     };
-    const result = createTranscriptComponent(
-      entry('tool_call', '', { toolCallData }),
-      makeCtx(),
-    );
+    const result = createTranscriptComponent(entry('tool_call', '', { toolCallData }), makeCtx());
     expect(result).toBeInstanceOf(ToolCallComponent);
   });
 
@@ -114,17 +129,20 @@ describe('createTranscriptComponent', () => {
 
   it('returns NoticeMessageComponent for tool_call with renderMode notice', () => {
     const result = createTranscriptComponent(
-      { id: 't1', kind: 'tool_call', renderMode: 'notice', content: 'YOLO mode: ON', detail: 'watch out' },
+      {
+        id: 't1',
+        kind: 'tool_call',
+        renderMode: 'notice',
+        content: 'YOLO mode: ON',
+        detail: 'watch out',
+      },
       makeCtx(),
     );
     expect(result).toBeInstanceOf(NoticeMessageComponent);
   });
 
   it('returns StatusMessageComponent for tool_call with renderMode plain', () => {
-    const result = createTranscriptComponent(
-      entry('tool_call', 'doing stuff'),
-      makeCtx(),
-    );
+    const result = createTranscriptComponent(entry('tool_call', 'doing stuff'), makeCtx());
     expect(result).toBeInstanceOf(StatusMessageComponent);
   });
 
@@ -148,7 +166,13 @@ describe('createTranscriptComponent', () => {
 
   it('returns NoticeMessageComponent for status with renderMode notice', () => {
     const result = createTranscriptComponent(
-      { id: 't1', kind: 'status', renderMode: 'notice', content: 'Plan mode: ON', detail: undefined },
+      {
+        id: 't1',
+        kind: 'status',
+        renderMode: 'notice',
+        content: 'Plan mode: ON',
+        detail: undefined,
+      },
       makeCtx(),
     );
     expect(result).toBeInstanceOf(NoticeMessageComponent);
@@ -161,7 +185,9 @@ describe('createTranscriptComponent', () => {
 
   it('returns CompactionComponent for compactionData entry', () => {
     const result = createTranscriptComponent(
-      entry('status', '', { compactionData: { tokensBefore: 100, tokensAfter: 50, instruction: 'summarize' } }),
+      entry('status', '', {
+        compactionData: { tokensBefore: 100, tokensAfter: 50, instruction: 'summarize' },
+      }),
       makeCtx(),
     );
     expect(result).toBeInstanceOf(CompactionComponent);

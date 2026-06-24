@@ -1,12 +1,11 @@
-
-import { Text } from '@earendil-works/pi-tui';
 import type { Session } from '@byfriends/sdk';
+import { Text } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { hydrateProjectedEntries, hydrateTranscriptFromReplay } from '#/tui/actions/replay-ops';
+import { createTUIState, type ByfTuiOptions, type TUIState } from '#/tui/byf-tui';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
-import { createTUIState, type ByfTuiOptions, type TUIState } from '#/tui/byf-tui';
 import type { AppState, ToolCallBlockData, TranscriptEntry } from '#/tui/types';
 
 function makeAppState(): AppState {
@@ -41,7 +40,6 @@ function makeTuiState(): TUIState {
     startup: {
       continueLast: false,
       yolo: false,
-      
     },
     resolvedTheme: 'dark',
   };
@@ -99,7 +97,7 @@ function sessionWithToolStore(toolStore: Record<string, unknown>): Session {
           context: { history: [], tokenCount: 0 },
           replay: [],
           permission: { mode: 'manual' },
-          
+
           usage: {},
           tools: [],
           toolStore,
@@ -355,7 +353,9 @@ describe('hydrateTodoPanelFromResume', () => {
     return {
       setAppState: vi.fn(),
       appendEntry: vi.fn(),
-      setTodoList: (todos: Parameters<typeof setTodoList>[1]) =>{  setTodoList(state, todos); },
+      setTodoList: (todos: Parameters<typeof setTodoList>[1]) => {
+        setTodoList(state, todos);
+      },
       emitError: vi.fn(),
     };
   }

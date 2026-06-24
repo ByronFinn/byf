@@ -4,12 +4,17 @@
 
 import type { Terminal } from '@earendil-works/pi-tui';
 
+import type { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { FullscreenHost } from '#/tui/types';
-import type { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { sanitizeForDisplay } from '#/tui/utils/sanitize-text';
 
-import { SubagentsListApp, type SubagentListEntry, type SubagentDetailPane, type SubagentPreviewPane } from './list-app';
+import {
+  SubagentsListApp,
+  type SubagentListEntry,
+  type SubagentDetailPane,
+  type SubagentPreviewPane,
+} from './list-app';
 import { SubagentLiveViewer } from './live-viewer';
 
 /**
@@ -72,9 +77,15 @@ export class SubagentsController {
       {
         entries: items,
         colors: this.env.getColors(),
-        onClose: () => { this.close(); },
-        onSelect: (id) => { this.openViewer(id); },
-        onSelectionChange: (index) => { this.pushListProps(listApp, index); },
+        onClose: () => {
+          this.close();
+        },
+        onSelect: (id) => {
+          this.openViewer(id);
+        },
+        onSelectionChange: (index) => {
+          this.pushListProps(listApp, index);
+        },
       },
       this.env.getTerminal(),
     );
@@ -113,20 +124,26 @@ export class SubagentsController {
         selectedDetail = {
           latestActivity: snap.latestActivity,
           toolList: detail.activities.map((a) =>
-            a.phase === 'failed' ? `✗ ${a.name}`
-            : a.phase === 'ongoing' ? `… ${a.name}`
-            : `• ${a.name}`,
+            a.phase === 'failed'
+              ? `✗ ${a.name}`
+              : a.phase === 'ongoing'
+                ? `… ${a.name}`
+                : `• ${a.name}`,
           ),
           errorText: snap.errorText !== undefined ? sanitizeForDisplay(snap.errorText) : undefined,
         };
         selectedPreview = {
           lines: sanitizeForDisplay(detail.text).split('\n').slice(-10),
-          resultSummary: detail.resultSummary !== undefined
-            ? sanitizeForDisplay(detail.resultSummary)
-            : undefined,
+          resultSummary:
+            detail.resultSummary !== undefined
+              ? sanitizeForDisplay(detail.resultSummary)
+              : undefined,
           toolOutputs: detail.activities
             .filter((a) => a.phase === 'done' && a.output !== undefined && a.output.length > 0)
-            .map((a) => `[${a.name}] ${sanitizeForDisplay(a.output!).split('\n').slice(0, 3).join('\n')}`),
+            .map(
+              (a) =>
+                `[${a.name}] ${sanitizeForDisplay(a.output!).split('\n').slice(0, 3).join('\n')}`,
+            ),
           activityLines: detail.activities.map((a) =>
             formatPreviewActivityLine(a.name, a.args, a.phase),
           ),
@@ -139,9 +156,15 @@ export class SubagentsController {
       selectedDetail,
       selectedPreview,
       colors: this.env.getColors(),
-      onClose: () => { this.close(); },
-      onSelect: (id) => { this.openViewer(id); },
-      onSelectionChange: (idx) => { this.pushListProps(listApp, idx); },
+      onClose: () => {
+        this.close();
+      },
+      onSelect: (id) => {
+        this.openViewer(id);
+      },
+      onSelectionChange: (idx) => {
+        this.pushListProps(listApp, idx);
+      },
     });
 
     // setProps only marks the component dirty; we must ask the host to render.
@@ -168,7 +191,13 @@ export class SubagentsController {
 
     const detail = tc.getSubagentActivityDetail();
     const viewer = new SubagentLiveViewer(
-      { data: detail, colors: this.env.getColors(), onClose: () => { this.closeViewer(); } },
+      {
+        data: detail,
+        colors: this.env.getColors(),
+        onClose: () => {
+          this.closeViewer();
+        },
+      },
       this.env.getTerminal(),
     );
 
@@ -230,11 +259,16 @@ export class SubagentsController {
   }
 
   /** Pushes a fresh snapshot into the viewer and asks the host to render. */
-  private flushViewerUpdate(vs: { readonly viewer: SubagentLiveViewer; readonly tc: ToolCallComponent }): void {
+  private flushViewerUpdate(vs: {
+    readonly viewer: SubagentLiveViewer;
+    readonly tc: ToolCallComponent;
+  }): void {
     vs.viewer.setProps({
       data: vs.tc.getSubagentActivityDetail(),
       colors: this.env.getColors(),
-      onClose: () => { this.closeViewer(); },
+      onClose: () => {
+        this.closeViewer();
+      },
     });
     this.env.host.requestRender();
   }

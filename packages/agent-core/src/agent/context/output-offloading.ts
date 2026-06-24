@@ -1,5 +1,5 @@
-import { estimateTokens } from '../../utils/tokens';
 import type { ExecutableToolResult } from '../../loop/types';
+import { estimateTokens } from '../../utils/tokens';
 import type { ScratchManager } from './scratch-manager';
 
 export interface OffloadingConfig {

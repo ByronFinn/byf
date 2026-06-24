@@ -1,5 +1,7 @@
-import { Hono } from 'hono';
 import { rm } from 'node:fs/promises';
+
+import { Hono } from 'hono';
+
 import { BYF_HOME } from '../config';
 import { revealInOs } from '../lib/reveal';
 import { listSessions, readSessionDetail } from '../lib/session-store';

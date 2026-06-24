@@ -149,9 +149,7 @@ export async function generate(
         const target = message.toolCalls[arrayIdx];
         if (target !== undefined && part.argumentsPart !== null) {
           target.arguments =
-            target.arguments === null
-              ? part.argumentsPart
-              : target.arguments + part.argumentsPart;
+            target.arguments === null ? part.argumentsPart : target.arguments + part.argumentsPart;
         }
         continue;
       }
@@ -205,12 +203,10 @@ export async function generate(
   }
 
   const streamEnd = performance.now();
-  const llmFirstTokenLatencyMs = firstChunkTime !== undefined
-    ? Math.round(firstChunkTime - generateStart)
-    : undefined;
-  const llmStreamDurationMs = firstChunkTime !== undefined
-    ? Math.round(streamEnd - generateStart)
-    : undefined;
+  const llmFirstTokenLatencyMs =
+    firstChunkTime !== undefined ? Math.round(firstChunkTime - generateStart) : undefined;
+  const llmStreamDurationMs =
+    firstChunkTime !== undefined ? Math.round(streamEnd - generateStart) : undefined;
 
   return {
     id: stream.id,

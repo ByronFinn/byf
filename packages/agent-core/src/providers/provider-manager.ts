@@ -1,7 +1,8 @@
-import type { ByfConfig } from '../config';
 import { ErrorCodes, ByfError } from '#/errors';
 import type { Logger } from '#/logging/types';
+
 import { resolveThinkingEffort, type ThinkingEffort } from '../agent/config/thinking';
+import type { ByfConfig } from '../config';
 import {
   createRuntimeProviderAuthResolver,
   resolveRuntimeProvider,
@@ -123,7 +124,10 @@ export class ProviderManager {
     if (requestedModel !== undefined) {
       const normalized = normalizeString(requestedModel);
       if (normalized === undefined) {
-        throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, 'Runtime provider model cannot be empty');
+        throw new ByfError(
+          ErrorCodes.MODEL_CONFIG_INVALID,
+          'Runtime provider model cannot be empty',
+        );
       }
       return normalized;
     }

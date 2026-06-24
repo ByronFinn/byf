@@ -4,11 +4,12 @@
  * the pattern stays consistent across command-triggered panels.
  */
 
+import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
-import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
 import chalk from 'chalk';
 
+import type { ColorPalette } from '#/tui/theme/colors';
 import {
   computeCacheHitRate,
   formatCacheHitRate,
@@ -18,7 +19,6 @@ import {
   safeNumber,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
-import type { ColorPalette } from '#/tui/theme/colors';
 
 const LEFT_MARGIN = 2;
 const SIDE_PADDING = 1;
@@ -55,7 +55,6 @@ export interface ManagedUsageReportLineOptions {
   readonly managedUsageError?: string;
 }
 
-
 function usageInputTotal(usage: TokenUsage): number {
   return (
     safeNumber(usage.inputOther) +
@@ -72,8 +71,7 @@ function buildSessionUsageSection(
   errorStyle: Colorize,
 ): string[] {
   if (error !== undefined) return [errorStyle(`  ${error}`)];
-  const byModel = (usage as { readonly byModel?: Record<string, TokenUsage> } | undefined)
-    ?.byModel;
+  const byModel = (usage as { readonly byModel?: Record<string, TokenUsage> } | undefined)?.byModel;
   const entries = Object.entries(byModel ?? {});
   if (entries.length === 0) return [muted('  No token usage recorded yet.')];
 
@@ -98,9 +96,7 @@ function buildSessionUsageSection(
     const hitRate = computeCacheHitRate(other, cacheRead, cacheCreation);
     const hitRateStr = formatCacheHitRate(hitRate);
     const cacheSuffix =
-      hitRateStr !== undefined
-        ? muted(' (cache ') + value(hitRateStr) + muted(')')
-        : '';
+      hitRateStr !== undefined ? muted(' (cache ') + value(hitRateStr) + muted(')') : '';
 
     lines.push(
       `  ${muted(model)}  input ${value(formatTokenCount(input))}${cacheSuffix}  output ${value(
@@ -112,9 +108,7 @@ function buildSessionUsageSection(
     const totalHitRate = computeCacheHitRate(totalOther, totalCacheRead, totalCacheCreation);
     const totalHitRateStr = formatCacheHitRate(totalHitRate);
     const totalCacheSuffix =
-      totalHitRateStr !== undefined
-        ? muted(' (cache ') + value(totalHitRateStr) + muted(')')
-        : '';
+      totalHitRateStr !== undefined ? muted(' (cache ') + value(totalHitRateStr) + muted(')') : '';
 
     lines.push(
       `  ${muted('total')}  input ${value(formatTokenCount(totalInput))}${totalCacheSuffix}  output ${value(
@@ -260,7 +254,8 @@ export class UsagePanelComponent implements Component {
 
     const out: string[] = [top];
     for (const line of this.lines) {
-      const clipped = visibleWidth(line) > contentWidth ? truncateToWidth(line, contentWidth) : line;
+      const clipped =
+        visibleWidth(line) > contentWidth ? truncateToWidth(line, contentWidth) : line;
       const pad = Math.max(0, contentWidth - visibleWidth(clipped));
       out.push(indent + paint('│') + ' ' + clipped + ' '.repeat(pad) + ' ' + paint('│'));
     }

@@ -27,6 +27,8 @@ export function captureProcessWrite(stream: 'stdout' | 'stderr'): {
   return {
     chunks,
     text: () => chunks.join(''),
-    restore: () =>{  spy.mockRestore(); },
+    restore: () => {
+      spy.mockRestore();
+    },
   };
 }

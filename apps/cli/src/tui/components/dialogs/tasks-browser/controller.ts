@@ -1,10 +1,10 @@
-import type { Component, Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
+import type { Component, Terminal } from '@earendil-works/pi-tui';
 
-import { TaskOutputViewer } from '../task-output-viewer';
-import { TasksBrowserApp, type TasksFilter } from '../tasks-browser';
 import type { ColorPalette } from '../../../theme/colors';
 import type { FullscreenHost } from '../../../types';
+import { TaskOutputViewer } from '../task-output-viewer';
+import { TasksBrowserApp, type TasksFilter } from '../tasks-browser';
 
 export interface TasksBrowserEnv {
   host: FullscreenHost;
@@ -131,9 +131,7 @@ export class TasksBrowserController {
       tasks = await this.env.listBackgroundTasks();
     } catch (error) {
       if (!opts.silent) {
-        this.flash(
-          `Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        this.flash(`Refresh failed: ${error instanceof Error ? error.message : String(error)}`);
       }
       return;
     }
@@ -159,10 +157,18 @@ export class TasksBrowserController {
 
   private buildCallbacks() {
     return {
-      onSelect: (taskId: string) =>{  this.handleSelect(taskId); },
-      onToggleFilter: () =>{  this.handleToggleFilter(); },
-      onRefresh: () =>{  this.handleRefresh(); },
-      onCancel: () =>{  this.close(); },
+      onSelect: (taskId: string) => {
+        this.handleSelect(taskId);
+      },
+      onToggleFilter: () => {
+        this.handleToggleFilter();
+      },
+      onRefresh: () => {
+        this.handleRefresh();
+      },
+      onCancel: () => {
+        this.close();
+      },
       onStopConfirmed: (taskId: string) => void this.handleStop(taskId),
       onOpenOutput: (taskId: string) => void this.handleOpenOutput(taskId),
       onStopIgnored: (taskId: string, reason: 'terminal') => {
@@ -273,7 +279,9 @@ export class TasksBrowserController {
         info,
         output,
         colors: this.env.getColors(),
-        onClose: () =>{  this.closeViewer(); },
+        onClose: () => {
+          this.closeViewer();
+        },
       },
       this.env.getTerminal(),
     );
@@ -319,7 +327,9 @@ export class TasksBrowserController {
       info,
       output,
       colors: this.env.getColors(),
-      onClose: () =>{  this.closeViewer(); },
+      onClose: () => {
+        this.closeViewer();
+      },
     });
     this.env.host.requestRender();
   }
@@ -351,9 +361,8 @@ export class TasksBrowserController {
           );
     if (candidates.length === 0) return undefined;
     return (
-      candidates.find(
-        (t) => t.status === 'running' || t.status === 'awaiting_approval',
-      )?.taskId ?? candidates[0]!.taskId
+      candidates.find((t) => t.status === 'running' || t.status === 'awaiting_approval')?.taskId ??
+      candidates[0]!.taskId
     );
   }
 }

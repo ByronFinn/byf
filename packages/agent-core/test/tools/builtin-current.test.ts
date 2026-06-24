@@ -30,8 +30,8 @@ import { ReadInputSchema, ReadTool } from '../../src/tools/builtin/file/read';
 import { WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
 import { BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
-import { createFakeKaos } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 const workspace: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs: [] };
@@ -56,9 +56,9 @@ function context<Input>(args: Input, toolCallId = 'call_1') {
   return { turnId: '0', toolCallId, args, signal };
 }
 
-function mockSubagentHost<T extends Pick<SessionSubagentHost, 'spawn'> & Partial<SessionSubagentHost>>(
-  host: T,
-): T & SessionSubagentHost {
+function mockSubagentHost<
+  T extends Pick<SessionSubagentHost, 'spawn'> & Partial<SessionSubagentHost>,
+>(host: T): T & SessionSubagentHost {
   return { resume: vi.fn(), ...host } as unknown as T & SessionSubagentHost;
 }
 
@@ -146,7 +146,8 @@ describe('current builtin file and shell tools', () => {
       properties: { old_string: { type: 'string' } },
     });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/workspace/a.txt', old_string: 'gamma', new_string: 'delta' }),
     );
     expect(result).toMatchObject({ isError: true });

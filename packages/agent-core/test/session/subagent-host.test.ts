@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
-import { ProviderManager } from '../../src/providers/provider-manager';
 import type { ResolvedAgentProfile } from '../../src/profile';
+import { ProviderManager } from '../../src/providers/provider-manager';
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
@@ -161,7 +161,10 @@ describe('SessionSubagentHost', () => {
       type: 'sub',
       permission: { parent: parent.agent.permission },
     });
-    child.mockNextResponse({ type: 'text', text: 'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.' });
+    child.mockNextResponse({
+      type: 'text',
+      text: 'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.',
+    });
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
 
@@ -174,7 +177,8 @@ describe('SessionSubagentHost', () => {
     });
 
     await expect(handle.completion).resolves.toMatchObject({
-      result: 'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.',
+      result:
+        'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.',
     });
     expect(handle.agentId).toBe('agent-0');
     expect(handle.profileName).toBe('explore');
@@ -202,7 +206,8 @@ describe('SessionSubagentHost', () => {
         args: expect.objectContaining({
           subagentId: 'agent-0',
           parentToolCallId: 'call_agent',
-          resultSummary: 'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.',
+          resultSummary:
+            'Investigated the request and completed the child task end to end. The relevant module was located, its behavior traced through every call site, and the requested change applied and verified against the existing test suite.',
         }),
       }),
     );
@@ -226,7 +231,12 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.history).toMatchObject([
       {
         role: 'user',
-        content: [{ type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nFind the cause' }],
+        content: [
+          {
+            type: 'text',
+            text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nFind the cause',
+          },
+        ],
       },
     ]);
   });
@@ -237,7 +247,10 @@ describe('SessionSubagentHost', () => {
     parent.newEvents();
 
     const child = testAgent();
-    child.mockNextResponse({ type: 'text', text: 'Implemented the requested fix in the target module, updated all affected call sites, and confirmed the change compiles cleanly and passes the existing test suite. No unrelated code paths were touched while making this change.' });
+    child.mockNextResponse({
+      type: 'text',
+      text: 'Implemented the requested fix in the target module, updated all affected call sites, and confirmed the change compiles cleanly and passes the existing test suite. No unrelated code paths were touched while making this change.',
+    });
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
 
@@ -266,7 +279,12 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.history).toMatchObject([
       {
         role: 'user',
-        content: [{ type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix' }],
+        content: [
+          {
+            type: 'text',
+            text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix',
+          },
+        ],
       },
     ]);
   });
@@ -572,7 +590,10 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.history[0]).toMatchObject({
       role: 'user',
       content: [
-        { type: 'text', text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix' },
+        {
+          type: 'text',
+          text: 'Summary length constraint: minimum 200 characters, maximum 8000 characters.\n\nImplement the fix',
+        },
       ],
     });
   });
@@ -625,7 +646,8 @@ describe('SessionSubagentHost', () => {
     });
     await handle.completion;
 
-    const text = (child.llmCalls[0]?.history[0]?.content?.[0] as { type: 'text'; text: string }).text;
+    const text = (child.llmCalls[0]?.history[0]?.content?.[0] as { type: 'text'; text: string })
+      .text;
     // git context comes first
     const gitIdx = text.indexOf('<git-context>');
     const budgetIdx = text.indexOf('Summary length constraint:');
@@ -812,9 +834,10 @@ describe('SessionSubagentHost', () => {
     const summary = 'Summary with enough detail to skip re-prompting. '.repeat(10);
     child1.mockNextResponse({ type: 'text', text: summary });
     const session = fakeSession(parent.agent, child1.agent);
-    (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(
-      () => ({ id: 'agent-0', agent: child1.agent }),
-    );
+    (session.createAgent as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      id: 'agent-0',
+      agent: child1.agent,
+    }));
     const host = new SessionSubagentHost(session, 'main', undefined, 1);
 
     const h1 = await host.spawn('coder', {
@@ -1462,7 +1485,7 @@ function bashCall(): ToolCall {
     type: 'function',
     id: 'call_bash',
     name: 'Bash',
-      arguments: '{"command":"printf should-not-run","timeout":60}',
+    arguments: '{"command":"printf should-not-run","timeout":60}',
   };
 }
 

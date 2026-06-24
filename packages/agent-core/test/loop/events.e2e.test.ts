@@ -99,9 +99,7 @@ describe('runTurn — LoopEventDispatcher live event containment', () => {
 
   it('emits a documented full event sequence for one tool-bearing turn', async () => {
     const echo = markReadAnyFileAccesses(new EchoTool());
-    const progress = markReadAnyFileAccesses(
-      new ProgressTool([{ kind: 'progress', percent: 50 }]),
-    );
+    const progress = markReadAnyFileAccesses(new ProgressTool([{ kind: 'progress', percent: 50 }]));
     const { sink } = await runTurn({
       tools: [echo, progress],
       responses: [
@@ -142,10 +140,14 @@ describe('runTurn — LoopEventDispatcher live event containment', () => {
   it('step.end carries LLM timing metrics from the LLM response', async () => {
     const { sink } = await runTurn({
       responses: [
-        makeEndTurnResponse('ok', {}, {
-          llmFirstTokenLatencyMs: 120,
-          llmStreamDurationMs: 340,
-        }),
+        makeEndTurnResponse(
+          'ok',
+          {},
+          {
+            llmFirstTokenLatencyMs: 120,
+            llmStreamDurationMs: 340,
+          },
+        ),
       ],
     });
     const stepEnds = sink.byType('step.end');

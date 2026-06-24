@@ -1,16 +1,18 @@
+import { describe, expect, it } from 'vitest';
+
 import { APIEmptyResponseError } from '#/errors';
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart, ThinkPart, ToolCall } from '#/message';
 import { mergeInPlace } from '#/message';
-import { MockChatProvider } from './fixtures/mock-provider';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
+import type { JsonValue } from './fixtures/args-validator';
+import { MockChatProvider } from './fixtures/mock-provider';
 import { SimpleToolset, toolOk } from './fixtures/simple-toolset';
 import type { ToolReturnValue } from './fixtures/simple-toolset';
 import { step } from './fixtures/step';
-import type { Tool } from '#/tool';
-import type { JsonValue } from './fixtures/args-validator';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 function createMockStream(
   parts: StreamedMessagePart[],
   opts?: { id?: string; usage?: TokenUsage },
@@ -77,7 +79,8 @@ describe('stress: large ToolCall arguments (10KB)', () => {
       {
         type: 'function',
         id: 'large-tc-1',
-        name: 'big_tool', arguments: null,
+        name: 'big_tool',
+        arguments: null,
       },
       ...chunks.map(
         (chunk): StreamedMessagePart => ({
@@ -109,17 +112,20 @@ describe('stress: concurrent tool dispatch', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'call-1',
-      name: 'slow_tool', arguments: '{"delay": 1}',
+      name: 'slow_tool',
+      arguments: '{"delay": 1}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'call-2',
-      name: 'slow_tool', arguments: '{"delay": 2}',
+      name: 'slow_tool',
+      arguments: '{"delay": 2}',
     };
     const tc3: ToolCall = {
       type: 'function',
       id: 'call-3',
-      name: 'slow_tool', arguments: '{"delay": 3}',
+      name: 'slow_tool',
+      arguments: '{"delay": 3}',
     };
 
     const stream = createMockStream([tc1, tc2, tc3]);
@@ -169,7 +175,8 @@ describe('stress: tool handler throws exception', () => {
     const tc: ToolCall = {
       type: 'function',
       id: 'crash-call',
-      name: 'crasher', arguments: '{}',
+      name: 'crasher',
+      arguments: '{}',
     };
 
     const stream = createMockStream([{ type: 'text', text: 'calling tool' }, tc]);
@@ -203,12 +210,14 @@ describe('stress: tool handler throws exception', () => {
     const tc1: ToolCall = {
       type: 'function',
       id: 'ok-call',
-      name: 'good_tool', arguments: '{}',
+      name: 'good_tool',
+      arguments: '{}',
     };
     const tc2: ToolCall = {
       type: 'function',
       id: 'bad-call',
-      name: 'bad_tool', arguments: '{}',
+      name: 'bad_tool',
+      arguments: '{}',
     };
 
     const stream = createMockStream([tc1, tc2]);
@@ -285,7 +294,8 @@ describe('stress: consecutive different type parts', () => {
       {
         type: 'function',
         id: 'tc-1',
-        name: 'search', arguments: null,
+        name: 'search',
+        arguments: null,
       },
       { type: 'tool_call_part', argumentsPart: '{"q":' }, // merges into ToolCall
       { type: 'tool_call_part', argumentsPart: '"test"}' }, // merges into ToolCall
@@ -315,7 +325,8 @@ describe('stress: consecutive different type parts', () => {
     expect(result.message.toolCalls[0]).toEqual({
       type: 'function',
       id: 'tc-1',
-      name: 'search', arguments: '{"q":"test"}',
+      name: 'search',
+      arguments: '{"q":"test"}',
     });
   });
 
@@ -344,12 +355,14 @@ describe('stress: consecutive different type parts', () => {
       {
         type: 'function',
         id: 'tc-1',
-        name: 'tool_a', arguments: '{"x":1}',
+        name: 'tool_a',
+        arguments: '{"x":1}',
       },
       {
         type: 'function',
         id: 'tc-2',
-        name: 'tool_b', arguments: '{"y":2}',
+        name: 'tool_b',
+        arguments: '{"y":2}',
       },
     ];
 

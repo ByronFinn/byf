@@ -1,9 +1,15 @@
-import type { Component, Focusable, Terminal } from '@earendil-works/pi-tui';
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
+import type { Component, Focusable, Terminal } from '@earendil-works/pi-tui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TasksBrowserApp, type TasksBrowserProps } from '../../src/tui/components/dialogs/tasks-browser';
-import { TasksBrowserController, type TasksBrowserEnv } from '../../src/tui/components/dialogs/tasks-browser/index';
+import {
+  TasksBrowserApp,
+  type TasksBrowserProps,
+} from '../../src/tui/components/dialogs/tasks-browser';
+import {
+  TasksBrowserController,
+  type TasksBrowserEnv,
+} from '../../src/tui/components/dialogs/tasks-browser/index';
 import { darkColors } from '../../src/tui/theme/colors';
 
 function task(overrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskInfo {
@@ -26,9 +32,15 @@ function fakeTerminal(): Terminal {
     stop: () => {},
     drainInput: () => Promise.resolve(),
     write: () => {},
-    get columns() { return 120; },
-    get rows() { return 30; },
-    get kittyProtocolActive() { return false; },
+    get columns() {
+      return 120;
+    },
+    get rows() {
+      return 30;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
     moveBy: () => {},
     hideCursor: () => {},
     showCursor: () => {},
@@ -52,7 +64,9 @@ function makeEnv(overrides: Partial<TasksBrowserEnv> = {}) {
     fullscreenPanels,
     restoredChildren,
     focusedComponents,
-    get renders() { return renders; },
+    get renders() {
+      return renders;
+    },
     showFullscreen(component: Component & Focusable): readonly Component[] {
       fullscreenPanels.push(component);
       return [];
@@ -74,8 +88,12 @@ function makeEnv(overrides: Partial<TasksBrowserEnv> = {}) {
     host,
     getTerminal: () => fakeTerminal(),
     getColors: () => darkColors,
-    getBackgroundTasks() { return tasks.values(); },
-    async listBackgroundTasks() { return tasks; },
+    getBackgroundTasks() {
+      return tasks.values();
+    },
+    async listBackgroundTasks() {
+      return tasks;
+    },
     async getBackgroundTaskOutput(taskId: string, _opts?: { tail?: number }) {
       const t = tasks.find((x) => x.taskId === taskId);
       return t ? `output of ${taskId}` : '';
@@ -129,7 +147,9 @@ describe('TasksBrowserController', () => {
 
   it('shows error when listBackgroundTasks fails', async () => {
     const env = makeEnv({
-      listBackgroundTasks: async () => { throw new Error('network'); },
+      listBackgroundTasks: async () => {
+        throw new Error('network');
+      },
     });
     const controller = new TasksBrowserController(env);
 
@@ -346,7 +366,9 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    await vi.waitFor(() =>{  expect(getOutputSpy).toHaveBeenCalled(); });
+    await vi.waitFor(() => {
+      expect(getOutputSpy).toHaveBeenCalled();
+    });
     getOutputSpy.mockClear();
 
     const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
@@ -384,7 +406,10 @@ describe('TasksBrowserController', () => {
     const spy = spySetProps(comp);
 
     controller.repaint();
-    const onStopIgnored = lastProps(spy)['onStopIgnored'] as (taskId: string, reason: 'terminal') => void;
+    const onStopIgnored = lastProps(spy)['onStopIgnored'] as (
+      taskId: string,
+      reason: 'terminal',
+    ) => void;
 
     onStopIgnored('bash-aaa', 'terminal');
 
@@ -393,7 +418,9 @@ describe('TasksBrowserController', () => {
 
   it('handles getBackgroundTaskOutput failure in loadTail', async () => {
     const env = makeEnv({
-      getBackgroundTaskOutput: async () => { throw new Error('fail'); },
+      getBackgroundTaskOutput: async () => {
+        throw new Error('fail');
+      },
     });
     env.tasks.push(
       task({ taskId: 'bash-aaa', status: 'running' }),
@@ -417,7 +444,9 @@ describe('TasksBrowserController', () => {
 
   it('handleOpenOutput flashes error on failure', async () => {
     const env = makeEnv({
-      getBackgroundTaskOutput: async () => { throw new Error('nope'); },
+      getBackgroundTaskOutput: async () => {
+        throw new Error('nope');
+      },
     });
     env.tasks.push(task({ taskId: 'bash-aaa' }));
     const controller = new TasksBrowserController(env);
@@ -436,7 +465,9 @@ describe('TasksBrowserController', () => {
 
   it('handleStop flashes error on failure', async () => {
     const env = makeEnv({
-      stopBackgroundTask: async () => { throw new Error('denied'); },
+      stopBackgroundTask: async () => {
+        throw new Error('denied');
+      },
     });
     env.tasks.push(task({ taskId: 'bash-aaa' }));
     const controller = new TasksBrowserController(env);

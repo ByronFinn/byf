@@ -1,14 +1,17 @@
+import type {
+  CompactionStartedEvent,
+  CompactionCompletedEvent,
+  CompactionCancelledEvent,
+  CompactionResult,
+} from '@byfriends/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import type { CompactionStartedEvent, CompactionCompletedEvent, CompactionCancelledEvent, CompactionResult } from '@byfriends/sdk';
-
-import type { AppState, QueuedMessage } from '#/tui/types';
 
 import {
   CompactionHandler,
   type CompactionCallbacks,
   type CompactionState,
 } from '#/tui/events/compaction-handler';
+import type { AppState, QueuedMessage } from '#/tui/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,10 +73,15 @@ function makeCallbacks(): { callbacks: CompactionCallbacks; calls: CallbackCalls
   const callbacks: CompactionCallbacks = {
     finalizeLiveTextBuffers: (mode) => calls.finalizeLiveTextBuffers.push(mode),
     setAppState: (patch) => calls.setAppState.push(patch),
-    resetLivePane: () => { calls.resetLivePane++; },
+    resetLivePane: () => {
+      calls.resetLivePane++;
+    },
     beginCompactionBlock: (instruction) => calls.beginCompactionBlock.push(instruction),
-    endCompactionBlock: (tokensBefore, tokensAfter) => calls.endCompactionBlock.push({ tokensBefore, tokensAfter }),
-    cancelCompactionBlock: () => { calls.cancelCompactionBlock++; },
+    endCompactionBlock: (tokensBefore, tokensAfter) =>
+      calls.endCompactionBlock.push({ tokensBefore, tokensAfter }),
+    cancelCompactionBlock: () => {
+      calls.cancelCompactionBlock++;
+    },
   };
   return { callbacks, calls };
 }
@@ -93,7 +101,9 @@ function makeHandler(stateOverrides: Partial<CompactionState> = {}): {
 // Event factories
 // ---------------------------------------------------------------------------
 
-function compactionStarted(overrides: Partial<CompactionStartedEvent> = {}): CompactionStartedEvent {
+function compactionStarted(
+  overrides: Partial<CompactionStartedEvent> = {},
+): CompactionStartedEvent {
   return {
     type: 'compaction.started',
     trigger: 'auto',
@@ -132,10 +142,12 @@ describe('CompactionHandler', () => {
     it('finalizes live text buffers, sets compacting state, and begins compaction block when instruction is provided', () => {
       const { handler, calls } = makeHandler();
 
-      handler.handleBegin(compactionStarted({
-        instruction: 'Summarizing old turns',
-        trigger: 'auto',
-      }));
+      handler.handleBegin(
+        compactionStarted({
+          instruction: 'Summarizing old turns',
+          trigger: 'auto',
+        }),
+      );
 
       expect(calls.finalizeLiveTextBuffers).toEqual(['waiting']);
       expect(calls.setAppState[0]).toEqual(
@@ -151,10 +163,12 @@ describe('CompactionHandler', () => {
     it('calls beginCompactionBlock with undefined when instruction is not provided', () => {
       const { handler, calls } = makeHandler();
 
-      handler.handleBegin(compactionStarted({
-        instruction: undefined,
-        trigger: 'manual',
-      }));
+      handler.handleBegin(
+        compactionStarted({
+          instruction: undefined,
+          trigger: 'manual',
+        }),
+      );
 
       expect(calls.finalizeLiveTextBuffers).toEqual(['waiting']);
       expect(calls.setAppState[0]).toEqual(
@@ -171,10 +185,12 @@ describe('CompactionHandler', () => {
       const { handler, calls } = makeHandler();
       const before = Date.now();
 
-      handler.handleBegin(compactionStarted({
-        instruction: 'test',
-        trigger: 'auto',
-      }));
+      handler.handleBegin(
+        compactionStarted({
+          instruction: 'test',
+          trigger: 'auto',
+        }),
+      );
 
       const after = Date.now();
       const patch = calls.setAppState[0] as Partial<AppState>;
@@ -198,9 +214,7 @@ describe('CompactionHandler', () => {
 
       expect(calls.endCompactionBlock).toEqual([{ tokensBefore: 100, tokensAfter: 50 }]);
       // finishCompaction: isStreaming=false, no queue → cleanup only
-      expect(calls.setAppState).toEqual([
-        { isCompacting: false, streamingPhase: 'idle' },
-      ]);
+      expect(calls.setAppState).toEqual([{ isCompacting: false, streamingPhase: 'idle' }]);
       expect(calls.resetLivePane).toBe(1);
       expect(sendQueued).not.toHaveBeenCalled();
     });
@@ -234,9 +248,7 @@ describe('CompactionHandler', () => {
 
       expect(calls.cancelCompactionBlock).toBe(1);
       // finishCompaction: isStreaming=false, no queue → cleanup only
-      expect(calls.setAppState).toEqual([
-        { isCompacting: false, streamingPhase: 'idle' },
-      ]);
+      expect(calls.setAppState).toEqual([{ isCompacting: false, streamingPhase: 'idle' }]);
       expect(calls.resetLivePane).toBe(1);
       expect(sendQueued).not.toHaveBeenCalled();
     });
@@ -271,9 +283,7 @@ describe('CompactionHandler', () => {
 
       handler.handleEnd(compactionCompleted(), sendQueued);
 
-      expect(calls.setAppState).toEqual([
-        { isCompacting: false, streamingPhase: 'idle' },
-      ]);
+      expect(calls.setAppState).toEqual([{ isCompacting: false, streamingPhase: 'idle' }]);
       expect(calls.resetLivePane).toBe(1);
       expect(state.queuedMessages).toEqual([]);
       expect(sendQueued).not.toHaveBeenCalled();
@@ -292,9 +302,7 @@ describe('CompactionHandler', () => {
 
       handler.handleEnd(compactionCompleted(), sendQueued);
 
-      expect(calls.setAppState).toEqual([
-        { isCompacting: false, streamingPhase: 'idle' },
-      ]);
+      expect(calls.setAppState).toEqual([{ isCompacting: false, streamingPhase: 'idle' }]);
       expect(calls.resetLivePane).toBe(1);
       expect(sendQueued).not.toHaveBeenCalled();
     });

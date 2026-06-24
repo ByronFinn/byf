@@ -1,10 +1,12 @@
-import { ErrorCodes, ByfError } from '#/errors';
-import type { McpServerHttpConfig } from '#/config/schema';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+import type { McpServerHttpConfig } from '#/config/schema';
+
 import {
+  buildMcpHttpHeaders,
   buildRequestOptions,
   BYF_MCP_CLIENT_NAME,
   BYF_MCP_CLIENT_VERSION,
@@ -202,30 +204,7 @@ export class HttpMcpClient implements MCPClient {
  * blip would tear down every HTTP MCP entry.
  */
 export function isTerminalTransportError(error: Error): boolean {
-  if (error.name === 'UnauthorizedError') return true;
+  if (error instanceof UnauthorizedError) return true;
   if (/Maximum reconnection attempts/i.test(error.message)) return true;
   return false;
-}
-
-export function buildMcpHttpHeaders(
-  config: McpServerHttpConfig,
-  envLookup: (name: string) => string | undefined,
-): Record<string, string> | undefined {
-  const headers: Record<string, string> = { ...config.headers };
-  if (config.bearerTokenEnvVar !== undefined) {
-    const token = envLookup(config.bearerTokenEnvVar);
-    if (token === undefined || token.length === 0) {
-      throw new ByfError(ErrorCodes.CONFIG_INVALID, `MCP HTTP bearer token env var "${config.bearerTokenEnvVar}" is not set or is empty`);
-    }
-    // Strip any case-variant 'authorization' static header before injecting the
-    // bearer; Fetch Headers folds duplicate keys into a comma-joined value,
-    // which produces an invalid auth header rather than letting the bearer win.
-    for (const key of Object.keys(headers)) {
-      if (key.toLowerCase() === 'authorization') {
-        delete headers[key];
-      }
-    }
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return Object.keys(headers).length > 0 ? headers : undefined;
 }

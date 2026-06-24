@@ -16,12 +16,12 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../loop/types';
+import { toInputJsonSchema } from '../support/input-schema';
 import {
   isBackgroundTaskTerminal,
   type BackgroundProcessManager,
   type BackgroundTaskStatus,
 } from './manager';
-import { toInputJsonSchema } from '../support/input-schema';
 import TASK_OUTPUT_DESCRIPTION from './task-output.md';
 
 /**
@@ -175,5 +175,4 @@ export class TaskOutputTool implements BuiltinTool<TaskOutputInput> {
       message: 'Task snapshot retrieved.',
     };
   }
-
 }

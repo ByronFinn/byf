@@ -1,12 +1,4 @@
 import {
-  APIConnectionError,
-  APIContextOverflowError,
-  APIStatusError,
-  APITimeoutError,
-  ChatProviderError,
-} from '#/errors';
-import { convertAnthropicError, AnthropicChatProvider } from '#/providers/anthropic';
-import {
   APIConnectionError as AnthropicConnectionError,
   APIConnectionTimeoutError as AnthropicTimeoutError,
   APIError as AnthropicAPIError,
@@ -15,6 +7,15 @@ import {
   RateLimitError as AnthropicRateLimitError,
 } from '@anthropic-ai/sdk';
 import { describe, it, expect, vi } from 'vitest';
+
+import {
+  APIConnectionError,
+  APIContextOverflowError,
+  APIStatusError,
+  APITimeoutError,
+  ChatProviderError,
+} from '#/errors';
+import { convertAnthropicError, AnthropicChatProvider } from '#/providers/anthropic';
 describe('convertAnthropicError', () => {
   it('APIConnectionTimeoutError -> APITimeoutError (not misclassified as connection)', () => {
     const err = new AnthropicTimeoutError({ message: 'timed out' });

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { ContentPart } from '@byfriends/kosong';
+import { describe, expect, it, vi } from 'vitest';
 
 // Dynamic-import contract: locks the public shape of the future HookEngine
 // without forcing TS module resolution to find a file that doesn't exist yet.
@@ -315,7 +315,7 @@ describe('HookEngine', () => {
     const { HookEngine } = await importEngine();
     const engine = new HookEngine([]);
     vi.spyOn(engine, 'trigger').mockImplementation(() => {
-        throw new Error('trigger failed');
+      throw new Error('trigger failed');
     });
 
     await expect(engine.fireAndForgetTrigger('Notification')).resolves.toEqual([]);

@@ -64,7 +64,13 @@ async function listFiles(root) {
   return files;
 }
 
-function resolvePackageRootGeneric(requireFromApp, packageName, parentPackageName, appRoot, target) {
+function resolvePackageRootGeneric(
+  requireFromApp,
+  packageName,
+  parentPackageName,
+  appRoot,
+  target,
+) {
   try {
     return dirname(requireFromApp.resolve(`${packageName}/package.json`));
   } catch (rootError) {
@@ -176,7 +182,9 @@ async function collectPackageFiles({
   for (const nativeFileRelative of nativeFileRelatives) {
     const nativeFile = resolve(packageRoot, nativeFileRelative);
     if (!existsSync(nativeFile)) {
-      fail(`Native package ${packageName} does not contain ${nativeFileRelative} at ${packageRoot}`);
+      fail(
+        `Native package ${packageName} does not contain ${nativeFileRelative} at ${packageRoot}`,
+      );
     }
     selected.add(nativeFile);
   }

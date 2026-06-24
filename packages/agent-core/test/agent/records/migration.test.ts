@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  migrateWireRecord,
-  type WireMigration,
-} from '../../../src/agent/records/migration';
+import { migrateWireRecord, type WireMigration } from '../../../src/agent/records/migration';
 
 describe('wire record migrations', () => {
   it('applies migrations in order', () => {

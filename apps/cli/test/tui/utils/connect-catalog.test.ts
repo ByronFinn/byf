@@ -50,9 +50,7 @@ describe('resolveConnectCatalogRequest', () => {
         allowBuiltInFallback: false,
       },
     });
-    expect(
-      resolveConnectCatalogRequest('refresh https://internal.example/catalog.json'),
-    ).toEqual({
+    expect(resolveConnectCatalogRequest('refresh https://internal.example/catalog.json')).toEqual({
       kind: 'ok',
       request: {
         url: 'https://internal.example/catalog.json',
@@ -60,9 +58,7 @@ describe('resolveConnectCatalogRequest', () => {
         allowBuiltInFallback: false,
       },
     });
-    expect(
-      resolveConnectCatalogRequest('https://internal.example/catalog.json refresh'),
-    ).toEqual({
+    expect(resolveConnectCatalogRequest('https://internal.example/catalog.json refresh')).toEqual({
       kind: 'ok',
       request: {
         url: 'https://internal.example/catalog.json',
@@ -97,11 +93,10 @@ describe('resolveConnectCatalogRequest', () => {
   });
 
   it('rejects multiple URLs', () => {
-    expect(
-      resolveConnectCatalogRequest('https://a.com/x.json https://b.com/y.json'),
-    ).toEqual({
+    expect(resolveConnectCatalogRequest('https://a.com/x.json https://b.com/y.json')).toEqual({
       kind: 'error',
-      message: 'Only one catalog URL can be provided. Got "https://a.com/x.json" and "https://b.com/y.json".',
+      message:
+        'Only one catalog URL can be provided. Got "https://a.com/x.json" and "https://b.com/y.json".',
     });
   });
 });

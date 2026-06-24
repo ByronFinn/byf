@@ -61,10 +61,7 @@ describe('ReverseRpcController', () => {
   });
 
   it('auto-resolves matching queued requests via the autoResolveFor hook', async () => {
-    class AutoController extends ReverseRpcController<
-      { action: string; id: string },
-      string
-    > {
+    class AutoController extends ReverseRpcController<{ action: string; id: string }, string> {
       protected createCancelResponse(reason: string): string {
         return `cancel:${reason}`;
       }

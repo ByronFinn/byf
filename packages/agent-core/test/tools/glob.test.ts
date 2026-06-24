@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { type GlobInput, GlobInputSchema, GlobTool, MAX_MATCHES } from '../../src/tools/builtin/file/glob';
+import {
+  type GlobInput,
+  GlobInputSchema,
+  GlobTool,
+  MAX_MATCHES,
+} from '../../src/tools/builtin/file/glob';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
-import { createFakeKaos } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 const workspace: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs: ['/extra'] };
@@ -90,7 +95,10 @@ describe('GlobTool', () => {
       { workspaceDir: 'C:\\workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool, context({ pattern: 'src/**/*.ts', path: 'C:\\WORKSPACE' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'src/**/*.ts', path: 'C:\\WORKSPACE' }),
+    );
 
     expect(result.output).toBe('src\\old.ts');
     expect(glob).toHaveBeenCalledWith('C:\\WORKSPACE', 'src/**/*.ts');
@@ -164,12 +172,15 @@ describe('GlobTool', () => {
     // additionalDir. The base for relativizing display paths follows the
     // search root, so matches are shown relative to that outside path.
     const glob = vi.fn().mockReturnValue(asyncPaths(['/external/project/src/a.ts']));
-    const tool = new GlobTool(
-      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
-      { workspaceDir: '/workspace', additionalDirs: [] },
-    );
+    const tool = new GlobTool(createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }), {
+      workspaceDir: '/workspace',
+      additionalDirs: [],
+    });
 
-    const result = await executeTool(tool, context({ pattern: 'src/**/*.ts', path: '/external/project' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'src/**/*.ts', path: '/external/project' }),
+    );
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toBe('src/a.ts');
@@ -182,20 +193,25 @@ describe('GlobTool', () => {
     // id_rsa, .aws/credentials, ...) are dropped before the output is
     // built, with a trailing "Filtered N sensitive file(s)" notice listing
     // the relativized paths.
-    const glob = vi.fn().mockReturnValue(
-      asyncPaths([
-        '/external/project/src/a.ts',
-        '/external/project/src/.env',
-        '/external/project/src/.env.prod',
-        '/external/project/src/keys/id_rsa',
-      ]),
-    );
-    const tool = new GlobTool(
-      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
-      { workspaceDir: '/workspace', additionalDirs: [] },
-    );
+    const glob = vi
+      .fn()
+      .mockReturnValue(
+        asyncPaths([
+          '/external/project/src/a.ts',
+          '/external/project/src/.env',
+          '/external/project/src/.env.prod',
+          '/external/project/src/keys/id_rsa',
+        ]),
+      );
+    const tool = new GlobTool(createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }), {
+      workspaceDir: '/workspace',
+      additionalDirs: [],
+    });
 
-    const result = await executeTool(tool, context({ pattern: 'src/**/*', path: '/external/project' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'src/**/*', path: '/external/project' }),
+    );
 
     expect(result.isError).toBeFalsy();
     // Non-sensitive matches appear as display lines...
@@ -215,9 +231,9 @@ describe('GlobTool', () => {
     // The sensitive filter is independent of the path policy — it applies
     // to any search root, including the default workspace dir. This locks
     // down that the filter is not gated on the outside-workspace path.
-    const glob = vi.fn().mockReturnValue(
-      asyncPaths(['/workspace/src/a.ts', '/workspace/src/.env']),
-    );
+    const glob = vi
+      .fn()
+      .mockReturnValue(asyncPaths(['/workspace/src/a.ts', '/workspace/src/.env']));
     const tool = new GlobTool(
       createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
       workspace,
@@ -235,13 +251,18 @@ describe('GlobTool', () => {
   it('reports "No non-sensitive matches found" when every hit is sensitive', async () => {
     const glob = vi
       .fn()
-      .mockReturnValue(asyncPaths(['/external/secrets/conf/.env', '/external/secrets/conf/id_rsa']));
-    const tool = new GlobTool(
-      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
-      { workspaceDir: '/workspace', additionalDirs: [] },
-    );
+      .mockReturnValue(
+        asyncPaths(['/external/secrets/conf/.env', '/external/secrets/conf/id_rsa']),
+      );
+    const tool = new GlobTool(createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }), {
+      workspaceDir: '/workspace',
+      additionalDirs: [],
+    });
 
-    const result = await executeTool(tool, context({ pattern: 'conf/*', path: '/external/secrets' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'conf/*', path: '/external/secrets' }),
+    );
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('No non-sensitive matches found');
@@ -252,19 +273,24 @@ describe('GlobTool', () => {
     // Lockdown: the exemption list in sensitive.ts (.env.example, public
     // keys) must survive the filter — otherwise docs/templates would be
     // silently dropped.
-    const glob = vi.fn().mockReturnValue(
-      asyncPaths([
-        '/external/project/conf/.env.example',
-        '/external/project/conf/id_rsa.pub',
-        '/external/project/conf/.env',
-      ]),
-    );
-    const tool = new GlobTool(
-      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
-      { workspaceDir: '/workspace', additionalDirs: [] },
-    );
+    const glob = vi
+      .fn()
+      .mockReturnValue(
+        asyncPaths([
+          '/external/project/conf/.env.example',
+          '/external/project/conf/id_rsa.pub',
+          '/external/project/conf/.env',
+        ]),
+      );
+    const tool = new GlobTool(createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }), {
+      workspaceDir: '/workspace',
+      additionalDirs: [],
+    });
 
-    const result = await executeTool(tool, context({ pattern: 'conf/*', path: '/external/project' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: 'conf/*', path: '/external/project' }),
+    );
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('.env.example');
@@ -285,7 +311,8 @@ describe('GlobTool', () => {
       workspace,
     );
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ pattern: 'src*', path: '/workspace', include_dirs: false }),
     );
 
@@ -332,15 +359,14 @@ describe('GlobTool', () => {
     });
 
     it('searches inside a subdirectory of an additionalDir entry', async () => {
-      const glob = vi
-        .fn()
-        .mockReturnValue(asyncPaths(['/skills/feishu/scripts/read_content.py']));
+      const glob = vi.fn().mockReturnValue(asyncPaths(['/skills/feishu/scripts/read_content.py']));
       const tool = new GlobTool(
         createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
         skillsWorkspace,
       );
 
-      const result = await executeTool(tool,
+      const result = await executeTool(
+        tool,
         context({ pattern: '*.py', path: '/skills/feishu/scripts' }),
       );
 
@@ -362,15 +388,14 @@ describe('GlobTool', () => {
     });
 
     it('accepts a path inside a deeply nested additionalDir entry', async () => {
-      const glob = vi
-        .fn()
-        .mockReturnValue(asyncPaths(['/skills/my-skill/scripts/helper.py']));
+      const glob = vi.fn().mockReturnValue(asyncPaths(['/skills/my-skill/scripts/helper.py']));
       const tool = new GlobTool(
         createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
         skillsWorkspace,
       );
 
-      const result = await executeTool(tool,
+      const result = await executeTool(
+        tool,
         context({ pattern: '*.py', path: '/skills/my-skill/scripts' }),
       );
 
@@ -401,16 +426,18 @@ describe('GlobTool', () => {
   });
 
   it('walks safe recursive patterns with a literal subdirectory anchor', async () => {
-    const glob = vi.fn().mockReturnValue(
-      asyncPaths([
-        '/workspace/src/main.py',
-        '/workspace/src/utils.py',
-        '/workspace/src/main/app.py',
-        '/workspace/src/main/config.py',
-        '/workspace/src/test/test_app.py',
-        '/workspace/src/test/test_config.py',
-      ]),
-    );
+    const glob = vi
+      .fn()
+      .mockReturnValue(
+        asyncPaths([
+          '/workspace/src/main.py',
+          '/workspace/src/utils.py',
+          '/workspace/src/main/app.py',
+          '/workspace/src/main/config.py',
+          '/workspace/src/test/test_app.py',
+          '/workspace/src/test/test_config.py',
+        ]),
+      );
     const tool = new GlobTool(
       createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
       workspace,
@@ -449,7 +476,8 @@ describe('GlobTool', () => {
     const glob = vi.fn();
     const tool = new GlobTool(createFakeKaos({ iterdir, glob }), workspace);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ pattern: '*.py', path: '/workspace/nonexistent' }),
     );
 
@@ -471,7 +499,10 @@ describe('GlobTool', () => {
     const glob = vi.fn();
     const tool = new GlobTool(createFakeKaos({ iterdir, glob }), workspace);
 
-    const result = await executeTool(tool, context({ pattern: '*.py', path: '/workspace/file.txt' }));
+    const result = await executeTool(
+      tool,
+      context({ pattern: '*.py', path: '/workspace/file.txt' }),
+    );
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('is not a directory');
@@ -500,7 +531,14 @@ describe('GlobTool', () => {
     // py rejection includes the top-level directory listing as a hint.
     const iterdir = vi
       .fn()
-      .mockReturnValue(asyncPaths(['/workspace/file1.txt', '/workspace/file2.py', '/workspace/src', '/workspace/docs']));
+      .mockReturnValue(
+        asyncPaths([
+          '/workspace/file1.txt',
+          '/workspace/file2.py',
+          '/workspace/src',
+          '/workspace/docs',
+        ]),
+      );
     const glob = vi.fn();
     const tool = new GlobTool(
       createFakeKaos({
@@ -523,10 +561,7 @@ describe('GlobTool', () => {
   });
 
   it('returns a "Found N matches" footer at exactly MAX_MATCHES without truncation', async () => {
-    const paths = Array.from(
-      { length: MAX_MATCHES },
-      (_, i) => `/workspace/test_${String(i)}.py`,
-    );
+    const paths = Array.from({ length: MAX_MATCHES }, (_, i) => `/workspace/test_${String(i)}.py`);
     const tool = new GlobTool(
       createFakeKaos({
         glob: vi.fn().mockReturnValue(asyncPaths(paths)),
@@ -606,9 +641,7 @@ describe('GlobTool', () => {
     // for relative paths, not absolute ones.
     const additionalDirs: string[] = [];
     const mutable: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs };
-    const glob = vi.fn((root: string) =>
-      asyncPaths(root === '/extra' ? ['/extra/test.py'] : []),
-    );
+    const glob = vi.fn((root: string) => asyncPaths(root === '/extra' ? ['/extra/test.py'] : []));
     const tool = new GlobTool(
       createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
       mutable,
@@ -650,7 +683,11 @@ describe('GlobTool', () => {
     // expansion by inspecting where the walk actually runs.
     const glob = vi.fn().mockReturnValue(asyncPaths([]));
     const tool = new GlobTool(
-      createFakeKaos({ glob, gethome: () => '/home/test', stat: vi.fn().mockResolvedValue(stat(1)) }),
+      createFakeKaos({
+        glob,
+        gethome: () => '/home/test',
+        stat: vi.fn().mockResolvedValue(stat(1)),
+      }),
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
@@ -666,12 +703,13 @@ describe('GlobTool', () => {
     // workspace dir (the guard uses path-component boundaries, so
     // `/parent/workdir-sneaky` is not treated as inside `/parent/workdir`).
     const glob = vi.fn().mockReturnValue(asyncPaths(['/parent/workdir-sneaky/leaf.py']));
-    const tool = new GlobTool(
-      createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }),
-      { workspaceDir: '/parent/workdir', additionalDirs: [] },
-    );
+    const tool = new GlobTool(createFakeKaos({ glob, stat: vi.fn().mockResolvedValue(stat(1)) }), {
+      workspaceDir: '/parent/workdir',
+      additionalDirs: [],
+    });
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ pattern: '*.py', path: '/parent/workdir-sneaky' }),
     );
 

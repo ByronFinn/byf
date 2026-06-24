@@ -1,5 +1,5 @@
-import { isDefaultAutoAllowTool } from '../../../tools/policies/default-permissions';
 import type { ToolInputDisplay } from '../../../tools/display';
+import { isDefaultAutoAllowTool } from '../../../tools/policies/default-permissions';
 import {
   DEFAULT_WORKSPACE_ACCESS_POLICY,
   resolvePathAccess,

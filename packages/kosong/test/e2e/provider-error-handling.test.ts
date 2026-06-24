@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest';
+
 import {
   APIConnectionError,
   APIEmptyResponseError,
@@ -8,11 +10,11 @@ import {
 import { generate } from '#/generate';
 import type { StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { TokenUsage } from '#/usage';
+
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 /**
  * Broader provider-error coverage: timeout propagation, status-code
@@ -216,7 +218,8 @@ describe('e2e: provider error handling (extended)', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc_sfx',
-        name: 'side_effect', arguments: '{}',
+        name: 'side_effect',
+        arguments: '{}',
       };
 
       const provider = createMidStreamThrowingProvider(
@@ -246,7 +249,8 @@ describe('e2e: provider error handling (extended)', () => {
         {
           type: 'function',
           id: 'tc_search',
-          name: 'search', arguments: null,
+          name: 'search',
+          arguments: null,
           _streamIndex: 0,
         },
         { type: 'tool_call_part', argumentsPart: '{"q":', index: 0 },
@@ -306,7 +310,8 @@ describe('e2e: provider error handling (extended)', () => {
       const tc: ToolCall = {
         type: 'function',
         id: 'tc_only',
-        name: 'no_op', arguments: '{}',
+        name: 'no_op',
+        arguments: '{}',
       };
       const provider = createProvider(createStream([tc]));
 

@@ -86,6 +86,7 @@ export interface ForkSessionInput {
   readonly forkId?: string | undefined;
   readonly title?: string | undefined;
   readonly metadata?: JsonObject;
+  readonly upToMessage?: number;
 }
 
 export interface ExportSessionInput {
@@ -149,6 +150,9 @@ export interface SessionSummary {
   readonly metadata?: JsonObject | undefined;
 }
 
-export type ResumedSessionState = Pick<ResumeSessionResult, 'sessionMetadata' | 'agents' | 'warning'>;
+export type ResumedSessionState = Pick<
+  ResumeSessionResult,
+  'sessionMetadata' | 'agents' | 'warning'
+>;
 
 export interface ResumedSessionSummary extends SessionSummary, ResumedSessionState {}

@@ -126,7 +126,9 @@ export class FooterComponent implements Component {
     this.colors = colors;
     this.onGitStatusChange = onGitStatusChange;
     this.gitCacheWorkDir = this.getDisplayedWorkDir(state);
-    this.gitCache = createGitStatusCache(this.gitCacheWorkDir, { onChange: this.onGitStatusChange });
+    this.gitCache = createGitStatusCache(this.gitCacheWorkDir, {
+      onChange: this.onGitStatusChange,
+    });
   }
 
   setState(state: AppState): void {

@@ -1,13 +1,15 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart } from '#/message';
 import { extractText } from '#/message';
 import type { ChatProvider, GenerateOptions, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 function createMockStream(
   parts: StreamedMessagePart[],
   opts?: { id?: string; usage?: TokenUsage; delayMs?: number },
@@ -114,7 +116,8 @@ describe('e2e: abort signal', () => {
         {
           type: 'function',
           id: 'tool-1',
-          name: 'slow-tool', arguments: '{}',
+          name: 'slow-tool',
+          arguments: '{}',
         },
       ]);
 

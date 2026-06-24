@@ -470,9 +470,7 @@ describe('Agent compaction', () => {
       { role: 'user', text: 'recent user two' },
       { role: 'assistant', text: 'recent assistant two' },
     ]);
-    expect(
-      ctx.allEvents.filter((event) => event.event === 'full_compaction.complete'),
-    ).toEqual([
+    expect(ctx.allEvents.filter((event) => event.event === 'full_compaction.complete')).toEqual([
       expect.objectContaining({
         args: expect.objectContaining({ summary: 'Recovered compacted summary.' }),
       }),
@@ -1010,7 +1008,11 @@ describe('Agent compaction', () => {
     const [compactionCall, answerCall] = ctx.llmCalls;
     const compactionTexts = compactionCall?.history.map(messageText) ?? [];
     expect(compactionTexts.some((text) => text.includes('keep-this-pending-verbatim'))).toBe(false);
-    expect(compactionCall?.history.map((message) => message.role)).toEqual(['user', 'assistant', 'user']);
+    expect(compactionCall?.history.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+    ]);
     expect(answerCall?.history.map(messageText)).toContain('Oversized prompt summary.');
     expect(messageText(answerCall?.history.at(-1))).toBe(oversizedPrompt);
     await ctx.expectResumeMatches();
@@ -1037,7 +1039,11 @@ describe('Agent compaction', () => {
     const [compactionCall, answerCall] = ctx.llmCalls;
     const compactionTexts = compactionCall?.history.map(messageText) ?? [];
     expect(compactionTexts.some((text) => text.includes('ratio-pending-verbatim'))).toBe(false);
-    expect(compactionCall?.history.map((message) => message.role)).toEqual(['user', 'assistant', 'user']);
+    expect(compactionCall?.history.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+    ]);
     expect(answerCall?.history.map(messageText)).toContain('Ratio compacted summary.');
     expect(messageText(answerCall?.history.at(-1))).toBe(pendingPrompt);
 
@@ -1145,7 +1151,8 @@ describe('Agent compaction', () => {
     });
     const providerManager = ctx.agent.providerManager;
     if (providerManager === undefined) throw new Error('Expected provider manager');
-    const resolveProviderConfig = providerManager.resolveProviderConfigForModel.bind(providerManager);
+    const resolveProviderConfig =
+      providerManager.resolveProviderConfigForModel.bind(providerManager);
     providerManager.resolveProviderConfigForModel = (model) => {
       const resolved = resolveProviderConfig(model);
       return resolved === undefined
@@ -1419,7 +1426,8 @@ describe('Agent compaction', () => {
       (m) => m.role === 'tool' && m.toolCallId === 'call_read',
     );
     expect(toolResultMessage).toBeDefined();
-    const text = toolResultMessage?.content[0]?.type === 'text' ? toolResultMessage.content[0].text : '';
+    const text =
+      toolResultMessage?.content[0]?.type === 'text' ? toolResultMessage.content[0].text : '';
     expect(text).toContain('[Read: 600 lines]');
     expect(text).toContain('...');
 
@@ -1479,7 +1487,7 @@ function createOAuthProviderManager(
       },
     },
     models: {
-      'byf': {
+      byf: {
         provider: 'test-provider',
         model: 'byf-for-coding',
         maxContextSize: 1_000_000,

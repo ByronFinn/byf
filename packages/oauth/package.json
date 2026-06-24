@@ -2,23 +2,23 @@
   "name": "@byfriends/oauth",
   "version": "0.3.2",
   "description": "Custom OAuth provider configuration for BYF",
+  "keywords": [
+    "byf",
+    "custom-provider",
+    "model-config",
+    "oauth",
+    "provider"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
   "license": "Proprietary",
   "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
   "repository": {
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "bugs": {
-    "url": "https://github.com/ByronFinn/byf/issues"
-  },
-  "keywords": [
-    "byf",
-    "oauth",
-    "provider",
-    "custom-provider",
-    "model-config"
-  ],
   "files": [
     "dist"
   ],
@@ -36,14 +36,14 @@
     }
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs",
         "default": "./dist/index.mjs"
       }
-    }
+    },
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",

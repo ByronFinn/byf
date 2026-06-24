@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import { testAgent } from '../harness/agent';
 import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
+import { testAgent } from '../harness/agent';
 
 describe('ToolManager restore handler', () => {
   describe('restoreRecord method', () => {
@@ -28,7 +28,7 @@ describe('ToolManager restore handler', () => {
 
       // Verify the tool was registered
       const data = agent.tools.data();
-      expect(data.some(t => t.name === 'test-tool')).toBe(true);
+      expect(data.some((t) => t.name === 'test-tool')).toBe(true);
     });
 
     it('should restore tools.unregister_user_tool records', () => {
@@ -50,7 +50,7 @@ describe('ToolManager restore handler', () => {
       tools.restoreRecord(registerRecord);
 
       // Verify the tool was registered
-      expect(agent.tools.data().some(t => t.name === 'temp-tool')).toBe(true);
+      expect(agent.tools.data().some((t) => t.name === 'temp-tool')).toBe(true);
 
       // Now unregister it
       const unregisterRecord: AgentRecord = {
@@ -61,7 +61,7 @@ describe('ToolManager restore handler', () => {
       tools.restoreRecord(unregisterRecord);
 
       // Verify the tool was unregistered
-      expect(agent.tools.data().some(t => t.name === 'temp-tool')).toBe(false);
+      expect(agent.tools.data().some((t) => t.name === 'temp-tool')).toBe(false);
     });
 
     it('should restore tools.set_active_tools records', () => {
@@ -82,7 +82,12 @@ describe('ToolManager restore handler', () => {
 
       // Verify the active tools were set
       const data = ctx.agent.tools.data();
-      expect(data.filter(t => t.active).map(t => t.name).toSorted()).toEqual(['Bash', 'Read', 'Write']);
+      expect(
+        data
+          .filter((t) => t.active)
+          .map((t) => t.name)
+          .toSorted(),
+      ).toEqual(['Bash', 'Read', 'Write']);
     });
 
     it('should restore tools.update_store records', () => {

@@ -56,15 +56,15 @@ See [Environment variables](./env-vars.md) for the full list of variables and th
 
 Parameters supplied via CLI flags at launch have the highest priority and only apply to the current launch. Common flags:
 
-| Flag | Effect |
-| --- | --- |
-| `-S, --session [id]` | Resume the specified session; without an id, enters interactive selection |
-| `-C, --continue` | Continue the most recent session for the current working directory |
-| `-y, --yolo` | Auto-approve ordinary tool calls (aliases: `--yes`, `--auto-approve`) |
-| `-m, --model <model>` | Specify the model alias to use for this launch |
-| `-p, --prompt <prompt>` | Execute a single prompt in non-interactive mode and exit |
-| `--output-format <format>` | Specify the output format for `-p` mode: `text` or `stream-json` |
-| `--skills-dir <dir>` | Replace the auto-discovered Skills directory (can be specified multiple times; applies to this launch only) |
+| Flag                       | Effect                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `-S, --session [id]`       | Resume the specified session; without an id, enters interactive selection                                   |
+| `-C, --continue`           | Continue the most recent session for the current working directory                                          |
+| `-y, --yolo`               | Auto-approve ordinary tool calls (aliases: `--yes`, `--auto-approve`)                                       |
+| `-m, --model <model>`      | Specify the model alias to use for this launch                                                              |
+| `-p, --prompt <prompt>`    | Execute a single prompt in non-interactive mode and exit                                                    |
+| `--output-format <format>` | Specify the output format for `-p` mode: `text` or `stream-json`                                            |
+| `--skills-dir <dir>`       | Replace the auto-discovered Skills directory (can be specified multiple times; applies to this launch only) |
 
 Mutually exclusive flag rules:
 

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Agent } from '../../../../src/agent';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   AgentRecords,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../../src/agent/records';
-import type { Agent } from '../../../../src/agent';
 import { eventSnapshot } from '../../harness/snapshots';
 
 const agent = {

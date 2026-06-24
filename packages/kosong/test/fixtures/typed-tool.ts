@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { Tool } from '#/tool';
+
 import { compileArgsValidator, type JsonValue } from './args-validator';
 import { toolValidateError, type ToolReturnValue } from './simple-toolset';
 
@@ -45,7 +46,8 @@ export function createTypedTool<TParams>(config: TypedToolConfig<TParams>): Type
     compileArgsValidator(tool.parameters);
   } catch (error) {
     throw new Error(
-      `Invalid parameters schema for tool '${tool.name}': ${(error as Error).message}`, { cause: error },
+      `Invalid parameters schema for tool '${tool.name}': ${(error as Error).message}`,
+      { cause: error },
     );
   }
 

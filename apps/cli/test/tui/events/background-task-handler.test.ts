@@ -1,19 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import type {
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
   BackgroundTaskUpdatedEvent,
 } from '@byfriends/sdk';
-
-import type { BackgroundAgentMetadata, TranscriptEntry } from '#/tui/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BackgroundTaskHandler,
   type BackgroundTaskCallbacks,
   type BackgroundTaskState,
 } from '#/tui/events/background-task-handler';
+import type { BackgroundAgentMetadata, TranscriptEntry } from '#/tui/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,9 +42,13 @@ function makeCallbacks(): { callbacks: BackgroundTaskCallbacks; calls: CallbackC
   };
   const callbacks: BackgroundTaskCallbacks = {
     appendTranscriptEntry: (entry) => calls.appendTranscriptEntry.push(entry),
-    requestRender: () => { calls.requestRender++; },
+    requestRender: () => {
+      calls.requestRender++;
+    },
     setBackgroundCounts: (counts) => calls.setBackgroundCounts.push(counts),
-    repaintTasksBrowser: () => { calls.repaintTasksBrowser++; },
+    repaintTasksBrowser: () => {
+      calls.repaintTasksBrowser++;
+    },
   };
   return { callbacks, calls };
 }
@@ -79,14 +81,18 @@ function backgroundTaskInfo(overrides: Partial<BackgroundTaskInfo> = {}): Backgr
   } as BackgroundTaskInfo;
 }
 
-function startedEvent(taskInfoOverrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskStartedEvent {
+function startedEvent(
+  taskInfoOverrides: Partial<BackgroundTaskInfo> = {},
+): BackgroundTaskStartedEvent {
   return {
     type: 'background.task.started',
     info: backgroundTaskInfo(taskInfoOverrides),
   } as BackgroundTaskStartedEvent;
 }
 
-function terminatedEvent(taskInfoOverrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskTerminatedEvent {
+function terminatedEvent(
+  taskInfoOverrides: Partial<BackgroundTaskInfo> = {},
+): BackgroundTaskTerminatedEvent {
   return {
     type: 'background.task.terminated',
     info: backgroundTaskInfo(taskInfoOverrides),
@@ -376,7 +382,9 @@ describe('BackgroundTaskHandler', () => {
     it('updates backgroundTasks map for every handleEvent call', () => {
       const { handler, state } = makeHandler();
 
-      handler.handleEvent(startedEvent({ taskId: 'bash-1', status: 'running', description: 'test' }));
+      handler.handleEvent(
+        startedEvent({ taskId: 'bash-1', status: 'running', description: 'test' }),
+      );
       expect(state.backgroundTasks.get('bash-1')?.status).toBe('running');
 
       handler.handleEvent(updatedEvent('awaiting_approval', { taskId: 'bash-1' }));

@@ -2,17 +2,17 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ApprovalRequest, ApprovalResponse, Event } from '@byfriends/sdk';
 import {
   deleteAllKittyImages,
   resetCapabilitiesCache,
   setCapabilities,
 } from '@earendil-works/pi-tui';
-import type { ApprovalRequest, ApprovalResponse, Event } from '@byfriends/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
-import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 import type { QueuedMessage } from '#/tui/types';
 import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
 
@@ -43,7 +43,7 @@ function makeStartupInput(): ByfTuiStartupInput {
       session: undefined,
       continue: false,
       yolo: false,
-      
+
       model: undefined,
       outputFormat: undefined,
       prompt: undefined,
@@ -138,7 +138,9 @@ function makeHarness(session = makeSession(), overrides: Record<string, unknown>
       logout: vi.fn(),
       getManagedUsage: vi.fn(),
       submitFeedback: vi.fn(
-        async (): Promise<{ kind: 'ok' } | { kind: 'error'; status?: number; message: string }> => ({
+        async (): Promise<
+          { kind: 'ok' } | { kind: 'error'; status?: number; message: string }
+        > => ({
           kind: 'ok',
         }),
       ),
@@ -255,20 +257,17 @@ describe('ByfTui message flow', () => {
   });
 
   it('opens GitHub issues for /feedback', async () => {
-    const { driver, harness } = await makeDriver(
-      makeSession(),
-      {
-        getConfig: vi.fn(async () => ({
-          models: {
-            k2: {
-              model: 'byf-v1',
-              maxContextSize: 100,
-              provider: 'test-provider',
-            },
+    const { driver, harness } = await makeDriver(makeSession(), {
+      getConfig: vi.fn(async () => ({
+        models: {
+          k2: {
+            model: 'byf-v1',
+            maxContextSize: 100,
+            provider: 'test-provider',
           },
-        })),
-      },
-    );
+        },
+      })),
+    });
     const feedbackDriver = driver as unknown as FeedbackDriver;
     harness.track.mockClear();
 
@@ -280,23 +279,18 @@ describe('ByfTui message flow', () => {
     expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
   });
 
-
-
   it('does not track feedback when the dialog is cancelled', async () => {
-    const { driver, harness } = await makeDriver(
-      makeSession(),
-      {
-        getConfig: vi.fn(async () => ({
-          models: {
-            k2: {
-              model: 'byf-v1',
-              maxContextSize: 100,
-              provider: 'test-provider',
-            },
+    const { driver, harness } = await makeDriver(makeSession(), {
+      getConfig: vi.fn(async () => ({
+        models: {
+          k2: {
+            model: 'byf-v1',
+            maxContextSize: 100,
+            provider: 'test-provider',
           },
-        })),
-      },
-    );
+        },
+      })),
+    });
     const feedbackDriver = driver as unknown as FeedbackDriver;
     feedbackDriver.promptFeedbackInput = vi.fn(async () => undefined);
     harness.track.mockClear();
@@ -1140,7 +1134,10 @@ describe('ByfTui message flow', () => {
         defaultModel: 'gpt-4o',
       })),
       removeProvider: vi.fn(async (id: string) => {
-        const config: { providers?: Record<string, unknown>; models: Record<string, { provider?: string; model: string; maxContextSize: number }> } = await harness.getConfig();
+        const config: {
+          providers?: Record<string, unknown>;
+          models: Record<string, { provider?: string; model: string; maxContextSize: number }>;
+        } = await harness.getConfig();
         if (config.providers) delete config.providers[id];
         for (const [key, model] of Object.entries(config.models)) {
           if (model.provider === id) delete config.models[key];
@@ -1397,7 +1394,9 @@ describe('ByfTui message flow', () => {
     );
 
     const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Authentication required. Use /login or /connect to configure a provider.');
+    expect(transcript).toContain(
+      'Authentication required. Use /login or /connect to configure a provider.',
+    );
     expect(transcript).not.toContain('[auth.login_required]');
     expect(transcript).not.toContain('byf export');
   });
@@ -1411,7 +1410,8 @@ describe('ByfTui message flow', () => {
         agentId: 'main',
         sessionId: 'ses-1',
         code: 'compaction.failed',
-        message: "APIStatusError: 400 the message at position 82 with role 'assistant' must not be empty",
+        message:
+          "APIStatusError: 400 the message at position 82 with role 'assistant' must not be empty",
         retryable: false,
       } as Event,
       vi.fn(),
@@ -1527,7 +1527,9 @@ describe('ByfTui message flow', () => {
       expect(output).toContain('/mcp-config login linear');
       expect(output).toContain('disabled-tools');
       expect(output).toContain('disabled');
-      expect(output).toContain('1 connected · 1 needs auth · 1 failed · 1 disabled · 2 tools available');
+      expect(output).toContain(
+        '1 connected · 1 needs auth · 1 failed · 1 disabled · 2 tools available',
+      );
     });
   });
 
@@ -1777,8 +1779,27 @@ describe('ByfTui message flow', () => {
     const forkSession = vi.fn(async () => forked);
     const { driver, harness } = await makeDriver(source, { forkSession });
 
+    // /fork now opens a rewind picker; seed one user message so the picker
+    // has content, then select "full copy" (the last option) to reproduce the
+    // pre-rewind whole-session fork behavior.
+    driver.state.transcriptEntries.push({
+      id: 'msg-1',
+      kind: 'user',
+      renderMode: 'plain',
+      content: 'hello',
+    });
+
     try {
       driver.handleUserInput('/fork ignored args');
+
+      const picker = await vi.waitFor(() => {
+        const p = driver.state.editorContainer.children[0];
+        expect(p).toBeInstanceOf(ChoicePickerComponent);
+        return p as ChoicePickerComponent;
+      });
+      // Navigate to the trailing "full copy" option and confirm.
+      picker.handleInput('\u001B[B');
+      picker.handleInput('\r');
 
       await vi.waitFor(() => {
         expect(forkSession).toHaveBeenCalledWith({
@@ -1805,7 +1826,23 @@ describe('ByfTui message flow', () => {
     });
     const { driver } = await makeDriver(makeSession({ id: 'ses-source' }), { forkSession });
 
+    driver.state.transcriptEntries.push({
+      id: 'msg-1',
+      kind: 'user',
+      renderMode: 'plain',
+      content: 'hello',
+    });
+
     driver.handleUserInput('/fork');
+
+    const picker = await vi.waitFor(() => {
+      const p = driver.state.editorContainer.children[0];
+      expect(p).toBeInstanceOf(ChoicePickerComponent);
+      return p as ChoicePickerComponent;
+    });
+    // Select "full copy" (last option).
+    picker.handleInput('\u001B[B');
+    picker.handleInput('\r');
 
     await vi.waitFor(() => {
       expect(forkSession).toHaveBeenCalledWith({

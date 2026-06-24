@@ -15,9 +15,17 @@ export function CopyButton({ value, label = 'copy', className = '' }: CopyButton
         e.stopPropagation();
         navigator.clipboard
           .writeText(value)
-          .then(() =>{  setState('ok'); })
-          .catch(() =>{  setState('err'); })
-          .finally(() => setTimeout(() =>{  setState('idle'); }, 1200));
+          .then(() => {
+            setState('ok');
+          })
+          .catch(() => {
+            setState('err');
+          })
+          .finally(() =>
+            setTimeout(() => {
+              setState('idle');
+            }, 1200),
+          );
       }}
       className={`font-mono text-[10px] text-fg-3 transition-colors hover:text-fg-1 ${className}`}
       title={`Copy ${value}`}

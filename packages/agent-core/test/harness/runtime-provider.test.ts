@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ByfConfig } from '../../src/config';
 import { ByfError } from '../../src/errors';
-import { resolveRuntimeProvider } from '../../src/providers/runtime-provider';
 import { ProviderManager } from '../../src/providers/provider-manager';
+import { resolveRuntimeProvider } from '../../src/providers/runtime-provider';
 
 const BASE_CONFIG: ByfConfig = {
   defaultModel: 'byf/byf-for-coding',
@@ -385,7 +385,9 @@ describe('resolveRuntimeProvider Byf request headers', () => {
     });
 
     const providerMap = resolved.provider as unknown as Record<string, unknown>;
-    const extraBody = (providerMap['generationKwargs'] as Record<string, unknown> | undefined)?.['extra_body'];
+    const extraBody = (providerMap['generationKwargs'] as Record<string, unknown> | undefined)?.[
+      'extra_body'
+    ];
     expect(extraBody).toBeUndefined();
   });
 
@@ -484,7 +486,11 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
           },
         },
         models: {
-          'claude-alias': { provider: 'anthropic', model: 'claude-runtime', maxContextSize: 200000 },
+          'claude-alias': {
+            provider: 'anthropic',
+            model: 'claude-runtime',
+            maxContextSize: 200000,
+          },
         },
       },
     });
@@ -568,18 +574,16 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
 
     firstHeaders!['X-Custom'] = 'mutated';
 
-    expect(
-      (second.provider as { defaultHeaders?: Record<string, string> }).defaultHeaders,
-    ).toEqual({ 'X-Custom': 'original' });
+    expect((second.provider as { defaultHeaders?: Record<string, string> }).defaultHeaders).toEqual(
+      { 'X-Custom': 'original' },
+    );
     expect(config.providers['custom']?.customHeaders).toEqual({ 'X-Custom': 'original' });
   });
 });
 
 describe('ProviderManager prompt cache key', () => {
   it('applies a prompt cache key to Byf providers', () => {
-    const manager = new ProviderManager({ config: BASE_CONFIG }).withPromptCacheKey(
-      'session-test',
-    );
+    const manager = new ProviderManager({ config: BASE_CONFIG }).withPromptCacheKey('session-test');
     const resolved = manager.resolveProviderConfigForModel('byf/byf-for-coding');
 
     expect(resolved?.provider).toMatchObject({

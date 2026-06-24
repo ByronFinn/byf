@@ -12,7 +12,6 @@
  */
 
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
-import { registerProvider } from './registry';
 
 export interface BraveWebSearchProviderOptions {
   apiKeys: string[];
@@ -57,7 +56,7 @@ export class BraveWebSearchProvider implements WebSearchProvider {
         const response = await this.fetchImpl(url.toString(), {
           method: 'GET',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Accept-Encoding': 'gzip',
             'X-Subscription-Token': apiKey,
           },
@@ -92,6 +91,3 @@ export class BraveWebSearchProvider implements WebSearchProvider {
     throw lastError ?? new Error('Brave search failed: no API keys configured');
   }
 }
-
-// Self-registration
-registerProvider('brave', BraveWebSearchProvider);

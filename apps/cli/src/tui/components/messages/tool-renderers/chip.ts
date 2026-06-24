@@ -10,10 +10,10 @@
 
 import { computeDiffLines } from '#/tui/components/media/diff-preview';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
+import { formatBytes } from '#/utils/format';
 
 import { readMediaChip } from './media';
 import { strArg } from './types';
-import { formatBytes } from '#/utils/format';
 
 export type ChipProvider = (toolCall: ToolCallBlockData, result: ToolResultBlockData) => string;
 

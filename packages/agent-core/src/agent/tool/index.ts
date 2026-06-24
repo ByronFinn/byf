@@ -1,12 +1,10 @@
 import type { ChatProvider, Tool } from '@byfriends/kosong';
 
 import type { Agent } from '..';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { globMatch } from '../permission/path-glob-match';
 import { makeErrorPayload } from '../../errors';
 import type { ExecutableTool } from '../../loop';
-import { createMcpAuthTool } from '../../mcp/auth-tool';
 import type { McpConnectionManager, McpServerEntry } from '../../mcp';
+import { createMcpAuthTool } from '../../mcp/auth-tool';
 import { mcpResultToExecutableOutput } from '../../mcp/output';
 import { isMcpToolName, qualifyMcpToolName } from '../../mcp/tool-naming';
 import type { MCPClient } from '../../mcp/types';
@@ -15,6 +13,8 @@ import { withProviderRequestAuth } from '../../providers/request-auth';
 import { extendWorkspaceWithSkillRoots } from '../../skill';
 import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
+import { globMatch } from '../permission/path-glob-match';
+import type { RecordRestoreHandler } from '../restore-handler';
 import type {
   BuiltinTool,
   McpServerRegistrationResult,

@@ -9,10 +9,7 @@
 
 import { FEEDBACK_VERSION_PREFIX } from '#/constant/app';
 
-export {
-  FEEDBACK_ISSUE_URL,
-  FEEDBACK_VERSION_PREFIX,
-} from '#/constant/app';
+export { FEEDBACK_ISSUE_URL, FEEDBACK_VERSION_PREFIX } from '#/constant/app';
 
 export const FEEDBACK_STATUS_SUBMITTING = 'Submitting feedback…';
 export const FEEDBACK_STATUS_SUCCESS = 'Feedback submitted, thank you!';

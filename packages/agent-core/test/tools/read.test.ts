@@ -11,8 +11,8 @@ import {
 } from '../../src/tools/builtin/file/read';
 import { MEDIA_SNIFF_BYTES } from '../../src/tools/support/file-type';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
-import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
+import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 
 const signal = new AbortController().signal;
 const REGULAR_FILE_STAT = {
@@ -157,7 +157,10 @@ describe('ReadTool', () => {
   it('respects one-based line_offset and positive n_lines', async () => {
     const tool = toolWithContent('a\nb\nc\nd\ne');
 
-    const result = await executeTool(tool, context({ path: '/tmp/a.txt', line_offset: 2, n_lines: 2 }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/a.txt', line_offset: 2, n_lines: 2 }),
+    );
 
     expect(result).toEqual({
       output: withReadStatus(
@@ -196,7 +199,10 @@ describe('ReadTool', () => {
   it('applies n_lines from the start of the negative line_offset tail window', async () => {
     const tool = toolWithContent('a\nb\nc\nd\ne');
 
-    const result = await executeTool(tool, context({ path: '/tmp/a.txt', line_offset: -5, n_lines: 2 }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/a.txt', line_offset: -5, n_lines: 2 }),
+    );
 
     expect(result.output).toBe(
       withReadStatus(
@@ -478,15 +484,14 @@ describe('ReadTool', () => {
 
   it('rejects invalid UTF-8 instead of returning replacement characters', async () => {
     const replacement = String.fromCodePoint(0xfffd);
-    const readLines = vi.fn<Kaos['readLines']>().mockImplementation(async function* readLines(
-      _path,
-      options,
-    ) {
-      if (options?.errors === 'strict') {
-        throw new TypeError('The encoded data was not valid for encoding utf-8');
-      }
-      yield `bad${replacement}text\n`;
-    });
+    const readLines = vi
+      .fn<Kaos['readLines']>()
+      .mockImplementation(async function* readLines(_path, options) {
+        if (options?.errors === 'strict') {
+          throw new TypeError('The encoded data was not valid for encoding utf-8');
+        }
+        yield `bad${replacement}text\n`;
+      });
     const tool = new ReadTool(
       createFakeKaos({
         stat: vi.fn<Kaos['stat']>().mockResolvedValue(REGULAR_FILE_STAT),
@@ -595,7 +600,10 @@ describe('ReadTool', () => {
     }).join('\n');
     const tool = toolWithContent(content);
 
-    const result = await executeTool(tool, context({ path: '/tmp/tail-bytes.txt', line_offset: -1000 }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/tail-bytes.txt', line_offset: -1000 }),
+    );
     const output = toolContentString(result);
     const outputLines = output
       .split('\n')
@@ -613,7 +621,8 @@ describe('ReadTool', () => {
     }).join('\n');
     const tool = toolWithContent(content);
 
-    const result = await executeTool(tool,
+    const result = await executeTool(
+      tool,
       context({ path: '/tmp/tail-small-window.txt', line_offset: -200, n_lines: 1 }),
     );
     const output = toolContentString(result);
@@ -649,7 +658,7 @@ describe('ReadTool', () => {
       { workspaceDir: '/workspace', additionalDirs: ['/extra'] },
     );
 
-    const result = await executeTool(tool,context({ path: '/extra/notes.txt' }));
+    const result = await executeTool(tool, context({ path: '/extra/notes.txt' }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('1\textra-dir note');
@@ -664,7 +673,7 @@ describe('ReadTool', () => {
       { workspaceDir: '/workspace', additionalDirs: [] },
     );
 
-    const result = await executeTool(tool,context({ path: '/workspace/ghost.txt' }));
+    const result = await executeTool(tool, context({ path: '/workspace/ghost.txt' }));
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('does not exist');
@@ -677,7 +686,7 @@ describe('ReadTool', () => {
   it('returns empty output and Total lines: 0 for an empty file', async () => {
     const tool = toolWithContent('');
 
-    const result = await executeTool(tool,context({ path: '/tmp/empty.txt' }));
+    const result = await executeTool(tool, context({ path: '/tmp/empty.txt' }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toBe(
@@ -688,7 +697,7 @@ describe('ReadTool', () => {
   it('reads unicode (CJK + emoji + accented Latin) without loss', async () => {
     const tool = toolWithContent('Hello 世界 🌍\nUnicode test: café, naïve, résumé');
 
-    const result = await executeTool(tool,context({ path: '/tmp/unicode.txt' }));
+    const result = await executeTool(tool, context({ path: '/tmp/unicode.txt' }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('1\tHello 世界 🌍');
@@ -724,7 +733,7 @@ describe('ReadTool', () => {
   it('reads non-sensitive dotfiles like .gitignore successfully', async () => {
     const tool = toolWithContent('node_modules/\n');
 
-    const result = await executeTool(tool,context({ path: '/workspace/.gitignore' }));
+    const result = await executeTool(tool, context({ path: '/workspace/.gitignore' }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('node_modules/');
@@ -733,7 +742,7 @@ describe('ReadTool', () => {
   it('negative line_offset exceeding total lines returns the entire file', async () => {
     const tool = toolWithContent('a\nb\nc\nd\ne');
 
-    const result = await executeTool(tool,context({ path: '/tmp/short.txt', line_offset: -100 }));
+    const result = await executeTool(tool, context({ path: '/tmp/short.txt', line_offset: -100 }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('1\ta');
@@ -744,7 +753,10 @@ describe('ReadTool', () => {
   it('tail mode on an empty file returns empty output without erroring', async () => {
     const tool = toolWithContent('');
 
-    const result = await executeTool(tool,context({ path: '/tmp/empty-tail.txt', line_offset: -10 }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/empty-tail.txt', line_offset: -10 }),
+    );
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Total lines in file: 0.');
@@ -753,7 +765,7 @@ describe('ReadTool', () => {
   it('line_offset=-1 returns only the last line with its absolute line number', async () => {
     const tool = toolWithContent('a\nb\nc\nd\ne');
 
-    const result = await executeTool(tool,context({ path: '/tmp/last.txt', line_offset: -1 }));
+    const result = await executeTool(tool, context({ path: '/tmp/last.txt', line_offset: -1 }));
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('5\te');
@@ -766,7 +778,10 @@ describe('ReadTool', () => {
     const content = [shortLine, longLine, shortLine, longLine, shortLine].join('\n');
     const tool = toolWithContent(content);
 
-    const result = await executeTool(tool,context({ path: '/tmp/tail-trunc.txt', line_offset: -3 }));
+    const result = await executeTool(
+      tool,
+      context({ path: '/tmp/tail-trunc.txt', line_offset: -3 }),
+    );
 
     expect(result.isError).toBeFalsy();
     // Last 3 lines = 3, 4, 5; line 4 is the long one.
@@ -793,9 +808,8 @@ describe('ReadTool description and schema parity', () => {
 
   it('describes the path parameter with accurate working-directory semantics', () => {
     const tool = toolWithContent('');
-    const pathProperty = (
-      tool.parameters as { properties: { path: { description: string } } }
-    ).properties.path;
+    const pathProperty = (tool.parameters as { properties: { path: { description: string } } })
+      .properties.path;
 
     expect(pathProperty.description).toContain('working directory');
     expect(pathProperty.description).not.toMatch(/^Absolute path/);
@@ -803,9 +817,8 @@ describe('ReadTool description and schema parity', () => {
 
   it('documents the default for n_lines when omitted', () => {
     const tool = toolWithContent('');
-    const nLinesProperty = (
-      tool.parameters as { properties: { n_lines: { description: string } } }
-    ).properties.n_lines;
+    const nLinesProperty = (tool.parameters as { properties: { n_lines: { description: string } } })
+      .properties.n_lines;
 
     // Omitting n_lines reads up to MAX_LINES; the schema description must say so.
     expect(nLinesProperty.description).toMatch(/omit/i);

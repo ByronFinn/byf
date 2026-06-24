@@ -1,20 +1,3 @@
-import type { ModelCapability } from '#/capability';
-import {
-  APIConnectionError,
-  APITimeoutError,
-  ChatProviderError,
-  normalizeAPIStatusError,
-} from '#/errors';
-import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
-import type {
-  FinishReason,
-  GenerateOptions,
-  ProviderRequestAuth,
-  StreamedMessage,
-  ThinkingEffort,
-} from '#/provider';
-import type { PromptPlan } from '#/prompt-plan';
-import type { Tool } from '#/tool';
 import Anthropic, {
   APIError as AnthropicAPIError,
   APIConnectionError as AnthropicConnectionError,
@@ -37,13 +20,24 @@ import type {
   ToolUseBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
 
-import { getAnthropicModelCapability } from './capability-registry';
-import {
-  mergeRequestHeaders,
-} from './request-auth';
+import type { ModelCapability } from '#/capability';
+import { ChatProviderError } from '#/errors';
+import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
+import type {
+  FinishReason,
+  GenerateOptions,
+  ProviderRequestAuth,
+  StreamedMessage,
+  ThinkingEffort,
+} from '#/provider';
+import type { Tool } from '#/tool';
+
 import { BaseChatProvider, type ResolvedAuth } from './base-chat-provider';
 import { BaseStreamedMessage } from './base-streamed-message';
-import { makeFinishReasonNormalizer } from './provider-common';
+import { getAnthropicModelCapability } from './capability-registry';
+import { convertProviderError, makeFinishReasonNormalizer } from './provider-common';
+import { mergeRequestHeaders } from './request-auth';
 
 const ANTHROPIC_STOP_REASON_MAP: Readonly<Record<string, FinishReason>> = {
   end_turn: 'completed',
@@ -147,8 +141,7 @@ interface ClaudeVersion {
 // Version numbers are capped at 1–2 digits with a non-digit lookahead so
 // 8-digit date suffixes (e.g. `-20251001`) don't get consumed as version
 // components.
-const FAMILY_FIRST_RE =
-  /(opus|sonnet|haiku)[-._](\d{1,2})(?!\d)(?:[-._](\d{1,2})(?!\d))?/;
+const FAMILY_FIRST_RE = /(opus|sonnet|haiku)[-._](\d{1,2})(?!\d)(?:[-._](\d{1,2})(?!\d))?/;
 // Legacy version-first form: "3-5-sonnet", "3.7.opus" — used by older
 // Anthropic model ids and Bedrock variants of Claude 3.x.
 const VERSION_FIRST_RE = /(\d{1,2})[-._](\d{1,2})[-._](opus|sonnet|haiku)/;
@@ -491,23 +484,20 @@ function convertMessage(message: Message): MessageParam {
 export function convertAnthropicError(error: unknown): ChatProviderError {
   // Check timeout before connection (APIConnectionTimeoutError extends APIConnectionError)
   if (error instanceof AnthropicTimeoutError) {
-    return new APITimeoutError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   if (error instanceof AnthropicConnectionError) {
-    return new APIConnectionError(error.message);
+    return convertProviderError(error, { status: undefined });
   }
   // APIError with a status code => status error
   if (error instanceof AnthropicAPIError && typeof error.status === 'number') {
     const reqId = error.requestID ?? null;
-    return normalizeAPIStatusError(error.status, error.message, reqId);
+    return convertProviderError(error, { status: error.status, requestId: reqId });
   }
   if (error instanceof AnthropicError) {
     return new ChatProviderError(`Anthropic error: ${error.message}`);
   }
-  if (error instanceof Error) {
-    return new ChatProviderError(`Error: ${error.message}`);
-  }
-  return new ChatProviderError(`Error: ${String(error)}`);
+  return convertProviderError(error);
 }
 class AnthropicStreamedMessage extends BaseStreamedMessage {
   private readonly _response: unknown;
@@ -740,7 +730,9 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
             if (typeof deltaUsage['input_tokens'] === 'number') {
               this._usage!.inputOther = Math.max(
                 0,
-                deltaUsage['input_tokens'] - this._usage!.inputCacheRead - this._usage!.inputCacheCreation,
+                deltaUsage['input_tokens'] -
+                  this._usage!.inputCacheRead -
+                  this._usage!.inputCacheCreation,
               );
             } else {
               // Recalculate inputOther: assume total input unchanged, subtract new cache
@@ -785,7 +777,10 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
         : options.apiKey;
     const apiKeyResolved = apiKey === undefined || apiKey.length === 0 ? undefined : apiKey;
     const baseUrl = options.baseUrl;
-    const client = apiKeyResolved === undefined ? undefined : AnthropicChatProvider.buildClient(apiKeyResolved, baseUrl, options.defaultHeaders);
+    const client =
+      apiKeyResolved === undefined
+        ? undefined
+        : AnthropicChatProvider.buildClient(apiKeyResolved, baseUrl, options.defaultHeaders);
     const generationKwargs: AnthropicGenerationKwargs = {
       max_tokens: resolveDefaultMaxTokens(options.model, options.defaultMaxTokens),
       betaFeatures: options.betaFeatures ?? [INTERLEAVED_THINKING_BETA],
@@ -1015,5 +1010,4 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
       betaFeatures: newBetas,
     });
   }
-
 }

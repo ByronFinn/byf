@@ -23,7 +23,10 @@ interface StateJson {
   title?: string;
   isCustomTitle?: boolean;
   lastPrompt?: string;
-  agents?: Record<string, { homedir: string; type: 'main' | 'sub' | 'independent'; parentAgentId: string | null }>;
+  agents?: Record<
+    string,
+    { homedir: string; type: 'main' | 'sub' | 'independent'; parentAgentId: string | null }
+  >;
   custom?: Record<string, unknown>;
 }
 
@@ -48,7 +51,10 @@ export async function listSessions(home: string): Promise<SessionSummary[]> {
   return out;
 }
 
-export async function readSessionDetail(home: string, sessionId: string): Promise<SessionDetail | null> {
+export async function readSessionDetail(
+  home: string,
+  sessionId: string,
+): Promise<SessionDetail | null> {
   const sessionDir = await findSessionDir(home, sessionId);
   if (sessionDir === null) return null;
   const index = await readSessionIndex(home);
@@ -90,7 +96,10 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
     const wirePath = join(agentsDir, id, 'wire.jsonl');
     const exists = await pathExists(wirePath);
     let readable = exists;
-    let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
+    let info: { count: number; protocolVersion: string | null } = {
+      count: 0,
+      protocolVersion: null,
+    };
     if (exists) {
       try {
         info = await scanWire(wirePath);
@@ -115,7 +124,11 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
   });
 }
 
-async function tryReadSummary(sessionDir: string, sessionId: string, workDir: string): Promise<SessionSummary | null> {
+async function tryReadSummary(
+  sessionDir: string,
+  sessionId: string,
+  workDir: string,
+): Promise<SessionSummary | null> {
   const state = await readState(sessionDir);
   if (state === null) {
     return brokenStateSummary(sessionDir, sessionId, workDir);
@@ -159,13 +172,25 @@ async function tryReadSummary(sessionDir: string, sessionId: string, workDir: st
   };
 }
 
-function brokenStateSummary(sessionDir: string, sessionId: string, workDir: string): SessionSummary {
+function brokenStateSummary(
+  sessionDir: string,
+  sessionId: string,
+  workDir: string,
+): SessionSummary {
   return {
-    sessionId, sessionDir, workDir,
-    title: null, lastPrompt: null, isCustomTitle: false,
-    createdAt: 0, updatedAt: 0,
-    agentCount: 0, mainAgentExists: false, mainWireRecordCount: 0,
-    wireProtocolVersion: null, health: 'broken_state',
+    sessionId,
+    sessionDir,
+    workDir,
+    title: null,
+    lastPrompt: null,
+    isCustomTitle: false,
+    createdAt: 0,
+    updatedAt: 0,
+    agentCount: 0,
+    mainAgentExists: false,
+    mainWireRecordCount: 0,
+    wireProtocolVersion: null,
+    health: 'broken_state',
   };
 }
 
@@ -179,18 +204,26 @@ async function readSessionIndex(home: string): Promise<Map<string, SessionIndexE
   let raw: string;
   try {
     raw = await readFile(join(home, 'session_index.jsonl'), 'utf8');
-  } catch { return out; }
+  } catch {
+    return out;
+  }
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
     try {
-      const entry = JSON.parse(line) as { sessionId?: string; sessionDir?: string; workDir?: string };
+      const entry = JSON.parse(line) as {
+        sessionId?: string;
+        sessionDir?: string;
+        workDir?: string;
+      };
       if (typeof entry.sessionId === 'string' && typeof entry.sessionDir === 'string') {
         out.set(entry.sessionId, {
           sessionDir: entry.sessionDir,
           workDir: typeof entry.workDir === 'string' ? entry.workDir : '',
         });
       }
-    } catch { /* skip malformed */ }
+    } catch {
+      /* skip malformed */
+    }
   }
   return out;
 }
@@ -202,7 +235,10 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
     const wirePath = join(sessionDir, 'agents', id, 'wire.jsonl');
     const exists = await pathExists(wirePath);
     let readable = exists;
-    let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
+    let info: { count: number; protocolVersion: string | null } = {
+      count: 0,
+      protocolVersion: null,
+    };
     if (exists) {
       try {
         info = await scanWire(wirePath);
@@ -234,7 +270,9 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
 async function readState(sessionDir: string): Promise<StateJson | null> {
   try {
     return JSON.parse(await readFile(join(sessionDir, 'state.json'), 'utf8')) as StateJson;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function findSessionDir(home: string, sessionId: string): Promise<string | null> {
@@ -256,7 +294,9 @@ async function findSessionDir(home: string, sessionId: string): Promise<string |
       if (candidate.split(sep).pop() !== sessionId) continue;
       if (await pathExists(candidate)) return candidate;
     }
-  } catch { /* no index */ }
+  } catch {
+    /* no index */
+  }
   // Fall back to scanning buckets
   const buckets = await readdir(sessionsRoot, { withFileTypes: true }).catch(() => []);
   for (const bucket of buckets) {
@@ -304,5 +344,10 @@ function parseTs(input: string | undefined): number {
 }
 
 async function pathExists(p: string): Promise<boolean> {
-  try { await stat(p); return true; } catch { return false; }
+  try {
+    await stat(p);
+    return true;
+  } catch {
+    return false;
+  }
 }

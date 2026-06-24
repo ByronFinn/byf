@@ -6,11 +6,11 @@ import {
   type CatalogModel,
 } from '@byfriends/sdk';
 
-import type { ColorPalette } from '#/tui/theme/colors';
 import { ApiKeyInputDialogComponent } from '#/tui/components/dialogs/api-key-input-dialog';
 import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import { TextInputDialogComponent } from '#/tui/components/dialogs/text-input-dialog';
+import type { ColorPalette } from '#/tui/theme/colors';
 
 import type { DialogHost, ThinkingEffortLevel } from '../types';
 
@@ -63,7 +63,11 @@ export function promptApiKey(
 export function promptConfiguredProviderSelection(
   host: DialogHost,
   colors: ColorPalette,
-  config: { providers?: Record<string, unknown> | undefined; models?: Record<string, { provider?: string }> | undefined; defaultModel?: string | undefined },
+  config: {
+    providers?: Record<string, unknown> | undefined;
+    models?: Record<string, { provider?: string }> | undefined;
+    defaultModel?: string | undefined;
+  },
   showError: (msg: string) => void,
 ): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -142,8 +146,7 @@ export function promptProviderSelection(
       .map(([id, entry]) => ({
         value: id,
         label: entry.name ?? id,
-        description:
-          typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
+        description: typeof entry.api === 'string' && entry.api.length > 0 ? entry.api : undefined,
       }))
       .toSorted((a, b) => a.label.localeCompare(b.label));
 
@@ -197,7 +200,9 @@ export function promptModelSelector(
     const firstAlias = Object.keys(modelDict)[0] ?? '';
     const caps = modelDict[firstAlias]?.capabilities ?? [];
     const initialThinking: ThinkingEffortLevel =
-      caps.includes('always_thinking') || caps.includes('thinking') || caps.includes('thinking_effort')
+      caps.includes('always_thinking') ||
+      caps.includes('thinking') ||
+      caps.includes('thinking_effort')
         ? 'high'
         : 'off';
     const selector = new ModelSelectorComponent({

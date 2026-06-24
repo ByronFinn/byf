@@ -95,6 +95,7 @@
 ### 接口定义
 
 **RecordRestoreHandler 接口**：
+
 - 输入：`AgentRecord`（已迁移的记录）
 - 输出：无（同步操作）
 - 契约：
@@ -104,11 +105,13 @@
   - 假设每条记录只恢复一次
 
 **AgentRecords.registerHandlers()**：
+
 - 输入：`Record<string, RecordRestoreHandler>`
 - 输出：无
 - 行为：覆盖已注册的处理器
 
 **Agent.resume()**：
+
 - 输入：无
 - 输出：`Promise<{ warning?: string; error?: Error }>`
 - 行为：捕获恢复错误并返回，而非抛出
@@ -140,11 +143,13 @@ metadata       → 特殊处理（直接返回）
 ### 错误处理策略
 
 **子系统恢复错误**：
+
 - 包装错误信息，添加记录类型上下文
 - 使用 `cause` 链接原始错误
 - 返回错误而非抛出
 
 **Session 级别**：
+
 - 主 agent 失败：抛出异常，终止会话
 - Sub agent 失败：记录日志，返回失败列表，继续运行
 

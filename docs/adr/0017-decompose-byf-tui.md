@@ -9,6 +9,7 @@ Accepted
 `ByfTui` (`apps/cli/src/tui/byf-tui.ts`) is a 5623-line class containing 16 responsibility sections. While `apps/cli/AGENTS.md` defines section boundaries as conventions, nothing enforces them in code. Understanding or testing any single section requires navigating the entire file.
 
 Three goals drive the decomposition:
+
 1. **Testability** — independent modules have testable interfaces, not just integration tests through ByfTui.
 2. **Navigability** — each section becomes its own file.
 3. **Reusability** — extracted modules don't depend on ByfTui instance, making them usable from non-interactive mode or future API entry points.
@@ -23,19 +24,19 @@ Three goals drive the decomposition:
 
 ### Module map
 
-| Module | Location | Lines (approx) | Extracted from |
-|--------|----------|----------------|----------------|
-| `TurnEventHandler` | `src/tui/events/turn-event-handler.ts` | 1137 | Session Events (turn-related) + Live Render Hooks |
-| `SessionMetaHandler` | `src/tui/events/session-meta-handler.ts` | 200 | Session Events (session-level) |
-| `SubagentEventHandler` | `src/tui/events/subagent-event-handler.ts` | 200 | Session Events (subagent) |
-| `TranscriptRenderer` | `src/tui/actions/transcript-renderer.ts` | 233 | Transcript Rendering |
-| `LoginFlow` | `src/tui/flows/login-flow.ts` | 468 | Slash Command Handlers (`/login`) |
-| `ConnectFlow` | `src/tui/flows/connect-flow.ts` | 200 | Slash Command Handlers (`/connect`) |
-| `TasksBrowserController` | `src/tui/components/dialogs/tasks-browser/` | 840 | Background tasks browser |
-| `DialogHost` interface | `src/tui/types.ts` | 20 | New abstraction over `mountEditorReplacement` |
-| `BackgroundTaskHandler` | `src/tui/events/background-task-handler.ts` | 159 | Background task lifecycle |
-| `CompactionHandler` | `src/tui/events/compaction-handler.ts` | 74 | Session Runtime (compaction lifecycle) |
-| `handleSkillActivated` | `src/tui/events/skill-activation-handler.ts` | 37 | Session Events (skill activation) |
+| Module                   | Location                                     | Lines (approx) | Extracted from                                    |
+| ------------------------ | -------------------------------------------- | -------------- | ------------------------------------------------- |
+| `TurnEventHandler`       | `src/tui/events/turn-event-handler.ts`       | 1137           | Session Events (turn-related) + Live Render Hooks |
+| `SessionMetaHandler`     | `src/tui/events/session-meta-handler.ts`     | 200            | Session Events (session-level)                    |
+| `SubagentEventHandler`   | `src/tui/events/subagent-event-handler.ts`   | 200            | Session Events (subagent)                         |
+| `TranscriptRenderer`     | `src/tui/actions/transcript-renderer.ts`     | 233            | Transcript Rendering                              |
+| `LoginFlow`              | `src/tui/flows/login-flow.ts`                | 468            | Slash Command Handlers (`/login`)                 |
+| `ConnectFlow`            | `src/tui/flows/connect-flow.ts`              | 200            | Slash Command Handlers (`/connect`)               |
+| `TasksBrowserController` | `src/tui/components/dialogs/tasks-browser/`  | 840            | Background tasks browser                          |
+| `DialogHost` interface   | `src/tui/types.ts`                           | 20             | New abstraction over `mountEditorReplacement`     |
+| `BackgroundTaskHandler`  | `src/tui/events/background-task-handler.ts`  | 159            | Background task lifecycle                         |
+| `CompactionHandler`      | `src/tui/events/compaction-handler.ts`       | 74             | Session Runtime (compaction lifecycle)            |
+| `handleSkillActivated`   | `src/tui/events/skill-activation-handler.ts` | 37             | Session Events (skill activation)                 |
 
 ### What stays in ByfTui
 
@@ -58,6 +59,7 @@ interface DialogHost {
 The project already has ~15 dialog components. DialogHost formalizes the existing `mountEditorReplacement` pattern so business flows (LoginFlow, TasksBrowserController) don't know about editor replacement internals.
 
 We rejected two alternatives:
+
 - **Callback injection** (`{ mountDialog, unmountDialog, ... }`) — would work for 2 dialogs, but with 15 the repetition signals a missing abstraction.
 - **InteractionHost** (`showPicker/showForm/showConfirm`) — framework-level abstraction premature for a product. pi-tui components are imperative; each dialog has vastly different construction requirements. Revisit if BYF adds Web UI or API server mode.
 

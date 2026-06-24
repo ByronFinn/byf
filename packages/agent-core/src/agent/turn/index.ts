@@ -11,7 +11,6 @@ import {
   type TokenUsage,
 } from '@byfriends/kosong';
 
-import type { Agent } from '..';
 import {
   ErrorCodes,
   type ByfErrorPayload,
@@ -19,8 +18,9 @@ import {
   makeErrorPayload,
   toByfErrorPayload,
 } from '#/errors';
+
+import type { Agent } from '..';
 import { isAbortError, isMaxStepsExceededError } from '../../loop/errors';
-import { applyCacheStaking } from '../cache-staking';
 import {
   createLoopEventDispatcher,
   runTurn,
@@ -34,9 +34,10 @@ import type { AgentEvent, TurnEndedEvent } from '../../rpc';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { abortable } from '../../utils/abort';
 import { resolveCompletionBudget } from '../../utils/completion-budget';
-import type { RecordRestoreHandler } from '../restore-handler';
+import { applyCacheStaking } from '../cache-staking';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
+import type { RecordRestoreHandler } from '../restore-handler';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { KosongLLM } from './kosong-llm';
 import { ToolCallDeduplicator } from './tool-dedup';
@@ -222,12 +223,7 @@ export class TurnFlow implements RecordRestoreHandler {
     let ended: TurnEndedEvent;
     let completedStopReason: LoopTurnStopReason | undefined;
     try {
-      const promptHookEnded = await this.applyUserPromptHook(
-        turnId,
-        input,
-        origin,
-        signal,
-      );
+      const promptHookEnded = await this.applyUserPromptHook(turnId, input, origin, signal);
       if (promptHookEnded !== undefined) {
         ended = promptHookEnded;
       } else {
@@ -425,24 +421,17 @@ export class TurnFlow implements RecordRestoreHandler {
               signal.throwIfAborted();
               if (stopBlock !== undefined) {
                 stopHookContinuationUsed = true;
-                this.agent.context.appendUserMessage(
-                  [{ type: 'text', text: stopBlock.reason }],
-                  {
-                    kind: 'system_trigger',
-                    name: 'stop_hook',
-                  },
-                );
+                this.agent.context.appendUserMessage([{ type: 'text', text: stopBlock.reason }], {
+                  kind: 'system_trigger',
+                  name: 'stop_hook',
+                });
                 return { continue: true };
               }
               return { continue: false };
             },
             prepareToolExecution: async (ctx) => {
-              const cached = deduper.checkSameStep(
-                ctx.toolCall.id,
-                ctx.toolCall.name,
-                ctx.args,
-              );
-              if (cached !== null) return { syntheticResult: cached };
+              const cached = deduper.checkSameStep(ctx.toolCall.id, ctx.toolCall.name, ctx.args);
+              if (cached !== null) return { syntheticResult: cached, skip: true };
               const hookResult = await this.agent.hooks?.triggerBlock('PreToolUse', {
                 matcherValue: ctx.toolCall.name,
                 signal: ctx.signal,
@@ -722,8 +711,7 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         display: event.display,
       };
     case 'tool.result': {
-      const blockedReason =
-        event.result.isError === true ? event.result.blockedReason : undefined;
+      const blockedReason = event.result.isError === true ? event.result.blockedReason : undefined;
       return {
         type: 'tool.result',
         turnId,

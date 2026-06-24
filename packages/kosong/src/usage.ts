@@ -67,5 +67,5 @@ export type CacheHitRate = number & { readonly __brand: unique symbol };
 export function cacheHitRate(usage: TokenUsage): CacheHitRate | undefined {
   const total = inputTotal(usage);
   if (total === 0) return undefined;
-  return usage.inputCacheRead / total as CacheHitRate;
+  return (usage.inputCacheRead / total) as CacheHitRate;
 }

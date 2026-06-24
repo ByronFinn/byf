@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ExecutableToolResult } from '../../../src/loop/types';
 import { ToolCallDeduplicator, __testing } from '../../../src/agent/turn/tool-dedup';
+import type { ExecutableToolResult } from '../../../src/loop/types';
 
 const { REMINDER_TEXT_1, makeReminderText2 } = __testing;
 
@@ -177,13 +177,7 @@ describe('ToolCallDeduplicator', () => {
       // Next step: same call appears twice. First is the original (triggers reminder1 at streak=3),
       // second is a same-step dup that should inherit it.
       dedup.beginStep();
-      const original = await runOriginal(
-        dedup,
-        'orig',
-        'Read',
-        { p: 1 },
-        okResult('R'),
-      );
+      const original = await runOriginal(dedup, 'orig', 'Read', { p: 1 }, okResult('R'));
       const dupCached = dedup.checkSameStep('dup', 'Read', { p: 1 });
       expect(dupCached).not.toBeNull();
       const finalDup = await dedup.finalizeResult('dup', 'Read', { p: 1 }, dupCached!);

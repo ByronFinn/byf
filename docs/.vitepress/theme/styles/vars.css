@@ -5,14 +5,19 @@
 
 :root {
   /* Brand palette — cool blue family from design board */
-  --byf-brand-1: #0a7aff;          /* primary */
-  --byf-brand-2: #5baeff;           /* mid */
-  --byf-brand-3: #81c4ff;           /* soft sky */
-  --byf-brand-deep: #043153;        /* deep navy (anchor for dark surfaces) */
-  --byf-brand-whisper: #eff8ff;     /* near-white blue (light tints) */
+  --byf-brand-1: #0a7aff; /* primary */
+  --byf-brand-2: #5baeff; /* mid */
+  --byf-brand-3: #81c4ff; /* soft sky */
+  --byf-brand-deep: #043153; /* deep navy (anchor for dark surfaces) */
+  --byf-brand-whisper: #eff8ff; /* near-white blue (light tints) */
   --byf-brand-gradient: linear-gradient(135deg, #0a7aff 0%, #5baeff 60%, #81c4ff 100%);
-  --byf-brand-gradient-soft: linear-gradient(135deg, rgba(10, 122, 255, 0.14) 0%, rgba(91, 174, 255, 0.12) 60%, rgba(129, 196, 255, 0.10) 100%);
-  --byf-brand-soft: rgba(10, 122, 255, 0.10);
+  --byf-brand-gradient-soft: linear-gradient(
+    135deg,
+    rgba(10, 122, 255, 0.14) 0%,
+    rgba(91, 174, 255, 0.12) 60%,
+    rgba(129, 196, 255, 0.1) 100%
+  );
+  --byf-brand-soft: rgba(10, 122, 255, 0.1);
   --byf-brand-soft-strong: rgba(10, 122, 255, 0.16);
 
   /* Shape */
@@ -24,12 +29,11 @@
 
   /* Typography */
   --vp-font-family-base:
-    'Inter', -apple-system, BlinkMacSystemFont,
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
+    'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
   --vp-font-family-mono:
-    ui-monospace, SFMono-Regular, 'SF Mono',
-    Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 
   /* Surfaces (light) — clean white + subtle blue-tinted off-white */
   --vp-c-bg: #ffffff;
@@ -50,14 +54,14 @@
   /* Brand applied to VitePress vars (light) */
   --vp-c-brand-1: var(--byf-brand-1);
   --vp-c-brand-2: var(--byf-brand-2);
-  --vp-c-brand-3: #006ae3;          /* hover, slightly deeper than primary */
+  --vp-c-brand-3: #006ae3; /* hover, slightly deeper than primary */
   --vp-c-brand-soft: var(--byf-brand-soft);
 
   /* Shadows (light) — no negative spread, avoids "kink" at rounded corners */
   --vp-shadow-1: 0 1px 2px rgba(11, 26, 48, 0.04);
   --vp-shadow-2: 0 6px 20px rgba(10, 122, 255, 0.15);
   --vp-shadow-3: 0 10px 28px rgba(10, 122, 255, 0.22);
-  --vp-shadow-4: 0 18px 44px rgba(10, 122, 255, 0.30);
+  --vp-shadow-4: 0 18px 44px rgba(10, 122, 255, 0.3);
 
   /* Buttons (light) */
   --vp-button-brand-bg: var(--byf-brand-1);
@@ -73,7 +77,7 @@
   --vp-custom-block-tip-border: transparent;
   --vp-custom-block-tip-text: var(--vp-c-text-1);
   --vp-custom-block-tip-bg: rgba(10, 122, 255, 0.07);
-  --vp-custom-block-tip-code-bg: rgba(10, 122, 255, 0.10);
+  --vp-custom-block-tip-code-bg: rgba(10, 122, 255, 0.1);
 }
 
 .dark {

@@ -7,9 +7,7 @@ const STORAGE_KEY = 'vis.theme';
 
 function systemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: light)').matches
-    ? 'light'
-    : 'dark';
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 function readStored(): ThemeChoice {
@@ -50,9 +48,13 @@ export function useTheme(): {
   // Listen to system changes when in auto mode.
   useEffect(() => {
     const m = window.matchMedia('(prefers-color-scheme: light)');
-    const handler = () =>{  setSys(m.matches ? 'light' : 'dark'); };
+    const handler = () => {
+      setSys(m.matches ? 'light' : 'dark');
+    };
     m.addEventListener('change', handler);
-    return () =>{  m.removeEventListener('change', handler); };
+    return () => {
+      m.removeEventListener('change', handler);
+    };
   }, []);
 
   const resolved: ResolvedTheme = choice === 'auto' ? sys : choice;
@@ -73,8 +75,7 @@ export function useTheme(): {
 
   // Cycle: auto → light → dark → auto
   const cycle = useCallback(() => {
-    const next: ThemeChoice =
-      choice === 'auto' ? 'light' : choice === 'light' ? 'dark' : 'auto';
+    const next: ThemeChoice = choice === 'auto' ? 'light' : choice === 'light' ? 'dark' : 'auto';
     set(next);
   }, [choice, set]);
 

@@ -9,14 +9,13 @@
  * Falls back to single-pane list on narrow terminals (< 80 cols).
  */
 
-import { formatElapsed } from '#/utils/format';
-
 import { Container, Key, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import type { Focusable, Terminal } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
 import { printableChar } from '#/tui/utils/printable-key';
+import { formatElapsed } from '#/utils/format';
 
 // ── Layout constants (matching TasksBrowserApp) ──────────────────────
 
@@ -248,7 +247,14 @@ export class SubagentsListApp extends Container implements Focusable {
     const visible = entries.slice(start, start + maxDisplay);
 
     for (const entry of visible) {
-      lines.push(this.renderListRow(entry, this.props.entries.indexOf(entry) === this.selectedIndex, innerWidth, colors));
+      lines.push(
+        this.renderListRow(
+          entry,
+          this.props.entries.indexOf(entry) === this.selectedIndex,
+          innerWidth,
+          colors,
+        ),
+      );
     }
 
     while (lines.length < innerHeight) lines.push('');
@@ -287,9 +293,10 @@ export class SubagentsListApp extends Container implements Focusable {
     const nameStr = accent(name);
 
     // Short description as differentiator (truncated to fit)
-    const descStr = entry.description.length > 0
-      ? dim(` ${truncateMid(entry.description, Math.max(4, innerWidth - name.length - 12))}`)
-      : '';
+    const descStr =
+      entry.description.length > 0
+        ? dim(` ${truncateMid(entry.description, Math.max(4, innerWidth - name.length - 12))}`)
+        : '';
 
     // Stats (compact)
     const statsParts: string[] = [];
@@ -302,11 +309,7 @@ export class SubagentsListApp extends Container implements Focusable {
 
   // ── Right stack: detail + preview (matching TasksBrowserApp) ───
 
-  private renderRightStack(
-    width: number,
-    height: number,
-    colors: ColorPalette,
-  ): string[] {
+  private renderRightStack(width: number, height: number, colors: ColorPalette): string[] {
     // Detail gets ~8 rows (or 40% of body, whichever is larger). Preview
     // takes the rest. Both rendered as separate frames stacked vertically.
     const detailHeight = Math.max(8, Math.min(Math.floor(height * 0.4), height - 5));
@@ -317,11 +320,7 @@ export class SubagentsListApp extends Container implements Focusable {
     ];
   }
 
-  private renderDetailFrame(
-    width: number,
-    height: number,
-    colors: ColorPalette,
-  ): string[] {
+  private renderDetailFrame(width: number, height: number, colors: ColorPalette): string[] {
     const innerHeight = Math.max(0, height - 2);
     const dim = chalk.dim;
     const accent = chalk.hex(colors.primary);
@@ -343,9 +342,8 @@ export class SubagentsListApp extends Container implements Focusable {
     const label = (text: string): string => chalk.hex(colors.textMuted)(text.padEnd(14));
 
     // Agent ID (truncated for display)
-    const idShort = entry.toolCallId.length > 20
-      ? entry.toolCallId.slice(0, 17) + '…'
-      : entry.toolCallId;
+    const idShort =
+      entry.toolCallId.length > 20 ? entry.toolCallId.slice(0, 17) + '…' : entry.toolCallId;
     lines.push(`${label('Agent ID:')}${accent(idShort)}`);
 
     // Agent type
@@ -388,7 +386,10 @@ export class SubagentsListApp extends Container implements Focusable {
       if (entry.phase === 'failed' && d.errorText !== undefined) {
         const errLine = d.errorText.split('\n')[0] ?? '';
         lines.push(`${label('Error:')}${error(errLine)}`);
-      } else if ((entry.phase === 'running' || entry.phase === 'spawning') && d.latestActivity !== undefined) {
+      } else if (
+        (entry.phase === 'running' || entry.phase === 'spawning') &&
+        d.latestActivity !== undefined
+      ) {
         lines.push(`${label('Activity:')}${dim(d.latestActivity)}`);
       }
     }
@@ -406,20 +407,22 @@ export class SubagentsListApp extends Container implements Focusable {
   ): string {
     // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- undefined phase renders via default label
     switch (phase) {
-      case 'done': return success('✓ Completed');
-      case 'failed': return error('✗ Failed');
-      case 'running': return accent('● Running');
-      case 'spawning': return accent('● Starting');
-      case 'backgrounded': return chalk.dim('◐ Backgrounded');
-      default: return chalk.dim('—');
+      case 'done':
+        return success('✓ Completed');
+      case 'failed':
+        return error('✗ Failed');
+      case 'running':
+        return accent('● Running');
+      case 'spawning':
+        return accent('● Starting');
+      case 'backgrounded':
+        return chalk.dim('◐ Backgrounded');
+      default:
+        return chalk.dim('—');
     }
   }
 
-  private renderPreviewFrame(
-    width: number,
-    height: number,
-    colors: ColorPalette,
-  ): string[] {
+  private renderPreviewFrame(width: number, height: number, colors: ColorPalette): string[] {
     const dim = chalk.dim;
     const innerHeight = Math.max(0, height - 2);
 
@@ -434,17 +437,29 @@ export class SubagentsListApp extends Container implements Focusable {
     const lines: string[] = [];
 
     // Real-time activity stream — show latest (tail-follow), not oldest
-    if (preview !== undefined && preview.activityLines !== undefined && preview.activityLines.length > 0) {
+    if (
+      preview !== undefined &&
+      preview.activityLines !== undefined &&
+      preview.activityLines.length > 0
+    ) {
       for (const line of preview.activityLines.slice(-innerHeight)) {
         lines.push(dim(line));
       }
-      if (lines.length < innerHeight && preview.resultSummary !== undefined && preview.resultSummary.length > 0) {
+      if (
+        lines.length < innerHeight &&
+        preview.resultSummary !== undefined &&
+        preview.resultSummary.length > 0
+      ) {
         lines.push('');
       }
     }
 
     // Result summary (most factual)
-    if (preview !== undefined && preview.resultSummary !== undefined && preview.resultSummary.length > 0) {
+    if (
+      preview !== undefined &&
+      preview.resultSummary !== undefined &&
+      preview.resultSummary.length > 0
+    ) {
       for (const line of preview.resultSummary.split('\n').slice(0, innerHeight - lines.length)) {
         lines.push(chalk.hex(colors.text)(line));
       }
@@ -476,7 +491,11 @@ export class SubagentsListApp extends Container implements Focusable {
     }
 
     if (lines.length === 0) {
-      lines.push(chalk.hex(colors.textMuted)(entry.phase === 'running' ? 'Waiting for output…' : 'No output.'));
+      lines.push(
+        chalk.hex(colors.textMuted)(
+          entry.phase === 'running' ? 'Waiting for output…' : 'No output.',
+        ),
+      );
     }
 
     while (lines.length < innerHeight) lines.push('');
@@ -540,5 +559,3 @@ function formatTokens(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k tok`;
   return `${String(n)} tok`;
 }
-
-

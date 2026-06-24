@@ -38,7 +38,9 @@ export function defaultMcpCredentialsDir(): string {
 export function sanitizeStoreKey(name: string): string {
   // Strip path-traversal segments. Tokens land under `<key>-<suffix>.json`,
   // so the sanitized value must also be a single filename component.
-  const safe = basename(name).replaceAll(/[^a-zA-Z0-9_-]/g, '_').replaceAll(/_+/g, '_');
+  const safe = basename(name)
+    .replaceAll(/[^a-zA-Z0-9_-]/g, '_')
+    .replaceAll(/_+/g, '_');
   if (safe.length === 0 || safe.startsWith('.')) {
     throw new Error(`Invalid MCP OAuth store key: "${name}"`);
   }

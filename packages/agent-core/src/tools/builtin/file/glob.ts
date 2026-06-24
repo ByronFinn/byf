@@ -61,19 +61,19 @@ export const GlobInputSchema = z.object({
     .string()
     .describe(
       'Glob pattern to match files/directories. ' +
-      'IMPORTANT: pattern MUST contain a literal anchor like a file extension (.ts) or a ' +
-      'subdirectory name (src/). Patterns starting with **/ (e.g. **/*.py, **/main/*.ts), ' +
-      'pure wildcards (**, **/*, */*, *), and brace expansion (*.{ts,tsx}) are REJECTED. ' +
-      'Example: src/**/*.ts searches all .ts files under src/.',
+        'IMPORTANT: pattern MUST contain a literal anchor like a file extension (.ts) or a ' +
+        'subdirectory name (src/). Patterns starting with **/ (e.g. **/*.py, **/main/*.ts), ' +
+        'pure wildcards (**, **/*, */*, *), and brace expansion (*.{ts,tsx}) are REJECTED. ' +
+        'Example: src/**/*.ts searches all .ts files under src/.',
     ),
   path: z
     .string()
     .optional()
     .describe(
       'Absolute path to the directory to search in. Defaults to the current working directory. ' +
-      'Explicit absolute paths outside the workspace are allowed (e.g. to search a dependency ' +
-      'installed elsewhere); relative paths are resolved against the working directory and ' +
-      'rejected if they escape it.',
+        'Explicit absolute paths outside the workspace are allowed (e.g. to search a dependency ' +
+        'installed elsewhere); relative paths are resolved against the working directory and ' +
+        'rejected if they escape it.',
     ),
   include_dirs: z
     .boolean()
@@ -124,9 +124,7 @@ export class GlobTool implements BuiltinTool<GlobInput> {
     private readonly workspace: WorkspaceConfig,
   ) {
     this.description =
-      this.kaos.pathClass() === 'win32'
-        ? GLOB_DESCRIPTION + WINDOWS_PATH_HINT
-        : GLOB_DESCRIPTION;
+      this.kaos.pathClass() === 'win32' ? GLOB_DESCRIPTION + WINDOWS_PATH_HINT : GLOB_DESCRIPTION;
   }
 
   resolveExecution(args: GlobInput): ToolExecution {
@@ -339,7 +337,9 @@ export class GlobTool implements BuiltinTool<GlobInput> {
         const displayedFiltered = filteredSensitive.map((p) =>
           relativizeIfUnder(p, relBase, pathClass),
         );
-        lines.push(`Filtered ${String(filteredSensitive.length)} sensitive file(s): ${displayedFiltered.join(', ')}`);
+        lines.push(
+          `Filtered ${String(filteredSensitive.length)} sensitive file(s): ${displayedFiltered.join(', ')}`,
+        );
       }
       return { output: lines.join('\n') };
     } catch (error) {
@@ -356,7 +356,6 @@ export class GlobTool implements BuiltinTool<GlobInput> {
       return { isError: true, output: error instanceof Error ? error.message : String(error) };
     }
   }
-
 }
 
 /**

@@ -2,7 +2,14 @@
   "name": "@byfriends/monorepo",
   "version": "0.3.2",
   "private": true,
+  "description": "BYF (Be Your Friend) monorepo for terminal AI agent tooling",
+  "homepage": "https://github.com/ByronFinn/byf",
   "license": "Proprietary",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
   "type": "module",
   "scripts": {
     "build": "pnpm -r run build",
@@ -14,6 +21,8 @@
     "lint": "oxlint --type-aware",
     "lint:fix": "pnpm run lint --fix",
     "lint:pkg": "pnpm -r --filter '!@byfriends/monorepo' exec publint && node scripts/attw-pkg.mjs",
+    "fmt": "oxfmt",
+    "fmt:check": "pnpm run fmt --check",
     "sherif": "sherif",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -21,7 +30,7 @@
     "clean": "pnpm -r run clean",
     "changeset": "changeset",
     "version": "changeset version",
-    "publish": "pnpm run typecheck && pnpm run lint && pnpm run sherif && pnpm run test && pnpm run build && pnpm run lint:pkg && changeset publish",
+    "publish": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run sherif && pnpm run test && pnpm run build && pnpm run lint:pkg && changeset publish",
     "prepare": "simple-git-hooks"
   },
   "devDependencies": {
@@ -33,6 +42,7 @@
     "@types/node": "^22.15.3",
     "@vitest/coverage-v8": "4.1.4",
     "lint-staged": "16.4.0",
+    "oxfmt": "^0.55.0",
     "oxlint": "1.59.0",
     "oxlint-tsgolint": "0.20.0",
     "publint": "0.3.18",
@@ -43,9 +53,12 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
-  "simple-git-hooks": {},
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
+      "oxfmt --write",
       "oxlint --fix --quiet",
       "oxlint --type-aware --quiet"
     ]
@@ -53,12 +66,5 @@
   "engines": {
     "node": ">=24.15.0"
   },
-  "packageManager": "pnpm@10.33.0",
-  "description": "BYF (Be Your Friend) monorepo for terminal AI agent tooling",
-  "author": "ByronFinn",
-  "homepage": "https://github.com/ByronFinn/byf",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ByronFinn/byf.git"
-  }
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
 }

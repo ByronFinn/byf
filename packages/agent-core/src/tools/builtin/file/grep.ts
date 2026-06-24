@@ -30,8 +30,8 @@ import { resolvePathAccessPath } from '../../policies/path-access';
 import type { PathClass } from '../../policies/path-access';
 import { isSensitiveFile, SENSITIVE_DOT_VARIANT_SUFFIXES } from '../../policies/sensitive';
 import { toInputJsonSchema } from '../../support/input-schema';
-import { ensureRgPath, rgUnavailableMessage } from '../../support/rg-locator';
 import { ToolResultBuilder } from '../../support/result-builder';
+import { ensureRgPath, rgUnavailableMessage } from '../../support/rg-locator';
 import type { WorkspaceConfig } from '../../support/workspace';
 import GREP_DESCRIPTION from './grep.md';
 
@@ -345,7 +345,6 @@ export class GrepTool implements BuiltinTool<GrepInput> {
     builder.write(combined);
     return builder.ok(sideChannelMessages.join('\n'));
   }
-
 }
 
 interface RipgrepRunResult {

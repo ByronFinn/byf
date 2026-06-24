@@ -115,14 +115,14 @@ Zod `type` enum and `DEFAULT_BASE_URLS` are derived from this registry, ensuring
 
 ## Out of Scope
 
-| Item | Rationale |
-|---|---|
-| Provider-specific advanced params in tool schema (e.g., Exa `category`, Brave `freshness`) | Keep LLM interface clean; can add later if needed |
-| Multi-provider result merging | Complexity not justified; priority-based first-wins is sufficient |
-| Search result caching | Independent concern, can be added later |
-| `custom` provider type | Zero-code API adapter is complex and fragile; users with niche APIs can use Bash |
-| Local search provider (DDG/searxng) | Not needed since search is always configured with provider API keys |
-| MCP-based search provider | User explicitly does not want MCP dependency for search |
+| Item                                                                                       | Rationale                                                                        |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Provider-specific advanced params in tool schema (e.g., Exa `category`, Brave `freshness`) | Keep LLM interface clean; can add later if needed                                |
+| Multi-provider result merging                                                              | Complexity not justified; priority-based first-wins is sufficient                |
+| Search result caching                                                                      | Independent concern, can be added later                                          |
+| `custom` provider type                                                                     | Zero-code API adapter is complex and fragile; users with niche APIs can use Bash |
+| Local search provider (DDG/searxng)                                                        | Not needed since search is always configured with provider API keys              |
+| MCP-based search provider                                                                  | User explicitly does not want MCP dependency for search                          |
 
 ## Technical Approach
 
@@ -160,7 +160,7 @@ const webSearcher = webSearchConfig
   ? new PriorityRouter(
       webSearchConfig.providers
         .sort((a, b) => a.priority - b.priority)
-        .map(p => createProvider(p))
+        .map((p) => createProvider(p)),
     )
   : undefined;
 ```
@@ -170,11 +170,14 @@ const webSearcher = webSearchConfig
 ```typescript
 // Existing WebSearchProvider interface — unchanged
 interface WebSearchProvider {
-  search(query: string, options?: {
-    limit?: number;
-    includeContent?: boolean;
-    toolCallId?: string;
-  }): Promise<WebSearchResult[]>;
+  search(
+    query: string,
+    options?: {
+      limit?: number;
+      includeContent?: boolean;
+      toolCallId?: string;
+    },
+  ): Promise<WebSearchResult[]>;
 }
 ```
 
@@ -211,7 +214,8 @@ class PriorityRouter implements WebSearchProvider {
 ```
 
 **Error flow**: PriorityRouter throws `AllProvidersFailedError` when all providers fail. WebSearchTool's existing `catch` block catches it, `classifySearchError()` classifies it as `Search failed:`, and returns `{ isError: true }` to the LLM. Empty results (`[]`) pass through as a normal success with "No search results found." output.
-```
+
+````
 
 ### Provider Error Convention
 
@@ -221,7 +225,7 @@ All provider implementations follow a simple convention: on HTTP error, throw a 
 if (!response.ok) {
   throw new Error(`Exa search failed: HTTP ${response.status} ${response.statusText}`);
 }
-```
+````
 
 The PriorityRouter does not distinguish error types — any thrown error triggers fallback. The last error message flows into `AllProvidersFailedError` and is surfaced to the LLM via `classifySearchError`, so error messages should be meaningful.
 
@@ -229,15 +233,16 @@ The PriorityRouter does not distinguish error types — any thrown error trigger
 
 Each provider maps its API response fields to the unified `WebSearchResult` interface:
 
-| WebSearchResult | Exa (`results[]`) | Brave (`web.results[]`) | Firecrawl (`data.web[]`) |
-|---|---|---|---|
-| `title` | `title` | `title` | `title` |
-| `url` | `url` | `url` | `url` |
-| `snippet` | `text` truncated to 300 chars | `description` | `description` |
-| `date` | `publishedDate` | `age` | _(not available)_ |
-| `content` | `text` full (only when `includeContent`) | _(not available)_ | _(not available initially; scrape call deferred)_ |
+| WebSearchResult | Exa (`results[]`)                        | Brave (`web.results[]`) | Firecrawl (`data.web[]`)                          |
+| --------------- | ---------------------------------------- | ----------------------- | ------------------------------------------------- |
+| `title`         | `title`                                  | `title`                 | `title`                                           |
+| `url`           | `url`                                    | `url`                   | `url`                                             |
+| `snippet`       | `text` truncated to 300 chars            | `description`           | `description`                                     |
+| `date`          | `publishedDate`                          | `age`                   | _(not available)_                                 |
+| `content`       | `text` full (only when `includeContent`) | _(not available)_       | _(not available initially; scrape call deferred)_ |
 
 Principles:
+
 - **Honest capability boundaries**: Brave has no full-text, Firecrawl has no date — don't fake it. The LLM adapts.
 - **`snippet` always present**: gives the LLM enough context to judge relevance without `includeContent`.
 - **`content` is best-effort**: populated only when `includeContent` is true AND the provider supports it.
@@ -280,24 +285,24 @@ const DEFAULT_BASE_URLS: Record<string, string> = {
 
 ## Decisions (ADR-lite)
 
-| Decision | Rationale |
-|---|---|
-| Array-of-tables (`[[providers]]`) over nested tables | TOML-native, simple Zod validation, flat priority ordering |
-| `api_keys` always `string[]` | Unified, minimal mental model; single key is `["sk-..."]` |
-| Priority-based first-wins over result merging | Lower latency, simpler logic, sufficient for fault tolerance |
+| Decision                                                     | Rationale                                                                                                   |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Array-of-tables (`[[providers]]`) over nested tables         | TOML-native, simple Zod validation, flat priority ordering                                                  |
+| `api_keys` always `string[]`                                 | Unified, minimal mental model; single key is `["sk-..."]`                                                   |
+| Priority-based first-wins over result merging                | Lower latency, simpler logic, sufficient for fault tolerance                                                |
 | Static `webSearchProviderRegistry` as single source of truth | Type-safe; Zod enum + default URLs derived from registry keys; predictable, no plugin infrastructure needed |
-| Provider-specific params excluded from tool schema | Keep LLM interface clean; provider handles defaults internally |
-| `base_url` optional with defaults | Users only need `type` + `api_keys` + `priority` to start |
-| Empty results don't trigger fallback | Prevent false positives; a provider saying "no results" is valid |
+| Provider-specific params excluded from tool schema           | Keep LLM interface clean; provider handles defaults internally                                              |
+| `base_url` optional with defaults                            | Users only need `type` + `api_keys` + `priority` to start                                                   |
+| Empty results don't trigger fallback                         | Prevent false positives; a provider saying "no results" is valid                                            |
 
 ## Domain Terms
 
-| Term | Definition |
-|---|---|
-| Search Provider | A single search backend entry, defined by `type` + `api_keys` + `priority`. Detailed in CONTEXT.md. |
-| PriorityRouter | Router that tries Search Providers in ascending `priority` order with automatic fallback |
-| Fallback condition | Auth error / rate limit / server error / timeout — triggers next Search Provider |
-| Provider type | Built-in identifier (`exa`, `brave`, `firecrawl`) mapped to a Search Provider class |
+| Term               | Definition                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| Search Provider    | A single search backend entry, defined by `type` + `api_keys` + `priority`. Detailed in CONTEXT.md. |
+| PriorityRouter     | Router that tries Search Providers in ascending `priority` order with automatic fallback            |
+| Fallback condition | Auth error / rate limit / server error / timeout — triggers next Search Provider                    |
+| Provider type      | Built-in identifier (`exa`, `brave`, `firecrawl`) mapped to a Search Provider class                 |
 
 ## Open Questions
 

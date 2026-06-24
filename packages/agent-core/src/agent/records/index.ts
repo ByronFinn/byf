@@ -11,10 +11,7 @@ import type { AgentRecord, AgentRecordPersistence } from './types';
 
 export * from './types';
 export { AGENT_WIRE_PROTOCOL_VERSION } from './migration';
-export {
-  FileSystemAgentRecordPersistence,
-  InMemoryAgentRecordPersistence,
-} from './persistence';
+export { FileSystemAgentRecordPersistence, InMemoryAgentRecordPersistence } from './persistence';
 export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
 
 export class AgentRecords {
@@ -31,7 +28,9 @@ export class AgentRecords {
     return this._restoring;
   }
 
-  registerHandlers(handlers: Record<string, import('../restore-handler').RecordRestoreHandler>): void {
+  registerHandlers(
+    handlers: Record<string, import('../restore-handler').RecordRestoreHandler>,
+  ): void {
     this.handlers = { ...handlers };
   }
 
@@ -86,7 +85,10 @@ export class AgentRecords {
     // Extract the prefix from the record type
     const prefix = recordType.split('.')[0]!;
 
-    // Map prefixes to handler keys
+    // Map prefixes to handler keys. Each entry must correspond to a handler
+    // registered in Agent's `records.registerHandlers({...})`. `background.*`
+    // records are restored through a separate persistence path (BackgroundProcessManager),
+    // so they have no handler here and are silently skipped on replay.
     const mapping: Record<string, string> = {
       context: 'context',
       config: 'config',
@@ -94,7 +96,6 @@ export class AgentRecords {
       permission: 'permission',
       tools: 'tools',
       usage: 'usage',
-      background: 'background',
       full_compaction: 'fullCompaction',
     };
 

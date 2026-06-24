@@ -4,8 +4,8 @@ import * as retry from 'retry';
 import type { Logger } from '#/logging/types';
 
 import { abortable } from '../utils/abort';
-import type { LoopEventDispatcher } from './events';
 import { isAbortError } from './errors';
+import type { LoopEventDispatcher } from './events';
 import type { LLM, LLMChatParams, LLMChatResponse } from './llm';
 
 export const DEFAULT_MAX_RETRY_ATTEMPTS = 3;

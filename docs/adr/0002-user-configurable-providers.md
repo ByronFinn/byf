@@ -11,6 +11,7 @@ BYF inherited a hardcoded platform system from upstream: `OPEN_PLATFORMS` with `
 Users need to connect to any OpenAI-compatible API (OpenAI, DeepSeek, local Ollama, etc.), not just pre-defined ones. The existing `/login` command was a stub redirecting to `/connect`.
 
 Options considered:
+
 1. **Keep hardcoded platforms** — Replace placeholder URLs with real ones, add more platforms over time
 2. **User-configurable providers** — Remove hardcoded platforms entirely, let users define their own via `/login`
 
@@ -19,6 +20,7 @@ Options considered:
 We chose option 2. Remove `OPEN_PLATFORMS` and `OpenPlatformDefinition`. The `/login` command becomes the entry point for adding custom providers: name → base_url → api_key → select model. Each provider is stored by its user-chosen name in config.
 
 Key design decisions:
+
 - `/login` supports multiple providers
 - `/logout <name>` removes a specific provider
 - `/connect` is preserved for catalog providers (models.dev)

@@ -17,8 +17,7 @@ export function renderUserPromptHookResult(
     results
       ?.filter((result) => result.action !== 'block')
       ?.map(userPromptHookMessage)
-      .filter(isNonEmptyString) ??
-    [];
+      .filter(isNonEmptyString) ?? [];
   if (messages.length === 0) return undefined;
   const displayMessage = messages.join('\n\n');
   return {

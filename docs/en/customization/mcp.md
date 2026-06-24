@@ -4,7 +4,7 @@
 
 ## Integration scope
 
-BYF connects to MCP servers via stdio (local subprocess) or HTTP. Once connected, MCP tools behave the same as built-in tools: they are available to the agent, subject to permission rules, and go through the approval flow.
+BYF connects to MCP servers via stdio (local subprocess), HTTP (streamable HTTP), or SSE (legacy SSE transport). Once connected, MCP tools behave the same as built-in tools: they are available to the agent, subject to permission rules, and go through the approval flow.
 
 ## Configuration and login
 
@@ -28,25 +28,32 @@ The top-level shape of `mcp.json` is:
     },
     "linear": {
       "url": "https://mcp.linear.app/mcp"
+    },
+    "legacy-db": {
+      "transport": "sse",
+      "url": "https://old-server.example.com/mcp"
     }
   }
 }
 ```
 
-Entries with `command` are stdio servers; entries with `url` are HTTP servers, so you usually do not need to write a `transport` field. HTTP servers can provide static credentials through `headers` or `bearerTokenEnvVar`. When OAuth is required, run `/mcp-config login <server-name>` to complete browser authorization.
+Entries with `command` are stdio servers; entries with `url` (without a `transport` field) default to HTTP servers. For legacy SSE-only servers, set `"transport": "sse"` explicitly. SSE and HTTP accept the same optional fields (`headers`, `bearerTokenEnvVar`, etc.). Note that **HTTP (Streamable HTTP) is preferred for new servers** — SSE is supported only for backwards compatibility with pre-2025-03-26 MCP servers.
+
+HTTP and SSE servers can provide static credentials through `headers` or `bearerTokenEnvVar`. When OAuth is required, run `/mcp-config login <server-name>` to complete browser authorization.
 
 Optional fields:
 
-| Field | Type | Applies to | Description |
-| --- | --- | --- | --- |
-| `env` | `Record<string, string>` | stdio | Environment variables injected into the subprocess |
-| `cwd` | `string` | stdio | Working directory for the subprocess |
-| `headers` | `Record<string, string>` | HTTP | Static headers appended to every request |
-| `enabled` | `boolean` | both | Set to `false` to disable the server without removing the entry |
-| `startupTimeoutMs` | `number` | both | Connection timeout in milliseconds, default `30000` |
-| `toolTimeoutMs` | `number` | both | Per-tool-call timeout in milliseconds |
-| `enabledTools` | `string[]` | both | Allowlist: only expose the tools in this list |
-| `disabledTools` | `string[]` | both | Blocklist: exclude the tools in this list |
+| Field               | Type                     | Applies to | Description                                                     |
+| ------------------- | ------------------------ | ---------- | --------------------------------------------------------------- |
+| `env`               | `Record<string, string>` | stdio      | Environment variables injected into the subprocess              |
+| `cwd`               | `string`                 | stdio      | Working directory for the subprocess                            |
+| `headers`           | `Record<string, string>` | HTTP / SSE | Static headers appended to every request                        |
+| `bearerTokenEnvVar` | `string`                 | HTTP / SSE | Env var name for bearer token, resolved at connection time      |
+| `enabled`           | `boolean`                | both       | Set to `false` to disable the server without removing the entry |
+| `startupTimeoutMs`  | `number`                 | both       | Connection timeout in milliseconds, default `30000`             |
+| `toolTimeoutMs`     | `number`                 | both       | Per-tool-call timeout in milliseconds                           |
+| `enabledTools`      | `string[]`               | both       | Allowlist: only expose the tools in this list                   |
+| `disabledTools`     | `string[]`               | both       | Blocklist: exclude the tools in this list                       |
 
 ::: warning Note
 Stdio entries in a project-level `.byf/mcp.json` execute local commands when the session starts. Only enable project-level MCP servers in repositories you trust.

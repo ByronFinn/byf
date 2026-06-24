@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
+
 import type { SessionSummary } from '../../types';
 import { formatRelativeTime } from '../../util/time';
 
@@ -52,18 +53,12 @@ export function SessionCard({ session, onDelete, deleting }: SessionCardProps) {
           <span className="truncate" title={session.workDir ?? ''}>
             {workspaceLabel}
           </span>
-          <span className="tabular text-fg-3">
-            {session.mainWireRecordCount}ev
-          </span>
+          <span className="tabular text-fg-3">{session.mainWireRecordCount}ev</span>
           {subagentCount > 0 ? (
-            <span className="tabular text-[var(--color-cat-subagent)]">
-              {subagentCount}sub
-            </span>
+            <span className="tabular text-[var(--color-cat-subagent)]">{subagentCount}sub</span>
           ) : null}
           {session.health !== 'ok' ? (
-            <span className="tabular text-[var(--color-sev-error)]">
-              {session.health}
-            </span>
+            <span className="tabular text-[var(--color-sev-error)]">{session.health}</span>
           ) : null}
         </div>
         {title ? (
@@ -72,7 +67,10 @@ export function SessionCard({ session, onDelete, deleting }: SessionCardProps) {
           </div>
         ) : null}
         {session.lastPrompt ? (
-          <div className="mt-1 truncate font-mono text-[10.5px] text-fg-3" title={session.lastPrompt}>
+          <div
+            className="mt-1 truncate font-mono text-[10.5px] text-fg-3"
+            title={session.lastPrompt}
+          >
             prompt · {session.lastPrompt}
           </div>
         ) : null}

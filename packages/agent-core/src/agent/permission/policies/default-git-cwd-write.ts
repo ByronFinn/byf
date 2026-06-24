@@ -8,10 +8,7 @@ import {
   resolvePathAccess,
 } from '../../../tools/policies/path-access';
 import { isSensitiveFile } from '../../../tools/policies/sensitive';
-import {
-  findGitWorkTreeMarker,
-  type GitWorkTreeMarker,
-} from '../../../tools/support/git-worktree';
+import { findGitWorkTreeMarker, type GitWorkTreeMarker } from '../../../tools/support/git-worktree';
 import type { PermissionPolicy } from '../policy';
 
 const AUTO_REASON = 'default_git_cwd_write';

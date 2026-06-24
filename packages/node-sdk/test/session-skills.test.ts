@@ -288,7 +288,11 @@ async function writeSkill(workDir: string, name: string, lines: readonly string[
   await writeFile(join(dir, 'SKILL.md'), lines.join('\n'));
 }
 
-async function writeUserSkill(userHomeDir: string, name: string, description: string): Promise<void> {
+async function writeUserSkill(
+  userHomeDir: string,
+  name: string,
+  description: string,
+): Promise<void> {
   const dir = join(userHomeDir, '.byf', 'skills', name);
   await mkdir(dir, { recursive: true });
   await writeFile(

@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { SkillActivatedEvent } from '@byfriends/sdk';
+import { describe, expect, it } from 'vitest';
 
 import {
   handleSkillActivated,
@@ -92,7 +91,11 @@ describe('handleSkillActivated', () => {
       const state = makeState();
       const { callbacks, calls } = makeCallbacks();
 
-      handleSkillActivated(skillActivatedEvent({ skillName: undefined, skillArgs: undefined }), state, callbacks);
+      handleSkillActivated(
+        skillActivatedEvent({ skillName: undefined, skillArgs: undefined }),
+        state,
+        callbacks,
+      );
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
       const entry = calls.appendTranscriptEntry[0]!;
@@ -136,9 +139,21 @@ describe('handleSkillActivated', () => {
       const state = makeState();
       const { callbacks, calls } = makeCallbacks();
 
-      handleSkillActivated(skillActivatedEvent({ activationId: 'activation-1', skillName: 'review' }), state, callbacks);
-      handleSkillActivated(skillActivatedEvent({ activationId: 'activation-2', skillName: 'think' }), state, callbacks);
-      handleSkillActivated(skillActivatedEvent({ activationId: 'activation-3', skillName: 'debug' }), state, callbacks);
+      handleSkillActivated(
+        skillActivatedEvent({ activationId: 'activation-1', skillName: 'review' }),
+        state,
+        callbacks,
+      );
+      handleSkillActivated(
+        skillActivatedEvent({ activationId: 'activation-2', skillName: 'think' }),
+        state,
+        callbacks,
+      );
+      handleSkillActivated(
+        skillActivatedEvent({ activationId: 'activation-3', skillName: 'debug' }),
+        state,
+        callbacks,
+      );
 
       expect(calls.appendTranscriptEntry).toHaveLength(3);
       expect(calls.appendTranscriptEntry[0]!.skillName).toBe('review');

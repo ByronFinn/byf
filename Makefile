@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help prepare build packages typecheck lint fix sherif pubcheck test watch cover clean changeset version publish release dev docs vis
+.PHONY: help prepare build packages typecheck lint fix fmt fmt-check sherif pubcheck test watch cover clean changeset version publish release dev docs vis
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
@@ -28,6 +28,12 @@ lint: ## Lint with oxlint (type-aware)
 
 fix: ## Lint and auto-fix
 	pnpm run lint:fix
+
+fmt: ## Format all files with oxfmt
+	pnpm run fmt
+
+fmt-check: ## Check formatting without writing
+	pnpm run fmt:check
 
 sherif: ## Check monorepo dependency consistency
 	pnpm run sherif
@@ -59,7 +65,7 @@ changeset: ## Add a changeset interactively
 version: ## Apply changesets and bump versions
 	pnpm run version
 
-publish: ## Verify and publish (typecheck, lint, sherif, test, build, lint:pkg, then changeset publish)
+publish: ## Verify and publish (typecheck, lint, fmt:check, sherif, test, build, lint:pkg, then changeset publish)
 	pnpm run publish
 
 release: version publish ## Version then publish

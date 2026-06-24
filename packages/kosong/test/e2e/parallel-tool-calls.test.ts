@@ -1,13 +1,15 @@
+import { describe, expect, it } from 'vitest';
+
 import { generate } from '#/generate';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
+import type { Tool } from '#/tool';
+import type { TokenUsage } from '#/usage';
+
+import type { JsonValue } from '../fixtures/args-validator';
 import { SimpleToolset, toolOk } from '../fixtures/simple-toolset';
 import type { ToolReturnValue } from '../fixtures/simple-toolset';
 import { step } from '../fixtures/step';
-import type { Tool } from '#/tool';
-import type { JsonValue } from '../fixtures/args-validator';
-import type { TokenUsage } from '#/usage';
-import { describe, expect, it } from 'vitest';
 
 /**
  * Exercises interleaved parallel tool calls end to end: index-based argument
@@ -56,14 +58,16 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_read_a',
-        name: 'read_file', arguments: '',
+        name: 'read_file',
+        arguments: '',
         _streamIndex: 0,
       },
       { type: 'tool_call_part', argumentsPart: '{"path":"a.txt"}', index: 0 },
       {
         type: 'function',
         id: 'tc_read_b',
-        name: 'read_file', arguments: '',
+        name: 'read_file',
+        arguments: '',
         _streamIndex: 1,
       },
       { type: 'tool_call_part', argumentsPart: '{"path":"b.txt"}', index: 1 },
@@ -105,19 +109,22 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_read',
-        name: 'read_file', arguments: null,
+        name: 'read_file',
+        arguments: null,
         _streamIndex: 0,
       },
       {
         type: 'function',
         id: 'tc_write',
-        name: 'write_file', arguments: null,
+        name: 'write_file',
+        arguments: null,
         _streamIndex: 1,
       },
       {
         type: 'function',
         id: 'tc_list',
-        name: 'list_dir', arguments: null,
+        name: 'list_dir',
+        arguments: null,
         _streamIndex: 2,
       },
       // Interleaved argument deltas. Arguments for each call, arriving
@@ -233,19 +240,22 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_a',
-        name: 'slow', arguments: '{"id":"a"}',
+        name: 'slow',
+        arguments: '{"id":"a"}',
         _streamIndex: 0,
       },
       {
         type: 'function',
         id: 'tc_b',
-        name: 'slow', arguments: '{"id":"b"}',
+        name: 'slow',
+        arguments: '{"id":"b"}',
         _streamIndex: 1,
       },
       {
         type: 'function',
         id: 'tc_c',
-        name: 'slow', arguments: '{"id":"c"}',
+        name: 'slow',
+        arguments: '{"id":"c"}',
         _streamIndex: 2,
       },
     ];
@@ -298,19 +308,22 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_slow',
-        name: 'sleep_tool', arguments: '{"ms":100,"tag":"slow"}',
+        name: 'sleep_tool',
+        arguments: '{"ms":100,"tag":"slow"}',
         _streamIndex: 0,
       },
       {
         type: 'function',
         id: 'tc_med',
-        name: 'sleep_tool', arguments: '{"ms":50,"tag":"med"}',
+        name: 'sleep_tool',
+        arguments: '{"ms":50,"tag":"med"}',
         _streamIndex: 1,
       },
       {
         type: 'function',
         id: 'tc_fast',
-        name: 'sleep_tool', arguments: '{"ms":1,"tag":"fast"}',
+        name: 'sleep_tool',
+        arguments: '{"ms":1,"tag":"fast"}',
         _streamIndex: 2,
       },
     ];
@@ -355,19 +368,22 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_ok_1',
-        name: 'good', arguments: '{"i":1}',
+        name: 'good',
+        arguments: '{"i":1}',
         _streamIndex: 0,
       },
       {
         type: 'function',
         id: 'tc_bad',
-        name: 'bad', arguments: '{}',
+        name: 'bad',
+        arguments: '{}',
         _streamIndex: 1,
       },
       {
         type: 'function',
         id: 'tc_ok_2',
-        name: 'good', arguments: '{"i":2}',
+        name: 'good',
+        arguments: '{"i":2}',
         _streamIndex: 2,
       },
     ];
@@ -414,13 +430,15 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
       {
         type: 'function',
         id: 'tc_alpha',
-        name: 't', arguments: null,
+        name: 't',
+        arguments: null,
         _streamIndex: 'item_alpha',
       },
       {
         type: 'function',
         id: 'tc_beta',
-        name: 't', arguments: null,
+        name: 't',
+        arguments: null,
         _streamIndex: 'item_beta',
       },
       { type: 'tool_call_part', argumentsPart: '{"k":', index: 'item_alpha' },

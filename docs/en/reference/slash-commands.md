@@ -10,34 +10,34 @@ Some commands are only available in the idle state. Running them while the sessi
 
 ## Account and configuration
 
-| Command | Alias | Description | Always available |
-| --- | --- | --- | --- |
-| `/login` | — | Pick an account or platform and sign in: BYF uses the OAuth device code flow, while the BYF API signs in with an API key. | No |
-| `/logout` | — | Clear the credentials of the currently selected account (BYF OAuth credentials, or the corresponding open platform provider config). | No |
-| `/connect [--refresh] [--url=<catalog-url>]` | — | Configure a provider and model from a model catalog. The default catalog is bundled with the CLI; pass `--refresh` to fetch the latest catalog from models.dev, or `--url` to read it from a custom URL. See [Providers and models — `/connect` and the model catalog](../configuration/providers.md#connect-and-the-model-catalog). | No |
-| `/model` | — | Switch the LLM model used by the current session. | No |
-| `/settings` | `/config` | Open the settings panel inside the TUI. | Yes |
-| `/permission` | — | Choose a permission mode. | Yes |
-| `/editor` | — | Configure the external editor launched by `Ctrl-G`. | Yes |
-| `/theme` | — | Switch the terminal UI color theme. | Yes |
+| Command                                      | Alias     | Description                                                                                                                                                                                                                                                                                                                          | Always available |
+| -------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `/login`                                     | —         | Pick an account or platform and sign in: BYF uses the OAuth device code flow, while the BYF API signs in with an API key.                                                                                                                                                                                                            | No               |
+| `/logout`                                    | —         | Clear the credentials of the currently selected account (BYF OAuth credentials, or the corresponding open platform provider config).                                                                                                                                                                                                 | No               |
+| `/connect [--refresh] [--url=<catalog-url>]` | —         | Configure a provider and model from a model catalog. The default catalog is bundled with the CLI; pass `--refresh` to fetch the latest catalog from models.dev, or `--url` to read it from a custom URL. See [Providers and models — `/connect` and the model catalog](../configuration/providers.md#connect-and-the-model-catalog). | No               |
+| `/model`                                     | —         | Switch the LLM model used by the current session.                                                                                                                                                                                                                                                                                    | No               |
+| `/settings`                                  | `/config` | Open the settings panel inside the TUI.                                                                                                                                                                                                                                                                                              | Yes              |
+| `/permission`                                | —         | Choose a permission mode.                                                                                                                                                                                                                                                                                                            | Yes              |
+| `/editor`                                    | —         | Configure the external editor launched by `Ctrl-G`.                                                                                                                                                                                                                                                                                  | Yes              |
+| `/theme`                                     | —         | Switch the terminal UI color theme.                                                                                                                                                                                                                                                                                                  | Yes              |
 
 ## Session management
 
-| Command | Alias | Description | Always available |
-| --- | --- | --- | --- |
-| `/new` | `/clear` | Start a brand-new session, discarding the current context. | No |
-| `/sessions` | `/resume` | Browse historical sessions and switch to or resume one. | No |
-| `/tasks` | `/task` | Browse the background task list. | Yes |
-| `/fork` | — | Fork a new session from the current one, preserving the full conversation history. | No |
-| `/title [<text>]` | `/rename` | Without arguments, show the current session title; with an argument, set it as the new title (up to 200 characters). | Yes |
-| `/compact [<instruction>]` | — | Compact the current conversation context to free up token usage; optionally pass a custom instruction telling the model what to preserve during compaction. | No |
-| `/init` | — | Analyze the current codebase and generate `AGENTS.md`. | No |
+| Command                    | Alias     | Description                                                                                                                                                 | Always available |
+| -------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/new`                     | `/clear`  | Start a brand-new session, discarding the current context.                                                                                                  | No               |
+| `/sessions`                | `/resume` | Browse historical sessions and switch to or resume one.                                                                                                     | No               |
+| `/tasks`                   | `/task`   | Browse the background task list.                                                                                                                            | Yes              |
+| `/fork`                    | —         | Fork a new session from the current one, preserving the full conversation history.                                                                          | No               |
+| `/title [<text>]`          | `/rename` | Without arguments, show the current session title; with an argument, set it as the new title (up to 200 characters).                                        | Yes              |
+| `/compact [<instruction>]` | —         | Compact the current conversation context to free up token usage; optionally pass a custom instruction telling the model what to preserve during compaction. | No               |
+| `/init`                    | —         | Analyze the current codebase and generate `AGENTS.md`.                                                                                                      | No               |
 
 ## Mode and runtime control
 
-| Command | Alias | Description | Always available |
-| --- | --- | --- | --- |
-| `/yolo [on\|off]` | `/yes` | Toggle auto-approve mode. Without arguments, flip the current state; pass `on`/`off` explicitly to force the corresponding state. When enabled, ordinary tool call approvals are skipped. | Yes |
+| Command           | Alias  | Description                                                                                                                                                                               | Always available |
+| ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/yolo [on\|off]` | `/yes` | Toggle auto-approve mode. Without arguments, flip the current state; pass `on`/`off` explicitly to force the corresponding state. When enabled, ordinary tool call approvals are skipped. | Yes              |
 
 ::: warning Note
 `/yolo` skips approval confirmation for ordinary tool calls. Make sure you understand the potential risks before enabling it.
@@ -45,20 +45,20 @@ Some commands are only available in the idle state. Running them while the sessi
 
 ## Information and status
 
-| Command | Alias | Description | Always available |
-| --- | --- | --- | --- |
-| `/help` | `/h`, `/?` | Show keyboard shortcuts and all available commands. | Yes |
-| `/usage` | — | Show token usage, context consumption, and quota information. | Yes |
-| `/status` | — | Show the current session runtime status, including version, model, working directory, and permission mode. | Yes |
-| `/mcp` | — | List the MCP servers in the current session and their connection status. | Yes |
-| `/version` | — | Show the BYF version number. | Yes |
-| `/feedback` | — | Submit feedback to help improve BYF. | Yes |
+| Command     | Alias      | Description                                                                                                | Always available |
+| ----------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/help`     | `/h`, `/?` | Show keyboard shortcuts and all available commands.                                                        | Yes              |
+| `/usage`    | —          | Show token usage, context consumption, and quota information.                                              | Yes              |
+| `/status`   | —          | Show the current session runtime status, including version, model, working directory, and permission mode. | Yes              |
+| `/mcp`      | —          | List the MCP servers in the current session and their connection status.                                   | Yes              |
+| `/version`  | —          | Show the BYF version number.                                                                               | Yes              |
+| `/feedback` | —          | Submit feedback to help improve BYF.                                                                       | Yes              |
 
 ## Exit
 
-| Command | Alias | Description | Always available |
-| --- | --- | --- | --- |
-| `/exit` | `/quit` | Exit BYF. | No |
+| Command | Alias   | Description | Always available |
+| ------- | ------- | ----------- | ---------------- |
+| `/exit` | `/quit` | Exit BYF.   | No               |
 
 ## Dynamic skill commands
 

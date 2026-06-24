@@ -185,4 +185,119 @@ describe('TodoPanelComponent', () => {
     expect(lines).toMatch(/○ u/);
     expect(lines).toMatch(/collapse/);
   });
+
+  it('slides the window forward when in_progress is beyond the first 5', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'done' },
+      { title: 'Task 2', status: 'done' },
+      { title: 'Task 3', status: 'done' },
+      { title: 'Task 4', status: 'done' },
+      { title: 'Task 5', status: 'done' },
+      { title: 'Task 6', status: 'done' },
+      { title: 'Task 7', status: 'in_progress' },
+      { title: 'Task 8', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    // Window should slide to include Task 7 (in_progress)
+    expect(lines).toMatch(/● Task 7/);
+    // Task 1 should be hidden (window slides past it)
+    expect(lines).not.toMatch(/Task 1/);
+    expect(lines).not.toMatch(/\+.* more/); // hiddenAfter = 0, no items hidden below
+  });
+
+  it('keeps window at start when in_progress is in the first 5', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'in_progress' },
+      { title: 'Task 2', status: 'pending' },
+      { title: 'Task 3', status: 'pending' },
+      { title: 'Task 4', status: 'pending' },
+      { title: 'Task 5', status: 'pending' },
+      { title: 'Task 6', status: 'pending' },
+      { title: 'Task 7', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    expect(lines).toMatch(/● Task 1/);
+    expect(lines).toMatch(/○ Task 5/);
+    expect(lines).not.toMatch(/Task 6/);
+    expect(lines).not.toMatch(/above/);
+    expect(lines).toMatch(/\+2 more/);
+  });
+
+  it('shows all items when total is 5 or fewer - no sliding needed', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'A', status: 'pending' },
+      { title: 'B', status: 'in_progress' },
+      { title: 'C', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    expect(lines).toMatch(/○ A/);
+    expect(lines).toMatch(/● B/);
+    expect(lines).toMatch(/○ C/);
+    expect(lines).not.toMatch(/more/);
+    expect(lines).not.toMatch(/above/);
+  });
+
+  it('clamps window at end when in_progress is the last item', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'done' },
+      { title: 'Task 2', status: 'done' },
+      { title: 'Task 3', status: 'done' },
+      { title: 'Task 4', status: 'done' },
+      { title: 'Task 5', status: 'done' },
+      { title: 'Task 6', status: 'done' },
+      { title: 'Task 7', status: 'done' },
+      { title: 'Task 8', status: 'done' },
+      { title: 'Task 9', status: 'done' },
+      { title: 'Task 10', status: 'in_progress' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    // Window should be clamped to show items 5-9 (index 5-9), with Task 10 at the end
+    expect(lines).toMatch(/● Task 10/);
+    expect(lines).not.toMatch(/\+.* more/); // No hidden after the window
+  });
+
+  it('falls back to start of list when no in_progress item exists', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'pending' },
+      { title: 'Task 2', status: 'pending' },
+      { title: 'Task 3', status: 'pending' },
+      { title: 'Task 4', status: 'pending' },
+      { title: 'Task 5', status: 'pending' },
+      { title: 'Task 6', status: 'pending' },
+      { title: 'Task 7', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    expect(lines).toMatch(/○ Task 1/);
+    expect(lines).toMatch(/○ Task 5/);
+    expect(lines).not.toMatch(/Task 6/);
+    expect(lines).not.toMatch(/above/);
+    expect(lines).toMatch(/\+2 more/);
+  });
+
+  it('slides window and shows +N more when in_progress is in the middle of a long list', () => {
+    const panel = new TodoPanelComponent(darkColors);
+    panel.setTodos([
+      { title: 'Task 1', status: 'done' },
+      { title: 'Task 2', status: 'done' },
+      { title: 'Task 3', status: 'done' },
+      { title: 'Task 4', status: 'done' },
+      { title: 'Task 5', status: 'done' },
+      { title: 'Task 6', status: 'done' },
+      { title: 'Task 7', status: 'in_progress' },
+      { title: 'Task 8', status: 'pending' },
+      { title: 'Task 9', status: 'pending' },
+      { title: 'Task 10', status: 'pending' },
+    ]);
+    const lines = strip(panel.render(80).join('\n'));
+    // Window slides to include Task 7
+    expect(lines).toMatch(/● Task 7/);
+    expect(lines).not.toMatch(/Task 1/);
+    // Only +N more shown (no above hint)
+    expect(lines).toMatch(/\+1 more/);
+  });
 });

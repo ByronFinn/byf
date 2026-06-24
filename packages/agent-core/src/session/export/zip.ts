@@ -4,8 +4,9 @@ import { dirname, join, relative } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-import type { ExportSessionManifest } from '#/rpc/core-api';
 import { ZipFile } from 'yazl';
+
+import type { ExportSessionManifest } from '#/rpc/core-api';
 
 export async function collectFilesRecursive(root: string): Promise<string[]> {
   try {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import { testAgent } from '../harness/agent';
 import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
+import { testAgent } from '../harness/agent';
 
 describe('PermissionManager restore handler', () => {
   describe('restoreRecord method', () => {

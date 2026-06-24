@@ -1,6 +1,7 @@
+import { describe, expect, test } from 'vitest';
+
 import type { Message } from '#/message';
 import { convertToolMessageContent } from '#/providers/openai-common';
-import { describe, expect, test } from 'vitest';
 
 describe('convertToolMessageContent', () => {
   test('extract_text merges multiple text parts into a single string', () => {

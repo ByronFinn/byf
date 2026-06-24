@@ -1,6 +1,7 @@
-import { AGENT_WIRE_PROTOCOL_VERSION } from '../../agent/records';
-import type { SessionWireScan } from '#/session/export/wire-scan';
 import type { ExportSessionManifest, SessionSummary } from '#/rpc/core-api';
+import type { SessionWireScan } from '#/session/export/wire-scan';
+
+import { AGENT_WIRE_PROTOCOL_VERSION } from '../../agent/records';
 
 export const WIRE_PROTOCOL_VERSION = AGENT_WIRE_PROTOCOL_VERSION;
 

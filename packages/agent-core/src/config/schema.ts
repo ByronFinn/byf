@@ -1,7 +1,8 @@
+import { z } from 'zod';
+
 import { HOOK_EVENT_TYPES } from '#/agent/hooks/types';
 import { parsePattern } from '#/agent/permission/parse-pattern';
 import { ErrorCodes, ByfError } from '#/errors';
-import { z } from 'zod';
 import { PROVIDER_TYPE_VALUES } from '#/tools/providers/registry';
 
 export const ProviderTypeSchema = z.enum([
@@ -185,9 +186,20 @@ export const McpServerHttpConfigSchema = z.object({
 
 export type McpServerHttpConfig = z.infer<typeof McpServerHttpConfigSchema>;
 
+export const McpServerSseConfigSchema = z.object({
+  transport: z.literal('sse'),
+  url: z.string().url(),
+  headers: StringRecordSchema.optional(),
+  bearerTokenEnvVar: z.string().min(1).optional(),
+  ...McpServerCommonFields,
+});
+
+export type McpServerSseConfig = z.infer<typeof McpServerSseConfigSchema>;
+
 const McpServerConfigDiscriminatedSchema = z.discriminatedUnion('transport', [
   McpServerStdioConfigSchema,
   McpServerHttpConfigSchema,
+  McpServerSseConfigSchema,
 ]);
 
 export const McpServerConfigSchema = z.preprocess((raw) => {
@@ -266,9 +278,13 @@ export function validateConfig(config: unknown): ByfConfig {
   try {
     return ByfConfigSchema.parse(config);
   } catch (error) {
-    throw new ByfError(ErrorCodes.CONFIG_INVALID, `Invalid configuration: ${formatConfigValidationError(error)}`, {
-      cause: error,
-    });
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid configuration: ${formatConfigValidationError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 

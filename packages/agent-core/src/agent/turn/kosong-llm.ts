@@ -31,13 +31,9 @@ import {
   type StreamedMessagePart,
 } from '@byfriends/kosong';
 
-import { buildPromptPlan } from '../../prompt-plan';
-
 import type { LLM, LLMChatParams, LLMChatResponse, LLMRequestLogContext } from '../../loop';
-import {
-  applyCompletionBudget,
-  type CompletionBudgetConfig,
-} from '../../utils/completion-budget';
+import { buildPromptPlan } from '../../prompt-plan';
+import { applyCompletionBudget, type CompletionBudgetConfig } from '../../utils/completion-budget';
 
 export const GENERATE_REQUEST_LOG_CONTEXT = '__byfRequestLogContext';
 

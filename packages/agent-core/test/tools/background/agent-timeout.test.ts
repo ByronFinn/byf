@@ -122,9 +122,11 @@ describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
     // settling completion promise; the racing branch winning is the
     // expected outcome.
     const raced = await Promise.race<{ status: string; timedOut?: boolean } | undefined>([
-      manager.waitForTerminal(taskId).then((info) =>
-        info === undefined ? undefined : { status: info.status, timedOut: info.timedOut },
-      ),
+      manager
+        .waitForTerminal(taskId)
+        .then((info) =>
+          info === undefined ? undefined : { status: info.status, timedOut: info.timedOut },
+        ),
       new Promise<{ status: string; timedOut?: boolean }>((res) => {
         setTimeout(() => {
           res({ status: 'running' });

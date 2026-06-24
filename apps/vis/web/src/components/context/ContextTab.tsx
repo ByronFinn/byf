@@ -63,7 +63,9 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
         ) : null}
         <div className="ml-auto flex items-center gap-2">
           {permissionMode ? (
-            <Pill tone="approval" variant="outline">permission: {permissionMode}</Pill>
+            <Pill tone="approval" variant="outline">
+              permission: {permissionMode}
+            </Pill>
           ) : null}
         </div>
       </div>
@@ -79,7 +81,7 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
             <div className="px-3 py-2 font-mono text-[12px] text-fg-3">loading context…</div>
           ) : error ? (
             <div className="px-3 py-2 font-mono text-[12px] text-[var(--color-sev-error)]">
-              {(error).message}
+              {error.message}
             </div>
           ) : messages.length === 0 ? (
             <div className="px-3 py-2 font-mono text-[12px] text-fg-3">
@@ -120,8 +122,7 @@ const SEG_COLORS = {
 } as const;
 
 function TokenBar({ usage }: { usage: TokenUsage }) {
-  const total =
-    usage.inputOther + usage.output + usage.inputCacheRead + usage.inputCacheCreation;
+  const total = usage.inputOther + usage.output + usage.inputCacheRead + usage.inputCacheCreation;
   if (total === 0) {
     return <div className="h-[2px] shrink-0 bg-border" />;
   }
@@ -179,7 +180,9 @@ function SystemPromptBubble({ text }: { text: string }) {
         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-2"
       >
         <span className="flex items-center gap-2">
-          <Pill tone="config" variant="solid">system</Pill>
+          <Pill tone="config" variant="solid">
+            system
+          </Pill>
           <span className="font-mono text-[10px] text-fg-3 tabular">
             {text.length.toLocaleString()} chars
           </span>
