@@ -1,5 +1,159 @@
 # @byfriends/cli
 
+## 0.3.3
+
+### Patch Changes
+
+- 1176bdc: refactor: dedupe run-prompt session resume and tighten `proxyWithExtraPayload` cast
+
+  - `run-prompt.ts` had two near-identical resume branches (`--session`
+    and `--continue`) that each repeated `resumeSession` + permission
+    forcing + `setModel` + `installHeadlessHandlers`. Extracted
+    `resumePromptSession()` and `mostRecentSessionId()` helpers so the
+    resume path exists once; the caller resolves a session id (explicit
+    flag, latest-in-workdir, or none) and hands it off. Behavior
+    unchanged, including the "No sessions to continue" message.
+  - `rpc/types.ts` `proxyWithExtraPayload` previously cast the whole
+    Proxy target with `as any`, silencing type-checking inside the
+    handler too. The target is now typed; the unavoidable output-type
+    assertion (the Proxy's return signature genuinely differs from the
+    target's) is moved to a single result-level `as unknown as
+RPCMethods<T>`, so the handler body stays type-checked.
+
+- 7e413c2: fix: remove unused type imports in byf-tui.ts and add missing handler unit tests
+
+  Removes 4 unused type imports (`AgentStatusUpdatedEvent`, `ErrorEvent`,
+  `SessionMetaUpdatedEvent`, `WarningEvent`) that were left behind after
+  the ADR-0017 Phase 2 event handler extraction. Adds unit tests for
+  `BackgroundTaskHandler` and `handleSkillActivated` which previously had
+  no dedicated coverage. Updates ADR 0017 module map to reflect the
+  extraction of background task lifecycle.
+
+- ce2d665: refactor: extract SubagentActivityStore from ToolCallComponent
+
+  Moves ~500 lines of subagent lifecycle state (spawning → running → done/failed),
+  sub-tool call tracking, timer management, snapshot production, and change listener
+  notification from the 1622-line `ToolCallComponent` into a standalone
+  `SubagentActivityStore` class.
+
+  - `ToolCallComponent` reduced from ~1622 to ~1053 lines (net -569 lines)
+  - New file: `subagent-activity-store.ts` (~816 lines)
+  - Public API of `ToolCallComponent` fully backward-compatible — all 14 method
+    signatures unchanged; types re-exported at `tool-call.ts` bottom
+  - Fixes: `OngoingSubCall.streamingArguments` type convention violation (removed
+    unnecessary `| undefined`), duplicate JSDoc in store
+  - Adds 27 direct unit tests for the store covering: full lifecycle, backgrounded
+    phase, failure path, live usage updates, snapshot detail, timer management,
+    listener lifecycle, replay, trimming, latestActivity computation
+
+- d6a7202: fix: prevent duplicate AskUserQuestion Q/A rendering in transcript
+
+  `ToolCallComponent` constructor registered a snapshot listener before
+  building result content. Because `addSnapshotListener` invokes its
+  callback immediately, `buildContent()` ran once inside the callback and
+  again in the constructor's own build sequence, producing two copies of
+  each question-answer pair in the transcript.
+
+  The fix moves the snapshot listener registration to after all initial
+  build steps, so the immediate callback rebuilds the existing content
+  instead of racing with the constructor. Adds a unit test that verifies
+  each Q/A pair is rendered exactly once.
+
+- f455064: fix: todo-panel sliding window keeps in_progress task visible
+
+  The collapsed TODO panel used a fixed `slice(0, 5)` that always showed the first five items regardless of which task was active. When `in_progress` appeared beyond the fifth position it was hidden behind the "+N more" fold.
+
+  The collapsed view now computes a dynamic window offset so that the `in_progress` item is always within the visible range. When the window slides past the beginning of the list, an "(N above)" hint is added; the "+N more" hint continues to reflect items hidden below. Edge cases (five or fewer items, no `in_progress`, last item active) are handled correctly.
+
+- 88c9a1e: feat(fork): optional rewind to a user message when forking a session
+
+  `/fork` can now branch from an earlier user message instead of always
+  copying the whole session. Running `/fork` opens a picker listing the
+  session's user messages; selecting the Nth message forks a new session
+  that drops that message and everything after it (edit-message semantics),
+  so you can resume from just before it and re-enter the prompt.
+
+  - `ForkSessionInput` / `ForkSessionPayload` / `ForkSessionRecordInput`
+    gain an optional `upToMessage?: number` (1-based ordinal of a
+    user-origin message). Omitted → full copy, fully backwards compatible.
+  - Truncation anchors on the ordinal of `turn.prompt`/`turn.steer` records
+    with `origin.kind === 'user'` (turnId is not persisted on the wire
+    boundary — see ADR-0020). Out-of-range ordinals reject and leave no
+    partial session behind.
+  - Sub-agents spawned by dropped turns are removed from the forked
+    session's state and their wire directories are deleted.
+  - `state.json` records `forkedFromMessage` when a rewind fork happens,
+    alongside the existing `forkedFrom`.
+
+  No breaking changes: all new fields are optional and default to the
+  previous full-copy behavior.
+
+- 6ad47ce: fix: replace hardcoded API type table in login-flow.ts with loginProviderRegistry
+
+  Removes the local `API_TYPE_OPTIONS` and `DEFAULT_BASE_URL` constants from
+  `login-flow.ts` that duplicated the existing `loginProviderRegistry`. The
+  login flow now derives its provider type selection options and default
+  base URLs directly from the registry via `getLoginProviderOptions()` and
+  `loginProviderRegistry`. Also:
+
+  - Exports `loginProviderRegistry`, `getLoginProviderOptions`, and
+    `LoginProviderType` as public API from `@byfriends/agent-core` and
+    re-exports them through `@byfriends/node-sdk`
+  - Cleans up stale `@ts-expect-error` directives in
+    `login-provider-registry.test.ts` that were left from before the
+    registry was implemented (no behavior change)
+  - Removes the never-executed test file at
+    `src/config/login-provider-registry.test.ts` (vitest only runs tests
+    under `test/` directories)
+
+- 546a493: refactor: tidy handleEvent dispatch cases for turn.ended / skill.activated / error / warning
+
+  Cleans up four dispatch cases in `byf-tui.ts` that had leaked orchestration
+  or inline parameter assembly, so each case is now a single-line delegation
+  consistent with the rest of the switch:
+
+  - `turn.ended`: introduce a private `handleTurnEnd` wrapper that owns the
+    "clear todo panel when all done" policy, and have `TurnEventHandler.handleTurnEnd`
+    self-orchestrate flush+reset (mirroring `handleStepBegin` / `handleStepInterrupted`).
+    Removes the redundant explicit flush that was duplicated inside the handler.
+  - Eliminate the `as TurnEndedEvent` fake-event cast on the `/init` finalize path:
+    expose a public `TurnEventHandler.finalizeTurn(sendQueued)` (the private
+    implementation becomes `finalizeInternal`), so callers no longer synthesize a
+    dummy `{ type: 'turn.ended', turnId: 0 }` object. The `isStreaming` guard is
+    preserved.
+  - `skill.activated`: extract `skillActivationState()` / `skillActivationCallbacks()`
+    helpers instead of building inline object literals per event.
+  - `error` / `warning`: extract `sessionMetaState()` and reuse the existing
+    `sessionMetaCallbacks()` for both, instead of inline state objects and ad-hoc
+    arrow functions.
+  - Unify `handleStatusUpdate`, `handleSessionMetaChanged`, and `handleSessionWarning`
+    from a single-callback parameter (`SessionMetaCallbacks['setAppState']` /
+    `['showStatus']`) to the whole `SessionMetaCallbacks` object, matching
+    `handleSessionError`'s existing shape. Their unit tests are updated to use the
+    shared `makeCallbacks()` mock.
+
+  The dispatch-case delegation shape (single-line `fn(event, ...)`) is preserved
+  across all cases. Behavior is unchanged.
+
+- 27965a7: feat!: replace `byf update-config` command with a builtin skill
+
+  The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
+
+  ### Breaking changes
+
+  - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
+  - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
+  - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
+  - **Removed slash command**: `/update-config` and `/uc` no longer exist. Use `/skill:update-config` instead.
+
+  ### What replaces it
+
+  A builtin skill at `packages/agent-core/src/skill/builtin/update-config.md` (`disableModelInvocation: true`, user-only). The agent reads `~/.byf/config.toml` (path overridable via the skill argument), cross-references the governance rules embedded in its body plus `schema.ts`/`runtime-provider.ts` as the single sources of truth, flags deprecated fields, migrates `default_thinking`, and points out semantic conflicts a deterministic linter cannot catch (e.g. a provider with both `api_key` and `oauth`). Edits are applied via Write/Edit, gated by the permission prompt — there is no automatic backup/rollback (consistent with the existing `mcp-config` skill).
+
+  ### Trade-offs accepted
+
+  Idempotence, deterministic output, JSON-for-CI (`--output-format json`), automatic backup/rollback, and pure-function unit tests are **no longer guaranteed**, because the skill is LLM-driven. In exchange, config governance gains semantic understanding and conversational optimization that hardcoded rules could never enumerate.
+
 ## 0.3.1
 
 ### Patch Changes
@@ -288,6 +442,7 @@
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -298,6 +453,7 @@
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -306,6 +462,7 @@
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -318,6 +475,7 @@
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -340,6 +498,7 @@
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -352,6 +511,7 @@
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

@@ -1,5 +1,128 @@
 # @byfriends/sdk
 
+## 0.3.3
+
+### Patch Changes
+
+- 1176bdc: refactor: hide `ByfCore` concrete class behind `createByfCore()` factory
+
+  The SDK held `core: ByfCore` as a **public** field on `SDKRpcClient`,
+  leaking the engine's 40+ internal members (`sessions` map, `sdk`
+  Promise, `providerManager`, `sessionStore`, `telemetry`, `rpcClient`,
+  …) through the SDK type surface and breaking the ADR 0006 isolation
+  seam ("SDK is the isolation seam between CLI and engine internals").
+
+  This violated Information Hiding (the concrete class was reachable via
+  `import { ByfCore } from '@byfriends/agent-core'`), Dependency Inversion
+  (the SDK depended on a concrete engine class instead of the `CoreAPI`
+  contract), and Interface Segregation (the SDK only needed
+  `homeDir`/`configPath` but inherited the type graph of all 40+ members).
+
+  ### Changes
+
+  - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
+    narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
+homeDir, configPath }`). The `ByfCore` concrete class is no longer
+    re-exported from the package public index.
+  - `agent-core`: `PromisableMethods` / `Promisify` / `Promisable` contract
+    types are now re-exported so SDK callers can type the handle.
+  - `node-sdk`: `SDKRpcClient.core` is now `private`, typed as
+    `PromisableMethods<CoreAPI>` (the contract). `homeDir`/`configPath`
+    are first-class readonly fields set once at construction. The `ByfCore`
+    type no longer appears anywhere in the SDK import graph.
+
+  ### BREAKING CHANGE
+
+  `ByfCore` (the class) is no longer re-exported from
+  `@byfriends/agent-core`. Code that constructed it directly must switch to
+  the factory:
+
+  ```ts
+  // before
+  import { ByfCore } from "@byfriends/agent-core";
+  const core = new ByfCore(rpcClient, options);
+
+  // after
+  import { createByfCore } from "@byfriends/agent-core";
+  const { core, homeDir, configPath } = createByfCore(rpcClient, options);
+  ```
+
+  `ByfCoreOptions` is still exported (it is the factory's parameter type).
+  `CoreAPI`, `SDKAPI`, `createRPC` and all payload types are unchanged.
+
+  No monorepo-internal consumers are affected: only `node-sdk` consumed
+  `ByfCore`, and it now uses the factory. `apps/cli` and `apps/vis` never
+  imported it. Engine-internal tests that need the concrete class import it
+  from the engine module path (`rpc/core-impl`), not the package public
+  index — engine internals remain accessible inside the engine package.
+
+- cdd7dbb: chore: enable oxfmt formatting across the monorepo
+
+  Installs oxfmt as a root devDependency and adds `pnpm fmt` / `pnpm fmt:check`
+  scripts, with corresponding `make fmt` / `make fmt-check` targets. Integrates
+  `oxfmt --write` into lint-staged pre-commit hook and `fmt:check` into the
+  publish pipeline. Runs initial formatting on all source files.
+
+- 88c9a1e: feat(fork): optional rewind to a user message when forking a session
+
+  `/fork` can now branch from an earlier user message instead of always
+  copying the whole session. Running `/fork` opens a picker listing the
+  session's user messages; selecting the Nth message forks a new session
+  that drops that message and everything after it (edit-message semantics),
+  so you can resume from just before it and re-enter the prompt.
+
+  - `ForkSessionInput` / `ForkSessionPayload` / `ForkSessionRecordInput`
+    gain an optional `upToMessage?: number` (1-based ordinal of a
+    user-origin message). Omitted → full copy, fully backwards compatible.
+  - Truncation anchors on the ordinal of `turn.prompt`/`turn.steer` records
+    with `origin.kind === 'user'` (turnId is not persisted on the wire
+    boundary — see ADR-0020). Out-of-range ordinals reject and leave no
+    partial session behind.
+  - Sub-agents spawned by dropped turns are removed from the forked
+    session's state and their wire directories are deleted.
+  - `state.json` records `forkedFromMessage` when a rewind fork happens,
+    alongside the existing `forkedFrom`.
+
+  No breaking changes: all new fields are optional and default to the
+  previous full-copy behavior.
+
+- 6ad47ce: fix: replace hardcoded API type table in login-flow.ts with loginProviderRegistry
+
+  Removes the local `API_TYPE_OPTIONS` and `DEFAULT_BASE_URL` constants from
+  `login-flow.ts` that duplicated the existing `loginProviderRegistry`. The
+  login flow now derives its provider type selection options and default
+  base URLs directly from the registry via `getLoginProviderOptions()` and
+  `loginProviderRegistry`. Also:
+
+  - Exports `loginProviderRegistry`, `getLoginProviderOptions`, and
+    `LoginProviderType` as public API from `@byfriends/agent-core` and
+    re-exports them through `@byfriends/node-sdk`
+  - Cleans up stale `@ts-expect-error` directives in
+    `login-provider-registry.test.ts` that were left from before the
+    registry was implemented (no behavior change)
+  - Removes the never-executed test file at
+    `src/config/login-provider-registry.test.ts` (vitest only runs tests
+    under `test/` directories)
+
+- 27965a7: feat!: replace `byf update-config` command with a builtin skill
+
+  The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
+
+  ### Breaking changes
+
+  - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
+  - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
+  - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
+  - **Removed slash command**: `/update-config` and `/uc` no longer exist. Use `/skill:update-config` instead.
+
+  ### What replaces it
+
+  A builtin skill at `packages/agent-core/src/skill/builtin/update-config.md` (`disableModelInvocation: true`, user-only). The agent reads `~/.byf/config.toml` (path overridable via the skill argument), cross-references the governance rules embedded in its body plus `schema.ts`/`runtime-provider.ts` as the single sources of truth, flags deprecated fields, migrates `default_thinking`, and points out semantic conflicts a deterministic linter cannot catch (e.g. a provider with both `api_key` and `oauth`). Edits are applied via Write/Edit, gated by the permission prompt — there is no automatic backup/rollback (consistent with the existing `mcp-config` skill).
+
+  ### Trade-offs accepted
+
+  Idempotence, deterministic output, JSON-for-CI (`--output-format json`), automatic backup/rollback, and pure-function unit tests are **no longer guaranteed**, because the skill is LLM-driven. In exchange, config governance gains semantic understanding and conversational optimization that hardcoded rules could never enumerate.
+
 ## 0.3.1
 
 ### Patch Changes
@@ -152,6 +275,7 @@
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -162,6 +286,7 @@
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -170,6 +295,7 @@
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;

@@ -1,5 +1,229 @@
 # @byfriends/agent-core
 
+## 0.3.3
+
+### Patch Changes
+
+- 1176bdc: refactor: replace web-search provider self-registration with explicit `registerBuiltinWebSearchProviders()`
+
+  The Exa, Brave, and Firecrawl provider modules previously called
+  `registerProvider(...)` at module load as an import side effect, and
+  `core-impl.ts` triggered registration via three `import '#/tools/providers/{exa,brave,firecrawl}'`
+  side-effect imports. This made provider availability depend on import
+  order and hid the registration surface.
+
+  Now each provider module exports only its class, and
+  `registerBuiltinWebSearchProviders()` in `registry.ts` registers all
+  three explicitly. `core-impl.ts` calls it once at module load.
+  Order-independent and discoverable from a single location. The new
+  `registerBuiltinWebSearchProviders` is exported as public API for
+  callers that bootstrap a custom core.
+
+- 1176bdc: refactor: remove dead `background` route in AgentRecords handler map
+
+  The `getHandlerKey` mapping table in `AgentRecords` declared a
+  `background → 'background'` entry, but no `background` restore handler
+  was ever registered (background tasks restore through a separate
+  persistence path in `BackgroundProcessManager`). The dead entry made
+  ADR 0010's distributed-restore contract appear broader than it is.
+  Removed the entry and documented why `background.*` records are
+  intentionally skipped on replay.
+
+- 1176bdc: refactor: dedupe run-prompt session resume and tighten `proxyWithExtraPayload` cast
+
+  - `run-prompt.ts` had two near-identical resume branches (`--session`
+    and `--continue`) that each repeated `resumeSession` + permission
+    forcing + `setModel` + `installHeadlessHandlers`. Extracted
+    `resumePromptSession()` and `mostRecentSessionId()` helpers so the
+    resume path exists once; the caller resolves a session id (explicit
+    flag, latest-in-workdir, or none) and hands it off. Behavior
+    unchanged, including the "No sessions to continue" message.
+  - `rpc/types.ts` `proxyWithExtraPayload` previously cast the whole
+    Proxy target with `as any`, silencing type-checking inside the
+    handler too. The target is now typed; the unavoidable output-type
+    assertion (the Proxy's return signature genuinely differs from the
+    target's) is moved to a single result-level `as unknown as
+RPCMethods<T>`, so the handler body stays type-checked.
+
+- 1176bdc: refactor: hide `ByfCore` concrete class behind `createByfCore()` factory
+
+  The SDK held `core: ByfCore` as a **public** field on `SDKRpcClient`,
+  leaking the engine's 40+ internal members (`sessions` map, `sdk`
+  Promise, `providerManager`, `sessionStore`, `telemetry`, `rpcClient`,
+  …) through the SDK type surface and breaking the ADR 0006 isolation
+  seam ("SDK is the isolation seam between CLI and engine internals").
+
+  This violated Information Hiding (the concrete class was reachable via
+  `import { ByfCore } from '@byfriends/agent-core'`), Dependency Inversion
+  (the SDK depended on a concrete engine class instead of the `CoreAPI`
+  contract), and Interface Segregation (the SDK only needed
+  `homeDir`/`configPath` but inherited the type graph of all 40+ members).
+
+  ### Changes
+
+  - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
+    narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
+homeDir, configPath }`). The `ByfCore` concrete class is no longer
+    re-exported from the package public index.
+  - `agent-core`: `PromisableMethods` / `Promisify` / `Promisable` contract
+    types are now re-exported so SDK callers can type the handle.
+  - `node-sdk`: `SDKRpcClient.core` is now `private`, typed as
+    `PromisableMethods<CoreAPI>` (the contract). `homeDir`/`configPath`
+    are first-class readonly fields set once at construction. The `ByfCore`
+    type no longer appears anywhere in the SDK import graph.
+
+  ### BREAKING CHANGE
+
+  `ByfCore` (the class) is no longer re-exported from
+  `@byfriends/agent-core`. Code that constructed it directly must switch to
+  the factory:
+
+  ```ts
+  // before
+  import { ByfCore } from "@byfriends/agent-core";
+  const core = new ByfCore(rpcClient, options);
+
+  // after
+  import { createByfCore } from "@byfriends/agent-core";
+  const { core, homeDir, configPath } = createByfCore(rpcClient, options);
+  ```
+
+  `ByfCoreOptions` is still exported (it is the factory's parameter type).
+  `CoreAPI`, `SDKAPI`, `createRPC` and all payload types are unchanged.
+
+  No monorepo-internal consumers are affected: only `node-sdk` consumed
+  `ByfCore`, and it now uses the factory. `apps/cli` and `apps/vis` never
+  imported it. Engine-internal tests that need the concrete class import it
+  from the engine module path (`rpc/core-impl`), not the package public
+  index — engine internals remain accessible inside the engine package.
+
+- cdd7dbb: chore: enable oxfmt formatting across the monorepo
+
+  Installs oxfmt as a root devDependency and adds `pnpm fmt` / `pnpm fmt:check`
+  scripts, with corresponding `make fmt` / `make fmt-check` targets. Integrates
+  `oxfmt --write` into lint-staged pre-commit hook and `fmt:check` into the
+  publish pipeline. Runs initial formatting on all source files.
+
+- 88c9a1e: feat(fork): optional rewind to a user message when forking a session
+
+  `/fork` can now branch from an earlier user message instead of always
+  copying the whole session. Running `/fork` opens a picker listing the
+  session's user messages; selecting the Nth message forks a new session
+  that drops that message and everything after it (edit-message semantics),
+  so you can resume from just before it and re-enter the prompt.
+
+  - `ForkSessionInput` / `ForkSessionPayload` / `ForkSessionRecordInput`
+    gain an optional `upToMessage?: number` (1-based ordinal of a
+    user-origin message). Omitted → full copy, fully backwards compatible.
+  - Truncation anchors on the ordinal of `turn.prompt`/`turn.steer` records
+    with `origin.kind === 'user'` (turnId is not persisted on the wire
+    boundary — see ADR-0020). Out-of-range ordinals reject and leave no
+    partial session behind.
+  - Sub-agents spawned by dropped turns are removed from the forked
+    session's state and their wire directories are deleted.
+  - `state.json` records `forkedFromMessage` when a rewind fork happens,
+    alongside the existing `forkedFrom`.
+
+  No breaking changes: all new fields are optional and default to the
+  previous full-copy behavior.
+
+- 6ad47ce: fix: replace hardcoded API type table in login-flow.ts with loginProviderRegistry
+
+  Removes the local `API_TYPE_OPTIONS` and `DEFAULT_BASE_URL` constants from
+  `login-flow.ts` that duplicated the existing `loginProviderRegistry`. The
+  login flow now derives its provider type selection options and default
+  base URLs directly from the registry via `getLoginProviderOptions()` and
+  `loginProviderRegistry`. Also:
+
+  - Exports `loginProviderRegistry`, `getLoginProviderOptions`, and
+    `LoginProviderType` as public API from `@byfriends/agent-core` and
+    re-exports them through `@byfriends/node-sdk`
+  - Cleans up stale `@ts-expect-error` directives in
+    `login-provider-registry.test.ts` that were left from before the
+    registry was implemented (no behavior change)
+  - Removes the never-executed test file at
+    `src/config/login-provider-registry.test.ts` (vitest only runs tests
+    under `test/` directories)
+
+- 1176bdc: feat: add legacy SSE MCP transport support
+
+  Adds a third MCP transport option, `transport: "sse"`, that connects to
+  legacy SSE-only MCP servers via the SDK's `SSEClientTransport`. Key changes:
+
+  - **Config schema**: New `McpServerSseConfigSchema` with `transport: z.literal('sse')`.
+    Field-for-field identical to HTTP schema (`url`, `headers`, `bearerTokenEnvVar`,
+    `McpServerCommonFields`). Added to the discriminated union. Bare `url` entries
+    without a `transport` field still default to `'http'` — SSE requires explicit
+    `"transport": "sse"`.
+
+  - **SSE client**: `SseMcpClient` class wrapping `SSEClientTransport`, structurally
+    mirroring `HttpMcpClient` (hook-before-handshake, ready/closed latches, buffered
+    `onUnexpectedClose` replay). Includes SSE-specific terminal-error predicate
+    `isTerminalSseError` (SseError code 204 + `/unauthorized/i` message sniff).
+
+  - **Connection manager**: `createClient()` factory supports the `'sse'` branch;
+    `RuntimeMcpClient` union widened; OAuth gates (`resolveOAuthProvider`,
+    `shouldMarkNeedsAuth`, `getHttpServerUrl`) extended to SSE servers.
+
+  - **User docs**: English and Chinese MCP config guides updated with SSE transport
+    option, legacy note, config example, and widened optional-fields table.
+
+- 27965a7: feat!: replace `byf update-config` command with a builtin skill
+
+  The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
+
+  ### Breaking changes
+
+  - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
+  - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
+  - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
+  - **Removed slash command**: `/update-config` and `/uc` no longer exist. Use `/skill:update-config` instead.
+
+  ### What replaces it
+
+  A builtin skill at `packages/agent-core/src/skill/builtin/update-config.md` (`disableModelInvocation: true`, user-only). The agent reads `~/.byf/config.toml` (path overridable via the skill argument), cross-references the governance rules embedded in its body plus `schema.ts`/`runtime-provider.ts` as the single sources of truth, flags deprecated fields, migrates `default_thinking`, and points out semantic conflicts a deterministic linter cannot catch (e.g. a provider with both `api_key` and `oauth`). Edits are applied via Write/Edit, gated by the permission prompt — there is no automatic backup/rollback (consistent with the existing `mcp-config` skill).
+
+  ### Trade-offs accepted
+
+  Idempotence, deterministic output, JSON-for-CI (`--output-format json`), automatic backup/rollback, and pure-function unit tests are **no longer guaranteed**, because the skill is LLM-driven. In exchange, config governance gains semantic understanding and conversational optimization that hardcoded rules could never enumerate.
+
+- 95ed796: feat: add multi-provider web search support with PriorityRouter
+
+  WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
+
+  ### New features
+
+  - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
+  - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
+  - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)
+  - **Schema support**: TOML config schema extended with `web_search.providers` and per-provider sections; `web_search.enabled` key for explicit opt-out
+  - **Graceful fallback**: WebSearchTool degrades to FetchURL when all configured providers fail, rather than returning an error
+
+  ### Breaking changes
+
+  None — the schema is backward-compatible with existing `web_search` TOML config; the old single-provider path still works via the router's compatibility layer.
+
+- 5352a75: fix: yolo 模式下 Read/Grep/ReadMediaFile 在 workspace 外不再需要 approve
+
+  YoloOutsideWorkspacePermissionPolicy 原本对所有 FILE_ACCESS_TOOLS 中的
+  工具（Read/ReadMediaFile/Write/Edit/Grep）都做了 workspace 边界检查，
+  即使是已经是 auto_allow 的工具也会被升格为 ask。
+
+  但 auto_allow 的语义是"无需审批"，且 manual 模式下这些工具也不会因为
+  workspace 边界而被拦截。所以在 yolo 模式下对 auto_allow 工具做 workspace
+  边界检查造成了语义矛盾——yolo 模式比 manual 模式更严格。
+
+  修复：在策略中跳过 isDefaultAutoAllowTool() 为 true 的工具，使 Read、
+  ReadMediaFile、Grep 在 yolo 模式下真正免审，同时保留 Write/Edit 的
+  workspace 边界保护。
+
+  详见 analysis: packages/agent-core/src/agent/permission/policies/yolo-workspace-access.ts:22-30
+
+- Updated dependencies [1176bdc]
+- Updated dependencies [cdd7dbb]
+  - @byfriends/kosong@0.3.3
+  - @byfriends/kaos@0.3.3
+
 ## 0.3.1
 
 ### Patch Changes

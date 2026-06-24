@@ -1,5 +1,29 @@
 # @byfriends/kosong
 
+## 0.3.3
+
+### Patch Changes
+
+- 1176bdc: refactor: collapse OpenAI/Anthropic error converters onto shared `convertProviderError`
+
+  `convertOpenAIError` (openai-common.ts) and `convertAnthropicError`
+  (anthropic.ts) each re-implemented the same status / timeout / network
+  classification ladder that already lives in `provider-common.ts`
+  (`convertProviderError`), including duplicate `NETWORK_RE` / `TIMEOUT_RE`
+  regexes and a private `classifyBaseApiError` helper. Both converters now
+  unwrap their SDK-specific classes into `(message, status?, requestId?)`
+  and delegate the classification to `convertProviderError`. Behavior is
+  unchanged (covered by `provider-common.test.ts` and
+  `openai-common-errors.test.ts`). Completes the ADR 0015 consolidation
+  that `provider-common.ts` was created for.
+
+- cdd7dbb: chore: enable oxfmt formatting across the monorepo
+
+  Installs oxfmt as a root devDependency and adds `pnpm fmt` / `pnpm fmt:check`
+  scripts, with corresponding `make fmt` / `make fmt-check` targets. Integrates
+  `oxfmt --write` into lint-staged pre-commit hook and `fmt:check` into the
+  publish pipeline. Runs initial formatting on all source files.
+
 ## 0.2.3
 
 ### Patch Changes

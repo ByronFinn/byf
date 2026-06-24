@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "BYF (Be Your Friend), an AI coding agent that runs in your terminal",
   "keywords": [
     "ai",
