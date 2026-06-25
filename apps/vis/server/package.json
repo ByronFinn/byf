@@ -1,14 +1,51 @@
 {
   "name": "@byfriends/vis-server",
   "version": "0.3.2",
-  "private": true,
-  "license": "MIT",
+  "description": "HTTP server for BYF session visualization, serving the API and built SPA assets",
+  "keywords": [
+    "byf",
+    "debugging",
+    "server",
+    "vis",
+    "visualization"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
+  "license": "Proprietary",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ByronFinn/byf.git"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
   "imports": {
     "#/*": [
       "./src/*.ts",
       "./src/*/index.ts"
     ]
+  },
+  "exports": {
+    ".": {
+      "types": "./src/server.ts",
+      "default": "./src/server.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/server.d.mts",
+        "import": "./dist/server.mjs",
+        "default": "./dist/server.mjs"
+      }
+    },
+    "access": "public",
+    "provenance": false
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
