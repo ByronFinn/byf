@@ -32,18 +32,13 @@
   },
   "exports": {
     ".": {
-      "types": "./src/server.ts",
-      "default": "./src/server.ts"
-    }
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs",
+      "default": "./dist/server.mjs"
+    },
+    "./package.json": "./package.json"
   },
   "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/server.d.mts",
-        "import": "./dist/server.mjs",
-        "default": "./dist/server.mjs"
-      }
-    },
     "access": "public",
     "provenance": false
   },

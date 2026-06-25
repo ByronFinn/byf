@@ -75,6 +75,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@byfriends/vis-server':
+        specifier: workspace:^
+        version: link:../vis/server
       '@earendil-works/pi-tui':
         specifier: ^0.74.0
         version: 0.74.0
@@ -90,6 +93,9 @@ importers:
       commander:
         specifier: ^13.1.0
         version: 13.1.0
+      open:
+        specifier: ^10.2.0
+        version: 10.2.0
       semver:
         specifier: ^7.7.4
         version: 7.7.4

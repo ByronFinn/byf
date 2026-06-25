@@ -30,6 +30,9 @@ export default defineConfig({
   },
   deps: {
     alwaysBundle: [/^@byf\//],
-    neverBundle: [],
+    // vis-server ships as a published runtime dependency: its code is resolved
+    // from node_modules at runtime so the bundled SPA assets (dist/public/)
+    // stay co-located with it. Bundling it would orphan those static assets.
+    neverBundle: ['@byfriends/vis-server'],
   },
 });

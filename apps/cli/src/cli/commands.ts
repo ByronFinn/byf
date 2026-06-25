@@ -4,6 +4,7 @@ import { CLI_COMMAND_NAME } from '#/constant/app';
 
 import type { CLIOptions } from './options';
 import { registerExportCommand } from './sub/export';
+import { registerVisCommand } from './sub/vis';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 
@@ -61,6 +62,7 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
     .addOption(new Option('--auto-approve').hideHelp().default(false));
 
   registerExportCommand(program);
+  registerVisCommand(program);
 
   program.action(() => {
     // When the user types a positional arg that is not a known subcommand

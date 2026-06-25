@@ -1,10 +1,11 @@
-# 0021 - Embed vis-server into the CLI via Package Publish + Bundler Inline
+# 0021 - Ship vis-server to CLI users as a published runtime dependency
 
 Date: 2026-06-25
 
 ## Status
 
-Accepted
+Accepted (revised 2026-06-25 — original "bundler inline" approach superseded by
+a normal runtime dependency; see Revision)
 
 ## Context
 
@@ -30,8 +31,8 @@ exist on the user's machine. Three families of approaches were considered:
 
 ## Decision
 
-**Publish `@byfriends/vis-server` and bundle (inline) it into the published
-`@byfriends/cli` via the existing `tsdown` build.**
+**Publish `@byfriends/vis-server` and consume it from `@byfriends/cli` as a
+normal runtime dependency.**
 
 Concretely:
 
@@ -41,23 +42,43 @@ Concretely:
   `web/dist/**` into `server/dist/public/`).
 - The server's side-effect-only entry (`src/index.ts`) is refactored to expose a
   reusable programmatic API (`startVisServer(...)`) so the CLI can import it.
-- `@byfriends/cli` adds `@byfriends/vis-server` as a dependency; `tsdown` (which
-  already inlines workspace `@byf/*`-style packages) bundles the server code
-  into the single `dist/main.mjs` artifact.
-- At runtime `byf vis` calls `startVisServer(...)` in-process, locates the
-  inlined `public/` assets, binds one port, and opens a browser. One process,
-  one port.
+- `@byfriends/cli` adds `@byfriends/vis-server` as a **runtime dependency** and
+  lists it in `tsdown`'s `neverBundle`. The server is therefore **not** inlined
+  into `dist/main.mjs`; it is resolved from `node_modules` at runtime, so its
+  bundled SPA assets (`dist/public/`) stay co-located with the code that serves
+  them. (See "Revision" below for why inlining was abandoned.)
+- At runtime `byf vis` dynamically `import('@byfriends/vis-server')`, resolves
+  `public/` relative to the installed package, binds one port, and opens a
+  browser. One process, one port.
+
+## Revision: external dependency instead of inlining (2026-06-25)
+
+The original decision called for `tsdown` to inline the server into the CLI
+bundle. Landing it revealed two gaps:
+
+1. **Half-bundling.** The CLI's `alwaysBundle` regex (`/^@byf\//`) did not match
+   `@byfriends/vis-server`, so `tsdown` pulled the server entry into the bundle
+   while leaving its internal `import './app'` pointing at workspace `.ts`
+   source — the bundle crashed at runtime.
+2. **Orphaned static assets.** Even fully bundled, the SPA's `public/` assets
+   are not JavaScript and cannot enter a JS bundle. An inlined server would have
+   no web UI to serve unless a separate copy step shipped the assets alongside.
+
+Treating `@byfriends/vis-server` as a normal published runtime dependency
+resolves both: npm installs it (with its `public/`), the CLI imports it, and the
+server's own `resolvePublicDir()` finds the assets next to its code. The cost is
+a second package on the install graph, which is acceptable.
 
 ## Consequences
 
 ### Positive
 
 - A single `npm install -g @byfriends/cli` gives the user the visualizer — no
-  second install, no separate binary on PATH, no orchestrator script.
+  separate binary on PATH, no orchestrator script.
 - One process, one port: simpler mental model than the dev-mode two-port setup,
   and nothing to clean up beyond the CLI process itself.
 - The web assets travel with the server package, so the same artifact works in
-  `node server/dist/server.mjs` standalone mode and inlined into the CLI.
+  `node server/dist/server.mjs` standalone mode and as a CLI runtime dependency.
 - The existing `copy-web-dist.mjs` mechanism is reused unchanged.
 
 ### Negative
@@ -65,33 +86,31 @@ Concretely:
 - `@byfriends/vis-server` becomes a published package with a public surface and
   SemVer obligations; the `startVisServer` export is now an API that consumers
   (at minimum, the CLI) depend on.
-- The CLI bundle grows by the size of the server + inlined web assets.
+- The CLI install graph gains a second package (`@byfriends/vis-server`), which
+  in turn depends on `@byfriends/agent-core`. Users who never run `byf vis` pay
+  this cost anyway.
 - `resolvePublicDir()` (which uses `import.meta.dirname/public`) must be made
-  injectable, because once inlined into `cli/dist/main.mjs` that relative path no
-  longer points at the web assets — the CLI must pass the correct location.
-- Two build chains (vis-web → vis-server → CLI) must stay in sync; a stale or
-  missing `public/` at CLI build time yields a CLI that serves API but no UI.
+  injectable, and the CLI resolves `public/` relative to the installed package
+  via `require.resolve('@byfriends/vis-server/package.json')`.
 
 ## Alternatives Considered
 
 - **Spawn `@byfriends/vis-server/dist/server.mjs` as a child process.** Rejected:
   as a `private` package it is not installed on the user's machine, so there is
   no `server.mjs` to spawn. Would require publishing the package anyway, at
-  which point inlining is strictly simpler (no IPC, no port negotiation, no
-  orphan-process risk).
+  which point importing it in-process is strictly simpler (no IPC, no port
+  negotiation, no orphan-process risk).
 - **Ship a separate `vis` binary / published package with its own bin.**
   Rejected: adds a second thing to install and keep on PATH, a separate release
   pipeline, and a second process to manage. `byf vis` as a subcommand of the
   existing binary is a better UX for a tool the user already has.
-- **Bundle the web assets directly into the CLI package (without publishing
-  vis-server).** Rejected: would duplicate the server source into the CLI,
-  breaking the monorepo's package boundaries (CLI is not supposed to own server
-  code) and forking the server implementation. Publishing vis-server keeps a
-  single source of truth.
+- **Bundle the server into the CLI at build time (original decision).** Rejected
+  during landing: half-bundling crashes and static web assets cannot enter a JS
+  bundle. See Revision above.
 
 ## References
 
 - PRD-0017 `byf vis` Command (`docs/prd/PRD-0017-byf-vis-command.md`)
 - `apps/vis/server/src/index.ts`, `apps/vis/server/src/app.ts`
 - `apps/vis/scripts/copy-web-dist.mjs`
-- `apps/cli/tsdown.config.ts` (workspace inlining)
+- `apps/cli/tsdown.config.ts` (`neverBundle: ['@byfriends/vis-server']`)
