@@ -106,6 +106,22 @@ export class Session {
     });
   }
 
+  /**
+   * Ask a read-only side question answered from a snapshot of the current
+   * conversation context, without entering the main turn flow. The answer
+   * is streamed as `btw.*` events (carrying a `queryId` distinct from the
+   * main transcript's turnId) and never written to conversation history.
+   */
+  async askSide(query: string): Promise<void> {
+    this.ensureOpen();
+    const normalized = normalizeRequiredString(
+      query,
+      'Side query cannot be empty',
+      ErrorCodes.REQUEST_INVALID,
+    );
+    await this.rpc.askSide({ sessionId: this.id, query: normalized });
+  }
+
   async init(): Promise<void> {
     this.ensureOpen();
     await this.rpc.generateAgentsMd({ sessionId: this.id });

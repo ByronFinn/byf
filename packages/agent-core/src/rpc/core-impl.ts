@@ -41,6 +41,7 @@ import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { CoreRPCClient } from './client';
 import type {
   ActivateSkillPayload,
+  AskSidePayload,
   BeginCompactionPayload,
   CancelPayload,
   CloseSessionPayload,
@@ -418,6 +419,10 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   steer({ sessionId, ...payload }: SessionAgentPayload<SteerPayload>) {
     return this.sessionApi(sessionId).steer(payload);
+  }
+
+  askSide({ sessionId, ...payload }: SessionAgentPayload<AskSidePayload>) {
+    return this.sessionApi(sessionId).askSide(payload);
   }
 
   cancel({ sessionId, ...payload }: SessionAgentPayload<CancelPayload>) {

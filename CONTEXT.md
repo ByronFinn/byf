@@ -8,6 +8,14 @@ An AI coding agent that runs in the terminal.
 
 The product name. Short for "Be Your Friend". An AI coding agent that runs in the terminal.
 
+### vis
+
+BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态经 `pnpm vis`（tsx API + Vite web 双端口）启动；发布态经 `byf vis`（进程内启动单端口服务）启动。
+
+### vis-server
+
+承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）；可被 `byf vis` 子命令在进程内启动，也可经 `node server/dist/server.mjs` 独立启动。端口/主机/BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。
+
 ## License Terms
 
 - Users may copy and redistribute unmodified BYF software
@@ -17,6 +25,14 @@ The product name. Short for "Be Your Friend". An AI coding agent that runs in th
 - Source code is publicly visible on GitHub (source-available, not open source)
 
 ## Glossary
+
+### Side Query (btw)
+
+A one-shot, read-only question answered from a snapshot of the current conversation context, without entering the main Turn flow. Invoked via `/btw <question>`. The answer does not call tools, is not written to the main history or wire records, and is shown only in a dismissible overlay. The snapshot is trimmed back to the last fully-complete step when the main turn is mid-tool-call (a dangling tool_call without its tool_result would be rejected by providers). Aligns with Claude Code's `/btw`.
+
+### Overlay (btw)
+
+The dismissible panel that displays a Side Query's question and streamed answer, mounted via the same editor-replacement mechanism as other full-screen dialogs. Closing it aborts any in-flight side query. Distinct from the main transcript: side-query Q&A never appears in conversation history.
 
 ### Provider
 

@@ -45,6 +45,16 @@ describe('Event public types', () => {
     >();
   });
 
+  it('narrows btw side-query events by type', () => {
+    expectTypeOf<EventByType<'btw.started'>['queryId']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.started'>['query']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.delta'>['queryId']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.delta'>['delta']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.completed'>['queryId']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.completed'>['text']>().toEqualTypeOf<string>();
+    expectTypeOf<EventByType<'btw.failed'>['queryId']>().toEqualTypeOf<string>();
+  });
+
   it('covers every event in exhaustive switches', () => {
     function handle(event: Event): void {
       switch (event.type) {
@@ -80,6 +90,10 @@ describe('Event public types', () => {
         case 'background.task.terminated':
         case 'observation_masking.applied':
         case 'pruning.applied':
+        case 'btw.started':
+        case 'btw.delta':
+        case 'btw.completed':
+        case 'btw.failed':
           return;
         default:
           assertNever(event);

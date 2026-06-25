@@ -7,6 +7,7 @@ import { ErrorCodes, ByfError } from '#/errors';
 import type {
   ActivateSkillPayload,
   AgentAPI,
+  AskSidePayload,
   BeginCompactionPayload,
   CancelPayload,
   EmptyPayload,
@@ -144,6 +145,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
     return this.getAgent(agentId).steer(payload);
+  }
+
+  askSide({ agentId, ...payload }: AgentScopedPayload<AskSidePayload>) {
+    return this.getAgent(agentId).askSide(payload);
   }
 
   cancel({ agentId, ...payload }: AgentScopedPayload<CancelPayload>) {

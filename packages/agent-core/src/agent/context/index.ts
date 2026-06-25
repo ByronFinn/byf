@@ -164,6 +164,28 @@ export class ContextMemory implements RecordRestoreHandler {
     return project(this.history, ephemeral);
   }
 
+  /**
+   * Provider-ready snapshot of the conversation history safe to feed into a
+   * detached, read-only LLM call (e.g. a `/btw` side query).
+   *
+   * Unlike {@link getMessages}, this trims the trailing assistant message
+   * (and anything after it) when the main turn is mid-tool-call. A message
+   * sequence containing a `tool_call` without its paired `tool_result` is
+   * illegal and would be rejected by providers, so the snapshot rolls back
+   * to the last fully-complete step boundary. Ephemeral injections are
+   * excluded — a side query appends its own user message and the
+   * `before_user`-positioned injections would otherwise land between the
+   * main history and that question.
+   */
+  getStableSnapshot(): Message[] {
+    const messages = this.getMessages();
+    if (this.pendingToolResultIds.size === 0) return messages;
+
+    const cutIndex = findLastAssistantWithPendingToolCall(messages, this.pendingToolResultIds);
+    if (cutIndex === -1) return messages;
+    return messages.slice(0, cutIndex);
+  }
+
   applyObservationMasking(config?: MaskingConfig): MaskingResult {
     const effectiveConfig = config ?? DEFAULT_MASKING_CONFIG;
     const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
@@ -508,4 +530,26 @@ function toolResultOutputForModel(result: ExecutableToolResult): string | Conten
 
 function isEmptyOutputText(output: string): boolean {
   return output.length === 0 || output.trim() === TOOL_OUTPUT_EMPTY_TEXT;
+}
+
+/**
+ * Find the index of the last assistant message whose `tool_calls` include any
+ * id still pending a `tool_result`. Returns -1 when no such message exists.
+ *
+ * The caller slices everything from this index onward to roll back to the
+ * last step boundary where every tool call already has its result — the only
+ * shape providers accept for a fresh, tool-call-free generation.
+ */
+function findLastAssistantWithPendingToolCall(
+  messages: readonly Message[],
+  pendingToolResultIds: ReadonlySet<string>,
+): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message === undefined || message.role !== 'assistant') continue;
+    if (message.toolCalls.some((call) => pendingToolResultIds.has(call.id))) {
+      return i;
+    }
+  }
+  return -1;
 }

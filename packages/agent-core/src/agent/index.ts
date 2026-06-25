@@ -5,16 +5,18 @@ import {
   generate,
   type CacheStrategy,
   type ChatProvider,
+  type ContentPart,
   type Message,
   type PromptPlan,
   type Tool,
 } from '@byfriends/kosong';
 
-import { ErrorCodes, ByfError, makeErrorPayload } from '#/errors';
+import { ErrorCodes, ByfError, makeErrorPayload, toByfErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type { AgentAPI, AgentEvent, SDKAgentRPC, UsageStatus } from '#/rpc';
 
+import { isAbortError } from '../loop/errors';
 import type { McpConnectionManager } from '../mcp';
 import {
   resolveSystemPromptCwd,
@@ -107,6 +109,7 @@ export class Agent {
   readonly log: Logger;
 
   private lastLlmConfigLogSignature?: string;
+  private btwQueryCounter = 0;
 
   constructor(config: AgentConfig) {
     this.log = config.log ?? log;
@@ -187,6 +190,81 @@ export class Agent {
     };
   }
 
+  /**
+   * Answer a read-only side question (e.g. `/btw`) from a stable snapshot of
+   * the current conversation context, without entering the main turn flow.
+   *
+   * The question is appended to a {@link ContextMemory.getStableSnapshot}
+   * snapshot and sent to the model with **no tools** — the model can only
+   * answer from what it already sees. Text deltas are streamed as
+   * `btw.delta` events; the final text and usage land in `btw.completed`.
+   *
+   * The exchange is deliberately detached from the main turn pipeline: it
+   * does not write to {@link ContextMemory}, does not log to wire records
+   * (so resume/fork never see it), does not record usage, and never emits
+   * turn events. This mirrors the "detached generate" pattern already used
+   * by {@link FullCompaction}.
+   */
+  async askSide(
+    query: string,
+    options: { readonly signal?: AbortSignal | undefined } = {},
+  ): Promise<void> {
+    if (query.trim().length === 0) return;
+    const queryId = `btw-${String((this.btwQueryCounter += 1))}`;
+    const provider = this.config.provider.withThinking(this.config.thinkingLevel);
+    const model = this.config.model;
+    const systemPrompt = this.config.systemPrompt;
+    const messages: Message[] = [
+      ...this.context.getStableSnapshot(),
+      { role: 'user', content: [{ type: 'text', text: query }], toolCalls: [] },
+    ];
+
+    this.emitEvent({ type: 'btw.started', queryId, query });
+
+    try {
+      const result = await this.generate(
+        provider,
+        systemPrompt,
+        [],
+        messages,
+        {
+          onMessagePart: (part) => {
+            if (part.type === 'text') {
+              this.emitEvent({ type: 'btw.delta', queryId, delta: part.text });
+            }
+          },
+        },
+        options.signal !== undefined ? { signal: options.signal } : undefined,
+      );
+
+      const text = result.message.content
+        .filter((part): part is ContentPart & { type: 'text' } => part.type === 'text')
+        .map((part) => part.text)
+        .join('');
+
+      this.emitEvent({
+        type: 'btw.completed',
+        queryId,
+        text,
+        ...(result.usage !== null ? { usage: result.usage } : {}),
+      });
+      this.telemetry.track('btw_query', {
+        model,
+        ...(options.signal !== undefined ? { aborted: options.signal.aborted } : {}),
+      });
+    } catch (error) {
+      if (isAbortError(error)) {
+        // Abort is an expected exit (user closed the overlay); emit no error.
+        return;
+      }
+      this.emitEvent({
+        type: 'btw.failed',
+        queryId,
+        ...toByfErrorPayload(error),
+      });
+    }
+  }
+
   private logLlmRequest(
     provider: ChatProvider,
     systemPrompt: string,
@@ -261,6 +339,9 @@ export class Agent {
       steer: (payload) => {
         this.telemetry.track('input_steer', { parts: payload.input.length });
         this.turn.steer(payload.input);
+      },
+      askSide: (payload) => {
+        void this.askSide(payload.query);
       },
       cancel: (payload) => {
         if (this.turn.hasActiveTurn) {

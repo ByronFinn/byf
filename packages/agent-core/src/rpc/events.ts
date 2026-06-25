@@ -262,6 +262,30 @@ export interface BackgroundTaskTerminatedEvent {
   readonly info: BackgroundTaskInfo;
 }
 
+export interface BtwStartedEvent {
+  readonly type: 'btw.started';
+  readonly queryId: string;
+  readonly query: string;
+}
+
+export interface BtwDeltaEvent {
+  readonly type: 'btw.delta';
+  readonly queryId: string;
+  readonly delta: string;
+}
+
+export interface BtwCompletedEvent {
+  readonly type: 'btw.completed';
+  readonly queryId: string;
+  readonly text: string;
+  readonly usage?: TokenUsage | undefined;
+}
+
+export interface BtwFailedEvent extends ByfErrorPayload {
+  readonly type: 'btw.failed';
+  readonly queryId: string;
+}
+
 export type ToolListUpdatedReason = 'mcp.connected' | 'mcp.disconnected' | 'mcp.failed';
 
 export interface ToolListUpdatedEvent {
@@ -315,6 +339,10 @@ export type AgentEvent =
   | PruningAppliedEvent
   | BackgroundTaskStartedEvent
   | BackgroundTaskUpdatedEvent
-  | BackgroundTaskTerminatedEvent;
+  | BackgroundTaskTerminatedEvent
+  | BtwStartedEvent
+  | BtwDeltaEvent
+  | BtwCompletedEvent
+  | BtwFailedEvent;
 
 export type Event = AgentEvent & { agentId: string; sessionId: string };

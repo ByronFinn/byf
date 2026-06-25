@@ -206,6 +206,15 @@ export class SDKRpcClient {
     });
   }
 
+  async askSide(input: { sessionId: string; query: string }): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.askSide({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      query: input.query,
+    });
+  }
+
   async generateAgentsMd(input: SessionIdRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.generateAgentsMd({ sessionId: input.sessionId });

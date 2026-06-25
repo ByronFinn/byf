@@ -116,6 +116,9 @@ export interface PromptPayload {
 export interface SteerPayload {
   readonly input: readonly ContentPart[];
 }
+export interface AskSidePayload {
+  readonly query: string;
+}
 export interface CancelPayload {
   readonly turnId?: number;
 }
@@ -229,6 +232,7 @@ export interface ShellExecResult {
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
+  askSide: (payload: AskSidePayload) => void;
   cancel: (payload: CancelPayload) => void;
   setThinking: (payload: SetThinkingPayload) => void;
   setPermission: (payload: SetPermissionPayload) => void;
