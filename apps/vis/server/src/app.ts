@@ -102,7 +102,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
   app.route('/api', api);
 
   // Static + SPA fallback (production only).
-  const publicDir = options.publicDir !== undefined ? options.publicDir : await resolvePublicDir();
+  const publicDir = options.publicDir ?? (await resolvePublicDir());
   if (publicDir !== null) {
     app.get('*', async (c) => {
       const url = new URL(c.req.url);

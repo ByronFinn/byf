@@ -348,6 +348,10 @@ function runPromptTurn(
         case 'background.task.started':
         case 'background.task.terminated':
         case 'background.task.updated':
+        case 'btw.completed':
+        case 'btw.delta':
+        case 'btw.failed':
+        case 'btw.started':
         case 'compaction.blocked':
         case 'compaction.cancelled':
         case 'compaction.completed':

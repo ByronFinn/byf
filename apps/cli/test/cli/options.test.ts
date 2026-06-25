@@ -206,10 +206,10 @@ describe('CLI options parsing', () => {
   });
 
   describe('sub-commands', () => {
-    it('registers the export sub-command', () => {
+    it('registers the sub-commands', () => {
       const program = createProgram('0.0.0', () => {});
       const commandNames: string[] = program.commands.map((command) => command.name());
-      expect(commandNames).toEqual(['export']);
+      expect(commandNames).toEqual(['export', 'vis']);
     });
   });
 

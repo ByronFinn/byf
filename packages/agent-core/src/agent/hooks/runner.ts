@@ -221,8 +221,12 @@ function drainStream(
       result += chunk;
       onChunk(chunk);
     };
-    const onEnd = (): void => finish();
-    const onError = (): void => finish();
+    const onEnd = (): void => {
+      finish();
+    };
+    const onError = (): void => {
+      finish();
+    };
     stream.on('data', onData);
     stream.on('end', onEnd);
     stream.on('error', onError);
@@ -333,7 +337,9 @@ function killProcessGracefully(proc: KaosProcess): void {
     const raced = await Promise.race([
       exited,
       new Promise<false>((resolve) => {
-        const t = setTimeout(() => resolve(false), KILL_GRACE_MS);
+        const t = setTimeout(() => {
+          resolve(false);
+        }, KILL_GRACE_MS);
         t.unref();
       }),
     ]);
