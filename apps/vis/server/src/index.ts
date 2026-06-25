@@ -1,25 +1,13 @@
-import { serve } from '@hono/node-server';
-
-import { createApp } from './app';
-import { BYF_HOME, resolveHost, resolvePort, resolveVisAuthToken } from './config';
-import { formatStartupBanner } from './startup-banner';
+import { resolveHost, resolvePort, resolveVisAuthToken } from './config';
+import { formatVisStartupBanner, startVisServer } from './server';
 
 async function main(): Promise<void> {
   const host = resolveHost();
-  const authToken = resolveVisAuthToken(host);
-  const app = await createApp({ authToken });
   const port = resolvePort();
-  serve({ fetch: app.fetch, hostname: host, port }, (info) => {
-    // Startup banner.
-    process.stdout.write(
-      formatStartupBanner({
-        authToken,
-        host,
-        byfCodeHome: BYF_HOME,
-        port: info.port,
-      }),
-    );
-  });
+  const authToken = resolveVisAuthToken(host);
+  const handle = await startVisServer({ host, port, authToken });
+  // Startup banner.
+  process.stdout.write(formatVisStartupBanner({ authToken, host, port: handle.port }));
 }
 
 try {

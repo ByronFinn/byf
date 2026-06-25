@@ -51,6 +51,13 @@ function mimeFor(path: string): string {
 
 export interface CreateAppOptions {
   readonly authToken?: string;
+  /**
+   * Directory holding the built SPA assets. When provided, this directory is
+   * used directly; otherwise the `public/` directory next to the compiled
+   * server bundle is auto-detected (returns `null` in dev mode where the web
+   * bundle lives elsewhere, e.g. behind the Vite dev server).
+   */
+  readonly publicDir?: string;
 }
 
 function bearerToken(value: string | undefined): string | null {
@@ -95,7 +102,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
   app.route('/api', api);
 
   // Static + SPA fallback (production only).
-  const publicDir = await resolvePublicDir();
+  const publicDir = options.publicDir !== undefined ? options.publicDir : await resolvePublicDir();
   if (publicDir !== null) {
     app.get('*', async (c) => {
       const url = new URL(c.req.url);
