@@ -73,6 +73,7 @@ import {
   type ApprovalPanelResponse,
   resolveSection,
 } from './components/dialogs/approval-panel';
+import { BtwViewer } from './components/dialogs/btw-viewer';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -444,6 +445,17 @@ export class ByfTui implements DialogHost {
   private readonly dialogManager: DialogManager;
   private readonly compactionHandler: CompactionHandler;
   private readonly backgroundTaskHandler: BackgroundTaskHandler;
+  /** Active `/btw` side-query overlay, or undefined when none is open. */
+  private btwOverlay:
+    | {
+        queryId: string;
+        readonly component: BtwViewer;
+        readonly savedChildren: readonly Component[];
+        readonly abort: AbortController;
+        answer: string;
+        status: 'streaming' | 'completed' | 'failed';
+      }
+    | undefined;
 
   /** Hide function for an active approval overlay, or undefined. */
   private approvalOverlayHide: (() => void) | undefined;
@@ -1415,6 +1427,9 @@ export class ByfTui implements DialogHost {
       case 'yolo':
         await this.handleYoloCommand(args);
         return;
+      case 'btw':
+        await this.handleBtwCommand(args);
+        return;
       case 'compact':
         await this.handleCompactCommand(args);
         return;
@@ -2055,6 +2070,10 @@ export class ByfTui implements DialogHost {
   // Routes an SDK event to the matching TUI state transition.
   private handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void {
     if (this.routeSubagentEvent(event)) {
+      return;
+    }
+
+    if (this.handleBtwEvent(event)) {
       return;
     }
 
@@ -3890,7 +3909,121 @@ export class ByfTui implements DialogHost {
     this.showNotice('YOLO mode: OFF');
   }
 
-  // Handles the /compact command.
+  // Handles the /btw command — opens a side-query overlay and streams the
+  // answer. The exchange never enters the main transcript (see handleBtwEvent).
+  private async handleBtwCommand(args: string): Promise<void> {
+    const query = args.trim();
+    if (query.length === 0) {
+      this.showError('Usage: /btw <question>');
+      return;
+    }
+    const session = this.session;
+    if (session === undefined) {
+      this.showError(NO_ACTIVE_SESSION_MESSAGE);
+      return;
+    }
+    if (this.state.appState.model.trim().length === 0) {
+      this.showError(LLM_NOT_SET_MESSAGE);
+      return;
+    }
+    if (this.btwOverlay !== undefined) {
+      this.closeBtwOverlay();
+    }
+
+    const startedAt = Date.now();
+    const duringStreaming = this.state.appState.isStreaming;
+    const component = new BtwViewer(
+      {
+        query,
+        answer: '',
+        status: 'streaming',
+        colors: this.state.theme.colors,
+        onClose: () => {
+          this.closeBtwOverlay();
+        },
+      },
+      this.state.terminal,
+    );
+    this.mountEditorReplacement(component);
+    const abort = new AbortController();
+    this.btwOverlay = {
+      queryId: '',
+      component,
+      savedChildren: [],
+      abort,
+      answer: '',
+      status: 'streaming',
+    };
+
+    try {
+      await session.askSide(query, { signal: abort.signal });
+    } catch {
+      // Errors surface as a btw.failed event; ignore the rejected promise.
+    }
+    this.track('input_command', { command: 'btw' });
+    this.track('btw_query', {
+      duration_ms: Date.now() - startedAt,
+      during_streaming: duringStreaming,
+    });
+  }
+
+  // Closes an active /btw overlay, aborting any in-flight side query.
+  private closeBtwOverlay(): void {
+    const overlay = this.btwOverlay;
+    if (overlay === undefined) return;
+    overlay.abort.abort();
+    this.btwOverlay = undefined;
+    this.restoreEditor();
+  }
+
+  // Routes a btw.* event to the active overlay (filtered by queryId once
+  // the started event assigns one). Returns true when handled.
+  private handleBtwEvent(event: Event): boolean {
+    if (!('type' in event) || typeof event.type !== 'string' || !event.type.startsWith('btw.')) {
+      return false;
+    }
+    const overlay = this.btwOverlay;
+    if (overlay === undefined) return false;
+    const queryId = (event as { queryId?: string }).queryId;
+    if (overlay.queryId.length === 0) {
+      overlay.queryId = queryId ?? '';
+    } else if (queryId !== undefined && queryId !== overlay.queryId) {
+      return false;
+    }
+
+    const refresh = (answer: string, status: 'streaming' | 'completed' | 'failed'): void => {
+      overlay.answer = answer;
+      overlay.status = status;
+      overlay.component.setProps({
+        query: overlay.component.query,
+        answer,
+        status,
+        colors: this.state.theme.colors,
+        onClose: () => {
+          this.closeBtwOverlay();
+        },
+      });
+      this.state.ui.requestRender();
+    };
+
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- guard above narrows to btw.* events; default handles the rest.
+    switch (event.type) {
+      case 'btw.started':
+        return true;
+      case 'btw.delta':
+        refresh(overlay.answer + (event as { delta: string }).delta, 'streaming');
+        return true;
+      case 'btw.completed':
+        refresh((event as { text: string }).text, 'completed');
+        return true;
+      case 'btw.failed':
+        refresh(overlay.answer, 'failed');
+        return true;
+      default:
+        return false;
+    }
+  }
+
   private async handleCompactCommand(args: string): Promise<void> {
     const session = this.session;
     if (session === undefined) {

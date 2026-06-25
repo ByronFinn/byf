@@ -90,6 +90,7 @@ describe('built-in slash command registry', () => {
     expect(names).toEqual(
       expect.arrayContaining([
         'agent',
+        'btw',
         'compact',
         'editor',
         'exit',
@@ -112,6 +113,13 @@ describe('built-in slash command registry', () => {
         'yolo',
       ]),
     );
+  });
+
+  it('registers /btw as always-available so it works during streaming', () => {
+    const btw = findBuiltInSlashCommand('btw');
+    expect(btw).toBeDefined();
+    expect(btw!.name).toBe('btw');
+    expect(resolveSlashCommandAvailability(btw!, '')).toBe('always');
   });
 
   it('builds autocomplete entries including aliases like /quit', () => {

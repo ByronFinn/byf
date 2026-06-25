@@ -206,13 +206,19 @@ export class SDKRpcClient {
     });
   }
 
-  async askSide(input: { sessionId: string; query: string }): Promise<void> {
+  async askSide(
+    input: { sessionId: string; query: string },
+    options?: { signal?: AbortSignal | undefined },
+  ): Promise<void> {
     const rpc = await this.getRpc();
-    return rpc.askSide({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      query: input.query,
-    });
+    return rpc.askSide(
+      {
+        sessionId: input.sessionId,
+        agentId: this.interactiveAgentId,
+        query: input.query,
+      },
+      options,
+    );
   }
 
   async generateAgentsMd(input: SessionIdRpcInput): Promise<void> {

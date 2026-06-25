@@ -112,7 +112,9 @@ describe('btw side query — Agent.askSide', () => {
 
     expect(started?.args).toMatchObject({ query: 'what is the config file name?' });
     expect(started?.args).toHaveProperty('queryId');
-    expect(deltas.map((e) => e.args.delta).join('')).toBe('config/runtime.toml');
+    expect(deltas.map((e) => (e.args as { delta: string }).delta).join('')).toBe(
+      'config/runtime.toml',
+    );
     expect(completed?.args).toMatchObject({ text: 'config/runtime.toml' });
     expect(completed?.args).toHaveProperty('usage');
   });

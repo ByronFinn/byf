@@ -106,6 +106,27 @@ describe('resolveSlashCommandInput', () => {
     });
   });
 
+  it('resolves /btw as a builtin that passes its args through', () => {
+    expect(resolve('/btw where is the config file?')).toMatchObject({
+      kind: 'builtin',
+      name: 'btw',
+      args: 'where is the config file?',
+    });
+  });
+
+  it('allows /btw while streaming and compacting (always-available)', () => {
+    expect(resolve('/btw quick question', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'btw',
+      args: 'quick question',
+    });
+    expect(resolve('/btw quick question', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'btw',
+      args: 'quick question',
+    });
+  });
+
   it('resolves skill commands and blocks them while busy', () => {
     const skillCommandMap = new Map([['skill:review', 'review']]);
 

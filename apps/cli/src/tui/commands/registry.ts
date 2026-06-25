@@ -9,6 +9,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'btw',
+    aliases: [],
+    description: 'Ask a side question without affecting the main conversation',
+    priority: 100,
+    availability: 'always',
+  },
+  {
     name: 'permission',
     aliases: [],
     description: 'Select permission mode',

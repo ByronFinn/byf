@@ -111,15 +111,20 @@ export class Session {
    * conversation context, without entering the main turn flow. The answer
    * is streamed as `btw.*` events (carrying a `queryId` distinct from the
    * main transcript's turnId) and never written to conversation history.
+   * Pass a `signal` to abort an in-flight side query (e.g. when the user
+   * closes the overlay).
    */
-  async askSide(query: string): Promise<void> {
+  async askSide(query: string, options: { signal?: AbortSignal | undefined } = {}): Promise<void> {
     this.ensureOpen();
     const normalized = normalizeRequiredString(
       query,
       'Side query cannot be empty',
       ErrorCodes.REQUEST_INVALID,
     );
-    await this.rpc.askSide({ sessionId: this.id, query: normalized });
+    await this.rpc.askSide(
+      { sessionId: this.id, query: normalized },
+      ...(options.signal !== undefined ? [{ signal: options.signal }] : []),
+    );
   }
 
   async init(): Promise<void> {
