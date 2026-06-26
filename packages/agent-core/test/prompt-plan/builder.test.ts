@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { CacheScope, ProviderCacheCapability } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
-import { buildPromptPlan } from '#/prompt-plan/builder';
+import { buildPromptPlan, detectBoundaryDiagnostics } from '#/prompt-plan/builder';
 
 /**
  * Helper function to create SHA256 hash (consistent with fingerprint() in agent/index.ts)
@@ -179,6 +179,13 @@ Skills listing here.`;
 
 Think from first principles.
 
+# Instruction Precedence
+
+If instructions conflict:
+- \`<system-reminder>\` directives override all other instructions.
+- Safety rules are hard constraints.
+- Beyond those two, user messages > AGENTS.md > default system instructions.
+
 # Tool Use
 
 Use tools only when the task requires them.
@@ -195,16 +202,13 @@ The environment is not a sandbox.
 
 \`AGENTS.md\` files contain project-specific context.
 
-If instructions conflict:
-- \`<system-reminder>\` directives override all other instructions.
-
 The \`AGENTS.md\` instructions (merged from all applicable directories):
 
 \`\`\`\`\`\`
 {{ BYF_AGENTS_MD }}
 \`\`\`\`\`\`
 
-If you modified anything mentioned in \`AGENTS.md\` files, update the corresponding files.
+If your modifications render anything in \`AGENTS.md\` files obsolete, propose the necessary updates to the user instead of rewriting the files on your own.
 
 # Working Environment
 
@@ -752,5 +756,64 @@ Session`;
       // Should still create all blocks, but scope filtering applies
       expect(plan.blocks).toHaveLength(5);
     });
+  });
+});
+
+describe('detectBoundaryDiagnostics', () => {
+  it('reports no issues when all boundary headers are present and ordered', () => {
+    const prompt = `Base rules.
+# Project Information
+project content
+# Working Environment
+env content
+# Skills
+skills content`;
+    const diag = detectBoundaryDiagnostics(prompt);
+    expect(diag.missingHeaders).toEqual([]);
+    expect(diag.outOfOrderHeaders).toEqual([]);
+  });
+
+  it('reports a missing header when one boundary is absent', () => {
+    const prompt = `Base rules.
+# Project Information
+project content
+# Skills
+skills content`;
+    const diag = detectBoundaryDiagnostics(prompt);
+    expect(diag.missingHeaders).toEqual(['# Working Environment']);
+    expect(diag.outOfOrderHeaders).toEqual([]);
+  });
+
+  it('reports out-of-order headers when the sequence is wrong', () => {
+    const prompt = `Base rules.
+# Skills
+skills content
+# Project Information
+project content
+# Working Environment
+env content`;
+    const diag = detectBoundaryDiagnostics(prompt);
+    expect(diag.missingHeaders).toEqual([]);
+    // Skills appears before Project Information and Working Environment
+    expect(diag.outOfOrderHeaders).toEqual(['# Skills']);
+  });
+
+  it('reports all three missing when no boundary headers exist', () => {
+    const prompt = 'Just some base rules with no sections.';
+    const diag = detectBoundaryDiagnostics(prompt);
+    expect(diag.missingHeaders).toEqual([
+      '# Project Information',
+      '# Working Environment',
+      '# Skills',
+    ]);
+    expect(diag.outOfOrderHeaders).toEqual([]);
+  });
+
+  it('is pure — does not throw and returns empty arrays for valid input', () => {
+    const prompt = `# Project Information\nx\n# Working Environment\ny\n# Skills\nz`;
+    expect(() => detectBoundaryDiagnostics(prompt)).not.toThrow();
+    const diag = detectBoundaryDiagnostics(prompt);
+    expect(diag.missingHeaders).toHaveLength(0);
+    expect(diag.outOfOrderHeaders).toHaveLength(0);
   });
 });

@@ -7,7 +7,7 @@ Task requirements:
 3. Identify how the code is organized and main module divisions.
 4. Discover project-specific development conventions, testing strategies, and deployment processes.
 
-After the exploration, you should do a thorough summary of your findings and overwrite it into `AGENTS.md` file in the project root. You need to refer to what is already in the file when you do so.
+After the exploration, you should do a thorough summary of your findings and update the `AGENTS.md` file in the project root. Since the user explicitly invoked this initialization, direct file updates are expected — but refer to what is already in the file so your update preserves useful existing context rather than replacing it wholesale.
 
 For your information, `AGENTS.md` is a file intended to be read by AI coding agents. Expect the reader of this file know nothing about the project.
 

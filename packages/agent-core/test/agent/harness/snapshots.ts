@@ -223,6 +223,9 @@ function formatText(text: string): string {
   if (text.includes('<!-- Compression Priorities (in order) -->')) {
     return '<compaction-instruction>';
   }
+  if (isBtwReadonlyInstruction(text)) {
+    return '<btw-readonly-instruction>';
+  }
   return JSON.stringify(text);
 }
 
@@ -296,4 +299,8 @@ function isUuid(value: string): boolean {
 
 function isAutoModeEnterReminder(value: string): boolean {
   return value.includes('Auto permission mode is active.');
+}
+
+function isBtwReadonlyInstruction(value: string): boolean {
+  return value.startsWith('You are answering a read-only side question');
 }

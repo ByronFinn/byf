@@ -40,11 +40,20 @@ export interface BtwViewerProps {
     | undefined;
   /** Optional error message shown when the query failed. */
   readonly error?: string | undefined;
+  /**
+   * Maximum height in rows the overlay is allowed to occupy. The component uses
+   * this to size itself so the bottom border is not clipped by the overlay
+   * manager.
+   */
+  readonly maxHeight?: number | undefined;
   readonly colors: ColorPalette;
   readonly onClose: () => void;
 }
 
 const ELLIPSIS = '…';
+
+/** Fixed rows consumed by top bar, title, blank divider, bottom bar and footer. */
+const FIXED_OVERHEAD = 5;
 
 export class BtwViewer extends Container implements Focusable {
   focused = false;
@@ -125,7 +134,7 @@ export class BtwViewer extends Container implements Focusable {
   // ── input ──────────────────────────────────────────────────────────
 
   handleInput(data: string): void {
-    const visible = this.viewableRows();
+    const visible = this.visibleRows();
     const k = printableChar(data);
 
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.enter) || k === 'q' || k === 'Q') {
@@ -168,30 +177,55 @@ export class BtwViewer extends Container implements Focusable {
   }
 
   private maxScroll(): number {
-    return Math.max(0, this.visualLines.length - this.viewableRows());
+    const maxHeight = this.props.maxHeight ?? this.terminal.rows;
+    const height = Math.max(FIXED_OVERHEAD + 1, maxHeight);
+    const contentRows = Math.max(1, height - FIXED_OVERHEAD);
+    return Math.max(0, this.visualLines.length - contentRows);
   }
 
-  private viewableRows(): number {
-    return Math.max(1, this.terminal.rows - 4);
+  private visibleRows(): number {
+    const maxHeight = this.props.maxHeight ?? this.terminal.rows;
+    const height = Math.max(FIXED_OVERHEAD + 1, maxHeight);
+    return Math.max(1, height - FIXED_OVERHEAD);
   }
 
   // ── render ─────────────────────────────────────────────────────────
 
   override render(width: number): string[] {
-    const rows = Math.max(3, this.terminal.rows);
-    const bodyHeight = rows - 2;
+    const colors = this.props.colors;
+    const accent = chalk.hex(colors.primary);
+    const innerWidth = Math.max(1, width);
 
-    const header = this.renderHeader(width);
-    const body = this.renderBody(width, bodyHeight);
-    const footer = this.renderFooter(width);
+    if (innerWidth !== this.lastInnerWidth) {
+      this.lastInnerWidth = innerWidth;
+      this.visualLines = this.buildVisualLines(this.lines, innerWidth);
+    }
 
-    const out: string[] = [header];
-    for (const line of body) out.push(line);
-    out.push(footer);
-    return out;
+    const maxHeight = this.props.maxHeight ?? this.terminal.rows;
+    const height = Math.max(FIXED_OVERHEAD + 1, maxHeight);
+    const contentRows = Math.max(1, height - FIXED_OVERHEAD);
+
+    const max = Math.max(0, this.visualLines.length - contentRows);
+    if (this.scrollTop > max) this.scrollTop = max;
+    if (this.scrollTop < 0) this.scrollTop = 0;
+
+    const topBar = accent('─'.repeat(innerWidth));
+    const bottomBar = topBar;
+    const title = this.renderTitle(innerWidth);
+    const footer = this.renderFooter(innerWidth);
+
+    const lines: string[] = [topBar, title, ''];
+    for (let i = 0; i < contentRows; i++) {
+      const lineIndex = this.scrollTop + i;
+      const visual = this.visualLines[lineIndex] ?? '';
+      lines.push(truncateToWidth(visual, innerWidth));
+    }
+    lines.push(bottomBar, footer);
+
+    return lines;
   }
 
-  private renderHeader(width: number): string {
+  private renderTitle(width: number): string {
     const colors = this.props.colors;
     const title = chalk.hex(colors.primary).bold(' btw ');
     const status = this.props.status;
@@ -201,36 +235,7 @@ export class BtwViewer extends Container implements Focusable {
         : status === 'failed'
           ? chalk.hex(colors.error)('failed')
           : chalk.hex(colors.success)('done');
-    const composed = `${title}${statusLabel}`;
-    return fitExactly(composed, width);
-  }
-
-  private renderBody(width: number, bodyHeight: number): string[] {
-    const colors = this.props.colors;
-    const stroke = colors.primary;
-    const innerWidth = Math.max(1, width - 4);
-
-    if (innerWidth !== this.lastInnerWidth) {
-      this.lastInnerWidth = innerWidth;
-      this.visualLines = this.buildVisualLines(this.lines, innerWidth);
-    }
-
-    const viewRows = bodyHeight - 2;
-    const max = this.maxScroll();
-    if (this.scrollTop > max) this.scrollTop = max;
-    if (this.scrollTop < 0) this.scrollTop = 0;
-
-    const top = chalk.hex(stroke)('┌' + '─'.repeat(Math.max(0, width - 2)) + '┐');
-    const bottom = chalk.hex(stroke)('└' + '─'.repeat(Math.max(0, width - 2)) + '┘');
-
-    const out: string[] = [top];
-    for (let i = 0; i < viewRows; i++) {
-      const lineIndex = this.scrollTop + i;
-      const visual = this.visualLines[lineIndex] ?? '';
-      out.push(chalk.hex(stroke)('│ ') + padToWidth(visual, innerWidth) + chalk.hex(stroke)(' │'));
-    }
-    out.push(bottom);
-    return out;
+    return fitExactly(` ${title}${statusLabel}`, width);
   }
 
   private renderFooter(width: number): string {

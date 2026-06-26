@@ -133,8 +133,33 @@ describe('btw side query — Agent.askSide', () => {
       tools: []
       messages:
         user: text "fix the bug in foo.ts"
+        system: text <btw-readonly-instruction>
         user: text "where is it?"
     `);
+  });
+
+  it('injects a read-only directive between the snapshot and the question', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'context message' }]);
+
+    ctx.mockNextResponse({ type: 'text', text: 'answer' });
+    await ctx.agent.askSide('what needs a web search?');
+
+    const history = ctx.lastLlmInput().input.history;
+    // The directive sits between the snapshot and the user question.
+    const directive = history.at(-2);
+    const question = history.at(-1);
+
+    expect(directive?.role).toBe('system');
+    expect(directive?.content[0]).toMatchObject({ type: 'text' });
+    const directiveText = (directive?.content[0] as { text: string }).text;
+    // Forbids tool-call-like output — the core fix for the <tool_call> leak.
+    expect(directiveText).toMatch(/no tools/i);
+    expect(directiveText).toMatch(/<tool_call>|<function=>|<parameter>/i);
+
+    expect(question?.role).toBe('user');
+    expect(question?.content[0]).toMatchObject({ text: 'what needs a web search?' });
   });
 
   it('does not write to context history, wire records, or emit turn events', async () => {

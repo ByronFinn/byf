@@ -62,6 +62,33 @@ export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './
 
 export type AgentType = 'main' | 'sub' | 'independent';
 
+/**
+ * Instruction injected into every `/btw` side query.
+ *
+ * The side query reuses the main agent's system prompt (which encourages
+ * tool use and action) but is sent with **no tools**. Without this
+ * correction the model, faced with a question it would normally answer
+ * via a tool, falls back to emitting tool-call syntax as plain text
+ * (e.g. `<tool_call><function=WebSearch>…`). This directive closes that
+ * gap by making the read-only, text-only contract explicit and forbidding
+ * any tool-call-like output. It is injected as a `system` message
+ * *between* the stable snapshot and the user's question, so the main
+ * system prompt (and its cache prefix) is untouched.
+ */
+const BTW_READONLY_INSTRUCTION = [
+  'You are answering a read-only side question ("by the way").',
+  'You have NO tools available and cannot take any action.',
+  'Answer directly in natural language using only the conversation context above.',
+  'Do NOT emit tool calls, function calls, or any markup such as <tool_call>, <function=>, or <parameter>.',
+  'If the question cannot be answered without tools (e.g. it needs a web search or file access), say so in plain text instead of pretending to call a tool.',
+].join(' ');
+
+const BTW_READONLY_INSTRUCTION_MESSAGE: Message = {
+  role: 'system',
+  content: [{ type: 'text', text: BTW_READONLY_INSTRUCTION }],
+  toolCalls: [],
+};
+
 export interface AgentConfig {
   readonly runtime: RuntimeConfig;
   readonly homedir?: string;
@@ -225,6 +252,7 @@ export class Agent {
     const systemPrompt = this.config.systemPrompt;
     const messages: Message[] = [
       ...this.context.getStableSnapshot(),
+      BTW_READONLY_INSTRUCTION_MESSAGE,
       { role: 'user', content: [{ type: 'text', text: query }], toolCalls: [] },
     ];
 
@@ -351,12 +379,14 @@ export class Agent {
 
   useProfile(profile: ResolvedAgentProfile, context?: PreparedSystemPromptContext): void {
     const cwd = context?.cwd ?? resolveSystemPromptCwd(this.runtime.kaos, this.config.cwd);
-    const systemPrompt = profile.systemPrompt({
-      osEnv: this.runtime.osEnv,
-      cwd,
-      skills: this.skills?.registry,
-      agentsMd: context?.agentsMd,
-    });
+    const systemPrompt = applyPromptSizeGuard(
+      profile.systemPrompt({
+        osEnv: this.runtime.osEnv,
+        cwd,
+        skills: this.skills?.registry,
+        agentsMd: context?.agentsMd,
+      }),
+    );
     this.config.update({ profileName: profile.name, systemPrompt });
     this.tools.setActiveTools(profile.tools);
   }
@@ -560,6 +590,38 @@ interface LlmConfigMetadata {
   cacheBlockHashes?: Record<string, string>;
   /** Provider's cache strategy */
   providerCacheStrategy?: CacheStrategy;
+}
+
+/**
+ * Token budget beyond which the rendered system prompt is considered
+ * oversized. ADR 0009 targets ~3,500–4,500 tokens for the system prompt;
+ * this guard fires at a higher ceiling that leaves room for legitimately
+ * large AGENTS.md content while still catching runaway growth. When
+ * exceeded, a hint is appended to the prompt so the model favors concise,
+ * targeted actions over context-heavy exploration.
+ */
+const SYSTEM_PROMPT_SIZE_WARN_TOKENS = 6000;
+
+/**
+ * Append a context-frugality hint when the rendered system prompt exceeds
+ * {@link SYSTEM_PROMPT_SIZE_WARN_TOKENS}.
+ *
+ * The hint is appended to the very end of the prompt — i.e. inside the
+ * last session-scoped block (`# Skills`), after ADR 0013's cache
+ * boundaries — so the global/project cache prefixes stay byte-for-byte
+ * stable. This is a guardrail, not a hard limit: it nudges behavior
+ * without changing prompt structure.
+ */
+function applyPromptSizeGuard(systemPrompt: string): string {
+  if (estimateTokens(systemPrompt) <= SYSTEM_PROMPT_SIZE_WARN_TOKENS) {
+    return systemPrompt;
+  }
+  return (
+    systemPrompt +
+    '\n\n<!-- NOTE: The system prompt is large. Prefer targeted reads and ' +
+    'concise tool output; avoid dumping whole files or broad searches unless ' +
+    'necessary. -->'
+  );
 }
 
 function buildLlmRequestContext(options: Parameters<typeof generate>[5]): LlmRequestContextFields {

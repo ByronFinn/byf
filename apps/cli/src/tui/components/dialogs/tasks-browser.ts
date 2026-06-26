@@ -27,6 +27,7 @@ import chalk from 'chalk';
 
 import type { ColorPalette } from '../../theme/colors';
 import { printableChar } from '../../utils/printable-key';
+import { sanitizeTerminalOutput } from '../../utils/sanitize-text';
 
 const ELLIPSIS = '…';
 
@@ -581,7 +582,7 @@ export class TasksBrowserApp extends Container implements Focusable {
     if (this.props.tailLoading) body = '[loading…]';
     else if (this.props.tailOutput === undefined || this.props.tailOutput.length === 0)
       body = '[no output captured]';
-    else body = this.props.tailOutput;
+    else body = sanitizeTerminalOutput(this.props.tailOutput);
 
     const rawLines = body.split('\n');
     const tailLines = rawLines.slice(-innerHeight);

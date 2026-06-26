@@ -1,5 +1,5 @@
 import type { BackgroundTaskInfo } from '@byfriends/sdk';
-import type { Terminal } from '@earendil-works/pi-tui';
+import { visibleWidth, type Terminal } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TaskOutputViewer } from '../../src/tui/components/dialogs/task-output-viewer';
@@ -110,6 +110,24 @@ describe('TaskOutputViewer — rendering', () => {
     expect(out).toContain('charlie');
     expect(out).toContain('delta');
     expect(out).toContain('echo');
+  });
+
+  it('sanitizes ANSI cursor movement and carriage returns from raw task output', () => {
+    const width = 120;
+    const output =
+      'Scanning repository...\n' +
+      'Generating pages...\n' +
+      '[====>  ] 1/7 generating: 提示词模板定制 (1m33s)\r[=====> ] 1/7 generating: 提示词模板定制 (1m33s)\n' +
+      '\u001B[A\u001B[2Kdone';
+    const lines = makeViewer({ output, rows: 20 }).render(width);
+    const rendered = lines.join('\n');
+    expect(rendered).not.toContain('\r');
+    expect(rendered).not.toContain('\u001B[A');
+    expect(rendered).not.toContain('\u001B[2K');
+    expect(rendered).toContain('提示词模板定制');
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+    }
   });
 });
 

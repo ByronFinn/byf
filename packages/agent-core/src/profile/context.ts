@@ -64,7 +64,15 @@ export async function loadAgentsMd(kaos: Kaos, workDir: string): Promise<string>
     }
   }
 
-  return renderAgentFiles(discovered);
+  const rendered = renderAgentFiles(discovered);
+  if (rendered.truncated) {
+    // Visible marker so the model knows its project context is incomplete
+    // (without this, silently truncated AGENTS.md leads to confident but
+    // wrong answers based on partial project knowledge). Placed inside the
+    // AGENTS.md fence so it is clearly scoped to project instructions.
+    return `${rendered.content}\n\n<!-- NOTE: AGENTS.md was truncated to fit the 32KB budget; some project instructions were omitted. -->`;
+  }
+  return rendered.content;
 }
 
 async function findProjectRoot(kaos: Kaos, workDir: string): Promise<string> {
@@ -126,10 +134,14 @@ async function isFile(kaos: Kaos, path: string): Promise<boolean> {
   }
 }
 
-function renderAgentFiles(files: readonly AgentFile[]): string {
-  if (files.length === 0) return '';
+function renderAgentFiles(files: readonly AgentFile[]): {
+  content: string;
+  truncated: boolean;
+} {
+  if (files.length === 0) return { content: '', truncated: false };
 
   let remaining = AGENTS_MD_MAX_BYTES;
+  let truncated = false;
   const budgeted: Array<AgentFile | undefined> = Array.from({ length: files.length });
 
   for (let i = files.length - 1; i >= 0; i--) {
@@ -141,6 +153,7 @@ function renderAgentFiles(files: readonly AgentFile[]): string {
     remaining -= byteLength(annotation) + byteLength(separator);
     if (remaining <= 0) {
       budgeted[i] = { path: file.path, content: '' };
+      truncated = true;
       remaining = 0;
       continue;
     }
@@ -148,15 +161,18 @@ function renderAgentFiles(files: readonly AgentFile[]): string {
     let content = file.content;
     if (byteLength(content) > remaining) {
       content = truncateUtf8(content, remaining).trim();
+      truncated = true;
     }
     remaining -= byteLength(content);
     budgeted[i] = { path: file.path, content };
   }
 
-  return budgeted
+  const content = budgeted
     .filter((file): file is AgentFile => file !== undefined && file.content.length > 0)
     .map((file) => `${annotationFor(file.path)}${file.content}`)
     .join('\n\n');
+
+  return { content, truncated };
 }
 
 function truncateUtf8(text: string, maxBytes: number): string {

@@ -1,5 +1,5 @@
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
-import type { Terminal } from '@earendil-works/pi-tui';
+import { visibleWidth, type Terminal } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -429,6 +429,47 @@ describe('TasksBrowserApp — setProps', () => {
       expect(() => {
         app.setProps(makeProps({ tasks, filter }));
       }).not.toThrow();
+    }
+  });
+});
+
+describe('TasksBrowserApp — ANSI control sequences in tail output', () => {
+  it('strips carriage returns used by progress bars so frames stay intact', () => {
+    const progress =
+      '[====>  ] 1/7 generating: 提示词模板定制 (1m33s)\r[=====> ] 1/7 generating: 提示词模板定制 (1m33s)';
+    const app = makeApp({
+      tasks: [task({ taskId: 'bash-aaaaaaaa' })],
+      selectedTaskId: 'bash-aaaaaaaa',
+      tailOutput: progress,
+    });
+    const width = 120;
+    const lines = app.render(width);
+    const renderedPreview = lines.join('\n');
+
+    // No raw control characters should leak into the rendered frame.
+    expect(renderedPreview).not.toContain('\r');
+    // The progress text is still readable.
+    expect(renderedPreview).toContain('提示词模板定制');
+    // Every rendered line must fit inside the terminal width.
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+    }
+  });
+
+  it('strips ANSI cursor movement and erase sequences', () => {
+    const output = 'line one\n\u001B[A\u001B[2Kline two';
+    const app = makeApp({
+      tasks: [task({ taskId: 'bash-aaaaaaaa' })],
+      selectedTaskId: 'bash-aaaaaaaa',
+      tailOutput: output,
+    });
+    const width = 120;
+    const lines = app.render(width);
+    const rendered = lines.join('\n');
+    expect(rendered).not.toContain('\u001B[A');
+    expect(rendered).not.toContain('\u001B[2K');
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(width);
     }
   });
 });

@@ -34,6 +34,7 @@ import {
   type Component,
   type Focusable,
   getCapabilities,
+  type OverlayHandle,
   ProcessTerminal,
   type SlashCommand,
   Spacer,
@@ -454,11 +455,13 @@ export class ByfTui implements DialogHost {
     | {
         readonly queryId: string;
         readonly component: BtwViewer;
+        readonly handle: OverlayHandle;
         readonly abort: AbortController;
         answer: string;
         status: 'streaming' | 'completed' | 'failed';
         readonly startedAt: number;
         readonly duringStreaming: boolean;
+        readonly maxHeight: number;
       }
     | undefined;
 
@@ -758,12 +761,12 @@ export class ByfTui implements DialogHost {
       clearTimeout(this.pendingExit.timer);
       this.pendingExit = null;
     }
+    this.closeBtwOverlay();
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
-    this.closeBtwOverlay();
     await this.closeSession('shutting down');
     await this.harness.close();
     this.stopAllMcpServerStatusSpinners();
@@ -1855,8 +1858,11 @@ export class ByfTui implements DialogHost {
     const previous = this.session;
     this.sessionEventUnsubscribe?.();
     this.sessionEventUnsubscribe = undefined;
-    this.clearReverseRpcPanels();
+    // Close the /btw overlay before clearing approval/question panels: the
+    // panel hide handlers restore a hidden btw overlay, so tearing the btw
+    // down first avoids a spurious restore→close flicker.
     this.closeBtwOverlay();
+    this.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
     this.approvalController.cancelAll(reason);
@@ -3155,6 +3161,23 @@ export class ByfTui implements DialogHost {
     this.state.ui.requestRender();
   }
 
+  // Mounts the /btw overlay as a centered, focusable layer that mirrors the
+  // approval panel / question dialog overlays. Unlike mountEditorReplacement,
+  // an overlay never disturbs the editor container, so closing it needs no
+  // restoreEditor — hide() is enough.
+  private mountBtwOverlay(
+    panel: Component & Focusable,
+    width: number,
+    maxHeight: number,
+  ): OverlayHandle {
+    const handle = this.state.ui.showOverlay(panel, {
+      anchor: 'center',
+      width,
+      maxHeight,
+    });
+    return handle;
+  }
+
   public show(panel: Component & Focusable): void {
     this.mountEditorReplacement(panel);
   }
@@ -3599,6 +3622,7 @@ export class ByfTui implements DialogHost {
   // Shows an approval panel and connects its response callback.
   private showApprovalPanel(payload: ApprovalPanelData): void {
     this.patchLivePane({ pendingApproval: { data: payload } });
+    this.hideBtwOverlayForModal();
     notifyTerminalOnce(this.state, `approval:${payload.id}`, {
       title: 'Byf Code approval required',
       body: payload.tool_name,
@@ -3680,11 +3704,13 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
+    this.restoreBtwOverlay();
   }
 
   // Shows a question dialog and connects its response callback.
   private showQuestionDialog(payload: QuestionPanelData): void {
     this.patchLivePane({ pendingQuestion: { data: payload } });
+    this.hideBtwOverlayForModal();
     notifyTerminalOnce(this.state, `question:${payload.id}`, {
       title: 'Byf Code needs your answer',
       body: payload.questions[0]?.question,
@@ -3725,6 +3751,7 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
+    this.restoreBtwOverlay();
   }
 
   // =========================================================================
@@ -3940,11 +3967,14 @@ export class ByfTui implements DialogHost {
     const startedAt = Date.now();
     const duringStreaming = this.state.appState.isStreaming;
     const queryId = `cli-btw-${randomUUID()}`;
+    const overlayWidth = Math.min(80, Math.floor(this.state.terminal.columns * 0.85));
+    const overlayMaxHeight = Math.floor(this.state.terminal.rows * 0.82);
     const component = new BtwViewer(
       {
         query,
         answer: '',
         status: 'streaming',
+        maxHeight: overlayMaxHeight,
         colors: this.state.theme.colors,
         onClose: () => {
           this.closeBtwOverlay();
@@ -3952,16 +3982,18 @@ export class ByfTui implements DialogHost {
       },
       this.state.terminal,
     );
-    this.mountEditorReplacement(component);
+    const handle = this.mountBtwOverlay(component, overlayWidth, overlayMaxHeight);
     const abort = new AbortController();
     this.btwOverlay = {
       queryId,
       component,
+      handle,
       abort,
       answer: '',
       status: 'streaming',
       startedAt,
       duringStreaming,
+      maxHeight: overlayMaxHeight,
     };
 
     try {
@@ -3980,8 +4012,27 @@ export class ByfTui implements DialogHost {
       void session.cancelSideQuery(overlay.queryId);
     }
     overlay.abort.abort();
+    overlay.handle.hide();
     this.btwOverlay = undefined;
-    this.restoreEditor();
+  }
+
+  // Temporarily hides the /btw overlay so an approval/question modal can take
+  // the foreground. The side query keeps streaming in the background; the
+  // overlay is restored once the modal resolves (see restoreBtwOverlay).
+  private hideBtwOverlayForModal(): void {
+    const overlay = this.btwOverlay;
+    if (overlay === undefined || overlay.handle.isHidden()) return;
+    overlay.handle.setHidden(true);
+  }
+
+  // Restores a /btw overlay that was hidden for a modal, bringing it back to
+  // the foreground. Safe to call when no btw overlay is open or it was never
+  // hidden.
+  private restoreBtwOverlay(): void {
+    const overlay = this.btwOverlay;
+    if (overlay === undefined || !overlay.handle.isHidden()) return;
+    overlay.handle.setHidden(false);
+    overlay.handle.focus();
   }
 
   // Routes a btw.* event to the active overlay (filtered by queryId).
@@ -4016,6 +4067,7 @@ export class ByfTui implements DialogHost {
         status,
         usage,
         error,
+        maxHeight: overlay.maxHeight,
         colors: this.state.theme.colors,
         onClose: () => {
           this.closeBtwOverlay();

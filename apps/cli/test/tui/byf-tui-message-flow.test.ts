@@ -177,6 +177,22 @@ function renderTranscript(driver: MessageDriver): string {
   return driver.state.transcriptContainer.render(120).join('\n');
 }
 
+/**
+ * Returns the active BtwViewer mounted as a /btw overlay, or undefined.
+ * The overlay lives in the pi-tui overlay stack (not the editor container),
+ * so we read it back through the ByfTui's internal overlay state.
+ */
+function getBtwViewer(driver: MessageDriver): BtwViewer | undefined {
+  return (driver as unknown as { btwOverlay?: { component: BtwViewer } | undefined }).btwOverlay
+    ?.component;
+}
+
+function expectBtwViewer(driver: MessageDriver): BtwViewer {
+  const viewer = getBtwViewer(driver);
+  expect(viewer).toBeInstanceOf(BtwViewer);
+  return viewer as BtwViewer;
+}
+
 function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
@@ -377,7 +393,8 @@ describe('ByfTui message flow', () => {
           expect.objectContaining({ queryId: expect.stringMatching(/^cli-btw-/) }),
         );
       });
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+      expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
+      expect(driver.state.ui.hasOverlay()).toBe(true);
       expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'btw' });
     });
 
@@ -403,7 +420,7 @@ describe('ByfTui message flow', () => {
       driver.handleUserInput('/btw where is the config?');
 
       await vi.waitFor(() => {
-        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+        expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
       const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
@@ -453,7 +470,7 @@ describe('ByfTui message flow', () => {
         vi.fn(),
       );
 
-      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      const viewer = expectBtwViewer(driver);
       const out = stripSgr(viewer.render(80).join('\n'));
       expect(out).toContain('A: config/runtime.toml');
       expect(out).toContain('done');
@@ -465,7 +482,7 @@ describe('ByfTui message flow', () => {
       driver.handleUserInput('/btw where is the config?');
 
       await vi.waitFor(() => {
-        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+        expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
       const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
@@ -490,7 +507,7 @@ describe('ByfTui message flow', () => {
         vi.fn(),
       );
 
-      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      const viewer = expectBtwViewer(driver);
       const out = stripSgr(viewer.render(80).join('\n'));
       expect(out).toContain('A: right');
       expect(out).not.toContain('wrong');
@@ -503,15 +520,84 @@ describe('ByfTui message flow', () => {
       driver.handleUserInput('/btw where is the config?');
 
       await vi.waitFor(() => {
-        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+        expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
       const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
-      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      const viewer = expectBtwViewer(driver);
       viewer.handleInput('\u001B');
 
       expect(session.cancelSideQuery).toHaveBeenCalledWith(queryId);
-      expect(driver.state.editorContainer.children[0]).not.toBeInstanceOf(BtwViewer);
+      expect(getBtwViewer(driver)).toBeUndefined();
+      expect(driver.state.ui.hasOverlay()).toBe(false);
+    });
+
+    it('hides the btw overlay while an approval panel is shown, then restores it', async () => {
+      const { driver } = await makeDriver();
+
+      driver.handleUserInput('/btw where is the config?');
+      await vi.waitFor(() => {
+        expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
+      });
+
+      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
+        .btwOverlay;
+
+      // An approval arrives while the btw overlay is open → it must hide.
+      // showApprovalPanel is driven directly (the session mock bypasses the
+      // approval handler wiring) to assert the hide/restore wiring around btw.
+      const approvalData = {
+        id: 'ap-1',
+        tool_call_id: 'tc-1',
+        tool_name: 'Bash',
+        action: 'run command',
+        description: '',
+        display: [],
+        choices: [],
+      };
+      const internal = driver as unknown as {
+        showApprovalPanel(data: typeof approvalData): void;
+        hideApprovalPanel(): void;
+      };
+      internal.showApprovalPanel(approvalData);
+      expect(overlay.handle.isHidden()).toBe(true);
+
+      // Resolving the approval must bring the btw overlay back.
+      internal.hideApprovalPanel();
+      expect(overlay.handle.isHidden()).toBe(false);
+    });
+
+    it('hides the btw overlay while a question dialog is shown, then restores it', async () => {
+      const { driver } = await makeDriver();
+
+      driver.handleUserInput('/btw where is the config?');
+      await vi.waitFor(() => {
+        expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
+      });
+
+      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
+        .btwOverlay;
+      const internal = driver as unknown as {
+        showQuestionDialog(data: unknown): void;
+        hideQuestionDialog(): void;
+      };
+
+      const questionData = {
+        id: 'q-1',
+        tool_call_id: 'tc-q',
+        questions: [
+          {
+            question: 'continue?',
+            multi_select: false,
+            options: [{ label: 'yes' }],
+          },
+        ],
+      };
+      internal.showQuestionDialog(questionData);
+      expect(overlay.handle.isHidden()).toBe(true);
+
+      internal.hideQuestionDialog();
+      expect(overlay.handle.isHidden()).toBe(false);
     });
 
     it('reports during_streaming and token usage in telemetry when completed', async () => {

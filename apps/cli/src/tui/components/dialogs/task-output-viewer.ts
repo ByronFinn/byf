@@ -23,6 +23,7 @@ import chalk from 'chalk';
 
 import type { ColorPalette } from '../../theme/colors';
 import { printableChar } from '../../utils/printable-key';
+import { sanitizeTerminalOutput } from '../../utils/sanitize-text';
 
 const ELLIPSIS = '…';
 
@@ -107,7 +108,8 @@ export class TaskOutputViewer extends Container implements Focusable {
   }
 
   private splitOutput(output: string): string[] {
-    return (output.length > 0 ? output : '[no output captured]').split('\n');
+    const safe = output.length > 0 ? sanitizeTerminalOutput(output) : '[no output captured]';
+    return safe.split('\n');
   }
 
   // ── input ──────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import type { Terminal } from '@earendil-works/pi-tui';
+import { visibleWidth } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BtwViewer, type BtwViewerProps } from '#/tui/components/dialogs/btw-viewer';
@@ -154,5 +155,35 @@ describe('BtwViewer', () => {
     const joined = strip(bodyRows.join(''));
     const aCount = (joined.match(/a/g) ?? []).length;
     expect(aCount).toBeGreaterThan(20);
+  });
+
+  it('honors maxHeight so the bottom border is not clipped', () => {
+    const rows = 40;
+    const maxHeight = 16;
+    const viewer = makeViewer({ maxHeight }, rows);
+    const out = viewer.render(80);
+    expect(out.length).toBe(maxHeight);
+    const topLine = out[0];
+    const bottomLine = out[maxHeight - 2];
+    const footerLine = out[maxHeight - 1];
+    expect(topLine).toBeDefined();
+    expect(bottomLine).toBeDefined();
+    expect(footerLine).toBeDefined();
+    expect(strip(topLine!)).toBe('─'.repeat(80));
+    expect(strip(bottomLine!)).toBe('─'.repeat(80));
+    expect(strip(footerLine!)).toContain('scroll');
+  });
+
+  it('keeps every rendered line within the requested width', () => {
+    const viewer = makeViewer({
+      answer: '中'.repeat(200),
+      status: 'completed',
+      maxHeight: 12,
+    });
+    const width = 30;
+    const out = viewer.render(width);
+    for (const line of out) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+    }
   });
 });

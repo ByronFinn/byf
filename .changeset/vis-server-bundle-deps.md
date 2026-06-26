@@ -2,7 +2,7 @@
 '@byfriends/vis-server': patch
 ---
 
-fix(vis-server): bundle @byfriends/* deps to fix ESM resolution in CLI
+fix(vis-server): bundle @byfriends/\* deps to fix ESM resolution in CLI
 
 `node apps/cli/dist/main.mjs vis` crashed with `ERR_MODULE_NOT_FOUND`
 because vis-server's `neverBundle` excluded `@byfriends/agent-core`, leaving

@@ -5,6 +5,8 @@ import type {
   ProviderCacheCapability,
 } from '@byfriends/kosong';
 
+import { log } from '#/logging/logger';
+
 /**
  * Cache boundary marker used to split the system prompt into cacheable blocks.
  *
@@ -112,6 +114,112 @@ function findImplicitBoundaries(prompt: string): number[] {
 
   // Sort boundaries by position (in case headers appear out of order)
   return boundaries.toSorted((a, b) => a - b);
+}
+
+/**
+ * Diagnostics for the system prompt's cache-boundary structure.
+ *
+ * `buildPromptPlan` splits the prompt on {@link IMPLICIT_BOUNDARY_HEADERS}.
+ * ADR 0013 requires all three headers to be present and ordered so the
+ * 4-block cache architecture (base / project / workingEnvironment /
+ * sessionContext) stays intact — a missing header silently degrades
+ * caching (e.g. OpenAI's `prompt_cache_key` stops being stable across
+ * sessions). These issues are otherwise invisible, since
+ * {@link findImplicitBoundaries} skips missing headers without error.
+ */
+export interface BoundaryDiagnostics {
+  /** Boundary headers expected but absent from the prompt. */
+  readonly missingHeaders: readonly string[];
+  /** Boundary headers found in a position inconsistent with their declared order. */
+  readonly outOfOrderHeaders: readonly string[];
+}
+
+/**
+ * Detect cache-boundary structural issues in a rendered system prompt.
+ *
+ * Pure, side-effect free. Returns empty arrays when the prompt contains
+ * all expected boundary headers in their declared order. Consumers (e.g.
+ * the turn layer) may log the result; {@link buildPromptPlan} itself
+ * never throws on these issues, so this function is the only way to
+ * observe silent cache degradation.
+ *
+ * @param prompt - The fully rendered system prompt to inspect
+ * @returns Diagnostics describing missing or out-of-order boundary headers
+ */
+export function detectBoundaryDiagnostics(prompt: string): BoundaryDiagnostics {
+  const missingHeaders: string[] = [];
+  const foundPositions = new Map<string, number>();
+
+  for (const header of IMPLICIT_BOUNDARY_HEADERS) {
+    const index = prompt.indexOf(header);
+    if (index === -1) {
+      missingHeaders.push(header);
+    } else {
+      foundPositions.set(header, index);
+    }
+  }
+
+  // A header is out of order when it appears before any header that should
+  // precede it according to IMPLICIT_BOUNDARY_HEADERS. Report each violating
+  // header once.
+  const outOfOrderHeaders = new Set<string>();
+  for (let i = 0; i < IMPLICIT_BOUNDARY_HEADERS.length; i++) {
+    const earlier = IMPLICIT_BOUNDARY_HEADERS[i]!;
+    const earlierIndex = foundPositions.get(earlier);
+    if (earlierIndex === undefined) continue;
+
+    for (let j = i + 1; j < IMPLICIT_BOUNDARY_HEADERS.length; j++) {
+      const later = IMPLICIT_BOUNDARY_HEADERS[j]!;
+      const laterIndex = foundPositions.get(later);
+      if (laterIndex === undefined) continue;
+
+      if (earlierIndex > laterIndex) {
+        outOfOrderHeaders.add(later);
+      }
+    }
+  }
+
+  return { missingHeaders, outOfOrderHeaders: [...outOfOrderHeaders] };
+}
+
+/**
+ * Signature of the last boundary warning, to avoid re-warning every turn
+ * for the same prompt. {@link buildPromptPlan} runs per LLM request, so
+ * without dedup a stable-but-malformed prompt would flood the log.
+ */
+let lastBoundaryWarningSignature: string | null = null;
+
+/**
+ * Surface silent cache degradation when a caching provider receives a
+ * prompt missing or reordering the boundary headers.
+ *
+ * Only warns for providers whose cache strategy depends on the block
+ * structure (`explicit-block`, `prompt-cache-key`, `prefix-match`);
+ * `none`-strategy providers are unaffected and stay silent. The warning
+ * is deduplicated per prompt signature so it fires once per distinct
+ * malformed prompt rather than once per request.
+ */
+function warnOnBoundaryDiagnostics(prompt: string, capability: ProviderCacheCapability): void {
+  if (capability.strategy === 'none') return;
+  const { missingHeaders, outOfOrderHeaders } = detectBoundaryDiagnostics(prompt);
+  if (missingHeaders.length === 0 && outOfOrderHeaders.length === 0) return;
+
+  const signature = `${missingHeaders.join(',')}|${outOfOrderHeaders.join(',')}`;
+  if (signature === lastBoundaryWarningSignature) return;
+  lastBoundaryWarningSignature = signature;
+
+  const issues: string[] = [];
+  if (missingHeaders.length > 0) {
+    issues.push(`missing headers: ${missingHeaders.join(', ')}`);
+  }
+  if (outOfOrderHeaders.length > 0) {
+    issues.push(`out-of-order headers: ${outOfOrderHeaders.join(', ')}`);
+  }
+  log.warn('system prompt cache boundary degraded', {
+    issues: issues.join('; '),
+    expectedHeaders: [...IMPLICIT_BOUNDARY_HEADERS],
+    adr: '0013',
+  });
 }
 
 /**
@@ -234,6 +342,7 @@ export function buildPromptPlan(
 
   // No explicit markers, check for implicit boundaries
   if (hasImplicitBoundaries(renderedSystemPrompt)) {
+    warnOnBoundaryDiagnostics(renderedSystemPrompt, providerCacheCapability);
     const boundaryPositions = findImplicitBoundaries(renderedSystemPrompt);
     const implicitParts = splitByImplicitBoundaries(renderedSystemPrompt, boundaryPositions);
     return createPlanFromParts(implicitParts, providerCacheCapability);
