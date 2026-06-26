@@ -43,7 +43,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsdown",
+    "build": "tsdown && node ../scripts/copy-web-dist.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@byfriends/kosong": "workspace:*",
+    "@byfriends/vis-web": "workspace:*",
     "tsx": "^4.21.0",
     "vitest": "4.1.4"
   }

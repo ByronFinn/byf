@@ -146,6 +146,9 @@ importers:
       '@byfriends/kosong':
         specifier: workspace:*
         version: link:../../../packages/kosong
+      '@byfriends/vis-web':
+        specifier: workspace:*
+        version: link:../web
       tsx:
         specifier: ^4.21.0
         version: 4.21.0

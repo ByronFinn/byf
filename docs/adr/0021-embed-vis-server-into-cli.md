@@ -38,8 +38,10 @@ Concretely:
 
 - `@byfriends/vis-server` is changed from `private: true` to a published package
   (`access: public`), with its built web assets (`public/`) included in the
-  published tarball (the existing `copy-web-dist.mjs` already places
-  `web/dist/**` into `server/dist/public/`).
+  published tarball. The existing `copy-web-dist.mjs` places `web/dist/**` into
+  `server/dist/public/`; it runs as the tail step of vis-server's own `build`
+  script, after `tsdown` (see Consequences for why this moved out of the
+  `apps/vis` build chain).
 - The server's side-effect-only entry (`src/index.ts`) is refactored to expose a
   reusable programmatic API (`startVisServer(...)`) so the CLI can import it.
 - `@byfriends/cli` adds `@byfriends/vis-server` as a **runtime dependency** and
@@ -79,7 +81,12 @@ a second package on the install graph, which is acceptable.
   and nothing to clean up beyond the CLI process itself.
 - The web assets travel with the server package, so the same artifact works in
   `node server/dist/server.mjs` standalone mode and as a CLI runtime dependency.
-- The existing `copy-web-dist.mjs` mechanism is reused unchanged.
+- The existing `copy-web-dist.mjs` script is reused unchanged. It now runs as
+  the tail step of `@byfriends/vis-server`'s own `build` (after `tsdown`), and
+  `@byfriends/vis-web` is declared as a build-time workspace dependency of
+  vis-server. This makes vis-server the single owner of its `dist/` and removes
+  the `pnpm -r` build race in which the previous `apps/vis` build chain ran
+  `copy-web-dist.mjs` concurrently with vis-server's `tsdown clean`.
 
 ### Negative
 

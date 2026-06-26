@@ -22,8 +22,7 @@
     "build:deps": "pnpm --filter @byfriends/agent-core... build",
     "predev": "pnpm run build:deps",
     "dev": "node scripts/dev.mjs",
-    "build": "pnpm run build:deps && pnpm --filter @byfriends/vis-server build && pnpm --filter @byfriends/vis-web build && node scripts/copy-web-dist.mjs",
-    "prestart": "pnpm run build",
+    "prestart": "pnpm --filter @byfriends/vis-server... build",
     "start": "node server/dist/index.mjs"
   },
   "devDependencies": {
