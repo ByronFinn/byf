@@ -24,7 +24,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "pnpm run build:deps && pnpm --filter @byfriends/vis-server build && pnpm --filter @byfriends/vis-web build && node scripts/copy-web-dist.mjs",
     "prestart": "pnpm run build",
-    "start": "node server/dist/server.mjs"
+    "start": "node server/dist/index.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

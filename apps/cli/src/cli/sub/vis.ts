@@ -10,6 +10,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
+import { formatVisStartupBanner } from '@byfriends/vis-server';
 import type { StartVisServerOptions, VisServerHandle } from '@byfriends/vis-server';
 import type { Command } from 'commander';
 
@@ -51,11 +52,7 @@ export async function handleVis(
 
   let handle: VisServerHandle;
   try {
-    handle = await deps.startServer({
-      host,
-      port,
-      ...(publicDir === undefined ? {} : { publicDir }),
-    });
+    handle = await deps.startServer({ host, port, publicDir });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('VIS_AUTH_TOKEN')) {
@@ -78,7 +75,8 @@ export async function handleVis(
   // Build the deep link and banner.
   const target = sessionId === undefined ? '/' : `/sessions/${sessionId}`;
   const url = `${handle.url}${target}`;
-  deps.stdout.write(`byf vis: ${url}\n`);
+  const authToken = process.env['VIS_AUTH_TOKEN'];
+  deps.stdout.write(formatVisStartupBanner({ authToken, host: handle.host, port: handle.port }));
 
   // Open the browser unless suppressed.
   if (opts.open) {
@@ -94,6 +92,7 @@ export async function handleVis(
   await deps.waitForShutdown(() => {
     handle.close();
   });
+  deps.exit(0);
 }
 
 /**
@@ -141,12 +140,11 @@ export function registerVisCommand(parent: Command, deps?: Partial<VisDeps>): vo
     .action(
       async (
         sessionId: string | undefined,
-        options: { port?: string; host?: string; open?: boolean },
+        options: { port: string; host: string; open?: boolean },
       ) => {
-        const port = options.port !== undefined ? Number.parseInt(options.port, 10) : undefined;
         await handleVis(createDefaultVisDeps(deps), sessionId, {
-          ...(port === undefined ? {} : { port }),
-          ...(options.host === undefined ? {} : { host: options.host }),
+          port: Number.parseInt(options.port, 10),
+          host: options.host,
           open: options.open !== false,
         });
       },

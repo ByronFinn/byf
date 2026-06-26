@@ -2,11 +2,11 @@
 '@byfriends/vis-server': minor
 ---
 
-feat(vis-server): publish as a public package for CLI inlining
+feat(vis-server): publish as a public package for CLI consumption
 
 `@byfriends/vis-server` was previously `private` and only runnable from inside
 the monorepo. It is now a published package so the `@byfriends/cli` `byf vis`
-subcommand can bundle it in-process via tsdown (ADR-0021).
+subcommand can consume it as a runtime dependency (ADR-0021).
 
 - Expose a library entry exporting `startVisServer()` (added in the prior
   refactor) alongside the existing executable entry.

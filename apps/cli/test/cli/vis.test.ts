@@ -97,7 +97,7 @@ describe('byf vis', () => {
 
     await runVis(deps, undefined, { open: true });
 
-    expect(exitCodes).toEqual([]);
+    expect(exitCodes).toEqual([0]);
     expect(startCalls).toEqual([{ host: '127.0.0.1', port: 3001 }]);
     expect(openedUrls).toEqual(['http://127.0.0.1:3001/']);
     expect(stdout.join('')).toContain('http://127.0.0.1:3001');
@@ -182,7 +182,11 @@ describe('byf vis', () => {
     const program = new Command('byf');
     registerVisCommand(program, deps);
 
-    await program.parseAsync(['node', 'byf', 'vis', '--port', '5050', 'session_xyz']);
+    try {
+      await program.parseAsync(['node', 'byf', 'vis', '--port', '5050', 'session_xyz']);
+    } catch (error) {
+      if (!(error instanceof ExitCalled)) throw error;
+    }
 
     expect(startCalls).toEqual([{ host: '127.0.0.1', port: 5050 }]);
     expect(openedUrls).toEqual(['http://127.0.0.1:5050/sessions/session_xyz']);

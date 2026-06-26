@@ -14,7 +14,7 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### vis-server
 
-承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）；可被 `byf vis` 子命令在进程内启动，也可经 `node server/dist/server.mjs` 独立启动。端口/主机/BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。
+承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）；可被 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可经 `node server/dist/index.mjs` 独立启动（`server.mjs` 是供程序化导入的库入口）。端口/主机/BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。
 
 ## License Terms
 

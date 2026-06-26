@@ -48,28 +48,36 @@ export async function startVisServer(
   const host = options.host ?? resolveHost();
   const port = options.port ?? resolvePort();
   const authToken = options.authToken ?? resolveVisAuthToken(host);
-  const app = await createApp({
-    authToken,
-    ...(options.publicDir === undefined ? {} : { publicDir: options.publicDir }),
-  });
+  const app = await createApp({ authToken, publicDir: options.publicDir });
 
   return new Promise<VisServerHandle>((resolve, reject) => {
-    let server: ReturnType<typeof serve> | undefined;
-    const onListening = (): void => {
-      const address = server?.address();
+    let settled = false;
+    const server = serve({ fetch: app.fetch, hostname: host, port }, () => {
+      if (settled) return;
+      settled = true;
+      const address = server.address();
       const actualPort = typeof address === 'object' && address !== null ? address.port : port;
       resolve({
         host,
         port: actualPort,
         url: `http://${hostForUrl(host)}:${actualPort}`,
-        close: () => server?.close(),
+        close: () => {
+          // closeAllConnections drops keep-alive sockets so the event loop
+          // empties and the process can exit promptly after close().
+          server.closeAllConnections();
+          server.close();
+        },
       });
-    };
-    try {
-      server = serve({ fetch: app.fetch, hostname: host, port }, onListening);
-    } catch (error) {
+    });
+    // `serve()` reports bind failures (e.g. EADDRINUSE) as an async 'error'
+    // event, not a synchronous throw — without this listener Node would
+    // terminate the process with an uncaughtException and the caller's
+    // try/catch in handleVis would never see the port-in-use case.
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (settled) return;
+      settled = true;
       reject(error);
-    }
+    });
   });
 }
 
