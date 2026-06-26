@@ -9,7 +9,7 @@ export default defineConfig({
   outDir: 'dist',
   clean: true,
   deps: {
-    alwaysBundle: [],
-    neverBundle: ['@byfriends/agent-core', '@byfriends/kosong', '@byfriends/kaos'],
+    alwaysBundle: [/^@byfriends\//],
+    neverBundle: [],
   },
 });
