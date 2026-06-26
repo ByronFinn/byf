@@ -69,6 +69,7 @@ The feature type decides where it lands:
 - New CLI arguments: change `src/cli/commands.ts` / `src/cli/options.ts`, then pass them into the TUI via `src/cli/run-shell.ts`. Do not let the CLI operate on the session directly.
 - New CLI subcommands: put them under `src/cli/sub/`, with non-interactive command logic only; when SDK access is needed, go through `@byfriends/sdk`.
 - New slash commands: first change definition, parsing, and types under `src/tui/commands/`; put the execution entry into the slash-command handler section of `ByfTUI`; split complex execution logic into `actions` or `utils`.
+  - `/btw` is the side-query command: it opens a `BtwViewer` overlay (`src/tui/components/dialogs/btw-viewer.ts`) that streams an answer from a read-only snapshot of the conversation. The handler generates a `queryId`, passes it to `Session.askSide`, and cancels the in-flight query via `Session.cancelSideQuery` when the overlay closes.
 - New skill-derived commands: hook into `buildSkillSlashCommands` / the skill command map — do not hard-code a single skill.
 - New transcript message types: define the data shape in `src/tui/types.ts`, add or extend a component under `components/messages/`, and register the renderer in `createTranscriptComponent`.
 - New tool-result display: prefer extending `components/messages/tool-renderers/registry.ts` and the corresponding renderer; do not stack branches inside `ToolCallComponent`.

@@ -11,6 +11,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
+import { BtwViewer } from '#/tui/components/dialogs/btw-viewer';
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import type { QueuedMessage } from '#/tui/types';
@@ -77,6 +78,12 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     init: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
     cancelCompaction: vi.fn(async () => {}),
+    askSide: vi.fn(
+      async (_query: string, _options?: { signal?: AbortSignal; queryId?: string }) => ({
+        queryId: 'cli-btw-test-qid',
+      }),
+    ),
+    cancelSideQuery: vi.fn(async (_queryId: string) => {}),
     getStatus: vi.fn(async () => ({
       model: 'k2',
       thinkingLevel: 'off',
@@ -355,6 +362,200 @@ describe('ByfTui message flow', () => {
     });
     expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'yolo' });
     expect(harness.track).not.toHaveBeenCalledWith('yolo_toggle', expect.anything());
+  });
+
+  describe('/btw side query', () => {
+    it('opens a BtwViewer overlay and asks the side query', async () => {
+      const { driver, session, harness } = await makeDriver();
+      harness.track.mockClear();
+
+      driver.handleUserInput('/btw where is the config?');
+
+      await vi.waitFor(() => {
+        expect(session.askSide).toHaveBeenCalledWith(
+          'where is the config?',
+          expect.objectContaining({ queryId: expect.stringMatching(/^cli-btw-/) }),
+        );
+      });
+      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+      expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'btw' });
+    });
+
+    it('shows a usage error when /btw has no args', async () => {
+      const { driver, session, harness } = await makeDriver();
+      harness.track.mockClear();
+
+      driver.handleUserInput('/btw');
+
+      await vi.waitFor(() => {
+        expect(session.askSide).not.toHaveBeenCalled();
+      });
+      const transcript = renderTranscript(driver);
+      expect(stripSgr(transcript)).toContain('Usage: /btw <question>');
+      // The command is still recorded as dispatched; only the network request is skipped.
+      expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'btw' });
+    });
+
+    it('streams side-query deltas into the overlay', async () => {
+      const { driver, session, harness } = await makeDriver();
+      harness.track.mockClear();
+
+      driver.handleUserInput('/btw where is the config?');
+
+      await vi.waitFor(() => {
+        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+      });
+
+      const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
+      driver.handleEvent(
+        {
+          type: 'btw.started',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+        },
+        vi.fn(),
+      );
+      driver.handleEvent(
+        {
+          type: 'btw.delta',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+          delta: 'config/',
+        },
+        vi.fn(),
+      );
+      driver.handleEvent(
+        {
+          type: 'btw.delta',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+          delta: 'runtime.toml',
+        },
+        vi.fn(),
+      );
+      driver.handleEvent(
+        {
+          type: 'btw.completed',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+          text: 'config/runtime.toml',
+          usage: {
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            inputOther: 5,
+            output: 6,
+          },
+        },
+        vi.fn(),
+      );
+
+      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      const out = stripSgr(viewer.render(80).join('\n'));
+      expect(out).toContain('A: config/runtime.toml');
+      expect(out).toContain('done');
+    });
+
+    it('ignores btw events for a different queryId', async () => {
+      const { driver, session } = await makeDriver();
+
+      driver.handleUserInput('/btw where is the config?');
+
+      await vi.waitFor(() => {
+        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+      });
+
+      const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
+      driver.handleEvent(
+        {
+          type: 'btw.delta',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId: 'other-qid',
+          delta: 'wrong',
+        },
+        vi.fn(),
+      );
+      driver.handleEvent(
+        {
+          type: 'btw.delta',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+          delta: 'right',
+        },
+        vi.fn(),
+      );
+
+      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      const out = stripSgr(viewer.render(80).join('\n'));
+      expect(out).toContain('A: right');
+      expect(out).not.toContain('wrong');
+    });
+
+    it('closes the overlay and cancels the side query', async () => {
+      const { driver, session, harness } = await makeDriver();
+      harness.track.mockClear();
+
+      driver.handleUserInput('/btw where is the config?');
+
+      await vi.waitFor(() => {
+        expect(driver.state.editorContainer.children[0]).toBeInstanceOf(BtwViewer);
+      });
+
+      const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
+      const viewer = driver.state.editorContainer.children[0] as BtwViewer;
+      viewer.handleInput('\u001B');
+
+      expect(session.cancelSideQuery).toHaveBeenCalledWith(queryId);
+      expect(driver.state.editorContainer.children[0]).not.toBeInstanceOf(BtwViewer);
+    });
+
+    it('reports during_streaming and token usage in telemetry when completed', async () => {
+      const { driver, session, harness } = await makeDriver();
+      harness.track.mockClear();
+
+      driver.state.appState.isStreaming = true;
+      driver.handleUserInput('/btw quick one');
+
+      await vi.waitFor(() => {
+        expect(session.askSide).toHaveBeenCalled();
+      });
+
+      const queryId = (session.askSide.mock.calls[0]![1] as unknown as { queryId: string }).queryId;
+      driver.handleEvent(
+        {
+          type: 'btw.completed',
+          sessionId: 'ses-1',
+          agentId: 'main',
+          queryId,
+          text: 'answer',
+          usage: {
+            inputCacheRead: 1,
+            inputCacheCreation: 2,
+            inputOther: 3,
+            output: 4,
+          },
+        },
+        vi.fn(),
+      );
+
+      await vi.waitFor(() => {
+        expect(harness.track).toHaveBeenCalledWith(
+          'btw_query',
+          expect.objectContaining({
+            during_streaming: true,
+            input_cache_read: 1,
+            input_cache_creation: 2,
+            input_other: 3,
+            output: 4,
+          }),
+        );
+      });
+    });
   });
 
   it('hydrates MCP server status after subscribing to session events', async () => {

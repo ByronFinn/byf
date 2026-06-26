@@ -118,9 +118,13 @@ export interface SteerPayload {
 }
 export interface AskSidePayload {
   readonly query: string;
+  readonly queryId: string;
 }
 export interface CancelPayload {
   readonly turnId?: number;
+}
+export interface CancelSideQueryPayload {
+  readonly queryId: string;
 }
 export interface SetThinkingPayload {
   readonly level: string;
@@ -233,6 +237,7 @@ export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
   askSide: (payload: AskSidePayload) => void;
+  cancelSideQuery: (payload: CancelSideQueryPayload) => void;
   cancel: (payload: CancelPayload) => void;
   setThinking: (payload: SetThinkingPayload) => void;
   setPermission: (payload: SetPermissionPayload) => void;

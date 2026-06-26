@@ -1,6 +1,15 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
-import type { ApprovalRequest, ApprovalResponse, Event, QuestionRequest } from '#/index';
+import type {
+  ApprovalRequest,
+  ApprovalResponse,
+  BtwCompletedEvent,
+  BtwDeltaEvent,
+  BtwFailedEvent,
+  BtwStartedEvent,
+  Event,
+  QuestionRequest,
+} from '#/index';
 
 type EventByType<T extends Event['type']> = Extract<Event, { readonly type: T }>;
 
@@ -47,12 +56,18 @@ describe('Event public types', () => {
 
   it('narrows btw side-query events by type', () => {
     expectTypeOf<EventByType<'btw.started'>['queryId']>().toEqualTypeOf<string>();
-    expectTypeOf<EventByType<'btw.started'>['query']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'btw.delta'>['queryId']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'btw.delta'>['delta']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'btw.completed'>['queryId']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'btw.completed'>['text']>().toEqualTypeOf<string>();
     expectTypeOf<EventByType<'btw.failed'>['queryId']>().toEqualTypeOf<string>();
+  });
+
+  it('re-exports btw side-query event types from the SDK surface', () => {
+    type ReExported = BtwStartedEvent | BtwDeltaEvent | BtwCompletedEvent | BtwFailedEvent;
+    expectTypeOf<ReExported['type']>().toEqualTypeOf<
+      'btw.started' | 'btw.delta' | 'btw.completed' | 'btw.failed'
+    >();
   });
 
   it('covers every event in exhaustive switches', () => {

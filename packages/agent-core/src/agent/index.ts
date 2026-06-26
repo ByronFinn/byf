@@ -14,6 +14,7 @@ import {
 import { ErrorCodes, ByfError, makeErrorPayload, toByfErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
+import { buildPromptPlan } from '#/prompt-plan/index';
 import type { AgentAPI, AgentEvent, SDKAgentRPC, UsageStatus } from '#/rpc';
 
 import { isAbortError } from '../loop/errors';
@@ -29,6 +30,7 @@ import type { RuntimeConfig } from '../runtime-types';
 import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import { linkAbortSignal } from '../utils/abort';
 import { estimateTokens, estimateTokensForMessages, estimateTokensForTools } from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
@@ -50,6 +52,7 @@ import { ToolManager } from './tool/index';
 import { TurnFlow } from './turn';
 import {
   GENERATE_REQUEST_LOG_CONTEXT,
+  getProviderCacheCapability,
   type GenerateOptionsWithRequestLog,
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
@@ -110,6 +113,7 @@ export class Agent {
 
   private lastLlmConfigLogSignature?: string;
   private btwQueryCounter = 0;
+  private readonly btwQueries = new Map<string, AbortController>();
 
   constructor(config: AgentConfig) {
     this.log = config.log ?? log;
@@ -207,10 +211,15 @@ export class Agent {
    */
   async askSide(
     query: string,
-    options: { readonly signal?: AbortSignal | undefined } = {},
-  ): Promise<void> {
-    if (query.trim().length === 0) return;
-    const queryId = `btw-${String((this.btwQueryCounter += 1))}`;
+    options: {
+      readonly signal?: AbortSignal | undefined;
+      readonly queryId?: string | undefined;
+    } = {},
+  ): Promise<{ readonly queryId: string }> {
+    if (query.trim().length === 0) {
+      throw new ByfError(ErrorCodes.REQUEST_INVALID, 'Side query cannot be empty');
+    }
+    const queryId = options.queryId ?? `btw-${String((this.btwQueryCounter += 1))}`;
     const provider = this.config.provider.withThinking(this.config.thinkingLevel);
     const model = this.config.model;
     const systemPrompt = this.config.systemPrompt;
@@ -219,9 +228,23 @@ export class Agent {
       { role: 'user', content: [{ type: 'text', text: query }], toolCalls: [] },
     ];
 
-    this.emitEvent({ type: 'btw.started', queryId, query });
+    if (this.btwQueries.has(queryId)) {
+      throw new ByfError(
+        ErrorCodes.REQUEST_INVALID,
+        `Side query id "${queryId}" is already in flight`,
+      );
+    }
+    const controller = new AbortController();
+    this.btwQueries.set(queryId, controller);
+    const unlinkCallerSignal =
+      options.signal !== undefined ? linkAbortSignal(options.signal, controller) : undefined;
+
+    this.emitEvent({ type: 'btw.started', queryId });
 
     try {
+      const cacheCapability = getProviderCacheCapability(provider);
+      const promptPlan = buildPromptPlan(systemPrompt, cacheCapability);
+
       const result = await this.generate(
         provider,
         systemPrompt,
@@ -234,7 +257,7 @@ export class Agent {
             }
           },
         },
-        options.signal !== undefined ? { signal: options.signal } : undefined,
+        { signal: controller.signal, promptPlan },
       );
 
       const text = result.message.content
@@ -250,19 +273,41 @@ export class Agent {
       });
       this.telemetry.track('btw_query', {
         model,
-        ...(options.signal !== undefined ? { aborted: options.signal.aborted } : {}),
+        aborted: false,
+        ...(result.usage !== null
+          ? {
+              input_cache_read: result.usage.inputCacheRead,
+              input_cache_creation: result.usage.inputCacheCreation,
+              input_other: result.usage.inputOther,
+              output: result.usage.output,
+            }
+          : {}),
       });
     } catch (error) {
       if (isAbortError(error)) {
         // Abort is an expected exit (user closed the overlay); emit no error.
-        return;
+        this.telemetry.track('btw_query', { model, aborted: true });
+        return { queryId };
       }
       this.emitEvent({
         type: 'btw.failed',
         queryId,
         ...toByfErrorPayload(error),
       });
+    } finally {
+      unlinkCallerSignal?.();
+      this.btwQueries.delete(queryId);
     }
+
+    return { queryId };
+  }
+
+  /**
+   * Cancel an in-flight side query by aborting its per-query controller.
+   * No-op if the query is already finished or unknown.
+   */
+  cancelSideQuery(queryId: string): void {
+    this.btwQueries.get(queryId)?.abort();
   }
 
   private logLlmRequest(
@@ -341,7 +386,10 @@ export class Agent {
         this.turn.steer(payload.input);
       },
       askSide: (payload) => {
-        void this.askSide(payload.query);
+        void this.askSide(payload.query, { queryId: payload.queryId });
+      },
+      cancelSideQuery: (payload) => {
+        this.cancelSideQuery(payload.queryId);
       },
       cancel: (payload) => {
         if (this.turn.hasActiveTurn) {

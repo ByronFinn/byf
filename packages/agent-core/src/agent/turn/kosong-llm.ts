@@ -182,7 +182,7 @@ function generateOptions(
  * Safely handles providers that don't implement getCapability or don't have cache.
  * Returns a default capability with 'none' strategy for non-caching providers.
  */
-function getProviderCacheCapability(provider: ChatProvider): ProviderCacheCapability {
+export function getProviderCacheCapability(provider: ChatProvider): ProviderCacheCapability {
   if (typeof provider.getCapability !== 'function') {
     // Provider doesn't implement getCapability, assume no caching
     return { strategy: 'none' };

@@ -94,6 +94,14 @@ export type {
   CompactionResult,
 } from '@byfriends/agent-core';
 
+// Side-query (/btw) lifecycle events.
+export type {
+  BtwStartedEvent,
+  BtwDeltaEvent,
+  BtwCompletedEvent,
+  BtwFailedEvent,
+} from '@byfriends/agent-core';
+
 // Background task lifecycle events emitted by the BPM. Covers both
 // bash (`bash-*`) and agent (`agent-*`) tasks under one wire format.
 export type {

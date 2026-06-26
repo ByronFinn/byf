@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { ErrorCodes, ByfError, type ByfErrorCode } from '@byfriends/agent-core';
 
 import { type ApprovalHandler, type Event, type QuestionHandler } from '#/events';
@@ -114,17 +116,30 @@ export class Session {
    * Pass a `signal` to abort an in-flight side query (e.g. when the user
    * closes the overlay).
    */
-  async askSide(query: string, options: { signal?: AbortSignal | undefined } = {}): Promise<void> {
+  async askSide(
+    query: string,
+    options: {
+      readonly signal?: AbortSignal | undefined;
+      readonly queryId?: string | undefined;
+    } = {},
+  ): Promise<{ readonly queryId: string }> {
     this.ensureOpen();
     const normalized = normalizeRequiredString(
       query,
       'Side query cannot be empty',
       ErrorCodes.REQUEST_INVALID,
     );
+    const queryId = options.queryId ?? `sdk-btw-${randomUUID()}`;
     await this.rpc.askSide(
-      { sessionId: this.id, query: normalized },
+      { sessionId: this.id, query: normalized, queryId },
       ...(options.signal !== undefined ? [{ signal: options.signal }] : []),
     );
+    return { queryId };
+  }
+
+  async cancelSideQuery(queryId: string): Promise<void> {
+    this.ensureOpen();
+    await this.rpc.cancelSideQuery({ sessionId: this.id, queryId });
   }
 
   async init(): Promise<void> {

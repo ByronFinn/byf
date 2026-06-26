@@ -3,6 +3,7 @@ import {
   isToolCall,
   type FinishReason,
   type Message,
+  type PromptPlan,
   type StreamedMessagePart,
 } from '@byfriends/kosong';
 
@@ -15,7 +16,7 @@ import {
   type GenerateCall,
 } from './snapshots';
 
-type GenerateFn = NonNullable<AgentConfig['generate']>;
+export type GenerateFn = NonNullable<AgentConfig['generate']>;
 
 interface ScriptedResponse {
   readonly parts: readonly StreamedMessagePart[];
@@ -60,6 +61,7 @@ export function createScriptedGenerate() {
         parameters,
       })),
       history: structuredClone(history),
+      options: extractGenerateOptions(options),
     });
     calls.push(input);
 
@@ -124,6 +126,13 @@ export function createScriptedGenerate() {
     mockNextResponse,
     mockNextProviderResponse,
   };
+}
+
+function extractGenerateOptions(options: { promptPlan?: PromptPlan } | undefined): {
+  promptPlan?: PromptPlan;
+} {
+  if (options?.promptPlan === undefined) return {};
+  return { promptPlan: options.promptPlan };
 }
 
 function normalizeMessagesForTokenEstimates(messages: Message[]): Message[] {

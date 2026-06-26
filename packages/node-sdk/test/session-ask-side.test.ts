@@ -143,8 +143,8 @@ describe('Session.askSide', () => {
 
       expect(started).toMatchObject({
         type: 'btw.started',
-        query: 'what is the config file name?',
       });
+      expect(started).not.toHaveProperty('query');
       expect(deltas.map((e) => (e as { delta: string }).delta).join('')).toBe(
         'config/runtime.toml',
       );
@@ -238,6 +238,45 @@ describe('Session.askSide', () => {
       await session.close();
 
       await expect(session.askSide('hello')).rejects.toMatchObject({
+        name: 'ByfError',
+        code: 'session.closed',
+      } satisfies Partial<ByfError>);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('returns the queryId and accepts a caller-supplied queryId', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const harness = new ByfHarness({ homeDir });
+
+    try {
+      await configureFakeProvider(harness);
+      const session = await harness.createSession({ id: 'ses_ask_side_queryid_opt', workDir });
+
+      const { queryId: generated } = await session.askSide('quick one');
+      expect(generated.startsWith('sdk-btw-')).toBe(true);
+
+      const { queryId: supplied } = await session.askSide('another', { queryId: 'my-qid' });
+      expect(supplied).toBe('my-qid');
+
+      await waitForEvent(session, (event) => event.type === 'btw.completed');
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('rejects cancelSideQuery after the session is closed', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const harness = new ByfHarness({ homeDir });
+
+    try {
+      const session = await harness.createSession({ id: 'ses_cancel_side_closed', workDir });
+      await session.close();
+
+      await expect(session.cancelSideQuery('any')).rejects.toMatchObject({
         name: 'ByfError',
         code: 'session.closed',
       } satisfies Partial<ByfError>);

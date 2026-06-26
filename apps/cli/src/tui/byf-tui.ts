@@ -7,12 +7,16 @@
  * flows back to the harness.
  */
 
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
 import { applyProviderConfig, fetchModelsByType, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
+  BtwCompletedEvent,
+  BtwDeltaEvent,
+  BtwFailedEvent,
   CreateSessionOptions,
   Event,
   ByfHarness,
@@ -448,12 +452,13 @@ export class ByfTui implements DialogHost {
   /** Active `/btw` side-query overlay, or undefined when none is open. */
   private btwOverlay:
     | {
-        queryId: string;
+        readonly queryId: string;
         readonly component: BtwViewer;
-        readonly savedChildren: readonly Component[];
         readonly abort: AbortController;
         answer: string;
         status: 'streaming' | 'completed' | 'failed';
+        readonly startedAt: number;
+        readonly duringStreaming: boolean;
       }
     | undefined;
 
@@ -758,6 +763,7 @@ export class ByfTui implements DialogHost {
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
+    this.closeBtwOverlay();
     await this.closeSession('shutting down');
     await this.harness.close();
     this.stopAllMcpServerStatusSpinners();
@@ -1850,6 +1856,7 @@ export class ByfTui implements DialogHost {
     this.sessionEventUnsubscribe?.();
     this.sessionEventUnsubscribe = undefined;
     this.clearReverseRpcPanels();
+    this.closeBtwOverlay();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
     this.approvalController.cancelAll(reason);
@@ -3932,6 +3939,7 @@ export class ByfTui implements DialogHost {
 
     const startedAt = Date.now();
     const duringStreaming = this.state.appState.isStreaming;
+    const queryId = `cli-btw-${randomUUID()}`;
     const component = new BtwViewer(
       {
         query,
@@ -3947,37 +3955,37 @@ export class ByfTui implements DialogHost {
     this.mountEditorReplacement(component);
     const abort = new AbortController();
     this.btwOverlay = {
-      queryId: '',
+      queryId,
       component,
-      savedChildren: [],
       abort,
       answer: '',
       status: 'streaming',
+      startedAt,
+      duringStreaming,
     };
 
     try {
-      await session.askSide(query, { signal: abort.signal });
+      await session.askSide(query, { signal: abort.signal, queryId });
     } catch {
       // Errors surface as a btw.failed event; ignore the rejected promise.
     }
-    this.track('input_command', { command: 'btw' });
-    this.track('btw_query', {
-      duration_ms: Date.now() - startedAt,
-      during_streaming: duringStreaming,
-    });
   }
 
   // Closes an active /btw overlay, aborting any in-flight side query.
   private closeBtwOverlay(): void {
     const overlay = this.btwOverlay;
     if (overlay === undefined) return;
+    const session = this.session;
+    if (session !== undefined) {
+      void session.cancelSideQuery(overlay.queryId);
+    }
     overlay.abort.abort();
     this.btwOverlay = undefined;
     this.restoreEditor();
   }
 
-  // Routes a btw.* event to the active overlay (filtered by queryId once
-  // the started event assigns one). Returns true when handled.
+  // Routes a btw.* event to the active overlay (filtered by queryId).
+  // Returns true when handled.
   private handleBtwEvent(event: Event): boolean {
     if (!('type' in event) || typeof event.type !== 'string' || !event.type.startsWith('btw.')) {
       return false;
@@ -3985,19 +3993,29 @@ export class ByfTui implements DialogHost {
     const overlay = this.btwOverlay;
     if (overlay === undefined) return false;
     const queryId = (event as { queryId?: string }).queryId;
-    if (overlay.queryId.length === 0) {
-      overlay.queryId = queryId ?? '';
-    } else if (queryId !== undefined && queryId !== overlay.queryId) {
+    if (queryId === undefined || queryId !== overlay.queryId) {
       return false;
     }
 
-    const refresh = (answer: string, status: 'streaming' | 'completed' | 'failed'): void => {
+    const refresh = (
+      answer: string,
+      status: 'streaming' | 'completed' | 'failed',
+      usage?: {
+        inputCacheRead: number;
+        inputCacheCreation: number;
+        inputOther: number;
+        output: number;
+      },
+      error?: string,
+    ): void => {
       overlay.answer = answer;
       overlay.status = status;
       overlay.component.setProps({
         query: overlay.component.query,
         answer,
         status,
+        usage,
+        error,
         colors: this.state.theme.colors,
         onClose: () => {
           this.closeBtwOverlay();
@@ -4011,13 +4029,38 @@ export class ByfTui implements DialogHost {
       case 'btw.started':
         return true;
       case 'btw.delta':
-        refresh(overlay.answer + (event as { delta: string }).delta, 'streaming');
+        refresh(overlay.answer + (event as BtwDeltaEvent).delta, 'streaming');
         return true;
-      case 'btw.completed':
-        refresh((event as { text: string }).text, 'completed');
+      case 'btw.completed': {
+        const completed = event as BtwCompletedEvent;
+        const durationMs = Date.now() - overlay.startedAt;
+        const telemetryPayload: Record<string, boolean | number> = {
+          duration_ms: durationMs,
+          during_streaming: overlay.duringStreaming,
+        };
+        if (completed.usage !== undefined) {
+          telemetryPayload['input_cache_read'] = completed.usage.inputCacheRead;
+          telemetryPayload['input_cache_creation'] = completed.usage.inputCacheCreation;
+          telemetryPayload['input_other'] = completed.usage.inputOther;
+          telemetryPayload['output'] = completed.usage.output;
+        }
+        this.track('btw_query', telemetryPayload);
+        refresh(
+          completed.text,
+          'completed',
+          completed.usage !== undefined
+            ? {
+                inputCacheRead: completed.usage.inputCacheRead,
+                inputCacheCreation: completed.usage.inputCacheCreation,
+                inputOther: completed.usage.inputOther,
+                output: completed.usage.output,
+              }
+            : undefined,
+        );
         return true;
+      }
       case 'btw.failed':
-        refresh(overlay.answer, 'failed');
+        refresh(overlay.answer, 'failed', undefined, (event as BtwFailedEvent).message);
         return true;
       default:
         return false;

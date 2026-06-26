@@ -10,6 +10,7 @@ import type {
   AskSidePayload,
   BeginCompactionPayload,
   CancelPayload,
+  CancelSideQueryPayload,
   EmptyPayload,
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
@@ -149,6 +150,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   askSide({ agentId, ...payload }: AgentScopedPayload<AskSidePayload>) {
     return this.getAgent(agentId).askSide(payload);
+  }
+
+  cancelSideQuery({ agentId, ...payload }: AgentScopedPayload<CancelSideQueryPayload>) {
+    return this.getAgent(agentId).cancelSideQuery(payload);
   }
 
   cancel({ agentId, ...payload }: AgentScopedPayload<CancelPayload>) {

@@ -265,7 +265,6 @@ export interface BackgroundTaskTerminatedEvent {
 export interface BtwStartedEvent {
   readonly type: 'btw.started';
   readonly queryId: string;
-  readonly query: string;
 }
 
 export interface BtwDeltaEvent {

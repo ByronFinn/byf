@@ -44,6 +44,7 @@ import type {
   AskSidePayload,
   BeginCompactionPayload,
   CancelPayload,
+  CancelSideQueryPayload,
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
@@ -423,6 +424,10 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   askSide({ sessionId, ...payload }: SessionAgentPayload<AskSidePayload>) {
     return this.sessionApi(sessionId).askSide(payload);
+  }
+
+  cancelSideQuery({ sessionId, ...payload }: SessionAgentPayload<CancelSideQueryPayload>) {
+    return this.sessionApi(sessionId).cancelSideQuery(payload);
   }
 
   cancel({ sessionId, ...payload }: SessionAgentPayload<CancelPayload>) {

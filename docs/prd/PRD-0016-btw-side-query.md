@@ -72,12 +72,12 @@
   - 在快照末尾追加 btw 的问题消息 `{ role:'user', content:[{type:'text', text:query}], toolCalls:[] }`。
   - 以 `[]` 作为 tools 调用 `this.generate(provider, systemPrompt, [], messagesWithQuery, callbacks, { signal, promptPlan })`，`promptPlan` 由 `buildPromptPlan(systemPrompt, cacheCapability)` 生成以命中缓存。
   - callbacks 用 kosong 的 `onMessagePart`，过滤 `part.type === 'text'` 把 delta 流式回传（忽略 ThinkPart）；**不**写 context、**不**写 records、**不** emit turn events。
-  - 完成时返回最终文本 + 本次 `result.usage`（供 overlay 显示，**不**调 `usage.record`，不进 `/usage`）。
+  - 返回本次查询的 `queryId`；最终文本与本次 `result.usage` 通过 `btw.completed` 事件流式回传（供 overlay 显示，**不**调 `usage.record`，不进 `/usage`）。
 - **R3a ContextMemory 快照方法**：新增 `getStableSnapshot(): Message[]`：
   - 读 `this.getMessages()`（无 ephemeral，已 clone+过滤空/partial）。
   - 若 `pendingToolResultIds.size > 0`，从尾部回溯，截掉最后一个含 pending tool_call id 的 assistant 消息及其后的所有消息，回退到上一个完整结束的 step 边界。
   - 该方法**必须**在 `ContextMemory` 上，因为只有它持有 `openSteps` / `pendingToolResultIds` 私有态（`Agent` 层看不到）。复用 `hasOpenToolExchange()` 既有判定。
-- **R4 RPC 接口**：在 `AgentAPI` 增加 `askSide: (payload: AskSidePayload) => void`。新增事件 `BtwStartedEvent` / `BtwDeltaEvent`（text delta）/ `BtwCompletedEvent`（含最终文本 + 本次 token 用量）/ `BtwFailedEvent`。事件命名与现有 `AssistantDeltaEvent` 区分，避免 TUI 把 btw delta 当成主 transcript 流。
+- **R4 RPC 接口**：在 `AgentAPI` 增加 `askSide: (payload: AskSidePayload) => void` 和 `cancelSideQuery: (payload: CancelSideQueryPayload) => void`。`AskSidePayload` 为 `{ query: string; queryId: string }`，由调用方生成 `queryId` 以便在请求起飞前即可关联/取消。新增事件 `BtwStartedEvent` / `BtwDeltaEvent`（text delta）/ `BtwCompletedEvent`（含最终文本 + 本次 token 用量）/ `BtwFailedEvent`。事件命名与现有 `AssistantDeltaEvent` 区分，避免 TUI 把 btw delta 当成主 transcript 流。
 - **R5 CLI 浮层组件**：在 `apps/cli/src/tui/components/dialogs/` 新增 `btw-viewer.ts`（或复用 `file-viewer`/`task-output-viewer` 的 overlay 模式），通过 `mountEditorReplacement` 挂载：
   - 展示用户问题（Q）+ 实时流式的答案（A）。
   - Esc / Enter 关闭；关闭时若有在途请求则 abort。
@@ -114,10 +114,11 @@
 
 1. **agent-core：`ContextMemory.getStableSnapshot()` + `Agent.askSide()`**
    - `getStableSnapshot()`：`getMessages()`（无 ephemeral，已 clone）→ 若 `pendingToolResultIds` 非空，回溯截掉悬空 tool_call 的尾部 assistant 消息及其后续消息，回退到上一完整 step 边界。
-   - `askSide(query, { signal })`：`const messages = [...context.getStableSnapshot(), userQueryMsg]`；`callbacks = { onMessagePart: (part) => part.type==='text' && emit(btw.delta, part.text) }`；调 `this.generate(provider, systemPrompt, [], messages, callbacks, { signal, promptPlan })`；完成 emit `btw.completed { text, usage }`，**不**写 context/records、**不** emit turn 事件。
+   - `askSide(query, { signal, queryId })`：`const messages = [...context.getStableSnapshot(), userQueryMsg]`；`callbacks = { onMessagePart: (part) => part.type==='text' && emit(btw.delta, part.text) }`；调 `this.generate(provider, systemPrompt, [], messages, callbacks, { signal, promptPlan })`；完成 emit `btw.completed { text, usage }`，**不**写 context/records、**不** emit turn 事件。若调用方提供 `queryId` 则复用之，否则由 `Agent` 生成。
 
-2. **RPC：`AgentAPI.askSide` + 事件**
-   - `AskSidePayload { input: PromptInput }`。
+2. **RPC：`AgentAPI.askSide` / `AgentAPI.cancelSideQuery` + 事件**
+   - `AskSidePayload { query: string; queryId: string }`，`queryId` 由调用方生成。
+   - `CancelSideQueryPayload { queryId: string }`：取消进行中的旁路查询，`Agent` 内按 `queryId` 维护 `AbortController`。
    - 事件：`btw.started { queryId }` / `btw.delta { queryId, delta }` / `btw.completed { queryId, text, usage? }` / `btw.failed { queryId, error }`。`queryId` 串起一次 btw 的生命周期，与主 transcript 的 turnId 体系隔离（无字段冲突）。
 
 3. **CLI：`btw-viewer.ts` overlay + `handleBtwCommand`**

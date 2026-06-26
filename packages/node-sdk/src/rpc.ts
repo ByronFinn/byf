@@ -207,7 +207,7 @@ export class SDKRpcClient {
   }
 
   async askSide(
-    input: { sessionId: string; query: string },
+    input: { sessionId: string; query: string; queryId: string },
     options?: { signal?: AbortSignal | undefined },
   ): Promise<void> {
     const rpc = await this.getRpc();
@@ -216,9 +216,19 @@ export class SDKRpcClient {
         sessionId: input.sessionId,
         agentId: this.interactiveAgentId,
         query: input.query,
+        queryId: input.queryId,
       },
       options,
     );
+  }
+
+  async cancelSideQuery(input: { sessionId: string; queryId: string }): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.cancelSideQuery({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      queryId: input.queryId,
+    });
   }
 
   async generateAgentsMd(input: SessionIdRpcInput): Promise<void> {

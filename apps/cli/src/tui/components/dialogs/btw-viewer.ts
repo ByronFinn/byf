@@ -29,6 +29,17 @@ export interface BtwViewerProps {
   readonly answer: string;
   /** Terminal lifecycle: streaming | completed | failed. */
   readonly status: 'streaming' | 'completed' | 'failed';
+  /** Optional token usage shown when the query completes. */
+  readonly usage?:
+    | {
+        readonly inputCacheRead: number;
+        readonly inputCacheCreation: number;
+        readonly inputOther: number;
+        readonly output: number;
+      }
+    | undefined;
+  /** Optional error message shown when the query failed. */
+  readonly error?: string | undefined;
   readonly colors: ColorPalette;
   readonly onClose: () => void;
 }
@@ -43,21 +54,26 @@ export class BtwViewer extends Container implements Focusable {
   private scrollTop = 0;
   /** Pre-rendered logical lines (cached on each setProps). */
   private lines: string[] = [];
-  private lastBodyWidth = 80;
+  /** Last inner width used to compute visual lines. */
+  private lastInnerWidth = 80;
+  /** Pre-wrapped visual lines (recomputed when width changes). */
+  private visualLines: string[] = [];
 
   constructor(props: BtwViewerProps, terminal: Terminal) {
     super();
     this.props = props;
     this.terminal = terminal;
     this.lines = this.buildLines(props);
+    this.visualLines = this.buildVisualLines(this.lines, this.lastInnerWidth);
   }
 
   setProps(next: BtwViewerProps): void {
     const wasAtBottom = this.scrollTop >= this.maxScroll();
-    const answerChanged = next.answer !== this.props.answer;
+    const answerChanged = next.answer !== this.props.answer || next.status !== this.props.status;
     this.props = next;
     if (answerChanged) {
       this.lines = this.buildLines(next);
+      this.visualLines = this.buildVisualLines(this.lines, this.lastInnerWidth);
       if (wasAtBottom) this.scrollTop = this.maxScroll();
       else this.scrollTop = Math.min(this.scrollTop, this.maxScroll());
     }
@@ -71,11 +87,39 @@ export class BtwViewer extends Container implements Focusable {
 
   private buildLines(props: BtwViewerProps): string[] {
     const answer = props.answer.length > 0 ? sanitizeForDisplay(props.answer) : '';
-    return [
+    const lines = [
       `Q: ${sanitizeForDisplay(props.query)}`,
       '',
       ...(answer.length > 0 ? [`A: ${answer}`] : props.status === 'streaming' ? ['A: …'] : []),
     ];
+    if (props.status === 'completed' && props.usage !== undefined) {
+      const total =
+        props.usage.inputCacheRead +
+        props.usage.inputCacheCreation +
+        props.usage.inputOther +
+        props.usage.output;
+      lines.push(
+        '',
+        `tokens: ${String(total)} (in-cache ${String(props.usage.inputCacheRead)} / create ${String(props.usage.inputCacheCreation)} / other ${String(props.usage.inputOther)} / out ${String(props.usage.output)})`,
+      );
+    }
+    if (props.status === 'failed' && props.error !== undefined && props.error.length > 0) {
+      lines.push('', `Error: ${sanitizeForDisplay(props.error)}`);
+    }
+    return lines;
+  }
+
+  private buildVisualLines(lines: readonly string[], innerWidth: number): string[] {
+    const out: string[] = [];
+    for (const line of lines) {
+      if (visibleWidth(line) <= innerWidth) {
+        out.push(line);
+        continue;
+      }
+      const wrapped = wrapTextWithAnsi(line, innerWidth);
+      out.push(...(wrapped.length > 0 ? wrapped : ['']));
+    }
+    return out;
   }
 
   // ── input ──────────────────────────────────────────────────────────
@@ -124,7 +168,7 @@ export class BtwViewer extends Container implements Focusable {
   }
 
   private maxScroll(): number {
-    return Math.max(0, this.lines.length - this.viewableRows());
+    return Math.max(0, this.visualLines.length - this.viewableRows());
   }
 
   private viewableRows(): number {
@@ -166,25 +210,24 @@ export class BtwViewer extends Container implements Focusable {
     const stroke = colors.primary;
     const innerWidth = Math.max(1, width - 4);
 
+    if (innerWidth !== this.lastInnerWidth) {
+      this.lastInnerWidth = innerWidth;
+      this.visualLines = this.buildVisualLines(this.lines, innerWidth);
+    }
+
+    const viewRows = bodyHeight - 2;
     const max = this.maxScroll();
     if (this.scrollTop > max) this.scrollTop = max;
     if (this.scrollTop < 0) this.scrollTop = 0;
 
-    const viewRows = bodyHeight - 2;
     const top = chalk.hex(stroke)('┌' + '─'.repeat(Math.max(0, width - 2)) + '┐');
     const bottom = chalk.hex(stroke)('└' + '─'.repeat(Math.max(0, width - 2)) + '┘');
 
     const out: string[] = [top];
     for (let i = 0; i < viewRows; i++) {
       const lineIndex = this.scrollTop + i;
-      const logicalLine = this.lines[lineIndex];
-      const visualLines = logicalLine === undefined ? [] : this.wrapLine(logicalLine, innerWidth);
-      const visual = visualLines[i === 0 ? 0 : Math.min(i, visualLines.length - 1)] ?? '';
-      const empty = lineIndex >= this.lines.length;
-      const rendered = empty ? '' : visual;
-      out.push(
-        chalk.hex(stroke)('│ ') + padToWidth(rendered, innerWidth) + chalk.hex(stroke)(' │'),
-      );
+      const visual = this.visualLines[lineIndex] ?? '';
+      out.push(chalk.hex(stroke)('│ ') + padToWidth(visual, innerWidth) + chalk.hex(stroke)(' │'));
     }
     out.push(bottom);
     return out;
@@ -197,13 +240,6 @@ export class BtwViewer extends Container implements Focusable {
 
     const keys = `${key('↑↓')} ${dim('scroll')}  ${key('Q/Esc/Enter')} ${dim('close')}`;
     return fitExactly(` ${keys}`, width);
-  }
-
-  private wrapLine(line: string, innerWidth: number): string[] {
-    if (visibleWidth(line) <= innerWidth) return [line];
-    const wrapped = wrapTextWithAnsi(line, innerWidth);
-    if (wrapped.length === 0) return [''];
-    return wrapped;
   }
 }
 

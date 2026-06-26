@@ -1,4 +1,4 @@
-import type { Message, Tool as LLMTool } from '@byfriends/kosong';
+import type { Message, PromptPlan, Tool as LLMTool } from '@byfriends/kosong';
 import { expect } from 'vitest';
 
 const IS_EVENT_ARRAY = Symbol('isEventArray');
@@ -25,6 +25,10 @@ export interface GenerateCall {
   readonly systemPrompt: string;
   readonly tools: Array<Pick<LLMTool, 'name' | 'description' | 'parameters'>>;
   readonly history: Message[];
+  /** Raw generate options, captured for assertions but not serialized by default. */
+  readonly options?: {
+    readonly promptPlan?: PromptPlan;
+  };
 }
 
 export type EventSnapshot = ReturnType<typeof eventSnapshot>;
