@@ -15,7 +15,7 @@ The codebase is organized in four layers with strict dependency direction (top d
 ```
 apps/cli  ──→  packages/node-sdk  ──→  packages/agent-core  ──→  packages/kosong
                                                                           ──→  packages/kaos
-apps/vis  ──→  (types only from agent-core & kosong)
+apps/vis  ──→  (type + wire-migration runtime from agent-core; types only from kosong)
 ```
 
 ### Layer responsibilities
@@ -23,7 +23,7 @@ apps/vis  ──→  (types only from agent-core & kosong)
 | Layer       | Package               | Role                                                                                                                                                                                  |
 | ----------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Application | `apps/cli`            | CLI / TUI. Consumes core capabilities **only** through `@byfriends/sdk`. Must not import `@byfriends/agent-core` directly.                                                            |
-| Application | `apps/vis`            | Visual debugging. Reads session data from filesystem. Only imports **types** from `agent-core` and `kosong` — no runtime dependency.                                                  |
+| Application | `apps/vis`            | Visual debugging. Reads session data from filesystem. Takes a read-only runtime dependency on wire-record migration functions and the `AGENT_WIRE_PROTOCOL_VERSION` constant from `agent-core`. Type-only from `kosong`.                                                  |
 | SDK         | `packages/node-sdk`   | Public TypeScript SDK. Bridges host applications to agent-core via typed RPC channel (`createRPC<CoreAPI, SDKAPI>`). Isolation seam between CLI and engine internals.                 |
 | Engine      | `packages/agent-core` | Unified agent engine: Agent, Session, Profile, Skill, Tool, Plan, Permission, Background, Records, Compaction, RPC, Config. Depends on kosong (LLM) and kaos (execution environment). |
 | LLM         | `packages/kosong`     | Provider abstraction layer. `ChatProvider` interface with adapters for OpenAI, Anthropic, Google GenAI. Stateless `generate()` loop handles streaming, tool call routing, abort.      |
@@ -36,7 +36,7 @@ apps/vis  ──→  (types only from agent-core & kosong)
 - **CLI → agent-core dependency is forbidden.** The SDK (`@byfriends/sdk`) is the only access path. Enforced by convention and `apps/cli/AGENTS.md`.
 - **agent-core never touches `fs` or `child_process` directly** for operations that might run remotely. All file/process operations go through `Kaos`.
 - **kosong and kaos have no knowledge of each other.** Both are consumed by agent-core independently.
-- **vis reads from filesystem, not from agent-core at runtime.** It imports only type definitions and wire migration functions.
+- **vis reads from filesystem, not from agent-core at runtime (except wire-migration helpers).** It imports only type definitions, the `AGENT_WIRE_PROTOCOL_VERSION` constant, and wire-record migration functions (`migrateWireRecord`, `resolveWireMigrations`). agent-coreʼs agent loop, Session, Profile, Skill, Tool, RPC, and other subsystems are never loaded.
 
 ### Internal architecture of agent-core
 
@@ -51,5 +51,5 @@ The `ChatProvider` interface is the central seam. Each adapter (OpenAI Completio
 ## Consequences
 
 - **Positive:** Clear dependency direction prevents circular coupling. The SDK seam allows replacing the CLI with alternative hosts. The Kaos seam allows running the same agent logic locally or remotely.
-- **Positive:** vis can debug any session without importing the engine at runtime.
+- **Positive:** vis can debug any session without importing the agent loop, Session, Profile, Skill, Tool, RPC, or other agent-core subsystems at runtime. The only agent-core surface loaded is the wire-migration layer (a thin, stable leaf dependency).
 - **Negative:** node-sdk adds an RPC indirection layer. The trade-off is intentional — the isolation seam is more valuable than the call overhead.
