@@ -27,6 +27,8 @@ const LIST_COL_RATIO = 0.32;
 
 // ── Types ───────────────────────────────────────────────────────────
 
+export type SubagentsFilter = 'all' | 'active';
+
 export interface SubagentListEntry {
   readonly toolCallId: string;
   readonly agentName: string | undefined;
@@ -53,10 +55,12 @@ export interface SubagentPreviewPane {
 
 export interface SubagentsListProps {
   readonly entries: readonly SubagentListEntry[];
+  readonly filter: SubagentsFilter;
   readonly colors: ColorPalette;
   readonly onClose: () => void;
   readonly onSelect?: (toolCallId: string) => void;
   readonly onSelectionChange?: (index: number) => void;
+  readonly onToggleFilter?: () => void;
   readonly selectedDetail?: SubagentDetailPane;
   readonly selectedPreview?: SubagentPreviewPane;
 }
@@ -96,6 +100,11 @@ export class SubagentsListApp extends Container implements Focusable {
       return;
     }
 
+    if (matchesKey(data, Key.tab) || k === '\t') {
+      this.props.onToggleFilter?.();
+      return;
+    }
+
     // Enter — drill into live viewer (#150)
     if (matchesKey(data, Key.enter)) {
       const selected = this.props.entries[this.selectedIndex];
@@ -125,8 +134,12 @@ export class SubagentsListApp extends Container implements Focusable {
     }
 
     const colors = this.props.colors;
-    const header = this.renderHeader(width, colors, this.props.entries);
-    const footer = this.renderFooter(width, rows - 2, this.props.entries);
+    const entries =
+      this.props.filter === 'all'
+        ? this.props.entries
+        : this.props.entries.filter((e) => e.phase === 'running' || e.phase === 'spawning');
+    const header = this.renderHeader(width, colors, entries, this.props.filter);
+    const footer = this.renderFooter(width, rows - 2, entries, this.props.filter);
     const bodyHeight = rows - 2;
 
     const listWidth = Math.max(
@@ -135,7 +148,13 @@ export class SubagentsListApp extends Container implements Focusable {
     );
     const rightWidth = width - listWidth - 1; // 1-char gap between frames
 
-    const listFrame = this.renderListFrame(listWidth, bodyHeight, colors, this.props.entries);
+    const listFrame = this.renderListFrame(
+      listWidth,
+      bodyHeight,
+      colors,
+      entries,
+      this.props.filter,
+    );
     const rightFrame = this.renderRightStack(rightWidth, bodyHeight, colors);
 
     const out: string[] = [header];
@@ -164,8 +183,12 @@ export class SubagentsListApp extends Container implements Focusable {
     width: number,
     colors: ColorPalette,
     entries: readonly SubagentListEntry[],
+    filter: SubagentsFilter,
   ): string {
     const title = chalk.hex(colors.primary).bold(' AGENTS ');
+    const filterText = chalk.hex(colors.textMuted)(
+      ` filter=${filter === 'all' ? 'ALL' : 'ACTIVE'} `,
+    );
     const running = entries.filter((e) => e.phase === 'running' || e.phase === 'spawning').length;
     const done = entries.filter((e) => e.phase === 'done').length;
     const failed = entries.filter((e) => e.phase === 'failed').length;
@@ -175,7 +198,7 @@ export class SubagentsListApp extends Container implements Focusable {
     if (failed > 0) parts.push(chalk.hex(colors.error)(`${String(failed)} failed`));
     const counts = parts.length > 0 ? `  ${parts.join(', ')}` : '';
     const total = chalk.dim(` · ${String(entries.length)} total`);
-    const composed = `${title}${counts}${total}`;
+    const composed = `${title}${filterText}${counts}${total}`;
     return padOrTruncate(composed, width);
   }
 
@@ -230,11 +253,16 @@ export class SubagentsListApp extends Container implements Focusable {
     height: number,
     colors: ColorPalette,
     entries: readonly SubagentListEntry[],
+    filter: SubagentsFilter,
   ): string[] {
     const innerHeight = Math.max(0, height - 2);
 
     if (entries.length === 0) {
-      const empty = chalk.hex(colors.textMuted)('No foreground sub-agents in this session.');
+      const empty = chalk.hex(colors.textMuted)(
+        filter === 'active'
+          ? 'No active sub-agents. Tab = show all.'
+          : 'No sub-agents in this session.',
+      );
       const lines: string[] = [empty];
       while (lines.length < innerHeight) lines.push('');
       return this.renderFrame('Agents', lines, width, height);
@@ -515,7 +543,7 @@ export class SubagentsListApp extends Container implements Focusable {
     const position = total > 0 ? dim(` ${String(sel)}-${String(total)}`) : dim(' 0-0');
 
     const keys =
-      `${key('↑↓/jk')} ${dim('select')}  ${key('Q/Esc')} ${dim('back')}` +
+      `${key('↑↓/jk')} ${dim('select')}  ${key('Tab')} ${dim('filter')}  ${key('Q/Esc')} ${dim('back')}` +
       (total > 0 ? `  ${key('Enter')} ${dim('inspect')}` : '');
 
     const left = ` ${keys}`;

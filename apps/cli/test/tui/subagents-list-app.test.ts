@@ -67,7 +67,7 @@ function makeApp(
   onSelect?: (toolCallId: string) => void,
 ) {
   return new SubagentsListApp(
-    { entries, colors: darkColors, onClose, onSelect },
+    { entries, filter: 'all', colors: darkColors, onClose, onSelect },
     fakeTerminal(rows),
   );
 }
@@ -173,7 +173,7 @@ describe('SubagentsListApp', () => {
       entry({ toolCallId: 'b', agentName: 'Beta' }),
     ];
     const app = new SubagentsListApp(
-      { entries, colors: darkColors, onClose: vi.fn(), onSelectionChange },
+      { entries, filter: 'all', colors: darkColors, onClose: vi.fn(), onSelectionChange },
       fakeTerminal(30),
     );
 
@@ -222,6 +222,7 @@ describe('SubagentsListApp', () => {
 
     app.setProps({
       entries: [entry({ toolCallId: 'b', agentName: 'Beta' })],
+      filter: 'all',
       colors: darkColors,
       onClose: vi.fn(),
     });
@@ -255,6 +256,7 @@ describe('SubagentsListApp', () => {
     const app = makeApp(entries);
     app.setProps({
       entries,
+      filter: 'all',
       colors: darkColors,
       selectedDetail: {
         latestActivity: 'Using Grep (pattern)',
@@ -278,6 +280,7 @@ describe('SubagentsListApp', () => {
     const app = makeApp(entries);
     app.setProps({
       entries,
+      filter: 'all',
       colors: darkColors,
       selectedPreview: {
         lines: ['line1', 'line2', 'line3'],
@@ -296,6 +299,7 @@ describe('SubagentsListApp', () => {
     const app = makeApp(entries);
     app.setProps({
       entries,
+      filter: 'all',
       colors: darkColors,
       selectedPreview: {
         lines: [],
@@ -315,6 +319,7 @@ describe('SubagentsListApp', () => {
     const app = makeApp(entries);
     app.setProps({
       entries,
+      filter: 'all',
       colors: darkColors,
       selectedPreview: { lines: [], resultSummary: undefined, toolOutputs: [] },
       onClose: vi.fn(),
@@ -328,6 +333,7 @@ describe('SubagentsListApp', () => {
     const app = makeApp(entries);
     app.setProps({
       entries,
+      filter: 'all',
       colors: darkColors,
       selectedPreview: {
         lines: [],
@@ -359,6 +365,7 @@ describe('SubagentsListApp', () => {
       const app = makeApp(entries);
       app.setProps({
         entries,
+        filter: 'all',
         colors: darkColors,
         selectedDetail: {
           latestActivity: 'Using Grep (pattern)',

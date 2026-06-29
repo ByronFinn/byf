@@ -12,6 +12,7 @@ import { sanitizeForDisplay } from '#/tui/utils/sanitize-text';
 import {
   SubagentsListApp,
   type SubagentListEntry,
+  type SubagentsFilter,
   type SubagentDetailPane,
   type SubagentPreviewPane,
 } from './list-app';
@@ -48,6 +49,7 @@ export class SubagentsController {
         readonly savedChildren: readonly import('@earendil-works/pi-tui').Component[];
         readonly listApp: SubagentsListApp;
         readonly pollTimer: ReturnType<typeof setInterval>;
+        filter: SubagentsFilter;
       }
     | undefined;
 
@@ -76,6 +78,7 @@ export class SubagentsController {
     const listApp = new SubagentsListApp(
       {
         entries: items,
+        filter: 'all',
         colors: this.env.getColors(),
         onClose: () => {
           this.close();
@@ -86,20 +89,23 @@ export class SubagentsController {
         onSelectionChange: (index) => {
           this.pushListProps(listApp, index);
         },
+        onToggleFilter: () => {
+          this.handleToggleFilter();
+        },
       },
       this.env.getTerminal(),
     );
 
     const savedChildren = this.env.host.showFullscreen(listApp);
-    // Push initial detail/preview for selected entry
-    this.pushListProps(listApp);
-
+    // Assign listState before pushListProps so the guard check passes
     const pollTimer = setInterval(() => {
       if (this.viewerState !== undefined) return; // viewer is open, skip poll
       this.pushListProps(listApp);
     }, 1000);
 
-    this.listState = { savedChildren, listApp, pollTimer };
+    this.listState = { savedChildren, listApp, pollTimer, filter: 'all' };
+    // Push initial detail/preview for selected entry
+    this.pushListProps(listApp);
   }
 
   /**
@@ -108,6 +114,9 @@ export class SubagentsController {
    * current selection is used.
    */
   private pushListProps(listApp: SubagentsListApp, selectedIndex?: number): void {
+    const state = this.listState;
+    if (state === undefined) return;
+
     const nextItems = this.env.collectItems();
 
     // Build detail/preview for the selected entry
@@ -153,6 +162,7 @@ export class SubagentsController {
 
     listApp.setProps({
       entries: nextItems,
+      filter: state.filter,
       selectedDetail,
       selectedPreview,
       colors: this.env.getColors(),
@@ -165,10 +175,20 @@ export class SubagentsController {
       onSelectionChange: (idx) => {
         this.pushListProps(listApp, idx);
       },
+      onToggleFilter: () => {
+        this.handleToggleFilter();
+      },
     });
 
     // setProps only marks the component dirty; we must ask the host to render.
     this.env.host.requestRender();
+  }
+
+  private handleToggleFilter(): void {
+    const state = this.listState;
+    if (state === undefined) return;
+    state.filter = state.filter === 'all' ? 'active' : 'all';
+    this.pushListProps(state.listApp);
   }
 
   close(): void {
