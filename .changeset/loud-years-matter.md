@@ -1,8 +1,8 @@
 ---
-"@byfriends/kosong": minor
-"@byfriends/agent-core": minor
-"@byfriends/sdk": minor
-"@byfriends/cli": minor
+'@byfriends/kosong': minor
+'@byfriends/agent-core': minor
+'@byfriends/sdk': minor
+'@byfriends/cli': minor
 ---
 
 refactor: consolidate `isAbortError` and replace manual signal wiring

@@ -198,7 +198,7 @@ describe('isAbortError', () => {
   });
 
   it('returns false for an Error with empty string name', () => {
-    const err = new Error();
+    const err = new Error('dummy');
     err.name = '';
     expect(isAbortError(err)).toBe(false);
   });

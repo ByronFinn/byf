@@ -9,9 +9,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   WebSearchInputSchema,
   WebSearchTool,
+  classifySearchError,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
-import { classifySearchError } from '../../src/tools/builtin/web/web-search';
 import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
 import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
 import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';

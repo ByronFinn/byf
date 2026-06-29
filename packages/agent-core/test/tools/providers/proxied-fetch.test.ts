@@ -682,7 +682,9 @@ describe('createProxiedFetch', () => {
     const controller = new AbortController();
     controller.abort();
 
-    const err = await proxied('https://example.com', { signal: controller.signal }).catch((error) => error);
+    const err = await proxied('https://example.com', { signal: controller.signal }).catch(
+      (error) => error,
+    );
     expect(isAbortError(err)).toBe(true);
   });
 });

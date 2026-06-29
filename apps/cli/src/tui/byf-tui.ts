@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
-import { applyProviderConfig, fetchModelsByType, log } from '@byfriends/sdk';
+import { applyProviderConfig, fetchModelsByType, isAbortError, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
   BtwCompletedEvent,
@@ -29,7 +29,6 @@ import type {
   ShellExecResult,
   TurnEndedEvent,
 } from '@byfriends/sdk';
-import { isAbortError } from '@byfriends/sdk';
 import {
   deleteAllKittyImages,
   type Component,
