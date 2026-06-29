@@ -23,7 +23,7 @@ import { pipeline } from 'node:stream/promises';
 import { extract as extractTar } from 'tar';
 import { type Entry, fromBuffer as yauzlFromBuffer } from 'yauzl';
 
-import { abortable } from '../../utils/abort';
+import { abortable, createDeadlineAbortSignal } from '../../utils/abort';
 
 const RG_VERSION = '15.0.0';
 const RG_BASE_URL = 'https://github.com/BurntSushi/ripgrep/releases/download';
@@ -201,15 +201,12 @@ async function downloadAndInstallRg(shareDir: string): Promise<string> {
   try {
     const archivePath = join(tmp, archiveName);
 
-    const controller = new AbortController();
-    const timeoutHandle = setTimeout(() => {
-      controller.abort();
-    }, DOWNLOAD_TIMEOUT_MS);
+    const deadline = createDeadlineAbortSignal(new AbortController().signal, DOWNLOAD_TIMEOUT_MS);
     let resp: Response;
     try {
-      resp = await fetch(url, { signal: controller.signal });
+      resp = await fetch(url, { signal: deadline.signal });
     } finally {
-      clearTimeout(timeoutHandle);
+      deadline.clear();
     }
     if (!resp.ok || resp.body === null) {
       throw new Error(`Failed to download ripgrep: HTTP ${String(resp.status)} ${resp.statusText}`);

@@ -20,6 +20,7 @@ import { ProxyAgent } from 'undici';
 
 import { isAbortError } from '#/loop/errors';
 import type { ProxySettings } from '#/tools/providers/system-proxy';
+import { linkAbortSignal } from '#/utils/abort';
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -189,21 +190,18 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
       controller.abort();
     }, REQUEST_TIMEOUT_MS);
 
-    // Forward external signal abort.
-    if (init?.signal) {
-      if (init.signal.aborted) {
-        clearTimeout(timeoutId);
-        controller.abort();
-      } else {
-        init.signal.addEventListener(
-          'abort',
-          () => {
-            controller.abort();
-          },
-          { once: true },
-        );
-      }
+    // Forward external signal abort using the canonical utility.
+    // Note: we intentionally do NOT call the returned `unlink` after the
+    // fetch completes — unlike `createDeadlineAbortSignal().clear()`, the
+    // original code never removed the listener either. Keeping the listener
+    // attached ({ once: true }) ensures concurrent in-flight requests sharing
+    // the same parent signal are still interrupted when the parent aborts.
+    const _unlink =
+      init?.signal !== undefined ? linkAbortSignal(init.signal, controller) : undefined;
+    if (init?.signal?.aborted) {
+      clearTimeout(timeoutId);
     }
+    // _unlink is intentionally unused — see comment above
 
     const mergedInit: RequestInit = { ...init, signal: controller.signal };
 
@@ -245,20 +243,14 @@ async function retryViaProxy(
     controller.abort();
   }, REQUEST_TIMEOUT_MS);
 
-  if (init?.signal) {
-    if (init.signal.aborted) {
-      clearTimeout(timeoutId);
-      controller.abort();
-    } else {
-      init.signal.addEventListener(
-        'abort',
-        () => {
-          controller.abort();
-        },
-        { once: true },
-      );
-    }
+  // Forward external signal abort; keep the listener attached ({ once: true })
+  // so concurrent in-flight requests sharing the same parent signal are
+  // still interrupted when the parent aborts.
+  const _unlink = init?.signal !== undefined ? linkAbortSignal(init.signal, controller) : undefined;
+  if (init?.signal?.aborted) {
+    clearTimeout(timeoutId);
   }
+  // _unlink is intentionally unused — see above
 
   // Use undici ProxyAgent as dispatcher for the proxy connection.
   const dispatcher = new ProxyAgent(proxyUrl);
