@@ -202,4 +202,20 @@ describe('isAbortError', () => {
     err.name = '';
     expect(isAbortError(err)).toBe(false);
   });
+
+  it('returns false when message contains Aborted but name is not AbortError (old CLI matched this)', () => {
+    // The legacy CLI implementation matched message substring 'Aborted' /
+    // endsWith ': Aborted'.  This test pins the new contract: only
+    // name === 'AbortError' is checked.
+    const err = new Error('Request was Aborted');
+    err.name = 'TimeoutError';
+    expect(isAbortError(err)).toBe(false);
+  });
+
+  it('returns false when message ends with ": Aborted" but name is not AbortError', () => {
+    // Another pattern the old CLI matched (e.g. 'The operation was aborted: Aborted')
+    const err = new Error('The operation was aborted: Aborted');
+    err.name = 'DOMException';
+    expect(isAbortError(err)).toBe(false);
+  });
 });

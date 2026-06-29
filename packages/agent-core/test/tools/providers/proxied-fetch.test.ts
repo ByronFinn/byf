@@ -8,6 +8,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { isAbortError } from '../../../src/loop/errors';
 import {
   createProxiedFetch,
   getProxyForUrl,
@@ -631,5 +632,57 @@ describe('createProxiedFetch', () => {
     expect(innerFetch).toHaveBeenCalledTimes(2);
     const secondCallInit = innerFetch.mock.calls[1]?.[1];
     expect((secondCallInit as { dispatcher?: unknown })?.dispatcher).toBeDefined();
+  });
+
+  /**
+   * Create a mock innerFetch that respects the abort signal: the promise
+   * stays pending until the signal is aborted, then rejects with AbortError.
+   * If the signal is already aborted on entry, rejects immediately.
+   */
+  function signalAwareMock(): ReturnType<typeof vi.fn<typeof fetch>> {
+    return vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = (init as RequestInit)?.signal;
+        if (!signal) {
+          reject(new Error('no signal provided'));
+          return;
+        }
+        if (signal.aborted) {
+          reject(new DOMException('The operation was aborted', 'AbortError'));
+          return;
+        }
+        signal.addEventListener(
+          'abort',
+          () => {
+            reject(new DOMException('The operation was aborted', 'AbortError'));
+          },
+          { once: true },
+        );
+      });
+    });
+  }
+
+  it('interrupts in-flight request when parent signal is aborted', async () => {
+    const innerFetch = signalAwareMock();
+    const env = envFromRecord({});
+    const proxied = createProxiedFetch({ envLookup: env, innerFetch });
+    const controller = new AbortController();
+
+    const promise = proxied('https://example.com', { signal: controller.signal });
+    controller.abort();
+
+    const err = await promise.catch((error) => error);
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it('rejects immediately when parent signal is already aborted', async () => {
+    const innerFetch = signalAwareMock();
+    const env = envFromRecord({});
+    const proxied = createProxiedFetch({ envLookup: env, innerFetch });
+    const controller = new AbortController();
+    controller.abort();
+
+    const err = await proxied('https://example.com', { signal: controller.signal }).catch((error) => error);
+    expect(isAbortError(err)).toBe(true);
   });
 });

@@ -1171,6 +1171,71 @@ describe('OpenAICompletionsChatProvider', () => {
     });
   });
 
+  describe('extractUsage', () => {
+    it('returns TokenUsage from standard OpenAI usage object', () => {
+      const result = extractUsage({ prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 });
+      expect(result).toEqual({
+        inputOther: 100,
+        output: 50,
+        inputCacheRead: 0,
+        inputCacheCreation: 0,
+      });
+    });
+
+    it('reads cached_tokens from top-level field', () => {
+      const result = extractUsage({
+        prompt_tokens: 1000,
+        completion_tokens: 50,
+        total_tokens: 1050,
+        cached_tokens: 700,
+      });
+      expect(result).toEqual({
+        inputOther: 300,
+        output: 50,
+        inputCacheRead: 700,
+        inputCacheCreation: 0,
+      });
+    });
+
+    it('reads cached_tokens from prompt_tokens_details', () => {
+      const result = extractUsage({
+        prompt_tokens: 1000,
+        completion_tokens: 50,
+        total_tokens: 1050,
+        prompt_tokens_details: { cached_tokens: 700 },
+      });
+      expect(result).toEqual({
+        inputOther: 300,
+        output: 50,
+        inputCacheRead: 700,
+        inputCacheCreation: 0,
+      });
+    });
+
+    it('clamps inputOther to 0 when cached exceeds total (regression guard)', () => {
+      // Real-world OpenAI edge case: provider reports more cached than total
+      const result = extractUsage({
+        prompt_tokens: 500,
+        completion_tokens: 10,
+        total_tokens: 510,
+        cached_tokens: 700,
+      });
+      expect(result).toEqual({
+        inputOther: 0, // raw subtraction would be -200
+        output: 10,
+        inputCacheRead: 700,
+        inputCacheCreation: 0,
+      });
+    });
+
+    it('returns null for null/undefined/non-object input', () => {
+      expect(extractUsage(null)).toBeNull();
+      expect(extractUsage(undefined)).toBeNull();
+      expect(extractUsage('string')).toBeNull();
+      expect(extractUsage(42)).toBeNull();
+    });
+  });
+
   describe('cache capability', () => {
     it('getCapability returns cache strategy for cacheable models', () => {
       const provider = createProvider({ model: 'gpt-4o' });
