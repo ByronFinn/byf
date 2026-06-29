@@ -2,19 +2,19 @@ import { rm } from 'node:fs/promises';
 
 import { Hono } from 'hono';
 
-import { BYF_HOME } from '../config';
+import { resolveByfHome } from '../config';
 import { revealInOs } from '../lib/reveal';
 import { listSessions, readSessionDetail } from '../lib/session-store';
 
 export function sessionsRoute(): Hono {
   const r = new Hono();
   r.get('/', async (c) => {
-    const sessions = await listSessions(BYF_HOME);
+    const sessions = await listSessions(resolveByfHome());
     return c.json({ sessions });
   });
   r.delete('/:id', async (c) => {
     const id = c.req.param('id');
-    const all = await listSessions(BYF_HOME);
+    const all = await listSessions(resolveByfHome());
     const target = all.find((s) => s.sessionId === id);
     if (!target) return c.json({ error: 'session not found', code: 'NOT_FOUND' }, 404);
     await rm(target.sessionDir, { recursive: true, force: true });
@@ -24,7 +24,7 @@ export function sessionsRoute(): Hono {
   // opened on the SERVER host — only meaningful when vis runs locally.
   r.post('/:id/reveal', async (c) => {
     const id = c.req.param('id');
-    const detail = await readSessionDetail(BYF_HOME, id);
+    const detail = await readSessionDetail(resolveByfHome(), id);
     if (!detail) return c.json({ error: 'session not found', code: 'NOT_FOUND' }, 404);
     try {
       await revealInOs(detail.sessionDir);

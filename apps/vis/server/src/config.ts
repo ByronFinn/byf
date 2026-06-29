@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 /** Resolve BYF_HOME (env > ~/.byf). */
-function resolveByfHome(): string {
+export function resolveByfHome(): string {
   const envHome = process.env['BYF_HOME'];
   if (envHome !== undefined && envHome.length > 0) {
     return envHome;
@@ -50,5 +50,3 @@ export function resolveVisAuthToken(host: string = resolveHost()): string | unde
   }
   return undefined;
 }
-
-export const BYF_HOME: string = resolveByfHome();

@@ -71,15 +71,13 @@ describe('startVisServer', () => {
   it('serves the sessions API on /api/sessions', async () => {
     const { home, cleanup: c } = await buildSessionFixture('sample-main');
     cleanups.push(c);
-    // BYF_HOME is a module-level const captured at import time, so it must be
-    // set before the server module is imported. Use vi.resetModules + dynamic
-    // import to load a fresh module graph bound to this fixture home.
-    vi.resetModules();
+    // resolveByfHome() is lazy (reads process.env.BYF_HOME at call time), so
+    // setting the env var before startVisServer is sufficient.
+    const prev = process.env['BYF_HOME'];
     process.env['BYF_HOME'] = home;
-    const { startVisServer: startFresh } = await import('../src/server');
     try {
       const port = await freePort();
-      const handle = await startFresh({ host: '127.0.0.1', port });
+      const handle = await startVisServer({ host: '127.0.0.1', port });
 
       const body = (await fetchJson(`${handle.url}/api/sessions`)) as {
         sessions: Array<{ sessionId: string }>;
@@ -88,8 +86,11 @@ describe('startVisServer', () => {
 
       handle.close();
     } finally {
-      delete process.env['BYF_HOME'];
-      vi.resetModules();
+      if (prev === undefined) {
+        delete process.env['BYF_HOME'];
+      } else {
+        process.env['BYF_HOME'] = prev;
+      }
     }
   });
 

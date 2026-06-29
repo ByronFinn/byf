@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 import { Hono } from 'hono';
 
-import { BYF_HOME } from '../config';
+import { resolveByfHome } from '../config';
 import { isSafeAgentId, readSessionDetail } from '../lib/session-store';
 import { readAgentWire } from '../lib/wire-reader';
 
@@ -14,7 +14,7 @@ export function wireRoute(): Hono {
     if (!isSafeAgentId(agentId)) {
       return c.json({ error: 'invalid agent id', code: 'BAD_REQUEST' }, 400);
     }
-    const detail = await readSessionDetail(BYF_HOME, id);
+    const detail = await readSessionDetail(resolveByfHome(), id);
     if (!detail) {
       return c.json({ error: 'session not found', code: 'NOT_FOUND' }, 404);
     }

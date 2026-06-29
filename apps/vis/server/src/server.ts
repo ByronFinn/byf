@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app';
-import { BYF_HOME, resolveHost, resolvePort, resolveVisAuthToken } from './config';
+import { resolveByfHome, resolveHost, resolvePort, resolveVisAuthToken } from './config';
 import { formatStartupBanner } from './startup-banner';
 
 /** Options for starting a vis HTTP server programmatically. */
@@ -86,7 +86,7 @@ export async function startVisServer(
  * standalone entry's startup banner. CLI consumers rely on the same env var.
  */
 export function resolveVisByfHome(): string {
-  return BYF_HOME;
+  return resolveByfHome();
 }
 
 /**
@@ -101,7 +101,7 @@ export function formatVisStartupBanner(input: {
   return formatStartupBanner({
     authToken: input.authToken,
     host: input.host,
-    byfCodeHome: BYF_HOME,
+    byfCodeHome: resolveByfHome(),
     port: input.port,
   });
 }
