@@ -2,7 +2,11 @@
  * Loop-local error helpers.
  */
 
+import { isAbortError } from '@byfriends/kosong';
+
 import { ErrorCodes, ByfError, isByfError } from '#/errors';
+
+export { isAbortError };
 
 export function createMaxStepsExceededError(maxSteps: number, message?: string): ByfError {
   return new ByfError(
@@ -16,13 +20,6 @@ export function createMaxStepsExceededError(maxSteps: number, message?: string):
 
 export function isMaxStepsExceededError(error: unknown): boolean {
   return isByfError(error) && error.code === ErrorCodes.LOOP_MAX_STEPS_EXCEEDED;
-}
-
-export function isAbortError(err: unknown): boolean {
-  if (err instanceof Error) {
-    return err.name === 'AbortError';
-  }
-  return false;
 }
 
 export function errorMessage(err: unknown): string {

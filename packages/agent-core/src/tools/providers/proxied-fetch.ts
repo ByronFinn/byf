@@ -18,6 +18,7 @@
 
 import { ProxyAgent } from 'undici';
 
+import { isAbortError } from '#/loop/errors';
 import type { ProxySettings } from '#/tools/providers/system-proxy';
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ export function isRetryableError(error: unknown): boolean {
   }
 
   // AbortError (timeout or external abort)
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (isAbortError(error)) {
     return true;
   }
 

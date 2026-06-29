@@ -65,6 +65,7 @@ export {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
+  isAbortError,
 } from './errors';
 
 /**

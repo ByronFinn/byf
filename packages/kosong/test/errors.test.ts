@@ -7,6 +7,7 @@ import {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
+  isAbortError,
   normalizeAPIStatusError,
 } from '#/errors';
 
@@ -149,5 +150,56 @@ describe('normalizeAPIStatusError', () => {
     const error = normalizeAPIStatusError(statusCode, message);
     expect(error).toBeInstanceOf(APIStatusError);
     expect(error).not.toBeInstanceOf(APIContextOverflowError);
+  });
+});
+
+describe('isAbortError', () => {
+  it('returns true for a standard Error with name AbortError', () => {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it('returns true for a DOMException with name AbortError', () => {
+    const err = new DOMException('The operation was aborted', 'AbortError');
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it('returns false for a regular Error', () => {
+    const err = new Error('Something went wrong');
+    expect(isAbortError(err)).toBe(false);
+  });
+
+  it('returns false for null', () => {
+    expect(isAbortError(null)).toBe(false);
+  });
+
+  it('returns false for undefined', () => {
+    expect(isAbortError(undefined)).toBe(false);
+  });
+
+  it('returns false for a string', () => {
+    expect(isAbortError('AbortError')).toBe(false);
+  });
+
+  it('returns false for a plain object', () => {
+    expect(isAbortError({ name: 'AbortError' })).toBe(false);
+  });
+
+  it('returns false for a plain object with Aborted message (regression: old CLI impl matched this)', () => {
+    expect(isAbortError({ message: 'Aborted' })).toBe(false);
+  });
+
+  it('returns true for a custom Error subclass with name AbortError', () => {
+    class CustomAbort extends Error {
+      override name = 'AbortError' as const;
+    }
+    expect(isAbortError(new CustomAbort())).toBe(true);
+  });
+
+  it('returns false for an Error with empty string name', () => {
+    const err = new Error();
+    err.name = '';
+    expect(isAbortError(err)).toBe(false);
   });
 });

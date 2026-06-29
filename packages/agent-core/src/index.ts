@@ -4,6 +4,7 @@ export * from './rpc';
 export * from './config';
 export * from './session/export';
 export * from './errors';
+export { isAbortError } from './loop/errors';
 export {
   flushDiagnosticLogs,
   getRootLogger,

@@ -11,6 +11,7 @@ import {
   WebSearchTool,
   type WebSearchProvider,
 } from '../../src/tools/builtin/web/web-search';
+import { classifySearchError } from '../../src/tools/builtin/web/web-search';
 import { BraveWebSearchProvider } from '../../src/tools/providers/brave';
 import { ExaWebSearchProvider } from '../../src/tools/providers/exa';
 import { FirecrawlWebSearchProvider } from '../../src/tools/providers/firecrawl';
@@ -687,5 +688,49 @@ describe('FirecrawlWebSearchProvider', () => {
       .mockResolvedValue(new Response('rate limited', { status: 429 }));
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     await expect(provider.search('test')).rejects.toThrow('Firecrawl search failed: HTTP 429');
+  });
+});
+
+// ── classifySearchError ──────────────────────────────────────────────
+
+describe('classifySearchError', () => {
+  it('classifies a standard AbortError as cancelled', () => {
+    const err = new Error('The operation was aborted');
+    err.name = 'AbortError';
+    expect(classifySearchError(err)).toBe('Search cancelled: The operation was aborted');
+  });
+
+  it('does NOT classify an error with "abort" in the message but wrong name', () => {
+    const err = new Error('request abort called');
+    err.name = 'TimeoutError';
+    expect(classifySearchError(err)).toBe('Search timed out: request abort called');
+  });
+
+  it('classifies a TimeoutError as timed out', () => {
+    const err = new Error('Request timed out after 30s');
+    err.name = 'TimeoutError';
+    expect(classifySearchError(err)).toBe('Search timed out: Request timed out after 30s');
+  });
+
+  it('classifies an HTTP 401 error as authentication failure', () => {
+    const err = new Error('HTTP 401 Unauthorized');
+    expect(classifySearchError(err)).toBe('Search failed (authentication): HTTP 401 Unauthorized');
+  });
+
+  it('classifies a network error as network failure', () => {
+    const err = new Error('fetch failed: ECONNREFUSED');
+    err.name = 'TypeError';
+    expect(classifySearchError(err)).toBe('Search failed (network): fetch failed: ECONNREFUSED');
+  });
+
+  it('classifies a generic error as generic failure', () => {
+    const err = new Error('Something went wrong');
+    expect(classifySearchError(err)).toBe('Search failed: Something went wrong');
+  });
+
+  it('handles non-Error thrown values gracefully', () => {
+    expect(classifySearchError('just a string')).toBe('Search failed: just a string');
+    expect(classifySearchError(null)).toBe('Search failed: null');
+    expect(classifySearchError(42)).toBe('Search failed: 42');
   });
 });

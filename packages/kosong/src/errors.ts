@@ -64,6 +64,20 @@ export class APIEmptyResponseError extends ChatProviderError {
   }
 }
 
+/**
+ * Check whether an unknown value is a standard `AbortError`.
+ *
+ * Returns `true` when `err` is an `Error` instance whose `.name` property is
+ * exactly `'AbortError'`. This is the canonical check used by kosong, agent-core,
+ * and the CLI — all layers converge on this single function.
+ */
+export function isAbortError(err: unknown): boolean {
+  if (err instanceof Error) {
+    return err.name === 'AbortError';
+  }
+  return false;
+}
+
 const CONTEXT_OVERFLOW_MESSAGE_PATTERNS = [
   /context[ _-]?length/,
   /(?:context[ _-]?window.*exceed|exceed.*context[ _-]?window)/,

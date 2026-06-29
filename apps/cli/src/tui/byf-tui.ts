@@ -29,6 +29,7 @@ import type {
   ShellExecResult,
   TurnEndedEvent,
 } from '@byfriends/sdk';
+import { isAbortError } from '@byfriends/sdk';
 import {
   deleteAllKittyImages,
   type Component,
@@ -179,7 +180,6 @@ import {
 } from './types';
 import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
-import { isAbortError } from './utils/errors';
 import { formatErrorMessage } from './utils/event-payload';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { extractMediaAttachments } from './utils/image-placeholder';

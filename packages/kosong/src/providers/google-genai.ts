@@ -1,7 +1,7 @@
 import { ApiError as GoogleApiError, GoogleGenAI as GenAIClient } from '@google/genai';
 
 import type { ModelCapability } from '#/capability';
-import { ChatProviderError, normalizeAPIStatusError } from '#/errors';
+import { ChatProviderError, isAbortError, normalizeAPIStatusError } from '#/errors';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type {
   FinishReason,
@@ -604,7 +604,7 @@ export class GoogleGenAIStreamedMessage extends BaseStreamedMessage {
     } catch (error: unknown) {
       // Preserve AbortError identity so the retry/generate loop can
       // distinguish it from transient provider errors.
-      if (error instanceof DOMException && error.name === 'AbortError') {
+      if (isAbortError(error)) {
         throw error;
       }
       throw convertGoogleGenAIError(error);
@@ -778,7 +778,7 @@ export class GoogleGenAIChatProvider extends BaseChatProvider<GoogleGenAIGenerat
         options?.signal,
       );
     } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
+      if (isAbortError(error)) {
         throw error;
       }
       throw convertGoogleGenAIError(error);

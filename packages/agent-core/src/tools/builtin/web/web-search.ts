@@ -9,6 +9,7 @@
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { isAbortError } from '../../../loop/errors';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type {
   ExecutableToolContext,
@@ -127,12 +128,13 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
  * underlying detail; the prefix only adds a category so failures are easier to
  * reason about (e.g. retry vs. surface to the user).
  */
-function classifySearchError(error: unknown): string {
+/** Exported for testing. */
+export function classifySearchError(error: unknown): string {
   const name = error instanceof Error ? error.name : '';
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
 
-  if (name === 'AbortError' || lower.includes('abort')) {
+  if (isAbortError(error)) {
     return `Search cancelled: ${message}`;
   }
   if (name === 'TimeoutError' || lower.includes('timed out') || lower.includes('timeout')) {

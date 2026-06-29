@@ -27,6 +27,7 @@ export type {
 export {
   ErrorCodes,
   ByfError,
+  isAbortError,
   type ByfErrorCode,
   type ByfErrorInfo,
   type ByfErrorOptions,
