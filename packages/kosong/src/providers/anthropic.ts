@@ -266,16 +266,21 @@ function supportsXhigh(model: string): boolean {
   return version.major === 4 && (version.minor === 7 || version.minor === 8);
 }
 
-function clampEffort(effort: ThinkingEffort, model: string): ThinkingEffort {
+function clampEffort(
+  effort: ThinkingEffort,
+  model: string,
+  warn?: (msg: string) => void,
+): ThinkingEffort {
+  const _warn = warn ?? console.warn;
   if (effort === 'off') {
     return effort;
   }
   if (effort === 'xhigh' && !supportsXhigh(model)) {
-    console.warn(`effort 'xhigh' clamped to 'high' for model ${model}`);
+    _warn(`effort 'xhigh' clamped to 'high' for model ${model}`);
     return 'high';
   }
   if (effort === 'max' && !supportsAdaptiveThinking(model)) {
-    console.warn(`effort 'max' clamped to 'high' for model ${model}`);
+    _warn(`effort 'max' clamped to 'high' for model ${model}`);
     return 'high';
   }
   return effort;
@@ -798,10 +803,6 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
     this._metadata = options.metadata;
   }
 
-  override get modelName(): string {
-    return this._model;
-  }
-
   override get thinkingEffort(): ThinkingEffort | null {
     const thinkingConfig = this._generationKwargs.thinking;
     if (thinkingConfig === undefined || thinkingConfig === null) {
@@ -824,13 +825,6 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
         return effort;
     }
     return 'high';
-  }
-
-  override get modelParameters(): Record<string, unknown> {
-    return {
-      model: this._model,
-      ...this._generationKwargs,
-    };
   }
 
   override getCapability(model?: string): ModelCapability {

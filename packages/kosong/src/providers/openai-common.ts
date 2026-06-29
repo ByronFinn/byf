@@ -12,7 +12,11 @@ import type { FinishReason, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 
-import { convertProviderError, makeFinishReasonNormalizer } from './provider-common';
+import {
+  convertProviderError,
+  extractCacheUsage,
+  makeFinishReasonNormalizer,
+} from './provider-common';
 export interface OpenAIContentPart {
   type: string;
   text?: string | undefined;
@@ -159,6 +163,7 @@ function supportsXhighReasoningEffort(model: string): boolean {
 export function thinkingEffortToReasoningEffort(
   effort: ThinkingEffort,
   model?: string,
+  warn?: (msg: string) => void,
 ): string | undefined {
   switch (effort) {
     case 'off':
@@ -171,8 +176,9 @@ export function thinkingEffortToReasoningEffort(
       return 'high';
     case 'xhigh':
     case 'max': {
+      const _warn = warn ?? console.warn;
       if (model !== undefined && !supportsXhighReasoningEffort(model)) {
-        console.warn(`effort '${effort}' clamped to 'high' for model ${model}`);
+        _warn(`effort '${effort}' clamped to 'high' for model ${model}`);
         return 'high';
       }
       return 'xhigh';
@@ -233,12 +239,7 @@ export function extractUsage(usage: unknown): TokenUsage | null {
     }
   }
 
-  return {
-    inputOther: promptTokens - cached,
-    output: completionTokens,
-    inputCacheRead: cached,
-    inputCacheCreation: 0,
-  };
+  return extractCacheUsage(promptTokens, cached, completionTokens);
 }
 const OPENAI_FINISH_REASON_MAP: Readonly<Record<string, FinishReason>> = {
   stop: 'completed',

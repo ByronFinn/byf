@@ -712,13 +712,6 @@ export class GoogleGenAIChatProvider extends BaseChatProvider<GoogleGenAIGenerat
     return null;
   }
 
-  override get modelParameters(): Record<string, unknown> {
-    return {
-      model: this._model,
-      ...this._generationKwargs,
-    };
-  }
-
   override getCapability(model?: string): ModelCapability {
     return getGoogleGenAIModelCapability(model ?? this._model);
   }
