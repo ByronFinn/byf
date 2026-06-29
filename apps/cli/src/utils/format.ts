@@ -8,6 +8,10 @@
 /**
  * Format a byte count into a human-readable string (B / KB / MB).
  * Uses consistent `.toFixed(1)` for KB/MB.
+ *
+ * CANONICAL definition.  `apps/vis/web/src/components/shared/SizePreview.tsx`
+ * duplicates this — keep both in sync.  There is intentionally no shared
+ * utility package between the two apps.
  */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)} B`;

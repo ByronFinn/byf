@@ -48,8 +48,15 @@ export function SizePreview({
   );
 }
 
+/**
+ * Format a byte count into a human-readable string (B / KB / MB).
+ *
+ * MUST stay in sync with `apps/cli/src/utils/format.ts` — the canonical
+ * definition.  Both apps deliberately duplicate this so neither needs
+ * a shared utility package.
+ */
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n}B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
-  return `${(n / 1024 / 1024).toFixed(2)}MB`;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
