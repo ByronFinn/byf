@@ -243,9 +243,9 @@ async function retryViaProxy(
     controller.abort();
   }, REQUEST_TIMEOUT_MS);
 
-  // Forward external signal abort; keep the listener attached ({ once: true })
-  // so concurrent in-flight requests sharing the same parent signal are
-  // still interrupted when the parent aborts.
+  // Forward external signal abort using the canonical utility.
+  // Intentionally do NOT call the returned `_unlink` — see the detailed
+  // comment in `createProxiedFetch` above for the reasoning.
   const _unlink = init?.signal !== undefined ? linkAbortSignal(init.signal, controller) : undefined;
   if (init?.signal?.aborted) {
     clearTimeout(timeoutId);
