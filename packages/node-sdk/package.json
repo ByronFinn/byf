@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/sdk",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Public TypeScript SDK for BYF agents and sessions",
   "keywords": [
     "agent",

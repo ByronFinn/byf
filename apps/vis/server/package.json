@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/vis-server",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "HTTP server for BYF session visualization, serving the API and built SPA assets",
   "keywords": [
     "byf",

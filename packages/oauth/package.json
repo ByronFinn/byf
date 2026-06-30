@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/oauth",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Custom OAuth provider configuration for BYF",
   "keywords": [
     "byf",
