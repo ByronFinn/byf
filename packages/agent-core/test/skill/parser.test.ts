@@ -183,8 +183,8 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       '"src/app.ts" carefully',
     );
 
-    expect(rendered).toBe('Review src/app.ts from "src/app.ts" carefully.');
-    expect(rendered).not.toContain('ARGUMENTS:');
+    expect(rendered).toBe(`${BASE_DIR_HEADER}Review src/app.ts from "src/app.ts" carefully.`);
+    expect(rendered).not.toContain('\n\nARGUMENTS:');
   });
 
   it('appends ARGUMENTS when the body has no argument placeholders', () => {
@@ -193,7 +193,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'src/app.ts',
     );
 
-    expect(rendered).toBe('Review this file.\n\nARGUMENTS: src/app.ts');
+    expect(rendered).toBe(`${BASE_DIR_HEADER}Review this file.\n\nARGUMENTS: src/app.ts`);
   });
 
   it('expands context placeholders and still appends args when no argument placeholder is used', () => {
@@ -202,7 +202,9 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'src/app.ts',
     );
 
-    expect(rendered).toBe('Use /skills/review/references/checklist.md.\n\nARGUMENTS: src/app.ts');
+    expect(rendered).toBe(
+      `${BASE_DIR_HEADER}Use /skills/review/references/checklist.md.\n\nARGUMENTS: src/app.ts`,
+    );
   });
 
   it('does not treat longer variable names as declared argument placeholders', () => {
@@ -214,7 +216,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'src/app.ts',
     );
 
-    expect(rendered).toBe('Leave $targeted alone.\n\nARGUMENTS: src/app.ts');
+    expect(rendered).toBe(`${BASE_DIR_HEADER}Leave $targeted alone.\n\nARGUMENTS: src/app.ts`);
   });
 
   it('accepts space-separated argument names', () => {
@@ -226,7 +228,7 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'src/app.ts careful',
     );
 
-    expect(rendered).toBe('Target: src/app.ts\nMode: careful');
+    expect(rendered).toBe(`${BASE_DIR_HEADER}Target: src/app.ts\nMode: careful`);
   });
 
   it('ignores numeric argument names so positional placeholders keep shell-like semantics', () => {
@@ -238,7 +240,29 @@ describe('SkillRegistry.renderSkillPrompt', () => {
       'first second',
     );
 
-    expect(rendered).toBe('Zero: first\nOne: second');
+    expect(rendered).toBe(`${BASE_DIR_HEADER}Zero: first\nOne: second`);
+  });
+
+  // Regression guard for the bug where skills installed outside the project
+  // (e.g. ~/.agents/skills/) broke because the model could not resolve
+  // relative paths like `references/foo.md` — it had no idea where the skill
+  // lived. renderSkillPrompt must surface the absolute base directory.
+  it('prefixes the absolute skill base directory so relative paths in the body resolve', () => {
+    const rendered = new SkillRegistry().renderSkillPrompt(
+      testSkill({
+        dir: '/home/u/.agents/skills/write',
+        content: 'load `references/write-zh.md`',
+      }),
+      '',
+    );
+
+    expect(rendered.startsWith('Base directory for this skill: /home/u/.agents/skills/write')).toBe(
+      true,
+    );
+    expect(rendered).toContain('Relative paths in this skill are relative to this base directory.');
+    // The relative directive survives verbatim; the model now has the base dir
+    // to resolve it against.
+    expect(rendered).toContain('load `references/write-zh.md`');
   });
 });
 
@@ -269,15 +293,22 @@ async function writeFlatOrSubdirSkill(
   await writeFile(path.join(dir, fileName), lines.join('\n'));
 }
 
+// The base-directory header prepended by renderSkillPrompt. Centralized so
+// render tests stay readable and a single point captures the contract.
+const BASE_DIR_HEADER =
+  'Base directory for this skill: /skills/review\nRelative paths in this skill are relative to this base directory.\n\n';
+
 function testSkill(input: {
   readonly content: string;
   readonly metadata?: SkillDefinition['metadata'];
+  readonly dir?: string;
 }): SkillDefinition {
+  const dir = input.dir ?? '/skills/review';
   return {
     name: 'review',
     description: 'Review things',
-    path: '/skills/review/SKILL.md',
-    dir: '/skills/review',
+    path: `${dir}/SKILL.md`,
+    dir,
     content: input.content,
     metadata: input.metadata ?? {},
     source: 'user',

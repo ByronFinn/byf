@@ -139,7 +139,7 @@ describe('SkillTool execution', () => {
     expect(methods.recordSkillActivation).toHaveBeenCalledTimes(1);
     expect(methods.recordSystemReminder).toHaveBeenCalledTimes(1);
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<byf-skill-loaded name="commit" args="message text">\nbody of commit\n\nARGUMENTS: message text\n</byf-skill-loaded>',
+      '<byf-skill-loaded name="commit" args="message text">\nBase directory for this skill: /skills/commit\nRelative paths in this skill are relative to this base directory.\n\nbody of commit\n\nARGUMENTS: message text\n</byf-skill-loaded>',
     );
   });
 
@@ -159,7 +159,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'commit', args: '-m "fix login"' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<byf-skill-loaded name="commit" args="-m &quot;fix login&quot;">\nFlag: -m\nCommit message: fix login\nRaw: -m "fix login"\n</byf-skill-loaded>',
+      '<byf-skill-loaded name="commit" args="-m &quot;fix login&quot;">\nBase directory for this skill: /skills/commit\nRelative paths in this skill are relative to this base directory.\n\nFlag: -m\nCommit message: fix login\nRaw: -m "fix login"\n</byf-skill-loaded>',
     );
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).not.toContain('ARGUMENTS:');
   });
@@ -176,7 +176,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'session-aware' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<byf-skill-loaded name="session-aware" args="">\nSession: ses_model_skill\n</byf-skill-loaded>',
+      '<byf-skill-loaded name="session-aware" args="">\nBase directory for this skill: /skills/session-aware\nRelative paths in this skill are relative to this base directory.\n\nSession: ses_model_skill\n</byf-skill-loaded>',
     );
   });
 
@@ -209,7 +209,7 @@ describe('SkillTool execution', () => {
     await execute(tool, { skill: 'a&b', args: '<raw "value">' });
 
     expect(methods.recordSystemReminder.mock.calls[0]?.[0]).toContain(
-      '<byf-skill-loaded name="a&amp;b" args="&lt;raw &quot;value&quot;&gt;">\nbody of a&b\n\nARGUMENTS: <raw "value">\n</byf-skill-loaded>',
+      '<byf-skill-loaded name="a&amp;b" args="&lt;raw &quot;value&quot;&gt;">\nBase directory for this skill: /skills/a&b\nRelative paths in this skill are relative to this base directory.\n\nbody of a&b\n\nARGUMENTS: <raw "value">\n</byf-skill-loaded>',
     );
     expect(methods.recordSkillActivation).toHaveBeenCalledTimes(1);
   });

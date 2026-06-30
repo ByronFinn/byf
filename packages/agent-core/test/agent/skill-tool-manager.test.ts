@@ -163,7 +163,7 @@ describe('ToolManager SkillTool registration', () => {
         content: [
           {
             type: 'text',
-            text: '<system-reminder>\n<byf-skill-loaded name="review" args="">\nbody of review\n</byf-skill-loaded>\n</system-reminder>',
+            text: '<system-reminder>\n<byf-skill-loaded name="review" args="">\nBase directory for this skill: /skills/review\nRelative paths in this skill are relative to this base directory.\n\nbody of review\n</byf-skill-loaded>\n</system-reminder>',
           },
         ],
         origin: {

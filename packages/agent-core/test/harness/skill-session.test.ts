@@ -227,7 +227,15 @@ describe('HarnessAPI session skills', () => {
     const records = await readMainWire(created.sessionDir);
     const prompt = records.find((record) => record['type'] === 'turn.prompt');
     const userMessage = records.find((record) => record['type'] === 'context.append_message');
-    const expectedPrompt = 'Review the requested file.\n\nARGUMENTS: src/app.ts';
+    const skillDir = await realpath(join(workDir, '.byf', 'skills', 'phase-one-review'));
+    const expectedPrompt = [
+      `Base directory for this skill: ${skillDir}`,
+      'Relative paths in this skill are relative to this base directory.',
+      '',
+      'Review the requested file.',
+      '',
+      'ARGUMENTS: src/app.ts',
+    ].join('\n');
     expect(prompt).toMatchObject({
       type: 'turn.prompt',
       input: [{ type: 'text', text: expectedPrompt }],
@@ -349,6 +357,9 @@ describe('HarnessAPI session skills', () => {
     const prompt = records.find((record) => record['type'] === 'turn.prompt');
     const skillDir = await realpath(join(workDir, '.byf', 'skills', 'templated-review'));
     const expectedPrompt = [
+      `Base directory for this skill: ${skillDir}`,
+      'Relative paths in this skill are relative to this base directory.',
+      '',
       'Target: src/app.ts',
       'Mode: careful',
       'Raw: "src/app.ts" careful',
@@ -392,13 +403,22 @@ describe('HarnessAPI session skills', () => {
 
     expect(second.events.some((event) => event.type === 'skill.activated')).toBe(false);
     const context = await second.rpc.getContext({ sessionId: created.id, agentId: 'main' });
+    const resumeSkillDir = await realpath(join(workDir, '.byf', 'skills', 'phase-one-review'));
+    const resumeExpectedPrompt = [
+      `Base directory for this skill: ${resumeSkillDir}`,
+      'Relative paths in this skill are relative to this base directory.',
+      '',
+      'Review the requested file.',
+      '',
+      'ARGUMENTS: src/app.ts',
+    ].join('\n');
     expect(context.history).toMatchObject([
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Review the requested file.\n\nARGUMENTS: src/app.ts',
+            text: resumeExpectedPrompt,
           },
         ],
         origin: {

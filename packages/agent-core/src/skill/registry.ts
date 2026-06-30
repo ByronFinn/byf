@@ -66,11 +66,17 @@ export class SkillRegistry {
 
   renderSkillPrompt(skill: SkillDefinition, rawArgs: string): string {
     const argumentNames = skillArgumentNames(skill.metadata);
-    return expandSkillParameters(skill.content, rawArgs, {
+    const body = expandSkillParameters(skill.content, rawArgs, {
       skillDir: skill.dir,
       sessionId: this.sessionId,
       argumentNames,
     });
+    // Tell the model where the skill is installed so relative paths inside
+    // the body (references/*.md, ../rules/*.md, REFERENCE.md, etc.) resolve
+    // to the skill's own directory rather than the project cwd. Without this,
+    // skills installed globally (e.g. ~/.agents/skills/) break when they
+    // reference sibling files via relative paths.
+    return `Base directory for this skill: ${skill.dir}\nRelative paths in this skill are relative to this base directory.\n\n${body}`;
   }
 
   listSkills(): readonly SkillDefinition[] {
