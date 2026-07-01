@@ -1,5 +1,38 @@
 # @byfriends/agent-core
 
+## 0.3.5
+
+### Patch Changes
+
+- 22f405e: refactor(prompt): tighten default system prompt for higher signal
+
+  The default agent system prompt (`profile/default/system.md`) carried a
+  few low-signal or contradictory passages. Tightened per Anthropic's
+  "context engineering" guidance (right altitude, minimal high-signal
+  token set, clear tool-selection):
+
+  - **Removed the `# Protocol` section.** It restated the
+    `<system-reminder>` override rule already declared in
+    `# Instruction Precedence`, and its `<system>` tag note had low ROI.
+    The useful bits (system-reminders are authoritative and unrelated to
+    the message they appear in; `<system>` is background) were folded
+    into `# Instruction Precedence`.
+  - **Strengthened `# Tool Use`.** Added guidance to prefer built-in
+    tools (Read/Write/Edit/Grep/Glob) over equivalent Bash commands and
+    to batch independent tool calls in one turn. The "prefer built-in
+    tools" rule previously lived only inside the Windows conditional
+    block, gated by platform; it is now global.
+  - **Fixed a `# Safety` wording conflict.** "Stay within the working
+    directory" contradicted the `Additional Directories` workspace
+    feature; it now reads "within the working directory (and any
+    additional workspace directories)".
+  - **Trimmed the Windows block** to drop the now-duplicated
+    built-in-tools sentence, keeping only platform-specific guidance.
+
+  No cache-boundary headers (`# Project Information` / `# Working
+Environment` / `# Skills`) moved, so the 4-block cache architecture
+  (ADR 0013) is unaffected. No public API or behavior-semantics change.
+
 ## 0.3.3
 
 ### Patch Changes
@@ -60,6 +93,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -79,11 +113,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -172,6 +206,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -190,6 +225,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
+
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)
