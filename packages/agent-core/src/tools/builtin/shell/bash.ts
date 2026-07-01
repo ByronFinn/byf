@@ -72,7 +72,9 @@ export const BashInputSchema = z
     run_in_background: z
       .boolean()
       .optional()
-      .describe('Whether to run the command as a background task.'),
+      .describe(
+        'Set to true for long-running commands (builds, tests, servers, watchers, batch scripts, or anything that should not block the conversation). Do not detach a process with shell `&`, `nohup`, or `disown` to work around this — detached processes are invisible to /tasks and cannot be inspected or stopped.',
+      ),
     disable_timeout: z
       .boolean()
       .optional()
@@ -134,11 +136,7 @@ function withoutBackgroundDescription(description: string): string {
       '\n\nBackground execution is disabled for this agent. Do not set `run_in_background=true`.',
     )
     .replace(
-      ` For possibly long-running foreground commands, set the \`timeout\` argument in seconds. Foreground commands default to ${String(DEFAULT_TIMEOUT_S)}s and allow up to ${String(MAX_TIMEOUT_S)}s.`,
-      ` For possibly long-running commands, set the \`timeout\` argument in seconds. The default is ${String(DEFAULT_TIMEOUT_S)}s; foreground commands allow up to ${String(MAX_TIMEOUT_S)}s.`,
-    )
-    .replace(
-      /\n- Prefer `run_in_background=true`[\s\S]*?conversation to continue before the command finishes\./,
+      /\n- Prefer `run_in_background=true`[\s\S]*?should not block the conversation\./,
       '\n- Do not set `run_in_background=true`; background task management tools are not available.',
     );
 }

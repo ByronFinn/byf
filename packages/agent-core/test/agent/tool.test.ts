@@ -228,6 +228,10 @@ describe('Agent tools', () => {
     expect(bashOnly).toBeDefined();
     expect(bashOnly!.description).toContain('Background execution is disabled for this agent.');
     expect(bashOnly!.description).not.toContain('the command will be started as a background task');
+    // The preference bullet is stripped in disabled mode, and the never-detach
+    // rule must not prescribe run_in_background=true (which is unavailable here).
+    expect(bashOnly!.description).not.toMatch(/Prefer `run_in_background=true`/);
+    expect(bashOnly!.description).not.toMatch(/Always use `run_in_background=true` instead/);
     await expect(
       executeTool(bashOnly!, {
         turnId: '0',

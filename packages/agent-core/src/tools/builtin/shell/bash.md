@@ -16,4 +16,7 @@ Each shell call runs in a fresh shell environment. The shell variables, current 
 
 Never run commands that require superuser privileges unless explicitly instructed to do so.
 
+- Prefer `run_in_background=true` for long-running builds, tests, watchers, servers, batch scripts, or any command that should not block the conversation.
+- Never use `&`, `nohup`, or `disown` to detach a process so it outlives this tool call — such processes are invisible to `/tasks`, cannot be inspected or stopped, and have no completion notification. (`&&` and `||` chaining, and `cmd1 & cmd2` as a shell list separator that completes within the call, are fine.)
+
 If `run_in_background=true`, the command will be started as a background task and this tool will return a task ID instead of waiting for command completion. When doing that, you must provide a short `description`. Background commands default to a {{ DEFAULT_BACKGROUND_TIMEOUT_S }}s timeout and `timeout` is capped at {{ MAX_BACKGROUND_TIMEOUT_S }}s; set `disable_timeout=true` only when the task should run without a timeout. You will be automatically notified when the task completes. Use `TaskOutput` for a non-blocking status/output snapshot, and only set `block=true` when you explicitly want to wait for completion. Use `TaskStop` only if the task must be cancelled. If a human user wants to inspect background tasks themselves, point them to the `/tasks` command, which opens an interactive panel; it has no subcommands.
