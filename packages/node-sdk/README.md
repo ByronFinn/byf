@@ -8,4 +8,4 @@ See the main repository for documentation, issues, and contribution guidelines.
 
 ## License
 
-Proprietary — see the root LICENSE file.
+MIT — see the root LICENSE file.

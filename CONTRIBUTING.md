@@ -105,4 +105,4 @@ Found a security issue? Please see [SECURITY.md](SECURITY.md) instead of opening
 
 ## License
 
-By contributing to this repository, you agree that your contributions will be licensed under the [BYF proprietary license](LICENSE).
+By contributing to this repository, you agree that your contributions will be licensed under the [MIT license](LICENSE).

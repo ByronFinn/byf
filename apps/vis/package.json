@@ -11,7 +11,7 @@
     "visualizer"
   ],
   "homepage": "https://github.com/ByronFinn/byf",
-  "license": "Proprietary",
+  "license": "MIT",
   "author": "ByronFinn",
   "repository": {
     "type": "git",

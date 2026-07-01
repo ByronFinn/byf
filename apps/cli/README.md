@@ -2,7 +2,7 @@
 
 > BYF (Be Your Friend) — an AI coding agent that runs in your terminal
 
-[![npm](https://img.shields.io/npm/v/@byfriends/cli)](https://www.npmjs.com/package/@byfriends/cli) [![License](https://img.shields.io/badge/license-proprietary-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@byfriends/cli)](https://www.npmjs.com/package/@byfriends/cli) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 
 ## Install
 
@@ -69,4 +69,4 @@ See the main repository README for documentation.
 
 ## License
 
-Proprietary — see [LICENSE](https://github.com/ByronFinn/byf/blob/main/LICENSE) for terms.
+MIT — see [LICENSE](https://github.com/ByronFinn/byf/blob/main/LICENSE) for terms.

@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/ByronFinn/byf/issues"
   },
-  "license": "Proprietary",
+  "license": "MIT",
   "author": "ByronFinn",
   "repository": {
     "type": "git",
