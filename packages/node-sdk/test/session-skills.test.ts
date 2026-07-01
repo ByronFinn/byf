@@ -166,6 +166,7 @@ describe('Session skills', () => {
       expect(state['isCustomTitle']).toBe(false);
       expect(state['lastPrompt']).toBe('/review src/app.ts');
 
+      const skillDir = join(workDir, '.byf', 'skills', 'review');
       await expect(
         waitForAgentWireEvent(
           homeDir,
@@ -178,7 +179,7 @@ describe('Session skills', () => {
         input: [
           {
             type: 'text',
-            text: 'Review the requested file.\n\nARGUMENTS: src/app.ts',
+            text: `Base directory for this skill: ${skillDir}\nRelative paths in this skill are relative to this base directory.\n\nReview the requested file.\n\nARGUMENTS: src/app.ts`,
           },
         ],
         origin: {
