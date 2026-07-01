@@ -1,17 +1,17 @@
-# ADR 0014: TaskEntry Discriminated Union
+# ADR 0014: TaskEntry 判别联合
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-`BackgroundProcessManager` (`packages/agent-core/src/tools/background/manager.ts`) manages two fundamentally different kinds of background tasks through a single data structure:
+`BackgroundProcessManager`（`packages/agent-core/src/tools/background/manager.ts`）通过单一数据结构管理两种根本不同的后台任务：
 
-1. **Real process tasks** — user-launched long-running shell commands (`npm run dev`, `pytest`). These are real OS processes with a pid, stdin/stdout/stderr streams, and signal-based termination.
-2. **Agent (Promise-based) tasks** — sub-agents launched in the background by the main agent. These are pure JS Promoutines: no pid, no streams, cancelled via an abort callback.
+1. **真正的进程任务**——用户启动的长时间运行 shell 命令（`npm run dev`、`pytest`）。这些是真实的 OS 进程，有 pid、stdin/stdout/stderr 流和基于信号的终止。
+2. **Agent（基于 Promise）任务**——由主代理在后台启动的子代理。这些是纯 JS Promoutine：没有 pid、没有流，通过 abort 回调取消。
 
-The `ManagedProcess` structure was designed around the real-process shape — its `proc: KaosProcess` field requires the full process interface (stdin/stdout/stderr/pid/wait/kill). To make agent tasks fit, `registerAgentTask` (`manager.ts:808-818`) fabricates a fake process object and casts it past the type system:
+`ManagedProcess` 结构围绕真实进程形态设计——其 `proc: KaosProcess` 字段需要完整的进程接口（stdin/stdout/stderr/pid/wait/kill）。为了让 agent 任务适配，`registerAgentTask`（`manager.ts:808-818`）制造了一个假进程对象并将其强制转换通过类型系统：
 
 ```typescript
 proc: {
@@ -20,20 +20,20 @@ proc: {
   pid: 0,
   wait: () => completion.then(() => 0),
   kill: async () => { opts.abort?.(); },
-} as unknown as KaosProcess,  // type-system escape hatch
+} as unknown as KaosProcess,  // 类型系统逃生口
 ```
 
-This is the only `as unknown` cast in `packages/agent-core/src`. Its consequences:
+这是 `packages/agent-core/src` 中唯一的 `as unknown` 强制转换。其后果：
 
-- **Silent failure risk**: `proc.stdout.on(...)` and `proc.pid` are dead/zero for agent tasks. Any code that assumes `entry.proc` is real will misbehave on agent tasks, and TypeScript cannot catch it.
-- **False unity**: `ManagedProcess` pretends to be one thing, but agent tasks have no process. The name itself ("ManagedProcess") is misleading for a structure that also holds Promises.
-- **Confused responsibilities**: the manager fuses two execution models (OS process vs JS Promise) into one map, one status machine, and one set of fields.
+- **静默失败风险**：`proc.stdout.on(...)` 和 `proc.pid` 对 agent 任务是死/零值。任何假设 `entry.proc` 为真实的代码在 agent 任务上都会表现异常，而 TypeScript 无法捕获。
+- **虚假统一**：`ManagedProcess` 假装是一回事，但 agent 任务没有进程。名称本身（"ManagedProcess"）对于也持有 Promise 的结构具有误导性。
+- **职责混淆**：管理器将两种执行模型（OS 进程 vs JS Promise）融合到一个映射、一个状态机、一组字段中。
 
-The `improve-architecture` scan (2026-06-17) flagged this as a High-priority design debt (H3).
+`improve-architecture` 扫描（2026-06-17）将其标记为高优先级设计债（H3）。
 
-## Decision
+## 决策
 
-Replace `ManagedProcess` with a **discriminated union** (`TaskEntry`) that shares common fields but separates the two task shapes.
+用**判别联合**（`TaskEntry`）替换 `ManagedProcess`，共享公共字段但分离两种任务形态。
 
 ```typescript
 interface TaskCommon {
@@ -44,8 +44,8 @@ interface TaskCommon {
   startedAt: number;
   endedAt: number | null;
   exitCode: number | null;
-  outputChunks: string[];        // moved up: both kinds produce text output
-  outputSizeBytes: number;       // moved up: both need persistence/display
+  outputChunks: string[];        // 上移：两种任务都产生文本输出
+  outputSizeBytes: number;       // 上移：两种都需要持久化/显示
   waiters: Array<...>;
   terminalFired: boolean;
   stopRequested: boolean;
@@ -53,60 +53,60 @@ interface TaskCommon {
   lifecyclePromise: Promise<void>;
   persistWriteQueue: Promise<void>;
   outputWriteQueue: Promise<void>;
-  agentId?: string;              // agent-task identifier
+  agentId?: string;              // agent 任务标识符
   subagentType?: string;
 }
 
 interface ProcessTaskEntry extends TaskCommon {
   kind: 'process';
-  proc: KaosProcess;             // only present for real processes
+  proc: KaosProcess;             // 仅对真实进程存在
   timeoutMs?: number;
 }
 
 interface PromiseTaskEntry extends TaskCommon {
   kind: 'promise';
   completion: Promise<{ result: string }>;
-  abort: () => void;             // cancellation for agent tasks
+  abort: () => void;             // agent 任务的取消
   timeoutMs?: number;
 }
 
 type TaskEntry = ProcessTaskEntry | PromiseTaskEntry;
 ```
 
-The type name `ManagedProcess` is renamed to `TaskEntry` throughout (~20 reference sites).
+类型名 `ManagedProcess` 全局重命名为 `TaskEntry`（约 20 处引用点）。
 
-### Why `outputChunks`/`outputSizeBytes` moved to `TaskCommon`
+### 为何将 `outputChunks`/`outputSizeBytes` 移至 `TaskCommon`
 
-Verified during grill: `outputChunks` is already `string[]` (`manager.ts:112`), not `Buffer[]`. Both real-process stdout chunks and agent result strings are already stored as strings. Both kinds need output persistence, `/tasks` panel display, and ring-buffer trimming. Moving these fields up is friction-free and unifies the "task output text" semantics.
+grill 期间已核实：`outputChunks` 已经是 `string[]`（`manager.ts:112`），而非 `Buffer[]`。真实进程的 stdout 块和 agent 结果字符串都已经是字符串。两种任务都需要输出持久化、`/tasks` 面板显示和环形缓冲区修剪。将这些字段上移零摩擦，统一了"任务输出文本"语义。
 
-### Why the reconcile path is untouched
+### 为何 reconcile 路径不受影响
 
-Verified during grill: `reconcile`/`loadFromDisk` (`manager.ts:993-1029`) loads persisted tasks into a `ghosts` map of `BackgroundTaskInfo` (read-only snapshots), and marks any non-terminal ghost as `'lost'`. It does **not** reconstruct an active `TaskEntry` — because neither a dead process nor a lost Promise can be resumed. The discriminated union therefore only affects active-entry construction and handling; the reconcile/ghost path is completely unaware of the change.
+grill 期间已核实：`reconcile`/`loadFromDisk`（`manager.ts:993-1029`）将持久化的任务加载到 `BackgroundTaskInfo`（只读快照）的 `ghosts` map 中，并将任何非终态的 ghost 标记为 `'lost'`。它**不**重建活跃的 `TaskEntry`——因为一个已死的进程或丢失的 Promise 都无法恢复。因此判别联合只影响活跃 entry 的构造和处理；reconcile/ghost 路径完全不知晓此变更。
 
-## Alternatives Considered
+## 考虑的替代方案
 
-### A. Two independent managers + a coordinator facade
+### A. 两个独立管理器 + 协调器外观
 
-Split into `RealProcessManager` + `PromiseTaskManager`, unified by a `BackgroundCoordinator` facade.
+拆分为 `RealProcessManager` + `PromiseTaskManager`，由 `BackgroundCoordinator` 外观统一。
 
-**Rejected**: the external interface (`register`/`stop`/`list`/`onTerminal`/slot reservation) is genuinely common — unifying it is correct. Splitting forces the persistence layer (`persist.ts`), restore (`reconcile`), callback subscriptions, task-id allocation, and concurrency-slot accounting to be either duplicated or re-aggregated at the facade. The blast radius (callers, persistence, restore) far exceeds the benefit, since the aggregation is the right design.
+**被拒绝**：外部接口（`register`/`stop`/`list`/`onTerminal`/槽位预留）确实是通用的——统一它是正确的。拆分迫使持久化层（`persist.ts`）、恢复（`reconcile`）、回调订阅、任务 ID 分配和并发槽位计数要么重复，要么在外观层重新聚合。影响范围（调用方、持久化、恢复）远超收益，因为聚合是正确的设计。
 
-### B. Narrow the `proc` type to a `TaskHandle` union
+### B. 将 `proc` 类型缩小为 `TaskHandle` 联合
 
-Keep a single `ManagedProcess` structure, but change `proc: KaosProcess` to `proc: KaosProcess | PromiseTaskHandle` where `PromiseTaskHandle` only has `wait`/`kill`.
+保留单一 `ManagedProcess` 结构，但将 `proc: KaosProcess` 改为 `proc: KaosProcess | PromiseTaskHandle`，其中 `PromiseTaskHandle` 只有 `wait`/`kill`。
 
-**Rejected**: this treats the symptom (the cast) without separating the concerns. `ManagedProcess` would still be one structure holding two task kinds; the "outputChunks is meaningless for promise tasks" structural pollution (now resolved by moving `outputChunks` to common) would have persisted. Every `entry.proc.X` access site would still need runtime branching. It is half a solution.
+**被拒绝**：这处理了症状（强制转换）而没有分离关注点。`ManagedProcess` 仍然是一个持有两种任务类型的结构；"outputChunks 对 promise 任务无意义"的结构污染（现已通过将 `outputChunks` 移至 common 解决）将继续存在。每个 `entry.proc.X` 访问点仍然需要运行时分支。这是一个半吊子解决方案。
 
-## Consequences
+## 结果
 
-- **Positive**: Eliminates the only `as unknown` cast in `packages/agent-core/src`. TypeScript now forces a `kind` guard before any access to `entry.proc`, guaranteeing process-specific fields are only read on real processes.
-- **Positive**: The `ManagedProcess` → `TaskEntry` rename honestly reflects that the structure may hold either a process or a Promise.
-- **Positive**: Adding a future third task kind (e.g. a webhook-driven task) is a natural union variant extension.
-- **Positive**: Reconcile path is provably unaffected — reduces risk and eliminated a planned verification slice.
-- **Negative**: ~20 reference sites must be updated to the new type name. Mechanical but touches several files within `tools/background/`.
-- **Negative**: The 6 methods that touch `proc` (`stop`, `toInfo`, `settleProcessExit` at `manager.ts:673,700,702,1067,1125,1138`) now carry `kind` branches — slightly more internal control flow.
+- **正面：** 消除了 `packages/agent-core/src` 中唯一的 `as unknown` 强制转换。TypeScript 现在在访问 `entry.proc` 之前强制 `kind` 守卫，保证进程特定字段仅在真实进程上读取。
+- **正面：** `ManagedProcess` → `TaskEntry` 重命名诚实反映了该结构可能持有进程或 Promise。
+- **正面：** 添加未来的第三类任务（如 webhook 驱动的任务）是自然的联合变体扩展。
+- **正面：** Reconcile 路径可证明不受影响——降低风险并消除了计划中的验证步骤。
+- **负面：** 约 20 处引用点必须更新到新类型名。机械性的，但触及 `tools/background/` 中的多个文件。
+- **负面：** 触及 `proc` 的 6 个方法（`stop`、`toInfo`、`settleProcessExit` 在 `manager.ts:673,700,702,1067,1125,1138`）现在携带 `kind` 分支——略微增加内部控制流。
 
-## Related
+## 关联
 
-- PRD: `docs/prd/design-debt-cleanup-high-priority.md` (H3)
-- Source scan: `improve-architecture` report (2026-06-17), finding H3
+- PRD：`docs/prd/design-debt-cleanup-high-priority.md`（H3）
+- 源码扫描：`improve-architecture` 报告（2026-06-17），发现项 H3

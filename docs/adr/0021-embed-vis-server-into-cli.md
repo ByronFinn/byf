@@ -1,123 +1,69 @@
-# 0021 - Ship vis-server to CLI users as a published runtime dependency
+# 0021 - 将 vis-server 作为已发布的运行时依赖提供给 CLI 用户
 
-Date: 2026-06-25
+日期：2026-06-25
 
-## Status
+## 状态
 
-Accepted (revised 2026-06-25 — original "bundler inline" approach superseded by
-a normal runtime dependency; see Revision)
+已接受（2026-06-25 修订——原始的"打包器内联"方法被普通的运行时依赖取代；见修订）
 
-## Context
+## 背景
 
-BYF ships a session visualization tool (`apps/vis`) for debugging sessions and
-replays: a Hono API server (`@byfriends/vis-server`) plus a React/Vite SPA
-(`@byfriends/vis-web`). Today it can only be started from inside the monorepo
-via npm scripts (`pnpm vis`, `pnpm --filter @byfriends/vis-server start`).
+BYF 提供了一个会话可视化工具（`apps/vis`）用于调试会话和重放：一个 Hono API 服务器（`@byfriends/vis-server`）加一个 React/Vite SPA（`@byfriends/vis-web`）。目前只能在 monorepo 内部通过 npm 脚本启动（`pnpm vis`、`pnpm --filter @byfriends/vis-server start`）。
 
-We want a built-in `byf vis` command so that users who install the published
-`@byfriends/cli` from npm can launch the visualizer in a browser and point it at
-their local sessions.
+我们希望有一个内置的 `byf vis` 命令，这样从 npm 安装已发布的 `@byfriends/cli` 的用户就可以在浏览器中启动可视化工具，指向他们的本地会话。
 
-The constraint that drives this decision: **`apps/vis` is a `private` package
-that is not published to npm.** The published `byf` CLI therefore cannot
-`import '@byfriends/vis-server'` at runtime — the dependency simply does not
-exist on the user's machine. Three families of approaches were considered:
+驱动此决策的约束是：**`apps/vis` 是一个 `private` 包，不发布到 npm。** 已发布的 `byf` CLI 因此无法在运行时 `import '@byfriends/vis-server'`——这个依赖在用户机器上根本不存在。考虑了三种方法：
 
-1. Inline the server into the CLI at build time.
-2. Spawn `server.mjs` as a child process.
-3. Ship a separate `vis` binary/package.
+1. 在构建时将服务器内联到 CLI 中。
+2. 将 `server.mjs` 作为子进程生成。
+3. 发布单独的 `vis` 二进制/包。
 
-(See Alternatives.)
+（见替代方案。）
 
-## Decision
+## 决策
 
-**Publish `@byfriends/vis-server` and consume it from `@byfriends/cli` as a
-normal runtime dependency.**
+**发布 `@byfriends/vis-server`，并从 `@byfriends/cli` 将其作为普通的运行时依赖消费。**
 
-Concretely:
+具体来说：
 
-- `@byfriends/vis-server` is changed from `private: true` to a published package
-  (`access: public`), with its built web assets (`public/`) included in the
-  published tarball. The existing `copy-web-dist.mjs` places `web/dist/**` into
-  `server/dist/public/`; it runs as the tail step of vis-server's own `build`
-  script, after `tsdown` (see Consequences for why this moved out of the
-  `apps/vis` build chain).
-- The server's side-effect-only entry (`src/index.ts`) is refactored to expose a
-  reusable programmatic API (`startVisServer(...)`) so the CLI can import it.
-- `@byfriends/cli` adds `@byfriends/vis-server` as a **runtime dependency** and
-  lists it in `tsdown`'s `neverBundle`. The server is therefore **not** inlined
-  into `dist/main.mjs`; it is resolved from `node_modules` at runtime, so its
-  bundled SPA assets (`dist/public/`) stay co-located with the code that serves
-  them. (See "Revision" below for why inlining was abandoned.)
-- At runtime `byf vis` dynamically `import('@byfriends/vis-server')`, resolves
-  `public/` relative to the installed package, binds one port, and opens a
-  browser. One process, one port.
+- `@byfriends/vis-server` 从 `private: true` 改为已发布的包（`access: public`），其构建后的 web 资源（`public/`）包含在已发布的 tarball 中。现有的 `copy-web-dist.mjs` 将 `web/dist/**` 放入 `server/dist/public/`；它作为 vis-server 自身 `build` 脚本的尾部步骤运行，在 `tsdown` 之后（见结果部分为何移至 `apps/vis` 构建链之外）。
+- 服务器的仅副作用入口（`src/index.ts`）被重构为暴露可复用的编程 API（`startVisServer(...)`），以便 CLI 可以导入它。
+- `@byfriends/cli` 将 `@byfriends/vis-server` 添加为**运行时依赖**，并在 `tsdown` 的 `neverBundle` 中列出。因此服务器**不**被内联到 `dist/main.mjs` 中；它在运行时从 `node_modules` 解析，因此其打包的 SPA 资源（`dist/public/`）与提供它们的代码保持在同一位置。（见下面的"修订"，了解为何放弃内联。）
+- 运行时，`byf vis` 动态 `import('@byfriends/vis-server')`，相对于已安装包解析 `public/`，绑定一个端口，并打开一个浏览器。一个进程，一个端口。
 
-## Revision: external dependency instead of inlining (2026-06-25)
+## 修订：外部依赖而非内联（2026-06-25）
 
-The original decision called for `tsdown` to inline the server into the CLI
-bundle. Landing it revealed two gaps:
+原始决策要求 `tsdown` 将服务器内联到 CLI 包中。实际落地时发现了两个缺口：
 
-1. **Half-bundling.** The CLI's `alwaysBundle` regex (`/^@byf\//`) did not match
-   `@byfriends/vis-server`, so `tsdown` pulled the server entry into the bundle
-   while leaving its internal `import './app'` pointing at workspace `.ts`
-   source — the bundle crashed at runtime.
-2. **Orphaned static assets.** Even fully bundled, the SPA's `public/` assets
-   are not JavaScript and cannot enter a JS bundle. An inlined server would have
-   no web UI to serve unless a separate copy step shipped the assets alongside.
+1. **半打包。** CLI 的 `alwaysBundle` 正则（`/^@byf\//`）不匹配 `@byfriends/vis-server`，因此 `tsdown` 将服务器入口拉入包中，同时将其内部的 `import './app'` 指向工作区的 `.ts` 源码——包在运行时崩溃。
+2. **孤立的静态资源。** 即使完全打包，SPA 的 `public/` 资源不是 JavaScript，无法进入 JS 包。内联的服务器将没有可服务的 Web UI，除非单独的复制步骤将资源一同发布。
 
-Treating `@byfriends/vis-server` as a normal published runtime dependency
-resolves both: npm installs it (with its `public/`), the CLI imports it, and the
-server's own `resolvePublicDir()` finds the assets next to its code. The cost is
-a second package on the install graph, which is acceptable.
+将 `@byfriends/vis-server` 视为普通的已发布运行时依赖解决了这两个问题：npm 安装它（及其 `public/`），CLI 导入它，服务器自身的 `resolvePublicDir()` 在其代码旁边找到资源。代价是安装图谱上增加了一个包，这是可接受的。
 
-## Consequences
+## 结果
 
-### Positive
+### 正面
 
-- A single `npm install -g @byfriends/cli` gives the user the visualizer — no
-  separate binary on PATH, no orchestrator script.
-- One process, one port: simpler mental model than the dev-mode two-port setup,
-  and nothing to clean up beyond the CLI process itself.
-- The web assets travel with the server package, so the same artifact works in
-  `node server/dist/server.mjs` standalone mode and as a CLI runtime dependency.
-- The existing `copy-web-dist.mjs` script is reused unchanged. It now runs as
-  the tail step of `@byfriends/vis-server`'s own `build` (after `tsdown`), and
-  `@byfriends/vis-web` is declared as a build-time workspace dependency of
-  vis-server. This makes vis-server the single owner of its `dist/` and removes
-  the `pnpm -r` build race in which the previous `apps/vis` build chain ran
-  `copy-web-dist.mjs` concurrently with vis-server's `tsdown clean`.
+- 一次 `npm install -g @byfriends/cli` 就为用户提供了可视化工具——PATH 上无需单独的二进制文件，无需编排脚本。
+- 一个进程，一个端口：比开发模式的双端口设置更简单的心智模型，除了 CLI 进程本身之外无需清理任何东西。
+- Web 资源随服务器包一起提供，因此同一产物在 `node server/dist/server.mjs` 独立模式中和作为 CLI 运行时依赖都能工作。
+- 现有的 `copy-web-dist.mjs` 脚本不加修改地重用。它现在作为 `@byfriends/vis-server` 自身 `build` 的尾部步骤运行（在 `tsdown` 之后），而 `@byfriends/vis-web` 被声明为 vis-server 的构建时工作区依赖。这使 vis-server 成为其 `dist/` 的唯一所有者，并消除了之前 `apps/vis` 构建链同时运行 `copy-web-dist.mjs` 和 vis-server 的 `tsdown clean` 时发生的 `pnpm -r` 构建竞争。
 
-### Negative
+### 负面
 
-- `@byfriends/vis-server` becomes a published package with a public surface and
-  SemVer obligations; the `startVisServer` export is now an API that consumers
-  (at minimum, the CLI) depend on.
-- The CLI install graph gains a second package (`@byfriends/vis-server`), which
-  in turn depends on `@byfriends/agent-core`. Users who never run `byf vis` pay
-  this cost anyway.
-- `resolvePublicDir()` (which uses `import.meta.dirname/public`) must be made
-  injectable, and the CLI resolves `public/` relative to the installed package
-  via `require.resolve('@byfriends/vis-server/package.json')`.
+- `@byfriends/vis-server` 成为已发布的包，有公开表面和 SemVer 义务；`startVisServer` 导出现在是消费者（至少是 CLI）依赖的 API。
+- CLI 安装图谱增加了一个包（`@byfriends/vis-server`），后者依次依赖 `@byfriends/agent-core`。从不运行 `byf vis` 的用户仍然支付此成本。
+- `resolvePublicDir()`（使用 `import.meta.dirname/public`）必须变得可注入，CLI 通过 `require.resolve('@byfriends/vis-server/package.json')` 相对于已安装包解析 `public/`。
 
-## Alternatives Considered
+## 考虑的替代方案
 
-- **Spawn `@byfriends/vis-server/dist/server.mjs` as a child process.** Rejected:
-  as a `private` package it is not installed on the user's machine, so there is
-  no `server.mjs` to spawn. Would require publishing the package anyway, at
-  which point importing it in-process is strictly simpler (no IPC, no port
-  negotiation, no orphan-process risk).
-- **Ship a separate `vis` binary / published package with its own bin.**
-  Rejected: adds a second thing to install and keep on PATH, a separate release
-  pipeline, and a second process to manage. `byf vis` as a subcommand of the
-  existing binary is a better UX for a tool the user already has.
-- **Bundle the server into the CLI at build time (original decision).** Rejected
-  during landing: half-bundling crashes and static web assets cannot enter a JS
-  bundle. See Revision above.
+- **将 `@byfriends/vis-server/dist/server.mjs` 作为子进程生成。** 被拒绝：作为 `private` 包，它没有安装在用户机器上，因此没有 `server.mjs` 可生成。无论如何都需要发布该包，此时在进程中导入它严格更简单（无 IPC、无端口协商、无孤儿进程风险）。
+- **发布单独的 `vis` 二进制/已发布包，具有自己的 bin。** 被拒绝：增加了需要安装和保持在 PATH 上的第二个东西、独立的发布管线和第二个要管理的进程。作为现有二进制文件的子命令的 `byf vis` 对已经拥有该工具的用户来说是更好的 UX。
+- **在构建时将服务器打包到 CLI 中（原始决策）。** 在落地期间被拒绝：半打包崩溃且静态 web 资源无法进入 JS 包。见上面的修订。
 
-## References
+## 参考
 
-- PRD-0017 `byf vis` Command (`docs/prd/PRD-0017-byf-vis-command.md`)
-- `apps/vis/server/src/index.ts`, `apps/vis/server/src/app.ts`
+- PRD-0017 `byf vis` 命令（`docs/prd/PRD-0017-byf-vis-command.md`）
+- `apps/vis/server/src/index.ts`、`apps/vis/server/src/app.ts`
 - `apps/vis/scripts/copy-web-dist.mjs`
-- `apps/cli/tsdown.config.ts` (`neverBundle: ['@byfriends/vis-server']`)
+- `apps/cli/tsdown.config.ts`（`neverBundle: ['@byfriends/vis-server']`）

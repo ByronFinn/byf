@@ -1,82 +1,82 @@
-# ADR 0009: Context Minimization Strategy
+# ADR 0009: 上下文最小化策略
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-BYF's LLM context is bloated. First-call input is ~8,000-17,000 tokens, growing unbounded as tool outputs accumulate. The root causes identified:
+BYF 的 LLM 上下文过于臃肿。首次调用输入约 8,000-17,000 token，随着工具输出累积而无限制增长。确定的根本原因：
 
-1. Tool definitions consume ~49% of first-call tokens (~10K), with descriptions duplicating system prompt instructions.
-2. System prompt mixes static and dynamic content with no cache boundary.
-3. Skills listing is always injected (~500-1,500 tokens) with no progressive disclosure.
-4. Tool outputs accumulate without optimization, reaching up to 83.9% of total context in long sessions.
+1. 工具定义消耗首次调用 token 的约 49%（约 10K），描述与系统提示指令重复。
+2. 系统提示混合了静态和动态内容，没有缓存边界。
+3. 技能列表总是注入（约 500-1,500 token），没有渐进式披露。
+4. 工具输出未经优化地累积，在长会话中达到总上下文的 83.9%。
 
-We evaluated multiple approaches (conservative content-only vs. architectural restructuring) and chose a four-phase plan that maximizes impact while minimizing risk.
+我们评估了多种方法（保守的内容裁剪 vs 架构重组），选择了四阶段计划，在最大化影响的同时最小化风险。
 
-## Decision
+## 决策
 
-### Phase 1: Tool Description Compression (Highest Impact, Lowest Risk)
+### 第一阶段：工具描述压缩（影响最大，风险最低）
 
-Apply a **key-instruction anchoring** strategy instead of a naive cut:
+应用**关键指令锚定**策略，而非简单截断：
 
-- **Global behavioral instructions** (e.g. "you are a professional software engineer") → move to system prompt (single source of truth).
-- **Tool-specific high-risk instructions** (e.g. Bash's "never run superuser commands") → keep in tool description as 1-2 short sentences (~50 tokens) to exploit context locality.
-- **State-transition tools** (Enter/Exit plan mode) were deleted entirely (see ADR 0008).
+- **全局行为指令**（如"你是一名专业软件工程师"）→ 移至系统提示（唯一事实来源）。
+- **工具特定高风险指令**（如 Bash 的"永远不要运行超级用户命令"）→ 保留在工具描述中，1-2 句简短描述（约 50 token），利用上下文局部性。
+- **状态转换工具**（Enter/Exit plan mode）已完全删除（见 ADR 0008）。
 
-Target: Tool definitions from ~10,068 → ~6,000 tokens (~40% reduction).
+目标：工具定义从约 10,068 → 约 6,000 token（约 40% 减少）。
 
-### Phase 2: System Prompt Restructuring
+### 第二阶段：系统提示重组
 
-- **AGENTS.md**: Kept in the system prompt (not moved to messages) to preserve instruction following. Will receive an independent cache boundary in Phase 4. Added an AGENTS.md budget warning at 4,000 tokens.
-- **Directory tree**: Moved from system prompt to an InjectionManager (`DirectoryTreeInjector`). Injected once at session start and refreshed when file-structure-changing tool calls occur (Write of new files, Bash mkdir/rm/mv). Excludes large/irrelevant directories (node_modules, .git, dist, etc.).
-- **Skills**: Progressive disclosure — only names + one-line descriptions injected; full content loaded via the `Skill` tool on demand.
-- **Research guidelines**: Compressed to 5 core rules, including "plan before researching" and "search queries should be well-designed".
-- **First principles**: Added as a meta-cognitive instruction in the system prompt.
+- **AGENTS.md**：保留在系统提示中（不移到消息区）以保持指令遵循。将在第四阶段获得独立的缓存边界。添加了 4,000 token 的 AGENTS.md 预算警告。
+- **目录树**：从系统提示移至 InjectionManager（`DirectoryTreeInjector`）。在会话开始时注入一次，并在文件结构变更的工具调用（新增文件的 Write、Bash mkdir/rm/mv）时刷新。排除大型/无关目录（node_modules、.git、dist 等）。
+- **技能**：渐进式披露——只注入名称 + 一行描述；完整内容通过 `Skill` 工具按需加载。
+- **研究指南**：压缩为 5 条核心规则，包括"先计划再研究"和"搜索查询应精心设计"。
+- **第一性原理**：作为元认知指令添加到系统提示中。
 
-Target: System prompt from ~6,000-7,200 → ~3,500-4,500 tokens.
+目标：系统提示从约 6,000-7,200 → 约 3,500-4,500 token。
 
-### Phase 3: Tool Output Optimization
+### 第三阶段：工具输出优化
 
-Two complementary strategies, applied in order:
+两种互补策略，按顺序应用：
 
-1. **Importance-Based Observation Masking**: Replaces old tool results with compact structured summaries plus small head/tail fragments. Triggered by token pressure (60-85% of effective capacity), not turn count. Priority queue:
-   - High persistence: Write/Edit results, user-visible output (kept until compaction).
-   - Medium: Bash results (mask at 60-80%).
-   - Low: Read/Glob/Grep results (mask at 60%).
+1. **基于重要性的观察掩码**：将旧的工具结果替换为紧凑的结构化摘要，外加小段头/尾片段。由 token 压力（有效容量的 60-85%）触发，而非 turn 计数。优先级队列：
+   - 高持久性：Write/Edit 结果、用户可见输出（保留至压缩）。
+   - 中等：Bash 结果（在 60-80% 时掩码）。
+   - 低：Read/Glob/Grep 结果（在 60% 时掩码）。
 
-2. **Output Offloading**: Tool outputs > ~8,000 tokens are written to scratch files (`~/.byf/sessions/<id>/scratch/`) and replaced with a ~1,000-char preview + file reference. Scratch files are bounded (50MB/session, 100 files max, FIFO eviction).
+2. **输出卸载**：超过约 8,000 token 的工具输出写入临时文件（`~/.byf/sessions/<id>/scratch/`），替换为约 1,000 字符的预览 + 文件引用。临时文件有大小限制（50MB/会话，最多 100 文件，FIFO 淘汰）。
 
-Summary format: `[Bash: 'npm test', exit=0, 127 lines, stderr: none]`
-Head/tail: Bash keeps first 3 + last 5 lines; Read keeps first 3 + last 3 lines; Grep/Glob keep first 3 + last 2 lines.
+摘要格式：`[Bash: 'npm test', exit=0, 127 lines, stderr: none]`
+头/尾：Bash 保留前 3 + 后 5 行；Read 保留前 3 + 后 3 行；Grep/Glob 保留前 3 + 后 2 行。
 
-Target: Long-session tool output context reduced by 60-80%.
+目标：长会话工具输出上下文减少 60-80%。
 
-### Phase 4: Prompt Caching Infrastructure
+### 第四阶段：提示缓存基础设施
 
-Multi-boundary cache design. Only **Anthropic** requires code changes (explicit `cache_control` breakpoints). All other providers (OpenAI, DeepSeek, Kimi, GLM, Qwen, local LLMs) use automatic prefix matching — BYF only needs to guarantee stable content ordering.
-
-```
-[Cache boundary 1] System prompt static part (identity + coding rules)
-[Cache boundary 2] AGENTS.md (project-level cache)
-[Cache boundary 3] Tool definitions (session-level cache)
-[No cache] Conversation history + tool results
-```
-
-### Multi-Pass Compaction Pipeline
-
-When token pressure exceeds thresholds, the system applies strategies in order of increasing cost, stopping as soon as the budget is safe:
+多边界缓存设计。仅 **Anthropic** 需要代码变更（显式 `cache_control` 断点）。所有其他 provider（OpenAI、DeepSeek、Kimi、GLM、Qwen、本地 LLM）使用自动前缀匹配——BYF 只需要保证内容排序稳定。
 
 ```
-Observation Masking (free) → Low-priority result pruning (free) → LLM Summarization (expensive)
+[缓存边界 1] 系统提示静态部分（身份 + 编码规则）
+[缓存边界 2] AGENTS.md（项目级缓存）
+[缓存边界 3] 工具定义（会话级缓存）
+[无缓存] 对话历史 + 工具结果
 ```
 
-## Consequences
+### 多通道压缩管道
 
-- **Positive**: First-call tokens reduced from ~8,000-17,000 to ~5,500-7,000. Cached prefix tokens could reduce per-turn billing to ~500-1,000 on Anthropic.
-- **Positive**: Long-session thrashing (repeated exploration due to lost context) is mitigated by importance-based masking that preserves high-value results.
-- **Positive**: Minimal architectural changes — leverages existing InjectionManager, Compaction, and Wire Records infrastructure.
-- **Negative**: Compressed tool descriptions require adversarial testing (forget tests, hallucination tests, jailbreak tests) to ensure no behavioral regression.
-- **Negative**: AGENTS.md budget warning may annoy users with large instruction files, but it serves as a valuable nudge toward concise project conventions.
-- **Negative**: Directory tree auto-refresh adds I/O overhead on every turn that follows a structure-changing tool call.
+当 token 压力超过阈值时，系统按成本递增顺序应用策略，一旦预算安全就停止：
+
+```
+观察掩码（免费）→ 低优先级结果修剪（免费）→ LLM 摘要（昂贵）
+```
+
+## 结果
+
+- **正面：** 首次调用 token 从约 8,000-17,000 减少到约 5,500-7,000。缓存前缀 token 可能将 Anthropic 上的每 turn 计费降低到约 500-1,000 token。
+- **正面：** 长会话抖动（由于上下文丢失导致的重复探索）通过基于重要性的掩码得到缓解，保留高价值结果。
+- **正面：** 最小的架构变更——利用现有的 InjectionManager、Compaction 和 Wire Records 基础设施。
+- **负面：** 压缩后的工具描述需要对抗性测试（遗忘测试、幻觉测试、越狱测试）以确保无行为回归。
+- **负面：** AGENTS.md 预算警告可能对有大型指令文件的用户造成困扰，但它作为向简洁项目惯例发展的有价值助推。
+- **负面：** 目录树自动刷新在每次结构变更的工具调用之后的 turn 中添加 I/O 开销。

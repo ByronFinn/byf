@@ -1,116 +1,116 @@
-# ADR 0013: Prompt Cache Optimization — Three-Tier Overhaul
+# ADR 0013: 提示缓存优化 — 三层改造
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-The `DirectoryTreeInjector` (in `agent-core/src/agent/injection/directory-tree.ts`) injected the project directory structure and a session timestamp into conversation history via `appendSystemReminder()`. This created persistent `user`-role messages in `_history`.
+`DirectoryTreeInjector`（在 `agent-core/src/agent/injection/directory-tree.ts`）通过 `appendSystemReminder()` 将项目目录结构和会话时间戳注入对话历史。这会在 `_history` 中创建持久的 `user` 角色消息。
 
-For prefix-match cache providers (OpenAI-compatible: GLM, DeepSeek, Kimi, etc.), any change to the message array prefix invalidates the cache. The directory tree injection caused cache prefix breakage in two scenarios:
+对于前缀匹配缓存的 provider（OpenAI 兼容：GLM、DeepSeek、Kimi 等），消息数组前缀的任何变化都会使缓存失效。目录树注入在两种情况下导致缓存前缀破坏：
 
-1. **Initial injection** (session start): a new message is appended to `_history`.
-2. **Tree change** (file created/deleted externally): a new message is appended, and the previous injection's position in the prefix shifts.
+1. **初始注入**（会话开始）：向 `_history` 追加新消息。
+2. **树变化**（文件被创建/删除）：追加新消息，前一次注入在前缀中的位置发生变化。
 
-Production cache analysis on GLM-5.2 measured ~19,712 tokens of cache loss from a single injection event. In a 50-step session with 3 tree changes, this amounted to ~300K tokens of unnecessary re-billing.
+在 GLM-5.2 上的生产缓存分析测量到一次注入事件导致约 19,712 token 的缓存丢失。在包含 3 次树变化的 50 步会话中，这累计造成约 300K token 的不必要重新计费。
 
-Meanwhile, the directory tree injection had diminishing value:
+同时，目录树注入的价值在递减：
 
-- Many projects include a high-level project map in AGENTS.md (e.g., `## Project Map`).
-- The model discovers file-level structure through tools (Glob, Bash, Read) when needed.
-- The injected tree becomes stale as the session progresses — it only refreshes when the injector detects a change.
-- The user's task prompt usually specifies the target file or module.
+- 许多项目在 AGENTS.md 中包含高层项目地图（如 `## Project Map`）。
+- 模型需要时通过工具（Glob、Bash、Read）发现文件级结构。
+- 注入的树随会话进行而变得过时——仅在注入器检测到变化时刷新。
+- 用户的任务提示通常指明目标文件或模块。
 
-Two additional cache inefficiencies were identified:
+还发现了另外两个缓存低效问题：
 
-- **Impure global cache block**: The system prompt's Block 0 (`base`, scope `global`) contained the `# Working Environment` section with session-specific variables (`BYF_OS`, `BYF_SHELL`, `BYF_WORK_DIR`). This meant Block 0 was not truly cross-session stable — for OpenAI, `prompt_cache_key` (SHA256 of global-block text) changed per session, and for Anthropic the global cache breakpoint covered unstable content.
-- **Dynamic content polluting cache prefix**: The session timestamp (previously bundled with the directory tree injector) and permission-mode reminders changed per-step or per-event, yet were persisted into `_history` or embedded in the system prompt, breaking cache where they appeared.
+- **不纯的全局缓存块**：系统提示的 Block 0（`base`，scope `global`）包含 `# Working Environment` 部分，其中有会话特定变量（`BYF_OS`、`BYF_SHELL`、`BYF_WORK_DIR`）。这意味着 Block 0 并非真正跨会话稳定——对于 OpenAI，`prompt_cache_key`（全局块文本的 SHA256）每会话变化；对于 Anthropic，全局缓存断点覆盖了不稳定的内容。
+- **动态内容污染缓存前缀**：会话时间戳（之前与目录树注入器捆绑在一起）和权限模式提醒每步或每事件变化，却被持久化到 `_history` 或嵌入系统提示中，在它们出现的地方破坏缓存。
 
-## Decision
+## 决策
 
-This ADR covers three tiers of cache optimization that were implemented together.
+本 ADR 涵盖了一同实施的三层缓存优化。
 
-### Tier 1: Remove DirectoryTreeInjector entirely
+### 第一层：完全移除 DirectoryTreeInjector
 
-Delete the `DirectoryTreeInjector` class and all its dependencies (`buildTree`, `collectEntries`, exclusion sets, path utilities). Remove it from `InjectionManager`'s injector list.
+删除 `DirectoryTreeInjector` 类及其所有依赖（`buildTree`、`collectEntries`、排除集、路径工具）。将其从 `InjectionManager` 的注入器列表中移除。
 
-**Rationale**: The directory tree is the only dynamic injector that fires mid-session on content changes. Removing it eliminates the only controllable source of injection-induced cache breakage in `_history`. The model can discover project structure through tools on demand — this aligns with the existing Progressive Disclosure principle.
+**理由**：目录树是唯一一个在内容变更时于会话中期触发的动态注入器。移除它消除了 `_history` 中注入引起缓存破坏的唯一可控源头。模型可以通过工具按需发现项目结构——这与现有的渐进式披露原则一致。
 
-### Tier 2: Restructure system prompt into a pure 4-block cache architecture
+### 第二层：将系统提示重组为纯净的 4 块缓存架构
 
-Reorder `system.md` so that `# Project Information` (AGENTS.md) comes **before** `# Working Environment`. Add `# Working Environment` to `IMPLICIT_BOUNDARY_HEADERS` in `builder.ts`. This splits the former Block 0 into two blocks:
+重新排序 `system.md`，使 `# Project Information`（AGENTS.md）位于 `# Working Environment` **之前**。将 `# Working Environment` 添加到 `builder.ts` 的 `IMPLICIT_BOUNDARY_HEADERS` 中。这将原本的 Block 0 拆分为两个块：
 
-- **Block 0 (global)**: Pure agent rules (identity, First Principles, Tool Use, Protocol, Safety) — no per-session variables.
-- **Block 2 (session)**: Working Environment (OS, shell, cwd) — now in its own session-scoped block.
+- **Block 0（global）**：纯代理规则（身份、第一性原理、工具使用、协议、安全）——无 per-session 变量。
+- **Block 2（session）**：工作环境（OS、shell、cwd）——现在位于自己的会话范围块中。
 
-The resulting 4-block structure:
+产生的 4 块结构：
 
-| Block | Name                  | Scope     | Content                                                         |
-| ----- | --------------------- | --------- | --------------------------------------------------------------- |
-| 0     | `base`                | `global`  | Agent identity, principles, safety — zero per-session variables |
-| 1     | `projectInstructions` | `project` | AGENTS.md                                                       |
-| 2     | `workingEnvironment`  | `session` | OS, shell, working directory                                    |
-| 3     | `sessionContext`      | `session` | Skills listing                                                  |
+| 块 | 名称 | 范围 | 内容 |
+| --- | --- | --- | --- |
+| 0 | `base` | `global` | 代理身份、原则、安全——零 per-session 变量 |
+| 1 | `projectInstructions` | `project` | AGENTS.md |
+| 2 | `workingEnvironment` | `session` | OS、shell、工作目录 |
+| 3 | `sessionContext` | `session` | 技能列表 |
 
-**Rationale**: Block 0 is now truly stable across sessions. For OpenAI-compatible providers, `prompt_cache_key = SHA256(global blocks)` is identical for every session in the same project. For Anthropic, the global cache breakpoint covers only stable agent rules. This maximizes cross-session cache reuse without any per-session contamination.
+**理由**：Block 0 现在真正跨会话稳定。对于 OpenAI 兼容 provider，`prompt_cache_key = SHA256(global blocks)` 对同一项目中的每个会话都相同。对于 Anthropic，全局缓存断点只覆盖稳定的代理规则。这最大化跨会话缓存复用，不受任何 per-session 污染。
 
-### Tier 3: Activate the ephemeral injection pipeline for dynamic content
+### 第三层：为动态内容激活临时注入管线
 
-The `EphemeralInjection` interface and `project()`'s second parameter existed but were dead code. This tier activates the full pipeline:
+`EphemeralInjection` 接口和 `project()` 的第二个参数存在但属于死代码。本层激活完整管线：
 
-1. **`projector.ts`**: Implement the `before_user` position. `before_user` injections are appended **after** all history (at the end), not prepended before it. This means they never break the cached prefix.
-2. **`injector.ts`**: Add optional `getEphemeral?(): readonly EphemeralInjection[]` to the `DynamicInjector` base class.
-3. **`manager.ts`**: Add `getEphemeralInjections()` that collects from all injectors via `flatMap`.
-4. **`timestamp.ts`** (new): `TimestampInjector` produces a fresh ISO timestamp each step at `before_user`.
-5. **`permission-mode.ts`**: Converted from persistent (transition-based, writes to `_history`) to ephemeral (state-based, always reflects current mode via `getEphemeral()`). Only fires when auto mode is active.
-6. **`context/index.ts`**: Add `getMessages(ephemeral?)` method; `messages` getter delegates to it with no ephemerals.
-7. **`turn/index.ts`**: `buildMessages` callback calls `injection.getEphemeralInjections()` and passes them to `context.getMessages(ephemeral)`.
+1. **`projector.ts`**：实现 `before_user` 位置。`before_user` 注入追加在**所有**历史之后（末尾），而非前插。这意味着它们从不破坏缓存前缀。
+2. **`injector.ts`**：向 `DynamicInjector` 基类添加可选的 `getEphemeral?(): readonly EphemeralInjection[]`。
+3. **`manager.ts`**：添加 `getEphemeralInjections()`，通过 `flatMap` 从所有注入器收集。
+4. **`timestamp.ts`**（新增）：`TimestampInjector` 每步在 `before_user` 生成新鲜 ISO 时间戳。
+5. **`permission-mode.ts`**：从持久（基于事件转换，写入 `_history`）改为临时（基于状态，通过 `getEphemeral()` 始终反映当前模式）。仅在 auto 模式激活时触发。
+6. **`context/index.ts`**：添加 `getMessages(ephemeral?)` 方法；`messages` getter 委托给它，不传 ephemeral。
+7. **`turn/index.ts`**：`buildMessages` 回调调用 `injection.getEphemeralInjections()` 并将其传递给 `context.getMessages(ephemeral)`。
 
-**Rationale**: Dynamic per-step content (timestamp, permission mode state) belongs at the end of the message array, not in the system prompt or in `_history`. The `before_user` position keeps this content outside the cached prefix entirely — zero cache impact, always fresh.
+**理由**：动态的每步内容（时间戳、权限模式状态）属于消息数组的末尾，而非系统提示或 `_history` 中。`before_user` 位置使此内容完全处于缓存前缀之外——零缓存影响，始终新鲜。
 
-### Final architecture
+### 最终架构
 
-The prompt-cache best-practice layered model:
+提示缓存最佳实践的分层模型：
 
 ```
-CACHE ZONE (stable prefix):
-  Block 0 (global): Agent Rules — no per-session variables
-  Block 1 (project): Project Knowledge (AGENTS.md)
-  Block 2 (session): Working Environment + Skills
-  Tool Specs (separate API param)
-CONVERSATION HISTORY (clean, no system injections):
-  user / assistant / tool messages
-DYNAMIC ZONE (per-request, at end, zero cache impact):
-  Current Time (always fresh)
-  Permission Mode (always current state)
+缓存区（稳定前缀）：
+  Block 0（global）：代理规则——无 per-session 变量
+  Block 1（project）：项目知识（AGENTS.md）
+  Block 2（session）：工作环境 + 技能
+  工具规格（独立 API 参数）
+对话历史（干净，无系统注入）：
+  user / assistant / tool 消息
+动态区（每请求，在末尾，零缓存影响）：
+  当前时间（始终新鲜）
+  权限模式（始终当前状态）
 ```
 
-## Alternatives Considered
+## 考虑的替代方案
 
-### A. Remove DirectoryTreeInjector only, move timestamp to system prompt (original PRD scope)
+### A. 仅移除 DirectoryTreeInjector，将时间戳移到系统提示（PRD 原始范围）
 
-Keep `PermissionModeInjector` persistent; embed `BYF_TIMESTAMP` as a template variable in the system prompt's `# Working Environment` section. **Partially adopted, then superseded**: Tier 1 (removal) was kept, but the timestamp-in-system-prompt approach was replaced by Tier 3's ephemeral injection. A frozen session timestamp in the system prompt is less useful than a fresh per-step timestamp, and the ephemeral approach has zero cache impact.
+保持 `PermissionModeInjector` 持久；将 `BYF_TIMESTAMP` 作为模板变量嵌入系统提示的 `# Working Environment` 部分。**部分采纳后被取代**：第一层（移除）被保留，但时间戳入系统提示的方法被第三层的临时注入取代。系统提示中冻结的会话时间戳不如新鲜的每步时间戳有用，且临时方法零缓存影响。
 
-### B. First-persistent + rest-ephemeral hybrid for directory tree
+### B. 首次持久 + 其余临时混合用于目录树
 
-First injection writes to history (cacheable); subsequent changes are ephemeral. **Rejected**: the model still loses visibility of tree changes after the ephemeral step expires, and the complexity is disproportionate to the value when tool-based discovery works well.
+首次注入写入历史（可缓存）；后续变更是临时注入。**被拒绝**：模型在临时步骤过期后仍然看不到树变更的可视信息，且当工具发现工作良好时，复杂度与价值不成比例。
 
-### C. Inline injection into tool results
+### C. 内联注入到工具结果
 
-Append directory tree text to the preceding tool result's output (similar to `tool-dedup.ts`). **Rejected**: only works when a tool result precedes the injection step; doesn't apply at turn start (user prompt → LLM response with no prior tool result).
+将目录树文本追加到前一个工具结果的输出中（类似 `tool-dedup.ts`）。**被拒绝**：仅在工具结果前于注入步骤时有效；在 turn 开始时（用户提示 → LLM 响应，无前一个工具结果）不适用。
 
-### D. Keep DirectoryTreeInjector persistent (status quo)
+### D. 保持 DirectoryTreeInjector 持久（现状）
 
-Accept the cache breakage as a trade-off for upfront project awareness. **Rejected**: production cache analysis showed significant token waste (~300K tokens per 50-step session), and the injected tree's value is replaceable by AGENTS.md project maps and on-demand tool discovery.
+接受缓存破坏作为前置项目意识的权衡。**被拒绝**：生产缓存分析显示显著的 token 浪费（每 50 步会话约 300K token），且注入的树的价值可被 AGENTS.md 项目地图和按需工具发现替代。
 
-## Consequences
+## 结果
 
-- **Positive**: Eliminates the only controllable source of injection-induced cache breakage. Prefix-match providers (GLM, OpenAI, DeepSeek, etc.) no longer lose cache on directory tree changes.
-- **Positive**: Block 0 (global) is truly cross-session stable. `prompt_cache_key` is now identical across sessions for the same project, maximizing OpenAI-compatible cache reuse.
-- **Positive**: Timestamp is fresh every step (not frozen at session start), improving the model's time-aware decisions.
-- **Positive**: Permission mode injection is now state-based — it survives compaction (always reflects current state) rather than being a one-time transition event that compaction can erase.
-- **Positive**: Simpler `InjectionManager` — `DirectoryTreeInjector` removed, all dynamic injectors are ephemeral (no `_history` pollution).
-- **Positive**: Conversation history is clean — no system-reminder messages from dynamic injectors.
-- **Negative**: Model starts each session without a file-level directory tree. May require an extra tool call (Glob/ls) at the start of some tasks to orient. Mitigated by AGENTS.md project maps and user prompt context.
-- **Negative**: Model does not automatically detect external directory structure changes (e.g., git pull). Model can discover changes through tools when relevant.
+- **正面：** 消除注入引起缓存破坏的唯一可控源头。前缀匹配 provider（GLM、OpenAI、DeepSeek 等）不再因目录树变化而丢失缓存。
+- **正面：** Block 0（global）真正跨会话稳定。`prompt_cache_key` 现在对同一项目的所有会话相同，最大化 OpenAI 兼容的缓存复用。
+- **正面：** 时间戳每步都新鲜（非冻结在会话开始），改善模型的时间感知决策。
+- **正面：** 权限模式注入现在基于状态——它能在压缩后存活（始终反映当前状态）而非压缩可能擦除的一次性转换事件。
+- **正面：** 更简单的 `InjectionManager`——`DirectoryTreeInjector` 已移除，所有动态注入器都是临时的（无 `_history` 污染）。
+- **正面：** 对话历史干净——无来自动态注入器的 system-reminder 消息。
+- **负面：** 模型在每个会话开始时没有文件级目录树。可能在部分任务开始时需要一个额外的工具调用（Glob/ls）来定位。通过 AGENTS.md 项目地图和用户提示上下文缓解。
+- **负面：** 模型不会自动检测外部的目录结构变化（如 git pull）。模型在相关时可以通过工具发现变化。

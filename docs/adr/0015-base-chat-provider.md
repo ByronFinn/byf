@@ -1,97 +1,97 @@
-# ADR 0015: BaseChatProvider Abstract Base Class
+# ADR 0015: BaseChatProvider 抽象基类
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-`packages/kosong` has four LLM provider adapters — `anthropic.ts` (1042 lines), `openai-responses.ts` (1006), `google-genai.ts` (899), `openai-completions.ts` (669). Each `implements ChatProvider` (an interface, no base class).
+`packages/kosong` 有四个 LLM provider 适配器——`anthropic.ts`（1042 行）、`openai-responses.ts`（1006）、`google-genai.ts`（899）、`openai-completions.ts`（669）。每个都 `implements ChatProvider`（接口，无基类）。
 
-The `improve-architecture` scan (2026-06-17, finding H4) identified **14 duplicated patterns** across these adapters. The four most pervasive are 4-way near-identical copies:
+`improve-architecture` 扫描（2026-06-17，发现项 H4）在这些适配器中识别出 **14 个重复模式**。最普遍的四个是 4 路近乎相同的副本：
 
-1. **`StreamedMessage` class skeleton** — fields, getters, `[Symbol.asyncIterator]`, constructor branching (`anthropic.ts:525-584`, `openai-responses.ts:496-529`, `google-genai.ts:453-493`, `openai-completions.ts:282-325`).
-2. **`_clone()` + `withGenerationKwargs`** — `Object.assign(Object.create(proto), this)` + deep-copy `_generationKwargs` (4 copies).
-3. **`_createClient(auth)` wrapper** + accessor quartet (`modelName`/`modelParameters`/`getCapability`) — 4 copies each.
-4. **`normalizeXxxFinishReason`** — structurally identical null-guard → switch → return, differing only in case labels (4 copies).
+1. **`StreamedMessage` 类骨架**——字段、getter、`[Symbol.asyncIterator]`、构造函数分支（`anthropic.ts:525-584`、`openai-responses.ts:496-529`、`google-genai.ts:453-493`、`openai-completions.ts:282-325`）。
+2. **`_clone()` + `withGenerationKwargs`**——`Object.assign(Object.create(proto), this)` + 深拷贝 `_generationKwargs`（4 份副本）。
+3. **`_createClient(auth)` 包装器** + getter 四件套（`modelName`/`modelParameters`/`getCapability`）——各 4 份副本。
+4. **`normalizeXxxFinishReason`**——结构相同的空值守卫 → switch → 返回，仅在 case 标签上不同（4 份副本）。
 
-The existing shared module `openai-common.ts` serves only 2 of 4 adapters (the OpenAI family). Anthropic and Google are fully independent — they don't use it at all.
+现有的共享模块 `openai-common.ts` 只服务于 4 个适配器中的 2 个（OpenAI 家族）。Anthropic 和 Google 完全独立——它们完全不使用它。
 
-### Origin (why the design started this way)
+### 起源（为什么设计开始如此）
 
-Git history (`git log --diff-filter=A`) confirms all four providers arrived in the initial commit `f4a0872` from the upstream codebase. The upstream design was inherited, not chosen by BYF. Three real reasons explain the upstream structure:
+Git 历史（`git log --diff-filter=A`）确认所有四个 provider 都在上游代码库的初始提交 `f4a0872` 中。上游设计是继承的，非 BYF 选择的。三个真正的原因解释上游结构：
 
-1. Each adapter wraps a **different official SDK** (`@anthropic-ai/sdk`, `openai`, `@google/genai`) with incompatible client types and constructors.
-2. The upstream codebase was itself OpenAI-compatible, so `openai-common.ts` was an OpenAI-family-internal toolkit, never a cross-provider abstraction.
-3. Subsequent work (caching, observability) added fields by copy-pasting across 4 files because per-change cost was lower than refactor cost — debt accumulated silently.
+1. 每个适配器包装了一个**不同的官方 SDK**（`@anthropic-ai/sdk`、`openai`、`@google/genai`），具有不兼容的客户端类型和构造函数。
+2. 上游代码库本身是 OpenAI 兼容的，因此 `openai-common.ts` 是 OpenAI 家族内部的工具包，从未是跨 provider 的抽象。
+3. 后续工作（缓存、可观测性）通过跨 4 个文件复制粘贴添加字段，因为每次变更的成本低于重构成本——债务悄悄累积。
 
-### Why act now
+### 为何现在行动
 
-The duplication is not static — it grows. The `cache-observability-cli.md` PRD added `inputCacheRead`/`inputCacheCreation` parsing by editing each adapter's `_extractUsage` independently. ADR 0011's stated goal ("adding a new provider requires only a new adapter") is undermined: a new provider today must copy-paste all 14 patterns.
+重复不是静态的——它在增长。`cache-observability-cli.md` PRD 通过独立编辑每个适配器的 `_extractUsage` 添加了 `inputCacheRead`/`inputCacheCreation` 解析。ADR 0011 的陈述目标（"添加新 provider 只需新适配器"）被削弱：今天的新 provider 必须复制粘贴所有 14 个模式。
 
-A key grill insight: the duplication splits cleanly into two categories — **SDK-agnostic boilerplate** (`_clone`, accessors, `StreamedMessage` skeleton — nothing to do with which SDK is wrapped) and **protocol-specific logic** (`generate()`, message mapping, streaming parsing, cache-control injection — genuinely different per provider). Only the former should be shared.
+一个关键的 grill 见解：重复干净地分为两类——**SDK 无关样板**（`_clone`、accessor、`StreamedMessage` 骨架——与包装哪个 SDK 无关）和**协议特定逻辑**（`generate()`、消息映射、流式解析、缓存控制注入——每个 provider 真正不同）。只有前者应该共享。
 
-## Decision
+## 决策
 
-Introduce `abstract class BaseChatProvider implements ChatProvider` and `abstract class BaseStreamedMessage implements StreamedMessage`. Move SDK-agnostic boilerplate up; leave protocol-specific logic in subclasses.
+引入 `abstract class BaseChatProvider implements ChatProvider` 和 `abstract class BaseStreamedMessage implements StreamedMessage`。将 SDK 无关样板上移；将协议特定逻辑留在子类中。
 
-### What moves up to the base class
+### 上移到基类的内容
 
-- `_clone()` / `withGenerationKwargs()` — pure boilerplate, SDK-independent.
-- Accessors: `modelName`, `modelParameters`, `getCapability` — return stored fields.
-- `StreamedMessage` skeleton: fields, `[Symbol.asyncIterator]` forwarding, getter quartet.
-- `_createClient(auth)` shell — delegates the actual SDK construction to a new abstract `createRawClient(auth, defaultHeaders)`.
+- `_clone()` / `withGenerationKwargs()`——纯样板，SDK 无关。
+- Accessor：`modelName`、`modelParameters`、`getCapability`——返回存储字段。
+- `StreamedMessage` 骨架：字段、`[Symbol.asyncIterator]` 转发、getter 四件套。
+- `_createClient(auth)`外壳——将实际的 SDK 构造委托给新的抽象 `createRawClient(auth, defaultHeaders)`。
 
-### What stays in subclasses
+### 保留在子类的内容
 
-- `generate()` — the streaming/dispatch loop, protocol-specific.
-- Message mapping (`convertMessage`, content-part flattening) — protocol-specific.
-- `createRawClient()` — `new OpenAI(...)` vs `new Anthropic(...)` vs `new GoogleGenAI(...)`.
-- `thinkingEffort` getter — mapping logic differs per provider.
+- `generate()`——流式/分发循环，协议特定。
+- 消息映射（`convertMessage`、内容部分展平）——协议特定。
+- `createRawClient()`——`new OpenAI(...)` vs `new Anthropic(...)` vs `new GoogleGenAI(...)`。
+- `thinkingEffort` getter——每个 provider 的映射逻辑不同。
 
-### Normalization: config-driven, in a new `provider-common.ts`
+### 归一化：配置驱动，在新的 `provider-common.ts` 中
 
-Structurally-identical-but-field-name-different logic becomes config-driven, placed in a new `provider-common.ts` (separate from `openai-common.ts`, which keeps OpenAI-family wire-format conversion):
+结构相同但字段名不同的逻辑变为配置驱动，放置在新的 `provider-common.ts` 中（与 `openai-common.ts` 分离，后者保留 OpenAI 家族线格式转换）：
 
-- `makeFinishReasonNormalizer(mapping)` — shared switch skeleton, per-provider case-label table.
-- `extractCacheUsage(total, cached, output)` — the `inputOther = input - cached` formula (the cache-observability parsing).
-- `convertProviderError(error, opts?)` — the error-classification ladder (`NETWORK_RE`/`TIMEOUT_RE` + status normalization).
+- `makeFinishReasonNormalizer(mapping)`——共享 switch 骨架，每个 provider 的 case 标签表。
+- `extractCacheUsage(total, cached, output)`——`inputOther = input - cached` 公式（缓存可观测性解析）。
+- `convertProviderError(error, opts?)`——错误分类阶梯（`NETWORK_RE`/`TIMEOUT_RE` + 状态归一化）。
 
-**Google's fetch handling is not pure duplication** (grill correction): `google-genai.ts:637` adds `| fetch failed` and `:655` checks `error instanceof TypeError && msg.includes('fetch')` because the Google SDK throws `TypeError` on network failures. `convertProviderError` accepts an optional `extraNetworkMatchers` hook so Google supplies its fetch-specific matcher rather than diverging the whole function.
+**Google 的 fetch 处理不是纯重复**（grill 修正）：`google-genai.ts:637` 添加了 `| fetch failed` 且 `:655` 检查 `error instanceof TypeError && msg.includes('fetch')`，因为 Google SDK 在网络失败时抛出 `TypeError`。`convertProviderError` 接受可选的 `extraNetworkMatchers` 钩子，因此 Google 提供其 fetch 特定的匹配器，而非分化整个函数。
 
-### Migration order (grill decision 6)
+### 迁移顺序（grill 决策 6）
 
-1. Migrate `openai-completions` (establishes the base-class skeleton) **and** `anthropic` (validates the base class works across protocols, not just the OpenAI family) together as a tracer bullet.
-2. Then batch-migrate `openai-responses` and `google-genai`.
+1. 同时迁移 `openai-completions`（确立基类骨架）**和** `anthropic`（验证基类跨协议工作，不仅限于 OpenAI 家族）作为跟踪弹。
+2. 然后批量迁移 `openai-responses` 和 `google-genai`。
 
-This ensures the base-class design is proven on the most dissimilar consumer before being propagated, rather than discovering a design flaw on the third provider.
+这确保基类设计在最不相似的消费者上得到验证后再传播，而非在第三个 provider 上发现设计缺陷。
 
-## Alternatives Considered
+## 考虑的替代方案
 
-### A. Pure-function shared module (extend `openai-common.ts`)
+### A. 纯函数共享模块（扩展 `openai-common.ts`）
 
-No base class; extract duplicated code into pure functions in a shared module. Providers keep `implements ChatProvider` and call the functions.
+无基类；将重复代码提取为共享模块中的纯函数。Provider 保持 `implements ChatProvider` 并调用这些函数。
 
-**Rejected**: the boilerplate (`_clone`, accessors, `StreamedMessage` skeleton) is stateful and tied to instance fields (`_model`, `_generationKwargs`, `_client`). Pure-function sharing would still leave each provider declaring the same instance fields and wiring them to the shared functions — most of the copy-paste remains, just redirected. New providers still copy the field/boilerplate surface. The base class makes "extend and get the boilerplate for free" real.
+**被拒绝**：样板（`_clone`、accessor、`StreamedMessage` 骨架）是有状态的，并绑定到实例字段（`_model`、`_generationKwargs`、`_client`）。纯函数共享仍然会使每个 provider 声明相同的实例字段并将它们接入共享函数——大部分复制粘贴保留，只是重定向。新 provider 仍然复制字段/样板表面。基类使"扩展并免费获得样板"成为现实。
 
-### B. Extract only the core three (StreamedMessage + finish-reason + usage + error)
+### B. 仅提取核心三项（StreamedMessage + finish-reason + usage + error）
 
-Don't touch `_clone`/`_createClient` (they're coupled to per-SDK client types).
+不碰 `_clone`/`_createClient`（它们耦合到每个 SDK 的客户端类型）。
 
-**Rejected**: `_clone` is pure `Object.assign(Object.create(proto), this)` + deep-copy `_generationKwargs` — the SDK client type is irrelevant to the clone mechanics. `_createClient`'s shell (`resolveAuthBackedClient` + `mergeRequestHeaders`) is identical; only the inner `new XxxSDK(...)` differs, which is exactly what `createRawClient()` abstracts. Stopping at "core three" leaves the highest-copy-count patterns (4× each) in place.
+**被拒绝**：`_clone` 是纯 `Object.assign(Object.create(proto), this)` + 深拷贝 `_generationKwargs`——SDK 客户端类型与克隆机制无关。`_createClient` 的外壳（`resolveAuthBackedClient` + `mergeRequestHeaders`）相同；只有内部的 `new XxxSDK(...)` 不同，这正是 `createRawClient()` 抽象的内容。停在"核心三项"会使副本计数最高的模式（各 4 份）保持原状。
 
-## Consequences
+## 结果
 
-- **Positive**: Adding a provider (Mistral, Cohere, etc.) now means `extends BaseChatProvider` + implementing `generate()`/`createRawClient()`/`thinkingEffort` — boilerplate is inherited. This finally realizes ADR 0011's "new provider = new adapter only" goal.
-- **Positive**: `_clone`, accessors, `StreamedMessage` skeleton, and the three normalization functions each have a single implementation. Drift across providers becomes impossible for these.
-- **Positive**: `createProvider` factory and `ProviderConfig` union are unchanged — no external API impact.
-- **Positive**: `google-genai`'s fetch-specific error handling is preserved via the `extraNetworkMatchers` hook rather than silently dropped.
-- **Negative**: Introduces an inheritance layer. Each provider now extends a base class rather than directly implementing an interface. Reverting would require changing all four providers back — moderately hard to reverse (one of the three ADR conditions).
-- **Negative**: Subclass-specific clone cleanup (e.g. `openai-completions`'s `clone._files = undefined`) needs an override or a `_resetCloneState` hook — minor per-subclass boilerplate.
-- **Negative**: Anthropic's `StreamedMessage._usage` initializes to a non-null default while the other three use `undefined`; the base unifies to `undefined` and Anthropic overrides in its constructor — a small behavioral alignment.
+- **正面：** 添加 provider（Mistral、Cohere 等）现在意味着 `extends BaseChatProvider` + 实现 `generate()`/`createRawClient()`/`thinkingEffort`——样板被继承。这终于实现了 ADR 0011 的"新 provider = 只需新适配器"目标。
+- **正面：** `_clone`、accessor、`StreamedMessage` 骨架和三个归一化函数各只有一个实现。对这些的跨 provider 漂移成为不可能。
+- **正面：** `createProvider` 工厂和 `ProviderConfig` 联合不变——无外部 API 影响。
+- **正面：** `google-genai` 的 fetch 特定错误处理通过 `extraNetworkMatchers` 钩子保留，而非静默丢弃。
+- **负面：** 引入了继承层。每个 provider 现在继承基类而不是直接实现接口。回滚需要将所有四个 provider 改回来——中等难以逆转（ADR 的三个条件之一）。
+- **负面：** 子类特定的克隆清理（如 `openai-completions` 的 `clone._files = undefined`）需要覆盖或 `_resetCloneState` 钩子——每个子类少量样板。
+- **负面：** Anthropic 的 `StreamedMessage._usage` 初始化为非空默认，而其他三个使用 `undefined`；基类统一为 `undefined`，Anthropic 在其构造函数中覆盖——小的行为对齐。
 
-## Related
+## 关联
 
-- PRD: `docs/prd/design-debt-cleanup-high-priority.md` (H4)
-- Source scan: `improve-architecture` report (2026-06-17), finding H4
-- Supersedes-none, complements: ADR 0011 (turn-boundary cache staking — benefits from consistent cross-provider normalization)
+- PRD：`docs/prd/design-debt-cleanup-high-priority.md`（H4）
+- 源码扫描：`improve-architecture` 报告（2026-06-17），发现项 H4
+- 无取代，互补：ADR 0011（turn 边界缓存桩——受益于一致的跨 provider 归一化）

@@ -1,50 +1,50 @@
-# ADR 0011: Turn-Boundary Cache Staking Strategy
+# ADR 0011: Turn 边界缓存桩策略
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-ADR 0009 Phase 4 established a multi-boundary cache design with breakpoints only on the system prompt and tool definitions. Conversation history was explicitly marked "No cache." This was a conservative starting point.
+ADR 0009 第四阶段建立了一个多边界缓存设计，断点只在系统提示和工具定义处。对话历史被显式标记为"无缓存"。这是一个保守的起点。
 
-Production usage revealed this leaves significant caching value on the table. In a 10-turn CLI session, every turn re-sends the entire conversation history without any cache benefit. Since history (especially tool results with large file contents) often dominates token count, the per-turn cost savings from caching even one turn of history are substantial.
+生产使用表明这留下了大量未利用的缓存价值。在 10 轮 CLI 会话中，每轮都重新发送整个对话历史，没有任何缓存收益。由于历史（尤其是带大文件内容的工具结果）通常主导 token 计数，即使只缓存一轮历史也能带来大量每轮成本节约。
 
-Anthropic allows up to 4 `cache_control` breakpoints per request. ADR 0009 used only 2 (system prompt + tools). The remaining 2 slots were unused.
+Anthropic 允许每个请求最多 4 个 `cache_control` 断点。ADR 0009 只用了 2 个（系统提示 + 工具）。剩下 2 个插槽未被使用。
 
-Meanwhile, analysis of CLI/TUI caching best practices ("golden rules") identified a clear staking strategy:
+同时，对 CLI/TUI 缓存最佳实践（"黄金规则"）的分析确定了清晰的缓存桩策略：
 
-1. **Stake 1**: System prompt end (existing)
-2. **Stake 2**: Tools array end (existing)
-3. **Stake 3**: Previous turn's last assistant message (new)
-4. **Stake 4 (dynamic)**: Largest content block in current turn, if above threshold (new)
+1. **桩 1**：系统提示末尾（已有）
+2. **桩 2**：工具数组末尾（已有）
+3. **桩 3**：上一轮的最后一条助手消息（新增）
+4. **桩 4（动态）**：当前轮中最大的内容块，如果超过阈值（新增）
 
-Stake 3 is the highest-value addition: it freezes the entire preceding conversation (including expensive tool results) into cache, so the current turn only pays full price for new input.
+桩 3 是价值最高的新增项：它将整个前序对话（包括昂贵的工具结果）冻结到缓存中，因此当前轮只对新输入支付全价。
 
-Stake 4 optimizes streaming performance (TTFT/TPS) when the current turn contains a large burst of context (user-pasted logs, large file reads).
+桩 4 在当前轮包含大量上下文（用户粘贴的日志、大文件读取）时优化流式性能（TTFT/TPS）。
 
-## Decision
+## 决策
 
-### 3+1 Staking Model
+### 3+1 缓存桩模型
 
 ```
-[Stake 1] System prompt (via PromptPlan blocks)
-[Stake 2] Tools array end (last tool definition)
-[Stake 3] Previous turn's last assistant message   ← NEW
---- cache boundary ---
-[Stake 4] Dynamic: largest content in current turn   ← NEW (conditional)
-[Current user input]
+[桩 1] 系统提示（通过 PromptPlan 块）
+[桩 2] 工具数组末尾（最后一个工具定义）
+[桩 3] 上一轮的最后一条助手消息   ← 新增
+--- 缓存边界 ---
+[桩 4] 动态：当前轮中最大内容   ← 新增（条件性）
+[当前用户输入]
 ```
 
-### Architecture: Compute-Consumer Decoupling
+### 架构：计算-消费解耦
 
-Introduce a **CacheStakingStrategy** module in agent-core that produces provider-agnostic logical tags on messages. Provider adapters consume these tags and translate to their native cache control format.
+在 agent-core 中引入 **CacheStakingStrategy** 模块，产生 provider 无关的消息逻辑标签。Provider 适配器消费这些标签并翻译为各自的缓存控制格式。
 
-**Why decoupled:** The strategy module must not know about provider types. Provider-specific caching behavior (Anthropic explicit blocks vs. OpenAI automatic prefix matching) is solely the adapter's concern. This follows the Open/Closed Principle: adding a new provider requires only a new adapter, not changes to the staking strategy.
+**为何解耦：** 策略模块不得知道 provider 类型。Provider 特定的缓存行为（Anthropic 显式块 vs OpenAI 自动前缀匹配）完全是适配器的关注点。这遵循开闭原则：添加新 provider 只需要新适配器，不需要更改缓存桩策略。
 
-### Logical Tagging Protocol
+### 逻辑标签协议
 
-Extend kosong's `Message` type with an optional `cacheHint` field:
+用可选的 `cacheHint` 字段扩展 kosong 的 `Message` 类型：
 
 ```typescript
 interface CacheHint {
@@ -53,48 +53,47 @@ interface CacheHint {
 }
 
 interface Message {
-  // ... existing fields ...
   readonly cacheHint?: CacheHint;
 }
 ```
 
-**Why on Message (not a separate map):** `cacheHint` is a high-level semantic (like `role` or `content`) expressing "this message's position in the temporal stream." It travels with the data, surviving copies and slices. Zero runtime overhead (same memory reference). Non-Anthropic adapters simply ignore it during serialization.
+**为何放在 Message 上（而非单独的映射）：** `cacheHint` 是一个高层语义（如 `role` 或 `content`），表达"此消息在时间流中的位置"。它随数据一起传递，在复制和切片后仍然存留。零运行时开销（相同的内存引用）。非 Anthropic 适配器在序列化时简单地忽略它。
 
-### Turn Boundary Identification
+### Turn 边界识别
 
-The strategy receives `previousTurnMessageCount` from TurnFlow (which already knows turn boundaries). No reverse inference from message roles or content patterns.
+策略从 TurnFlow 接收 `previousTurnMessageCount`（已经知道 turn 边界）。无需从消息角色或内容模式反向推断。
 
-### Tool Stability Ordering
+### 工具稳定性排序
 
-Tools are ordered by stability: Builtin tools first (never change), MCP tools after (may connect/disconnect). When MCP tools are absent, a fixed sentinel marker is appended to ensure Stake 2's physical endpoint never collapses into Stake 1's endpoint.
+工具按稳定性排序：内置工具在前（永不变化），MCP 工具在后（可能连接/断开）。当 MCP 工具不存在时，追加固定的哨兵标记以确保桩 2 的物理端点永远不会坍缩到桩 1 的端点。
 
-### Dynamic Context Anchor (Stake 4)
+### 动态上下文锚点（桩 4）
 
-Before sending, scan current-turn messages for content exceeding a size threshold (~2000 chars). If found, tag the largest block with `isSuddenLargeContext`. This stake is conditional: it is only placed when a qualifying large block exists.
+发送前，扫描当前轮消息中超过大小阈值（约 2000 字符）的内容。如果找到，在最大块上标记 `isSuddenLargeContext`。此桩是条件性的：仅当存在符合条件的大块时才放置。
 
-### Two Parallel Mechanisms
+### 两个并行机制
 
-| Mechanism            | Scope                                    | Carrier                      | Module                     |
-| -------------------- | ---------------------------------------- | ---------------------------- | -------------------------- |
-| PromptPlan           | System prompt + tools (static blueprint) | `GenerateOptions.promptPlan` | `agent-core/prompt-plan`   |
-| CacheStakingStrategy | Conversation history (dynamic coloring)  | `Message.cacheHint`          | `agent-core/cache-staking` |
+| 机制               | 范围                     | 载体                       | 模块                      |
+| ------------------ | ------------------------ | -------------------------- | ------------------------- |
+| PromptPlan         | 系统提示 + 工具（静态蓝图） | `GenerateOptions.promptPlan` | `agent-core/prompt-plan`  |
+| CacheStakingStrategy | 对话历史（动态着色）    | `Message.cacheHint`        | `agent-core/cache-staking` |
 
-These are not redundant. PromptPlan manages non-array structures (system text, tool schemas). CacheStakingStrategy manages array-structured conversation history. The different physical data models warrant different mechanisms.
+两者不冗余。PromptPlan 管理非数组结构（系统文本、工具模式）。CacheStakingStrategy 管理数组结构的对话历史。不同的物理数据模型需要不同的机制。
 
-### Timestamp Fix
+### 时间戳修复
 
-The directory tree injection contained `new Date().toISOString()` which regenerated every time. Changed to inject the timestamp once at session start, preventing unnecessary cache invalidation.
+目录树注入包含 `new Date().toISOString()`，每次都会重新生成。改为在会话开始时注入一次时间戳，防止不必要的缓存失效。
 
-### Future Defensive Rules
+### 未来防御规则
 
-Runtime state that changes per-request (token budget remaining, TUI viewport, terminal dimensions) must NEVER enter the system prompt or tool definitions. Such data must be attached as ephemeral content in the final user message.
+每请求变化的运行时状态（剩余 token 预算、TUI 视口、终端尺寸）**绝不能**进入系统提示或工具定义。此类数据必须作为临时内容附加到最终用户消息中。
 
-## Consequences
+## 结果
 
-- **Positive**: Per-turn Anthropic billing drops significantly. A 10-turn session with tool results caches turns 1-9; only turn 10's new input pays full price. For typical CLI sessions, this could reduce input token costs by 50-80%.
-- **Positive**: Streaming TTFT improves when large context blocks are cached via Stake 4.
-- **Positive**: Provider-agnostic design means non-Anthropic providers benefit from stable ordering without code changes.
-- **Positive**: Adding new providers requires no changes to the staking strategy.
-- **Negative**: The `cacheHint` field on `Message` is visible to all providers. Non-Anthropic adapters must simply ignore it (no harm, but it is extra data in memory).
-- **Negative**: MCP tool changes (connect/disconnect) still invalidate the tools cache stake. Accepted trade-off; mitigated by stability ordering.
-- **Negative**: The dynamic context anchor (Stake 4) adds a per-request scan of current-turn messages. Negligible cost (string length comparison).
+- **正面：** Anthropic 每轮计费大幅降低。带工具结果的 10 轮会话缓存第 1-9 轮；只有第 10 轮的新输入支付全价。对于典型 CLI 会话，这可降低 50-80% 的输入 token 成本。
+- **正面：** 当大上下文块通过桩 4 缓存时，流式 TTFT 得到改善。
+- **正面：** Provider 无关的设计意味着非 Anthropic provider 无需代码改动即可受益于稳定排序。
+- **正面：** 添加新 provider 不需要更改缓存桩策略。
+- **负面：** `Message` 上的 `cacheHint` 字段对所有 provider 可见。非 Anthropic 适配器必须忽略它（无害，但内存中有额外数据）。
+- **负面：** MCP 工具变更（连接/断开）仍然会使工具缓存桩失效。这是一个已接受的权衡；通过稳定性排序缓解。
+- **负面：** 动态上下文锚点（桩 4）增加了对当前轮消息的每请求扫描。代价可忽略（字符串长度比较）。

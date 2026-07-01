@@ -1,63 +1,63 @@
-# ADR 0012: Login-Time Catalog Enrichment
+# ADR 0012: 登录时目录增强
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-When users configure third-party compatible providers via `/login`, the provider's `/models` API typically does not return rich capability metadata (e.g., `supports_reasoning_effort`). This causes the `/model` UI to degrade — showing only an on/off toggle for thinking instead of effort level selection — even when the underlying model (e.g., `gpt-5.5`, `claude-opus-4-7`) fully supports categorical effort control.
+当用户通过 `/login` 配置第三方兼容 provider 时，provider 的 `/models` API 通常不返回丰富的能力元数据（如 `supports_reasoning_effort`）。这导致 `/model` UI 降级——只显示 thinking 的开关切换而非 effort 级别选择——即使底层模型（如 `gpt-5.5`、`claude-opus-4-7`）完全支持分类 effort 控制。
 
-The models.dev catalog maintains authoritative metadata for mainstream models (capabilities, context limits, reasoning keys). A model configured through a third-party provider often has an ID that matches a catalog entry.
+models.dev 目录维护主流模型的权威元数据（能力、上下文限制、reasoning key）。通过第三方 provider 配置的模型通常有一个匹配目录条目的 ID。
 
-## Decision
+## 决策
 
-### 1. Enrich `/login` model metadata from catalog
+### 1. 从目录增强 `/login` 模型元数据
 
-During `/login`, after fetching models from the provider API, attempt to match each model ID against catalog entries. When a match is found, use the catalog's metadata to fill in fields the provider API did not supply.
+在 `/login` 期间，从 provider API 获取模型后，尝试将每个模型 ID 与目录条目匹配。找到匹配项时，使用目录的元数据填充 provider API 未提供的字段。
 
-### 2. Catalog source priority
+### 2. 目录来源优先级
 
-1. Remote catalog (`https://models.dev/api.json`) — freshest data, requires network
-2. Built-in catalog (`__BYF_CODE_BUILT_IN_CATALOG__`) — shipped with byf, offline fallback
-3. Provider API data — final fallback when no catalog match exists
+1. 远程目录（`https://models.dev/api.json`）——最新数据，需要网络
+2. 内置目录（`__BYF_CODE_BUILT_IN_CATALOG__`）——随 byf 发布，离线回退
+3. Provider API 数据——无目录匹配时的最终回退
 
-### 3. Matching rule: prefix + separator boundary
+### 3. 匹配规则：前缀 + 分隔符边界
 
-A provider model ID matches a catalog entry when the catalog ID is a prefix of the provider ID and the next character (if any) is `-`. Examples:
+当目录 ID 是 provider ID 的前缀，且下一个字符（如果有）是 `-` 时，provider 模型 ID 匹配目录条目。示例：
 
-| Provider ID                | Catalog ID        | Match                       |
-| -------------------------- | ----------------- | --------------------------- |
-| `gpt-5.5`                  | `gpt-5.5`         | Yes (exact)                 |
-| `gpt-5.5-2025-06-01`       | `gpt-5.5`         | Yes (prefix + `-` boundary) |
-| `claude-opus-4-7-20250605` | `claude-opus-4-7` | Yes (prefix + `-` boundary) |
-| `gpt-5.5-turbo`            | `gpt-5`           | No (`.` is not `-`)         |
+| Provider ID                | Catalog ID        | 匹配                         |
+| -------------------------- | ----------------- | ---------------------------- |
+| `gpt-5.5`                  | `gpt-5.5`         | 是（精确匹配）               |
+| `gpt-5.5-2025-06-01`       | `gpt-5.5`         | 是（前缀 + `-` 边界）        |
+| `claude-opus-4-7-20250605` | `claude-opus-4-7` | 是（前缀 + `-` 边界）        |
+| `gpt-5.5-turbo`            | `gpt-5`           | 否（`.` 不是 `-`）           |
 
-### 4. Merge strategy: catalog priority, provider fallback
+### 4. 合并策略：目录优先，provider 回退
 
-When a match is found, catalog metadata takes priority for all fields it provides. Fields absent from the catalog retain the provider API value. Specifically:
+找到匹配项时，目录元数据对其提供的所有字段优先。目录缺失的字段保留 provider API 的值。具体来说：
 
-- `capabilities` — from catalog (the primary motivation)
-- `maxContextSize` — from catalog
-- `maxOutputSize` — from catalog
-- `displayName` — from provider (user chose this provider, keep its naming)
-- `reasoningKey` — from catalog
+- `capabilities` ——来自目录（主要动机）
+- `maxContextSize` ——来自目录
+- `maxOutputSize` ——来自目录
+- `displayName` ——来自 provider（用户选择了此 provider，保留其命名）
+- `reasoningKey` ——来自目录
 
-### 5. Timing: login-time only, persisted to TOML
+### 5. 时机：登录时一次，持久化到 TOML
 
-Enrichment happens once during `/login`. The result is written to the TOML config file. Subsequent byf startups read from TOML directly without re-querying the catalog. Users who want updated metadata should re-run `/login`.
+增强在 `/login` 期间发生一次。结果写入 TOML 配置文件。后续 byf 启动直接从 TOML 读取，不重新查询目录。想要更新元数据的用户应重新运行 `/login`。
 
-### 6. Error handling
+### 6. 错误处理
 
-- Remote catalog fetch fails → fall back to built-in catalog
-- Built-in catalog unavailable → use provider API data as-is
-- No catalog match for a model ID → use provider API data as-is
-- Catalog data causes runtime errors (e.g., a third-party rejects a catalog-suggested parameter) → the existing provider error handling surfaces the error to the user
+- 远程目录获取失败 → 回退到内置目录
+- 内置目录不可用 → 使用 provider API 数据原样
+- 模型 ID 无目录匹配 → 使用 provider API 数据原样
+- 目录数据导致运行时错误（如第三方拒绝目录建议的参数）→ 现有的 provider 错误处理将错误展示给用户
 
-## Consequences
+## 结果
 
-- Users of third-party compatible providers get correct thinking effort controls in the `/model` UI when their model IDs match catalog entries.
-- `/login` now requires network access for optimal enrichment. Offline `/login` still works but with degraded metadata.
-- The enrichment is a best-effort enhancement. When catalog data is wrong for a specific third-party provider (e.g., the provider doesn't actually support a catalog-listed capability), the user sees a runtime error — which is better than silently degrading the UI.
-- This does not help models that have no catalog entry (e.g., `glm-5.1`, `kimi-k2.6`). Those models continue to rely on whatever the provider API returns or manual TOML configuration of the `capabilities` array.
-- Related bug fix: `capabilityToStrings()` in `packages/node-sdk/src/catalog.ts` was missing `thinking_effort`, `thinking_xhigh`, and `thinking_max` mappings (ADR 0005 Decision 5 implementation gap). Fixed alongside this change.
+- 第三方兼容 provider 的用户在其模型 ID 匹配目录条目时，在 `/model` UI 中获得正确的 thinking effort 控制。
+- `/login` 现在需要网络访问以获得最佳增强。离线 `/login` 仍然有效，但元数据降级。
+- 增强是尽力而为的改进。当目录数据对特定第三方 provider 错误时（如 provider 实际上不支持目录列出的能力），用户看到运行时错误——这比静默降级 UI 更好。
+- 这对没有目录条目的模型没有帮助（如 `glm-5.1`、`kimi-k2.6`）。这些模型继续依赖 provider API 返回的任何数据或手动 TOML 配置 `capabilities` 数组。
+- 相关 bug 修复：`packages/node-sdk/src/catalog.ts` 中的 `capabilityToStrings()` 缺失了 `thinking_effort`、`thinking_xhigh` 和 `thinking_max` 映射（ADR 0005 决策 5 的实现缺口）。与此变更一起修复。

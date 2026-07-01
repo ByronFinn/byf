@@ -1,97 +1,97 @@
-# ADR 0005: Thinking Effort Validation and Provider Clamping
+# ADR 0005: Thinking Effort 验证与 Provider 钳位
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
-The `effort` parameter controls the intensity of model thinking/reasoning across providers. The normalized type is `ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'`. Multiple problems existed:
+`effort` 参数控制跨 provider 的模型思考/推理强度。归一化类型为 `ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'`。存在多个问题：
 
-1. **No schema-level validation**: `ThinkingConfigSchema` defined `effort` as `z.string().optional()`, accepting any string. Invalid values silently fell back to `'high'` at runtime with no user feedback.
-2. **UI/SDK type split**: The CLI model selector used a separate `ThinkingEffortLevel` with only 4 values (`off | low | medium | high`), missing `xhigh` and `max`. Users who configured `xhigh`/`max` in `config.toml` could not restore those levels through the UI once changed.
-3. **Silent provider clamping**: Anthropic clamped `xhigh`/`max` to `high` for non-Opus models, and OpenAI-compatible providers sent `xhigh` regardless of model support, with no logging in either case.
-4. **budget_tokens crash on high levels**: `budgetTokensForEffort` threw an error for `xhigh` and `max`, preventing Opus 4.7 from using those levels via Anthropic's extended thinking API.
+1. **无 schema 级验证**：`ThinkingConfigSchema` 将 `effort` 定义为 `z.string().optional()`，接受任何字符串。无效值在运行时静默回退到 `'high'`，用户无感知。
+2. **UI/SDK 类型分裂**：CLI 模型选择器使用独立的 `ThinkingEffortLevel`，只有 4 个值（`off | low | medium | high`），缺少 `xhigh` 和 `max`。在 `config.toml` 中配置了 `xhigh`/`max` 的用户无法通过 UI 恢复这些级别。
+3. **静默的 provider 钳位**：Anthropic 对非 Opus 模型将 `xhigh`/`max` 钳位到 `high`，而 OpenAI 兼容 provider 无论模型是否支持都发送 `xhigh`，两者均无日志记录。
+4. **高 level 时 budget_tokens 崩溃**：`budgetTokensForEffort` 对 `xhigh` 和 `max` 抛出错误，阻止 Opus 4.7 通过 Anthropic 的扩展 thinking API 使用这些级别。
 
-### Industry context
+### 行业背景
 
-All three major providers have converged on **categorical effort levels** (not numeric token budgets):
+三大主要 provider 都已经收敛到**分类 effort 级别**（而非数字 token 预算）：
 
-| Provider          | Old mechanism                      | Current mechanism                                         | Status                                                   |
-| ----------------- | ---------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
-| **Anthropic**     | `thinking.budget_tokens` (integer) | `output_config.effort` (`low/medium/high/xhigh/max`)      | budget_tokens deprecated; rejected with 400 on Opus 4.7+ |
-| **OpenAI**        | N/A                                | `reasoning_effort` (`none/minimal/low/medium/high/xhigh`) | Standard API parameter                                   |
-| **Google Gemini** | 2.5: `thinkingBudget` (integer)    | 3.x: `thinkingLevel` (`minimal/low/medium/high`)          | Transitioning                                            |
+| Provider          | 旧机制                              | 当前机制                                                    | 状态                                                         |
+| ----------------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------ |
+| **Anthropic**     | `thinking.budget_tokens`（整数）    | `output_config.effort`（low/medium/high/xhigh/max）         | budget_tokens 已废弃；Opus 4.7+ 返回 400 拒绝                |
+| **OpenAI**        | 无                                  | `reasoning_effort`（none/minimal/low/medium/high/xhigh）    | 标准 API 参数                                                |
+| **Google Gemini** | 2.5：`thinkingBudget`（整数）       | 3.x：`thinkingLevel`（minimal/low/medium/high）             | 正在过渡                                                     |
 
-BYF's existing `ThinkingEffort` categorical type aligns with this industry direction. The problem is that the Anthropic adapter still uses the deprecated `budget_tokens` mechanism with a hardcoded numeric mapping table.
+BYF 现有的 `ThinkingEffort` 分类类型与此行业方向一致。问题是 Anthropic 适配器仍在使用已废弃的 `budget_tokens` 机制和硬编码的数字映射表。
 
-## Decision
+## 决策
 
-### 1. Enum validation at schema level
+### 1. Schema 级枚举验证
 
-Change `effort` from `z.string().optional()` to `z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional()`. Invalid values fail at config parse time with a clear error message instead of silent fallback.
+将 `effort` 从 `z.string().optional()` 改为 `z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional()`。无效值在配置解析时失败，并显示清晰错误消息，而不是静默回退。
 
-### 2. Expose xhigh/max in the selector UI
+### 2. 在选择器 UI 中暴露 xhigh/max
 
-Add `xhigh` and `max` to the CLI model selector's effort options, shown only when the selected model's capabilities include support for those levels (e.g., Anthropic Opus 4.7). This closes the gap between config and UI.
+将 `xhigh` 和 `max` 添加到 CLI 模型选择器的 effort 选项中，仅在所选模型的能力支持这些级别时显示（例如 Anthropic Opus 4.7）。这填补了配置和 UI 之间的差距。
 
-### 3. Clamping with warn logging
+### 3. 带 warn 日志的钳位
 
-When a provider clamps an effort level (Anthropic non-Opus: xhigh/max → high; OpenAI-compatible without support: xhigh/max → high), emit a warn-level log message naming the original effort, the clamped effort, and the reason (model name).
+当 provider 钳位 effort 级别时（Anthropic 非 Opus：xhigh/max → high；不支持 xhigh/max 的 OpenAI 兼容：xhigh/max → high），发出 warn 级别日志消息，指明原始 effort、钳位后的 effort 和原因（模型名）。
 
-### 4. Migrate Anthropic adapter from budget_tokens to effort parameter
+### 4. 将 Anthropic 适配器从 budget_tokens 迁移到 effort 参数
 
-Replace the `budgetTokensForEffort` numeric mapping with a direct categorical mapping to Anthropic's `output_config.effort` parameter:
+将 `budgetTokensForEffort` 数字映射替换为到 Anthropic 的 `output_config.effort` 参数的直接分类映射：
 
 | ThinkingEffort | Anthropic `output_config.effort` | OpenAI `reasoning_effort`                    |
 | -------------- | -------------------------------- | -------------------------------------------- |
-| off            | thinking disabled                | undefined                                    |
+| off            | 禁用 thinking                    | undefined                                    |
 | low            | `low`                            | `low`                                        |
 | medium         | `medium`                         | `medium`                                     |
 | high           | `high`                           | `high`                                       |
-| xhigh          | `xhigh` (Opus 4.7/4.8 only)      | `xhigh` (if supported, else clamp to `high`) |
-| max            | `max` (Opus 4.6+)                | clamp to `high` or `xhigh` based on model    |
+| xhigh          | `xhigh`（仅 Opus 4.7/4.8）       | `xhigh`（如果支持，否则钳位到 `high`）       |
+| max            | `max`（Opus 4.6+）               | 根据模型钳位到 `high` 或 `xhigh`              |
 
-This removes the need for a hardcoded budget_tokens mapping table entirely. The effort level is passed directly to the API as a categorical value, and the provider decides how many tokens to allocate.
+这完全消除了对硬编码 budget_tokens 映射表的需求。Effort 级别直接作为分类值传递给 API，由 provider 决定分配多少 token。
 
-For older Anthropic models that still require `budget_tokens` (Claude 3.7 Sonnet, etc.), fall back to the numeric mapping as a compatibility path.
+对于仍然需要 `budget_tokens` 的旧版 Anthropic 模型（Claude 3.7 Sonnet 等），回退到数字映射作为兼容性路径。
 
-### 5. Mark mainstream models with `thinking_effort` capability
+### 5. 为主流模型标记 `thinking_effort` 能力
 
-The capability registry (`capability-registry.ts`) currently only assigns `thinking` to Anthropic Claude 4.x and OpenAI o-series models, not `thinking_effort`. This means the UI only shows an on/off toggle for these models, not actual effort level selection.
+能力注册表（`capability-registry.ts`）目前只给 Anthropic Claude 4.x 和 OpenAI o 系列模型分配 `thinking`，而非 `thinking_effort`。这意味着 UI 对这些模型只显示开/关切换，而不显示实际 effort 级别选择。
 
-Since these models all support categorical effort control via their respective APIs, they should be marked with `thinking_effort` in the registry. This makes effort level selection available in the UI for all models that support it, not just the few that happen to return `supports_reasoning_effort: true` from an API response.
+由于这些模型都通过各自的 API 支持分类 effort 控制，它们应该在注册表中标记 `thinking_effort`。这使得 UI 中所有支持的模型都能进行 effort 级别选择，而不仅仅是那些恰好从 API 响应返回 `supports_reasoning_effort: true` 的少数模型。
 
-### 6. Keep "off" in ThinkingEffort type
+### 6. 在 ThinkingEffort 类型中保留 "off"
 
-The `'off'` value is intentionally part of `ThinkingEffort` even though it is not an effort level. It serves as a combined toggle + effort sentinel, simplifying the downstream API to a single value. This is an explicit design choice, not accidental coupling.
+`'off'` 值被有意保留在 `ThinkingEffort` 中，尽管它不是 effort 级别。它作为切换 + effort 的联合哨兵，将下游 API 简化为单一值。这是显式的设计选择，而非意外的耦合。
 
-### 7. Deprecate `defaultThinking` boolean field
+### 7. 废弃 `defaultThinking` 布尔字段
 
-The top-level `defaultThinking = true/false` config field overlaps with the `[thinking]` section: `true` is equivalent to `mode = "on"` with `effort = "high"`, and `false` is equivalent to `mode = "off"`. When both are configured, the `[thinking]` section takes precedence — its `mode` and `effort` are consulted first, and `defaultThinking` is only applied as a fallback when no `[thinking]` value covers the case (see `apps/cli/src/tui/byf-tui.ts:960-969`). This is a correction of the original wording, which stated `defaultThinking` takes precedence silently; the implemented behavior has always been the opposite.
+顶层的 `defaultThinking = true/false` 配置字段与 `[thinking]` 部分重叠：`true` 等价于 `mode = "on"` 且 `effort = "high"`，`false` 等价于 `mode = "off"`。当两者都配置时，`[thinking]` 部分优先——先检查其 `mode` 和 `effort`，`defaultThinking` 仅在 `[thinking]` 值未覆盖该情况时作为回退应用（参见 `apps/cli/src/tui/byf-tui.ts:960-969`）。这是对原始措辞的修正——原始措辞称 `defaultThinking` 静默优先；而实际实现始终相反。
 
-Deprecate `defaultThinking` in favor of the `[thinking]` section which provides full control over both mode and effort. Emit a deprecation warning when `defaultThinking` is present in config.
+废弃 `defaultThinking`，改用 `[thinking]` 部分，后者提供对 mode 和 effort 的完全控制。当配置中存在 `defaultThinking` 时发出废弃警告。
 
-### 8. Anthropic support scope: Opus 4.7+ only
+### 8. Anthropic 支持范围：仅 Opus 4.7+
 
-BYF only supports Anthropic models from Opus 4.7 onwards. This means:
+BYF 仅从 Opus 4.7 开始支持 Anthropic 模型。这意味着：
 
-- The `budget_tokens` compatibility path is unnecessary — all supported Anthropic models use `output_config.effort`.
-- The `budgetTokensForEffort` function and its numeric mapping table can be removed entirely from the Anthropic adapter.
-- The Anthropic adapter only needs to handle `off | low | medium | high | xhigh | max` → `output_config.effort` with clamping for models that don't support `xhigh`/`max`.
+- `budget_tokens` 兼容性路径是不必要的——所有受支持的 Anthropic 模型都使用 `output_config.effort`。
+- 可以从 Anthropic 适配器中完全移除 `budgetTokensForEffort` 函数及其数字映射表。
+- Anthropic 适配器只需要处理 `off | low | medium | high | xhigh | max` → `output_config.effort`，对不支持 `xhigh`/`max` 的模型进行钳位。
 
-### 9. Gemini adapter: no changes needed
+### 9. Gemini 适配器：无需变更
 
-The existing Gemini adapter already implements the correct dual-path approach: `thinking_level` for Gemini 3.x models, `thinking_budget` for 2.5 models. Clamping warn logging (decision 3) applies here too but requires no structural changes.
+现有的 Gemini 适配器已经实现了正确的双路径方法：Gemini 3.x 模型使用 `thinking_level`，2.5 模型使用 `thinking_budget`。钳位警告日志（决策 3）也适用于此处，但无需结构性变更。
 
-## Consequences
+## 结果
 
-- Users get immediate feedback on invalid `effort` values in config instead of silent behavior changes.
-- `xhigh` and `max` are first-class effort levels visible in both config and UI.
-- Clamping is transparent: users can see in the terminal when their configured effort is adjusted for a model.
-- Migrating from `budget_tokens` to `output_config.effort` makes BYF compatible with current Anthropic models (Opus 4.7+ reject `budget_tokens` with 400 errors) and aligns with the provider's recommended API usage.
-- The effort-to-API mapping is now a straightforward categorical pass-through (with clamping), eliminating the need to maintain a numeric budget table that could become stale as providers change limits.
-- Marking mainstream models with `thinking_effort` means most users will see effort level selection in the UI, not just an on/off toggle.
-- Deprecating `defaultThinking` consolidates thinking configuration into a single `[thinking]` section, reducing confusion.
-- Scoping Anthropic support to Opus 4.7+ simplifies the adapter by removing the `budget_tokens` code path entirely.
-- Adding effort levels is a breaking change if ever removed, since users may configure them in `config.toml`.
+- 用户对配置中无效的 `effort` 值立即获得反馈，而非静默的行为变化。
+- `xhigh` 和 `max` 是一等 effort 级别，在配置和 UI 中都可见。
+- 钳位是透明的：用户可以在终端中看到配置的 effort 何时被调整为模型适配。
+- 从 `budget_tokens` 迁移到 `output_config.effort` 使 BYF 兼容当前的 Anthropic 模型（Opus 4.7+ 以 400 错误拒绝 `budget_tokens`）并与 provider 推荐的 API 用法保持一致。
+- Effort 到 API 的映射现在是一个直接的分类透传（带钳位），消除了维护数字预算表的必要，该表可能因提供商更改限制而过时。
+- 为主流模型标记 `thinking_effort` 意味着大多数用户将在 UI 中看到 effort 级别选择，而不仅仅是开/关切换。
+- 废弃 `defaultThinking` 将 thinking 配置整合到单一的 `[thinking]` 部分，减少混淆。
+- 将 Anthropic 支持范围限定到 Opus 4.7+ 通过完全移除 `budget_tokens` 代码路径简化了适配器。
+- 添加 effort 级别是一个破坏性变更（如果将来移除），因为用户可能在 `config.toml` 中配置了它们。

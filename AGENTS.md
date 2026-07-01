@@ -73,3 +73,7 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 ### Domain docs
 
 Single-context: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Documentation language
+
+All human-facing prose (PRDs, ADRs, CONTEXT, issues, comments) in 简体中文 (Simplified Chinese). See `docs/agents/language.md`.
