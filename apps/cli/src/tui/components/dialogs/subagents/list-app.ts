@@ -139,7 +139,7 @@ export class SubagentsListApp extends Container implements Focusable {
         ? this.props.entries
         : this.props.entries.filter((e) => e.phase === 'running' || e.phase === 'spawning');
     const header = this.renderHeader(width, colors, entries, this.props.filter);
-    const footer = this.renderFooter(width, rows - 2, entries, this.props.filter);
+    const footer = this.renderFooter(width, rows - 2, entries);
     const bodyHeight = rows - 2;
 
     const listWidth = Math.max(
