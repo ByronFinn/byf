@@ -17,11 +17,11 @@
 
 三大主要 provider 都已经收敛到**分类 effort 级别**（而非数字 token 预算）：
 
-| Provider          | 旧机制                              | 当前机制                                                    | 状态                                                         |
-| ----------------- | ----------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------ |
-| **Anthropic**     | `thinking.budget_tokens`（整数）    | `output_config.effort`（low/medium/high/xhigh/max）         | budget_tokens 已废弃；Opus 4.7+ 返回 400 拒绝                |
-| **OpenAI**        | 无                                  | `reasoning_effort`（none/minimal/low/medium/high/xhigh）    | 标准 API 参数                                                |
-| **Google Gemini** | 2.5：`thinkingBudget`（整数）       | 3.x：`thinkingLevel`（minimal/low/medium/high）             | 正在过渡                                                     |
+| Provider          | 旧机制                           | 当前机制                                                 | 状态                                          |
+| ----------------- | -------------------------------- | -------------------------------------------------------- | --------------------------------------------- |
+| **Anthropic**     | `thinking.budget_tokens`（整数） | `output_config.effort`（low/medium/high/xhigh/max）      | budget_tokens 已废弃；Opus 4.7+ 返回 400 拒绝 |
+| **OpenAI**        | 无                               | `reasoning_effort`（none/minimal/low/medium/high/xhigh） | 标准 API 参数                                 |
+| **Google Gemini** | 2.5：`thinkingBudget`（整数）    | 3.x：`thinkingLevel`（minimal/low/medium/high）          | 正在过渡                                      |
 
 BYF 现有的 `ThinkingEffort` 分类类型与此行业方向一致。问题是 Anthropic 适配器仍在使用已废弃的 `budget_tokens` 机制和硬编码的数字映射表。
 
@@ -43,14 +43,14 @@ BYF 现有的 `ThinkingEffort` 分类类型与此行业方向一致。问题是 
 
 将 `budgetTokensForEffort` 数字映射替换为到 Anthropic 的 `output_config.effort` 参数的直接分类映射：
 
-| ThinkingEffort | Anthropic `output_config.effort` | OpenAI `reasoning_effort`                    |
-| -------------- | -------------------------------- | -------------------------------------------- |
-| off            | 禁用 thinking                    | undefined                                    |
-| low            | `low`                            | `low`                                        |
-| medium         | `medium`                         | `medium`                                     |
-| high           | `high`                           | `high`                                       |
-| xhigh          | `xhigh`（仅 Opus 4.7/4.8）       | `xhigh`（如果支持，否则钳位到 `high`）       |
-| max            | `max`（Opus 4.6+）               | 根据模型钳位到 `high` 或 `xhigh`              |
+| ThinkingEffort | Anthropic `output_config.effort` | OpenAI `reasoning_effort`              |
+| -------------- | -------------------------------- | -------------------------------------- |
+| off            | 禁用 thinking                    | undefined                              |
+| low            | `low`                            | `low`                                  |
+| medium         | `medium`                         | `medium`                               |
+| high           | `high`                           | `high`                                 |
+| xhigh          | `xhigh`（仅 Opus 4.7/4.8）       | `xhigh`（如果支持，否则钳位到 `high`） |
+| max            | `max`（Opus 4.6+）               | 根据模型钳位到 `high` 或 `xhigh`       |
 
 这完全消除了对硬编码 budget_tokens 映射表的需求。Effort 级别直接作为分类值传递给 API，由 provider 决定分配多少 token。
 

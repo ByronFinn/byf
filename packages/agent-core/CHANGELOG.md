@@ -93,7 +93,6 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
-
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -113,11 +112,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from "@byfriends/agent-core";
+  import { ByfCore } from '@byfriends/agent-core';
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from "@byfriends/agent-core";
+  import { createByfCore } from '@byfriends/agent-core';
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -206,7 +205,6 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
-
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -225,7 +223,6 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
-
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)

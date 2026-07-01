@@ -73,10 +73,10 @@ interface Message {
 
 ### 两个并行机制
 
-| 机制               | 范围                     | 载体                       | 模块                      |
-| ------------------ | ------------------------ | -------------------------- | ------------------------- |
-| PromptPlan         | 系统提示 + 工具（静态蓝图） | `GenerateOptions.promptPlan` | `agent-core/prompt-plan`  |
-| CacheStakingStrategy | 对话历史（动态着色）    | `Message.cacheHint`        | `agent-core/cache-staking` |
+| 机制                 | 范围                        | 载体                         | 模块                       |
+| -------------------- | --------------------------- | ---------------------------- | -------------------------- |
+| PromptPlan           | 系统提示 + 工具（静态蓝图） | `GenerateOptions.promptPlan` | `agent-core/prompt-plan`   |
+| CacheStakingStrategy | 对话历史（动态着色）        | `Message.cacheHint`          | `agent-core/cache-staking` |
 
 两者不冗余。PromptPlan 管理非数组结构（系统文本、工具模式）。CacheStakingStrategy 管理数组结构的对话历史。不同的物理数据模型需要不同的机制。
 

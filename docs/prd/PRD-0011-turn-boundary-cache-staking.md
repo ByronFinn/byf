@@ -121,13 +121,13 @@ PromptPlan 和 CacheStakingStrategy 作为并行机制共存：
 
 ### 测试接缝
 
-| 接缝                              | 类型               | 模块       | 测试内容                                                                                                                         |
-| --------------------------------- | ------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `CacheStakingStrategy` 单元测试   | 单元测试（新增）   | agent-core | 消息标记：`isLastTurnEnd` 位置正确、`isSuddenLargeContext` 阈值和选择、边界情况（空历史、单轮、无大块）                          |
-| `kosong-llm-integration.test.ts`  | 集成测试（已有）   | agent-core | 完整流程：消息上的 CacheHint→provider 接收到正确的缓存指令                                                                       |
-| `anthropic.test.ts`               | 单元测试（已有）   | kosong     | Anthropic 适配器将 `isLastTurnEnd` 翻译为历史消息块上的 `cache_control`                                                          |
-| `directory-tree.test.ts`          | 单元测试（已有）   | agent-core | 时间戳在首次注入时固定，后续调用不变                                                                                             |
-| 工具排序测试                       | 单元测试（新增）   | agent-core | `loopTools` 返回：内置工具在前、MCP 在后、哨兵存在                                                                               |
+| 接缝                             | 类型             | 模块       | 测试内容                                                                                                |
+| -------------------------------- | ---------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| `CacheStakingStrategy` 单元测试  | 单元测试（新增） | agent-core | 消息标记：`isLastTurnEnd` 位置正确、`isSuddenLargeContext` 阈值和选择、边界情况（空历史、单轮、无大块） |
+| `kosong-llm-integration.test.ts` | 集成测试（已有） | agent-core | 完整流程：消息上的 CacheHint→provider 接收到正确的缓存指令                                              |
+| `anthropic.test.ts`              | 单元测试（已有） | kosong     | Anthropic 适配器将 `isLastTurnEnd` 翻译为历史消息块上的 `cache_control`                                 |
+| `directory-tree.test.ts`         | 单元测试（已有） | agent-core | 时间戳在首次注入时固定，后续调用不变                                                                    |
+| 工具排序测试                     | 单元测试（新增） | agent-core | `loopTools` 返回：内置工具在前、MCP 在后、哨兵存在                                                      |
 
 ### 测试特征
 

@@ -186,11 +186,11 @@ const openFullscreenViewer = () => {
 
 ### 文件变更
 
-| 文件 | 变更 |
-| --- | --- |
-| `apps/cli/src/tui/components/dialogs/file-viewer.ts` | **新增** — 全屏 diff/文件内容查看器组件 |
-| `apps/cli/src/tui/components/dialogs/approval-panel.ts` | 添加 `onViewFullscreen` 回调，将 Ctrl-E 接入 |
-| `apps/cli/src/tui/byf-tui.ts` | 向 `ApprovalPanelComponent` 传递 `onViewFullscreen` 回调 + `Terminal` 引用 |
+| 文件                                                    | 变更                                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `apps/cli/src/tui/components/dialogs/file-viewer.ts`    | **新增** — 全屏 diff/文件内容查看器组件                                    |
+| `apps/cli/src/tui/components/dialogs/approval-panel.ts` | 添加 `onViewFullscreen` 回调，将 Ctrl-E 接入                               |
+| `apps/cli/src/tui/byf-tui.ts`                           | 向 `ApprovalPanelComponent` 传递 `onViewFullscreen` 回调 + `Terminal` 引用 |
 
 注意：`computeDiffLines` 和 `highlightLines` 直接重用；不需要改动 `diff-preview.ts` 或 `code-highlight.ts`。
 
@@ -213,28 +213,28 @@ const openFullscreenViewer = () => {
 
 ## 关键决策
 
-| 决策 | 理由 |
-| --- | --- |
-| 新建 `FileViewerComponent` 而非扩展 `TaskOutputViewer` | 渲染需求不同（diff 标记、语法高亮 vs 纯文本）。共享模式，不同输出。 |
-| Ctrl-E 打开全屏，替换行内切换 | 全屏对审查更有用；行内切换只有 10 行 vs 全部行。全屏查看器取代这个需求。 |
-| `q`/`Esc` 关闭 | 与 `TaskOutputViewer` 和标准分页器惯例一致 |
-| 在构造函数中计算行 | Diff 算法（LCS）是 O(n\*m)——最好计算一次而非每次渲染。与 `TaskOutputViewer` 相同模式。 |
-| 与任务查看器相同的全屏机制 | 已验证的模式，无需新基础设施 |
+| 决策                                                   | 理由                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| 新建 `FileViewerComponent` 而非扩展 `TaskOutputViewer` | 渲染需求不同（diff 标记、语法高亮 vs 纯文本）。共享模式，不同输出。                    |
+| Ctrl-E 打开全屏，替换行内切换                          | 全屏对审查更有用；行内切换只有 10 行 vs 全部行。全屏查看器取代这个需求。               |
+| `q`/`Esc` 关闭                                         | 与 `TaskOutputViewer` 和标准分页器惯例一致                                             |
+| 在构造函数中计算行                                     | Diff 算法（LCS）是 O(n\*m)——最好计算一次而非每次渲染。与 `TaskOutputViewer` 相同模式。 |
+| 与任务查看器相同的全屏机制                             | 已验证的模式，无需新基础设施                                                           |
 
 ## 未知项
 
-| 问题 | 原因 | 解决方案 |
-| --- | --- | --- |
+| 问题                | 原因                                                                                                    | 解决方案                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | Diff 显示原始行号？ | `computeDiffLines` 已经分配了 `lineNum`。查看器是否应该对删除行显示旧文件行号、对新增行显示新文件行号？ | 是的，这是标准做法，已经可用 |
 
 ## 已做决策
 
-| 决策 | 结果 | 理由 |
-| --- | --- | --- |
-| 行内展开切换 | 由全屏查看器取代。Ctrl-E 现在打开全屏，不再切换行内。`expanded` 字段移除。 | 全屏对审查更有用；更清晰的思维模型 |
-| 焦点恢复 | 查看器 `onClose` 回调恢复 UI children，然后 `setFocus(panel)`。 | 避免更改 `closeFullscreen` 签名；对现有 TasksBrowser 调用者影响最小 |
-| Diff 渲染 | 显示所有行（add/delete/context），不省略。 | 全屏有足够空间；用户希望看清楚一切 |
-| 关闭后状态 | 保持折叠（10 行）。 | "全屏审查→返回审批"思维模型；避免选项遮挡 |
-| 多个块 | 所有可展开块在单个查看器中作为 sections 显示。 | 与当前"全部展开"行为一致；比逐块选择更简单 |
-| Props 设计 | 查看器接受预计算的 `FileViewerSection[]`，而非原始 `DisplayBlock`。 | 将查看器与块内部分离；适配逻辑保留在审批面板层 |
-| Footer 提示 | 从切换（expand/collapse）改为固定操作（`ctrl+e view`）。 | Ctrl-E 不再是切换操作 |
+| 决策         | 结果                                                                       | 理由                                                                |
+| ------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 行内展开切换 | 由全屏查看器取代。Ctrl-E 现在打开全屏，不再切换行内。`expanded` 字段移除。 | 全屏对审查更有用；更清晰的思维模型                                  |
+| 焦点恢复     | 查看器 `onClose` 回调恢复 UI children，然后 `setFocus(panel)`。            | 避免更改 `closeFullscreen` 签名；对现有 TasksBrowser 调用者影响最小 |
+| Diff 渲染    | 显示所有行（add/delete/context），不省略。                                 | 全屏有足够空间；用户希望看清楚一切                                  |
+| 关闭后状态   | 保持折叠（10 行）。                                                        | "全屏审查→返回审批"思维模型；避免选项遮挡                           |
+| 多个块       | 所有可展开块在单个查看器中作为 sections 显示。                             | 与当前"全部展开"行为一致；比逐块选择更简单                          |
+| Props 设计   | 查看器接受预计算的 `FileViewerSection[]`，而非原始 `DisplayBlock`。        | 将查看器与块内部分离；适配逻辑保留在审批面板层                      |
+| Footer 提示  | 从切换（expand/collapse）改为固定操作（`ctrl+e view`）。                   | Ctrl-E 不再是切换操作                                               |

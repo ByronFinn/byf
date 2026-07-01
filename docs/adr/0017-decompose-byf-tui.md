@@ -32,24 +32,24 @@
 
 **此修订的范围——有意限制：**
 
-- **基于类的处理器**：状态组装删除；处理器直接持有 `this.state`。回调组装（`*Callbacks()`）保留——回调是_行为_适配器（绑定 ByfTui 方法 + 内联逻辑如 `notifyTurnComplete`），具有真正的封装价值，与纯字段转发不同。
+- **基于类的处理器**：状态组装删除；处理器直接持有 `this.state`。回调组装（`*Callbacks()`）保留——回调是*行为*适配器（绑定 ByfTui 方法 + 内联逻辑如 `notifyTurnComplete`），具有真正的封装价值，与纯字段转发不同。
 - **自由函数处理器**（`handleStatusUpdate`、`handleSkillActivated`、`subagentEventHandler`）：它们的 `*State()` 投影保留。这些执行真正的字段重映射（如 `SessionMetaState` 将 `appState.sessionId` 提升为顶层字段）或方法适配器（`SubagentEventState` 是基于 Map 操作的 20 方法接口），因此它们是狭窄投影，而非透传外壳。
 
 ### 模块映射
 
-| 模块 | 位置 | 行数（约） | 从 ByfTui 提取自 |
-| --- | --- | --- | --- |
-| `TurnEventHandler` | `src/tui/events/turn-event-handler.ts` | 1137 | 会话事件（turn 相关）+ 实时渲染钩子 |
-| `SessionMetaHandler` | `src/tui/events/session-meta-handler.ts` | 200 | 会话事件（会话级） |
-| `SubagentEventHandler` | `src/tui/events/subagent-event-handler.ts` | 200 | 会话事件（subagent） |
-| `TranscriptRenderer` | `src/tui/actions/transcript-renderer.ts` | 233 | Transcript 渲染 |
-| `LoginFlow` | `src/tui/flows/login-flow.ts` | 468 | 斜杠命令处理器（`/login`） |
-| `ConnectFlow` | `src/tui/flows/connect-flow.ts` | 200 | 斜杠命令处理器（`/connect`） |
-| `TasksBrowserController` | `src/tui/components/dialogs/tasks-browser/` | 840 | 后台任务浏览器 |
-| `DialogHost` 接口 | `src/tui/types.ts` | 20 | 在 `mountEditorReplacement` 上的新抽象 |
-| `BackgroundTaskHandler` | `src/tui/events/background-task-handler.ts` | 159 | 后台任务生命周期 |
-| `CompactionHandler` | `src/tui/events/compaction-handler.ts` | 74 | 会话运行时（压缩生命周期） |
-| `handleSkillActivated` | `src/tui/events/skill-activation-handler.ts` | 37 | 会话事件（技能激活） |
+| 模块                     | 位置                                         | 行数（约） | 从 ByfTui 提取自                       |
+| ------------------------ | -------------------------------------------- | ---------- | -------------------------------------- |
+| `TurnEventHandler`       | `src/tui/events/turn-event-handler.ts`       | 1137       | 会话事件（turn 相关）+ 实时渲染钩子    |
+| `SessionMetaHandler`     | `src/tui/events/session-meta-handler.ts`     | 200        | 会话事件（会话级）                     |
+| `SubagentEventHandler`   | `src/tui/events/subagent-event-handler.ts`   | 200        | 会话事件（subagent）                   |
+| `TranscriptRenderer`     | `src/tui/actions/transcript-renderer.ts`     | 233        | Transcript 渲染                        |
+| `LoginFlow`              | `src/tui/flows/login-flow.ts`                | 468        | 斜杠命令处理器（`/login`）             |
+| `ConnectFlow`            | `src/tui/flows/connect-flow.ts`              | 200        | 斜杠命令处理器（`/connect`）           |
+| `TasksBrowserController` | `src/tui/components/dialogs/tasks-browser/`  | 840        | 后台任务浏览器                         |
+| `DialogHost` 接口        | `src/tui/types.ts`                           | 20         | 在 `mountEditorReplacement` 上的新抽象 |
+| `BackgroundTaskHandler`  | `src/tui/events/background-task-handler.ts`  | 159        | 后台任务生命周期                       |
+| `CompactionHandler`      | `src/tui/events/compaction-handler.ts`       | 74         | 会话运行时（压缩生命周期）             |
+| `handleSkillActivated`   | `src/tui/events/skill-activation-handler.ts` | 37         | 会话事件（技能激活）                   |
 
 ### 留在 ByfTui 的内容
 

@@ -17,15 +17,15 @@
 
 ## ✨ Features
 
-| Feature | Description |
-|---|---|
-| ⚡ **Blazing-fast TUI** | A polished terminal UI that starts in milliseconds — built for long, focused coding sessions. |
-| 📦 **Single-binary install** | Install with one command. No Node.js setup, no PATH gymnastics, no global module conflicts. |
-| 🧩 **Subagents** | Dispatch `coder`, `explore`, and `plan` subagents in isolated context windows — parallel work that keeps your main conversation clean. |
-| 🎥 **Video input** | Drop a screen recording or demo clip into the chat. Let the agent watch instead of typing out what's hard to describe in words. |
-| 🔌 **AI-native MCP** | Add, edit, and authenticate Model Context Protocol servers conversationally via `/mcp-config` — no hand-editing JSON. |
-| 🔗 **Lifecycle hooks** | Run local commands at key points — gate risky tool calls, audit decisions, fire desktop notifications, wire into your own automation. |
-| 🔐 **Your keys, your config** | Bring your own API keys and provider credentials. No vendor lock-in, no telemetry gate. |
+| Feature                       | Description                                                                                                                            |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| ⚡ **Blazing-fast TUI**       | A polished terminal UI that starts in milliseconds — built for long, focused coding sessions.                                          |
+| 📦 **Single-binary install**  | Install with one command. No Node.js setup, no PATH gymnastics, no global module conflicts.                                            |
+| 🧩 **Subagents**              | Dispatch `coder`, `explore`, and `plan` subagents in isolated context windows — parallel work that keeps your main conversation clean. |
+| 🎥 **Video input**            | Drop a screen recording or demo clip into the chat. Let the agent watch instead of typing out what's hard to describe in words.        |
+| 🔌 **AI-native MCP**          | Add, edit, and authenticate Model Context Protocol servers conversationally via `/mcp-config` — no hand-editing JSON.                  |
+| 🔗 **Lifecycle hooks**        | Run local commands at key points — gate risky tool calls, audit decisions, fire desktop notifications, wire into your own automation.  |
+| 🔐 **Your keys, your config** | Bring your own API keys and provider credentials. No vendor lock-in, no telemetry gate.                                                |
 
 ---
 
@@ -74,20 +74,20 @@ BYF will inspect your code, edit files, run shell commands, and help you iterate
 
 ### Common commands
 
-| Command | Description |
-|---|---|
-| `byf` | Start an interactive TUI session in the current directory |
-| `byf "prompt"` | Start with an inline prompt |
-| `byf vis` | Open the session visualization and replay tool |
-| `byf --help` | Show all available options |
+| Command        | Description                                               |
+| -------------- | --------------------------------------------------------- |
+| `byf`          | Start an interactive TUI session in the current directory |
+| `byf "prompt"` | Start with an inline prompt                               |
+| `byf vis`      | Open the session visualization and replay tool            |
+| `byf --help`   | Show all available options                                |
 
 ### Interactive commands inside BYF
 
-| Command | Description |
-|---|---|
+| Command           | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
 | `/btw <question>` | Side query — a one-shot read-only question using the current context |
-| `/mcp-config` | Configure Model Context Protocol servers conversationally |
-| `/<skill-name>` | Invoke built-in agent skills |
+| `/mcp-config`     | Configure Model Context Protocol servers conversationally            |
+| `/<skill-name>`   | Invoke built-in agent skills                                         |
 
 ---
 
@@ -108,11 +108,11 @@ command = "./scripts/audit.sh"
 
 **Environment variables:**
 
-| Variable | Description |
-|---|---|
+| Variable   | Description                                       |
+| ---------- | ------------------------------------------------- |
 | `BYF_HOME` | Override BYF's home directory (default: `~/.byf`) |
-| `VIS_HOST` | Host for the vis server (default: `127.0.0.1`) |
-| `PORT` | Port for the vis server (default: `3001`) |
+| `VIS_HOST` | Host for the vis server (default: `127.0.0.1`)    |
+| `PORT`     | Port for the vis server (default: `3001`)         |
 
 > 💡 Keep your API keys and secrets in local configuration — never commit them to your repository.
 

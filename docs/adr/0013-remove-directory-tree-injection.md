@@ -46,12 +46,12 @@
 
 产生的 4 块结构：
 
-| 块 | 名称 | 范围 | 内容 |
-| --- | --- | --- | --- |
-| 0 | `base` | `global` | 代理身份、原则、安全——零 per-session 变量 |
-| 1 | `projectInstructions` | `project` | AGENTS.md |
-| 2 | `workingEnvironment` | `session` | OS、shell、工作目录 |
-| 3 | `sessionContext` | `session` | 技能列表 |
+| 块  | 名称                  | 范围      | 内容                                      |
+| --- | --------------------- | --------- | ----------------------------------------- |
+| 0   | `base`                | `global`  | 代理身份、原则、安全——零 per-session 变量 |
+| 1   | `projectInstructions` | `project` | AGENTS.md                                 |
+| 2   | `workingEnvironment`  | `session` | OS、shell、工作目录                       |
+| 3   | `sessionContext`      | `session` | 技能列表                                  |
 
 **理由**：Block 0 现在真正跨会话稳定。对于 OpenAI 兼容 provider，`prompt_cache_key = SHA256(global blocks)` 对同一项目中的每个会话都相同。对于 Anthropic，全局缓存断点只覆盖稳定的代理规则。这最大化跨会话缓存复用，不受任何 per-session 污染。
 
