@@ -1,5 +1,11 @@
 # @byfriends/cli
 
+## 0.3.5
+
+### Patch Changes
+
+- bundle updated @byfriends/agent-core (system prompt tightening)
+
 ## 0.3.3
 
 ### Patch Changes
@@ -140,6 +146,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -441,6 +448,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -451,6 +459,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -459,6 +468,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -471,6 +481,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -493,6 +504,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -505,6 +517,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

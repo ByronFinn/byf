@@ -1,5 +1,11 @@
 # @byfriends/sdk
 
+## 0.3.5
+
+### Patch Changes
+
+- bundle updated @byfriends/agent-core (system prompt tightening)
+
 ## 0.3.3
 
 ### Patch Changes
@@ -19,6 +25,7 @@
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -38,11 +45,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -108,6 +115,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -273,6 +281,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -283,6 +292,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -291,6 +301,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
