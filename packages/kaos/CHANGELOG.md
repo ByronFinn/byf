@@ -1,5 +1,17 @@
 # @byfriends/kaos
 
+## 0.3.5
+
+### Patch Changes
+
+- chore: align to 0.3.5 and adopt MIT license
+
+  These four packages were left at 0.3.4 when cli/sdk/agent-core were
+  bumped to 0.3.5, leaving the publishable set out of sync. They also
+  carry the MIT relicense from the 0.3.5 cycle but never got a release
+  entry. This changeset brings them to 0.3.5 so the whole published
+  surface ships one consistent version.
+
 ## 0.3.3
 
 ### Patch Changes
