@@ -140,13 +140,12 @@ function normalizePercent(
   let deficit = 1000 - lower.reduce((sum, value) => sum + value, 0);
 
   // Indexes of items still eligible for a +1 tenths, sorted by remainder desc,
-  // then by fixed field order, then by larger raw token count. The sort is
+  // with ties broken by fixed field order (earlier field wins). The sort is
   // stable so equal remainders resolve deterministically.
   const ranked = [...scaled.keys()].toSorted((a, b) => {
     const byRemainder = remainder[b]! - remainder[a]!;
     if (byRemainder !== 0) return byRemainder;
-    if (a !== b) return a - b; // earlier field wins ties
-    return rawTokens[BREAKDOWN_FIELDS[b]!] - rawTokens[BREAKDOWN_FIELDS[a]!];
+    return a - b; // earlier field wins ties
   });
 
   const adjusted = [...lower];

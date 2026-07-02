@@ -213,6 +213,8 @@ describe('estimateInputBreakdown', () => {
         [7, 0, 0, 0, 0, 0] as const,
         // Awkward remainders across all six.
         [101, 103, 107, 109, 113, 127] as const,
+        // Overshoot-prone: six shares near an x.x5 boundary (naive round → 100.1).
+        [17, 17, 17, 17, 16, 16] as const,
       ];
       for (const [sp, mc, sk, mt, st, mm] of datasets) {
         const result = estimateInputBreakdown(
@@ -244,7 +246,7 @@ describe('estimateInputBreakdown', () => {
       for (const value of Object.values(result.percent)) {
         expect(value).not.toBeUndefined();
         // One decimal place: value * 10 is integral.
-        expect(Number.isInteger((value! * 10).toFixed(0) as unknown as number) || true).toBe(true);
+        expect(Number.isInteger(Math.round(value! * 10))).toBe(true);
         // Stronger: rounded to 1 decimal is a no-op.
         expect(Math.round(value! * 10) / 10).toBe(value);
       }
@@ -265,6 +267,12 @@ describe('estimateInputBreakdown', () => {
       const second = estimateInputBreakdown(input);
       expect(second.percent).toEqual(first.percent);
       expect(sumPercents(first)).toBeCloseTo(100, 9);
+      // Tie-break rule: earlier field order wins. Each of the three tied
+      // buckets floors to 33.3%; the one residual tenth goes to systemPrompt
+      // (the earliest field), so it must be >= the later tied fields.
+      expect(first.percent.systemPrompt).toBeGreaterThanOrEqual(first.percent.metaContext!);
+      expect(first.percent.metaContext).toBeGreaterThanOrEqual(first.percent.skills!);
+      expect(first.percent.mcpTools).toBe(0);
     });
   });
 
