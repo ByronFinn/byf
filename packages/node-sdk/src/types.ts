@@ -128,6 +128,8 @@ export interface SessionUsage {
   readonly byModel?: Record<string, TokenUsage> | undefined;
   readonly currentTurn?: TokenUsage | undefined;
   readonly total?: TokenUsage | undefined;
+  /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
+  readonly cacheHitRate?: number;
   readonly inputBreakdown?: InputTokenBreakdown;
 }
 

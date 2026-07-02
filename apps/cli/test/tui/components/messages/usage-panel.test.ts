@@ -595,3 +595,217 @@ describe('buildUsageReportLines — cache hit-rate suffix', () => {
     expect(lines.join('\n')).not.toContain('(cache');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Context breakdown (estimated) — Issue #197: 6-row input-token distribution
+// plus an "Average cache hit rate" line, rendered between "Context window"
+// and "Plan usage".
+// ---------------------------------------------------------------------------
+
+// 363 + 334 + 212 + 38 + 33 + 20 = 1000 → after largest-remainder normalization
+// the percent fields sum strictly to 100.0; these raw tokens reproduce the
+// PRD's reference panel (MCP tools 36.3%, System tools 33.4%, …).
+const PRD_BREAKDOWN = {
+  tokens: {
+    mcpTools: 9900,
+    systemTools: 9100,
+    messages: 5800,
+    metaContext: 1000,
+    skills: 900,
+    systemPrompt: 500,
+  },
+  percent: {
+    mcpTools: 36.3,
+    systemTools: 33.4,
+    messages: 21.2,
+    metaContext: 3.8,
+    skills: 3.3,
+    systemPrompt: 1.9,
+  },
+} as const;
+
+describe('buildUsageReportLines — Context breakdown (estimated)', () => {
+  it('renders header, 6 rows in fixed order, and the Average cache hit rate line', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 1900,
+            inputCacheRead: 8100,
+            inputCacheCreation: 0,
+            output: 100,
+          },
+        },
+        cacheHitRate: 0.81,
+        inputBreakdown: PRD_BREAKDOWN,
+      } as never,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+    }).map(strip);
+
+    // Header present
+    expect(lines).toContain('Context breakdown (estimated)');
+
+    // Six rows in the FIXED order: MCP tools / System tools / Messages /
+    // Meta context / Skills / System prompt. Capture the breakdown row
+    // indices and assert their relative order matches the spec.
+    const labels = [
+      'MCP tools',
+      'System tools',
+      'Messages',
+      'Meta context',
+      'Skills',
+      'System prompt',
+    ];
+    const indices = labels.map((label) => lines.findIndex((l) => l.includes(label)));
+    for (const idx of indices) expect(idx).toBeGreaterThanOrEqual(0);
+    expect(indices).toStrictEqual([...indices].toSorted((a, b) => a - b));
+
+    // Average cache hit rate line present (81% from cacheHitRate 0.81)
+    expect(lines.join('\n')).toContain('Average cache hit rate');
+    expect(lines.join('\n')).toContain('81%');
+  });
+
+  it('shows percent value and ~-prefixed absolute token count on each row', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {},
+        cacheHitRate: 0.5,
+        inputBreakdown: PRD_BREAKDOWN,
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    const mcpRow = lines.find((l) => l.includes('MCP tools'));
+    expect(mcpRow).toBeDefined();
+    // percent (36.3%) and absolute (~9.9k — formatTokenCount lowercases)
+    expect(mcpRow).toContain('36.3%');
+    expect(mcpRow).toContain('~9.9k');
+
+    const sysRow = lines.find((l) => l.includes('System tools'));
+    expect(sysRow).toBeDefined();
+    expect(sysRow).toContain('33.4%');
+    expect(sysRow).toContain('~9.1k');
+  });
+
+  it('omits the entire section when inputBreakdown is undefined', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {},
+        cacheHitRate: 0.5,
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines.join('\n')).not.toContain('Context breakdown');
+  });
+
+  it('omits the Average cache hit rate line when cacheHitRate is undefined', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {},
+        inputBreakdown: PRD_BREAKDOWN,
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    // Section still renders
+    expect(lines).toContain('Context breakdown (estimated)');
+    // But no cache hit rate line
+    expect(lines.join('\n')).not.toContain('Average cache hit rate');
+  });
+
+  it('degrades to absolute-only rows when percent fields are all undefined (total=0)', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {},
+        cacheHitRate: 0.5,
+        inputBreakdown: {
+          tokens: {
+            mcpTools: 0,
+            systemTools: 0,
+            messages: 0,
+            metaContext: 0,
+            skills: 0,
+            systemPrompt: 0,
+          },
+          percent: {
+            mcpTools: undefined,
+            systemTools: undefined,
+            messages: undefined,
+            metaContext: undefined,
+            skills: undefined,
+            systemPrompt: undefined,
+          },
+        },
+      } as never,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('Context breakdown (estimated)');
+    // All six labels still render
+    for (const label of [
+      'MCP tools',
+      'System tools',
+      'Messages',
+      'Meta context',
+      'Skills',
+      'System prompt',
+    ]) {
+      const row = lines.find((l) => l.includes(label));
+      expect(row).toBeDefined();
+      // No percentage on degraded rows
+      expect(row).not.toContain('%');
+      // Absolute value present (~0)
+      expect(row).toContain('~0');
+    }
+  });
+
+  it('places Context breakdown after Context window and before Plan usage', () => {
+    const lines = buildUsageReportLines({
+      colors: darkColors,
+      sessionUsage: {
+        byModel: {
+          model: {
+            inputOther: 1000,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 100,
+          },
+        },
+        cacheHitRate: 0.2,
+        inputBreakdown: PRD_BREAKDOWN,
+      } as never,
+      contextUsage: 0.1,
+      contextTokens: 1000,
+      maxContextTokens: 10000,
+      managedUsage: {
+        summary: { label: 'daily', used: 1, limit: 100 },
+        limits: [],
+      },
+    }).map(strip);
+
+    const joined = lines.join('\n');
+    const ctxWin = joined.indexOf('Context window');
+    const breakdown = joined.indexOf('Context breakdown (estimated)');
+    const plan = joined.indexOf('Plan usage');
+
+    expect(ctxWin).toBeGreaterThanOrEqual(0);
+    expect(breakdown).toBeGreaterThan(ctxWin);
+    expect(plan).toBeGreaterThan(breakdown);
+  });
+});

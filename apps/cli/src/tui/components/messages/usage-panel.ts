@@ -4,7 +4,7 @@
  * the pattern stays consistent across command-triggered panels.
  */
 
-import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
+import type { InputTokenBreakdown, SessionUsage, TokenUsage } from '@byfriends/sdk';
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -153,6 +153,59 @@ function buildManagedUsageSection(
   return out;
 }
 
+/** Fixed display order + labels for the six input-token breakdown buckets. */
+const BREAKDOWN_ROWS: ReadonlyArray<{
+  readonly field: keyof InputTokenBreakdown['tokens'];
+  readonly label: string;
+}> = [
+  { field: 'mcpTools', label: 'MCP tools' },
+  { field: 'systemTools', label: 'System tools' },
+  { field: 'messages', label: 'Messages' },
+  { field: 'metaContext', label: 'Meta context' },
+  { field: 'skills', label: 'Skills' },
+  { field: 'systemPrompt', label: 'System prompt' },
+];
+
+/**
+ * Build the `Context breakdown (estimated)` section: six rows showing each
+ * bucket's normalized percentage (right-aligned) alongside its estimated
+ * absolute token count prefixed with `~`, then an `Average cache hit rate`
+ * line when cache data is available.
+ *
+ * The percentage is dropped (degradation) when `percent` is undefined — i.e.
+ * the six token values total zero — leaving absolute-only rows.
+ */
+function buildBreakdownSection(
+  usage: SessionUsage | undefined,
+  accent: Colorize,
+  value: Colorize,
+  muted: Colorize,
+): string[] {
+  const breakdown = usage?.inputBreakdown;
+  if (breakdown === undefined) return [];
+
+  const labelWidth = Math.max(...BREAKDOWN_ROWS.map((r) => r.label.length));
+  const out: string[] = [accent('Context breakdown (estimated)')];
+  for (const row of BREAKDOWN_ROWS) {
+    const label = muted(row.label.padEnd(labelWidth, ' '));
+    const tokens = breakdown.tokens[row.field];
+    const abs = value(`~${formatTokenCount(tokens)}`);
+    const pctValue = breakdown.percent[row.field];
+    if (pctValue === undefined) {
+      out.push(`  ${label}  ${abs}`);
+    } else {
+      const pct = value(`${pctValue.toFixed(1)}%`.padStart(6, ' '));
+      out.push(`  ${label}  ${pct}  ${abs}`);
+    }
+  }
+
+  const hitRateStr = formatCacheHitRate(usage?.cacheHitRate);
+  if (hitRateStr !== undefined) {
+    out.push(`  Average cache hit rate  ${value(hitRateStr)}`);
+  }
+  return out;
+}
+
 export function buildManagedUsageReportLines(options: ManagedUsageReportLineOptions): string[] {
   const colors = options.colors;
   const accent = chalk.hex(colors.primary).bold;
@@ -208,6 +261,12 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
           )})`,
         ),
     );
+  }
+
+  const breakdownSection = buildBreakdownSection(options.sessionUsage, accent, value, muted);
+  if (breakdownSection.length > 0) {
+    lines.push('');
+    lines.push(...breakdownSection);
   }
 
   const managedSection = buildManagedUsageReportLines({
