@@ -8,6 +8,7 @@ import {
   type ContentPart,
   type Message,
   type PromptPlan,
+  type ProviderCacheCapability,
   type Tool,
 } from '@byfriends/kosong';
 
@@ -31,7 +32,12 @@ import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import { linkAbortSignal } from '../utils/abort';
-import { estimateTokens, estimateTokensForMessages, estimateTokensForTools } from '../utils/tokens';
+import {
+  estimateInputBreakdown,
+  estimateTokens,
+  estimateTokensForMessages,
+  estimateTokensForTools,
+} from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
@@ -503,7 +509,23 @@ export class Agent {
       getContext: () => this.context.data(),
       getConfig: () => this.config.data(),
       getPermission: () => this.permission.data(),
-      getUsage: () => this.usage.data(),
+      getUsage: () => {
+        const usageData = this.usage.data();
+        // Rebuild the prompt plan on demand: this mirrors the per-turn rebuild
+        // in askSide / kosong-llm. Idle rebuild is safe because
+        // getMessages()/loopTools hold no turn-state guards. Without a model,
+        // the plan still splits into blocks for estimation purposes.
+        const cacheCapability: ProviderCacheCapability = this.config.hasModel
+          ? getProviderCacheCapability(this.config.provider)
+          : { strategy: 'none' };
+        const promptPlan = buildPromptPlan(this.config.systemPrompt, cacheCapability);
+        const inputBreakdown = estimateInputBreakdown({
+          promptPlan,
+          tools: this.tools.loopTools,
+          messages: this.context.getMessages(),
+        });
+        return { ...usageData, inputBreakdown };
+      },
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
     };

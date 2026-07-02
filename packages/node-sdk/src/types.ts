@@ -1,5 +1,6 @@
 import type {
   ExportSessionManifest,
+  InputTokenBreakdown,
   ResumeSessionResult,
   RuntimeConfig,
 } from '@byfriends/agent-core';
@@ -26,6 +27,7 @@ export type {
   ExportSessionManifest,
   ByfConfig,
   ByfConfigPatch,
+  InputTokenBreakdown,
   LoopControl,
   McpServerInfo,
   McpStartupMetrics,
@@ -126,6 +128,7 @@ export interface SessionUsage {
   readonly byModel?: Record<string, TokenUsage> | undefined;
   readonly currentTurn?: TokenUsage | undefined;
   readonly total?: TokenUsage | undefined;
+  readonly inputBreakdown?: InputTokenBreakdown;
 }
 
 export interface SessionStatus {

@@ -6,6 +6,7 @@ import type { ByfErrorPayload } from '../errors';
 import type { SkillSource } from '../skill';
 import type { BackgroundTaskInfo } from '../tools/background/manager';
 import type { ToolInputDisplay } from '../tools/display';
+import type { InputTokenBreakdown } from '../utils/tokens';
 
 export type { ToolInputDisplay } from '../tools/display';
 export type { ByfErrorPayload } from '../errors';
@@ -16,6 +17,12 @@ export interface UsageStatus {
   readonly total?: TokenUsage | undefined;
   /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
   readonly cacheHitRate?: CacheHitRate | undefined;
+  /**
+   * Estimated input-token distribution across six categories, computed on
+   * demand by the Agent (it owns config/tools/context). `undefined` when the
+   * caller has not requested it. See {@link InputTokenBreakdown}.
+   */
+  readonly inputBreakdown?: InputTokenBreakdown | undefined;
 }
 
 export interface ToolUpdate {

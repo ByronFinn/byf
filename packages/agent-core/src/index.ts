@@ -42,6 +42,7 @@ export type { RuntimeConfig } from './runtime-types';
 export type { TelemetryClient, TelemetryProperties } from './telemetry';
 export type { BearerTokenProvider, OAuthTokenProviderResolver } from './providers/runtime-provider';
 export { buildPromptPlan } from './prompt-plan';
+export type { InputTokenBreakdown } from './utils/tokens';
 
 // ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
 export type {
