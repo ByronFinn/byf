@@ -14,10 +14,11 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:packages": "pnpm -r --filter './packages/*' run build",
+    "build:vis": "pnpm --filter @byfriends/vis-web run build && pnpm --filter @byfriends/vis-server run build",
     "dev:cli": "pnpm -C apps/cli run dev",
     "vis": "pnpm -C apps/vis run dev",
     "dev:docs": "pnpm -C docs install --ignore-workspace && pnpm -C docs run dev",
-    "typecheck": "pnpm run build:packages && pnpm -r --filter './packages/*' run typecheck && pnpm --filter @byfriends/cli run typecheck",
+    "typecheck": "pnpm run build:packages && pnpm run build:vis && pnpm -r --filter './packages/*' run typecheck && pnpm --filter @byfriends/cli run typecheck",
     "lint": "oxlint --type-aware",
     "lint:fix": "pnpm run lint --fix",
     "lint:pkg": "pnpm -r --filter '!@byfriends/monorepo' exec publint && node scripts/attw-pkg.mjs",
