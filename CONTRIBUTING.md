@@ -86,6 +86,21 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 - Generate one with `make changeset` and follow the prompts (which packages are touched, which bump level).
 - For repo-specific conventions on package selection and bump levels, see `.changeset/README.md`. When working in this repo with coding agents, use the `gen-changesets` skill.
 
+### Publishing
+
+Packages are published to npm automatically by the `Release (npm)` workflow. Do **not** run `npm publish` or `pnpm publish` by hand to ship a release:
+
+- `npm publish` ships the manifest verbatim and leaves pnpm-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. Only `pnpm publish` / `changeset publish` rewrite them.
+- Merging a `Version Packages` PR (opened by `changesets/action`) publishes every changed package and tags it as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
+
+The standard release path:
+
+1. Accumulate changesets on PRs merged to `main`.
+2. The action opens a `Version Packages` PR — review and merge it.
+3. The action publishes to npm and tags the release; the binary workflow follows.
+
+Before opening a release PR you can validate the published layout locally with `make pubcheck` (runs `publint`, `attw`, and a guard against `workspace:`/`catalog:` leaking into packed manifests). See [docs/agents/releasing.md](docs/agents/releasing.md) for the full procedure and emergency manual-release steps.
+
 ## Pull Requests
 
 Use the [PR template](.github/pull_request_template.md) when opening a feature pull request.

@@ -44,7 +44,8 @@
         "default": "./dist/index.mjs"
       }
     },
-    "access": "public"
+    "access": "public",
+    "provenance": false
   },
   "scripts": {
     "build": "tsdown",

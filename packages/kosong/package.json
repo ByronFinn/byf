@@ -67,7 +67,8 @@
         "default": "./dist/providers/openai-common.mjs"
       }
     },
-    "access": "public"
+    "access": "public",
+    "provenance": false
   },
   "scripts": {
     "build": "tsdown",

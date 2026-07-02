@@ -38,8 +38,8 @@ fmt-check: ## Check formatting without writing
 sherif: ## Check monorepo dependency consistency
 	pnpm run sherif
 
-pubcheck: ## Validate published package layout (publint + attw)
-	pnpm run lint:pkg
+pubcheck: ## Validate published package layout (publint + attw + manifest protocol check)
+	pnpm run lint:pkg && pnpm run pubcheck:manifest
 
 ## Test
 
