@@ -1,5 +1,83 @@
 # @byfriends/agent-core
 
+## 0.3.6
+
+### Patch Changes
+
+- fdebd28: fix(prompt): steer LLM to run_in_background instead of shell `&`
+
+  Long-running commands occasionally escaped the agent's task system: the
+  LLM backgrounded a process with shell `&` (or `nohup`/`disown`) inside
+  the Bash `command` string instead of setting `run_in_background: true`.
+  Such processes are never registered with `BackgroundProcessManager`, so
+  they are invisible to `/tasks`, cannot be inspected or stopped, and emit
+  no completion notification — the user sees "0 total" in the task browser
+  while the process keeps running as an orphan.
+
+  Root cause was prompt discoverability, not a code bug. A "context
+  minimization" refactor (`0a9bb30`) deleted the only persuasive guidance
+  ("Prefer `run_in_background=true` for long-running builds, tests,
+  watchers, or servers") and claimed to relocate it to a system-prompt
+  "Tool Efficiency Guidelines" section that was never created. The
+  surviving parameter description was purely mechanical ("Whether to run
+  the command as a background task"), with nothing telling the LLM when to
+  prefer it and nothing prohibiting shell `&`. Shell `&` is the
+  higher-salience default in model training, so nothing overrode it.
+
+  Changes (text only, no execution-path or serialization change):
+
+  - **`tools/builtin/shell/bash.ts`** — the `run_in_background` parameter
+    description now states when to use it (long-running builds, tests,
+    servers, watchers, batch scripts) and that a process must not be
+    detached with shell `&`/`nohup`/`disown` to work around it.
+  - **`tools/builtin/shell/bash.md`** — restored the preference guidance
+    removed in `0a9bb30`, plus an explicit "never detach with `&` /
+    `nohup` / `disown`" rule. The never-detach rule is worded as a
+    standalone prohibition (it does NOT prescribe `run_in_background` as
+    the remedy) so it stays correct in both background-enabled and
+    background-disabled modes. Legitimate `&&` / `||` chaining and
+    `cmd1 & cmd2` list separators are explicitly carved out.
+    `withoutBackgroundDescription` swaps the preference bullet for a
+    disable notice when background is off.
+  - **`profile/default/system.md`** — added a global `# Tool Use` rule
+    directing long-running commands to `Bash(run_in_background=true)`,
+    landing the "Tool Efficiency Guidelines" intent that `0a9bb30`
+    intended but never implemented.
+
+  Test coverage: added assertions in `test/agent/tool.test.ts` pinning
+  the background-disabled description — it must contain the disable
+  notice, must not contain "Prefer `run_in_background=true`", and must
+  not contain any "Always use `run_in_background=true` instead"
+  prescription (which would contradict the disable notice). This guards
+  the `withoutBackgroundDescription` transform against future template
+  drift. Verified enabled and disabled modes render self-consistently.
+
+- b7fb767: ci(release): standardize the publish pipeline and guard against workspace:/catalog: leaks
+
+  手动 `npm publish` 不会改写 `workspace:`/`catalog:` 协议,会把它们原样发到
+  npm registry,导致 npm 用户安装时报 `EUNSUPPORTEDPROTOCOL`。本次统一发布与校验
+  流程,从工具链层面杜绝此类回归:
+
+  - 新增 `scripts/check-published-manifest.mjs`:对每个非私有工作区包 `pnpm pack`,
+    解压后检查 `dependencies`/`peerDependencies`/`optionalDependencies` 是否残留
+    `workspace:` 或 `catalog:`,有即失败。已接入 `pnpm run publish` 流水线和
+    `make pubcheck`。
+  - `scripts/attw-pkg.mjs` 的包发现逻辑从写死的 `packages/*` 改为遍历全部发布包,
+    `@byfriends/cli`、`@byfriends/vis-server` 现在也被类型导出校验覆盖;纯 bin 应用
+    (无 exports/main)会被自动跳过。
+  - 新增 `.github/workflows/release-npm.yml`:用 changesets/action 的全自动模式,
+    合并 Version Packages PR 后自动发布到 npm 并打 tag,衔接到现有的二进制 release
+    流程。CI 中同样运行上述预发布校验。
+  - 统一 `publishConfig.provenance: false`(agent-core/kosong/kaos/oauth 对齐已有设置)。
+  - `@byfriends/cli` 的 `zod` 依赖改用 `catalog:`,与其余包一致。
+  - 新增 `docs/agents/releasing.md` 记录标准发布流程、根因说明和紧急手动发布步骤。
+
+  注意:provenance 与 zod 声明方式的改动不改变运行时行为或公共 API,仅统一发布元数据。
+
+- Updated dependencies [b7fb767]
+  - @byfriends/kaos@0.3.6
+  - @byfriends/kosong@0.3.6
+
 ## 0.3.5
 
 ### Patch Changes
@@ -93,6 +171,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -112,11 +191,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -205,6 +284,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -223,6 +303,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
+
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)
