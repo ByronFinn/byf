@@ -41,8 +41,8 @@ jobs:
       - name: Build packages
         run: pnpm run build:packages
 
-      - name: Build vis-server
-        run: pnpm --filter @byfriends/vis-server run build
+      - name: Build vis (web → server)
+        run: pnpm run build:vis
 
       - name: Build native binary
         env:
