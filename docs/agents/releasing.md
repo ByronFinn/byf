@@ -16,16 +16,20 @@
 
 这就是为什么本仓库**禁止用 `npm publish` 发包**。
 
-## 标准发布路径(全自动 CI)
+## 标准发布路径(手动触发 CI)
 
-发布由 `.github/workflows/release-npm.yml` 驱动,采用 changesets/action 的全自动模式:
+发布由 `.github/workflows/release-npm.yml` 驱动,**手动触发**:
 
 1. **积累 changeset**:每个影响发布产物的 PR 都附带一个 `.changeset/*.md` 文件(`pnpm changeset` 或 `make changeset` 生成)。这些 PR 正常合并到 `main`。
-2. **生成 Version Packages PR**:有 changeset 待消费时,changesets/action 在 `main` 上运行 `changeset version`,把版本号 bump、更新各包 CHANGELOG、删除已消费的 changeset 文件,然后开一个标题为 `chore: release packages` 的 PR。
-3. **发布**:该 PR 被 review 并合并回 `main` 后,下一次 action 运行时发现没有新 changeset、但本地版本领先于 registry,于是执行 `changeset publish`,把变更的包发到 npm,并为每个包打 `@byfriends/<pkg>@<ver>` 的 tag。
-4. **构建二进制**:`@byfriends/cli@*` 这个 tag 会触发现有的 `.github/workflows/release.yml`,在 macOS 和 Linux 上构建 SEA 原生二进制并创建 GitHub Release(附带 `install.sh`)。两个 workflow 通过这个 tag 自然衔接,无需手动协调。
+2. **手动触发发布**:当准备发版时,维护者在 GitHub Actions 页面对 `Release (npm)` workflow 执行 **Run workflow**。一次运行同时完成版本 bump 和发布:
+   - 运行完整质量门禁与预发布校验。
+   - `changeset version` 消费待发的 changeset,bump 版本号、更新各包 CHANGELOG。
+   - 若有改动,把版本号改动 commit 并 push 回 `main`(用内置 `GITHUB_TOKEN`)。
+   - `changeset publish` 把变更的包发到 npm,并为每个包打 `@byfriends/<pkg>@<ver>` 的 tag。
+   - 若没有待消费的 changeset,运行会安全结束(无版本可发)。
+3. **构建二进制**:`@byfriends/cli@*` 这个 tag 会触发现有的 `.github/workflows/release.yml`,在 macOS 和 Linux 上构建 SEA 原生二进制并创建 GitHub Release(附带 `install.sh`)。两个 workflow 通过这个 tag 自然衔接,无需手动协调。
 
-> **关键**:不要在本地手动跑 `npm publish` 或 `pnpm publish` 来发版。合并 Version Packages PR 即可,CI 会完成发布。
+> **关键**:不要在本地手动跑 `npm publish` 或 `pnpm publish` 来发版。在 Actions 页面手动触发 `Release (npm)` 即可,CI 会完成 version + publish。
 
 ## 本地预校验
 

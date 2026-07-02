@@ -88,18 +88,18 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 ### Publishing
 
-Packages are published to npm automatically by the `Release (npm)` workflow. Do **not** run `npm publish` or `pnpm publish` by hand to ship a release:
+Packages are published to npm by the `Release (npm)` workflow, triggered **manually** by a maintainer. Do **not** run `npm publish` or `pnpm publish` by hand to ship a release:
 
 - `npm publish` ships the manifest verbatim and leaves pnpm-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. Only `pnpm publish` / `changeset publish` rewrite them.
-- Merging a `Version Packages` PR (opened by `changesets/action`) publishes every changed package and tags it as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
+- A single manual dispatch of `Release (npm)` runs the quality gates, applies `changeset version`, commits the version bump to `main`, runs `changeset publish`, and tags each package as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
 
 The standard release path:
 
 1. Accumulate changesets on PRs merged to `main`.
-2. The action opens a `Version Packages` PR — review and merge it.
-3. The action publishes to npm and tags the release; the binary workflow follows.
+2. When ready to ship, a maintainer runs the `Release (npm)` workflow from the Actions tab.
+3. The workflow versions, publishes, and tags; the binary workflow follows the `@byfriends/cli@*` tag.
 
-Before opening a release PR you can validate the published layout locally with `make pubcheck` (runs `publint`, `attw`, and a guard against `workspace:`/`catalog:` leaking into packed manifests). See [docs/agents/releasing.md](docs/agents/releasing.md) for the full procedure and emergency manual-release steps.
+Before triggering a release you can validate the published layout locally with `make pubcheck` (runs `publint`, `attw`, and a guard against `workspace:`/`catalog:` leaking into packed manifests). See [docs/agents/releasing.md](docs/agents/releasing.md) for the full procedure and emergency manual-release steps.
 
 ## Pull Requests
 
