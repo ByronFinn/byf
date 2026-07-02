@@ -161,15 +161,15 @@ Average cache hit rate    81%
 
 ## Traceability
 
-| Requirement | AC | 决策来源 |
-|---|---|---|
-| R1 估算纯函数 | AC1 AC3 | 代码事实：estimateTokens 系列已存在 |
+| Requirement         | AC      | 决策来源                                     |
+| ------------------- | ------- | -------------------------------------------- |
+| R1 估算纯函数       | AC1 AC3 | 代码事实：estimateTokens 系列已存在          |
 | R2 UsageStatus 接线 | AC1 AC2 | UsageRecorder.data() + Agent 持有 plan/tools |
-| R3 SDK 镜像 | AC1 | 现有 TokenUsage 镜像模式 |
-| R4 面板渲染 | AC1 AC2 | usage-panel.ts buildUsageReportLines |
-| R5 边界 | AC4 AC5 | 空块/空 tools/总和为 0 |
-| OQ1 估算时机 | AC6 | 倾向按需（/usage 触发） |
-| 严格=100% | AC1 | grill 用户要求 + 最大余数法 |
+| R3 SDK 镜像         | AC1     | 现有 TokenUsage 镜像模式                     |
+| R4 面板渲染         | AC1 AC2 | usage-panel.ts buildUsageReportLines         |
+| R5 边界             | AC4 AC5 | 空块/空 tools/总和为 0                       |
+| OQ1 估算时机        | AC6     | 倾向按需（/usage 触发）                      |
+| 严格=100%           | AC1     | grill 用户要求 + 最大余数法                  |
 
 **Sliced into:**
 
