@@ -21,6 +21,7 @@
     "lint": "oxlint --type-aware",
     "lint:fix": "pnpm run lint --fix",
     "lint:pkg": "pnpm -r --filter '!@byfriends/monorepo' exec publint && node scripts/attw-pkg.mjs",
+    "pubcheck:manifest": "node scripts/check-published-manifest.mjs",
     "fmt": "oxfmt",
     "fmt:check": "pnpm run fmt --check",
     "sherif": "sherif",
@@ -30,7 +31,7 @@
     "clean": "pnpm -r run clean",
     "changeset": "changeset",
     "version": "changeset version",
-    "publish": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run sherif && pnpm run test && pnpm run build && pnpm run lint:pkg && changeset publish",
+    "publish": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run sherif && pnpm run test && pnpm run build && pnpm run lint:pkg && pnpm run pubcheck:manifest && changeset publish",
     "prepare": "simple-git-hooks"
   },
   "devDependencies": {

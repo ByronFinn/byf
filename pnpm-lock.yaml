@@ -103,7 +103,7 @@ importers:
         specifier: ^1.6.1
         version: 1.6.1
       zod:
-        specifier: ^4.3.6
+        specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
       '@byfriends/sdk':

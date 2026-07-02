@@ -36,6 +36,7 @@ changing anything.
 - Prefer the built-in tools (Read, Write, Edit, Grep, Glob) over equivalent Bash commands (`cat`, `sed`, `grep`, `find`) — they are more reliable across platforms and return cleaner output. Reserve `Bash` for things the built-in tools cannot do.
 - Text in your response is not saved to disk — to change files, use `Write`/`Edit`. To run commands, use `Bash`.
 - When several tool calls are independent, issue them together in one turn rather than one at a time.
+- For long-running commands (builds, tests, servers, batch jobs), use `Bash(run_in_background=true)` instead of detaching with `&` / `nohup` / `disown`. Only tasks started this way are tracked by `/tasks` and can be inspected or stopped; a detached process is invisible to the agent. (`&&` and `||` chaining are fine.)
 
 # Safety
 

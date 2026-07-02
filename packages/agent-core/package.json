@@ -62,7 +62,8 @@
         "default": "./dist/session/store/index.mjs"
       }
     },
-    "access": "public"
+    "access": "public",
+    "provenance": false
   },
   "scripts": {
     "build": "tsdown && node scripts/rewrite-dts-subpaths.mjs",
