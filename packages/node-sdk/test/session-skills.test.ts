@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
@@ -166,7 +166,11 @@ describe('Session skills', () => {
       expect(state['isCustomTitle']).toBe(false);
       expect(state['lastPrompt']).toBe('/review src/app.ts');
 
-      const skillDir = join(workDir, '.byf', 'skills', 'review');
+      // The scanner registers each skill by its canonical (realpath-resolved)
+      // directory, so resolve workDir before composing the expected skill dir.
+      // On macOS tmpdir() is symlinked (/var → /private/var); without this the
+      // embedded "Base directory for this skill: …" path wouldn't match.
+      const skillDir = join(await realpath(workDir), '.byf', 'skills', 'review');
       await expect(
         waitForAgentWireEvent(
           homeDir,

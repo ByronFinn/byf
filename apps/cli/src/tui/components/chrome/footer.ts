@@ -241,7 +241,7 @@ export class FooterComponent implements Component {
       state.maxContextTokens,
     );
     const hitRateStr = formatCacheHitRate(state.cacheHitRate);
-    const cacheBadge = hitRateStr ? `  cache: ${hitRateStr}` : '';
+    const cacheBadge = hitRateStr ? `  cache: ${hitRateStr} (current)` : '';
     const contextWidth = visibleWidth(contextText) + visibleWidth(cacheBadge);
     const contextRight =
       chalk.hex(colors.text)(contextText) +

@@ -6,7 +6,6 @@ import {
   estimateTokens,
   estimateTokensForMessages,
   estimateTokensForTools,
-  type InputTokenBreakdown,
 } from '../../src/utils/tokens';
 
 /**
@@ -42,22 +41,21 @@ function toolWithTokens(name: string, targetTokens: number): Tool {
   return { name, description: textOf(descTokens), parameters };
 }
 
-function sumPercents(b: InputTokenBreakdown): number {
-  const p = b.percent;
-  return (
-    (p.systemPrompt ?? 0) +
-    (p.metaContext ?? 0) +
-    (p.skills ?? 0) +
-    (p.mcpTools ?? 0) +
-    (p.systemTools ?? 0) +
-    (p.messages ?? 0)
-  );
-}
+/** All six percent fields are `undefined` — used for degenerate-input checks. */
+const ALL_UNDEFINED_PERCENT = {
+  systemPrompt: undefined,
+  metaContext: undefined,
+  skills: undefined,
+  mcpTools: undefined,
+  systemTools: undefined,
+  messages: undefined,
+} as const;
 
 /**
  * Build an `estimateInputBreakdown` input whose six buckets evaluate to the
  * given exact token counts. metaContext is split across projectInstructions +
  * workingEnvironment so the "combined metaContext" path is exercised.
+ * `maxContextTokens` defaults to a large window so percentages are computed.
  */
 function inputWithBuckets(buckets: {
   systemPrompt: number;
@@ -66,7 +64,13 @@ function inputWithBuckets(buckets: {
   mcpTools: number;
   systemTools: number;
   messages: number;
-}): { promptPlan: PromptPlan; tools: readonly Tool[]; messages: readonly Message[] } {
+  maxContextTokens?: number;
+}): {
+  promptPlan: PromptPlan;
+  tools: readonly Tool[];
+  messages: readonly Message[];
+  maxContextTokens?: number;
+} {
   const half = Math.floor(buckets.metaContext / 2);
   const rest = buckets.metaContext - half;
   const blocks: PromptBlock[] = [block('base', buckets.systemPrompt)];
@@ -82,7 +86,12 @@ function inputWithBuckets(buckets: {
   if (buckets.systemTools > 0) tools.push(toolWithTokens('Read', buckets.systemTools));
 
   const messages: Message[] = buckets.messages > 0 ? [messageOf(buckets.messages)] : [];
-  return { promptPlan, tools, messages };
+  return {
+    promptPlan,
+    tools,
+    messages,
+    maxContextTokens: buckets.maxContextTokens,
+  };
 }
 
 describe('estimateInputBreakdown', () => {
@@ -198,41 +207,116 @@ describe('estimateInputBreakdown', () => {
     });
   });
 
-  describe('largest-remainder normalization', () => {
-    it('strictly sums the six percent fields to exactly 100', () => {
-      const datasets = [
-        // The PRD's worked example.
-        [3634, 3337, 2120, 380, 330, 190] as const,
-        // Three-way equal split (naive round → 99.9).
-        [1, 1, 1, 0, 0, 0] as const,
-        // Two-way equal split.
-        [5, 5, 0, 0, 0, 0] as const,
-        // A heavier dataset that tends to drift under naive rounding.
-        [4000, 3000, 1500, 900, 400, 200] as const,
-        // Single non-zero bucket → must be 100.0.
-        [7, 0, 0, 0, 0, 0] as const,
-        // Awkward remainders across all six.
-        [101, 103, 107, 109, 113, 127] as const,
-        // Overshoot-prone: six shares near an x.x5 boundary (naive round → 100.1).
-        [17, 17, 17, 17, 16, 16] as const,
-      ];
-      for (const [sp, mc, sk, mt, st, mm] of datasets) {
-        const result = estimateInputBreakdown(
-          inputWithBuckets({
-            systemPrompt: sp,
-            metaContext: mc,
-            skills: sk,
-            mcpTools: mt,
-            systemTools: st,
-            messages: mm,
-          }),
-        );
-        const sum = sumPercents(result);
-        expect(sum, `dataset ${JSON.stringify([sp, mc, sk, mt, st, mm])}`).toBeCloseTo(100, 9);
+  describe('percentage of context window', () => {
+    it('expresses each bucket as token/maxContextTokens, one decimal place', () => {
+      // A 100k window so every bucket is a clean fraction of the window.
+      const result = estimateInputBreakdown(
+        inputWithBuckets({
+          systemPrompt: 3634,
+          metaContext: 3337,
+          skills: 2120,
+          mcpTools: 380,
+          systemTools: 330,
+          messages: 190,
+          maxContextTokens: 100_000,
+        }),
+      );
+      // Each percent = round(token / 100_000 * 1000) / 10.
+      expect(result.percent.systemPrompt).toBe(3.6);
+      expect(result.percent.metaContext).toBe(3.3);
+      expect(result.percent.skills).toBe(2.1);
+      expect(result.percent.mcpTools).toBe(0.4);
+      expect(result.percent.systemTools).toBe(0.3);
+      expect(result.percent.messages).toBe(0.2);
+      for (const value of Object.values(result.percent)) {
+        // One decimal place: value * 10 is integral.
+        expect(Number.isInteger(Math.round(value! * 10))).toBe(true);
       }
     });
 
-    it('produces one-decimal percentages for the PRD example dataset', () => {
+    it('does not force the six rows to sum to 100% (they sum to the window share)', () => {
+      // Tokens sum to 10k of a 200k window → the six percent rows sum to ~5%,
+      // not 100%. This is the whole point of the context-window denominator.
+      const result = estimateInputBreakdown(
+        inputWithBuckets({
+          systemPrompt: 4000,
+          metaContext: 3000,
+          skills: 1500,
+          mcpTools: 900,
+          systemTools: 400,
+          messages: 200,
+          maxContextTokens: 200_000,
+        }),
+      );
+      const sum = Object.values(result.percent)
+        .map((v) => v ?? 0)
+        .reduce((acc, v) => acc + v, 0);
+      // The exact window share is 10_000 / 200_000 * 100 = 5.0%; the summed
+      // rounded rows drift slightly (~5.1%) because each row is independently
+      // rounded to one decimal. That drift is expected and acceptable — the
+      // rows are individual window shares, not a partition forced to 100%.
+      expect(sum).toBeGreaterThan(4.5);
+      expect(sum).toBeLessThan(6);
+      expect(sum).toBeLessThan(100);
+    });
+
+    it('rounds to one decimal via tenths scaling at the 0.05 boundary', () => {
+      // Formula: Math.round((token / window) * 1000) / 10. With a 100k window:
+      //   40 tokens → 0.04% → Math.round(0.4) / 10 = 0.0  (rounds down)
+      //   50 tokens → 0.05% → Math.round(0.5) / 10 = 0.1  (rounds up — the boundary)
+      //   150 tokens → 0.15% → Math.round(1.5) / 10 = 0.2 (rounds up)
+      const result = estimateInputBreakdown(
+        inputWithBuckets({
+          systemPrompt: 40,
+          metaContext: 50,
+          skills: 150,
+          mcpTools: 0,
+          systemTools: 0,
+          messages: 0,
+          maxContextTokens: 100_000,
+        }),
+      );
+      expect(result.percent.systemPrompt).toBe(0.0);
+      expect(result.percent.metaContext).toBe(0.1);
+      expect(result.percent.skills).toBe(0.2);
+    });
+
+    it('is deterministic across repeated calls for the same input', () => {
+      const input = inputWithBuckets({
+        systemPrompt: 2,
+        metaContext: 2,
+        skills: 2,
+        mcpTools: 0,
+        systemTools: 0,
+        messages: 0,
+        maxContextTokens: 10_000,
+      });
+      const first = estimateInputBreakdown(input);
+      const second = estimateInputBreakdown(input);
+      expect(second.percent).toEqual(first.percent);
+    });
+
+    it('treats a zero-token bucket as 0.0%, not undefined', () => {
+      const result = estimateInputBreakdown(
+        inputWithBuckets({
+          systemPrompt: 1000,
+          metaContext: 0,
+          skills: 0,
+          mcpTools: 0,
+          systemTools: 0,
+          messages: 0,
+          maxContextTokens: 100_000,
+        }),
+      );
+      expect(result.percent.systemPrompt).toBe(1.0);
+      expect(result.percent.metaContext).toBe(0.0);
+      expect(result.percent.messages).toBe(0.0);
+    });
+  });
+
+  describe('degenerate inputs', () => {
+    it('returns all undefined percents when maxContextTokens is omitted', () => {
+      // No window denominator available → cannot compute a percentage share.
       const result = estimateInputBreakdown(
         inputWithBuckets({
           systemPrompt: 3634,
@@ -243,41 +327,30 @@ describe('estimateInputBreakdown', () => {
           messages: 190,
         }),
       );
-      for (const value of Object.values(result.percent)) {
-        expect(value).not.toBeUndefined();
-        // One decimal place: value * 10 is integral.
-        expect(Number.isInteger(Math.round(value! * 10))).toBe(true);
-        // Stronger: rounded to 1 decimal is a no-op.
-        expect(Math.round(value! * 10) / 10).toBe(value);
-      }
-      expect(sumPercents(result)).toBeCloseTo(100, 9);
+      // tokens are still estimated...
+      expect(result.tokens.systemPrompt).toBe(3634);
+      expect(result.tokens.messages).toBe(190);
+      // ...but percent is entirely undefined.
+      expect(result.percent).toEqual(ALL_UNDEFINED_PERCENT);
     });
 
-    it('is deterministic across repeated calls for the same input (tie handling)', () => {
-      // Three equal buckets create tied remainders; output must be stable.
-      const input = inputWithBuckets({
-        systemPrompt: 2,
-        metaContext: 2,
-        skills: 2,
-        mcpTools: 0,
-        systemTools: 0,
-        messages: 0,
-      });
-      const first = estimateInputBreakdown(input);
-      const second = estimateInputBreakdown(input);
-      expect(second.percent).toEqual(first.percent);
-      expect(sumPercents(first)).toBeCloseTo(100, 9);
-      // Tie-break rule: earlier field order wins. Each of the three tied
-      // buckets floors to 33.3%; the one residual tenth goes to systemPrompt
-      // (the earliest field), so it must be >= the later tied fields.
-      expect(first.percent.systemPrompt).toBeGreaterThanOrEqual(first.percent.metaContext!);
-      expect(first.percent.metaContext).toBeGreaterThanOrEqual(first.percent.skills!);
-      expect(first.percent.mcpTools).toBe(0);
+    it('returns all undefined percents when maxContextTokens is 0', () => {
+      const result = estimateInputBreakdown(
+        inputWithBuckets({
+          systemPrompt: 100,
+          metaContext: 0,
+          skills: 0,
+          mcpTools: 0,
+          systemTools: 0,
+          messages: 0,
+          maxContextTokens: 0,
+        }),
+      );
+      expect(result.tokens.systemPrompt).toBe(100);
+      expect(result.percent).toEqual(ALL_UNDEFINED_PERCENT);
     });
-  });
 
-  describe('degenerate inputs', () => {
-    it('returns all undefined percents when total tokens is 0', () => {
+    it('returns all undefined percents when total tokens is 0 (window still set)', () => {
       const result = estimateInputBreakdown(
         inputWithBuckets({
           systemPrompt: 0,
@@ -286,6 +359,7 @@ describe('estimateInputBreakdown', () => {
           mcpTools: 0,
           systemTools: 0,
           messages: 0,
+          maxContextTokens: 100_000,
         }),
       );
       expect(result.tokens).toEqual({
@@ -296,24 +370,19 @@ describe('estimateInputBreakdown', () => {
         systemTools: 0,
         messages: 0,
       });
-      expect(result.percent).toEqual({
-        systemPrompt: undefined,
-        metaContext: undefined,
-        skills: undefined,
-        mcpTools: undefined,
-        systemTools: undefined,
-        messages: undefined,
-      });
+      // Window exists, so percent is computed: every bucket is 0.0%.
+      expect(result.percent.systemPrompt).toBe(0.0);
+      expect(result.percent.messages).toBe(0.0);
     });
 
-    it('handles completely empty input (no blocks, no tools, no messages)', () => {
+    it('handles completely empty input with no window', () => {
       const result = estimateInputBreakdown({
         promptPlan: { blocks: [] },
         tools: [],
         messages: [],
       });
-      expect(sumPercents(result)).toBe(0);
       expect(Object.values(result.tokens).every((v) => v === 0)).toBe(true);
+      expect(result.percent).toEqual(ALL_UNDEFINED_PERCENT);
     });
   });
 });

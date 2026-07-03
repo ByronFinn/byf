@@ -68,10 +68,12 @@ export function estimateTokensForContentPart(part: ContentPart): number {
  * Estimated input-token distribution across six mutually exclusive categories.
  *
  * `tokens` are raw character-heuristic estimates (see {@link estimateTokens}).
- * `percent` are the same six values normalized via the largest-remainder method
- * so they sum strictly to `100.0` (one decimal place). When the six token
- * values total zero, every `percent` field is `undefined` — a signal to render
- * the breakdown with absolute values only.
+ * `percent` is each category expressed as a share of the model's context
+ * window — `tokens[field] / maxContextTokens * 100`, rounded to one decimal.
+ * The six rows do **not** sum to 100% (they sum to the share of the window
+ * actually consumed by estimated input). When `maxContextTokens` is unavailable
+ * (no model configured, or zero), every `percent` field is `undefined` — a
+ * signal to render the breakdown with absolute values only.
  *
  * The mapping from prompt-plan blocks is: `base` → systemPrompt,
  * `projectInstructions` + `workingEnvironment` → metaContext,
@@ -98,7 +100,7 @@ export interface InputTokenBreakdown {
   };
 }
 
-/** The six breakdown buckets in a fixed order, used for normalization. */
+/** The six breakdown buckets in a fixed order. */
 const BREAKDOWN_FIELDS = [
   'systemPrompt',
   'metaContext',
@@ -109,19 +111,16 @@ const BREAKDOWN_FIELDS = [
 ] as const;
 
 /**
- * Largest-remainder method: distribute `1000` tenths-of-a-percent across six
- * items so the result sums to exactly `1000` (= 100.0%). Each item gets at
- * least `floor(share * 10)` tenths; the residual tenths are handed out to the
- * items with the largest remainders (ties broken by fixed field order, then by
- * larger raw token count) so the allocation is deterministic.
- *
- * Returns `undefined` for every field when `total` is zero.
+ * Express each bucket as a share of the context window, rounded to one
+ * decimal place. Returns `undefined` for every field when `maxContextTokens`
+ * is missing or non-positive — i.e. the percentage cannot be meaningfully
+ * computed without a window denominator.
  */
-function normalizePercent(
-  rawTokens: Record<(typeof BREAKDOWN_FIELDS)[number], number>,
-  total: number,
+function percentOfWindow(
+  tokens: Record<(typeof BREAKDOWN_FIELDS)[number], number>,
+  maxContextTokens: number | undefined,
 ): InputTokenBreakdown['percent'] {
-  if (total === 0) {
+  if (maxContextTokens === undefined || maxContextTokens <= 0) {
     return {
       systemPrompt: undefined,
       metaContext: undefined,
@@ -132,48 +131,32 @@ function normalizePercent(
     };
   }
 
-  // scaled = (item/total) * 100 * 10, i.e. tenths of a percent.
-  const scaled = BREAKDOWN_FIELDS.map((field) => (rawTokens[field] / total) * 1000);
-  const lower = scaled.map((value) => Math.floor(value));
-  const remainder = scaled.map((value, i) => value - lower[i]!);
-
-  let deficit = 1000 - lower.reduce((sum, value) => sum + value, 0);
-
-  // Indexes of items still eligible for a +1 tenths, sorted by remainder desc,
-  // with ties broken by fixed field order (earlier field wins). The sort is
-  // stable so equal remainders resolve deterministically.
-  const ranked = [...scaled.keys()].toSorted((a, b) => {
-    const byRemainder = remainder[b]! - remainder[a]!;
-    if (byRemainder !== 0) return byRemainder;
-    return a - b; // earlier field wins ties
-  });
-
-  const adjusted = [...lower];
-  for (const index of ranked) {
-    if (deficit <= 0) break;
-    adjusted[index]! += 1;
-    deficit -= 1;
-  }
-
   const result = {} as Record<(typeof BREAKDOWN_FIELDS)[number], number>;
-  adjusted.forEach((tenths, i) => {
-    result[BREAKDOWN_FIELDS[i]!] = tenths / 10;
-  });
+  for (const field of BREAKDOWN_FIELDS) {
+    // (token / window) * 100, rounded to one decimal via tenths scaling.
+    result[field] = Math.round((tokens[field] / maxContextTokens) * 1000) / 10;
+  }
   return result;
 }
 
 /**
  * Estimate how input tokens are distributed across six mutually exclusive
- * categories, with normalized percentages that sum strictly to 100%.
+ * categories, each expressed as a share of the context window.
+ *
+ * `maxContextTokens` is the denominator for the `percent` fields — pass the
+ * model's `max_context_tokens` so the percentages line up with the
+ * `Context window` row on the `/usage` panel. Omit it (or pass `0`) when no
+ * model is configured; every `percent` field is then `undefined`.
  *
  * Pure function; reuses {@link estimateTokens} / {@link estimateTokensForTools}
  * / {@link estimateTokensForMessages}. See {@link InputTokenBreakdown} for the
- * block-name → bucket mapping and the normalization guarantee.
+ * block-name → bucket mapping.
  */
 export function estimateInputBreakdown(input: {
   readonly promptPlan: PromptPlan;
   readonly tools: readonly Tool[];
   readonly messages: readonly Message[];
+  readonly maxContextTokens?: number;
 }): InputTokenBreakdown {
   const tokens = {
     systemPrompt: 0,
@@ -216,15 +199,7 @@ export function estimateInputBreakdown(input: {
 
   tokens.messages = estimateTokensForMessages(input.messages);
 
-  const total =
-    tokens.systemPrompt +
-    tokens.metaContext +
-    tokens.skills +
-    tokens.mcpTools +
-    tokens.systemTools +
-    tokens.messages;
-
-  const percent = normalizePercent(tokens, total);
+  const percent = percentOfWindow(tokens, input.maxContextTokens);
 
   return { tokens, percent };
 }

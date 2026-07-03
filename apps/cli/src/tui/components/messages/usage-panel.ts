@@ -167,13 +167,13 @@ const BREAKDOWN_ROWS: ReadonlyArray<{
 ];
 
 /**
- * Build the `Context breakdown (estimated)` section: six rows showing each
- * bucket's normalized percentage (right-aligned) alongside its estimated
- * absolute token count prefixed with `~`, then an `Average cache hit rate`
- * line when cache data is available.
+ * Build the `Context breakdown (estimated, current)` section: six rows showing
+ * each bucket's share of the context window (right-aligned, one decimal)
+ * alongside its estimated absolute token count prefixed with `~`.
  *
  * The percentage is dropped (degradation) when `percent` is undefined — i.e.
- * the six token values total zero — leaving absolute-only rows.
+ * no model is configured so `max_context_tokens` is unavailable — leaving
+ * absolute-only rows.
  */
 function buildBreakdownSection(
   usage: SessionUsage | undefined,
@@ -185,7 +185,7 @@ function buildBreakdownSection(
   if (breakdown === undefined) return [];
 
   const labelWidth = Math.max(...BREAKDOWN_ROWS.map((r) => r.label.length));
-  const out: string[] = [accent('Context breakdown (estimated)')];
+  const out: string[] = [accent('Context breakdown (estimated, current)')];
   for (const row of BREAKDOWN_ROWS) {
     const label = muted(row.label.padEnd(labelWidth, ' '));
     const tokens = breakdown.tokens[row.field];
@@ -198,12 +198,27 @@ function buildBreakdownSection(
       out.push(`  ${label}  ${pct}  ${abs}`);
     }
   }
-
-  const hitRateStr = formatCacheHitRate(usage?.cacheHitRate);
-  if (hitRateStr !== undefined) {
-    out.push(`  Average cache hit rate  ${value(hitRateStr)}`);
-  }
   return out;
+}
+
+/**
+ * Build the `Cache hit rate (cumulative)` section: the session-average cache
+ * hit rate, computed from cumulative token usage across all turns. Distinct
+ * from the footer's instantaneous per-turn `cache: NN%` — the average lags
+ * because early cold-start turns (cache creation, near-zero reads) drag it
+ * below the steady-state rate.
+ */
+function buildCacheHitRateSection(
+  usage: SessionUsage | undefined,
+  accent: Colorize,
+  value: Colorize,
+): string[] {
+  const hitRateStr = formatCacheHitRate(usage?.cacheHitRate);
+  if (hitRateStr === undefined) return [];
+  return [
+    accent('Cache hit rate (cumulative)'),
+    `  Average across all turns  ${value(hitRateStr)}`,
+  ];
 }
 
 export function buildManagedUsageReportLines(options: ManagedUsageReportLineOptions): string[] {
@@ -236,7 +251,7 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     sev === 'danger' ? colors.error : sev === 'warn' ? colors.warning : colors.success;
 
   const lines: string[] = [
-    accent('Session usage'),
+    accent('Session usage (cumulative)'),
     ...buildSessionUsageSection(
       options.sessionUsage,
       options.sessionUsageError,
@@ -252,7 +267,7 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     const pct = `${(ratio * 100).toFixed(1)}%`;
     const barColoured = chalk.hex(severityHex(ratioSeverity(ratio)))(bar);
     lines.push('');
-    lines.push(accent('Context window'));
+    lines.push(accent('Context window (current)'));
     lines.push(
       `  ${barColoured}  ${value(pct.padStart(6, ' '))}  ` +
         muted(
@@ -267,6 +282,12 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
   if (breakdownSection.length > 0) {
     lines.push('');
     lines.push(...breakdownSection);
+  }
+
+  const cacheSection = buildCacheHitRateSection(options.sessionUsage, accent, value);
+  if (cacheSection.length > 0) {
+    lines.push('');
+    lines.push(...cacheSection);
   }
 
   const managedSection = buildManagedUsageReportLines({

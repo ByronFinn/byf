@@ -523,6 +523,7 @@ export class Agent {
           promptPlan,
           tools: this.tools.loopTools,
           messages: this.context.getMessages(),
+          maxContextTokens: this.config.modelCapabilities.max_context_tokens,
         });
         return { ...usageData, inputBreakdown };
       },
