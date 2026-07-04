@@ -97,6 +97,7 @@ export class AgentRecords {
       tools: 'tools',
       usage: 'usage',
       full_compaction: 'fullCompaction',
+      goal: 'goal',
     };
 
     return mapping[prefix] ?? null;

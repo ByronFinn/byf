@@ -108,6 +108,9 @@ export class SessionStore {
         await truncateMainWireUpToMessage(targetDir, input.upToMessage);
         await cleanupOrphanedAgents(targetDir);
       }
+      // PRD-0019 R10 / ADR-0023：fork 总是清空 goal。扫描截断后的新会话 main wire，
+      // 若存在未清空的 goal.create（net 状态非 absent），追加一条 goal.clear record。
+      await appendGoalClearIfPresent(targetDir);
       const summary = await this.summaryFromDir(input.targetId, targetDir, source.workDir);
       await appendSessionIndexEntry(this.homeDir, {
         sessionId: input.targetId,
@@ -552,3 +555,43 @@ function collectToolCallIds(mainWireContent: string): Set<string> {
  * are always retained.
  */
 const SENTINEL_PARENT_TOOL_CALL_IDS: ReadonlySet<string> = new Set(['generate-agents-md']);
+
+/**
+ * PRD-0019 R10 / ADR-0023：fork 总是清空 goal。
+ *
+ * 扫描 fork 目标会话的 main wire.jsonl，统计 goal.create/goal.clear 的净状态（goal.update 不改变 absent 边界，故忽略）。若存在未被清空的 goal.create（即 fork 截断点处仍有 goal），
+ * 追加一条 `goal.clear` record，使 fork 后的会话无 goal。
+ *
+ * 无 goal.create 或已被 goal.clear 覆盖时不追加。
+ */
+async function appendGoalClearIfPresent(sessionDir: string): Promise<void> {
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  let content: string;
+  try {
+    content = await readFile(mainWirePath, 'utf-8');
+  } catch {
+    return; // 无 main wire，无需处理。
+  }
+
+  let hasActiveGoal = false;
+  for (const line of content.split('\n')) {
+    if (line.trim().length === 0) continue;
+    let record: { type?: string };
+    try {
+      record = JSON.parse(line) as { type?: string };
+    } catch {
+      continue;
+    }
+    if (record.type === 'goal.create') {
+      hasActiveGoal = true;
+    } else if (record.type === 'goal.clear') {
+      hasActiveGoal = false;
+    }
+  }
+
+  if (!hasActiveGoal) return;
+
+  const clearRecord = { type: 'goal.clear', time: Date.now() };
+  const suffix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+  await writeFile(mainWirePath, content + suffix + JSON.stringify(clearRecord) + '\n', 'utf-8');
+}

@@ -29,6 +29,9 @@ export const TYPE_TONE: Record<RecordType, PillTone> = {
   'full_compaction.cancel': 'warning',
   'full_compaction.complete': 'success',
   'background.stop': 'warning',
+  'goal.create': 'success',
+  'goal.update': 'meta',
+  'goal.clear': 'warning',
 };
 
 /** Compact human label for each record type (used in the type badge). */
@@ -57,4 +60,7 @@ export const TYPE_LABEL: Record<RecordType, string> = {
   'full_compaction.cancel': 'compact×',
   'full_compaction.complete': 'compact✓',
   'background.stop': 'bg-stop',
+  'goal.create': 'goal+',
+  'goal.update': 'goal',
+  'goal.clear': 'goal-',
 };

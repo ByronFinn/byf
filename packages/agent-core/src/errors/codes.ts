@@ -49,6 +49,14 @@ export const ErrorCodes = {
   SKILL_TYPE_UNSUPPORTED: 'skill.type_unsupported',
   SKILL_NAME_EMPTY: 'skill.name_empty',
 
+  GOAL_NOT_FOUND: 'goal.not_found',
+  GOAL_ALREADY_EXISTS: 'goal.already_exists',
+  GOAL_OBJECTIVE_EMPTY: 'goal.objective_empty',
+  GOAL_OBJECTIVE_TOO_LONG: 'goal.objective_too_long',
+  GOAL_STATUS_INVALID: 'goal.status_invalid',
+  GOAL_NOT_RESUMABLE: 'goal.not_resumable',
+  GOAL_BUDGET_INVALID: 'goal.budget_invalid',
+
   RECORDS_WRITE_FAILED: 'records.write_failed',
   COMPACTION_FAILED: 'compaction.failed',
 
@@ -290,6 +298,49 @@ export const BYF_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Provide a non-empty skill name.',
+  },
+
+  'goal.not_found': {
+    title: 'Goal not found',
+    retryable: false,
+    public: true,
+    action: 'No active goal exists for this operation; create one first.',
+  },
+  'goal.already_exists': {
+    title: 'Goal already exists',
+    retryable: false,
+    public: true,
+    action: 'Use replace:true to overwrite, or cancel the current goal first.',
+  },
+  'goal.objective_empty': {
+    title: 'Goal objective is empty',
+    retryable: false,
+    public: true,
+    action: 'Provide a non-empty objective string.',
+  },
+  'goal.objective_too_long': {
+    title: 'Goal objective is too long',
+    retryable: false,
+    public: true,
+    action: 'Shorten the objective (max 4000 characters).',
+  },
+  'goal.status_invalid': {
+    title: 'Goal status is invalid',
+    retryable: false,
+    public: true,
+    action: 'Use one of: active / complete / paused / blocked.',
+  },
+  'goal.not_resumable': {
+    title: 'Goal is not resumable',
+    retryable: false,
+    public: true,
+    action: 'Resume is only valid for a paused or blocked goal.',
+  },
+  'goal.budget_invalid': {
+    title: 'Goal budget is invalid',
+    retryable: false,
+    public: true,
+    action: 'Budget values must be non-negative integers (wall-clock must be > 0).',
   },
 
   'records.write_failed': {

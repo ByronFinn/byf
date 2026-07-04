@@ -1,6 +1,7 @@
 import type { CacheHitRate, FinishReason, TokenUsage } from '@byfriends/kosong';
 
 import type { PromptOrigin } from '../agent/context';
+import type { GoalChange, GoalSnapshot } from '../agent/goal/types';
 import type { PermissionMode } from '../agent/permission';
 import type { ByfErrorPayload } from '../errors';
 import type { SkillSource } from '../skill';
@@ -292,6 +293,20 @@ export interface BtwFailedEvent extends ByfErrorPayload {
   readonly queryId: string;
 }
 
+export interface GoalUpdatedEvent {
+  readonly type: 'goal.updated';
+  /**
+   * 当前 goal 快照；absent（cancel/complete 后 clear）为 null。
+   * snapshot 引用变化（含 null）必发此事件。
+   */
+  readonly snapshot: GoalSnapshot | null;
+  /**
+   * 生命周期变化标记。`completion` 仅 markComplete 触发（UI 据此渲染 completion 卡片）；
+   * `blocked` 仅 markBlocked 触发。普通迁移（pause/resume/cancel）不带 change。
+   */
+  readonly change?: GoalChange | undefined;
+}
+
 export type ToolListUpdatedReason = 'mcp.connected' | 'mcp.disconnected' | 'mcp.failed';
 
 export interface ToolListUpdatedEvent {
@@ -349,6 +364,7 @@ export type AgentEvent =
   | BtwStartedEvent
   | BtwDeltaEvent
   | BtwCompletedEvent
-  | BtwFailedEvent;
+  | BtwFailedEvent
+  | GoalUpdatedEvent;
 
 export type Event = AgentEvent & { agentId: string; sessionId: string };
