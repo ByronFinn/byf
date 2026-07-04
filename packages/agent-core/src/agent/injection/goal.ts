@@ -82,7 +82,7 @@ export class GoalInjector extends DynamicInjector {
 
   private renderBlocked(snapshot: GoalSnapshot): string {
     const reason = snapshot.blockedReason ?? 'unknown';
-    return `${ACTIVE_HEADER}\nObjective: ${snapshot.objective}\nThe goal is BLOCKED: ${reason}. Pause goal-directed action until the user resumes or the blocker is resolved.`;
+    return `A goal exists but is currently BLOCKED.\nObjective: ${snapshot.objective}\nBlocked reason: ${reason}. Do not take goal-directed action until the user resumes or the blocker is resolved.`;
   }
 
   private renderPaused(snapshot: GoalSnapshot): string {

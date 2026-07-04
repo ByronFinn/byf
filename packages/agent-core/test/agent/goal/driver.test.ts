@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { GOAL_CONTINUATION_ORIGIN } from '../../../src/agent/goal/constants';
-import { testAgent } from '../harness/agent';
+import { AgentTestContext, testAgent } from '../harness/agent';
+import { createScriptedGenerate } from '../harness/scripted-generate';
 
 /**
  * AC（#201 驱动）：driveGoal 续跑闭环。
@@ -34,8 +35,10 @@ describe('driveGoal (AC #201 驱动)', () => {
       if (status !== 'active') return;
       try {
         await ctx.untilTurnEnd();
-      } catch {
-        return; // 无活跃 turn，driver 已退出
+      } catch (error) {
+        // driver 已退出（无活跃 turn）——但若是其它异常需暴露，不能静默吞。
+        if (error instanceof Error && /No active turn/i.test(error.message)) return;
+        throw error;
       }
     }
   }
@@ -148,8 +151,39 @@ describe('driveGoal (AC #201 驱动)', () => {
     expect(snapshot?.blockedReason).toMatch(/iteration limit/i);
   });
 
-  // complete 路径（markComplete → driver 边界 clearInternal）端到端测试 defer 到 #202：
-  // 需 UpdateGoal 工具或 testAgent 支持响应副作用，本批 testAgent 基建不足以稳定注入。
-  // driver 的 complete 分支逻辑（clearInternal 调用）已在实现 turn/index.ts 落地，
-  // #202 接通 UpdateGoal 工具后端到端验证。
+  // —— review fix Test Major#1：complete 路径 driver 边界 clear ——
+
+  it('markComplete during driver → driver clears goal at boundary', async () => {
+    // 用自定义 generate 包装 scripted：第 1 个响应（首个 user turn）纯文本；
+    // 第 2 个响应（首个 continuation turn）返回前调 markComplete 模拟"模型完成"。
+    // testAgent 的 generate 选项闭包捕获 agentRef，构造后赋值。
+    let agentRef: ReturnType<typeof testAgent>['agent'] | undefined;
+    const scripted = createScriptedGenerate();
+    scripted.mockNextResponse(textResponse('working on it'));
+    scripted.mockNextResponse(textResponse('all done'));
+    let generateCallCount = 0;
+    const ctx = new AgentTestContext({
+      generate: (async (...args: Parameters<typeof scripted.generate>) => {
+        generateCallCount += 1;
+        // 第 2 次 generate（首个 continuation turn）返回前，模拟模型完成。
+        if (generateCallCount === 2 && agentRef) {
+          agentRef.goal.markComplete('objective met');
+        }
+        return scripted.generate(...args);
+      }) as typeof scripted.generate,
+    });
+    ctx.configure({ tools: [] });
+    agentRef = ctx.agent;
+    const { agent } = ctx;
+
+    agent.goal.createGoal('pursue this', { budget: { turnBudget: 10 } });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    await untilGoalSettled(ctx, 10);
+
+    // driver 边界读到 complete 瞬态 → clearInternal → snapshot null
+    expect(agent.goal.getSnapshot()).toBeNull();
+    // wire 含 goal.clear record（driver 边界清空落盘）
+    const records = ctx.getRecords();
+    expect(records.some((r) => r.type === 'goal.clear')).toBe(true);
+  });
 });
