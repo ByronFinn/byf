@@ -463,6 +463,7 @@ function extractCacheUsage(total: number, cached: number, output: number): Token
 - **Grilled by**: `/grill` (2026-06-17) — 修正 3 处代码矛盾（google regex 非纯重复 / outputChunks 实为 string[] / case 数 54 非 76）、推翻 reconcile 重建 entry 的错误假设（消除 H3-2 slice）、敲定 6 个开放决策（类型重命名/共享文件位置/DialogManager 状态共享/ADR 范围/PRD-ADR 边界/H4 迁移顺序）、升级 H3+H4 为正式 ADR
 - **Sliced by**: `/story` (2026-06-17) → Child Issues above（8 片：H4 三片 #132/#137/#138、H3 一片 #133、H1 两片 #134/#139、收尾两片 #135/#136）
 - **Arch reviewed by**: `/improve-architecture` (2026-06-24) — H1 行数缺口已记录且符合 PRD "诚实版" 范围；后续风险：byf-tui.ts 经 PRD-0015 fork 又回升至 4164 行（H1 完成时 3916），TUI 分解为持续部分完成态（Medium）；H3/H4 ADR 合规通过、无漂移。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `byf-tui.ts` 回升至 4289 行/170 个方法且承载 `/btw` overlay 与子代理视图，H1 风险升为 High；H3/H4 仍符合 ADR。
 
 ## Expansion Considerations
 

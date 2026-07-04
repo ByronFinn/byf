@@ -165,6 +165,8 @@
 | R3 不写 records/context | AC4         | 技术发现 8（绕开 TurnFlow）                                                     |
 | OQ2 token 独立          | —           | 用户决策（不进 /usage）                                                         |
 
+- **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `/btw` 已落地但 overlay 生命周期与事件路由继续聚合到 `byf-tui.ts`，TUI 分解回归风险为 High。
+
 **Sliced into:**
 
 - #189 — [PRD-0016] agent-core 旁路查询引擎 + SDK 接线 — getStableSnapshot/askSide/btw 事件 (AFK)

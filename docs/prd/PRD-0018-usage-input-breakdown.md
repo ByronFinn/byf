@@ -175,6 +175,7 @@ Average cache hit rate    81%
 | 百分比口径=窗口     | AC1 AC3 | 见顶部修订说明；grill 初版要求严格=100%，已废弃   |
 
 - **Debugged by**: `/debug` (2026-07-03) — 百分比分母由「六项估算之和 + 最大余数法归一化」改为 `max_context_tokens`；移除 `normalizePercent`，`estimateInputBreakdown` 增加 `maxContextTokens` 参数，`Agent.getUsage` 传入 `modelCapabilities.max_context_tokens`。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `UsageRecorder` 边界保持清晰，按需估算对齐 PRD；无阻塞发现。
 
 **Sliced into:**
 
