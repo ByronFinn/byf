@@ -161,6 +161,11 @@ export class AgentTestContext {
   private readonly options: TestAgentOptions;
   private readonly scriptedGenerate = createScriptedGenerate();
   private readonly recordHistory: AgentRecord[] = [];
+
+  /** 公开访问已记录的 wire record 序列（含 turn.prompt 等）。 */
+  getRecords(): readonly AgentRecord[] {
+    return this.recordHistory;
+  }
   private suppressWireSnapshot = false;
   private lastEventCount = 0;
   private readonly uuidLabels = new Map<string, string>();
