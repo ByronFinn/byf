@@ -226,7 +226,10 @@ export class Session {
     return this.rpc.resumeGoal({ sessionId: this.id });
   }
 
-  /** Cancel the current goal (hard stop — clears goal state immediately). */
+  /**
+   * Cancel the current goal. The driver will abort the active turn at the next
+   * boundary and clear goal state; this method returns null once cleared.
+   */
   async cancelGoal(): Promise<GoalSnapshot | null> {
     this.ensureOpen();
     return this.rpc.cancelGoal({ sessionId: this.id });

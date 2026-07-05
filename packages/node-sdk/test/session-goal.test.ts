@@ -60,9 +60,12 @@ describe('Session goal methods (PRD-0019 #203)', () => {
       await session.createGoal('first');
       await session.createGoal('second', {
         replace: true,
-        budget: { turnBudget: 3, tokenBudget: 1000 },
+        budget: { turnBudget: 3, tokenBudget: 1000, wallClockBudgetMs: 60_000 },
       });
 
+      // AC-5: replace must emit goal.clear (old) then goal.create (new) on the wire.
+      const cleared = await waitForAgentWireEvent(homeDir, session.id, 'goal.clear');
+      void cleared;
       await expect(
         waitForAgentWireEvent(
           homeDir,
@@ -73,7 +76,7 @@ describe('Session goal methods (PRD-0019 #203)', () => {
       ).resolves.toMatchObject({
         type: 'goal.create',
         objective: 'second',
-        budget: { turnBudget: 3, tokenBudget: 1000 },
+        budget: { turnBudget: 3, tokenBudget: 1000, wallClockBudgetMs: 60_000 },
       });
     } finally {
       await harness.close();
@@ -145,18 +148,38 @@ describe('Session goal methods (PRD-0019 #203)', () => {
     try {
       const session = await harness.createSession({ id: 'ses_goal_events', workDir });
 
-      const eventPromise = waitForSDKEvent(
-        session,
-        (event: Event): event is Extract<Event, { type: 'goal.updated' }> =>
-          event.type === 'goal.updated' && event.snapshot?.status === 'active',
-      );
+      const eventPromise = waitForSDKEvent(session, (event) => event.type === 'goal.updated');
 
       await session.createGoal('listen for the event');
 
-      const event = await eventPromise;
+      const event = (await eventPromise) as Extract<Event, { type: 'goal.updated' }>;
       expect(event.type).toBe('goal.updated');
       expect(event.snapshot?.status).toBe('active');
       expect(event.snapshot?.objective).toBe('listen for the event');
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('emits goal.updated with null snapshot when the goal is cancelled', async () => {
+    const homeDir = await makeTempDir(tempDirs, 'byf-sdk-goal-home-');
+    const workDir = await makeTempDir(tempDirs, 'byf-sdk-goal-work-');
+    const harness = new ByfHarness({ homeDir, identity: TEST_IDENTITY });
+
+    try {
+      const session = await harness.createSession({ id: 'ses_goal_null', workDir });
+      await session.createGoal('about to cancel');
+
+      const nullPromise = waitForSDKEvent(
+        session,
+        (event) => event.type === 'goal.updated' && event.snapshot === null,
+      );
+
+      await session.cancelGoal();
+
+      const event = (await nullPromise) as Extract<Event, { type: 'goal.updated' }>;
+      expect(event.type).toBe('goal.updated');
+      expect(event.snapshot).toBeNull();
     } finally {
       await harness.close();
     }

@@ -3,4 +3,4 @@
 '@byfriends/sdk': patch
 ---
 
-新增 goal 的 SDK 入口：Session.createGoal/getGoal/pauseGoal/resumeGoal/cancelGoal 5 方法，经 RPC 转发到 agent-core 的 Agent.goal.*。createGoal 支持 objective + replace + budget 选项；终态由模型经工具决定（无 updateGoal）；budget 经 CreateGoal 工具或 slash flag 设置（无 setGoalBudget）。GoalSnapshot/GoalStatus/GoalBudgetLimits/GoalChange/GoalUpdatedEvent 从 SDK 重新导出，宿主可订阅 goal.updated 事件流。
+新增 goal 的 SDK 入口：宿主可经会话对象发起、暂停、恢复、取消目标，并订阅目标状态变化事件；目标类型与事件已从 SDK 重新导出。本切片不含 CLI 入口。
