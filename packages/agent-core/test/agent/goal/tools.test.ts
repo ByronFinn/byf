@@ -105,7 +105,7 @@ describe('CreateGoalTool', () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.output).toContain('objective');
+    expect(result.output).toContain(ErrorCodes.GOAL_OBJECTIVE_EMPTY);
   });
 
   it('returns error result for over-long objective', async () => {
@@ -120,6 +120,7 @@ describe('CreateGoalTool', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_OBJECTIVE_TOO_LONG);
   });
 
   it('returns error result for already-existing goal without replace', async () => {
@@ -135,7 +136,7 @@ describe('CreateGoalTool', () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.output).toContain('already');
+    expect(result.output).toContain(ErrorCodes.GOAL_ALREADY_EXISTS);
   });
 
   it('rejects invalid budget (negative token_budget)', async () => {
@@ -150,6 +151,7 @@ describe('CreateGoalTool', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_BUDGET_INVALID);
   });
 
   it('schema rejects empty objective', () => {
@@ -238,6 +240,7 @@ describe('SetGoalBudgetTool (AC-4 partial)', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_NOT_FOUND);
   });
 
   it('rejects invalid budget value', async () => {
@@ -253,6 +256,7 @@ describe('SetGoalBudgetTool (AC-4 partial)', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_BUDGET_INVALID);
   });
 
   it('schema accepts partial input', () => {
@@ -301,10 +305,11 @@ describe('UpdateGoalTool (AC-1/AC-3 partial)', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_STATUS_INVALID);
   });
 
   it('blocked: enters blocked with reason (AC-3)', async () => {
-    const { agent } = makeGoalAgent();
+    const { agent, emitted } = makeGoalAgent();
     agent.goal.createGoal('obj');
     const tool = new UpdateGoalTool(agent);
 
@@ -321,6 +326,15 @@ describe('UpdateGoalTool (AC-1/AC-3 partial)', () => {
     const snapshot = agent.goal.getSnapshot();
     expect(snapshot?.status).toBe('blocked');
     expect(snapshot?.blockedReason).toBe('missing dependency');
+    // AC-3：emitted goal.updated 事件必须携带 change.kind==='blocked' + reason。
+    expect(
+      emitted.some((e) => (e as { change?: { kind?: string } }).change?.kind === 'blocked'),
+    ).toBe(true);
+    expect(
+      emitted.some(
+        (e) => (e as { change?: { reason?: string } }).change?.reason === 'missing dependency',
+      ),
+    ).toBe(true);
   });
 
   it('paused: enters paused', async () => {
@@ -384,6 +398,7 @@ describe('UpdateGoalTool (AC-1/AC-3 partial)', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(result.output).toContain(ErrorCodes.GOAL_NOT_FOUND);
   });
 
   it('schema accepts valid status enum', () => {

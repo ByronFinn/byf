@@ -420,10 +420,9 @@ export class ToolManager implements RecordRestoreHandler {
     //    read/create tools (CreateGoal, GetGoal) stay visible so the model
     //    can discover the goal subsystem and create one.
     const hasGoal = this.agent.goal.getSnapshot() !== null;
-    const goalMutationHidden = new Set<string>(['SetGoalBudget', 'UpdateGoal']);
     const builtinNames = [...this.builtinTools.keys()]
       .filter((name) => this.enabledTools.has(name))
-      .filter((name) => hasGoal || !goalMutationHidden.has(name))
+      .filter((name) => hasGoal || !b.GOAL_MUTATION_TOOL_NAMES.has(name))
       .toSorted();
 
     // 2. User tools: alphabetically sorted

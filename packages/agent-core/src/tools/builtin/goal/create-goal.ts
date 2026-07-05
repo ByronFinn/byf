@@ -14,9 +14,22 @@ import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ByfError } from '../../../errors';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './create-goal.md';
+
+/**
+ * Names of the goal tools that mutate an existing goal. Used by the
+ * ToolManager loopTools gate to hide these tools when no goal is present
+ * (PRD-0019 R7). Hoisted to module scope so the gate does not allocate a
+ * fresh Set on every loopTools read, and so a rename breaks compilation
+ * rather than silently desyncing the gate from the registration list.
+ */
+export const GOAL_MUTATION_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'SetGoalBudget',
+  'UpdateGoal',
+]);
 
 const BudgetSchema = z
   .object({
@@ -65,8 +78,6 @@ export const CreateGoalInputSchema: z.ZodType<CreateGoalInput> = z.object({
     .describe('If true, discard any current goal and start fresh. Default false.'),
   budget: BudgetSchema,
 });
-
-const MUTATION_TOOL_NAMES = new Set(['SetGoalBudget', 'UpdateGoal']);
 
 export class CreateGoalTool implements BuiltinTool<CreateGoalInput> {
   readonly name = 'CreateGoal' as const;
@@ -120,11 +131,10 @@ export function normalizeBudget(budget: CreateGoalInput['budget']):
 /** Shared error → tool result helper for the four goal tools. */
 export function toErrorResult(error: unknown): ExecutableToolResult {
   const message = error instanceof Error ? error.message : String(error);
+  // Surface the ByfError code in the output so callers (and tests) can
+  // discriminate failures by code identity, not just message substring.
+  if (error instanceof ByfError) {
+    return { isError: true, output: `${error.code}: ${message}` };
+  }
   return { isError: true, output: message };
 }
-
-/**
- * Names of the goal tools that mutate an existing goal. Used by the
- * ToolManager loopTools gate to hide these tools when no goal is present.
- */
-export const GOAL_MUTATION_TOOL_NAMES = MUTATION_TOOL_NAMES;

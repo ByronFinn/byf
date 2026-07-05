@@ -11,7 +11,6 @@ import type { Agent } from '../../../agent';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
-import { toErrorResult } from './create-goal';
 import DESCRIPTION from './get-goal.md';
 import { renderStatusLine } from './outcome-prompts';
 
@@ -39,6 +38,3 @@ export class GetGoalTool implements BuiltinTool<GetGoalInput> {
     };
   }
 }
-
-// Re-export so consumers can `import { toErrorResult } from './get-goal'` if needed.
-export { toErrorResult };
