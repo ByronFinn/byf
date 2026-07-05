@@ -36,6 +36,7 @@ import { abortable } from '../../utils/abort';
 import { resolveCompletionBudget } from '../../utils/completion-budget';
 import { applyCacheStaking } from '../cache-staking';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
+import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
@@ -72,6 +73,12 @@ export class TurnFlow implements RecordRestoreHandler {
   private readonly interruptedTelemetryTurnIds = new Set<number>();
   private readonly stepFailureByTurn = new Map<number, LoopTurnInterruptedEvent>();
   private currentStep = 0;
+  /**
+   * True while the goal driver loop is running continuation turns. Prevents
+   * turnWorker from re-entering driveGoal on each continuation turn's completion
+   * — the driver itself controls the loop.
+   */
+  private goalDriverActive = false;
 
   constructor(protected readonly agent: Agent) {}
 
@@ -296,10 +303,107 @@ export class TurnFlow implements RecordRestoreHandler {
     this.currentStepByTurn.delete(turnId);
     this.interruptedTelemetryTurnIds.delete(turnId);
     this.stepFailureByTurn.delete(turnId);
-    return {
+    const result: TurnEndResult = {
       event: ended,
       stopReason: completedStopReason,
     };
+
+    // PRD-0019 R5：首个 user turn 结束后，若 goal 处于 active，goal driver 接管续跑。
+    // continuation turn（goalDriverActive=true）不重新进入——driver 自己控制循环。
+    // fork/replay 降级路径不触发（goal 非 active）。
+    if (
+      !this.goalDriverActive &&
+      origin.kind === 'user' &&
+      ended.reason === 'completed' &&
+      this.agent.goal.getSnapshot()?.status === 'active'
+    ) {
+      await this.driveGoal();
+    }
+
+    return result;
+  }
+
+  /**
+   * Goal driver loop (PRD-0019 R5)。在首个 user turn 结束后接管，连续发起
+   * continuation turn 直到 goal 终止（complete/blocked/cancelled/failed/超预算）。
+   *
+   * 每次迭代：
+   * 1. 检查预算——超了 markBlocked 并退出。
+   * 2. incrementTurn、发起 continuation turn（origin=goal_continuation）。
+   * 3. 按结束 reason 决定续跑/停止：
+   *    - cancelled → pauseOnInterrupt（goal 进 paused）。
+   *    - failed → markPaused。
+   *    - complete（瞬态）→ clearInternal（driver 边界 clear，关键技术发现 #7）。
+   *    - 其它非 active → 退出。
+   *    - 否则 → 下一轮。
+   */
+  private async driveGoal(): Promise<void> {
+    this.goalDriverActive = true;
+    try {
+      // 首个 user turn 计入 turnBudget（PRD R4：含首个 turn + 每个 continuation）。
+      this.agent.goal.incrementTurn();
+      // P3 兜底：即使三类 budget 全未设，driver 也不会无限续跑。
+      // 上限取保守值；正常 goal 会因 complete/blocked/cancelled 先停。
+      const MAX_DRIVER_ITERATIONS = 50;
+      for (let iteration = 0; iteration < MAX_DRIVER_ITERATIONS; iteration++) {
+        const snapshot = this.agent.goal.getSnapshot();
+        if (snapshot === null || snapshot.status !== 'active') return;
+
+        // 预算检查：达上限立即 markBlocked 退出。
+        const report = this.agent.goal.computeBudgetReport();
+        if (report.overBudget) {
+          this.agent.goal.markBlocked('A configured budget was reached');
+          return;
+        }
+
+        // P1：记录本轮 turn 开始前的全局 token 基线，用于结束后算本轮增量。
+        const usageBefore = this.agent.usage.data().total;
+        const baselineInput = usageBefore ? inputTotal(usageBefore) : 0;
+        const baselineOutput = usageBefore?.output ?? 0;
+
+        // 计入一轮 continuation。
+        this.agent.goal.incrementTurn();
+
+        // 发起 continuation turn（system_trigger origin，不触发 UserPromptSubmit hook）。
+        // 经 prompt() 而非 launch()，确保 turn.prompt record 进 wire（PRD：continuation 进 wire）。
+        this.prompt([{ type: 'text', text: GOAL_CONTINUATION_PROMPT }], GOAL_CONTINUATION_ORIGIN);
+        const result = await this.waitForCurrentTurn();
+
+        // P1：把本轮 turn 消耗的 token 累加进 goal（PRD R4：driver 每轮累加本轮 token；
+        // 含该轮内的 compaction 摘要 token，AC-9）。
+        const usageAfter = this.agent.usage.data().total;
+        const turnInput = usageAfter ? inputTotal(usageAfter) - baselineInput : 0;
+        const turnOutput = (usageAfter?.output ?? 0) - baselineOutput;
+        if (turnInput > 0 || turnOutput > 0) {
+          this.agent.goal.addTokenUsage({ input: turnInput, output: turnOutput });
+        }
+
+        // driver 边界处理结束 reason。
+        const reason = result.event.reason;
+        if (reason === 'cancelled') {
+          // Esc/abort 路径——goal 进 paused。
+          this.agent.goal.markPaused('paused after interrupt');
+          return;
+        }
+        if (reason === 'failed') {
+          this.agent.goal.markPaused('paused after turn failure');
+          return;
+        }
+        // complete 瞬态：driver 边界 clear（关键技术发现 #7）。
+        const after = this.agent.goal.getSnapshot();
+        if (after?.status === 'complete') {
+          this.agent.goal.clearInternal();
+          return;
+        }
+        // blocked / null / 其它非 active → 退出。
+        if (after === null || after.status !== 'active') return;
+        // 否则继续下一轮。
+      }
+      // P3 兜底：迭代达上限仍未终止，降级为 blocked。
+      this.agent.goal.markBlocked('Goal driver iteration limit reached');
+    } finally {
+      this.goalDriverActive = false;
+    }
   }
 
   private async applyUserPromptHook(

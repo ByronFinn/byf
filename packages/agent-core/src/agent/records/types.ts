@@ -5,6 +5,7 @@ import type { ToolStoreUpdate } from '../../tools/store';
 import type { CompactionBeginData, CompactionResult } from '../compaction';
 import type { AgentConfigUpdateData } from '../config';
 import type { ContextMessage, PromptOrigin } from '../context';
+import type { GoalSnapshot } from '../goal/types';
 import type { PermissionApprovalResultRecord, PermissionMode } from '../permission';
 import type { UserToolRegistration } from '../tool';
 import type { UsageRecordScope } from '../usage';
@@ -74,6 +75,19 @@ export interface AgentRecordEvents {
   };
 
   'tools.update_store': ToolStoreUpdate;
+
+  'goal.create': {
+    objective: string;
+    /** 初始预算上限（来自 createGoal options 或 slash flag）。 */
+    budget?: GoalSnapshot['budget'] | undefined;
+    /** 创建时的墙钟时间戳（ms），replay 据此重建 createdAt。 */
+    createdAt: number;
+  };
+  'goal.update': {
+    /** 完整 snapshot 落盘——replay 时据此重建。 */
+    snapshot: GoalSnapshot;
+  };
+  'goal.clear': {};
 }
 
 export type AgentRecord = {

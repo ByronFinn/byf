@@ -1,5 +1,6 @@
 import type { Agent } from '..';
 import type { EphemeralInjection } from '../context/projector';
+import { GoalInjector } from './goal';
 import type { DynamicInjector } from './injector';
 import { PermissionModeInjector } from './permission-mode';
 import { TimestampInjector } from './timestamp';
@@ -8,7 +9,11 @@ export class InjectionManager {
   private readonly injectors: DynamicInjector[];
 
   constructor(protected readonly agent: Agent) {
-    this.injectors = [new PermissionModeInjector(agent), new TimestampInjector(agent)];
+    this.injectors = [
+      new PermissionModeInjector(agent),
+      new TimestampInjector(agent),
+      new GoalInjector(agent),
+    ];
   }
 
   async inject(): Promise<void> {

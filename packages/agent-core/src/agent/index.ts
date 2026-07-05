@@ -43,6 +43,7 @@ import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
+import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -137,6 +138,7 @@ export class Agent {
   readonly turn: TurnFlow;
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
+  readonly goal: GoalMode;
 
   readonly usage: UsageRecorder;
   readonly tools: ToolManager;
@@ -185,6 +187,7 @@ export class Agent {
     this.turn = new TurnFlow(this);
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, config.permission);
+    this.goal = new GoalMode(this);
 
     this.usage = new UsageRecorder(this);
     this.tools = new ToolManager(this);
@@ -203,6 +206,7 @@ export class Agent {
       permission: this.permission,
       tools: this.tools,
       fullCompaction: this.fullCompaction,
+      goal: this.goal,
     });
   }
 
@@ -400,6 +404,8 @@ export class Agent {
   async resume(): Promise<{ warning?: string; error?: Error }> {
     try {
       const result = await this.records.replay();
+      // goal 在 replay 后修正状态（active→paused 降级、清零 wall-clock 锚点）。
+      this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       this.turn.finishResume();
