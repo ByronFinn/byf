@@ -48,6 +48,7 @@ import type {
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
+  CreateGoalPayload,
   CreateSessionPayload,
   EmptyPayload,
   ExportSessionPayload,
@@ -448,6 +449,26 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   setPermission({ sessionId, ...payload }: SessionAgentPayload<SetPermissionPayload>) {
     return this.sessionApi(sessionId).setPermission(payload);
+  }
+
+  createGoal({ sessionId, ...payload }: SessionAgentPayload<CreateGoalPayload>) {
+    return this.sessionApi(sessionId).createGoal(payload);
+  }
+
+  getGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getGoal(payload);
+  }
+
+  pauseGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).pauseGoal(payload);
+  }
+
+  resumeGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).resumeGoal(payload);
+  }
+
+  cancelGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).cancelGoal(payload);
   }
 
   getModel({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
