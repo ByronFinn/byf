@@ -158,6 +158,25 @@ export class GoalMode implements RecordRestoreHandler {
     this.completeReason = undefined;
   }
 
+  /**
+   * 部分更新 budget（PRD-0019 #202 SetGoalBudget 工具用）。
+   * 未传字段保留原值（不清零）。校验同 createGoal。
+   * 不改 status / objective / usage，写 goal.update + emit。
+   */
+  setBudget(patch: GoalBudgetLimits): void {
+    const current = this.requireGoal();
+    validateBudget(patch);
+    const merged: GoalBudgetLimits = {
+      turnBudget: patch.turnBudget ?? current.budget.turnBudget,
+      tokenBudget: patch.tokenBudget ?? current.budget.tokenBudget,
+      wallClockBudgetMs: patch.wallClockBudgetMs ?? current.budget.wallClockBudgetMs,
+    };
+    const next: GoalSnapshot = { ...current, budget: merged };
+    this.snapshot = next;
+    this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+    this.emitGoalUpdated(next);
+  }
+
   // —— 预算（#200 仅占位计数；详细计算在 AC-5 完善） ——
 
   incrementTurn(): void {

@@ -384,6 +384,13 @@ export class ToolManager implements RecordRestoreHandler {
               log: this.agent.log,
             },
           ),
+        // PRD-0019 R7: goal tools only registered on the main agent. Sub and
+        // independent agents never see them — neither in the schema nor in
+        // loopTools — so they cannot start or steer an autonomous goal.
+        this.agent.type === 'main' && new b.CreateGoalTool(this.agent),
+        this.agent.type === 'main' && new b.GetGoalTool(this.agent),
+        this.agent.type === 'main' && new b.SetGoalBudgetTool(this.agent),
+        this.agent.type === 'main' && new b.UpdateGoalTool(this.agent),
         webSearcher && new b.WebSearchTool(webSearcher),
         urlFetcher && new b.FetchURLTool(urlFetcher),
       ]
@@ -407,9 +414,15 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   get loopTools(): readonly ExecutableTool[] {
-    // 1. Builtin tools first: stable, never change during session (alphabetical)
+    // 1. Builtin tools first: stable, never change during session (alphabetical).
+    //    PRD-0019 R7: goal mutation tools (SetGoalBudget / UpdateGoal) are
+    //    hidden when no goal is present — they have nothing to act on. The
+    //    read/create tools (CreateGoal, GetGoal) stay visible so the model
+    //    can discover the goal subsystem and create one.
+    const hasGoal = this.agent.goal.getSnapshot() !== null;
     const builtinNames = [...this.builtinTools.keys()]
       .filter((name) => this.enabledTools.has(name))
+      .filter((name) => hasGoal || !b.GOAL_MUTATION_TOOL_NAMES.has(name))
       .toSorted();
 
     // 2. User tools: alphabetically sorted
