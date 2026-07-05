@@ -2,6 +2,7 @@ import type { ContentPart } from '@byfriends/kosong';
 
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
+import type { GoalBudgetLimits, GoalSnapshot } from '#/agent/goal';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
@@ -132,6 +133,15 @@ export interface SetThinkingPayload {
 export interface SetPermissionPayload {
   readonly mode: PermissionMode;
 }
+export interface CreateGoalPayload {
+  readonly objective: string;
+  readonly replace?: boolean;
+  readonly budget?: GoalBudgetLimits;
+}
+export type GetGoalResult = GoalSnapshot | null;
+export type PauseGoalResult = GoalSnapshot | null;
+export type ResumeGoalResult = GoalSnapshot | null;
+export type CancelGoalResult = GoalSnapshot | null;
 export interface SetModelPayload {
   readonly model: string;
 }
@@ -241,6 +251,11 @@ export interface AgentAPI {
   cancel: (payload: CancelPayload) => void;
   setThinking: (payload: SetThinkingPayload) => void;
   setPermission: (payload: SetPermissionPayload) => void;
+  createGoal: (payload: CreateGoalPayload) => GetGoalResult;
+  getGoal: (payload: EmptyPayload) => GetGoalResult;
+  pauseGoal: (payload: EmptyPayload) => PauseGoalResult;
+  resumeGoal: (payload: EmptyPayload) => ResumeGoalResult;
+  cancelGoal: (payload: EmptyPayload) => CancelGoalResult;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
   beginCompaction: (payload: BeginCompactionPayload) => void;

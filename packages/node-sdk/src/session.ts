@@ -7,6 +7,8 @@ import type { SDKRpcClient } from '#/rpc';
 import type {
   BackgroundTaskInfo,
   CompactOptions,
+  GoalBudgetLimits,
+  GoalSnapshot,
   McpServerInfo,
   McpStartupMetrics,
   PermissionMode,
@@ -181,6 +183,53 @@ export class Session {
       );
     }
     await this.rpc.setPermission({ sessionId: this.id, mode });
+  }
+
+  /**
+   * Create a new autonomous goal for this session's interactive agent.
+   *
+   * The goal enters the `active` state and the driver takes over at the end
+   * of the current turn. Throws `goal.already_exists` if a goal is already
+   * present unless `options.replace` is true.
+   *
+   * Returns the resulting snapshot (or null if the goal was immediately
+   * cleared, which is not the case for create but keeps the type honest).
+   */
+  async createGoal(
+    objective: string,
+    options: { replace?: boolean; budget?: GoalBudgetLimits } = {},
+  ): Promise<GoalSnapshot | null> {
+    this.ensureOpen();
+    return this.rpc.createGoal({
+      sessionId: this.id,
+      objective,
+      replace: options.replace,
+      budget: options.budget,
+    });
+  }
+
+  /** Read the current goal snapshot, or null if no goal is present. */
+  async getGoal(): Promise<GoalSnapshot | null> {
+    this.ensureOpen();
+    return this.rpc.getGoal({ sessionId: this.id });
+  }
+
+  /** Pause the current goal (soft stop — current turn finishes, then halts). */
+  async pauseGoal(): Promise<GoalSnapshot | null> {
+    this.ensureOpen();
+    return this.rpc.pauseGoal({ sessionId: this.id });
+  }
+
+  /** Resume a paused/blocked goal back to active. */
+  async resumeGoal(): Promise<GoalSnapshot | null> {
+    this.ensureOpen();
+    return this.rpc.resumeGoal({ sessionId: this.id });
+  }
+
+  /** Cancel the current goal (hard stop — clears goal state immediately). */
+  async cancelGoal(): Promise<GoalSnapshot | null> {
+    this.ensureOpen();
+    return this.rpc.cancelGoal({ sessionId: this.id });
   }
 
   async compact(options: CompactOptions = {}): Promise<void> {

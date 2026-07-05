@@ -110,6 +110,11 @@ export type {
   BackgroundTaskTerminatedEvent,
 } from '@byfriends/agent-core';
 
+// Goal lifecycle events (PRD-0019). Emitted on every snapshot change,
+// including the null transition when a goal is cancelled or cleared at
+// the driver boundary.
+export type { GoalUpdatedEvent } from '@byfriends/agent-core';
+
 export type MaybePromise<T> = T | Promise<T>;
 
 export type ApprovalHandler = (request: ApprovalRequest) => MaybePromise<ApprovalResponse>;

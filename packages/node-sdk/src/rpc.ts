@@ -25,6 +25,8 @@ import type {
   ExportSessionResult,
   ForkSessionInput,
   GetConfigOptions,
+  GoalBudgetLimits,
+  GoalSnapshot,
   ByfConfig,
   ByfConfigPatch,
   ListSessionsOptions,
@@ -78,6 +80,12 @@ export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
 
 export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
   readonly mode: PermissionMode;
+}
+
+export interface CreateSessionGoalRpcInput extends SessionIdRpcInput {
+  readonly objective: string;
+  readonly replace?: boolean;
+  readonly budget?: GoalBudgetLimits;
 }
 
 export interface ActivateSkillRpcInput extends SessionIdRpcInput {
@@ -269,6 +277,37 @@ export class SDKRpcClient {
       agentId: this.interactiveAgentId,
       mode: input.mode,
     });
+  }
+
+  async createGoal(input: CreateSessionGoalRpcInput): Promise<GoalSnapshot | null> {
+    const rpc = await this.getRpc();
+    return rpc.createGoal({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      objective: input.objective,
+      replace: input.replace,
+      budget: input.budget,
+    });
+  }
+
+  async getGoal(input: SessionIdRpcInput): Promise<GoalSnapshot | null> {
+    const rpc = await this.getRpc();
+    return rpc.getGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
+  }
+
+  async pauseGoal(input: SessionIdRpcInput): Promise<GoalSnapshot | null> {
+    const rpc = await this.getRpc();
+    return rpc.pauseGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
+  }
+
+  async resumeGoal(input: SessionIdRpcInput): Promise<GoalSnapshot | null> {
+    const rpc = await this.getRpc();
+    return rpc.resumeGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
+  }
+
+  async cancelGoal(input: SessionIdRpcInput): Promise<GoalSnapshot | null> {
+    const rpc = await this.getRpc();
+    return rpc.cancelGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
   }
 
   async compact(input: SessionIdRpcInput & CompactOptions): Promise<void> {

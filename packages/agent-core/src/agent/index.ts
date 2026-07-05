@@ -66,6 +66,16 @@ import { UsageRecorder } from './usage';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
+export type {
+  GoalBudgetLimits,
+  GoalBudgetReport,
+  GoalChange,
+  GoalSnapshot,
+  GoalStatus,
+  GoalTurnTokens,
+  GoalUsage,
+} from './goal';
+export { GoalMode, MAX_GOAL_OBJECTIVE_LENGTH } from './goal';
 
 export type AgentType = 'main' | 'sub' | 'independent';
 
@@ -459,6 +469,26 @@ export class Agent {
         if (afkEnabled !== wasAuto) {
           this.telemetry.track('afk_toggle', { enabled: afkEnabled });
         }
+      },
+      createGoal: (payload) => {
+        this.goal.createGoal(payload.objective, {
+          replace: payload.replace,
+          budget: payload.budget,
+        });
+        return this.goal.getSnapshot();
+      },
+      getGoal: () => this.goal.getSnapshot(),
+      pauseGoal: () => {
+        this.goal.pause();
+        return this.goal.getSnapshot();
+      },
+      resumeGoal: () => {
+        this.goal.resume();
+        return this.goal.getSnapshot();
+      },
+      cancelGoal: () => {
+        this.goal.cancel();
+        return this.goal.getSnapshot();
       },
       setModel: async (payload) => {
         const previous = this.config.modelAlias;
