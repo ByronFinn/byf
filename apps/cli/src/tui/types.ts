@@ -1,5 +1,6 @@
 import type {
   BackgroundTaskInfo,
+  GoalSnapshot,
   ModelAlias,
   PermissionMode,
   ProviderConfig,
@@ -71,6 +72,8 @@ export interface AppState {
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
   sessionTitle: string | null;
+  /** Live goal snapshot (PRD-0019). null when no goal is active. */
+  goalSnapshot: GoalSnapshot | null;
 }
 
 export interface ToolCallBlockData {

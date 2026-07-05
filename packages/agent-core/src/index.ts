@@ -32,6 +32,13 @@ export type {
   PromptOrigin,
   UserPromptOrigin,
 } from './agent/context';
+// Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with the
+// CLI so live and replay produce identical output (PRD R14).
+export {
+  renderBlockedReason,
+  renderCompletionSummary,
+  renderStatusLine,
+} from './tools/builtin/goal/outcome-prompts';
 export type {
   BackgroundLifecycleEvent,
   BackgroundTaskInfo,

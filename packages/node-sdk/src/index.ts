@@ -52,6 +52,14 @@ export {
   resolveGlobalLogPath,
   resolveByfHome,
 } from '@byfriends/agent-core';
+// Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with
+// hosts so live and replay produce identical output.
+export {
+  renderBlockedReason,
+  renderCompletionSummary,
+  renderStatusLine,
+} from '@byfriends/agent-core';
+export { MAX_GOAL_OBJECTIVE_LENGTH } from '@byfriends/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-core';
 
 export * from '#/events';

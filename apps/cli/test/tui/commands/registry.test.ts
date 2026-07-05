@@ -95,6 +95,7 @@ describe('built-in slash command registry', () => {
         'editor',
         'exit',
         'fork',
+        'goal',
         'help',
         'init',
         'login',
@@ -120,6 +121,29 @@ describe('built-in slash command registry', () => {
     expect(btw).toBeDefined();
     expect(btw!.name).toBe('btw');
     expect(resolveSlashCommandAvailability(btw!, '')).toBe('always');
+  });
+
+  describe('/goal availability (PRD-0019 R1 / AC-8)', () => {
+    const goal = () => findBuiltInSlashCommand('goal')!;
+
+    it('registers the command', () => {
+      expect(goal()).toBeDefined();
+      expect(goal().name).toBe('goal');
+    });
+
+    it.each(['status', 'pause', 'cancel', ''])(
+      '/goal %s is always-available (safe during streaming)',
+      (sub) => {
+        expect(resolveSlashCommandAvailability(goal(), sub)).toBe('always');
+      },
+    );
+
+    it.each(['resume', 'replace x', 'ship the feature', '-- status it'])(
+      '/goal %s is idle-only',
+      (sub) => {
+        expect(resolveSlashCommandAvailability(goal(), sub)).toBe('idle-only');
+      },
+    );
   });
 
   it('builds autocomplete entries including aliases like /quit', () => {

@@ -53,6 +53,7 @@ import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/exte
 import { detectFdPath } from '#/utils/process/fd-detect';
 
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
+import { handleGoalCommand } from './actions/goal';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
@@ -66,6 +67,7 @@ import {
   sortSlashCommands,
   type BuiltinSlashCommandName,
   type ByfSlashCommand,
+  parseGoalCommand,
   type SkillListSession,
 } from './commands';
 import { FooterComponent } from './components/chrome/footer';
@@ -123,6 +125,7 @@ import {
   type BackgroundTaskCallbacks,
 } from './events/background-task-handler';
 import { CompactionHandler, type CompactionCallbacks } from './events/compaction-handler';
+import { GoalEventHandler } from './events/goal-event-handler';
 import {
   handleSessionError,
   handleSessionMetaChanged,
@@ -258,6 +261,7 @@ function createInitialAppState(input: ByfTuiStartupInput): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
+    goalSnapshot: null,
   };
 }
 
@@ -449,6 +453,7 @@ export class ByfTui implements DialogHost {
   private readonly dialogManager: DialogManager;
   private readonly compactionHandler: CompactionHandler;
   private readonly backgroundTaskHandler: BackgroundTaskHandler;
+  private readonly goalEventHandler: GoalEventHandler;
   /** Active `/btw` side-query overlay, or undefined when none is open. */
   private btwOverlay:
     | {
@@ -499,6 +504,15 @@ export class ByfTui implements DialogHost {
       this.state,
       this.backgroundTaskCallbacks(),
     );
+    this.goalEventHandler = new GoalEventHandler({
+      // PRD-0019 #204: forward snapshots to the UI layer. The actual footer
+      // badge / completion card / transcript marker rendering lands in #205;
+      // for now we stash the latest snapshot on appState so the UI can pick
+      // it up when ready.
+      onGoalSnapshotChange: (snapshot) => {
+        this.setAppState({ goalSnapshot: snapshot });
+      },
+    });
 
     // Register approval / question UI controllers before SDK handlers.
     this.reverseRpcDisposers.push(
@@ -1441,6 +1455,9 @@ export class ByfTui implements DialogHost {
       case 'compact':
         await this.handleCompactCommand(args);
         return;
+      case 'goal':
+        await this.handleGoalCommand(args);
+        return;
       case 'init':
         await this.handleInitCommand();
         return;
@@ -2172,6 +2189,9 @@ export class ByfTui implements DialogHost {
       case 'background.task.updated':
       case 'background.task.terminated':
         this.backgroundTaskHandler.handleEvent(event);
+        break;
+      case 'goal.updated':
+        this.goalEventHandler.handleEvent(event);
         break;
       case 'mcp.server.status':
         this.renderMcpServerStatus(event.server);
@@ -4127,6 +4147,33 @@ export class ByfTui implements DialogHost {
 
     const customInstruction = args.trim() || undefined;
     await session.compact({ instruction: customInstruction });
+  }
+
+  // =========================================================================
+  // /goal — autonomous goal mode (PRD-0019 #204)
+  // =========================================================================
+
+  private async handleGoalCommand(args: string): Promise<void> {
+    const session = this.session;
+    if (session === undefined) {
+      this.showError(NO_ACTIVE_SESSION_MESSAGE);
+      return;
+    }
+
+    const command = parseGoalCommand(args);
+    await handleGoalCommand(session, command, {
+      showStatus: (msg) => this.showStatus(msg),
+      showError: (msg) => this.showError(msg),
+      appendTranscriptLine: (msg) => {
+        this.appendTranscriptEntry({
+          id: nextTranscriptId(),
+          kind: 'status',
+          renderMode: 'plain',
+          content: msg,
+        });
+      },
+    });
+    this.state.ui.requestRender();
   }
 
   // Handles the /init command.

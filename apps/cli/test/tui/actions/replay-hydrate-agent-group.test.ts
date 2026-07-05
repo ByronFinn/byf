@@ -31,6 +31,7 @@ function makeAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
+    goalSnapshot: null,
   };
 }
 
