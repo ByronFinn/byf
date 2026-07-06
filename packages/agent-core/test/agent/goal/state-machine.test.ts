@@ -123,7 +123,9 @@ describe('GoalMode state machine (AC-1)', () => {
   it('createGoal on existing goal throws GOAL_ALREADY_EXISTS', () => {
     const { agent } = makeGoalAgent();
     agent.goal.createGoal('first');
-    expectByfError(() => agent.goal.createGoal('second'), ErrorCodes.GOAL_ALREADY_EXISTS);
+    expectByfError(() => {
+      agent.goal.createGoal('second');
+    }, ErrorCodes.GOAL_ALREADY_EXISTS);
   });
 
   it('createGoal with replace:true overwrites; wire = goal.clear → goal.create; no completion event', () => {
@@ -142,62 +144,68 @@ describe('GoalMode state machine (AC-1)', () => {
 
   it('resume with no goal throws GOAL_NOT_FOUND', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(() => agent.goal.resume(), ErrorCodes.GOAL_NOT_FOUND);
+    expectByfError(() => {
+      agent.goal.resume();
+    }, ErrorCodes.GOAL_NOT_FOUND);
   });
 
   it('resume on active goal throws GOAL_NOT_RESUMABLE', () => {
     const { agent } = makeGoalAgent();
     agent.goal.createGoal('obj');
-    expectByfError(() => agent.goal.resume(), ErrorCodes.GOAL_NOT_RESUMABLE);
+    expectByfError(() => {
+      agent.goal.resume();
+    }, ErrorCodes.GOAL_NOT_RESUMABLE);
   });
 
   it('pause with no goal throws GOAL_NOT_FOUND', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(() => agent.goal.pause(), ErrorCodes.GOAL_NOT_FOUND);
+    expectByfError(() => {
+      agent.goal.pause();
+    }, ErrorCodes.GOAL_NOT_FOUND);
   });
 
   it('cancel with no goal throws GOAL_NOT_FOUND', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(() => agent.goal.cancel(), ErrorCodes.GOAL_NOT_FOUND);
+    expectByfError(() => {
+      agent.goal.cancel();
+    }, ErrorCodes.GOAL_NOT_FOUND);
   });
 
   it('createGoal with empty objective throws GOAL_OBJECTIVE_EMPTY', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(() => agent.goal.createGoal('   '), ErrorCodes.GOAL_OBJECTIVE_EMPTY);
+    expectByfError(() => {
+      agent.goal.createGoal('   ');
+    }, ErrorCodes.GOAL_OBJECTIVE_EMPTY);
   });
 
   it('createGoal with too-long objective throws GOAL_OBJECTIVE_TOO_LONG', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(
-      () => agent.goal.createGoal('x'.repeat(4001)),
-      ErrorCodes.GOAL_OBJECTIVE_TOO_LONG,
-    );
+    expectByfError(() => {
+      agent.goal.createGoal('x'.repeat(4001));
+    }, ErrorCodes.GOAL_OBJECTIVE_TOO_LONG);
   });
 
   // —— review fix：补 BUDGET_INVALID / STATUS_INVALID / markPaused ——
 
   it('createGoal with negative turnBudget throws GOAL_BUDGET_INVALID', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(
-      () => agent.goal.createGoal('obj', { budget: { turnBudget: -1 } }),
-      ErrorCodes.GOAL_BUDGET_INVALID,
-    );
+    expectByfError(() => {
+      agent.goal.createGoal('obj', { budget: { turnBudget: -1 } });
+    }, ErrorCodes.GOAL_BUDGET_INVALID);
   });
 
   it('createGoal with non-integer tokenBudget throws GOAL_BUDGET_INVALID', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(
-      () => agent.goal.createGoal('obj', { budget: { tokenBudget: 1.5 } }),
-      ErrorCodes.GOAL_BUDGET_INVALID,
-    );
+    expectByfError(() => {
+      agent.goal.createGoal('obj', { budget: { tokenBudget: 1.5 } });
+    }, ErrorCodes.GOAL_BUDGET_INVALID);
   });
 
   it('createGoal with zero wallClockBudgetMs throws GOAL_BUDGET_INVALID', () => {
     const { agent } = makeGoalAgent();
-    expectByfError(
-      () => agent.goal.createGoal('obj', { budget: { wallClockBudgetMs: 0 } }),
-      ErrorCodes.GOAL_BUDGET_INVALID,
-    );
+    expectByfError(() => {
+      agent.goal.createGoal('obj', { budget: { wallClockBudgetMs: 0 } });
+    }, ErrorCodes.GOAL_BUDGET_INVALID);
   });
 
   it('createGoal with valid budget succeeds', () => {
@@ -216,14 +224,18 @@ describe('GoalMode state machine (AC-1)', () => {
     const { agent } = makeGoalAgent();
     agent.goal.createGoal('obj');
     agent.goal.pause();
-    expectByfError(() => agent.goal.markComplete(), ErrorCodes.GOAL_STATUS_INVALID);
+    expectByfError(() => {
+      agent.goal.markComplete();
+    }, ErrorCodes.GOAL_STATUS_INVALID);
   });
 
   it('markComplete on blocked goal throws GOAL_STATUS_INVALID', () => {
     const { agent } = makeGoalAgent();
     agent.goal.createGoal('obj');
     agent.goal.markBlocked('reason');
-    expectByfError(() => agent.goal.markComplete(), ErrorCodes.GOAL_STATUS_INVALID);
+    expectByfError(() => {
+      agent.goal.markComplete();
+    }, ErrorCodes.GOAL_STATUS_INVALID);
   });
 
   it('markPaused sets paused with given reason (driver interrupt path)', () => {
