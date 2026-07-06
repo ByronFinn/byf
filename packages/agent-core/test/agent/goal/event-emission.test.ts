@@ -86,8 +86,7 @@ describe('GoalUpdatedEvent emission (AC-4)', () => {
     const goalRecords = persistence.records.filter((r) => r.type.startsWith('goal.'));
     expect(goalRecords.at(-1)!.type).toBe('goal.update');
     expect(
-      (goalRecords.at(-1) as { snapshot: { usage: { turns: number } } }).snapshot
-        .usage.turns,
+      (goalRecords.at(-1) as { snapshot: { usage: { turns: number } } }).snapshot.usage.turns,
     ).toBe(1);
   });
 
@@ -101,8 +100,7 @@ describe('GoalUpdatedEvent emission (AC-4)', () => {
     // 但写 record
     const goalRecords = persistence.records.filter((r) => r.type.startsWith('goal.'));
     expect(
-      (goalRecords.at(-1) as { snapshot: { usage: { tokens: number } } }).snapshot
-        .usage.tokens,
+      (goalRecords.at(-1) as { snapshot: { usage: { tokens: number } } }).snapshot.usage.tokens,
     ).toBe(150);
   });
 });

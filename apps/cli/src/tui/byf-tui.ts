@@ -4195,6 +4195,13 @@ export class ByfTui implements DialogHost {
         });
       },
     });
+    // PRD-0019 R5：slash 入口创建 goal 后必须发起首个 user turn，turnWorker 在
+    // 该 turn 结束时读到 active 才会进入 driveGoal 续跑循环（PRD 数据流：
+    // "sendNormalUserInput(objective) [发起首个 turn，origin=user]"）。否则 goal
+    // 卡在 active、turns/tokens 永远为 0。
+    if (command.kind === 'create') {
+      this.sendNormalUserInput(command.objective);
+    }
     this.state.ui.requestRender();
   }
 

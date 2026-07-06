@@ -34,14 +34,14 @@
 
 核心本质只有一个问题的回答——**"一个 turn 何时算结束？"**。普通 turn 模型自然停就结束；goal turn 只有当持久化状态说"完成/放弃"或硬上限说"停止"时才结束。其余一切（状态机、注入、工具、UI、budget、permission）都是为这个决策服务的分层。Kimi 把它拆成 6 层：
 
-| 层 | 文件 | 职责 |
-|---|---|---|
-| TUI 命令 | `apps/kimi-code/src/tui/commands/goal.ts` | 文法解析（tagged union）+ handler switch；registry 登记 availability 函数（status/pause/cancel 始终可用，create/resume 仅 idle） |
-| SDK Session | `packages/node-sdk/src/session.ts:398` | `createGoal/getGoal/pauseGoal/resumeGoal/cancelGoal`；**故意没有 `updateGoal`**——终态只由模型经工具决定 |
-| agent-core 状态 | `packages/agent-core/src/agent/goal/index.ts` `GoalMode` | 单一 durable owner；状态 `active/paused/blocked` + 瞬态 `complete`；从 agent record log 重建；`normalizeAfterReplay` 在恢复时把 `active` 降级为 `paused` |
-| agent-core 工具 | `packages/agent-core/src/tools/builtin/goal/*` | `CreateGoal/GetGoal/SetGoalBudget/UpdateGoal`，仅 main agent；`loopTools` 在无 goal 时隐藏 mutation 工具 |
-| agent-core 驱动 | `packages/agent-core/src/agent/turn/index.ts:393` `driveGoal` | 真正的发动机：顺序跑普通 turn，每次 turn 边界读 goal 状态决定续跑/停止；interrupt→pause，fail→pause，budget→block |
-| agent-core 注入 | `packages/agent-core/src/agent/injection/goal.ts` `GoalInjector` | 在**续跑边界**（非每 step）追加-only 注入，保护 prompt cache；三档强度 |
+| 层              | 文件                                                             | 职责                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TUI 命令        | `apps/kimi-code/src/tui/commands/goal.ts`                        | 文法解析（tagged union）+ handler switch；registry 登记 availability 函数（status/pause/cancel 始终可用，create/resume 仅 idle）                         |
+| SDK Session     | `packages/node-sdk/src/session.ts:398`                           | `createGoal/getGoal/pauseGoal/resumeGoal/cancelGoal`；**故意没有 `updateGoal`**——终态只由模型经工具决定                                                  |
+| agent-core 状态 | `packages/agent-core/src/agent/goal/index.ts` `GoalMode`         | 单一 durable owner；状态 `active/paused/blocked` + 瞬态 `complete`；从 agent record log 重建；`normalizeAfterReplay` 在恢复时把 `active` 降级为 `paused` |
+| agent-core 工具 | `packages/agent-core/src/tools/builtin/goal/*`                   | `CreateGoal/GetGoal/SetGoalBudget/UpdateGoal`，仅 main agent；`loopTools` 在无 goal 时隐藏 mutation 工具                                                 |
+| agent-core 驱动 | `packages/agent-core/src/agent/turn/index.ts:393` `driveGoal`    | 真正的发动机：顺序跑普通 turn，每次 turn 边界读 goal 状态决定续跑/停止；interrupt→pause，fail→pause，budget→block                                        |
+| agent-core 注入 | `packages/agent-core/src/agent/injection/goal.ts` `GoalInjector` | 在**续跑边界**（非每 step）追加-only 注入，保护 prompt cache；三档强度                                                                                   |
 
 **值得借鉴的设计判断（思想，非代码）**：
 
@@ -183,25 +183,25 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 
 ### 分层与文件落点
 
-| 层 | byf 文件（新增/改动） | 说明 |
-|---|---|---|
-| agent-core 状态 | `packages/agent-core/src/agent/goal/index.ts`（新） | `GoalMode` 类 + 类型 `GoalStatus/GoalSnapshot/GoalBudgetLimits/GoalChange/...`。implements `RecordRestoreHandler`。 |
-| agent-core 常量 | `packages/agent-core/src/agent/goal/constants.ts`（新） | `GOAL_CONTINUATION_PROMPT`、`GOAL_CONTINUATION_ORIGIN`（`{kind:'system_trigger', name:'goal_continuation'}`）、`MAX_GOAL_OBJECTIVE_LENGTH`。**不含** `GOAL_FORK_CLEARED_REMINDER`（ephemeral 注入下不需要，ADR-0023）。 |
-| agent-core 工具 | `packages/agent-core/src/tools/builtin/goal/{create,get,update,set-budget}-goal.ts` + `.md`（新） | 4 个工具 + 描述 markdown。`UpdateGoal` 返回普通 success（**不**设 stopTurn，ADR-0024）。`outcome-prompts.ts`（completion summary / blocked reason prompt 构造）。 |
-| agent-core 驱动 | `packages/agent-core/src/agent/turn/index.ts`（改） | 抽出 `runOneTurn`，`turnWorker` 加 goal 路由，新增 `driveGoal`。driver 在 `runOneTurn` 返回后读 goal status 决定续跑/停止。 |
-| agent-core 注入 | `packages/agent-core/src/agent/injection/{manager.ts 改, goal.ts 新}` | `GoalInjector extends DynamicInjector`，实现 `getEphemeral()`（**不**实现 `getInjection()`），走 projector `before_user`。加入 `injectors` 数组。见 ADR-0022。 |
-| agent-core 工具注册 | `packages/agent-core/src/agent/tool/index.ts`（改） | `initializeBuiltinTools` 加 4 工具（`agent.type === 'main'`）；`loopTools` 加 goal 存在性门控（无 goal 时隐藏 `SetGoalBudget`/`UpdateGoal`）。 |
-| agent-core records | `packages/agent-core/src/agent/records/{types.ts 改, index.ts 改}` | `AgentRecordEvents` 加 `goal.create/update/clear`；`getHandlerKey` 加 `goal.* → goal`。 |
-| agent-core Agent | `packages/agent-core/src/agent/index.ts`（改） | 加 `goal: GoalMode` 字段 + 构造里 new + `registerHandlers({..., goal: this.goal})`。 |
-| agent-core 事件 | `packages/agent-core/src/rpc/events.ts`（改） | 加 `GoalUpdatedEvent`；加入 `AgentEvent` 联合。 |
-| agent-core RPC | `packages/agent-core/src/rpc/{core-api.ts 改, core-impl.ts 改}` + `session/rpc.ts 改` | `AgentAPI` 加 5 方法；`SessionAPIImpl`/`ByfCore` 实现。 |
-| agent-core 错误码 | `packages/agent-core/src/errors.ts`（改） | `GOAL_*` 系列。 |
-| **fork 路径（新）** | `packages/agent-core/src/session/store/session-store.ts`（改） | `fork` 截断 wire.jsonl 后，若前缀含 `goal.create` 则追加 `goal.clear` record。见 ADR-0023。 |
-| node-sdk | `packages/node-sdk/src/{session.ts 改, rpc.ts 改, types.ts 改, events.ts 改}` | 5 个 Session 方法 + RPC 转发 + 类型 re-export。 |
-| CLI - 命令 | `apps/cli/src/tui/commands/{registry.ts 改, goal.ts 新, index.ts 改}` + `byf-tui.ts 改` | registry 登记 + `parseGoalCommand`/`handleGoalCommand` + dispatch case。复杂逻辑下沉 `apps/cli/src/tui/actions/goal.ts`（新）。 |
-| CLI - UI | `apps/cli/src/tui/components/{chrome/footer 改, messages/goal-*.ts 新}` + `types.ts 改` | badge + transcript marker + completion 卡片。 |
-| CLI - 事件 | `apps/cli/src/tui/events/goal-event-handler.ts`（新） + `byf-tui.ts handleEvent 改` | 处理 `goal.updated`。 |
-| 文档 | `docs/{zh,en}/guides/goals.md`（新）+ `docs/{zh,en}/reference/slash-commands.md`（改） | 用户指南 + 命令参考。 |
+| 层                  | byf 文件（新增/改动）                                                                             | 说明                                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agent-core 状态     | `packages/agent-core/src/agent/goal/index.ts`（新）                                               | `GoalMode` 类 + 类型 `GoalStatus/GoalSnapshot/GoalBudgetLimits/GoalChange/...`。implements `RecordRestoreHandler`。                                                                                                     |
+| agent-core 常量     | `packages/agent-core/src/agent/goal/constants.ts`（新）                                           | `GOAL_CONTINUATION_PROMPT`、`GOAL_CONTINUATION_ORIGIN`（`{kind:'system_trigger', name:'goal_continuation'}`）、`MAX_GOAL_OBJECTIVE_LENGTH`。**不含** `GOAL_FORK_CLEARED_REMINDER`（ephemeral 注入下不需要，ADR-0023）。 |
+| agent-core 工具     | `packages/agent-core/src/tools/builtin/goal/{create,get,update,set-budget}-goal.ts` + `.md`（新） | 4 个工具 + 描述 markdown。`UpdateGoal` 返回普通 success（**不**设 stopTurn，ADR-0024）。`outcome-prompts.ts`（completion summary / blocked reason prompt 构造）。                                                       |
+| agent-core 驱动     | `packages/agent-core/src/agent/turn/index.ts`（改）                                               | 抽出 `runOneTurn`，`turnWorker` 加 goal 路由，新增 `driveGoal`。driver 在 `runOneTurn` 返回后读 goal status 决定续跑/停止。                                                                                             |
+| agent-core 注入     | `packages/agent-core/src/agent/injection/{manager.ts 改, goal.ts 新}`                             | `GoalInjector extends DynamicInjector`，实现 `getEphemeral()`（**不**实现 `getInjection()`），走 projector `before_user`。加入 `injectors` 数组。见 ADR-0022。                                                          |
+| agent-core 工具注册 | `packages/agent-core/src/agent/tool/index.ts`（改）                                               | `initializeBuiltinTools` 加 4 工具（`agent.type === 'main'`）；`loopTools` 加 goal 存在性门控（无 goal 时隐藏 `SetGoalBudget`/`UpdateGoal`）。                                                                          |
+| agent-core records  | `packages/agent-core/src/agent/records/{types.ts 改, index.ts 改}`                                | `AgentRecordEvents` 加 `goal.create/update/clear`；`getHandlerKey` 加 `goal.* → goal`。                                                                                                                                 |
+| agent-core Agent    | `packages/agent-core/src/agent/index.ts`（改）                                                    | 加 `goal: GoalMode` 字段 + 构造里 new + `registerHandlers({..., goal: this.goal})`。                                                                                                                                    |
+| agent-core 事件     | `packages/agent-core/src/rpc/events.ts`（改）                                                     | 加 `GoalUpdatedEvent`；加入 `AgentEvent` 联合。                                                                                                                                                                         |
+| agent-core RPC      | `packages/agent-core/src/rpc/{core-api.ts 改, core-impl.ts 改}` + `session/rpc.ts 改`             | `AgentAPI` 加 5 方法；`SessionAPIImpl`/`ByfCore` 实现。                                                                                                                                                                 |
+| agent-core 错误码   | `packages/agent-core/src/errors.ts`（改）                                                         | `GOAL_*` 系列。                                                                                                                                                                                                         |
+| **fork 路径（新）** | `packages/agent-core/src/session/store/session-store.ts`（改）                                    | `fork` 截断 wire.jsonl 后，若前缀含 `goal.create` 则追加 `goal.clear` record。见 ADR-0023。                                                                                                                             |
+| node-sdk            | `packages/node-sdk/src/{session.ts 改, rpc.ts 改, types.ts 改, events.ts 改}`                     | 5 个 Session 方法 + RPC 转发 + 类型 re-export。                                                                                                                                                                         |
+| CLI - 命令          | `apps/cli/src/tui/commands/{registry.ts 改, goal.ts 新, index.ts 改}` + `byf-tui.ts 改`           | registry 登记 + `parseGoalCommand`/`handleGoalCommand` + dispatch case。复杂逻辑下沉 `apps/cli/src/tui/actions/goal.ts`（新）。                                                                                         |
+| CLI - UI            | `apps/cli/src/tui/components/{chrome/footer 改, messages/goal-*.ts 新}` + `types.ts 改`           | badge + transcript marker + completion 卡片。                                                                                                                                                                           |
+| CLI - 事件          | `apps/cli/src/tui/events/goal-event-handler.ts`（新） + `byf-tui.ts handleEvent 改`               | 处理 `goal.updated`。                                                                                                                                                                                                   |
+| 文档                | `docs/{zh,en}/guides/goals.md`（新）+ `docs/{zh,en}/reference/slash-commands.md`（改）            | 用户指南 + 命令参考。                                                                                                                                                                                                   |
 
 ### 数据流（创建到完成）
 
@@ -297,6 +297,7 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 ## Traceability
 
 - **Grilled by**: grill skill，2026-07-03（一轮，ADR-0022/0023/0024）；2026-07-04（二轮，新增 ADR-0025，补全 15 项：cancel 不渲染卡片/replace record 序列/pause 软停 cancel 硬停/sub 工具两层门控/模型 CreateGoal 入口/completion clear 延迟到 driver 边界/budget slash flag 与工具 schema/replay 保留累积计数/status 走 transcript/compaction 计入 budget/driver 期间输入锁/错误码触发条件）。
+- **Debugged by**: `/debug` (2026-07-06) — slash 入口 `/goal <objective>` 创建 goal 后未发起首个 user turn，导致 `turnWorker` 的 driver 接管条件（user-origin turn 结束时 goal 仍 active）永不满足，goal 卡在 active、turns/tokens 恒为 0。修复：`byf-tui.ts handleGoalCommand` 在 create 成功后调用 `sendNormalUserInput(objective)` 发起首个 turn（对齐 PRD 数据流）。
 - **相关 ADR**：
   - ADR-0022（Goal Reminder 走 Ephemeral Injection）
   - ADR-0023（Fork 总是清空 Goal）

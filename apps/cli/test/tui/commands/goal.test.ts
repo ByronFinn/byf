@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import type { GoalSnapshot } from '@byfriends/sdk';
+import { describe, expect, it, vi } from 'vitest';
 
+import { handleGoalCommand, type GoalSession } from '#/tui/actions/goal';
 import { parseGoalCommand } from '#/tui/commands/goal';
 
 describe('parseGoalCommand (PRD-0019 #204 AC-5)', () => {
@@ -146,5 +148,79 @@ describe('parseGoalCommand (PRD-0019 #204 AC-5)', () => {
       const result = parseGoalCommand('--   ');
       expect(result).toMatchObject({ kind: 'error' });
     });
+  });
+});
+
+// Regression: PRD-0019 data flow requires the slash entry to (1) call createGoal
+// and (2) launch the first user turn so the goal driver can take over at the end
+// of that turn. The action layer (handleGoalCommand) owns step (1); the TUI
+// dispatcher in byf-tui.ts owns step (2). These tests pin the action's half of
+// the contract — the create case must invoke createGoal; the other cases must
+// not. The dispatcher half is covered by byf-tui-message-flow integration.
+describe('handleGoalCommand action (PRD-0019 #204, regression)', () => {
+  function makeSession(): GoalSession & { prompt: ReturnType<typeof vi.fn> } {
+    const noGoal = vi.fn(async (): Promise<GoalSnapshot | null> => null);
+    return {
+      createGoal: noGoal,
+      getGoal: noGoal,
+      pauseGoal: noGoal,
+      resumeGoal: noGoal,
+      cancelGoal: noGoal,
+      // The action must NOT depend on prompt — launching the first turn is the
+      // TUI dispatcher's job. Including it here only to assert it stays unused.
+      prompt: vi.fn(async () => {}),
+    };
+  }
+
+  function callbacks() {
+    return {
+      showStatus: vi.fn(),
+      showError: vi.fn(),
+      appendTranscriptLine: vi.fn(),
+    };
+  }
+
+  it('create calls createGoal with objective, replace, budget', async () => {
+    const session = makeSession();
+    const cb = callbacks();
+    await handleGoalCommand(
+      session,
+      { kind: 'create', objective: 'ship it', replace: false, budget: { turnBudget: 3 } },
+      cb,
+    );
+    expect(session.createGoal).toHaveBeenCalledWith('ship it', {
+      replace: false,
+      budget: { turnBudget: 3 },
+    });
+    expect(cb.showStatus).toHaveBeenCalled();
+    // Action must not launch a turn itself — that is the dispatcher's job.
+    expect(session.prompt).not.toHaveBeenCalled();
+  });
+
+  it('status calls getGoal and writes a transcript line', async () => {
+    const session = makeSession();
+    vi.mocked(session.getGoal).mockResolvedValue({
+      objective: 'o',
+      status: 'active',
+      budget: {},
+      usage: { turns: 0, tokens: 0, wallClockMs: 0 },
+      createdAt: 0,
+    });
+    const cb = callbacks();
+    await handleGoalCommand(session, { kind: 'status' }, cb);
+    expect(session.getGoal).toHaveBeenCalled();
+    expect(cb.appendTranscriptLine).toHaveBeenCalled();
+  });
+
+  it('pause/resume/cancel call the matching session method', async () => {
+    const session = makeSession();
+    const cb = callbacks();
+    await handleGoalCommand(session, { kind: 'pause' }, cb);
+    expect(session.pauseGoal).toHaveBeenCalled();
+    await handleGoalCommand(session, { kind: 'resume' }, cb);
+    expect(session.resumeGoal).toHaveBeenCalled();
+    await handleGoalCommand(session, { kind: 'cancel' }, cb);
+    expect(session.cancelGoal).toHaveBeenCalled();
+    expect(session.prompt).not.toHaveBeenCalled();
   });
 });
