@@ -744,6 +744,7 @@ describe('distillSubagents — child state → subagent block (AC2 wiring, S8)',
       tools: [],
       background: [],
       parentToolCallId: 'tc_a',
+      goal: null,
       ...overrides,
     };
   }
@@ -891,6 +892,7 @@ describe('resume degradation for sessions without parentToolCallId (AC4)', () =>
         usage: {},
         tools: [],
         background: [],
+        goal: null,
       },
       // Legacy child: no parentToolCallId → skipped by distillSubagents.
       'agent-0': {
@@ -902,6 +904,7 @@ describe('resume degradation for sessions without parentToolCallId (AC4)', () =>
         usage: {},
         tools: [],
         background: [],
+        goal: null,
       },
     };
 

@@ -1,6 +1,11 @@
+import type { GoalSnapshot } from '@byfriends/sdk';
 import { describe, it, expect } from 'vitest';
 
-import { FooterComponent, formatContextStatus } from '#/tui/components/chrome/footer';
+import {
+  FooterComponent,
+  formatContextStatus,
+  formatGoalBadge,
+} from '#/tui/components/chrome/footer';
 import { darkColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 
@@ -136,5 +141,75 @@ describe('Footer — cache badge (Group B)', () => {
     const stripped = strip(line2!);
     expect(stripped).not.toMatch(/cache:/);
     expect(stripped).toMatch(/context:/);
+  });
+});
+
+// ── Goal badge (PRD-0019 R13) ─────────────────────────────────────────
+function goalSnapshot(overrides: Partial<GoalSnapshot> = {}): GoalSnapshot {
+  return {
+    objective: 'Ship feature X',
+    status: 'active',
+    budget: {},
+    usage: { turns: 2, tokens: 1500, wallClockMs: 18_000 },
+    createdAt: 0,
+    ...overrides,
+  } as GoalSnapshot;
+}
+
+describe('Footer — goal badge (PRD-0019 R13)', () => {
+  it('shows ▶ badge with usage when an active goal is set', () => {
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'active' }) }),
+      darkColors,
+    );
+    const [line1] = fc.render(120);
+    expect(strip(line1!)).toMatch(/▶ goal · 2 turns · 1\.5k tokens · 18s/);
+  });
+
+  it('shows ⏸ glyph for a paused goal', () => {
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'paused' }) }),
+      darkColors,
+    );
+    const [line1] = fc.render(120);
+    expect(strip(line1!)).toMatch(/⏸ goal/);
+  });
+
+  it('shows ⚠ glyph for a blocked goal', () => {
+    const fc = new FooterComponent(
+      baseState({
+        goalSnapshot: goalSnapshot({ status: 'blocked', blockedReason: 'budget' }),
+      }),
+      darkColors,
+    );
+    const [line1] = fc.render(120);
+    expect(strip(line1!)).toMatch(/⚠ goal/);
+  });
+
+  it('hides the goal badge when goalSnapshot is null', () => {
+    const fc = new FooterComponent(baseState({ goalSnapshot: null }), darkColors);
+    const [line1] = fc.render(120);
+    expect(strip(line1!)).not.toMatch(/goal/);
+  });
+
+  it('formatGoalBadge returns null for null snapshot', () => {
+    expect(formatGoalBadge(null, darkColors)).toBeNull();
+  });
+
+  it('renders the ▶ glyph for the transient complete status (fallback to active)', () => {
+    // `complete` is transient — the driver clears it at the turn boundary.
+    // If it ever reaches the footer it falls back to the active glyph.
+    const badge = formatGoalBadge(goalSnapshot({ status: 'complete' }), darkColors);
+    expect(badge).toBeDefined();
+    expect(strip(badge!)).toMatch(/▶ goal/);
+  });
+
+  it('badge reflects turns/tokens/elapsed from usage', () => {
+    const badge = formatGoalBadge(
+      goalSnapshot({ usage: { turns: 5, tokens: 25000, wallClockMs: 95_000 } }),
+      darkColors,
+    );
+    expect(badge).toBeDefined();
+    expect(strip(badge!)).toMatch(/5 turns · 25\.0k tokens · 95s/);
   });
 });

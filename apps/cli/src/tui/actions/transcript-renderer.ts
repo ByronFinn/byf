@@ -3,6 +3,7 @@ import type { Component, MarkdownTheme, TUI } from '@earendil-works/pi-tui';
 import { CompactionComponent } from '#/tui/components/dialogs/compaction';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '#/tui/components/messages/background-agent-status';
+import { GoalCompletionComponent } from '#/tui/components/messages/goal-completion';
 import { ShellExecutionComponent } from '#/tui/components/messages/shell-execution';
 import { SkillActivationComponent } from '#/tui/components/messages/skill-activation';
 import {
@@ -34,6 +35,10 @@ export function createTranscriptComponent(
     const block = new CompactionComponent(ctx.colors, ctx.ui, data.instruction);
     block.markDone(data.tokensBefore, data.tokensAfter);
     return block;
+  }
+
+  if (entry.goalCompletion !== undefined) {
+    return new GoalCompletionComponent(entry.goalCompletion, ctx.colors);
   }
 
   switch (entry.kind) {
@@ -94,6 +99,10 @@ export function createTranscriptComponent(
         ? new NoticeMessageComponent(entry.content, entry.detail, ctx.colors)
         : new StatusMessageComponent(entry.content, ctx.colors, entry.color);
     case 'welcome':
+      return null;
+    // goal_completion is handled above via the goalCompletion data field;
+    // this case only satisfies the exhaustive-switch lint check.
+    case 'goal_completion':
       return null;
     default:
       return null;

@@ -1,6 +1,7 @@
 import type { AgentType } from '#/agent';
 import type { AgentConfigData, AgentConfigUpdateData } from '#/agent/config';
 import type { AgentContextData, ContextMessage } from '#/agent/context';
+import type { GoalSnapshot } from '#/agent/goal';
 import type {
   PermissionApprovalResultRecord,
   PermissionData,
@@ -28,6 +29,13 @@ export interface ResumedAgentState {
   readonly tools: readonly ToolInfo[];
   readonly toolStore?: Readonly<Record<string, unknown>>;
   readonly background: readonly BackgroundTaskInfo[];
+  /**
+   * The agent's current goal snapshot after replay/normalization, or `null`
+   * when no goal is active (or for non-main agents, which never hold a goal).
+   * Restored by the CLI so the footer badge reappears on resume (PRD-0019
+   * R13 live/replay parity). Only the main agent ever carries a non-null goal.
+   */
+  readonly goal: GoalSnapshot | null;
   /**
    * For sub-agents: the parent agent's tool-call id that spawned this agent.
    * Absent for the main agent and for sessions persisted before this field

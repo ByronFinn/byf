@@ -772,6 +772,8 @@ async function resumeSessionResult(
       toolStore: agent.tools.storeData(),
       background: agent.background.list(false),
       parentToolCallId: session.metadata.agents[agentId]?.parentToolCallId,
+      // Only the main agent ever holds a goal; non-main agents pass null.
+      goal: agent.type === 'main' ? agent.goal.getSnapshot() : null,
     };
   }
   return {

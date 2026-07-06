@@ -505,12 +505,34 @@ export class ByfTui implements DialogHost {
       this.backgroundTaskCallbacks(),
     );
     this.goalEventHandler = new GoalEventHandler({
-      // PRD-0019 #204: forward snapshots to the UI layer. The actual footer
-      // badge / completion card / transcript marker rendering lands in #205;
-      // for now we stash the latest snapshot on appState so the UI can pick
-      // it up when ready.
+      // Forward snapshots to the footer badge (PRD-0019 R13).
       onGoalSnapshotChange: (snapshot) => {
         this.setAppState({ goalSnapshot: snapshot });
+      },
+      // Low-presence lifecycle markers (pause/resume/blocked/cancel) — PRD R14.
+      appendLifecycleMarker: (message) => {
+        this.appendTranscriptEntry({
+          id: nextTranscriptId(),
+          kind: 'status',
+          renderMode: 'plain',
+          content: message,
+        });
+      },
+      // Completion card (only for model `UpdateGoal('complete')`) — PRD R14.
+      appendCompletionCard: (snapshot, reason) => {
+        this.appendTranscriptEntry({
+          id: nextTranscriptId(),
+          kind: 'goal_completion',
+          renderMode: 'markdown',
+          content: snapshot.objective,
+          goalCompletion: {
+            objective: snapshot.objective,
+            reason,
+            turns: snapshot.usage.turns,
+            tokens: snapshot.usage.tokens,
+            wallClockMs: snapshot.usage.wallClockMs,
+          },
+        });
       },
     });
 

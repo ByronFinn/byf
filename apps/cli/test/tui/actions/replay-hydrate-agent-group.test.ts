@@ -103,6 +103,7 @@ function sessionWithToolStore(toolStore: Record<string, unknown>): Session {
           tools: [],
           toolStore,
           background: [],
+          goal: null,
         },
       },
     }),

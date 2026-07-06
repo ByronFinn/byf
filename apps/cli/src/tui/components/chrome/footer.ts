@@ -6,6 +6,7 @@
  *   Line 2: context: XX.X% (tokens/max)
  */
 
+import type { GoalSnapshot } from '@byfriends/sdk';
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -92,6 +93,43 @@ export function formatContextStatus(usage: number, tokens?: number, maxTokens?: 
     return `context: ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
   }
   return `context: ${pct}`;
+}
+
+const GOAL_STATUS_GLYPH: Record<GoalSnapshot['status'], string> = {
+  active: '▶',
+  paused: '⏸',
+  blocked: '⚠',
+  // `complete` is transient — the driver clears it at the turn boundary.
+  // Render it as active if it ever reaches the footer.
+  complete: '▶',
+};
+
+/** Compact one-line usage summary: `2 turns · 1.2k tokens · 18s`. */
+function formatGoalUsageCompact(snapshot: GoalSnapshot): string {
+  const { turns, tokens, wallClockMs } = snapshot.usage;
+  const elapsed = Math.max(0, Math.round(wallClockMs / 1000));
+  return `${turns} turns · ${formatTokenCount(tokens)} tokens · ${elapsed}s`;
+}
+
+/**
+ * Render the goal badge for the footer line 1 (PRD-0019 R13). Returns `null`
+ * when there is no goal. The glyph encodes the status; the tail carries a
+ * compact usage summary so the user can watch budget burn down at a glance.
+ */
+export function formatGoalBadge(
+  snapshot: GoalSnapshot | null | undefined,
+  colors: ColorPalette,
+): string | null {
+  if (snapshot === null || snapshot === undefined) return null;
+  const glyph = GOAL_STATUS_GLYPH[snapshot.status] ?? '▶';
+  const tone =
+    snapshot.status === 'blocked'
+      ? colors.warning
+      : snapshot.status === 'paused'
+        ? colors.textDim
+        : colors.success;
+  const usage = formatGoalUsageCompact(snapshot);
+  return chalk.hex(tone)(`${glyph} goal · ${usage}`);
 }
 
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {
@@ -199,6 +237,12 @@ export class FooterComponent implements Component {
         chalk.hex(colors.primary)(`[${String(this.backgroundAgentCount)} ${noun} running]`),
       );
     }
+
+    // Goal badge (PRD-0019 R13) — shown only while a goal is active/paused/
+    // blocked. Sits before cwd so the status glyph stays visually anchored to
+    // the model line.
+    const goalBadge = formatGoalBadge(state.goalSnapshot, colors);
+    if (goalBadge) left.push(goalBadge);
 
     const cwd = shortenCwd(this.getDisplayedWorkDir(state));
     if (cwd) left.push(chalk.hex(colors.status)(cwd));
