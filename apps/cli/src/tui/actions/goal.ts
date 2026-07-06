@@ -24,6 +24,13 @@ export interface GoalActionCallbacks {
   showError(message: string): void;
   /** Append a persistent transcript line (e.g. /goal status snapshot). */
   appendTranscriptLine(message: string): void;
+  /**
+   * Hard-abort the in-flight turn (equivalent to Esc). Wired by ByfTUI to
+   * `cancelCurrentStream` (→ `session.cancel()` → `AbortSignal`). The `cancel`
+   * sub-command uses this to honor ADR-0025's hard-stop semantics; other
+   * sub-commands do not call it.
+   */
+  abortActiveTurn(): void;
 }
 
 /**
@@ -60,10 +67,13 @@ export async function handleGoalCommand(
       return;
     }
     case 'cancel': {
-      // Cancel is a hard stop — the driver aborts the active turn at the next
-      // boundary (ADR-0025). The SDK call clears goal state; the abort signal
-      // is wired in byf-tui.ts via the same code path as Esc.
+      // Cancel is a hard stop: clear goal state AND abort the in-flight turn's
+      // AbortSignal (ADR-0025). `pause` only flips state and lets the turn
+      // finish; `cancel` is equivalent to pressing Esc — the current turn ends
+      // with reason 'cancelled' immediately. Half-finished tool calls are the
+      // user's responsibility (cancel is a discard action).
       await session.cancelGoal();
+      callbacks.abortActiveTurn();
       callbacks.showStatus('Goal cancelled.');
       return;
     }

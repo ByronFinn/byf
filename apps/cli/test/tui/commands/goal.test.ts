@@ -177,6 +177,7 @@ describe('handleGoalCommand action (PRD-0019 #204, regression)', () => {
       showStatus: vi.fn(),
       showError: vi.fn(),
       appendTranscriptLine: vi.fn(),
+      abortActiveTurn: vi.fn(),
     };
   }
 
@@ -222,5 +223,38 @@ describe('handleGoalCommand action (PRD-0019 #204, regression)', () => {
     await handleGoalCommand(session, { kind: 'cancel' }, cb);
     expect(session.cancelGoal).toHaveBeenCalled();
     expect(session.prompt).not.toHaveBeenCalled();
+  });
+
+  // ADR-0025: /goal pause = soft stop (no abort, current turn finishes);
+  // /goal cancel = hard stop (abort the active turn's AbortSignal, like Esc).
+  // The abort is surfaced through GoalActionCallbacks.abortActiveTurn; the
+  // action layer must invoke it on cancel and must NOT invoke it on pause.
+  it('cancel aborts the active turn; pause does not (ADR-0025)', async () => {
+    const session = makeSession();
+
+    const cbPause = callbacks();
+    await handleGoalCommand(session, { kind: 'pause' }, cbPause);
+    expect(cbPause.abortActiveTurn).not.toHaveBeenCalled();
+
+    const cbCancel = callbacks();
+    await handleGoalCommand(session, { kind: 'cancel' }, cbCancel);
+    expect(cbCancel.abortActiveTurn).toHaveBeenCalledTimes(1);
+    expect(session.cancelGoal).toHaveBeenCalled();
+  });
+
+  // Only cancel aborts. status/resume/create must not touch the active turn.
+  it('status/resume/create do not abort the active turn', async () => {
+    const session = makeSession();
+    vi.mocked(session.getGoal).mockResolvedValue(null);
+
+    for (const command of [
+      { kind: 'status' },
+      { kind: 'resume' },
+      { kind: 'create', objective: 'o', replace: false },
+    ] as const) {
+      const cb = callbacks();
+      await handleGoalCommand(session, command, cb);
+      expect(cb.abortActiveTurn).not.toHaveBeenCalled();
+    }
   });
 });

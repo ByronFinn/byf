@@ -352,4 +352,67 @@ describe('driveGoal (AC #201 驱动)', () => {
     const records = ctx.getRecords();
     expect(records.some((r) => r.type === 'goal.clear')).toBe(true);
   });
+
+  // AC-9：compaction 是 goal 推进中的"引擎开销"，但 PRD R4/AC-9 明确要求其摘要 token
+  // 计入 goal 的 tokenBudget（"budget 诚实反映 goal 总成本，不因 compaction 是引擎开销
+  // 而豁免"）。driver 记账本轮 token 时取 `usage.data().total` 的增量——compactionWorker
+  // 把摘要 usage 也 record 到同一全局 total（`compaction/full.ts`），故 mid-turn 发生的
+  // compaction 自然被 driver 的增量算入。本测试注入一笔已知大小的 compaction-summary
+  // usage，断言它出现在 goal 的最终 tokenUsed 里（而非被豁免）。
+
+  it('compaction summary tokens during a turn are counted toward the goal (AC-9)', async () => {
+    // 已知的"compaction 摘要"token 数（挑一个显著大于脚本文本估算的值，便于判定）。
+    const COMPACTION_SUMMARY_TOKENS = 5000;
+    let agentRef: ReturnType<typeof testAgent>['agent'] | undefined;
+    const scripted = createScriptedGenerate();
+    scripted.mockNextResponse(textResponse('working on it'));
+    scripted.mockNextResponse(textResponse('all done'));
+    let generateCallCount = 0;
+    const ctx = new AgentTestContext({
+      generate: (async (...args: Parameters<typeof scripted.generate>) => {
+        generateCallCount += 1;
+        // 模拟首个 continuation turn 的 generate 调用前，compactionWorker 在同 turn 内
+        // 跑了一次 compaction 并 record 了摘要 usage（full.ts:404 的真实路径）。
+        if (generateCallCount === 2 && agentRef) {
+          agentRef.usage.record(agentRef.config.model, {
+            inputOther: COMPACTION_SUMMARY_TOKENS,
+            output: 0,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+          });
+          // 同一 turn 内模型随后 markComplete。
+          agentRef.goal.markComplete('objective met');
+        }
+        return scripted.generate(...args);
+      }) as typeof scripted.generate,
+    });
+    ctx.configure({ tools: [] });
+    agentRef = ctx.agent;
+    const { agent } = ctx;
+
+    agent.goal.createGoal('pursue this', { budget: { turnBudget: 10 } });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    await untilGoalSettled(ctx, 10);
+
+    // driver 边界补发的最终 completion snapshot 携带真实 usage（tokens 已记完）。
+    const completionEvents = ctx.allEvents
+      .filter((e) => e.event === 'goal.updated')
+      .map((e) => {
+        const args = e.args as {
+          snapshot?: { usage?: { tokens?: number } };
+          change?: { kind?: string };
+        };
+        return {
+          tokens: args.snapshot?.usage?.tokens ?? 0,
+          changeKind: args.change?.kind,
+        };
+      })
+      .filter((e) => e.changeKind === 'completion');
+    expect(completionEvents.length).toBeGreaterThanOrEqual(1);
+    const finalTokens = completionEvents.at(-1)!.tokens;
+
+    // 回归点：注入的 compaction 摘要 token 必须在 goal 的 tokenUsed 里（AC-9）。
+    // 即最终 token ≥ 摘要 token；若 driver 豁免了 compaction，finalTokens 会远小于此值。
+    expect(finalTokens).toBeGreaterThanOrEqual(COMPACTION_SUMMARY_TOKENS);
+  });
 });

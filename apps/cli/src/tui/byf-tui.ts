@@ -4186,6 +4186,9 @@ export class ByfTui implements DialogHost {
     await handleGoalCommand(session, command, {
       showStatus: (msg) => this.showStatus(msg),
       showError: (msg) => this.showError(msg),
+      abortActiveTurn: () => {
+        this.cancelCurrentStream();
+      },
       appendTranscriptLine: (msg) => {
         this.appendTranscriptEntry({
           id: nextTranscriptId(),

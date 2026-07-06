@@ -107,7 +107,7 @@ function parseCreate(objectiveAndFlags: string, replace: boolean): GoalCommand {
     kind: 'create',
     objective,
     replace,
-    ...(budget !== undefined ? { budget } : {}),
+    budget,
   };
 }
 
