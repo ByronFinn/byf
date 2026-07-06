@@ -1,5 +1,5 @@
 import type { GoalSnapshot } from '@byfriends/sdk';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   FooterComponent,
@@ -211,5 +211,202 @@ describe('Footer — goal badge (PRD-0019 R13)', () => {
     );
     expect(badge).toBeDefined();
     expect(strip(badge!)).toMatch(/5 turns · 25\.0k tokens · 95s/);
+  });
+});
+
+// ── Live wall-clock timer (ADR-0027 / #206) ──────────────────────────
+//
+// footer extrapolates elapsed mid-turn: a 1s setInterval ticks while a goal
+// is `active`, advancing the displayed wall-clock locally between
+// `goal.updated` events (counts/tokens are turn-level by N3). These tests
+// lock: timer start/stop, extrapolation correctness, anchor-not-reset on
+// unrelated setState, and dispose cleanup.
+
+describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ticks onRefresh every second while a goal is active', () => {
+    const onRefresh = vi.fn();
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'active' }) }),
+      darkColors,
+      () => {},
+      onRefresh,
+    );
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+    vi.advanceTimersByTime(1000);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1000);
+    expect(onRefresh).toHaveBeenCalledTimes(2);
+    fc.dispose();
+  });
+
+  it('does NOT tick when goal is paused/blocked/null', () => {
+    const onRefresh = vi.fn();
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'paused' }) }),
+      darkColors,
+      () => {},
+      onRefresh,
+    );
+    vi.advanceTimersByTime(5000);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+    fc.dispose();
+  });
+
+  it('stops the ticker when an active goal becomes paused', () => {
+    const onRefresh = vi.fn();
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'active' }) }),
+      darkColors,
+      () => {},
+      onRefresh,
+    );
+    vi.advanceTimersByTime(1000);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    // Transition to paused — timer must be cleared.
+    fc.setState(baseState({ goalSnapshot: goalSnapshot({ status: 'paused' }) }));
+    vi.advanceTimersByTime(5000);
+    expect(onRefresh).toHaveBeenCalledTimes(1); // no further ticks
+    fc.dispose();
+  });
+
+  it('extrapolates elapsed forward while active', () => {
+    // Snapshot carries wallClockMs=18s. Observed at t=0; at t=2.5s the footer
+    // should display 18s + 2.5s ≈ 20s (Math.round(20.5) = 21 with .5s rounding).
+    const fc = new FooterComponent(
+      baseState({
+        goalSnapshot: goalSnapshot({
+          status: 'active',
+          usage: { turns: 2, tokens: 1500, wallClockMs: 18_000 },
+        }),
+      }),
+      darkColors,
+    );
+    vi.advanceTimersByTime(2500);
+    const [line1] = fc.render(120);
+    const stripped = strip(line1!);
+    // 18000 + 2500 = 20500ms → round(20.5) = 21s (banker's rounding → 20)
+    // Use a range assertion to avoid coupling to rounding direction at .5.
+    expect(stripped).toMatch(/2 turns · 1\.5k tokens · (20|21)s/);
+    fc.dispose();
+  });
+
+  it('does NOT extrapolate while paused (shows frozen value)', () => {
+    const fc = new FooterComponent(
+      baseState({
+        goalSnapshot: goalSnapshot({
+          status: 'paused',
+          usage: { turns: 2, tokens: 1500, wallClockMs: 18_000 },
+        }),
+      }),
+      darkColors,
+    );
+    vi.advanceTimersByTime(10_000);
+    const [line1] = fc.render(120);
+    // Still 18s — paused wall-clock is frozen, not extrapolated.
+    expect(strip(line1!)).toMatch(/2 turns · 1\.5k tokens · 18s/);
+    fc.dispose();
+  });
+
+  it('does NOT reset the extrapolation anchor on unrelated setState', () => {
+    // Two setState calls with the SAME goal snapshot (only permissionMode
+    // differs) must NOT reset goalObservedAtMs — otherwise the extrapolated
+    // elapsed would never advance.
+    const snapshot = goalSnapshot({
+      status: 'active',
+      usage: { turns: 2, tokens: 1500, wallClockMs: 10_000 },
+    });
+    const fc = new FooterComponent(baseState({ goalSnapshot: snapshot }), darkColors);
+    // Unrelated setState 1s later (e.g. permissionMode toggle) with the same snapshot.
+    vi.advanceTimersByTime(1000);
+    fc.setState(baseState({ goalSnapshot: snapshot, permissionMode: 'yolo' }));
+    vi.advanceTimersByTime(2000);
+    const [line1] = fc.render(120);
+    // Anchor not reset → total elapsed = 3s of extrapolation + 10s base = 13s.
+    expect(strip(line1!)).toMatch(/2 turns · 1\.5k tokens · 13s/);
+    fc.dispose();
+  });
+
+  it('resets the anchor when the snapshot truly changes', () => {
+    // A new goal.updated event arrives (wallClockMs updated) — anchor resets,
+    // extrapolation restarts from the new snapshot value.
+    const fc = new FooterComponent(
+      baseState({
+        goalSnapshot: goalSnapshot({
+          status: 'active',
+          usage: { turns: 2, tokens: 1500, wallClockMs: 10_000 },
+        }),
+      }),
+      darkColors,
+    );
+    vi.advanceTimersByTime(2000);
+    // New event: turns bumped to 3, wallClockMs folded to 15s at event time.
+    fc.setState(
+      baseState({
+        goalSnapshot: goalSnapshot({
+          status: 'active',
+          usage: { turns: 3, tokens: 2000, wallClockMs: 15_000 },
+        }),
+      }),
+    );
+    vi.advanceTimersByTime(1000);
+    const [line1] = fc.render(120);
+    // Anchor reset at the new event: 15s base + 1s extrapolation = 16s.
+    expect(strip(line1!)).toMatch(/3 turns · 2\.0k tokens · 16s/);
+    fc.dispose();
+  });
+
+  it('dispose clears the timer (no further ticks)', () => {
+    const onRefresh = vi.fn();
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'active' }) }),
+      darkColors,
+      () => {},
+      onRefresh,
+    );
+    fc.dispose();
+    vi.advanceTimersByTime(10_000);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+  });
+
+  it('dispose is idempotent', () => {
+    const fc = new FooterComponent(
+      baseState({ goalSnapshot: goalSnapshot({ status: 'active' }) }),
+      darkColors,
+    );
+    expect(() => {
+      fc.dispose();
+      fc.dispose();
+    }).not.toThrow();
+  });
+
+  it('complete transient status does NOT tick (timer stopped, frozen value shown)', () => {
+    // complete is transient; its wall-clock is already folded to the final
+    // value. The footer must not extrapolate (would over-count past the fold).
+    const onRefresh = vi.fn();
+    const fc = new FooterComponent(
+      baseState({
+        goalSnapshot: goalSnapshot({
+          status: 'complete',
+          usage: { turns: 3, tokens: 2000, wallClockMs: 30_000 },
+        }),
+      }),
+      darkColors,
+      () => {},
+      onRefresh,
+    );
+    vi.advanceTimersByTime(10_000);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+    const [line1] = fc.render(120);
+    // Frozen at 30s — complete never extrapolates.
+    expect(strip(line1!)).toMatch(/3 turns · 2\.0k tokens · 30s/);
+    fc.dispose();
   });
 });

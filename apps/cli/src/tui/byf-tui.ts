@@ -284,9 +284,16 @@ export function createTUIState(options: ByfTuiOptions): TUIState {
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editor = new CustomEditor(ui, theme.colors);
-  const footer = new FooterComponent({ ...initialAppState }, theme.colors, () => {
-    ui.requestRender();
-  });
+  const footer = new FooterComponent(
+    { ...initialAppState },
+    theme.colors,
+    () => {
+      ui.requestRender();
+    },
+    () => {
+      ui.requestRender();
+    },
+  );
 
   return {
     ui,
@@ -805,6 +812,7 @@ export class ByfTui implements DialogHost {
     await this.closeSession('shutting down');
     await this.harness.close();
     this.stopAllMcpServerStatusSpinners();
+    this.state.footer.dispose();
     this.state.ui.stop();
     if (this.onExit) {
       await this.onExit(exitCode);
