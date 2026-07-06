@@ -5,7 +5,10 @@ import { LIST_DIR_CHILD_WIDTH, listDirectory } from '../../src/tools/support/lis
 import { createFakeKaos } from './fixtures/fake-kaos';
 
 describe('listDirectory', () => {
-  it('renders a two-level tree with dirs first then files', async () => {
+  it('renders a flat single-level tree by default (dirs first then files)', async () => {
+    // Default maxDepth=1: root entries only, children NOT expanded. This
+    // keeps bad-glob error messages compact on large repos (a two-level
+    // dump of a monorepo root can easily run to dozens of lines).
     const kaos = createFakeKaos({
       iterdir: async function* (p: string) {
         if (p === '/w') {
@@ -32,6 +35,39 @@ describe('listDirectory', () => {
       })) as unknown as Kaos['stat'],
     });
     const tree = await listDirectory(kaos, '/w');
+    expect(tree.split('\n')[0]).toContain('src/');
+    expect(tree).toMatch(/README\.md(?!\/)/);
+    // Children of src/ must NOT appear at default depth.
+    expect(tree).not.toMatch(/index\.ts/);
+    expect(tree).not.toMatch(/utils\.ts/);
+  });
+
+  it('renders a two-level tree when maxDepth=2', async () => {
+    const kaos = createFakeKaos({
+      iterdir: async function* (p: string) {
+        if (p === '/w') {
+          yield '/w/src';
+          yield '/w/README.md';
+          yield '/w/package.json';
+        } else if (p === '/w/src') {
+          yield '/w/src/index.ts';
+          yield '/w/src/utils.ts';
+        }
+      } as unknown as Kaos['iterdir'],
+      stat: (async (p: string) => ({
+        stMode: p.endsWith('src') ? 0o040_755 : 0o100_644,
+        stIno: 1,
+        stDev: 1,
+        stNlink: 1,
+        stUid: 0,
+        stGid: 0,
+        stSize: 1,
+        stAtime: 0,
+        stMtime: 0,
+        stCtime: 0,
+      })) as unknown as Kaos['stat'],
+    });
+    const tree = await listDirectory(kaos, '/w', 2);
     expect(tree.split('\n')[0]).toContain('src/');
     expect(tree).toMatch(/README\.md(?!\/)/);
     expect(tree).toMatch(/index\.ts/);
@@ -64,7 +100,7 @@ describe('listDirectory', () => {
       })) as unknown as Kaos['stat'],
     });
 
-    const tree = await listDirectory(kaos, 'C:\\workspace');
+    const tree = await listDirectory(kaos, 'C:\\workspace', 2);
 
     expect(seenDirs).toEqual(['C:\\workspace', 'C:\\workspace\\src']);
     expect(tree).toContain('src/');
@@ -116,7 +152,7 @@ describe('listDirectory', () => {
     expect(result).toBe('[not readable]');
   });
 
-  it('shows [not readable] for inaccessible subdirectory', async () => {
+  it('shows [not readable] for inaccessible subdirectory at maxDepth=2', async () => {
     const kaos = createFakeKaos({
       iterdir: async function* (p: string) {
         if (p === '/w') {
@@ -138,7 +174,7 @@ describe('listDirectory', () => {
         stCtime: 0,
       })) as unknown as Kaos['stat'],
     });
-    const tree = await listDirectory(kaos, '/w');
+    const tree = await listDirectory(kaos, '/w', 2);
     expect(tree).toContain('locked/');
     expect(tree).toContain('[not readable]');
   });
@@ -205,7 +241,7 @@ describe('listDirectory', () => {
       })) as unknown as Kaos['stat'],
     });
 
-    const tree = await listDirectory(kaos, '/w');
+    const tree = await listDirectory(kaos, '/w', 2);
     const lines = tree.split('\n');
     expect(lines).toHaveLength(1 + LIST_DIR_CHILD_WIDTH + 1);
     expect(lines[0]).toContain('subdir/');
@@ -237,7 +273,7 @@ describe('listDirectory', () => {
       })) as unknown as Kaos['stat'],
     });
 
-    const tree = await listDirectory(kaos, '/w');
+    const tree = await listDirectory(kaos, '/w', 2);
     expect(tree).toBe('└── only_dir/\n    └── child.txt');
   });
 });

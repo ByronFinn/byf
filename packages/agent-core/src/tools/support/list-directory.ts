@@ -1,13 +1,13 @@
 /**
- * list-directory — compact 2-level directory tree for LLM context.
+ * list-directory — compact directory tree for LLM context.
  *
  * Used by GlobTool when rejecting a `**`-leading pattern: appending a
  * snapshot of the workspace root helps the LLM re-scope its pattern
  * without a second round-trip.
  *
  * Width caps keep the system-prompt token budget bounded:
- *   - Depth 0 (root):  up to LIST_DIR_ROOT_WIDTH entries
- *   - Depth 1 (children of root dirs): up to LIST_DIR_CHILD_WIDTH entries
+ *   - Root level:   up to LIST_DIR_ROOT_WIDTH entries
+ *   - Child level:  up to LIST_DIR_CHILD_WIDTH entries (only when maxDepth=2)
  *   - Truncated levels show "... and N more" so the LLM knows more exists.
  */
 
@@ -66,11 +66,23 @@ function basename(p: string, pathClass: PathClass): string {
 }
 
 /**
- * Return a 2-level tree listing of `workDir` suitable for inclusion in a
- * tool error message. Returns `"(empty directory)"` if the directory is
- * empty, or an error marker line if the directory itself is unreadable.
+ * Return a tree listing of `workDir` suitable for inclusion in a tool error
+ * message. Returns `"(empty directory)"` if the directory is empty, or an
+ * error marker line if the directory itself is unreadable.
+ *
+ * `maxDepth` controls how deep the listing goes:
+ *   - `1` (default): a flat single-level listing of root entries (names only,
+ *     no children expanded). Compact — intended for inline error messages
+ *     where the goal is just to hint at available top-level anchors.
+ *   - `2`: two-level tree (root + first level of children inside each root
+ *     directory). Richer, used when the caller wants the model to see the
+ *     structure inside subdirectories.
  */
-export async function listDirectory(kaos: Kaos, workDir: string): Promise<string> {
+export async function listDirectory(
+  kaos: Kaos,
+  workDir: string,
+  maxDepth: 1 | 2 = 1,
+): Promise<string> {
   const lines: string[] = [];
   const pathClass = kaos.pathClass();
   const { entries, total, readable } = await collectEntries(
@@ -91,24 +103,26 @@ export async function listDirectory(kaos: Kaos, workDir: string): Promise<string
 
     if (isDir) {
       lines.push(`${connector}${name}/`);
-      const childPrefix = isLast ? '    ' : '│   ';
-      const childDir = joinPath(workDir, name, pathClass);
-      const child = await collectEntries(kaos, childDir, LIST_DIR_CHILD_WIDTH, pathClass);
-      if (!child.readable) {
-        lines.push(`${childPrefix}└── [not readable]`);
-        continue;
-      }
-      const childRemaining = child.total - child.entries.length;
-      for (let j = 0; j < child.entries.length; j++) {
-        const ce = child.entries[j];
-        if (ce === undefined) continue;
-        const cIsLast = j === child.entries.length - 1 && childRemaining === 0;
-        const cConnector = cIsLast ? '└── ' : '├── ';
-        const suffix = ce.isDir ? '/' : '';
-        lines.push(`${childPrefix}${cConnector}${ce.name}${suffix}`);
-      }
-      if (childRemaining > 0) {
-        lines.push(`${childPrefix}└── ... and ${String(childRemaining)} more`);
+      if (maxDepth >= 2) {
+        const childPrefix = isLast ? '    ' : '│   ';
+        const childDir = joinPath(workDir, name, pathClass);
+        const child = await collectEntries(kaos, childDir, LIST_DIR_CHILD_WIDTH, pathClass);
+        if (!child.readable) {
+          lines.push(`${childPrefix}└── [not readable]`);
+          continue;
+        }
+        const childRemaining = child.total - child.entries.length;
+        for (let j = 0; j < child.entries.length; j++) {
+          const ce = child.entries[j];
+          if (ce === undefined) continue;
+          const cIsLast = j === child.entries.length - 1 && childRemaining === 0;
+          const cConnector = cIsLast ? '└── ' : '├── ';
+          const suffix = ce.isDir ? '/' : '';
+          lines.push(`${childPrefix}${cConnector}${ce.name}${suffix}`);
+        }
+        if (childRemaining > 0) {
+          lines.push(`${childPrefix}└── ... and ${String(childRemaining)} more`);
+        }
       }
     } else {
       lines.push(`${connector}${name}`);
