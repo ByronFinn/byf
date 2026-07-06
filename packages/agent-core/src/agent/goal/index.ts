@@ -44,11 +44,28 @@ export class GoalMode implements RecordRestoreHandler {
 
   // —— 查询 ——
 
-  /** 当前快照。complete 瞬态期间返回 status='complete' 的派生快照。 */
+  /**
+   * 当前快照。complete 瞬态期间返回 status='complete' 的派生快照。
+   *
+   * active 期间 overlay live wall-clock：`wallClockResumedAt` 是 GoalMode 私有锚点，
+   * 只在离开 active（pause/blocked/complete/clear）时折叠进 `usage.wallClockMs`，
+   * 故 steady-state 下落盘的 `wallClockMs` 恒为 0。但 `/goal status`、`GetGoal` 工具
+   * 等按需读取方也走本方法，若原样返回会在 active 期间显示 elapsed=0s（footer 靠本地
+   * timer 外推，见 ADR-0027；status 路径没有 timer）。此处与 `emitUsageUpdate` /
+   * `computeBudgetReport` 同口径：active 且有锚点时把 `getLiveWallClockMs()` 叠进返回值。
+   * 不暴露锚点字段（ADR-0027 拒绝方案 C 的理由仍成立），落盘的始终是 `this.snapshot`
+   * （折叠累积值），本方法返回值不回写 wire——replay 一致性不受影响。
+   */
   getSnapshot(): GoalSnapshot | null {
     if (this.snapshot === null) return null;
     if (this.completeReason !== undefined) {
       return { ...this.snapshot, status: 'complete' };
+    }
+    if (this.snapshot.status === 'active' && this.wallClockResumedAt !== undefined) {
+      return {
+        ...this.snapshot,
+        usage: { ...this.snapshot.usage, wallClockMs: this.getLiveWallClockMs() },
+      };
     }
     return this.snapshot;
   }

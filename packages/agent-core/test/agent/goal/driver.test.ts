@@ -342,6 +342,56 @@ describe('driveGoal (AC #201 驱动)', () => {
     expect(sawTurns1Early).toBe(true);
   });
 
+  // —— 次要改进：每个 continuation 的 incrementTurn 后、prompt() 前也补一次
+  //    emitUsageUpdate，让 footer 在每个 continuation turn 开始时即看到新 turns，
+  //    而不是等整轮跑完才更新（与 #207 首轮补丁同口径，覆盖 continuation 轮次）。
+
+  it('per-continuation emit: footer sees turns increment before each continuation runs', async () => {
+    const scripted = createScriptedGenerate();
+    scripted.mockNextResponse(textResponse('turn 1'));
+    scripted.mockNextResponse(textResponse('turn 2'));
+    scripted.mockNextResponse(textResponse('turn 3'));
+    let generateCallCount = 0;
+    // 第二个 generate 调用 = 第一个 continuation turn 启动。driveGoal 在 prompt()
+    // 前已执行该 continuation 的 incrementTurn（turns→2），回归点是"此刻是否已 emit
+    // 过 turns===2 的纯 usage 事件"。修复前：L415 的 incrementTurn 是 silent（N3），
+    // 该轮的 emit 只在轮跑完后（L450），故 footer 在整个第一个 continuation turn
+    // 期间仍停在 turns=1。修复后：incrementTurn 后立即 emitUsageUpdate，turns=2 在
+    // continuation 真正跑之前就送达 footer。
+    let usageEventsBeforeFirstContinuation: Array<{ turns: number; change: unknown }> | undefined;
+    const ctx = new AgentTestContext({
+      generate: (async (...args: Parameters<typeof scripted.generate>) => {
+        generateCallCount += 1;
+        if (generateCallCount === 2) {
+          usageEventsBeforeFirstContinuation = ctx.allEvents
+            .filter((e) => e.event === 'goal.updated')
+            .map((e) => {
+              const a = e.args as {
+                snapshot?: { usage?: { turns?: number } };
+                change?: unknown;
+              };
+              return { turns: a.snapshot?.usage?.turns ?? 0, change: a.change };
+            })
+            .filter((u) => u.change === undefined);
+        }
+        return scripted.generate(...args);
+      }) as typeof scripted.generate,
+    });
+    ctx.configure({ tools: [] });
+
+    ctx.agent.goal.createGoal('pursue this', { budget: { turnBudget: 5 } });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    await untilGoalSettled(ctx, 10);
+
+    // 回归点：第一个 continuation turn 真正跑之前，driver 应已 emit 过 turns===2 的
+    // 纯 usage snapshot（change===undefined）。修复前：此刻只见过 turns===1（#207 首轮
+    // 补丁给的），turns===2 要等该 continuation 跑完才到达 footer——整个轮次期间 footer
+    // 落后一个 turn。
+    expect(usageEventsBeforeFirstContinuation).toBeDefined();
+    const sawTurns2Early = usageEventsBeforeFirstContinuation!.some((u) => u.turns === 2);
+    expect(sawTurns2Early).toBe(true);
+  });
+
   // —— review fix：模型在首个 user turn 内就调 markComplete（不进入 continuation）——
   //    此时 driveGoal 接管条件（status==='active'）为假、driver 不运行，会导致首个
   //    turn 不计入 turnBudget、complete 瞬态无人 clear（completion 卡片显示 turns=0/

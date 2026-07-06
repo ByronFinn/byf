@@ -32,11 +32,19 @@ describe('GoalMode replace (AC-3)', () => {
     agent.goal.incrementTurn();
     agent.goal.incrementTurn();
     agent.goal.addTokenUsage({ input: 100, output: 50 });
-    // 旧 goal 已累积 turns=2, tokens=150
-    expect(agent.goal.getSnapshot()?.usage).toEqual({ turns: 2, tokens: 150, wallClockMs: 0 });
+    // 旧 goal 已累积 turns=2, tokens=150（wallClockMs 是 active 期间 overlay 的 live
+    // 值，非累积计数，本断言只关增量计数隔离，不锁 live 时长）。
+    const oldUsage = agent.goal.getSnapshot()?.usage;
+    expect(oldUsage?.turns).toBe(2);
+    expect(oldUsage?.tokens).toBe(150);
 
     agent.goal.createGoal('second', { replace: true });
-    expect(agent.goal.getSnapshot()?.usage).toEqual({ turns: 0, tokens: 0, wallClockMs: 0 });
+    // 新 goal 增量计数归零（隔离）。wallClockMs 同为 0：新 goal 刚 create，锚点 = now，
+    // live = accumulated(0) + (now - now) = 0。
+    const newUsage = agent.goal.getSnapshot()?.usage;
+    expect(newUsage?.turns).toBe(0);
+    expect(newUsage?.tokens).toBe(0);
+    expect(newUsage?.wallClockMs).toBe(0);
   });
 
   it('replace does not emit completion change for the old goal', () => {

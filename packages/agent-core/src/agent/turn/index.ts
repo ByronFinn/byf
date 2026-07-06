@@ -413,6 +413,11 @@ export class TurnFlow implements RecordRestoreHandler {
 
         // 计入一轮 continuation。
         this.agent.goal.incrementTurn();
+        // 立即 emit usage——否则该轮 incrementTurn 是 silent（N3），emit 只在本轮
+        // 跑完之后（L454），footer 整轮期间停在上一轮的 turns。补这一次让 footer 在
+        // continuation 真正跑之前即看到新 turns（与 #207 首轮补丁同口径，覆盖每个
+        // continuation 轮次）。token 仍回合级：本轮 token 未记账，emit 的 tokens 不变。
+        this.agent.goal.emitUsageUpdate();
 
         // 发起 continuation turn（system_trigger origin，不触发 UserPromptSubmit hook）。
         // 经 prompt() 而非 launch()，确保 turn.prompt record 进 wire（PRD：continuation 进 wire）。

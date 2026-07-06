@@ -138,7 +138,43 @@ describe('GoalMode wall-clock budget (AC-5)', () => {
 
     const report = agent.goal.computeBudgetReport();
     expect(report.overBudget).toBe(true);
-    // snapshot.usage.wallClockMs 仍是 0（未折叠），但 live 判断已超
-    expect(agent.goal.getSnapshot()?.usage.wallClockMs).toBe(0);
+  });
+
+  // —— 回归点：/goal status、GetGoal 工具等"按需读取"路径走 getSnapshot()，
+  //    active 期间也必须读到 live wall-clock，否则 elapsed 恒显示 0s（与 footer
+  //    本地外推的 173s 不一致）。修复前 getSnapshot 原样返回 this.snapshot，其
+  //    usage.wallClockMs 在 active 期间恒为 0（只在离开 active 时折叠）。
+
+  it('getSnapshot overlays live wall-clock while active (status path reads real elapsed)', () => {
+    const agent = makeGoalAgent();
+    agent.goal.createGoal('obj');
+    vi.setSystemTime(new Date('2026-01-01T00:00:05Z').getTime()); // +5s active
+
+    const snapshot = agent.goal.getSnapshot();
+    // 按需读取方（/goal status、GetGoal）应看到 5s，而非 0。
+    expect(snapshot?.usage.wallClockMs).toBe(5000);
+    expect(snapshot?.status).toBe('active');
+  });
+
+  it('getSnapshot overlay tracks time as it advances while active', () => {
+    const agent = makeGoalAgent();
+    agent.goal.createGoal('obj');
+    vi.setSystemTime(new Date('2026-01-01T00:00:03Z').getTime()); // +3s
+    expect(agent.goal.getSnapshot()?.usage.wallClockMs).toBe(3000);
+
+    vi.setSystemTime(new Date('2026-01-01T00:00:10Z').getTime()); // +10s
+    expect(agent.goal.getSnapshot()?.usage.wallClockMs).toBe(10000);
+  });
+
+  it('getSnapshot preserves folded value after pause (no double-count on resume)', () => {
+    const agent = makeGoalAgent();
+    agent.goal.createGoal('obj');
+    vi.setSystemTime(new Date('2026-01-01T00:00:05Z').getTime()); // +5s active
+    agent.goal.pause(); // 折叠：wallClockMs = 5000
+
+    // paused 期间不再 overlay，getSnapshot 返回折叠后的定值。
+    vi.setSystemTime(new Date('2026-01-01T00:00:20Z').getTime()); // +15s paused
+    expect(agent.goal.getSnapshot()?.usage.wallClockMs).toBe(5000);
+    expect(agent.goal.getSnapshot()?.status).toBe('paused');
   });
 });
