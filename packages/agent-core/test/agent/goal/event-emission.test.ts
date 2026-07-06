@@ -46,11 +46,16 @@ describe('GoalUpdatedEvent emission (AC-4)', () => {
     const events = goalUpdatedEvents(emitted);
     expect(events.length).toBe(beforeCount + 1);
     const last = events.at(-1)!;
-    expect((last.snapshot as { usage: { turns: number; tokens: number } }).usage).toEqual({
-      turns: 1,
-      tokens: 150,
-      wallClockMs: 0,
-    });
+    // turns/tokens 是确定性计步，断言精确值；wallClockMs 在 active 期间由 emitUsageUpdate
+    // 叠加 live wall-clock（getLiveWallClockMs），随真实时间增长，断言非负整数即可——
+    // 断言 === 0 会因时钟分辨率 flake（修复 emitUsageUpdate 后该值不再恒为 0）。
+    const usage = (
+      last.snapshot as { usage: { turns: number; tokens: number; wallClockMs: number } }
+    ).usage;
+    expect(usage.turns).toBe(1);
+    expect(usage.tokens).toBe(150);
+    expect(Number.isInteger(usage.wallClockMs)).toBe(true);
+    expect(usage.wallClockMs).toBeGreaterThanOrEqual(0);
     expect(last.change).toBeUndefined();
   });
 

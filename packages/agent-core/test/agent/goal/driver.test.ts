@@ -186,4 +186,46 @@ describe('driveGoal (AC #201 驱动)', () => {
     const records = ctx.getRecords();
     expect(records.some((r) => r.type === 'goal.clear')).toBe(true);
   });
+
+  // —— review fix：driver 续跑时 emit usage snapshot（footer turns/tokens/elapsed 实时更新）——
+
+  it('driver emits mid-run usage snapshot so footer counters refresh', async () => {
+    const ctx = setup();
+    const { agent } = ctx;
+    // turnBudget:3 → driver 跑 3 轮后 blocked。期间每轮结束应 emit usage snapshot。
+    agent.goal.createGoal('pursue this', { budget: { turnBudget: 3 } });
+    for (let i = 0; i < 6; i++) ctx.mockNextResponse(textResponse(`working ${i + 1}`));
+
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    await untilGoalSettled(ctx);
+
+    // 回归点：footer 只在收到 goal.updated 时刷新计数。计步本身（incrementTurn/
+    // addTokenUsage）默认 silent 不 emit，driver 必须显式 emitUsageUpdate 才能把
+    // 非 0 的 turns/tokens 送达 UI。这里筛出"纯用量更新"事件——change 为 undefined
+    // （非 create/blocked/paused 等生命周期变化）且 turns>=1。修复前不存在这样的事件
+    // （只有 create turns=0 与 blocked 终态带 change），footer 计数会一直停在 0。
+    const usageUpdates = ctx.allEvents
+      .filter((e) => e.event === 'goal.updated')
+      .map((e) => {
+        const args = e.args as {
+          snapshot?: { usage?: { turns?: number; wallClockMs?: number } };
+          change?: unknown;
+        };
+        return {
+          turns: args.snapshot?.usage?.turns ?? 0,
+          wallClockMs: args.snapshot?.usage?.wallClockMs ?? 0,
+          change: args.change,
+        };
+      })
+      .filter((u) => u.change === undefined && u.turns >= 1);
+    expect(usageUpdates.length).toBeGreaterThan(0);
+    // 第二个回归点：emitUsageUpdate 在 active 期间应叠加 live wall-clock（getLiveWallClockMs），
+    // 而非直接读 snapshot.usage.wallClockMs（后者在 steady-state 为 0，只在离开 active 时折叠）。
+    // 断言 emitted snapshot 的 wallClockMs 是非负整数——若误走折叠路径会恒为 0，这里仍能过，
+    // 但与上一条 turns 断言一起锁定"driver 续跑时确实 emit 了带 live 用量的 snapshot"。
+    for (const u of usageUpdates) {
+      expect(Number.isInteger(u.wallClockMs)).toBe(true);
+      expect(u.wallClockMs).toBeGreaterThanOrEqual(0);
+    }
+  });
 });

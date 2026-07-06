@@ -205,10 +205,25 @@ export class GoalMode implements RecordRestoreHandler {
   /**
    * 显式 emit 一次当前 snapshot 的用量更新（PRD R12：计步默认 silent，driver 想更新 UI 时调）。
    * 不带 change（纯用量更新，非生命周期变化）。无 goal 时 no-op。
+   *
+   * active 期间 snapshot.usage.wallClockMs 只在离开 active 时折叠（foldWallClockIfLeavingActive），
+   * 故 steady-state 下读出来恒为 0。这里 emit 时把 live wall-clock 叠进 snapshot，使 footer
+   * 的 elapsed 能实时增长——口径与 computeBudgetReport 一致。落盘 record 仍写折叠后的累积值
+   * （replay 一致性靠 record，不靠事件）。
    */
   emitUsageUpdate(): void {
     if (this.snapshot === null) return;
-    this.emitGoalUpdated(this.getSnapshot());
+    const snapshot =
+      this.snapshot.status === 'active' && this.wallClockResumedAt !== undefined
+        ? {
+            ...this.snapshot,
+            usage: {
+              ...this.snapshot.usage,
+              wallClockMs: this.getLiveWallClockMs(),
+            },
+          }
+        : this.snapshot;
+    this.emitGoalUpdated(snapshot);
   }
 
   /**

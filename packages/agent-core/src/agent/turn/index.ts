@@ -397,6 +397,12 @@ export class TurnFlow implements RecordRestoreHandler {
         }
         // blocked / null / 其它非 active → 退出。
         if (after === null || after.status !== 'active') return;
+        // 续跑前 emit 一次 usage snapshot（PRD R12：计步默认 silent，driver 想更新 UI 时
+        // 调）。否则 footer 的 turns/tokens/elapsed 永远停在 create 时的 0/0/0——只有
+        // 生命周期事件（▶→⏸/⚠）才发 snapshot，计步本身不 emit。emitUsageUpdate 反映
+        // active 期间的 live wall-clock（与 computeBudgetReport 口径一致），故 elapsed
+        // 也能实时增长。
+        this.agent.goal.emitUsageUpdate();
         // 否则继续下一轮。
       }
       // P3 兜底：迭代达上限仍未终止，降级为 blocked。

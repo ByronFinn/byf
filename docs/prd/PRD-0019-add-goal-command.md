@@ -298,6 +298,7 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 
 - **Grilled by**: grill skill，2026-07-03（一轮，ADR-0022/0023/0024）；2026-07-04（二轮，新增 ADR-0025，补全 15 项：cancel 不渲染卡片/replace record 序列/pause 软停 cancel 硬停/sub 工具两层门控/模型 CreateGoal 入口/completion clear 延迟到 driver 边界/budget slash flag 与工具 schema/replay 保留累积计数/status 走 transcript/compaction 计入 budget/driver 期间输入锁/错误码触发条件）。
 - **Debugged by**: `/debug` (2026-07-06) — slash 入口 `/goal <objective>` 创建 goal 后未发起首个 user turn，导致 `turnWorker` 的 driver 接管条件（user-origin turn 结束时 goal 仍 active）永不满足，goal 卡在 active、turns/tokens 恒为 0。修复：`byf-tui.ts handleGoalCommand` 在 create 成功后调用 `sendNormalUserInput(objective)` 发起首个 turn（对齐 PRD 数据流）。
+- **Debugged by**: `/debug` (2026-07-06) — footer 的 turns/tokens/elapsed 计数在 goal 推进中不刷新（恒为 0/0/0）。根因：计步方法 `incrementTurn`/`addTokenUsage` 按 N3 设计 silent（写 record 不 emit），而 `driveGoal` 从未调用补偿用的 `emitUsageUpdate()`，footer 又是纯事件驱动（无定时刷新），故只有生命周期事件（▶/⏸/⚠）送达、计数永不更新；同时 `emitUsageUpdate` 读取的 snapshot.usage.wallClockMs 在 active 期间为 0（只在离开 active 时折叠），导致 elapsed 也会恒为 0。修复：`driveGoal` 续跑前调用 `emitUsageUpdate()`；`emitUsageUpdate()` 在 active 期间把 live wall-clock 叠进 emit 的 snapshot（与 computeBudgetReport 口径一致），落盘 record 仍写折叠累积值。
 - **相关 ADR**：
   - ADR-0022（Goal Reminder 走 Ephemeral Injection）
   - ADR-0023（Fork 总是清空 Goal）
