@@ -113,12 +113,12 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 - **R3**（状态机）：
   - absent → `active`（create，含 replace 语义：已有 goal 时必须 `replace:true` 才覆盖，否则 `GOAL_ALREADY_EXISTS`）。`replace` 是**原子地 cancel 旧 goal + create 新 goal**：写入 wire 的 record 序列为 `goal.clear`（旧）→ `goal.create`（新），不是 update；旧 goal 不走 completion 路径，不发 completion `goal.updated` 事件。
   - `active` → `paused`（用户 pause **软停**——只置状态，当前 turn 跑完后 driver 读到 paused 停止续跑；**不** abort 当前 turn，保护进行中工具调用的原子性 / interrupt / fail / 进程重启降级）。
-  - `active` → `blocked`（模型 `UpdateGoal('blocked')` / 预算耗尽 / UserPromptSubmit hook 拦截）。
+  - `active` → `blocked`（模型 `UpdateGoal('blocked')` / 预算耗尽）。
   - `active` → `complete`（瞬态，模型 `UpdateGoal('complete')`，工具内置 complete 瞬态 + emit completion 事件）→ driver 在 turn 边界读到 complete 后 clear 回 absent（关键技术发现 #7，不立即 clear）。
   - `paused`/`blocked` → `active`（resume）。
   - 任意持久化态 → absent（cancel **硬停**——立即 abort 当前 turn 的 AbortSignal，等价 Esc，再 clear goal 记录；半成品工具调用状态由用户承担）。
 - **R4**（预算）：`GoalBudgetLimits {tokenBudget?, turnBudget?, wallClockBudgetMs?}`。`computeBudgetReport` 给出 remaining 与 `overBudget` 布尔。driver 在每个续跑迭代开始与结束时检查 `overBudget`，超了则 `markBlocked({reason:'A configured budget was reached'})` 并停止。**计数口径**：`turnBudget` = driver 跑过的轮数（含首个 turn + 每个 continuation turn）；`tokenBudget` = driver 每轮把本轮 turn token（input+output，含 reminder 注入与 compaction 摘要 token）累加到 goal 的 `tokenUsed`——**只算 driver 跑的 turn**，paused/blocked 期间用户普通 turn 不经 driver，不计入；`wallClockBudgetMs` = active 区间累加的墙钟（见关键技术发现 #5）。
-- **R5**（驱动）：`driveGoal` 循环——每次迭代：检查预算 → `incrementTurn` → `runOneTurn` → 按 `turn.ended.reason` 与读到的 goal 状态决定续跑/停止。`cancelled`→`pauseOnInterrupt`，`failed`→`pauseActiveGoal`，hook 拦截→`markBlocked`。
+- **R5**（驱动）：`driveGoal` 循环——每次迭代：检查预算 → `incrementTurn` → `runOneTurn` → 按 `turn.ended.reason` 与读到的 goal 状态决定续跑/停止。`cancelled`→`pauseOnInterrupt`，`failed`→`pauseActiveGoal`。（continuation turn 是 `system_trigger` origin，豁免 `UserPromptSubmit` hook，见 ADR-0026——故 driver 无 hook 拦截分支。）
 - **R6**（注入）：`GoalInjector extends DynamicInjector`，实现 `getEphemeral()`（**不**实现 `getInjection()`），走 projector `before_user` 位置，每 step 重新生成。三档：active=完整 reminder+budget 指引；blocked=轻提示+objective；paused=守卫提示。无 goal 时返回空数组。**不**进 wire、**不**破坏 cache prefix。见 **ADR-0022**。
 - **R7**（工具，两层门控）：
   - **注册层**：`initializeBuiltinTools` 仅在 `agent.type === 'main'` 时 new 这 4 个 goal 工具（`CreateGoal`/`GetGoal`/`SetGoalBudget`/`UpdateGoal`）。非 main agent（sub/independent）根本不注册，工具表里没有，模型 schema 看不到——保证 sub agent 永远无法触碰 goal。
@@ -250,7 +250,7 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 - **dedup**：`ToolCallDeduplicator` 是 per-turn 的，续跑每轮重置，不受 goal 影响。
 - **steer**：用户在 goal 推进中 steer，`flushSteerBuffer` 在 `beforeStep` 调——steer 内容追加到当前 turn，goal driver 不需特殊处理。
 - **输入锁（用户普通消息）**：driver 推进期间 TUI 视为 streaming 等价态——`idle-only` 命令被拦、普通新消息输入被锁。用户要发新 turn 必须先 `/goal pause` 或 Esc（goal 进 paused），再发普通消息。即 driver 推进期间**只允许 steer**（追加到当前 turn），不允许新 turn——避免用户 turn 与 goal continuation turn 交错导致 driver 状态机混乱（用户 turn 结束时 goal 仍 active，driver 会续跑，下一轮 continuation 又来，用户消息被夹中间）。
-- **hook**：`UserPromptSubmit` hook 拦截 continuation prompt 时，driver `markBlocked({reason:'Blocked by UserPromptSubmit hook'})`（与普通 turn 一致）。
+- **hook**：continuation turn 的 origin 为 `system_trigger/goal_continuation`，与普通 user-origin turn 不同——`applyUserPromptHook` 只对 `origin.kind === 'user'` 触发，故 `UserPromptSubmit` hook **不拦截** continuation turn（见 ADR-0026）。用户若想拦截 goal 推进，用 `/goal pause`（软停）或 `/goal cancel`（硬停）。
 - **fork**：`SessionStore.fork` 截断后追加 `goal.clear`（若前缀含 `goal.create`），fork 后会话无 goal（ADR-0023）。
 
 ### 预算计时的 wall-clock 实现
@@ -302,11 +302,16 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 - **Debugged by**: `/debug` (2026-07-06) — goal 完成后 completion 卡片与 `/goal status` 显示 `tokens=0`（elapsed 正确）。根因：`markComplete()` 在 turn **中途** 经 `UpdateGoal(complete)` 触发时 emit 的 completion 快照，读到的 `snapshot.usage.tokens=0`——因为 driver 把"本轮 token 累加进 goal"（`addTokenUsage`）放在 turn **结束之后**，而完成事件已在 `markComplete` 内部 emit 出去。后续 `addTokenUsage` 确实更新了 snapshot，但事件已发，UI（纯事件驱动的 completion 卡片 + `/goal status` 读的 snapshot）永远看不到。修复：`GoalMode` 新增 `emitFinalCompletionSnapshot()`，driver 在 token 记账后、`clearInternal` 前补发一次带最终 usage（turns=N tokens=M）的 completion 快照。回归测试在 `driver.test.ts`（修复前断言 `tokens > 0` 失败，修复后通过）。
 - **Debugged by**: `/debug` (2026-07-06) — 模型在**首个 user turn 内**调 `UpdateGoal(complete)` 时，completion 卡片与 `/goal status` 显示 `turns=0 tokens=0`（elapsed 正确）。根因：`driveGoal` 是 goal 记账（`incrementTurn`/`addTokenUsage`/`emitFinalCompletionSnapshot`/`clearInternal`）的唯一发生地，但它的接管条件 `getSnapshot()?.status === 'active'` 在"首个 turn 内已完成"时为假（此时为 `complete` 瞬态）——driver 从不运行，首个 turn 既不计入 turnBudget（违反 R4），complete 瞬态也无人 clear。这与上一条"continuation turn 完成时序"是不同路径。修复：`turnWorker` 在首个 user turn 边界检测到 complete 瞬态时，镜像 driver 的 complete 分支补做结算（`incrementTurn` + `addTokenUsage` + `emitFinalCompletionSnapshot` + `clearInternal`）。回归测试在 `driver.test.ts`（修复前断言 `turns === 1` 实得 0、snapshot 残留 complete、无 `goal.clear`，修复后通过）。
 - **Reviewed by**: `/review` (2026-07-06) — 三视角（Test/Code/Impact）并行 review 发现并修复 3 项：(1) `/goal cancel` 未硬停（违反 ADR-0025/AC-8）——`actions/goal.ts` cancel 分支只调 `cancelGoal()` 清状态，从不调 abort；修复：新增 `GoalActionCallbacks.abortActiveTurn()`，cancel 分支调它（接 `byf-tui.ts cancelCurrentStream` → `session.cancel()` → AbortSignal），pause 分支不调；回归测试 `commands/goal.test.ts` 锁定"cancel abort、pause 不 abort"。(2) AC-9 compaction 计入 budget 无测试——新增 `driver.test.ts` 测试，注入已知大小的 compaction-summary usage 后断言它出现在 goal 最终 tokenUsed 里（关闭注入后测试失败，证明有效性）。(3) changeset `prd-0019-goal-state-machine.md` 错误列出 `@byfriends/vis-server`（该包源码未改动，唯一 vis 改动在私有的 vis-web）——删除该行。附带：`commands/goal.ts` 条件展开 `...(budget ? {budget} : {})` 改直传（AGENTS.md 硬规则）。
+- **Refactored by** (2026-07-06) — `settleFirstUserTurnCompletion` 与 `driveGoal` 每轮迭代手抄了同一份 token-delta 算法（input/output 增量 → `addTokenUsage`，字符级等价）。抽 `TurnFlow.addCurrentTurnTokenUsage(baseline)` 私有方法收口，两处调用同一实现。纯行为保持，无 changeset。
+- **PRD 修订** (2026-07-06) — R5 原含"hook 拦截 continuation → `markBlocked`"条款，但 OQ-8 已定 continuation origin = `system_trigger/goal_continuation`，而 `applyUserPromptHook`（`turn/index.ts:470`）只对 `origin.kind === 'user'` 触发——两者互斥，hook 在 continuation turn 上永不触发，R5 的该分支为死路径。决议：**system_trigger continuation 刻意豁免 user-prompt hook**（与 Claude Code 一致），删除 R5/line 253/R3 的 hook 拦截条款，新增 **ADR-0026** 记录此设计。用户拦截 goal 推进改用 `/goal pause`（软停）/`/goal cancel`（硬停）。
+- **UX 增强** (2026-07-06, `/think`+`/grill`) — footer 的 goal elapsed 在单个 turn 内冻结（"完成才更新"体感）。根因：N3 规定计步 silent + footer 纯事件驱动无 timer。决议：**不反转 N3**（与 kimi-code 一致，token 也回合级 silent），改在 footer 加 kimi-code 式 1s 本地 `setInterval` + `goalObservedAtMs` 锚点外推 `wallClockMs`（外推条件严格 `status==='active'`，complete 瞬态显示定格值），让 elapsed 每秒跳动；另修首轮 `driveGoal` 接管后即 emit（消除 turns 跳过 1 盲区）。grill 锁定 7 个决策点（外推条件/snapshot 判变全字段/最小修复/onRefresh 第 4 参/dispose 不加 flag/接线点 stop() L807/ADR+扩展既有测试）。新增 **ADR-0027**。子任务：#206（footer timer）、#207（首轮 emit）、#208（ADR+Traceability+changeset）。
 - **相关 ADR**：
   - ADR-0022（Goal Reminder 走 Ephemeral Injection）
   - ADR-0023（Fork 总是清空 Goal）
   - ADR-0024（Goal 终态停止靠 Driver 边界读状态；二轮补：completion clear 延迟到 driver 边界）
   - ADR-0025（Goal Pause 软停 / Cancel 硬停）
+  - ADR-0026（Goal continuation turn 豁免 UserPromptSubmit hook）
+  - ADR-0027（Goal footer 本地 timer + wallClockMs 外推，补 N3 实时性盲区）
 - **相关既有 ADR**：ADR-0011（cache staking，reminder 机制需遵守）、ADR-0020（fork 截断锚点，fork 清空 goal 落在其路径上）。
 - **Parent Issue**：#199（手动创建；本 PRD 由 `/think` 产出但未自动建 Issue，grill 阶段补建）。
 - **Sliced by**: `/story` → Child Issues below（2026-07-04）
@@ -317,6 +322,9 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
   - #203 — [PRD-0019] SDK + RPC (AFK, blocked by #200)
   - #204 — [PRD-0019] CLI /goal slash 命令 + 事件处理 + 文档 (AFK, blocked by #203)
   - #205 — [PRD-0019] goal UI — footer badge + completion 卡片 + transcript marker (HITL, blocked by #204)
+  - #206 — [PRD-0019] goal footer 实时耗时展示 — 1s 本地 timer + wallClockMs 外推 (AFK, UX 增强)
+  - #207 — [PRD-0019] goal 首轮 usage emit 盲区修复 — driver 接管即 emit turns=1 (AFK, UX 增强)
+  - #208 — [PRD-0019] goal 实时展示 ADR + Traceability + changeset (HITL, blocked by #206, #207)
 
 ## Research References
 
