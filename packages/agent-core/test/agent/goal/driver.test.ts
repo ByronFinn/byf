@@ -187,6 +187,66 @@ describe('driveGoal (AC #201 驱动)', () => {
     expect(records.some((r) => r.type === 'goal.clear')).toBe(true);
   });
 
+  // —— review fix：complete 快照 token 记账时序（markComplete emit 早于 driver 的
+  //    addTokenUsage，导致 completion 卡片显示 tokens=0）。driver 在 token 记账后
+  //    补发一次带最终 usage 的 completion 快照。 ——
+
+  it('markComplete during driver → final completion snapshot carries tokens/turns', async () => {
+    // 复用 markComplete 测试的 scripted generate 模式：第 2 次 generate（首个
+    // continuation turn）前调 markComplete 模拟模型完成。scripted generate 按消息
+    // 估算 token，故 driver 的 addTokenUsage 会真实累加非 0 token。
+    let agentRef: ReturnType<typeof testAgent>['agent'] | undefined;
+    const scripted = createScriptedGenerate();
+    scripted.mockNextResponse(textResponse('working on it'));
+    scripted.mockNextResponse(textResponse('all done'));
+    let generateCallCount = 0;
+    const ctx = new AgentTestContext({
+      generate: (async (...args: Parameters<typeof scripted.generate>) => {
+        generateCallCount += 1;
+        if (generateCallCount === 2 && agentRef) {
+          agentRef.goal.markComplete('objective met');
+        }
+        return scripted.generate(...args);
+      }) as typeof scripted.generate,
+    });
+    ctx.configure({ tools: [] });
+    agentRef = ctx.agent;
+    const { agent } = ctx;
+
+    agent.goal.createGoal('pursue this', { budget: { turnBudget: 10 } });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    await untilGoalSettled(ctx, 10);
+
+    // 回归点：markComplete 在 turn 中途 emit 的 completion 快照 tokens=0（本轮 token
+    // 尚未记账），driver 在 addTokenUsage 后必须补发一次带最终 usage 的 completion
+    // 快照。筛出所有 completion change 事件，最后一个应携带非 0 token。
+    // 修复前：仅 markComplete 的那次 emit（tokens=0），无补发 → 最后一个 tokens=0。
+    const completionEvents = ctx.allEvents
+      .filter((e) => e.event === 'goal.updated')
+      .map((e) => {
+        const args = e.args as {
+          snapshot?: { usage?: { turns?: number; tokens?: number } };
+          change?: { kind?: string };
+        };
+        return {
+          turns: args.snapshot?.usage?.turns ?? 0,
+          tokens: args.snapshot?.usage?.tokens ?? 0,
+          changeKind: args.change?.kind,
+        };
+      })
+      .filter((e) => e.changeKind === 'completion');
+    expect(completionEvents.length).toBeGreaterThanOrEqual(1);
+    const last = completionEvents.at(-1)!;
+    // turns：driver 进 loop 前 incrementTurn 一次 + loop 内 incrementTurn 一次 = 2。
+    expect(last.turns).toBeGreaterThanOrEqual(2);
+    // tokens：scripted generate 估算的非 0 token 应被 driver 记入 goal。
+    // 修复前此处为 0（markComplete emit 早于 addTokenUsage）。
+    expect(last.tokens).toBeGreaterThan(0);
+
+    // snapshot 已被 driver clearInternal 置 null（与上一测试相同的边界 clear 语义）。
+    expect(agent.goal.getSnapshot()).toBeNull();
+  });
+
   // —— review fix：driver 续跑时 emit usage snapshot（footer turns/tokens/elapsed 实时更新）——
 
   it('driver emits mid-run usage snapshot so footer counters refresh', async () => {
@@ -227,5 +287,69 @@ describe('driveGoal (AC #201 驱动)', () => {
       expect(Number.isInteger(u.wallClockMs)).toBe(true);
       expect(u.wallClockMs).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  // —— review fix：模型在首个 user turn 内就调 markComplete（不进入 continuation）——
+  //    此时 driveGoal 接管条件（status==='active'）为假、driver 不运行，会导致首个
+  //    turn 不计入 turnBudget、complete 瞬态无人 clear（completion 卡片显示 turns=0/
+  //    tokens=0，/goal status 读到残留 complete 瞬态）。turnWorker 必须在首个 user
+  //    turn 边界补做结算（incrementTurn + addTokenUsage + emitFinalCompletionSnapshot
+  //    + clearInternal）。
+
+  it('markComplete during first user turn → first-turn settled at boundary (no driver)', async () => {
+    // scripted generate：首个 user turn 的 generate 返回前调 markComplete 模拟"模型
+    // 在首个 turn 内完成"。不 mock 第二轮响应——driver 不应被进入（进入会抛
+    // "Unexpected generate call #2"）。
+    let agentRef: ReturnType<typeof testAgent>['agent'] | undefined;
+    const scripted = createScriptedGenerate();
+    scripted.mockNextResponse(textResponse('all done in first turn'));
+    const ctx = new AgentTestContext({
+      generate: (async (...args: Parameters<typeof scripted.generate>) => {
+        if (agentRef) {
+          agentRef.goal.markComplete('objective met in first turn');
+        }
+        return scripted.generate(...args);
+      }) as typeof scripted.generate,
+    });
+    ctx.configure({ tools: [] });
+    agentRef = ctx.agent;
+    const { agent } = ctx;
+
+    agent.goal.createGoal('pursue this', { budget: { turnBudget: 10 } });
+    void ctx.rpc.prompt({ input: [{ type: 'text', text: 'pursue this' }] });
+    // rpc.prompt 不等 turn worker 跑完（prompt 启动 turn 后即返回）；需显式等首轮结束，
+    // 让 turnWorker 的首个 user turn 边界结算（settleFirstUserTurnCompletion）执行完。
+    await ctx.untilTurnEnd();
+
+    // driver 不应进入——脚本里只 mock 了 1 个响应；若 driver 误进入会抛
+    // "Unexpected generate call #2"。await prompt 已隐含验证 driver 未续跑。
+
+    // 回归点 1：首个 turn 计入 turnBudget（PRD R4）。markComplete emit 的 completion
+    // 快照 turns=0（turn 尚未计入），turnWorker 边界补发后应为 1。
+    const completionEvents = ctx.allEvents
+      .filter((e) => e.event === 'goal.updated')
+      .map((e) => {
+        const args = e.args as {
+          snapshot?: { usage?: { turns?: number; tokens?: number } };
+          change?: { kind?: string };
+        };
+        return {
+          turns: args.snapshot?.usage?.turns ?? 0,
+          tokens: args.snapshot?.usage?.tokens ?? 0,
+          changeKind: args.change?.kind,
+        };
+      })
+      .filter((e) => e.changeKind === 'completion');
+    expect(completionEvents.length).toBeGreaterThanOrEqual(1);
+    const last = completionEvents.at(-1)!;
+    expect(last.turns).toBe(1);
+    // 修复前为 0。
+    expect(last.tokens).toBeGreaterThan(0);
+
+    // 回归点 2：complete 瞬态被 clearInternal 清空（driver 边界 clear 的首个 turn 等价）。
+    expect(agent.goal.getSnapshot()).toBeNull();
+    // 回归点 3：wire 落盘 goal.clear。
+    const records = ctx.getRecords();
+    expect(records.some((r) => r.type === 'goal.clear')).toBe(true);
   });
 });

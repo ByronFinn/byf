@@ -227,6 +227,21 @@ export class GoalMode implements RecordRestoreHandler {
   }
 
   /**
+   * driver 在完成本轮 token 记账后、clearInternal 前，重新 emit 一次带最终 usage
+   * 的 completion 快照。markComplete 在 turn 中途 emit 的快照 tokens=0（本轮 token
+   * 尚未记账），UI 的 completion 卡片据此渲染会显示 0 token。本方法补发一次，使
+   * 卡片读到 turns=N tokens=M 的真实值。complete 瞬态下 wallClockResumedAt 已折叠，
+   * 故 emit 的 wallClockMs 即落盘的累积值。无 complete 瞬态时 no-op。
+   */
+  emitFinalCompletionSnapshot(): void {
+    if (this.snapshot === null || this.completeReason === undefined) return;
+    this.emitGoalUpdated(this.getSnapshot(), {
+      kind: 'completion',
+      reason: this.completeReason,
+    });
+  }
+
+  /**
    * active 期间的实时墙钟（ms）：累积 wallClockMs + 当前未折叠区间。
    * 非 active（或无 goal）时返回已折叠的累积 wallClockMs。
    * driver mid-turn 据此判断是否超 wall-clock budget。
