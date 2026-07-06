@@ -344,28 +344,31 @@ export class TurnFlow implements RecordRestoreHandler {
   /**
    * 首个 user turn 内 goal 已 complete 时的边界结算（PRD-0019 R4）。
    *
-   * 镜像 driveGoal 的 complete 分支语义：
-   * - incrementTurn：把首个 user turn 计入 turnBudget（PRD R4 明确含首个 turn）。
-   * - addTokenUsage：累加首轮 token（input+output，含 reminder 注入与 compaction 摘要）。
-   * - emitFinalCompletionSnapshot：markComplete 在 turn 中途 emit 的快照 tokens=0
-   *   （本轮 token 尚未记账），此处补发带最终 usage 的 completion 快照。
-   * - clearInternal：driver 边界 clear（ADR-0024）。
-   *
-   * 与 driveGoal 的 complete 分支对称但独立——因为 driveGoal 不会进入（接管条件不满足）。
+   * 与 driveGoal 的 complete 分支语义一致——driveGoal 不会进入（接管条件
+   * status==='active' 不满足），此处镜像其 complete 边界：计首个 turn + 本轮 token
+   * → emit 最终 completion 快照（含真实 usage）→ clearInternal。
    */
   private settleFirstUserTurnCompletion(baseline: TokenUsage | undefined): void {
     this.agent.goal.incrementTurn();
-    const turnInput = baseline ? inputTotal(baseline) : 0;
-    const usageAfter = this.agent.usage.data().total;
-    const afterInput = usageAfter ? inputTotal(usageAfter) : 0;
-    const afterOutput = usageAfter?.output ?? 0;
-    const deltaInput = afterInput - turnInput;
-    const deltaOutput = afterOutput - (baseline?.output ?? 0);
-    if (deltaInput > 0 || deltaOutput > 0) {
-      this.agent.goal.addTokenUsage({ input: deltaInput, output: deltaOutput });
-    }
+    this.addCurrentTurnTokenUsage(baseline);
     this.agent.goal.emitFinalCompletionSnapshot();
     this.agent.goal.clearInternal();
+  }
+
+  /**
+   * 把本轮 turn 消耗的 token（input+output，含 reminder 注入与 compaction 摘要 token，
+   * AC-9）累加进 goal。取 `baseline`（本轮开始前的全局 usage total）与当前 total 的增量。
+   * 被 driveGoal 每轮迭代与 settleFirstUserTurnCompletion 共享——此前两处手抄同一算法。
+   */
+  private addCurrentTurnTokenUsage(baseline: TokenUsage | undefined): void {
+    const baselineInput = baseline ? inputTotal(baseline) : 0;
+    const baselineOutput = baseline?.output ?? 0;
+    const usageAfter = this.agent.usage.data().total;
+    const turnInput = usageAfter ? inputTotal(usageAfter) - baselineInput : 0;
+    const turnOutput = (usageAfter?.output ?? 0) - baselineOutput;
+    if (turnInput > 0 || turnOutput > 0) {
+      this.agent.goal.addTokenUsage({ input: turnInput, output: turnOutput });
+    }
   }
 
   /**
@@ -387,6 +390,10 @@ export class TurnFlow implements RecordRestoreHandler {
     try {
       // 首个 user turn 计入 turnBudget（PRD R4：含首个 turn + 每个 continuation）。
       this.agent.goal.incrementTurn();
+      // 立即 emit usage——否则首轮 silent（N3）+ 循环内 emit 在第一个 continuation
+      // turn 跑完之后（L450），导致 footer 的 turns 显示"跳过 1 直接到 2"。补这一次
+      // emit 让首轮结束 driver 接管时 footer 即显示 turns=1（#207）。
+      this.agent.goal.emitUsageUpdate();
       // P3 兜底：即使三类 budget 全未设，driver 也不会无限续跑。
       // 上限取保守值；正常 goal 会因 complete/blocked/cancelled 先停。
       const MAX_DRIVER_ITERATIONS = 50;
@@ -403,8 +410,6 @@ export class TurnFlow implements RecordRestoreHandler {
 
         // P1：记录本轮 turn 开始前的全局 token 基线，用于结束后算本轮增量。
         const usageBefore = this.agent.usage.data().total;
-        const baselineInput = usageBefore ? inputTotal(usageBefore) : 0;
-        const baselineOutput = usageBefore?.output ?? 0;
 
         // 计入一轮 continuation。
         this.agent.goal.incrementTurn();
@@ -416,12 +421,7 @@ export class TurnFlow implements RecordRestoreHandler {
 
         // P1：把本轮 turn 消耗的 token 累加进 goal（PRD R4：driver 每轮累加本轮 token；
         // 含该轮内的 compaction 摘要 token，AC-9）。
-        const usageAfter = this.agent.usage.data().total;
-        const turnInput = usageAfter ? inputTotal(usageAfter) - baselineInput : 0;
-        const turnOutput = (usageAfter?.output ?? 0) - baselineOutput;
-        if (turnInput > 0 || turnOutput > 0) {
-          this.agent.goal.addTokenUsage({ input: turnInput, output: turnOutput });
-        }
+        this.addCurrentTurnTokenUsage(usageBefore);
 
         // driver 边界处理结束 reason。
         const reason = result.event.reason;
