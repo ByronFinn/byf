@@ -212,7 +212,8 @@ function outsideWorkspaceMessage(
   return (
     `"${path}" (canonical: "${canonical}") is outside the workspace ` +
     `and outside the working directory "${config.workspaceDir}". ` +
-    `Cannot be ${verb}. Allowed roots: ${allowed}`
+    `Cannot be ${verb}. Allowed roots: ${allowed}. ` +
+    `Use an absolute path under one of the allowed roots above; accessing them may require approval.`
   );
 }
 

@@ -354,11 +354,12 @@ export class ToolManager implements RecordRestoreHandler {
       this.enabledTools.has('TaskList') &&
       this.enabledTools.has('TaskOutput') &&
       this.enabledTools.has('TaskStop');
+    const readFileTracker = new b.ReadFileTracker(this.toolStore);
     this.builtinTools = new Map(
       [
-        new b.ReadTool(kaos, workspace),
-        new b.WriteTool(kaos, workspace),
-        new b.EditTool(kaos, workspace),
+        new b.ReadTool(kaos, workspace, readFileTracker),
+        new b.WriteTool(kaos, workspace, readFileTracker),
+        new b.EditTool(kaos, workspace, readFileTracker),
         new b.GrepTool(kaos, workspace),
         new b.GlobTool(kaos, workspace),
         new b.BashTool(kaos, cwd, osEnv, background, {

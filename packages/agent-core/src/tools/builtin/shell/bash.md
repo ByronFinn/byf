@@ -14,6 +14,8 @@ The stdout and stderr will be combined and returned as a string. The output may 
 
 Each shell call runs in a fresh shell environment. The shell variables, current working directory changes, and the shell history is not preserved between calls.
 
+Use absolute paths and avoid prefixing commands with `cd <dir> &&` — each Bash call already starts in the working directory, `cd` does not persist between calls, and a leading `cd` only triggers an extra approval prompt. In particular, never prepend `cd <cwd>` to a `git` command — `git` already operates on the current working tree, and the compound triggers a permission prompt. To run several steps in one shell, chain them with `&&` without a leading `cd`.
+
 Never run commands that require superuser privileges unless explicitly instructed to do so.
 
 - Prefer `run_in_background=true` for long-running builds, tests, watchers, servers, batch scripts, or any command that should not block the conversation.

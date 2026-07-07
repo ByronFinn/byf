@@ -10,6 +10,7 @@ import { MEDIA_SNIFF_BYTES, detectFileType } from '../../support/file-type';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { makeCarriageReturnsVisible, type LineEndingStyle } from './line-endings';
+import type { ReadFileTracker } from './read-state';
 import readDescriptionTemplate from './read.md';
 
 export const MAX_LINES: number = 1000;
@@ -172,6 +173,7 @@ export class ReadTool implements BuiltinTool<ReadInput> {
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
+    private readonly readTracker?: ReadFileTracker,
   ) {}
 
   resolveExecution(args: ReadInput): ToolExecution {
@@ -222,15 +224,30 @@ export class ReadTool implements BuiltinTool<ReadInput> {
       const effectiveLimit = Math.min(requestedLines, MAX_LINES);
 
       if (lineOffset < 0) {
-        return await this.readTail(safePath, args.path, lineOffset, effectiveLimit, requestedLines);
+        const result = await this.readTail(
+          safePath,
+          args.path,
+          lineOffset,
+          effectiveLimit,
+          requestedLines,
+        );
+        // Tracks at file granularity: a partial read (line_offset / n_lines)
+        // still marks the whole file as read. The read-before-edit guard is a
+        // contract boundary, not a line-level guarantee — this matches Claude
+        // Code's behaviour and keeps the tracker cheap. Only a successful read
+        // reaches here; failures return from the catch below without marking.
+        this.readTracker?.markRead(safePath);
+        return result;
       }
-      return await this.readForward(
+      const result = await this.readForward(
         safePath,
         args.path,
         lineOffset,
         effectiveLimit,
         requestedLines,
       );
+      this.readTracker?.markRead(safePath);
+      return result;
     } catch (error) {
       if (isTextDecodeError(error)) {
         return { isError: true, output: notReadableFileOutput(args.path) };

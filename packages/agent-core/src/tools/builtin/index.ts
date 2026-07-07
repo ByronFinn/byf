@@ -10,6 +10,7 @@ export * from './file/glob';
 export * from './file/grep';
 export * from './file/read';
 export * from './file/read-media';
+export * from './file/read-state';
 export * from './file/write';
 export * from './goal';
 export * from './shell/bash';

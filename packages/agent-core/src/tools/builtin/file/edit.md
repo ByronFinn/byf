@@ -1,5 +1,6 @@
 Perform exact string replacements against the text view returned by Read.
 
+- You must Read the file in this conversation before editing it, or the call will fail.
 - When copying from Read output, omit the line-number prefix and tab; match only the file content.
 - By default, old_string must occur exactly once. If it matches multiple locations, add surrounding context or set replace_all when every occurrence should change.
 - When making several independent changes, issue multiple Edit calls in parallel within a single response; edits to the same file are serialized automatically by a write lock.

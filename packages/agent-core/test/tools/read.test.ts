@@ -1,6 +1,7 @@
 import type { Kaos } from '@byfriends/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
+import { EditTool } from '../../src/tools/builtin/file/edit';
 import {
   MAX_BYTES,
   MAX_LINE_LENGTH,
@@ -9,6 +10,9 @@ import {
   ReadInputSchema,
   ReadTool,
 } from '../../src/tools/builtin/file/read';
+import { ReadFileTracker } from '../../src/tools/builtin/file/read-state';
+import { WriteTool } from '../../src/tools/builtin/file/write';
+import type { ToolStore } from '../../src/tools/store';
 import { MEDIA_SNIFF_BYTES } from '../../src/tools/support/file-type';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 import { executeTool } from './fixtures/execute-tool';
@@ -845,5 +849,171 @@ describe('ReadTool description and schema parity', () => {
     expect(tool.description).toMatch(/line_offset.*1-based|1-based.*line_offset/i);
     expect(tool.description).toMatch(/n_lines|number of lines/i);
     expect(tool.description).toMatch(/page larger files|omit.*n_lines/i);
+  });
+
+  describe('with ReadFileTracker (marks files as read)', () => {
+    /** Minimal in-memory ToolStore, matching the production interface. */
+    function makeStore(): ToolStore {
+      const data: Record<string, unknown> = {};
+      return {
+        get: (key) => data[key] as never,
+        set: (key, value) => {
+          data[key] = value;
+        },
+      };
+    }
+
+    /** ReadTool wired to `content` plus a shared tracker. */
+    function toolWithTracker(
+      content: string,
+      tracker: ReadFileTracker,
+      workspace: WorkspaceConfig = PERMISSIVE_WORKSPACE,
+    ): ReadTool {
+      const bytes = Buffer.from(content, 'utf8');
+      return new ReadTool(
+        createFakeKaos({
+          stat: vi.fn<Kaos['stat']>().mockResolvedValue(REGULAR_FILE_STAT),
+          readBytes: vi.fn<Kaos['readBytes']>().mockImplementation(async (_path, n) => {
+            return n === undefined ? bytes : bytes.subarray(0, n);
+          }),
+          readLines: vi.fn<Kaos['readLines']>().mockImplementation(readLinesFromContent(content)),
+        }),
+        workspace,
+        tracker,
+      );
+    }
+
+    it('marks the file as read after a successful forward read', async () => {
+      const tracker = new ReadFileTracker(makeStore());
+      const tool = toolWithTracker('first\nsecond\n', tracker);
+
+      await executeTool(tool, context({ path: '/tmp/a.txt' }));
+
+      expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
+    });
+
+    it('marks the file as read after a successful tail read (negative offset)', async () => {
+      const tracker = new ReadFileTracker(makeStore());
+      const tool = toolWithTracker('first\nsecond\n', tracker);
+
+      await executeTool(tool, context({ path: '/tmp/a.txt', line_offset: -1 }));
+
+      expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
+    });
+
+    it('does NOT mark the file as read when the read fails (missing file)', async () => {
+      const statError = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      const tracker = new ReadFileTracker(makeStore());
+      const tool = new ReadTool(
+        createFakeKaos({
+          stat: vi.fn<Kaos['stat']>().mockRejectedValue(statError),
+          readBytes: vi.fn<Kaos['readBytes']>(),
+          readLines: vi.fn<Kaos['readLines']>(),
+        }),
+        { workspaceDir: '/workspace', additionalDirs: [] },
+        tracker,
+      );
+
+      await executeTool(tool, context({ path: '/workspace/missing.txt' }));
+
+      expect(tracker.hasRead('/workspace/missing.txt')).toBe(false);
+    });
+
+    it('end-to-end: Read then Edit uses the same canonical path key', async () => {
+      // Guards the cross-tool link: ReadTool marks the file, EditTool's
+      // hasRead must resolve the SAME canonical path. If path
+      // normalization diverges between the two, the whole read-before-edit
+      // contract silently breaks.
+      const store = makeStore();
+      const tracker = new ReadFileTracker(store);
+      const readTool = toolWithTracker('alpha beta', tracker);
+      const editTool = new EditTool(
+        createFakeKaos({
+          readText: vi.fn().mockResolvedValue('alpha beta'),
+          writeText: vi.fn().mockResolvedValue(0),
+        }),
+        PERMISSIVE_WORKSPACE,
+        tracker,
+      );
+
+      // Read with a relative-ish path, then edit the same file — both
+      // canonicalize to the same key or this fails with "must Read".
+      await executeTool(readTool, context({ path: '/tmp/link.txt' }));
+      const result = await executeTool(
+        editTool,
+        context({
+          path: '/tmp/link.txt',
+          old_string: 'beta',
+          new_string: 'gamma',
+        }),
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(result.output).toContain('Replaced 1 occurrence');
+    });
+
+    it('end-to-end: Read then overwrite-Write is allowed for the read file', async () => {
+      const store = makeStore();
+      const tracker = new ReadFileTracker(store);
+      const readTool = toolWithTracker('old content', tracker);
+      // Write sees the file as existing (regular file stat) — would be
+      // blocked without the prior Read.
+      const writeStat = vi.fn(async (p: string) => {
+        if (p.endsWith('/link.txt')) return REGULAR_FILE_STAT;
+        return DIRECTORY_STAT;
+      });
+      const writeTool = new WriteTool(
+        createFakeKaos({
+          stat: writeStat,
+          writeText: vi.fn().mockResolvedValue(3),
+        }),
+        PERMISSIVE_WORKSPACE,
+        tracker,
+      );
+
+      await executeTool(readTool, context({ path: '/tmp/link.txt' }));
+      const result = await executeTool(
+        writeTool,
+        context({ path: '/tmp/link.txt', content: 'new' }),
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(result.output).toContain('Wrote');
+    });
+  });
+});
+
+describe('ReadFileTracker', () => {
+  function makeStore(): ToolStore {
+    const data: Record<string, unknown> = {};
+    return {
+      get: (key) => data[key] as never,
+      set: (key, value) => {
+        data[key] = value;
+      },
+    };
+  }
+
+  it('hasRead returns false for an empty store', () => {
+    const tracker = new ReadFileTracker(makeStore());
+    expect(tracker.hasRead('/never/read.txt')).toBe(false);
+  });
+
+  it('markRead then hasRead returns true', () => {
+    const tracker = new ReadFileTracker(makeStore());
+    tracker.markRead('/tmp/a.txt');
+    expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
+    expect(tracker.hasRead('/tmp/other.txt')).toBe(false);
+  });
+
+  it('markRead is idempotent and preserves other entries', () => {
+    const tracker = new ReadFileTracker(makeStore());
+    tracker.markRead('/tmp/a.txt');
+    tracker.markRead('/tmp/b.txt');
+    // Re-marking an existing entry must not drop the other one.
+    tracker.markRead('/tmp/a.txt');
+
+    expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
+    expect(tracker.hasRead('/tmp/b.txt')).toBe(true);
   });
 });

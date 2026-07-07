@@ -17,12 +17,15 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { type PathClass, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
+import type { ReadFileTracker } from './read-state';
 import WRITE_DESCRIPTION from './write.md';
 
 /** Mask isolating the file-type bits of a stat mode. */
 const S_IFMT = 0o170000;
 /** File-type bits of a directory. */
 const S_IFDIR = 0o040000;
+/** File-type bits of a regular file. */
+const S_IFREG = 0o100000;
 
 function pathMod(pathClass: PathClass): typeof posixPath {
   return pathClass === 'win32' ? win32Path : posixPath;
@@ -63,6 +66,7 @@ export class WriteTool implements BuiltinTool<WriteInput> {
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
+    private readonly readTracker?: ReadFileTracker,
   ) {}
 
   resolveExecution(args: WriteInput): ToolExecution {
@@ -84,8 +88,22 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       return { isError: true, output: parentError };
     }
 
+    const mode = args.mode ?? 'overwrite';
+    // Overwriting an existing file the model has not Read in this session
+    // almost always destroys unseen content. Block it at the contract
+    // boundary, mirroring the Edit rule. Creating a new file or appending
+    // is not gated — only full overwrite of an existing, unread file.
+    if (this.readTracker !== undefined && mode === 'overwrite') {
+      const exists = await this.fileExists(safePath);
+      if (exists && !this.readTracker.hasRead(safePath)) {
+        return {
+          isError: true,
+          output: `Cannot overwrite ${args.path} — it already exists but has not been Read in this session. Use the Read tool first, then retry the Write (or use Edit for partial changes).`,
+        };
+      }
+    }
+
     try {
-      const mode = args.mode ?? 'overwrite';
       if (mode === 'append') {
         await this.kaos.writeText(safePath, args.content, { mode: 'a' });
       } else {
@@ -138,5 +156,19 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       return `Parent path is not a directory: ${parent}.`;
     }
     return undefined;
+  }
+
+  /**
+   * Whether a regular file already exists at `safePath`. Any stat failure
+   * (permissions, unsupported environment) is treated as "does not exist"
+   * so the write proceeds and surfaces the real I/O error if any.
+   */
+  private async fileExists(safePath: string): Promise<boolean> {
+    try {
+      const stat = await this.kaos.stat(safePath);
+      return (stat.stMode & S_IFMT) === S_IFREG;
+    } catch {
+      return false;
+    }
   }
 }

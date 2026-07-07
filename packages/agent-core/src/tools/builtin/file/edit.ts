@@ -19,6 +19,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import EDIT_DESCRIPTION from './edit.md';
 import { materializeModelText, toModelTextView } from './line-endings';
+import type { ReadFileTracker } from './read-state';
 
 // `old_string` must be non-empty: the non-replace_all branch walks
 // occurrences with `content.indexOf("", pos)`, which would loop forever
@@ -54,6 +55,44 @@ function replaceOnceLiteral(content: string, oldString: string, newString: strin
   return content.slice(0, index) + newString + content.slice(index + oldString.length);
 }
 
+/**
+ * When old_string is not found, the file has drifted from what the model
+ * last saw. Surface the real on-disk content (first lines, Read-style
+ * `lineNo\tline`) so the model can copy the exact text as its new
+ * old_string instead of guessing and retrying blind. Bounded so a huge
+ * file cannot exhaust the context.
+ *
+ * The snapshot lines come straight from disk. Any literal `<system>` /
+ * `</system>` inside the file is neutralized so the content cannot forge
+ * a system status block and confuse the renderer.
+ */
+const NOT_FOUND_SNAPSHOT_LINES = 50;
+
+function neutralizeSystemTags(line: string): string {
+  // Turn literal <system> / </system> into visible, non-executing text so
+  // file content cannot forge a status block in the rendered output.
+  return line.replaceAll('<system>', '&lt;system>').replaceAll('</system>', '&lt;/system>');
+}
+
+function notFoundWithSnapshot(path: string, content: string): string {
+  const lines = content.split('\n');
+  const total = lines.length;
+  const shown = lines.slice(0, NOT_FOUND_SNAPSHOT_LINES);
+  const snapshot = shown
+    .map((line, i) => `${String(i + 1)}\t${neutralizeSystemTags(line)}`)
+    .join('\n');
+  const truncatedNote =
+    total > NOT_FOUND_SNAPSHOT_LINES
+      ? `\n<system>Showing first ${String(NOT_FOUND_SNAPSHOT_LINES)} of ${String(total)} lines. Use Read with line_offset to view other regions.</system>`
+      : '';
+  return (
+    `old_string not found in ${path}. The file may have changed since you last read it. ` +
+    `Current content — copy the exact text below as your new old_string:\n\n` +
+    snapshot +
+    truncatedNote
+  );
+}
+
 export class EditTool implements BuiltinTool<EditInput> {
   readonly name = 'Edit' as const;
   readonly description = EDIT_DESCRIPTION;
@@ -62,6 +101,7 @@ export class EditTool implements BuiltinTool<EditInput> {
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
+    private readonly readTracker?: ReadFileTracker,
   ) {}
 
   resolveExecution(args: EditInput): ToolExecution {
@@ -85,6 +125,17 @@ export class EditTool implements BuiltinTool<EditInput> {
       };
     }
 
+    // Fail fast when the file has not been Read in this session. The
+    // Edit contract requires old_string to come from a current Read view;
+    // editing without one almost always drifts (stale memory, truncated
+    // context, parallel edits) and produces a wasted disk read + retry.
+    if (this.readTracker !== undefined && !this.readTracker.hasRead(safePath)) {
+      return {
+        isError: true,
+        output: `You must Read ${args.path} before editing it. Use the Read tool first, then retry the Edit with the exact content from the Read output.`,
+      };
+    }
+
     try {
       const raw = await this.kaos.readText(safePath);
       const modelView = toModelTextView(raw);
@@ -104,8 +155,7 @@ export class EditTool implements BuiltinTool<EditInput> {
         if (count === 0) {
           return {
             isError: true,
-            output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
-`,
+            output: notFoundWithSnapshot(args.path, content),
           };
         }
         if (count > 1) {
@@ -130,8 +180,7 @@ export class EditTool implements BuiltinTool<EditInput> {
       if (replacementCount === 0) {
         return {
           isError: true,
-          output: `old_string not found in ${args.path}, The file contents may be out of date. Please use the Read Tool to reload the content.
-`,
+          output: notFoundWithSnapshot(args.path, content),
         };
       }
 
