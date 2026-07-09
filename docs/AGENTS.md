@@ -121,8 +121,9 @@ Outline prompt:
 
 ```
 * Install and upgrade
-  * System requirements: Node.js 24.15.0+, recommend pnpm
-  * Install, upgrade, uninstall steps
+  * End users: compile binary (GitHub Release install.sh or npm optionalDep); no Bun/Node preinstall to run
+  * Contributors: Bun >=1.3.14 only
+  * Install, upgrade, uninstall, legacy reinstall steps
 ```
 
 **Bad** (mechanical conversion to headings):
@@ -149,9 +150,7 @@ Outline prompt:
 ```markdown
 ## Install and upgrade
 
-BYF CLI requires Node.js 24.15.0 or later. We recommend using pnpm for installation and management.
-
-If you haven't installed pnpm yet, please refer to the pnpm installation docs first. Install BYF CLI:
+Install BYF with the GitHub Release script or `npm install -g @byfriends/cli` (platform optionalDependency binary). You do not need Bun or Node preinstalled to run the CLI.
 
 (code block)
 
@@ -159,7 +158,7 @@ Verify the installation:
 
 (code block)
 
-Upgrade to the latest version:
+Upgrade to the latest version, or reinstall if you still have a legacy Node JS global:
 
 (code block)
 ```
