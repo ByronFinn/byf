@@ -21,9 +21,10 @@
     "url": "git+https://github.com/ByronFinn/byf.git"
   },
   "bin": {
-    "byf": "dist/main.mjs"
+    "byf": "bin/byf.cjs"
   },
   "files": [
+    "bin",
     "dist",
     "scripts/postinstall.mjs",
     "README.md"
@@ -49,6 +50,7 @@
     "build:native:sea:release": "node scripts/native/build.mjs --profile=release",
     "build:native:release": "bun scripts/compile/build.mjs --profile=release",
     "package:native": "node scripts/native/package.mjs",
+    "package:npm-platforms": "bun scripts/npm/package-platforms.mjs",
     "produce:native:manifest": "node scripts/native/produce-manifest.mjs",
     "release:native:resolve": "node scripts/native/resolve-release.mjs",
     "test:native:smoke": "node scripts/native/smoke.mjs",
@@ -72,6 +74,10 @@
     "semver": "^7.7.4",
     "smol-toml": "^1.6.1",
     "zod": "catalog:"
+  },
+  "optionalDependencies": {
+    "@byfriends/cli-darwin-arm64": "workspace:*",
+    "@byfriends/cli-linux-x64": "workspace:*"
   },
   "devDependencies": {
     "@byfriends/sdk": "workspace:^",

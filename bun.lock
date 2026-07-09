@@ -26,7 +26,7 @@
       "name": "@byfriends/cli",
       "version": "0.3.6",
       "bin": {
-        "byf": "dist/main.mjs",
+        "byf": "bin/byf.cjs",
       },
       "dependencies": {
         "@byfriends/vis-server": "workspace:^",
@@ -47,6 +47,18 @@
         "postject": "1.0.0-alpha.6",
         "yazl": "^3.3.1",
       },
+      "optionalDependencies": {
+        "@byfriends/cli-darwin-arm64": "workspace:*",
+        "@byfriends/cli-linux-x64": "workspace:*",
+      },
+    },
+    "apps/cli/npm/darwin-arm64": {
+      "name": "@byfriends/cli-darwin-arm64",
+      "version": "0.3.6",
+    },
+    "apps/cli/npm/linux-x64": {
+      "name": "@byfriends/cli-linux-x64",
+      "version": "0.3.6",
     },
     "apps/vis": {
       "name": "@byfriends/vis",
@@ -287,6 +299,10 @@
     "@byfriends/agent-core": ["@byfriends/agent-core@workspace:packages/agent-core"],
 
     "@byfriends/cli": ["@byfriends/cli@workspace:apps/cli"],
+
+    "@byfriends/cli-darwin-arm64": ["@byfriends/cli-darwin-arm64@workspace:apps/cli/npm/darwin-arm64"],
+
+    "@byfriends/cli-linux-x64": ["@byfriends/cli-linux-x64@workspace:apps/cli/npm/linux-x64"],
 
     "@byfriends/kaos": ["@byfriends/kaos@workspace:packages/kaos"],
 

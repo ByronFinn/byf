@@ -6,6 +6,7 @@
 packages:
   - packages/*
   - apps/*
+  - apps/cli/npm/*
   - apps/vis/server
   - apps/vis/web
 

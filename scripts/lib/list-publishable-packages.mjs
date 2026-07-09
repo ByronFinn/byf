@@ -1,8 +1,15 @@
+import { access } from 'node:fs/promises';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/** CLI platform optionalDep packages (PRD-0020 / #220). */
+const CLI_PLATFORM_PACKAGE_NAMES = new Set([
+  '@byfriends/cli-darwin-arm64',
+  '@byfriends/cli-linux-x64',
+]);
 
 /**
  * Return all workspace packages that will be published to a registry.
@@ -11,6 +18,11 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..',
  * package.json (Bun's source of truth since ADR 0028), then filters out
  * private packages. This replaces the former `pnpm -r ls --json` query so the
  * set no longer depends on pnpm.
+ *
+ * CLI platform packages (`@byfriends/cli-darwin-arm64`, `…-linux-x64`) are
+ * omitted unless their staged binary exists. The main `changeset publish`
+ * path (release-npm) therefore does not ship empty platform tarballs;
+ * `release.yml` stages the compile binary then publishes those packages.
  *
  * @returns {Promise<Array<{ name: string, path: string, version: string }>>}
  */
@@ -30,6 +42,15 @@ export async function listPublishablePackages() {
     }
     if (manifest.private === true) continue;
     if (typeof manifest.name !== 'string') continue;
+    if (CLI_PLATFORM_PACKAGE_NAMES.has(manifest.name)) {
+      const binaryPath = path.join(dir, 'bin', 'byf');
+      try {
+        await access(binaryPath);
+      } catch {
+        // Binary not staged — skip so empty platform packages are not published.
+        continue;
+      }
+    }
     results.push({ name: manifest.name, path: dir, version: manifest.version ?? '0.0.0' });
   }
   return results;

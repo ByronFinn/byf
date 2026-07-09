@@ -25,6 +25,9 @@ bun run build:native:compile
 # Package zip + sha256 under dist-native/artifacts/
 bun run package:native
 
+# Stage binary into apps/cli/npm/<target>/ for optionalDep publish (#220)
+bun run package:npm-platforms
+
 # TUI minimal smoke (spike-0020 definition)
 bun run test:native:smoke
 ```
@@ -57,6 +60,24 @@ GitHub Release assets (flat names):
 - `byf-linux-x64.zip` + `.sha256`
 - `install.sh`
 
+## npm optionalDependencies platform packages (#220)
+
+After compile, stage the binary into the matching platform package:
+
+```sh
+bun run package:npm-platforms
+# -> apps/cli/npm/<target>/bin/byf  (gitignored)
+```
+
+| npm package | dir |
+| ----------- | --- |
+| `@byfriends/cli-darwin-arm64` | `apps/cli/npm/darwin-arm64` |
+| `@byfriends/cli-linux-x64` | `apps/cli/npm/linux-x64` |
+
+Main package `@byfriends/cli` ships `bin/byf.cjs` (launcher) and lists both as `optionalDependencies`. Versions stay aligned via changesets `fixed` group. Platform packages are `private: true` in the monorepo; `release.yml` clears `private` and publishes after staging the binary.
+
+See [docs/agents/releasing.md](../../../../docs/agents/releasing.md).
+
 ## Native modules (MVP)
 
 - **`@mariozechner/clipboard`**: the compile entry statically `require()`s the platform `.node` so Bun embeds it, then sets `NAPI_RS_NATIVE_LIBRARY_PATH` so the napi-rs host package loads that embedded binding. No SEA asset tree required.
@@ -73,4 +94,4 @@ bun run build:native:sea   # local SEA only; requires Node >=24.15.0
 
 ## Codesign / notarize strategy
 
-See [docs/agents/releasing.md](../../../../docs/agents/releasing.md) §「原生二进制签名策略」.
+See [docs/agents/releasing.md](../../../../docs/agents/releasing.md).

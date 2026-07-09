@@ -66,11 +66,25 @@ jobs:
         run: bun run --filter @byfriends/cli package:native
         shell: bash
 
+      # Stage compile binary into apps/cli/npm/<target>/ for optionalDep publish (#220).
+      - name: Package npm platform package
+        env:
+          BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
+        run: bun run --filter @byfriends/cli package:npm-platforms
+        shell: bash
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: byf-${{ matrix.target }}
           path: apps/cli/dist-native/artifacts/byf-${{ matrix.target }}.*
+          if-no-files-found: error
+
+      - name: Upload npm platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-platform-${{ matrix.target }}
+          path: apps/cli/npm/${{ matrix.target }}/
           if-no-files-found: error
 
   release:
@@ -85,6 +99,12 @@ jobs:
           path: artifacts
           pattern: byf-*
 
+      - name: Download npm platform packages
+        uses: actions/download-artifact@v4
+        with:
+          path: npm-platforms
+          pattern: npm-platform-*
+
       - name: Resolve version
         id: version
         run: |
@@ -98,7 +118,7 @@ jobs:
           echo "tag=@byfriends/cli@${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: List artifacts
-        run: find artifacts -type f | sort
+        run: find artifacts npm-platforms -type f | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -114,7 +134,7 @@ jobs:
             # macOS Apple Silicon / Linux x64 (MVP platforms)
             curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 
-            # Or install via npm
+            # Or install via npm (main package + platform optionalDependency binary)
             npm install -g @byfriends/cli
             ```
 
@@ -126,3 +146,44 @@ jobs:
             artifacts/byf-linux-x64/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish platform optionalDep packages so `npm i -g @byfriends/cli` can
+      # resolve the native binary (PRD-0020 / #220). Main @byfriends/cli is
+      # published by release-npm.yml; platform packages are published here after
+      # compile so the tarball always contains the binary.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@byfriends'
+
+      - name: Publish npm platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          for target in darwin-arm64 linux-x64; do
+            src="npm-platforms/npm-platform-${target}"
+            if [[ ! -d "$src" ]]; then
+              echo "missing platform package dir: $src" >&2
+              exit 1
+            fi
+            if [[ ! -x "$src/bin/byf" && ! -f "$src/bin/byf" ]]; then
+              echo "missing binary in $src/bin/byf" >&2
+              exit 1
+            fi
+            # Monorepo keeps private:true so changesets does not ship empty
+            # platform tarballs; clear it for the real binary publish.
+            node -e "
+              const fs = require('fs');
+              const p = process.argv[1];
+              const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+              j.version = process.argv[2];
+              delete j.private;
+              fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            " "$src/package.json" "$VERSION"
+            echo "Publishing @byfriends/cli-${target}@${VERSION} from $src"
+            npm publish "$src" --access public
+          done
+        shell: bash

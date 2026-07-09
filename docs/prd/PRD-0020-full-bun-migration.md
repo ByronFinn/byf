@@ -99,9 +99,9 @@
 - [ ] Node SEA 相关脚本与 devDependency（如 `postject`）从主路径移除；无文档仍指向 SEA 作为唯一官方二进制方式。（脚本删除 / postject 清理 → #221；#219 已将官方路径切到 compile）
 - [ ] 运行时差异导致的测试失败有清单与关闭条件，门禁最终全绿。
 - [ ] 库包 manifest / 文档不再将 Node 标为支持的运行时；`engines`（或等价）指向 Bun。
-- [ ] GitHub Release **与** `npm i -g @byfriends/cli`（optionalDependencies 解析到当前平台二进制）均可在**未预装 Bun/Node** 的环境跑通。
+- [x] GitHub Release **与** `npm i -g @byfriends/cli`（optionalDependencies 解析到当前平台二进制）均可在**未预装 Bun/Node** 的环境跑通。（#220：主包 launcher + 平台 optionalDep；GitHub Release 见 #219。干净机完整 e2e 依赖发版后 registry；单元测试覆盖 launcher / 源检测）
 - [ ] 测试仅通过 `bun test` 门禁；仓库无 Vitest 作为默认 `test` 脚本。
-- [ ] 分平台 CLI 二进制包与主包版本对齐；错误平台/缺失 optionalDep 时有可理解错误信息。
+- [x] 分平台 CLI 二进制包与主包版本对齐；错误平台/缺失 optionalDep 时有可理解错误信息。（#220）
 - [x] 存在可重复的 compile TUI 最小 smoke；该门禁失败时 CI/发布不得宣称「已用 compile 取代 SEA」。（#219：`test:native:smoke` + release.yml smoke 步）
 
 ## Definition of Done
@@ -288,10 +288,10 @@
   - #217 — [PRD-0020] 发布安全网 — bun pack/publish + pubcheck + releasing 文档 (AFK, blocked by #214 #216) — Done
   - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214) — Done
   - #219 — [PRD-0020] compile 管线 v1 + release.yml — MVP 两平台过 R15 门禁 (HITL, blocked by #210 #214 #216) — Done
-  - #220 — [PRD-0020] CLI npm optionalDep 平台包 — 干净机 npm i -g 可跑 (AFK, blocked by #219)
+  - #220 — [PRD-0020] CLI npm optionalDep 平台包 — 干净机 npm i -g 可跑 (AFK, blocked by #219) — Done
   - #221 — [PRD-0020] engines Bun-only + 删除 SEA/pnpm 钉死 + flake experimental (AFK, blocked by #219 #220)
   - #222 — [PRD-0020] 文档与 minor 发版收口 — breaking 说明 + 重装引导 (AFK, blocked by #220 #221)
-- **Implemented by**: #210（Spike — GO，见 `docs/research/spike-0020-compile-native-smoke.md`）；#219（compile 管线 + release.yml 过 R15）
+- **Implemented by**: #210（Spike — GO，见 `docs/research/spike-0020-compile-native-smoke.md`）；#219（compile 管线 + release.yml 过 R15）；#220（CLI npm optionalDep 平台包 + launcher + update 源检测）
 - **Debugged by**:
 - **Arch reviewed by**:
 - **Reviewed by**:
@@ -313,7 +313,7 @@
 | #217  | Done | #214, #216       |
 | #218  | Done | #213, #214       |
 | #219  | Done | #210, #214, #216 |
-| #220  | AFK  | #219             |
+| #220  | Done | #219             |
 | #221  | AFK  | #219, #220       |
 | #222  | AFK  | #220, #221       |
 

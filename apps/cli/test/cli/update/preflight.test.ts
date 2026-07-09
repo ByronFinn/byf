@@ -249,6 +249,19 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
+  it('npm-global-js: prints reinstall guidance, does not auto-spawn', async () => {
+    mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
+    mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
+    mocks.detectInstallSource.mockResolvedValue('npm-global-js');
+    const { stdout, options } = captureOutput();
+    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(stdout.join('')).toContain('legacy npm-global JS layout');
+    expect(stdout.join('')).toContain('npm uninstall -g @byfriends/cli');
+    expect(stdout.join('')).toContain('npm install -g @byfriends/cli@0.5.0');
+    expect(promptForInstallConfirmation).not.toHaveBeenCalled();
+    expect(mocks.spawn).not.toHaveBeenCalled();
+  });
+
   it('declined install continues without spawn', async () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));

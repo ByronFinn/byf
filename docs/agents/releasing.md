@@ -169,7 +169,42 @@ BYF_CODE_NATIVE_ASSET_SMOKE=1 <byf-binary> --version
 
 SEA 管线（`build:native:sea` / `build:native:sea:release`）仍保留在仓库内供对照，**release.yml 不再调用**；删除见 #221。
 
-### 与 npm 的关系
+### 与 npm 的关系（主包 + 分平台 optionalDependencies，#220）
 
-- GitHub Release：`install.sh` + 平台 zip（本路径）。
-- `npm i -g @byfriends/cli`：仍可安装 JS 入口；分平台 optionalDependencies 二进制子包见 #220（本 issue 只留 hook，不实现完整 optionalDep 包）。
+终端用户两条官方安装路径：
+
+| 路径 | 产物 |
+| ---- | ---- |
+| GitHub Release | `install.sh` + `byf-<target>.zip`（compile 二进制） |
+| `npm i -g @byfriends/cli` | 主包 JS launcher（`bin/byf.cjs`）+ 当前平台 optionalDep 原生二进制 |
+
+#### 平台子包
+
+| npm 包名 | 目标 | 目录 |
+| -------- | ---- | ---- |
+| `@byfriends/cli-darwin-arm64` | darwin-arm64 | `apps/cli/npm/darwin-arm64/` |
+| `@byfriends/cli-linux-x64` | linux-x64 | `apps/cli/npm/linux-x64/` |
+
+- 与 `@byfriends/cli` **版本对齐**（`.changeset/config.json` 的 `fixed` 组）。
+- monorepo 内标记 `private: true`，避免 `changeset publish` 在二进制尚未就绪时发出空包。
+- `package.json` 的 `os` / `cpu` 字段让 npm 只安装匹配平台。
+- 二进制由 **与 Release 同源** 的 compile 产物拷贝进入：`bun run --filter @byfriends/cli package:npm-platforms`（`apps/cli/scripts/npm/package-platforms.mjs`），源路径 `dist-native/bin/<target>/byf`。
+
+#### 发布顺序
+
+1. **`release-npm.yml`**：`changeset version` + 发布 `@byfriends/cli`（及库包）。主包 `optionalDependencies` 指向对齐版本的平台包；平台包此时通常尚未在 registry 上（optional 安装失败不阻断）。
+2. **`release.yml`**（由 `@byfriends/cli@*` tag 触发）：矩阵 compile → smoke → zip → **`package:npm-platforms`** → 上传 → GitHub Release → **清除 `private` 后 `npm publish` 各平台子包**。
+
+因此「主包先于平台子包数分钟」的窗口内，用户若立刻 `npm i -g` 可能缺 optionalDep；`bin/byf.cjs` 与 postinstall 会给出可理解错误，并提示重装或走 `install.sh`。平台子包发布完成后重装即可。
+
+#### 本地打包平台子包
+
+```sh
+BYF_CODE_BUILD_TARGET=darwin-arm64 bun run --filter @byfriends/cli build:native:release
+BYF_CODE_BUILD_TARGET=darwin-arm64 bun run --filter @byfriends/cli package:npm-platforms
+# 产物：apps/cli/npm/darwin-arm64/bin/byf（gitignored）
+```
+
+#### Launcher
+
+`@byfriends/cli` 的 `bin.byf` 指向 `bin/byf.cjs`：解析当前平台的 optionalDep 包路径，再 `spawn` 原生 `byf`。错误平台 / 缺失 optionalDep 时打印重装与 GitHub Release 指引。运行时**不依赖 Bun**；Node 仅作为 npm 安装后的薄 trampoline。

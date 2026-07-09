@@ -1,0 +1,31 @@
+{
+  "name": "@byfriends/cli-linux-x64",
+  "version": "0.3.6",
+  "private": true,
+  "description": "Linux x64 binary for @byfriends/cli (bun build --compile)",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
+  "license": "MIT",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ByronFinn/byf.git",
+    "directory": "apps/cli/npm/linux-x64"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "preferUnplugged": true,
+  "files": [
+    "bin/byf"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
+  }
+}

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 dist-native/
+# Compile binaries staged into npm platform packages before publish (#220).
+apps/cli/npm/*/bin/byf
+apps/cli/npm/*/bin/byf.exe
 .tmp-api-extractor/
 coverage/
 *.tsbuildinfo
