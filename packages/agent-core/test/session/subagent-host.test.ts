@@ -1,10 +1,11 @@
+import { mock as bunMock } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { localKaos } from '@byfriends/kaos';
 import type { ToolCall } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
@@ -16,6 +17,7 @@ import { collectGitContext } from '../../src/session/git-context';
 import { SessionSubagentHost } from '../../src/session/subagent-host';
 import { testAgent } from '../agent/harness/agent';
 import { createScriptedGenerate } from '../agent/harness/scripted-generate';
+import { formatHarnessSnapshot } from '../agent/harness/snapshots';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 
 // Git context collection is exercised in git-context.test.ts; here it is
@@ -704,11 +706,11 @@ describe('SessionSubagentHost', () => {
     });
     expect(session.createAgent).not.toHaveBeenCalled();
     expect(child.agent.permission.mode).toBe('yolo');
-    expect(child.lastLlmInput()).toMatchInlineSnapshot(`
-      system: "explore prompt"
+    expect(formatHarnessSnapshot(child.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: "explore prompt"
       tools: Read
       messages:
-        user: text "Earlier context\\n\\nSummary length constraint: minimum 200 characters, maximum 8000 characters.\\n\\nContinue from context"
+        user: text "Earlier context\\n\\nSummary length constraint: minimum 200 characters, maximum 8000 characters.\\n\\nContinue from context""
     `);
     expect(parent.allEvents).toContainEqual(
       expect.objectContaining({
@@ -1497,3 +1499,8 @@ function createSessionRpc(): SDKSessionRPC {
     },
   ) as SDKSessionRPC;
 }
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
+});

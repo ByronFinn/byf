@@ -22,6 +22,7 @@ import type { ToolExecutionHookContext } from '../../src/loop';
 import type { ToolInputDisplay } from '../../src/tools/display';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent } from './harness/agent';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 describe('Agent permission', () => {
   it('auto mode bypasses approval for ordinary builtin tools', async () => {
@@ -33,8 +34,8 @@ describe('Agent permission', () => {
     ctx.mockNextResponse({ type: 'text', text: 'The command printed auto-output.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run Bash in auto mode' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "auto" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash in auto mode" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
@@ -60,10 +61,10 @@ describe('Agent permission', () => {
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 120, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 120, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 131, "maxContextTokens": 1000000, "contextUsage": 0.000131, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 211, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 211, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 211, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }"
     `);
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: Bash
         messages:
@@ -75,7 +76,7 @@ describe('Agent permission', () => {
           user: text "Run Bash in auto mode"
           assistant: text "Running without asking."  calls call_bash:Bash { "command": "printf permission-output", "timeout": 60 }
           tool[call_bash]: text "auto-output"
-          user: text <auto-mode-enter-reminder>
+          user: text <auto-mode-enter-reminder>"
     `);
     await ctx.expectResumeMatches();
   });
@@ -89,8 +90,8 @@ describe('Agent permission', () => {
     ctx.mockNextResponse({ type: 'text', text: 'The command printed yolo-output.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run Bash in yolo mode' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "yolo" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash in yolo mode" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
@@ -116,10 +117,10 @@ describe('Agent permission', () => {
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 36, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 36, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 47, "maxContextTokens": 1000000, "contextUsage": 0.000047, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 43, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 43, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 43, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }"
     `);
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: Bash
         messages:
@@ -129,7 +130,7 @@ describe('Agent permission', () => {
         messages:
           <last>
           assistant: text "Running in yolo mode."  calls call_bash:Bash { "command": "printf permission-output", "timeout": 60 }
-          tool[call_bash]: text "yolo-output"
+          tool[call_bash]: text "yolo-output""
     `);
     await ctx.expectResumeMatches();
   });
@@ -146,8 +147,8 @@ describe('Agent permission', () => {
     ctx.mockNextResponse({ type: 'text', text: 'Manual turn done.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Back to manual' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] permission.set_mode         { "mode": "manual", "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] permission.set_mode         { "mode": "manual", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 96, "maxContextTokens": 1000000, "contextUsage": 0.000096, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 89, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 89, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Back to manual" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 1, "origin": { "kind": "user" } }
@@ -160,10 +161,10 @@ describe('Agent permission', () => {
       [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-3>", "usage": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 25, "maxContextTokens": 1000000, "contextUsage": 0.000025, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 106, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 106, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 17, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 1, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 1, "reason": "completed" }"
     `);
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: []
         messages:
@@ -174,7 +175,7 @@ describe('Agent permission', () => {
         messages:
           user: text "Use auto first"
           assistant: text "Auto turn done."
-          user: text "Back to manual"
+          user: text "Back to manual""
     `);
     await ctx.expectResumeMatches();
   });
@@ -194,8 +195,8 @@ describe('Agent permission', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'I will try Bash.' }, bashCall);
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Try to run Bash' }] });
-    expect(await ctx.untilApproval(false)).toMatchInlineSnapshot(`
-      [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Try to run Bash" } ], "origin": { "kind": "user" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilApproval(false))).toMatchInlineSnapshot(`
+      "[wire] turn.prompt                 { "input": [ { "type": "text", "text": "Try to run Bash" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Try to run Bash" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
@@ -203,18 +204,18 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will try Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will try Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: Bash
       messages:
-        user: text "Try to run Bash"
+        user: text "Try to run Bash""
     `);
 
     ctx.mockNextResponse({ type: 'text', text: 'I will not run the command.' });
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true } }, "time": "<time>" }
@@ -231,14 +232,14 @@ describe('Agent permission', () => {
       [emit] turn.step.completed                 { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 58, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 58, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 68, "maxContextTokens": 1000000, "contextUsage": 0.000068, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 63, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 63, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 63, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                          { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                          { "turnId": 0, "reason": "completed" }"
     `);
     expect(execWithEnv).not.toHaveBeenCalled();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      messages:
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "messages:
         <last>
         assistant: text "I will try Bash."  calls call_bash:Bash { "command": "printf should-not-run", "timeout": 60 }
-        tool[call_bash]: text "<system>ERROR: Tool execution failed.</system>\\nTool \\"Bash\\" was not run because the user rejected the approval request."
+        tool[call_bash]: text "<system>ERROR: Tool execution failed.</system>\\nTool \\"Bash\\" was not run because the user rejected the approval request.""
     `);
     await ctx.expectResumeMatches();
   });

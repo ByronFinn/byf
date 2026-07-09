@@ -67,8 +67,8 @@
   },
   "scripts": {
     "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
-    "test": "vitest run",
-    "test:baseline": "vitest run",
+    "test": "bun test",
+    "test:baseline": "bun test",
     "typecheck": "tsc --build",
     "clean": "rm -rf dist && rm -rf dist-types"
   },

@@ -165,17 +165,26 @@ describe('e2e: kosong toolchain bridges', () => {
 
     const schema = derefJsonSchema(rawSchema);
     expect(schema).not.toHaveProperty('$defs');
-    expect(schema).toMatchObject({
+    // Assert on a clone: Bun's toMatchObject + asymmetric matchers can mutate
+    // the received object (properties wiped to {}), breaking later tool validation.
+    expect(structuredClone(schema)).toMatchObject({
       type: 'object',
-      properties: expect.objectContaining({
-        shipping: expect.objectContaining({
+      properties: {
+        shipping: {
           type: 'object',
-          properties: expect.objectContaining({
+          properties: {
             city: { type: 'string' },
             zip: { type: 'string' },
-          }),
-        }),
-      }),
+          },
+        },
+        billing: {
+          type: 'object',
+          properties: {
+            city: { type: 'string' },
+            zip: { type: 'string' },
+          },
+        },
+      },
     });
 
     const toolset = new SimpleToolset();

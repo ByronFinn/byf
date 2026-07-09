@@ -49,6 +49,7 @@
   "scripts": {
     "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts && bun ../../build/bun-lib-dts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "bun test"
   }
 }

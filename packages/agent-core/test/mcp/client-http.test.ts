@@ -138,9 +138,16 @@ async function startInProcessHttpMcpServer(opts?: {
   return {
     url: `http://127.0.0.1:${port}/mcp`,
     async close() {
+      if (!httpServer.listening) return;
       await new Promise<void>((resolve, reject) => {
+        // Bun's node:http close callback can hang if keep-alive sockets remain.
+        // Drop them first (Node 18.2+ / Bun), then close with a wall-clock fallback.
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) {
+          clearTimeout(timer);
+          // Idempotent close: second call / race after fallback may report not running.
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
             reject(err);
             return;
           }

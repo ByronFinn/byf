@@ -5,6 +5,7 @@
  * error reporting, and delegation to the session export implementation.
  */
 
+import { mock as bunMock } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +17,7 @@ import type {
   SessionSummary,
 } from '@byfriends/sdk';
 import { Command } from 'commander';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { handleExport, registerExportCommand } from '#/cli/sub/export';
 import type { ExportDeps } from '#/cli/sub/export';
@@ -44,8 +45,9 @@ const mocks = vi.hoisted(() => ({
   harnessCreatesDeviceIdOnConstruction: false,
 }));
 
-vi.mock('@byfriends/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@byfriends/sdk')>();
+const __mockActual__byfriends_sdk = await import('@byfriends/sdk');
+vi.mock('@byfriends/sdk', () => {
+  const actual = __mockActual__byfriends_sdk;
   return {
     ...actual,
     resolveByfHome: mocks.resolveByfHome,
@@ -353,4 +355,9 @@ describe('byf export', () => {
       { id: 'ses_after_id', outputPath: output, version: '1.0.0-test' },
     ]);
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

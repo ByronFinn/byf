@@ -5,3 +5,7 @@
 [loader]
 ".md" = "text"
 ".yaml" = "text"
+
+[test]
+# Relative to this package cwd. Mirrors root bunfig test preload (#215).
+preload = ["../../build/test-preload.ts"]

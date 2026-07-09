@@ -1,8 +1,9 @@
+import { mock as bunMock } from 'bun:test';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, afterAll } from 'vitest';
 
 import type { Event, ByfError, SkillActivatedEvent, SkillSummary } from '#/index';
 import type { SDKRpcClient } from '#/rpc';
@@ -20,8 +21,9 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'skill response',
 }));
 
-vi.mock('@byfriends/kosong', async (importOriginal) => {
-  const actual = await importOriginal<typeof KosongModule>();
+const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
+vi.mock('@byfriends/kosong', () => {
+  const actual = __mockActual__byfriends_kosong;
   return {
     ...actual,
     createProvider: () => ({
@@ -307,3 +309,8 @@ async function writeUserSkill(
     ),
   );
 }
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
+});

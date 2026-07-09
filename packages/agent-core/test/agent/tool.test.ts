@@ -5,6 +5,7 @@ import type { SessionSubagentHost } from '../../src/session/subagent-host';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, createTestHookEngine, testAgent } from './harness/agent';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 const signal = new AbortController().signal;
 
@@ -211,11 +212,11 @@ describe('Agent tools', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Which tools are active?' }] });
 
     await ctx.untilTurnEnd();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: Bash, Write
       messages:
-        user: text "Which tools are active?"
+        user: text "Which tools are active?""
     `);
     await ctx.expectResumeMatches();
   });
@@ -278,12 +279,14 @@ describe('Agent tools', () => {
     ctx.mockNextResponse({ type: 'text', text: 'I will look it up.' }, lookupCall);
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Look up moon' }] });
     expect(
-      await ctx.untilToolCall({
-        content: 'moon-result',
-        output: 'moon-result',
-      }),
+      formatHarnessSnapshot(
+        await ctx.untilToolCall({
+          content: 'moon-result',
+          output: 'moon-result',
+        }),
+      ),
     ).toMatchInlineSnapshot(`
-      [wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
+      "[wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "auto" }
       [wire] tools.register_user_tool    { "name": "Lookup", "description": "Look up a short test value.", "parameters": { "type": "object", "properties": { "query": { "type": "string" } }, "required": [ "query" ], "additionalProperties": false }, "time": "<time>" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Look up moon" } ], "origin": { "kind": "user" }, "time": "<time>" }
@@ -296,19 +299,19 @@ describe('Agent tools', () => {
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will look it up." } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_lookup", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" } }, "time": "<time>" }
       [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" } }
-      [emit] toolCall                    { "turnId": 0, "toolCallId": "call_lookup", "args": { "query": "moon" } }
+      [emit] toolCall                    { "turnId": 0, "toolCallId": "call_lookup", "args": { "query": "moon" } }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: Lookup
       messages:
         user: text "Look up moon"
-        user: text <auto-mode-enter-reminder>
+        user: text <auto-mode-enter-reminder>"
     `);
 
     ctx.mockNextResponse({ type: 'text', text: 'The lookup result is moon-result.' });
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_lookup", "toolCallId": "call_lookup", "result": { "output": "moon-result" } }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_lookup", "toolCallId": "call_lookup", "result": { "output": "moon-result" } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_lookup", "output": "moon-result" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 88, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 88, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
@@ -322,22 +325,22 @@ describe('Agent tools', () => {
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 108, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 108, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 120, "maxContextTokens": 1000000, "contextUsage": 0.00012, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 196, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 196, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 196, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      messages:
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "messages:
         user: text "Look up moon"
         assistant: text "I will look it up."  calls call_lookup:Lookup { "query": "moon" }
         tool[call_lookup]: text "moon-result"
-        user: text <auto-mode-enter-reminder>
+        user: text <auto-mode-enter-reminder>"
     `);
 
     await ctx.rpc.unregisterTool({ name: 'Lookup' });
     ctx.mockNextResponse({ type: 'text', text: 'No lookup tool is available.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Can you still use Lookup?' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] tools.unregister_user_tool   { "name": "Lookup", "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] tools.unregister_user_tool   { "name": "Lookup", "time": "<time>" }
       [wire] turn.prompt                  { "input": [ { "type": "text", "text": "Can you still use Lookup?" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                 { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "Can you still use Lookup?" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -349,17 +352,17 @@ describe('Agent tools', () => {
       [emit] turn.step.completed          { "turnId": 1, "step": 1, "stepId": "<uuid-5>", "usage": { "inputOther": 128, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                 { "model": "mock-model", "usage": { "inputOther": 128, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated         { "model": "mock-model", "contextTokens": 138, "maxContextTokens": 1000000, "contextUsage": 0.000138, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 324, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 324, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 128, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                   { "turnId": 1, "reason": "completed" }
+      [emit] turn.ended                   { "turnId": 1, "reason": "completed" }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      tools: []
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "tools: []
       messages:
         user: text "Look up moon"
         assistant: text "I will look it up."  calls call_lookup:Lookup { "query": "moon" }
         tool[call_lookup]: text "moon-result"
         assistant: text "The lookup result is moon-result."
         user: text "Can you still use Lookup?"
-        user: text <auto-mode-enter-reminder>
+        user: text <auto-mode-enter-reminder>"
     `);
     await ctx.expectResumeMatches();
   });

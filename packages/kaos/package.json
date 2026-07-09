@@ -50,6 +50,7 @@
   "scripts": {
     "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts --banner-dirname && bun ../../build/bun-lib-dts.mjs",
     "typecheck": "tsc --build",
-    "clean": "rm -rf dist && rm -rf dist-types"
+    "clean": "rm -rf dist && rm -rf dist-types",
+    "test": "bun test"
   }
 }

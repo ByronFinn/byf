@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { testAgent } from './harness/agent';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 describe('Agent question', () => {
   it('roundtrips a question request through wire rpc', async () => {
@@ -18,8 +19,8 @@ describe('Agent question', () => {
       { signal: new AbortController().signal },
     );
 
-    expect(await ctx.untilQuestion({ Yes: true })).toMatchInlineSnapshot(
-      `[emit] requestQuestion   { "questions": [ { "question": "Pick one", "options": [ { "label": "Yes" }, { "label": "No" } ] } ] }`,
+    expect(formatHarnessSnapshot(await ctx.untilQuestion({ Yes: true }))).toMatchInlineSnapshot(
+      `"[emit] requestQuestion   { "questions": [ { "question": "Pick one", "options": [ { "label": "Yes" }, { "label": "No" } ] } ] }"`,
     );
 
     await expect(resultPromise).resolves.toEqual({ Yes: true });
@@ -46,9 +47,9 @@ describe('Agent question', () => {
     );
 
     expect(
-      await ctx.untilQuestion({ Yes: true, 'Pick storage': 'Postgres' }),
+      formatHarnessSnapshot(await ctx.untilQuestion({ Yes: true, 'Pick storage': 'Postgres' })),
     ).toMatchInlineSnapshot(
-      `[emit] requestQuestion   { "questions": [ { "question": "Pick one", "options": [ { "label": "Yes" }, { "label": "No" } ] }, { "question": "Pick storage", "options": [ { "label": "Postgres" }, { "label": "SQLite" } ] } ] }`,
+      `"[emit] requestQuestion   { "questions": [ { "question": "Pick one", "options": [ { "label": "Yes" }, { "label": "No" } ] }, { "question": "Pick storage", "options": [ { "label": "Postgres" }, { "label": "SQLite" } ] } ] }"`,
     );
 
     await expect(resultPromise).resolves.toEqual({ Yes: true, 'Pick storage': 'Postgres' });

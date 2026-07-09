@@ -129,7 +129,18 @@ describe('startVisServer', () => {
 
     handle.close();
 
-    // After close, new connections are refused.
-    await expect(fetch(`${handle.url}/api/sessions`)).rejects.toThrow();
+    // After close, new connections are refused. Under Bun, a bare fetch to a
+    // half-closed port can hang — always bound with AbortSignal.timeout.
+    let lastError: unknown;
+    for (let i = 0; i < 30; i++) {
+      try {
+        await fetch(`${handle.url}/api/sessions`, { signal: AbortSignal.timeout(100) });
+        await new Promise((r) => setTimeout(r, 50));
+      } catch (error) {
+        lastError = error;
+        break;
+      }
+    }
+    expect(lastError).toBeDefined();
   });
 });

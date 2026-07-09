@@ -50,7 +50,7 @@
   "scripts": {
     "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts --banner-dirname --bundle-workspace && bun run build:dts",
     "build:dts": "bun scripts/build-dts.mjs",
-    "test": "vitest run",
+    "test": "bun test",
     "typecheck": "tsc --build",
     "clean": "rm -rf dist .tmp-api-extractor && rm -rf dist-types"
   },

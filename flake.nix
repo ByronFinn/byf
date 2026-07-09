@@ -177,7 +177,7 @@
                   ./pnpm-lock.yaml
                   ./pnpm-workspace.yaml
                   ./tsconfig.json
-                  ./vitest.config.ts
+                  # vitest.config.ts removed in #215 (bun test)
                   ./LICENSE
                 ]
                 ++ workspacePaths

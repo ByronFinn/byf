@@ -432,10 +432,11 @@ describe('McpConnectionManager', () => {
         },
       });
       const entry = cm.get('notion');
-      expect(entry).toMatchObject({
-        status: 'needs-auth',
-        error: expect.stringContaining('run /mcp-config login notion'),
-      });
+      expect(entry?.status).toBe('needs-auth');
+      // Avoid nested expect.stringContaining inside toMatchObject — Bun can
+      // mutate the received object when composing asymmetric matchers (#215).
+      expect(typeof entry?.error).toBe('string');
+      expect(entry?.error).toContain('run /mcp-config login notion');
       expect(entry?.error).not.toContain('redirectUrl must be set');
     } finally {
       await cm.shutdown();
@@ -610,8 +611,11 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) {
+          clearTimeout(timer);
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
             reject(err);
             return;
           }
@@ -715,9 +719,15 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) reject(err);
-          else resolve();
+          clearTimeout(timer);
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+            reject(err);
+            return;
+          }
+          resolve();
         });
       });
     }

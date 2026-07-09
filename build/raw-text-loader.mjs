@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
  * Node ESM `load` hook: import `.md` / `.yaml` files as raw-string modules.
  *
  * This is the runtime counterpart of `build/raw-text-plugin.mjs` (the bundler
- * plugin). The plugin covers build (tsdown) and test (vitest); this loader
+ * plugin). The plugin covers build (tsdown) and test (bun test); this loader
  * covers source execution — e.g. `tsx`-run dev flows that import `byf`
  * straight from `src`, where no bundler is involved.
  */

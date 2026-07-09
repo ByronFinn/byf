@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 import {
+  isNewerWireVersion,
   migrateWireRecord,
   resolveWireMigrations,
   type WireMigration,
@@ -69,13 +70,24 @@ export async function readAgentWire(path: string): Promise<WireReadResult> {
       if (typeof pv !== 'string' || typeof ca !== 'number') {
         throw new TypeError(`Wire metadata malformed at line ${lineNo}`);
       }
-      try {
-        migrations = resolveWireMigrations(pv);
-      } catch (error) {
+      // Newer-than-supported versions return [] from resolveWireMigrations
+      // without throwing (agent-core replays them unmigrated). Vis still wants
+      // a best-effort 1.0→current chain + warning so historic labels like "2.2"
+      // surface in the UI.
+      if (isNewerWireVersion(pv)) {
         warnings.push(
-          `unrecognised protocol_version "${pv}" — parsing as best-effort (${(error as Error).message})`,
+          `unrecognised protocol_version "${pv}" — parsing as best-effort (newer than supported)`,
         );
         migrations = bestEffortMigrations();
+      } else {
+        try {
+          migrations = resolveWireMigrations(pv);
+        } catch (error) {
+          warnings.push(
+            `unrecognised protocol_version "${pv}" — parsing as best-effort (${(error as Error).message})`,
+          );
+          migrations = bestEffortMigrations();
+        }
       }
       metadata = { protocolVersion: pv, createdAt: ca };
       continue;

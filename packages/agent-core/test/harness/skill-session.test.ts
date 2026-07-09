@@ -316,14 +316,10 @@ describe('HarnessAPI session skills', () => {
       ),
     );
     expect(reminder).toBeDefined();
-    expect(reminder?.content[0]).toMatchObject({
-      type: 'text',
-      text: expect.stringContaining('<byf-skill-loaded name="phase-one-review">'),
-    });
-    expect(reminder?.content[0]).toMatchObject({
-      type: 'text',
-      text: expect.stringContaining('</byf-skill-loaded>'),
-    });
+    const reminderText =
+      reminder?.content[0] && reminder.content[0].type === 'text' ? reminder.content[0].text : '';
+    expect(reminderText).toContain('<byf-skill-loaded name="phase-one-review">');
+    expect(reminderText).toContain('</byf-skill-loaded>');
   });
 
   it('expands skill body placeholders on user slash activation', async () => {

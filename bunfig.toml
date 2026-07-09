@@ -15,3 +15,9 @@ linker = "isolated"
 # Bun's built-in parsed YAML object.
 ".md" = "text"
 ".yaml" = "text"
+
+
+[test]
+# Vitest compatibility shims (vi.hoisted, waitFor, setSystemTime, …) and
+# no-op expect.addSnapshotSerializer. See build/test-preload.ts / issue #215.
+preload = ["./build/test-preload.ts"]

@@ -96,10 +96,17 @@ async function startInProcessSseMcpServer(opts?: {
   return {
     url: `http://127.0.0.1:${port}/mcp`,
     async close() {
+      if (!httpServer.listening) return;
       await new Promise<void>((resolve, reject) => {
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) reject(err);
-          else resolve();
+          clearTimeout(timer);
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+            reject(err);
+            return;
+          }
+          resolve();
         });
       });
     },

@@ -20,6 +20,7 @@ import { ProviderManager } from '../../src/providers/provider-manager';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createTestHookEngine, testAgent } from './harness/agent';
 import type { TestAgentContext } from './harness/agent';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -120,8 +121,8 @@ describe('Agent compaction', () => {
     await ctx.rpc.beginCompaction({ instruction: 'Keep the important test facts.' });
     await compacted;
 
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`
-      [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(`
+      "[wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "old user two" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "recent user three" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] full_compaction.begin      { "source": "manual", "instruction": "Keep the important test facts.", "time": "<time>" }
@@ -131,17 +132,17 @@ describe('Agent compaction', () => {
       [wire] full_compaction.complete   { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20, "time": "<time>" }
       [emit] compaction.completed       { "result": { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20 } }
       [wire] context.apply_compaction   { "summary": "Compacted summary.", "compactedCount": 4, "tokensBefore": 120, "tokensAfter": 20, "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 20, "maxContextTokens": 256000, "contextUsage": 0.000078125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 20, "maxContextTokens": 256000, "contextUsage": 0.000078125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 480, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "old user one"
         assistant: text "old assistant one"
         user: text "old user two"
         assistant: text "old assistant two"
-        user: text <compaction-instruction>
+        user: text <compaction-instruction>"
     `);
     expect(compactHistory(ctx)).toMatchInlineSnapshot(`
       [
@@ -162,7 +163,8 @@ describe('Agent compaction', () => {
     expect(ctx.agent.fullCompaction.compactedHistory).toMatchInlineSnapshot(`
       [
         {
-          "text": "--- message 1 role=user ---
+          "text": 
+      "--- message 1 role=user ---
       text:
         old user one
 
@@ -184,7 +186,8 @@ describe('Agent compaction', () => {
 
       --- message 6 role=assistant ---
       text:
-        recent assistant three",
+        recent assistant three"
+      ,
         },
       ]
     `);
@@ -644,7 +647,8 @@ describe('Agent compaction', () => {
     expect(ctx.agent.fullCompaction.compactedHistory).toMatchInlineSnapshot(`
       [
         {
-          "text": "--- message 1 role=user ---
+          "text": 
+      "--- message 1 role=user ---
       text:
         inspect this image
       image_url: ms://image-1 (id=image-1)
@@ -665,7 +669,8 @@ describe('Agent compaction', () => {
       --- message 3 role=tool toolCallId="call_lookup" ---
       text:
         lookup result
-      video_url: ms://video-1 (id=video-1)",
+      video_url: ms://video-1 (id=video-1)"
+      ,
         },
       ]
     `);
@@ -686,13 +691,13 @@ describe('Agent compaction', () => {
     await ctx.rpc.beginCompaction({ instruction: 'Keep stable facts.' });
     await compacted;
 
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "old user one"
         assistant: text "old assistant one"
-        user: text <compaction-instruction>
+        user: text <compaction-instruction>"
     `);
     expect(ctx.agent.context.history.map((message) => message.role)).toEqual([
       'assistant',
@@ -718,8 +723,8 @@ describe('Agent compaction', () => {
     ctx.agent.context.appendUserMessage([{ type: 'text', text: 'new user while compacting' }]);
     await compacted;
 
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`
-      [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(`
+      "[wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "recent user two" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] full_compaction.begin      { "source": "manual", "time": "<time>" }
       [emit] compaction.started         { "trigger": "manual" }
@@ -729,15 +734,15 @@ describe('Agent compaction', () => {
       [wire] full_compaction.complete   { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18, "time": "<time>" }
       [emit] compaction.completed       { "result": { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18 } }
       [wire] context.apply_compaction   { "summary": "Compacted prefix.", "compactedCount": 2, "tokensBefore": 80, "tokensAfter": 18, "time": "<time>" }
-      [emit] agent.status.updated       { "model": "byf", "contextTokens": 18, "maxContextTokens": 256000, "contextUsage": 0.0000703125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
+      [emit] agent.status.updated       { "model": "byf", "contextTokens": 18, "maxContextTokens": 256000, "contextUsage": 0.0000703125, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "old user one"
         assistant: text "old assistant one"
-        user: text <compaction-instruction>
+        user: text <compaction-instruction>"
     `);
     expect(compactHistory(ctx)).toMatchInlineSnapshot(`
       [
@@ -777,8 +782,8 @@ describe('Agent compaction', () => {
     await ctx.rpc.clearContext({});
     await canceled;
 
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`
-      [wire] context.append_message   { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(`
+      "[wire] context.append_message   { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message   { "message": { "role": "user", "content": [ { "type": "text", "text": "recent user two" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] full_compaction.begin    { "source": "manual", "time": "<time>" }
       [emit] compaction.started       { "trigger": "manual" }
@@ -787,15 +792,15 @@ describe('Agent compaction', () => {
       [wire] usage.record             { "model": "byf", "usage": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
       [emit] agent.status.updated     { "model": "byf", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 460, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
       [wire] full_compaction.cancel   { "time": "<time>" }
-      [emit] compaction.cancelled     {}
+      [emit] compaction.cancelled     {}"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "old user one"
         assistant: text "old assistant one"
-        user: text <compaction-instruction>
+        user: text <compaction-instruction>"
     `);
     expect(compactHistory(ctx)).toMatchInlineSnapshot(`[]`);
     await ctx.expectResumeMatches();
@@ -816,8 +821,8 @@ describe('Agent compaction', () => {
     ctx.mockNextResponse({ type: 'text', text: 'I can answer after compaction.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Answer after compacting' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "old user one" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "old user two" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "recent user three" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Answer after compacting" } ], "origin": { "kind": "user" }, "time": "<time>" }
@@ -840,10 +845,10 @@ describe('Agent compaction', () => {
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "byf", "usage": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "byf", "contextTokens": 27, "maxContextTokens": 256000, "contextUsage": 0.00010546875, "permission": "manual", "usage": { "byModel": { "byf": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 503, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 16, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 0, "reason": "completed" }"
     `);
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: []
         messages:
@@ -858,7 +863,7 @@ describe('Agent compaction', () => {
       call 2:
         messages:
           assistant: text "Auto compacted summary."
-          user: text "Answer after compacting"
+          user: text "Answer after compacting""
     `);
     expect(records).toContainEqual({
       event: 'compaction_finished',
@@ -1299,8 +1304,8 @@ describe('Agent compaction', () => {
     ctx.mockNextResponse({ type: 'text', text: 'I need a tool.' }, missingToolCall());
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Trigger repeated compaction' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Trigger repeated compaction" } ], "origin": { "kind": "user" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] turn.prompt                 { "input": [ { "type": "text", "text": "Trigger repeated compaction" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Trigger repeated compaction" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] full_compaction.begin       { "source": "auto", "time": "<time>" }
@@ -1326,13 +1331,13 @@ describe('Agent compaction', () => {
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 20, "maxContextTokens": 1000000, "contextUsage": 0.00002, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 465, "output": 20, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 9, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
       [emit] turn.step.interrupted       { "turnId": 0, "step": 2, "reason": "error", "message": "Compaction limit exceeded (1)" }
-      [emit] turn.ended                  { "turnId": 0, "reason": "failed", "error": { "code": "context.overflow", "message": "Compaction limit exceeded (1)", "name": "ByfError", "details": { "maxCompactions": 1, "turnId": 0 }, "retryable": true } }
+      [emit] turn.ended                  { "turnId": 0, "reason": "failed", "error": { "code": "context.overflow", "message": "Compaction limit exceeded (1)", "name": "ByfError", "details": { "maxCompactions": 1, "turnId": 0 }, "retryable": true } }"
     `);
-    expect(ctx.newEvents()).toMatchInlineSnapshot(
-      `[emit] error   { "code": "context.overflow", "message": "Compaction limit exceeded (1)", "name": "ByfError", "details": { "maxCompactions": 1, "turnId": 0 }, "retryable": true }`,
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(
+      `"[emit] error   { "code": "context.overflow", "message": "Compaction limit exceeded (1)", "name": "ByfError", "details": { "maxCompactions": 1, "turnId": 0 }, "retryable": true }"`,
     );
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: []
         messages:
@@ -1341,7 +1346,7 @@ describe('Agent compaction', () => {
 
       call 2:
         messages:
-          assistant: text "First compacted summary."
+          assistant: text "First compacted summary.""
     `);
     await ctx.expectResumeMatches();
   });

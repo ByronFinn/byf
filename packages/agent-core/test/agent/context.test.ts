@@ -7,6 +7,7 @@ import { project } from '../../src/agent/context/projector';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 describe('Agent context', () => {
   it('stores prompt origins without leaking them to LLM projection', () => {
@@ -172,8 +173,8 @@ describe('Agent context', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'continue' }] });
 
     await ctx.untilTurnEnd();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "user before step 1"
@@ -181,7 +182,7 @@ describe('Agent context', () => {
         user: text "lookup something"
         assistant: text "I will call Lookup."  calls call_lookup:Lookup { "query": "moon" }
         tool[call_lookup]: text "lookup result"
-        user: text "continue"
+        user: text "continue""
     `);
     await ctx.expectResumeMatches();
   });
@@ -198,12 +199,12 @@ describe('Agent context', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Real user prompt' }] });
 
     await ctx.untilTurnEnd();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "<system-reminder>\\nRemember the host note.\\n</system-reminder>"
-        user: text "Real user prompt"
+        user: text "Real user prompt""
     `);
   });
 
@@ -370,11 +371,11 @@ describe('Agent context', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'fresh prompt' }] });
 
     await ctx.untilTurnEnd();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
-        user: text "fresh prompt"
+        user: text "fresh prompt""
     `);
     await ctx.expectResumeMatches();
   });
@@ -396,12 +397,12 @@ describe('Agent context', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'new prompt' }] });
 
     await ctx.untilTurnEnd();
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         assistant: text "summary of old context"
-        user: text "recent user message\\n\\nnew prompt"
+        user: text "recent user message\\n\\nnew prompt""
     `);
     await ctx.expectResumeMatches();
   });

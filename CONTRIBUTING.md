@@ -50,7 +50,7 @@ make prepare    # equivalent to `bun install`; also runs the prepare lifecycle (
 Useful make targets (run `make help` to see them all):
 
 - `make dev` — run the CLI in dev mode
-- `make test` — run tests (vitest)
+- `make test` — run tests (bun test)
 - `make typecheck` — TypeScript check (note: builds packages first)
 - `make lint` — oxlint
 - `make fix` — oxlint with auto-fix

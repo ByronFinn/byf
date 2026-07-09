@@ -1,5 +1,7 @@
+import { mock as bunMock } from 'bun:test';
+
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError } from '#/index';
 
@@ -10,8 +12,9 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'steer response',
 }));
 
-vi.mock('@byfriends/kosong', async (importOriginal) => {
-  const actual = await importOriginal<typeof KosongModule>();
+const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
+vi.mock('@byfriends/kosong', () => {
+  const actual = __mockActual__byfriends_kosong;
   return {
     ...actual,
     createProvider: () => ({
@@ -111,4 +114,9 @@ describe('Session.steer', () => {
       await harness.close();
     }
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

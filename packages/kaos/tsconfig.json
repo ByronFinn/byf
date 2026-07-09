@@ -5,7 +5,18 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "outDir": "dist-types",
-    "lib": ["ESNext", "DOM"]
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
+    "paths": {
+      "#/*": [
+        "./src/*"
+      ]
+    }
   },
-  "include": ["src", "test"]
+  "include": [
+    "src",
+    "test"
+  ]
 }

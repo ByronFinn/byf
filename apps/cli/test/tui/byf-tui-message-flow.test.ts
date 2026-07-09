@@ -1,3 +1,4 @@
+import { mock as bunMock } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +9,7 @@ import {
   resetCapabilitiesCache,
   setCapabilities,
 } from '@earendil-works/pi-tui';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 import { BtwViewer } from '#/tui/components/dialogs/btw-viewer';
@@ -2213,4 +2214,9 @@ describe('ByfTui message flow', () => {
     expect(transcript).toContain('(empty)');
     expect(transcript).not.toContain('<hook_result');
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

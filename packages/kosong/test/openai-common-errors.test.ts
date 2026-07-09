@@ -168,11 +168,13 @@ describe('OpenAI streaming error propagation', () => {
       [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
     );
 
-    await expect(async () => {
-      for await (const _ of stream) {
-        void _;
-      }
-    }).rejects.toThrow(APIConnectionError);
+    await expect(
+      (async () => {
+        for await (const _ of stream) {
+          void _;
+        }
+      })(),
+    ).rejects.toThrow(APIConnectionError);
   });
 });
 describe('convertContentPart', () => {

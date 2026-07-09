@@ -33,7 +33,8 @@ describe('runHook process runner', () => {
 
   it('parses stdout JSON message into a hook result message', async () => {
     const runHook = await importRunHook();
-    const result = await runHook('echo \'{"message":"hook says hi"}\'', {}, { timeout: 5 });
+    // Prefer printf over echo for portable JSON quoting under concurrent shells.
+    const result = await runHook(`printf '%s' '{"message":"hook says hi"}'`, {}, { timeout: 5 });
     expect(result.action).toBe('allow');
     expect(result.message).toBe('hook says hi');
     expect(result.structuredOutput).toBe(true);
@@ -42,13 +43,13 @@ describe('runHook process runner', () => {
   it('marks structured stdout JSON without message as empty hook output', async () => {
     const runHook = await importRunHook();
 
-    const emptyObject = await runHook("echo '{}'", {}, { timeout: 5 });
+    const emptyObject = await runHook(`printf '%s' '{}'`, {}, { timeout: 5 });
     expect(emptyObject.action).toBe('allow');
     expect(emptyObject.message).toBeUndefined();
     expect(emptyObject.structuredOutput).toBe(true);
 
     const emptyHookSpecificOutput = await runHook(
-      'echo \'{"hookSpecificOutput":{}}\'',
+      `printf '%s' '{"hookSpecificOutput":{}}'`,
       {},
       { timeout: 5 },
     );

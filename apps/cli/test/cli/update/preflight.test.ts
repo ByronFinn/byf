@@ -1,15 +1,9 @@
+import { mock as bunMock } from 'bun:test';
 import type * as ChildProcess from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
-import { readUpdateCache } from '#/cli/update/cache';
-import { runUpdatePreflight } from '#/cli/update/preflight';
-import { promptForInstallConfirmation } from '#/cli/update/prompt';
-import type * as PromptModule from '#/cli/update/prompt';
-import { refreshUpdateCache } from '#/cli/update/refresh';
-import type * as RefreshModule from '#/cli/update/refresh';
-import { detectInstallSource } from '#/cli/update/source';
 import { emptyUpdateCache, type UpdateCache } from '#/cli/update/types';
 
 const mocks = vi.hoisted(() => ({
@@ -20,37 +14,41 @@ const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
 }));
 
+const __cacheActual = await import('../../../src/cli/update/cache');
 vi.mock('../../../src/cli/update/cache', () => ({
+  ...__cacheActual,
   readUpdateCache: mocks.readUpdateCache,
 }));
 
+const __sourceActual = await import('../../../src/cli/update/source');
 vi.mock('../../../src/cli/update/source', () => ({
+  ...__sourceActual,
   detectInstallSource: mocks.detectInstallSource,
 }));
 
-vi.mock('../../../src/cli/update/prompt', async () => {
-  const actual = await vi.importActual<typeof PromptModule>('../../../src/cli/update/prompt.js');
-  return {
-    ...actual,
-    promptForInstallConfirmation: mocks.promptForInstallConfirmation,
-  };
-});
+const __promptActual = await import('../../../src/cli/update/prompt');
+vi.mock('../../../src/cli/update/prompt', () => ({
+  ...__promptActual,
+  promptForInstallConfirmation: mocks.promptForInstallConfirmation,
+}));
 
-vi.mock('../../../src/cli/update/refresh', async () => {
-  const actual = await vi.importActual<typeof RefreshModule>('../../../src/cli/update/refresh.js');
-  return {
-    ...actual,
-    refreshUpdateCache: mocks.refreshUpdateCache,
-  };
-});
+const __refreshActual = await import('../../../src/cli/update/refresh');
+vi.mock('../../../src/cli/update/refresh', () => ({
+  ...__refreshActual,
+  refreshUpdateCache: mocks.refreshUpdateCache,
+}));
 
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual<typeof ChildProcess>('node:child_process');
-  return {
-    ...actual,
-    spawn: mocks.spawn,
-  };
-});
+const __childActual = await import('node:child_process');
+vi.mock('node:child_process', () => ({
+  ...__childActual,
+  spawn: mocks.spawn,
+}));
+
+const { readUpdateCache } = await import('#/cli/update/cache');
+const { runUpdatePreflight } = await import('#/cli/update/preflight');
+const { promptForInstallConfirmation } = await import('#/cli/update/prompt');
+const { refreshUpdateCache } = await import('#/cli/update/refresh');
+const { detectInstallSource } = await import('#/cli/update/source');
 
 function cacheWith(version: string): UpdateCache {
   return {
@@ -271,4 +269,9 @@ describe('runUpdatePreflight', () => {
     await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(stderr.join('')).toContain('warning: failed to install');
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });
