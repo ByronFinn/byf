@@ -60,7 +60,6 @@
       "version": "0.3.6",
       "dependencies": {
         "@byfriends/agent-core": "workspace:^",
-        "@hono/node-server": "^1.13.7",
         "hono": "^4.7.7",
       },
       "devDependencies": {
@@ -142,9 +141,6 @@
     "packages/kaos": {
       "name": "@byfriends/kaos",
       "version": "0.3.6",
-      "devDependencies": {
-        "@types/node": "^22.15.3",
-      },
     },
     "packages/kosong": {
       "name": "@byfriends/kosong",

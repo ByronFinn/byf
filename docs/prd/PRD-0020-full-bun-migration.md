@@ -286,7 +286,7 @@
   - #215 — [PRD-0020] 测试门禁仅 bun test — 清障至全绿 (AFK, blocked by #211) — Done
   - #216 — [PRD-0020] CI 主路径 Bun — install/test/lint/typecheck/build (AFK, blocked by #212 #214 #215)
   - #217 — [PRD-0020] 发布安全网 — bun pack/publish + pubcheck + releasing 文档 (AFK, blocked by #214 #216)
-  - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214)
+  - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214) — Done
   - #219 — [PRD-0020] compile 管线 v1 + release.yml — MVP 两平台过 R15 门禁 (HITL, blocked by #210 #214 #216)
   - #220 — [PRD-0020] CLI npm optionalDep 平台包 — 干净机 npm i -g 可跑 (AFK, blocked by #219)
   - #221 — [PRD-0020] engines Bun-only + 删除 SEA/pnpm 钉死 + flake experimental (AFK, blocked by #219 #220)
@@ -311,7 +311,7 @@
 | #215  | Done | #211             |
 | #216  | AFK  | #212, #214, #215 |
 | #217  | AFK  | #214, #216       |
-| #218  | AFK  | #213, #214       |
+| #218  | Done | #213, #214       |
 | #219  | HITL | #210, #214, #216 |
 | #220  | AFK  | #219             |
 | #221  | AFK  | #219, #220       |
