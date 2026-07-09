@@ -485,12 +485,17 @@ describe('McpConnectionManager', () => {
     const seen: Array<{ name: string; status: McpServerEntry['status'] }> = [];
     cm.onStatusChange((e) => seen.push({ name: e.name, status: e.status }));
     try {
+      // Delay exit long enough for handshake under CI load; 50ms races with
+      // process-isolated startup and can fail before status ever reaches connected.
       await cm.connectAll({
         crashy: {
           transport: 'stdio',
           command: process.execPath,
           args: [crashAfterConnectFixture],
-          env: { BYF_TEST_MCP_EXIT_AFTER_MS: '50', BYF_TEST_MCP_STDERR: 'fatal: out of memory' },
+          env: {
+            BYF_TEST_MCP_EXIT_AFTER_MS: '500',
+            BYF_TEST_MCP_STDERR: 'fatal: out of memory',
+          },
           startupTimeoutMs: 4_000,
         },
       });
@@ -514,7 +519,7 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
     }
-  }, 10000);
+  }, 15000);
 
   it('includes captured stderr in the error when stdio connect fails before handshake', async () => {
     const cm = new McpConnectionManager();
