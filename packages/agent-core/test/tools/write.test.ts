@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ReadFileTracker } from '../../src/tools/builtin/file/read-state';
 import { type WriteInput, WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
+import type { ToolStore } from '../../src/tools/store';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos, PERMISSIVE_WORKSPACE, toolContentString } from './fixtures/fake-kaos';
 
@@ -337,5 +339,112 @@ describe('WriteTool', () => {
 
     expect(result.isError).toBeFalsy();
     expect(writeText).toHaveBeenCalledWith('/workspace-sneaky/file.txt', 'content');
+  });
+
+  describe('with ReadFileTracker (read-before-overwrite contract)', () => {
+    /** Minimal in-memory ToolStore for tracker tests. */
+    function makeStore(): ToolStore {
+      const data: Record<string, unknown> = {};
+      return {
+        get: (key) => data[key] as never,
+        set: (key, value) => {
+          data[key] = value;
+        },
+      };
+    }
+
+    /**
+     * stat() that returns a directory for the parent path and a regular
+     * file for the target file — mirrors the realistic layout where the
+     * overwrite guard actually fires.
+     */
+    function statParentDirAndFile(
+      parentMode = 0o040755,
+      fileMode = 0o100644,
+    ): ReturnType<typeof vi.fn> {
+      return vi.fn(async (p: string) => {
+        // Target file ends with the file name; parent dir is everything else.
+        if (p.endsWith('/file.txt')) return { stMode: fileMode };
+        return { stMode: parentMode };
+      });
+    }
+
+    it('fails when overwriting an existing file that has not been Read', async () => {
+      const writeText = vi.fn().mockResolvedValue(4);
+      const tool = new WriteTool(
+        createFakeKaos({ stat: statParentDirAndFile(), writeText }),
+        PERMISSIVE_WORKSPACE,
+        new ReadFileTracker(makeStore()),
+      );
+
+      const result = await executeTool(
+        tool,
+        context({ path: '/tmp/exists/file.txt', content: 'new' }),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('has not been Read');
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('overwrites normally after the file has been Read', async () => {
+      const writeText = vi.fn().mockResolvedValue(3);
+      const store = makeStore();
+      const tracker = new ReadFileTracker(store);
+      tracker.markRead('/tmp/exists/file.txt');
+      const tool = new WriteTool(
+        createFakeKaos({ stat: statParentDirAndFile(), writeText }),
+        PERMISSIVE_WORKSPACE,
+        tracker,
+      );
+
+      const result = await executeTool(
+        tool,
+        context({ path: '/tmp/exists/file.txt', content: 'new' }),
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(writeText).toHaveBeenCalledWith('/tmp/exists/file.txt', 'new');
+    });
+
+    it('does not gate creating a brand-new file', async () => {
+      // Target file does not exist yet — stat rejects ENOENT for the file,
+      // returns a directory for the parent.
+      const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      const stat = vi.fn(async (p: string) => {
+        if (p.endsWith('/new.txt')) throw enoent;
+        return { stMode: 0o040755 };
+      });
+      const writeText = vi.fn().mockResolvedValue(3);
+      const tool = new WriteTool(
+        createFakeKaos({ stat, writeText }),
+        PERMISSIVE_WORKSPACE,
+        new ReadFileTracker(makeStore()),
+      );
+
+      const result = await executeTool(
+        tool,
+        context({ path: '/tmp/exists/new.txt', content: 'fresh' }),
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(writeText).toHaveBeenCalledWith('/tmp/exists/new.txt', 'fresh');
+    });
+
+    it('does not gate append mode', async () => {
+      const writeText = vi.fn().mockResolvedValue(5);
+      const tool = new WriteTool(
+        createFakeKaos({ stat: statParentDirAndFile(), writeText }),
+        PERMISSIVE_WORKSPACE,
+        new ReadFileTracker(makeStore()),
+      );
+
+      const result = await executeTool(
+        tool,
+        context({ path: '/tmp/exists/file.txt', content: 'more', mode: 'append' }),
+      );
+
+      expect(result.isError).toBeFalsy();
+    });
   });
 });

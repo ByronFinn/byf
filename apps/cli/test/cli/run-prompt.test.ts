@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mock as bunMock } from 'bun:test';
+
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
 
@@ -66,8 +68,9 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@byfriends/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@byfriends/sdk')>();
+const __mockActual__byfriends_sdk = await import('@byfriends/sdk');
+vi.mock('@byfriends/sdk', () => {
+  const actual = __mockActual__byfriends_sdk;
   return {
     ...actual,
     resolveByfHome: mocks.resolveByfHome,
@@ -872,4 +875,9 @@ describe('runPrompt', () => {
       expect(process.stderr.listenerCount('error')).toBe(beforeStderrError);
     });
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

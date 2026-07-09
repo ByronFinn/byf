@@ -174,7 +174,9 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
   const envLookup = deps.envLookup;
   const innerFetch = deps.innerFetch ?? globalThis.fetch.bind(globalThis);
 
-  const proxiedFetch: typeof fetch = async (input, init) => {
+  // Bun's `typeof fetch` includes a static `preconnect`; the proxy wrapper is
+  // call-only. Cast after assignment — callers only invoke the function.
+  const proxiedFetch = (async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const noProxy = firstDefined(NO_PROXY_KEYS, envLookup);
     const hostname = new URL(url).hostname;
@@ -224,7 +226,7 @@ export function createProxiedFetch(deps: ProxiedFetchDeps): typeof fetch {
 
       throw error;
     }
-  };
+  }) as typeof fetch;
 
   return proxiedFetch;
 }

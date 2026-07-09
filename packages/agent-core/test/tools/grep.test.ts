@@ -1,7 +1,8 @@
+import { mock as bunMock } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess, StatResult } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { type GrepInput, GrepInputSchema, GrepTool } from '../../src/tools/builtin/file/grep';
 import { SENSITIVE_DOT_VARIANT_SUFFIXES } from '../../src/tools/policies/sensitive';
@@ -1919,4 +1920,9 @@ describe('GrepTool', () => {
     expect(result).toEqual({ isError: true, output: 'Aborted before search started' });
     expect(exec).not.toHaveBeenCalled();
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

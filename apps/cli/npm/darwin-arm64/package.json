@@ -1,0 +1,31 @@
+{
+  "name": "@byfriends/cli-darwin-arm64",
+  "version": "0.3.6",
+  "private": true,
+  "description": "macOS ARM64 binary for @byfriends/cli (bun build --compile)",
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
+  "license": "MIT",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ByronFinn/byf.git",
+    "directory": "apps/cli/npm/darwin-arm64"
+  },
+  "files": [
+    "bin/byf"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
+  },
+  "preferUnplugged": true
+}

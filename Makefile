@@ -7,76 +7,76 @@ help: ## Show this help
 
 ## Setup
 
-prepare: ## Install dependencies (runs the pnpm prepare lifecycle too)
-	pnpm install
+prepare: ## Install dependencies (runs the prepare lifecycle, sets git hooks)
+	bun install
 
 ## Build
 
 build: ## Build all packages and apps
-	pnpm run build
+	bun run build
 
 packages: ## Build packages only (no apps)
-	pnpm run build:packages
+	bun run build:packages
 
 ## Quality
 
 typecheck: ## Type-check the whole workspace
-	pnpm run typecheck
+	bun run typecheck
 
 lint: ## Lint with oxlint (type-aware)
-	pnpm run lint
+	bun run lint
 
 fix: ## Lint and auto-fix
-	pnpm run lint:fix
+	bun run lint:fix
 
 fmt: ## Format all files with oxfmt
-	pnpm run fmt
+	bun run fmt
 
 fmt-check: ## Check formatting without writing
-	pnpm run fmt:check
+	bun run fmt:check
 
 sherif: ## Check monorepo dependency consistency
-	pnpm run sherif
+	bun run sherif
 
 pubcheck: ## Validate published package layout (publint + attw + manifest protocol check)
-	pnpm run lint:pkg && pnpm run pubcheck:manifest
+	bun run lint:pkg && bun run pubcheck:manifest
 
 ## Test
 
 test: ## Run the test suite once
-	pnpm run test
+	bun run test
 
 watch: ## Run tests in watch mode
-	pnpm run test:watch
+	bun run test:watch
 
 cover: ## Run tests with coverage
-	pnpm run test:coverage
+	bun run test:coverage
 
 ## Clean
 
 clean: ## Remove build artifacts across the workspace
-	pnpm run clean
+	bun run clean
 
 ## Release
 
 changeset: ## Add a changeset interactively
-	pnpm run changeset
+	bun run changeset
 
 version: ## Apply changesets and bump versions
-	pnpm run version
+	bun run version
 
-publish: ## Verify and publish (typecheck, lint, fmt:check, sherif, test, build, lint:pkg, then changeset publish)
-	pnpm run publish
+publish: ## Verify and publish (gates + pubcheck, then with-publish-manifests + changeset publish)
+	bun run publish
 
 release: version publish ## Version then publish
 
 ## Development
 
 dev: ## Run the CLI in dev mode
-	pnpm run dev:cli
+	bun run dev:cli
 
 docs: ## Run the docs site in dev mode
-	pnpm run dev:docs
+	bun run dev:docs
 
 vis: ## Run the visualizer in dev mode
-	pnpm run vis
+	bun run vis

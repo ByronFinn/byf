@@ -24,9 +24,8 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Environment Requirements
 
-- **Node.js**: `>=24.15.0` (from the root `package.json` `engines`; `.nvmrc` is `24.15.0`, used by nvm / fnm / mise to pick the minimum recommended version).
-- **pnpm**: `11.9.0` (from the root `package.json` `packageManager`).
-- `pnpm install` will fail when the Node version is not satisfied, because `.npmrc` sets `engine-strict=true`.
+- **Bun**: `>=1.3.14` (from the root `package.json` `engines.bun`). Bun is the only official toolchain for contributing and CI (ADR 0028); Node and pnpm are no longer required for development.
+- Install dependencies with `bun install`; the root `prepare` lifecycle (`simple-git-hooks`) sets local git hooks.
 
 ## General Coding Rules
 

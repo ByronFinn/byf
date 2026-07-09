@@ -1,14 +1,9 @@
-import { ErrorCodes, ByfError } from '@byfriends/sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mock as bunMock } from 'bun:test';
 
-import { validateOptions } from '#/cli/options';
+import { ErrorCodes, ByfError } from '@byfriends/sdk';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
+
 import type { CLIOptions } from '#/cli/options';
-import type * as OptionsModule from '#/cli/options';
-import { runPrompt } from '#/cli/run-prompt';
-import { runShell } from '#/cli/run-shell';
-import { formatStartupError } from '#/cli/startup-error';
-import { runUpdatePreflight } from '#/cli/update/preflight';
-import { handleMainCommand, main } from '#/main';
 
 const mocks = vi.hoisted(() => {
   const parse = vi.fn();
@@ -23,6 +18,8 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+// Bun does not hoist vi.mock before static imports — register mocks first, then
+// dynamically import subjects so they see the mocked graph.
 vi.mock('../../src/cli/commands', () => ({
   createProgram: mocks.createProgram,
 }));
@@ -31,13 +28,11 @@ vi.mock('../../src/cli/version', () => ({
   getVersion: mocks.getVersion,
 }));
 
-vi.mock('../../src/cli/options', async () => {
-  const actual = await vi.importActual<typeof OptionsModule>('../../src/cli/options.js');
-  return {
-    ...actual,
-    validateOptions: mocks.validateOptions,
-  };
-});
+const __optionsActual = await import('../../src/cli/options');
+vi.mock('../../src/cli/options', () => ({
+  ...__optionsActual,
+  validateOptions: mocks.validateOptions,
+}));
 
 vi.mock('../../src/cli/update/preflight', () => ({
   runUpdatePreflight: mocks.runUpdatePreflight,
@@ -50,6 +45,13 @@ vi.mock('../../src/cli/run-shell', () => ({
 vi.mock('../../src/cli/run-prompt', () => ({
   runPrompt: mocks.runPrompt,
 }));
+
+const { validateOptions } = await import('#/cli/options');
+const { runPrompt } = await import('#/cli/run-prompt');
+const { runShell } = await import('#/cli/run-shell');
+const { formatStartupError } = await import('#/cli/startup-error');
+const { runUpdatePreflight } = await import('#/cli/update/preflight');
+const { handleMainCommand, main } = await import('#/main');
 
 class ExitCalled extends Error {
   constructor(readonly code: number) {
@@ -194,4 +196,9 @@ describe('main entry command handling', () => {
       }),
     ).toBe('error: failed to run prompt: Provider not set\n');
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

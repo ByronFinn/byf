@@ -1,16 +1,18 @@
+import { mock as bunMock } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError, Event } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForSDKEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
-vi.mock('@byfriends/kosong', async (importOriginal) => {
-  const actual = await importOriginal<typeof KosongModule>();
+const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
+vi.mock('@byfriends/kosong', async () => {
+  const actual = __mockActual__byfriends_kosong;
   return {
     ...actual,
     createProvider: () => ({
@@ -169,3 +171,8 @@ function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 function throwAbortError(): never {
   throw new DOMException('The operation was aborted.', 'AbortError');
 }
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
+});

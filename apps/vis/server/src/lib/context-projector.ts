@@ -1,3 +1,10 @@
+// Context-projection DTOs — canonical definitions live in shared/types.ts
+import type {
+  ProjectedMessage,
+  UsageTotals,
+  ConfigSnapshot,
+  ContextProjection,
+} from '../../../shared/types';
 import type {
   ContentPart,
   ContextMessage,
@@ -6,13 +13,7 @@ import type {
   WireEntry,
 } from './agent-record-types';
 
-// Context-projection DTOs — canonical definitions live in shared/types.ts
-export type {
-  ProjectedMessage,
-  UsageTotals,
-  ConfigSnapshot,
-  ContextProjection,
-} from '../../../shared/types';
+export type { ProjectedMessage, UsageTotals, ConfigSnapshot, ContextProjection };
 
 const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 
@@ -147,10 +148,10 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         ];
         break;
       case 'usage.record': {
-        const scope = rec.usageScope ?? 'session';
+        const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
         addUsage(usage.byScope[scope], rec.usage);
         usage.byModel[rec.model] ??= { ...ZERO };
-        addUsage(usage.byModel[rec.model], rec.usage);
+        addUsage(usage.byModel[rec.model]!, rec.usage);
         break;
       }
       case 'config.update': {

@@ -32,6 +32,13 @@ export type {
   PromptOrigin,
   UserPromptOrigin,
 } from './agent/context';
+// Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with the
+// CLI so live and replay produce identical output (PRD R14).
+export {
+  renderBlockedReason,
+  renderCompletionSummary,
+  renderStatusLine,
+} from './tools/builtin/goal/outcome-prompts';
 export type {
   BackgroundLifecycleEvent,
   BackgroundTaskInfo,
@@ -42,6 +49,7 @@ export type { RuntimeConfig } from './runtime-types';
 export type { TelemetryClient, TelemetryProperties } from './telemetry';
 export type { BearerTokenProvider, OAuthTokenProviderResolver } from './providers/runtime-provider';
 export { buildPromptPlan } from './prompt-plan';
+export type { InputTokenBreakdown } from './utils/tokens';
 
 // ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
 export type {

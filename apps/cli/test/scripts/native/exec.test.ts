@@ -4,21 +4,21 @@ import { commandForExecFile } from '../../../scripts/native/exec.mjs';
 
 describe('commandForExecFile', () => {
   it('returns command as-is on non-Windows', () => {
-    const result = commandForExecFile('postject', ['byf', 'NODE_SEA_BLOB', './blob'], 'darwin');
-    expect(result).toEqual({ command: 'postject', args: ['byf', 'NODE_SEA_BLOB', './blob'] });
+    const result = commandForExecFile('codesign', ['--sign', '-', './byf'], 'darwin');
+    expect(result).toEqual({ command: 'codesign', args: ['--sign', '-', './byf'] });
   });
 
   it('returns command as-is on Windows for non-batch files', () => {
-    const result = commandForExecFile('postject.exe', ['byf.exe'], 'win32');
-    expect(result).toEqual({ command: 'postject.exe', args: ['byf.exe'] });
+    const result = commandForExecFile('byf.exe', ['--version'], 'win32');
+    expect(result).toEqual({ command: 'byf.exe', args: ['--version'] });
   });
 
   it('wraps .cmd files through cmd.exe on Windows', () => {
-    const result = commandForExecFile('postject.cmd', ['byf.exe', 'NODE_SEA_BLOB'], 'win32', {
+    const result = commandForExecFile('tool.cmd', ['byf.exe', '--version'], 'win32', {
       ComSpec: 'C:\\Windows\\System32\\cmd.exe',
     });
     expect(result.command).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(result.args).toEqual(['/d', '/s', '/c', '""postject.cmd" "byf.exe" "NODE_SEA_BLOB""']);
+    expect(result.args).toEqual(['/d', '/s', '/c', '""tool.cmd" "byf.exe" "--version""']);
     expect(result.options?.windowsVerbatimArguments).toBe(true);
   });
 

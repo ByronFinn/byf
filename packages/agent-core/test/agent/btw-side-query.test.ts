@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { testAgent } from './harness/agent';
 import type { GenerateFn } from './harness/scripted-generate';
+import { formatHarnessSnapshot } from './harness/snapshots';
 
 describe('btw side query — ContextMemory.getStableSnapshot', () => {
   it('returns a snapshot equivalent to getMessages() when no tool exchange is open', () => {
@@ -128,13 +129,13 @@ describe('btw side query — Agent.askSide', () => {
     ctx.mockNextResponse({ type: 'text', text: 'answer' });
     await ctx.agent.askSide('where is it?');
 
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: []
       messages:
         user: text "fix the bug in foo.ts"
         system: text <btw-readonly-instruction>
-        user: text "where is it?"
+        user: text "where is it?""
     `);
   });
 

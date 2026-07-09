@@ -109,6 +109,7 @@ describe('Event public types', () => {
         case 'btw.delta':
         case 'btw.completed':
         case 'btw.failed':
+        case 'goal.updated':
           return;
         default:
           assertNever(event);

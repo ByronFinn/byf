@@ -1,5 +1,7 @@
+import { mock as bunMock } from 'bun:test';
+
 /* eslint-disable import/first -- vi.mock setup must run before the imports it stubs out. */
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach, afterAll } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createInterface: vi.fn(),
@@ -56,4 +58,9 @@ describe('stdin helpers', () => {
       crlfDelay: Infinity,
     });
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

@@ -4,7 +4,7 @@ BYF is the next-generation terminal agent — and a fresh start. If you have bee
 
 ## Why migrate
 
-byf is rebuilt on Node.js and no longer depends on Python or the `uv` toolchain, making installation and upgrades simpler. It also ships native binaries out of the box.
+byf no longer depends on Python or the `uv` toolchain, making installation and upgrades simpler. It ships native compile binaries out of the box (GitHub Release or npm optionalDependencies) — end users do not need to preinstall Bun or Node to run the CLI.
 
 The terminal UI has been redesigned for a faster and lighter experience.
 

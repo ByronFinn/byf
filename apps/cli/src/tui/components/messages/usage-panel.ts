@@ -4,7 +4,7 @@
  * the pattern stays consistent across command-triggered panels.
  */
 
-import type { SessionUsage, TokenUsage } from '@byfriends/sdk';
+import type { InputTokenBreakdown, SessionUsage, TokenUsage } from '@byfriends/sdk';
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -153,6 +153,74 @@ function buildManagedUsageSection(
   return out;
 }
 
+/** Fixed display order + labels for the six input-token breakdown buckets. */
+const BREAKDOWN_ROWS: ReadonlyArray<{
+  readonly field: keyof InputTokenBreakdown['tokens'];
+  readonly label: string;
+}> = [
+  { field: 'mcpTools', label: 'MCP tools' },
+  { field: 'systemTools', label: 'System tools' },
+  { field: 'messages', label: 'Messages' },
+  { field: 'metaContext', label: 'Meta context' },
+  { field: 'skills', label: 'Skills' },
+  { field: 'systemPrompt', label: 'System prompt' },
+];
+
+/**
+ * Build the `Context breakdown (estimated, current)` section: six rows showing
+ * each bucket's share of the context window (right-aligned, one decimal)
+ * alongside its estimated absolute token count prefixed with `~`.
+ *
+ * The percentage is dropped (degradation) when `percent` is undefined — i.e.
+ * no model is configured so `max_context_tokens` is unavailable — leaving
+ * absolute-only rows.
+ */
+function buildBreakdownSection(
+  usage: SessionUsage | undefined,
+  accent: Colorize,
+  value: Colorize,
+  muted: Colorize,
+): string[] {
+  const breakdown = usage?.inputBreakdown;
+  if (breakdown === undefined) return [];
+
+  const labelWidth = Math.max(...BREAKDOWN_ROWS.map((r) => r.label.length));
+  const out: string[] = [accent('Context breakdown (estimated, current)')];
+  for (const row of BREAKDOWN_ROWS) {
+    const label = muted(row.label.padEnd(labelWidth, ' '));
+    const tokens = breakdown.tokens[row.field];
+    const abs = value(`~${formatTokenCount(tokens)}`);
+    const pctValue = breakdown.percent[row.field];
+    if (pctValue === undefined) {
+      out.push(`  ${label}  ${abs}`);
+    } else {
+      const pct = value(`${pctValue.toFixed(1)}%`.padStart(6, ' '));
+      out.push(`  ${label}  ${pct}  ${abs}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Build the `Cache hit rate (cumulative)` section: the session-average cache
+ * hit rate, computed from cumulative token usage across all turns. Distinct
+ * from the footer's instantaneous per-turn `cache: NN%` — the average lags
+ * because early cold-start turns (cache creation, near-zero reads) drag it
+ * below the steady-state rate.
+ */
+function buildCacheHitRateSection(
+  usage: SessionUsage | undefined,
+  accent: Colorize,
+  value: Colorize,
+): string[] {
+  const hitRateStr = formatCacheHitRate(usage?.cacheHitRate);
+  if (hitRateStr === undefined) return [];
+  return [
+    accent('Cache hit rate (cumulative)'),
+    `  Average across all turns  ${value(hitRateStr)}`,
+  ];
+}
+
 export function buildManagedUsageReportLines(options: ManagedUsageReportLineOptions): string[] {
   const colors = options.colors;
   const accent = chalk.hex(colors.primary).bold;
@@ -183,7 +251,7 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     sev === 'danger' ? colors.error : sev === 'warn' ? colors.warning : colors.success;
 
   const lines: string[] = [
-    accent('Session usage'),
+    accent('Session usage (cumulative)'),
     ...buildSessionUsageSection(
       options.sessionUsage,
       options.sessionUsageError,
@@ -199,7 +267,7 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     const pct = `${(ratio * 100).toFixed(1)}%`;
     const barColoured = chalk.hex(severityHex(ratioSeverity(ratio)))(bar);
     lines.push('');
-    lines.push(accent('Context window'));
+    lines.push(accent('Context window (current)'));
     lines.push(
       `  ${barColoured}  ${value(pct.padStart(6, ' '))}  ` +
         muted(
@@ -208,6 +276,18 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
           )})`,
         ),
     );
+  }
+
+  const breakdownSection = buildBreakdownSection(options.sessionUsage, accent, value, muted);
+  if (breakdownSection.length > 0) {
+    lines.push('');
+    lines.push(...breakdownSection);
+  }
+
+  const cacheSection = buildCacheHitRateSection(options.sessionUsage, accent, value);
+  if (cacheSection.length > 0) {
+    lines.push('');
+    lines.push(...cacheSection);
   }
 
   const managedSection = buildManagedUsageReportLines({

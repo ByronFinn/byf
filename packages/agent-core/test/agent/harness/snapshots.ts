@@ -97,50 +97,88 @@ function hasSnapshotSymbol(val: unknown, symbol: symbol): boolean {
   );
 }
 
-expect.addSnapshotSerializer({
-  test(val) {
-    return hasSnapshotSymbol(val, IS_EVENT_ARRAY);
-  },
-  serialize(val) {
-    const events = val as Array<Record<string, unknown>>;
-    if (events.length === 0) return '[]';
+function serializeEventArray(val: Array<Record<string, unknown>>): string {
+  if (val.length === 0) return '[]';
 
-    const maxEventLength = Math.max(...events.map((event) => String(event['event']).length), 0) + 2;
-    return events
-      .map((v) => {
-        const prefix = v['type'] === '[rpc]' ? '[emit]' : '[wire]';
-        return `${prefix} ${String(v['event']).padEnd(maxEventLength, ' ')} ${stringifyCompact(v['args'])}`;
-      })
-      .join('\n');
-  },
-});
+  const maxEventLength = Math.max(...val.map((event) => String(event['event']).length), 0) + 2;
+  return val
+    .map((v) => {
+      const prefix = v['type'] === '[rpc]' ? '[emit]' : '[wire]';
+      return `${prefix} ${String(v['event']).padEnd(maxEventLength, ' ')} ${stringifyCompact(v['args'])}`;
+    })
+    .join('\n');
+}
 
-expect.addSnapshotSerializer({
-  test(val) {
-    return hasSnapshotSymbol(val, IS_GENERATE_INPUT_SNAPSHOT);
-  },
-  serialize(val) {
-    const snapshot = val as GenerateInputSnapshot;
-    return formatGenerateInput(snapshot.input, snapshot.previous);
-  },
-});
+function serializeGenerateInputSnapshot(snapshot: GenerateInputSnapshot): string {
+  return formatGenerateInput(snapshot.input, snapshot.previous);
+}
 
-expect.addSnapshotSerializer({
-  test(val) {
-    return hasSnapshotSymbol(val, IS_GENERATE_INPUTS_SNAPSHOT);
-  },
-  serialize(val) {
-    const snapshot = val as GenerateInputsSnapshot;
-    let previous = snapshot.previous;
-    return snapshot.inputs
-      .map((input, index) => {
-        const formatted = formatGenerateInput(input, previous);
-        previous = input;
-        return `call ${String(index + 1)}:\n${indentLines(formatted)}`;
-      })
-      .join('\n\n');
-  },
-});
+function serializeGenerateInputsSnapshot(snapshot: GenerateInputsSnapshot): string {
+  let previous = snapshot.previous;
+  return snapshot.inputs
+    .map((input, index) => {
+      const formatted = formatGenerateInput(input, previous);
+      previous = input;
+      return `call ${String(index + 1)}:\n${indentLines(formatted)}`;
+    })
+    .join('\n\n');
+}
+
+/**
+ * Format harness snapshot values for Bun's `toMatchInlineSnapshot`.
+ *
+ * Bun does not implement `expect.addSnapshotSerializer` (throws "Not implemented"),
+ * so callers must pass the formatted string into the matcher. Vitest previously
+ * registered serializers for the same output.
+ */
+export function formatHarnessSnapshot(val: unknown): string {
+  if (hasSnapshotSymbol(val, IS_EVENT_ARRAY)) {
+    return serializeEventArray(val as Array<Record<string, unknown>>);
+  }
+  if (hasSnapshotSymbol(val, IS_GENERATE_INPUT_SNAPSHOT)) {
+    return serializeGenerateInputSnapshot(val as GenerateInputSnapshot);
+  }
+  if (hasSnapshotSymbol(val, IS_GENERATE_INPUTS_SNAPSHOT)) {
+    return serializeGenerateInputsSnapshot(val as GenerateInputsSnapshot);
+  }
+  if (typeof val === 'string') return val;
+  return JSON.stringify(val, null, 2);
+}
+
+// No-op under Bun (see build/test-preload.ts). Kept so accidental Vitest runs
+// still register serializers when the API exists and is implemented.
+if (typeof expect.addSnapshotSerializer === 'function') {
+  try {
+    expect.addSnapshotSerializer({
+      test(val) {
+        return hasSnapshotSymbol(val, IS_EVENT_ARRAY);
+      },
+      serialize(val) {
+        return serializeEventArray(val as Array<Record<string, unknown>>);
+      },
+    });
+
+    expect.addSnapshotSerializer({
+      test(val) {
+        return hasSnapshotSymbol(val, IS_GENERATE_INPUT_SNAPSHOT);
+      },
+      serialize(val) {
+        return serializeGenerateInputSnapshot(val as GenerateInputSnapshot);
+      },
+    });
+
+    expect.addSnapshotSerializer({
+      test(val) {
+        return hasSnapshotSymbol(val, IS_GENERATE_INPUTS_SNAPSHOT);
+      },
+      serialize(val) {
+        return serializeGenerateInputsSnapshot(val as GenerateInputsSnapshot);
+      },
+    });
+  } catch {
+    // Bun: addSnapshotSerializer is a no-op or throws; formatHarnessSnapshot is used instead.
+  }
+}
 
 function formatGenerateInput(input: GenerateCall, previous: GenerateCall | undefined): string {
   const lines: string[] = [];

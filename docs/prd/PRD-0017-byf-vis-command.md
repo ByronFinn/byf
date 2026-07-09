@@ -9,6 +9,7 @@
 ## Traceability
 
 - **Grilled by**: `/grill` (completed 2026-06-25) — 9 项决议：删除 `byfHome` 覆盖参数（代码矛盾）、验证 `publicDir` 注入不破坏 dev、token 缺失友好提示、端口占用快速失败、SIGINT/SIGTERM 优雅关闭、确认 BYF_HOME 已对齐、首次发布 changeset 分配（PR1 无 / PR2 vis-server minor / PR3 cli minor）、CONTEXT.md 新增 vis/vis-server 术语、D2 升格为 ADR-0021。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-03) — ADR-0021 外部运行时依赖已按代码落地；vis web/server 仍重复维护 DTO 类型，Medium。
 
 ## Goal
 
@@ -24,7 +25,7 @@
 `apps/vis` 是一套完整的会话可视化工具（Hono API server + React/Vite SPA），但当前只能通过 monorepo 内的 npm 脚本启动：
 
 - `pnpm vis`（根）→ `apps/vis/scripts/dev.mjs`（dev 编排，tsx API + Vite 双端口 5174/5173）
-- `pnpm --filter @byfriends/vis start`（prod，`node server/dist/server.mjs`）
+- `bun run --filter @byfriends/vis start`（prod，`bun server/dist/index.mjs`；库运行时契约为 Bun）
 
 发布的 `byf` CLI 完全没有引用 `apps/vis`。用户安装 `@byfriends/cli` 后，没有任何途径启动可视化工具。本 PRD 让可视化能力成为 CLI 的一等公民。
 
@@ -138,7 +139,7 @@ export async function startVisServer(options: StartVisServerOptions): Promise<Vi
 
 > **不设 `byfHome` 参数**（grill #1 决议）：`BYF_HOME` 在 vis-server 是模块级常量（`config.ts:54`），各路由直接 import，无法经参数覆盖；且 CLI 与 vis-server 都从 `process.env.BYF_HOME` 以同一逻辑解析（`~/.byf` 回退），环境变量已是唯一真相源，`byf vis` 自动继承。注入 `byfHome` 会是半成品参数。
 
-`index.ts` 瘦身为薄入口：从环境变量解析配置后调用 `startVisServer`，保持 `tsx watch src/index.ts` 与 `node server/dist/server.mjs` 行为不变。
+`index.ts` 瘦身为薄入口：从环境变量解析配置后调用 `startVisServer`，保持 `bun --watch src/index.ts` 与 `bun server/dist/index.mjs` 行为不变。
 
 #### B. vis-server 改为发布包
 

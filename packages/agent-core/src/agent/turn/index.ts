@@ -36,6 +36,7 @@ import { abortable } from '../../utils/abort';
 import { resolveCompletionBudget } from '../../utils/completion-budget';
 import { applyCacheStaking } from '../cache-staking';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
+import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
@@ -72,6 +73,12 @@ export class TurnFlow implements RecordRestoreHandler {
   private readonly interruptedTelemetryTurnIds = new Set<number>();
   private readonly stepFailureByTurn = new Map<number, LoopTurnInterruptedEvent>();
   private currentStep = 0;
+  /**
+   * True while the goal driver loop is running continuation turns. Prevents
+   * turnWorker from re-entering driveGoal on each continuation turn's completion
+   * — the driver itself controls the loop.
+   */
+  private goalDriverActive = false;
 
   constructor(protected readonly agent: Agent) {}
 
@@ -222,6 +229,10 @@ export class TurnFlow implements RecordRestoreHandler {
     const startedAt = Date.now();
     let ended: TurnEndedEvent;
     let completedStopReason: LoopTurnStopReason | undefined;
+    // PRD-0019 R4：首个 user turn 的 token 记账基线（同 driveGoal 续跑轮的口径）。
+    // 在 runTurn 之前取全局 total，结束后用差值算本轮增量。仅 user-origin turn 用到
+    // （continuation turn 的基线在 driveGoal 内取）。
+    const goalUsageBaseline = origin.kind === 'user' ? this.agent.usage.data().total : undefined;
     try {
       const promptHookEnded = await this.applyUserPromptHook(turnId, input, origin, signal);
       if (promptHookEnded !== undefined) {
@@ -296,10 +307,163 @@ export class TurnFlow implements RecordRestoreHandler {
     this.currentStepByTurn.delete(turnId);
     this.interruptedTelemetryTurnIds.delete(turnId);
     this.stepFailureByTurn.delete(turnId);
-    return {
+    const result: TurnEndResult = {
       event: ended,
       stopReason: completedStopReason,
     };
+
+    // PRD-0019 R5：首个 user turn 结束后，若 goal 处于 active，goal driver 接管续跑。
+    // continuation turn（goalDriverActive=true）不重新进入——driver 自己控制循环。
+    // fork/replay 降级路径不触发（goal 非 active）。
+    if (
+      !this.goalDriverActive &&
+      origin.kind === 'user' &&
+      ended.reason === 'completed' &&
+      this.agent.goal.getSnapshot()?.status === 'active'
+    ) {
+      await this.driveGoal();
+      return result;
+    }
+
+    // PRD-0019 R4：模型可能在首个 user turn 内就调 UpdateGoal(complete)——此时 driver
+    // 接管条件（status==='active'）为假，driveGoal 不运行，会导致首个 turn 不计入预算、
+    // complete 瞬态无人 clear（completion 卡片显示 turns=0/tokens=0，/goal status 读到
+    // 残留 complete 瞬态）。此处镜像 driveGoal 的 complete 边界：计首个 turn + 本轮 token
+    // → emit 最终 completion 快照（含真实 usage）→ clearInternal。
+    if (
+      origin.kind === 'user' &&
+      ended.reason === 'completed' &&
+      this.agent.goal.getSnapshot()?.status === 'complete'
+    ) {
+      this.settleFirstUserTurnCompletion(goalUsageBaseline);
+    }
+
+    return result;
+  }
+
+  /**
+   * 首个 user turn 内 goal 已 complete 时的边界结算（PRD-0019 R4）。
+   *
+   * 与 driveGoal 的 complete 分支语义一致——driveGoal 不会进入（接管条件
+   * status==='active' 不满足），此处镜像其 complete 边界：计首个 turn + 本轮 token
+   * → emit 最终 completion 快照（含真实 usage）→ clearInternal。
+   */
+  private settleFirstUserTurnCompletion(baseline: TokenUsage | undefined): void {
+    this.agent.goal.incrementTurn();
+    this.addCurrentTurnTokenUsage(baseline);
+    this.agent.goal.emitFinalCompletionSnapshot();
+    this.agent.goal.clearInternal();
+  }
+
+  /**
+   * 把本轮 turn 消耗的 token（input+output，含 reminder 注入与 compaction 摘要 token，
+   * AC-9）累加进 goal。取 `baseline`（本轮开始前的全局 usage total）与当前 total 的增量。
+   * 被 driveGoal 每轮迭代与 settleFirstUserTurnCompletion 共享——此前两处手抄同一算法。
+   */
+  private addCurrentTurnTokenUsage(baseline: TokenUsage | undefined): void {
+    const baselineInput = baseline ? inputTotal(baseline) : 0;
+    const baselineOutput = baseline?.output ?? 0;
+    const usageAfter = this.agent.usage.data().total;
+    const turnInput = usageAfter ? inputTotal(usageAfter) - baselineInput : 0;
+    const turnOutput = (usageAfter?.output ?? 0) - baselineOutput;
+    if (turnInput > 0 || turnOutput > 0) {
+      this.agent.goal.addTokenUsage({ input: turnInput, output: turnOutput });
+    }
+  }
+
+  /**
+   * Goal driver loop (PRD-0019 R5)。在首个 user turn 结束后接管，连续发起
+   * continuation turn 直到 goal 终止（complete/blocked/cancelled/failed/超预算）。
+   *
+   * 每次迭代：
+   * 1. 检查预算——超了 markBlocked 并退出。
+   * 2. incrementTurn、发起 continuation turn（origin=goal_continuation）。
+   * 3. 按结束 reason 决定续跑/停止：
+   *    - cancelled → pauseOnInterrupt（goal 进 paused）。
+   *    - failed → markPaused。
+   *    - complete（瞬态）→ clearInternal（driver 边界 clear，关键技术发现 #7）。
+   *    - 其它非 active → 退出。
+   *    - 否则 → 下一轮。
+   */
+  private async driveGoal(): Promise<void> {
+    this.goalDriverActive = true;
+    try {
+      // 首个 user turn 计入 turnBudget（PRD R4：含首个 turn + 每个 continuation）。
+      this.agent.goal.incrementTurn();
+      // 立即 emit usage——否则首轮 silent（N3）+ 循环内 emit 在第一个 continuation
+      // turn 跑完之后（L450），导致 footer 的 turns 显示"跳过 1 直接到 2"。补这一次
+      // emit 让首轮结束 driver 接管时 footer 即显示 turns=1（#207）。
+      this.agent.goal.emitUsageUpdate();
+      // P3 兜底：即使三类 budget 全未设，driver 也不会无限续跑。
+      // 上限取保守值；正常 goal 会因 complete/blocked/cancelled 先停。
+      const MAX_DRIVER_ITERATIONS = 50;
+      for (let iteration = 0; iteration < MAX_DRIVER_ITERATIONS; iteration++) {
+        const snapshot = this.agent.goal.getSnapshot();
+        if (snapshot === null || snapshot.status !== 'active') return;
+
+        // 预算检查：达上限立即 markBlocked 退出。
+        const report = this.agent.goal.computeBudgetReport();
+        if (report.overBudget) {
+          this.agent.goal.markBlocked('A configured budget was reached');
+          return;
+        }
+
+        // P1：记录本轮 turn 开始前的全局 token 基线，用于结束后算本轮增量。
+        const usageBefore = this.agent.usage.data().total;
+
+        // 计入一轮 continuation。
+        this.agent.goal.incrementTurn();
+        // 立即 emit usage——否则该轮 incrementTurn 是 silent（N3），emit 只在本轮
+        // 跑完之后（L454），footer 整轮期间停在上一轮的 turns。补这一次让 footer 在
+        // continuation 真正跑之前即看到新 turns（与 #207 首轮补丁同口径，覆盖每个
+        // continuation 轮次）。token 仍回合级：本轮 token 未记账，emit 的 tokens 不变。
+        this.agent.goal.emitUsageUpdate();
+
+        // 发起 continuation turn（system_trigger origin，不触发 UserPromptSubmit hook）。
+        // 经 prompt() 而非 launch()，确保 turn.prompt record 进 wire（PRD：continuation 进 wire）。
+        this.prompt([{ type: 'text', text: GOAL_CONTINUATION_PROMPT }], GOAL_CONTINUATION_ORIGIN);
+        const result = await this.waitForCurrentTurn();
+
+        // P1：把本轮 turn 消耗的 token 累加进 goal（PRD R4：driver 每轮累加本轮 token；
+        // 含该轮内的 compaction 摘要 token，AC-9）。
+        this.addCurrentTurnTokenUsage(usageBefore);
+
+        // driver 边界处理结束 reason。
+        const reason = result.event.reason;
+        if (reason === 'cancelled') {
+          // Esc/abort 路径——goal 进 paused。
+          this.agent.goal.markPaused('paused after interrupt');
+          return;
+        }
+        if (reason === 'failed') {
+          this.agent.goal.markPaused('paused after turn failure');
+          return;
+        }
+        // complete 瞬态：driver 边界 clear（关键技术发现 #7）。
+        const after = this.agent.goal.getSnapshot();
+        if (after?.status === 'complete') {
+          // 补发一次带最终 usage（已含本轮 token）的 completion 快照——markComplete
+          // 在 turn 中途 emit 的快照 tokens=0（本轮 token 尚未记账），completion 卡片
+          // 据此渲染会显示 0 token。此处 addTokenUsage 已执行完，emit 真实终态后再 clear。
+          this.agent.goal.emitFinalCompletionSnapshot();
+          this.agent.goal.clearInternal();
+          return;
+        }
+        // blocked / null / 其它非 active → 退出。
+        if (after === null || after.status !== 'active') return;
+        // 续跑前 emit 一次 usage snapshot（PRD R12：计步默认 silent，driver 想更新 UI 时
+        // 调）。否则 footer 的 turns/tokens/elapsed 永远停在 create 时的 0/0/0——只有
+        // 生命周期事件（▶→⏸/⚠）才发 snapshot，计步本身不 emit。emitUsageUpdate 反映
+        // active 期间的 live wall-clock（与 computeBudgetReport 口径一致），故 elapsed
+        // 也能实时增长。
+        this.agent.goal.emitUsageUpdate();
+        // 否则继续下一轮。
+      }
+      // P3 兜底：迭代达上限仍未终止，降级为 blocked。
+      this.agent.goal.markBlocked('Goal driver iteration limit reached');
+    } finally {
+      this.goalDriverActive = false;
+    }
   }
 
   private async applyUserPromptHook(

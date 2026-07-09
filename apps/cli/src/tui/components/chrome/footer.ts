@@ -6,6 +6,7 @@
  *   Line 2: context: XX.X% (tokens/max)
  */
 
+import type { GoalSnapshot } from '@byfriends/sdk';
 import type { Component } from '@earendil-works/pi-tui';
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
@@ -22,6 +23,12 @@ import {
 import { formatCacheHitRate, formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
 
 const MAX_CWD_SEGMENTS = 3;
+
+// Goal badge wall-clock refresh interval (PRD-0019 / ADR-0027). While a goal
+// is active the footer ticks every second so the elapsed value keeps moving
+// even when no `goal.updated` event arrives mid-turn (counts/tokens are
+// turn-level by design — N3). `unref`'d so it never keeps the process alive.
+const GOAL_TIMER_INTERVAL_MS = 1000;
 
 // Toolbar tips — rotates every 30s, shows 2 tips joined by " | " when
 // space allows, falls back to 1.
@@ -94,6 +101,75 @@ export function formatContextStatus(usage: number, tokens?: number, maxTokens?: 
   return `context: ${pct}`;
 }
 
+const GOAL_STATUS_GLYPH: Record<GoalSnapshot['status'], string> = {
+  active: '▶',
+  paused: '⏸',
+  blocked: '⚠',
+  // `complete` is transient — the driver clears it at the turn boundary.
+  // Render it as active if it ever reaches the footer.
+  complete: '▶',
+};
+
+/** Compact one-line usage summary: `2 turns · 1.2k tokens · 18s`. */
+function formatGoalUsageCompact(snapshot: GoalSnapshot, wallClockMs?: number): string {
+  const { turns, tokens } = snapshot.usage;
+  const elapsedMs = wallClockMs ?? snapshot.usage.wallClockMs;
+  const elapsed = Math.max(0, Math.round(elapsedMs / 1000));
+  return `${turns} turns · ${formatTokenCount(tokens)} tokens · ${elapsed}s`;
+}
+
+/**
+ * Render the goal badge for the footer line 1 (PRD-0019 R13). Returns `null`
+ * when there is no goal. The glyph encodes the status; the tail carries a
+ * compact usage summary so the user can watch budget burn down at a glance.
+ *
+ * `wallClockMs` overrides the snapshot's `usage.wallClockMs` — used by the
+ * footer's 1s local timer to extrapolate the elapsed value mid-turn (the
+ * snapshot's value is only updated at turn boundaries / status changes per
+ * N3; between events the footer advances it locally, ADR-0027).
+ */
+export function formatGoalBadge(
+  snapshot: GoalSnapshot | null | undefined,
+  colors: ColorPalette,
+  wallClockMs?: number,
+): string | null {
+  if (snapshot === null || snapshot === undefined) return null;
+  const glyph = GOAL_STATUS_GLYPH[snapshot.status] ?? '▶';
+  const tone =
+    snapshot.status === 'blocked'
+      ? colors.warning
+      : snapshot.status === 'paused'
+        ? colors.textDim
+        : colors.success;
+  const usage = formatGoalUsageCompact(snapshot, wallClockMs);
+  return chalk.hex(tone)(`${glyph} goal · ${usage}`);
+}
+
+/**
+ * Identity fingerprint of the goal fields that affect footer rendering.
+ * Used to detect whether a `setState` actually changed the goal snapshot, so
+ * the wall-clock extrapolation anchor (`goalObservedAtMs`) is only reset when
+ * the snapshot truly changed — not on every unrelated re-render (git status /
+ * permission / cwd changes all flow through the same `setState`).
+ * byf has no `goalId` (single current goal); objective+createdAt serves as identity.
+ */
+function goalSnapshotKey(snapshot: GoalSnapshot | null | undefined): string | null {
+  if (snapshot === null || snapshot === undefined) return null;
+  return [
+    snapshot.objective,
+    snapshot.status,
+    snapshot.pausedReason ?? '',
+    snapshot.blockedReason ?? '',
+    String(snapshot.usage.turns),
+    String(snapshot.usage.tokens),
+    String(snapshot.usage.wallClockMs),
+    String(snapshot.budget.turnBudget),
+    String(snapshot.budget.tokenBudget),
+    String(snapshot.budget.wallClockBudgetMs),
+    String(snapshot.createdAt),
+  ].join('\u0000');
+}
+
 export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {
   const base = chalk.hex(colors.status)(formatGitBadgeBase(status));
   if (status.pullRequest === null) return base;
@@ -108,6 +184,7 @@ export class FooterComponent implements Component {
   private state: AppState;
   private colors: ColorPalette;
   private readonly onGitStatusChange: () => void;
+  private readonly onRefresh: () => void;
   private gitCache: GitStatusCache;
   private gitCacheWorkDir: string;
   private transientHint: string | null = null;
@@ -120,15 +197,37 @@ export class FooterComponent implements Component {
    */
   private backgroundBashTaskCount = 0;
   private backgroundAgentCount = 0;
+  /**
+   * Goal badge live wall-clock (ADR-0027). `goalTimer` ticks every second
+   * while a goal is `active` so the elapsed value advances mid-turn;
+   * `goalObservedAtMs` is the moment we last saw the snapshot change, used
+   * to extrapolate `wallClockMs` forward locally. `goalSnapshotKey` tracks
+   * the last-seen snapshot fingerprint so unrelated re-renders (git/permission
+   * changes) don't reset the extrapolation anchor.
+   */
+  private goalTimer: ReturnType<typeof setInterval> | null = null;
+  private goalObservedAtMs = 0;
+  private goalSnapshotKey: string | null = null;
 
-  constructor(state: AppState, colors: ColorPalette, onGitStatusChange: () => void = () => {}) {
+  constructor(
+    state: AppState,
+    colors: ColorPalette,
+    onGitStatusChange: () => void = () => {},
+    onRefresh: () => void = () => {},
+  ) {
     this.state = state;
     this.colors = colors;
     this.onGitStatusChange = onGitStatusChange;
+    this.onRefresh = onRefresh;
     this.gitCacheWorkDir = this.getDisplayedWorkDir(state);
     this.gitCache = createGitStatusCache(this.gitCacheWorkDir, {
       onChange: this.onGitStatusChange,
     });
+    // Initialize the goal clock + timer against the initial state (same as
+    // setState) so an active goal in the initial state starts ticking without
+    // waiting for the first external setState call.
+    this.syncGoalClock(state.goalSnapshot);
+    this.syncGoalTimer(state.goalSnapshot);
   }
 
   setState(state: AppState): void {
@@ -138,6 +237,71 @@ export class FooterComponent implements Component {
       this.gitCache = createGitStatusCache(displayedWorkDir, { onChange: this.onGitStatusChange });
     }
     this.state = state;
+    // Sync the goal clock + timer against the freshly received snapshot.
+    // syncGoalClock must run before render so the extrapolation anchor is
+    // correct for this render pass; syncGoalTimer starts/stops the 1s ticker.
+    this.syncGoalClock(state.goalSnapshot);
+    this.syncGoalTimer(state.goalSnapshot);
+  }
+
+  /**
+   * Record the extrapolation anchor (`goalObservedAtMs`) only when the goal
+   * snapshot's meaningful fields actually change. Unrelated `setState` calls
+   * (git status / permission / cwd) flow through here too; without this
+   * fingerprint check they'd reset the anchor on every render and the
+   * extrapolated elapsed would never advance.
+   */
+  private syncGoalClock(snapshot: AppState['goalSnapshot']): void {
+    const key = goalSnapshotKey(snapshot);
+    if (key === this.goalSnapshotKey) return;
+    this.goalSnapshotKey = key;
+    this.goalObservedAtMs = Date.now();
+  }
+
+  /**
+   * Start the 1s refresh ticker while a goal is `active`, stop it otherwise.
+   * Idempotent: a no-op if a timer is already running. The interval is
+   * `unref`'d so it never keeps the process alive on its own. Only `active`
+   * ticks — `paused`/`blocked`/`complete`/null all freeze the elapsed value
+   * (complete is transient and its wall-clock is already folded/final).
+   */
+  private syncGoalTimer(snapshot: AppState['goalSnapshot']): void {
+    if (snapshot?.status === 'active') {
+      if (this.goalTimer !== null) return;
+      this.goalTimer = setInterval(() => {
+        this.onRefresh();
+      }, GOAL_TIMER_INTERVAL_MS);
+      this.goalTimer.unref?.();
+      return;
+    }
+    if (this.goalTimer !== null) {
+      clearInterval(this.goalTimer);
+      this.goalTimer = null;
+    }
+  }
+
+  /**
+   * Live wall-clock for the active goal: the snapshot's frozen `wallClockMs`
+   * plus the time elapsed since we last observed the snapshot change. Only
+   * extrapolated while `active` — other statuses show the snapshot's value
+   * as-is (already final for complete; folded-but-paused for paused/blocked).
+   */
+  private goalWallClockMs(snapshot: AppState['goalSnapshot']): number | undefined {
+    if (snapshot === null || snapshot === undefined) return undefined;
+    if (snapshot.status !== 'active') return snapshot.usage.wallClockMs;
+    return snapshot.usage.wallClockMs + Math.max(0, Date.now() - this.goalObservedAtMs);
+  }
+
+  /**
+   * Tear down the goal refresh timer. Called from the TUI `stop()` teardown
+   * sequence. The git cache needs no active disposal (lazy TTL + fire-and-
+   * forget promise, no fs.watch/timer).
+   */
+  dispose(): void {
+    if (this.goalTimer !== null) {
+      clearInterval(this.goalTimer);
+      this.goalTimer = null;
+    }
   }
 
   private getDisplayedWorkDir(state: AppState): string {
@@ -200,6 +364,15 @@ export class FooterComponent implements Component {
       );
     }
 
+    // Goal badge (PRD-0019 R13) — shown only while a goal is active/paused/
+    // blocked. Sits before cwd so the status glyph stays visually anchored to
+    // the model line. The wall-clock is extrapolated locally while active
+    // (ADR-0027) so the elapsed value keeps moving between `goal.updated`
+    // events (counts/tokens are turn-level by N3).
+    const goalWallClock = this.goalWallClockMs(state.goalSnapshot);
+    const goalBadge = formatGoalBadge(state.goalSnapshot, colors, goalWallClock);
+    if (goalBadge) left.push(goalBadge);
+
     const cwd = shortenCwd(this.getDisplayedWorkDir(state));
     if (cwd) left.push(chalk.hex(colors.status)(cwd));
 
@@ -241,7 +414,7 @@ export class FooterComponent implements Component {
       state.maxContextTokens,
     );
     const hitRateStr = formatCacheHitRate(state.cacheHitRate);
-    const cacheBadge = hitRateStr ? `  cache: ${hitRateStr}` : '';
+    const cacheBadge = hitRateStr ? `  cache: ${hitRateStr} (current)` : '';
     const contextWidth = visibleWidth(contextText) + visibleWidth(cacheBadge);
     const contextRight =
       chalk.hex(colors.text)(contextText) +

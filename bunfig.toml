@@ -1,0 +1,23 @@
+# Bun configuration (PRD-0020 / ADR 0028 — Bun-only toolchain).
+# See https://bun.com/docs/runtime/bunfig
+
+[install]
+# Isolated linker (Bun default for monorepos). Matches the former pnpm
+# isolated layout: each package sees only its declared dependencies, which
+# prevents phantom deps. Workspace packages resolve to their source.
+linker = "isolated"
+
+[loader]
+# Import .md / .yaml as raw-string modules (default export = file text).
+# Replaces the Node ESM load hook in build/register-raw-text-loader.mjs
+# (used by the former tsx dev entry). Source code imports prompt/profile
+# files and parses them itself, so they must arrive as strings, not as
+# Bun's built-in parsed YAML object.
+".md" = "text"
+".yaml" = "text"
+
+
+[test]
+# Vitest compatibility shims (vi.hoisted, waitFor, setSystemTime, …) and
+# no-op expect.addSnapshotSerializer. See build/test-preload.ts / issue #215.
+preload = ["./build/test-preload.ts"]

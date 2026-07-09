@@ -40,6 +40,7 @@ function makeAppState(overrides: Partial<AppState> = {}): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
+    goalSnapshot: null,
     ...overrides,
   };
 }

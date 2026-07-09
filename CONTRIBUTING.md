@@ -25,7 +25,7 @@ We only merge PRs aligned with the roadmap. Drive-by refactors without context a
 
 ## Project Layout
 
-This is a pnpm monorepo. The most relevant entry points are:
+This is a Bun monorepo. The most relevant entry points are:
 
 - `apps/cli` — CLI / TUI
 - `apps/vis` — session replay and debugging visualizer
@@ -37,26 +37,32 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 
 ## Development Setup
 
-Prerequisites: Node.js >= 24.15.0, pnpm 10.33.0, Git.
+Prerequisites: [Bun](https://bun.com) >= 1.3.14, Git. Bun is the only official toolchain for contributing and CI (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md)); Node and pnpm are **not** required and are **not** official contributor paths.
+
+Three product contracts (do not mix them up in docs or issues):
+
+1. **Dev toolchain** — contributors/CI use Bun only (`bun install`, `bun test`, …).
+2. **Library runtime** — published `@byfriends/*` libraries are **Bun-only** (not Node-interpreted).
+3. **CLI distribution** — end users install a compile binary (GitHub Release `install.sh` or `npm i -g @byfriends/cli` with platform optionalDependencies). Running the CLI does not require preinstalling Bun/Node.
 
 BYF is developed primarily on macOS and Linux. Windows is supported but on a best-effort basis.
 
 ```sh
 git clone https://github.com/ByronFinn/byf.git
 cd byf
-make prepare    # equivalent to `pnpm install`; also runs the pnpm prepare lifecycle
+make prepare    # equivalent to `bun install`; also runs the prepare lifecycle (sets git hooks)
 ```
 
 Useful make targets (run `make help` to see them all):
 
 - `make dev` — run the CLI in dev mode
-- `make test` — run tests (vitest)
+- `make test` — run tests (bun test)
 - `make typecheck` — TypeScript check (note: builds packages first)
 - `make lint` — oxlint
 - `make fix` — oxlint with auto-fix
 - `make build` — build all packages
 
-The Makefile is a thin wrapper around the `pnpm run` scripts defined in `package.json`; you can always invoke those directly.
+The Makefile is a thin wrapper around the `bun run` scripts defined in `package.json`; you can always invoke those directly.
 
 ## Commit Convention
 
@@ -70,7 +76,7 @@ All commits and PR titles must follow [Conventional Commits](https://www.convent
 | chore    | Tooling / housekeeping                    | chore: bump dependencies               |
 | refactor | Internal refactor without behavior change | refactor(kosong): extract retry helper |
 | test     | Adding or improving tests                 | test(agent-core): cover skill resolver |
-| ci       | CI / build pipeline changes               | ci: cache pnpm store                   |
+| ci       | CI / build pipeline changes               | ci: cache bun install                  |
 | build    | Build system / artifact changes           | build(native): add win32-arm64 target  |
 | perf     | Performance improvement                   | perf(session): batch event flushes     |
 | style    | Formatting only (no logic)                | style: apply oxlint --fix              |
@@ -88,10 +94,10 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 ### Publishing
 
-Packages are published to npm by the `Release (npm)` workflow, triggered **manually** by a maintainer. Do **not** run `npm publish` or `pnpm publish` by hand to ship a release:
+Packages are published to npm by the `Release (npm)` workflow, triggered **manually** by a maintainer. Do **not** run bare `npm publish` by hand to ship a release:
 
-- `npm publish` ships the manifest verbatim and leaves pnpm-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. Only `pnpm publish` / `changeset publish` rewrite them.
-- A single manual dispatch of `Release (npm)` runs the quality gates, applies `changeset version`, commits the version bump to `main`, runs `changeset publish`, and tags each package as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
+- Bare `npm publish` ships the manifest verbatim and leaves workspace-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. The release workflow (and local `bun run publish`) pack/validate with Bun (`bun pm pack` / `pubcheck:manifest`) and run `changeset publish` under `scripts/with-publish-manifests.mjs` so protocols and `publishConfig` are rewritten.
+- A single manual dispatch of `Release (npm)` runs the quality gates, applies `changeset version`, commits the version bump to `main`, publishes via the wrapper above, and tags each package as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
 
 The standard release path:
 
@@ -105,7 +111,7 @@ Before triggering a release you can validate the published layout locally with `
 
 Use the [PR template](.github/pull_request_template.md) when opening a feature pull request.
 
-PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` on every PR. Update user-facing docs in `docs/` when behavior changes — use the `gen-docs` skill when working with coding agents.
+PR titles must follow [Conventional Commits](#commit-convention); CI runs `bun lint`, `bun typecheck`, and `bun test` on every PR. Update user-facing docs in `docs/` when behavior changes — use the `gen-docs` skill when working with coding agents.
 
 ## Code Style
 

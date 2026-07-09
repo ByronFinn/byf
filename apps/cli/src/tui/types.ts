@@ -1,5 +1,6 @@
 import type {
   BackgroundTaskInfo,
+  GoalSnapshot,
   ModelAlias,
   PermissionMode,
   ProviderConfig,
@@ -71,6 +72,8 @@ export interface AppState {
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
   sessionTitle: string | null;
+  /** Live goal snapshot (PRD-0019). null when no goal is active. */
+  goalSnapshot: GoalSnapshot | null;
 }
 
 export interface ToolCallBlockData {
@@ -156,6 +159,20 @@ export interface CompactionTranscriptData {
   readonly instruction?: string;
 }
 
+/**
+ * Completion-card payload for a finished goal (PRD-0019 R14). Only a model
+ * `UpdateGoal('complete')` produces this — `cancel` renders a plain lifecycle
+ * marker instead. `snapshot` is the live snapshot captured at completion time
+ * (carries objective + final usage); `reason` is the optional model reason.
+ */
+export interface GoalCompletionData {
+  readonly objective: string;
+  readonly reason?: string | undefined;
+  readonly turns: number;
+  readonly tokens: number;
+  readonly wallClockMs: number;
+}
+
 export type TranscriptEntryKind =
   | 'welcome'
   | 'user'
@@ -164,7 +181,8 @@ export type TranscriptEntryKind =
   | 'shell_exec'
   | 'thinking'
   | 'status'
-  | 'skill_activation';
+  | 'skill_activation'
+  | 'goal_completion';
 
 export interface TranscriptEntry {
   id: string;
@@ -177,6 +195,7 @@ export interface TranscriptEntry {
   toolCallData?: ToolCallBlockData;
   backgroundAgentStatus?: BackgroundAgentStatusData;
   compactionData?: CompactionTranscriptData;
+  goalCompletion?: GoalCompletionData;
   imageAttachmentIds?: readonly number[];
   skillActivationId?: string;
   skillName?: string;

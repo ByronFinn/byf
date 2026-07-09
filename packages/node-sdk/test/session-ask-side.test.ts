@@ -1,10 +1,11 @@
+import { mock as bunMock } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError, Event } from '#/index';
 
@@ -12,8 +13,9 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'config/runtime.toml',
 }));
 
-vi.mock('@byfriends/kosong', async (importOriginal) => {
-  const actual = await importOriginal<typeof KosongModule>();
+const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
+vi.mock('@byfriends/kosong', () => {
+  const actual = __mockActual__byfriends_kosong;
   return {
     ...actual,
     createProvider: () => ({
@@ -284,4 +286,9 @@ describe('Session.askSide', () => {
       await harness.close();
     }
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

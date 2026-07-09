@@ -19,11 +19,11 @@
   },
   "type": "module",
   "scripts": {
-    "build:deps": "pnpm --filter @byfriends/agent-core... build",
-    "predev": "pnpm run build:deps",
-    "dev": "node scripts/dev.mjs",
-    "prestart": "pnpm --filter @byfriends/vis-server... build",
-    "start": "node server/dist/index.mjs"
+    "build:deps": "bun run --filter '@byfriends/agent-core' build",
+    "predev": "bun run build:deps",
+    "dev": "bun scripts/dev.mjs",
+    "prestart": "bun run --filter '@byfriends/vis-server' build",
+    "start": "bun server/dist/index.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

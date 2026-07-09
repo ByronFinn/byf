@@ -432,10 +432,11 @@ describe('McpConnectionManager', () => {
         },
       });
       const entry = cm.get('notion');
-      expect(entry).toMatchObject({
-        status: 'needs-auth',
-        error: expect.stringContaining('run /mcp-config login notion'),
-      });
+      expect(entry?.status).toBe('needs-auth');
+      // Avoid nested expect.stringContaining inside toMatchObject — Bun can
+      // mutate the received object when composing asymmetric matchers (#215).
+      expect(typeof entry?.error).toBe('string');
+      expect(entry?.error).toContain('run /mcp-config login notion');
       expect(entry?.error).not.toContain('redirectUrl must be set');
     } finally {
       await cm.shutdown();
@@ -484,12 +485,17 @@ describe('McpConnectionManager', () => {
     const seen: Array<{ name: string; status: McpServerEntry['status'] }> = [];
     cm.onStatusChange((e) => seen.push({ name: e.name, status: e.status }));
     try {
+      // Delay exit long enough for handshake under CI load; 50ms races with
+      // process-isolated startup and can fail before status ever reaches connected.
       await cm.connectAll({
         crashy: {
           transport: 'stdio',
           command: process.execPath,
           args: [crashAfterConnectFixture],
-          env: { BYF_TEST_MCP_EXIT_AFTER_MS: '50', BYF_TEST_MCP_STDERR: 'fatal: out of memory' },
+          env: {
+            BYF_TEST_MCP_EXIT_AFTER_MS: '500',
+            BYF_TEST_MCP_STDERR: 'fatal: out of memory',
+          },
           startupTimeoutMs: 4_000,
         },
       });
@@ -513,7 +519,7 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
     }
-  }, 10000);
+  }, 15000);
 
   it('includes captured stderr in the error when stdio connect fails before handshake', async () => {
     const cm = new McpConnectionManager();
@@ -610,8 +616,11 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) {
+          clearTimeout(timer);
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
             reject(err);
             return;
           }
@@ -715,9 +724,15 @@ describe('McpConnectionManager', () => {
     } finally {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
+        httpServer.closeAllConnections?.();
+        const timer = setTimeout(() => resolve(), 200);
         httpServer.close((err) => {
-          if (err) reject(err);
-          else resolve();
+          clearTimeout(timer);
+          if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+            reject(err);
+            return;
+          }
+          resolve();
         });
       });
     }

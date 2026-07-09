@@ -396,12 +396,12 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<Record<string, unknown>>;
       const fnOutput = input.find((item) => item['type'] === 'function_call_output');
-      expect(fnOutput).toMatchObject({
-        output: expect.stringContaining('header'),
-      });
-      expect(fnOutput).toMatchObject({
-        output: expect.stringContaining('body'),
-      });
+      expect(fnOutput).toBeDefined();
+      // Bun's asymmetric matchers do not compose cleanly across repeated
+      // toMatchObject calls; assert the flattened string directly.
+      expect(fnOutput?.['output']).toEqual(expect.any(String));
+      expect(String(fnOutput?.['output'])).toContain('header');
+      expect(String(fnOutput?.['output'])).toContain('body');
     });
 
     it('parallel tool calls produce multiple function_call and function_call_output items', async () => {

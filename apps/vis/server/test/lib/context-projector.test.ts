@@ -33,14 +33,15 @@ describe('context-projector', () => {
       inputCacheRead: 0,
       inputCacheCreation: 0,
     });
-    expect(proj.usage.byModel['byf-k2']).toEqual({
+    // Fixture sample-main wire uses model "mock-model" on usage.record.
+    expect(proj.usage.byModel['mock-model']).toEqual({
       inputOther: 10,
       output: 5,
       inputCacheRead: 0,
       inputCacheCreation: 0,
     });
 
-    expect(proj.config.systemPrompt).toBe('You are Byf.');
+    expect(proj.config.systemPrompt).toBe('You are BYF.');
     expect(proj.config.profileName).toBe('agent');
     expect(proj.permission.mode).toBe('manual');
   });

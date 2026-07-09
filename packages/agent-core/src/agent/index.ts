@@ -8,6 +8,7 @@ import {
   type ContentPart,
   type Message,
   type PromptPlan,
+  type ProviderCacheCapability,
   type Tool,
 } from '@byfriends/kosong';
 
@@ -31,12 +32,18 @@ import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import { linkAbortSignal } from '../utils/abort';
-import { estimateTokens, estimateTokensForMessages, estimateTokensForTools } from '../utils/tokens';
+import {
+  estimateInputBreakdown,
+  estimateTokens,
+  estimateTokensForMessages,
+  estimateTokensForTools,
+} from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
+import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -59,6 +66,16 @@ import { UsageRecorder } from './usage';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
+export type {
+  GoalBudgetLimits,
+  GoalBudgetReport,
+  GoalChange,
+  GoalSnapshot,
+  GoalStatus,
+  GoalTurnTokens,
+  GoalUsage,
+} from './goal';
+export { GoalMode, MAX_GOAL_OBJECTIVE_LENGTH } from './goal';
 
 export type AgentType = 'main' | 'sub' | 'independent';
 
@@ -131,6 +148,7 @@ export class Agent {
   readonly turn: TurnFlow;
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
+  readonly goal: GoalMode;
 
   readonly usage: UsageRecorder;
   readonly tools: ToolManager;
@@ -179,6 +197,7 @@ export class Agent {
     this.turn = new TurnFlow(this);
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, config.permission);
+    this.goal = new GoalMode(this);
 
     this.usage = new UsageRecorder(this);
     this.tools = new ToolManager(this);
@@ -197,6 +216,7 @@ export class Agent {
       permission: this.permission,
       tools: this.tools,
       fullCompaction: this.fullCompaction,
+      goal: this.goal,
     });
   }
 
@@ -394,6 +414,8 @@ export class Agent {
   async resume(): Promise<{ warning?: string; error?: Error }> {
     try {
       const result = await this.records.replay();
+      // goal 在 replay 后修正状态（active→paused 降级、清零 wall-clock 锚点）。
+      this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       this.turn.finishResume();
@@ -447,6 +469,26 @@ export class Agent {
         if (afkEnabled !== wasAuto) {
           this.telemetry.track('afk_toggle', { enabled: afkEnabled });
         }
+      },
+      createGoal: (payload) => {
+        this.goal.createGoal(payload.objective, {
+          replace: payload.replace,
+          budget: payload.budget,
+        });
+        return this.goal.getSnapshot();
+      },
+      getGoal: () => this.goal.getSnapshot(),
+      pauseGoal: () => {
+        this.goal.pause();
+        return this.goal.getSnapshot();
+      },
+      resumeGoal: () => {
+        this.goal.resume();
+        return this.goal.getSnapshot();
+      },
+      cancelGoal: () => {
+        this.goal.cancel();
+        return this.goal.getSnapshot();
       },
       setModel: async (payload) => {
         const previous = this.config.modelAlias;
@@ -503,7 +545,24 @@ export class Agent {
       getContext: () => this.context.data(),
       getConfig: () => this.config.data(),
       getPermission: () => this.permission.data(),
-      getUsage: () => this.usage.data(),
+      getUsage: () => {
+        const usageData = this.usage.data();
+        // Rebuild the prompt plan on demand: this mirrors the per-turn rebuild
+        // in askSide / kosong-llm. Idle rebuild is safe because
+        // getMessages()/loopTools hold no turn-state guards. Without a model,
+        // the plan still splits into blocks for estimation purposes.
+        const cacheCapability: ProviderCacheCapability = this.config.hasModel
+          ? getProviderCacheCapability(this.config.provider)
+          : { strategy: 'none' };
+        const promptPlan = buildPromptPlan(this.config.systemPrompt, cacheCapability);
+        const inputBreakdown = estimateInputBreakdown({
+          promptPlan,
+          tools: this.tools.loopTools,
+          messages: this.context.getMessages(),
+          maxContextTokens: this.config.modelCapabilities.max_context_tokens,
+        });
+        return { ...usageData, inputBreakdown };
+      },
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
     };

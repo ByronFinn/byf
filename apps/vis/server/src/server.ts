@@ -1,5 +1,3 @@
-import { serve } from '@hono/node-server';
-
 import { createApp } from './app';
 import { resolveByfHome, resolveHost, resolvePort, resolveVisAuthToken } from './config';
 import { formatStartupBanner } from './startup-banner';
@@ -41,6 +39,9 @@ function hostForUrl(host: string): string {
  * Start the vis HTTP server programmatically. Resolves once the server is
  * listening. Used by the CLI `byf vis` subcommand (in-process) and by the
  * standalone `index.ts` entry.
+ *
+ * Binds via `Bun.serve` (library runtime contract is Bun-only). Bind failures
+ * such as `EADDRINUSE` throw synchronously so callers can catch them.
  */
 export async function startVisServer(
   options: StartVisServerOptions = {},
@@ -50,35 +51,27 @@ export async function startVisServer(
   const authToken = options.authToken ?? resolveVisAuthToken(host);
   const app = await createApp({ authToken, publicDir: options.publicDir });
 
-  return new Promise<VisServerHandle>((resolve, reject) => {
-    let settled = false;
-    const server = serve({ fetch: app.fetch, hostname: host, port }, () => {
-      if (settled) return;
-      settled = true;
-      const address = server.address();
-      const actualPort = typeof address === 'object' && address !== null ? address.port : port;
-      resolve({
-        host,
-        port: actualPort,
-        url: `http://${hostForUrl(host)}:${actualPort}`,
-        close: () => {
-          // closeAllConnections drops keep-alive sockets so the event loop
-          // empties and the process can exit promptly after close().
-          server.closeAllConnections();
-          server.close();
-        },
-      });
-    });
-    // `serve()` reports bind failures (e.g. EADDRINUSE) as an async 'error'
-    // event, not a synchronous throw — without this listener Node would
-    // terminate the process with an uncaughtException and the caller's
-    // try/catch in handleVis would never see the port-in-use case.
-    server.on('error', (error: NodeJS.ErrnoException) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
+  // Bun.serve binds before returning. Port-in-use and other listen failures
+  // throw (with `code: 'EADDRINUSE'` when applicable) rather than emitting an
+  // async 'error' event as Node's http.Server did via @hono/node-server.
+  const server = Bun.serve({
+    hostname: host,
+    port,
+    fetch: app.fetch,
   });
+
+  // Bun.serve().port is typed optional; after a successful bind it is always set.
+  const actualPort = server.port ?? port;
+  return {
+    host,
+    port: actualPort,
+    url: `http://${hostForUrl(host)}:${actualPort}`,
+    close: () => {
+      // stop(true) drops keep-alive / in-flight sockets so the event loop can
+      // empty and the process can exit promptly after close().
+      void server.stop(true);
+    },
+  };
 }
 
 /**

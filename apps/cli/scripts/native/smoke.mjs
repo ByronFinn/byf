@@ -21,7 +21,9 @@ async function ensureExecutableExists() {
   try {
     await stat(executablePath);
   } catch {
-    fail(`Native executable not found at ${executablePath}. Run build:native:sea first.`);
+    fail(
+      `Native executable not found at ${executablePath}. Run build:native:release (or build:native:compile) first.`,
+    );
   }
 }
 

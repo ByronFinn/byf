@@ -31,6 +31,7 @@ function makeAppState(): AppState {
     availableModels: {},
     availableProviders: {},
     sessionTitle: null,
+    goalSnapshot: null,
   };
 }
 
@@ -102,6 +103,7 @@ function sessionWithToolStore(toolStore: Record<string, unknown>): Session {
           tools: [],
           toolStore,
           background: [],
+          goal: null,
         },
       },
     }),

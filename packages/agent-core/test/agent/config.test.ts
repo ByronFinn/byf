@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ResolvedAgentProfile } from '../../src/profile';
 import { createCommandKaos, testAgent } from './harness/agent';
-import { DEFAULT_TEST_SYSTEM_PROMPT } from './harness/snapshots';
+import { DEFAULT_TEST_SYSTEM_PROMPT, formatHarnessSnapshot } from './harness/snapshots';
 
 describe('Agent config', () => {
   it('exposes provider, system prompt, thinking level, and model capability updates', async () => {
@@ -80,10 +80,10 @@ describe('Agent config', () => {
 
     ctx.agent.useProfile(profile);
 
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`
-      [wire] config.update            { "profileName": "test-profile", "systemPrompt": "Profile system prompt.", "time": "<time>" }
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(`
+      "[wire] config.update            { "profileName": "test-profile", "systemPrompt": "Profile system prompt.", "time": "<time>" }
       [emit] agent.status.updated     { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
-      [wire] tools.set_active_tools   { "names": [ "Bash" ], "time": "<time>" }
+      [wire] tools.set_active_tools   { "names": [ "Bash" ], "time": "<time>" }"
     `);
     await ctx.expectResumeMatches();
   });
@@ -114,8 +114,8 @@ describe('Agent config', () => {
     await ctx.rpc.prompt({
       input: [{ type: 'text', text: 'Run Bash before config changes' }],
     });
-    expect(await ctx.untilApproval(true)).toMatchInlineSnapshot(`
-      [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash before config changes" } ], "origin": { "kind": "user" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilApproval(true))).toMatchInlineSnapshot(`
+      "[wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash before config changes" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Run Bash before config changes" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
@@ -123,13 +123,13 @@ describe('Agent config', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will run Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf original-result\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: <system-prompt>
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: <system-prompt>
       tools: Bash
       messages:
-        user: text "Run Bash before config changes"
+        user: text "Run Bash before config changes""
     `);
 
     ctx.configureRuntimeModel({
@@ -141,8 +141,8 @@ describe('Agent config', () => {
     await ctx.rpc.setActiveTools({ names: [] });
 
     ctx.mockNextResponse({ type: 'text', text: 'Still using the original turn config.' });
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
       [wire] config.update                       { "modelAlias": "changed-model", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
       [wire] config.update                       { "systemPrompt": "Changed system prompt.", "time": "<time>" }
@@ -164,20 +164,20 @@ describe('Agent config', () => {
       [emit] turn.step.completed                 { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 37, "output": 13, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 37, "output": 13, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 50, "maxContextTokens": 1000000, "contextUsage": 0.00005, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                          { "turnId": 0, "reason": "completed" }
+      [emit] turn.ended                          { "turnId": 0, "reason": "completed" }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      messages:
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "messages:
         <last>
         assistant: text "I will run Bash."  calls call_bash:Bash { "command": "printf original-result", "timeout": 60 }
-        tool[call_bash]: text "original-result"
+        tool[call_bash]: text "original-result""
     `);
 
     ctx.mockNextResponse({ type: 'text', text: 'Now the changed config is active.' });
     await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Start a fresh turn' }] });
 
-    expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Start a fresh turn" } ], "origin": { "kind": "user" }, "time": "<time>" }
+    expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
+      "[wire] turn.prompt                 { "input": [ { "type": "text", "text": "Start a fresh turn" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Start a fresh turn" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-5>", "turnId": "1", "step": 1 }, "time": "<time>" }
@@ -188,15 +188,15 @@ describe('Agent config', () => {
       [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-5>", "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "changed-model", "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
       [emit] agent.status.updated        { "model": "changed-model", "contextTokens": 68, "maxContextTokens": 1000000, "contextUsage": 0.000068, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "changed-model": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 102, "output": 48, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
-      [emit] turn.ended                  { "turnId": 1, "reason": "completed" }
+      [emit] turn.ended                  { "turnId": 1, "reason": "completed" }"
     `);
-    expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
-      system: "Changed system prompt."
+    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      "system: "Changed system prompt."
       tools: []
       messages:
         <last>
         assistant: text "Still using the original turn config."
-        user: text "Start a fresh turn"
+        user: text "Start a fresh turn""
     `);
     await ctx.expectResumeMatches();
   });

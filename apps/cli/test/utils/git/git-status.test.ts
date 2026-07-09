@@ -1,5 +1,7 @@
+import { mock as bunMock } from 'bun:test';
+
 /* eslint-disable import/first -- vi.mock setup must run before the imports it stubs out. */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   spawnSync: vi.fn(),
@@ -197,4 +199,9 @@ describe('git status cache', () => {
     expect(linked).toContain('\u001B]8;;https://github.com/acme/repo/pull/12\u0007');
     expect(linked).toContain('\u001B]8;;\u0007');
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

@@ -11,6 +11,7 @@
 import { createRequire } from 'node:module';
 
 import { loadNativePackage } from '#/native/native-require';
+import { isBunStandaloneExecutable } from '#/native/standalone';
 
 declare const __BYF_CODE_NATIVE_BUNDLE__: boolean | undefined;
 
@@ -35,12 +36,15 @@ const hasDisplay =
 const clipboard: ClipboardModule | null = (() => {
   if (process.env['TERMUX_VERSION'] !== undefined || !hasDisplay) return null;
   try {
+    // Legacy SEA: extract embedded assets via native-assets tree if present.
     const bundledClipboard = loadNativePackage<ClipboardModule>('@mariozechner/clipboard');
     if (bundledClipboard !== null) return bundledClipboard;
   } catch {
     return null;
   }
-  if (isNativeBundle) return null;
+  // Packaged native without Bun standalone / embedded package: fail closed.
+  // Bun compile embeds N-API `.node` and sets NAPI_RS_NATIVE_LIBRARY_PATH.
+  if (isNativeBundle && !isBunStandaloneExecutable()) return null;
   try {
     return nodeRequire('@mariozechner/clipboard') as ClipboardModule;
   } catch {

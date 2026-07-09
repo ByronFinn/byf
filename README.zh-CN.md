@@ -20,7 +20,7 @@
 | 特性                  | 描述                                                                                         |
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | ⚡ **极速 TUI**       | 精致的终端界面，毫秒级启动 —— 为长时间专注的编码会话而设计。                                 |
-| 📦 **单二进制安装**   | 一键安装。无需 Node.js 环境、无需配置 PATH、无全局模块冲突。                                 |
+| 📦 **单二进制安装**   | 一键安装。终端用户无需预装 Bun/Node、无需配置 PATH、无全局模块冲突。                         |
 | 🧩 **子 Agent**       | 在隔离的上下文窗口中调度 `coder`、`explore` 和 `plan` 子 Agent —— 并行工作，主对话保持整洁。 |
 | 🎥 **视频输入**       | 将屏幕录制或演示片段拖入聊天。让 Agent 直接观看，无需费力用文字描述。                        |
 | 🔌 **AI 原生 MCP**    | 通过 `/mcp-config` 以对话方式添加、编辑和认证 Model Context Protocol 服务 —— 无需手写 JSON。 |
@@ -33,22 +33,34 @@
 
 ### 安装
 
-**npm（推荐）**
+两条官方路径——均安装 **compile 原生二进制**（**运行** BYF 无需预装 Bun 或 Node）：
 
-```sh
-npm install -g @byfriends/cli
-```
-
-**脚本安装（macOS / Linux）**
+**1. GitHub Release 脚本（macOS arm64 / Linux x64 MVP）**
 
 ```sh
 curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 ```
 
-**脚本安装（Windows PowerShell）**
+**Windows PowerShell：**
 
 ```powershell
 irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
+```
+
+**2. npm 全局安装（分平台 optionalDependencies 二进制）**
+
+```sh
+npm install -g @byfriends/cli
+```
+
+`npm i -g` 会安装薄 launcher，并解析当前平台的 optionalDependency 子包（`@byfriends/cli-darwin-arm64` 或 `@byfriends/cli-linux-x64`）。真正运行的是与 GitHub Release **同源** 的 compile 二进制。官方二进制矩阵目前为 **darwin-arm64** 与 **linux-x64**；其它平台 deferred。
+
+其它包管理器在支持 optionalDependencies 时同样可用：
+
+```sh
+pnpm add -g @byfriends/cli
+# 或
+bun add -g @byfriends/cli
 ```
 
 ### 启动第一个会话
@@ -67,6 +79,39 @@ byf "解释一下这个仓库的主要目录结构"
 ```
 
 BYF 将在终端中读取代码、编辑文件、执行命令，并帮助你推进开发任务。
+
+---
+
+## ⚠️ 破坏性变更（全量 Bun 工具链迁移）
+
+本 0.x **minor** 版本包含破坏性的运行时与分发变更（见 [ADR 0028](docs/adr/0028-full-bun-toolchain.md) / PRD-0020）。**不是**协调式的 1.0 major —— 升级前请阅读下文。
+
+| 受众                                                         | 契约                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| **CLI 终端用户**                                             | 官方安装路径为 **compile 二进制**（GitHub Release 或 npm optionalDep）。运行 `byf` **不需要**预装 Bun/Node。 |
+| **库消费者**（`@byfriends/sdk`、`@byfriends/agent-core` 等） | **仅 Bun** 运行时。不再官方支持用 Node 解释执行库包。                                                        |
+| **贡献者 / CI**                                              | **仅 Bun >= 1.3.14**（`bun install`、`bun test` 等）。pnpm 不再是官方开发工具链。                            |
+
+### 旧 npm-global JS 布局用户：请重装
+
+旧版 `@byfriends/cli` 全局安装可能仍指向 Node 解释执行的 `dist/main.mjs`。该路径**已废弃**。Node SEA 单二进制亦**不再**作为官方路径，由 `bun build --compile` 取代。
+
+若 `byf update` 提示 legacy JS 安装，或升级后 CLI 无法使用，请干净重装：
+
+```sh
+# npm 全局（推荐重装）
+npm uninstall -g @byfriends/cli
+npm install -g @byfriends/cli
+
+# 或改用 Release 二进制
+curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
+```
+
+然后验证：
+
+```sh
+byf --version
+```
 
 ---
 
@@ -120,7 +165,7 @@ command = "./scripts/audit.sh"
 
 ## 🏗️ 项目结构
 
-BYF 是一个 [pnpm monorepo](https://pnpm.io/workspaces)：
+BYF 是一个 [Bun monorepo](https://bun.com/docs/install/workspaces)（见 [ADR 0028](docs/adr/0028-full-bun-toolchain.md)）：
 
 ```
 byf/
@@ -141,13 +186,15 @@ byf/
 └── package.json           # 根工作区配置
 ```
 
+**运行时契约：** `packages/` 下的库包为 **Bun-only**；发布给终端用户的 CLI 为独立二进制。
+
 ---
 
 ## 🤝 参与贡献
 
 欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解：
 
-- 开发环境搭建与工作流程
+- 开发环境搭建（**仅 Bun >= 1.3.14** —— 官方路径不再是 pnpm/Node）
 - 提交信息规范（Conventional Commits）
 - Changeset 要求
 - 拉取请求指南

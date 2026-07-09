@@ -30,4 +30,18 @@ describe('default agent profiles', () => {
       }),
     ).toThrow(/Embedded agent profile source missing: profile\/default\/missing\.md/);
   });
+
+  // PRD-0019: the 4 goal tools must be in the default `agent` profile's
+  // enabled-tools list, otherwise the loopTools hasGoal gate never even gets
+  // a chance to show them — the profile whitelist filters them out first,
+  // and the model has no way to call UpdateGoal(complete), so the driver
+  // loops until the iteration cap. This regressed once; the assertion locks
+  // the fix down.
+  it('enables all 4 goal tools on the default agent profile', () => {
+    const tools = DEFAULT_AGENT_PROFILES['agent']?.tools;
+    expect(tools).toContain('CreateGoal');
+    expect(tools).toContain('GetGoal');
+    expect(tools).toContain('SetGoalBudget');
+    expect(tools).toContain('UpdateGoal');
+  });
 });

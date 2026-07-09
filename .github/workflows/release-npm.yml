@@ -14,7 +14,7 @@ name: Release (npm)
 #     4. `changeset publish` pushes every changed package to npm and tags it as
 #        `@byfriends/<pkg>@<ver>`.
 #   A `@byfriends/cli@*` tag then triggers the existing release.yml, which
-#   builds the SEA binaries and creates the GitHub Release. The two workflows
+#   builds the native binaries and creates the GitHub Release. The two workflows
 #   connect through that tag — no manual coordination needed.
 #
 # Why version runs inside the workflow (not via a changesets/action PR):
@@ -23,10 +23,22 @@ name: Release (npm)
 #   Doing `changeset version` + commit + publish explicitly keeps one manual
 #   click as one complete release.
 #
-# Why a guard step before publish: `npm publish` would ship workspace:/catalog:
-# specifiers verbatim and break npm installs (EUNSUPPORTEDPROTOCOL).
-# `changeset publish` rewrites them, and we double-check the packed manifests
-# here so a regression can never reach the registry.
+# Why a guard step before publish: bare `npm publish` would ship
+# workspace:/catalog: specifiers verbatim and break npm installs
+# (EUNSUPPORTEDPROTOCOL). We double-check packed manifests with
+# `bun run pubcheck:manifest` (`bun pm pack`) so a regression never reaches
+# the registry.
+#
+# Toolchain (PRD-0020 / ADR 0028 / #216 / #217): install + quality gates use
+# Bun 1.3.14. Publish goes through `bun scripts/with-publish-manifests.mjs
+# bunx changeset publish`:
+#   - Bun built-in pack rewrite is the primary protocol story (validated by
+#     pubcheck); changesets itself only knows pnpm/npm, so the wrapper is the
+#     explicit gap-fill (protocol rewrite + publishConfig.exports overlay).
+#   - Residual root `packageManager: pnpm@…` / `pnpm-lock.yaml` may still make
+#     changesets pick `pnpm publish` during transition; that residual is
+#     removed by the PRD-0020 breaking minor (#221 / #222). Do not reintroduce
+#     pnpm/action-setup as the install main path.
 
 on:
   workflow_dispatch:
@@ -38,37 +50,43 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # changesets needs full history to compute versions
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
 
+      # Registry auth for publish (changeset → pack/publish). setup-node writes
+      # .npmrc with NODE_AUTH_TOKEN; Bun also honors NPM_TOKEN / NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           scope: '@byfriends'
 
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
 
-      # Quality gates — mirror the local `pnpm run publish` pipeline.
-      - run: pnpm run typecheck
-      - run: pnpm run lint
-      - run: pnpm run fmt:check
-      - run: pnpm run sherif
-      - run: pnpm run test
-      - run: pnpm run build
+      # Quality gates — mirror the local `bun run publish` pipeline (minus the
+      # final changeset publish, which runs in the Publish step below).
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run fmt:check
+      - run: bun run sherif
+      - run: bun run test
+      - run: bun run build
 
       # Pre-publish validation: published-layout checks (publint + attw) and a
       # guard against workspace:/catalog: leaking into shipped manifests.
-      - run: pnpm run lint:pkg
-      - run: pnpm run pubcheck:manifest
+      - run: bun run lint:pkg
+      - run: bun run pubcheck:manifest
 
       # Consume pending changesets: bump versions and update CHANGELOGs.
       - name: Version
-        run: pnpm changeset version
+        run: bunx changeset version
 
       # Commit the version bump back to main so the repo reflects what was
       # published. If version produced no changes, there was nothing to release
@@ -86,10 +104,11 @@ jobs:
           fi
 
       - name: Publish
-        run: pnpm changeset publish
+        # Wrapper rewrites workspace:/catalog: and expands publishConfig so
+        # publish is safe whether changesets invokes pnpm or npm (see header).
+        run: bun scripts/with-publish-manifests.mjs bunx changeset publish
         env:
-          # changeset publish -> pnpm publish reads NPM_CONFIG_USERCONFIG pointing
-          # at setup-node's .npmrc, which honors NODE_AUTH_TOKEN.
+          # Auth for registry: setup-node .npmrc + env tokens below.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUSKY: '0' # skip git hooks in CI

@@ -1,37 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# BYF installer - downloads from GitHub Releases
+# BYF installer - downloads compile binaries from GitHub Releases
+# MVP platforms (PRD-0020 / #219): darwin-arm64, linux-x64 only.
+# Other OS/arch combos are deferred — install via npm when available, or wait
+# for a later release matrix expansion.
 GITHUB_REPO="ByronFinn/byf"
 INSTALL_DIR="${BYF_INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="byf"
+
+# Official release assets for this installer (must match release.yml matrix).
+MVP_PLATFORMS="darwin-arm64 linux-x64"
 
 can_use_sudo() {
   command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null
 }
 
 detect_platform() {
-  local os arch
+  local os arch platform
   os=$(uname -s | tr '[:upper:]' '[:lower:]')
   arch=$(uname -m)
 
   case "$os" in
     linux)
       case "$arch" in
-        x86_64) echo "linux-x64" ;;
-        aarch64|arm64) echo "linux-arm64" ;;
+        x86_64) platform="linux-x64" ;;
+        aarch64|arm64) platform="linux-arm64" ;;
         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
       esac
       ;;
     darwin)
       case "$arch" in
-        x86_64) echo "darwin-x64" ;;
-        arm64) echo "darwin-arm64" ;;
+        x86_64) platform="darwin-x64" ;;
+        arm64) platform="darwin-arm64" ;;
         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
       esac
       ;;
     *)
       echo "Unsupported OS: $os" >&2
+      exit 1
+      ;;
+  esac
+
+  case " ${MVP_PLATFORMS} " in
+    *" ${platform} "*) echo "$platform" ;;
+    *)
+      echo "Platform ${platform} is not in the MVP binary matrix (${MVP_PLATFORMS})." >&2
+      echo "Deferred platforms are not published on GitHub Releases yet (PRD-0020)." >&2
+      echo "Try: npm install -g @byfriends/cli  (requires a JS runtime), or use a supported machine." >&2
       exit 1
       ;;
   esac

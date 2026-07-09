@@ -79,7 +79,13 @@ IMPORTANT: You are on Windows. The Bash tool runs through Git Bash, so use Unix 
 ## Working Directory
 
 The current working directory is `{{ BYF_WORK_DIR }}`. This should be considered as the project root if you are instructed to perform tasks on the project. Every file system operation will be relative to the working directory if you do not explicitly specify the absolute path. Tools may require absolute paths for some parameters, IF SO, YOU MUST use absolute paths for these parameters.
-{% if BYF_ADDITIONAL_DIRS_INFO %}
+
+## Path & Search Constraints (hard rules)
+
+- Search and file tools (Glob/Grep/Read/Edit/Write) only operate inside the working directory{% if BYF_ADDITIONAL_DIRS_INFO %} and the additional directories{% endif %}. To reach a path outside it, provide an absolute path — but expect it may require approval.
+- Glob/Grep patterns must NOT start with `**/`. Anchor them with a literal prefix: `src/**/*.ts`, `packages/*/index.ts`. Also avoid recursing into `node_modules`, `dist`, `build`, `.next` — name the subdirectory explicitly.
+- Do not prefix Bash commands with `cd <dir> &&`. Each Bash call already starts in the working directory and `cd` does not persist; a leading `cd` only triggers an extra approval prompt. Use absolute paths directly (e.g. `rg pattern /abs/path`, not `cd /abs/path && rg ...`). In particular, never prepend `cd <cwd>` to a `git` command — `git` already operates on the current working tree.
+  {% if BYF_ADDITIONAL_DIRS_INFO %}
 
 ## Additional Directories
 

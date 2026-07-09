@@ -107,7 +107,7 @@ describe('built-in connect catalog injection', () => {
     expect(loadBuiltInCatalog(BUILT_IN_CATALOG_JSON)).toBeUndefined();
   });
 
-  it('embeds a generated catalog file through the tsdown define value', async () => {
+  it('embeds a generated catalog file through the build define value', async () => {
     const catalog = {
       openai: {
         id: 'openai',

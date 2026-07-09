@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 /**
- * Verify that published manifests contain no pnpm-only protocols.
+ * Verify that packed manifests contain no workspace-only protocols.
  *
- * `pnpm publish` (and therefore `changeset publish`) rewrites `workspace:` and
- * `catalog:` specifiers into concrete versions before publishing. `npm publish`
- * does NOT — it ships the manifest verbatim, so `workspace:^` ends up on the
- * registry and breaks installs for everyone using npm (EUNSUPPORTEDPROTOCOL).
+ * Primary rewrite path (PRD-0020 / ADR 0028): `bun pm pack` / `bun publish`
+ * strip `workspace:` and `catalog:` into concrete versions. Bare `npm pack` /
+ * `npm publish` do NOT — they ship the manifest verbatim, so `workspace:^`
+ * ends up on the registry and breaks installs (EUNSUPPORTEDPROTOCOL).
  *
- * This is the guardrail that makes such a regression fail loudly before it
- * reaches a registry. For each non-private workspace package we `pnpm pack`
- * (which expands `publishConfig` the same way `pnpm publish` does), extract the
- * tarball, and reject any `workspace:` / `catalog:` specifier left in the
- * sections that actually ship: `dependencies`, `peerDependencies`, and
- * `optionalDependencies`. `devDependencies` are stripped from tarballs, so we
- * do not check them.
+ * `@changesets/cli` never calls Bun; it only runs `pnpm publish` or
+ * `npm publish`. The real publish entrypoint therefore wraps changesets with
+ * `scripts/with-publish-manifests.mjs` (protocol rewrite + publishConfig
+ * overlay). This script is the independent hard gate: for each non-private
+ * workspace package we `bun pm pack`, extract the tarball, and reject any
+ * `workspace:` / `catalog:` left in the shipped sections (`dependencies`,
+ * `peerDependencies`, `optionalDependencies`).
+ *
+ * Note: Bun 1.3.x rewrites protocols but does not merge `publishConfig`
+ * exports/main/… into the packed manifest — that overlay is handled by
+ * `scripts/lib/publish-manifest.mjs` (attw + the publish wrapper), not here.
  *
  * Tarball extraction uses the system `tar` (bsdtar on macOS, GNU tar on Linux)
  * rather than a Node tar library, so the script has no runtime dependencies.
@@ -68,12 +72,12 @@ async function main() {
     for (const pkg of packages) {
       let packed;
       try {
-        packed = execFileSync('pnpm', ['pack', '--pack-destination', staging], {
+        packed = execFileSync('bun', ['pm', 'pack', '--destination', staging, '--quiet'], {
           cwd: pkg.path,
           encoding: 'utf8',
         }).trim();
       } catch (error) {
-        console.error(`✗ ${pkg.name}: pnpm pack failed`);
+        console.error(`✗ ${pkg.name}: bun pm pack failed`);
         if (error.stdout) console.error(String(error.stdout).trim());
         if (error.stderr) console.error(String(error.stderr).trim());
         failures += 1;
@@ -81,7 +85,7 @@ async function main() {
       }
       const tarballPath = packed.split('\n').pop();
       if (!tarballPath) {
-        console.error(`✗ ${pkg.name}: pnpm pack produced no tarball`);
+        console.error(`✗ ${pkg.name}: bun pm pack produced no tarball`);
         failures += 1;
         continue;
       }
@@ -95,7 +99,7 @@ async function main() {
 
         const residuals = findResiduals(manifest);
         if (residuals.length > 0) {
-          console.error(`✗ ${pkg.name}: pnpm-only protocol leaked into published manifest`);
+          console.error(`✗ ${pkg.name}: workspace-only protocol leaked into published manifest`);
           for (const { section, dep, spec } of residuals) {
             console.error(`    ${section}.${dep} = "${spec}"`);
           }
@@ -116,7 +120,7 @@ async function main() {
       `\ncheck-published-manifest: ${failures} package(s) would ship workspace:/catalog: specifiers`,
     );
     console.error(
-      'These are rewritten only by `pnpm publish`/`changeset publish`, not by `npm publish`.',
+      'These are rewritten by `bun pm pack`/`bun publish` and by `scripts/with-publish-manifests.mjs`, not by bare `npm publish`.',
     );
     process.exit(1);
   }

@@ -1,6 +1,7 @@
+import { mock as bunMock } from 'bun:test';
 import { execSync } from 'node:child_process';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { runShell } from '#/cli/run-shell';
 
@@ -53,8 +54,9 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@byfriends/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@byfriends/sdk')>();
+const __mockActual__byfriends_sdk = await import('@byfriends/sdk');
+vi.mock('@byfriends/sdk', () => {
+  const actual = __mockActual__byfriends_sdk;
   return {
     ...actual,
     resolveByfHome: mocks.resolveByfHome,
@@ -283,4 +285,9 @@ describe('runShell', () => {
       stderr.restore();
     }
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

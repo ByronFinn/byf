@@ -39,6 +39,9 @@ function installCommandFor(
   switch (source) {
     case 'npm-global':
       return `npm install -g ${NPM_PACKAGE_NAME}@${version}`;
+    case 'npm-global-js':
+      // Old Node-interpreted global: force a clean reinstall onto the binary layout.
+      return `npm uninstall -g ${NPM_PACKAGE_NAME} && npm install -g ${NPM_PACKAGE_NAME}@${version}`;
     case 'pnpm-global':
       return `pnpm add -g ${NPM_PACKAGE_NAME}@${version}`;
     case 'yarn-global':
@@ -61,7 +64,9 @@ function canAutoInstall(source: InstallSource, platform: NodeJS.Platform): boole
       return true;
     case 'native':
       return platform !== 'win32';
+    case 'npm-global-js':
     case 'unsupported':
+      // Old JS global: manual reinstall so the user sees the binary layout migration.
       return false;
   }
 }
@@ -96,6 +101,7 @@ function spawnForSource(
       return { cmd: bunCommand(platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
     case 'native':
       return { cmd: 'bash', args: ['-c', NATIVE_INSTALL_COMMAND_UNIX] };
+    case 'npm-global-js':
     case 'unsupported':
       throw new Error('unsupported install source cannot be auto-installed');
   }
@@ -111,10 +117,20 @@ function renderManualUpdateMessage(
   source: InstallSource,
   installCommand: string,
 ): string {
-  const sourceDesc =
-    source === 'native'
-      ? 'native (windows). Auto-update is not supported on this platform.'
-      : 'unsupported package manager or layout.';
+  let sourceDesc: string;
+  switch (source) {
+    case 'native':
+      sourceDesc = 'native (windows). Auto-update is not supported on this platform.';
+      break;
+    case 'npm-global-js':
+      sourceDesc =
+        'legacy npm-global JS layout. Reinstall to switch to the native binary package ' +
+        '(optionalDependencies platform packages).';
+      break;
+    default:
+      sourceDesc = 'unsupported package manager or layout.';
+      break;
+  }
   return (
     `A newer version of ${NPM_PACKAGE_NAME} is available ` +
     `(${currentVersion} -> ${target.version}).\n` +

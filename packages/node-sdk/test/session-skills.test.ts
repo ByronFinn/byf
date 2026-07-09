@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mock as bunMock } from 'bun:test';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, afterAll } from 'vitest';
 
 import type { Event, ByfError, SkillActivatedEvent, SkillSummary } from '#/index';
 import type { SDKRpcClient } from '#/rpc';
@@ -20,8 +21,9 @@ const fakeProviderState = vi.hoisted(() => ({
   responseText: 'skill response',
 }));
 
-vi.mock('@byfriends/kosong', async (importOriginal) => {
-  const actual = await importOriginal<typeof KosongModule>();
+const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
+vi.mock('@byfriends/kosong', () => {
+  const actual = __mockActual__byfriends_kosong;
   return {
     ...actual,
     createProvider: () => ({
@@ -166,7 +168,11 @@ describe('Session skills', () => {
       expect(state['isCustomTitle']).toBe(false);
       expect(state['lastPrompt']).toBe('/review src/app.ts');
 
-      const skillDir = join(workDir, '.byf', 'skills', 'review');
+      // The scanner registers each skill by its canonical (realpath-resolved)
+      // directory, so resolve workDir before composing the expected skill dir.
+      // On macOS tmpdir() is symlinked (/var → /private/var); without this the
+      // embedded "Base directory for this skill: …" path wouldn't match.
+      const skillDir = join(await realpath(workDir), '.byf', 'skills', 'review');
       await expect(
         waitForAgentWireEvent(
           homeDir,
@@ -303,3 +309,8 @@ async function writeUserSkill(
     ),
   );
 }
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
+});

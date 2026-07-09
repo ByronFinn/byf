@@ -201,6 +201,9 @@ function appStateFromResumeAgent(agent: ResumedAgentState): Partial<AppState> {
     contextUsage,
     yolo: agent.permission.mode === 'yolo',
     permissionMode: agent.permission.mode,
+    // Restore the goal snapshot so the footer badge reappears on resume
+    // (PRD-0019 R13). Only the main agent carries a goal; others are null.
+    goalSnapshot: agent.goal ?? null,
   };
 }
 

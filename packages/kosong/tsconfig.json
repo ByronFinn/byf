@@ -1,8 +1,13 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"]
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "dist-types",
+    "lib": ["ESNext", "DOM"],
+    "paths": { "#/*": ["./src/*"] }
   },
-  "include": ["src", "test"],
-  "exclude": ["test/type-safety-negative.ts"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

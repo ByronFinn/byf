@@ -1,0 +1,11 @@
+# Bun configuration for @byfriends/vis-server dev/test runs.
+# Bun reads bunfig.toml only from the exact cwd (no parent lookup), so the
+# raw-text loader is declared here. See ../../bunfig.toml for the monorepo-wide
+# rationale.
+[loader]
+".md" = "text"
+".yaml" = "text"
+
+[test]
+# Relative to this package cwd. Mirrors root bunfig test preload (#215).
+preload = ["../../../build/test-preload.ts"]

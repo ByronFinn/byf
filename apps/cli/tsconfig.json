@@ -2,9 +2,16 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "allowJs": true,
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "dist-types",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "#/*": ["./src/*"]
     }
   },
-  "include": ["src", "test", "../../packages/agent-core/src/prompt-modules.d.ts"]
+  "include": ["src", "scripts", "../../packages/agent-core/src/prompt-modules.d.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../../packages/node-sdk" }]
 }

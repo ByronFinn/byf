@@ -78,8 +78,8 @@ export interface ApplyCatalogProviderOptions {
 
 /**
  * Parses an optional pruned models.dev catalog string — typically the
- * `__BYF_CODE_BUILT_IN_CATALOG__` constant injected by tsdown at build
- * time. Returns `undefined` when the argument is missing or invalid.
+ * `__BYF_CODE_BUILT_IN_CATALOG__` constant injected at build time
+ * (`bun build` define). Returns `undefined` when the argument is missing or invalid.
  */
 export function loadBuiltInCatalog(text?: string): Catalog | undefined {
   if (typeof text !== 'string' || text.length === 0) return undefined;

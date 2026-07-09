@@ -83,7 +83,12 @@ export function main(): void {
   program.parse(process.argv);
 }
 
-main();
+// Only auto-start when this module is the process entrypoint. Tests import
+// `handleMainCommand` / `main` without wanting to parse argv or open the TUI.
+// Bun does not hoist `vi.mock` before static imports the way Vitest does.
+if (import.meta.main) {
+  main();
+}
 
 async function logStartupFailure(operation: string, error: unknown): Promise<void> {
   log.error('startup failed', { operation, error });

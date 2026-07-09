@@ -48,6 +48,7 @@ import type {
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
+  CreateGoalPayload,
   CreateSessionPayload,
   EmptyPayload,
   ExportSessionPayload,
@@ -450,6 +451,26 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).setPermission(payload);
   }
 
+  createGoal({ sessionId, ...payload }: SessionAgentPayload<CreateGoalPayload>) {
+    return this.sessionApi(sessionId).createGoal(payload);
+  }
+
+  getGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getGoal(payload);
+  }
+
+  pauseGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).pauseGoal(payload);
+  }
+
+  resumeGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).resumeGoal(payload);
+  }
+
+  cancelGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).cancelGoal(payload);
+  }
+
   getModel({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getModel(payload);
   }
@@ -751,6 +772,8 @@ async function resumeSessionResult(
       toolStore: agent.tools.storeData(),
       background: agent.background.list(false),
       parentToolCallId: session.metadata.agents[agentId]?.parentToolCallId,
+      // Only the main agent ever holds a goal; non-main agents pass null.
+      goal: agent.type === 'main' ? agent.goal.getSnapshot() : null,
     };
   }
   return {

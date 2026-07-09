@@ -12,7 +12,7 @@ import {
 import { appendTaskOutput, writeTask } from '../../src/tools/background/persist';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { testAgent } from './harness/agent';
-import { DEFAULT_TEST_SYSTEM_PROMPT } from './harness/snapshots';
+import { DEFAULT_TEST_SYSTEM_PROMPT, formatHarnessSnapshot } from './harness/snapshots';
 
 const MOCK_PROVIDER = {
   type: 'openai-completions',
@@ -31,7 +31,7 @@ describe('Agent resume', () => {
 
     await ctx.agent.resume();
 
-    expect(ctx.newEvents()).toMatchInlineSnapshot(`[]`);
+    expect(formatHarnessSnapshot(ctx.newEvents())).toMatchInlineSnapshot(`"[]"`);
     expect(ctx.llmCalls).toHaveLength(0);
     expect(execWithEnv).not.toHaveBeenCalled();
     expect(persistence.appended).toEqual([]);
@@ -50,13 +50,13 @@ describe('Agent resume', () => {
     });
     expect(findRpcEvent(ctx.allEvents, 'error')).toBeUndefined();
     expect(execWithEnv).not.toHaveBeenCalled();
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: Bash
         messages:
           assistant: text "Historical compacted summary."
-          user: text "Fresh prompt after resume"
+          user: text "Fresh prompt after resume""
     `);
   });
 
@@ -86,8 +86,8 @@ describe('Agent resume', () => {
     });
     await ctx.untilTurnEnd();
 
-    expect(ctx.llmInputs()).toMatchInlineSnapshot(`
-      call 1:
+    expect(formatHarnessSnapshot(ctx.llmInputs())).toMatchInlineSnapshot(`
+      "call 1:
         system: <system-prompt>
         tools: []
         messages:
@@ -96,7 +96,7 @@ describe('Agent resume', () => {
           tool[call_resume_write]: text "wrote file"
           tool[call_resume_skill]: text "skill loaded"
           user: text "<system-reminder>\\nresume skill body\\n</system-reminder>"
-          user: text "Fresh prompt after deferred resume"
+          user: text "Fresh prompt after deferred resume""
     `);
     await ctx.expectResumeMatches();
   });

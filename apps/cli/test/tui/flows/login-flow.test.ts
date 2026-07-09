@@ -1,13 +1,16 @@
+import { mock as bunMock } from 'bun:test';
+
 import type { Component, Focusable } from '@earendil-works/pi-tui';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterAll } from 'vitest';
 
 import { LoginFlow, type LoginFlowDeps } from '#/tui/flows/login-flow';
 
 // fetchCatalog makes a real HTTP request to DEFAULT_CATALOG_URL. Mock it to
 // throw so fetchCatalogWithFallback falls through to loadBuiltInCatalog
 // (which returns undefined when no builtInCatalogJson is provided).
-vi.mock('@byfriends/sdk', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
+const __mockActual__byfriends_sdk = await import('@byfriends/sdk');
+vi.mock('@byfriends/sdk', () => {
+  const actual = __mockActual__byfriends_sdk as Record<string, unknown>;
   return {
     ...actual,
     fetchCatalog: vi.fn().mockRejectedValue(new Error('test: no network')),
@@ -1158,4 +1161,9 @@ describe('LoginFlow', () => {
       );
     }
   });
+});
+
+// Bun keeps mock.module across files; restore so later suites see real modules (#215).
+afterAll(() => {
+  bunMock.restore();
 });

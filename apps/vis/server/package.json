@@ -32,29 +32,37 @@
   "exports": {
     ".": {
       "types": "./dist/server.d.mts",
-      "import": "./dist/server.mjs",
-      "default": "./dist/server.mjs"
+      "default": "./src/server.ts",
+      "bun": "./src/server.ts"
     },
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/server.d.mts",
+        "import": "./dist/server.mjs",
+        "default": "./dist/server.mjs"
+      },
+      "./package.json": "./package.json"
+    },
     "access": "public",
     "provenance": false
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsdown && node ../scripts/copy-web-dist.mjs",
-    "test": "vitest run"
+    "dev": "bun --watch src/index.ts",
+    "build": "bun ../../../build/bun-lib-build.mjs ./src/server.ts ./src/index.ts --bundle-workspace && bun scripts/build-dts.mjs && bun ../scripts/copy-web-dist.mjs",
+    "test": "bun test"
   },
   "dependencies": {
     "@byfriends/agent-core": "workspace:^",
-    "@hono/node-server": "^1.13.7",
     "hono": "^4.7.7"
   },
   "devDependencies": {
     "@byfriends/kosong": "workspace:*",
-    "@byfriends/vis-web": "workspace:*",
-    "tsx": "^4.21.0",
-    "vitest": "4.1.4"
+    "@byfriends/vis-web": "workspace:*"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
   }
 }

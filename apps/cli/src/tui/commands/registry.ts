@@ -107,6 +107,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'goal',
+    aliases: [],
+    description: 'Manage autonomous goal mode (status/pause/resume/cancel/create)',
+    priority: 80,
+    availability: (args) => goalAvailability(args),
+  },
+  {
     name: 'status',
     aliases: [],
     description: 'Show current session and runtime status',
@@ -215,4 +222,20 @@ export function buildAutocompleteSlashCommands(
   }
 
   return entries;
+}
+
+/**
+ * /goal availability gate (PRD-0019 R1 / AC-8).
+ *
+ *   status / pause / cancel → 'always' (safe during streaming)
+ *   resume / replace / <objective> → 'idle-only' (require an idle session)
+ *
+ * `-- <objective>` and bare objectives also count as idle-only.
+ */
+function goalAvailability(args: string): SlashCommandAvailability {
+  const trimmed = args.trim();
+  if (trimmed.length === 0) return 'always'; // /goal with no args = status
+  const first = trimmed.match(/^(\S+)/)?.[1] ?? '';
+  if (first === 'status' || first === 'pause' || first === 'cancel') return 'always';
+  return 'idle-only'; // resume / replace / <objective> / -- <objective>
 }

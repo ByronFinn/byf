@@ -21,6 +21,12 @@ function fakeAgent(calls: unknown[] = []): Agent {
     config: {
       data: () => ({ provider: undefined }),
     },
+    // ToolManager.loopTools now reads agent.goal.getSnapshot() to gate the
+    // goal mutation tools (PRD-0019 #202). Stub it as absent.
+    goal: {
+      getSnapshot: () => null,
+    },
+    type: 'main',
   } as unknown as Agent;
 }
 

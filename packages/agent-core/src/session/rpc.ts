@@ -11,6 +11,7 @@ import type {
   BeginCompactionPayload,
   CancelPayload,
   CancelSideQueryPayload,
+  CreateGoalPayload,
   EmptyPayload,
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
@@ -170,6 +171,26 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   setPermission({ agentId, ...payload }: AgentScopedPayload<SetPermissionPayload>) {
     return this.getAgent(agentId).setPermission(payload);
+  }
+
+  createGoal({ agentId, ...payload }: AgentScopedPayload<CreateGoalPayload>) {
+    return this.getAgent(agentId).createGoal(payload);
+  }
+
+  getGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return this.getAgent(agentId).getGoal(payload);
+  }
+
+  pauseGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return this.getAgent(agentId).pauseGoal(payload);
+  }
+
+  resumeGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return this.getAgent(agentId).resumeGoal(payload);
+  }
+
+  cancelGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return this.getAgent(agentId).cancelGoal(payload);
   }
 
   getModel({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {

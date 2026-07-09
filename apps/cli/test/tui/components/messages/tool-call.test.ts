@@ -847,7 +847,12 @@ describe('ToolCallComponent', () => {
 
   it('refreshes and stops the Edit streaming progress timer', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(0);
+    // Bun's advanceTimersByTime resets setSystemTime back to wall clock, and
+    // the progress interval rebuilds children using Date.now() on each tick.
+    // Drive the clock via a Date.now spy so rebuilds during advanceTimers see
+    // a stable epoch (#215).
+    let nowMs = 0;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs);
     const ui = { requestRender: vi.fn() };
     const component = new ToolCallComponent(
       {
@@ -863,9 +868,11 @@ describe('ToolCallComponent', () => {
     );
 
     expect(strip(component.render(100).join('\n'))).toContain('0s elapsed');
+    nowMs = 1000;
     vi.advanceTimersByTime(1000);
     expect(ui.requestRender).toHaveBeenCalled();
     expect(strip(component.render(100).join('\n'))).toContain('1s elapsed');
+    nowSpy.mockRestore();
 
     component.setResult({
       tool_call_id: 'call_edit_timer',

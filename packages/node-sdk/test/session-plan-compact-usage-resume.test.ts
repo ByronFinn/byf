@@ -46,7 +46,14 @@ describe('Session compact, usage, and resume APIs', () => {
     try {
       const session = await harness.createSession({ id: 'ses_usage_runtime', workDir });
 
-      await expect(session.getUsage()).resolves.toEqual({});
+      // With no recorded LLM usage the cache dimensions are absent, but the
+      // estimated input breakdown is always computed on demand.
+      await expect(session.getUsage()).resolves.toMatchObject({
+        inputBreakdown: {
+          tokens: expect.any(Object),
+          percent: expect.any(Object),
+        },
+      });
     } finally {
       await harness.close();
     }
@@ -105,7 +112,14 @@ describe('Session compact, usage, and resume APIs', () => {
       expect(fork.workDir).toBe(workDir);
       await expect(fork.getStatus()).resolves.toMatchObject({ model: 'test-model' });
       expect(harness.getSession(fork.id)).toBe(fork);
-      await expect(fork.getUsage()).resolves.toEqual({});
+      // Fork starts with no recorded LLM usage; only the estimated breakdown
+      // is present.
+      await expect(fork.getUsage()).resolves.toMatchObject({
+        inputBreakdown: {
+          tokens: expect.any(Object),
+          percent: expect.any(Object),
+        },
+      });
 
       const forkSummary = fork.summary;
       expect(forkSummary).toBeDefined();

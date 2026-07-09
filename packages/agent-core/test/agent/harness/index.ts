@@ -3,6 +3,7 @@ export { createScriptedGenerate } from './scripted-generate';
 export {
   DEFAULT_TEST_SYSTEM_PROMPT,
   eventSnapshot,
+  formatHarnessSnapshot,
   generateInputSnapshot,
   generateInputsSnapshot,
   normalizeGenerateInput,

@@ -22,6 +22,14 @@ tools:
   - Agent
   - FetchURL
   - AskUserQuestion
+  # PRD-0019 R7: goal 工具仅在 main agent 注册（ToolManager 用
+  # `agent.type === 'main'` 做注册层门控），故这里只对 main agent 生效，
+  # 不会泄漏到继承但显式覆盖了 tools 的 subagent（coder/explore）。
+  # loopTools 再做第二层 hasGoal 门控隐藏 mutation 工具。
+  - CreateGoal
+  - GetGoal
+  - SetGoalBudget
+  - UpdateGoal
   - mcp__*
 
 subagents:

@@ -1,0 +1,11 @@
+# Bun configuration for @byfriends/agent-core.
+# The root bunfig.toml is not consulted for modules resolved under this
+# package, so the raw-text loader for prompt/profile files is declared here too.
+# See ../../bunfig.toml for the monorepo-wide rationale.
+[loader]
+".md" = "text"
+".yaml" = "text"
+
+[test]
+# Relative to this package cwd. Mirrors root bunfig test preload (#215).
+preload = ["../../build/test-preload.ts"]
