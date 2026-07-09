@@ -16,7 +16,8 @@ const root = import.meta.dir.endsWith('/build') ? join(import.meta.dir, '..') : 
 const concurrency = Number(process.env.BYF_TEST_CONCURRENCY ?? 10);
 /** Soft wall-clock limit per file (ms). Prevents a single hung file from blocking CI. */
 const perFileTimeoutMs = Number(process.env.BYF_TEST_FILE_TIMEOUT_MS ?? 120_000);
-const roots = ['packages', 'apps'];
+// packages/apps: product tests. scripts: pure helpers (publish-manifest rewrite, …).
+const roots = ['packages', 'apps', 'scripts'];
 
 async function collectTestFiles(dir, out = []) {
   let entries;
@@ -32,7 +33,11 @@ async function collectTestFiles(dir, out = []) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       await collectTestFiles(full, out);
-    } else if (/\.test\.tsx?$/.test(entry.name) || /\.e2e\.test\.tsx?$/.test(entry.name)) {
+    } else if (
+      /\.test\.tsx?$/.test(entry.name) ||
+      /\.e2e\.test\.tsx?$/.test(entry.name) ||
+      entry.name.endsWith('.test.mjs')
+    ) {
       // Skip e2e that requires explicit env (same as vitest default exclude if any)
       if (entry.name.includes('real-llm-smoke')) continue;
       out.push(full);

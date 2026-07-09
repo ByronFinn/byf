@@ -60,6 +60,14 @@ PRD-0020 与 `/grill` 收敛了「全量迁 Bun」的边界与三条对外契约
 - 库 `bun build` + 独立 types 替换 tsdown，构建配置重写成本
 - 非 MVP 平台（darwin-x64、linux-arm64、Windows 等）官方二进制 deferred
 
+### Known limitations（测试 preload）
+
+迁移期 `build/test-preload.ts` 在测试停止 `import 'vitest'` 前会长期存在。其中两项为**静默 no-op**，语义相对 Vitest 变弱，勿假设仍有效：
+
+- `vi.resetModules()`：Bun 无模块注册表重置；跨文件隔离依赖 `build/run-tests.mjs` 的进程级 `bun test` 分片
+- `expect.addSnapshotSerializer()`：Bun 未实现自定义 serializer；agent-core 等用 harness 内显式 format helper
+- `toMatchInlineSnapshot`：Bun 会重序列化多行字符串（外层引号 + 内部转义），与 Vitest 观感不同；属可接受权衡，勿为「可读性」手改转义导致快照失效
+
 ## 备选方案
 
 - **仅迁包管理（pnpm→bun install）**：风险低，但保留 Node/SEA 双心智 — 未选

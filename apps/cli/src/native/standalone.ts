@@ -8,7 +8,7 @@
 
 import { createRequire } from 'node:module';
 
-interface BunStandaloneGlobal {
+export interface BunStandaloneGlobal {
   readonly isStandaloneExecutable?: boolean;
   readonly main?: string;
 }
@@ -30,15 +30,22 @@ function loadSeaModule(): NodeSeaModule | null {
   return cachedSea;
 }
 
+/**
+ * Pure Bun-compile detection from a Bun-like shape.
+ * Exported for unit tests — `globalThis.Bun` is non-configurable under Bun.
+ */
+export function detectBunStandalone(bun: BunStandaloneGlobal | null | undefined): boolean {
+  if (bun === undefined || bun === null) return false;
+  if (bun.isStandaloneExecutable === true) return true;
+  const main = typeof bun.main === 'string' ? bun.main : '';
+  // Bun 1.3.x: entry lives under the virtual standalone filesystem.
+  return main.startsWith('/$bunfs/') || main.includes('/$bunfs/');
+}
+
 /** True when this process is a Bun `bun build --compile` standalone executable. */
 export function isBunStandaloneExecutable(): boolean {
   try {
-    const bunGlobal = (globalThis as { Bun?: BunStandaloneGlobal }).Bun;
-    if (bunGlobal === undefined || bunGlobal === null) return false;
-    if (bunGlobal.isStandaloneExecutable === true) return true;
-    const main = typeof bunGlobal.main === 'string' ? bunGlobal.main : '';
-    // Bun 1.3.x: entry lives under the virtual standalone filesystem.
-    return main.startsWith('/$bunfs/') || main.includes('/$bunfs/');
+    return detectBunStandalone((globalThis as { Bun?: BunStandaloneGlobal }).Bun);
   } catch {
     return false;
   }

@@ -86,6 +86,15 @@ See [docs/agents/releasing.md](../../../../docs/agents/releasing.md).
 
 Shared packaging helpers (sign / verify / zip / smoke) live under `scripts/native/` and are used by this compile pipeline. The former Node SEA steps (`postject`, `build:native:sea`, `tsdown.native.config.ts`) were removed in #221.
 
+## Rollback（SEA → compile）
+
+Compile is the only official binary path. If a release is bad:
+
+1. **Git**: revert or forward-fix the compile/npm-platform commits on the release branch; do not reintroduce Node SEA as the supported path.
+2. **GitHub Release**: re-tag or publish a new release from the last known-good commit; re-run `release.yml` so `byf-<target>.zip` assets are replaced from that compile.
+3. **npm**: `@byfriends/cli` and `@byfriends/cli-*` platform packages are **version-fixed** together. Bump a patch/minor that re-stages known-good binaries via `package:npm-platforms`, then publish main + platforms (see [releasing.md](../../../../docs/agents/releasing.md)). Users who already installed a bad optionalDep should reinstall after the good platform packages are on the registry.
+4. **Do not** document or ship SEA rebuilds as the recovery path; recovery is always “last good compile binary + aligned npm versions”.
+
 ## Codesign / notarize strategy
 
 See [docs/agents/releasing.md](../../../../docs/agents/releasing.md).

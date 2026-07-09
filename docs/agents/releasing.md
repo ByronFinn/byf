@@ -188,6 +188,14 @@ BYF_CODE_NATIVE_ASSET_SMOKE=1 <byf-binary> --version
 
 Node SEA 管线**不是**官方分发路径（由 `bun build --compile` 取代）。若仓库内仍有对照脚本，不得在 release 文档或用户安装说明中写成唯一/推荐路径。
 
+### Rollback（compile 坏版本）
+
+官方恢复路径是**重新发布上一个已知良好的 compile 产物**，而不是回退到 Node SEA：
+
+1. 在发布分支上 revert / 热修到 last-good 提交后重跑 `release.yml`，替换 GitHub Release 上的 `byf-<target>.zip`。
+2. npm 侧 `@byfriends/cli` 与平台子包 version-`fixed` 联动：对齐版本重新 `package:npm-platforms` 并发布；已装到坏 optionalDep 的用户在平台包上架后重装即可。
+3. 细节见 `apps/cli/scripts/compile/README.md` 的 Rollback 小节。
+
 ### 与 npm 的关系（主包 + 分平台 optionalDependencies，#220）
 
 终端用户两条官方安装路径：
