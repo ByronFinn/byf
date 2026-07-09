@@ -23,11 +23,13 @@
 
 因此本仓库 **禁止用裸 `npm publish` 发包**。主路径以 **Bun 的 pack 改写 + pubcheck 硬门禁** 为准；changesets 不调用 Bun，故用 `with-publish-manifests` 做显式补洞（见 `docs/research/bun-publish-workspace-protocol-rewrite-1.md`）。
 
-### 发布客户端与 `with-publish-manifests`
+### pnpm residual（PRD-0020 收口后）
 
-`#221` 已删除根 `packageManager: pnpm@…`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`。`@changesets/cli` 因此会落到 `npm publish`（不会调用 `bun publish`）。
+贡献与 CI 主路径是 **Bun**（ADR 0028）。若工作区仍短暂残留 `packageManager: pnpm@…` / `pnpm-lock.yaml`，**不得**把它们当作源真相或恢复 `pnpm/action-setup` 为安装主路径。
 
-**必须** 继续走 **`with-publish-manifests` + `changeset publish`**：在 publish 前改写 `workspace:` / `catalog:` 并展开 `publishConfig`，结束后恢复工作区 manifest。安装与 CI 主路径仍是 **Bun**；不要恢复 `pnpm/action-setup` 为安装主路径。
+`@changesets/cli` 若检测到 pnpm 可能调用 `pnpm publish`（同样会改写协议）。无论底层客户端是 residual pnpm 还是 npm，发布入口 **必须** 继续经过 **`with-publish-manifests` + `changeset publish`**（以及 `pubcheck:manifest`），裸 `npm publish` 禁止。
+
+删除 residual 后，changesets 会落到 `npm publish`；此时更依赖 `with-publish-manifests` 展开 `publishConfig` 与协议改写。
 
 ## 标准发布路径（手动触发 CI）
 
@@ -43,6 +45,27 @@
 3. **构建二进制**：`@byfriends/cli@*` 这个 tag 会触发现有的 `.github/workflows/release.yml`，构建原生二进制并创建 GitHub Release（附带 `install.sh`）。两个 workflow 通过这个 tag 自然衔接，无需手动协调。
 
 > **关键**：不要在本地手动跑裸 `npm publish` 来发版。在 Actions 页面手动触发 `Release (npm)` 即可，CI 会完成 version + publish。
+
+## minor + BREAKING 发版说明（0.x，PRD-0020 / grill #7）
+
+全量 Bun 迁移按 **0.x minor 抬升**（例如 0.3.x → 0.4.0）发布，**不要**写 `major` / 1.0，除非维护者另有决策。破坏性内容用 **CHANGELOG / release notes 显著 BREAKING 专节** 承载。
+
+### Changeset 怎么写
+
+- frontmatter 使用 **`minor`**（相关 `@byfriends/*` 发布包；CLI 与库契约同时变时一并列出）。
+- 正文以 `**BREAKING:**` 开头，简体中文，条目化写清用户/集成方必须知道的不兼容点。
+- 覆盖四类（按适用）：
+  1. **库运行时**：仅 Bun，不再支持 Node 解释执行。
+  2. **CLI 分发**：compile 二进制 + npm 分平台 optionalDependencies；与 GitHub Release 同源。
+  3. **废弃路径**：Node SEA / 旧 npm-global JS（`dist/main.mjs`）不再官方支持。
+  4. **贡献工具链**：pnpm 不再是官方开发路径；Bun >=1.3.14。
+- 附一行 **重装指引**（`npm uninstall -g @byfriends/cli && npm install -g @byfriends/cli`，或 `install.sh`），旧全局 JS 用户不能假设 `byf update` 可热更。
+
+### 发版后检查（人工）
+
+- 各包 `CHANGELOG.md` 在该 minor 版本下有 **BREAKING** 段落（changesets 会把正文拷入）。
+- GitHub Release 说明 / npm 包页摘要能指向 README 的 Breaking / 重装节。
+- 根 README、`apps/cli/README`、`docs/*/guides/getting-started` 与三条契约无矛盾。
 
 ## 本地预校验（硬门禁）
 
@@ -163,7 +186,7 @@ BYF_CODE_NATIVE_ASSET_SMOKE=1 <byf-binary> --version
 | **公证 notarize** | **尚未接入 compile CI**。若需要分发「未隔离 / 无右键打开」体验，应在后续 workflow 中对 **compile 产物** 跑 `notarytool` + `stapler`，再以 `spctl -a -t install` 作为发布门禁（`05-verify.mjs` 的 `requireGatekeeper`）。ad-hoc 二进制无法通过 Gatekeeper 在线检查，这是预期。 |
 | **linux-x64** | 无 codesign；仅产物 sha256（可执行文件 + zip）。 |
 
-Node SEA / `postject` 管线已在 #221 从主路径删除；官方二进制仅 `bun build --compile`。
+Node SEA 管线**不是**官方分发路径（由 `bun build --compile` 取代）。若仓库内仍有对照脚本，不得在 release 文档或用户安装说明中写成唯一/推荐路径。
 
 ### 与 npm 的关系（主包 + 分平台 optionalDependencies，#220）
 

@@ -10,34 +10,52 @@ It fits scenarios such as:
 - **Understanding a project**: exploring an unfamiliar codebase and answering questions about architecture and implementation
 - **Automating tasks**: batch-processing files, running builds and tests, chaining multiple scripts together
 
-The entire CLI is written in TypeScript. End users typically install a single compile binary (no runtime preinstall). Published libraries declare `engines.bun` only (Bun ≥1.3.14); Node is not an officially supported runtime.
+The CLI is written in TypeScript and distributed as a **native compile binary** (GitHub Release or npm with platform optionalDependencies). End users do **not** need to preinstall Bun or Node to run `byf`.
 
 ## Installation
 
 ### Install script (recommended)
 
-The quickest way to install BYF is with the install script; no pre-installed Bun or Node.js is required:
+The quickest way to install BYF is with the install script; no pre-installed Bun or Node is required:
 
 ```sh
-curl -fsSL https://github.com/ByronFinn/byf/releases/byf/install.sh | bash
+curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 ```
 
 This downloads the latest release, verifies the checksum, and places the `byf` executable on your `PATH`.
 
 ::: tip Platform support
-BYF is built and tested primarily on **macOS** and **Linux**. Windows is supported but on a best-effort basis.
+Official compile binaries (MVP) are **darwin-arm64** and **linux-x64**. Windows is best-effort; other platforms are deferred.
 :::
 
 ### Package-manager installation
 
-Global install of `@byfriends/cli` (optional; install script is preferred for MVP platforms):
+If you prefer npm, install the main package. npm resolves a platform **optionalDependency** binary package for your machine (same compile artifact as GitHub Releases):
 
 ```sh
 npm install -g @byfriends/cli
 # or: bun add -g @byfriends/cli
 ```
 
-Library packages and contribution require **Bun ≥1.3.14** (see `engines.bun`).
+Or with pnpm / bun:
+
+```sh
+pnpm add -g @byfriends/cli
+bun add -g @byfriends/cli
+```
+
+You do **not** need a specific Node version to *run* the CLI after install — the launcher only starts the native binary. (npm itself may need a JS runtime to install packages.)
+
+### Reinstall from a legacy Node JS global
+
+Older globals that pointed at a Node-interpreted `dist/main.mjs` layout are no longer supported. Uninstall and reinstall:
+
+```sh
+npm uninstall -g @byfriends/cli
+npm install -g @byfriends/cli
+```
+
+Or re-run the install script above. `byf update` detects the old layout and prints reinstall guidance instead of hot-updating it.
 
 ## Upgrade and uninstall
 

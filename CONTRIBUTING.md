@@ -37,7 +37,13 @@ For the full project map, see [AGENTS.md](AGENTS.md).
 
 ## Development Setup
 
-Prerequisites: [Bun](https://bun.com) >= 1.3.14, Git. Bun is the only official toolchain for contributing and CI (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md)); Node and pnpm are no longer required.
+Prerequisites: [Bun](https://bun.com) >= 1.3.14, Git. Bun is the only official toolchain for contributing and CI (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md)); Node and pnpm are **not** required and are **not** official contributor paths.
+
+Three product contracts (do not mix them up in docs or issues):
+
+1. **Dev toolchain** — contributors/CI use Bun only (`bun install`, `bun test`, …).
+2. **Library runtime** — published `@byfriends/*` libraries are **Bun-only** (not Node-interpreted).
+3. **CLI distribution** — end users install a compile binary (GitHub Release `install.sh` or `npm i -g @byfriends/cli` with platform optionalDependencies). Running the CLI does not require preinstalling Bun/Node.
 
 BYF is developed primarily on macOS and Linux. Windows is supported but on a best-effort basis.
 

@@ -20,7 +20,7 @@
 | Feature                       | Description                                                                                                                            |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | ⚡ **Blazing-fast TUI**       | A polished terminal UI that starts in milliseconds — built for long, focused coding sessions.                                          |
-| 📦 **Single-binary install**  | Install with one command. No Node.js setup, no PATH gymnastics, no global module conflicts.                                            |
+| 📦 **Single-binary install**  | Install with one command. No Bun/Node runtime setup for end users, no PATH gymnastics, no global module conflicts.                     |
 | 🧩 **Subagents**              | Dispatch `coder`, `explore`, and `plan` subagents in isolated context windows — parallel work that keeps your main conversation clean. |
 | 🎥 **Video input**            | Drop a screen recording or demo clip into the chat. Let the agent watch instead of typing out what's hard to describe in words.        |
 | 🔌 **AI-native MCP**          | Add, edit, and authenticate Model Context Protocol servers conversationally via `/mcp-config` — no hand-editing JSON.                  |
@@ -33,22 +33,34 @@
 
 ### Install
 
-**npm (recommended)**
+Two official paths — both install a **native compile binary** (no need to preinstall Bun or Node to *run* BYF):
 
-```sh
-npm install -g @byfriends/cli
-```
-
-**Quick install (macOS / Linux)**
+**1. GitHub Release script (macOS arm64 / Linux x64 MVP)**
 
 ```sh
 curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 ```
 
-**Quick install (Windows PowerShell)**
+**Windows PowerShell:**
 
 ```powershell
 irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
+```
+
+**2. npm global (platform optionalDependencies binary)**
+
+```sh
+npm install -g @byfriends/cli
+```
+
+`npm i -g` installs a thin launcher plus the matching platform package (`@byfriends/cli-darwin-arm64` or `@byfriends/cli-linux-x64`). The real CLI is the same compile binary as GitHub Releases. Official binary matrix is currently **darwin-arm64** and **linux-x64**; other platforms are deferred.
+
+Other package managers work the same way if they honor optionalDependencies:
+
+```sh
+pnpm add -g @byfriends/cli
+# or
+bun add -g @byfriends/cli
 ```
 
 ### Start your first session
@@ -67,6 +79,39 @@ byf "Explain the main directories in this repository"
 ```
 
 BYF will inspect your code, edit files, run shell commands, and help you iterate — all from within your terminal.
+
+---
+
+## ⚠️ Breaking changes (Bun toolchain migration)
+
+This 0.x **minor** line introduces breaking runtime and distribution changes (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md) / PRD-0020). **Not** a coordinated 1.0 major — read the notes below before upgrading.
+
+| Audience | Contract |
+| -------- | -------- |
+| **CLI end users** | Official install is a **compile binary** (GitHub Release or npm optionalDep). You do **not** need Bun/Node to run `byf`. |
+| **Library consumers** (`@byfriends/sdk`, `@byfriends/agent-core`, …) | **Bun-only** runtime. Node.js is no longer a supported interpreter for library packages. |
+| **Contributors / CI** | **Bun >= 1.3.14** only (`bun install`, `bun test`, …). pnpm is not the official toolchain. |
+
+### Reinstall if you used the old npm-global JS layout
+
+Older `@byfriends/cli` globals shipped a Node-interpreted `dist/main.mjs` entry. That path is **gone**. Node SEA binaries are also **deprecated** in favor of `bun build --compile`.
+
+If `byf update` reports a legacy JS install, or the CLI breaks after upgrade, reinstall cleanly:
+
+```sh
+# npm global (recommended reinstall)
+npm uninstall -g @byfriends/cli
+npm install -g @byfriends/cli
+
+# or switch to the Release binary
+curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
+```
+
+Then verify:
+
+```sh
+byf --version
+```
 
 ---
 
@@ -120,7 +165,7 @@ command = "./scripts/audit.sh"
 
 ## 🏗️ Project Structure
 
-BYF is a [Bun](https://bun.com) monorepo (workspaces in root `package.json`):
+BYF is a [Bun monorepo](https://bun.com/docs/install/workspaces) (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md)):
 
 ```
 byf/
@@ -141,13 +186,15 @@ byf/
 └── package.json           # Root workspace config
 ```
 
+**Runtime contracts:** library packages under `packages/` are **Bun-only**. The published CLI is a standalone binary for end users.
+
 ---
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
-- Development setup and workflow
+- Development setup (**Bun >= 1.3.14** only — not pnpm/Node as the official path)
 - Commit convention (Conventional Commits)
 - Changeset requirements
 - Pull request guidelines
