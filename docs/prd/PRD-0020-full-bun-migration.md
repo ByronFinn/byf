@@ -295,7 +295,7 @@
 - **Implemented by**: #210（Spike — GO，见 `docs/research/spike-0020-compile-native-smoke.md`）；#211–#218（workspace/脚本/dev/build/test/CI/publish/vis）；#219（compile 管线 + release.yml 过 R15）；#220（CLI npm optionalDep 平台包 + launcher + update 源检测）；#221（engines Bun-only + SEA/pnpm 清理 + flake experimental）；#222（README/getting-started/CONTRIBUTING/releasing minor+BREAKING changeset + 重装引导）
 - **Debugged by**:
 - **Arch reviewed by**:
-- **Reviewed by**:
+- **Reviewed by**: 集成评审 2026-07-09（Test / Code / Impact 三视角）— Request Changes 后已补：`publish-manifest` rewrite 单测、standalone 检测单测、SEA→compile rollback 文档、移除孤立 `tsdown` devDep、ADR 0028 preload/snapshot 已知限制说明（见 `fdeafec`）
 - **New terms**: 开发工具链契约、库运行时契约、CLI 分发契约、bun compile 路径、发布协议改写
 - **New decisions**: ADR 0028；详见 PRD Decision 节
 - **Parent Issue**: #209
