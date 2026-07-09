@@ -1,15 +1,14 @@
 #!/usr/bin/env bun
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 /**
- * Official native binary path: `bun build --compile` (PRD-0020 / #219).
+ * Official native binary path: `bun build --compile` (PRD-0020 / #219–#221).
  *
- * Replaces Node SEA as the release path for MVP platforms:
+ * Release path for MVP platforms:
  *   - darwin-arm64
  *   - linux-x64
  *
- * SEA scripts under scripts/native/ remain for local verification until #221
- * deletes them. Output layout matches dist-native/ so package.mjs / smoke.mjs
- * stay shared.
+ * Output layout under dist-native/; package.mjs / smoke.mjs / sign / verify
+ * under scripts/native/ are shared helpers (not a Node SEA pipeline).
  *
  * Clipboard N-API: Bun only embeds `.node` when the path is statically
  * `require()`d. We generate a thin entry that requires the target platform
@@ -213,7 +212,7 @@ function buildDefines({ version, target }) {
     __BYF_CODE_CHANNEL__: JSON.stringify(process.env.BYF_CODE_CHANNEL ?? ''),
     __BYF_CODE_COMMIT__: JSON.stringify(process.env.BYF_CODE_COMMIT ?? ''),
     __BYF_CODE_BUILD_TARGET__: JSON.stringify(target),
-    // Marks native distribution binary (SEA used the same define).
+    // Marks native distribution binary for runtime native-module paths.
     __BYF_CODE_NATIVE_BUNDLE__: 'true',
   };
 }

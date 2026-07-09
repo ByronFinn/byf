@@ -10,7 +10,7 @@ import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 /**
  * True when running as a packaged native binary.
  * Primary: Bun `bun build --compile` (Bun.main under `/$bunfs/`).
- * Legacy: Node SEA (`node:sea`.isSea) until #221 removes SEA.
+ * Also recognizes legacy Node SEA binaries if `node:sea` reports isSea().
  */
 export function detectNativeInstall(): boolean {
   return isNativePackagedBinary();

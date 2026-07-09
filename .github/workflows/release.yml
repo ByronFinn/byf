@@ -1,9 +1,8 @@
 name: Release
 
 # Binary release for @byfriends/cli tags.
-# Official path: bun build --compile (PRD-0020 #219). MVP matrix only:
-# darwin-arm64 + linux-x64. SEA scripts remain in-tree until #221 but are not
-# invoked here.
+# Official path: bun build --compile (PRD-0020 #219–#221). MVP matrix only:
+# darwin-arm64 + linux-x64.
 
 on:
   push:

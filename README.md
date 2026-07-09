@@ -120,7 +120,7 @@ command = "./scripts/audit.sh"
 
 ## 🏗️ Project Structure
 
-BYF is a [pnpm monorepo](https://pnpm.io/workspaces):
+BYF is a [Bun](https://bun.com) monorepo (workspaces in root `package.json`):
 
 ```
 byf/

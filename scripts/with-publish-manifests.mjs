@@ -6,12 +6,11 @@
  *   - Bun's built-in `bun pm pack` / `bun publish` rewrite is the primary path
  *     for stripping `workspace:` / `catalog:`.
  *   - `@changesets/cli` does not invoke Bun; it only runs `pnpm publish` or
- *     `npm publish`. The residual root `packageManager: pnpm@…` currently
- *     steers changesets to pnpm (which also rewrites). That residual is
- *     removed by the PRD-0020 breaking minor (#221 / #222).
+ *     `npm publish`. Root `packageManager` no longer pins pnpm (#221), so
+ *     changesets falls through to `npm publish` (no protocol/publishConfig rewrite).
  *   - Independently, Bun 1.3.x does not expand `publishConfig.exports` (etc.)
- *     into the packed manifest — pnpm does. Without an explicit overlay,
- *     library packages would publish dev-time `.ts` exports.
+ *     into the packed manifest. Without an explicit overlay, library packages
+ *     would publish dev-time `.ts` exports.
  *
  * This wrapper is the explicit gap-fill: rewrite protocols + expand
  * publishConfig on every publishable package, run the given command

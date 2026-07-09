@@ -111,8 +111,8 @@ function sanitizeSegment(value: string): string {
 }
 
 /**
- * Node SEA asset source (legacy until #221).
- * Bun `bun build --compile` embeds N-API modules directly — no SEA asset tree.
+ * Optional Node SEA asset source for legacy binaries only.
+ * Official Bun `bun build --compile` embeds N-API modules directly — no SEA asset tree.
  */
 export function getSeaAssetSource(): NativeAssetSource | null {
   const sea = loadSeaModule();

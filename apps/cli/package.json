@@ -44,10 +44,7 @@
     "build": "bun scripts/build.mjs",
     "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
     "smoke": "node scripts/smoke.mjs",
-    "build:native:js": "node scripts/native/01-bundle.mjs",
     "build:native:compile": "bun scripts/compile/build.mjs --profile=local",
-    "build:native:sea": "node scripts/native/build.mjs --profile=local",
-    "build:native:sea:release": "node scripts/native/build.mjs --profile=release",
     "build:native:release": "bun scripts/compile/build.mjs --profile=release",
     "package:native": "node scripts/native/package.mjs",
     "package:npm-platforms": "bun scripts/npm/package-platforms.mjs",
@@ -83,10 +80,9 @@
     "@byfriends/sdk": "workspace:^",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
-    "postject": "1.0.0-alpha.6",
     "yazl": "^3.3.1"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "bun": ">=1.3.14"
   }
 }

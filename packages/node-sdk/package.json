@@ -66,5 +66,8 @@
     "@byfriends/kosong": "workspace:^",
     "@byfriends/oauth": "workspace:^",
     "@types/yazl": "^2.4.6"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
   }
 }

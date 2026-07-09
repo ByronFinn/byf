@@ -91,16 +91,16 @@
 
 - [ ] 干净环境安装 **Bun >=1.3.14**（无 pnpm 作为主路径）可完成：install → typecheck → lint → test → build →（本地）compile smoke。
 - [ ] 库包 `build` 使用 `bun build`（或文档化的 bun build 编排），**不**再以 tsdown 为官方库构建入口；types 与 publint/attw 通过。
-- [ ] 锁文件与 workspace 以 Bun 为源；`pnpm-lock.yaml` / pnpm-only 配置已删除或有 deadline 的过渡说明且最终删除。
-- [ ] CI 不再以 `pnpm/action-setup` + Node 为发布/测试主路径。
+- [x] 锁文件与 workspace 以 Bun 为源；`pnpm-lock.yaml` / pnpm-only 配置已删除或有 deadline 的过渡说明且最终删除。（#221：删除 `pnpm-lock.yaml` / `pnpm-workspace.yaml` / 根 `packageManager` pnpm）
+- [x] CI 不再以 `pnpm/action-setup` + Node 为发布/测试主路径。（#216）
 - [x] Makefile / `AGENTS.md` / `CONTRIBUTING` / `docs/agents/releasing.md` 与 Bun 路径一致。（#217）
 - [x] 发布预检通过：rewrite 后 pack 的 manifest **无** `workspace:`/`catalog:`；changeset + Bun 发布路径有自动化与文档；过渡 pnpm job 若存在则有 deadline 注释。（#217）
-- [x] GitHub Release 二进制由 compile 管线产出；平台 smoke（至少 `--version` + 关键 native 路径）通过；签名策略有文档。（#219；SEA 脚本保留至 #221，但已非官方 release 路径）
-- [ ] Node SEA 相关脚本与 devDependency（如 `postject`）从主路径移除；无文档仍指向 SEA 作为唯一官方二进制方式。（脚本删除 / postject 清理 → #221；#219 已将官方路径切到 compile）
-- [ ] 运行时差异导致的测试失败有清单与关闭条件，门禁最终全绿。
-- [ ] 库包 manifest / 文档不再将 Node 标为支持的运行时；`engines`（或等价）指向 Bun。
+- [x] GitHub Release 二进制由 compile 管线产出；平台 smoke（至少 `--version` + 关键 native 路径）通过；签名策略有文档。（#219；#221 删除 SEA 脚本）
+- [x] Node SEA 相关脚本与 devDependency（如 `postject`）从主路径移除；无文档仍指向 SEA 作为唯一官方二进制方式。（#221）
+- [x] 运行时差异导致的测试失败有清单与关闭条件，门禁最终全绿。（#215：process-isolated runner + preload）
+- [x] 库包 manifest / 文档不再将 Node 标为支持的运行时；`engines`（或等价）指向 Bun。（#221：`engines.bun >=1.3.14`；移除 `engines.node`）
 - [x] GitHub Release **与** `npm i -g @byfriends/cli`（optionalDependencies 解析到当前平台二进制）均可在**未预装 Bun/Node** 的环境跑通。（#220：主包 launcher + 平台 optionalDep；GitHub Release 见 #219。干净机完整 e2e 依赖发版后 registry；单元测试覆盖 launcher / 源检测）
-- [ ] 测试仅通过 `bun test` 门禁；仓库无 Vitest 作为默认 `test` 脚本。
+- [x] 测试仅通过 `bun test` 门禁；仓库无 Vitest 作为默认 `test` 脚本。（#215）
 - [x] 分平台 CLI 二进制包与主包版本对齐；错误平台/缺失 optionalDep 时有可理解错误信息。（#220）
 - [x] 存在可重复的 compile TUI 最小 smoke；该门禁失败时 CI/发布不得宣称「已用 compile 取代 SEA」。（#219：`test:native:smoke` + release.yml smoke 步）
 
@@ -289,9 +289,9 @@
   - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214) — Done
   - #219 — [PRD-0020] compile 管线 v1 + release.yml — MVP 两平台过 R15 门禁 (HITL, blocked by #210 #214 #216) — Done
   - #220 — [PRD-0020] CLI npm optionalDep 平台包 — 干净机 npm i -g 可跑 (AFK, blocked by #219) — Done
-  - #221 — [PRD-0020] engines Bun-only + 删除 SEA/pnpm 钉死 + flake experimental (AFK, blocked by #219 #220)
+  - #221 — [PRD-0020] engines Bun-only + 删除 SEA/pnpm 钉死 + flake experimental (AFK, blocked by #219 #220) — Done
   - #222 — [PRD-0020] 文档与 minor 发版收口 — breaking 说明 + 重装引导 (AFK, blocked by #220 #221)
-- **Implemented by**: #210（Spike — GO，见 `docs/research/spike-0020-compile-native-smoke.md`）；#219（compile 管线 + release.yml 过 R15）；#220（CLI npm optionalDep 平台包 + launcher + update 源检测）
+- **Implemented by**: #210（Spike — GO，见 `docs/research/spike-0020-compile-native-smoke.md`）；#219（compile 管线 + release.yml 过 R15）；#220（CLI npm optionalDep 平台包 + launcher + update 源检测）；#221（engines Bun-only + 删 SEA/pnpm 钉死 + flake experimental）
 - **Debugged by**:
 - **Arch reviewed by**:
 - **Reviewed by**:
@@ -314,7 +314,7 @@
 | #218  | Done | #213, #214       |
 | #219  | Done | #210, #214, #216 |
 | #220  | Done | #219             |
-| #221  | AFK  | #219, #220       |
+| #221  | Done | #219, #220       |
 | #222  | AFK  | #220, #221       |
 
 ## Domain Terms
