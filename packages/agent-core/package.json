@@ -69,8 +69,8 @@
     "build": "tsdown && node scripts/rewrite-dts-subpaths.mjs",
     "test": "vitest run",
     "test:baseline": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "typecheck": "tsc --build",
+    "clean": "rm -rf dist && rm -rf dist-types"
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",

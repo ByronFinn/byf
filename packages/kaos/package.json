@@ -49,7 +49,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "typecheck": "tsc --build",
+    "clean": "rm -rf dist && rm -rf dist-types"
   }
 }

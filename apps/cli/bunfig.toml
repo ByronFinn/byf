@@ -1,0 +1,7 @@
+# Bun configuration for @byfriends/cli dev/test runs.
+# Bun reads bunfig.toml only from the exact cwd (no parent lookup), so the
+# raw-text loader for .md/.yaml prompt files imported via agent-core must be
+# declared here. See ../../bunfig.toml for the monorepo-wide rationale.
+[loader]
+".md" = "text"
+".yaml" = "text"

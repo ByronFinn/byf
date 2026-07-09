@@ -6,3 +6,12 @@
 # isolated layout: each package sees only its declared dependencies, which
 # prevents phantom deps. Workspace packages resolve to their source.
 linker = "isolated"
+
+[loader]
+# Import .md / .yaml as raw-string modules (default export = file text).
+# Replaces the Node ESM load hook in build/register-raw-text-loader.mjs
+# (used by the former tsx dev entry). Source code imports prompt/profile
+# files and parses them itself, so they must arrive as strings, not as
+# Bun's built-in parsed YAML object.
+".md" = "text"
+".yaml" = "text"

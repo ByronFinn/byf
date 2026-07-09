@@ -11,3 +11,4 @@ coverage/
 .conductor
 .byf-stash-dir
 superpowers/
+dist-types/

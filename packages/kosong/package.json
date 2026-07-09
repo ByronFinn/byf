@@ -73,8 +73,8 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "typecheck": "tsc --build",
+    "clean": "rm -rf dist && rm -rf dist-types"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
