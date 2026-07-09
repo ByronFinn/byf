@@ -183,6 +183,8 @@ jobs:
               fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
             " "$src/package.json" "$VERSION"
             echo "Publishing @byfriends/cli-${target}@${VERSION} from $src"
-            npm publish "$src" --access public
+            # Require a ./ prefix so npm treats the argument as a local path
+            # (bare "npm-platforms/..." is misparsed as a git/github specifier).
+            npm publish "./$src" --access public
           done
         shell: bash
