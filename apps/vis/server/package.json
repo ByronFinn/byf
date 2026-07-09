@@ -31,8 +31,9 @@
   },
   "exports": {
     ".": {
-      "types": "./src/server.ts",
-      "default": "./src/server.ts"
+      "types": "./dist/server.d.mts",
+      "default": "./src/server.ts",
+      "bun": "./src/server.ts"
     },
     "./package.json": "./package.json"
   },

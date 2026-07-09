@@ -57,12 +57,12 @@ export async function readAgentWire(path: string): Promise<WireReadResult> {
       warnings.push(`line ${lineNo}: invalid JSON (${(error as Error).message})`);
       continue;
     }
-    if (!isObject(parsed) || typeof parsed.type !== 'string') {
+    if (!isObject(parsed) || typeof parsed['type'] !== 'string') {
       warnings.push(`line ${lineNo}: missing 'type' field`);
       continue;
     }
     if (metadata === null) {
-      if (parsed.type !== 'metadata') {
+      if (parsed['type'] !== 'metadata') {
         throw new Error(`Wire file missing metadata header at line ${lineNo}`);
       }
       const pv = parsed['protocol_version'];

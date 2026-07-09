@@ -11,6 +11,7 @@
       "#/*": ["./src/*"]
     }
   },
-  "include": ["src", "test", "scripts", "../../packages/agent-core/src/prompt-modules.d.ts"],
+  "include": ["src", "scripts", "../../packages/agent-core/src/prompt-modules.d.ts"],
+  "exclude": ["src/**/*.test.ts"],
   "references": [{ "path": "../../packages/node-sdk" }]
 }

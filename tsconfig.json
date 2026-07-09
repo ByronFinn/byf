@@ -21,23 +21,21 @@
     "noEmit": true,
     "skipLibCheck": true,
 
-    "types": ["node"]
+    "types": ["node", "bun"]
   },
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/src/**/*.tsx",
-    "packages/*/test/**/*.ts",
-    "packages/*/test/**/*.tsx",
     "apps/*/src/**/*.ts",
-    "apps/*/src/**/*.tsx",
-    "apps/*/test/**/*.ts",
-    "apps/*/test/**/*.tsx"
+    "apps/*/src/**/*.tsx"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "coverage",
-    "packages/kosong/test/type-safety-negative.ts",
+    "src/**/*.test.ts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
     "**/*.disabled/**",
     "**/*.disabled"
   ]

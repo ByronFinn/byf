@@ -60,7 +60,8 @@ export async function startVisServer(
     fetch: app.fetch,
   });
 
-  const actualPort = server.port;
+  // Bun.serve().port is typed optional; after a successful bind it is always set.
+  const actualPort = server.port ?? port;
   return {
     host,
     port: actualPort,

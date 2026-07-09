@@ -191,7 +191,7 @@ export async function detectInstallSource(
     detectNative: deps.detectNative ?? detectNativeInstall,
     getExecPath: deps.getExecPath ?? (() => process.execPath),
     getInstallLayoutEnv:
-      deps.getInstallLayoutEnv ?? (() => process.env.BYF_INSTALL_LAYOUT ?? undefined),
+      deps.getInstallLayoutEnv ?? (() => process.env['BYF_INSTALL_LAYOUT'] ?? undefined),
     platform,
   };
 

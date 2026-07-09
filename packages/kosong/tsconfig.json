@@ -8,6 +8,6 @@
     "lib": ["ESNext", "DOM"],
     "paths": { "#/*": ["./src/*"] }
   },
-  "include": ["src", "test"],
-  "exclude": ["test/type-safety-negative.ts"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

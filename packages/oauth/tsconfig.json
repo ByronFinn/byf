@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["src", "test", "examples"],
+  "include": ["src", "examples"],
+  "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
     "paths": {

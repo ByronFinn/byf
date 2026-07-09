@@ -8,6 +8,7 @@
     "lib": ["ESNext", "DOM"],
     "paths": { "#/*": ["./src/*"] }
   },
-  "include": ["src", "test", "examples", "../agent-core/src/prompt-modules.d.ts"],
+  "include": ["src", "examples", "../agent-core/src/prompt-modules.d.ts"],
+  "exclude": ["src/**/*.test.ts"],
   "references": [{ "path": "../agent-core" }]
 }
