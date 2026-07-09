@@ -280,7 +280,7 @@
 - **Sliced into**:
   - #210 — [PRD-0020] Spike：compile + koffi/clipboard + TUI 最小 smoke — go/no-go 结论 (HITL) — Done
   - #211 — [PRD-0020] Bun workspace 可安装 — catalog / trustedDependencies / bun.lock (AFK) — Done
-  - #212 — [PRD-0020] 根脚本与 docs 并入 workspace — Bun 1.3.14 贡献入口 (AFK, blocked by #211)
+  - #212 — [PRD-0020] 根脚本与 docs 并入 workspace — Bun 1.3.14 贡献入口 (AFK, blocked by #211) — Done
   - #213 — [PRD-0020] 开发态 CLI/vis 用 Bun 运行 — 替换 tsx/node 入口 (AFK, blocked by #211)
   - #214 — [PRD-0020] 库包 bun build + 独立 types — 替换 tsdown 主路径 (AFK, blocked by #211)
   - #215 — [PRD-0020] 测试门禁仅 bun test — 清障至全绿 (AFK, blocked by #211)
