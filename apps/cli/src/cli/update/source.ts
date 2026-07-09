@@ -1,39 +1,19 @@
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
 import { getHostPackageRoot } from '#/cli/version';
+import { isNativePackagedBinary } from '#/native/standalone';
 
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 
-const nodeRequire = createRequire(import.meta.url);
-
-interface NodeSeaModule {
-  isSea(): boolean;
-}
-
-let cachedSea: NodeSeaModule | null | undefined;
-
-function loadSeaModule(): NodeSeaModule | null {
-  if (cachedSea !== undefined) return cachedSea;
-  try {
-    cachedSea = nodeRequire('node:sea') as NodeSeaModule;
-  } catch {
-    cachedSea = null;
-  }
-  return cachedSea;
-}
-
-/** Runtime SEA detection — true when running as a packaged native binary. */
+/**
+ * True when running as a packaged native binary.
+ * Primary: Bun `bun build --compile` (Bun.main under `/$bunfs/`).
+ * Legacy: Node SEA (`node:sea`.isSea) until #221 removes SEA.
+ */
 export function detectNativeInstall(): boolean {
-  const sea = loadSeaModule();
-  if (sea === null) return false;
-  try {
-    return sea.isSea();
-  } catch {
-    return false;
-  }
+  return isNativePackagedBinary();
 }
 
 // Path heuristic markers (compared in lowercase; both forward and backward slashes accepted).

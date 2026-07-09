@@ -11,6 +11,7 @@
 import { createRequire } from 'node:module';
 
 import { loadNativePackage } from '#/native/native-require';
+import { isBunStandaloneExecutable } from '#/native/standalone';
 
 declare const __BYF_CODE_NATIVE_BUNDLE__: boolean | undefined;
 
@@ -35,12 +36,16 @@ const hasDisplay =
 const clipboard: ClipboardModule | null = (() => {
   if (process.env['TERMUX_VERSION'] !== undefined || !hasDisplay) return null;
   try {
+    // SEA: extract embedded assets via native-assets tree.
     const bundledClipboard = loadNativePackage<ClipboardModule>('@mariozechner/clipboard');
     if (bundledClipboard !== null) return bundledClipboard;
   } catch {
     return null;
   }
-  if (isNativeBundle) return null;
+  // SEA native bundle without an embedded package: fail closed (no host
+  // node_modules). Bun compile embeds N-API `.node` into the binary and the
+  // compile entry sets NAPI_RS_NATIVE_LIBRARY_PATH — allow direct require.
+  if (isNativeBundle && !isBunStandaloneExecutable()) return null;
   try {
     return nodeRequire('@mariozechner/clipboard') as ClipboardModule;
   } catch {

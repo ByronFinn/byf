@@ -113,7 +113,7 @@ describe('detectInstallSource', () => {
     ).resolves.toBe('npm-global');
   });
 
-  it('returns native when SEA isSea() is true (highest priority)', async () => {
+  it('returns native when detectNative is true (Bun standalone or SEA; highest priority)', async () => {
     await expect(
       detectInstallSource({
         getPackageRoot: () => '/usr/local/lib/node_modules/@byfriends/cli',

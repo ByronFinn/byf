@@ -119,3 +119,57 @@ bun scripts/with-publish-manifests.mjs changeset publish
 3. **恢复** 工作区里的 `package.json`，使 monorepo 协议声明不被持久改写。
 
 **绝对不要**用裸 `npm publish` 替代上述命令。单包紧急排查可用 `bun pm pack` 验 manifest，真正上传仍应走 `with-publish-manifests` 或 CI。
+
+## 原生二进制（`bun build --compile`）
+
+CLI 的 GitHub Release 资产由 `.github/workflows/release.yml` 产出，**官方路径是 `bun build --compile`**（PRD-0020 / #219），不再以 Node SEA 为唯一或默认分发方式。
+
+### MVP 平台矩阵
+
+| 目标三元组     | Bun `--target`     | CI runner      | `install.sh` |
+| -------------- | ------------------ | -------------- | ------------ |
+| `darwin-arm64` | `bun-darwin-arm64` | `macos-latest` | 支持         |
+| `linux-x64`    | `bun-linux-x64`    | `ubuntu-latest`| 支持         |
+
+其它平台（darwin-x64、linux-arm64、Windows 等）**deferred**，不在 Release 矩阵内；`install.sh` 会明确拒绝并提示。
+
+### 本地 / CI 命令
+
+```sh
+# 在 monorepo 根或 apps/cli：
+BYF_CODE_BUILD_TARGET=darwin-arm64 bun run --filter @byfriends/cli build:native:release
+BYF_CODE_BUILD_TARGET=darwin-arm64 bun run --filter @byfriends/cli test:native:smoke
+BYF_CODE_BUILD_TARGET=darwin-arm64 bun run --filter @byfriends/cli package:native
+```
+
+产物布局见 `apps/cli/scripts/compile/README.md`：
+
+- `apps/cli/dist-native/bin/<target>/byf`
+- `apps/cli/dist-native/artifacts/byf-<target>.zip` + `.sha256`
+
+TUI 最小 smoke（R15 门禁，与 spike-0020 一致）：
+
+```sh
+test -x <byf-binary>
+<byf-binary> --version
+<byf-binary> --help
+<byf-binary> export --help
+BYF_CODE_NATIVE_ASSET_SMOKE=1 <byf-binary> --version
+# 期望: Native asset smoke passed: <target>
+```
+
+### 签名策略（codesign / notarize）
+
+| 场景 | 行为 |
+| ---- | ---- |
+| **本地 / CI 默认** | macOS 上 `codesign --sign -` **ad-hoc 签名**；写入 `byf.sha256`；`codesign -dv` 自检。不跑 Gatekeeper `spctl`。 |
+| **Developer ID（可选）** | 设置 `APPLE_SIGNING_IDENTITY`（及可选 `APPLE_KEYCHAIN_PATH`）。脚本复用 `apps/cli/scripts/native/04-sign.mjs`：`--options runtime` + `entitlements.plist` + `--timestamp`。 |
+| **公证 notarize** | **尚未接入 compile CI**。若需要分发「未隔离 / 无右键打开」体验，应在后续 workflow 中对 **compile 产物** 跑 `notarytool` + `stapler`，再以 `spctl -a -t install` 作为发布门禁（`05-verify.mjs` 的 `requireGatekeeper`）。ad-hoc 二进制无法通过 Gatekeeper 在线检查，这是预期。 |
+| **linux-x64** | 无 codesign；仅产物 sha256（可执行文件 + zip）。 |
+
+SEA 管线（`build:native:sea` / `build:native:sea:release`）仍保留在仓库内供对照，**release.yml 不再调用**；删除见 #221。
+
+### 与 npm 的关系
+
+- GitHub Release：`install.sh` + 平台 zip（本路径）。
+- `npm i -g @byfriends/cli`：仍可安装 JS 入口；分平台 optionalDependencies 二进制子包见 #220（本 issue 只留 hook，不实现完整 optionalDep 包）。

@@ -110,6 +110,10 @@ function sanitizeSegment(value: string): string {
   return sanitized.length > 0 ? sanitized : 'unknown';
 }
 
+/**
+ * Node SEA asset source (legacy until #221).
+ * Bun `bun build --compile` embeds N-API modules directly — no SEA asset tree.
+ */
 export function getSeaAssetSource(): NativeAssetSource | null {
   const sea = loadSeaModule();
   if (sea === null || !sea.isSea()) return null;
@@ -118,6 +122,8 @@ export function getSeaAssetSource(): NativeAssetSource | null {
     getRawAsset: (assetKey) => sea.getRawAsset(assetKey),
   };
 }
+
+export { isBunStandaloneExecutable, isNativePackagedBinary } from './standalone';
 
 export function getEmbeddedNativeAssetManifest(
   source = getSeaAssetSource(),
@@ -347,8 +353,10 @@ export function cleanupStaleNativeCache(options: CleanupOptions): CleanupResult 
 }
 
 /**
- * Convenience: discover currentRoot from embedded manifest + run cleanup.
- * Safe to call without args from main.ts startup. Returns null if not in SEA mode.
+ * Convenience: discover currentRoot from embedded SEA manifest + run cleanup.
+ * Safe to call without args from main.ts startup.
+ * Returns null when not in SEA mode (including Bun compile standalone, which
+ * does not materialize an extract-on-disk native asset cache).
  */
 export function cleanupStaleNativeCacheForCurrent(
   options: NativeAssetOptions = {},

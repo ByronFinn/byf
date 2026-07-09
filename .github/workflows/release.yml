@@ -1,9 +1,9 @@
 name: Release
 
 # Binary release for @byfriends/cli tags.
-# Install + package builds use Bun (PRD-0020 #216). Native SEA steps still invoke
-# Node SEA scripts (require Node >=24.15.0) until #219 replaces them with
-# `bun build --compile` and #221 deletes SEA. Do not expand SEA here.
+# Official path: bun build --compile (PRD-0020 #219). MVP matrix only:
+# darwin-arm64 + linux-x64. SEA scripts remain in-tree until #221 but are not
+# invoked here.
 
 on:
   push:
@@ -40,13 +40,6 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      # Transitional: SEA pipeline (`apps/cli/scripts/native/*`) requires Node
-      # >=24.15.0 for --experimental-sea-config / postject. Deadline: #219
-      # (compile pipeline) then #221 (delete SEA). Remove setup-node once SEA is gone.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.15.0'
-
       - run: bun install --frozen-lockfile
 
       - name: Build packages
@@ -55,11 +48,16 @@ jobs:
       - name: Build vis (web → server)
         run: bun run build:vis
 
-      - name: Build native binary
+      - name: Build native binary (bun compile)
         env:
           BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
-        # Still SEA (node scripts); #219 will switch to bun compile.
         run: bun run --filter @byfriends/cli build:native:release
+        shell: bash
+
+      - name: Smoke native binary
+        env:
+          BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
+        run: bun run --filter @byfriends/cli test:native:smoke
         shell: bash
 
       - name: Package native artifact
@@ -113,12 +111,15 @@ jobs:
             ### Installation
 
             ```bash
-            # macOS / Linux (quick install)
+            # macOS Apple Silicon / Linux x64 (MVP platforms)
             curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash
 
             # Or install via npm
             npm install -g @byfriends/cli
             ```
+
+            Official binaries are produced with `bun build --compile` (darwin-arm64, linux-x64).
+            Other platforms are deferred.
           files: |
             install.sh
             artifacts/byf-darwin-arm64/*
