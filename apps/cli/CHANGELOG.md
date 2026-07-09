@@ -1,5 +1,42 @@
 # @byfriends/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 04be685: Edit/Write 现在要求先 Read 同一文件：未读直接编辑或覆盖已存在文件会被拒绝，避免基于过期内容产生错误的 old_string。old_string 匹配失败时返回文件真实内容片段，便于直接修正。
+- 50de09b: 新增 /goal 斜杠命令进入自主目标模式，包含状态查看、暂停、恢复、取消和创建带预算的目标。运行 /goal status 查看当前目标快照。目标推进时 footer 显示状态徽标与用量，完成时在 transcript 出现完成卡片。
+- 034150a: **BREAKING:** 全量切换至 Bun 工具链（0.x minor，非 1.0 major）。
+
+  - 库包仅支持在 Bun 中 import/运行，不再支持 Node 解释执行。
+  - CLI 改为 compile 原生二进制分发（GitHub Release + npm 分平台 optionalDependencies）；Node SEA 与旧 npm-global JS（`dist/main.mjs`）路径废弃。
+  - 贡献与 CI 仅支持 Bun >=1.3.14；pnpm 不再是官方开发工具链。
+
+  旧 CLI 全局 JS 安装请重装：`npm uninstall -g @byfriends/cli && npm install -g @byfriends/cli`，或 `curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash`。
+
+- 32ff0f9: `npm i -g @byfriends/cli` 现通过分平台 optionalDependencies 安装原生二进制（darwin-arm64 / linux-x64）；旧 JS 全局安装需重装。运行 `npm install -g @byfriends/cli` 安装。
+- 6a0366d: 官方原生二进制改为 `bun build --compile` 分发（darwin-arm64 / linux-x64）。可用 `curl -fsSL …/install.sh | bash` 从 GitHub Release 安装。
+- 451cd50: 发布包 `engines` 仅声明 Bun（`>=1.3.14`），不再声明 Node 支持。请使用 Bun 1.3.14+ 安装与运行库包。
+- 27a9eec: `/usage` 面板新增 Context breakdown 分项，按六个互斥类别（MCP tools / System tools / Messages / Meta context / Skills / System prompt）展示输入 token 的估算占比与绝对值，并显示会话累计的缓存命中率。运行 `/usage` 查看。
+
+### Patch Changes
+
+- dcea956: 收窄通配符 glob 被拒绝时回显的目录列表为单层，避免在大仓根目录上 dump 出几十行子目录树。
+- 785fe8d: 修复 /goal cancel 只清除目标状态、未中断当前进行中的回合的问题。现在执行 cancel 会立即中止当前回合（与按 Esc 一致），不再让目标持续跑到自然结束。
+- 7352e83: 修复自动目标完成后完成卡片与 /goal status 显示 turns=0 tokens=0 的问题，覆盖两条路径：(1) goal 在续跑中被标记完成时，完成快照在记账本轮 token 之前就已发出，导致卡片读到的用量恒为 0；(2) 模型在首个 user turn 内就调 UpdateGoal(complete) 时，goal 续跑驱动从未接管（接管条件 status==='active' 不满足），首个 turn 不计入预算、complete 瞬态无人清空，completion 卡片与 /goal status 均显示 turns=0/tokens=0。
+- 367ecc9: 修复 goal 进行中 `/goal status` 的耗时恒显示 0s——按需读取的快照现在覆盖实时墙钟，与 footer 外推口径一致。
+- dcea956: 修复自动目标模式下无法结束目标的问题：目标生命周期工具此前未对主代理启用，导致模型无法将目标标记为完成、驱动循环一直空转到被中断。
+- 8c54d30: goal 推进中 footer 的耗时现在每秒实时跳动（此前只在每轮边界刷新，单轮内部静止）。首轮结束 driver 接管即显示 turns=1（此前会跳过 1 直接到 2）。
+- 81b29d1: 新增 goal 状态机内核（agent-core）：持久化的 active/paused/blocked 状态、complete 瞬态、goal.create/update/clear records、goal.updated 事件，以及 fork 清空与重启降级。本切片为后续 slash 命令与 SDK 入口奠基，暂无用户可见入口。
+- e06dbec: Migrate published package builds from tsdown to `bun build` with a separate declaration pipeline (`tsc` / api-extractor), matching ADR 0028.
+- 9235563: 测试门禁切换为 `bun test`；CLI 入口仅在作为进程主模块时自动启动，避免测试导入时拉起 TUI。
+- Updated dependencies [e06dbec]
+- Updated dependencies [034150a]
+- Updated dependencies [9235563]
+- Updated dependencies [451cd50]
+- Updated dependencies [cf167c1]
+  - @byfriends/vis-server@0.4.0
+
 ## 0.3.6
 
 ### Patch Changes
@@ -175,6 +212,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -476,6 +514,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -486,6 +525,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -494,6 +534,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -506,6 +547,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -528,6 +570,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -540,6 +583,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

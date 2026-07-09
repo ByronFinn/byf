@@ -112,3 +112,13 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUSKY: '0' # skip git hooks in CI
+
+      # changesets creates package tags during publish but does not always push
+      # them (and `@byfriends/cli@*` is the trigger for release.yml binaries).
+      # Explicit push keeps registry tags and the binary release path in sync.
+      - name: Push package tags
+        run: |
+          set -euo pipefail
+          git push --tags
+        env:
+          HUSKY: '0'
