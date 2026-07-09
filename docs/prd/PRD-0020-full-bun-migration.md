@@ -284,7 +284,7 @@
   - #213 — [PRD-0020] 开发态 CLI/vis 用 Bun 运行 — 替换 tsx/node 入口 (AFK, blocked by #211) — Done
   - #214 — [PRD-0020] 库包 bun build + 独立 types — 替换 tsdown 主路径 (AFK, blocked by #211) — Done
   - #215 — [PRD-0020] 测试门禁仅 bun test — 清障至全绿 (AFK, blocked by #211) — Done
-  - #216 — [PRD-0020] CI 主路径 Bun — install/test/lint/typecheck/build (AFK, blocked by #212 #214 #215)
+  - #216 — [PRD-0020] CI 主路径 Bun — install/test/lint/typecheck/build (AFK, blocked by #212 #214 #215) — Done
   - #217 — [PRD-0020] 发布安全网 — bun pack/publish + pubcheck + releasing 文档 (AFK, blocked by #214 #216)
   - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214)
   - #219 — [PRD-0020] compile 管线 v1 + release.yml — MVP 两平台过 R15 门禁 (HITL, blocked by #210 #214 #216)
@@ -309,7 +309,7 @@
 | #213  | AFK  | #211             |
 | #214  | AFK  | #211             |
 | #215  | Done | #211             |
-| #216  | AFK  | #212, #214, #215 |
+| #216  | Done | #212, #214, #215 |
 | #217  | AFK  | #214, #216       |
 | #218  | AFK  | #213, #214       |
 | #219  | HITL | #210, #214, #216 |
