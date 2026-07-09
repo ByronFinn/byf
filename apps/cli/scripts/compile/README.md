@@ -44,7 +44,7 @@ Env:
 ```
 apps/cli/dist-native/
   bin/<target>/byf          # compiled executable (+ byf.sha256 after sign)
-  intermediates/            # catalog JSON, legacy SEA intermediates if any
+  intermediates/            # catalog JSON and compile entry intermediates
   artifacts/
     byf-<target>.zip
     byf-<target>.zip.sha256
@@ -59,17 +59,11 @@ GitHub Release assets (flat names):
 
 ## Native modules (MVP)
 
-- **`@mariozechner/clipboard`**: the compile entry statically `require()`s the platform `.node` so Bun embeds it, then sets `NAPI_RS_NATIVE_LIBRARY_PATH` so the napi-rs host package loads that embedded binding. No SEA asset tree required.
+- **`@mariozechner/clipboard`**: the compile entry statically `require()`s the platform `.node` so Bun embeds it, then sets `NAPI_RS_NATIVE_LIBRARY_PATH` so the napi-rs host package loads that embedded binding.
 - **`koffi`**: Windows-only path inside `pi-tui`; never invoked on MVP platforms (spike #210 GO).
 - **Standalone detection (Bun 1.3.14)**: `Bun.isStandaloneExecutable` is not present; runtime uses `Bun.main` under `/$bunfs/` (see `src/native/standalone.ts`).
 
-## SEA (legacy, temporary)
-
-`scripts/native/*` SEA steps remain until #221. They are **not** used by `release.yml`.
-
-```sh
-bun run build:native:sea   # local SEA only; requires Node >=24.15.0
-```
+Shared packaging helpers (sign / verify / zip / smoke) live under `scripts/native/` and are used by this compile pipeline. The former Node SEA steps (`postject`, `build:native:sea`, `tsdown.native.config.ts`) were removed in #221.
 
 ## Codesign / notarize strategy
 

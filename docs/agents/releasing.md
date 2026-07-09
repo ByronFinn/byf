@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | **`bun pm pack` / `bun publish`** | 内置改写为具体 semver | Bun 1.3.x **不**合并 overlay 字段 |
 | **`scripts/with-publish-manifests.mjs` + `changeset publish`** | 脚本显式改写（补洞） | 脚本显式展开 overlay（补洞） |
-| 过渡期 residual `pnpm publish`（changesets 在检测到 pnpm 时） | pnpm 改写 | pnpm 展开 |
+| （已删除）历史 residual `pnpm publish` | — | — |
 | **裸 `npm publish` / `npm pack`** | **不改写** | **不展开** `exports` 等 |
 
 - 裸 `npm publish` 会把 `workspace:^` 原样打进 registry。用户 `npm install` 时看到不认识的协议，立即报 `EUNSUPPORTEDPROTOCOL`，安装失败。
@@ -23,15 +23,11 @@
 
 因此本仓库 **禁止用裸 `npm publish` 发包**。主路径以 **Bun 的 pack 改写 + pubcheck 硬门禁** 为准；changesets 不调用 Bun，故用 `with-publish-manifests` 做显式补洞（见 `docs/research/bun-publish-workspace-protocol-rewrite-1.md`）。
 
-### 过渡 pnpm 残留（有 deadline）
+### 发布客户端与 `with-publish-manifests`
 
-根 `package.json` 仍可能带有 residual `packageManager: pnpm@…`，工作区里也可能仍有 `pnpm-lock.yaml` / `pnpm-workspace.yaml`（仅过渡）。这会使 `@changesets/cli` 在 publish 时优先调用 `pnpm publish`（pnpm 也会改写协议并展开 `publishConfig`）。
+`#221` 已删除根 `packageManager: pnpm@…`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`。`@changesets/cli` 因此会落到 `npm publish`（不会调用 `bun publish`）。
 
-**这些 residual 不是长期真相。** 它们在 PRD-0020 的 **breaking minor 发版收口**（#221 / #222）前删除；在此之前：
-
-- 安装与 CI 主路径已是 **Bun**（不要恢复 `pnpm/action-setup` 为安装主路径）。
-- 发布入口仍走 **`with-publish-manifests` + `changeset publish`**，不依赖「必须只能用 pnpm 发布」。
-- 删除 residual 后，changesets 会落到 `npm publish`；此时 **必须** 继续经过 `with-publish-manifests`，否则协议与 `publishConfig` 会泄漏/错误。
+**必须** 继续走 **`with-publish-manifests` + `changeset publish`**：在 publish 前改写 `workspace:` / `catalog:` 并展开 `publishConfig`，结束后恢复工作区 manifest。安装与 CI 主路径仍是 **Bun**；不要恢复 `pnpm/action-setup` 为安装主路径。
 
 ## 标准发布路径（手动触发 CI）
 
@@ -115,14 +111,14 @@ bun scripts/with-publish-manifests.mjs changeset publish
 该包装会：
 
 1. 对每个可发布包：把 `workspace:` / `catalog:` 改写成具体版本，并展开 `publishConfig` 中的 `exports` / `main` / …（保留 `access` / `provenance` 等给 publish 客户端）。
-2. 调用 `changeset publish`（底层可能是 residual pnpm 或 npm）。
+2. 调用 `changeset publish`（底层为 `npm publish`，不再 pin pnpm）。
 3. **恢复** 工作区里的 `package.json`，使 monorepo 协议声明不被持久改写。
 
 **绝对不要**用裸 `npm publish` 替代上述命令。单包紧急排查可用 `bun pm pack` 验 manifest，真正上传仍应走 `with-publish-manifests` 或 CI。
 
 ## 原生二进制（`bun build --compile`）
 
-CLI 的 GitHub Release 资产由 `.github/workflows/release.yml` 产出，**官方路径是 `bun build --compile`**（PRD-0020 / #219），不再以 Node SEA 为唯一或默认分发方式。
+CLI 的 GitHub Release 资产由 `.github/workflows/release.yml` 产出，**官方路径是 `bun build --compile`**（PRD-0020 / #219–#221）。
 
 ### MVP 平台矩阵
 
@@ -167,7 +163,7 @@ BYF_CODE_NATIVE_ASSET_SMOKE=1 <byf-binary> --version
 | **公证 notarize** | **尚未接入 compile CI**。若需要分发「未隔离 / 无右键打开」体验，应在后续 workflow 中对 **compile 产物** 跑 `notarytool` + `stapler`，再以 `spctl -a -t install` 作为发布门禁（`05-verify.mjs` 的 `requireGatekeeper`）。ad-hoc 二进制无法通过 Gatekeeper 在线检查，这是预期。 |
 | **linux-x64** | 无 codesign；仅产物 sha256（可执行文件 + zip）。 |
 
-SEA 管线（`build:native:sea` / `build:native:sea:release`）仍保留在仓库内供对照，**release.yml 不再调用**；删除见 #221。
+Node SEA / `postject` 管线已在 #221 从主路径删除；官方二进制仅 `bun build --compile`。
 
 ### 与 npm 的关系
 

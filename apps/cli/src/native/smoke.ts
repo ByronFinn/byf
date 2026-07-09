@@ -46,7 +46,7 @@ export function runNativeAssetSmokeIfRequested(): boolean {
   if (process.env['BYF_CODE_NATIVE_ASSET_SMOKE'] !== '1') return false;
 
   try {
-    // Prefer Bun compile path (official); fall back to SEA asset tree (legacy).
+    // Official path: Bun compile standalone. Legacy SEA binaries use asset tree.
     if (isBunStandaloneExecutable()) {
       runBunStandaloneNativeSmoke(currentTarget());
       return true;

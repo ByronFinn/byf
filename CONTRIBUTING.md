@@ -70,7 +70,7 @@ All commits and PR titles must follow [Conventional Commits](https://www.convent
 | chore    | Tooling / housekeeping                    | chore: bump dependencies               |
 | refactor | Internal refactor without behavior change | refactor(kosong): extract retry helper |
 | test     | Adding or improving tests                 | test(agent-core): cover skill resolver |
-| ci       | CI / build pipeline changes               | ci: cache pnpm store                   |
+| ci       | CI / build pipeline changes               | ci: cache bun install                  |
 | build    | Build system / artifact changes           | build(native): add win32-arm64 target  |
 | perf     | Performance improvement                   | perf(session): batch event flushes     |
 | style    | Formatting only (no logic)                | style: apply oxlint --fix              |

@@ -9,9 +9,9 @@
  *    packed manifest. Consumers would otherwise resolve to dev-time `.ts`
  *    sources that are not in `files`.
  * 2. `@changesets/cli` only invokes `pnpm publish` or `npm publish` — never
- *    `bun publish`. When the residual root `packageManager: pnpm@…` is gone
- *    (#221), changesets falls through to `npm publish`, which rewrites
- *    neither protocols nor publishConfig.
+ *    `bun publish`. With root `packageManager` no longer pinning pnpm (#221),
+ *    changesets falls through to `npm publish`, which rewrites neither
+ *    protocols nor publishConfig.
  *
  * `preparePublishManifest` closes both gaps so the working-tree manifest
  * matches what a correct pack/publish would ship.

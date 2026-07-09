@@ -15,5 +15,5 @@
     "order": "asc"
   },
   "sortPackageJson": true,
-  "ignorePatterns": ["dist/", "coverage/", "pnpm-lock.yaml", "*.generated.ts"]
+  "ignorePatterns": ["dist/", "coverage/", "bun.lock", "*.generated.ts"]
 }

@@ -10,13 +10,13 @@ It fits scenarios such as:
 - **Understanding a project**: exploring an unfamiliar codebase and answering questions about architecture and implementation
 - **Automating tasks**: batch-processing files, running builds and tests, chaining multiple scripts together
 
-The entire CLI is written in TypeScript, distributed through npm, and runs on Node.js.
+The entire CLI is written in TypeScript. End users typically install a single compile binary (no runtime preinstall). Published libraries declare `engines.bun` only (Bun ≥1.3.14); Node is not an officially supported runtime.
 
 ## Installation
 
 ### Install script (recommended)
 
-The quickest way to install BYF is with the install script; no pre-installed Node.js is required:
+The quickest way to install BYF is with the install script; no pre-installed Bun or Node.js is required:
 
 ```sh
 curl -fsSL https://github.com/ByronFinn/byf/releases/byf/install.sh | bash
@@ -28,25 +28,16 @@ This downloads the latest release, verifies the checksum, and places the `byf` e
 BYF is built and tested primarily on **macOS** and **Linux**. Windows is supported but on a best-effort basis.
 :::
 
-### npm installation
+### Package-manager installation
 
-If you prefer to install via npm, you need Node.js 24.15.0 or later:
-
-```sh
-node --version
-```
-
-The package name is `@byfriends/cli`:
+Global install of `@byfriends/cli` (optional; install script is preferred for MVP platforms):
 
 ```sh
 npm install -g @byfriends/cli
+# or: bun add -g @byfriends/cli
 ```
 
-Or with pnpm:
-
-```sh
-pnpm add -g @byfriends/cli
-```
+Library packages and contribution require **Bun ≥1.3.14** (see `engines.bun`).
 
 ## Upgrade and uninstall
 

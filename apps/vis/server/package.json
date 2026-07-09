@@ -60,5 +60,8 @@
   "devDependencies": {
     "@byfriends/kosong": "workspace:*",
     "@byfriends/vis-web": "workspace:*"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
   }
 }

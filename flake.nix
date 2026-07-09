@@ -1,10 +1,18 @@
+# EXPERIMENTAL / BROKEN (PRD-0020 / ADR 0028 / issue #221)
+#
+# This flake is NOT a release gate and is NOT maintained for the Bun toolchain.
+# It still encodes the retired Node + pnpm + Node SEA native path (pnpm-lock,
+# pnpm-workspace, build:native:sea, postject). Official install/CI/binary
+# production uses Bun only (bun install, bun test, bun build --compile; see
+# .github/workflows/release.yml and apps/cli/scripts/compile/).
+#
+# Expect `nix build` / `nix develop` to fail or produce stale results until a
+# follow-up rewrites this flake for Bun. Do not block releases on Nix.
 {
-  description = "BYF CLI";
+  description = "BYF CLI (experimental Nix packaging — broken until Bun rewrite)";
 
   inputs = {
-    # Pinned to the 25.11 release channel because nixpkgs-unstable currently
-    # ships nodejs_24 = 24.14.1, which trips the >= 24.15.0 floor that the
-    # native SEA build enforces (see apps/cli/scripts/native/build.mjs).
+    # Historical pin for the pre-Bun Node SEA pipeline. Not updated for Bun.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 

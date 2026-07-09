@@ -6,16 +6,12 @@ import {
   nativeIntermediatesDir,
   nativeBinDir,
   nativeBinPath,
-  nativeBlobPath,
-  nativeJsBundlePath,
   nativeManifestKey,
-  nativeSeaConfigPath,
   targetTriple,
   nativeDistRoot,
   nativeManifestDir,
   nativeArtifactsDir,
   nativeSmokeHome,
-  SEA_SENTINEL_FUSE,
 } from '../../../scripts/native/paths.mjs';
 
 describe('targetTriple', () => {
@@ -65,12 +61,6 @@ describe('path helpers', () => {
     );
   });
 
-  it('returns intermediate artifact paths', () => {
-    expect(nativeJsBundlePath()).toBe(`${appRoot}/dist-native/intermediates/main.cjs`);
-    expect(nativeBlobPath()).toBe(`${appRoot}/dist-native/intermediates/byf.blob`);
-    expect(nativeSeaConfigPath()).toBe(`${appRoot}/dist-native/intermediates/sea-config.json`);
-  });
-
   it('returns manifest key for target', () => {
     expect(nativeManifestKey('darwin-arm64')).toBe('native/darwin-arm64/manifest.json');
   });
@@ -91,9 +81,5 @@ describe('path helpers', () => {
 
   it('returns smoke home', () => {
     expect(nativeSmokeHome()).toBe(`${appRoot}/dist-native/smoke-home`);
-  });
-
-  it('has correct SEA sentinel fuse value', () => {
-    expect(SEA_SENTINEL_FUSE).toBe('NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2');
   });
 });

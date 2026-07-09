@@ -30,18 +30,6 @@ export function nativeBinPath(target = targetTriple(), platform = process.platfo
   return resolve(nativeBinDir(target), executableName(platform));
 }
 
-export function nativeJsBundlePath() {
-  return resolve(nativeIntermediatesDir(), 'main.cjs');
-}
-
-export function nativeBlobPath() {
-  return resolve(nativeIntermediatesDir(), 'byf.blob');
-}
-
-export function nativeSeaConfigPath() {
-  return resolve(nativeIntermediatesDir(), 'sea-config.json');
-}
-
 export function nativeManifestDir(target = targetTriple()) {
   return resolve(nativeIntermediatesDir(), 'native-assets', target);
 }
@@ -57,5 +45,3 @@ export function nativeSmokeHome() {
 export function nativeManifestKey(target = targetTriple()) {
   return `native/${target}/manifest.json`;
 }
-
-export const SEA_SENTINEL_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
