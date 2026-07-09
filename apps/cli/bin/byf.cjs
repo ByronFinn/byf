@@ -13,7 +13,7 @@
 const { spawnSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const { createRequire } = require('node:module');
-const { dirname, join } = require('node:path');
+const path = require('node:path');
 
 const RELEASES_INSTALL = 'https://github.com/ByronFinn/byf/releases/latest/download/install.sh';
 
@@ -116,7 +116,7 @@ function resolveNativeBinary(opts = {}) {
     };
   }
 
-  const binPath = join(dirname(packageJsonPath), platformPkg.subpath);
+  const binPath = path.join(path.dirname(packageJsonPath), platformPkg.subpath);
   if (!existsSync(binPath)) {
     return {
       ok: false,
