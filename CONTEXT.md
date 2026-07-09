@@ -10,11 +10,31 @@
 
 ### vis
 
-BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 `pnpm vis`（tsx API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。
+BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 monorepo 的 `vis` 脚本（API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。工具链迁移后开发入口以 Bun 为准（见「开发工具链契约」）。
 
 ### vis-server
 
-承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可通过 `node server/dist/index.mjs` 独立启动（`server.mjs` 是供程序化导入的库入口）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。
+承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可独立启动服务入口（库入口供程序化导入）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。独立启动的解释器与库运行时契约一致（Bun，不再以 Node 为官方路径）。
+
+### 开发工具链契约
+
+贡献 BYF monorepo 与运行官方 CI 时，**仅支持 Bun** 作为包管理与脚本/测试执行入口（不再以 pnpm 或 Node 为官方开发路径）。官方基线为 **Bun 1.3.14**（`engines.bun` ≥1.3.14；CI pin 同版本）；有新稳定版时通过显式 bump 抬升。与「终端用户如何安装 CLI」无关。
+
+### 库运行时契约
+
+发布到 npm 的 `@byfriends/*` **库包**（如 `@byfriends/sdk`、`@byfriends/agent-core` 等）仅支持在 **Bun** 中 import 与运行；不官方支持用 Node 解释执行这些包。
+
+### CLI 分发契约
+
+终端用户使用 **BYF CLI** 时，官方支持路径是 **compile 单二进制**（GitHub Release 与 npm 上「主包 + 分平台 optionalDependencies」同源产物）。用户**无需**预装 Bun 或 Node。这与库运行时契约不同：CLI 装的是可执行文件，不是依赖用户本机 JS 运行时的库。
+
+### bun compile 路径
+
+用 `bun build --compile` 生成嵌入 Bun runtime 的平台可执行文件，用于实现 CLI 分发契约；取代历史上的 Node SEA 单二进制管线。
+
+### 发布协议改写
+
+在 publish 到 npm 之前，将工作区 manifest 中的 `workspace:` / `catalog:` 等协议变为 registry 可识别的具体版本，且不得泄漏未改写协议。在 Bun 工具链下，**优先依赖 `bun pm pack` / `bun publish` 的内置改写**；仓库以 **pubcheck** 做硬门禁；仅对内置未覆盖的变换（如部分 `publishConfig` 展开、与 changesets 的衔接）使用额外脚本。
 
 ## 许可条款
 
