@@ -46,7 +46,7 @@ BYF 提供了一个会话可视化工具（`apps/vis`）用于调试会话和重
 
 - 一次 `npm install -g @byfriends/cli` 就为用户提供了可视化工具——PATH 上无需单独的二进制文件，无需编排脚本。
 - 一个进程，一个端口：比开发模式的双端口设置更简单的心智模型，除了 CLI 进程本身之外无需清理任何东西。
-- Web 资源随服务器包一起提供，因此同一产物在 `node server/dist/server.mjs` 独立模式中和作为 CLI 运行时依赖都能工作。
+- Web 资源随服务器包一起提供，因此同一产物在 `bun server/dist/index.mjs` 独立模式中和作为 CLI 运行时依赖都能工作（库运行时契约为 Bun；见 ADR 0028）。
 - 现有的 `copy-web-dist.mjs` 脚本不加修改地重用。它现在作为 `@byfriends/vis-server` 自身 `build` 的尾部步骤运行（在 `tsdown` 之后），而 `@byfriends/vis-web` 被声明为 vis-server 的构建时工作区依赖。这使 vis-server 成为其 `dist/` 的唯一所有者，并消除了之前 `apps/vis` 构建链同时运行 `copy-web-dist.mjs` 和 vis-server 的 `tsdown clean` 时发生的 `pnpm -r` 构建竞争。
 
 ### 负面

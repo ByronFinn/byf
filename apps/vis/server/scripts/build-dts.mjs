@@ -3,10 +3,9 @@
  * Write public declaration files for @byfriends/vis-server.
  *
  * Full `tsc --emitDeclarationOnly` over the server sources is not viable today:
- * the package pulls in shared types outside `src/`, has a few strictness
- * mismatches with `@hono/node-server`, and previously relied on tsdown's
- * lenient dts bundler. The published export surface is intentionally tiny
- * (`startVisServer` + a handful of helpers) and is mirrored here so
+ * the package pulls in shared types outside `src/` and previously relied on
+ * tsdown's lenient dts bundler. The published export surface is intentionally
+ * tiny (`startVisServer` + a handful of helpers) and is mirrored here so
  * publint/attw keep working after the bun-build migration (PRD-0020 / #214).
  *
  * Keep in sync with the exported names/types in `src/server.ts`.
