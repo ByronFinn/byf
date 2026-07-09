@@ -65,7 +65,7 @@ changeset: ## Add a changeset interactively
 version: ## Apply changesets and bump versions
 	bun run version
 
-publish: ## Verify and publish (typecheck, lint, fmt:check, sherif, test, build, lint:pkg, then changeset publish)
+publish: ## Verify and publish (gates + pubcheck, then with-publish-manifests + changeset publish)
 	bun run publish
 
 release: version publish ## Version then publish

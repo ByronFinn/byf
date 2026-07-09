@@ -88,10 +88,10 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 ### Publishing
 
-Packages are published to npm by the `Release (npm)` workflow, triggered **manually** by a maintainer. Do **not** run `npm publish` or `bun publish` by hand to ship a release:
+Packages are published to npm by the `Release (npm)` workflow, triggered **manually** by a maintainer. Do **not** run bare `npm publish` by hand to ship a release:
 
-- `npm publish` ships the manifest verbatim and leaves workspace-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. Use the release workflow (or `changeset publish` via the Bun install path), which rewrites them.
-- A single manual dispatch of `Release (npm)` runs the quality gates, applies `changeset version`, commits the version bump to `main`, runs `changeset publish`, and tags each package as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
+- Bare `npm publish` ships the manifest verbatim and leaves workspace-only specifiers (`workspace:`, `catalog:`) in place, which breaks installs for npm users with `EUNSUPPORTEDPROTOCOL`. The release workflow (and local `bun run publish`) pack/validate with Bun (`bun pm pack` / `pubcheck:manifest`) and run `changeset publish` under `scripts/with-publish-manifests.mjs` so protocols and `publishConfig` are rewritten.
+- A single manual dispatch of `Release (npm)` runs the quality gates, applies `changeset version`, commits the version bump to `main`, publishes via the wrapper above, and tags each package as `@byfriends/<pkg>@<ver>`. The `@byfriends/cli@*` tag then triggers the binary release workflow.
 
 The standard release path:
 

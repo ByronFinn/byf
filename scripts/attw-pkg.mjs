@@ -29,39 +29,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { listPublishablePackages } from './lib/list-publishable-packages.mjs';
+import { expandPublishConfig } from './lib/publish-manifest.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const attwBin = path.join(rootDir, 'node_modules', '.bin', 'attw');
-
-/** package.json fields `publishConfig` is allowed to override on publish. */
-const PUBLISH_CONFIG_OVERLAY_KEYS = [
-  'exports',
-  'main',
-  'module',
-  'types',
-  'typings',
-  'browser',
-  'bin',
-  'imports',
-  'type',
-  'unpkg',
-  'jsdelivr',
-];
-
-function expandPublishConfig(manifest) {
-  const pc = manifest.publishConfig;
-  if (pc == null || typeof pc !== 'object' || Array.isArray(pc)) {
-    return manifest;
-  }
-  const next = { ...manifest };
-  for (const key of PUBLISH_CONFIG_OVERLAY_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(pc, key)) {
-      next[key] = pc[key];
-    }
-  }
-  delete next.publishConfig;
-  return next;
-}
 
 async function isLibraryPackage(pkgDir) {
   // attw resolves the package's public entry (`.`) to type declarations.

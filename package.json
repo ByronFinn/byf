@@ -40,7 +40,7 @@
     "clean": "bun run --filter '*' clean",
     "changeset": "changeset",
     "version": "changeset version",
-    "publish": "bun run typecheck && bun run lint && bun run fmt:check && bun run sherif && bun run test && bun run build && bun run lint:pkg && bun run pubcheck:manifest && changeset publish",
+    "publish": "bun run typecheck && bun run lint && bun run fmt:check && bun run sherif && bun run test && bun run build && bun run lint:pkg && bun run pubcheck:manifest && bun scripts/with-publish-manifests.mjs changeset publish",
     "prepare": "simple-git-hooks",
     "test:serial": "bun test"
   },

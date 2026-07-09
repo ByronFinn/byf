@@ -35,7 +35,7 @@
 - **构建**：packages + cli + vis-server 用 `tsdown`；vis-web 用 `vite`；CLI 发布产物为 ESM `dist/main.mjs`（shebang `#!/usr/bin/env node`）。
 - **测试**：根 `vitest.config.ts` projects 覆盖 `packages/*` 与 `apps/cli`；约 372 个 `*.test.ts`。
 - **原生单二进制（待替换）**：`apps/cli/scripts/native/*` 为 Node **SEA** 管线（tsdown CJS bundle → `--experimental-sea-config` blob → postject 注入 → codesign/verify）；强制 Node `>=24.15.0`；原生资产注册表覆盖 `koffi` 与 `@mariozechner/clipboard` 平台包（`native-deps.mjs`）。
-- **发布**：`docs/agents/releasing.md` 明确 **必须用 pnpm 发布**——`workspace:` / `catalog:` 需由 pnpm/`changeset publish` 改写；`release-npm.yml` + `release.yml` 均基于 `pnpm/action-setup` + `actions/setup-node@24`。
+- **发布**：`docs/agents/releasing.md` 以 **Bun pack/publish + pubcheck** 为主路径；changesets 经 `with-publish-manifests` 补洞；residual pnpm publish 有 #221/#222 deadline。`release-npm.yml` 已切 Bun install + pubcheck（#216/#217）。
 - **Nix**：`flake.nix` 深度绑定 Node 24 + `pnpmConfigHook`，并注释 SEA 与 minNodeVersion 约束。
 - **用户侧已有 Bun 痕迹**：`byf update` 已识别 `bun-global` 安装源（路径启发式 + `bun add -g`）。
 - **其它 Node 硬依赖点**（C 路径下需替换或验证兼容）：
@@ -93,8 +93,8 @@
 - [ ] 库包 `build` 使用 `bun build`（或文档化的 bun build 编排），**不**再以 tsdown 为官方库构建入口；types 与 publint/attw 通过。
 - [ ] 锁文件与 workspace 以 Bun 为源；`pnpm-lock.yaml` / pnpm-only 配置已删除或有 deadline 的过渡说明且最终删除。
 - [ ] CI 不再以 `pnpm/action-setup` + Node 为发布/测试主路径。
-- [ ] Makefile / `AGENTS.md` / `CONTRIBUTING` / `docs/agents/releasing.md` 与 Bun 路径一致。
-- [ ] 发布预检通过：rewrite 后 pack 的 manifest **无** `workspace:`/`catalog:`；changeset + Bun 发布路径有自动化与文档；过渡 pnpm job 若存在则有 deadline 注释。
+- [x] Makefile / `AGENTS.md` / `CONTRIBUTING` / `docs/agents/releasing.md` 与 Bun 路径一致。（#217）
+- [x] 发布预检通过：rewrite 后 pack 的 manifest **无** `workspace:`/`catalog:`；changeset + Bun 发布路径有自动化与文档；过渡 pnpm job 若存在则有 deadline 注释。（#217）
 - [ ] GitHub Release 二进制由 compile 管线产出；平台 smoke（至少 `--version` + 关键 native 路径）通过；签名策略有文档。
 - [ ] Node SEA 相关脚本与 devDependency（如 `postject`）从主路径移除；无文档仍指向 SEA 作为唯一官方二进制方式。
 - [ ] 运行时差异导致的测试失败有清单与关闭条件，门禁最终全绿。
@@ -285,7 +285,7 @@
   - #214 — [PRD-0020] 库包 bun build + 独立 types — 替换 tsdown 主路径 (AFK, blocked by #211) — Done
   - #215 — [PRD-0020] 测试门禁仅 bun test — 清障至全绿 (AFK, blocked by #211) — Done
   - #216 — [PRD-0020] CI 主路径 Bun — install/test/lint/typecheck/build (AFK, blocked by #212 #214 #215) — Done
-  - #217 — [PRD-0020] 发布安全网 — bun pack/publish + pubcheck + releasing 文档 (AFK, blocked by #214 #216)
+  - #217 — [PRD-0020] 发布安全网 — bun pack/publish + pubcheck + releasing 文档 (AFK, blocked by #214 #216) — Done
   - #218 — [PRD-0020] vis-server Bun 适配 — 去 node-server + byf vis smoke (AFK, blocked by #213 #214) — Done
   - #219 — [PRD-0020] compile 管线 v1 + release.yml — MVP 两平台过 R15 门禁 (HITL, blocked by #210 #214 #216)
   - #220 — [PRD-0020] CLI npm optionalDep 平台包 — 干净机 npm i -g 可跑 (AFK, blocked by #219)
@@ -310,7 +310,7 @@
 | #214  | AFK  | #211             |
 | #215  | Done | #211             |
 | #216  | Done | #212, #214, #215 |
-| #217  | AFK  | #214, #216       |
+| #217  | Done | #214, #216       |
 | #218  | Done | #213, #214       |
 | #219  | HITL | #210, #214, #216 |
 | #220  | AFK  | #219             |
