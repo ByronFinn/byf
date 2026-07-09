@@ -1,14 +1,13 @@
+# ⚠️ DEPRECATED (PRD-0020 / ADR 0028): pnpm is no longer the official toolchain.
+# The source of truth for workspaces/catalog/overrides is now the root package.json
+# (read by Bun). This file is retained only as a transition aid and is scheduled
+# for removal in #221 (engines Bun-only + delete SEA/pnpm pinning).
+# Do not add new workspace config here — edit package.json instead.
 packages:
   - packages/*
   - apps/*
   - apps/vis/server
   - apps/vis/web
-
-allowBuilds:
-  esbuild: true
-  koffi: true
-  protobufjs: true
-  simple-git-hooks: true
 
 catalog:
   zod: ^4.3.6
