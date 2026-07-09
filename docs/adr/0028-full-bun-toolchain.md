@@ -23,10 +23,10 @@ PRD-0020 与 `/grill` 收敛了「全量迁 Bun」的边界与三条对外契约
 1. **开发与 CI 仅 Bun**  
    官方基线 **Bun 1.3.14**（`engines.bun` ≥1.3.14；CI pin 同版本）。有新稳定版时显式 bump。不再以 pnpm/Node 为官方开发路径。
 
-2. **三条契约**（术语见 `CONTEXT.md`）  
-   - **开发工具链契约**：贡献/CI 仅 Bun  
-   - **库运行时契约**：`@byfriends/*` 库包仅支持在 Bun 中 import/运行  
-   - **CLI 分发契约**：终端用户使用 **compile 单二进制**（GitHub Release 与 npm「主包 + 分平台 optionalDependencies」同源），**无需**预装 Bun/Node  
+2. **三条契约**（术语见 `CONTEXT.md`）
+   - **开发工具链契约**：贡献/CI 仅 Bun
+   - **库运行时契约**：`@byfriends/*` 库包仅支持在 Bun 中 import/运行
+   - **CLI 分发契约**：终端用户使用 **compile 单二进制**（GitHub Release 与 npm「主包 + 分平台 optionalDependencies」同源），**无需**预装 Bun/Node
 
 3. **分发技术**  
    用 **`bun build --compile`** 取代 Node SEA 主路径。官方 MVP 二进制矩阵：**darwin-arm64 + linux-x64**。compile 切换正式分发前须过 TUI 最小 smoke（koffi/clipboard 等原生路径）；失败则阻塞分发切换，不砍 TUI 换发版。
@@ -47,28 +47,28 @@ PRD-0020 与 `/grill` 收敛了「全量迁 Bun」的边界与三条对外契约
 
 ### 正面
 
-* 开发、测试、打包、分发工具链统一为 Bun  
-* CLI 用户仍可零预装运行时；库契约清晰（Bun-only）  
-* 去掉 SEA/Node 版本钉死与 pnpm 发布唯一路径  
-* 分层架构（ADR 0006）保持不变  
+- 开发、测试、打包、分发工具链统一为 Bun
+- CLI 用户仍可零预装运行时；库契约清晰（Bun-only）
+- 去掉 SEA/Node 版本钉死与 pnpm 发布唯一路径
+- 分层架构（ADR 0006）保持不变
 
 ### 负面
 
-* 对 Node 解释执行 CLI/库为 **breaking**（0.x minor + 文案，非 1.0）  
-* koffi/clipboard × compile 仍依赖 spike；失败会阻塞正式二进制切换  
-* `bun test` 单进程与 Vitest 差异需按包清障  
-* 库 `bun build` + 独立 types 替换 tsdown，构建配置重写成本  
-* 非 MVP 平台（darwin-x64、linux-arm64、Windows 等）官方二进制 deferred  
+- 对 Node 解释执行 CLI/库为 **breaking**（0.x minor + 文案，非 1.0）
+- koffi/clipboard × compile 仍依赖 spike；失败会阻塞正式二进制切换
+- `bun test` 单进程与 Vitest 差异需按包清障
+- 库 `bun build` + 独立 types 替换 tsdown，构建配置重写成本
+- 非 MVP 平台（darwin-x64、linux-arm64、Windows 等）官方二进制 deferred
 
 ## 备选方案
 
-* **仅迁包管理（pnpm→bun install）**：风险低，但保留 Node/SEA 双心智 — 未选  
-* **开发全 Bun、分发保留 Node SEA**：降低 compile 风险，工具链不统一 — 未选  
-* **协调 major 1.0**：semver 更「诚实」，团队选择 0.x minor + 大字 breaking — 未选 major  
+- **仅迁包管理（pnpm→bun install）**：风险低，但保留 Node/SEA 双心智 — 未选
+- **开发全 Bun、分发保留 Node SEA**：降低 compile 风险，工具链不统一 — 未选
+- **协调 major 1.0**：semver 更「诚实」，团队选择 0.x minor + 大字 breaking — 未选 major
 
 ## 参考
 
-* PRD-0020：`docs/prd/PRD-0020-full-bun-migration.md`  
-* 父 Issue：#209  
-* Research：`docs/research/INDEX.md`（bun@1 系列，含 compile-native、publish-rewrite、workspaces-catalog、test-migration 等）  
-* ADR 0006：Monorepo 分层架构（本决策不改变分层）  
+- PRD-0020：`docs/prd/PRD-0020-full-bun-migration.md`
+- 父 Issue：#209
+- Research：`docs/research/INDEX.md`（bun@1 系列，含 compile-native、publish-rewrite、workspaces-catalog、test-migration 等）
+- ADR 0006：Monorepo 分层架构（本决策不改变分层）

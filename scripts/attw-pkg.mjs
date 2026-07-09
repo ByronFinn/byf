@@ -7,8 +7,8 @@
  *   `attw --pack` runs `npm pack` internally, which does NOT expand
  *   `publishConfig.exports`. Our dev-time `exports` point at `.ts` sources that
  *   are excluded from the tarball by `files: ["dist"]`, so npm-packed manifests
- *   resolve to nothing. Real releases go through `pnpm publish`, which DOES
- *   expand `publishConfig`. To match the real release path we pack with pnpm
+ *   resolve to nothing. Real releases go through `bun publish`, which DOES
+ *   expand `publishConfig`. To match the real release path we pack with bun
  *   first, then feed the resulting tarball to attw.
  *
  * Package discovery is shared with `check-published-manifest.mjs` and covers
@@ -55,15 +55,15 @@ async function main() {
         console.log(`⏭ ${name} (no exports/main — bin-only package, skipped)`);
         continue;
       }
-      // Pack with pnpm so publishConfig is expanded into the manifest, matching
-      // what `pnpm publish` actually ships.
-      const packed = execFileSync('pnpm', ['pack', '--pack-destination', staging], {
+      // Pack with bun so publishConfig is expanded into the manifest, matching
+      // what `bun publish` actually ships.
+      const packed = execFileSync('bun', ['pm', 'pack', '--destination', staging, '--quiet'], {
         cwd: pkgDir,
         encoding: 'utf8',
       }).trim();
       const tarballPath = packed.split('\n').pop();
       if (!tarballPath) {
-        console.error(`✗ ${name}: pnpm pack produced no tarball`);
+        console.error(`✗ ${name}: bun pm pack produced no tarball`);
         failures += 1;
         continue;
       }

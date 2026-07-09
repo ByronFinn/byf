@@ -4,7 +4,7 @@ Find files (and optionally directories) by glob pattern, sorted by modification 
 
 REJECTED patterns (no literal anchor — will be rejected):
 
-- **`**/` prefix**: Anything starting with `**/` (e.g. `**/foo.py`, `**/main/*.ts`). The leading `**/` has no literal anchor in front of it. Anchor it with a top-level subdirectory like `src/**/*.ts`.
+- **`**/`prefix**: Anything starting with`**/`(e.g.`**/foo.py`, `**/main/\*.ts`). The leading `**/`has no literal anchor in front of it. Anchor it with a top-level subdirectory like`src/\*_/_.ts`.
 - **Pure wildcards**: `**`, `**/*`, `*/*` — no literal anchor bounds the result. Add an extension or subdirectory to give the walk a concrete target.
 - **Brace expansion**: `*.{ts,tsx}` is not supported. Split it into separate calls: `*.ts` and `*.tsx`.
 

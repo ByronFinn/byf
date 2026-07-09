@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Verify that published manifests contain no pnpm-only protocols.
+ * Verify that published manifests contain no workspace-only protocols.
  *
- * `pnpm publish` (and therefore `changeset publish`) rewrites `workspace:` and
- * `catalog:` specifiers into concrete versions before publishing. `npm publish`
- * does NOT — it ships the manifest verbatim, so `workspace:^` ends up on the
- * registry and breaks installs for everyone using npm (EUNSUPPORTEDPROTOCOL).
+ * `bun publish` / `bun pm pack` (and therefore `changeset publish`) rewrite
+ * `workspace:` and `catalog:` specifiers into concrete versions before
+ * publishing. `npm publish` does NOT — it ships the manifest verbatim, so
+ * `workspace:^` ends up on the registry and breaks installs for everyone using
+ * npm (EUNSUPPORTEDPROTOCOL).
  *
  * This is the guardrail that makes such a regression fail loudly before it
- * reaches a registry. For each non-private workspace package we `pnpm pack`
- * (which expands `publishConfig` the same way `pnpm publish` does), extract the
+ * reaches a registry. For each non-private workspace package we `bun pm pack`
+ * (which expands `publishConfig` the same way `bun publish` does), extract the
  * tarball, and reject any `workspace:` / `catalog:` specifier left in the
  * sections that actually ship: `dependencies`, `peerDependencies`, and
  * `optionalDependencies`. `devDependencies` are stripped from tarballs, so we
@@ -68,12 +69,12 @@ async function main() {
     for (const pkg of packages) {
       let packed;
       try {
-        packed = execFileSync('pnpm', ['pack', '--pack-destination', staging], {
+        packed = execFileSync('bun', ['pm', 'pack', '--destination', staging, '--quiet'], {
           cwd: pkg.path,
           encoding: 'utf8',
         }).trim();
       } catch (error) {
-        console.error(`✗ ${pkg.name}: pnpm pack failed`);
+        console.error(`✗ ${pkg.name}: bun pm pack failed`);
         if (error.stdout) console.error(String(error.stdout).trim());
         if (error.stderr) console.error(String(error.stderr).trim());
         failures += 1;
@@ -81,7 +82,7 @@ async function main() {
       }
       const tarballPath = packed.split('\n').pop();
       if (!tarballPath) {
-        console.error(`✗ ${pkg.name}: pnpm pack produced no tarball`);
+        console.error(`✗ ${pkg.name}: bun pm pack produced no tarball`);
         failures += 1;
         continue;
       }
@@ -95,7 +96,7 @@ async function main() {
 
         const residuals = findResiduals(manifest);
         if (residuals.length > 0) {
-          console.error(`✗ ${pkg.name}: pnpm-only protocol leaked into published manifest`);
+          console.error(`✗ ${pkg.name}: workspace-only protocol leaked into published manifest`);
           for (const { section, dep, spec } of residuals) {
             console.error(`    ${section}.${dep} = "${spec}"`);
           }
@@ -116,7 +117,7 @@ async function main() {
       `\ncheck-published-manifest: ${failures} package(s) would ship workspace:/catalog: specifiers`,
     );
     console.error(
-      'These are rewritten only by `pnpm publish`/`changeset publish`, not by `npm publish`.',
+      'These are rewritten only by `bun publish`/`changeset publish`, not by `npm publish`.',
     );
     process.exit(1);
   }

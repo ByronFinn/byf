@@ -18,7 +18,7 @@ Approved: run command
 2. **冗余。** ToolCall 组件已经渲染了 `• Using Bash (command)` → `• Used Bash (command)` 带结果输出。审批通知夹在这两个状态之间，没有任何添加。
 3. **视觉上薄弱。** 单行 `NoticeMessageComponent`，无图标，批准/拒绝/取消之间无颜色区分。
 
-对 OpenAI Codex CLI 的研究显示它渲染了丰富的独立审批通知（"✔ You approved codex to run <command> this time"）。Claude Code 采用相反的方式：没有独立通知——ToolCall 组件从进行中静默过渡到完成/拒绝。
+对 OpenAI Codex CLI 的研究显示它渲染了丰富的独立审批通知（"✔ You approved codex to run `<command>` this time"）。Claude Code 采用相反的方式：没有独立通知——ToolCall 组件从进行中静默过渡到完成/拒绝。
 
 ## 决策
 

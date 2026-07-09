@@ -10,47 +10,37 @@
     "type": "git",
     "url": "https://github.com/ByronFinn/byf.git"
   },
-  "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*",
     "apps/vis/server",
-    "apps/vis/web"
+    "apps/vis/web",
+    "docs"
   ],
-  "catalog": {
-    "zod": "^4.3.6"
-  },
-  "overrides": {
-    "ssh2@1.17.0>cpu-features": "-",
-    "ssh2@1.17.0>nan": "-"
-  },
-  "trustedDependencies": [
-    "esbuild",
-    "koffi",
-    "protobufjs"
-  ],
+  "type": "module",
   "scripts": {
-    "build": "pnpm -r run build",
-    "build:packages": "pnpm -r --filter './packages/*' run build",
-    "build:vis": "pnpm --filter @byfriends/vis-web run build && pnpm --filter @byfriends/vis-server run build",
-    "dev:cli": "pnpm -C apps/cli run dev",
-    "vis": "pnpm -C apps/vis run dev",
-    "dev:docs": "pnpm -C docs install --ignore-workspace && pnpm -C docs run dev",
-    "typecheck": "pnpm run build:packages && pnpm run build:vis && pnpm -r --filter './packages/*' run typecheck && pnpm --filter @byfriends/cli run typecheck",
+    "build": "bun run --filter './packages/*' build && bun run --filter '@byfriends/cli' build && bun run build:vis",
+    "build:packages": "bun run --filter './packages/*' build",
+    "build:vis": "bun run --filter '@byfriends/vis-web' build && bun run --filter '@byfriends/vis-server' build",
+    "build:docs": "bun run --filter 'byf-docs' build",
+    "dev:cli": "bun run --filter '@byfriends/cli' dev",
+    "vis": "bun run --filter '@byfriends/vis-server' dev",
+    "dev:docs": "bun run --filter 'byf-docs' dev",
+    "typecheck": "bun run build:packages && bun run build:vis && bun run --filter './packages/*' typecheck && bun run --filter '@byfriends/cli' typecheck",
     "lint": "oxlint --type-aware",
-    "lint:fix": "pnpm run lint --fix",
-    "lint:pkg": "pnpm -r --filter '!@byfriends/monorepo' exec publint && node scripts/attw-pkg.mjs",
-    "pubcheck:manifest": "node scripts/check-published-manifest.mjs",
+    "lint:fix": "bun run lint --fix",
+    "lint:pkg": "bun scripts/publint-pkg.mjs && bun scripts/attw-pkg.mjs",
+    "pubcheck:manifest": "bun scripts/check-published-manifest.mjs",
     "fmt": "oxfmt",
-    "fmt:check": "pnpm run fmt --check",
+    "fmt:check": "bun run fmt --check",
     "sherif": "sherif",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "clean": "pnpm -r run clean",
+    "clean": "bun run --filter '*' clean",
     "changeset": "changeset",
     "version": "changeset version",
-    "publish": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run sherif && pnpm run test && pnpm run build && pnpm run lint:pkg && pnpm run pubcheck:manifest && changeset publish",
+    "publish": "bun run typecheck && bun run lint && bun run fmt:check && bun run sherif && bun run test && bun run build && bun run lint:pkg && bun run pubcheck:manifest && changeset publish",
     "prepare": "simple-git-hooks"
   },
   "devDependencies": {
@@ -73,6 +63,10 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
+  "overrides": {
+    "ssh2@1.17.0>cpu-features": "-",
+    "ssh2@1.17.0>nan": "-"
+  },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
   },
@@ -84,8 +78,16 @@
     ]
   },
   "engines": {
-    "node": ">=24.15.0",
-    "bun": ">=1.3.14"
+    "bun": ">=1.3.14",
+    "node": ">=24.15.0"
   },
-  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
+  "catalog": {
+    "zod": "^4.3.6"
+  },
+  "trustedDependencies": [
+    "esbuild",
+    "koffi",
+    "protobufjs"
+  ]
 }

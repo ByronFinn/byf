@@ -1,6 +1,6 @@
 # Bun: Publish Workspace Protocol Rewrite
 
-> **Stack**: bun@unknown  | **Major**: 1  | **Verified**: 2026-07-09  | **Status**: verified
+> **Stack**: bun@unknown | **Major**: 1 | **Verified**: 2026-07-09 | **Status**: verified
 
 ## TL;DR
 
@@ -16,12 +16,12 @@ Bun 1.x 在 **`bun publish` / `bun pm pack` 路径上会内置剥离并解析 `w
 
 ## Findings
 
-| 选项 | 优势 | 劣势 | 适用场景 |
-|---|---|---|---|
-| **`bun publish` / `bun pm pack` 内置改写** | 官方一等能力：strip `workspace:` + `catalog:` 并解析版本；支持 dry-run、tag、access、NPM token | 改写仅发生在 Bun pack/publish 路径；pre-built tarball 再 publish 时**不跑** lifecycle | 主发布路径已切到 Bun |
-| **仅 `pubcheck`（验 manifest 无协议泄漏）** | 不替代改写，但防回归；可对任意 pack 结果扫描 | 不产生正确版本号 | 任何发布门禁的最后一道 |
-| **显式 prepublish rewrite 脚本** | 可覆盖 `publishConfig` 展开、多工具 pack、changeset 中间产物 | 与 Bun 内置逻辑可能重复；维护成本 | 非 Bun pack、或需改写官方未文档化的字段 |
-| **继续 `pnpm publish` / changeset+pnpm** | 现有流水线熟悉 | 与全量 Bun 目标冲突；workspace/catalog 依赖 pnpm 改写 | 仅迁移过渡、有明确 deadline |
+| 选项                                        | 优势                                                                                           | 劣势                                                                                  | 适用场景                                |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| **`bun publish` / `bun pm pack` 内置改写**  | 官方一等能力：strip `workspace:` + `catalog:` 并解析版本；支持 dry-run、tag、access、NPM token | 改写仅发生在 Bun pack/publish 路径；pre-built tarball 再 publish 时**不跑** lifecycle | 主发布路径已切到 Bun                    |
+| **仅 `pubcheck`（验 manifest 无协议泄漏）** | 不替代改写，但防回归；可对任意 pack 结果扫描                                                   | 不产生正确版本号                                                                      | 任何发布门禁的最后一道                  |
+| **显式 prepublish rewrite 脚本**            | 可覆盖 `publishConfig` 展开、多工具 pack、changeset 中间产物                                   | 与 Bun 内置逻辑可能重复；维护成本                                                     | 非 Bun pack、或需改写官方未文档化的字段 |
+| **继续 `pnpm publish` / changeset+pnpm**    | 现有流水线熟悉                                                                                 | 与全量 Bun 目标冲突；workspace/catalog 依赖 pnpm 改写                                 | 仅迁移过渡、有明确 deadline             |
 
 **官方改写语义（Tier 1）**：
 
@@ -62,9 +62,11 @@ Bun 1.x 在 **`bun publish` / `bun pm pack` 路径上会内置剥离并解析 `w
 ## Sources
 
 **Tier 1 (maintainer-authored, required)**
+
 - [Bun 官方文档: bun publish](https://bun.com/docs/pm/cli/publish) — pack 时 strip catalog/workspace、registry、dry-run、lifecycle 与预构建 tarball 差异
 - [Bun 官方文档: Workspaces](https://bun.com/docs/pm/workspaces) — 发布时 `workspace:` → semver 的替换规则
 - [Bun 官方文档: Catalogs · Publishing](https://bun.com/docs/pm/catalogs) — `bun publish` / `bun pm pack` 替换 `catalog:` 为解析版本
 
 **Tier 2 (supplementary only, never sole evidence)**
+
 - [Bun GitHub Releases: bun-v1.3.14](https://github.com/oven-sh/bun/releases/tag/bun-v1.3.14) — 研究时点版本锚点

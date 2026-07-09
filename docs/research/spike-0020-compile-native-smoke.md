@@ -14,13 +14,13 @@
 
 ## 2. 探针矩阵（实测）
 
-| 探针 | Bun runtime（`bun run`） | `bun build --compile` 产物 | 备注 |
-|---|---|---|---|
-| 最小入口 compile | n/a | **GO**：65 MB，~130 ms 编译，可执行 | darwin-arm64 本机 |
-| **clipboard** 模块加载（`require`） | GO | **GO** | `.node` **嵌入二进制**（`/$bunfs/root/...node`） |
-| clipboard 干净机（移走 node_modules `.node`） | — | **GO**：仍加载成功 | 证明 embedding 生效 |
-| **koffi** FFI（`getpid`） | GO（FFI 真实调用） | GO（但见 §3） | koffi 会动态扫描 `build/<triplet>/koffi.node` |
-| koffi 干净机（移走 node_modules） | — | **NO-GO（磁盘依赖）**：`ENOENT` | 动态 `require` 不可静态嵌入 |
+| 探针                                          | Bun runtime（`bun run`） | `bun build --compile` 产物          | 备注                                             |
+| --------------------------------------------- | ------------------------ | ----------------------------------- | ------------------------------------------------ |
+| 最小入口 compile                              | n/a                      | **GO**：65 MB，~130 ms 编译，可执行 | darwin-arm64 本机                                |
+| **clipboard** 模块加载（`require`）           | GO                       | **GO**                              | `.node` **嵌入二进制**（`/$bunfs/root/...node`） |
+| clipboard 干净机（移走 node_modules `.node`） | —                        | **GO**：仍加载成功                  | 证明 embedding 生效                              |
+| **koffi** FFI（`getpid`）                     | GO（FFI 真实调用）       | GO（但见 §3）                       | koffi 会动态扫描 `build/<triplet>/koffi.node`    |
+| koffi 干净机（移走 node_modules）             | —                        | **NO-GO（磁盘依赖）**：`ENOENT`     | 动态 `require` 不可静态嵌入                      |
 
 ### 3. koffi 是 Windows 专属死代码（关键）
 
@@ -30,13 +30,14 @@
 // Dynamic require to avoid bundling koffi's 74MB of cross-platform
 // native binaries into every compiled binary. Koffi is only needed
 // on Windows for VT input support.
-const koffi = cjsRequire("koffi");
-const k32 = koffi.load("kernel32.dll");   // Windows VT 输入
+const koffi = cjsRequire('koffi');
+const k32 = koffi.load('kernel32.dll'); // Windows VT 输入
 ```
 
 且方法体首行 `if (process.platform !== "win32") return;`，外层 `try/catch` 静默降级。
 
 **结论**：
+
 - **darwin-arm64 / linux-x64（MVP 两平台）从不调用 koffi**——它在 compile 产物里的磁盘依赖问题**对 MVP 分发无影响**。
 - koffi 仅对 Windows VT 输入有意义，而 Windows 在 PRD-0020 中 **deferred**。
 - 因此 R15 门禁「compile TUI 最小 smoke」**不依赖 koffi**；不砍 TUI、不降级。
