@@ -14,18 +14,18 @@
     "url": "git+https://github.com/ByronFinn/byf.git",
     "directory": "apps/cli/npm/linux-x64"
   },
+  "files": [
+    "bin/byf"
+  ],
   "os": [
     "linux"
   ],
   "cpu": [
     "x64"
   ],
-  "preferUnplugged": true,
-  "files": [
-    "bin/byf"
-  ],
   "publishConfig": {
     "access": "public",
     "provenance": false
-  }
+  },
+  "preferUnplugged": true
 }

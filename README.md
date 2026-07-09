@@ -33,7 +33,7 @@
 
 ### Install
 
-Two official paths — both install a **native compile binary** (no need to preinstall Bun or Node to *run* BYF):
+Two official paths — both install a **native compile binary** (no need to preinstall Bun or Node to _run_ BYF):
 
 **1. GitHub Release script (macOS arm64 / Linux x64 MVP)**
 
@@ -86,11 +86,11 @@ BYF will inspect your code, edit files, run shell commands, and help you iterate
 
 This 0.x **minor** line introduces breaking runtime and distribution changes (see [ADR 0028](docs/adr/0028-full-bun-toolchain.md) / PRD-0020). **Not** a coordinated 1.0 major — read the notes below before upgrading.
 
-| Audience | Contract |
-| -------- | -------- |
-| **CLI end users** | Official install is a **compile binary** (GitHub Release or npm optionalDep). You do **not** need Bun/Node to run `byf`. |
-| **Library consumers** (`@byfriends/sdk`, `@byfriends/agent-core`, …) | **Bun-only** runtime. Node.js is no longer a supported interpreter for library packages. |
-| **Contributors / CI** | **Bun >= 1.3.14** only (`bun install`, `bun test`, …). pnpm is not the official toolchain. |
+| Audience                                                             | Contract                                                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **CLI end users**                                                    | Official install is a **compile binary** (GitHub Release or npm optionalDep). You do **not** need Bun/Node to run `byf`. |
+| **Library consumers** (`@byfriends/sdk`, `@byfriends/agent-core`, …) | **Bun-only** runtime. Node.js is no longer a supported interpreter for library packages.                                 |
+| **Contributors / CI**                                                | **Bun >= 1.3.14** only (`bun install`, `bun test`, …). pnpm is not the official toolchain.                               |
 
 ### Reinstall if you used the old npm-global JS layout
 

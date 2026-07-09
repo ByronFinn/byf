@@ -37,8 +37,6 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": false,
     "exports": {
       ".": {
         "types": "./dist/server.d.mts",
@@ -46,7 +44,9 @@
         "default": "./dist/server.mjs"
       },
       "./package.json": "./package.json"
-    }
+    },
+    "access": "public",
+    "provenance": false
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

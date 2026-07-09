@@ -4,10 +4,10 @@ Official native binary path for `@byfriends/cli` (PRD-0020 / issue #219).
 
 Replaces **Node SEA** for GitHub Release assets on the **MVP matrix**:
 
-| BYF target      | Bun `--target`      | CI runner      |
-| --------------- | ------------------- | -------------- |
-| `darwin-arm64`  | `bun-darwin-arm64`  | `macos-latest` |
-| `linux-x64`     | `bun-linux-x64`     | `ubuntu-latest`|
+| BYF target     | Bun `--target`     | CI runner       |
+| -------------- | ------------------ | --------------- |
+| `darwin-arm64` | `bun-darwin-arm64` | `macos-latest`  |
+| `linux-x64`    | `bun-linux-x64`    | `ubuntu-latest` |
 
 Other platforms (darwin-x64, linux-arm64, Windows) are **deferred** — not built or claimed by `install.sh` as supported release assets.
 
@@ -34,13 +34,13 @@ bun run test:native:smoke
 
 Env:
 
-| Variable | Meaning |
-| -------- | ------- |
-| `BYF_CODE_BUILD_TARGET` | `darwin-arm64` / `linux-x64` (default: host `platform-arch`) |
-| `BYF_CODE_CHANNEL` / `BYF_CODE_COMMIT` | Optional build-info defines |
-| `BYF_CODE_BUILT_IN_CATALOG_FILE` | Catalog JSON; release profile auto-generates if unset |
-| `APPLE_SIGNING_IDENTITY` | macOS codesign identity (`-` = ad-hoc, default) |
-| `APPLE_KEYCHAIN_PATH` | Optional keychain for a real Developer ID |
+| Variable                               | Meaning                                                      |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `BYF_CODE_BUILD_TARGET`                | `darwin-arm64` / `linux-x64` (default: host `platform-arch`) |
+| `BYF_CODE_CHANNEL` / `BYF_CODE_COMMIT` | Optional build-info defines                                  |
+| `BYF_CODE_BUILT_IN_CATALOG_FILE`       | Catalog JSON; release profile auto-generates if unset        |
+| `APPLE_SIGNING_IDENTITY`               | macOS codesign identity (`-` = ad-hoc, default)              |
+| `APPLE_KEYCHAIN_PATH`                  | Optional keychain for a real Developer ID                    |
 
 ## Artifact layout
 
@@ -69,10 +69,10 @@ bun run package:npm-platforms
 # -> apps/cli/npm/<target>/bin/byf  (gitignored)
 ```
 
-| npm package | dir |
-| ----------- | --- |
+| npm package                   | dir                         |
+| ----------------------------- | --------------------------- |
 | `@byfriends/cli-darwin-arm64` | `apps/cli/npm/darwin-arm64` |
-| `@byfriends/cli-linux-x64` | `apps/cli/npm/linux-x64` |
+| `@byfriends/cli-linux-x64`    | `apps/cli/npm/linux-x64`    |
 
 Main package `@byfriends/cli` ships `bin/byf.cjs` (launcher) and lists both as `optionalDependencies`. Versions stay aligned via changesets `fixed` group. Platform packages are `private: true` in the monorepo; `release.yml` clears `private` and publishes after staging the binary.
 

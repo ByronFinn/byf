@@ -72,15 +72,15 @@
     "smol-toml": "^1.6.1",
     "zod": "catalog:"
   },
-  "optionalDependencies": {
-    "@byfriends/cli-darwin-arm64": "workspace:*",
-    "@byfriends/cli-linux-x64": "workspace:*"
-  },
   "devDependencies": {
     "@byfriends/sdk": "workspace:^",
     "@types/semver": "^7.7.0",
     "@types/yazl": "^2.4.6",
     "yazl": "^3.3.1"
+  },
+  "optionalDependencies": {
+    "@byfriends/cli-darwin-arm64": "workspace:*",
+    "@byfriends/cli-linux-x64": "workspace:*"
   },
   "engines": {
     "bun": ">=1.3.14"

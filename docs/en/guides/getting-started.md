@@ -44,7 +44,7 @@ pnpm add -g @byfriends/cli
 bun add -g @byfriends/cli
 ```
 
-You do **not** need a specific Node version to *run* the CLI after install — the launcher only starts the native binary. (npm itself may need a JS runtime to install packages.)
+You do **not** need a specific Node version to _run_ the CLI after install — the launcher only starts the native binary. (npm itself may need a JS runtime to install packages.)
 
 ### Reinstall from a legacy Node JS global
 

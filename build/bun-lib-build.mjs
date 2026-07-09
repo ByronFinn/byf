@@ -240,6 +240,4 @@ if (!result.success) {
 }
 
 const outs = result.outputs.filter((o) => o.kind === 'entry-point' || o.kind === 'chunk');
-console.log(
-  `bun-lib-build: ${outs.length} file(s) → ${outDir}/ (${externals.size} external)`,
-);
+console.log(`bun-lib-build: ${outs.length} file(s) → ${outDir}/ (${externals.size} external)`);

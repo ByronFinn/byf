@@ -6,7 +6,7 @@
 
 ## Install
 
-Two official paths. Both deliver a **native `bun build --compile` binary** — you do **not** need Bun or Node preinstalled to *run* `byf`.
+Two official paths. Both deliver a **native `bun build --compile` binary** — you do **not** need Bun or Node preinstalled to _run_ `byf`.
 
 ### GitHub Release (macOS arm64 / Linux x64)
 
