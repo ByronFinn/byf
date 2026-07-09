@@ -40,7 +40,7 @@
     "provenance": false
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "bun scripts/build.mjs",
     "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
     "smoke": "node scripts/smoke.mjs",
     "build:native:js": "node scripts/native/01-bundle.mjs",
@@ -56,7 +56,7 @@
     "typecheck": "tsc --build",
     "test": "bun run --filter './packages/*' build && vitest run",
     "e2e": "bun run --filter './packages/*' build && BYF_E2E=1 vitest run test/e2e",
-    "e2e:real": "pnpm -w run build:packages && BYF_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
+    "e2e:real": "bun run --filter './packages/*' build && BYF_E2E_REAL=1 vitest run test/e2e/real-llm-smoke.e2e.test.ts",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {

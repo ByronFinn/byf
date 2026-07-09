@@ -66,7 +66,7 @@
     "provenance": false
   },
   "scripts": {
-    "build": "tsdown && node scripts/rewrite-dts-subpaths.mjs",
+    "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
     "test": "vitest run",
     "test:baseline": "vitest run",
     "typecheck": "tsc --build",

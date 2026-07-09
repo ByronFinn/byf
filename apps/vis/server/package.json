@@ -43,7 +43,7 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "tsdown && node ../scripts/copy-web-dist.mjs",
+    "build": "bun ../../../build/bun-lib-build.mjs ./src/server.ts ./src/index.ts --bundle-workspace && bun scripts/build-dts.mjs && bun ../scripts/copy-web-dist.mjs",
     "test": "vitest run"
   },
   "dependencies": {
