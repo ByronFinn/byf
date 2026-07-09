@@ -1,5 +1,27 @@
 # @byfriends/sdk
 
+## 0.4.0
+
+### Minor Changes
+
+- 04be685: Edit/Write 现在要求先 Read 同一文件：未读直接编辑或覆盖已存在文件会被拒绝，避免基于过期内容产生错误的 old_string。old_string 匹配失败时返回文件真实内容片段，便于直接修正。
+- 034150a: **BREAKING:** 全量切换至 Bun 工具链（0.x minor，非 1.0 major）。
+
+  - 库包仅支持在 Bun 中 import/运行，不再支持 Node 解释执行。
+  - CLI 改为 compile 原生二进制分发（GitHub Release + npm 分平台 optionalDependencies）；Node SEA 与旧 npm-global JS（`dist/main.mjs`）路径废弃。
+  - 贡献与 CI 仅支持 Bun >=1.3.14；pnpm 不再是官方开发工具链。
+
+  旧 CLI 全局 JS 安装请重装：`npm uninstall -g @byfriends/cli && npm install -g @byfriends/cli`，或 `curl -fsSL https://github.com/ByronFinn/byf/releases/latest/download/install.sh | bash`。
+
+- 451cd50: 发布包 `engines` 仅声明 Bun（`>=1.3.14`），不再声明 Node 支持。请使用 Bun 1.3.14+ 安装与运行库包。
+- 27a9eec: `/usage` 面板新增 Context breakdown 分项，按六个互斥类别（MCP tools / System tools / Messages / Meta context / Skills / System prompt）展示输入 token 的估算占比与绝对值，并显示会话累计的缓存命中率。运行 `/usage` 查看。
+
+### Patch Changes
+
+- 50de09b: 新增 /goal 斜杠命令进入自主目标模式，包含状态查看、暂停、恢复、取消和创建带预算的目标。运行 /goal status 查看当前目标快照。目标推进时 footer 显示状态徽标与用量，完成时在 transcript 出现完成卡片。
+- 80f1657: 新增 goal 的 SDK 入口：宿主可经会话对象发起、暂停、恢复、取消目标，并订阅目标状态变化事件；目标类型与事件已从 SDK 重新导出。本切片不含 CLI 入口。
+- e06dbec: Migrate published package builds from tsdown to `bun build` with a separate declaration pipeline (`tsc` / api-extractor), matching ADR 0028.
+
 ## 0.3.6
 
 ### Patch Changes
@@ -51,6 +73,7 @@
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -70,11 +93,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -140,6 +163,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -305,6 +329,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -315,6 +340,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -323,6 +349,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
