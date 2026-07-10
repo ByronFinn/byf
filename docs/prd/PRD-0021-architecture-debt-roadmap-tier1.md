@@ -1,6 +1,6 @@
 # 架构债路线图 — 档 1 执行
 
-**Status**: In Progress
+**Status**: Done
 **Created**: 2026-07-10
 **Last updated**: 2026-07-10
 **Source**: `docs/architecture-debt-roadmap.md` 档 1（立即做），经 grill 校准 + 决策冻结后的执行 PRD。
@@ -62,10 +62,10 @@
 
 ## Child Issues
 
-- #225 — [PRD-0021] ADR-0006 文档漂移修订 — SSHKaos 标规划中、telemetry 标已移除 (AFK)
-- #226 — [PRD-0021] vis DTO 单一来源 — 删 web 副本改 import type (AFK)
-- #227 — [PRD-0021] slash handler 注册基建 — SlashCommandHost 接口 + 注册表分发 (AFK)
-- #228 — [PRD-0021] slash handler 按组迁移 — handler 迁到 command-module (AFK, blocked by #227)
+- #225 — [PRD-0021] ADR-0006 文档漂移修订 — SSHKaos 标规划中、telemetry 标已移除 (AFK) — Done
+- #226 — [PRD-0021] vis DTO 单一来源 — 建 @byfriends/vis-shared 独立包 (AFK) — Done
+- #227 — [PRD-0021] slash handler 注册基建 — SlashCommandHost 接口 + 注册表分发 (AFK) — Done
+- #228 — [PRD-0021] slash handler 按组迁移 — handler 迁到 command-module (AFK, blocked by #227) — Done
 
 ## Traceability
 
