@@ -76,4 +76,4 @@
 - **Created by**: `/story` (2026-07-10) — 基于 `docs/architecture-debt-roadmap.md` 档 1，经 grill 决策冻结
 - **Source**: `docs/architecture-debt-roadmap.md`（含 6 处校准 + grill 结论）
 - **Sliced by**: `/story` → Child Issues above（4 issues：#225–#228）
-- **Reviewed by**: `/review` (2026-07-10) — 初审 Request Changes（H1-a PR2 未完成）；实施 A 后补完分组迁移 + 窄 host + 直接调用 goal/login/connect
+- **Reviewed by**: `/review` (2026-07-10) — 初审 Request Changes（H1-a PR2 未完成）；实施 A 后补完分组迁移 + 窄 host + 直接调用 goal/login/connect；复审三视角 **Approve**
