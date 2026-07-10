@@ -143,7 +143,9 @@ async function startInProcessHttpMcpServer(opts?: {
         // Bun's node:http close callback can hang if keep-alive sockets remain.
         // Drop them first (Node 18.2+ / Bun), then close with a wall-clock fallback.
         httpServer.closeAllConnections?.();
-        const timer = setTimeout(() => resolve(), 200);
+        const timer = setTimeout(() => {
+          resolve();
+        }, 200);
         httpServer.close((err) => {
           clearTimeout(timer);
           // Idempotent close: second call / race after fallback may report not running.

@@ -94,7 +94,7 @@ describe('e2e: toolset advanced', () => {
 
       // null arguments should be parsed as {} via JSON.parse('{}')
       expect(receivedArgs).toEqual({});
-      expect(results[0]!.returnValue.isError).toBe(false);
+      expect(results[0].returnValue.isError).toBe(false);
     });
 
     it('arguments="" -> toolParseError', async () => {
@@ -122,7 +122,7 @@ describe('e2e: toolset advanced', () => {
       const results = await result.toolResults();
 
       // Empty string "" is not valid JSON, should produce a parse error
-      expect(results[0]!.returnValue.isError).toBe(true);
+      expect(results[0].returnValue.isError).toBe(true);
     });
 
     it('arguments="null" -> handler receives null', async () => {
@@ -268,12 +268,12 @@ describe('e2e: toolset advanced', () => {
 
       // Results must be in ToolCall order: slow, fast, mid
       expect(results).toHaveLength(3);
-      expect(results[0]!.toolCallId).toBe('tc-slow');
-      expect(results[0]!.returnValue.output).toBe('slow');
-      expect(results[1]!.toolCallId).toBe('tc-fast');
-      expect(results[1]!.returnValue.output).toBe('fast');
-      expect(results[2]!.toolCallId).toBe('tc-mid');
-      expect(results[2]!.returnValue.output).toBe('mid');
+      expect(results[0].toolCallId).toBe('tc-slow');
+      expect(results[0].returnValue.output).toBe('slow');
+      expect(results[1].toolCallId).toBe('tc-fast');
+      expect(results[1].returnValue.output).toBe('fast');
+      expect(results[2].toolCallId).toBe('tc-mid');
+      expect(results[2].returnValue.output).toBe('mid');
     });
 
     it('onToolResult fires in completion order, not ToolCall order', async () => {
@@ -427,8 +427,8 @@ describe('e2e: toolset advanced', () => {
 
       // The error should be wrapped as a toolRuntimeError
       expect(results).toHaveLength(1);
-      expect(results[0]!.returnValue.isError).toBe(true);
-      expect(results[0]!.returnValue.message).toContain('handler exploded');
+      expect(results[0].returnValue.isError).toBe(true);
+      expect(results[0].returnValue.message).toContain('handler exploded');
     });
   });
 });

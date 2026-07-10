@@ -531,7 +531,7 @@ function _typeOnlyChecks(): void {
   void _evs;
 
   // All recorded events are also live events, including completed content parts.
-  const _contentPartLiveEvent: LoopEvent = _evs[2] as LoopEvent;
+  const _contentPartLiveEvent: LoopEvent = _evs[2];
   void _contentPartLiveEvent;
 
   // TurnResult fields

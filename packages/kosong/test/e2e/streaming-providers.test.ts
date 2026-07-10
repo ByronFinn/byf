@@ -99,11 +99,11 @@ describe('integration: streaming provider contracts', () => {
 
       // onMessagePart called in correct order: text, text, tool_call, part, part
       expect(receivedParts).toHaveLength(5);
-      expect(receivedParts[0]!.type).toBe('text');
-      expect(receivedParts[1]!.type).toBe('text');
-      expect(receivedParts[2]!.type).toBe('function');
-      expect(receivedParts[3]!.type).toBe('tool_call_part');
-      expect(receivedParts[4]!.type).toBe('tool_call_part');
+      expect(receivedParts[0].type).toBe('text');
+      expect(receivedParts[1].type).toBe('text');
+      expect(receivedParts[2].type).toBe('function');
+      expect(receivedParts[3].type).toBe('tool_call_part');
+      expect(receivedParts[4].type).toBe('tool_call_part');
 
       // Final message.content should merge text deltas
       expect(result.message.content).toHaveLength(1);
@@ -111,7 +111,7 @@ describe('integration: streaming provider contracts', () => {
 
       // ToolCall assembled correctly
       expect(result.message.toolCalls).toHaveLength(1);
-      expect(result.message.toolCalls[0]!.arguments).toBe('{"query":"vitest"}');
+      expect(result.message.toolCalls[0].arguments).toBe('{"query":"vitest"}');
 
       // Usage extracted from the stream metadata
       expect(result.usage).toEqual(usage);
@@ -130,9 +130,9 @@ describe('integration: streaming provider contracts', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.content).toHaveLength(2);
-      expect(result.message.content[0]!.type).toBe('think');
+      expect(result.message.content[0].type).toBe('think');
       expect((result.message.content[0] as ThinkPart).think).toBe('Let me reason about this.');
-      expect(result.message.content[1]!.type).toBe('text');
+      expect(result.message.content[1].type).toBe('text');
       expect((result.message.content[1] as TextPart).text).toBe('The answer is 42.');
     });
   });
@@ -180,20 +180,20 @@ describe('integration: streaming provider contracts', () => {
       // Text parts should merge: '' + 'Here is my response.'
       const textParts = result.message.content.filter((p) => p.type === 'text');
       expect(textParts).toHaveLength(1);
-      expect((textParts[0] as TextPart).text).toBe('Here is my response.');
+      expect(textParts[0].text).toBe('Here is my response.');
 
       // Think part should have encrypted set after signature_delta
       const thinkParts = result.message.content.filter((p) => p.type === 'think');
       expect(thinkParts).toHaveLength(1);
-      const thinkPart = thinkParts[0] as ThinkPart;
+      const thinkPart = thinkParts[0];
       expect(thinkPart.think).toBe('I need to analyze this carefully.');
       expect(thinkPart.encrypted).toBe('sig-abc123');
 
       // ToolCall assembled
       expect(result.message.toolCalls).toHaveLength(1);
-      expect(result.message.toolCalls[0]!.id).toBe('toolu_01');
-      expect(result.message.toolCalls[0]!.name).toBe('read_file');
-      expect(result.message.toolCalls[0]!.arguments).toBe('{"path":"/src/main.ts"}');
+      expect(result.message.toolCalls[0].id).toBe('toolu_01');
+      expect(result.message.toolCalls[0].name).toBe('read_file');
+      expect(result.message.toolCalls[0].arguments).toBe('{"path":"/src/main.ts"}');
     });
 
     it('redacted_thinking yields ThinkPart with encrypted and empty think', async () => {
@@ -236,12 +236,12 @@ describe('integration: streaming provider contracts', () => {
       // Think blocks cannot merge once encrypted is set, so we get:
       // think(step1 + sig), text(first), think(step2 + sig), text(second)
       expect(result.message.content).toHaveLength(4);
-      expect(result.message.content[0]!.type).toBe('think');
+      expect(result.message.content[0].type).toBe('think');
       expect((result.message.content[0] as ThinkPart).encrypted).toBe('sig-1');
-      expect(result.message.content[1]!.type).toBe('text');
-      expect(result.message.content[2]!.type).toBe('think');
+      expect(result.message.content[1].type).toBe('text');
+      expect(result.message.content[2].type).toBe('think');
       expect((result.message.content[2] as ThinkPart).encrypted).toBe('sig-2');
-      expect(result.message.content[3]!.type).toBe('text');
+      expect(result.message.content[3].type).toBe('text');
     });
   });
 
@@ -277,16 +277,16 @@ describe('integration: streaming provider contracts', () => {
 
       // Think part
       expect(result.message.content).toHaveLength(2);
-      expect(result.message.content[0]!.type).toBe('think');
+      expect(result.message.content[0].type).toBe('think');
       expect((result.message.content[0] as ThinkPart).think).toBe('Analyzing the request...');
 
       // Text part
-      expect(result.message.content[1]!.type).toBe('text');
+      expect(result.message.content[1].type).toBe('text');
       expect((result.message.content[1] as TextPart).text).toBe('I will help you with that.');
 
       // Function call with correct ID format
       expect(result.message.toolCalls).toHaveLength(1);
-      const tc = result.message.toolCalls[0]!;
+      const tc = result.message.toolCalls[0];
       expect(tc.id).toBe('search_12345');
       expect(tc.id).toMatch(/^search_\d+$/);
       expect(tc.name).toBe('search');
@@ -309,7 +309,7 @@ describe('integration: streaming provider contracts', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.toolCalls).toHaveLength(1);
-      const tc = result.message.toolCalls[0]!;
+      const tc = result.message.toolCalls[0];
       // Verify the ID follows the {name}_{id} pattern
       expect(tc.id.startsWith(`${tc.name}_`)).toBe(true);
     });
@@ -342,9 +342,9 @@ describe('integration: streaming provider contracts', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.toolCalls).toHaveLength(3);
-      expect(result.message.toolCalls[0]!.id).toBe('read_file_001');
-      expect(result.message.toolCalls[1]!.id).toBe('read_file_002');
-      expect(result.message.toolCalls[2]!.id).toBe('write_file_003');
+      expect(result.message.toolCalls[0].id).toBe('read_file_001');
+      expect(result.message.toolCalls[1].id).toBe('read_file_002');
+      expect(result.message.toolCalls[2].id).toBe('write_file_003');
     });
   });
 

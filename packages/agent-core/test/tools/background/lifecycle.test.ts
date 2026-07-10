@@ -98,9 +98,9 @@ describe('BackgroundProcessManager — onLifecycle', () => {
     const taskId = manager.register(pendingProcess(), 'sleep 60', 'long task');
 
     expect(records.length).toBe(1);
-    expect(records[0]!.event).toBe('started');
-    expect(records[0]!.info.taskId).toBe(taskId);
-    expect(records[0]!.info.status).toBe('running');
+    expect(records[0].event).toBe('started');
+    expect(records[0].info.taskId).toBe(taskId);
+    expect(records[0].info.status).toBe('running');
   });
 
   it("fires 'started' on registerAgentTask()", () => {
@@ -110,9 +110,9 @@ describe('BackgroundProcessManager — onLifecycle', () => {
     const taskId = manager.registerAgentTask(new Promise(() => {}), 'an agent');
 
     expect(records.length).toBe(1);
-    expect(records[0]!.event).toBe('started');
-    expect(records[0]!.info.taskId).toBe(taskId);
-    expect(records[0]!.info.taskId).toMatch(/^agent-/);
+    expect(records[0].event).toBe('started');
+    expect(records[0].info.taskId).toBe(taskId);
+    expect(records[0].info.taskId).toMatch(/^agent-/);
   });
 
   it("fires 'updated' on markAwaitingApproval / clearAwaitingApproval", () => {
@@ -125,10 +125,10 @@ describe('BackgroundProcessManager — onLifecycle', () => {
 
     const events = records.map((r) => r.event);
     expect(events).toEqual(['updated', 'updated']);
-    expect(records[0]!.info.status).toBe('awaiting_approval');
-    expect(records[0]!.info.approvalReason).toBe('needs permission');
-    expect(records[1]!.info.status).toBe('running');
-    expect(records[1]!.info.approvalReason).toBeUndefined();
+    expect(records[0].info.status).toBe('awaiting_approval');
+    expect(records[0].info.approvalReason).toBe('needs permission');
+    expect(records[1].info.status).toBe('running');
+    expect(records[1].info.approvalReason).toBeUndefined();
   });
 
   it("does not fire 'updated' for no-op markAwaitingApproval / clearAwaitingApproval", () => {
@@ -156,8 +156,8 @@ describe('BackgroundProcessManager — onLifecycle', () => {
 
     const terminated = records.filter((r) => r.event === 'terminated');
     expect(terminated.length).toBe(1);
-    expect(terminated[0]!.info.status).toBe('completed');
-    expect(terminated[0]!.info.exitCode).toBe(0);
+    expect(terminated[0].info.status).toBe('completed');
+    expect(terminated[0].info.exitCode).toBe(0);
   });
 
   it("fires 'terminated' on non-zero exit (failed)", async () => {
@@ -169,8 +169,8 @@ describe('BackgroundProcessManager — onLifecycle', () => {
 
     const terminated = records.filter((r) => r.event === 'terminated');
     expect(terminated.length).toBe(1);
-    expect(terminated[0]!.info.status).toBe('failed');
-    expect(terminated[0]!.info.exitCode).toBe(2);
+    expect(terminated[0].info.status).toBe('failed');
+    expect(terminated[0].info.exitCode).toBe(2);
   });
 
   it("fires 'terminated' exactly once for the same task (idempotent)", async () => {
@@ -206,8 +206,8 @@ describe('BackgroundProcessManager — onLifecycle', () => {
 
     const terminated = records.filter((r) => r.event === 'terminated');
     expect(terminated.length).toBe(1);
-    expect(terminated[0]!.info.status).toBe('killed');
-    expect(terminated[0]!.info.stopReason).toBe('user requested');
+    expect(terminated[0].info.status).toBe('killed');
+    expect(terminated[0].info.stopReason).toBe('user requested');
   });
 
   it("fires 'terminated' for ghost reconcile (lost)", async () => {
@@ -241,8 +241,8 @@ describe('BackgroundProcessManager — onLifecycle', () => {
       expect(result.lost).toEqual(['bash-deadbeef']);
       const terminated = records.filter((r) => r.event === 'terminated');
       expect(terminated.length).toBe(1);
-      expect(terminated[0]!.info.status).toBe('lost');
-      expect(terminated[0]!.info.taskId).toBe('bash-deadbeef');
+      expect(terminated[0].info.status).toBe('lost');
+      expect(terminated[0].info.taskId).toBe('bash-deadbeef');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

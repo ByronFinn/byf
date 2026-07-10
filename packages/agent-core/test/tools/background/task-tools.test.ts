@@ -154,7 +154,7 @@ describe('TaskListTool', () => {
     // Synchronous check — the task is running immediately after register.
     const tasks = manager.list(true);
     expect(tasks.length).toBe(1);
-    expect(tasks[0]!.command).toBe('sleep 60');
+    expect(tasks[0].command).toBe('sleep 60');
   });
 
   it('does not sleep when listing a normally running task', async () => {

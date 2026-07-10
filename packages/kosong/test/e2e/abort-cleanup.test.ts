@@ -200,7 +200,7 @@ describe('e2e: abort cleanup', () => {
     expect(toolResults).toHaveLength(1);
     expect(handlerStarted).toBe(true);
     expect(handlerFinished).toBe(true);
-    expect(toolResults[0]!.returnValue.output).toBe('slow-done');
+    expect(toolResults[0].returnValue.output).toBe('slow-done');
   });
 
   it('pre-aborted signal rejects without starting the stream iterator', async () => {

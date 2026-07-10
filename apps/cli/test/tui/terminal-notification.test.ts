@@ -186,7 +186,7 @@ describe('terminal notification helpers', () => {
     );
 
     expect(sequences).toHaveLength(1);
-    const wrapped = sequences[0]!;
+    const wrapped = sequences[0];
     expect(wrapped.startsWith('Ptmux;')).toBe(true);
     expect(wrapped.endsWith('\\')).toBe(true);
     expect(wrapped).toContain(']9;A: B');

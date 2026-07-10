@@ -90,7 +90,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch.model).toBe('k2');
     expect(patch.permissionMode).toBe('yolo');
     expect(patch.yolo).toBe(true);
@@ -117,7 +117,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.9457, 4);
   });
@@ -132,7 +132,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(0);
   });
@@ -147,7 +147,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeUndefined();
   });
@@ -189,7 +189,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch.contextUsage).toBe(0.42);
     expect(patch.contextTokens).toBe(4200);
     expect(patch.maxContextTokens).toBe(10000);
@@ -209,7 +209,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch.contextUsage).toBe(0.65);
     expect(patch.permissionMode).toBe('auto');
     expect(patch.yolo).toBe(false);
@@ -226,7 +226,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(1.0);
   });
@@ -241,7 +241,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.01, 4);
   });
@@ -254,7 +254,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0]!;
+    const patch = calls.setAppState[0];
     expect(patch.contextTokens).toBe(12345);
     expect(patch).not.toHaveProperty('cacheHitRate');
   });
@@ -319,8 +319,8 @@ describe('handleSessionError', () => {
     };
     handleSessionError(event, makeState({ sessionId: 'ses-abc' }), callbacks);
     expect(calls.showStatus.length).toBe(1);
-    expect(calls.showStatus[0]!.message).toContain('ses-abc');
-    expect(calls.showStatus[0]!.message).toContain('byf export');
+    expect(calls.showStatus[0].message).toContain('ses-abc');
+    expect(calls.showStatus[0].message).toContain('byf export');
   });
 
   it('does not show error report hint when sessionId is empty', () => {
@@ -359,7 +359,7 @@ describe('handleSessionWarning', () => {
     };
     handleSessionWarning(event, state, callbacks);
     expect(calls.showStatus).toHaveLength(1);
-    expect(calls.showStatus[0]!.message).toBe('Warning: deprecated model');
-    expect(calls.showStatus[0]!.color).toBe(state.theme.colors.warning);
+    expect(calls.showStatus[0].message).toBe('Warning: deprecated model');
+    expect(calls.showStatus[0].color).toBe(state.theme.colors.warning);
   });
 });

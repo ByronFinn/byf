@@ -19,7 +19,7 @@ describe('wire-reader', () => {
     cleanup = c;
     const result = await readAgentWire(join(sessionDir, 'agents', 'main', 'wire.jsonl'));
     expect(result.metadata.protocolVersion).toBe('1.1');
-    expect(result.records[0]!.lineNo).toBe(2); // metadata is line 1, first record is line 2
+    expect(result.records[0].lineNo).toBe(2); // metadata is line 1, first record is line 2
     expect(result.records.at(-1)!.lineNo).toBe(10);
     expect(result.records.map((r) => r.data.type)).toEqual([
       'config.update',
@@ -63,7 +63,7 @@ describe('wire-reader', () => {
     try {
       const result = await readAgentWire(path);
       expect(result.metadata.protocolVersion).toBe('1.0');
-      const entry = result.records[0]!;
+      const entry = result.records[0];
       expect(entry.data.type).toBe('context.append_message');
 
       // `data` carries the migrated (flat) shape.

@@ -151,7 +151,7 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
         addUsage(usage.byScope[scope], rec.usage);
         usage.byModel[rec.model] ??= { ...ZERO };
-        addUsage(usage.byModel[rec.model]!, rec.usage);
+        addUsage(usage.byModel[rec.model], rec.usage);
         break;
       }
       case 'config.update': {

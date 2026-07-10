@@ -100,8 +100,8 @@ describe('FooterComponent — context NaN resilience', () => {
     const on = new FooterComponent(baseState({ model: 'k2', thinkingEffort: 'high' }), darkColors);
     const off = new FooterComponent(baseState({ model: 'k2', thinkingEffort: 'off' }), darkColors);
 
-    expect(strip(on.render(120)[0]!)).toContain('thinking');
-    expect(strip(off.render(120)[0]!)).not.toContain('thinking');
+    expect(strip(on.render(120)[0])).toContain('thinking');
+    expect(strip(off.render(120)[0])).not.toContain('thinking');
   });
 
   it('renders transient hints on the context line', () => {

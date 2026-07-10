@@ -127,7 +127,13 @@ function renderManualUpdateMessage(
         'legacy npm-global JS layout. Reinstall to switch to the native binary package ' +
         '(optionalDependencies platform packages).';
       break;
-    default:
+    case 'npm-global':
+    case 'pnpm-global':
+    case 'yarn-global':
+    case 'bun-global':
+      sourceDesc = 'global package-manager install.';
+      break;
+    case 'unsupported':
       sourceDesc = 'unsupported package manager or layout.';
       break;
   }

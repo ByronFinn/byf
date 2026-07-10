@@ -800,7 +800,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0]!.result;
+    const result = results[0].result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBe('rejected');
@@ -825,7 +825,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0]!.result;
+    const result = results[0].result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBe('cancelled');
@@ -843,7 +843,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0]!.result;
+    const result = results[0].result;
     expect(result.isError).toBeFalsy();
     if (result.isError === true) {
       expect(result.blockedReason).toBeUndefined();
@@ -862,7 +862,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0]!.result;
+    const result = results[0].result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBeUndefined();

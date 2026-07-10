@@ -150,8 +150,10 @@
     "coverage/",
     "node_modules/",
     "scripts/",
+    "build/",
     "apps/*/scripts/",
     "packages/*/scripts/",
+    "apps/*/bin/",
     "docs/smoke-archive/",
     "*.generated.ts"
   ]

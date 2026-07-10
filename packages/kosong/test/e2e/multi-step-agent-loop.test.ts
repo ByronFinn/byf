@@ -139,11 +139,11 @@ describe('e2e: multi-step agent loop', () => {
     expect(turns).toBe(2);
     // History: user → assistant(tool_call) → tool → assistant(text)
     expect(messages).toHaveLength(4);
-    expect(messages[1]!.role).toBe('assistant');
-    expect(messages[1]!.toolCalls).toHaveLength(1);
-    expect(messages[2]!.role).toBe('tool');
-    expect(messages[3]!.role).toBe('assistant');
-    expect(extractText(messages[3]!)).toBe('Found results for vitest.');
+    expect(messages[1].role).toBe('assistant');
+    expect(messages[1].toolCalls).toHaveLength(1);
+    expect(messages[2].role).toBe('tool');
+    expect(messages[3].role).toBe('assistant');
+    expect(extractText(messages[3])).toBe('Found results for vitest.');
   });
 
   it('3-step loop: tool A → tool B → final text', async () => {
@@ -181,7 +181,7 @@ describe('e2e: multi-step agent loop', () => {
     expect(turns).toBe(3);
     // user → asst(search) → tool → asst(read_file) → tool → asst(final)
     expect(messages).toHaveLength(6);
-    expect(extractText(messages[5]!)).toBe('The answer is: use vitest.');
+    expect(extractText(messages[5])).toBe('The answer is: use vitest.');
   });
 
   it('parallel tool calls: 3 tool_calls in one turn → all executed', async () => {
@@ -280,7 +280,7 @@ describe('e2e: multi-step agent loop', () => {
     expect(turns).toBe(3);
     // user → asst(list) → tool(list result) → asst(read) → tool(read result) → asst(final)
     expect(messages).toHaveLength(6);
-    expect(extractText(messages[5]!)).toBe('main.ts exports greet()');
+    expect(extractText(messages[5])).toBe('main.ts exports greet()');
   });
 
   it('text + tool_call interleaved across multiple turns', async () => {
@@ -318,11 +318,11 @@ describe('e2e: multi-step agent loop', () => {
 
     expect(turns).toBe(3);
     // Each assistant message should have both text content and tool calls
-    expect(messages[1]!.content).toEqual([{ type: 'text', text: 'Computing 2+2...' }]);
-    expect(messages[1]!.toolCalls).toHaveLength(1);
-    expect(messages[3]!.content).toEqual([{ type: 'text', text: 'Now 4*3...' }]);
-    expect(messages[3]!.toolCalls).toHaveLength(1);
-    expect(extractText(messages[5]!)).toBe('Results: 4 and 12.');
+    expect(messages[1].content).toEqual([{ type: 'text', text: 'Computing 2+2...' }]);
+    expect(messages[1].toolCalls).toHaveLength(1);
+    expect(messages[3].content).toEqual([{ type: 'text', text: 'Now 4*3...' }]);
+    expect(messages[3].toolCalls).toHaveLength(1);
+    expect(extractText(messages[5])).toBe('Results: 4 and 12.');
   });
 
   it('ScriptedEchoChatProvider works for multi-step loop with echo DSL', async () => {

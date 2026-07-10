@@ -194,7 +194,7 @@ describe('CompactionHandler', () => {
       );
 
       const after = Date.now();
-      const patch = calls.setAppState[0] as Partial<AppState>;
+      const patch = calls.setAppState[0];
       expect(patch.streamingStartTime).toBeGreaterThanOrEqual(before);
       expect(patch.streamingStartTime).toBeLessThanOrEqual(after + 100);
     });

@@ -177,7 +177,7 @@ describe('SimpleToolset', () => {
 
     toolset.remove('a');
     expect(toolset.tools).toHaveLength(1);
-    expect(toolset.tools[0]!.name).toBe('b');
+    expect(toolset.tools[0].name).toBe('b');
   });
 
   it('add() overwrites existing tool with same name', async () => {
@@ -193,7 +193,7 @@ describe('SimpleToolset', () => {
     );
 
     expect(toolset.tools).toHaveLength(1);
-    expect(toolset.tools[0]!.description).toBe('v2');
+    expect(toolset.tools[0].description).toBe('v2');
 
     const tc = makeToolCall('1', 'tool', '{}');
     const result = await toolset.handle(tc);

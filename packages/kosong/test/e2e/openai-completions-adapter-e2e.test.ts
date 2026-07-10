@@ -201,8 +201,8 @@ describe('e2e: openai-completions adapter', () => {
       });
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0]!.pathname).toBe('/v1/chat/completions');
-      expect(harness.requests[0]!.headers['authorization']).toBe('Bearer test-key');
+      expect(harness.requests[0].pathname).toBe('/v1/chat/completions');
+      expect(harness.requests[0].headers['authorization']).toBe('Bearer test-key');
       expect(result.id).toBe('chatcmpl-e2e-1');
       expect(result.usage).toEqual({
         inputOther: 10,
@@ -318,7 +318,7 @@ describe('e2e: openai-completions adapter', () => {
           { role: 'user', content: 'What is the answer?' },
         ],
       });
-      expect(harness.requests[0]!.headers['authorization']).toBe('Bearer test-key');
+      expect(harness.requests[0].headers['authorization']).toBe('Bearer test-key');
       expect(result.id).toBe('chatcmpl-nonstream-e2e');
       expect(result.usage).toEqual({
         inputOther: 20,

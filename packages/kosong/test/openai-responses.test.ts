@@ -248,7 +248,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_text', text: 'Listen' },
         { type: 'input_file', file_data: 'QUJD', filename: 'inline.mp3' },
       ]);
@@ -266,7 +266,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_file', file_data: 'V0FW', filename: 'inline.wav' },
       ]);
     });
@@ -283,7 +283,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_file', file_url: 'https://example.com/speech.mp3' },
       ]);
     });
@@ -304,7 +304,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // Only the text part survives; the unsupported ogg audio is dropped.
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Bare text' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Bare text' }]);
     });
 
     it('multiple consecutive ThinkParts with the same encrypted value aggregate into one reasoning item with multiple summaries', async () => {
@@ -1087,7 +1087,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       // Only the text part survives; video is dropped.
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Watch this:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Watch this:' }]);
     });
 
     it('audio_url with unsupported scheme is silently dropped from user content', async () => {
@@ -1106,7 +1106,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // file:// URL is unsupported → drop
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Hear:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Hear:' }]);
     });
 
     it('audio_url data URL with unknown subtype is silently dropped', async () => {
@@ -1125,7 +1125,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // ogg subtype is not mp3/wav → drop
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'OGG:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'OGG:' }]);
     });
   });
 
@@ -1704,7 +1704,7 @@ function makeAsyncIterable(
       return {
         next(): Promise<IteratorResult<Record<string, unknown>>> {
           if (index < events.length) {
-            return Promise.resolve({ value: events[index++]!, done: false });
+            return Promise.resolve({ value: events[index++], done: false });
           }
           return Promise.resolve({
             value: undefined as unknown as Record<string, unknown>,

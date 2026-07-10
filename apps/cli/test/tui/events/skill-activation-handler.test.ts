@@ -68,7 +68,7 @@ describe('handleSkillActivated', () => {
       handleSkillActivated(event, state, callbacks);
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
-      const entry = calls.appendTranscriptEntry[0]!;
+      const entry = calls.appendTranscriptEntry[0];
       expect(entry.kind).toBe('skill_activation');
       expect(entry.turnId).toBeUndefined();
       expect(entry.renderMode).toBe('plain');
@@ -98,7 +98,7 @@ describe('handleSkillActivated', () => {
       );
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
-      const entry = calls.appendTranscriptEntry[0]!;
+      const entry = calls.appendTranscriptEntry[0];
       expect(entry.content).toBe('Activated skill: undefined');
       expect(entry.skillName).toBeUndefined();
       expect(entry.skillArgs).toBeUndefined();
@@ -156,9 +156,9 @@ describe('handleSkillActivated', () => {
       );
 
       expect(calls.appendTranscriptEntry).toHaveLength(3);
-      expect(calls.appendTranscriptEntry[0]!.skillName).toBe('review');
-      expect(calls.appendTranscriptEntry[1]!.skillName).toBe('think');
-      expect(calls.appendTranscriptEntry[2]!.skillName).toBe('debug');
+      expect(calls.appendTranscriptEntry[0].skillName).toBe('review');
+      expect(calls.appendTranscriptEntry[1].skillName).toBe('think');
+      expect(calls.appendTranscriptEntry[2].skillName).toBe('debug');
       expect(state.renderedSkillActivationIds.size).toBe(3);
     });
 

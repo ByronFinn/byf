@@ -559,9 +559,9 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0]!)).toMatch(/^<notification /);
-    expect(textOf(messages[0]!)).toContain('Task done');
-    expect(textOf(messages[1]!)).toBe('Actual user prompt');
+    expect(textOf(messages[0])).toMatch(/^<notification /);
+    expect(textOf(messages[0])).toContain('Task done');
+    expect(textOf(messages[1])).toBe('Actual user prompt');
   });
 
   it('places before_user injections after history (dynamic zone)', () => {
@@ -584,11 +584,11 @@ describe('Agent context notification projection', () => {
     // Expected order: [after_system] [history...] [before_user]
     // before_user injections go at the end so they don't break the cached prefix
     expect(messages).toHaveLength(5);
-    expect(textOf(messages[0]!)).toContain('After system content');
-    expect(textOf(messages[1]!)).toBe('Hello');
-    expect(textOf(messages[2]!)).toBe('Hi there');
-    expect(textOf(messages[3]!)).toBe('Do something');
-    expect(textOf(messages[4]!)).toContain('Before user content');
+    expect(textOf(messages[0])).toContain('After system content');
+    expect(textOf(messages[1])).toBe('Hello');
+    expect(textOf(messages[2])).toBe('Hi there');
+    expect(textOf(messages[3])).toBe('Do something');
+    expect(textOf(messages[4])).toContain('Before user content');
   });
 
   it('places before_user injections at the end even with no after_system injections', () => {
@@ -604,8 +604,8 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0]!)).toBe('Question');
-    expect(textOf(messages[1]!)).toContain('Dynamic context');
+    expect(textOf(messages[0])).toBe('Question');
+    expect(textOf(messages[1])).toContain('Dynamic context');
   });
 });
 

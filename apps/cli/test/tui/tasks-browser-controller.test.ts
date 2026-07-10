@@ -186,7 +186,7 @@ describe('TasksBrowserController', () => {
     await controller.show();
 
     env.tasks.push(task({ taskId: 'bash-bbb' }));
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
 
@@ -212,7 +212,7 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     expect(lastProps(spy).selectedTaskId).toBe('bash-running');
@@ -224,7 +224,7 @@ describe('TasksBrowserController', () => {
 
     await controller.show();
 
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     expect(lastProps(spy).selectedTaskId).toBeUndefined();
@@ -253,7 +253,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
 
@@ -269,7 +269,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
@@ -286,7 +286,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
@@ -305,7 +305,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
 
     const spy = spySetProps(comp);
     controller.repaint();
@@ -323,7 +323,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -347,7 +347,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -371,7 +371,7 @@ describe('TasksBrowserController', () => {
     });
     getOutputSpy.mockClear();
 
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
     controller.repaint();
     const onSelect = lastProps(spy)['onSelect'] as (taskId: string) => void;
@@ -386,7 +386,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -402,7 +402,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -429,7 +429,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -452,7 +452,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -473,7 +473,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();
@@ -490,7 +490,7 @@ describe('TasksBrowserController', () => {
     const controller = new TasksBrowserController(env);
 
     await controller.show();
-    const comp = env.host.fullscreenPanels[0]! as TasksBrowserApp;
+    const comp = env.host.fullscreenPanels[0] as TasksBrowserApp;
     const spy = spySetProps(comp);
 
     controller.repaint();

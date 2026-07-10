@@ -773,9 +773,9 @@ describe('Agent turn flow', () => {
     const input = ctx.llmCalls[0];
     expect(input?.tools.length).toBeGreaterThan(0);
     const expectedTokens =
-      estimateTokens(input!.systemPrompt) +
-      estimateTokensForMessages(input!.history) +
-      estimateTokensForTools(input!.tools);
+      estimateTokens(input.systemPrompt) +
+      estimateTokensForMessages(input.history) +
+      estimateTokensForTools(input.tools);
     const requestPayload = entries.find((entry) => entry.message === 'llm request')?.payload as
       | Record<string, unknown>
       | undefined;

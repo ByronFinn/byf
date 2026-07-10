@@ -54,9 +54,9 @@ function captureCommandRewrite(
   }).then(() => {
     const argv = execWithEnv.mock.calls[0]?.[0] as readonly string[];
     // The shell wrapper is "cd '<cwd>' && <rewritten>"; isolate the rewrite.
-    const wrapped = argv[2]!;
+    const wrapped = argv[2];
     const match = /^cd '[^']+' && (.*)$/.exec(wrapped)!;
-    return { rewritten: match[1]!, argv };
+    return { rewritten: match[1], argv };
   });
 }
 

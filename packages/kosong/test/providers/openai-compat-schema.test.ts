@@ -81,7 +81,7 @@ describe('derefJsonSchema', () => {
 
     const result = derefJsonSchema(schema);
 
-    const user = (result['properties'] as Record<string, Record<string, unknown>>)['user']!;
+    const user = (result['properties'] as Record<string, Record<string, unknown>>)['user'];
     // Resolved definition fields are present.
     expect(user['type']).toBe('object');
     expect(user['properties']).toEqual({ name: { type: 'string' } });
@@ -110,7 +110,7 @@ describe('derefJsonSchema', () => {
 
     const result = derefJsonSchema(schema);
 
-    const field = (result['properties'] as Record<string, Record<string, unknown>>)['field']!;
+    const field = (result['properties'] as Record<string, Record<string, unknown>>)['field'];
     expect(field['type']).toBe('string');
     // Local sibling wins.
     expect(field['description']).toBe('local override wins');
@@ -141,7 +141,7 @@ describe('derefJsonSchema', () => {
 
     const result = derefJsonSchema(schema);
 
-    const entry = (result['properties'] as Record<string, Record<string, unknown>>)['entry']!;
+    const entry = (result['properties'] as Record<string, Record<string, unknown>>)['entry'];
     expect(entry['type']).toBe('object');
     expect(entry['properties']).toEqual({ a: { type: 'number' } });
     // Sibling `extra` must have been recursively resolved (not left as a $ref).

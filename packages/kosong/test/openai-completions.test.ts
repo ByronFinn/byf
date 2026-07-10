@@ -292,8 +292,8 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const assistantMsg = (body['messages'] as Record<string, unknown>[])[1]!;
-      const serializedToolCall = (assistantMsg['tool_calls'] as Record<string, unknown>[])[0]!;
+      const assistantMsg = (body['messages'] as Record<string, unknown>[])[1];
+      const serializedToolCall = (assistantMsg['tool_calls'] as Record<string, unknown>[])[0];
 
       expect(serializedToolCall['extras']).toEqual({ custom_field: 'custom_value' });
     });
@@ -322,7 +322,7 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const toolMsg = (body['messages'] as Record<string, unknown>[])[2]!;
+      const toolMsg = (body['messages'] as Record<string, unknown>[])[2];
 
       expect(typeof toolMsg['content']).toBe('string');
       expect(toolMsg['content']).toContain('5');
@@ -351,7 +351,7 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const toolMsg = (body['messages'] as Record<string, unknown>[])[2]!;
+      const toolMsg = (body['messages'] as Record<string, unknown>[])[2];
 
       expect(typeof toolMsg['content']).toBe('string');
     });
@@ -378,7 +378,7 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const toolMsg = (body['messages'] as Record<string, unknown>[])[2]!;
+      const toolMsg = (body['messages'] as Record<string, unknown>[])[2];
 
       expect(typeof toolMsg['content']).toBe('string');
     });
@@ -405,7 +405,7 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const toolMsg = (body['messages'] as Record<string, unknown>[])[2]!;
+      const toolMsg = (body['messages'] as Record<string, unknown>[])[2];
 
       expect(typeof toolMsg['content']).toBe('string');
       expect(toolMsg['content']).toBe('part-1part-2');
@@ -430,7 +430,7 @@ describe('OpenAICompletionsChatProvider', () => {
         },
       ];
       const body = await captureRequestBody(provider, '', [], history);
-      const toolMsg = (body['messages'] as Record<string, unknown>[])[2]!;
+      const toolMsg = (body['messages'] as Record<string, unknown>[])[2];
 
       expect(toolMsg['content']).toBe('3');
     });

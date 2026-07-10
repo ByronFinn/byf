@@ -174,7 +174,7 @@ describe('AskUserQuestionTool', () => {
       turnId: '0',
       toolCallId: 'call_question',
       args: {
-        questions: [input().questions[0]!, input({ question: 'Which cache?' }).questions[0]!],
+        questions: [input().questions[0], input({ question: 'Which cache?' }).questions[0]],
       },
       signal,
     });

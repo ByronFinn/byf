@@ -160,14 +160,14 @@ describe('GoogleGenAIChatProvider', () => {
       };
       expect(first.role).toBe('user');
       expect(first.parts).toHaveLength(1);
-      expect(first.parts[0]!.text).toBe('<system>You are helpful.</system>');
+      expect(first.parts[0].text).toBe('<system>You are helpful.</system>');
       // Original user turn is untouched.
       const second = contents[1] as unknown as {
         role: string;
         parts: Array<{ text?: string }>;
       };
       expect(second.role).toBe('user');
-      expect(second.parts[0]!.text).toBe('Hi');
+      expect(second.parts[0].text).toBe('Hi');
       // No emitted content carries the unsupported "system" role.
       for (const c of contents) {
         expect((c as unknown as { role: string }).role).not.toBe('system');
@@ -1657,7 +1657,7 @@ describe('messagesToGoogleGenAIContents - extra branches', () => {
     ];
     const body = await captureRequestBody(provider, '', [], history);
     const contents = body['contents'] as Array<{ parts: Array<Record<string, unknown>> }>;
-    const fileData = contents[0]!.parts[0]!['fileData'] as { mimeType: string };
+    const fileData = contents[0].parts[0]['fileData'] as { mimeType: string };
     expect(fileData.mimeType).toBe('image/png');
   });
 
@@ -1672,7 +1672,7 @@ describe('messagesToGoogleGenAIContents - extra branches', () => {
     ];
     const body = await captureRequestBody(provider, '', [], history);
     const contents = body['contents'] as Array<{ parts: Array<Record<string, unknown>> }>;
-    const fileData = contents[0]!.parts[0]!['fileData'] as { mimeType: string };
+    const fileData = contents[0].parts[0]['fileData'] as { mimeType: string };
     expect(fileData.mimeType).toBe('image/jpeg');
   });
 
@@ -1687,7 +1687,7 @@ describe('messagesToGoogleGenAIContents - extra branches', () => {
     ];
     const body = await captureRequestBody(provider, '', [], history);
     const contents = body['contents'] as Array<{ parts: Array<Record<string, unknown>> }>;
-    const fileData = contents[0]!.parts[0]!['fileData'] as { mimeType: string };
+    const fileData = contents[0].parts[0]['fileData'] as { mimeType: string };
     expect(fileData.mimeType).toBe('audio/mpeg');
   });
 
@@ -1702,7 +1702,7 @@ describe('messagesToGoogleGenAIContents - extra branches', () => {
     ];
     const body = await captureRequestBody(provider, '', [], history);
     const contents = body['contents'] as Array<{ parts: Array<Record<string, unknown>> }>;
-    expect(contents[0]!.parts[0]).toMatchObject({
+    expect(contents[0].parts[0]).toMatchObject({
       fileData: { fileUri: 'data:image/png' },
     });
   });

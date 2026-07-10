@@ -70,7 +70,7 @@ describe('renderDiffLines', () => {
 describe('renderDiffLinesClustered', () => {
   it('renders header with file path and counts', () => {
     const out = renderDiffLinesClustered('A\nB\nC', 'A\nX\nC', 'foo.ts', COLORS);
-    const text = stripAnsi(out[0]!);
+    const text = stripAnsi(out[0]);
     expect(text).toContain('+1');
     expect(text).toContain('-1');
     expect(text).toContain('foo.ts');
@@ -79,7 +79,7 @@ describe('renderDiffLinesClustered', () => {
   it('returns header only when there are no changes', () => {
     const out = renderDiffLinesClustered('A\nB', 'A\nB', 'foo.ts', COLORS);
     expect(out).toHaveLength(1);
-    expect(stripAnsi(out[0]!)).toContain('foo.ts');
+    expect(stripAnsi(out[0])).toContain('foo.ts');
   });
 
   it('shows context lines around a single change cluster', () => {

@@ -201,14 +201,14 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
 
     // Three tool calls, in stream order.
     expect(result.toolCalls).toHaveLength(3);
-    expect(result.toolCalls[0]!.name).toBe('read_file');
-    expect(result.toolCalls[1]!.name).toBe('write_file');
-    expect(result.toolCalls[2]!.name).toBe('list_dir');
+    expect(result.toolCalls[0].name).toBe('read_file');
+    expect(result.toolCalls[1].name).toBe('write_file');
+    expect(result.toolCalls[2].name).toBe('list_dir');
 
     // Fully-assembled arguments — no cross-contamination.
-    expect(result.toolCalls[0]!.arguments).toBe('{"path":"a.txt"}');
-    expect(result.toolCalls[1]!.arguments).toBe('{"path":"b.txt","data":"X"}');
-    expect(result.toolCalls[2]!.arguments).toBe('{"path":"/tmp"}');
+    expect(result.toolCalls[0].arguments).toBe('{"path":"a.txt"}');
+    expect(result.toolCalls[1].arguments).toBe('{"path":"b.txt","data":"X"}');
+    expect(result.toolCalls[2].arguments).toBe('{"path":"/tmp"}');
 
     // Each handler saw the correct parsed JSON arguments.
     const toolResults = await result.toolResults();
@@ -221,9 +221,9 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
 
     // The tool_results are returned in the same order as toolCalls,
     // regardless of handler completion order.
-    expect(toolResults[0]!.toolCallId).toBe('tc_read');
-    expect(toolResults[1]!.toolCallId).toBe('tc_write');
-    expect(toolResults[2]!.toolCallId).toBe('tc_list');
+    expect(toolResults[0].toolCallId).toBe('tc_read');
+    expect(toolResults[1].toolCallId).toBe('tc_write');
+    expect(toolResults[2].toolCallId).toBe('tc_list');
 
     // `_streamIndex` must be stripped from the stored ToolCall.
     for (const tc of result.toolCalls) {
@@ -293,7 +293,7 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
 
     // All three handlers must have started within a small window of
     // each other — they were dispatched concurrently, not serially.
-    const t = [startTimes['a']!, startTimes['b']!, startTimes['c']!];
+    const t = [startTimes['a'], startTimes['b'], startTimes['c']];
     const spread = Math.max(...t) - Math.min(...t);
     expect(spread).toBeLessThan(50); // dispatched within 50ms of each other
 
@@ -414,12 +414,12 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
     const toolResults = await result.toolResults();
 
     expect(toolResults).toHaveLength(3);
-    expect(toolResults[0]!.returnValue.isError).toBe(false);
-    expect(toolResults[0]!.returnValue.output).toBe('ok-1');
-    expect(toolResults[1]!.returnValue.isError).toBe(true);
-    expect(toolResults[1]!.returnValue.message).toBe('Error running tool: tool explosion');
-    expect(toolResults[2]!.returnValue.isError).toBe(false);
-    expect(toolResults[2]!.returnValue.output).toBe('ok-2');
+    expect(toolResults[0].returnValue.isError).toBe(false);
+    expect(toolResults[0].returnValue.output).toBe('ok-1');
+    expect(toolResults[1].returnValue.isError).toBe(true);
+    expect(toolResults[1].returnValue.message).toBe('Error running tool: tool explosion');
+    expect(toolResults[2].returnValue.isError).toBe(false);
+    expect(toolResults[2].returnValue.output).toBe('ok-2');
   });
 
   it('generate (direct) routes interleaved deltas by non-numeric streaming id (Responses API style)', async () => {
@@ -458,11 +458,11 @@ describe('integration: parallel tool calls through SimpleToolset', () => {
     });
 
     expect(result.message.toolCalls).toHaveLength(2);
-    expect(result.message.toolCalls[0]!.arguments).toBe('{"k":"A"}');
-    expect(result.message.toolCalls[1]!.arguments).toBe('{"k":"B"}');
+    expect(result.message.toolCalls[0].arguments).toBe('{"k":"A"}');
+    expect(result.message.toolCalls[1].arguments).toBe('{"k":"B"}');
     // onToolCall fired once per fully-assembled call after stream drained.
     expect(seen).toHaveLength(2);
-    expect(seen[0]!.id).toBe('tc_alpha');
-    expect(seen[1]!.id).toBe('tc_beta');
+    expect(seen[0].id).toBe('tc_alpha');
+    expect(seen[1].id).toBe('tc_beta');
   });
 });

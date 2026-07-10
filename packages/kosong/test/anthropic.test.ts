@@ -516,16 +516,16 @@ describe('AnthropicChatProvider', () => {
       // 3 messages: initial user prompt, assistant with parallel tool_use,
       // and a single trailing user message carrying BOTH tool_result blocks.
       expect(msgs).toHaveLength(3);
-      expect(msgs[0]!.role).toBe('user');
-      expect(msgs[1]!.role).toBe('assistant');
-      expect(msgs[2]!.role).toBe('user');
+      expect(msgs[0].role).toBe('user');
+      expect(msgs[1].role).toBe('assistant');
+      expect(msgs[2].role).toBe('user');
 
-      const trailing = msgs[2]!.content;
+      const trailing = msgs[2].content;
       expect(trailing).toHaveLength(2);
-      expect(trailing[0]!.type).toBe('tool_result');
-      expect(trailing[0]!.tool_use_id).toBe('call_add');
-      expect(trailing[1]!.type).toBe('tool_result');
-      expect(trailing[1]!.tool_use_id).toBe('call_mul');
+      expect(trailing[0].type).toBe('tool_result');
+      expect(trailing[0].tool_use_id).toBe('call_add');
+      expect(trailing[1].type).toBe('tool_result');
+      expect(trailing[1].tool_use_id).toBe('call_mul');
     });
 
     // Edge case: single (non-parallel) tool call should NOT trigger merge
@@ -560,9 +560,9 @@ describe('AnthropicChatProvider', () => {
       const msgs = body['messages'] as MsgParam[];
 
       expect(msgs).toHaveLength(3);
-      expect(msgs[2]!.content).toHaveLength(1);
-      expect(msgs[2]!.content[0]!.type).toBe('tool_result');
-      expect(msgs[2]!.content[0]!.tool_use_id).toBe('call_add');
+      expect(msgs[2].content).toHaveLength(1);
+      expect(msgs[2].content[0].type).toBe('tool_result');
+      expect(msgs[2].content[0].tool_use_id).toBe('call_add');
     });
 
     // Edge case: 3 parallel tool calls collapse into one user message with
@@ -592,7 +592,7 @@ describe('AnthropicChatProvider', () => {
       const msgs = body['messages'] as MsgParam[];
 
       expect(msgs).toHaveLength(3);
-      const trailing = msgs[2]!.content;
+      const trailing = msgs[2].content;
       expect(trailing).toHaveLength(3);
       expect(trailing.map((b) => b.tool_use_id)).toEqual(['c1', 'c2', 'c3']);
       expect(trailing.every((b) => b.type === 'tool_result')).toBe(true);
@@ -647,12 +647,12 @@ describe('AnthropicChatProvider', () => {
 
       // 4 messages: user prompt, assistant tool_use, merged tool_result user, final text user.
       expect(msgs).toHaveLength(4);
-      expect(msgs[2]!.content).toHaveLength(2);
-      expect(msgs[2]!.content.every((b) => b.type === 'tool_result')).toBe(true);
-      expect(msgs[3]!.role).toBe('user');
-      expect(msgs[3]!.content).toHaveLength(1);
-      expect(msgs[3]!.content[0]!.type).toBe('text');
-      expect(msgs[3]!.content[0]!.text).toBe('Now summarize');
+      expect(msgs[2].content).toHaveLength(2);
+      expect(msgs[2].content.every((b) => b.type === 'tool_result')).toBe(true);
+      expect(msgs[3].role).toBe('user');
+      expect(msgs[3].content).toHaveLength(1);
+      expect(msgs[3].content[0].type).toBe('text');
+      expect(msgs[3].content[0].text).toBe('Now summarize');
     });
 
     it('assistant with thinking (has encrypted -> ThinkingBlockParam)', async () => {
@@ -1657,12 +1657,12 @@ describe('AnthropicChatProvider', () => {
       );
 
       expect(message.toolCalls.length).toBe(2);
-      expect(message.toolCalls[0]!.id).toBe('toolu_a');
-      expect(message.toolCalls[0]!.name).toBe('tool_a');
-      expect(message.toolCalls[0]!.arguments).toBe('{"x":1}');
-      expect(message.toolCalls[1]!.id).toBe('toolu_b');
-      expect(message.toolCalls[1]!.name).toBe('tool_b');
-      expect(message.toolCalls[1]!.arguments).toBe('{"y":2}');
+      expect(message.toolCalls[0].id).toBe('toolu_a');
+      expect(message.toolCalls[0].name).toBe('tool_a');
+      expect(message.toolCalls[0].arguments).toBe('{"x":1}');
+      expect(message.toolCalls[1].id).toBe('toolu_b');
+      expect(message.toolCalls[1].name).toBe('tool_b');
+      expect(message.toolCalls[1].arguments).toBe('{"y":2}');
       // _streamIndex should be stripped from stored tool calls.
       expect(
         (message.toolCalls[0] as ToolCall & { _streamIndex?: number })._streamIndex,
@@ -2252,10 +2252,10 @@ describe('AnthropicChatProvider PromptPlan support', () => {
         cache_control?: { type: string };
       }>;
       expect(system).toHaveLength(4);
-      expect(system[0]!.cache_control).toEqual({ type: 'ephemeral' });
-      expect(system[1]!.cache_control).toEqual({ type: 'ephemeral' });
-      expect(system[2]!.cache_control).toEqual({ type: 'ephemeral' });
-      expect(system[3]!.cache_control).toBeUndefined();
+      expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[2].cache_control).toEqual({ type: 'ephemeral' });
+      expect(system[3].cache_control).toBeUndefined();
     });
 
     it('handles empty PromptPlan blocks', async () => {
@@ -2285,9 +2285,9 @@ describe('AnthropicChatProvider PromptPlan support', () => {
 
       const system = body['system'] as Array<{ type: string; text: string }>;
       expect(system).toHaveLength(3);
-      expect(system[0]!.text).toBe('First block.');
-      expect(system[1]!.text).toBe('Second block.');
-      expect(system[2]!.text).toBe('Third block.');
+      expect(system[0].text).toBe('First block.');
+      expect(system[1].text).toBe('Second block.');
+      expect(system[2].text).toBe('Third block.');
     });
   });
 });
@@ -2313,11 +2313,11 @@ describe('AnthropicChatProvider cacheHint on history messages', () => {
     }>;
 
     // First user message - no cache_control
-    expect(messages[0]!.content[0]!.cache_control).toBeUndefined();
+    expect(messages[0].content[0].cache_control).toBeUndefined();
     // Assistant message with isLastTurnEnd - last block should have cache_control
-    expect(messages[1]!.content.at(-1)!.cache_control).toEqual({ type: 'ephemeral' });
+    expect(messages[1].content.at(-1)!.cache_control).toEqual({ type: 'ephemeral' });
     // Second user message - no cache_control
-    expect(messages[2]!.content[0]!.cache_control).toBeUndefined();
+    expect(messages[2].content[0].cache_control).toBeUndefined();
   });
 
   it('does not inject cache_control on messages without cacheHint', async () => {
@@ -2333,8 +2333,8 @@ describe('AnthropicChatProvider cacheHint on history messages', () => {
       content: Array<{ type: string; cache_control?: { type: string } }>;
     }>;
 
-    expect(messages[0]!.content[0]!.cache_control).toBeUndefined();
-    expect(messages[1]!.content[0]!.cache_control).toBeUndefined();
+    expect(messages[0].content[0].cache_control).toBeUndefined();
+    expect(messages[1].content[0].cache_control).toBeUndefined();
   });
 
   it('injects cache_control on last block when assistant has tool calls', async () => {
@@ -2362,11 +2362,11 @@ describe('AnthropicChatProvider cacheHint on history messages', () => {
     }>;
 
     // The last block (tool_use) should have cache_control
-    const assistantContent = messages[1]!.content;
+    const assistantContent = messages[1].content;
     const lastBlock = assistantContent.at(-1)!;
     expect(lastBlock.cache_control).toEqual({ type: 'ephemeral' });
     // The text block should NOT have cache_control
-    expect(assistantContent[0]!.cache_control).toBeUndefined();
+    expect(assistantContent[0].cache_control).toBeUndefined();
   });
 
   it('injects cache_control on message with isSuddenLargeContext', async () => {

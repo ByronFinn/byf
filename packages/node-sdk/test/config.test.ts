@@ -205,8 +205,8 @@ maxRunningTasks = 2
     expect(config.loopControl?.maxStepsPerTurn).toBe(7);
     expect(config.background?.maxRunningTasks).toBe(2);
 
-    expect('unsupportedProviderField' in config.providers['local']!).toBe(false);
-    expect('customModelField' in config.models!['camel-model']!).toBe(false);
+    expect('unsupportedProviderField' in config.providers['local']).toBe(false);
+    expect('customModelField' in config.models!['camel-model']).toBe(false);
 
     const rawProviders = config.raw?.['providers'] as Record<string, Record<string, unknown>>;
     const rawModels = config.raw?.['models'] as Record<string, Record<string, unknown>>;

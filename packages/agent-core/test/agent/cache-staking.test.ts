@@ -14,9 +14,9 @@ describe('CacheStakingStrategy', () => {
 
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
-      expect(result[0]!.cacheHint).toBeUndefined();
-      expect(result[1]!.cacheHint).toEqual({ isLastTurnEnd: true });
-      expect(result[2]!.cacheHint).toBeUndefined();
+      expect(result[0].cacheHint).toBeUndefined();
+      expect(result[1].cacheHint).toEqual({ isLastTurnEnd: true });
+      expect(result[2].cacheHint).toBeUndefined();
     });
 
     it('does not tag when previousTurnMessageCount is 0', () => {
@@ -26,7 +26,7 @@ describe('CacheStakingStrategy', () => {
 
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 0 });
 
-      expect(result[0]!.cacheHint).toBeUndefined();
+      expect(result[0].cacheHint).toBeUndefined();
     });
 
     it('does not tag when last turn message is not assistant', () => {
@@ -44,7 +44,7 @@ describe('CacheStakingStrategy', () => {
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
       // tool message at index 1 should NOT be tagged (not assistant)
-      expect(result[1]!.cacheHint).toBeUndefined();
+      expect(result[1].cacheHint).toBeUndefined();
     });
 
     it('handles empty messages array', () => {
@@ -61,7 +61,7 @@ describe('CacheStakingStrategy', () => {
 
       applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
-      expect(messages[1]!.cacheHint).toBeUndefined();
+      expect(messages[1].cacheHint).toBeUndefined();
     });
 
     it('preserves existing cacheHint fields when adding isLastTurnEnd', () => {
@@ -77,7 +77,7 @@ describe('CacheStakingStrategy', () => {
 
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 1 });
 
-      expect(result[0]!.cacheHint).toEqual({
+      expect(result[0].cacheHint).toEqual({
         isSuddenLargeContext: true,
         isLastTurnEnd: true,
       });
@@ -90,7 +90,7 @@ describe('CacheStakingStrategy', () => {
 
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 1 });
 
-      expect(result[0]!.cacheHint).toEqual({ isLastTurnEnd: true });
+      expect(result[0].cacheHint).toEqual({ isLastTurnEnd: true });
     });
   });
 
@@ -115,13 +115,13 @@ describe('CacheStakingStrategy', () => {
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
       // Index 1 = isLastTurnEnd (assistant at previousTurnMessageCount - 1)
-      expect(result[1]!.cacheHint?.isLastTurnEnd).toBe(true);
+      expect(result[1].cacheHint?.isLastTurnEnd).toBe(true);
       // Index 3 = isSuddenLargeContext (largest content in current turn)
-      expect(result[3]!.cacheHint?.isSuddenLargeContext).toBe(true);
+      expect(result[3].cacheHint?.isSuddenLargeContext).toBe(true);
       // Others should not have isSuddenLargeContext
-      expect(result[0]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
-      expect(result[2]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
-      expect(result[4]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[0].cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[2].cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[4].cacheHint?.isSuddenLargeContext).toBeUndefined();
     });
 
     it('picks the largest qualifying block when multiple exceed threshold', () => {
@@ -148,8 +148,8 @@ describe('CacheStakingStrategy', () => {
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
       // Index 3 (hugeText, 5000 chars) should win over index 2 (mediumText, 2200 chars)
-      expect(result[3]!.cacheHint?.isSuddenLargeContext).toBe(true);
-      expect(result[2]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[3].cacheHint?.isSuddenLargeContext).toBe(true);
+      expect(result[2].cacheHint?.isSuddenLargeContext).toBeUndefined();
     });
 
     it('does not tag when no current-turn message exceeds threshold', () => {
@@ -180,7 +180,7 @@ describe('CacheStakingStrategy', () => {
         sizeThreshold: 50,
       });
 
-      expect(result[2]!.cacheHint?.isSuddenLargeContext).toBe(true);
+      expect(result[2].cacheHint?.isSuddenLargeContext).toBe(true);
     });
 
     it('does not set isSuddenLargeContext on previous turn messages', () => {
@@ -198,9 +198,9 @@ describe('CacheStakingStrategy', () => {
       const result = applyCacheStaking(messages, { previousTurnMessageCount: 2 });
 
       // Index 0 is in previous turn, should NOT get isSuddenLargeContext
-      expect(result[0]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[0].cacheHint?.isSuddenLargeContext).toBeUndefined();
       // No qualifying messages in current turn
-      expect(result[2]!.cacheHint?.isSuddenLargeContext).toBeUndefined();
+      expect(result[2].cacheHint?.isSuddenLargeContext).toBeUndefined();
     });
   });
 });

@@ -160,7 +160,7 @@ function main() {
     process.exit(1);
   }
 
-  process.exit(result.status === null ? 1 : result.status);
+  process.exit(result.status ?? 1);
 }
 
 // Exported for unit tests (require this file with BYF_LAUNCHER_TEST=1 to skip main).

@@ -373,7 +373,7 @@ export class AgentTestContext {
     });
     if (index === -1) return undefined;
 
-    const event = this.allEvents[index]!;
+    const event = this.allEvents[index];
     return { event: event as RpcLogEntry, index };
   }
 

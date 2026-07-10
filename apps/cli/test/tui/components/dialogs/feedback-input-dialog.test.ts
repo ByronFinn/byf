@@ -50,7 +50,7 @@ describe('FeedbackInputDialogComponent', () => {
     const { dialog } = makeDialog();
     const rendered = dialog.render(60).join('\n');
     const sample = chalk.hex(darkColors.primary)('x');
-    const ansiOpen = sample.split('x')[0]!;
+    const ansiOpen = sample.split('x')[0];
     expect(rendered).toContain(`${ansiOpen}╭`);
     expect(rendered).toContain(`${ansiOpen}╰`);
   });

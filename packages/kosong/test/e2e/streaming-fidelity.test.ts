@@ -23,7 +23,7 @@ describe('e2e: streaming fidelity', () => {
 
       // All text chunks should be merged into a single TextPart
       expect(result.message.content).toHaveLength(1);
-      expect(result.message.content[0]!.type).toBe('text');
+      expect(result.message.content[0].type).toBe('text');
 
       const expected = Array.from({ length: count }, (_, i) => `chunk${i} `).join('');
       expect(extractText(result.message)).toBe(expected);
@@ -101,8 +101,8 @@ describe('e2e: streaming fidelity', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.content).toHaveLength(2);
-      expect(result.message.content[0]!.type).toBe('think');
-      expect(result.message.content[1]!.type).toBe('text');
+      expect(result.message.content[0].type).toBe('think');
+      expect(result.message.content[1].type).toBe('text');
 
       const thinkPart = result.message.content[0] as ThinkPart;
       const textPart = result.message.content[1] as TextPart;
@@ -145,10 +145,10 @@ describe('e2e: streaming fidelity', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.toolCalls).toHaveLength(1);
-      expect(result.message.toolCalls[0]!.arguments).toBe(fullArgs);
+      expect(result.message.toolCalls[0].arguments).toBe(fullArgs);
 
       // Verify JSON is parseable and complete
-      const parsed = JSON.parse(result.message.toolCalls[0]!.arguments!) as Record<string, unknown>;
+      const parsed = JSON.parse(result.message.toolCalls[0].arguments!) as Record<string, unknown>;
       expect(parsed['query']).toBe('a very long search query with many words to ensure streaming');
       expect(parsed['limit']).toBe(100);
     });
@@ -184,8 +184,8 @@ describe('e2e: streaming fidelity', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.toolCalls).toHaveLength(2);
-      expect(result.message.toolCalls[0]!.arguments).toBe(args1);
-      expect(result.message.toolCalls[1]!.arguments).toBe(args2);
+      expect(result.message.toolCalls[0].arguments).toBe(args1);
+      expect(result.message.toolCalls[1].arguments).toBe(args2);
     });
 
     it('ToolCallPart with null argumentsPart does not corrupt arguments', async () => {
@@ -207,7 +207,7 @@ describe('e2e: streaming fidelity', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.toolCalls).toHaveLength(1);
-      expect(result.message.toolCalls[0]!.arguments).toBe('{"key":"val"}');
+      expect(result.message.toolCalls[0].arguments).toBe('{"key":"val"}');
     });
   });
 
@@ -286,7 +286,7 @@ describe('e2e: streaming fidelity', () => {
 
       expect(receivedParts).toHaveLength(4);
       // Each ToolCallPart should be received separately
-      expect(receivedParts[0]!.type).toBe('function');
+      expect(receivedParts[0].type).toBe('function');
       expect(receivedParts[1]).toEqual({ type: 'tool_call_part', argumentsPart: '{"a":' });
       expect(receivedParts[2]).toEqual({ type: 'tool_call_part', argumentsPart: '1}' });
       expect(receivedParts[3]).toEqual({ type: 'text', text: 'done' });
@@ -366,8 +366,8 @@ describe('e2e: streaming fidelity', () => {
       const toolResults = await result.toolResults();
 
       expect(result.toolCalls).toHaveLength(2);
-      expect(result.toolCalls[0]!.id).toBe('tc-a');
-      expect(result.toolCalls[1]!.id).toBe('tc-b');
+      expect(result.toolCalls[0].id).toBe('tc-a');
+      expect(result.toolCalls[1].id).toBe('tc-b');
       expect(toolResults).toHaveLength(2);
     });
   });
@@ -416,8 +416,8 @@ describe('e2e: streaming fidelity', () => {
       expect(result.message.toolCalls).toHaveLength(5);
 
       for (let i = 0; i < 5; i++) {
-        expect(result.message.toolCalls[i]!.id).toBe(`tc-${i}`);
-        const parsed = JSON.parse(result.message.toolCalls[i]!.arguments!) as {
+        expect(result.message.toolCalls[i].id).toBe(`tc-${i}`);
+        const parsed = JSON.parse(result.message.toolCalls[i].arguments!) as {
           index: number;
         };
         expect(parsed.index).toBe(i);

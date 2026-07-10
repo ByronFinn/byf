@@ -109,7 +109,7 @@ describe('main entry command handling', () => {
     expect(validateOptions).toHaveBeenCalledWith(opts);
     expect(runUpdatePreflight).toHaveBeenCalledWith('0.0.1-alpha.2', {});
     expect(mocks.runUpdatePreflight.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.runShell.mock.invocationCallOrder[0]!,
+      mocks.runShell.mock.invocationCallOrder[0],
     );
     expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2');
   });

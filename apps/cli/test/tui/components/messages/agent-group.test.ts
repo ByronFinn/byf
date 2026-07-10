@@ -29,10 +29,10 @@ describe('AgentGroupComponent', () => {
 
     const entries = group.getSubagentEntries();
     expect(entries).toHaveLength(2);
-    expect(entries[0]!.toolCallId).toBe('tc-1');
-    expect(entries[1]!.toolCallId).toBe('tc-2');
-    expect(entries[0]!.tc).toBe(tc1);
-    expect(entries[1]!.tc).toBe(tc2);
+    expect(entries[0].toolCallId).toBe('tc-1');
+    expect(entries[1].toolCallId).toBe('tc-2');
+    expect(entries[0].tc).toBe(tc1);
+    expect(entries[1].tc).toBe(tc2);
   });
 
   it('getSubagentEntries() returns empty array for fresh group', () => {

@@ -281,8 +281,8 @@ describe('generate()', () => {
     // The two ThinkParts should be merged.
     const thinkParts = result.message.content.filter((p) => p.type === 'think');
     expect(thinkParts).toHaveLength(1);
-    if (thinkParts[0]!.type === 'think') {
-      expect(thinkParts[0]!.think).toBe('part1 part2');
+    if (thinkParts[0].type === 'think') {
+      expect(thinkParts[0].think).toBe('part1 part2');
     }
   });
 

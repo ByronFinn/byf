@@ -21,11 +21,11 @@ describe('context-projector', () => {
     const proj = projectContext(wire.records);
 
     expect(proj.messages).toHaveLength(2);
-    expect(proj.messages[0]!.message.role).toBe('user');
+    expect(proj.messages[0].message.role).toBe('user');
     // The assistant message is reconstructed from step.begin/content.part/step.end,
     // not from a separate `context.append_message` (agent-core never emits one).
-    expect(proj.messages[1]!.message.role).toBe('assistant');
-    expect(proj.messages[1]!.message.content).toEqual([{ type: 'text', text: 'hello' }]);
+    expect(proj.messages[1].message.role).toBe('assistant');
+    expect(proj.messages[1].message.content).toEqual([{ type: 'text', text: 'hello' }]);
 
     expect(proj.usage.byScope.turn).toEqual({
       inputOther: 10,
@@ -126,22 +126,22 @@ describe('context-projector', () => {
     const proj = projectContext(entries as any);
     expect(proj.messages).toHaveLength(3);
 
-    expect(proj.messages[0]!.message.role).toBe('user');
+    expect(proj.messages[0].message.role).toBe('user');
 
-    expect(proj.messages[1]!.message.role).toBe('assistant');
-    expect(proj.messages[1]!.message.content).toEqual([{ type: 'text', text: 'Let me check' }]);
-    expect(proj.messages[1]!.message.toolCalls).toEqual([
+    expect(proj.messages[1].message.role).toBe('assistant');
+    expect(proj.messages[1].message.content).toEqual([{ type: 'text', text: 'Let me check' }]);
+    expect(proj.messages[1].message.toolCalls).toEqual([
       { type: 'function', id: 'call_1', name: 'LS', arguments: '{"path":"/"}' },
     ]);
     // The assistant message was opened by step.begin (line 3), so its
     // anchor lineNo is that of step.begin even though content/toolCalls
     // were appended later.
-    expect(proj.messages[1]!.lineNo).toBe(3);
-    expect(proj.messages[1]!.toolStepUuids).toEqual(['s1']);
+    expect(proj.messages[1].lineNo).toBe(3);
+    expect(proj.messages[1].toolStepUuids).toEqual(['s1']);
 
-    expect(proj.messages[2]!.message.role).toBe('tool');
-    expect(proj.messages[2]!.message.toolCallId).toBe('call_1');
-    expect(proj.messages[2]!.message.content).toEqual([
+    expect(proj.messages[2].message.role).toBe('tool');
+    expect(proj.messages[2].message.toolCallId).toBe('call_1');
+    expect(proj.messages[2].message.content).toEqual([
       { type: 'text', text: 'file1.txt\nfile2.txt' },
     ]);
   });
@@ -176,7 +176,7 @@ describe('context-projector', () => {
     ];
     const proj = projectContext(entries as any);
     expect(proj.messages).toHaveLength(1);
-    expect(proj.messages[0]!.message.content[0]).toMatchObject({ text: 'b' });
+    expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'b' });
   });
 
   it('applies compaction summary as a synthetic message', async () => {
@@ -218,12 +218,12 @@ describe('context-projector', () => {
       },
     ];
     const proj = projectContext(entries as any);
-    expect(proj.messages[0]!.source).toBe('compaction_summary');
+    expect(proj.messages[0].source).toBe('compaction_summary');
     // Compaction summary is an assistant message (agent-core's own
     // representation), not a synthetic system message.
-    expect(proj.messages[0]!.message.role).toBe('assistant');
-    expect(proj.messages[0]!.message.origin).toEqual({ kind: 'compaction_summary' });
-    expect(proj.messages[0]!.message.content[0]).toMatchObject({ text: 'old stuff' });
-    expect(proj.messages[1]!.message.content[0]).toMatchObject({ text: 'new' });
+    expect(proj.messages[0].message.role).toBe('assistant');
+    expect(proj.messages[0].message.origin).toEqual({ kind: 'compaction_summary' });
+    expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'old stuff' });
+    expect(proj.messages[1].message.content[0]).toMatchObject({ text: 'new' });
   });
 });

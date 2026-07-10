@@ -617,7 +617,9 @@ describe('McpConnectionManager', () => {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
         httpServer.closeAllConnections?.();
-        const timer = setTimeout(() => resolve(), 200);
+        const timer = setTimeout(() => {
+          resolve();
+        }, 200);
         httpServer.close((err) => {
           clearTimeout(timer);
           if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
@@ -725,7 +727,9 @@ describe('McpConnectionManager', () => {
       await cm.shutdown();
       await new Promise<void>((resolve, reject) => {
         httpServer.closeAllConnections?.();
-        const timer = setTimeout(() => resolve(), 200);
+        const timer = setTimeout(() => {
+          resolve();
+        }, 200);
         httpServer.close((err) => {
           clearTimeout(timer);
           if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
@@ -934,7 +938,7 @@ describe('Session MCP startup', () => {
       ]);
 
       expect(scripted.calls).toHaveLength(1);
-      const toolNames = scripted.calls[0]!.tools.map((tool) => tool.name);
+      const toolNames = scripted.calls[0].tools.map((tool) => tool.name);
       expect(toolNames).toContain('mcp__slow__echo');
     } finally {
       await session.close();

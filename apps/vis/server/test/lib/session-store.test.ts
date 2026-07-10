@@ -16,7 +16,7 @@ describe('session-store', () => {
     cleanup = c;
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(1);
-    const s = sessions[0]!;
+    const s = sessions[0];
     expect(s.sessionId).toBe('session_fixture');
     expect(s.title).toBe('fixture: hello world');
     expect(s.lastPrompt).toBe('say hi');
@@ -40,8 +40,8 @@ describe('session-store', () => {
     lines[0] = JSON.stringify({ type: 'metadata', protocol_version: '1.0', created_at: 1 });
     await writeFile(wirePath, lines.join('\n'));
     const sessions = await listSessions(home);
-    expect(sessions[0]!.health).toBe('ok');
-    expect(sessions[0]!.wireProtocolVersion).toBe('1.0');
+    expect(sessions[0].health).toBe('ok');
+    expect(sessions[0].wireProtocolVersion).toBe('1.0');
   });
 
   it('treats unknown protocol versions as healthy (wire-reader best-efforts)', async () => {
@@ -54,8 +54,8 @@ describe('session-store', () => {
     lines[0] = JSON.stringify({ type: 'metadata', protocol_version: '2.2', created_at: 1 });
     await writeFile(wirePath, lines.join('\n'));
     const sessions = await listSessions(home);
-    expect(sessions[0]!.health).toBe('ok');
-    expect(sessions[0]!.wireProtocolVersion).toBe('2.2');
+    expect(sessions[0].health).toBe('ok');
+    expect(sessions[0].wireProtocolVersion).toBe('2.2');
   });
 
   it('falls back to empty workDir when session is not in the index', async () => {
@@ -66,7 +66,7 @@ describe('session-store', () => {
     await rm(join(home, 'session_index.jsonl'));
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(1);
-    expect(sessions[0]!.workDir).toBe('');
+    expect(sessions[0].workDir).toBe('');
   });
 
   it('skips imported_from_byf_cli sessions', async () => {
@@ -94,8 +94,8 @@ describe('session-store', () => {
     await mkdir(wirePath);
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(1);
-    expect(sessions[0]!.health).toBe('broken_main_wire');
-    expect(sessions[0]!.mainWireRecordCount).toBe(0);
+    expect(sessions[0].health).toBe('broken_main_wire');
+    expect(sessions[0].mainWireRecordCount).toBe(0);
   });
 
   it('marks a session broken_main_wire when the wire metadata header is malformed', async () => {
@@ -109,7 +109,7 @@ describe('session-store', () => {
     await writeFile(wirePath, '{"type":"config.update","cwd":"/x","time":1}\n');
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(1);
-    expect(sessions[0]!.health).toBe('broken_main_wire');
+    expect(sessions[0].health).toBe('broken_main_wire');
   });
 
   it('rejects unsafe agent ids', () => {
@@ -203,7 +203,7 @@ describe('session-store', () => {
     await writeFile(join(sessionDir, 'state.json'), '{ this is not json');
     const summaries = await listSessions(home);
     expect(summaries).toHaveLength(1);
-    expect(summaries[0]!.health).toBe('broken_state');
+    expect(summaries[0].health).toBe('broken_state');
     const d = await readSessionDetail(home, 'session_fixture');
     expect(d).not.toBeNull();
     expect(d!.state).toBeNull();

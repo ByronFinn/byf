@@ -490,7 +490,7 @@ describe('runPrompt', () => {
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(1, 'auto');
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
     expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      mocks.harnessClose.mock.invocationCallOrder[0]!,
+      mocks.harnessClose.mock.invocationCallOrder[0],
     );
   });
 
@@ -520,7 +520,7 @@ describe('runPrompt', () => {
 
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
     expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      processMock.exit.mock.invocationCallOrder[0]!,
+      processMock.exit.mock.invocationCallOrder[0],
     );
     expect(mocks.harnessClose).toHaveBeenCalled();
     expect(processMock.exit).toHaveBeenCalledWith(130);
@@ -562,7 +562,7 @@ describe('runPrompt', () => {
       expect(mocks.session.setPermission).toHaveBeenCalledWith('auto');
     });
     expect(processMock.once.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.session.setPermission.mock.invocationCallOrder[0]!,
+      mocks.session.setPermission.mock.invocationCallOrder[0],
     );
 
     const signalCleanup = processMock.listener('SIGINT')?.();
