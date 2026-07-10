@@ -2,13 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export function resolveByfHome(homeDir?: string | undefined): string {
+export function resolveByfHome(homeDir?: string): string {
   return homeDir ?? process.env['BYF_HOME'] ?? join(homedir(), '.byf');
 }
 
 export function resolveConfigPath(input: {
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
+  readonly homeDir?: string;
+  readonly configPath?: string;
 }): string {
   return input.configPath ?? join(resolveByfHome(input.homeDir), 'config.toml');
 }

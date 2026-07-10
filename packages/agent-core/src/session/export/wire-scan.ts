@@ -2,10 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface SessionWireScan {
-  readonly firstActivityMs?: number | undefined;
-  readonly lastActivityMs?: number | undefined;
-  readonly lastUserMessageMs?: number | undefined;
-  readonly firstUserInput?: string | undefined;
+  readonly firstActivityMs?: number;
+  readonly lastActivityMs?: number;
+  readonly lastUserMessageMs?: number;
+  readonly firstUserInput?: string;
 }
 
 export async function scanSessionWire(sessionDir: string): Promise<SessionWireScan> {

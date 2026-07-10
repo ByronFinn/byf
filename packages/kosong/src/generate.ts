@@ -44,13 +44,13 @@ export interface GenerateResult {
    * streamed chunk. `undefined` when the stream produced no chunks
    * (empty response, early abort, or error).
    */
-  readonly llmFirstTokenLatencyMs?: number | undefined;
+  readonly llmFirstTokenLatencyMs?: number;
   /**
    * Milliseconds between the `provider.generate()` call and stream
    * exhaustion (last chunk consumed). `undefined` when the stream
    * produced no chunks (empty response, early abort, or error).
    */
-  readonly llmStreamDurationMs?: number | undefined;
+  readonly llmStreamDurationMs?: number;
 }
 
 export interface GenerateCallbacks {
@@ -214,8 +214,8 @@ export async function generate(
     usage: stream.usage,
     finishReason: stream.finishReason,
     rawFinishReason: stream.rawFinishReason,
-    ...(llmFirstTokenLatencyMs !== undefined ? { llmFirstTokenLatencyMs } : {}),
-    ...(llmStreamDurationMs !== undefined ? { llmStreamDurationMs } : {}),
+    llmFirstTokenLatencyMs,
+    llmStreamDurationMs,
   };
 }
 

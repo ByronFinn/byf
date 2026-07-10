@@ -36,7 +36,7 @@ export interface CompactionStrategy {
   computeCompactCount(messages: readonly Message[], maxSize: number): number;
   readonly checkAfterStep: boolean;
   readonly maxCompactionPerTurn: number;
-  readonly maskingConfig?: import('../context/observation-masking').MaskingConfig | undefined;
+  readonly maskingConfig?: import('../context/observation-masking').MaskingConfig;
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
@@ -210,11 +210,7 @@ export class FullCompaction implements RecordRestoreHandler {
     this.agent.emitEvent({ type: 'compaction.cancelled' });
   }
 
-  complete(
-    result: CompactionResult,
-    llmUsage?: TokenUsage | undefined,
-    retryCount: number = 0,
-  ): void {
+  complete(result: CompactionResult, llmUsage?: TokenUsage, retryCount: number = 0): void {
     this.agent.records.logRecord({
       type: 'full_compaction.complete',
       ...result,
@@ -459,7 +455,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }: {
     readonly messages: Message[];
     readonly signal: AbortSignal;
-    readonly onRetry?: ((retryCount: number) => void) | undefined;
+    readonly onRetry?: (retryCount: number) => void;
   }): Promise<{
     readonly response: GenerateResult;
     readonly summary: string;

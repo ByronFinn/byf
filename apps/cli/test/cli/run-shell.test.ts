@@ -71,7 +71,7 @@ vi.mock('@byfriends/sdk', () => {
       track = mocks.harnessTrack;
 
       constructor(...args: unknown[]) {
-        const options = args[0] as { readonly homeDir?: string } | undefined;
+        const options = args[0] as { readonly homeDir?: string };
         this.homeDir = options?.homeDir ?? '/tmp/byf-test-home';
         if (mocks.harnessCreatesDeviceIdOnConstruction) {
           mocks.createByfDeviceId(this.homeDir);

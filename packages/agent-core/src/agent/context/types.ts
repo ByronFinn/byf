@@ -5,7 +5,7 @@ import type { BackgroundTaskStatus } from '../../tools/background';
 
 export interface UserPromptOrigin {
   readonly kind: 'user';
-  readonly blockedByHook?: string | undefined;
+  readonly blockedByHook?: string;
 }
 
 export const USER_PROMPT_ORIGIN: UserPromptOrigin = { kind: 'user' };
@@ -14,11 +14,11 @@ export interface SkillActivationOrigin {
   readonly kind: 'skill_activation';
   readonly activationId: string;
   readonly skillName: string;
-  readonly skillArgs?: string | undefined;
+  readonly skillArgs?: string;
   readonly trigger: 'user-slash' | 'model-tool' | 'nested-skill';
-  readonly skillType?: string | undefined;
-  readonly skillPath?: string | undefined;
-  readonly skillSource?: SkillSource | undefined;
+  readonly skillType?: string;
+  readonly skillPath?: string;
+  readonly skillSource?: SkillSource;
 }
 
 export interface InjectionOrigin {
@@ -58,7 +58,7 @@ export type PromptOrigin =
   | HookResultOrigin;
 
 export type ContextMessage = Message & {
-  readonly origin?: PromptOrigin | undefined;
+  readonly origin?: PromptOrigin;
   readonly isError?: boolean;
 };
 

@@ -18,25 +18,25 @@ import type {
 export type FakeOutputPart = TextPart | ThinkPart;
 
 export interface FakeLLMResponse extends LLMChatResponse {
-  readonly contentParts?: readonly FakeOutputPart[] | undefined;
+  readonly contentParts?: readonly FakeOutputPart[];
 }
 
 export interface FakeLLMOptions {
   readonly responses: readonly FakeLLMResponse[];
-  readonly throwOnIndex?: { readonly index: number; readonly error: unknown } | undefined;
+  readonly throwOnIndex?: { readonly index: number; readonly error: unknown };
   readonly abortOnIndex?:
     | { readonly index: number; readonly controller: AbortController }
     | undefined;
-  readonly delayMs?: number | undefined;
-  readonly modelName?: string | undefined;
-  readonly capability?: ModelCapability | undefined;
-  readonly systemPrompt?: string | undefined;
+  readonly delayMs?: number;
+  readonly modelName?: string;
+  readonly capability?: ModelCapability;
+  readonly systemPrompt?: string;
 }
 
 export class FakeLLM implements LLM {
   readonly systemPrompt: string;
   readonly modelName: string;
-  readonly capability?: ModelCapability | undefined;
+  readonly capability?: ModelCapability;
 
   readonly calls: LLMChatParams[] = [];
 

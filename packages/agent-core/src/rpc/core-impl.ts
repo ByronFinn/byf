@@ -99,11 +99,11 @@ type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
 
 export interface ByfCoreOptions {
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
-  readonly runtime?: RuntimeConfig | undefined;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly homeDir?: string;
+  readonly configPath?: string;
+  readonly runtime?: RuntimeConfig;
+  readonly byfRequestHeaders?: Record<string, string>;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   readonly skillDirs?: readonly string[];
 }
 
@@ -669,8 +669,8 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
 async function createRuntimeConfig(input: {
   readonly config: ByfConfig;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly byfRequestHeaders?: Record<string, string>;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
 }): Promise<RuntimeConfig> {
   const proxiedFetch = createProxiedFetch({
     envLookup: (key) => process.env[key],
@@ -718,9 +718,9 @@ function serviceCredentials(
   service: ByfServiceConfig,
   resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
 ): {
-  readonly apiKey?: string | undefined;
-  readonly tokenProvider?: BearerTokenProvider | undefined;
-  readonly customHeaders?: Record<string, string> | undefined;
+  readonly apiKey?: string;
+  readonly tokenProvider?: BearerTokenProvider;
+  readonly customHeaders?: Record<string, string>;
 } {
   const apiKey = nonEmptyString(service.apiKey);
   return {

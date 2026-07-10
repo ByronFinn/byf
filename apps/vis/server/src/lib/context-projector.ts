@@ -108,7 +108,7 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
             content,
             toolCalls: [],
             toolCallId: ev.toolCallId,
-            ...(ev.result.isError === true ? { isError: true } : {}),
+            isError: ev.result.isError === true || undefined,
           };
           messages.push({
             lineNo: entry.lineNo,

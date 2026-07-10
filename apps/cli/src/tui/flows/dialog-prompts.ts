@@ -64,9 +64,9 @@ export function promptConfiguredProviderSelection(
   host: DialogHost,
   colors: ColorPalette,
   config: {
-    providers?: Record<string, unknown> | undefined;
-    models?: Record<string, { provider?: string }> | undefined;
-    defaultModel?: string | undefined;
+    providers?: Record<string, unknown>;
+    models?: Record<string, { provider?: string }>;
+    defaultModel?: string;
   },
   showError: (msg: string) => void,
 ): Promise<string | undefined> {

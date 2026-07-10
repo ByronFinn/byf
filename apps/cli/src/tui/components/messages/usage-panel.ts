@@ -71,7 +71,7 @@ function buildSessionUsageSection(
   errorStyle: Colorize,
 ): string[] {
   if (error !== undefined) return [errorStyle(`  ${error}`)];
-  const byModel = (usage as { readonly byModel?: Record<string, TokenUsage> } | undefined)?.byModel;
+  const byModel = (usage as { readonly byModel?: Record<string, TokenUsage> })?.byModel;
   const entries = Object.entries(byModel ?? {});
   if (entries.length === 0) return [muted('  No token usage recorded yet.')];
 

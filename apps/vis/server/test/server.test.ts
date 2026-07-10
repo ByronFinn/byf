@@ -119,6 +119,79 @@ describe('startVisServer', () => {
     expect(text).toContain('marker-index');
   });
 
+  it('reports staticEnabled=true when the SPA bundle is served', async () => {
+    const { dir, cleanup: c } = await tmpPublicDir();
+    cleanups.push(c);
+
+    const port = await freePort();
+    const handle = await startVisServer({ host: '127.0.0.1', port, publicDir: dir });
+    handles.push(handle);
+
+    expect(handle.staticEnabled).toBe(true);
+  });
+
+  it('serves embedded SPA assets when __BYF_VIS_EMBEDDED_ASSETS__ is set', async () => {
+    // Build a tiny on-disk bundle, then read its files into the embedded map as
+    // virtual-path strings (simulating the native compile binary's /$bunfs/root
+    // layout). The handler reads via Bun.file(vpath), so real files stand in.
+    const dir = join(tmpdir(), `vis-embed-${process.pid}-${Date.now()}`);
+    await mkdir(join(dir, 'assets'), { recursive: true });
+    await writeFile(join(dir, 'index.html'), '<!doctype html><html><body>embedded</body></html>');
+    await writeFile(join(dir, 'assets/app-Abc.js'), 'console.log("embedded-js")');
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+
+    const embedded = new Map<string, string>([
+      ['index.html', join(dir, 'index.html')],
+      ['assets/app-Abc.js', join(dir, 'assets/app-Abc.js')],
+    ]);
+    const g = globalThis as Record<string, unknown>;
+    const prev = g['__BYF_VIS_EMBEDDED_ASSETS__'];
+    g['__BYF_VIS_EMBEDDED_ASSETS__'] = embedded;
+    cleanups.push(() => {
+      if (prev === undefined) delete g['__BYF_VIS_EMBEDDED_ASSETS__'];
+      else g['__BYF_VIS_EMBEDDED_ASSETS__'] = prev;
+    });
+
+    const port = await freePort();
+    const handle = await startVisServer({ host: '127.0.0.1', port });
+    handles.push(handle);
+
+    expect(handle.staticEnabled).toBe(true);
+
+    // Root serves the embedded index.html.
+    const indexRes = await fetch(`${handle.url}/`);
+    expect(indexRes.status).toBe(200);
+    expect(indexRes.headers.get('content-type')).toContain('text/html');
+    expect(await indexRes.text()).toContain('embedded');
+
+    // Hashed asset is served with the correct MIME.
+    const jsRes = await fetch(`${handle.url}/assets/app-Abc.js`);
+    expect(jsRes.status).toBe(200);
+    expect(jsRes.headers.get('content-type')).toContain('javascript');
+    expect(await jsRes.text()).toContain('embedded-js');
+
+    // Unknown non-api path falls back to index.html (SPA history routing).
+    const fallbackRes = await fetch(`${handle.url}/some/deep/route`);
+    expect(fallbackRes.status).toBe(200);
+    expect(fallbackRes.headers.get('content-type')).toContain('text/html');
+    expect(await fallbackRes.text()).toContain('embedded');
+  });
+
+  it('warns on stderr and reports staticEnabled=false in API-only mode', async () => {
+    const port = await freePort();
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const handle = await startVisServer({ host: '127.0.0.1', port });
+      handles.push(handle);
+
+      expect(handle.staticEnabled).toBe(false);
+      const warned = spy.mock.calls.some((c) => String(c[0]).includes('API only'));
+      expect(warned).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('closes the HTTP server via handle.close()', async () => {
     const port = await freePort();
     const handle = await startVisServer({ host: '127.0.0.1', port });

@@ -39,13 +39,13 @@ export interface BtwViewerProps {
       }
     | undefined;
   /** Optional error message shown when the query failed. */
-  readonly error?: string | undefined;
+  readonly error?: string;
   /**
    * Maximum height in rows the overlay is allowed to occupy. The component uses
    * this to size itself so the bottom border is not clipped by the overlay
    * manager.
    */
-  readonly maxHeight?: number | undefined;
+  readonly maxHeight?: number;
   readonly colors: ColorPalette;
   readonly onClose: () => void;
 }

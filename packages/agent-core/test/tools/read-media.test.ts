@@ -57,9 +57,9 @@ function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability
 
 function makeReadMediaTool(
   input: {
-    readonly stat?: Kaos['stat'] | undefined;
-    readonly readBytes?: Kaos['readBytes'] | undefined;
-    readonly modelCapabilities?: ModelCapability | undefined;
+    readonly stat?: Kaos['stat'];
+    readonly readBytes?: Kaos['readBytes'];
+    readonly modelCapabilities?: ModelCapability;
   } = {},
 ): ReadMediaFileTool {
   const kaos = createFakeKaos({

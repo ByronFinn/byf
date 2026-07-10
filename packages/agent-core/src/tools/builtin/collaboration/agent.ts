@@ -117,8 +117,8 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
 
   constructor(
     private readonly subagentHost: SessionSubagentHost,
-    private readonly backgroundManager?: BackgroundProcessManager | undefined,
-    subagents?: ResolvedAgentProfile['subagents'] | undefined,
+    private readonly backgroundManager?: BackgroundProcessManager,
+    subagents?: ResolvedAgentProfile['subagents'],
     options?: {
       allowBackground?: boolean;
       log?: Logger;

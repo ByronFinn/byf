@@ -33,7 +33,7 @@ export class CompactionComponent extends Container {
   private tokensBefore: number | undefined;
   private tokensAfter: number | undefined;
 
-  constructor(colors: ColorPalette, ui?: TUI, instruction?: string | undefined) {
+  constructor(colors: ColorPalette, ui?: TUI, instruction?: string) {
     super();
     this.colors = colors;
     this.ui = ui;

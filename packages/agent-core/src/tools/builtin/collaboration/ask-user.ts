@@ -168,7 +168,7 @@ function numericTurnId(turnId: string): number | undefined {
 
 function normalizeQuestionResult(result: QuestionResult): {
   readonly answers: QuestionAnswers;
-  readonly method?: QuestionAnswerMethod | undefined;
+  readonly method?: QuestionAnswerMethod;
 } | null {
   if (result === null) return null;
   if (isQuestionResponse(result)) {

@@ -27,7 +27,7 @@ export interface ChoiceOption {
   /** Display text shown in the list. */
   readonly label: string;
   /** Optional explanatory text shown below the label. */
-  readonly description?: string | undefined;
+  readonly description?: string;
 }
 
 export interface ChoicePickerOptions {

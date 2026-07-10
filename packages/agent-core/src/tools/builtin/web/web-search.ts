@@ -26,8 +26,8 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
-  date?: string | undefined;
-  content?: string | undefined;
+  date?: string;
+  content?: string;
 }
 
 export interface WebSearchProvider {

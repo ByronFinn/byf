@@ -449,11 +449,7 @@ export class ToolCallComponent extends Container {
    * arrived yet, so the UI moves to the 'spawning' placeholder state unless the
    * agent is running in the background.
    */
-  onSubagentSpawned(meta: {
-    agentId: string;
-    agentName?: string | undefined;
-    runInBackground: boolean;
-  }): void {
+  onSubagentSpawned(meta: { agentId: string; agentName?: string; runInBackground: boolean }): void {
     this.subagentStore.onSubagentSpawned(meta);
     this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
@@ -465,10 +461,7 @@ export class ToolCallComponent extends Container {
    * Handles SDK `subagent.completed`. Moves the phase to 'done' and records
    * token usage plus the result summary for the header chip and tail summary.
    */
-  onSubagentCompleted(payload: {
-    usage?: SubagentTokenUsage | undefined;
-    resultSummary: string;
-  }): void {
+  onSubagentCompleted(payload: { usage?: SubagentTokenUsage; resultSummary: string }): void {
     this.subagentStore.onSubagentCompleted(payload);
     this.syncElapsedTimer();
     this.headerText.setText(this.buildHeader());
@@ -498,19 +491,11 @@ export class ToolCallComponent extends Container {
     this.subagentStore.appendSubToolCall(call);
   }
 
-  appendSubToolCallDelta(delta: {
-    id: string;
-    name?: string | undefined;
-    argumentsPart: string | null;
-  }): void {
+  appendSubToolCallDelta(delta: { id: string; name?: string; argumentsPart: string | null }): void {
     this.subagentStore.appendSubToolCallDelta(delta);
   }
 
-  finishSubToolCall(result: {
-    tool_call_id: string;
-    output: string;
-    is_error?: boolean | undefined;
-  }): void {
+  finishSubToolCall(result: { tool_call_id: string; output: string; is_error?: boolean }): void {
     this.subagentStore.finishSubToolCall(result);
   }
 
@@ -911,7 +896,7 @@ export class ToolCallComponent extends Container {
       const filePath = str(this.toolCall.args['file_path'] ?? this.toolCall.args['path']);
       const lines = renderDiffLinesClustered(oldStr, newStr, filePath, this.colors, {
         contextLines: 3,
-        ...(shouldCap ? { maxLines: COMMAND_PREVIEW_LINES } : {}),
+        maxLines: shouldCap ? COMMAND_PREVIEW_LINES : undefined,
       });
       for (const line of lines) {
         this.addChild(new Text(line, 2, 0));

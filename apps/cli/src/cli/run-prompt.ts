@@ -13,7 +13,7 @@ import type { CLIOptions, PromptOutputFormat } from './options';
 import { createByfHostIdentity } from './version';
 
 interface PromptOutput {
-  readonly columns?: number | undefined;
+  readonly columns?: number;
   write(chunk: string): boolean;
 }
 

@@ -57,27 +57,27 @@ const ANTHROPIC_STOP_REASON_MAP: Readonly<Record<string, FinishReason>> = {
  */
 const normalizeAnthropicStopReason = makeFinishReasonNormalizer(ANTHROPIC_STOP_REASON_MAP);
 export interface AnthropicOptions {
-  apiKey?: string | undefined;
-  baseUrl?: string | undefined;
+  apiKey?: string;
+  baseUrl?: string;
   model: string;
-  defaultMaxTokens?: number | undefined;
-  betaFeatures?: string[] | undefined;
+  defaultMaxTokens?: number;
+  betaFeatures?: string[];
   defaultHeaders?: Record<string, string>;
-  metadata?: Record<string, string> | undefined;
+  metadata?: Record<string, string>;
   /** Use streaming API. Defaults to true. Set to false for non-streaming (test/fallback). */
-  stream?: boolean | undefined;
+  stream?: boolean;
   clientFactory?: (auth: ProviderRequestAuth) => Anthropic;
 }
 
 interface AnthropicGenerationKwargs {
   [key: string]: unknown;
-  max_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_k?: number | undefined;
-  top_p?: number | undefined;
-  thinking?: MessageCreateParams['thinking'] | undefined;
-  output_config?: MessageCreateParams['output_config'] | undefined;
-  betaFeatures?: string[] | undefined;
+  max_tokens?: number;
+  temperature?: number;
+  top_k?: number;
+  top_p?: number;
+  thinking?: MessageCreateParams['thinking'];
+  output_config?: MessageCreateParams['output_config'];
+  betaFeatures?: string[];
 }
 
 const INTERLEAVED_THINKING_BETA = 'interleaved-thinking-2025-05-14';
@@ -651,7 +651,7 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
           const blockEvt = evt as unknown as RawContentBlockStartEvent;
           const block = blockEvt.content_block;
           const blockIndex = blockEvt.index;
-          // eslint-disable-next-line typescript-eslint/switch-exhaustiveness-check
+          // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic block types is handled
           switch (block.type) {
             case 'text':
               yield { type: 'text', text: block.text };
@@ -684,7 +684,7 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
           const deltaEvt = evt as unknown as RawContentBlockDeltaEvent;
           const delta = deltaEvt.delta;
           const blockIndex = deltaEvt.index;
-          // eslint-disable-next-line typescript-eslint/switch-exhaustiveness-check
+          // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic delta types is handled
           switch (delta.type) {
             case 'text_delta':
               yield { type: 'text', text: delta.text };

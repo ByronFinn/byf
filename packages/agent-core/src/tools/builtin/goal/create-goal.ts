@@ -57,12 +57,12 @@ const BudgetSchema = z
 
 export interface CreateGoalInput {
   readonly objective: string;
-  readonly replace?: boolean | undefined;
+  readonly replace?: boolean;
   readonly budget?:
     | {
-        readonly turn_budget?: number | undefined;
-        readonly token_budget?: number | undefined;
-        readonly wall_clock_budget_ms?: number | undefined;
+        readonly turn_budget?: number;
+        readonly token_budget?: number;
+        readonly wall_clock_budget_ms?: number;
       }
     | undefined;
 }
@@ -110,16 +110,16 @@ export class CreateGoalTool implements BuiltinTool<CreateGoalInput> {
 /** Convert snake_case tool input to GoalBudgetLimits (camelCase). */
 export function normalizeBudget(budget: CreateGoalInput['budget']):
   | {
-      readonly turnBudget?: number | undefined;
-      readonly tokenBudget?: number | undefined;
-      readonly wallClockBudgetMs?: number | undefined;
+      readonly turnBudget?: number;
+      readonly tokenBudget?: number;
+      readonly wallClockBudgetMs?: number;
     }
   | undefined {
   if (budget === undefined) return undefined;
   const out: {
-    turnBudget?: number | undefined;
-    tokenBudget?: number | undefined;
-    wallClockBudgetMs?: number | undefined;
+    turnBudget?: number;
+    tokenBudget?: number;
+    wallClockBudgetMs?: number;
   } = {};
   if (budget.turn_budget !== undefined) out.turnBudget = budget.turn_budget;
   if (budget.token_budget !== undefined) out.tokenBudget = budget.token_budget;

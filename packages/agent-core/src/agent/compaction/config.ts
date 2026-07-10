@@ -9,7 +9,7 @@ export interface CompactionConfig {
   maxRecentSteps: number;
   maxRecentUserMessages: number;
   maxRecentSizeRatio: number;
-  masking?: MaskingConfig | undefined;
+  masking?: MaskingConfig;
 }
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {

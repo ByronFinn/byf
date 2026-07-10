@@ -217,7 +217,7 @@ describe('StdioMcpClient', () => {
       expect(transportConfirmedDead).toBe(true);
       // `pendingUnexpectedClose` is set; registering the listener must
       // invoke it synchronously inside the call.
-      let received: { stderr?: string } | undefined;
+      let received: { stderr?: string };
       let syncedOnRegister = false;
       client.onUnexpectedClose((reason) => {
         syncedOnRegister = true;

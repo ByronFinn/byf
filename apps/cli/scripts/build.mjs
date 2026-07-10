@@ -4,7 +4,7 @@
  *
  * Replaces apps/cli/tsdown.config.ts as the official JS build entry.
  * - Single entry `src/main.ts` → `dist/main.mjs`
- * - Shebang + __dirname ESM shim banner
+ * - Shebang banner
  * - Inlines workspace packages except `@byfriends/vis-server` (keeps SPA assets
  *   co-located with the published runtime dependency)
  * - Injects `__BYF_CODE_BUILT_IN_CATALOG__` from BYF_CODE_BUILT_IN_CATALOG_FILE
@@ -25,7 +25,6 @@ const args = [
   helper,
   './src/main.ts',
   '--shebang',
-  '--banner-dirname',
   '--bundle-workspace',
   '--never-bundle',
   '@byfriends/vis-server',

@@ -30,8 +30,8 @@ import type { ColorPalette } from '#/tui/theme/colors';
 
 export interface ApprovalPanelResponse {
   readonly response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
-  readonly feedback?: string | undefined;
-  readonly selected_label?: string | undefined;
+  readonly feedback?: string;
+  readonly selected_label?: string;
 }
 
 function truncateOneLine(text: string, max: number): string {

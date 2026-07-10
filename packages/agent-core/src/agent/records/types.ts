@@ -50,7 +50,7 @@ export interface AgentRecordEvents {
   'usage.record': {
     model: string;
     usage: TokenUsage;
-    usageScope?: UsageRecordScope | undefined;
+    usageScope?: UsageRecordScope;
   };
 
   'full_compaction.cancel': {};
@@ -68,7 +68,7 @@ export interface AgentRecordEvents {
   };
   'context.output_offloaded': {
     toolCallId: string;
-    filePath?: string | undefined;
+    filePath?: string;
   };
   'context.pruning': {
     prunedCount: number;
@@ -79,7 +79,7 @@ export interface AgentRecordEvents {
   'goal.create': {
     objective: string;
     /** 初始预算上限（来自 createGoal options 或 slash flag）。 */
-    budget?: GoalSnapshot['budget'] | undefined;
+    budget?: GoalSnapshot['budget'];
     /** 创建时的墙钟时间戳（ms），replay 据此重建 createdAt。 */
     createdAt: number;
   };

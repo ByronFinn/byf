@@ -34,10 +34,10 @@ export interface RunTurnInput {
   readonly llm: LLM;
   readonly buildMessages: LoopMessageBuilder;
   readonly dispatchEvent: LoopEventDispatcher;
-  readonly tools?: readonly ExecutableTool[] | undefined;
-  readonly hooks?: LoopHooks | undefined;
-  readonly log?: Logger | undefined;
-  readonly maxSteps?: number | undefined;
+  readonly tools?: readonly ExecutableTool[];
+  readonly hooks?: LoopHooks;
+  readonly log?: Logger;
+  readonly maxSteps?: number;
   readonly maxRetryAttempts?: number;
 }
 
@@ -127,13 +127,13 @@ function makeInterruptedEvent(
   reason: LoopInterruptReason,
   attemptedSteps: number,
   activeStep: number | undefined,
-  message?: string | undefined,
+  message?: string,
 ): LoopTurnInterruptedEvent {
   return {
     type: 'turn.interrupted',
     reason,
     attemptedSteps,
-    ...(activeStep !== undefined ? { activeStep } : {}),
-    ...(message !== undefined ? { message } : {}),
+    activeStep,
+    message,
   };
 }

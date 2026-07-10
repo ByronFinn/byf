@@ -177,7 +177,7 @@ export class TurnFlow implements RecordRestoreHandler {
     return this.activeTurn !== null && this.activeTurn !== 'resuming';
   }
 
-  waitForCurrentTurn(signal?: AbortSignal | undefined): Promise<TurnEndResult> {
+  waitForCurrentTurn(signal?: AbortSignal): Promise<TurnEndResult> {
     const active = this.activeTurn;
     if (active === null || active === 'resuming') {
       return Promise.reject(new Error('No active turn'));

@@ -39,19 +39,19 @@ import { SessionSubagentHost } from './subagent-host';
 
 export interface SessionConfig {
   readonly runtime: RuntimeConfig;
-  readonly id?: string | undefined;
+  readonly id?: string;
   readonly homedir: string;
   readonly byfHomeDir?: string;
   readonly rpc: SDKSessionRPC;
   readonly cwd?: string;
-  readonly initializeMainAgent?: boolean | undefined;
-  readonly providerManager?: ProviderManager | undefined;
-  readonly background?: BackgroundConfig | undefined;
+  readonly initializeMainAgent?: boolean;
+  readonly providerManager?: ProviderManager;
+  readonly background?: BackgroundConfig;
   readonly hooks?: readonly HookDef[];
   readonly permissionRules?: readonly PermissionRule[];
   readonly skills?: SessionSkillConfig;
   readonly mcpConfig?: SessionMcpConfig;
-  readonly telemetry?: TelemetryClient | undefined;
+  readonly telemetry?: TelemetryClient;
 }
 
 export interface SessionSkillConfig {
@@ -72,7 +72,7 @@ export interface AgentMeta {
    * uses it on resume to map a main-agent `Agent` tool-call back to its child
    * agent's activity (the child's own replay/usage/text).
    */
-  readonly parentToolCallId?: string | undefined;
+  readonly parentToolCallId?: string;
 }
 
 export interface SessionMeta {
@@ -240,8 +240,8 @@ export class Session {
   async createAgent(
     config: Partial<AgentConfig>,
     profile?: ResolvedAgentProfile,
-    parentAgentId?: string | undefined,
-    parentToolCallId?: string | undefined,
+    parentAgentId?: string,
+    parentToolCallId?: string,
   ): Promise<{ readonly id: string; readonly agent: Agent }> {
     await this.skillsReady;
     const type = config.type ?? 'main';
@@ -461,7 +461,7 @@ export class Session {
 
   private permissionOptions(
     parentAgentId: string | null,
-    input?: PermissionManagerOptions | undefined,
+    input?: PermissionManagerOptions,
   ): PermissionManagerOptions {
     if (parentAgentId === null) {
       return {

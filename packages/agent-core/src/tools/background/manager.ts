@@ -82,26 +82,26 @@ export interface BackgroundTaskInfo {
   readonly startedAt: number;
   readonly endedAt: number | null;
   /** Populated only while `status === 'awaiting_approval'`. */
-  readonly approvalReason?: string | undefined;
+  readonly approvalReason?: string;
   /** True when an agent task was aborted by its deadline. */
-  readonly timedOut?: boolean | undefined;
+  readonly timedOut?: boolean;
   /** Reason recorded when a task is explicitly stopped. */
-  readonly stopReason?: string | undefined;
+  readonly stopReason?: string;
   /**
    * Deadline (ms) supplied to `registerAgentTask`. Surfaced so shutdown
    * wait-caps and UI can read the originally-requested timeout without
    * round-tripping the call site. `undefined` means no deadline.
    */
-  readonly timeoutMs?: number | undefined;
+  readonly timeoutMs?: number;
   /** Identifier of the spawned subagent (agent tasks only). */
-  readonly agentId?: string | undefined;
+  readonly agentId?: string;
   /** Profile name of the spawned subagent (agent tasks only). */
-  readonly subagentType?: string | undefined;
+  readonly subagentType?: string;
   /**
    * Human-readable reason recorded when a non-terminal task is reclassified
    * via reconcile (e.g. a stale heartbeat → lost).
    */
-  readonly failureReason?: string | undefined;
+  readonly failureReason?: string;
 }
 
 interface TaskCommon {
@@ -120,23 +120,23 @@ interface TaskCommon {
   /** True once `fireTerminalCallbacks` has already run. */
   terminalFired: boolean;
   /** Reason carried while awaiting approval. */
-  approvalReason?: string | undefined;
+  approvalReason?: string;
   /** Set when a deadline fires before natural completion. */
-  timedOut?: boolean | undefined;
+  timedOut?: boolean;
   /** Reason recorded when a task is explicitly stopped. */
-  stopReason?: string | undefined;
+  stopReason?: string;
   /** Deadline supplied at registration; surfaced via task info. */
-  timeoutMs?: number | undefined;
+  timeoutMs?: number;
   /** Subagent identifier (agent tasks only). */
-  agentId?: string | undefined;
+  agentId?: string;
   /** Subagent profile name (agent tasks only). */
-  subagentType?: string | undefined;
+  subagentType?: string;
   /** Non-terminal-reclassification reason (e.g. stale heartbeat). */
-  failureReason?: string | undefined;
+  failureReason?: string;
   /** True after stop() has requested cancellation but before terminal status is chosen. */
   stopRequested: boolean;
   /** Session dir captured at registration for output.log writes. */
-  readonly outputSessionDir?: string | undefined;
+  readonly outputSessionDir?: string;
   lifecyclePromise: Promise<void>;
   persistWriteQueue: Promise<void>;
   outputWriteQueue: Promise<void>;

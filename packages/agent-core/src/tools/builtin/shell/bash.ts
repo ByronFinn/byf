@@ -156,7 +156,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     private readonly environment: Environment,
     private readonly backgroundManager?: BackgroundProcessManager,
     options?: {
-      allowBackground?: boolean | undefined;
+      allowBackground?: boolean;
     },
   ) {
     this.isWindowsBash = this.environment.osKind === 'Windows';

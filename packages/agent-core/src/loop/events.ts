@@ -17,16 +17,16 @@ export interface LoopStepEndEvent {
   readonly uuid: string;
   readonly turnId: string;
   readonly step: number;
-  readonly usage?: TokenUsage | undefined;
-  readonly finishReason?: LoopStepStopReason | undefined;
+  readonly usage?: TokenUsage;
+  readonly finishReason?: LoopStepStopReason;
   /**
    * Provider diagnostics are optional and must not drive loop control.
    * Use `finishReason` for normalized behavior.
    */
-  readonly providerFinishReason?: FinishReason | undefined;
-  readonly rawFinishReason?: string | undefined;
-  readonly llmFirstTokenLatencyMs?: number | undefined;
-  readonly llmStreamDurationMs?: number | undefined;
+  readonly providerFinishReason?: FinishReason;
+  readonly rawFinishReason?: string;
+  readonly llmFirstTokenLatencyMs?: number;
+  readonly llmStreamDurationMs?: number;
 }
 
 export interface LoopStepRetryingEvent {
@@ -61,8 +61,8 @@ export interface LoopToolCallEvent {
   readonly toolCallId: string;
   readonly name: string;
   readonly args: unknown;
-  readonly description?: string | undefined;
-  readonly display?: ToolInputDisplay | undefined;
+  readonly description?: string;
+  readonly display?: ToolInputDisplay;
 }
 
 export interface LoopToolResultEvent {
@@ -76,8 +76,8 @@ export interface LoopTurnInterruptedEvent {
   readonly type: 'turn.interrupted';
   readonly reason: LoopInterruptReason;
   readonly attemptedSteps: number;
-  readonly activeStep?: number | undefined;
-  readonly message?: string | undefined;
+  readonly activeStep?: number;
+  readonly message?: string;
 }
 
 export interface LoopTextDeltaEvent {
@@ -93,8 +93,8 @@ export interface LoopThinkingDeltaEvent {
 export interface LoopToolCallDeltaEvent {
   readonly type: 'tool.call.delta';
   readonly toolCallId: string;
-  readonly name?: string | undefined;
-  readonly argumentsPart?: string | undefined;
+  readonly name?: string;
+  readonly argumentsPart?: string;
 }
 
 export interface LoopToolProgressEvent {
@@ -128,7 +128,7 @@ export type LoopEventDispatcher = {
 
 export interface CreateLoopEventDispatcherInput {
   readonly appendTranscriptRecord: (record: LoopRecordedEvent) => Promise<void>;
-  readonly emitLiveEvent?: LoopLiveEventEmitter | undefined;
+  readonly emitLiveEvent?: LoopLiveEventEmitter;
 }
 
 export function createLoopEventDispatcher(

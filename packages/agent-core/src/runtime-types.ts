@@ -6,8 +6,8 @@ import type { Environment } from './utils/environment';
 export interface RuntimeConfig {
   readonly kaos: Kaos;
   readonly osEnv: Environment;
-  readonly urlFetcher?: UrlFetcher | undefined;
-  readonly webSearcher?: WebSearchProvider | undefined;
+  readonly urlFetcher?: UrlFetcher;
+  readonly webSearcher?: WebSearchProvider;
   /**
    * ProxiedFetch — a `typeof fetch` wrapper that retries through an
    * HTTP/SOCKS proxy when the direct attempt fails with a retryable error.

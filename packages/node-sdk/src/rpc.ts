@@ -50,10 +50,10 @@ import type {
 const MAIN_AGENT_ID = 'main';
 
 export interface SDKRpcClientOptions {
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
+  readonly homeDir?: string;
+  readonly configPath?: string;
   readonly skillDirs?: readonly string[];
-  readonly runtime?: RuntimeConfig | undefined;
+  readonly runtime?: RuntimeConfig;
 }
 
 export interface SessionPromptRpcInput {
@@ -71,7 +71,7 @@ export interface SetSessionModelRpcInput extends SessionIdRpcInput {
 
 export interface SetSessionModelRpcResult {
   readonly model: string;
-  readonly providerName?: string | undefined;
+  readonly providerName?: string;
 }
 
 export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
@@ -90,7 +90,7 @@ export interface CreateSessionGoalRpcInput extends SessionIdRpcInput {
 
 export interface ActivateSkillRpcInput extends SessionIdRpcInput {
   readonly name: string;
-  readonly args?: string | undefined;
+  readonly args?: string;
 }
 
 export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
@@ -216,7 +216,7 @@ export class SDKRpcClient {
 
   async askSide(
     input: { sessionId: string; query: string; queryId: string },
-    options?: { signal?: AbortSignal | undefined },
+    options?: { signal?: AbortSignal },
   ): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.askSide(
@@ -315,7 +315,7 @@ export class SDKRpcClient {
     return rpc.beginCompaction({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
-      ...(input.instruction !== undefined ? { instruction: input.instruction } : {}),
+      instruction: input.instruction,
     });
   }
 

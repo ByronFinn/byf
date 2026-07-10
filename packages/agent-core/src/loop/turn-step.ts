@@ -30,9 +30,9 @@ export interface ExecuteLoopStepDeps {
   readonly buildMessages: LoopMessageBuilder;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly llm: LLM;
-  readonly tools?: readonly ExecutableTool[] | undefined;
-  readonly hooks?: LoopHooks | undefined;
-  readonly log?: Logger | undefined;
+  readonly tools?: readonly ExecutableTool[];
+  readonly hooks?: LoopHooks;
+  readonly log?: Logger;
   readonly currentStep: number;
   readonly maxRetryAttempts?: number;
   readonly recordUsage: (usage: TokenUsage) => void;
@@ -202,7 +202,7 @@ function stepEndProviderDiagnostics(
   }
 
   return {
-    ...(providerFinishReason !== undefined ? { providerFinishReason } : {}),
+    providerFinishReason,
     ...(response.rawFinishReason !== undefined
       ? { rawFinishReason: response.rawFinishReason }
       : {}),

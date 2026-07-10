@@ -42,13 +42,13 @@ function createStreamProvider(model: string = 'k25'): AnthropicChatProvider {
 }
 
 type AnthropicGenerationState = {
-  max_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_k?: number | undefined;
-  top_p?: number | undefined;
-  thinking?: { type: 'disabled' } | { type: 'adaptive'; display?: string | undefined } | undefined;
-  output_config?: { effort: string } | undefined;
-  betaFeatures?: string[] | undefined;
+  max_tokens?: number;
+  temperature?: number;
+  top_k?: number;
+  top_p?: number;
+  thinking?: { type: 'disabled' } | { type: 'adaptive'; display?: string };
+  output_config?: { effort: string };
+  betaFeatures?: string[];
 };
 
 function getGenerationState(provider: AnthropicChatProvider): AnthropicGenerationState {

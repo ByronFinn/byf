@@ -19,8 +19,8 @@ import type {
 
 export interface ToolCallDelta {
   readonly toolCallId: string;
-  readonly name?: string | undefined;
-  readonly argumentsPart?: string | undefined;
+  readonly name?: string;
+  readonly argumentsPart?: string;
 }
 
 export interface LLMRequestLogContext {
@@ -36,38 +36,38 @@ export interface LLMChatParams {
   tools: readonly Tool[];
   signal: AbortSignal;
   requestLogContext?: LLMRequestLogContext;
-  onTextDelta?: ((delta: string) => void) | undefined;
-  onThinkDelta?: ((delta: string) => void) | undefined;
-  onToolCallDelta?: ((delta: ToolCallDelta) => void) | undefined;
+  onTextDelta?: (delta: string) => void;
+  onThinkDelta?: (delta: string) => void;
+  onToolCallDelta?: (delta: ToolCallDelta) => void;
   /**
    * Fires once per completed text block. Additive relative to
    * `onTextDelta` — deltas still fire chunk-by-chunk for UI streaming.
    * Returned promises are awaited by the adapter to preserve transcript append
    * order. Durable transcript writes receive completed blocks only.
    */
-  onTextPart?: ((part: TextPart) => Promise<void> | void) | undefined;
+  onTextPart?: (part: TextPart) => Promise<void> | void;
   /**
    * Fires once per completed thinking block. Additive relative to
    * `onThinkDelta` — deltas still fire chunk-by-chunk for UI streaming.
    * Returned promises are awaited by the adapter to preserve transcript append
    * order. Durable transcript writes receive completed blocks only.
    */
-  onThinkPart?: ((part: ThinkPart) => Promise<void> | void) | undefined;
+  onThinkPart?: (part: ThinkPart) => Promise<void> | void;
 }
 
 export interface LLMChatResponse {
   toolCalls: ToolCall[];
-  providerFinishReason?: FinishReason | undefined;
-  rawFinishReason?: string | undefined;
+  providerFinishReason?: FinishReason;
+  rawFinishReason?: string;
   usage: TokenUsage;
-  llmFirstTokenLatencyMs?: number | undefined;
-  llmStreamDurationMs?: number | undefined;
+  llmFirstTokenLatencyMs?: number;
+  llmStreamDurationMs?: number;
 }
 
 export interface LLM {
   readonly systemPrompt: string;
   readonly modelName: string;
-  readonly capability?: ModelCapability | undefined;
+  readonly capability?: ModelCapability;
   isRetryableError?(error: unknown): boolean;
   chat(params: LLMChatParams): Promise<LLMChatResponse>;
 }

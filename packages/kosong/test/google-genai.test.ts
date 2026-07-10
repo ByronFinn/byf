@@ -352,7 +352,7 @@ describe('GoogleGenAIChatProvider', () => {
       const assistantParts = contents.find((c) => c.role === 'model')!.parts;
       const fnCallPart = assistantParts.find(
         (p) => (p as Record<string, unknown>)['function_call'] !== undefined,
-      ) as { function_call: Record<string, unknown>; thought_signature?: unknown } | undefined;
+      ) as { function_call: Record<string, unknown>; thought_signature?: unknown };
       expect(fnCallPart).toMatchObject({
         function_call: { name: 'add', args: { a: 2, b: 3 } },
         thought_signature: 'dGhvdWdodF9zaWduYXR1cmVfZGF0YQ==',

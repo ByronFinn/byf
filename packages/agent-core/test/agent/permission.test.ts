@@ -901,10 +901,10 @@ describe('Default git CWD Write/Edit permission', () => {
 
   function gitKaos(
     options: {
-      readonly markerPath?: string | undefined;
-      readonly markerMode?: number | undefined;
-      readonly statModes?: Readonly<Record<string, number>> | undefined;
-      readonly readText?: Kaos['readText'] | undefined;
+      readonly markerPath?: string;
+      readonly markerMode?: number;
+      readonly statModes?: Readonly<Record<string, number>>;
+      readonly readText?: Kaos['readText'];
       readonly missingError?: (path: string) => Error;
     } = {},
   ): { kaos: Kaos; stat: ReturnType<typeof vi.fn<Kaos['stat']>> } {
@@ -1550,7 +1550,7 @@ function makePermissionManager(
   handleApproval: (request: unknown) => Promise<ApprovalResponse>,
   options: {
     readonly policies?: readonly PermissionPolicy[];
-    readonly parent?: PermissionManager | undefined;
+    readonly parent?: PermissionManager;
     readonly kaos?: Kaos;
     readonly cwd?: string;
   } = {},
@@ -1580,8 +1580,8 @@ function makePermissionManager(
 
 function hookContext(input: {
   readonly id: string;
-  readonly toolName?: string | undefined;
-  readonly args?: Record<string, unknown> | undefined;
+  readonly toolName?: string;
+  readonly args?: Record<string, unknown>;
 }): ToolExecutionHookContext {
   const toolName = input.toolName ?? 'Bash';
   const args = input.args ?? { command: 'printf first', timeout: 60 };

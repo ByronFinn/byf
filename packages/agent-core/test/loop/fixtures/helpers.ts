@@ -13,19 +13,19 @@ import { RecordingContext, type RecordingContextOptions } from './recording-cont
 
 export interface RunTurnOptions {
   readonly responses: readonly FakeLLMResponse[];
-  readonly tools?: readonly ExecutableTool[] | undefined;
-  readonly hooks?: LoopHooks | undefined;
-  readonly log?: Logger | undefined;
-  readonly maxSteps?: number | undefined;
-  readonly turnId?: string | undefined;
-  readonly signal?: AbortSignal | undefined;
-  readonly emitLiveEvent?: LoopLiveEventEmitter | undefined;
-  readonly llmThrowOnIndex?: { index: number; error: unknown } | undefined;
-  readonly llmAbortOnIndex?: { index: number; controller: AbortController } | undefined;
-  readonly llmDelayMs?: number | undefined;
-  readonly systemPrompt?: string | undefined;
-  readonly contextOptions?: RecordingContextOptions | undefined;
-  readonly sinkErrorMode?: SinkErrorMode | undefined;
+  readonly tools?: readonly ExecutableTool[];
+  readonly hooks?: LoopHooks;
+  readonly log?: Logger;
+  readonly maxSteps?: number;
+  readonly turnId?: string;
+  readonly signal?: AbortSignal;
+  readonly emitLiveEvent?: LoopLiveEventEmitter;
+  readonly llmThrowOnIndex?: { index: number; error: unknown };
+  readonly llmAbortOnIndex?: { index: number; controller: AbortController };
+  readonly llmDelayMs?: number;
+  readonly systemPrompt?: string;
+  readonly contextOptions?: RecordingContextOptions;
+  readonly sinkErrorMode?: SinkErrorMode;
 }
 
 export interface RunTurnResult {

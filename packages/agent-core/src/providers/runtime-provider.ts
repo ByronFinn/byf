@@ -16,23 +16,23 @@ export type { ProviderRequestAuthResolver };
 
 export interface ResolveRuntimeProviderInput {
   readonly config: ByfConfig;
-  readonly model?: string | undefined;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
+  readonly model?: string;
+  readonly byfRequestHeaders?: Record<string, string>;
   readonly promptCacheKey?: string;
   readonly validateCredentials?: boolean;
 }
 
 export interface BearerTokenProvider {
-  getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
+  getAccessToken(options?: { readonly force?: boolean }): Promise<string>;
 }
 
 export type OAuthTokenProviderResolver = (
   providerName: string,
-  oauthRef?: OAuthRef | undefined,
+  oauthRef?: OAuthRef,
 ) => BearerTokenProvider | undefined;
 
 export interface ResolveRuntimeProviderWithOAuthInput extends ResolveRuntimeProviderInput {
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   /**
    * Caller-scoped logger (typically `agent.log`). Used to report OAuth token
    * fetch failures so they land in the session log alongside the surrounding
@@ -43,7 +43,7 @@ export interface ResolveRuntimeProviderWithOAuthInput extends ResolveRuntimeProv
 
 export interface ResolvedRuntimeProvider {
   readonly modelName: string;
-  readonly providerName?: string | undefined;
+  readonly providerName?: string;
   readonly provider: KosongProviderConfig;
   readonly modelCapabilities: ModelCapability;
   readonly resolveAuth?: ProviderRequestAuthResolver;
@@ -280,9 +280,9 @@ function resolveModelCapabilities(
 function toKosongProviderConfig(
   provider: ProviderConfig,
   model: string,
-  byfRequestHeaders?: Record<string, string> | undefined,
-  maxOutputSize?: number | undefined,
-  reasoningKey?: string | undefined,
+  byfRequestHeaders?: Record<string, string>,
+  maxOutputSize?: number,
+  reasoningKey?: string,
   promptCacheKey?: string,
 ): KosongProviderConfig {
   switch (provider.type) {
@@ -292,7 +292,7 @@ function toKosongProviderConfig(
         model,
         baseUrl: providerValue(provider.baseUrl, provider.env, 'ANTHROPIC_BASE_URL'),
         apiKey: providerApiKey(provider),
-        ...(maxOutputSize !== undefined ? { defaultMaxTokens: maxOutputSize } : {}),
+        defaultMaxTokens: maxOutputSize,
         ...defaultHeadersField(provider.customHeaders),
       };
     case 'openai-completions': {

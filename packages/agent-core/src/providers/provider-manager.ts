@@ -14,8 +14,8 @@ import {
 
 export interface ProviderManagerOptions {
   readonly config: ByfConfig;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly byfRequestHeaders?: Record<string, string>;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   readonly promptCacheKey?: string;
 }
 

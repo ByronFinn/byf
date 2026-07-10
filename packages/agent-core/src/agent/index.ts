@@ -115,17 +115,17 @@ export interface AgentConfig {
   readonly type?: AgentType;
   readonly generate?: typeof generate;
   readonly compactionStrategy?: CompactionStrategy;
-  readonly providerManager?: ProviderManager | undefined;
+  readonly providerManager?: ProviderManager;
   readonly sessionId?: string;
-  readonly subagentHost?: SessionSubagentHost | undefined;
+  readonly subagentHost?: SessionSubagentHost;
   readonly mcp?: McpConnectionManager;
   readonly hookEngine?: HookEngine;
   readonly backgroundMaxRunningTasks?: number;
   readonly backgroundSessionDir?: string;
-  readonly permission?: PermissionManagerOptions | undefined;
+  readonly permission?: PermissionManagerOptions;
   /** Parent logger; the agent appends its own ctx (agentId already bound by session). */
   readonly log?: Logger;
-  readonly telemetry?: TelemetryClient | undefined;
+  readonly telemetry?: TelemetryClient;
 }
 
 export class Agent {
@@ -259,8 +259,8 @@ export class Agent {
   async askSide(
     query: string,
     options: {
-      readonly signal?: AbortSignal | undefined;
-      readonly queryId?: string | undefined;
+      readonly signal?: AbortSignal;
+      readonly queryId?: string;
     } = {},
   ): Promise<{ readonly queryId: string }> {
     if (query.trim().length === 0) {
@@ -598,7 +598,7 @@ export class Agent {
     });
   }
 
-  private emitRecordsWriteError(error: unknown, record?: AgentRecord | undefined): void {
+  private emitRecordsWriteError(error: unknown, record?: AgentRecord): void {
     const message = error instanceof Error ? error.message : String(error);
     this.log.error('wire record persist failed', {
       agentHomedir: this.homedir,

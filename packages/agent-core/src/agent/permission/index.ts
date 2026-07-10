@@ -21,9 +21,9 @@ export * from './types';
 type ApprovalTelemetryMode = 'manual' | 'yolo' | 'afk' | 'auto_session' | 'cancelled';
 
 export interface PermissionManagerOptions {
-  readonly initialRules?: readonly PermissionRule[] | undefined;
-  readonly policies?: readonly PermissionPolicy[] | undefined;
-  readonly parent?: PermissionManager | undefined;
+  readonly initialRules?: readonly PermissionRule[];
+  readonly policies?: readonly PermissionPolicy[];
+  readonly parent?: PermissionManager;
 }
 
 export class PermissionManager implements RecordRestoreHandler {
@@ -158,8 +158,8 @@ export class PermissionManager implements RecordRestoreHandler {
   private async requestToolApproval(
     context: ToolExecutionHookContext,
     options: {
-      readonly action?: string | undefined;
-      readonly display?: ToolInputDisplay | undefined;
+      readonly action?: string;
+      readonly display?: ToolInputDisplay;
     } = {},
   ): Promise<PrepareToolExecutionResult | undefined> {
     const { signal } = context;

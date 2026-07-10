@@ -50,8 +50,8 @@ function stdioConfig(args: string[] = [stdioFixture]) {
 
 function sessionRpc(
   options: {
-    readonly events?: SessionRpcEvent[] | undefined;
-    readonly onEvent?: ((event: SessionRpcEvent) => void) | undefined;
+    readonly events?: SessionRpcEvent[];
+    readonly onEvent?: (event: SessionRpcEvent) => void;
   } = {},
 ): SDKSessionRPC {
   return {

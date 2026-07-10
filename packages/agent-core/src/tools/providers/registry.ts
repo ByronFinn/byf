@@ -32,7 +32,6 @@ export const PROVIDER_TYPE_VALUES = Object.keys(webSearchProviderRegistry) as [
 
 // ── Runtime provider class registry ──────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProviderConstructor = new (...args: any[]) => WebSearchProvider;
 
 const providerClassMap = new Map<ProviderType, ProviderConstructor>();

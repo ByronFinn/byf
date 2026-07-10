@@ -19,10 +19,10 @@ import {
 } from './provider-common';
 export interface OpenAIContentPart {
   type: string;
-  text?: string | undefined;
-  image_url?: { url: string; id?: string | null } | undefined;
-  audio_url?: { url: string; id?: string | null } | undefined;
-  video_url?: { url: string; id?: string | null } | undefined;
+  text?: string;
+  image_url?: { url: string; id?: string | null };
+  audio_url?: { url: string; id?: string | null };
+  video_url?: { url: string; id?: string | null };
 }
 
 /**

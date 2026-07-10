@@ -13,22 +13,22 @@ import {
 type MarkerLevel = 'error' | 'warn';
 
 interface CliValues {
-  readonly help?: boolean | undefined;
-  readonly home?: string | undefined;
-  readonly level?: string | undefined;
-  readonly message?: string | undefined;
-  readonly session?: string | undefined;
+  readonly help?: boolean;
+  readonly home?: string;
+  readonly level?: string;
+  readonly message?: string;
+  readonly session?: string;
 }
 
 interface Options {
   readonly sessionId: string;
-  readonly homeDir?: string | undefined;
+  readonly homeDir?: string;
   readonly level: MarkerLevel;
   readonly marker: string;
 }
 
 const USAGE = `Usage:
-  pnpm exec tsx --import ./build/register-raw-text-loader.mjs packages/node-sdk/examples/byf-harness-log-marker.ts --session <session-id>
+  bun packages/node-sdk/examples/byf-harness-log-marker.ts --session <session-id>
 
 Options:
   -s, --session <id>   Existing session id to resume and mark

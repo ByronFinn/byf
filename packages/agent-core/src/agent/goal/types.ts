@@ -11,9 +11,9 @@ export interface GoalSnapshot {
   readonly objective: string;
   readonly status: GoalStatus;
   /** blocked 状态下的原因（仅 status='blocked' 时有意义）。 */
-  readonly blockedReason?: string | undefined;
+  readonly blockedReason?: string;
   /** paused 状态下的原因。 */
-  readonly pausedReason?: string | undefined;
+  readonly pausedReason?: string;
   readonly budget: GoalBudgetLimits;
   readonly usage: GoalUsage;
   /** 创建时的墙钟时间戳（ms）。 */
@@ -22,9 +22,9 @@ export interface GoalSnapshot {
 
 /** 三类硬预算上限，全部可选——未设置即无该维度上限。 */
 export interface GoalBudgetLimits {
-  readonly turnBudget?: number | undefined;
-  readonly tokenBudget?: number | undefined;
-  readonly wallClockBudgetMs?: number | undefined;
+  readonly turnBudget?: number;
+  readonly tokenBudget?: number;
+  readonly wallClockBudgetMs?: number;
 }
 
 /** goal 已消耗的用量（driver 每轮累加，paused 期间不计）。 */
@@ -52,7 +52,7 @@ export interface GoalBudgetReport {
  * - 其它迁移不带 change（snapshot 本身的变化足够）。
  */
 export type GoalChange =
-  | { readonly kind: 'completion'; readonly reason?: string | undefined }
+  | { readonly kind: 'completion'; readonly reason?: string }
   | { readonly kind: 'blocked'; readonly reason: string };
 
 /** 用于 addTokenUsage 的单轮 turn token。 */

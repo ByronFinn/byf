@@ -30,12 +30,12 @@ export type EmptyPayload = {};
 export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 
 export interface CreateSessionPayload {
-  readonly id?: string | undefined;
+  readonly id?: string;
   readonly workDir: string;
-  readonly model?: string | undefined;
-  readonly thinking?: string | undefined;
-  readonly permission?: PermissionMode | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly model?: string;
+  readonly thinking?: string;
+  readonly permission?: PermissionMode;
+  readonly metadata?: JsonObject;
 }
 
 export interface CloseSessionPayload {
@@ -56,13 +56,13 @@ export interface ForkSessionPayload {
 
 export interface ExportSessionPayload {
   readonly sessionId: string;
-  readonly outputPath?: string | undefined;
+  readonly outputPath?: string;
   /**
    * When true, the active global diagnostic log (`$BYF_HOME/logs/byf.log`)
    * is copied into the zip at `logs/global/byf.log`. Off by default to
    * avoid bundling events from concurrent sessions / other projects.
    */
-  readonly includeGlobalLog?: boolean | undefined;
+  readonly includeGlobalLog?: boolean;
   /** Host version to record in the export manifest. */
   readonly version: string;
 }
@@ -74,14 +74,14 @@ export interface ExportSessionManifest {
   readonly wireProtocolVersion: string;
   readonly os: string;
   readonly nodejsVersion: string;
-  readonly sessionFirstActivity?: string | undefined;
-  readonly sessionLastActivity?: string | undefined;
-  readonly title?: string | undefined;
-  readonly workspaceDir?: string | undefined;
+  readonly sessionFirstActivity?: string;
+  readonly sessionLastActivity?: string;
+  readonly title?: string;
+  readonly workspaceDir?: string;
   /** zip-relative path to the session diagnostic log when present. */
-  readonly sessionLogPath?: string | undefined;
+  readonly sessionLogPath?: string;
   /** zip-relative path to the bundled global diagnostic log (only when --include-global-log). */
-  readonly globalLogPath?: string | undefined;
+  readonly globalLogPath?: string;
 }
 
 export interface ExportSessionResult {
@@ -101,14 +101,14 @@ export interface CoreInfo {
 
 export interface SessionSummary {
   readonly id: string;
-  readonly title?: string | undefined;
+  readonly title?: string;
   readonly lastPrompt?: string;
   readonly workDir: string;
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
-  readonly archived?: boolean | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly archived?: boolean;
+  readonly metadata?: JsonObject;
 }
 
 export interface PromptPayload {
@@ -147,7 +147,7 @@ export interface SetModelPayload {
 }
 export interface SetModelResult {
   readonly model: string;
-  readonly providerName?: string | undefined;
+  readonly providerName?: string;
 }
 export interface BeginCompactionPayload {
   readonly instruction?: string;
@@ -190,13 +190,13 @@ export interface SkillSummary {
   readonly description: string;
   readonly path: string;
   readonly source: 'builtin' | 'user' | 'extra' | 'project';
-  readonly type?: string | undefined;
-  readonly disableModelInvocation?: boolean | undefined;
+  readonly type?: string;
+  readonly disableModelInvocation?: boolean;
 }
 
 export interface ActivateSkillPayload {
   readonly name: string;
-  readonly args?: string | undefined;
+  readonly args?: string;
 }
 
 export interface McpServerInfo {

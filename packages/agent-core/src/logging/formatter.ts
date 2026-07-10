@@ -71,7 +71,7 @@ export function redactCtx(ctx: LogContext): LogContext {
 }
 
 export interface FormatOptions {
-  readonly ansi?: boolean | undefined;
+  readonly ansi?: boolean;
   readonly omitContextKeys?: readonly string[];
 }
 

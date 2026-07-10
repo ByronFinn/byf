@@ -39,16 +39,16 @@ export interface PersistedTask {
    * Reason supplied when the task is marked `awaiting_approval`.
    * Cleared (omitted) when the task leaves that state.
    */
-  readonly approval_reason?: string | undefined;
+  readonly approval_reason?: string;
   /**
    * True when an agent task was forcibly terminated by its external
    * deadline (`registerAgentTask(..., { timeoutMs })`). An internal
    * `TimeoutError` raised by the agent promise itself is a generic
    * failure and does NOT set this flag.
    */
-  readonly timed_out?: boolean | undefined;
+  readonly timed_out?: boolean;
   /** Reason recorded when a task is explicitly stopped. */
-  readonly stop_reason?: string | undefined;
+  readonly stop_reason?: string;
   /**
    * Shell origin metadata (name / path / cwd) captured when
    * `BackgroundProcessManager.register` attached a `shellInfo` option.
@@ -57,8 +57,8 @@ export interface PersistedTask {
   readonly shell_info?:
     | {
         readonly name: string;
-        readonly path?: string | undefined;
-        readonly cwd?: string | undefined;
+        readonly path?: string;
+        readonly cwd?: string;
       }
     | undefined;
 }

@@ -12,7 +12,7 @@ export interface AuthStatus {
 export interface ByfAuthFacadeOptions {
   readonly homeDir: string;
   readonly configPath: string;
-  readonly onConfigUpdated?: ((config: ByfConfig) => void) | undefined;
+  readonly onConfigUpdated?: (config: ByfConfig) => void;
 }
 
 export class ByfAuthFacade {

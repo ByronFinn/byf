@@ -290,7 +290,7 @@ describe('resolveRuntimeProvider maxOutputSize forwarding', () => {
       type: 'anthropic',
       model: 'claude-opus-4-7',
     });
-    expect('defaultMaxTokens' in resolved.provider).toBe(false);
+    expect(resolved.provider.defaultMaxTokens).toBeUndefined();
   });
 });
 

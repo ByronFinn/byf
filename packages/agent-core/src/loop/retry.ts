@@ -22,7 +22,7 @@ export interface ChatWithRetryInput {
   readonly currentStep: number;
   readonly stepUuid: string;
   readonly maxAttempts?: number;
-  readonly log?: Logger | undefined;
+  readonly log?: Logger;
 }
 
 export async function chatWithRetry(input: ChatWithRetryInput): Promise<LLMChatResponse> {

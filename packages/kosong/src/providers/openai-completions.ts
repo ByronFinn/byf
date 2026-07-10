@@ -71,16 +71,16 @@ export interface OpenAICompletionsOptions {
 }
 
 export interface GenerationKwargs {
-  max_tokens?: number | undefined;
-  max_completion_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_p?: number | undefined;
-  n?: number | undefined;
-  presence_penalty?: number | undefined;
-  frequency_penalty?: number | undefined;
-  stop?: string | string[] | undefined;
-  reasoning_effort?: string | undefined;
-  prompt_cache_key?: string | undefined;
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  n?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
+  stop?: string | string[];
+  reasoning_effort?: string;
+  prompt_cache_key?: string;
   extra_body?: ExtraBody;
   [key: string]: unknown;
 }
@@ -98,10 +98,10 @@ export interface ExtraBody {
 
 interface OpenAIMessage {
   role: string;
-  content?: string | OpenAIContentPart[] | undefined;
-  tool_calls?: OpenAIToolCallOut[] | undefined;
-  tool_call_id?: string | undefined;
-  name?: string | undefined;
+  content?: string | OpenAIContentPart[];
+  tool_calls?: OpenAIToolCallOut[];
+  tool_call_id?: string;
+  name?: string;
   [key: string]: unknown;
 }
 
@@ -109,7 +109,7 @@ interface OpenAIToolCallOut {
   type: string;
   id: string;
   function: { name: string; arguments: string | null };
-  extras?: Record<string, unknown> | undefined;
+  extras?: Record<string, unknown>;
 }
 
 function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
@@ -511,7 +511,6 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
     // Remove undefined values from kwargs
     for (const key of Object.keys(kwargs)) {
       if (kwargs[key] === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete kwargs[key];
       }
     }
@@ -520,7 +519,6 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
     if (kwargs['max_completion_tokens'] === undefined && kwargs['max_tokens'] !== undefined) {
       kwargs['max_completion_tokens'] = kwargs['max_tokens'];
     }
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete kwargs['max_tokens'];
 
     const { extra_body: extraBody, ...requestKwargs } = kwargs;

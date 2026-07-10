@@ -29,7 +29,6 @@ async function isFree(port) {
 async function pickPort(startPort, exclude = new Set()) {
   for (let port = startPort; port < startPort + MAX_PROBE; port += 1) {
     if (exclude.has(port)) continue;
-    // eslint-disable-next-line no-await-in-loop
     if (await isFree(port)) return port;
   }
   throw new Error(

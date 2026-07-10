@@ -53,7 +53,7 @@ function waitFor<T>(fn: () => T | Promise<T>, options: WaitForOptions = {}): Pro
   })();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Bun vi is a partial surface we extend at runtime
+// Bun vi is a partial surface we extend at runtime.
 const viAny = vi as any;
 
 // Vitest runs hoisted factories before imports; Bun does not hoist, so calling
@@ -164,7 +164,6 @@ viAny.unstubAllGlobals = () => {
     if (snap.had) {
       target[name] = snap.value;
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete target[name];
     }
   }
@@ -188,7 +187,7 @@ viAny.doMock = (path: string, factory: () => unknown) => {
 // handled by explicit format helpers in the agent-core test harness.
 import { expect } from 'bun:test';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Bun ships a stub that throws
+// Bun ships a stub that throws "Not implemented".
 (expect as any).addSnapshotSerializer = () => {
   // no-op — see packages/agent-core/test/agent/harness/snapshots.ts
 };

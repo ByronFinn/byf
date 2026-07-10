@@ -6,8 +6,8 @@ type ProjectableMessage = Message & {
   readonly origin?:
     | {
         readonly kind: string;
-        readonly event?: string | undefined;
-        readonly blockedByHook?: string | undefined;
+        readonly event?: string;
+        readonly blockedByHook?: string;
       }
     | undefined;
 };

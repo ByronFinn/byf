@@ -252,21 +252,21 @@ function formatResponsesFailedResponse(response: RawObject): string {
 }
 
 export interface OpenAIResponsesOptions {
-  apiKey?: string | undefined;
-  baseUrl?: string | undefined;
+  apiKey?: string;
+  baseUrl?: string;
   model: string;
-  maxOutputTokens?: number | undefined;
+  maxOutputTokens?: number;
   httpClient?: unknown;
   defaultHeaders?: Record<string, string>;
-  toolMessageConversion?: ToolMessageConversion | undefined;
+  toolMessageConversion?: ToolMessageConversion;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
 }
 
 export interface OpenAIResponsesGenerationKwargs {
-  max_output_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_p?: number | undefined;
-  reasoning_effort?: string | undefined;
+  max_output_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  reasoning_effort?: string;
   [key: string]: unknown;
 }
 interface ResponseInputItem {
@@ -881,7 +881,6 @@ export class OpenAIResponsesChatProvider extends BaseChatProvider<OpenAIResponse
     // Remove undefined values
     for (const key of Object.keys(kwargs)) {
       if (kwargs[key] === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete kwargs[key];
       }
     }

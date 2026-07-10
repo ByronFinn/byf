@@ -109,7 +109,9 @@ function rewriteRelativeSpecifiers(text, fromFile) {
     if (hasRuntimeExtension(spec)) return match;
     const resolved = resolveRelativeDts(fromFile, spec);
     if (resolved === undefined) {
-      // Leave unresolved relatives alone (should not happen for our emit).
+      console.warn(
+        `bun-lib-dts: unresolved relative specifier "${spec}" in ${path.relative(cwd, fromFile)} — left as-is`,
+      );
       return match;
     }
     count += 1;

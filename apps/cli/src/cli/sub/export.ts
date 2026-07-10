@@ -25,7 +25,7 @@ export interface PreviousSessionSummary {
   readonly workDir: string;
   readonly sessionId: string;
   readonly sessionDir: string;
-  readonly title?: string | undefined;
+  readonly title?: string;
 }
 
 export interface ExportDeps {
@@ -77,8 +77,8 @@ export async function handleExport(
     const result = await deps.exportSession({
       id: resolvedId,
       version: deps.version,
-      ...(output === undefined ? {} : { outputPath: output }),
-      ...(opts.includeGlobalLog ? { includeGlobalLog: true } : {}),
+      outputPath: output,
+      includeGlobalLog: opts.includeGlobalLog,
     });
     deps.stdout.write(`${result.zipPath}\n`);
   } catch (error) {
@@ -153,7 +153,7 @@ function toPreviousSessionSummary(summary: SessionSummary): PreviousSessionSumma
     workDir: summary.workDir,
     sessionId: summary.id,
     sessionDir: summary.sessionDir,
-    ...(summary.title === undefined ? {} : { title: summary.title }),
+    title: summary.title,
   };
 }
 

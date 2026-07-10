@@ -1437,7 +1437,7 @@ function mediaCapabilities(): ModelCapability {
 
 function createOAuthProviderManager(
   getAccessToken: (options?: { readonly force?: boolean }) => Promise<string>,
-  capabilities?: readonly string[] | undefined,
+  capabilities?: readonly string[],
 ): ProviderManager {
   const oauthConfig: ByfConfig = {
     defaultModel: 'byf',

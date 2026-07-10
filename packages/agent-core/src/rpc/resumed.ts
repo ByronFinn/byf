@@ -42,11 +42,11 @@ export interface ResumedAgentState {
    * existed. The TUI uses it to attach a resumed main-agent `Agent` tool-call
    * to this child's activity (replay/usage/text).
    */
-  readonly parentToolCallId?: string | undefined;
+  readonly parentToolCallId?: string;
 }
 
 export interface ResumeSessionResult extends SessionSummary {
   readonly sessionMetadata: SessionMeta;
   readonly agents: Readonly<Record<string, ResumedAgentState>>;
-  readonly warning?: string | undefined;
+  readonly warning?: string;
 }

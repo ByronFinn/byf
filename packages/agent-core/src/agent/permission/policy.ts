@@ -30,8 +30,8 @@ export type PermissionPolicyResult =
     }
   | {
       readonly kind: 'ask';
-      readonly action?: string | undefined;
-      readonly display?: ToolInputDisplay | undefined;
+      readonly action?: string;
+      readonly display?: ToolInputDisplay;
     };
 
 export interface PermissionPolicy {

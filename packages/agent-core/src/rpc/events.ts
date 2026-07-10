@@ -13,24 +13,24 @@ export type { ToolInputDisplay } from '../tools/display';
 export type { ByfErrorPayload } from '../errors';
 
 export interface UsageStatus {
-  readonly byModel?: Record<string, TokenUsage> | undefined;
-  readonly currentTurn?: TokenUsage | undefined;
-  readonly total?: TokenUsage | undefined;
+  readonly byModel?: Record<string, TokenUsage>;
+  readonly currentTurn?: TokenUsage;
+  readonly total?: TokenUsage;
   /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
-  readonly cacheHitRate?: CacheHitRate | undefined;
+  readonly cacheHitRate?: CacheHitRate;
   /**
    * Estimated input-token distribution across six categories, computed on
    * demand by the Agent (it owns config/tools/context). `undefined` when the
    * caller has not requested it. See {@link InputTokenBreakdown}.
    */
-  readonly inputBreakdown?: InputTokenBreakdown | undefined;
+  readonly inputBreakdown?: InputTokenBreakdown;
 }
 
 export interface ToolUpdate {
   readonly kind: 'stdout' | 'stderr' | 'progress' | 'status' | 'custom';
-  readonly text?: string | undefined;
-  readonly percent?: number | undefined;
-  readonly customKind?: string | undefined;
+  readonly text?: string;
+  readonly percent?: number;
+  readonly customKind?: string;
   readonly customData?: unknown;
 }
 
@@ -52,28 +52,28 @@ export type TurnEndReason = 'completed' | 'cancelled' | 'failed';
 
 export interface AgentStatusUpdatedEvent {
   readonly type: 'agent.status.updated';
-  readonly model?: string | undefined;
-  readonly contextTokens?: number | undefined;
-  readonly maxContextTokens?: number | undefined;
-  readonly contextUsage?: number | undefined;
-  readonly permission?: PermissionMode | undefined;
-  readonly usage?: UsageStatus | undefined;
+  readonly model?: string;
+  readonly contextTokens?: number;
+  readonly maxContextTokens?: number;
+  readonly contextUsage?: number;
+  readonly permission?: PermissionMode;
+  readonly usage?: UsageStatus;
 }
 
 export interface SessionMetaUpdatedEvent {
   readonly type: 'session.meta.updated';
-  readonly title?: string | undefined;
-  readonly patch?: Record<string, unknown> | undefined;
+  readonly title?: string;
+  readonly patch?: Record<string, unknown>;
 }
 
 export interface SkillActivatedEvent {
   readonly type: 'skill.activated';
   readonly activationId: string;
   readonly skillName: string;
-  readonly skillArgs?: string | undefined;
+  readonly skillArgs?: string;
   readonly trigger: 'user-slash' | 'model-tool' | 'nested-skill';
-  readonly skillPath?: string | undefined;
-  readonly skillSource?: SkillSource | undefined;
+  readonly skillPath?: string;
+  readonly skillSource?: SkillSource;
 }
 
 export interface ErrorEvent extends ByfErrorPayload {
@@ -83,7 +83,7 @@ export interface ErrorEvent extends ByfErrorPayload {
 export interface WarningEvent {
   readonly type: 'warning';
   readonly message: string;
-  readonly code?: string | undefined;
+  readonly code?: string;
 }
 
 export interface TurnStartedEvent {
@@ -96,27 +96,27 @@ export interface TurnEndedEvent {
   readonly type: 'turn.ended';
   readonly turnId: number;
   readonly reason: TurnEndReason;
-  readonly error?: ByfErrorPayload | undefined;
+  readonly error?: ByfErrorPayload;
 }
 
 export interface TurnStepStartedEvent {
   readonly type: 'turn.step.started';
   readonly turnId: number;
   readonly step: number;
-  readonly stepId?: string | undefined;
+  readonly stepId?: string;
 }
 
 export interface TurnStepCompletedEvent {
   readonly type: 'turn.step.completed';
   readonly turnId: number;
   readonly step: number;
-  readonly stepId?: string | undefined;
-  readonly usage?: TokenUsage | undefined;
-  readonly finishReason?: string | undefined;
-  readonly providerFinishReason?: FinishReason | undefined;
-  readonly rawFinishReason?: string | undefined;
-  readonly llmFirstTokenLatencyMs?: number | undefined;
-  readonly llmStreamDurationMs?: number | undefined;
+  readonly stepId?: string;
+  readonly usage?: TokenUsage;
+  readonly finishReason?: string;
+  readonly providerFinishReason?: FinishReason;
+  readonly rawFinishReason?: string;
+  readonly llmFirstTokenLatencyMs?: number;
+  readonly llmStreamDurationMs?: number;
 }
 
 export interface TurnStepRetryingEvent {
@@ -137,9 +137,9 @@ export interface TurnStepInterruptedEvent {
   readonly type: 'turn.step.interrupted';
   readonly turnId: number;
   readonly step: number;
-  readonly stepId?: string | undefined;
+  readonly stepId?: string;
   readonly reason: string;
-  readonly message?: string | undefined;
+  readonly message?: string;
 }
 
 export interface AssistantDeltaEvent {
@@ -153,7 +153,7 @@ export interface HookResultEvent {
   readonly turnId: number;
   readonly hookEvent: string;
   readonly content: string;
-  readonly blocked?: boolean | undefined;
+  readonly blocked?: boolean;
 }
 
 export interface ThinkingDeltaEvent {
@@ -166,8 +166,8 @@ export interface ToolCallDeltaEvent {
   readonly type: 'tool.call.delta';
   readonly turnId: number;
   readonly toolCallId: string;
-  readonly name?: string | undefined;
-  readonly argumentsPart?: string | undefined;
+  readonly name?: string;
+  readonly argumentsPart?: string;
 }
 
 export interface ToolCallStartedEvent {
@@ -176,8 +176,8 @@ export interface ToolCallStartedEvent {
   readonly toolCallId: string;
   readonly name: string;
   readonly args: unknown;
-  readonly description?: string | undefined;
-  readonly display?: ToolInputDisplay | undefined;
+  readonly description?: string;
+  readonly display?: ToolInputDisplay;
 }
 
 export interface ToolProgressEvent {
@@ -192,9 +192,9 @@ export interface ToolResultEvent {
   readonly turnId: number;
   readonly toolCallId: string;
   readonly output: unknown;
-  readonly isError?: boolean | undefined;
-  readonly synthetic?: boolean | undefined;
-  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+  readonly isError?: boolean;
+  readonly synthetic?: boolean;
+  readonly blockedReason?: 'rejected' | 'cancelled';
 }
 
 export interface SubagentSpawnedEvent {
@@ -202,9 +202,9 @@ export interface SubagentSpawnedEvent {
   readonly subagentId: string;
   readonly subagentName: string;
   readonly parentToolCallId: string;
-  readonly parentToolCallUuid?: string | undefined;
-  readonly parentAgentId?: string | undefined;
-  readonly description?: string | undefined;
+  readonly parentToolCallUuid?: string;
+  readonly parentAgentId?: string;
+  readonly description?: string;
   readonly runInBackground: boolean;
 }
 
@@ -213,7 +213,7 @@ export interface SubagentCompletedEvent {
   readonly subagentId: string;
   readonly parentToolCallId: string;
   readonly resultSummary: string;
-  readonly usage?: TokenUsage | undefined;
+  readonly usage?: TokenUsage;
 }
 
 export interface SubagentFailedEvent {
@@ -226,12 +226,12 @@ export interface SubagentFailedEvent {
 export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
   readonly trigger: 'manual' | 'auto';
-  readonly instruction?: string | undefined;
+  readonly instruction?: string;
 }
 
 export interface CompactionBlockedEvent {
   readonly type: 'compaction.blocked';
-  readonly turnId?: number | undefined;
+  readonly turnId?: number;
 }
 
 export interface CompactionCancelledEvent {
@@ -285,7 +285,7 @@ export interface BtwCompletedEvent {
   readonly type: 'btw.completed';
   readonly queryId: string;
   readonly text: string;
-  readonly usage?: TokenUsage | undefined;
+  readonly usage?: TokenUsage;
 }
 
 export interface BtwFailedEvent extends ByfErrorPayload {
@@ -304,7 +304,7 @@ export interface GoalUpdatedEvent {
    * 生命周期变化标记。`completion` 仅 markComplete 触发（UI 据此渲染 completion 卡片）；
    * `blocked` 仅 markBlocked 触发。普通迁移（pause/resume/cancel）不带 change。
    */
-  readonly change?: GoalChange | undefined;
+  readonly change?: GoalChange;
 }
 
 export type ToolListUpdatedReason = 'mcp.connected' | 'mcp.disconnected' | 'mcp.failed';
@@ -325,7 +325,7 @@ export interface McpServerStatusPayload {
   readonly transport: 'stdio' | 'http' | 'sse';
   readonly status: 'pending' | 'connected' | 'failed' | 'disabled' | 'needs-auth';
   readonly toolCount: number;
-  readonly error?: string | undefined;
+  readonly error?: string;
 }
 
 export type AgentEvent =

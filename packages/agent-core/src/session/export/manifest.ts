@@ -9,10 +9,10 @@ export function buildExportManifest(args: {
   readonly summary: SessionSummary;
   readonly now: Date;
   readonly version: string;
-  readonly wireProtocolVersion?: string | undefined;
+  readonly wireProtocolVersion?: string;
   readonly sessionScan: SessionWireScan;
-  readonly sessionLogPath?: string | undefined;
-  readonly globalLogPath?: string | undefined;
+  readonly sessionLogPath?: string;
+  readonly globalLogPath?: string;
 }): ExportSessionManifest {
   return {
     sessionId: args.summary.id,

@@ -36,11 +36,11 @@ const DEFAULT_MAX_CONCURRENT_SUBAGENTS = 5;
 
 type RunSubagentOptions = {
   readonly parentToolCallId: string;
-  readonly parentToolCallUuid?: string | undefined;
+  readonly parentToolCallUuid?: string;
   readonly prompt: string;
   readonly description: string;
   readonly runInBackground: boolean;
-  readonly origin?: PromptOrigin | undefined;
+  readonly origin?: PromptOrigin;
   readonly signal: AbortSignal;
 };
 
@@ -69,7 +69,7 @@ export class SessionSubagentHost {
   constructor(
     private readonly session: Session,
     private readonly ownerAgentId: string,
-    readonly backgroundTaskTimeoutMs?: number | undefined,
+    readonly backgroundTaskTimeoutMs?: number,
     maxConcurrentSubagents: number | undefined = undefined,
   ) {
     this.maxConcurrentSubagents = maxConcurrentSubagents ?? DEFAULT_MAX_CONCURRENT_SUBAGENTS;

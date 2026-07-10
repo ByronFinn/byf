@@ -9,27 +9,27 @@ export interface ModelInfo {
   readonly id: string;
   readonly contextLength: number;
   readonly supportsReasoning: boolean;
-  readonly supportsReasoningEffort?: boolean | undefined;
-  readonly reasoningEffortKey?: string | undefined;
+  readonly supportsReasoningEffort?: boolean;
+  readonly reasoningEffortKey?: string;
   readonly supportsImageIn: boolean;
   readonly supportsVideoIn: boolean;
-  readonly supportsToolUse?: boolean | undefined;
-  readonly displayName?: string | undefined;
+  readonly supportsToolUse?: boolean;
+  readonly displayName?: string;
 }
 
 export interface ModelAlias {
   provider: string;
   model: string;
   maxContextSize: number;
-  capabilities?: string[] | undefined;
-  displayName?: string | undefined;
+  capabilities?: string[];
+  displayName?: string;
   readonly [key: string]: unknown;
 }
 
 export interface ProviderConfig {
   type: string;
-  baseUrl?: string | undefined;
-  apiKey?: string | undefined;
+  baseUrl?: string;
+  apiKey?: string;
   readonly [key: string]: unknown;
 }
 
@@ -39,10 +39,10 @@ export interface ServicesConfig {
 
 export interface ConfigShape {
   providers: Record<string, ProviderConfig | Record<string, unknown>>;
-  models?: Record<string, ModelAlias | Record<string, unknown>> | undefined;
-  defaultModel?: string | undefined;
-  defaultThinking?: boolean | undefined;
-  services?: ServicesConfig | undefined;
+  models?: Record<string, ModelAlias | Record<string, unknown>>;
+  defaultModel?: string;
+  defaultThinking?: boolean;
+  services?: ServicesConfig;
   [key: string]: unknown;
 }
 
@@ -256,7 +256,7 @@ function anthropicModelToInfo(item: unknown): ModelInfo | undefined {
 
 export function filterModelsByPrefix(
   models: ModelInfo[],
-  prefixes?: readonly string[] | undefined,
+  prefixes?: readonly string[],
 ): ModelInfo[] {
   if (!prefixes || prefixes.length === 0) {
     return models;
@@ -291,7 +291,7 @@ export function applyProviderConfig(
   config: ConfigShape,
   options: {
     readonly name: string;
-    readonly type?: string | undefined;
+    readonly type?: string;
     readonly baseUrl: string;
     readonly apiKey: string;
     readonly models: readonly ModelInfo[];

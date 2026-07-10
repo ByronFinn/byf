@@ -66,7 +66,7 @@ function wrapWithPrefix(
 
 interface DisplayOption {
   readonly label: string;
-  readonly description?: string | undefined;
+  readonly description?: string;
   readonly kind: 'preset' | 'other';
 }
 

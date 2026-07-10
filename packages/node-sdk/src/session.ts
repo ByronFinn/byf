@@ -27,20 +27,20 @@ const MAIN_AGENT_ID = 'main';
 export interface SessionOptions {
   readonly id: string;
   readonly workDir: string;
-  readonly summary?: SessionSummary | undefined;
-  readonly resumeState?: ResumedSessionState | undefined;
+  readonly summary?: SessionSummary;
+  readonly resumeState?: ResumedSessionState;
   readonly rpc: SDKRpcClient;
-  readonly onClose?: (() => void | Promise<void>) | undefined;
+  readonly onClose?: () => void | Promise<void>;
 }
 
 export class Session {
   readonly id: string;
   readonly workDir: string;
-  readonly summary?: SessionSummary | undefined;
+  readonly summary?: SessionSummary;
   private readonly resumeState: ResumedSessionState | undefined;
 
   private readonly rpc: SDKRpcClient;
-  private readonly onClose?: (() => void | Promise<void>) | undefined;
+  private readonly onClose?: () => void | Promise<void>;
   private closed = false;
 
   constructor(options: SessionOptions) {
@@ -121,8 +121,8 @@ export class Session {
   async askSide(
     query: string,
     options: {
-      readonly signal?: AbortSignal | undefined;
-      readonly queryId?: string | undefined;
+      readonly signal?: AbortSignal;
+      readonly queryId?: string;
     } = {},
   ): Promise<{ readonly queryId: string }> {
     this.ensureOpen();
@@ -240,7 +240,7 @@ export class Session {
     const instruction = normalizeOptionalString(options.instruction);
     await this.rpc.compact({
       sessionId: this.id,
-      ...(instruction !== undefined ? { instruction } : {}),
+      instruction,
     });
   }
 
@@ -355,7 +355,7 @@ export class Session {
     await this.rpc.reconnectMcpServer({ sessionId: this.id, name });
   }
 
-  async activateSkill(name: string, args?: string | undefined): Promise<void> {
+  async activateSkill(name: string, args?: string): Promise<void> {
     this.ensureOpen();
     const skillName = normalizeRequiredString(
       name,
@@ -366,7 +366,7 @@ export class Session {
     await this.rpc.activateSkill({
       sessionId: this.id,
       name: skillName,
-      ...(skillArgs !== undefined ? { args: skillArgs } : {}),
+      args: skillArgs,
     });
   }
 
@@ -382,7 +382,7 @@ export class Session {
   }
 
   /** @internal */
-  emitMetaUpdated(patch: { readonly title?: string | undefined }): void {
+  emitMetaUpdated(patch: { readonly title?: string }): void {
     this.emit({
       type: 'session.meta.updated',
       sessionId: this.id,

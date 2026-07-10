@@ -102,6 +102,12 @@
       }
     },
     {
+      "files": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+      "rules": {
+        "typescript/no-explicit-any": "warn"
+      }
+    },
+    {
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",

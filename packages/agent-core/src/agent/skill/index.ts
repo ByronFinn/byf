@@ -54,10 +54,7 @@ export class SkillManager {
     );
   }
 
-  recordActivation(
-    origin: SkillActivationOrigin,
-    input?: readonly ContentPart[] | undefined,
-  ): void {
+  recordActivation(origin: SkillActivationOrigin, input?: readonly ContentPart[]): void {
     this.agent.emitEvent({
       type: 'skill.activated',
       activationId: origin.activationId,

@@ -29,7 +29,7 @@ export interface PermissionRule {
   readonly decision: PermissionRuleDecision;
   readonly scope: PermissionRuleScope;
   readonly pattern: string;
-  readonly reason?: string | undefined;
+  readonly reason?: string;
 }
 
 export interface ApprovalRequest {

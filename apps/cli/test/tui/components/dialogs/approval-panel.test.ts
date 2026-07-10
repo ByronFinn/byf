@@ -36,14 +36,14 @@ function makeDialog(): {
   dialog: ApprovalPanelComponent;
   responses: Array<{
     response: string;
-    feedback?: string | undefined;
-    selected_label?: string | undefined;
+    feedback?: string;
+    selected_label?: string;
   }>;
 } {
   const responses: Array<{
     response: string;
-    feedback?: string | undefined;
-    selected_label?: string | undefined;
+    feedback?: string;
+    selected_label?: string;
   }> = [];
   const dialog = new ApprovalPanelComponent(
     makePending(),
@@ -467,8 +467,8 @@ describe('ApprovalPanelComponent', () => {
   it('returns feedback for revise choice', () => {
     const responses: Array<{
       response: string;
-      feedback?: string | undefined;
-      selected_label?: string | undefined;
+      feedback?: string;
+      selected_label?: string;
     }> = [];
     const pending: PendingApproval = {
       data: {
