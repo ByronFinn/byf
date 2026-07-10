@@ -83,7 +83,7 @@ export interface SessionMeta {
   lastPrompt?: string;
   forkedFrom?: string;
   agents: Record<string, AgentMeta>;
-  custom: Record<string, any>;
+  custom: Record<string, unknown>;
 }
 
 const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'BYF_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT';

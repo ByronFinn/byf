@@ -105,18 +105,29 @@ function rewriteHashImports(text, fromFile, distRoot) {
 
 function rewriteRelativeSpecifiers(text, fromFile) {
   let count = 0;
-  const next = text.replaceAll(/(["'])(\.[^'"]+)\1/g, (match, quote, spec) => {
-    if (hasRuntimeExtension(spec)) return match;
-    const resolved = resolveRelativeDts(fromFile, spec);
-    if (resolved === undefined) {
-      console.warn(
-        `bun-lib-dts: unresolved relative specifier "${spec}" in ${path.relative(cwd, fromFile)} — left as-is`,
-      );
-      return match;
-    }
-    count += 1;
-    return `${quote}${relativeSpecifier(fromFile, resolved, true)}${quote}`;
-  });
+  // Only rewrite specifiers that appear in a real import/export context.
+  // Matching *any* quoted string starting with `.` would mis-fire on string-literal
+  // type values (e.g. `readonly [".bak", ".pem"]`) and JSDoc prose (`id="..."`),
+  // which tsc emits verbatim into `.d.ts`. Restricting to the two contexts tsc can
+  // actually emit relative specifiers in — `from "..."` and `import("...")` — is
+  // enough to skip both false positives, so comments need no separate handling.
+  const next = text.replaceAll(
+    /(?<=\bfrom\s*)(["'])(\.[^"']+)\1|(?<=\bimport\s*\(\s*)(["'])(\.[^"']+)\3/g,
+    (match, q1, spec1, q3, spec3) => {
+      const quote = q1 ?? q3;
+      const spec = spec1 ?? spec3;
+      if (hasRuntimeExtension(spec)) return match;
+      const resolved = resolveRelativeDts(fromFile, spec);
+      if (resolved === undefined) {
+        console.warn(
+          `bun-lib-dts: unresolved relative specifier "${spec}" in ${path.relative(cwd, fromFile)} — left as-is`,
+        );
+        return match;
+      }
+      count += 1;
+      return `${quote}${relativeSpecifier(fromFile, resolved, true)}${quote}`;
+    },
+  );
   return { text: next, count };
 }
 
