@@ -4,9 +4,8 @@
 // dispatch. Each builtin command registers its handler here; the dispatch
 // is a single `Map.get(name)(args)` lookup.
 //
-// The `SlashCommandHost` interface (the narrow capability surface handlers
-// may use) lives in `handlers/session-handlers.ts` — co-located with the
-// handler implementations that consume it.
+// The `SlashCommandHost` interface lives in `handlers/slash-host.ts`.
+// Group modules under `handlers/` register against this registry.
 
 import type { BuiltinSlashCommandName } from './registry';
 
@@ -38,7 +37,7 @@ export class SlashCommandHandlerRegistry {
   /**
    * Look up the handler for a command name.
    * Returns `undefined` if no handler is registered (should not happen for
-   * builtin commands — `registerBuiltInSlashHandlers` covers them all).
+   * builtin commands — `registerBuiltinSlashHandlers` covers them all).
    */
   get(name: BuiltinSlashCommandName): SlashCommandHandler | undefined {
     return this.handlers.get(name);

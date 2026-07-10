@@ -65,9 +65,9 @@ If a section keeps growing, split pure functions, state projections, presentatio
 
 ## ByfTui Size Budget
 
-`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4178 over recent weeks; net trend still upward, measured 2026-07-10), so the following budget governs every change to it.
+`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4178 → ~3893 after H1-a slash migration, measured 2026-07-10), so the following budget governs every change to it.
 
-**Baseline and target.** Honest baseline today: ~4178 lines (measured 2026-07-10). Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root. See `docs/architecture-debt-roadmap.md` for the full governance rationale.
+**Baseline and target.** Honest baseline today: ~3893 lines (measured 2026-07-10, post PRD-0021 H1-a). Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root. See `docs/architecture-debt-roadmap.md` for the full governance rationale.
 
 **Net-zero growth rule.** A new TUI feature must not cause `byf-tui.ts` to grow net. Default to sinking logic out of the root:
 

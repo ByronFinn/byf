@@ -10,7 +10,7 @@
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
-import { applyProviderConfig, fetchModelsByType, isAbortError, log } from '@byfriends/sdk';
+import { isAbortError, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
   CreateSessionOptions,
@@ -48,7 +48,6 @@ import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/exte
 import { detectFdPath } from '#/utils/process/fd-detect';
 
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
-import { handleGoalCommand } from './actions/goal';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
@@ -62,14 +61,10 @@ import {
   sortSlashCommands,
   type BuiltinSlashCommandName,
   type ByfSlashCommand,
-  parseGoalCommand,
   type SkillListSession,
 } from './commands';
 import { SlashCommandHandlerRegistry } from './commands/handler-registry';
-import {
-  registerBuiltinSlashHandlers,
-  type SlashCommandHost,
-} from './commands/handlers/session-handlers';
+import { registerBuiltinSlashHandlers, type SlashCommandHost } from './commands/handlers';
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
@@ -117,7 +112,6 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from './constant/byf-tui';
-import { FEEDBACK_ISSUE_URL } from './constant/feedback';
 import { CHROME_GUTTER } from './constant/rendering';
 import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import {
@@ -148,9 +142,6 @@ import {
   type SubagentEventState,
 } from './events/subagent-event-handler';
 import { TurnEventHandler, type TurnEventCallbacks } from './events/turn-event-handler';
-import { ConnectFlow } from './flows/connect-flow';
-import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
-import { LoginFlow } from './flows/login-flow';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -165,7 +156,7 @@ import type {
 } from './reverse-rpc/types';
 import { createByfTuiThemeBundle } from './theme/bundle';
 import type { ResolvedTheme } from './theme/colors';
-import { isTheme, type Theme } from './theme/index';
+import type { Theme } from './theme/index';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -562,26 +553,57 @@ export class ByfTui implements DialogHost {
     this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
     this.agentsController = new SubagentsController(this.createSubagentsEnv());
     this.slashCommandHandlers = new SlashCommandHandlerRegistry();
-    this.slashHost = {
-      showStatus: (message) => this.showStatus(message),
-      showError: (message) => this.showError(message),
-      requestRender: () => this.state.ui.requestRender(),
-      version: this.state.appState.version,
+    this.slashHost = this.createSlashCommandHost();
+    registerBuiltinSlashHandlers(this.slashCommandHandlers, this.slashHost);
+  }
+
+  /**
+   * Narrow SlashCommandHost — capability bag for command-modules.
+   * Handlers read live state via getters; the host never holds a ByfTui ref.
+   */
+  private slashHost!: SlashCommandHost;
+
+  private createSlashCommandHost(): SlashCommandHost {
+    return {
+      showStatus: (message, color?) => {
+        this.showStatus(message, color);
+      },
+      showError: (message) => {
+        this.showError(message);
+      },
+      showNotice: (title, detail?) => {
+        this.showNotice(title, detail);
+      },
+      requestRender: () => {
+        this.state.ui.requestRender();
+      },
+      getVersion: () => this.state.appState.version,
       getSession: () => this.session,
       createNewSession: () => this.createNewSession(),
       stop: () => {
         void this.stop();
       },
-      showHelp: () => this.dialogManager.showHelpPanel(),
-      showSessionPicker: () => {
-        void this.dialogManager.showSessionPicker();
+      dialogManager: this.dialogManager,
+      dialogHost: this,
+      getThemeColors: () => this.state.theme.colors,
+      getAppState: () => ({
+        availableModels: this.state.appState.availableModels,
+        sessionTitle: this.state.appState.sessionTitle,
+        sessionId: this.state.appState.sessionId,
+        yolo: this.state.appState.yolo,
+        model: this.state.appState.model,
+        permissionMode: this.state.appState.permissionMode,
+        maxContextTokens: this.state.appState.maxContextTokens,
+      }),
+      setAppState: (patch) => {
+        this.setAppState(patch);
       },
-      showPermissionPicker: () => this.dialogManager.showPermissionPicker(),
-      showSettingsSelector: () => this.dialogManager.showSettingsSelector(),
       showTasksBrowser: () => {
         void this.tasksBrowserController.show();
       },
-      showSubagentsViewer: () => this.agentsController.show(),
+      showSubagentsViewer: () => {
+        this.agentsController.show();
+      },
       showMcpServers: () => {
         void this.showMcpServers();
       },
@@ -591,33 +613,47 @@ export class ByfTui implements DialogHost {
       showStatusReport: () => {
         void this.showStatusReport();
       },
-      handleEditor: (args) => this.handleEditorCommand(args, {}),
-      handleTheme: (args) => this.handleThemeCommand(args),
-      handleModel: (args) => {
-        this.handleModelCommand(args);
+      showBtw: (args) => this.btwController.show(args),
+      applyEditorChoice: (value) => this.applyEditorChoice(value),
+      applyThemeChoice: (theme) => this.applyThemeChoice(theme),
+      cancelCurrentStream: () => {
+        this.cancelCurrentStream();
       },
-      handleTitle: (args) => this.handleTitleCommand(args),
-      handleFork: (args) => this.handleForkCommand(args),
-      handleYolo: (args) => this.handleYoloCommand(args),
-      handleCompact: (args) => this.handleCompactCommand(args),
-      handleGoal: (args) => this.handleGoalCommand(args),
-      handleInit: () => this.handleInitCommand(),
-      handleLogin: () => this.handleLoginCommand(),
-      handleLogout: (args) => this.handleLogoutCommand(args),
-      handleConnect: (args) => this.handleConnectCommand(args),
-      handleFeedback: () => this.handleFeedbackCommand(),
-      handleBtw: (args) => this.btwController.show(args),
+      appendTranscriptStatus: (message) => {
+        this.appendTranscriptEntry({
+          id: nextTranscriptId(),
+          kind: 'status',
+          renderMode: 'plain',
+          content: message,
+        });
+      },
+      sendNormalUserInput: (text) => {
+        this.sendNormalUserInput(text);
+      },
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      removeProvider: (id) => this.harness.removeProvider(id),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
+      track: (event, props?) => {
+        this.track(event, props);
+      },
+      getBuiltInCatalogJson: () => BUILT_IN_CATALOG_JSON,
+      setCancelInFlight: (cancel) => {
+        this.cancelInFlight = cancel;
+      },
+      clearCancelInFlight: (cancel) => {
+        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
+      },
+      renameSession: (input) => this.harness.renameSession(input),
+      getUserMessageContents: () =>
+        this.state.transcriptEntries
+          .filter((entry) => entry.kind === 'user')
+          .map((entry) => entry.content),
+      performForkRewind: (session, upToMessage) => this.performForkRewind(session, upToMessage),
+      runInitCommand: () => this.handleInitCommand(),
     };
-    registerBuiltinSlashHandlers(this.slashCommandHandlers, this.slashHost);
   }
-
-  /**
-   * SlashCommandHost implementation — delegates to ByfTui capabilities.
-   *
-   * Handlers read live state via `getSession()` / arrow-closure methods;
-   * the host object never holds a stale snapshot.
-   */
-  private slashHost!: SlashCommandHost;
 
   // =========================================================================
   // Startup Helpers
@@ -1470,7 +1506,7 @@ export class ByfTui implements DialogHost {
   ): Promise<void> {
     const handler = this.slashCommandHandlers.get(name);
     if (handler === undefined) {
-      // Unreachable: registerSlashCommandHandlers covers every BuiltinSlashCommandName
+      // Unreachable: registerBuiltinSlashHandlers covers every BuiltinSlashCommandName
       // (enforced by the `satisfies Record<BuiltinSlashCommandName, ...>` check).
       this.showError(`Unknown slash command: /${name}`);
       return;
@@ -3754,127 +3790,8 @@ export class ByfTui implements DialogHost {
   }
 
   // =========================================================================
-  // Slash Command Handlers
+  // Root-coupled slash seams (invoked via SlashCommandHost)
   // =========================================================================
-
-  // Handles the /editor command.
-  private async handleEditorCommand(args: string, _eCtx: {}): Promise<void> {
-    const command = args.trim();
-    if (command.length === 0) {
-      this.dialogManager.showEditorPicker();
-      return;
-    }
-    await this.applyEditorChoice(command);
-  }
-
-  // Handles the /theme command.
-  private async handleThemeCommand(args: string): Promise<void> {
-    const theme = args.trim();
-    if (theme.length === 0) {
-      this.dialogManager.showThemePicker();
-      return;
-    }
-    if (!isTheme(theme)) {
-      this.showError(`Unknown theme: ${theme}`);
-      return;
-    }
-    await this.applyThemeChoice(theme);
-  }
-
-  // Handles the /model command.
-  private handleModelCommand(args: string): void {
-    const alias = args.trim();
-    if (alias.length === 0) {
-      this.dialogManager.showModelPicker();
-      return;
-    }
-    if (this.state.appState.availableModels[alias] === undefined) {
-      this.showError(`Unknown model alias: ${alias}`);
-      return;
-    }
-    this.dialogManager.showModelPicker(alias);
-  }
-
-  // Handles the /title command.
-  private async handleTitleCommand(args: string): Promise<void> {
-    const title = args.trim();
-    if (title.length === 0) {
-      const current = this.state.appState.sessionTitle;
-      this.showStatus(
-        current !== null && current.length > 0
-          ? `Session title: ${current}`
-          : `Session title: (not set) — id: ${this.state.appState.sessionId}`,
-      );
-      return;
-    }
-
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const newTitle = title.slice(0, 200);
-    try {
-      await this.harness.renameSession({ id: session.id, title: newTitle });
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to set title: ${msg}`);
-      return;
-    }
-    this.showStatus(`Session title set to: ${newTitle}`);
-  }
-
-  // Handles the /fork command.
-  private async handleForkCommand(args: string): Promise<void> {
-    void args;
-
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    // Build the list of user messages from the transcript. Each `kind === 'user'`
-    // entry corresponds to a user-origin turn in wire (a turn.prompt/turn.steer
-    // record with origin.kind === 'user') — see ADR-0020. The ordinal passed to
-    // forkSession.upToMessage is 1-based and matches this list order.
-    const userMessages = this.state.transcriptEntries.filter((entry) => entry.kind === 'user');
-
-    if (userMessages.length === 0) {
-      this.showError('No user messages to fork from in this session.');
-      return;
-    }
-
-    const options = userMessages.map((entry, index) => {
-      const ordinal = index + 1;
-      const summary = summarizeUserMessage(entry.content);
-      return {
-        value: String(ordinal),
-        label: `${ordinal}. ${summary}`,
-      };
-    });
-    // A trailing "after last message" option = full copy, equivalent to the
-    // pre-rewind behavior. Lets the user fork the whole session without
-    // dropping anything (PRD-0015 R2 / AC4).
-    options.push({
-      value: '0',
-      label: `${userMessages.length + 1}. After last message (full copy)`,
-    });
-
-    this.dialogManager.showForkRewindPicker(
-      options,
-      (value) => {
-        const ordinal = Number.parseInt(value, 10);
-        // value 0 = full copy (no rewind); omit upToMessage.
-        const upToMessage = ordinal > 0 ? ordinal : undefined;
-        void this.performForkRewind(session, upToMessage);
-      },
-      () => {
-        this.showStatus('Fork cancelled.');
-      },
-    );
-  }
 
   // Executes a fork. upToMessage undefined = full copy; otherwise rewinds to
   // just before the Nth user message.
@@ -3917,84 +3834,7 @@ export class ByfTui implements DialogHost {
     return summaryTitle.length > 0 ? summaryTitle : session.id;
   }
 
-  // Handles the /yolo command.
-  private async handleYoloCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    let enabled: boolean;
-    if (args === 'on') enabled = true;
-    else if (args === 'off') enabled = false;
-    else enabled = !this.state.appState.yolo;
-
-    await session.setPermission(enabled ? 'yolo' : 'manual');
-    this.setAppState({ yolo: enabled, permissionMode: enabled ? 'yolo' : 'manual' });
-    if (enabled) {
-      this.showNotice(
-        'YOLO mode: ON',
-        'All actions will be approved automatically. Use with caution.',
-      );
-      return;
-    }
-    this.showNotice('YOLO mode: OFF');
-  }
-
-  private async handleCompactCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const customInstruction = args.trim() || undefined;
-    await session.compact({ instruction: customInstruction });
-  }
-
-  // =========================================================================
-  // /goal — autonomous goal mode (PRD-0019 #204)
-  // =========================================================================
-
-  private async handleGoalCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const command = parseGoalCommand(args);
-    await handleGoalCommand(session, command, {
-      showStatus: (msg) => {
-        this.showStatus(msg);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      abortActiveTurn: () => {
-        this.cancelCurrentStream();
-      },
-      appendTranscriptLine: (msg) => {
-        this.appendTranscriptEntry({
-          id: nextTranscriptId(),
-          kind: 'status',
-          renderMode: 'plain',
-          content: msg,
-        });
-      },
-    });
-    // PRD-0019 R5：slash 入口创建 goal 后必须发起首个 user turn，turnWorker 在
-    // 该 turn 结束时读到 active 才会进入 driveGoal 续跑循环（PRD 数据流：
-    // "sendNormalUserInput(objective) [发起首个 turn，origin=user]"）。否则 goal
-    // 卡在 active、turns/tokens 永远为 0。
-    if (command.kind === 'create') {
-      this.sendNormalUserInput(command.objective);
-    }
-    this.state.ui.requestRender();
-  }
-
-  // Handles the /init command.
+  // /init — turn-state machine stays on the composition root.
   private async handleInitCommand(): Promise<void> {
     const session = this.session;
     if (this.state.appState.model.trim().length === 0 || session === undefined) {
@@ -4022,102 +3862,6 @@ export class ByfTui implements DialogHost {
       this.deferUserMessages = false;
     }
   }
-
-  // =========================================================================
-  // /login — add a custom OpenAI-compatible provider
-  // =========================================================================
-
-  private async handleLoginCommand(): Promise<void> {
-    const flow = new LoginFlow({
-      colors: this.state.theme.colors,
-      dialogHost: this,
-      getConfig: () => this.harness.getConfig(),
-      setConfig: (cfg) => this.harness.setConfig(cfg),
-      fetchModels: (type, baseUrl, apiKey) => fetchModelsByType(type, baseUrl, apiKey),
-      applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
-      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => {
-        this.showStatus(msg, color);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
-      track: (event, props?) => {
-        this.track(event, props);
-      },
-      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
-    });
-    await flow.run();
-  }
-
-  private async handleLogoutCommand(_args: string | undefined): Promise<void> {
-    const config = await this.harness.getConfig();
-
-    const providerName = await promptConfiguredProviderSelection(
-      this,
-      this.state.theme.colors,
-      config,
-      (msg) => {
-        this.showError(msg);
-      },
-    );
-    if (providerName === undefined) {
-      return;
-    }
-
-    const activeModel = this.state.appState.model;
-    const activeProvider = this.state.appState.availableModels[activeModel]?.provider;
-    const wasActiveModel = activeProvider === providerName;
-
-    await this.harness.removeProvider(providerName);
-    await this.refreshConfigAfterLogin();
-
-    if (wasActiveModel) {
-      this.setAppState({ model: '', maxContextTokens: 0 });
-    }
-
-    this.showStatus(`Provider "${providerName}" removed.`, this.state.theme.colors.success);
-
-    if (wasActiveModel) {
-      this.showStatus('No active model. Run /login or /connect to configure a provider.');
-    }
-  }
-
-  private async handleConnectCommand(args: string): Promise<void> {
-    const flow = new ConnectFlow({
-      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
-      colors: this.state.theme.colors,
-      dialogHost: this,
-      getConfig: () => this.harness.getConfig(),
-      setConfig: (cfg) => this.harness.setConfig(cfg),
-      removeProvider: (id) => this.harness.removeProvider(id),
-      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => {
-        this.showStatus(msg, color);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      showSpinner: (label) => this.showLoginProgressSpinner(label),
-      setCancelInFlight: (cancel) => {
-        this.cancelInFlight = cancel;
-      },
-      clearCancelInFlight: (cancel) => {
-        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
-      },
-      track: (event, props?) => {
-        this.track(event, props);
-      },
-    });
-    await flow.run(args);
-  }
-
-  // Handles the /feedback command — opens the GitHub Issues page.
-  private async handleFeedbackCommand(): Promise<void> {
-    this.showStatus(FEEDBACK_ISSUE_URL);
-    openUrl(FEEDBACK_ISSUE_URL);
-  }
 }
 
 function toShellExecTranscriptResult(
@@ -4141,14 +3885,4 @@ function toShellExecTranscriptResult(
     output: output.length > 0 ? output : '(no output)',
     is_error: result.exitCode !== 0 || result.timedOut,
   };
-}
-
-/**
- * Builds a short single-line summary of a user message for the fork rewind
- * picker. Collapses whitespace and truncates so the list stays scannable.
- */
-function summarizeUserMessage(content: string): string {
-  const collapsed = content.replaceAll(/\s+/g, ' ').trim();
-  if (collapsed.length === 0) return '(empty message)';
-  return collapsed.length > 60 ? `${collapsed.slice(0, 60)}…` : collapsed;
 }
