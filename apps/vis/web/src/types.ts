@@ -1,6 +1,6 @@
 // Client-side types — re-export vis DTOs (type-only).
-// Canonical shared DTO definitions live in apps/vis/shared/types.ts.
-// vis-web imports from ./shared-types.ts to avoid pulling vis-server source into the web tsconfig.
+// Canonical shared DTO definitions live in @byfriends/vis-shared (apps/vis/shared/types.ts).
+// Both vis-web and vis-server import from the same single source.
 
 export type {
   SessionSummary,
@@ -25,7 +25,7 @@ export type {
   UsageTotals,
   ConfigSnapshot,
   ContextProjection,
-} from './shared-types';
+} from '@byfriends/vis-shared';
 
 export interface DeleteSessionResponse {
   sessionId: string;
@@ -35,14 +35,14 @@ export interface DeleteSessionResponse {
 /**
  * Shape returned by `GET /api/sessions/:id/context?agent=<agentId>`.
  *
- * Mirrors `ContextProjection` from shared/types, plus the `sessionId`
+ * Mirrors `ContextProjection` from @byfriends/vis-shared, plus the `sessionId`
  * and `agentId` echoed by the route.
  */
 export interface ContextResponse {
   sessionId: string;
   agentId: string;
-  messages: import('./shared-types').ProjectedMessage[];
-  usage: import('./shared-types').UsageTotals;
-  config: import('./shared-types').ConfigSnapshot;
-  permission: { mode: import('./shared-types').PermissionMode | null };
+  messages: import('@byfriends/vis-shared').ProjectedMessage[];
+  usage: import('@byfriends/vis-shared').UsageTotals;
+  config: import('@byfriends/vis-shared').ConfigSnapshot;
+  permission: { mode: import('@byfriends/vis-shared').PermissionMode | null };
 }

@@ -1,10 +1,11 @@
-// Context-projection DTOs — canonical definitions live in shared/types.ts
+// Context-projection DTOs — canonical definitions live in @byfriends/vis-shared
 import type {
   ProjectedMessage,
   UsageTotals,
   ConfigSnapshot,
   ContextProjection,
-} from '../../../shared/types';
+} from '@byfriends/vis-shared';
+
 import type {
   ContentPart,
   ContextMessage,
