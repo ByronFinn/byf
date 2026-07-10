@@ -7,16 +7,12 @@
  * flows back to the harness.
  */
 
-import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
 import { applyProviderConfig, fetchModelsByType, isAbortError, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
-  BtwCompletedEvent,
-  BtwDeltaEvent,
-  BtwFailedEvent,
   CreateSessionOptions,
   Event,
   ByfHarness,
@@ -34,7 +30,6 @@ import {
   type Component,
   type Focusable,
   getCapabilities,
-  type OverlayHandle,
   ProcessTerminal,
   type SlashCommand,
   Spacer,
@@ -80,7 +75,7 @@ import {
   type ApprovalPanelResponse,
   resolveSection,
 } from './components/dialogs/approval-panel';
-import { BtwViewer } from './components/dialogs/btw-viewer';
+import { BtwController } from './components/dialogs/btw-controller';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -461,20 +456,7 @@ export class ByfTui implements DialogHost {
   private readonly compactionHandler: CompactionHandler;
   private readonly backgroundTaskHandler: BackgroundTaskHandler;
   private readonly goalEventHandler: GoalEventHandler;
-  /** Active `/btw` side-query overlay, or undefined when none is open. */
-  private btwOverlay:
-    | {
-        readonly queryId: string;
-        readonly component: BtwViewer;
-        readonly handle: OverlayHandle;
-        readonly abort: AbortController;
-        answer: string;
-        status: 'streaming' | 'completed' | 'failed';
-        readonly startedAt: number;
-        readonly duringStreaming: boolean;
-        readonly maxHeight: number;
-      }
-    | undefined;
+  private readonly btwController: BtwController;
 
   /** Hide function for an active approval overlay, or undefined. */
   private approvalOverlayHide: (() => void) | undefined;
@@ -511,6 +493,11 @@ export class ByfTui implements DialogHost {
       this.state,
       this.backgroundTaskCallbacks(),
     );
+    this.btwController = new BtwController(this.state, {
+      getSession: () => this.session,
+      showError: (message) => this.showError(message),
+      track: (event, properties) => this.track(event, properties),
+    });
     this.goalEventHandler = new GoalEventHandler({
       // Forward snapshots to the footer badge (PRD-0019 R13).
       onGoalSnapshotChange: (snapshot) => {
@@ -803,7 +790,7 @@ export class ByfTui implements DialogHost {
       clearTimeout(this.pendingExit.timer);
       this.pendingExit = null;
     }
-    this.closeBtwOverlay();
+    this.btwController.close();
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
@@ -1480,7 +1467,7 @@ export class ByfTui implements DialogHost {
         await this.handleYoloCommand(args);
         return;
       case 'btw':
-        await this.handleBtwCommand(args);
+        await this.btwController.show(args);
         return;
       case 'compact':
         await this.handleCompactCommand(args);
@@ -1907,7 +1894,7 @@ export class ByfTui implements DialogHost {
     // Close the /btw overlay before clearing approval/question panels: the
     // panel hide handlers restore a hidden btw overlay, so tearing the btw
     // down first avoids a spurious restore→close flicker.
-    this.closeBtwOverlay();
+    this.btwController.close();
     this.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
@@ -2132,7 +2119,7 @@ export class ByfTui implements DialogHost {
       return;
     }
 
-    if (this.handleBtwEvent(event)) {
+    if (this.btwController.handleEvent(event)) {
       return;
     }
 
@@ -3210,23 +3197,6 @@ export class ByfTui implements DialogHost {
     this.state.ui.requestRender();
   }
 
-  // Mounts the /btw overlay as a centered, focusable layer that mirrors the
-  // approval panel / question dialog overlays. Unlike mountEditorReplacement,
-  // an overlay never disturbs the editor container, so closing it needs no
-  // restoreEditor — hide() is enough.
-  private mountBtwOverlay(
-    panel: Component & Focusable,
-    width: number,
-    maxHeight: number,
-  ): OverlayHandle {
-    const handle = this.state.ui.showOverlay(panel, {
-      anchor: 'center',
-      width,
-      maxHeight,
-    });
-    return handle;
-  }
-
   public show(panel: Component & Focusable): void {
     this.mountEditorReplacement(panel);
   }
@@ -3671,7 +3641,7 @@ export class ByfTui implements DialogHost {
   // Shows an approval panel and connects its response callback.
   private showApprovalPanel(payload: ApprovalPanelData): void {
     this.patchLivePane({ pendingApproval: { data: payload } });
-    this.hideBtwOverlayForModal();
+    this.btwController.hideForModal();
     notifyTerminalOnce(this.state, `approval:${payload.id}`, {
       title: 'Byf Code approval required',
       body: payload.tool_name,
@@ -3753,13 +3723,13 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
-    this.restoreBtwOverlay();
+    this.btwController.restore();
   }
 
   // Shows a question dialog and connects its response callback.
   private showQuestionDialog(payload: QuestionPanelData): void {
     this.patchLivePane({ pendingQuestion: { data: payload } });
-    this.hideBtwOverlayForModal();
+    this.btwController.hideForModal();
     notifyTerminalOnce(this.state, `question:${payload.id}`, {
       title: 'Byf Code needs your answer',
       body: payload.questions[0]?.question,
@@ -3800,7 +3770,7 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
-    this.restoreBtwOverlay();
+    this.btwController.restore();
   }
 
   // =========================================================================
@@ -3990,182 +3960,6 @@ export class ByfTui implements DialogHost {
       return;
     }
     this.showNotice('YOLO mode: OFF');
-  }
-
-  // Handles the /btw command — opens a side-query overlay and streams the
-  // answer. The exchange never enters the main transcript (see handleBtwEvent).
-  private async handleBtwCommand(args: string): Promise<void> {
-    const query = args.trim();
-    if (query.length === 0) {
-      this.showError('Usage: /btw <question>');
-      return;
-    }
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-    if (this.state.appState.model.trim().length === 0) {
-      this.showError(LLM_NOT_SET_MESSAGE);
-      return;
-    }
-    if (this.btwOverlay !== undefined) {
-      this.closeBtwOverlay();
-    }
-
-    const startedAt = Date.now();
-    const duringStreaming = this.state.appState.isStreaming;
-    const queryId = `cli-btw-${randomUUID()}`;
-    const overlayWidth = Math.min(80, Math.floor(this.state.terminal.columns * 0.85));
-    const overlayMaxHeight = Math.floor(this.state.terminal.rows * 0.82);
-    const component = new BtwViewer(
-      {
-        query,
-        answer: '',
-        status: 'streaming',
-        maxHeight: overlayMaxHeight,
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.closeBtwOverlay();
-        },
-      },
-      this.state.terminal,
-    );
-    const handle = this.mountBtwOverlay(component, overlayWidth, overlayMaxHeight);
-    const abort = new AbortController();
-    this.btwOverlay = {
-      queryId,
-      component,
-      handle,
-      abort,
-      answer: '',
-      status: 'streaming',
-      startedAt,
-      duringStreaming,
-      maxHeight: overlayMaxHeight,
-    };
-
-    try {
-      await session.askSide(query, { signal: abort.signal, queryId });
-    } catch {
-      // Errors surface as a btw.failed event; ignore the rejected promise.
-    }
-  }
-
-  // Closes an active /btw overlay, aborting any in-flight side query.
-  private closeBtwOverlay(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined) return;
-    const session = this.session;
-    if (session !== undefined) {
-      void session.cancelSideQuery(overlay.queryId);
-    }
-    overlay.abort.abort();
-    overlay.handle.hide();
-    this.btwOverlay = undefined;
-  }
-
-  // Temporarily hides the /btw overlay so an approval/question modal can take
-  // the foreground. The side query keeps streaming in the background; the
-  // overlay is restored once the modal resolves (see restoreBtwOverlay).
-  private hideBtwOverlayForModal(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined || overlay.handle.isHidden()) return;
-    overlay.handle.setHidden(true);
-  }
-
-  // Restores a /btw overlay that was hidden for a modal, bringing it back to
-  // the foreground. Safe to call when no btw overlay is open or it was never
-  // hidden.
-  private restoreBtwOverlay(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined || !overlay.handle.isHidden()) return;
-    overlay.handle.setHidden(false);
-    overlay.handle.focus();
-  }
-
-  // Routes a btw.* event to the active overlay (filtered by queryId).
-  // Returns true when handled.
-  private handleBtwEvent(event: Event): boolean {
-    if (!('type' in event) || typeof event.type !== 'string' || !event.type.startsWith('btw.')) {
-      return false;
-    }
-    const overlay = this.btwOverlay;
-    if (overlay === undefined) return false;
-    const queryId = (event as { queryId?: string }).queryId;
-    if (queryId === undefined || queryId !== overlay.queryId) {
-      return false;
-    }
-
-    const refresh = (
-      answer: string,
-      status: 'streaming' | 'completed' | 'failed',
-      usage?: {
-        inputCacheRead: number;
-        inputCacheCreation: number;
-        inputOther: number;
-        output: number;
-      },
-      error?: string,
-    ): void => {
-      overlay.answer = answer;
-      overlay.status = status;
-      overlay.component.setProps({
-        query: overlay.component.query,
-        answer,
-        status,
-        usage,
-        error,
-        maxHeight: overlay.maxHeight,
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.closeBtwOverlay();
-        },
-      });
-      this.state.ui.requestRender();
-    };
-
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- guard above narrows to btw.* events; default handles the rest.
-    switch (event.type) {
-      case 'btw.started':
-        return true;
-      case 'btw.delta':
-        refresh(overlay.answer + (event as BtwDeltaEvent).delta, 'streaming');
-        return true;
-      case 'btw.completed': {
-        const completed = event as BtwCompletedEvent;
-        const durationMs = Date.now() - overlay.startedAt;
-        const telemetryPayload: Record<string, boolean | number> = {
-          duration_ms: durationMs,
-          during_streaming: overlay.duringStreaming,
-        };
-        if (completed.usage !== undefined) {
-          telemetryPayload['input_cache_read'] = completed.usage.inputCacheRead;
-          telemetryPayload['input_cache_creation'] = completed.usage.inputCacheCreation;
-          telemetryPayload['input_other'] = completed.usage.inputOther;
-          telemetryPayload['output'] = completed.usage.output;
-        }
-        this.track('btw_query', telemetryPayload);
-        refresh(
-          completed.text,
-          'completed',
-          completed.usage !== undefined
-            ? {
-                inputCacheRead: completed.usage.inputCacheRead,
-                inputCacheCreation: completed.usage.inputCacheCreation,
-                inputOther: completed.usage.inputOther,
-                output: completed.usage.output,
-              }
-            : undefined,
-        );
-        return true;
-      }
-      case 'btw.failed':
-        refresh(overlay.answer, 'failed', undefined, (event as BtwFailedEvent).message);
-        return true;
-      default:
-        return false;
-    }
   }
 
   private async handleCompactCommand(args: string): Promise<void> {

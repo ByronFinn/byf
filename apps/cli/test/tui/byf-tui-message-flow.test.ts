@@ -181,11 +181,13 @@ function renderTranscript(driver: MessageDriver): string {
 /**
  * Returns the active BtwViewer mounted as a /btw overlay, or undefined.
  * The overlay lives in the pi-tui overlay stack (not the editor container),
- * so we read it back through the ByfTui's internal overlay state.
+ * so we read it back through the BtwController's internal overlay state.
  */
 function getBtwViewer(driver: MessageDriver): BtwViewer | undefined {
-  return (driver as unknown as { btwOverlay?: { component: BtwViewer } | undefined }).btwOverlay
-    ?.component;
+  const controller = (
+    driver as unknown as { btwController?: { overlay?: { component: BtwViewer } | undefined } }
+  ).btwController;
+  return controller?.overlay?.component;
 }
 
 function expectBtwViewer(driver: MessageDriver): BtwViewer {
@@ -541,8 +543,9 @@ describe('ByfTui message flow', () => {
         expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
-      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
-        .btwOverlay;
+      const overlay = (
+        driver as unknown as { btwController: { overlay: { handle: { isHidden: () => boolean } } } }
+      ).btwController.overlay;
 
       // An approval arrives while the btw overlay is open → it must hide.
       // showApprovalPanel is driven directly (the session mock bypasses the
@@ -576,8 +579,9 @@ describe('ByfTui message flow', () => {
         expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
-      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
-        .btwOverlay;
+      const overlay = (
+        driver as unknown as { btwController: { overlay: { handle: { isHidden: () => boolean } } } }
+      ).btwController.overlay;
       const internal = driver as unknown as {
         showQuestionDialog(data: unknown): void;
         hideQuestionDialog(): void;

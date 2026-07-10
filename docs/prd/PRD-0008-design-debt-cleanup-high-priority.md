@@ -464,6 +464,7 @@ function extractCacheUsage(total: number, cached: number, output: number): Token
 - **Sliced by**: `/story` (2026-06-17) → Child Issues above（8 片：H4 三片 #132/#137/#138、H3 一片 #133、H1 两片 #134/#139、收尾两片 #135/#136）
 - **Arch reviewed by**: `/improve-architecture` (2026-06-24) — H1 行数缺口已记录且符合 PRD "诚实版" 范围；后续风险：byf-tui.ts 经 PRD-0015 fork 又回升至 4164 行（H1 完成时 3916），TUI 分解为持续部分完成态（Medium）；H3/H4 ADR 合规通过、无漂移。
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `byf-tui.ts` 回升至 4289 行/170 个方法且承载 `/btw` overlay 与子代理视图，H1 风险升为 High；H3/H4 仍符合 ADR。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — `byf-tui.ts` 再升至 4380 行（4 周最高频改动文件）；slash 仍为 switch 分发、~354 行 callback assembly 税仍在；H3/H4 合规；H1 保持 High。
 
 ## Expansion Considerations
 

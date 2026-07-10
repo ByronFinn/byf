@@ -166,6 +166,7 @@
 | OQ2 token 独立          | —           | 用户决策（不进 /usage）                                                         |
 
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `/btw` 已落地但 overlay 生命周期与事件路由继续聚合到 `byf-tui.ts`，TUI 分解回归风险为 High。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — 引擎侧 `askSide`/事件已齐；CLI 仍把 `handleBtwCommand`/`handleBtwEvent` 留在 `byf-tui.ts`（~140 行），加重 H1 回归（High）。
 
 **Sliced into:**
 

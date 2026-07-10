@@ -63,6 +63,28 @@ Main directories:
 
 If a section keeps growing, split pure functions, state projections, presentation components, and handler logic into the corresponding directories rather than continuing to expand `ByfTUI`.
 
+## ByfTui Size Budget
+
+`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4380 over four weeks), so the following budget governs every change to it.
+
+**Baseline and target.** Honest baseline today: ~4380 lines. Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root.
+
+**Net-zero growth rule.** A new TUI feature must not cause `byf-tui.ts` to grow net. Default to sinking logic out of the root:
+
+- Stateful interactive flows (overlays, multi-step dialogs, side queries) → an independent Controller/Manager that takes `TUIState` + a narrow host interface by constructor injection, never a reference to the full `ByfTui` instance. See `DialogManager` and `BtwController` as the reference patterns.
+- Pure logic with no UI-state dependency → `actions/` or `utils/`.
+- Event handling → `events/` (one module per concern).
+- Slash command parsing/grammar → `commands/`.
+
+**Allowed to stay in the root** (these are genuinely root responsibilities; extracting them creates shallow wrappers or parasitic classes, violating ADR-0017's "no pass-through module" rule):
+
+- `setupEditorHandlers` — the Ctrl-C / Ctrl-D / Ctrl-S state machine reads and writes `pendingExit`, `cancelInFlight`, and `cancelCurrentStream`; it is the coupling surface between the editor component and the `ByfTui` lifecycle.
+- Streaming-rendering `*Callbacks()` assemblies — behavior adapters binding `ByfTui` methods with inline logic (e.g. `notifyTurnComplete`); they have real encapsulation value, unlike pure field forwarders.
+- Session lifecycle (`start`/`init`/`stop`), layout/`buildLayout`, input dispatch, send/queue logic.
+- Simple 3–5 line slash commands (direct delegation to an existing controller or a one-liner).
+
+**Enforcement.** When adding a slash command whose handler exceeds ~20 lines or holds cross-call state, extract it into its own module first, then register it. A PR touching `byf-tui.ts` should state the net line-count impact in its description.
+
 ## Where New Features Go
 
 The feature type decides where it lands:

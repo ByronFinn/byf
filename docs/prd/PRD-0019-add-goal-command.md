@@ -315,6 +315,7 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 - **相关既有 ADR**：ADR-0011（cache staking，reminder 机制需遵守）、ADR-0020（fork 截断锚点，fork 清空 goal 落在其路径上）。
 - **Parent Issue**：#199（手动创建；本 PRD 由 `/think` 产出但未自动建 Issue，grill 阶段补建）。
 - **Sliced by**: `/story` → Child Issues below（2026-07-04）
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — Goal 子系统 + ADR-0022–0027 落地良好；`TurnFlow`（1055 行）与 `byf-tui` 因 driver/UI 接线增重为 High 附带债；PRD Status 仍为 Sliced 建议对齐 Done。
 - **Sliced into**:
   - #200 — [PRD-0019] agent-core goal 状态机 + records + 事件 + fork 清空 (AFK)
   - #201 — [PRD-0019] goal 续跑驱动 + ephemeral reminder 注入 (AFK, blocked by #200)
