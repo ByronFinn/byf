@@ -24,7 +24,7 @@
     "build:packages": "bun run --filter './packages/*' build",
     "build:vis": "bun run --filter '@byfriends/vis-web' build && bun run --filter '@byfriends/vis-server' build",
     "build:docs": "bun run --filter 'byf-docs' build",
-    "dev:cli": "bun run --filter '@byfriends/cli' dev",
+    "dev:cli": "bun run --cwd apps/cli dev",
     "vis": "bun run --filter '@byfriends/vis-server' dev",
     "dev:docs": "bun run --filter 'byf-docs' dev",
     "typecheck": "bun run build:packages && bun run build:vis && bun run --filter './packages/*' typecheck && bun run --filter '@byfriends/cli' typecheck",
