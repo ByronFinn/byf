@@ -4,32 +4,11 @@
 // dispatch. Each builtin command registers its handler here; the dispatch
 // is a single `Map.get(name)(args)` lookup.
 //
-// PR1 (this file): the registry mechanism + SlashCommandHost interface.
-// Handlers are still ByfTui methods, registered at construction time.
-// PR2: handlers migrate to `commands/handlers/<group>.ts` modules that
-// receive a `SlashCommandHost` — this interface defines the seam.
+// The `SlashCommandHost` interface (the narrow capability surface handlers
+// may use) lives in `handlers/session-handlers.ts` — co-located with the
+// handler implementations that consume it.
 
 import type { BuiltinSlashCommandName } from './registry';
-
-/**
- * The narrow capability surface a slash command handler may use.
- *
- * Only members used by ≥2 handlers are promoted here. Single-use capabilities
- * (fork rewind chain, init turn lifecycle, create-new-session orchestration,
- * individual picker methods) stay on ByfTui — handlers that need them remain
- * on ByfTui as thin wrappers until PR2 extracts them with richer host access.
- *
- * This interface is the target shape for PR2 command-modules. In PR1 it is
- * declared but not yet consumed — handlers still bind to ByfTui methods.
- */
-export interface SlashCommandHost {
-  /** Show a transient status message in the footer. */
-  showStatus(message: string): void;
-  /** Show an error message in the footer. */
-  showError(message: string): void;
-  /** Request a re-render of the TUI. */
-  requestRender(): void;
-}
 
 /**
  * A slash command handler: receives the raw args string, does its work.

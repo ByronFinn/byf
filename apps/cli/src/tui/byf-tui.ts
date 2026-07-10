@@ -65,7 +65,11 @@ import {
   parseGoalCommand,
   type SkillListSession,
 } from './commands';
-import { SlashCommandHandlerRegistry, type SlashCommandHandler } from './commands/handler-registry';
+import { SlashCommandHandlerRegistry } from './commands/handler-registry';
+import {
+  registerBuiltinSlashHandlers,
+  type SlashCommandHost,
+} from './commands/handlers/session-handlers';
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
@@ -558,115 +562,62 @@ export class ByfTui implements DialogHost {
     this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
     this.agentsController = new SubagentsController(this.createSubagentsEnv());
     this.slashCommandHandlers = new SlashCommandHandlerRegistry();
-    this.registerSlashCommandHandlers();
+    this.slashHost = {
+      showStatus: (message) => this.showStatus(message),
+      showError: (message) => this.showError(message),
+      requestRender: () => this.state.ui.requestRender(),
+      version: this.state.appState.version,
+      getSession: () => this.session,
+      createNewSession: () => this.createNewSession(),
+      stop: () => {
+        void this.stop();
+      },
+      showHelp: () => this.dialogManager.showHelpPanel(),
+      showSessionPicker: () => {
+        void this.dialogManager.showSessionPicker();
+      },
+      showPermissionPicker: () => this.dialogManager.showPermissionPicker(),
+      showSettingsSelector: () => this.dialogManager.showSettingsSelector(),
+      showTasksBrowser: () => {
+        void this.tasksBrowserController.show();
+      },
+      showSubagentsViewer: () => this.agentsController.show(),
+      showMcpServers: () => {
+        void this.showMcpServers();
+      },
+      showUsage: () => {
+        void this.showUsage();
+      },
+      showStatusReport: () => {
+        void this.showStatusReport();
+      },
+      handleEditor: (args) => this.handleEditorCommand(args, {}),
+      handleTheme: (args) => this.handleThemeCommand(args),
+      handleModel: (args) => {
+        this.handleModelCommand(args);
+      },
+      handleTitle: (args) => this.handleTitleCommand(args),
+      handleFork: (args) => this.handleForkCommand(args),
+      handleYolo: (args) => this.handleYoloCommand(args),
+      handleCompact: (args) => this.handleCompactCommand(args),
+      handleGoal: (args) => this.handleGoalCommand(args),
+      handleInit: () => this.handleInitCommand(),
+      handleLogin: () => this.handleLoginCommand(),
+      handleLogout: (args) => this.handleLogoutCommand(args),
+      handleConnect: (args) => this.handleConnectCommand(args),
+      handleFeedback: () => this.handleFeedbackCommand(),
+      handleBtw: (args) => this.btwController.show(args),
+    };
+    registerBuiltinSlashHandlers(this.slashCommandHandlers, this.slashHost);
   }
 
   /**
-   * Register every builtin slash command handler into the registry.
+   * SlashCommandHost implementation — delegates to ByfTui capabilities.
    *
-   * In PR1 handlers are still ByfTui methods (bound here). PR2 will migrate
-   * them to `commands/handlers/<group>.ts` modules that receive a
-   * `SlashCommandHost`.
-   *
-   * Exhaustiveness: TS checks that every `BuiltinSlashCommandName` has a
-   * registration entry via the `satisfies Record<BuiltinSlashCommandName, ...>`
-   * on the returned object.
+   * Handlers read live state via `getSession()` / arrow-closure methods;
+   * the host object never holds a stale snapshot.
    */
-  private registerSlashCommandHandlers(): void {
-    const handlers = {
-      exit: async () => {
-        void this.stop();
-      },
-      help: async () => {
-        this.dialogManager.showHelpPanel();
-      },
-      version: async () => {
-        this.showStatus(`Byf Code v${this.state.appState.version}`);
-      },
-      new: async () => {
-        await this.createNewSession();
-        this.state.ui.requestRender();
-      },
-      sessions: async () => {
-        void this.dialogManager.showSessionPicker();
-      },
-      tasks: async () => {
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        void this.tasksBrowserController.show();
-      },
-      agent: async () => {
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        this.agentsController.show();
-      },
-      mcp: async () => {
-        void this.showMcpServers();
-      },
-      editor: async (args: string) => {
-        await this.handleEditorCommand(args, {});
-      },
-      theme: async (args: string) => {
-        await this.handleThemeCommand(args);
-      },
-      model: async (args: string) => {
-        this.handleModelCommand(args);
-      },
-      permission: async () => {
-        this.dialogManager.showPermissionPicker();
-      },
-      settings: async () => {
-        this.dialogManager.showSettingsSelector();
-      },
-      usage: async () => {
-        void this.showUsage();
-      },
-      status: async () => {
-        void this.showStatusReport();
-      },
-      feedback: async () => {
-        await this.handleFeedbackCommand();
-      },
-      title: async (args: string) => {
-        await this.handleTitleCommand(args);
-      },
-      yolo: async (args: string) => {
-        await this.handleYoloCommand(args);
-      },
-      btw: async (args: string) => {
-        await this.btwController.show(args);
-      },
-      compact: async (args: string) => {
-        await this.handleCompactCommand(args);
-      },
-      goal: async (args: string) => {
-        await this.handleGoalCommand(args);
-      },
-      init: async () => {
-        await this.handleInitCommand();
-      },
-      fork: async (args: string) => {
-        await this.handleForkCommand(args);
-      },
-      connect: async (args: string) => {
-        await this.handleConnectCommand(args);
-      },
-      login: async () => {
-        await this.handleLoginCommand();
-      },
-      logout: async (args: string) => {
-        await this.handleLogoutCommand(args);
-      },
-    } satisfies Record<BuiltinSlashCommandName, SlashCommandHandler>;
-
-    for (const [name, handler] of Object.entries(handlers)) {
-      this.slashCommandHandlers.register(name as BuiltinSlashCommandName, handler);
-    }
-  }
+  private slashHost!: SlashCommandHost;
 
   // =========================================================================
   // Startup Helpers
