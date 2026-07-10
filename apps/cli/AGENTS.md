@@ -65,9 +65,9 @@ If a section keeps growing, split pure functions, state projections, presentatio
 
 ## ByfTui Size Budget
 
-`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4380 over four weeks), so the following budget governs every change to it.
+`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4178 over recent weeks; net trend still upward, measured 2026-07-10), so the following budget governs every change to it.
 
-**Baseline and target.** Honest baseline today: ~4380 lines. Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root.
+**Baseline and target.** Honest baseline today: ~4178 lines (measured 2026-07-10). Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root. See `docs/architecture-debt-roadmap.md` for the full governance rationale.
 
 **Net-zero growth rule.** A new TUI feature must not cause `byf-tui.ts` to grow net. Default to sinking logic out of the root:
 
@@ -83,7 +83,9 @@ If a section keeps growing, split pure functions, state projections, presentatio
 - Session lifecycle (`start`/`init`/`stop`), layout/`buildLayout`, input dispatch, send/queue logic.
 - Simple 3–5 line slash commands (direct delegation to an existing controller or a one-liner).
 
-**Enforcement.** When adding a slash command whose handler exceeds ~20 lines or holds cross-call state, extract it into its own module first, then register it. A PR touching `byf-tui.ts` should state the net line-count impact in its description.
+**Enforcement — structural rule.** A new TUI feature must **not** land as a new private method on `byf-tui.ts`. It must go through an already-extracted controller/registry pattern — a `Controller`/`Manager` that takes `TUIState` + a narrow host interface by constructor injection (`BtwController`, `DialogManager` as reference), a pure function under `actions/`/`utils/`, an `events/` module, or a `commands/` module. The only exceptions are the "Allowed to stay in the root" items above. When adding a slash command whose handler exceeds ~20 lines or holds cross-call state, extract it into its own module first, then register it. A PR touching `byf-tui.ts` should state the net line-count impact in its description.
+
+The first concrete application of this rule is **slash handler registry-ization** (H1-a in `docs/architecture-debt-roadmap.md`): the 27-case `handleBuiltInSlashCommand` switch should be replaced by group-based command-modules under `commands/handlers/`, each receiving a narrow `SlashCommandHost` interface (never a full `ByfTui` reference), so new commands are added by registration rather than by growing the switch.
 
 ## Where New Features Go
 

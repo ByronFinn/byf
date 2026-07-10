@@ -1,6 +1,6 @@
 # Btw Side Query (`/btw`)
 
-> **Status**: Sliced | **PRD**: PRD-0016 | **Created**: 2026-06-25 | **Last updated**: 2026-06-25 | **Grilled by**: grill skill
+> **Status**: Done | **PRD**: PRD-0016 | **Created**: 2026-06-25 | **Last updated**: 2026-07-10（状态对齐：核心 + CLI 已落地，btw overlay 已抽出为 `BtwController`） | **Grilled by**: grill skill
 
 ## Goal
 
