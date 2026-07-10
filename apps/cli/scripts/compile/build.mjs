@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 /**
  * Official native binary path: `bun build --compile` (PRD-0020 / #219–#221).
  *
@@ -10,10 +10,13 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
  * Output layout under dist-native/; package.mjs / smoke.mjs / sign / verify
  * under scripts/native/ are shared helpers (not a Node SEA pipeline).
  *
- * Clipboard N-API: Bun only embeds `.node` when the path is statically
- * `require()`d. We generate a thin entry that requires the target platform
- * `.node`, sets `NAPI_RS_NATIVE_LIBRARY_PATH` (napi-rs host loader hook), then
- * imports `src/main.ts`.
+ * Clipboard N-API: Bun embeds `.node` for CJS `require("./x.node")` or
+ * `import x from "./x.node" with { type: "file" }`. `createRequire()(path)` and
+ * absolute host paths do **not** produce a portable embed — they bake CI paths
+ * into the binary (`/Users/runner/work/.../clipboard.*.node`).
+ *
+ * We stage the platform `.node` next to the entry, import it with `type: "file"`,
+ * and set `NAPI_RS_NATIVE_LIBRARY_PATH` to the resulting `/$bunfs/` path.
  *
  * Usage:
  *   bun scripts/compile/build.mjs --profile=local
@@ -170,10 +173,37 @@ export default ${JSON.stringify(catalogText)};
 }
 
 /**
- * Thin entry: embed `.node`, set napi-rs env hook, inject catalog, boot CLI.
- * Generated into intermediates so paths stay absolute and static for the bundler.
+ * Copy platform `.node` beside the compile entry under a stable relative name.
+ * Bun embeds only statically-resolvable relative requires, not host abs paths.
  */
-async function writeCompileEntry({ clipboardNodePath, mainEntryPath, catalogInjectPath, outPath }) {
+async function stageClipboardNode(sourcePath, intermediatesDir, target) {
+  const stagedName = CLIPBOARD_NODE_BASENAME[target];
+  if (stagedName === undefined) {
+    throw new Error(`No clipboard .node basename for target ${target}`);
+  }
+  const stagedPath = resolve(intermediatesDir, stagedName);
+  await copyFile(sourcePath, stagedPath);
+  return { stagedPath, stagedName, relativeRequire: `./${stagedName}` };
+}
+
+/**
+ * Thin entry: embed `.node`, set napi-rs env hook, inject catalog, boot CLI.
+ *
+ * Bun only embeds N-API addons for:
+ *   - CJS `require("./x.node")` (static relative), or
+ *   - `import x from "./x.node" with { type: "file" }`
+ * `createRequire(...)("./x.node")` does NOT embed — the path stays a runtime
+ * lookup and breaks off the build machine.
+ *
+ * We use `type: "file"` so the import resolves to `/$bunfs/root/...` after
+ * compile; napi-rs then loads via `NAPI_RS_NATIVE_LIBRARY_PATH`.
+ */
+async function writeCompileEntry({
+  clipboardRelativeRequire,
+  mainEntryPath,
+  catalogInjectPath,
+  outPath,
+}) {
   // main.ts only auto-starts when import.meta.main — true for a direct entry,
   // false when imported as a dependency. Call main() explicitly.
   // Catalog must be on globalThis *before* main's module graph evaluates
@@ -184,14 +214,15 @@ async function writeCompileEntry({ clipboardNodePath, mainEntryPath, catalogInje
  */
 import { createRequire } from 'node:module';
 import catalogJson from ${JSON.stringify(catalogInjectPath)};
+// Embed .node into the standalone binary (path becomes /$bunfs/root/... after compile).
+import clipboardNodePath from ${JSON.stringify(clipboardRelativeRequire)} with { type: "file" };
 
 const require = createRequire(import.meta.url);
-const clipboardNodePath = ${JSON.stringify(clipboardNodePath)};
 
-// Force Bun to embed this .node into the standalone binary.
-require(clipboardNodePath);
 // napi-rs host package (@mariozechner/clipboard) checks this env first.
 process.env.NAPI_RS_NATIVE_LIBRARY_PATH = clipboardNodePath;
+// Fail fast if the embedded binding cannot load (do not wait for TUI clipboard use).
+require(clipboardNodePath);
 
 if (typeof catalogJson === 'string' && catalogJson.length > 0) {
   (globalThis as Record<string, unknown>).__BYF_COMPILE_CATALOG__ = catalogJson;
@@ -255,7 +286,7 @@ if (profile === 'release') {
 const version = await readPackageVersion();
 const defines = buildDefines({ version, target });
 const clipboardNodePath = resolveClipboardNodePath(target);
-console.log(`==> Clipboard native: ${clipboardNodePath}`);
+console.log(`==> Clipboard native (host): ${clipboardNodePath}`);
 
 const catalogFile =
   process.env[BUILT_IN_CATALOG_ENV] !== undefined && process.env[BUILT_IN_CATALOG_ENV].length > 0
@@ -269,9 +300,11 @@ const catalogInjectPath = resolve(intermediates, 'catalog-inject.ts');
 
 await mkdir(binDir, { recursive: true });
 await mkdir(intermediates, { recursive: true });
+const staged = await stageClipboardNode(clipboardNodePath, intermediates, target);
+console.log(`==> Clipboard native (staged): ${staged.stagedPath}`);
 await writeCatalogInjectModule(catalogFile, catalogInjectPath);
 await writeCompileEntry({
-  clipboardNodePath,
+  clipboardRelativeRequire: staged.relativeRequire,
   mainEntryPath,
   catalogInjectPath,
   outPath: compileEntryPath,

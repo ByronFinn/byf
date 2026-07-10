@@ -43,7 +43,8 @@ const clipboard: ClipboardModule | null = (() => {
     return null;
   }
   // Packaged native without Bun standalone / embedded package: fail closed.
-  // Bun compile embeds N-API `.node` and sets NAPI_RS_NATIVE_LIBRARY_PATH.
+  // Bun compile embeds N-API `.node` via `import … with { type: "file" }` and
+  // sets NAPI_RS_NATIVE_LIBRARY_PATH to the /$bunfs path (see scripts/compile/build.mjs).
   if (isNativeBundle && !isBunStandaloneExecutable()) return null;
   try {
     return nodeRequire('@mariozechner/clipboard') as ClipboardModule;

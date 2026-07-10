@@ -80,7 +80,7 @@ See [docs/agents/releasing.md](../../../../docs/agents/releasing.md).
 
 ## Native modules (MVP)
 
-- **`@mariozechner/clipboard`**: the compile entry statically `require()`s the platform `.node` so Bun embeds it, then sets `NAPI_RS_NATIVE_LIBRARY_PATH` so the napi-rs host package loads that embedded binding.
+- **`@mariozechner/clipboard`**: stage the platform `.node` next to the compile entry, then `import path from "./clipboard.*.node" with { type: "file" }` so Bun embeds it under `/$bunfs/`. Set `NAPI_RS_NATIVE_LIBRARY_PATH` to that path for the napi-rs host. Do **not** use `createRequire()(absHostPath)` — that bakes CI paths into the binary and breaks off-machine. Smoke hides the host `.node` on disk so CI cannot false-pass.
 - **`koffi`**: Windows-only path inside `pi-tui`; never invoked on MVP platforms (spike #210 GO).
 - **Standalone detection (Bun 1.3.14)**: `Bun.isStandaloneExecutable` is not present; runtime uses `Bun.main` under `/$bunfs/` (see `src/native/standalone.ts`).
 
