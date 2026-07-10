@@ -192,7 +192,7 @@ describe('BtwController', () => {
 
     await controller.show('first question');
     const firstQueryId = (askSide.mock.calls[0]![1] as { queryId: string }).queryId;
-    const firstHandle = handlesOf(state)[0]!;
+    const firstHandle = handlesOf(state)[0];
 
     await controller.show('second question');
 
@@ -211,7 +211,7 @@ describe('BtwController', () => {
 
     await controller.show('quick one');
     const queryId = (askSide.mock.calls[0]![1] as { queryId: string }).queryId;
-    const handle = handlesOf(state)[0]!;
+    const handle = handlesOf(state)[0];
 
     controller.close();
 
@@ -225,7 +225,7 @@ describe('BtwController', () => {
     const controller = new BtwController(state, host);
 
     await controller.show('hi');
-    const handle = handlesOf(state)[0]!;
+    const handle = handlesOf(state)[0];
 
     controller.hideForModal();
     expect(handle.isHidden()).toBe(true);

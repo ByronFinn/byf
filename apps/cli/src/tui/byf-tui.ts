@@ -495,8 +495,12 @@ export class ByfTui implements DialogHost {
     );
     this.btwController = new BtwController(this.state, {
       getSession: () => this.session,
-      showError: (message) => this.showError(message),
-      track: (event, properties) => this.track(event, properties),
+      showError: (message) => {
+        this.showError(message);
+      },
+      track: (event, properties) => {
+        this.track(event, properties);
+      },
     });
     this.goalEventHandler = new GoalEventHandler({
       // Forward snapshots to the footer badge (PRD-0019 R13).
