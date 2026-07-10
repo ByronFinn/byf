@@ -62,9 +62,6 @@ export interface SlashCommandHost {
   // Controllers / panels not on DialogManager
   showTasksBrowser(): void;
   showSubagentsViewer(): void;
-  showMcpServers(): void;
-  showUsage(): void;
-  showStatusReport(): void;
   showBtw(args: string): Promise<void>;
 
   // ── Root-owned application seams (not pass-through command handlers) ──

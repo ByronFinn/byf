@@ -16,7 +16,6 @@ import type {
   CreateSessionOptions,
   Event,
   ByfHarness,
-  McpServerInfo,
   PermissionMode,
   PromptPart,
   Session,
@@ -89,16 +88,13 @@ import { CustomEditor } from './components/editor/custom-editor';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
 } from './components/messages/status-message';
-import { buildStatusReportLines } from './components/messages/status-panel';
 import { ThinkingComponent } from './components/messages/thinking';
 import { ToolCallComponent } from './components/messages/tool-call';
-import { buildUsageReportLines, UsagePanelComponent } from './components/messages/usage-panel';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
@@ -603,15 +599,6 @@ export class ByfTui implements DialogHost {
       },
       showSubagentsViewer: () => {
         this.agentsController.show();
-      },
-      showMcpServers: () => {
-        void this.showMcpServers();
-      },
-      showUsage: () => {
-        void this.showUsage();
-      },
-      showStatusReport: () => {
-        void this.showStatusReport();
       },
       showBtw: (args) => this.btwController.show(args),
       applyEditorChoice: (value) => this.applyEditorChoice(value),
@@ -2366,10 +2353,15 @@ export class ByfTui implements DialogHost {
       performModelSwitch: (alias, thinkingEffort) => this.performModelSwitch(alias, thinkingEffort),
       applyPermissionChoice: (mode) => this.applyPermissionChoice(mode),
       applyThemeChoice: (theme) => this.applyThemeChoice(theme),
-      showUsage: () => this.showUsage(),
+      loadUsageReport: () => this.loadSessionUsageReport(),
+      loadStatusReport: () => this.loadRuntimeStatusReport(),
+      listMcpServers: () => this.requireSession().listMcpServers(),
       getSlashCommands: () => this.getSlashCommands(),
       showNotice: (title, detail) => {
         this.showNotice(title, detail);
+      },
+      showError: (message) => {
+        this.showError(message);
       },
       stop: () => this.stop(),
     };
@@ -3565,67 +3557,6 @@ export class ByfTui implements DialogHost {
     this.track('theme_switch', { theme });
     const detail = theme === 'auto' ? ` (tracking terminal; current: ${resolved})` : '';
     this.showStatus(`Theme set to "${theme}"${detail}.`);
-  }
-
-  // Loads and renders current usage information.
-  private async showUsage(): Promise<void> {
-    const sessionUsage = await this.loadSessionUsageReport();
-    const lines = buildUsageReportLines({
-      colors: this.state.theme.colors,
-      sessionUsage: sessionUsage.usage,
-      sessionUsageError: sessionUsage.error,
-      contextUsage: this.state.appState.contextUsage,
-      contextTokens: this.state.appState.contextTokens,
-      maxContextTokens: this.state.appState.maxContextTokens,
-    });
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary);
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
-  }
-
-  // Loads and renders current runtime status.
-  private async showStatusReport(): Promise<void> {
-    const runtimeStatus = await this.loadRuntimeStatusReport();
-    const appState = this.state.appState;
-    const lines = buildStatusReportLines({
-      colors: this.state.theme.colors,
-      version: appState.version,
-      model: appState.model,
-      workDir: appState.workDir,
-      sessionId: appState.sessionId,
-      sessionTitle: appState.sessionTitle,
-      thinking: appState.thinkingEffort !== 'off',
-      permissionMode: appState.permissionMode,
-      contextUsage: appState.contextUsage,
-      contextTokens: appState.contextTokens,
-      maxContextTokens: appState.maxContextTokens,
-      availableModels: appState.availableModels,
-      status: runtimeStatus.status,
-      statusError: runtimeStatus.error,
-    });
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, ' Status ');
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
-  }
-
-  // Loads and renders current MCP server status.
-  private async showMcpServers(): Promise<void> {
-    let servers: readonly McpServerInfo[];
-    try {
-      servers = await this.requireSession().listMcpServers();
-    } catch (error) {
-      this.showError(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
-      return;
-    }
-
-    const lines = buildMcpStatusReportLines({
-      colors: this.state.theme.colors,
-      servers,
-    });
-    const title = servers.length > 0 ? ` MCP (${servers.length}) ` : ' MCP ';
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, title);
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
   }
 
   // Loads per-session usage and captures displayable errors.

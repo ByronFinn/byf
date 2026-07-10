@@ -6,13 +6,7 @@ import type {
   ContextProjection,
 } from '@byfriends/vis-shared';
 
-import type {
-  ContentPart,
-  ContextMessage,
-  TokenUsage,
-  ToolCall,
-  WireEntry,
-} from './agent-record-types';
+import type { ContentPart, ContextMessage, TokenUsage, WireEntry } from './agent-record-types';
 
 export type { ProjectedMessage, UsageTotals, ConfigSnapshot, ContextProjection };
 
@@ -48,135 +42,123 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
 
   for (const entry of entries) {
     const rec = entry.data;
-    switch (rec.type) {
-      case 'context.append_message':
+    // We only project record types that affect the conversation timeline
+    // or derived state. Lifecycle records (background.*, goal.*, tools.*,
+    // turn.*, metadata, full_compaction.*, permission.record_* etc.) are
+    // intentionally ignored — see the loop-event reconstruction note above.
+    if (rec.type === 'context.append_message') {
+      messages.push({
+        lineNo: entry.lineNo,
+        time: rec.time,
+        source: 'append_message',
+        message: rec.message,
+        toolStepUuids: [],
+      });
+    } else if (rec.type === 'context.append_loop_event') {
+      const ev = rec.event;
+      if (ev.type === 'step.begin') {
+        const message: ContextMessage = {
+          role: 'assistant',
+          content: [],
+          toolCalls: [],
+        };
+        const projected: ProjectedMessage = {
+          lineNo: entry.lineNo,
+          time: rec.time,
+          source: 'append_message',
+          message,
+          toolStepUuids: [ev.uuid],
+        };
+        messages.push(projected);
+        openSteps.set(ev.uuid, projected);
+      } else if (ev.type === 'content.part') {
+        const projected = openSteps.get(ev.stepUuid);
+        if (projected !== undefined) {
+          projected.message.content.push(ev.part);
+        }
+      } else if (ev.type === 'tool.call') {
+        const projected = openSteps.get(ev.stepUuid);
+        if (projected !== undefined) {
+          const args =
+            typeof ev.args === 'string'
+              ? ev.args
+              : ev.args === undefined
+                ? null
+                : JSON.stringify(ev.args);
+          projected.message.toolCalls.push({
+            type: 'function',
+            id: ev.toolCallId,
+            name: ev.name,
+            arguments: args,
+          });
+        }
+      } else if (ev.type === 'step.end') {
+        openSteps.delete(ev.uuid);
+      } else if (ev.type === 'tool.result') {
+        const output = ev.result.output;
+        const content: ContentPart[] =
+          typeof output === 'string' ? [{ type: 'text', text: output }] : (output as ContentPart[]);
+        const toolMsg: ContextMessage = {
+          role: 'tool',
+          content,
+          toolCalls: [],
+          toolCallId: ev.toolCallId,
+          isError: ev.result.isError === true || undefined,
+        };
         messages.push({
           lineNo: entry.lineNo,
           time: rec.time,
           source: 'append_message',
-          message: rec.message,
+          message: toolMsg,
           toolStepUuids: [],
         });
-        break;
-      case 'context.append_loop_event': {
-        const ev = rec.event;
-        if (ev.type === 'step.begin') {
-          const message: ContextMessage = {
+      }
+    } else if (rec.type === 'context.clear') {
+      messages = [];
+      openSteps = new Map();
+    } else if (rec.type === 'context.apply_compaction') {
+      openSteps = new Map();
+      // Mirror agent-core's actual `applyCompaction` behaviour: the
+      // summary is inserted as an *assistant* message tagged with
+      // `origin.kind = 'compaction_summary'` (see
+      // `packages/agent-core/src/agent/context/index.ts`). Using
+      // 'system' here would skew role counts and any downstream tool
+      // that diffs the projected timeline against agent-core history.
+      messages = [
+        {
+          lineNo: entry.lineNo,
+          time: rec.time,
+          source: 'compaction_summary',
+          message: {
             role: 'assistant',
-            content: [],
+            content: [{ type: 'text', text: rec.summary }],
             toolCalls: [],
-          };
-          const projected: ProjectedMessage = {
-            lineNo: entry.lineNo,
-            time: rec.time,
-            source: 'append_message',
-            message,
-            toolStepUuids: [ev.uuid],
-          };
-          messages.push(projected);
-          openSteps.set(ev.uuid, projected);
-        } else if (ev.type === 'content.part') {
-          const projected = openSteps.get(ev.stepUuid);
-          if (projected !== undefined) {
-            (projected.message.content as ContentPart[]).push(ev.part);
-          }
-        } else if (ev.type === 'tool.call') {
-          const projected = openSteps.get(ev.stepUuid);
-          if (projected !== undefined) {
-            const args =
-              typeof ev.args === 'string'
-                ? ev.args
-                : ev.args === undefined
-                  ? null
-                  : JSON.stringify(ev.args);
-            (projected.message.toolCalls as ToolCall[]).push({
-              type: 'function',
-              id: ev.toolCallId,
-              name: ev.name,
-              arguments: args,
-            });
-          }
-        } else if (ev.type === 'step.end') {
-          openSteps.delete(ev.uuid);
-        } else if (ev.type === 'tool.result') {
-          const output = ev.result.output;
-          const content: ContentPart[] =
-            typeof output === 'string'
-              ? [{ type: 'text', text: output }]
-              : (output as ContentPart[]);
-          const toolMsg: ContextMessage = {
-            role: 'tool',
-            content,
-            toolCalls: [],
-            toolCallId: ev.toolCallId,
-            isError: ev.result.isError === true || undefined,
-          };
-          messages.push({
-            lineNo: entry.lineNo,
-            time: rec.time,
-            source: 'append_message',
-            message: toolMsg,
-            toolStepUuids: [],
-          });
-        }
-        break;
-      }
-      case 'context.clear':
-        messages = [];
-        openSteps = new Map();
-        break;
-      case 'context.apply_compaction':
-        openSteps = new Map();
-        // Mirror agent-core's actual `applyCompaction` behaviour: the
-        // summary is inserted as an *assistant* message tagged with
-        // `origin.kind = 'compaction_summary'` (see
-        // `packages/agent-core/src/agent/context/index.ts`). Using
-        // 'system' here would skew role counts and any downstream tool
-        // that diffs the projected timeline against agent-core history.
-        messages = [
-          {
-            lineNo: entry.lineNo,
-            time: rec.time,
-            source: 'compaction_summary',
-            message: {
-              role: 'assistant',
-              content: [{ type: 'text', text: rec.summary }],
-              toolCalls: [],
-              origin: { kind: 'compaction_summary' },
-            } as ContextMessage,
-            toolStepUuids: [],
-          },
-        ];
-        break;
-      case 'usage.record': {
-        const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
-        addUsage(usage.byScope[scope], rec.usage);
-        usage.byModel[rec.model] ??= { ...ZERO };
-        addUsage(usage.byModel[rec.model], rec.usage);
-        break;
-      }
-      case 'config.update': {
-        const typeChecked = rec as {
-          type: 'config.update';
-          cwd?: string;
-          modelAlias?: string;
-          profileName?: string;
-          thinkingLevel?: string;
-          systemPrompt?: string;
-        };
-        if (typeChecked.cwd !== undefined) config.cwd = typeChecked.cwd;
-        if (typeChecked.modelAlias !== undefined) config.modelAlias = typeChecked.modelAlias;
-        if (typeChecked.profileName !== undefined) config.profileName = typeChecked.profileName;
-        if (typeChecked.thinkingLevel !== undefined)
-          config.thinkingLevel = typeChecked.thinkingLevel;
-        if (typeChecked.systemPrompt !== undefined) config.systemPrompt = typeChecked.systemPrompt;
-        break;
-      }
-      case 'permission.set_mode':
-        permissionMode = rec.mode;
-        break;
-      default:
-        break;
+            origin: { kind: 'compaction_summary' },
+          } as ContextMessage,
+          toolStepUuids: [],
+        },
+      ];
+    } else if (rec.type === 'usage.record') {
+      const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
+      addUsage(usage.byScope[scope], rec.usage);
+      const byModel = (usage.byModel[rec.model] ??= { ...ZERO });
+      addUsage(byModel, rec.usage);
+    } else if (rec.type === 'config.update') {
+      const typeChecked = rec as {
+        type: 'config.update';
+        cwd?: string;
+        modelAlias?: string;
+        profileName?: string;
+        thinkingLevel?: string;
+        systemPrompt?: string;
+      };
+      if (typeChecked.cwd !== undefined) config.cwd = typeChecked.cwd;
+      if (typeChecked.modelAlias !== undefined) config.modelAlias = typeChecked.modelAlias;
+      if (typeChecked.profileName !== undefined) config.profileName = typeChecked.profileName;
+      if (typeChecked.thinkingLevel !== undefined) config.thinkingLevel = typeChecked.thinkingLevel;
+      if (typeChecked.systemPrompt !== undefined) config.systemPrompt = typeChecked.systemPrompt;
+    } else if (rec.type === 'permission.set_mode') {
+      permissionMode = rec.mode;
     }
   }
 

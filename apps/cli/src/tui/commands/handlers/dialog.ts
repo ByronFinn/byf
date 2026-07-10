@@ -25,7 +25,7 @@ export function createDialogHandlers(
       host.showSubagentsViewer();
     },
     mcp: async () => {
-      host.showMcpServers();
+      await host.dialogManager.showMcpServers();
     },
     permission: async () => {
       host.dialogManager.showPermissionPicker();
@@ -34,10 +34,10 @@ export function createDialogHandlers(
       host.dialogManager.showSettingsSelector();
     },
     usage: async () => {
-      host.showUsage();
+      await host.dialogManager.showUsage();
     },
     status: async () => {
-      host.showStatusReport();
+      await host.dialogManager.showStatusReport();
     },
     btw: async (args) => {
       await host.showBtw(args);

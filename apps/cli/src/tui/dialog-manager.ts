@@ -1,4 +1,4 @@
-import type { PermissionMode } from '@byfriends/sdk';
+import type { McpServerInfo, PermissionMode, SessionStatus, SessionUsage } from '@byfriends/sdk';
 
 import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialogs/choice-picker';
 import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
@@ -11,14 +11,34 @@ import {
   type SettingsSelection,
 } from '#/tui/components/dialogs/settings-selector';
 import { ThemeSelectorComponent } from '#/tui/components/dialogs/theme-selector';
+import { buildMcpStatusReportLines } from '#/tui/components/messages/mcp-status-panel';
+import { buildStatusReportLines } from '#/tui/components/messages/status-panel';
+import { UsagePanelComponent, buildUsageReportLines } from '#/tui/components/messages/usage-panel';
 import type { Theme } from '#/tui/theme';
 import type { DialogHost, ThinkingEffortLevel, TUIState } from '#/tui/types';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
 
 /**
  * TUI methods the DialogManager delegates to. Keeping these explicit avoids
  * giving the manager a reference back to the full ByfTui instance and keeps
  * the dialog layer a pure function of state + host + callbacks.
  */
+/**
+ * Result type for usage loading (success or captured error message).
+ */
+export interface UsageReportResult {
+  readonly usage?: SessionUsage;
+  readonly error?: string;
+}
+
+/**
+ * Result type for runtime status loading (success or captured error message).
+ */
+export interface StatusReportResult {
+  readonly status?: SessionStatus;
+  readonly error?: string;
+}
+
 export interface DialogManagerCallbacks {
   fetchSessions(): Promise<void>;
   resumeSession(sessionId: string): Promise<boolean>;
@@ -26,9 +46,12 @@ export interface DialogManagerCallbacks {
   performModelSwitch(alias: string, thinkingEffort: ThinkingEffortLevel): Promise<void>;
   applyPermissionChoice(mode: PermissionMode): Promise<void>;
   applyThemeChoice(theme: Theme): Promise<void>;
-  showUsage(): Promise<void>;
+  loadUsageReport(): Promise<UsageReportResult>;
+  loadStatusReport(): Promise<StatusReportResult>;
+  listMcpServers(): Promise<readonly McpServerInfo[]>;
   getSlashCommands(): readonly HelpPanelCommand[];
   showNotice(title: string, detail?: string): void;
+  showError(message: string): void;
   stop(): Promise<void>;
 }
 
@@ -221,9 +244,71 @@ export class DialogManager {
         this.showEditorPicker();
         return;
       case 'usage':
-        void this.callbacks.showUsage();
+        void this.showUsage();
         return;
     }
+  }
+
+  // Loads and renders current usage information.
+  async showUsage(): Promise<void> {
+    const report = await this.callbacks.loadUsageReport();
+    const appState = this.state.appState;
+    const lines = buildUsageReportLines({
+      colors: this.state.theme.colors,
+      sessionUsage: report.usage,
+      sessionUsageError: report.error,
+      contextUsage: appState.contextUsage,
+      contextTokens: appState.contextTokens,
+      maxContextTokens: appState.maxContextTokens,
+    });
+    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary);
+    this.state.transcriptContainer.addChild(panel);
+    this.state.ui.requestRender();
+  }
+
+  // Loads and renders current runtime status.
+  async showStatusReport(): Promise<void> {
+    const report = await this.callbacks.loadStatusReport();
+    const appState = this.state.appState;
+    const lines = buildStatusReportLines({
+      colors: this.state.theme.colors,
+      version: appState.version,
+      model: appState.model,
+      workDir: appState.workDir,
+      sessionId: appState.sessionId,
+      sessionTitle: appState.sessionTitle,
+      thinking: appState.thinkingEffort !== 'off',
+      permissionMode: appState.permissionMode,
+      contextUsage: appState.contextUsage,
+      contextTokens: appState.contextTokens,
+      maxContextTokens: appState.maxContextTokens,
+      availableModels: appState.availableModels,
+      status: report.status,
+      statusError: report.error,
+    });
+    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, ' Status ');
+    this.state.transcriptContainer.addChild(panel);
+    this.state.ui.requestRender();
+  }
+
+  // Loads and renders current MCP server status.
+  async showMcpServers(): Promise<void> {
+    let servers: readonly McpServerInfo[];
+    try {
+      servers = await this.callbacks.listMcpServers();
+    } catch (error) {
+      this.callbacks.showError(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
+      return;
+    }
+
+    const lines = buildMcpStatusReportLines({
+      colors: this.state.theme.colors,
+      servers,
+    });
+    const title = servers.length > 0 ? ` MCP (${servers.length}) ` : ' MCP ';
+    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, title);
+    this.state.transcriptContainer.addChild(panel);
+    this.state.ui.requestRender();
   }
 
   // Shows the fork rewind picker: lists user messages to branch from.

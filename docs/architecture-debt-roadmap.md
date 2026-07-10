@@ -16,14 +16,14 @@
 
 2026-07-10 的扫描报告整体质量高（正确识别了 ByfTui 持续回涨、BackgroundManager 多职责、provider 共享层薄等真问题），但其中 **6 处数据/结论与代码事实存在偏差**。任何基于原报告数字的工作都会被误导，路线图必须以校准后的事实为基准。
 
-| # | 扫描报告说法 | 实测事实（`wc -l` / 代码核查） | 对后续工作的影响 |
-|---|---|---|---|
-| 1 | `byf-tui.ts` 4380 行、H1 未完成 | **4178 行**；且 `apps/cli/AGENTS.md` 自身 baseline（~4380）也偏高 | 治理基准需校准；趋势仍上升但比报告描述的平缓 |
-| 2 | 建议抽出 `BtwController` | **btw 已 100% 抽出**为 `BtwController`（259 行），根文件仅 9 处协调调用 | 该建议**已完成**，从路线图删除 |
-| 3 | `restoreRecord ~209 行` | **实际 24 行**（报告把模块级 `mapLoopEvent` + error helper 错算进去了） | M1 拆分价值被高估，降级到"顺势做" |
-| 4 | BaseChatProvider 之后 adapter 仍各写各的 | **已有** `provider-common.ts`（139 行）+ `openai-common.ts`（292 行）两层共享纯函数 | H3 比报告暗示的成熟，只剩局部重复 |
-| 5 | M6 rg-runner 有复用价值 | grep 是**唯一**用 ripgrep 的 builtin tool（glob 走 `kaos.glob`） | M6 降级为"纯降单文件复杂度"，无复用收益 |
-| 6 | AGENTS.md 缺行数预算 | **已有成熟 Size Budget 章节**（`apps/cli/AGENTS.md:66-86`），含 net-zero 规则 + enforcement | 结构性约束已有雏形，需校准 + 强化而非新建 |
+| #   | 扫描报告说法                             | 实测事实（`wc -l` / 代码核查）                                                              | 对后续工作的影响                             |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1   | `byf-tui.ts` 4380 行、H1 未完成          | **4178 行**；且 `apps/cli/AGENTS.md` 自身 baseline（~4380）也偏高                           | 治理基准需校准；趋势仍上升但比报告描述的平缓 |
+| 2   | 建议抽出 `BtwController`                 | **btw 已 100% 抽出**为 `BtwController`（259 行），根文件仅 9 处协调调用                     | 该建议**已完成**，从路线图删除               |
+| 3   | `restoreRecord ~209 行`                  | **实际 24 行**（报告把模块级 `mapLoopEvent` + error helper 错算进去了）                     | M1 拆分价值被高估，降级到"顺势做"            |
+| 4   | BaseChatProvider 之后 adapter 仍各写各的 | **已有** `provider-common.ts`（139 行）+ `openai-common.ts`（292 行）两层共享纯函数         | H3 比报告暗示的成熟，只剩局部重复            |
+| 5   | M6 rg-runner 有复用价值                  | grep 是**唯一**用 ripgrep 的 builtin tool（glob 走 `kaos.glob`）                            | M6 降级为"纯降单文件复杂度"，无复用收益      |
+| 6   | AGENTS.md 缺行数预算                     | **已有成熟 Size Budget 章节**（`apps/cli/AGENTS.md:66-86`），含 net-zero 规则 + enforcement | 结构性约束已有雏形，需校准 + 强化而非新建    |
 
 **复查结论**：0 阻塞项维持。3 个 High 中，H1（ByfTui）是真实且最活跃的债；H2（BackgroundManager）真实但风险高、需先补测试；H3（provider）大半已偿还，只剩局部。7 个 Medium 中多数已被处理或被高估。
 
@@ -152,12 +152,12 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 一个 TUI 功能应当落在以下位置之一，而不是 `byf-tui.ts` 的新 private 方法：
 
-| 功能类型 | 落点 | 参考范例 |
-|---|---|---|
+| 功能类型                                        | 落点                                                                                  | 参考范例                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | 有状态交互流（overlay、多步对话框、side query） | 独立 Controller/Manager，构造注入 `TUIState` + 窄 host 接口，**不持有 `ByfTui` 引用** | `BtwController`（259 行）、`DialogManager`（256 行） |
-| 无 UI 状态依赖的纯逻辑 | `actions/` 或 `utils/` | `actions/goal.ts`、`actions/transcript-renderer.ts` |
-| 事件处理 | `events/`（每个 concern 一个模块） | `events/turn-event-handler.ts` |
-| slash 命令解析/文法 | `commands/` | `commands/registry.ts`、`commands/resolve.ts` |
+| 无 UI 状态依赖的纯逻辑                          | `actions/` 或 `utils/`                                                                | `actions/goal.ts`、`actions/transcript-renderer.ts`  |
+| 事件处理                                        | `events/`（每个 concern 一个模块）                                                    | `events/turn-event-handler.ts`                       |
+| slash 命令解析/文法                             | `commands/`                                                                           | `commands/registry.ts`、`commands/resolve.ts`        |
 
 ### 允许留在根的诚实清单
 
@@ -193,15 +193,15 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 档 1（grill 2026-07-10 确认）：**文档优先 → 代码**，各项独立 PR，无阻塞依赖。
 
-| 顺序 | 项 | 类型 | 工作量 |
-|---|---|---|---|
-| 1 | M3 PRD 状态对齐 | 纯文档 | 低 |
-| 2 | M5 ADR-0006 修订 | 纯文档 | 低 |
-| 3 | M2 vis DTO 单一来源 | 小重构 | 低–中 |
-| 4a | H1-a PR1：SlashCommandHost 接口 + 注册机制 + Map 分发（handler 暂留 ByfTui） | 结构性重构 | 中 |
-| 4b | H1-a PR2：按组迁移 handler 到 `commands/handlers/<group>.ts` | 结构性重构 | 中–高 |
-| — | H3 / M1 / M6 | 顺势做 | 绑下次触碰（不在本批 /story 范围） |
-| — | H2 BackgroundManager | 谨慎做 | 需排期 + 先补测试（不在本批 /story 范围）|
+| 顺序 | 项                                                                           | 类型       | 工作量                                    |
+| ---- | ---------------------------------------------------------------------------- | ---------- | ----------------------------------------- |
+| 1    | M3 PRD 状态对齐                                                              | 纯文档     | 低                                        |
+| 2    | M5 ADR-0006 修订                                                             | 纯文档     | 低                                        |
+| 3    | M2 vis DTO 单一来源                                                          | 小重构     | 低–中                                     |
+| 4a   | H1-a PR1：SlashCommandHost 接口 + 注册机制 + Map 分发（handler 暂留 ByfTui） | 结构性重构 | 中                                        |
+| 4b   | H1-a PR2：按组迁移 handler 到 `commands/handlers/<group>.ts`                 | 结构性重构 | 中–高                                     |
+| —    | H3 / M1 / M6                                                                 | 顺势做     | 绑下次触碰（不在本批 /story 范围）        |
+| —    | H2 BackgroundManager                                                         | 谨慎做     | 需排期 + 先补测试（不在本批 /story 范围） |
 
 档 1 的 4 项可各自独立 PR，互不依赖。档 2 的项不单独排期。档 3 的 H2 需与下一次 background 功能同排期。
 
@@ -209,8 +209,8 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 ## 变更记录
 
-| 日期 | 事件 |
-|---|---|
-| 2026-07-10 | 初版。基于 `improve-architecture` 扫描报告，校准 6 处偏差，建立 4 档优先级路线 + 结构性约束条款。 |
+| 日期       | 事件                                                                                                                                                                                                                                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-10 | 初版。基于 `improve-architecture` 扫描报告，校准 6 处偏差，建立 4 档优先级路线 + 结构性约束条款。                                                                                                                                                                                                                                   |
 | 2026-07-10 | Grilled。确定 /story 拆分范围（仅档 1）；档 1 执行序（文档优先→代码）；H1-a 方案定为分组 command-module + 统一 SlashCommandHost（窄 host + 委托）+ 两步迁移（基建先行）。代码核实：M2 vis shared 无 package.json 且 web tsconfig 无 paths；H3 `deriveCacheKeyFromPromptPlan` 空 plan 行为差异会改变缓存语义，抽 helper 须显式保留。 |
-| 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。 |
+| 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                              |
