@@ -65,6 +65,7 @@ import {
   parseGoalCommand,
   type SkillListSession,
 } from './commands';
+import { SlashCommandHandlerRegistry, type SlashCommandHandler } from './commands/handler-registry';
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
@@ -457,6 +458,7 @@ export class ByfTui implements DialogHost {
   private readonly backgroundTaskHandler: BackgroundTaskHandler;
   private readonly goalEventHandler: GoalEventHandler;
   private readonly btwController: BtwController;
+  private readonly slashCommandHandlers: SlashCommandHandlerRegistry;
 
   /** Hide function for an active approval overlay, or undefined. */
   private approvalOverlayHide: (() => void) | undefined;
@@ -555,6 +557,115 @@ export class ByfTui implements DialogHost {
     this.buildLayout();
     this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
     this.agentsController = new SubagentsController(this.createSubagentsEnv());
+    this.slashCommandHandlers = new SlashCommandHandlerRegistry();
+    this.registerSlashCommandHandlers();
+  }
+
+  /**
+   * Register every builtin slash command handler into the registry.
+   *
+   * In PR1 handlers are still ByfTui methods (bound here). PR2 will migrate
+   * them to `commands/handlers/<group>.ts` modules that receive a
+   * `SlashCommandHost`.
+   *
+   * Exhaustiveness: TS checks that every `BuiltinSlashCommandName` has a
+   * registration entry via the `satisfies Record<BuiltinSlashCommandName, ...>`
+   * on the returned object.
+   */
+  private registerSlashCommandHandlers(): void {
+    const handlers = {
+      exit: async () => {
+        void this.stop();
+      },
+      help: async () => {
+        this.dialogManager.showHelpPanel();
+      },
+      version: async () => {
+        this.showStatus(`Byf Code v${this.state.appState.version}`);
+      },
+      new: async () => {
+        await this.createNewSession();
+        this.state.ui.requestRender();
+      },
+      sessions: async () => {
+        void this.dialogManager.showSessionPicker();
+      },
+      tasks: async () => {
+        if (this.session === undefined) {
+          this.showError('No active session.');
+          return;
+        }
+        void this.tasksBrowserController.show();
+      },
+      agent: async () => {
+        if (this.session === undefined) {
+          this.showError('No active session.');
+          return;
+        }
+        this.agentsController.show();
+      },
+      mcp: async () => {
+        void this.showMcpServers();
+      },
+      editor: async (args: string) => {
+        await this.handleEditorCommand(args, {});
+      },
+      theme: async (args: string) => {
+        await this.handleThemeCommand(args);
+      },
+      model: async (args: string) => {
+        this.handleModelCommand(args);
+      },
+      permission: async () => {
+        this.dialogManager.showPermissionPicker();
+      },
+      settings: async () => {
+        this.dialogManager.showSettingsSelector();
+      },
+      usage: async () => {
+        void this.showUsage();
+      },
+      status: async () => {
+        void this.showStatusReport();
+      },
+      feedback: async () => {
+        await this.handleFeedbackCommand();
+      },
+      title: async (args: string) => {
+        await this.handleTitleCommand(args);
+      },
+      yolo: async (args: string) => {
+        await this.handleYoloCommand(args);
+      },
+      btw: async (args: string) => {
+        await this.btwController.show(args);
+      },
+      compact: async (args: string) => {
+        await this.handleCompactCommand(args);
+      },
+      goal: async (args: string) => {
+        await this.handleGoalCommand(args);
+      },
+      init: async () => {
+        await this.handleInitCommand();
+      },
+      fork: async (args: string) => {
+        await this.handleForkCommand(args);
+      },
+      connect: async (args: string) => {
+        await this.handleConnectCommand(args);
+      },
+      login: async () => {
+        await this.handleLoginCommand();
+      },
+      logout: async (args: string) => {
+        await this.handleLogoutCommand(args);
+      },
+    } satisfies Record<BuiltinSlashCommandName, SlashCommandHandler>;
+
+    for (const [name, handler] of Object.entries(handlers)) {
+      this.slashCommandHandlers.register(name as BuiltinSlashCommandName, handler);
+    }
   }
 
   // =========================================================================
@@ -1406,100 +1517,14 @@ export class ByfTui implements DialogHost {
     name: BuiltinSlashCommandName,
     args: string,
   ): Promise<void> {
-    switch (name) {
-      case 'exit':
-        void this.stop();
-        return;
-      case 'help':
-        this.dialogManager.showHelpPanel();
-        return;
-      case 'version':
-        this.showStatus(`Byf Code v${this.state.appState.version}`);
-        return;
-      case 'new':
-        await this.createNewSession();
-        this.state.ui.requestRender();
-        return;
-      case 'sessions':
-        void this.dialogManager.showSessionPicker();
-        return;
-      case 'tasks':
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        void this.tasksBrowserController.show();
-        return;
-      case 'agent':
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        this.agentsController.show();
-        return;
-      case 'mcp':
-        void this.showMcpServers();
-        return;
-      case 'editor':
-        await this.handleEditorCommand(args, {});
-        return;
-      case 'theme':
-        await this.handleThemeCommand(args);
-        return;
-      case 'model':
-        this.handleModelCommand(args);
-        return;
-      case 'permission':
-        this.dialogManager.showPermissionPicker();
-        return;
-      case 'settings':
-        this.dialogManager.showSettingsSelector();
-        return;
-      case 'usage':
-        void this.showUsage();
-        return;
-      case 'status':
-        void this.showStatusReport();
-        return;
-      case 'feedback':
-        await this.handleFeedbackCommand();
-        return;
-      case 'title':
-        await this.handleTitleCommand(args);
-        return;
-      case 'yolo':
-        await this.handleYoloCommand(args);
-        return;
-      case 'btw':
-        await this.btwController.show(args);
-        return;
-      case 'compact':
-        await this.handleCompactCommand(args);
-        return;
-      case 'goal':
-        await this.handleGoalCommand(args);
-        return;
-      case 'init':
-        await this.handleInitCommand();
-        return;
-      case 'fork':
-        await this.handleForkCommand(args);
-        return;
-      case 'connect':
-        await this.handleConnectCommand(args);
-        return;
-      case 'login':
-        await this.handleLoginCommand();
-        return;
-      case 'logout':
-        await this.handleLogoutCommand(args);
-        return;
-      default:
-        // Unreachable: every BuiltinSlashCommandName has a case above. Kept as
-        // a runtime guard; String() widens the narrowed `never` for the message.
-        this.showError(`Unknown slash command: /${String(name)}`);
-        return;
+    const handler = this.slashCommandHandlers.get(name);
+    if (handler === undefined) {
+      // Unreachable: registerSlashCommandHandlers covers every BuiltinSlashCommandName
+      // (enforced by the `satisfies Record<BuiltinSlashCommandName, ...>` check).
+      this.showError(`Unknown slash command: /${name}`);
+      return;
     }
+    await handler(args);
   }
 
   // Sends regular user input after validating model and media support.
