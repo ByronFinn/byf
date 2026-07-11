@@ -36,6 +36,7 @@ import {
 } from './openai-common';
 import { OpenAICompatFiles } from './openai-compat-files';
 import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
+import { deriveCacheKeyFromPromptPlan } from './prompt-cache-key';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both
@@ -121,32 +122,17 @@ function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
 }
 
 /**
- * Derive a stable SHA256 hash from cacheable blocks in a PromptPlan.
+ * Derive the `prompt_cache_key` for the OpenAI Chat Completions path.
  *
- * Only blocks with cacheScope 'global' are included in the hash, as OpenAI
- * only supports caching the prefix (global scope).
- *
- * @param promptPlan - The prompt plan containing cacheable blocks.
- * @returns A hexadecimal SHA256 hash string.
+ * Delegates the SHA256 computation to the shared
+ * {@link deriveCacheKeyFromPromptPlan | helper}, but — unlike the Responses
+ * path — preserves the legacy behavior of ALWAYS sending a key, even when
+ * nothing is cacheable: when the helper returns `undefined` (no plan, no
+ * blocks, or no global-scope blocks), fall back to the SHA256 of the empty
+ * string. This keeps a dummy key on the wire for backward compatibility.
  */
-function deriveCacheKeyFromPromptPlan(promptPlan: PromptPlan | undefined): string {
-  if (!promptPlan || promptPlan.blocks.length === 0) {
-    // Hash of empty string
-    return createHash('sha256').digest('hex');
-  }
-
-  // Concatenate only global-scope blocks in order
-  const cacheableTexts: string[] = [];
-  for (const block of promptPlan.blocks) {
-    if (block.cacheScope === 'global') {
-      cacheableTexts.push(block.text);
-    }
-  }
-
-  const concatenated = cacheableTexts.join('');
-
-  // Use Node.js crypto for SHA256
-  return createHash('sha256').update(concatenated).digest('hex');
+function completionsCacheKey(promptPlan: PromptPlan | undefined): string {
+  return deriveCacheKeyFromPromptPlan(promptPlan) ?? createHash('sha256').digest('hex');
 }
 
 function convertMessage(
@@ -541,7 +527,7 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
 
     // Inject prompt_cache_key from PromptPlan if provided
     if (options?.promptPlan) {
-      const cacheKey = deriveCacheKeyFromPromptPlan(options.promptPlan);
+      const cacheKey = completionsCacheKey(options.promptPlan);
       if (cacheKey) {
         createParams['prompt_cache_key'] = cacheKey;
       }
