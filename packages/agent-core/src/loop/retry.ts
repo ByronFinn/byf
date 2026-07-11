@@ -14,6 +14,14 @@ export const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
 const RETRY_MIN_TIMEOUT_MS = 300;
 const RETRY_MAX_TIMEOUT_MS = 5000;
 const RETRY_FACTOR = 2;
+/**
+ * Upper bound on a single retry sleep — applied to both the local backoff
+ * and any server-provided `Retry-After`. Without this a malicious or buggy
+ * server returning `Retry-After: 86400` (a day) would hang the turn until the
+ * process is killed. Capped at a generous multiple of the local backoff max
+ * so a legitimate "wait a minute" from the server is still honored.
+ */
+const RETRY_AFTER_CLAMP_MS = 60_000;
 
 export interface ChatWithRetryInput {
   readonly llm: LLM;
@@ -51,7 +59,9 @@ export async function chatWithRetry(input: ChatWithRetryInput): Promise<LLMChatR
       }
 
       const serverDelayMs = readRetryAfterMs(error);
-      const delayMs = serverDelayMs ?? delays[attempt - 1] ?? 0;
+      const rawDelay = serverDelayMs ?? delays[attempt - 1] ?? 0;
+      // Clamp the server delay so a runaway `Retry-After` can't hang the turn.
+      const delayMs = serverDelayMs !== null ? Math.min(rawDelay, RETRY_AFTER_CLAMP_MS) : rawDelay;
       input.params.signal.throwIfAborted();
       input.dispatchEvent({
         type: 'step.retrying',

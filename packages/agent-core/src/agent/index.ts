@@ -131,6 +131,12 @@ export interface AgentConfig {
 export class Agent {
   readonly runtime: RuntimeConfig;
   readonly homedir?: string;
+  /**
+   * Session-scoped working directory for side files that should follow the
+   * session lifecycle (background task output logs, media-originals cache).
+   * `undefined` when persistence is off — callers fall back to os.tmpdir().
+   */
+  readonly backgroundSessionDir?: string;
   readonly skills?: SkillManager;
   readonly rawGenerate: typeof generate;
   readonly rpc: SDKAgentRPC;
@@ -164,6 +170,7 @@ export class Agent {
     this.log = config.log ?? log;
     this.runtime = config.runtime;
     this.homedir = config.homedir;
+    this.backgroundSessionDir = config.backgroundSessionDir;
     if (config.skills !== undefined) {
       this.skills = new SkillManager(this, config.skills);
     }

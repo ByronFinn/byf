@@ -20,6 +20,7 @@ import {
   compressImageForModel,
   IMAGE_BYTE_BUDGET,
   MAX_DECODE_BYTES,
+  MAX_DECODE_PIXELS,
   MAX_IMAGE_EDGE_PX,
 } from '../../src/tools/support/image-compress';
 import { persistOriginalImage } from '../../src/tools/support/image-originals';
@@ -130,6 +131,15 @@ describe('compressImageForModel', () => {
     expect(result.outcome.kind).toBe('error');
     expect(result.data).toBe(garbage);
     expect(result.mimeType).toBe('image/png');
+  });
+
+  it('exposes the pixel bomb-guard constant', () => {
+    // Pinning the value guards against drift: 100M pixels is the cap above
+    // which compression refuses to decode. We don't synthesise a 100MP image
+    // in the test suite (too heavy); the byte-bomb + decode-error cases above
+    // already exercise the error path end-to-end, and this assertion keeps
+    // the threshold observable.
+    expect(MAX_DECODE_PIXELS).toBe(100_000_000);
   });
 
   it('exposes the default byte budget constant', () => {

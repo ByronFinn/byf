@@ -366,7 +366,13 @@ export class ToolManager implements RecordRestoreHandler {
           allowBackground,
         }),
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
-          new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+          new b.ReadMediaFileTool(
+            kaos,
+            workspace,
+            modelCapabilities,
+            videoUploader,
+            this.agent.backgroundSessionDir,
+          ),
         new b.AskUserQuestionTool(this.agent),
         new b.TodoListTool(this.toolStore),
         new b.TaskListTool(background),

@@ -1,5 +1,5 @@
 import { APIProviderRateLimitError, APIStatusError, emptyUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   LLM,
@@ -117,5 +117,47 @@ describe('chatWithRetry', () => {
     expect(events).toHaveLength(1);
     // With no server delay, fall back to the first backoff slot (>= 300ms).
     expect(events[0].delayMs).toBeGreaterThanOrEqual(300);
+  });
+
+  it('clamps an absurd server Retry-After so the turn is not hung', async () => {
+    // 24 hours in ms — a buggy/malicious server could return this. The clamp
+    // must bring it down so the turn doesn't block for a day. Use fake timers
+    // so the clamped sleep (up to 60s) doesn't wall-clock the test.
+    vi.useFakeTimers();
+    try {
+      const events: LoopStepRetryingEvent[] = [];
+      const dayMs = 24 * 60 * 60 * 1000;
+      const llm = new ScriptedLLM({
+        responses: [okResponse()],
+        throwOnIndex: {
+          index: 0,
+          error: new APIProviderRateLimitError(429, 'rate limited', null, dayMs),
+        },
+      });
+
+      const promise = chatWithRetry({
+        llm,
+        params: {
+          messages: [],
+          tools: [],
+          signal: new AbortController().signal,
+        },
+        dispatchEvent: capturingDispatcher(events),
+        turnId: 't1',
+        currentStep: 1,
+        stepUuid: 's1',
+        maxAttempts: 3,
+      });
+      // Advance past the clamped retry delay so the retry can complete.
+      await vi.advanceTimersByTimeAsync(120_000);
+      await promise;
+
+      expect(events).toHaveLength(1);
+      // The delay must be clamped well below the 24h the server asked for.
+      expect(events[0].delayMs).toBeLessThan(dayMs);
+      expect(events[0].delayMs).toBeLessThanOrEqual(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

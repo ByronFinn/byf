@@ -10,8 +10,10 @@
  * Scope (see ADR / issue #233): Jimp's default plugins decode PNG/JPEG/GIF/
  * BMP/TIFF but NOT WebP, and re-encoding GIF drops animation. WebP and GIF
  * therefore pass through unchanged (they are already small / efficient).
- * Effective compression targets PNG, JPEG and BMP. This is the BYF-
- * appropriate subset — no area-average resizing, no full format-policy
+ * BMP is rejected by the format gate (not in MODEL_ACCEPTED_IMAGE_MIMES)
+ * before compression runs, so it is intentionally not in the compressible
+ * set. Effective compression targets PNG and JPEG. This is the BYF-
+ * appropriate subset — no area-average resizing, no full-format-policy
  * machinery.
  */
 
@@ -67,9 +69,9 @@ export interface CompressResult {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Formats Jimp can decode + re-encode. WebP/GIF/… are passed through. */
+/** Formats Jimp can decode + re-encode. WebP/GIF/BMP are passed through or gated out. */
 function isCompressible(mimeType: string): boolean {
-  return mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/bmp';
+  return mimeType === 'image/png' || mimeType === 'image/jpeg';
 }
 
 /** True when the longest edge is already within the cap. */
@@ -86,10 +88,9 @@ function withinEdge(data: Buffer, maxEdgePx: number): boolean {
  * Re-encode a decoded Jimp image, walking the JPEG quality ladder as needed.
  *
  * For PNG source: try PNG first (lossless); if still over budget, fall back
- * to JPEG quality ladder. For JPEG/BMP source: walk the JPEG ladder directly
- * (BMP has no model-friendly lossless option and JPEG source is already
- * lossy). Returns the smallest acceptable buffer; if nothing fits the
- * budget, returns the lowest-quality attempt (still better than the
+ * to JPEG quality ladder. For JPEG source: walk the JPEG ladder directly
+ * (already lossy). Returns the smallest acceptable buffer; if nothing fits
+ * the budget, returns the lowest-quality attempt (still better than the
  * original).
  */
 async function reencode(

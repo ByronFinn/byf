@@ -764,4 +764,51 @@ describe('ReadMediaFileTool', () => {
       `data:image/png;base64,${data.toString('base64')}`,
     );
   });
+
+  it('rejects a misnamed image whose bytes are an unsupported format (magic over extension)', async () => {
+    // A file named .png but whose bytes are a BMP magic. detectFileType
+    // trusts the extension when the kind agrees (both image), so the reported
+    // MIME is image/png — but the model receives BMP bytes. The format gate
+    // must key off the magic MIME and reject the real (unsupported) format.
+    const data = Buffer.concat([BMP_HEADER, Buffer.alloc(32, 0x00)]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_lying_ext',
+      args: { path: '/workspace/photo.png' },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/bmp|image\/bmp/i);
+  });
+
+  it('fail-closes when compression reports an error instead of forwarding raw bytes', async () => {
+    // Construct a PNG whose IHDR advertises large dimensions (3000x3000 >
+    // edge cap) so the compress pipeline skips the fast-path passthrough,
+    // but whose body is garbage so Jimp.read fails → error outcome. The tool
+    // must refuse rather than base64-encode the raw bytes into the prompt.
+    const lyingPng = Buffer.alloc(64, 0);
+    PNG_HEADER.copy(lyingPng);
+    // IHDR width/height are big-endian uint32 at offsets 16/20. Set 3000 each
+    // so withinEdge() reports false and the decode path is taken.
+    lyingPng.writeUInt32BE(3000, 16);
+    lyingPng.writeUInt32BE(3000, 20);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: lyingPng.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(lyingPng),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_bomb',
+      args: { path: '/workspace/bomb.png' },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/could not be prepared|convert or downscale/i);
+  });
 });

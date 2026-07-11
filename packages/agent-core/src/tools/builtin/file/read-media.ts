@@ -29,7 +29,12 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { resolvePathAccessPath } from '../../policies/path-access';
-import { MEDIA_SNIFF_BYTES, detectFileType, sniffImageDimensions } from '../../support/file-type';
+import {
+  MEDIA_SNIFF_BYTES,
+  detectFileType,
+  sniffImageDimensions,
+  sniffMediaFromMagic,
+} from '../../support/file-type';
 import type { CompressOutcome } from '../../support/image-compress';
 import { compressImageForModel } from '../../support/image-compress';
 import { gateImageFormat } from '../../support/image-format-policy';
@@ -235,8 +240,15 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       // webp) is accepted as multimodal input. A rejected format returns an
       // error notice with a conversion hint instead of base64-encoding the
       // full file into an unusable data URL. Runs before the full-file read.
+      //
+      // The gate keys off the *magic-byte* MIME, not the filename extension:
+      // a file named `photo.png` whose bytes are actually HEIC/BMP must be
+      // rejected, since the model receives the raw bytes. detectFileType
+      // intentionally trusts the extension when the kind agrees, which is
+      // fine for the data URL but wrong for the security gate.
       if (fileType.kind === 'image') {
-        const gate = gateImageFormat(fileType.mimeType);
+        const magicMime = sniffMediaFromMagic(header)?.mimeType ?? fileType.mimeType;
+        const gate = gateImageFormat(magicMime);
         if (!gate.accepted) {
           return { isError: true, output: gate.notice };
         }
@@ -263,14 +275,32 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       // through unchanged. When compression actually fires, the original
       // full-resolution bytes are cached (content-addressed) so the model
       // can re-read full detail via ReadMediaFile on the cached path.
+      //
+      // Uses the magic-byte MIME (same source as the format gate) so that a
+      // misnamed file is compressed by its real codec, not the extension's.
+      const imageMagicMime =
+        fileType.kind === 'image' ? sniffMediaFromMagic(header)?.mimeType : undefined;
+      const imageMime = imageMagicMime ?? fileType.mimeType;
       let compressionInfo: CompressionSummaryInfo | null = null;
       let effectiveData = data;
-      let effectiveMime = fileType.mimeType;
+      let effectiveMime = imageMime;
       if (fileType.kind === 'image') {
         const compressResult = await compressImageForModel({
           data,
-          mimeType: fileType.mimeType,
+          mimeType: imageMime,
         });
+        // Fail closed: a decode/bomb error means the image could not be made
+        // safe for the model. Refuse rather than forwarding the raw (possibly
+        // gigantic / malformed) bytes as a multimodal payload — that is the
+        // exact scenario the compression guard exists to prevent.
+        if (compressResult.outcome.kind === 'error') {
+          return {
+            isError: true,
+            output:
+              `"${args.path}" could not be prepared as model input: ` +
+              `${compressResult.outcome.message}. Convert or downscale the image first.`,
+          };
+        }
         effectiveData = compressResult.data;
         effectiveMime = compressResult.mimeType;
         if (compressResult.outcome.kind === 'compressed') {
@@ -279,11 +309,11 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
           // summary won't advertise a readback path.
           const original = await persistOriginalImage({
             data,
-            mimeType: fileType.mimeType,
+            mimeType: imageMime,
             sessionDir: this.sessionDir,
           });
           compressionInfo = {
-            originalMime: fileType.mimeType,
+            originalMime: imageMime,
             originalBytes: outcome.originalBytes,
             finalBytes: outcome.finalBytes,
             originalPath: original?.path ?? null,
