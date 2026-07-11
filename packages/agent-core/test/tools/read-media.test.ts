@@ -2,8 +2,13 @@
  * ReadMediaFileTool tests for the current output/capability contract.
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { Kaos } from '@byfriends/kaos';
 import type { ContentPart, ModelCapability } from '@byfriends/kosong';
+import { Jimp } from 'jimp';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';
@@ -77,6 +82,7 @@ function makeReadMediaTool(
     readonly stat?: Kaos['stat'];
     readonly readBytes?: Kaos['readBytes'];
     readonly modelCapabilities?: ModelCapability;
+    readonly sessionDir?: string;
   } = {},
 ): ReadMediaFileTool {
   const kaos = createFakeKaos({
@@ -87,6 +93,8 @@ function makeReadMediaTool(
     kaos,
     PERMISSIVE_WORKSPACE,
     input.modelCapabilities ?? capabilities(),
+    undefined,
+    input.sessionDir,
   );
 }
 
@@ -693,5 +701,67 @@ describe('ReadMediaFileTool', () => {
         expect(gate.notice).toMatch(/sips|heif-convert|magick|convert/i);
       }
     }
+  });
+
+  // ── Image compression integration (issue #233) ─────────────────────
+
+  it('compresses a large image and surfaces a compression note in the <system> summary', async () => {
+    // A 3000x3000 PNG exceeds the 2000px edge cap, so compression fires.
+    const img = new Jimp({ width: 3000, height: 3000, color: 0xff0000ff });
+    const bigPng = Buffer.from(await img.getBuffer('image/png'));
+    const sessionDir = mkdtempSync(join(tmpdir(), 'byf-rm-compress-'));
+    try {
+      const tool = makeReadMediaTool({
+        stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: bigPng.length }),
+        readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(bigPng),
+        sessionDir,
+      });
+
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c_compress',
+        args: { path: '/workspace/big.png' },
+      });
+
+      const parts = outputParts(result);
+      const systemText = (parts[0] as { text: string }).text;
+      // The summary records that compression happened.
+      expect(systemText).toMatch(/compress/i);
+      expect(systemText).toContain('image/png');
+      expect(systemText).toMatch(/Original:/);
+      expect(systemText).toMatch(/ReadMediaFile on that path/i);
+      // The data URL now carries the post-compress bytes. For a solid-color
+      // PNG Jimp keeps it as PNG (lossless is smallest), so the mime may
+      // match — but the byte payload must differ from the original.
+      const url = (parts[2] as { imageUrl: { url: string } }).imageUrl.url;
+      expect(url).toMatch(/^data:image\//);
+      const base64 = url.slice(url.indexOf('base64,') + 'base64,'.length);
+      const decoded = Buffer.from(base64, 'base64');
+      expect(decoded.length).toBeLessThan(bigPng.length);
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a small PNG uncompressed (passthrough): identical data URL, no compression note', async () => {
+    // A tiny PNG is under both the edge cap and the byte budget — passthrough.
+    const data = Buffer.concat([PNG_HEADER, Buffer.from('pngdata')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_passthrough',
+      args: { path: '/workspace/small.png' },
+    });
+
+    const parts = outputParts(result);
+    const systemText = (parts[0] as { text: string }).text;
+    expect(systemText).not.toMatch(/compress/i);
+    expect((parts[2] as { imageUrl: { url: string } }).imageUrl.url).toBe(
+      `data:image/png;base64,${data.toString('base64')}`,
+    );
   });
 });

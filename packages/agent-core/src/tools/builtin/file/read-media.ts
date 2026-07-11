@@ -30,7 +30,10 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { MEDIA_SNIFF_BYTES, detectFileType, sniffImageDimensions } from '../../support/file-type';
+import type { CompressOutcome } from '../../support/image-compress';
+import { compressImageForModel } from '../../support/image-compress';
 import { gateImageFormat } from '../../support/image-format-policy';
+import { persistOriginalImage } from '../../support/image-originals';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import readMediaDescriptionHead from './read-media.md';
@@ -86,18 +89,32 @@ function buildDescription(capabilities: ModelCapability): string {
 // ── System summary ───────────────────────────────────────────────────
 
 /**
+ * Compression context surfaced in the `<system>` summary when the image was
+ * shrunk before being sent. Lets the model locate the original full-detail
+ * bytes for readback.
+ */
+interface CompressionSummaryInfo {
+  readonly originalMime: string;
+  readonly originalBytes: number;
+  readonly finalBytes: number;
+  readonly originalPath: string | null;
+}
+
+/**
  * Build the `<system>` summary that precedes the media content.
  *
  * Carries mime type, byte size and (for images) the original pixel
  * dimensions. When the dimensions are known it also guides the model to
  * derive absolute coordinates from that original size; it always reminds
- * the model to re-read any media it generates or edits.
+ * the model to re-read any media it generates or edits. When the image was
+ * compressed, an extra note records the original size + readback path.
  */
 function buildSystemSummary(input: {
   readonly kind: 'image' | 'video';
   readonly mimeType: string;
   readonly byteSize: number;
   readonly dimensions: { readonly width: number; readonly height: number } | null;
+  readonly compression?: CompressionSummaryInfo | null;
 }): string {
   const parts: string[] = [
     `Read ${input.kind} file.`,
@@ -113,6 +130,19 @@ function buildSystemSummary(input: {
       'If you need to output coordinates, output relative coordinates first ' +
         'and compute absolute coordinates using the original image size.',
     );
+  }
+  if (input.compression) {
+    const c = input.compression;
+    const note =
+      `Image compressed from ${String(c.originalBytes)} bytes (${c.originalMime}) ` +
+      `to ${String(c.finalBytes)} bytes (${input.mimeType}).`;
+    if (c.originalPath !== null) {
+      parts.push(
+        `${note} Original: ${c.originalPath}. Use ReadMediaFile on that path for full detail.`,
+      );
+    } else {
+      parts.push(`${note} Original unavailable.`);
+    }
   }
   parts.push(
     'If you generate or edit images or videos via commands or scripts, ' +
@@ -132,6 +162,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     private readonly workspace: WorkspaceConfig,
     private readonly capabilities: ModelCapability,
     private readonly videoUploader?: VideoUploader,
+    private readonly sessionDir?: string,
   ) {
     if (!capabilities.image_in && !capabilities.video_in) {
       const skip = new Error('ReadMediaFile requires image_in or video_in capability');
@@ -225,12 +256,47 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       }
 
       const data = await this.kaos.readBytes(safePath);
-      const base64 = data.toString('base64');
+
+      // Image compression pipeline (issue #233): before base64-encoding,
+      // downscale + re-encode large images so a full-resolution screenshot
+      // doesn't blow the context budget. WebP/GIF/already-small images pass
+      // through unchanged. When compression actually fires, the original
+      // full-resolution bytes are cached (content-addressed) so the model
+      // can re-read full detail via ReadMediaFile on the cached path.
+      let compressionInfo: CompressionSummaryInfo | null = null;
+      let effectiveData = data;
+      let effectiveMime = fileType.mimeType;
+      if (fileType.kind === 'image') {
+        const compressResult = await compressImageForModel({
+          data,
+          mimeType: fileType.mimeType,
+        });
+        effectiveData = compressResult.data;
+        effectiveMime = compressResult.mimeType;
+        if (compressResult.outcome.kind === 'compressed') {
+          const outcome: CompressOutcome = compressResult.outcome;
+          // Best-effort original cache; a null record just means the
+          // summary won't advertise a readback path.
+          const original = await persistOriginalImage({
+            data,
+            mimeType: fileType.mimeType,
+            sessionDir: this.sessionDir,
+          });
+          compressionInfo = {
+            originalMime: fileType.mimeType,
+            originalBytes: outcome.originalBytes,
+            finalBytes: outcome.finalBytes,
+            originalPath: original?.path ?? null,
+          };
+        }
+      }
+
+      const base64 = effectiveData.toString('base64');
       let mediaPart: ContentPart;
       if (fileType.kind === 'image') {
         mediaPart = {
           type: 'image_url',
-          imageUrl: { url: `data:${fileType.mimeType};base64,${base64}` },
+          imageUrl: { url: `data:${effectiveMime};base64,${base64}` },
         };
       } else if (this.videoUploader !== undefined) {
         mediaPart = await this.videoUploader({
@@ -249,12 +315,16 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       const openText = `<${tag} path="${safePath}">`;
       const closeText = `</${tag}>`;
 
+      // Dimensions are sniffed from the ORIGINAL bytes — the model reasons
+      // about coordinates relative to the original size, and the original is
+      // what ReadMediaFile readback returns.
       const dimensions = fileType.kind === 'image' ? sniffImageDimensions(data) : null;
       const systemText = buildSystemSummary({
         kind: fileType.kind,
-        mimeType: fileType.mimeType,
-        byteSize: stat.stSize,
+        mimeType: fileType.kind === 'image' ? effectiveMime : fileType.mimeType,
+        byteSize: fileType.kind === 'image' ? effectiveData.length : stat.stSize,
         dimensions,
+        compression: compressionInfo,
       });
 
       const output: ContentPart[] = [
