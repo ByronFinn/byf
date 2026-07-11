@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ChatProviderError } from '#/errors';
 import { generate } from '#/generate';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
 import {
   OpenAIResponsesChatProvider,
   OpenAIResponsesStreamedMessage,
@@ -748,6 +749,53 @@ describe('OpenAIResponsesChatProvider', () => {
 
       expect(body['temperature']).toBe(0.7);
       expect(body['max_output_tokens']).toBe(2048);
+    });
+  });
+
+  describe('prompt_cache_key (PromptPlan)', () => {
+    // Adapter-level guard for the H3 cache-key wiring. The helper
+    // (deriveCacheKeyFromPromptPlan) returns undefined when nothing is
+    // cacheable; the Responses path must then OMIT prompt_cache_key entirely
+    // (unlike the Completions path, which falls back to a dummy hash).
+    async function captureBodyWithPlan(
+      promptPlan: PromptPlan | undefined,
+    ): Promise<Record<string, unknown>> {
+      const provider = createProvider();
+      let captured: Record<string, unknown> | undefined;
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockImplementation((params: unknown) => {
+          captured = params as Record<string, unknown>;
+          return Promise.resolve(makeResponsesAPIResponse());
+        });
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+        { promptPlan },
+      );
+      for await (const _ of stream) void _;
+      if (captured === undefined) throw new Error('responses.create not called');
+      return captured;
+    }
+
+    it('omits prompt_cache_key when the plan has no cacheable blocks', async () => {
+      const body = await captureBodyWithPlan({
+        blocks: [
+          { name: 'project', text: 'project ctx', cacheScope: 'project' },
+          { name: 'session', text: 'session ctx', cacheScope: 'session' },
+        ],
+      });
+      expect(body['prompt_cache_key']).toBeUndefined();
+    });
+
+    it('sends prompt_cache_key when the plan has a global-scope block', async () => {
+      const body = await captureBodyWithPlan({
+        blocks: [{ name: 'system', text: 'You are helpful', cacheScope: 'global' }],
+      });
+      expect(typeof body['prompt_cache_key']).toBe('string');
+      expect((body['prompt_cache_key'] as string).length).toBeGreaterThan(0);
     });
   });
 

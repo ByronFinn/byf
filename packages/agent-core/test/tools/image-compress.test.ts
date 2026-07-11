@@ -142,6 +142,30 @@ describe('compressImageForModel', () => {
     expect(MAX_DECODE_PIXELS).toBe(100_000_000);
   });
 
+  it('refuses a PNG that declares huge dimensions before attempting decode', async () => {
+    // A tiny buffer whose PNG IHDR advertises 20000x20000 pixels (400M) — far
+    // over the cap but only ~64 bytes on disk. The pre-decode sniff must catch
+    // this and return an error WITHOUT calling Jimp.read (which would allocate
+    // a 400M-pixel bitmap). This is the sparse-pixel-bomb case.
+    const lyingPng = Buffer.alloc(64, 0);
+    PNG_MAGIC.copy(lyingPng);
+    lyingPng.writeUInt32BE(20_000, 16); // IHDR width
+    lyingPng.writeUInt32BE(20_000, 20); // IHDR height
+    const result = await compressImageForModel({
+      data: lyingPng,
+      mimeType: 'image/png',
+      byteBudget: 1,
+    });
+
+    expect(result.outcome.kind).toBe('error');
+    if (result.outcome.kind === 'error') {
+      expect(result.outcome.message).toMatch(/pixel/i);
+      expect(result.outcome.message).toMatch(/20000x20000|400000000/i);
+    }
+    // Original returned, not decoded/re-encoded.
+    expect(result.data).toBe(lyingPng);
+  });
+
   it('exposes the default byte budget constant', () => {
     // ~3.75 MiB. Pinning the exact value guards against an accidental drift
     // that would make test fixtures unexpectedly compress or passthrough.

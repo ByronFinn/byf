@@ -1,6 +1,6 @@
 # Spike: Jimp + `bun build --compile` 兼容性验证
 
-- **关联**：PRD-0023（图片压缩管线，issue #233）/ AC20
+- **关联**：PRD-0022（引擎韧性与图片管线，issue #233）/ AC20
 - **日期**：2026-07-12
 - **结论**：✅ Jimp 1.6.1 在 `bun build --compile` 下可正常打包与运行，无需回退或换依赖。
 

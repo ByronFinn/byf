@@ -176,6 +176,26 @@ export async function compressImageForModel(input: CompressInput): Promise<Compr
     };
   }
 
+  // Pre-decode pixel guard: for formats whose dimensions we can read from the
+  // header (PNG/JPEG/GIF/BMP), reject a sparse huge image *before* Jimp.read
+  // allocates the full bitmap in memory. A compressed-but-gigantic PNG would
+  // otherwise pass the byte guard above and blow the heap on decode. Formats
+  // we can't size from the header fall through to the post-decode guard.
+  const preDims = sniffImageDimensions(data);
+  if (preDims !== null) {
+    const prePixels = preDims.width * preDims.height;
+    if (prePixels > MAX_DECODE_PIXELS) {
+      return {
+        data,
+        mimeType,
+        outcome: {
+          kind: 'error',
+          message: `declared ${String(preDims.width)}x${String(preDims.height)} (${String(prePixels)} pixels) exceeds pixel limit`,
+        },
+      };
+    }
+  }
+
   let image: DecodedImage;
   try {
     image = await Jimp.read(data);

@@ -236,19 +236,20 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         };
       }
 
+      // Resolve the magic-byte MIME once for both the format gate and the
+      // compression pipeline. detectFileType trusts the filename extension
+      // when the kind agrees (fine for the data URL), but the model receives
+      // the raw bytes — so security and codec decisions key off the magic
+      // bytes. Computed here to avoid sniffing the header twice.
+      const sniffedMime = sniffMediaFromMagic(header)?.mimeType;
+      const imageMime = sniffedMime ?? fileType.mimeType;
+
       // Format gate: only a closed set of image MIME types (png/jpeg/gif/
       // webp) is accepted as multimodal input. A rejected format returns an
       // error notice with a conversion hint instead of base64-encoding the
       // full file into an unusable data URL. Runs before the full-file read.
-      //
-      // The gate keys off the *magic-byte* MIME, not the filename extension:
-      // a file named `photo.png` whose bytes are actually HEIC/BMP must be
-      // rejected, since the model receives the raw bytes. detectFileType
-      // intentionally trusts the extension when the kind agrees, which is
-      // fine for the data URL but wrong for the security gate.
       if (fileType.kind === 'image') {
-        const magicMime = sniffMediaFromMagic(header)?.mimeType ?? fileType.mimeType;
-        const gate = gateImageFormat(magicMime);
+        const gate = gateImageFormat(imageMime);
         if (!gate.accepted) {
           return { isError: true, output: gate.notice };
         }
@@ -276,11 +277,9 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       // full-resolution bytes are cached (content-addressed) so the model
       // can re-read full detail via ReadMediaFile on the cached path.
       //
-      // Uses the magic-byte MIME (same source as the format gate) so that a
-      // misnamed file is compressed by its real codec, not the extension's.
-      const imageMagicMime =
-        fileType.kind === 'image' ? sniffMediaFromMagic(header)?.mimeType : undefined;
-      const imageMime = imageMagicMime ?? fileType.mimeType;
+      // imageMime (the magic-byte MIME, resolved above) drives both the gate
+      // and the codec choice so a misnamed file is compressed by its real
+      // format, not the extension's.
       let compressionInfo: CompressionSummaryInfo | null = null;
       let effectiveData = data;
       let effectiveMime = imageMime;
