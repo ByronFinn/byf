@@ -1,6 +1,6 @@
 # 引擎韧性与图片摄入管线（上游 cherry-pick）
 
-**Status**: In Progress
+**Status**: Done
 **Created**: 2026-07-11
 **Created by**: `/think` + `/story`（2026-07-11）——基于 BYF vs kimi-code 对比分析（`plan.md`）与代码事实校准
 **Last updated**: 2026-07-11
@@ -86,3 +86,5 @@ BYF 从 kimi-code fork 后，上游在三个生产级细节上已显著领先，
 - **Created by**: `/think`（基于 plan.md 对比分析）→ `/story`（vertical slice 拆分，2026-07-11）
 - **Source**: `.grok/sessions/.../plan.md` §6/§7 推荐执行序列 + `docs/architecture-debt-roadmap.md` H3
 - **Sliced by**: `/story`（4 issues，按依赖序：H3 → P0-1 ‖ P0-2a → P0-2b）
+- **Implemented by**: `/implement`（2026-07-11，sub-agent driven，4 commits：79b0375 / b41e429 / 4d1719e / 18f94fb）
+- **Verified**: 全量 typecheck 通过；`bun build/run-tests.mjs` 383 文件全绿
