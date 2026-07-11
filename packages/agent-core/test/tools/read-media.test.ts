@@ -13,6 +13,10 @@ import {
   ReadMediaFileTool,
 } from '../../src/tools/builtin/file/read-media';
 import { MEDIA_SNIFF_BYTES } from '../../src/tools/support/file-type';
+import {
+  gateImageFormat,
+  MODEL_ACCEPTED_IMAGE_MIMES,
+} from '../../src/tools/support/image-format-policy';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 
@@ -39,6 +43,19 @@ const MP4_HEADER = Buffer.concat([
   Buffer.from([0x00, 0x00, 0x00, 0x00]),
   Buffer.from('mp42isom'),
 ]);
+
+// Minimal HEIC ftyp box: 4-byte big-endian size + 'ftyp' + brand 'heic'.
+// detectFileType recognises this via FTYP_IMAGE_BRANDS → image/heic.
+const HEIC_HEADER = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftyp'),
+  Buffer.from('heic'),
+  Buffer.from([0x00, 0x00, 0x00, 0x00]),
+  Buffer.from('mif1heic'),
+]);
+
+// BMP file starts with ASCII 'BM'; pad so it parses as a small bitmap.
+const BMP_HEADER = Buffer.concat([Buffer.from('BM'), Buffer.alloc(30, 0x00)]);
 
 function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability {
   return {
@@ -569,5 +586,112 @@ describe('ReadMediaFileTool', () => {
     });
     expect(relative.isError).toBe(true);
     expect(readBytes).not.toHaveBeenCalled();
+  });
+
+  // ── Image format gating (issue #232) ────────────────────────────────
+
+  it('rejects an HEIC image with a conversion hint before reading the full file', async () => {
+    // readBytes is called twice: first with MEDIA_SNIFF_BYTES (header sniff),
+    // then with no args (full read). The gate runs after the sniff and before
+    // the full read, so the second call must never happen for a rejected
+    // format — assert that only the sniff call occurred.
+    const readBytes = vi.fn<Kaos['readBytes']>().mockResolvedValue(HEIC_HEADER);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({
+        ...DEFAULT_STAT,
+        stSize: HEIC_HEADER.length,
+      }),
+      readBytes,
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_heic',
+      args: { path: '/workspace/photo.heic' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/heic/i);
+    expect(result.output).toMatch(/sips|heif-convert|magick|convert/i);
+    // The full-file read is skipped: only the sniff call happened.
+    expect(readBytes).toHaveBeenCalledTimes(1);
+    expect(readBytes).toHaveBeenCalledWith('/workspace/photo.heic', MEDIA_SNIFF_BYTES);
+  });
+
+  it('rejects a BMP image with a conversion hint', async () => {
+    const readBytes = vi.fn<Kaos['readBytes']>().mockResolvedValue(BMP_HEADER);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({
+        ...DEFAULT_STAT,
+        stSize: BMP_HEADER.length,
+      }),
+      readBytes,
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_bmp',
+      args: { path: '/workspace/legacy.bmp' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/bmp|image\/bmp/i);
+    expect(result.output).toMatch(/sips|heif-convert|magick|convert/i);
+  });
+
+  it('lets a PNG pass the format gate and returns the normal 4-part wrap', async () => {
+    const data = Buffer.concat([PNG_HEADER, Buffer.from('pngdata')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_png_gate',
+      args: { path: '/workspace/ok.png' },
+      signal,
+    });
+
+    const parts = outputParts(result);
+    expect(parts).toHaveLength(4);
+    expect(parts[2]).toMatchObject({ type: 'image_url' });
+    // The model-accepted MIME appears in the data URL — confirms the gate
+    // let image/png through rather than rejecting it.
+    expect((parts[2] as { imageUrl: { url: string } }).imageUrl.url).toContain('image/png');
+  });
+
+  it('gateImageFormat accepts model-supported MIME types and rejects others with a notice', () => {
+    // Accepted set matches the exported constant.
+    expect(gateImageFormat('image/png').accepted).toBe(true);
+    expect(gateImageFormat('image/jpeg').accepted).toBe(true);
+    expect(gateImageFormat('image/gif').accepted).toBe(true);
+    expect(gateImageFormat('image/webp').accepted).toBe(true);
+
+    // Sanity: the accepted set is exactly png/jpeg/gif/webp.
+    expect(MODEL_ACCEPTED_IMAGE_MIMES).toEqual(
+      new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+    );
+
+    // Rejected formats each carry a non-empty notice naming the MIME and a
+    // conversion command.
+    for (const mime of [
+      'image/heic',
+      'image/avif',
+      'image/bmp',
+      'image/tiff',
+      'image/ico',
+      'image/x-icon',
+    ]) {
+      const gate = gateImageFormat(mime);
+      expect(gate.accepted).toBe(false);
+      if (gate.accepted === false) {
+        expect(gate.notice).toContain(mime);
+        expect(gate.notice.length).toBeGreaterThan(0);
+        expect(gate.notice).toMatch(/sips|heif-convert|magick|convert/i);
+      }
+    }
   });
 });

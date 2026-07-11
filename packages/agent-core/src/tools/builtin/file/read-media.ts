@@ -30,6 +30,7 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { MEDIA_SNIFF_BYTES, detectFileType, sniffImageDimensions } from '../../support/file-type';
+import { gateImageFormat } from '../../support/image-format-policy';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import readMediaDescriptionHead from './read-media.md';
@@ -197,6 +198,17 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
             'The current model does not support video input. ' +
             'Tell the user to use a model with video input capability.',
         };
+      }
+
+      // Format gate: only a closed set of image MIME types (png/jpeg/gif/
+      // webp) is accepted as multimodal input. A rejected format returns an
+      // error notice with a conversion hint instead of base64-encoding the
+      // full file into an unusable data URL. Runs before the full-file read.
+      if (fileType.kind === 'image') {
+        const gate = gateImageFormat(fileType.mimeType);
+        if (!gate.accepted) {
+          return { isError: true, output: gate.notice };
+        }
       }
 
       const stat = await this.kaos.stat(safePath);
