@@ -55,6 +55,25 @@ export class APIContextOverflowError extends APIStatusError {
 }
 
 /**
+ * HTTP 429 rate-limit error from the API. Carries a parsed `retryAfterMs`
+ * (from the `Retry-After` response header) when available.
+ */
+export class APIProviderRateLimitError extends APIStatusError {
+  readonly retryAfterMs: number | null;
+
+  constructor(
+    statusCode: number,
+    message: string,
+    requestId?: string | null,
+    retryAfterMs?: number | null,
+  ) {
+    super(statusCode, message, requestId);
+    this.name = 'APIProviderRateLimitError';
+    this.retryAfterMs = retryAfterMs ?? null;
+  }
+}
+
+/**
  * The API returned an empty response (no content, no tool calls).
  */
 export class APIEmptyResponseError extends ChatProviderError {
@@ -92,11 +111,33 @@ export function normalizeAPIStatusError(
   statusCode: number,
   message: string,
   requestId?: string | null,
+  retryAfterMs?: number | null,
 ): APIStatusError {
+  if (statusCode === 429) {
+    return new APIProviderRateLimitError(statusCode, message, requestId, retryAfterMs);
+  }
   if (isContextOverflowStatusError(statusCode, message)) {
     return new APIContextOverflowError(statusCode, message, requestId);
   }
   return new APIStatusError(statusCode, message, requestId);
+}
+
+/**
+ * Parse an HTTP `Retry-After` header value into milliseconds.
+ *
+ * Accepts only integer seconds (the common form, e.g. "30"). HTTP-date form
+ * and any non-parseable value return `null`. Negative/zero is allowed and
+ * returned as-is (caller decides whether to clamp).
+ */
+export function parseRetryAfterMs(value: string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  // Integer seconds only.
+  if (!/^\d+$/.test(trimmed)) return null;
+  const seconds = Number(trimmed);
+  if (!Number.isFinite(seconds)) return null;
+  return seconds * 1000;
 }
 
 function isContextOverflowStatusError(statusCode: number, message: string): boolean {

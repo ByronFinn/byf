@@ -1,4 +1,5 @@
 import { sleep } from '@antfu/utils';
+import { APIProviderRateLimitError } from '@byfriends/kosong';
 import * as retry from 'retry';
 
 import type { Logger } from '#/logging/types';
@@ -49,7 +50,8 @@ export async function chatWithRetry(input: ChatWithRetryInput): Promise<LLMChatR
         throw error;
       }
 
-      const delayMs = delays[attempt - 1] ?? 0;
+      const serverDelayMs = readRetryAfterMs(error);
+      const delayMs = serverDelayMs ?? delays[attempt - 1] ?? 0;
       input.params.signal.throwIfAborted();
       input.dispatchEvent({
         type: 'step.retrying',
@@ -128,6 +130,19 @@ function retryErrorFields(error: unknown): RetryErrorFields {
     errorMessage: error instanceof Error ? error.message : String(error),
     statusCode: maybeStatusCode(error),
   };
+}
+
+/**
+ * Read a server-provided `Retry-After` delay (already parsed into ms at the
+ * adapter boundary) from a rate-limit error. Only `APIProviderRateLimitError`
+ * currently carries the header, keeping the scope tight. Returns `null` when
+ * the error is not a rate-limit error or no Retry-After was provided.
+ */
+function readRetryAfterMs(error: unknown): number | null {
+  if (error instanceof APIProviderRateLimitError) {
+    return error.retryAfterMs;
+  }
+  return null;
 }
 
 function maybeStatusCode(error: unknown): number | undefined {

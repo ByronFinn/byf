@@ -5,7 +5,7 @@ import {
   OpenAIError,
 } from 'openai';
 
-import { ChatProviderError } from '#/errors';
+import { ChatProviderError, parseRetryAfterMs } from '#/errors';
 import { extractText } from '#/message';
 import type { ContentPart, Message } from '#/message';
 import type { FinishReason, ThinkingEffort } from '#/provider';
@@ -106,7 +106,9 @@ export function convertOpenAIError(error: unknown): ChatProviderError {
   // APIError with a status code => status error
   if (error instanceof OpenAIAPIError && typeof error.status === 'number') {
     const reqId = error.requestID ?? null;
-    return convertProviderError(error, { status: error.status, requestId: reqId });
+    const retryAfterMs =
+      error.headers instanceof Headers ? parseRetryAfterMs(error.headers.get('retry-after')) : null;
+    return convertProviderError(error, { status: error.status, requestId: reqId, retryAfterMs });
   }
   // Base APIError with no status and no body => transport-layer failure.
   // When the error has a body (e.g. SSE error events from the server),

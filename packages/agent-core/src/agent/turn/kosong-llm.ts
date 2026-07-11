@@ -145,7 +145,9 @@ export class KosongLLM implements LLM {
     if (error instanceof APIEmptyResponseError) {
       return true;
     }
-    return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
+    return (
+      error instanceof APIStatusError && [429, 500, 502, 503, 504, 529].includes(error.statusCode)
+    );
   }
 }
 

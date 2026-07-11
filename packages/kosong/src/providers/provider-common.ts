@@ -71,6 +71,11 @@ export interface ConvertProviderErrorOptions {
   /** Request id to attach to a status error, if any. */
   readonly requestId?: string | null;
   /**
+   * Parsed `Retry-After` value (in milliseconds) extracted from a provider
+   * rate-limit response, if any. Threaded into `APIProviderRateLimitError`.
+   */
+  readonly retryAfterMs?: number | null;
+  /**
    * Extra network-classification matchers the default `NETWORK_RE` does not
    * cover. Google's SDK throws `fetch failed`, which is not in the default
    * regex; Google supplies it here. Each matcher is tested against the
@@ -110,7 +115,7 @@ export function convertProviderError(
   const message = error instanceof Error ? error.message : String(error);
 
   if (typeof opts.status === 'number') {
-    return normalizeAPIStatusError(opts.status, message, opts.requestId);
+    return normalizeAPIStatusError(opts.status, message, opts.requestId, opts.retryAfterMs);
   }
 
   // Timeout takes priority over network (a timeout is also a connection issue).

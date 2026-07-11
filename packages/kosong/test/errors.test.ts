@@ -4,11 +4,13 @@ import {
   APIConnectionError,
   APIContextOverflowError,
   APIEmptyResponseError,
+  APIProviderRateLimitError,
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
   isAbortError,
   normalizeAPIStatusError,
+  parseRetryAfterMs,
 } from '#/errors';
 
 describe('ChatProviderError', () => {
@@ -86,6 +88,32 @@ describe('APIContextOverflowError', () => {
   });
 });
 
+describe('APIProviderRateLimitError', () => {
+  it('extends APIStatusError', () => {
+    const err = new APIProviderRateLimitError(429, 'rate limited', 'req-rl');
+    expect(err).toBeInstanceOf(APIStatusError);
+    expect(err).toBeInstanceOf(ChatProviderError);
+    expect(err.name).toBe('APIProviderRateLimitError');
+    expect(err.statusCode).toBe(429);
+    expect(err.requestId).toBe('req-rl');
+  });
+
+  it('defaults retryAfterMs to null when omitted', () => {
+    const err = new APIProviderRateLimitError(429, 'rate limited');
+    expect(err.retryAfterMs).toBeNull();
+  });
+
+  it('holds the passed retryAfterMs value', () => {
+    const err = new APIProviderRateLimitError(429, 'rate limited', null, 5000);
+    expect(err.retryAfterMs).toBe(5000);
+  });
+
+  it('treats explicitly-null retryAfterMs as null', () => {
+    const err = new APIProviderRateLimitError(429, 'rate limited', null, null);
+    expect(err.retryAfterMs).toBeNull();
+  });
+});
+
 describe('error hierarchy instanceof checks', () => {
   it('all error types are instanceof ChatProviderError', () => {
     const errors = [
@@ -150,6 +178,62 @@ describe('normalizeAPIStatusError', () => {
     const error = normalizeAPIStatusError(statusCode, message);
     expect(error).toBeInstanceOf(APIStatusError);
     expect(error).not.toBeInstanceOf(APIContextOverflowError);
+  });
+
+  it('normalizes 429 to APIProviderRateLimitError', () => {
+    const error = normalizeAPIStatusError(429, 'rate limited', 'req-rl');
+    expect(error).toBeInstanceOf(APIProviderRateLimitError);
+    expect(error.statusCode).toBe(429);
+    expect(error.requestId).toBe('req-rl');
+    expect((error as APIProviderRateLimitError).retryAfterMs).toBeNull();
+  });
+
+  it('threads retryAfterMs through 429 normalization', () => {
+    const error = normalizeAPIStatusError(429, 'rate limited', 'req-rl', 5000);
+    expect(error).toBeInstanceOf(APIProviderRateLimitError);
+    expect((error as APIProviderRateLimitError).retryAfterMs).toBe(5000);
+  });
+});
+
+describe('parseRetryAfterMs', () => {
+  it('parses integer seconds into milliseconds', () => {
+    expect(parseRetryAfterMs('30')).toBe(30000);
+  });
+
+  it('parses zero as 0', () => {
+    expect(parseRetryAfterMs('0')).toBe(0);
+  });
+
+  it('trims surrounding whitespace before parsing', () => {
+    expect(parseRetryAfterMs('  5  ')).toBe(5000);
+  });
+
+  it('returns null for null', () => {
+    expect(parseRetryAfterMs(null)).toBeNull();
+  });
+
+  it('returns null for undefined', () => {
+    expect(parseRetryAfterMs(undefined)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(parseRetryAfterMs('')).toBeNull();
+  });
+
+  it('returns null for whitespace-only string', () => {
+    expect(parseRetryAfterMs('   ')).toBeNull();
+  });
+
+  it('returns null for HTTP-date form', () => {
+    expect(parseRetryAfterMs('Wed, 21 Oct 2015 07:28:00 GMT')).toBeNull();
+  });
+
+  it('returns null for non-numeric text', () => {
+    expect(parseRetryAfterMs('abc')).toBeNull();
+  });
+
+  it('returns null for fractional seconds', () => {
+    expect(parseRetryAfterMs('1.5')).toBeNull();
   });
 });
 
