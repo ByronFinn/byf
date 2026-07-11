@@ -18,18 +18,17 @@ import type { KaosProcess } from '@byfriends/kaos';
 
 import { isAbortError } from '../../loop/errors';
 import {
-  appendTaskOutput,
-  listTasks,
-  readTaskOutput,
-  readTaskOutputBytes,
-  removeTask,
-  taskOutputExists,
-  taskOutputExistsSync,
-  taskOutputFile,
-  taskOutputSizeBytes,
-  writeTask,
-  type PersistedTask,
-} from './persist';
+  emptyOutputSnapshot,
+  OutputStore,
+  type BackgroundTaskOutputSnapshot,
+} from './output-store';
+import { listTasks, removeTask, writeTask, type PersistedTask } from './persist';
+
+// `BackgroundTaskOutputSnapshot` was defined in this module before the H2
+// OutputStore extraction; re-export so existing barrel imports
+// (`tools/builtin/index.ts`'s `export *` and `tools/background/index.ts`)
+// keep resolving without touching the barrels.
+export type { BackgroundTaskOutputSnapshot };
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -108,9 +107,6 @@ interface TaskCommon {
   readonly taskId: string;
   readonly command: string;
   readonly description: string;
-  readonly outputChunks: string[];
-  /** Total UTF-8 bytes observed, including chunks dropped from the live ring buffer. */
-  outputSizeBytes: number;
   status: BackgroundTaskStatus;
   exitCode: number | null;
   readonly startedAt: number;
@@ -135,11 +131,8 @@ interface TaskCommon {
   failureReason?: string;
   /** True after stop() has requested cancellation but before terminal status is chosen. */
   stopRequested: boolean;
-  /** Session dir captured at registration for output.log writes. */
-  readonly outputSessionDir?: string;
   lifecyclePromise: Promise<void>;
   persistWriteQueue: Promise<void>;
-  outputWriteQueue: Promise<void>;
 }
 
 /**
@@ -161,7 +154,7 @@ interface ProcessTaskEntry extends TaskCommon {
  */
 interface PromiseTaskEntry extends TaskCommon {
   readonly kind: 'promise';
-  /** Resolves with the agent's result text, written to outputChunks on success. */
+  /** Resolves with the agent's result text, written to the OutputStore on success. */
   completion: Promise<{ result: string }>;
   /** Idempotent cancellation. Called on stop() and on deadline expiry. */
   abort: () => void;
@@ -169,19 +162,6 @@ interface PromiseTaskEntry extends TaskCommon {
 
 /** Active background task: a real process or a Promise-based agent task. */
 type TaskEntry = ProcessTaskEntry | PromiseTaskEntry;
-
-/**
- * Maximum bytes of combined output kept in the in-memory ring buffer per
- * task. When exceeded, the oldest chunks are dropped.
- *
- * The ring buffer is a lightweight tail intended for the `/tasks` UI and
- * terminal notifications only — it deliberately discards old output to
- * cap memory. It is NOT the authoritative full output: the complete,
- * never-truncated log lives on disk at `<sessionDir>/tasks/<id>/output.log`.
- * Callers that need the full output (e.g. `TaskOutput`) must read the
- * disk log via `getOutputSizeBytes` / `readOutputBytesFromDisk`.
- */
-const MAX_OUTPUT_BYTES = 1024 * 1024; // 1 MiB
 
 const SIGTERM_GRACE_MS = 5_000;
 const EXIT_SETTLE_GRACE_MS = 10;
@@ -225,25 +205,6 @@ export interface BackgroundTaskReservation {
   release(): void;
 }
 
-export interface BackgroundTaskOutputSnapshot {
-  readonly outputPath?: string;
-  readonly outputSizeBytes: number;
-  readonly previewBytes: number;
-  readonly truncated: boolean;
-  readonly fullOutputAvailable: boolean;
-  readonly preview: string;
-}
-
-function emptyOutputSnapshot(): BackgroundTaskOutputSnapshot {
-  return {
-    outputSizeBytes: 0,
-    previewBytes: 0,
-    truncated: false,
-    fullOutputAvailable: false,
-    preview: '',
-  };
-}
-
 // ── Manager ──────────────────────────────────────────────────────────
 
 export class BackgroundProcessManager {
@@ -257,6 +218,12 @@ export class BackgroundProcessManager {
   private readonly ghosts = new Map<string, BackgroundTaskInfo>();
   /** When set, register/lifecycle changes persist to disk. */
   private sessionDir: string | undefined;
+  /**
+   * Per-task output state (ring buffer + disk coordination). Extracted from
+   * TaskCommon in roadmap H2; output chunks/queues now live here instead of
+   * on each TaskEntry.
+   */
+  private readonly outputStore = new OutputStore();
 
   /**
    * Registered terminal-state callbacks. Fired once per task when the
@@ -440,8 +407,6 @@ export class BackgroundProcessManager {
       command,
       description,
       proc,
-      outputChunks: [],
-      outputSizeBytes: 0,
       status: 'running',
       exitCode: null,
       startedAt: Date.now(),
@@ -449,18 +414,17 @@ export class BackgroundProcessManager {
       waiters: [],
       terminalFired: false,
       stopRequested: false,
-      outputSessionDir: this.sessionDir,
       lifecyclePromise: Promise.resolve(),
       persistWriteQueue: Promise.resolve(),
-      outputWriteQueue: Promise.resolve(),
     };
     this.processes.set(taskId, entry);
+    this.outputStore.register(taskId, this.sessionDir);
 
     // Capture stdout + stderr into the ring buffer.
     for (const stream of [proc.stdout, proc.stderr]) {
       stream.setEncoding('utf8');
       stream.on('data', (chunk: string) => {
-        this.appendOutput(entry, chunk);
+        this.outputStore.append(taskId, chunk);
       });
     }
 
@@ -547,9 +511,7 @@ export class BackgroundProcessManager {
    * observe the complete log. No-op for unknown/ghost tasks.
    */
   async flushOutput(taskId: string): Promise<void> {
-    const entry = this.processes.get(taskId);
-    if (entry === undefined) return;
-    await entry.outputWriteQueue;
+    return this.outputStore.flush(taskId);
   }
 
   /**
@@ -561,9 +523,7 @@ export class BackgroundProcessManager {
    * unknown, or the task has produced no output yet.
    */
   async getOutputSizeBytes(taskId: string): Promise<number> {
-    const outputSessionDir = this.outputSessionDirFor(taskId);
-    if (outputSessionDir === undefined) return 0;
-    return taskOutputSizeBytes(outputSessionDir, taskId);
+    return this.outputStore.getOutputSizeBytes(taskId, this.ghosts.has(taskId), this.sessionDir);
   }
 
   /**
@@ -578,9 +538,13 @@ export class BackgroundProcessManager {
    * is detached, the task is unknown, or the log is absent.
    */
   async readOutputBytesFromDisk(taskId: string, offset: number, maxBytes: number): Promise<string> {
-    const outputSessionDir = this.outputSessionDirFor(taskId);
-    if (outputSessionDir === undefined) return '';
-    return readTaskOutputBytes(outputSessionDir, taskId, offset, maxBytes);
+    return this.outputStore.readOutputBytesFromDisk(
+      taskId,
+      offset,
+      maxBytes,
+      this.ghosts.has(taskId),
+      this.sessionDir,
+    );
   }
 
   /**
@@ -591,84 +555,36 @@ export class BackgroundProcessManager {
    * because they are the complete, never-truncated source. Detached managers,
    * tasks registered before a session dir was attached, and silent tasks with
    * no persisted log fall back to the live ring buffer.
+   *
+   * The unknown-task guard (returns empty for ids not in the registry AND not
+   * in ghosts) stays here: OutputStore has no view of the task registry, so it
+   * cannot replicate `getTask`.
    */
   async getOutputSnapshot(
     taskId: string,
     maxPreviewBytes: number,
   ): Promise<BackgroundTaskOutputSnapshot> {
     if (this.getTask(taskId) === undefined) return emptyOutputSnapshot();
-
     await this.flushOutput(taskId);
-
-    const previewLimit = Math.max(0, Math.trunc(maxPreviewBytes));
-    const outputSessionDir = this.outputSessionDirFor(taskId);
-    if (outputSessionDir !== undefined && (await taskOutputExists(outputSessionDir, taskId))) {
-      const outputSizeBytes = await taskOutputSizeBytes(outputSessionDir, taskId);
-      const previewOffset = Math.max(0, outputSizeBytes - previewLimit);
-      const previewBytes = outputSizeBytes - previewOffset;
-      const preview = await readTaskOutputBytes(
-        outputSessionDir,
-        taskId,
-        previewOffset,
-        previewBytes,
-      );
-      return {
-        outputPath: taskOutputFile(outputSessionDir, taskId),
-        outputSizeBytes,
-        previewBytes,
-        truncated: previewOffset > 0,
-        fullOutputAvailable: true,
-        preview,
-      };
-    }
-
-    const entry = this.processes.get(taskId);
-    if (entry === undefined) return emptyOutputSnapshot();
-
-    const available = Buffer.from(entry.outputChunks.join(''), 'utf-8');
-    const previewBytes = Math.min(previewLimit, available.byteLength, entry.outputSizeBytes);
-    const previewOffset = available.byteLength - previewBytes;
-    return {
-      outputSizeBytes: entry.outputSizeBytes,
-      previewBytes,
-      truncated: entry.outputSizeBytes > previewBytes,
-      fullOutputAvailable: false,
-      preview: available.subarray(previewOffset).toString('utf-8'),
-    };
+    return this.outputStore.getOutputSnapshot(
+      taskId,
+      maxPreviewBytes,
+      this.ghosts.has(taskId),
+      this.sessionDir,
+    );
   }
 
   /** Get the combined output of a task (tail of the ring buffer). */
   getOutput(taskId: string, tail?: number): string {
-    const entry = this.processes.get(taskId);
-    if (!entry) return '';
-    const full = entry.outputChunks.join('');
-    if (tail !== undefined && tail < full.length) {
-      return full.slice(-tail);
-    }
-    return full;
+    return this.outputStore.getTail(taskId, tail);
   }
 
   async readOutput(taskId: string, tail?: number): Promise<string> {
-    const entry = this.processes.get(taskId);
-    const outputSessionDir = this.outputSessionDirFor(taskId);
-    if (outputSessionDir !== undefined) {
-      await entry?.outputWriteQueue;
-      const persisted = await readTaskOutput(outputSessionDir, taskId);
-      if (persisted.length > 0) {
-        if (tail !== undefined && tail < persisted.length) {
-          return persisted.slice(-tail);
-        }
-        return persisted;
-      }
-    }
-    return this.getOutput(taskId, tail);
+    return this.outputStore.readOutput(taskId, tail, this.ghosts.has(taskId), this.sessionDir);
   }
 
   getOutputPath(taskId: string): string | undefined {
-    const outputSessionDir = this.outputSessionDirFor(taskId);
-    if (outputSessionDir === undefined) return undefined;
-    if (!taskOutputExistsSync(outputSessionDir, taskId)) return undefined;
-    return taskOutputFile(outputSessionDir, taskId);
+    return this.outputStore.getOutputPath(taskId, this.ghosts.has(taskId), this.sessionDir);
   }
 
   /** Stop a running task. SIGTERM → 5s grace → SIGKILL. */
@@ -844,8 +760,6 @@ export class BackgroundProcessManager {
       // handle.profileName.
       agentId: opts.agentId ?? taskId,
       subagentType: opts.subagentType ?? 'agent',
-      outputChunks: [],
-      outputSizeBytes: 0,
       status: 'running',
       exitCode: null,
       startedAt: Date.now(),
@@ -853,12 +767,11 @@ export class BackgroundProcessManager {
       waiters: [],
       terminalFired: false,
       stopRequested: false,
-      outputSessionDir: this.sessionDir,
       lifecyclePromise: Promise.resolve(),
       persistWriteQueue: Promise.resolve(),
-      outputWriteQueue: Promise.resolve(),
     };
     this.processes.set(taskId, entry);
+    this.outputStore.register(taskId, this.sessionDir);
     void this.persistLive(entry);
     this.fireLifecycle('started', this.toInfo(entry));
 
@@ -891,7 +804,7 @@ export class BackgroundProcessManager {
         // `completion` resolved before deadline.
         const r = outcome as { result: string };
         if (TERMINAL_STATUSES.has(entry.status)) return;
-        this.appendOutput(entry, r.result);
+        this.outputStore.append(taskId, r.result);
         await this.finalizeTerminal(entry, 'completed', 0);
       })
       .catch(async (error: unknown) => {
@@ -996,6 +909,7 @@ export class BackgroundProcessManager {
   _reset(): void {
     this.processes.clear();
     this.ghosts.clear();
+    this.outputStore.clear();
     this.sessionDir = undefined;
   }
 
@@ -1105,31 +1019,6 @@ export class BackgroundProcessManager {
       .then(() => writeTask(sessionDir, task))
       .catch(() => {});
     return entry.persistWriteQueue;
-  }
-
-  private appendOutput(entry: TaskEntry, chunk: string): void {
-    entry.outputSizeBytes += Buffer.byteLength(chunk, 'utf-8');
-    entry.outputChunks.push(chunk);
-    // Enforce output cap: drop oldest chunks when over budget.
-    let total = entry.outputChunks.reduce((s, c) => s + c.length, 0);
-    while (total > MAX_OUTPUT_BYTES && entry.outputChunks.length > 1) {
-      const removed = entry.outputChunks.shift();
-      if (removed === undefined) break;
-      total -= removed.length;
-    }
-
-    const outputSessionDir = entry.outputSessionDir;
-    if (outputSessionDir === undefined) return;
-    entry.outputWriteQueue = entry.outputWriteQueue
-      .then(() => appendTaskOutput(outputSessionDir, entry.taskId, chunk))
-      .catch(() => {});
-  }
-
-  private outputSessionDirFor(taskId: string): string | undefined {
-    const entry = this.processes.get(taskId);
-    if (entry !== undefined) return entry.outputSessionDir;
-    if (this.ghosts.has(taskId)) return this.sessionDir;
-    return undefined;
   }
 
   private async settleProcessExit(entry: TaskEntry, exitCode: number): Promise<void> {
