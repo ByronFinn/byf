@@ -3,6 +3,7 @@
 **Status**: Done（H1 行数目标未达成，已记入"实现后验收记录"；H1 根文件治理转为持续性结构性约束，见 `docs/architecture-debt-roadmap.md`）
 **Created**: 2026-06-17
 **Source**: `improve-architecture` 扫描报告（11 个发现中的 H1/H3/H4）
+**Arch reviewed by**: `/improve-architecture` (2026-07-11) — H1 仍 3819 行（结构性约束生效，H1-a Done）；H3 判别联合保持；H4 BaseChatProvider 已落地，仅剩 deriveCacheKey 局部重复
 
 ## Child Issues
 

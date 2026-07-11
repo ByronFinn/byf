@@ -1,6 +1,6 @@
 # Autonomous Goal Mode (`/goal`)
 
-> **Status**: Done | **PRD**: PRD-0019 | **Created**: 2026-07-03 | **Last updated**: 2026-07-10（状态对齐：已落地，ADR-0022~0027 合规；残留债——`driveGoal` 外移到 `goal/driver.ts` 见 `docs/architecture-debt-roadmap.md` M1） | **Grilled by**: grill skill（4 ADR：0022/0023/0024/0025；二轮 grill 2026-07-04 补全 cancel 语义、replace record 序列、pause 软停/cancel 硬停、sub 工具门控、模型 CreateGoal 入口、completion clear 延迟、budget 接口与口径、status transcript 输出、compaction 计入 budget、输入锁、错误码边界）| **Sliced by**: `/story` 2026-07-04（6 issues：#200-#205）
+> **Status**: Done | **PRD**: PRD-0019 | **Created**: 2026-07-03 | **Last updated**: 2026-07-10（状态对齐：已落地，ADR-0022~0027 合规；残留债——`driveGoal` 外移到 `goal/driver.ts` 见 `docs/architecture-debt-roadmap.md` M1） | **Grilled by**: grill skill（4 ADR：0022/0023/0024/0025；二轮 grill 2026-07-04 补全 cancel 语义、replace record 序列、pause 软停/cancel 硬停、sub 工具门控、模型 CreateGoal 入口、completion clear 延迟、budget 接口与口径、status transcript 输出、compaction 计入 budget、输入锁、错误码边界）| **Sliced by**: `/story` 2026-07-04（6 issues：#200-#205） | **Arch reviewed by**: `/improve-architecture` (2026-07-11) — goal 子系统合规；`driveGoal` 仍嵌在 `turn/index.ts`（M1，顺势做），Medium
 
 ## Goal
 

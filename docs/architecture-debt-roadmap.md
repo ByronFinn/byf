@@ -2,6 +2,7 @@
 
 > **Created**: 2026-07-10
 > **Source**: 基于 2026-07-10 `improve-architecture` 扫描报告，经代码事实校准后的复查结论。
+> **Last scan**: 2026-07-11（档 1 落地后复查）
 > **状态**: 活跃文档，随每轮架构复查更新。
 
 本路线图是跨 PRD 的架构优化协调文档，不取代任何单项 PRD 的验收标准。它的作用是：
@@ -25,51 +26,24 @@
 | 5   | M6 rg-runner 有复用价值                  | grep 是**唯一**用 ripgrep 的 builtin tool（glob 走 `kaos.glob`）                            | M6 降级为"纯降单文件复杂度"，无复用收益      |
 | 6   | AGENTS.md 缺行数预算                     | **已有成熟 Size Budget 章节**（`apps/cli/AGENTS.md:66-86`），含 net-zero 规则 + enforcement | 结构性约束已有雏形，需校准 + 强化而非新建    |
 
-**复查结论**：0 阻塞项维持。3 个 High 中，H1（ByfTui）是真实且最活跃的债；H2（BackgroundManager）真实但风险高、需先补测试；H3（provider）大半已偿还，只剩局部。7 个 Medium 中多数已被处理或被高估。
+**复查结论（2026-07-10）**：0 阻塞项维持。3 个 High 中，H1（ByfTui）是真实且最活跃的债；H2（BackgroundManager）真实但风险高、需先补测试；H3（provider）大半已偿还，只剩局部。7 个 Medium 中多数已被处理或被高估。
+
+**复查结论（2026-07-11）**：档 1 全部落地（PRD-0021 Done）。0 阻塞。持续 High：H1 ByfTui（**3819 行**，H1-a 后下降约 9%，结构性约束生效）、H2 BackgroundManager（1242 行，未动）。H3 仍是局部 `deriveCacheKeyFromPromptPlan` 双源。新增 Medium：文档卫生（PRD Status 漂移 + 路线图正文滞后）、M8 `tool-call.ts`、M9 `core-impl` 监控。M4 校准为"脚本仍用 `node` 调用打包 helper"，不是残留 SEA 管线。
 
 ---
 
 ## B. 优先级路线图
 
-### 档 1 · 立即做（低风险、高收益、可独立交付）
+### 档 1 · 已完成（PRD-0021，2026-07-10/11）
 
-这些项要么是纯文档，要么是边界清晰的小重构，不依赖任何排期窗口。
+| 项 | 交付 | 验证 |
+| --- | --- | --- |
+| M3 PRD 状态对齐 | 0016/0018/0019/0008 已对齐 | 标题与 Status 一致 |
+| M5 ADR-0006 修订 | SSHKaos 标规划中；telemetry 层删除 | `docs/adr/0006` 与 CONTEXT 一致 |
+| M2 vis DTO 单一来源 | `@byfriends/vis-shared` 包；`shared-types.ts` 已删 | web/server 同 import |
+| H1-a slash 注册表化 | `commands/handlers/*` + 窄 `SlashCommandHost` + Map 分发 | `handleBuiltInSlashCommand` 无 switch；byf-tui **3819** 行 |
 
-#### H1-a：slash handler 注册表化（command-module 方案）
-
-- **位置**：`apps/cli/src/tui/byf-tui.ts:1405-1503`（`handleBuiltInSlashCommand`，27-case switch）
-- **真实缺口**：`commands/registry.ts`（241 行）已定义 25 条命令的**元数据**（`name`/`aliases`/`description`/`priority`/`availability`），但**没有 handler 引用**。27 个 case 的 handler 仍以私有方法散落在根文件（`handleEditorCommand:3785`、`handleThemeCommand:3795`、`handleModelCommand:3809`、`handleForkCommand:3853`、`handleYoloCommand:3945`、`handleGoalCommand:3984` 等）。
-- **已定方案（grill 2026-07-10）**：**分组 command-module + 统一 SlashCommandHost 接口（窄 host + 委托）**。
-  - 定义 `SlashCommandHost` 接口——只暴露真正被 ≥2 个 handler 用到的方法（约 8–10 个：`showStatus`/`showError`/`requestRender`/`createNewSession`/`sendNormalUserInput`/`cancelCurrentStream` 等），加上所有 controller/dialogManager 访问器。单次使用的特殊能力（如 fork 内部逻辑）留在 ByfTui 或对应 `actions/`，handler 只调一行委托。不把 ByfTui 整个塞进接口。
-  - 按组（dialog / session / auth / goal / editor / theme 等）抽 command-module，每个接收 host，**不持有 ByfTui 引用**（符合 ADR-0017 DI 模式，参考 `BtwController`/`DialogManager`）。
-- **迁移策略（grill 2026-07-10）**：**两步——基建先行**。
-  - **PR1（基建）**：`SlashCommandHost` 接口 + 注册机制 + `handleBuiltInSlashCommand` 改为 Map 分发（此时 handler 仍是 ByfTui 方法，临时注册）。
-  - **PR2（迁移）**：按组逐个把 handler 迁到 `commands/handlers/<group>.ts`，验证模式可行。
-- **工作量**：PR1 中；PR2 中–高（27 个 handler 按组迁移）。
-- **风险**：PR1 低（机械替换）；PR2 中（依赖注入边界需谨慎）。
-- **验证**：`byf-tui-message-flow.test.ts` 端到端覆盖；TS 穷尽检查保证每个 `BuiltinSlashCommandName` 都有 handler。
-
-#### M2：vis DTO 单一来源
-
-- **位置**：`apps/vis/shared/types.ts` 与 `apps/vis/web/src/shared-types.ts`（各 133 行，近乎完整副本）
-- **漂移实测**：web 用 `PermissionMode`（类型引用），shared 用内联字符串联合 `'manual' | 'yolo' | 'auto'`——结构相同但表达不同。web 顶部注释声称"vis-server imports from apps/vis/shared/types.ts"，实际它自己也是独立副本。
-- **代码约束（grill 2026-07-10 核实）**：`apps/vis/shared/` **没有 `package.json`**（不是独立包，只是一组共享源文件）。web 的 tsconfig `include` 只有 `src` 且**未配 `paths`**。web 已有 `types.ts` 再导出层，但它从本地副本 `shared-types.ts` 导入，注释承认是为了"避免拉 vis-server 源码进 web tsconfig"。
-- **方案选择**：两个可行路径——
-  - **A（推荐）**：web 删除本地副本 `shared-types.ts`，`types.ts` 改为用 `import type` 直接从 `../../../shared/types` 再导出——与 vis-server 现有做法一致。`shared/types.ts` 是**纯类型模块**（14 个 type/interface 导出，0 运行时导出），`import type` 编译后擦除，不受 web tsconfig `include: ["src"]` 限制，也不把 vis-server 运行时拉进 web（这正是当初复制副本的顾虑，现已验证不成立）。web tsconfig 与 server 一样 `extends` 根 tsconfig 即可获得一致的模块解析。
-  - **B**：为 `apps/vis/shared/` 加 `package.json` 做成薄 workspace 包（`@byfriends/vis-shared`），web 与 server 都依赖它。隔离更彻底但引入新包开销。
-- **工作量**：低（方案 A 仅删副本 + 改 import 路径）；中（方案 B 需加包 + 改两处依赖）。
-
-#### M5：ADR-0006 文档修订
-
-- **问题**：ADR-0006:30 把 `SSHKaos` 写成已有 adapter、ADR-0006:32 把 `packages/telemetry` 写成一层。实际只有 `LocalKaos`，无 telemetry 包。
-- **方案**：`SSHKaos` 标"规划中（未实现）"；`packages/telemetry` 标"已移除"或删除该行。
-- **工作量**：低（纯文档）。
-
-#### M3：PRD 状态对齐
-
-- **问题**：PRD-0016/0018/0019 仍标 `Sliced` 但功能已在树内；PRD-0008 标题 `[DONE]` 但 Status 字段是 `Approved`，且 H1 行数目标未达成（见 PRD-0008 "实现后验收记录"）。
-- **方案**：0016/0018/0019 标 `Done` 或 `Done（残留债）`；PRD-0008 Status 改为 `Done（H1 行数缺口已记录）`。
-- **工作量**：低（纯文档）。
+历史方案细节见 git 历史 / PRD-0021；正文不再展开已交付设计。
 
 ---
 
@@ -131,10 +105,34 @@
 
 ---
 
+### 档 2 续 · 2026-07-11 新增观察（顺势 / 文档，不单独排期）
+
+#### M8：`ToolCallComponent` 多职责
+
+- **位置**：`apps/cli/src/tui/components/messages/tool-call.ts`（**1062 行**）
+- **信号**：God-ish component——header/progress/subagent live view + Write/Edit/Bash/TodoList/AskUserQuestion 分支仍内联；已有 `tool-renderers/` registry，但 call-preview 与部分 result 仍堆在组件内。
+- **约束**：`apps/cli/AGENTS.md` 已写"New tool-result display: prefer extending tool-renderers registry；do not stack branches inside ToolCallComponent"。
+- **方案**：下次改某工具展示时，把该工具的 preview/result 分支沉到 `tool-renderers/`，不整文件大拆。
+- **工作量**：低–中（单工具迁移）；高（一次性全拆，不推荐）。
+
+#### M9：`ByfCore` / `core-impl.ts` 监控
+
+- **位置**：`packages/agent-core/src/rpc/core-impl.ts`（**801 行**，4 周 14 次改动）
+- **信号**：RPC 门面方法集中，高 churn，但多为薄转发，未到拆分阈值。
+- **方案**：**只监控**。若单文件继续涨过 ~1000 行或出现非转发逻辑，再按域（session lifecycle / agent ops / config）分组。
+
+#### M10：PRD / 治理文档卫生
+
+- **问题**：
+  - PRD-0002/0003 标题 `[DONE]` 但 `Status: Sliced`；PRD-0017 `Status: Grilled` 但 `byf vis` 已实现；PRD-0020 `Implemented` 与其它 Done 不一致。
+  - 本路线图档 1 正文在 2026-07-11 复查前仍写"立即做"口吻（已在本节修正）。
+- **方案**：批量 Status 对齐；不引入新 PRD。
+- **工作量**：低。
+
 ### 待确认项（不纳入排期，记录在此）
 
-- **M4：Bun compile 后残留 Node SEA 脚本** — `apps/cli/scripts/native/package.mjs` 用 `node` 执行（SEA 路径），而官方路径是 `scripts/compile/build.mjs` 用 `bun`（ADR-0028）。`package.json` 里两个管线并存（`build:native:compile` 用 bun，`package:native` 用 node）。**需与发布负责人确认 CI/发布影响后再删 SEA 路径**；共用的打包 helper 届时挪到 `compile/` 或 `release/`。不纳入本路线图排期。
-- **M7：agent-core 中的 host-local `node:fs`** — `tools/background/persist.ts`、`tools/support/rg-locator.ts` 直接用 `node:fs`。ADR-0006 约定"可能远程的操作应走 Kaos"。**仅在实际排期 SSHKaos 时迁移**，现在只需在相关文件标注"按设计绑定 host"。
+- **M4（校准 2026-07-11）：native 脚本仍用 `node` 入口，非残留 SEA** — `scripts/compile/build.mjs` 是官方 `bun build --compile` 路径；`scripts/native/package.mjs` 只是 zip/checksum 打包 helper（`yazl`），**不是** Node SEA 管线（无 `sea-config`/`postject`）。`package.json` 里 `package:native` / `produce:native:manifest` 等仍写 `node scripts/native/...`。**可选清理**：把这些脚本 shebang/`package.json` 入口改为 `bun`，与 ADR-0028 一致。**需与发布负责人确认 CI 影响**。不纳入排期。
+- **M7：agent-core 中的 host-local `node:fs`** — `tools/background/persist.ts`、`tools/support/rg-locator.ts` 等直接用 `node:fs`。ADR-0006 约定"可能远程的操作应走 Kaos"。**仅在实际排期 SSHKaos 时迁移**，现在只需在相关文件标注"按设计绑定 host"。
 
 ---
 
@@ -172,7 +170,7 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 - 当一个 slash command 的 handler 超过约 20 行或持有跨调用状态，**先**抽成独立模块，**再**注册。
 - 触碰 `byf-tui.ts` 的 PR 应在描述中说明净行数影响。
-- **slash handler 注册表化（H1-a）是本约束的第一个落地实例。**
+- **slash handler 注册表化（H1-a）是本约束的第一个落地实例（PRD-0021 Done）。**
 
 ---
 
@@ -182,28 +180,24 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 1. **CLI → SDK 分层** — `apps/cli` 不直引 `@byfriends/agent-core`；SDK RPC 接缝稳固（ADR-0006）。
 2. **TaskEntry 判别联合** — `kind: 'process' | 'promise'`，生产代码无 `as unknown as KaosProcess`（ADR-0014 / PRD-0008 H3）。
-3. **goal 子系统** — `GoalMode` 纯状态机 + records + ephemeral 注入 + driver 边界，与 ADR-0022~0027 一致；`agent/goal/` 模块较深。
+3. **goal 子系统** — `GoalMode` 纯状态机 + records + ephemeral 注入 + driver 边界，与 ADR-0022~0027 一致；`agent/goal/` 模块较深（`driveGoal` 外移是顺势 M1，非健康缺陷）。
 4. **usage breakdown** — 在 `getUsage` 上估算，不塞进 `UsageRecorder`；边界清晰。
-5. **Bun 工具链** — `engines` / `packageManager` / CI 一致（ADR-0028）。
+5. **Bun 工具链** — `engines` / `packageManager` / CI 一致（ADR-0028）；compile 路径为 `bun build --compile`。
 6. **MCP SSE** — 工厂 + `client-sse.ts` 贴合既有传输模式。
+7. **vis DTO** — `@byfriends/vis-shared` 单一来源（PRD-0021 M2）。
+8. **slash 分发** — Map + command-module + 窄 host（PRD-0021 H1-a）。
 
 ---
 
 ## E. 执行顺序建议
 
-档 1（grill 2026-07-10 确认）：**文档优先 → 代码**，各项独立 PR，无阻塞依赖。
-
-| 顺序 | 项                                                                           | 类型       | 工作量                                    |
-| ---- | ---------------------------------------------------------------------------- | ---------- | ----------------------------------------- |
-| 1    | M3 PRD 状态对齐                                                              | 纯文档     | 低                                        |
-| 2    | M5 ADR-0006 修订                                                             | 纯文档     | 低                                        |
-| 3    | M2 vis DTO 单一来源                                                          | 小重构     | 低–中                                     |
-| 4a   | H1-a PR1：SlashCommandHost 接口 + 注册机制 + Map 分发（handler 暂留 ByfTui） | 结构性重构 | 中                                        |
-| 4b   | H1-a PR2：按组迁移 handler 到 `commands/handlers/<group>.ts`                 | 结构性重构 | 中–高                                     |
-| —    | H3 / M1 / M6                                                                 | 顺势做     | 绑下次触碰（不在本批 /story 范围）        |
-| —    | H2 BackgroundManager                                                         | 谨慎做     | 需排期 + 先补测试（不在本批 /story 范围） |
-
-档 1 的 4 项可各自独立 PR，互不依赖。档 2 的项不单独排期。档 3 的 H2 需与下一次 background 功能同排期。
+| 顺序 | 项 | 类型 | 状态 |
+| ---- | --- | --- | --- |
+| — | 档 1（M3/M5/M2/H1-a） | PRD-0021 | **Done** |
+| 可选 | M10 PRD Status 批量对齐 | 纯文档 | 低，可随时做 |
+| 顺势 | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰 | 不单独排期 |
+| 谨慎 | H2 BackgroundManager 拆 OutputStore | 需先补测试 | 绑 background 功能 |
+| 待确认 | M4 node→bun 脚本入口 / M7 host-local fs | 外部确认 | 不排期 |
 
 ---
 
@@ -214,3 +208,4 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 | 2026-07-10 | 初版。基于 `improve-architecture` 扫描报告，校准 6 处偏差，建立 4 档优先级路线 + 结构性约束条款。                                                                                                                                                                                                                                   |
 | 2026-07-10 | Grilled。确定 /story 拆分范围（仅档 1）；档 1 执行序（文档优先→代码）；H1-a 方案定为分组 command-module + 统一 SlashCommandHost（窄 host + 委托）+ 两步迁移（基建先行）。代码核实：M2 vis shared 无 package.json 且 web tsconfig 无 paths；H3 `deriveCacheKeyFromPromptPlan` 空 plan 行为差异会改变缓存语义，抽 helper 须显式保留。 |
 | 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                              |
+| 2026-07-11 | `improve-architecture` 复查（档 1 全部落地后）。**0 阻塞**；持续 High：H1 ByfTui **3819** 行（4178→3819，约 −9%）、H2 BackgroundManager 1242 行未动。H3 `deriveCacheKeyFromPromptPlan` 双源仍在（空 plan 行为差异依旧）。**新增 Medium**：M8 `tool-call.ts` 1062 行、M9 `core-impl` 801 行监控、M10 PRD/路线图文档卫生。**M4 校准**：`native/package.mjs` 是 zip 打包 helper，非 SEA。ADR 抽样合规（0006 分层 / 0014 TaskEntry / 0017 DI / 0022 ephemeral / 0028 Bun）。同步：路线图档 1 标 Done；`apps/cli/AGENTS.md` baseline→3819、H1-a 改为已交付措辞。|
