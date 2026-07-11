@@ -695,7 +695,7 @@ describe('ReadMediaFileTool', () => {
     ]) {
       const gate = gateImageFormat(mime);
       expect(gate.accepted).toBe(false);
-      if (gate.accepted === false) {
+      if (!gate.accepted) {
         expect(gate.notice).toContain(mime);
         expect(gate.notice.length).toBeGreaterThan(0);
         expect(gate.notice).toMatch(/sips|heif-convert|magick|convert/i);

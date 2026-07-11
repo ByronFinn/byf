@@ -1,8 +1,13 @@
 import { APIProviderRateLimitError, APIStatusError, emptyUsage } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
-import type { LoopEventDispatcher, LoopStepRetryingEvent } from '../../src/loop/index';
-import type { LLM, LLMChatParams, LLMChatResponse } from '../../src/loop/index';
+import type {
+  LLM,
+  LLMChatParams,
+  LLMChatResponse,
+  LoopEventDispatcher,
+  LoopStepRetryingEvent,
+} from '../../src/loop/index';
 import { chatWithRetry } from '../../src/loop/retry';
 
 interface ScriptedLLMOptions {
@@ -38,7 +43,7 @@ class ScriptedLLM implements LLM {
     if (this.throwOnIndex !== undefined && this.throwOnIndex.index === current) {
       throw this.throwOnIndex.error;
     }
-    return this.responses[current]!;
+    return this.responses[current];
   }
 }
 
@@ -81,7 +86,7 @@ describe('chatWithRetry', () => {
 
     expect(events).toHaveLength(1);
     // retryAfterMs of 1 must override the local backoff (which starts at 300ms).
-    expect(events[0]!.delayMs).toBe(1);
+    expect(events[0].delayMs).toBe(1);
     expect(llm.calls).toHaveLength(2);
   });
 
@@ -111,6 +116,6 @@ describe('chatWithRetry', () => {
 
     expect(events).toHaveLength(1);
     // With no server delay, fall back to the first backoff slot (>= 300ms).
-    expect(events[0]!.delayMs).toBeGreaterThanOrEqual(300);
+    expect(events[0].delayMs).toBeGreaterThanOrEqual(300);
   });
 });

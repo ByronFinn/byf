@@ -36,11 +36,11 @@
 
 ### 档 1 · 已完成（PRD-0021，2026-07-10/11）
 
-| 项 | 交付 | 验证 |
-| --- | --- | --- |
-| M3 PRD 状态对齐 | 0016/0018/0019/0008 已对齐 | 标题与 Status 一致 |
-| M5 ADR-0006 修订 | SSHKaos 标规划中；telemetry 层删除 | `docs/adr/0006` 与 CONTEXT 一致 |
-| M2 vis DTO 单一来源 | `@byfriends/vis-shared` 包；`shared-types.ts` 已删 | web/server 同 import |
+| 项                  | 交付                                                     | 验证                                                       |
+| ------------------- | -------------------------------------------------------- | ---------------------------------------------------------- |
+| M3 PRD 状态对齐     | 0016/0018/0019/0008 已对齐                               | 标题与 Status 一致                                         |
+| M5 ADR-0006 修订    | SSHKaos 标规划中；telemetry 层删除                       | `docs/adr/0006` 与 CONTEXT 一致                            |
+| M2 vis DTO 单一来源 | `@byfriends/vis-shared` 包；`shared-types.ts` 已删       | web/server 同 import                                       |
 | H1-a slash 注册表化 | `commands/handlers/*` + 窄 `SlashCommandHost` + Map 分发 | `handleBuiltInSlashCommand` 无 switch；byf-tui **3819** 行 |
 
 历史方案细节见 git 历史 / PRD-0021；正文不再展开已交付设计。
@@ -192,22 +192,22 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 ## E. 执行顺序建议
 
-| 顺序 | 项 | 类型 | 状态 |
-| ---- | --- | --- | --- |
-| — | 档 1（M3/M5/M2/H1-a） | PRD-0021 | **Done** |
-| 可选 | M10 PRD Status 批量对齐 | 纯文档 | 低，可随时做 |
-| 顺势 | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰 | 不单独排期 |
-| 谨慎 | H2 BackgroundManager 拆 OutputStore | 需先补测试 | **OutputStore 已拆（2026-07-12）** |
-| 待确认 | M4 node→bun 脚本入口 / M7 host-local fs | 外部确认 | 不排期 |
+| 顺序   | 项                                                                       | 类型       | 状态                               |
+| ------ | ------------------------------------------------------------------------ | ---------- | ---------------------------------- |
+| —      | 档 1（M3/M5/M2/H1-a）                                                    | PRD-0021   | **Done**                           |
+| 可选   | M10 PRD Status 批量对齐                                                  | 纯文档     | 低，可随时做                       |
+| 顺势   | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰     | 不单独排期                         |
+| 谨慎   | H2 BackgroundManager 拆 OutputStore                                      | 需先补测试 | **OutputStore 已拆（2026-07-12）** |
+| 待确认 | M4 node→bun 脚本入口 / M7 host-local fs                                  | 外部确认   | 不排期                             |
 
 ---
 
 ## 变更记录
 
-| 日期       | 事件                                                                                                                                                                                                                                                                                                                                |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-10 | 初版。基于 `improve-architecture` 扫描报告，校准 6 处偏差，建立 4 档优先级路线 + 结构性约束条款。                                                                                                                                                                                                                                   |
-| 2026-07-10 | Grilled。确定 /story 拆分范围（仅档 1）；档 1 执行序（文档优先→代码）；H1-a 方案定为分组 command-module + 统一 SlashCommandHost（窄 host + 委托）+ 两步迁移（基建先行）。代码核实：M2 vis shared 无 package.json 且 web tsconfig 无 paths；H3 `deriveCacheKeyFromPromptPlan` 空 plan 行为差异会改变缓存语义，抽 helper 须显式保留。 |
-| 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                              |
-| 2026-07-11 | `improve-architecture` 复查（档 1 全部落地后）。**0 阻塞**；持续 High：H1 ByfTui **3819** 行（4178→3819，约 −9%）、H2 BackgroundManager 1242 行未动。H3 `deriveCacheKeyFromPromptPlan` 双源仍在（空 plan 行为差异依旧）。**新增 Medium**：M8 `tool-call.ts` 1062 行、M9 `core-impl` 801 行监控、M10 PRD/路线图文档卫生。**M4 校准**：`native/package.mjs` 是 zip 打包 helper，非 SEA。ADR 抽样合规（0006 分层 / 0014 TaskEntry / 0017 DI / 0022 ephemeral / 0028 Bun）。同步：路线图档 1 标 Done；`apps/cli/AGENTS.md` baseline→3819、H1-a 改为已交付措辞。|
-| 2026-07-12 | H2 OutputStore 拆分落地（commit `19f5612` 补 characterization 测试 + `2c57ab3` 抽 OutputStore）。先补 4 个 output 边界直接测试锁行为，再抽 `tools/background/output-store.ts`（239 行）从 `TaskCommon` 分离 output 状态，顺手修 `appendOutput` O(n²)→O(1)。manager 1242→1131 行；行为零变化（383 文件全绿）。核实 kimi 未拆 OutputStore，故为 BYF 自有诉求。`finalizeTerminal`/`persistLive`/`TaskEntryRegistry` 保留。 |
+| 日期       | 事件                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-10 | 初版。基于 `improve-architecture` 扫描报告，校准 6 处偏差，建立 4 档优先级路线 + 结构性约束条款。                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-07-10 | Grilled。确定 /story 拆分范围（仅档 1）；档 1 执行序（文档优先→代码）；H1-a 方案定为分组 command-module + 统一 SlashCommandHost（窄 host + 委托）+ 两步迁移（基建先行）。代码核实：M2 vis shared 无 package.json 且 web tsconfig 无 paths；H3 `deriveCacheKeyFromPromptPlan` 空 plan 行为差异会改变缓存语义，抽 helper 须显式保留。                                                                                                                                                                                                                         |
+| 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-07-11 | `improve-architecture` 复查（档 1 全部落地后）。**0 阻塞**；持续 High：H1 ByfTui **3819** 行（4178→3819，约 −9%）、H2 BackgroundManager 1242 行未动。H3 `deriveCacheKeyFromPromptPlan` 双源仍在（空 plan 行为差异依旧）。**新增 Medium**：M8 `tool-call.ts` 1062 行、M9 `core-impl` 801 行监控、M10 PRD/路线图文档卫生。**M4 校准**：`native/package.mjs` 是 zip 打包 helper，非 SEA。ADR 抽样合规（0006 分层 / 0014 TaskEntry / 0017 DI / 0022 ephemeral / 0028 Bun）。同步：路线图档 1 标 Done；`apps/cli/AGENTS.md` baseline→3819、H1-a 改为已交付措辞。 |
+| 2026-07-12 | H2 OutputStore 拆分落地（commit `19f5612` 补 characterization 测试 + `2c57ab3` 抽 OutputStore）。先补 4 个 output 边界直接测试锁行为，再抽 `tools/background/output-store.ts`（239 行）从 `TaskCommon` 分离 output 状态，顺手修 `appendOutput` O(n²)→O(1)。manager 1242→1131 行；行为零变化（383 文件全绿）。核实 kimi 未拆 OutputStore，故为 BYF 自有诉求。`finalizeTerminal`/`persistLive`/`TaskEntryRegistry` 保留。                                                                                                                                     |

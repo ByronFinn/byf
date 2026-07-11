@@ -55,7 +55,9 @@ async function waitForLiveOutput(
 function chunkedProcess(chunks: string[]): { proc: KaosProcess; ended: Promise<void> } {
   const stdout = Readable.from(chunks);
   const ended = new Promise<void>((resolve) => {
-    stdout.once('end', () => resolve());
+    stdout.once('end', () => {
+      resolve();
+    });
   });
   return {
     proc: {

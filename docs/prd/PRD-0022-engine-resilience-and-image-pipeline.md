@@ -18,12 +18,12 @@ BYF 从 kimi-code fork 后，上游在三个生产级细节上已显著领先，
 
 按 ROI 与风险顺序，交付 4 个独立可验证的改进，每个是一个完整 vertical slice：
 
-| 项 | 核心问题 | 方案 | 来源 |
-|---|---|---|---|
-| H3 | cache-key 双源 + 语义不一致 | 抽单一 helper，显式保留两路径空 plan 差异 | roadmap H3 |
-| P0-1 | 缺 529 / 无 Retry-After 解析 / 无 rate-limit 子类 | 补 529 + 加 parseRetryAfterMs + 服务端 Retry-After 覆盖本地退避 + APIProviderRateLimitError 子类 | kimi errors.ts + retry.ts |
-| P0-2a | 图片无格式门禁 | 移植 image-format-policy（闭集 + magic-byte sniff + 转换提示） | kimi image-format-policy.ts |
-| P0-2b | 图片无压缩/无原图缓存 | 移植压缩主流程 + 内容寻址原图缓存 + caption | kimi image-compress.ts + image-originals.ts |
+| 项    | 核心问题                                          | 方案                                                                                             | 来源                                        |
+| ----- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| H3    | cache-key 双源 + 语义不一致                       | 抽单一 helper，显式保留两路径空 plan 差异                                                        | roadmap H3                                  |
+| P0-1  | 缺 529 / 无 Retry-After 解析 / 无 rate-limit 子类 | 补 529 + 加 parseRetryAfterMs + 服务端 Retry-After 覆盖本地退避 + APIProviderRateLimitError 子类 | kimi errors.ts + retry.ts                   |
+| P0-2a | 图片无格式门禁                                    | 移植 image-format-policy（闭集 + magic-byte sniff + 转换提示）                                   | kimi image-format-policy.ts                 |
+| P0-2b | 图片无压缩/无原图缓存                             | 移植压缩主流程 + 内容寻址原图缓存 + caption                                                      | kimi image-compress.ts + image-originals.ts |
 
 ## 验收标准
 
