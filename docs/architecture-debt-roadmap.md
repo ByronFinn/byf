@@ -80,20 +80,21 @@
 
 ### 档 3 · 谨慎做（需排期 + 先补测试）
 
-#### H2：BackgroundProcessManager 拆分
+#### H2：BackgroundProcessManager 拆分（OutputStore 已拆，2026-07-12）
 
-- **位置**：`packages/agent-core/src/tools/background/manager.ts`（1242 行，38 方法）
-- **真实职责**：确认 7 项职责全部混在一个类——进程注册、agent/promise 任务、输出缓冲/磁盘、stop/wait、reconcile、持久化、生命周期订阅。`TaskCommon` 接口每条 entry 同时携带 `outputChunks`（缓冲）、`outputWriteQueue`（磁盘）、`persistWriteQueue`（持久化）、`waiters`（订阅）、`lifecyclePromise`（生命周期），是典型的状态混合体。
-- **为什么谨慎**：
-  1. **`finalizeTerminal`（manager.ts:1184-1207）是状态机汇合点**——stop / settleProcessExit / registerAgentTask 三条路径都调它，内部顺序写死：设 status → `persistLive` → `fireTerminalCallbacks` → `resolveWaiters`。拆分时必须保持这个顺序。
-  2. **内部私有方法无单元测试保护**——现有测试（`background-manager.test.ts` 618 行等）几乎全走子类 `BackgroundManager` 黑盒，没有直接测 `appendOutput` ring buffer 丢弃语义、`persistLive` 队列、`finalizeTerminal` 幂等。
-  3. **去重契约跨类**——`entry.terminalFired` 幂等标志在 `fireTerminalCallbacks` 检查，但 reconcile 的 lost ghost 走 `fireTerminalSubscribers` 跳过该守卫，去重依赖 `NotificationManager.dedupe_key`（注释 manager.ts:326-331）。
-- **执行方式**：
-  1. **先拆 OutputStore**——边界最清晰：`appendOutput` + 8 个 `getOutput*`/`readOutput` 方法 + `MAX_OUTPUT_BYTES` + `outputWriteQueue`。`getOutputSnapshot` 内联了"优先磁盘回退内存"决策，需保留在协调层或一并外移。
-  2. **拆前必须先补 OutputStore 边界行为测试**（ring buffer 丢弃、磁盘回退时机、abort 语义）。
-  3. 后续再拆 `TaskEntryRegistry`（注册 + slot 管理），但 `register`/`registerAgentTask` 直接调 `appendOutput` + `persistLive` + `fireLifecycle`，需注入依赖。
-  4. **不拆 `finalizeTerminal`**——它是状态机汇合点，拆了反而更难理解。
-- **排期**：建议与下一次 background 功能同排期，不单独立项。
+- **位置**：`packages/agent-core/src/tools/background/manager.ts`（**1131 行**，原 1242 行；OutputStore 抽出后 −112 行）
+- **已完成（2026-07-12）**：
+  1. **补 OutputStore 边界 characterization 测试**（commit `19f5612`）——在 `test/tools/background/output-access.test.ts` 增 4 个直接测试：ring buffer 丢弃语义（`sizeBytes` 含丢弃部分）、磁盘回退决策、`flushOutput` 队列串行化、stop 后 output 保留。锁住行为不变性。
+  2. **抽 OutputStore**（commit `2c57ab3`）——新建 `tools/background/output-store.ts`（239 行）：per-task output 状态（`chunks`/`ringChars`/`sizeBytes`/`writeQueue`/`sessionDir`）自持于 OutputStore，从 `TaskCommon` 删除 4 个 output 字段。顺手把 `appendOutput` 的每 chunk O(n²) `reduce` 改为 O(1) `ringChars` 增量维护（对齐 kimi 的做法）。manager 上 8 个 output 公共方法签名不变（薄委托），外部消费者零改动。
+  3. **核实 kimi-code**：kimi 自己也没拆 OutputStore（状态仍在 `ManagedTask` 上）——故本次是 BYF roadmap 自己的职责分离诉求，非"抄上游"。未引入 kimi 的 sink 抽象 / pendingOutput buffer / `MAX_TASK_OUTPUT_BYTES` 硬终止（超出 H2 范围）。
+- **未拆（保留）**：
+  - `finalizeTerminal`（状态机汇合点）——按原计划不拆。
+  - `persistLive` / `persistWriteQueue`——状态持久化（task.json），与 output 无关，留在 manager。
+  - `TaskEntryRegistry`（注册 + slot 管理）——后续可选，`register`/`registerAgentTask` 仍直接调 OutputStore + `persistLive` + `fireLifecycle`。
+- **验证**：全量 typecheck 通过；`bun build/run-tests.mjs` 383 文件全绿（行为零变化的重构）。
+- **历史背景**（保留供后续参考）：
+  - 原确认 7 项职责混在一个类：进程注册、agent/promise 任务、输出缓冲/磁盘、stop/wait、reconcile、持久化、生命周期订阅。`TaskCommon` 是典型的状态混合体。
+  - 谨慎原因仍成立：`finalizeTerminal` 是 stop / settleProcessExit / registerAgentTask 三条路径的汇合点（顺序写死）；去重契约跨类（`terminalFired` 幂等标志 vs reconcile 的 lost ghost 走 `fireTerminalSubscribers` 跳过守卫，依赖 `NotificationManager.dedupe_key`）。
 
 ---
 
@@ -196,7 +197,7 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 | — | 档 1（M3/M5/M2/H1-a） | PRD-0021 | **Done** |
 | 可选 | M10 PRD Status 批量对齐 | 纯文档 | 低，可随时做 |
 | 顺势 | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰 | 不单独排期 |
-| 谨慎 | H2 BackgroundManager 拆 OutputStore | 需先补测试 | 绑 background 功能 |
+| 谨慎 | H2 BackgroundManager 拆 OutputStore | 需先补测试 | **OutputStore 已拆（2026-07-12）** |
 | 待确认 | M4 node→bun 脚本入口 / M7 host-local fs | 外部确认 | 不排期 |
 
 ---
@@ -209,3 +210,4 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 | 2026-07-10 | Grilled。确定 /story 拆分范围（仅档 1）；档 1 执行序（文档优先→代码）；H1-a 方案定为分组 command-module + 统一 SlashCommandHost（窄 host + 委托）+ 两步迁移（基建先行）。代码核实：M2 vis shared 无 package.json 且 web tsconfig 无 paths；H3 `deriveCacheKeyFromPromptPlan` 空 plan 行为差异会改变缓存语义，抽 helper 须显式保留。 |
 | 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                              |
 | 2026-07-11 | `improve-architecture` 复查（档 1 全部落地后）。**0 阻塞**；持续 High：H1 ByfTui **3819** 行（4178→3819，约 −9%）、H2 BackgroundManager 1242 行未动。H3 `deriveCacheKeyFromPromptPlan` 双源仍在（空 plan 行为差异依旧）。**新增 Medium**：M8 `tool-call.ts` 1062 行、M9 `core-impl` 801 行监控、M10 PRD/路线图文档卫生。**M4 校准**：`native/package.mjs` 是 zip 打包 helper，非 SEA。ADR 抽样合规（0006 分层 / 0014 TaskEntry / 0017 DI / 0022 ephemeral / 0028 Bun）。同步：路线图档 1 标 Done；`apps/cli/AGENTS.md` baseline→3819、H1-a 改为已交付措辞。|
+| 2026-07-12 | H2 OutputStore 拆分落地（commit `19f5612` 补 characterization 测试 + `2c57ab3` 抽 OutputStore）。先补 4 个 output 边界直接测试锁行为，再抽 `tools/background/output-store.ts`（239 行）从 `TaskCommon` 分离 output 状态，顺手修 `appendOutput` O(n²)→O(1)。manager 1242→1131 行；行为零变化（383 文件全绿）。核实 kimi 未拆 OutputStore，故为 BYF 自有诉求。`finalizeTerminal`/`persistLive`/`TaskEntryRegistry` 保留。 |
