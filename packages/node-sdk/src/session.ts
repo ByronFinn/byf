@@ -239,10 +239,20 @@ export class Session {
   /**
    * List session-scoped cron tasks with post-jitter nextFireAt (PRD-0023).
    * Used by headless keep-alive to decide whether to hold the event loop.
+   * Snapshots include `prompt` and `humanSchedule` for host UIs (PRD-0024).
    */
   async getCronTasks(): Promise<{ tasks: readonly CronTaskSnapshot[] }> {
     this.ensureOpen();
     return this.rpc.getCronTasks({ sessionId: this.id });
+  }
+
+  /**
+   * Host-privilege delete of a session cron task (PRD-0024 / ADR-0030).
+   * Does not go through CronDelete tool permission.
+   */
+  async deleteCronTask(id: string): Promise<{ deleted: boolean }> {
+    this.ensureOpen();
+    return this.rpc.deleteCronTask({ sessionId: this.id, id });
   }
 
   async compact(options: CompactOptions = {}): Promise<void> {

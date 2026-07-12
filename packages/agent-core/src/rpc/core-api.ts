@@ -261,6 +261,15 @@ export interface GetCronTasksResult {
   readonly tasks: readonly CronTaskSnapshot[];
 }
 
+/** Host-path cron delete (PRD-0024 / ADR-0030). Not a tool permission surface. */
+export interface DeleteCronTaskPayload {
+  readonly id: string;
+}
+
+export interface DeleteCronTaskResult {
+  readonly deleted: boolean;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -275,6 +284,7 @@ export interface AgentAPI {
   resumeGoal: (payload: EmptyPayload) => ResumeGoalResult;
   cancelGoal: (payload: EmptyPayload) => CancelGoalResult;
   getCronTasks: (payload: EmptyPayload) => GetCronTasksResult;
+  deleteCronTask: (payload: DeleteCronTaskPayload) => DeleteCronTaskResult;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
   beginCompaction: (payload: BeginCompactionPayload) => void;

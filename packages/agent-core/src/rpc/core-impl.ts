@@ -55,6 +55,7 @@ import type {
   CoreInfo,
   CreateGoalPayload,
   CreateSessionPayload,
+  DeleteCronTaskPayload,
   EmptyPayload,
   ExportSessionPayload,
   ExportSessionResult,
@@ -505,6 +506,10 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getCronTasks({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getCronTasks(payload);
+  }
+
+  deleteCronTask({ sessionId, ...payload }: SessionAgentPayload<DeleteCronTaskPayload>) {
+    return this.sessionApi(sessionId).deleteCronTask(payload);
   }
 
   getModel({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {

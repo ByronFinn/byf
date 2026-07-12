@@ -513,6 +513,8 @@ export class Agent {
       },
       // Subagents never schedule; report empty so host polls stay uniform.
       getCronTasks: () => ({ tasks: this.cron?.listTaskSnapshots() ?? [] }),
+      // Host privilege delete (PRD-0024 / ADR-0030) — not tool permission.
+      deleteCronTask: (payload) => this.cron?.deleteCronTask(payload.id) ?? { deleted: false },
       setModel: async (payload) => {
         const previous = this.config.modelAlias;
         const resolved = await this.providerManager?.resolveProviderForModel(payload.model);

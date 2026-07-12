@@ -85,7 +85,7 @@ describe('CronManager', () => {
     await manager.stop();
   });
 
-  it('addTask + listTaskSnapshots expose nextFireAt', () => {
+  it('addTask + listTaskSnapshots expose nextFireAt, prompt, humanSchedule', () => {
     const { agent } = createAgentStub();
     const { clocks } = createClocks();
     const manager = new CronManager(agent, { clocks, pollIntervalMs: null });
@@ -100,6 +100,44 @@ describe('CronManager', () => {
     expect(snaps[0].id).toBe(task.id);
     expect(snaps[0].recurring).toBe(true);
     expect(snaps[0].nextFireAt).not.toBeNull();
+    expect(snaps[0].prompt).toBe('morning check');
+    expect(snaps[0].humanSchedule.length).toBeGreaterThan(0);
+    expect(snaps[0].humanSchedule).not.toBe('');
+  });
+
+  it('listTaskSnapshots falls back to raw cron for malformed expressions', () => {
+    const { agent } = createAgentStub();
+    const { clocks } = createClocks();
+    const manager = new CronManager(agent, { clocks, pollIntervalMs: null });
+    // Direct store inject — bypasses CronCreate validation.
+    manager.store.adopt({
+      id: 'deadbeef',
+      cron: 'not a valid cron',
+      prompt: 'x',
+      createdAt: WALL_ANCHOR,
+      recurring: true,
+    });
+    const snaps = manager.listTaskSnapshots();
+    expect(snaps).toHaveLength(1);
+    expect(snaps[0].humanSchedule).toBe('not a valid cron');
+    expect(snaps[0].prompt).toBe('x');
+  });
+
+  it('deleteCronTask removes task and emits telemetry; missing/invalid id is false', () => {
+    const stub = createAgentStub();
+    const { clocks } = createClocks();
+    const manager = new CronManager(stub.agent, { clocks, pollIntervalMs: null });
+    const task = manager.addTask({
+      cron: '0 9 * * *',
+      prompt: 'bye',
+      recurring: false,
+    });
+    expect(manager.deleteCronTask(task.id)).toEqual({ deleted: true });
+    expect(manager.listTaskSnapshots()).toHaveLength(0);
+    expect(stub.agent.telemetry.track).toHaveBeenCalled();
+    expect(manager.deleteCronTask(task.id)).toEqual({ deleted: false });
+    expect(manager.deleteCronTask('not-hex!!')).toEqual({ deleted: false });
+    expect(manager.deleteCronTask('ABCDEF01')).toEqual({ deleted: false }); // uppercase
   });
 
   it('fires when idle and steers with cron_job origin', () => {

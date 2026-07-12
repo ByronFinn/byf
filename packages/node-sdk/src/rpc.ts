@@ -342,6 +342,15 @@ export class SDKRpcClient {
     return rpc.getCronTasks({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
   }
 
+  async deleteCronTask(input: SessionIdRpcInput & { id: string }): Promise<{ deleted: boolean }> {
+    const rpc = await this.getRpc();
+    return rpc.deleteCronTask({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      id: input.id,
+    });
+  }
+
   async compact(input: SessionIdRpcInput & CompactOptions): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.beginCompaction({

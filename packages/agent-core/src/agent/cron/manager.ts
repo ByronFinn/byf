@@ -39,6 +39,7 @@
 import type { ContentPart } from '@byfriends/kosong';
 
 import { resolveClockSources, SYSTEM_CLOCKS, type ClockSources } from '../../tools/cron/clock';
+import { cronToHuman, parseCronExpression } from '../../tools/cron/cron-expr';
 import { renderCronFireXml } from '../../tools/cron/cron-fire-xml';
 import { createCronPersistStore } from '../../tools/cron/persist';
 import { createCronScheduler, type CronScheduler } from '../../tools/cron/scheduler';
@@ -76,6 +77,13 @@ const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 export interface CronTaskSnapshot {
   readonly id: string;
   readonly cron: string;
+  /**
+   * Human-readable schedule derived from {@link cron}. Falls back to the
+   * raw expression when parsing fails (malformed store injects / tests).
+   */
+  readonly humanSchedule: string;
+  /** Full prompt string; hosts (e.g. `/cron` list) may truncate for display. */
+  readonly prompt: string;
   readonly recurring: boolean;
   readonly createdAt: number;
   readonly lastFiredAt: number | undefined;
@@ -365,14 +373,41 @@ export class CronManager {
    * structured data for host applications polling for pending work.
    */
   listTaskSnapshots(): readonly CronTaskSnapshot[] {
-    return this.store.list().map((task) => ({
-      id: task.id,
-      cron: task.cron,
-      recurring: task.recurring !== false,
-      createdAt: task.createdAt,
-      lastFiredAt: task.lastFiredAt,
-      nextFireAt: this.scheduler.getNextFireForTask(task.id),
-    }));
+    return this.store.list().map((task) => {
+      let humanSchedule = task.cron;
+      try {
+        humanSchedule = cronToHuman(parseCronExpression(task.cron));
+      } catch {
+        // Malformed expression — keep raw cron (defends direct store injects).
+      }
+      return {
+        id: task.id,
+        cron: task.cron,
+        humanSchedule,
+        prompt: task.prompt,
+        recurring: task.recurring !== false,
+        createdAt: task.createdAt,
+        lastFiredAt: task.lastFiredAt,
+        nextFireAt: this.scheduler.getNextFireForTask(task.id),
+      };
+    });
+  }
+
+  /**
+   * Host-path delete (PRD-0024 / ADR-0030). Not a tool — no permission ask.
+   * Returns whether a task was actually removed. Invalid ids are treated as
+   * not found (`deleted: false`) so hosts can present a uniform error.
+   */
+  deleteCronTask(id: string): { deleted: boolean } {
+    if (!/^[0-9a-f]{8}$/.test(id)) {
+      return { deleted: false };
+    }
+    const removed = this.removeTasks([id]);
+    if (removed.length === 0) {
+      return { deleted: false };
+    }
+    this.emitDeleted(id);
+    return { deleted: true };
   }
 
   /**

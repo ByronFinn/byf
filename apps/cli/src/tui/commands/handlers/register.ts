@@ -6,6 +6,7 @@ import type { BuiltinSlashCommandName } from '../registry';
 import { createAddDirHandlers } from './add-dir';
 import { createAuthHandlers } from './auth';
 import { createConfigHandlers } from './config';
+import { createCronHandlers } from './cron';
 import { createDialogHandlers } from './dialog';
 import { createEditorHandlers } from './editor';
 import { createGoalHandlers } from './goal';
@@ -28,6 +29,7 @@ export function registerBuiltinSlashHandlers(
     ...createEditorHandlers(host),
     ...createAuthHandlers(host),
     ...createGoalHandlers(host),
+    ...createCronHandlers(host),
     ...createConfigHandlers(host),
     ...createAddDirHandlers(host),
   } satisfies Record<BuiltinSlashCommandName, SlashCommandHandler>;

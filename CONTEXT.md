@@ -274,6 +274,12 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 
 绑定**当前会话**的本地定时任务：标准 5 段 cron（本地时区）、one-shot 或 recurring、idle 时 `steer` 注入 prompt、persist 在 session 目录、同 session resume 恢复。不是系统 crontab，也不按工作目录跨 session 共享。Recurring 有 7 日 stale 自动删除等契约（见 PRD-0023）。触发时 TUI 以 notice 展示。
 
+**双路径管理**（PRD-0024 / ADR-0030）：模型经工具 `CronCreate` / `CronList` / `CronDelete`（默认 permission `ask`）；用户经 slash **`/cron`**（list / delete）与 host RPC 直达调度表——用户删除**不**走工具 permission。创建仍以模型工具为主（slash 不做 create）。
+
+### `/cron`（会话 Cron slash）
+
+用户查看与撤销**当前会话**内 Cron 任务的斜杠命令：`/cron` / `/cron list` 列出任务；`/cron delete <id>` 删除。别名 `/schedule`。与 **`/tasks`**（BPM 后台进程）和 **`/goal`**（自主续跑目标）三分，不可混用。见 PRD-0024。
+
 ### Additional dir（额外工作目录）
 
 主 `workspaceDir` 之外、工具路径策略允许访问的额外根目录列表（`WorkspaceConfig.additionalDirs`）。可通过 `/add-dir`、`--add-dir` 在会话中追加；可选「记住到项目」写入项目根 `.byf/local.toml` 的 `workspace.additional_dir`。
