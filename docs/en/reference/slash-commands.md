@@ -32,6 +32,19 @@ Some commands are only available in the idle state. Running them while the sessi
 | `/title [<text>]`          | `/rename` | Without arguments, show the current session title; with an argument, set it as the new title (up to 200 characters).                                        | Yes              |
 | `/compact [<instruction>]` | —         | Compact the current conversation context to free up token usage; optionally pass a custom instruction telling the model what to preserve during compaction. | No               |
 | `/init`                    | —         | Analyze the current codebase and generate `AGENTS.md`.                                                                                                      | No               |
+| `/add-dir [path\|list]`    | —         | Add an extra workspace root, or list current roots. See [Workspace roots](#workspace-roots).                                                                | No               |
+
+### Workspace roots
+
+| Command                 | Alias | Description                                                                                                                                                                                                                                                                 | Always available |
+| ----------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/add-dir`              | —     | Same as `/add-dir list` — print the main workspace directory and every additional root.                                                                                                                                                                                     | No               |
+| `/add-dir list`         | —     | List the current workspace root and additional allowed directories.                                                                                                                                                                                                        | No               |
+| `/add-dir <path>`       | —     | Propose adding `<path>` as an extra workspace root. A picker offers: this session only; remember for the project (writes `.byf/local.toml` → `workspace.additional_dir`); or cancel. Paths must exist and be directories; Read/Grep/Glob/Write/Edit apply immediately after. | No               |
+
+::: tip Project memory
+Choosing **remember** appends the path to the project root’s `.byf/local.toml` under `workspace.additional_dir` (string array). Later sessions started in that project load those dirs automatically. The file is separate from `~/.byf/config.toml`; teams often add `.byf/local.toml` to `.gitignore` when paths are machine-local. You can also pass `--add-dir` on the CLI at startup (repeatable).
+:::
 
 ## Autonomous goal mode
 

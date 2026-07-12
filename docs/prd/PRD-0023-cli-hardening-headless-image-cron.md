@@ -1,8 +1,8 @@
 # CLI 硬化：Headless drain · 图片 413 · Cron · Compaction 摘要 · /add-dir
 
-> **Status**: In Progress | **PRD**: PRD-0023 | **Created**: 2026-07-12 | **Last updated**: 2026-07-12
+> **Status**: Done | **PRD**: PRD-0023 | **Created**: 2026-07-12 | **Last updated**: 2026-07-12
 >
-> **计划已批准**（2026-07-12）。**Grill 完成**（2026-07-12）。**深度 Review 完成**（2026-07-12）。**Sliced 完成**（2026-07-12）。父 Issue #234。
+> **计划已批准**（2026-07-12）。**Grill 完成**（2026-07-12）。**深度 Review 完成**（2026-07-12）。**Sliced 完成**（2026-07-12）。**Implemented / AC verified / pushed**（2026-07-12）。父 Issue #234（已关闭）。
 
 ## Goal
 
@@ -114,45 +114,45 @@
 
 ### Headless
 
-* [ ] AC-H1：主 turn 启动长时间后台子代理时，`byf -p` 在后台未完成前不退出；后台任务完成后进程可退出（不强制模型自动综合子代理结果——未移植 turn 层 drain）；超过 `printWaitCeilingS`（默认 3600）以非 0 退出（有测）。
-* [ ] AC-H2：goal `active` 期间 process 不因单次 `turn.ended` 退出；goal complete/blocked/cancelled 后进程可结束。
-* [ ] AC-H3：`byf -p "/goal <obj>"` 能创建并跑完 goal；complete/blocked/paused 分别 exit 0/3/6；malformed create 在发模型前非 0 失败。
-* [ ] AC-H4：无 goal、无 cron pending、无后台任务时，正常退出且不挂死（stdio drain + force-exit 单测或 e2e）。
-* [ ] AC-H5（依赖 R3）：存在未来 `nextFireAt` 的 cron 时 headless **无限保持**；仅「无未来 fire」的任务不保持；docs 含周期性 cron + `-p` 警告。
+* [x] AC-H1：主 turn 启动长时间后台子代理时，`byf -p` 在后台未完成前不退出；后台任务完成后进程可退出（不强制模型自动综合子代理结果——未移植 turn 层 drain）；超过 `printWaitCeilingS`（默认 3600）以非 0 退出（有测）。
+* [x] AC-H2：goal `active` 期间 process 不因单次 `turn.ended` 退出；goal complete/blocked/cancelled 后进程可结束。
+* [x] AC-H3：`byf -p "/goal <obj>"` 能创建并跑完 goal；complete/blocked/paused 分别 exit 0/3/6；malformed create 在发模型前非 0 失败。
+* [x] AC-H4：无 goal、无 cron pending、无后台任务时，正常退出且不挂死（stdio drain + force-exit 单测或 e2e）。
+* [x] AC-H5（依赖 R3）：存在未来 `nextFireAt` 的 cron 时 headless **无限保持**；仅「无未来 fire」的任务不保持；docs 含周期性 cron + `-p` 警告。
 
 ### 图片
 
-* [ ] AC-I1：模拟/注入 request-too-large 时，turn-step 发起一次 media-degraded 重发并记录日志字段；第二次失败上抛。
-* [ ] AC-I2：毒图/不支持格式导致的 provider 拒绝触发 media-stripped 重发一次。
-* [ ] AC-I3：413 与 context-overflow 分类单测覆盖（含易混淆文案/状态码）。
-* [ ] AC-I4：粘贴图与 ReadMedia 使用同一 ImageLimits（改 config/env 两边同时生效的测或接线断言）。
-* [ ] AC-I5：compaction 路径在 413/毒图场景可降级重试，不永久卡在 compacting。
+* [x] AC-I1：模拟/注入 request-too-large 时，turn-step 发起一次 media-degraded 重发并记录日志字段；第二次失败上抛。
+* [x] AC-I2：毒图/不支持格式导致的 provider 拒绝触发 media-stripped 重发一次。
+* [x] AC-I3：413 与 context-overflow 分类单测覆盖（含易混淆文案/状态码）。
+* [x] AC-I4：粘贴图与 ReadMedia 使用同一 ImageLimits（改 config/env 两边同时生效的测或接线断言）。
+* [x] AC-I5：compaction 路径在 413/毒图场景可降级重试，不永久卡在 compacting。
 
 ### Cron
 
-* [ ] AC-C1：模型可通过工具创建/列表/删除任务；同 session resume 后恢复；新 session 不携带旧任务。
-* [ ] AC-C2：到点触发后同一会话 idle 时注入 turn；TUI 可见 notice；busy 时延后交付。
-* [ ] AC-C3：与 AC-H5 联调通过。
-* [ ] AC-C4：权限拒绝路径有测。
-* [ ] AC-C5：recurring 7 日 stale 最终 fire 后删除；one-shot 触发后删除；coalesce 单测。
+* [x] AC-C1：模型可通过工具创建/列表/删除任务；同 session resume 后恢复；新 session 不携带旧任务。
+* [x] AC-C2：到点触发后同一会话 idle 时注入 turn；TUI 可见 notice；busy 时延后交付。
+* [x] AC-C3：与 AC-H5 联调通过。
+* [x] AC-C4：权限拒绝路径有测。
+* [x] AC-C5：recurring 7 日 stale 最终 fire 后删除；one-shot 触发后删除；coalesce 单测。
 
 ### Compaction 摘要
 
-* [ ] AC-S1：完成后默认折叠摘要，Ctrl-O（共享快捷键）可展开/收起。
-* [ ] AC-S2：无 summary 时 UI 不展示「show summary」误导文案。
-* [ ] AC-S3：Help 含快捷键说明。
+* [x] AC-S1：完成后默认折叠摘要，Ctrl-O（共享快捷键）可展开/收起。
+* [x] AC-S2：无 summary 时 UI 不展示「show summary」误导文案。
+* [x] AC-S3：Help 含快捷键说明。
 
 ### /add-dir
 
-* [ ] AC-D1：`/add-dir /path` 后对该 path 的 Read/Grep 成功（在权限允许下）。
-* [ ] AC-D2：`--add-dir` 启动注入；可多次指定。
-* [ ] AC-D3：`list` 输出当前 workspace + additional。
-* [ ] AC-D4：选择记住后写入 `.byf/local.toml` 的 `workspace.additional_dir`；同项目新会话自动加载。
+* [x] AC-D1：`/add-dir /path` 后对该 path 的 Read/Grep 成功（在权限允许下）。
+* [x] AC-D2：`--add-dir` 启动注入；可多次指定。
+* [x] AC-D3：`list` 输出当前 workspace + additional。
+* [x] AC-D4：选择记住后写入 `.byf/local.toml` 的 `workspace.additional_dir`；同项目新会话自动加载。
 
 ### 质量门禁
 
-* [ ] AC-Q1：相关包 typecheck / 测试绿；不破坏现有 print 与交互会话回归。
-* [ ] AC-Q2：用户可见行为变更写入 changelog / 中英文 docs（commands、config、env）。
+* [x] AC-Q1：相关包 typecheck / 测试绿；不破坏现有 print 与交互会话回归。
+* [x] AC-Q2：用户可见行为变更写入 changelog / 中英文 docs（commands、config、env）。
 
 ## Definition of Done
 
