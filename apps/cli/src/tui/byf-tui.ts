@@ -10,7 +10,7 @@
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
-import { isAbortError, log } from '@byfriends/sdk';
+import { compressImageForModel, ImageLimits, isAbortError, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
   CreateSessionOptions,
@@ -1323,7 +1323,31 @@ export class ByfTui implements DialogHost {
 
     const meta = parseImageMeta(media.bytes);
     if (meta === null) return false;
-    const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
+
+    // Compress pasted images through the same pipeline as ReadMediaFile so
+    // a full-resolution screenshot does not blow the request body. Uses the
+    // session's ImageLimits (env > config > default) — the same budget the
+    // tool uses, so changing config/env affects both entry points together.
+    const config = await this.harness.getConfig();
+    const imageLimits = new ImageLimits(process.env, config.image);
+    let effectiveBytes = media.bytes;
+    let effectiveMime: string = meta.mime;
+    const compressResult = await compressImageForModel({
+      data: Buffer.from(media.bytes),
+      mimeType: meta.mime,
+      maxEdgePx: imageLimits.maxEdgePx(),
+    });
+    if (compressResult.outcome.kind !== 'error') {
+      effectiveBytes = compressResult.data;
+      effectiveMime = compressResult.mimeType;
+    }
+
+    const attachment = this.imageStore.addImage(
+      effectiveBytes,
+      effectiveMime,
+      meta.width,
+      meta.height,
+    );
     this.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
     this.state.ui.requestRender();
     this.track('shortcut_paste', { kind: 'image' });

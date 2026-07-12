@@ -64,6 +64,9 @@ export type { CompactionBeginData, CompactionResult } from './agent/compaction';
 export type { PermissionApprovalResultRecord, PermissionMode } from './agent/permission';
 export type { UsageRecordScope } from './agent/usage';
 export type { ToolStoreUpdate } from './tools/store';
+export { compressImageForModel } from './tools/support/image-compress';
+export { ImageLimits } from './tools/support/image-limits';
+export type { ImageConfig } from './config/schema';
 export type {
   LoopRecordedEvent,
   LoopStepBeginEvent,

@@ -372,6 +372,7 @@ export class ToolManager implements RecordRestoreHandler {
             modelCapabilities,
             videoUploader,
             this.agent.backgroundSessionDir,
+            this.agent.imageLimits,
           ),
         new b.AskUserQuestionTool(this.agent),
         new b.TodoListTool(this.toolStore),

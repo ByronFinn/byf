@@ -35,6 +35,7 @@ import {
   type SkillSummary,
 } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import { ImageLimits } from '../tools/support/image-limits';
 import { SessionSubagentHost } from './subagent-host';
 
 export interface SessionConfig {
@@ -94,6 +95,7 @@ export class Session {
   readonly skills: SkillRegistry;
   readonly agents: Map<string, Agent> = new Map();
   readonly mcp: McpConnectionManager;
+  readonly imageLimits: ImageLimits;
   readonly log: Logger;
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
@@ -124,6 +126,7 @@ export class Session {
       this.logHandle?.logger ??
       (config.id === undefined ? log : log.createChild({ sessionId: config.id }));
     this.rpc = config.rpc;
+    this.imageLimits = new ImageLimits(process.env, config.providerManager?.config.image);
     this.hookEngine = new HookEngine(
       config.hooks ?? [],
       {
@@ -453,6 +456,7 @@ export class Session {
       mcp: this.mcp,
       backgroundMaxRunningTasks: this.config.background?.maxRunningTasks,
       backgroundSessionDir: homedir,
+      imageLimits: this.imageLimits,
       permission: this.permissionOptions(parentAgentId, config.permission),
       telemetry: this.telemetry,
       log: this.log.createChild({ agentId: id }),

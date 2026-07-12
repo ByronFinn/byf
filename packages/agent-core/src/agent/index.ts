@@ -31,6 +31,7 @@ import type { RuntimeConfig } from '../runtime-types';
 import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import { ImageLimits } from '../tools/support/image-limits';
 import { linkAbortSignal } from '../utils/abort';
 import {
   estimateInputBreakdown,
@@ -122,6 +123,7 @@ export interface AgentConfig {
   readonly hookEngine?: HookEngine;
   readonly backgroundMaxRunningTasks?: number;
   readonly backgroundSessionDir?: string;
+  readonly imageLimits?: ImageLimits;
   readonly permission?: PermissionManagerOptions;
   /** Parent logger; the agent appends its own ctx (agentId already bound by session). */
   readonly log?: Logger;
@@ -137,6 +139,7 @@ export class Agent {
    * `undefined` when persistence is off — callers fall back to os.tmpdir().
    */
   readonly backgroundSessionDir?: string;
+  readonly imageLimits: ImageLimits;
   readonly skills?: SkillManager;
   readonly rawGenerate: typeof generate;
   readonly rpc: SDKAgentRPC;
@@ -171,6 +174,7 @@ export class Agent {
     this.runtime = config.runtime;
     this.homedir = config.homedir;
     this.backgroundSessionDir = config.backgroundSessionDir;
+    this.imageLimits = config.imageLimits ?? new ImageLimits();
     if (config.skills !== undefined) {
       this.skills = new SkillManager(this, config.skills);
     }

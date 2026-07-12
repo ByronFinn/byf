@@ -35,6 +35,49 @@ export const MAX_DECODE_PIXELS = 100_000_000;
 /** Guard against decompression bombs: refuse to even attempt decode above this many bytes. */
 export const MAX_DECODE_BYTES = 64 * 1024 * 1024;
 
+/**
+ * Byte budget for the ReadMediaFile entry point — the raw file size above
+ * which reading is refused before any decode/compress attempt. Kept smaller
+ * than {@link IMAGE_BYTE_BUDGET} (the post-compress target) so a single
+ * huge file does not consume memory.
+ */
+export const READ_IMAGE_BYTE_BUDGET = 100 * 1024 * 1024;
+
+/**
+ * Parse a positive integer from an environment variable. Returns `undefined`
+ * when the variable is absent, empty, or not a positive integer — the caller
+ * falls back to config or built-in defaults.
+ */
+export function positiveIntFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+  name: string,
+): number | undefined {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) return undefined;
+  return n;
+}
+
+/**
+ * Read the max image edge override from `BYF_IMAGE_MAX_EDGE_PX`.
+ * Operator-level (process-wide); per-owner config is layered underneath.
+ */
+export function maxImageEdgeFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): number | undefined {
+  return positiveIntFromEnv(env, 'BYF_IMAGE_MAX_EDGE_PX');
+}
+
+/**
+ * Read the read-entry byte budget override from `BYF_IMAGE_READ_BYTE_BUDGET`.
+ */
+export function readImageByteBudgetFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): number | undefined {
+  return positiveIntFromEnv(env, 'BYF_IMAGE_READ_BYTE_BUDGET');
+}
+
 /** JPEG quality ladder — walked high to low, first fit under budget wins. */
 const JPEG_QUALITY_LADDER: readonly number[] = [80, 60, 40, 20];
 

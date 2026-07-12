@@ -38,6 +38,7 @@ import {
 import type { CompressOutcome } from '../../support/image-compress';
 import { compressImageForModel } from '../../support/image-compress';
 import { gateImageFormat } from '../../support/image-format-policy';
+import type { ImageLimits } from '../../support/image-limits';
 import { persistOriginalImage } from '../../support/image-originals';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -168,6 +169,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     private readonly capabilities: ModelCapability,
     private readonly videoUploader?: VideoUploader,
     private readonly sessionDir?: string,
+    private readonly imageLimits?: ImageLimits,
   ) {
     if (!capabilities.image_in && !capabilities.video_in) {
       const skip = new Error('ReadMediaFile requires image_in or video_in capability');
@@ -259,7 +261,8 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       if (stat.stSize === 0) {
         return { isError: true, output: `"${args.path}" is empty.` };
       }
-      if (stat.stSize > MAX_MEDIA_BYTES) {
+      const readByteBudget = this.imageLimits?.readByteBudget() ?? MAX_MEDIA_BYTES;
+      if (stat.stSize > readByteBudget) {
         return {
           isError: true,
           output:
@@ -287,6 +290,7 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
         const compressResult = await compressImageForModel({
           data,
           mimeType: imageMime,
+          ...(this.imageLimits !== undefined ? { maxEdgePx: this.imageLimits.maxEdgePx() } : {}),
         });
         // Fail closed: a decode/bomb error means the image could not be made
         // safe for the model. Refuse rather than forwarding the raw (possibly

@@ -19,10 +19,15 @@ import { sniffImageDimensions } from '../../src/tools/support/file-type';
 import {
   compressImageForModel,
   IMAGE_BYTE_BUDGET,
+  maxImageEdgeFromEnv,
   MAX_DECODE_BYTES,
   MAX_DECODE_PIXELS,
   MAX_IMAGE_EDGE_PX,
+  positiveIntFromEnv,
+  readImageByteBudgetFromEnv,
+  READ_IMAGE_BYTE_BUDGET,
 } from '../../src/tools/support/image-compress';
+import { ImageLimits } from '../../src/tools/support/image-limits';
 import { persistOriginalImage } from '../../src/tools/support/image-originals';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -242,5 +247,82 @@ describe('persistOriginalImage', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('positiveIntFromEnv / maxImageEdgeFromEnv / readImageByteBudgetFromEnv', () => {
+  it('parses a positive integer from env', () => {
+    expect(positiveIntFromEnv({ BYF_IMAGE_MAX_EDGE_PX: '1500' }, 'BYF_IMAGE_MAX_EDGE_PX')).toBe(
+      1500,
+    );
+  });
+
+  it('returns undefined for absent env', () => {
+    expect(positiveIntFromEnv({}, 'BYF_IMAGE_MAX_EDGE_PX')).toBeUndefined();
+  });
+
+  it('returns undefined for non-integer', () => {
+    expect(
+      positiveIntFromEnv({ BYF_IMAGE_MAX_EDGE_PX: 'abc' }, 'BYF_IMAGE_MAX_EDGE_PX'),
+    ).toBeUndefined();
+    expect(
+      positiveIntFromEnv({ BYF_IMAGE_MAX_EDGE_PX: '1.5' }, 'BYF_IMAGE_MAX_EDGE_PX'),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for non-positive', () => {
+    expect(
+      positiveIntFromEnv({ BYF_IMAGE_MAX_EDGE_PX: '0' }, 'BYF_IMAGE_MAX_EDGE_PX'),
+    ).toBeUndefined();
+    expect(
+      positiveIntFromEnv({ BYF_IMAGE_MAX_EDGE_PX: '-5' }, 'BYF_IMAGE_MAX_EDGE_PX'),
+    ).toBeUndefined();
+  });
+
+  it('maxImageEdgeFromEnv reads BYF_IMAGE_MAX_EDGE_PX', () => {
+    expect(maxImageEdgeFromEnv({ BYF_IMAGE_MAX_EDGE_PX: '3000' })).toBe(3000);
+    expect(maxImageEdgeFromEnv({})).toBeUndefined();
+  });
+
+  it('readImageByteBudgetFromEnv reads BYF_IMAGE_READ_BYTE_BUDGET', () => {
+    expect(readImageByteBudgetFromEnv({ BYF_IMAGE_READ_BYTE_BUDGET: '50000000' })).toBe(50_000_000);
+    expect(readImageByteBudgetFromEnv({})).toBeUndefined();
+  });
+});
+
+describe('ImageLimits', () => {
+  it('falls back to built-in defaults when no env or config', () => {
+    const limits = new ImageLimits({});
+    expect(limits.maxEdgePx()).toBe(MAX_IMAGE_EDGE_PX);
+    expect(limits.readByteBudget()).toBe(READ_IMAGE_BYTE_BUDGET);
+  });
+
+  it('env overrides config and default', () => {
+    const limits = new ImageLimits(
+      { BYF_IMAGE_MAX_EDGE_PX: '999', BYF_IMAGE_READ_BYTE_BUDGET: '1000' },
+      { maxEdgePx: 500, readByteBudget: 2000 },
+    );
+    expect(limits.maxEdgePx()).toBe(999);
+    expect(limits.readByteBudget()).toBe(1000);
+  });
+
+  it('config overrides default when env absent', () => {
+    const limits = new ImageLimits({}, { maxEdgePx: 1500, readByteBudget: 5_000_000 });
+    expect(limits.maxEdgePx()).toBe(1500);
+    expect(limits.readByteBudget()).toBe(5_000_000);
+  });
+
+  it('setConfig pushes new config on reload', () => {
+    const limits = new ImageLimits({});
+    expect(limits.maxEdgePx()).toBe(MAX_IMAGE_EDGE_PX);
+    limits.setConfig({ maxEdgePx: 800 });
+    expect(limits.maxEdgePx()).toBe(800);
+  });
+
+  it('two instances do not share config state', () => {
+    const a = new ImageLimits({});
+    const b = new ImageLimits({});
+    a.setConfig({ maxEdgePx: 400 });
+    expect(b.maxEdgePx()).toBe(MAX_IMAGE_EDGE_PX);
   });
 });
