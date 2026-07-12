@@ -231,6 +231,80 @@ describe('Session.waitForBackgroundTasksOnPrint', () => {
     await proc.kill();
     await session.close();
   });
+
+  it('uses env BYF_PRINT_WAIT_CEILING_S when background config omits printWaitCeilingS', async () => {
+    // Default path: no printWaitCeilingS in SessionConfig.background — must not
+    // hang on NaN deadline (old bug: parseInt('') ?? 3600). Env short-ceiling
+    // proves the real shipped resolvePrintWaitCeilingS path fires.
+    const prev = process.env['BYF_PRINT_WAIT_CEILING_S'];
+    process.env['BYF_PRINT_WAIT_CEILING_S'] = '1';
+    try {
+      const { sessionDir, workDir } = await hookFixture();
+      const session = new Session({
+        runtime: { kaos: localKaos, osEnv: OS_ENV },
+        id: 'session-print-drain-env-default',
+        homedir: sessionDir,
+        cwd: workDir,
+        rpc: createSessionRpc(),
+        skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+        // intentionally no background.printWaitCeilingS
+      });
+      const agent = await session.createMain();
+      const { proc, killSpy } = pendingProcess();
+      agent.background.register(proc, 'sleep 60', 'env ceiling test');
+
+      const start = Date.now();
+      await session.waitForBackgroundTasksOnPrint();
+      const elapsed = Date.now() - start;
+
+      // ~1s ceiling (not 3600s hang, not immediate NaN-deadline skip)
+      expect(elapsed).toBeGreaterThanOrEqual(800);
+      expect(elapsed).toBeLessThan(5000);
+      expect(killSpy).not.toHaveBeenCalled();
+      await proc.kill();
+      await session.close();
+    } finally {
+      if (prev === undefined) {
+        delete process.env['BYF_PRINT_WAIT_CEILING_S'];
+      } else {
+        process.env['BYF_PRINT_WAIT_CEILING_S'] = prev;
+      }
+    }
+  });
+
+  it('env overrides config printWaitCeilingS on the real wait path', async () => {
+    const prev = process.env['BYF_PRINT_WAIT_CEILING_S'];
+    process.env['BYF_PRINT_WAIT_CEILING_S'] = '1';
+    try {
+      const { sessionDir, workDir } = await hookFixture();
+      const session = new Session({
+        runtime: { kaos: localKaos, osEnv: OS_ENV },
+        id: 'session-print-drain-env-over-config',
+        homedir: sessionDir,
+        cwd: workDir,
+        rpc: createSessionRpc(),
+        skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+        // Config would wait ~60s if env did not win.
+        background: { printWaitCeilingS: 60 },
+      });
+      const agent = await session.createMain();
+      const { proc } = pendingProcess();
+      agent.background.register(proc, 'sleep 60', 'env beats config');
+
+      const start = Date.now();
+      await session.waitForBackgroundTasksOnPrint();
+      expect(Date.now() - start).toBeLessThan(5000);
+
+      await proc.kill();
+      await session.close();
+    } finally {
+      if (prev === undefined) {
+        delete process.env['BYF_PRINT_WAIT_CEILING_S'];
+      } else {
+        process.env['BYF_PRINT_WAIT_CEILING_S'] = prev;
+      }
+    }
+  });
 });
 
 async function hookFixture(): Promise<{

@@ -11,10 +11,13 @@ import {
   McpServerConfigSchema,
   mergeConfigPatch,
   parseConfigString,
+  DEFAULT_PRINT_WAIT_CEILING_S,
   parseBooleanEnv,
+  parsePositiveIntEnv,
   readConfigFile,
   resolveConfigPath,
   resolveConfigValue,
+  resolvePrintWaitCeilingS,
   resolveByfHome,
   validateConfig,
   writeConfigFile,
@@ -764,6 +767,62 @@ describe('config value env override helpers', () => {
         parseEnv: parseBooleanEnv,
       }),
     ).toBe(false);
+  });
+});
+
+describe('resolvePrintWaitCeilingS', () => {
+  it('defaults to 3600 when env and config are unset', () => {
+    expect(resolvePrintWaitCeilingS({ env: {} })).toBe(DEFAULT_PRINT_WAIT_CEILING_S);
+    expect(resolvePrintWaitCeilingS({})).toBe(3600);
+  });
+
+  it('never returns NaN for empty or invalid env (the broken ?? parseInt path)', () => {
+    // parseInt('') is NaN; old session code used NaN ?? 3600 which stayed NaN.
+    expect(parsePositiveIntEnv('')).toBeUndefined();
+    expect(parsePositiveIntEnv('  ')).toBeUndefined();
+    expect(parsePositiveIntEnv('not-a-number')).toBeUndefined();
+    expect(parsePositiveIntEnv('0')).toBeUndefined();
+    expect(parsePositiveIntEnv('-5')).toBeUndefined();
+    expect(resolvePrintWaitCeilingS({ env: { BYF_PRINT_WAIT_CEILING_S: '' } })).toBe(3600);
+    expect(resolvePrintWaitCeilingS({ env: { BYF_PRINT_WAIT_CEILING_S: 'abc' } })).toBe(3600);
+    expect(
+      resolvePrintWaitCeilingS({
+        env: { BYF_PRINT_WAIT_CEILING_S: '' },
+        configValue: Number.NaN,
+      }),
+    ).toBe(3600);
+  });
+
+  it('uses config when env is unset', () => {
+    expect(resolvePrintWaitCeilingS({ env: {}, configValue: 120 })).toBe(120);
+  });
+
+  it('env overrides config (docs: BYF_PRINT_WAIT_CEILING_S wins over config.toml)', () => {
+    expect(
+      resolvePrintWaitCeilingS({
+        env: { BYF_PRINT_WAIT_CEILING_S: '45' },
+        configValue: 999,
+      }),
+    ).toBe(45);
+  });
+
+  it('invalid env falls through to config then default', () => {
+    expect(
+      resolvePrintWaitCeilingS({
+        env: { BYF_PRINT_WAIT_CEILING_S: 'nope' },
+        configValue: 90,
+      }),
+    ).toBe(90);
+    expect(
+      resolvePrintWaitCeilingS({
+        env: { BYF_PRINT_WAIT_CEILING_S: 'nope' },
+      }),
+    ).toBe(3600);
+  });
+
+  it('rejects non-positive config values', () => {
+    expect(resolvePrintWaitCeilingS({ env: {}, configValue: 0 })).toBe(3600);
+    expect(resolvePrintWaitCeilingS({ env: {}, configValue: -1 })).toBe(3600);
   });
 });
 

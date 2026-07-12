@@ -10,7 +10,12 @@ import { proxyWithExtraPayload } from '#/rpc/types';
 import { Agent, type AgentConfig, type AgentType } from '../agent';
 import { HookEngine, createKaosHookExec, type HookDef } from '../agent/hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
-import { parseBooleanEnv, resolveConfigValue, type BackgroundConfig } from '../config';
+import {
+  parseBooleanEnv,
+  resolveConfigValue,
+  resolvePrintWaitCeilingS,
+  type BackgroundConfig,
+} from '../config';
 import { makeErrorPayload } from '../errors';
 import {
   McpConnectionManager,
@@ -260,10 +265,11 @@ export class Session {
    * active task remains or the deadline expires.
    */
   async waitForBackgroundTasksOnPrint(): Promise<void> {
-    const ceilingS =
-      this.config.background?.printWaitCeilingS ??
-      Number.parseInt(process.env['BYF_PRINT_WAIT_CEILING_S'] ?? '', 10) ??
-      3600;
+    // env → config → 3600 (never NaN). See resolvePrintWaitCeilingS / ADR-0029.
+    const ceilingS = resolvePrintWaitCeilingS({
+      env: process.env,
+      configValue: this.config.background?.printWaitCeilingS,
+    });
     const deadline = Date.now() + ceilingS * 1000;
     // Track tasks we've already launched a wait for, so we don't re-await
     // the same id on every pass (its wait promise is already in flight).
