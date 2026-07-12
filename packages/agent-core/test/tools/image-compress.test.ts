@@ -325,4 +325,22 @@ describe('ImageLimits', () => {
     a.setConfig({ maxEdgePx: 400 });
     expect(b.maxEdgePx()).toBe(MAX_IMAGE_EDGE_PX);
   });
+
+  it('paste-style construction and session-style construction share env resolution (AC-I4)', () => {
+    // CLI paste: `new ImageLimits(process.env, config.image)` per attachment.
+    // Session / ReadMedia: one ImageLimits injected into tools from the same env+config.
+    const env = { BYF_IMAGE_MAX_EDGE_PX: '800', BYF_IMAGE_READ_BYTE_BUDGET: '1234567' };
+    const config = { maxEdgePx: 2000, readByteBudget: 9_000_000 };
+    const pasteLimits = new ImageLimits(env, config);
+    const sessionLimits = new ImageLimits(env, config);
+    expect(pasteLimits.maxEdgePx()).toBe(800);
+    expect(sessionLimits.maxEdgePx()).toBe(800);
+    expect(pasteLimits.readByteBudget()).toBe(1_234_567);
+    expect(sessionLimits.readByteBudget()).toBe(1_234_567);
+    // Mid-session setConfig on session instance does not require paste to share
+    // object identity — both still honour env above config when env is set.
+    sessionLimits.setConfig({ maxEdgePx: 100 });
+    expect(sessionLimits.maxEdgePx()).toBe(800);
+    expect(pasteLimits.maxEdgePx()).toBe(800);
+  });
 });

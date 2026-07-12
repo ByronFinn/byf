@@ -42,11 +42,11 @@ Hold 须使用 **ref'd** 句柄（如 interval）；settle 时清除。Scheduler
 - 支持 `byf -p "/goal <objective>"` 创建路径（malformed create 在发模型前失败）。
 - 终端状态映射（脚本契约）：
 
-| Goal 终态 | Exit code |
-|-----------|-----------|
-| `complete`（及无 goal 的成功路径） | `0` |
-| `blocked` | `3` |
-| `paused` | `6` |
+| Goal 终态                          | Exit code |
+| ---------------------------------- | --------- |
+| `complete`（及无 goal 的成功路径） | `0`       |
+| `blocked`                          | `3`       |
+| `paused`                           | `6`       |
 
 ### 4. Goal / Cron hold 与兜底
 

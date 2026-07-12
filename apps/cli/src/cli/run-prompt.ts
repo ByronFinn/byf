@@ -491,16 +491,24 @@ function runPromptTurn(
         await session.waitForBackgroundTasksOnPrint();
       } catch (error) {
         log.warn('waitForBackgroundTasksOnPrint failed', { error });
+        // AC-H1: unfinished / failed print drain must not exit 0.
+        if (process.exitCode === undefined || process.exitCode === 0) {
+          process.exitCode = 1;
+        }
       }
       // Non-zero exit when background tasks remain after ceiling (AC-H1).
       try {
         const remaining = await session.listBackgroundTasks({ activeOnly: true });
-        if (remaining.length > 0) {
+        if (Array.isArray(remaining) && remaining.length > 0) {
           process.exitCode =
             process.exitCode === undefined || process.exitCode === 0 ? 1 : process.exitCode;
         }
-      } catch {
-        // list may not exist on older paths — ignore
+      } catch (error) {
+        log.warn('listBackgroundTasks after print wait failed', { error });
+        // Opaque drain (list failed after wait) must not look like success.
+        if (process.exitCode === undefined || process.exitCode === 0) {
+          process.exitCode = 1;
+        }
       }
       finish();
     }

@@ -39,13 +39,13 @@
     "sherif": "sherif",
     "test": "bun build/run-tests.mjs",
     "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage",
+    "test:coverage": "BYF_ALLOW_UNISOLATED_TEST=1 bun test --coverage",
     "clean": "bun run --filter '*' clean",
     "changeset": "changeset",
     "version": "changeset version",
     "publish": "bun run typecheck && bun run lint && bun run fmt:check && bun run sherif && bun run test && bun run build && bun run lint:pkg && bun run pubcheck:manifest && bun scripts/with-publish-manifests.mjs changeset publish",
     "prepare": "simple-git-hooks",
-    "test:serial": "bun test"
+    "test:serial": "BYF_ALLOW_UNISOLATED_TEST=1 bun test"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.2",

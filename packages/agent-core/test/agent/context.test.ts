@@ -962,7 +962,7 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:old'), imageUrl('data:recent')),
     ];
     const result = degradeOlderMediaParts(messages, 0); // keep none
-    const text = textOf(result[0]!);
+    const text = textOf(result[0]);
     expect(text).toContain('re-read the file');
     expect(text).toContain('request size limit');
   });
@@ -973,8 +973,8 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:ok')),
     ];
     const result = degradeOlderMediaParts(messages, 0, MEDIA_STRIPPED_PLACEHOLDERS);
-    const text0 = textOf(result[0]!);
-    const text1 = textOf(result[1]!);
+    const text0 = textOf(result[0]);
+    const text1 = textOf(result[1]);
     expect(text0).toContain('provider rejected this image');
     expect(text1).toContain('provider rejected this image');
   });
@@ -984,11 +984,11 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:original')),
       mediaMessage('user', imageUrl('data:later')),
     ];
-    const originalContent = messages[0]!.content;
+    const originalContent = messages[0].content;
     degradeOlderMediaParts(messages, 0);
     // Input array and its content parts are untouched
-    expect(messages[0]!.content).toBe(originalContent);
-    expect(messages[0]!.content[0]).toMatchObject({ type: 'image_url' });
+    expect(messages[0].content).toBe(originalContent);
+    expect(messages[0].content[0]).toMatchObject({ type: 'image_url' });
   });
 
   it('preserves surrounding text parts including ReadMediaFile wrappers', () => {
@@ -1001,7 +1001,7 @@ describe('degradeOlderMediaParts', () => {
       ),
     ];
     const result = degradeOlderMediaParts(messages, 0);
-    const text = textOf(result[0]!);
+    const text = textOf(result[0]);
     expect(text).toContain('<image path="/tmp/screenshot.png">');
     expect(text).toContain('</image>');
     expect(text).toContain('re-read the file');

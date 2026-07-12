@@ -45,7 +45,9 @@ function flushStream(stream: Writable): Promise<void> {
       // An empty write's callback fires after all previously-queued writes have
       // been flushed (writes are ordered), which is the documented way to know a
       // stream's buffer has drained.
-      stream.write('', () => resolve());
+      stream.write('', () => {
+        resolve();
+      });
     } catch {
       resolve();
     }

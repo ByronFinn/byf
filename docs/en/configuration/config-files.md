@@ -160,11 +160,11 @@ max_context_size = 1047576
 
 `background` controls the runtime limits for background tasks. Background tasks are launched through the `Bash` tool or the `Agent` tool's `run_in_background=true` parameter.
 
-| Field                  | Type      | Default | Description                                                                                                                                                                                                        |
-| ---------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `max_running_tasks`    | `integer` | —       | Maximum number of background tasks running concurrently                                                                                                                                                            |
-| `keep_alive_on_exit`   | `boolean` | `true`  | Whether to keep still-running background tasks when the session closes (stopAll on close). This is **not** the print-mode wait protocol — see `print_wait_ceiling_s` below.                                          |
-| `agent_task_timeout_s` | `integer` | —       | Maximum runtime in seconds for background agent tasks                                                                                                                                                              |
+| Field                  | Type      | Default | Description                                                                                                                                                                                                                                          |
+| ---------------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_running_tasks`    | `integer` | —       | Maximum number of background tasks running concurrently                                                                                                                                                                                              |
+| `keep_alive_on_exit`   | `boolean` | `true`  | Whether to keep still-running background tasks when the session closes (stopAll on close). This is **not** the print-mode wait protocol — see `print_wait_ceiling_s` below.                                                                          |
+| `agent_task_timeout_s` | `integer` | —       | Maximum runtime in seconds for background agent tasks                                                                                                                                                                                                |
 | `print_wait_ceiling_s` | `integer` | `3600`  | Maximum seconds `byf -p` waits for background tasks after the main turn (and after goal/cron holds release). On timeout the wait ends and the process exits non-zero without killing tasks. Does **not** limit goal hold or session-cron keep-alive. |
 
 `keep_alive_on_exit` can be overridden by the `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable; `print_wait_ceiling_s` can be overridden by `BYF_PRINT_WAIT_CEILING_S`. Environment variables have higher priority than `config.toml`. The schema also reserves `kill_grace_period_ms`, which currently passes validation only and is not read by the CLI runtime.
@@ -179,9 +179,9 @@ In addition to the user-level `~/.byf/config.toml`, a **project** may keep a sma
 additional_dir = ["../shared", "/abs/path/to/fixtures"]
 ```
 
-| Field / key                    | Type            | Description                                                                                                                                                                                                 |
-| ------------------------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace.additional_dir`     | `array<string>` | Extra workspace roots loaded automatically for new sessions in this project (same role as CLI `--add-dir` / slash `/add-dir`). Paths may be absolute or relative to the project root; must exist and be directories. |
+| Field / key                | Type            | Description                                                                                                                                                                                                          |
+| -------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.additional_dir` | `array<string>` | Extra workspace roots loaded automatically for new sessions in this project (same role as CLI `--add-dir` / slash `/add-dir`). Paths may be absolute or relative to the project root; must exist and be directories. |
 
 - Separated from user `config.toml`; not merged into provider/model settings.
 - Created or updated when you choose **remember** in `/add-dir`.

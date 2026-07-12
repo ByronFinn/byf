@@ -66,11 +66,14 @@ function fractionFromId(id: string): number {
   }
   // djb2 reduction — overflow-safe in JS (operates on int32) and
   // good enough spread for non-hex test ids.
+  // `| 0` / `>>> 0` are intentional ToInt32 / ToUint32; Math.trunc does not wrap.
   let hash = 5381;
   for (let i = 0; i < id.length; i++) {
+    // oxlint-disable-next-line eslint-plugin-unicorn/prefer-math-trunc -- ToInt32 wrap for djb2
     hash = ((hash << 5) + hash + (id.codePointAt(i) ?? 0)) | 0;
   }
   // Map signed int32 to [0, 1).
+  // oxlint-disable-next-line eslint-plugin-unicorn/prefer-math-trunc -- ToUint32 map to [0, 2^32)
   const unsigned = hash >>> 0;
   return unsigned / 0x1_0000_0000;
 }

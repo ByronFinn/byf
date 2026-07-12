@@ -155,7 +155,9 @@ describe('SessionCronStore', () => {
 
     it('is a no-op on an already-empty store', () => {
       const store = new SessionCronStore();
-      expect(() => store.clear()).not.toThrow();
+      expect(() => {
+        store.clear();
+      }).not.toThrow();
       expect(store.list()).toEqual([]);
     });
   });

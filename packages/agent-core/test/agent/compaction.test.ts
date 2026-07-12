@@ -470,21 +470,82 @@ describe('Agent compaction', () => {
 
     expect(attempts).toBe(2);
     // First attempt still had image_url; second used full-strip markers.
-    const firstHadImage = seenHistories[0]!.some((m) =>
+    const firstHadImage = seenHistories[0].some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
-    const secondHadImage = seenHistories[1]!.some((m) =>
+    const secondHadImage = seenHistories[1].some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
     expect(firstHadImage).toBe(true);
     expect(secondHadImage).toBe(false);
-    const secondText = seenHistories[1]!
+    const secondText = seenHistories[1]
       .flatMap((m) => m.content)
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join('\n');
     expect(secondText).toMatch(/omitted from compaction input/);
     // Compaction completed with the stripped-retry summary (not stuck).
+    expect(ctx.agent.fullCompaction.compactedHistory.length).toBeGreaterThan(0);
+  });
+
+  it('shrinks history after media strip when 413 still fails (AC-I5 ladder)', async () => {
+    let attempts = 0;
+    const seenLengths: number[] = [];
+    const generate: GenerateFn = async (_provider, _system, _tools, history) => {
+      attempts += 1;
+      seenLengths.push(history.length);
+      // Attempt 1: media present → strip. Attempt 2: still 413 → shrink. Then succeed.
+      if (attempts <= 2) {
+        throw new APIRequestTooLargeError(413, 'request entity too large');
+      }
+      return textResult('Summary after shrink.');
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    appendRichToolExchange(ctx);
+    appendExchange(ctx, 2, 'recent user two', 'recent assistant two', 80);
+    appendExchange(ctx, 3, 'recent user three', 'recent assistant three', 90);
+    const compacted = once(ctx, 'context.apply_compaction');
+
+    await ctx.rpc.beginCompaction({});
+    await compacted;
+
+    expect(attempts).toBeGreaterThanOrEqual(3);
+    // After strip+shrink the retained history must be strictly shorter than the
+    // first (full) attempt for multi-message compactable history.
+    const firstLen = seenLengths[0];
+    const lastLen = seenLengths.at(-1);
+    expect(firstLen).toBeDefined();
+    expect(lastLen).toBeDefined();
+    expect(firstLen ?? 0).toBeGreaterThan(lastLen ?? 0);
+    expect(ctx.agent.fullCompaction.compactedHistory.length).toBeGreaterThan(0);
+  });
+
+  it('strips media once after toxic image format error and retries (AC-I5 毒图)', async () => {
+    let attempts = 0;
+    const generate: GenerateFn = async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new APIStatusError(400, 'Unsupported image format');
+      }
+      return textResult('Summary after format strip.');
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    appendRichToolExchange(ctx);
+    appendExchange(ctx, 2, 'recent user two', 'recent assistant two', 80);
+    const compacted = once(ctx, 'context.apply_compaction');
+
+    await ctx.rpc.beginCompaction({});
+    await compacted;
+
+    expect(attempts).toBe(2);
     expect(ctx.agent.fullCompaction.compactedHistory.length).toBeGreaterThan(0);
   });
 

@@ -238,6 +238,23 @@ describe('runTurn — media-degraded / media-stripped recovery (PRD-0023 #240)',
     expect(llm.calls[1]?.messages).toBe(strippedMessages);
   });
 
+  it('second media-stripped rejection propagates (no infinite strip loop)', async () => {
+    const first = new APIStatusError(400, 'Unsupported image format');
+    const second = new APIStatusError(400, 'Invalid image data');
+    const { error, llm } = await runTurnExpectingThrow({
+      responses: [makeEndTurnResponse('never')],
+      llmThrowOnIndex: [
+        { index: 0, error: first },
+        { index: 1, error: second },
+      ],
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaStripped: async () => strippedMessages,
+    });
+
+    expect(error).toBe(second);
+    expect(llm.callCount).toBe(2);
+  });
+
   it('sticky media-degraded projection is reused on later steps without re-paying 413', async () => {
     const echo = new EchoTool();
     const tooLarge = new APIRequestTooLargeError(413, 'request entity too large');

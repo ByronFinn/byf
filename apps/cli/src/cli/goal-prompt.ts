@@ -30,14 +30,9 @@ export const GOAL_EXIT_CODES = {
 } as const;
 
 export function goalExitCode(status: string | undefined): number {
-  switch (status) {
-    case 'blocked':
-      return GOAL_EXIT_CODES.blocked;
-    case 'paused':
-      return GOAL_EXIT_CODES.paused;
-    default:
-      return GOAL_EXIT_CODES.complete;
-  }
+  if (status === 'blocked') return GOAL_EXIT_CODES.blocked;
+  if (status === 'paused') return GOAL_EXIT_CODES.paused;
+  return GOAL_EXIT_CODES.complete;
 }
 
 const GOAL_PREFIX = /^\/goal(\s|$)/;

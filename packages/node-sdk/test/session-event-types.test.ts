@@ -110,6 +110,7 @@ describe('Event public types', () => {
         case 'btw.completed':
         case 'btw.failed':
         case 'goal.updated':
+        case 'cron.fired':
           return;
         default:
           assertNever(event);

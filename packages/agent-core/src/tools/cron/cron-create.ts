@@ -188,11 +188,10 @@ export class CronCreateTool implements BuiltinTool<CronCreateInput> {
       };
     }
 
-    // `recurring` is defaulted to true upstream; we re-derive the
-    // boolean (rather than trusting the post-default arg) to match the
-    // canonical "recurring iff not explicitly false" convention used
-    // everywhere else in the cron stack.
-    const recurring = args.recurring !== false;
+    // Schema defaults omitted `recurring` to true; still treat explicit
+    // undefined the same way ("recurring unless false") for callers that
+    // bypass zod defaults in tests.
+    const recurring = args.recurring ?? true;
 
     // 7. One-shot "rolled to next year" guard. The tool docs recommend
     //    pinning today's dom/month for "remind me at X today"; if

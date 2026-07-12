@@ -38,7 +38,8 @@ export function isValidCronTask(obj: unknown): obj is CronTask {
   if (typeof o['id'] !== 'string' || !CRON_ID_REGEX.test(o['id'])) return false;
   if (typeof o['cron'] !== 'string') return false;
   if (typeof o['prompt'] !== 'string') return false;
-  if (typeof o['createdAt'] !== 'number') return false;
+  // Finite positive epoch ms — NaN/Infinity would poison stale age math.
+  if (typeof o['createdAt'] !== 'number' || !Number.isFinite(o['createdAt'])) return false;
   if (o['recurring'] !== undefined && typeof o['recurring'] !== 'boolean') return false;
   if (
     o['lastFiredAt'] !== undefined &&

@@ -471,6 +471,7 @@ export class FullCompaction implements RecordRestoreHandler {
     let retryCount = 0;
     let historyForModel = messages;
     let mediaStripAttempted = false;
+    let overflowShrinkCount = 0;
 
     // Clamp the completion budget against the compaction input. Compaction
     // is triggered when context is already near full, so an unbounded
@@ -505,8 +506,9 @@ export class FullCompaction implements RecordRestoreHandler {
         // Media recovery: a 413 body-size or image-format rejection means
         // the summarizer input carries too much media (or a poisoned image).
         // Strip ALL media into text markers (the summarizer does not need
-        // pixels) and retry. Only attempted once — a second media rejection
-        // propagates so the caller's overflow/compaction path handles it.
+        // pixels) and retry once. A second image-format rejection propagates
+        // (dropping history cannot fix a poisoned image). A second body-size
+        // 413 falls through to the shrink ladder below.
         const mediaRejected = error instanceof APIRequestTooLargeError || isImageFormatError(error);
         if (mediaRejected && !mediaStripAttempted) {
           mediaStripAttempted = true;
@@ -521,6 +523,30 @@ export class FullCompaction implements RecordRestoreHandler {
               },
             );
             attempt = 0; // restart the attempt counter for the stripped pass
+            continue;
+          }
+        }
+        // Post-strip body-size recovery: keep recent messages within a
+        // shrinking token budget (0.7 / 0.5 / 0.35 of current estimate).
+        // Format errors after strip are not shrinkable — rethrow below.
+        if (error instanceof APIRequestTooLargeError && historyForModel.length > 1) {
+          overflowShrinkCount += 1;
+          if (overflowShrinkCount <= MAX_COMPACTION_OVERFLOW_SHRINK_ATTEMPTS) {
+            const before = historyForModel.length;
+            historyForModel = shrinkCompactionHistoryAfterOverflow(
+              historyForModel,
+              overflowShrinkCount,
+            );
+            this.agent.log.warn(
+              'compaction request still too large after media strip; shrinking history',
+              {
+                shrinkAttempt: overflowShrinkCount,
+                messagesBefore: before,
+                messagesAfter: historyForModel.length,
+              },
+            );
+            retryCount = 0;
+            attempt = 0;
             continue;
           }
         }
@@ -658,4 +684,51 @@ function replaceMediaPartsWithMarkers(messages: readonly Message[]): Message[] {
     return { ...message, content };
   });
   return changed ? result : (messages as Message[]);
+}
+
+/** Max body-size shrink retries after media strip (ratios 0.7 / 0.5 / 0.35). */
+const MAX_COMPACTION_OVERFLOW_SHRINK_ATTEMPTS = 3;
+const COMPACTION_OVERFLOW_SHRINK_RATIOS = [0.7, 0.5, 0.35] as const;
+
+/**
+ * Drop oldest messages so the retained tail fits within `ratio` of the
+ * current token estimate. Leading tool results after the cut are dropped
+ * so the summarizer does not start mid tool-call.
+ */
+function shrinkCompactionHistoryAfterOverflow(
+  messages: readonly Message[],
+  attempt: number,
+): Message[] {
+  if (messages.length <= 1) return messages.slice();
+  const ratio =
+    COMPACTION_OVERFLOW_SHRINK_RATIOS[
+      Math.min(attempt - 1, COMPACTION_OVERFLOW_SHRINK_RATIOS.length - 1)
+    ]!;
+  const tokenBudget = Math.floor(estimateTokensForMessages(messages) * ratio);
+  return takeRecentMessagesWithinTokenBudget(messages, tokenBudget);
+}
+
+function takeRecentMessagesWithinTokenBudget(
+  messages: readonly Message[],
+  tokenBudget: number,
+): Message[] {
+  let start = messages.length;
+  let tokens = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const messageTokens = estimateTokensForMessage(messages[i]!);
+    if (tokens + messageTokens > tokenBudget) break;
+    tokens += messageTokens;
+    start = i;
+  }
+  // Always drop at least the oldest message so progress is guaranteed.
+  if (start === 0) start = 1;
+  return dropLeadingToolResults(messages.slice(start));
+}
+
+function dropLeadingToolResults(messages: readonly Message[]): Message[] {
+  let start = 0;
+  while (start < messages.length && messages[start]!.role === 'tool') {
+    start += 1;
+  }
+  return messages.slice(start);
 }

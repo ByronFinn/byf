@@ -43,13 +43,13 @@ pubcheck: ## Validate published package layout (publint + attw + manifest protoc
 
 ## Test
 
-test: ## Run the test suite once
+test: ## Process-isolated suite (CI gate; prefer this over raw `bun test`)
 	bun run test
 
-watch: ## Run tests in watch mode
+watch: ## Watch mode (path-scope recommended: bun test --watch path/to/file.test.ts)
 	bun run test:watch
 
-cover: ## Run tests with coverage
+cover: ## Coverage via single-process bun test (debug only; not CI gate)
 	bun run test:coverage
 
 ## Clean

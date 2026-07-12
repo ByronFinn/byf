@@ -163,6 +163,18 @@ async function waitForAssertion(assertion: () => void): Promise<void> {
   throw lastError;
 }
 
+/**
+ * Bun does not clear `process.exitCode` when assigned `undefined` — the prior
+ * numeric code sticks. Use `0` as the portable "unset / success" reset.
+ */
+function clearProcessExitCode(): void {
+  process.exitCode = 0;
+}
+
+function restoreProcessExitCode(previous: typeof process.exitCode): void {
+  process.exitCode = previous ?? 0;
+}
+
 describe('runPrompt', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -170,11 +182,20 @@ describe('runPrompt', () => {
     mocks.createByfDeviceId.mockImplementation(() => 'device-1');
     mocks.resolveByfHome.mockImplementation((homeDir?: string) => homeDir ?? '/tmp/byf-test-home');
     mocks.harnessCreatesDeviceIdOnConstruction = false;
+    // Do not leak headless exit codes across cases (AC-H1 / goal exit maps).
+    clearProcessExitCode();
     // Restore default headless completion mocks after completion-suite overrides.
+    mocks.session.getGoal.mockReset();
     mocks.session.getGoal.mockImplementation(async () => null);
+    mocks.session.getCronTasks.mockReset();
     mocks.session.getCronTasks.mockImplementation(async () => ({ tasks: [] }));
+    mocks.session.waitForBackgroundTasksOnPrint.mockReset();
     mocks.session.waitForBackgroundTasksOnPrint.mockImplementation(async () => {});
+    mocks.session.listBackgroundTasks.mockReset();
     mocks.session.listBackgroundTasks.mockImplementation(async () => []);
+    mocks.session.createGoal.mockReset();
+    mocks.session.createGoal.mockImplementation(async () => ({ status: 'active' }));
+    mocks.session.prompt.mockReset();
     mocks.session.prompt.mockImplementation(async () => {
       for (const handler of mocks.eventHandlers) {
         handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
@@ -1054,6 +1075,121 @@ describe('runPrompt', () => {
           additionalDirs: ['/tmp/a', '/tmp/b'],
         }),
       );
+    });
+
+    it('sets process.exitCode=1 when background tasks remain after print wait (AC-H1)', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.session.listBackgroundTasks.mockResolvedValueOnce([
+          { id: 'bg_1', status: 'running' },
+        ]);
+        await runPrompt(opts(), '1.2.3-test', {
+          stdout: writer(),
+          stderr: writer(),
+        });
+        expect(mocks.session.waitForBackgroundTasksOnPrint).toHaveBeenCalled();
+        expect(mocks.session.listBackgroundTasks).toHaveBeenCalledWith({ activeOnly: true });
+        expect(process.exitCode).toBe(1);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+
+    it('sets process.exitCode=1 when waitForBackgroundTasksOnPrint throws', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.session.waitForBackgroundTasksOnPrint.mockRejectedValueOnce(new Error('wait boom'));
+        await runPrompt(opts(), '1.2.3-test', {
+          stdout: writer(),
+          stderr: writer(),
+        });
+        expect(process.exitCode).toBe(1);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+  });
+
+  /**
+   * PRD-0023 #242 — headless `/goal` create path + exit 0/3/6 on runPrompt.
+   */
+  describe('headless /goal create (runHeadlessGoal)', () => {
+    it('routes /goal create through createGoal (not raw prompt text)', async () => {
+      clearProcessExitCode();
+      mocks.session.createGoal.mockImplementation(async () => ({
+        status: 'complete',
+        objective: 'Ship X',
+        usage: { turns: 1, tokens: 10, wallClockMs: 1 },
+      }));
+      mocks.session.getGoal.mockImplementation(async () => ({
+        status: 'complete',
+        objective: 'Ship X',
+        usage: { turns: 1, tokens: 10, wallClockMs: 1 },
+      }));
+
+      await runPrompt(opts({ prompt: '/goal Ship X' }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      expect(mocks.session.createGoal).toHaveBeenCalledWith('Ship X', { replace: false });
+      // Objective is prompted as the first user turn, not the slash string.
+      expect(mocks.session.prompt).toHaveBeenCalledWith('Ship X');
+      // complete → success exit (0). Bun cannot unset exitCode via `undefined`.
+      expect(process.exitCode === undefined || process.exitCode === 0).toBe(true);
+    });
+
+    it('maps goal blocked → exitCode 3 and paused → exitCode 6', async () => {
+      clearProcessExitCode();
+      mocks.session.createGoal.mockImplementation(async () => ({
+        status: 'active',
+        objective: 'hard',
+        usage: { turns: 0, tokens: 0, wallClockMs: 0 },
+      }));
+      mocks.session.getGoal.mockImplementation(async () => ({
+        status: 'blocked',
+        objective: 'hard',
+        usage: { turns: 3, tokens: 100, wallClockMs: 1 },
+      }));
+
+      await runPrompt(opts({ prompt: '/goal hard work' }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+      expect(process.exitCode).toBe(3);
+
+      clearProcessExitCode();
+      mocks.session.createGoal.mockImplementation(async () => ({
+        status: 'active',
+        objective: 'later',
+        usage: { turns: 0, tokens: 0, wallClockMs: 0 },
+      }));
+      mocks.session.getGoal.mockImplementation(async () => ({
+        status: 'paused',
+        objective: 'later',
+        usage: { turns: 1, tokens: 1, wallClockMs: 1 },
+      }));
+
+      await runPrompt(opts({ prompt: '/goal later' }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+      expect(process.exitCode).toBe(6);
+    });
+
+    it('rejects malformed /goal create before createGoal / model prompt', async () => {
+      // Session may already be opened (resolvePromptSession runs first); the
+      // contract is fail-before-model: no createGoal and no user prompt turn.
+      await expect(
+        runPrompt(opts({ prompt: '/goal replace' }), '1.2.3-test', {
+          stdout: writer(),
+          stderr: writer(),
+        }),
+      ).rejects.toThrow(/Usage|empty/i);
+      expect(mocks.session.createGoal).not.toHaveBeenCalled();
+      expect(mocks.session.prompt).not.toHaveBeenCalled();
     });
   });
 });

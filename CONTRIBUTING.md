@@ -56,13 +56,27 @@ make prepare    # equivalent to `bun install`; also runs the prepare lifecycle (
 Useful make targets (run `make help` to see them all):
 
 - `make dev` — run the CLI in dev mode
-- `make test` — run tests (bun test)
+- `make test` — run the **process-isolated** suite (`bun run test` → `build/run-tests.mjs`; this is the CI gate)
 - `make typecheck` — TypeScript check (note: builds packages first)
-- `make lint` — oxlint
+- `make lint` — oxlint (errors fail the gate; warnings do not)
+- `make fmt-check` — check formatting (CI gate); `make fmt` rewrites files
 - `make fix` — oxlint with auto-fix
 - `make build` — build all packages
 
 The Makefile is a thin wrapper around the `bun run` scripts defined in `package.json`; you can always invoke those directly.
+
+### Tests: do not equate `make test` with bare `bun test`
+
+| Command                          | What it does                                                       | When to use                                                 |
+| -------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `make test` / `bun run test`     | One `bun test` **process per file** (bounded concurrency)          | **Full suite / CI** — only green conclusion that matches CI |
+| `cd <package> && bun test`       | Single-process, that package’s tests                               | Local TDD in one package                                    |
+| `bun test path/to/file.test.ts`  | Single-process, explicit paths                                     | Single file or small set                                    |
+| Bare `bun test` at monorepo root | **Rejected** by preload (would load the whole tree in one process) | Use `make test` instead                                     |
+
+**Why:** Bun’s `mock.module` / `vi.mock` is process-global; `mock.restore()` does not reliably unhook modules for later files in the same process (ADR 0028 / #215). A root single-process full suite therefore produces a different (often red) result than the isolated CI runner — that is not a product regression, it is runner isolation.
+
+Escape hatch for intentional single-process debugging only: `BYF_ALLOW_UNISOLATED_TEST=1 bun test` (or `bun run test:serial`).
 
 ## Commit Convention
 

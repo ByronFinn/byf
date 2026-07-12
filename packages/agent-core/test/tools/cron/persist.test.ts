@@ -71,4 +71,9 @@ describe('isValidCronTask', () => {
     expect(isValidCronTask({ ...validTask, createdAt: 'recent' })).toBe(false);
     expect(isValidCronTask({ ...validTask, recurring: 'yes' })).toBe(false);
   });
+
+  it('rejects non-finite createdAt (NaN / Infinity)', () => {
+    expect(isValidCronTask({ ...validTask, createdAt: Number.NaN })).toBe(false);
+    expect(isValidCronTask({ ...validTask, createdAt: Number.POSITIVE_INFINITY })).toBe(false);
+  });
 });

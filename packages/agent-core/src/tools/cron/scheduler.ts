@@ -465,8 +465,7 @@ export function createCronScheduler(opts: CronSchedulerOptions): CronScheduler {
         task.lastFiredAt <= clocks.wallNow()
           ? task.lastFiredAt
           : undefined;
-      const cursor =
-        seen !== undefined ? seen : persistedCursor !== undefined ? persistedCursor : undefined;
+      const cursor = seen ?? persistedCursor;
       const baseFromMs = cursor !== undefined && cursor > task.createdAt ? cursor : task.createdAt;
       return computeJitteredNext(task, parsed, baseFromMs);
     } catch (error) {

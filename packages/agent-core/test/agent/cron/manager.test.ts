@@ -2,6 +2,10 @@
  * CronManager unit tests — real manager with a minimal Agent stub.
  * Covers add/list/stale/coalesce/one-shot paths that AC-C1/AC-C5 require.
  */
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CronManager } from '../../../src/agent/cron/manager';
@@ -93,9 +97,9 @@ describe('CronManager', () => {
     expect(task.id).toMatch(/^[0-9a-f]{8}$/);
     const snaps = manager.listTaskSnapshots();
     expect(snaps).toHaveLength(1);
-    expect(snaps[0]!.id).toBe(task.id);
-    expect(snaps[0]!.recurring).toBe(true);
-    expect(snaps[0]!.nextFireAt).not.toBeNull();
+    expect(snaps[0].id).toBe(task.id);
+    expect(snaps[0].recurring).toBe(true);
+    expect(snaps[0].nextFireAt).not.toBeNull();
   });
 
   it('fires when idle and steers with cron_job origin', () => {
@@ -107,7 +111,7 @@ describe('CronManager', () => {
     advance(60_000);
     manager.tick();
     expect(stub.steered.length).toBeGreaterThanOrEqual(1);
-    const origin = stub.steered[0]!.origin as { kind: string; jobId: string };
+    const origin = stub.steered[0].origin as { kind: string; jobId: string };
     expect(origin.kind).toBe('cron_job');
     expect(stub.events.some((e) => (e as { type: string }).type === 'cron.fired')).toBe(true);
   });
@@ -165,5 +169,70 @@ describe('CronManager', () => {
     const task = manager.addTask({ cron: '0 0 * * *', prompt: 'x' });
     expect(manager.removeTasks([task.id, 'deadbeef'])).toEqual([task.id]);
     expect(manager.store.list()).toHaveLength(0);
+  });
+
+  it('persist + loadFromDisk restores id/createdAt; new session dir stays empty (AC-C1)', async () => {
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-cron-resume-'));
+    const otherSessionDir = await mkdtemp(join(tmpdir(), 'byf-cron-new-'));
+    try {
+      const stub = createAgentStub();
+      stub.agent.homedir = sessionDir;
+      const { clocks } = createClocks();
+      const manager = new CronManager(stub.agent, { clocks, pollIntervalMs: null });
+      const task = manager.addTask({
+        cron: '0 9 * * *',
+        prompt: 'persist me',
+        recurring: true,
+      });
+      const createdAt = task.createdAt;
+      await manager.flushPersist();
+      await manager.stop();
+
+      // Same session dir: loadFromDisk rehydrates original id + createdAt.
+      const resumeStub = createAgentStub();
+      resumeStub.agent.homedir = sessionDir;
+      const resumed = new CronManager(resumeStub.agent, { clocks, pollIntervalMs: null });
+      expect(resumed.store.list()).toHaveLength(0);
+      await resumed.loadFromDisk();
+      const loaded = resumed.store.list();
+      expect(loaded).toHaveLength(1);
+      expect(loaded[0].id).toBe(task.id);
+      expect(loaded[0].createdAt).toBe(createdAt);
+      expect(loaded[0].prompt).toBe('persist me');
+      await resumed.stop();
+
+      // New session dir does not inherit tasks.
+      const freshStub = createAgentStub();
+      freshStub.agent.homedir = otherSessionDir;
+      const fresh = new CronManager(freshStub.agent, { clocks, pollIntervalMs: null });
+      await fresh.loadFromDisk();
+      expect(fresh.store.list()).toHaveLength(0);
+      await fresh.stop();
+    } finally {
+      await rm(sessionDir, { recursive: true, force: true });
+      await rm(otherSessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it('stale recurring fires once with stale:true then deletes (AC-C5)', () => {
+    const stub = createAgentStub();
+    const { clocks, advance } = createClocks();
+    const manager = new CronManager(stub.agent, { clocks, pollIntervalMs: null });
+    // Seed a recurring task older than 7 days so the next fire is the final stale delivery.
+    manager.store.adopt({
+      id: 'aabbcc01',
+      cron: '* * * * *',
+      prompt: 'ancient',
+      createdAt: WALL_ANCHOR - 8 * 24 * 60 * 60 * 1000,
+      recurring: true,
+    });
+    advance(60_000);
+    manager.tick();
+    expect(stub.steered.length).toBeGreaterThanOrEqual(1);
+    const origin = stub.steered[0].origin as { stale?: boolean; kind: string };
+    expect(origin.kind).toBe('cron_job');
+    expect(origin.stale).toBe(true);
+    expect(manager.store.list()).toHaveLength(0);
+    expect(stub.events.some((e) => (e as { type: string }).type === 'cron.fired')).toBe(true);
   });
 });

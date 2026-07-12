@@ -414,9 +414,11 @@ function isFullRange(set: ReadonlySet<number>, min: number, max: number): boolea
  */
 function detectStep(set: ReadonlySet<number>, min: number, max: number): number | null {
   const values = [...set].toSorted((a, b) => a - b);
-  if (values.length < 2) return null;
-  if (values[0] !== min) return null;
-  const step = values[1]! - values[0]!;
+  const first = values[0];
+  const second = values[1];
+  if (first === undefined || second === undefined) return null;
+  if (first !== min) return null;
+  const step = second - first;
   if (step <= 0) return null;
   let expected = min;
   for (const v of values) {
