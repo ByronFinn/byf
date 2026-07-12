@@ -305,6 +305,66 @@ describe('Session.waitForBackgroundTasksOnPrint', () => {
       }
     }
   });
+
+  it('still drains when keepAliveOnExit is false (unconditional, decoupled)', async () => {
+    // AC #237: print drain must NOT read keepAliveOnExit — that flag only
+    // controls Session.close stopAll. keepAliveOnExit=false must still wait.
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-no-keepalive',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { keepAliveOnExit: false, printWaitCeilingS: 5 },
+    });
+    const agent = await session.createMain();
+    const { proc } = pendingProcess(0);
+    const taskId = agent.background.register(proc, 'sleep 1', 'no-keepalive drain');
+
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    await new Promise((r) => setTimeout(r, 50));
+    await proc.kill();
+    await waitP;
+
+    expect(agent.background.getTask(taskId)?.status).toBe('completed');
+    await session.close();
+  });
+
+  it('re-scans for fan-out tasks registered while waiting (multi-pass)', async () => {
+    // AC #237: subagent fan-out may register new background tasks after the
+    // first enumeration; wait must loop until the active set is empty.
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-fanout',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { printWaitCeilingS: 8 },
+    });
+    const agent = await session.createMain();
+    const first = pendingProcess(0);
+    const second = pendingProcess(0);
+    const firstId = agent.background.register(first.proc, 'sleep 1', 'fanout-first');
+
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    // While the first task is still active, fan-out a second task so the
+    // next scan of waitForBackgroundTasksOnPrint must pick it up.
+    await new Promise((r) => setTimeout(r, 30));
+    const secondId = agent.background.register(second.proc, 'sleep 1', 'fanout-second');
+    await first.proc.kill();
+    // Give the wait loop a moment to re-scan before completing the second.
+    await new Promise((r) => setTimeout(r, 80));
+    await second.proc.kill();
+    await waitP;
+
+    expect(agent.background.getTask(firstId)?.status).toBe('completed');
+    expect(agent.background.getTask(secondId)?.status).toBe('completed');
+    await session.close();
+  });
 });
 
 async function hookFixture(): Promise<{

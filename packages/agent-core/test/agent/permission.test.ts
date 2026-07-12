@@ -1535,6 +1535,61 @@ describe('Permission rule helpers', () => {
     expect(actionToRulePattern('edit file outside of working directory', 'Edit')).toBe('Write');
     expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
   });
+
+  it('scopes CronCreate session approval to the full create payload (PRD-0023 #244)', () => {
+    // Without payload encoding, every CronCreate would share action
+    // `call CronCreate` and a broad rule pattern `CronCreate` — one
+    // scope:session approval would auto-authorize any future schedule.
+    const payloadA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadB = { cron: '*/5 * * * *', prompt: 'B', recurring: true };
+    const payloadSameA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadDifferentCron = { cron: '0 9 * * *', prompt: 'A', recurring: true };
+
+    const actionA = describeApprovalAction('CronCreate', payloadA, genericDisplay());
+    const actionB = describeApprovalAction('CronCreate', payloadB, genericDisplay());
+    const actionSameA = describeApprovalAction('CronCreate', payloadSameA, genericDisplay());
+    const actionDiffCron = describeApprovalAction(
+      'CronCreate',
+      payloadDifferentCron,
+      genericDisplay(),
+    );
+
+    expect(actionA).not.toBe(actionB);
+    expect(actionA).not.toBe(actionDiffCron);
+    expect(actionA).toBe(actionSameA);
+    expect(actionA.startsWith('call CronCreate ')).toBe(true);
+    expect(actionA).toContain('"prompt":"A"');
+
+    // Must NOT create a bare CronCreate PermissionRule (would match all creates).
+    expect(actionToRulePattern(actionA, 'CronCreate')).toBeUndefined();
+    // Non-payload tools still get a name fallback rule.
+    expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
+  });
+
+  it('denies CronCreate when an explicit deny rule matches (permission reject path)', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.rules.push({
+      decision: 'deny',
+      scope: 'user',
+      pattern: 'CronCreate',
+      reason: 'cron disabled by policy',
+    });
+    await expect(
+      manager.beforeToolCall(
+        hookContext({
+          id: 'call_cron',
+          toolName: 'CronCreate',
+          args: { cron: '* * * * *', prompt: 'x', recurring: true },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      block: true,
+      reason: 'Tool "CronCreate" was denied by permission rule. Reason: cron disabled by policy',
+    });
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
 });
 
 function bashCall(): ToolCall {

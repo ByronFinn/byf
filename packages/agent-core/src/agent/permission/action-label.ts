@@ -48,15 +48,46 @@ const ACTION_TO_PATTERN: Readonly<Record<string, string | null>> = {
   'write file': 'Write',
 };
 
+/**
+ * Prefix for CronCreate action labels that embed the full create payload.
+ * Session approval must be payload-scoped: approving one schedule must not
+ * unlock arbitrary later CronCreate calls (PRD-0023 #244).
+ */
+export const CRON_CREATE_ACTION_PREFIX = 'call CronCreate ';
+
+/**
+ * Stable action label for CronCreate that includes cron/prompt/recurring.
+ * Same payload → same label (so re-approve-for-session keeps working);
+ * different payload → different label.
+ */
+export function describeCronCreateApprovalAction(args: unknown): string {
+  return `${CRON_CREATE_ACTION_PREFIX}${serializeCronCreatePayload(args)}`;
+}
+
+function serializeCronCreatePayload(args: unknown): string {
+  const rec = args !== null && typeof args === 'object' ? (args as Record<string, unknown>) : {};
+  const cron = typeof rec['cron'] === 'string' ? rec['cron'] : '';
+  const prompt = typeof rec['prompt'] === 'string' ? rec['prompt'] : '';
+  const recurring = rec['recurring'] !== false;
+  return JSON.stringify({ cron, prompt, recurring });
+}
+
 export function describeApprovalAction(
   toolName: string,
-  _args: unknown,
+  args: unknown,
   display: ToolInputDisplay,
   override?: string,
 ): string {
   // Highest priority: explicit override from a hook.
   if (override !== undefined && override.length > 0) {
     return override;
+  }
+
+  // CronCreate is intentionally payload-scoped (not coarse like Bash).
+  // Display kind may be generic; still pin the full create tuple so a
+  // single "approve for session" cannot authorize every future schedule.
+  if (toolName === 'CronCreate') {
+    return describeCronCreateApprovalAction(args);
   }
 
   // Display-driven derivation: the display kind already captures the
@@ -130,8 +161,15 @@ export function describeApprovalAction(
  * When no entry matches, fall back to the concrete tool name. A `null`
  * table entry means the action should be cached by action label only,
  * without creating a broad PermissionRule.
+ *
+ * Payload-scoped CronCreate actions also skip creating a rule: a bare
+ * `CronCreate` pattern would match every future create (matchesRule name-only).
+ * Same-payload re-approval is handled by `sessionApprovedActions` alone.
  */
 export function actionToRulePattern(action: string, fallbackToolName: string): string | undefined {
+  if (action.startsWith(CRON_CREATE_ACTION_PREFIX)) {
+    return undefined;
+  }
   const mapped = ACTION_TO_PATTERN[action];
   if (mapped !== undefined) return mapped ?? undefined;
   return fallbackToolName;

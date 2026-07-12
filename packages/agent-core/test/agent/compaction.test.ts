@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   APIConnectionError,
   APIContextOverflowError,
+  APIRequestTooLargeError,
   APIStatusError,
   UNKNOWN_CAPABILITY,
   type Message,
@@ -439,6 +440,52 @@ describe('Agent compaction', () => {
       }),
     });
     await ctx.expectResumeMatches();
+  });
+
+  it('strips all media once after 413 and retries (PRD-0023 #240 AC-I5)', async () => {
+    // Compaction path: body-size rejection → full media strip (not keepRecent=2)
+    // → retry with markers so summarizer is not stuck compacting forever.
+    let attempts = 0;
+    const seenHistories: Message[][] = [];
+    const generate: GenerateFn = async (_provider, _system, _tools, history) => {
+      attempts += 1;
+      seenHistories.push(history.map((m) => structuredClone(m)));
+      if (attempts === 1) {
+        throw new APIRequestTooLargeError(413, 'request entity too large');
+      }
+      return textResult('Summary after media strip.');
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    // Seed history that includes media so strip is a no-op-detectable change.
+    appendRichToolExchange(ctx);
+    appendExchange(ctx, 2, 'recent user two', 'recent assistant two', 80);
+    const compacted = once(ctx, 'context.apply_compaction');
+
+    await ctx.rpc.beginCompaction({});
+    await compacted;
+
+    expect(attempts).toBe(2);
+    // First attempt still had image_url; second used full-strip markers.
+    const firstHadImage = seenHistories[0]!.some((m) =>
+      m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
+    );
+    const secondHadImage = seenHistories[1]!.some((m) =>
+      m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
+    );
+    expect(firstHadImage).toBe(true);
+    expect(secondHadImage).toBe(false);
+    const secondText = seenHistories[1]!
+      .flatMap((m) => m.content)
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('\n');
+    expect(secondText).toMatch(/omitted from compaction input/);
+    // Compaction completed with the stripped-retry summary (not stuck).
+    expect(ctx.agent.fullCompaction.compactedHistory.length).toBeGreaterThan(0);
   });
 
   it('retries compaction responses with empty summaries before applying context', async () => {
