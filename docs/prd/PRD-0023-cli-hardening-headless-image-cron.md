@@ -276,16 +276,16 @@ Wave 2（W1 合入后）
 - **Sliced into**:
   - #235 — [PRD-0023] kosong 413/overflow 错误分类 — `APIRequestTooLargeError` 与 context overflow 分离 (AFK) — Done
   - #236 — [PRD-0023] ImageLimits 统一多入口 — Read/粘贴共用预算 + 配置/env (AFK) — Done
-  - #237 — [PRD-0023] session 层 print drain — `waitForBackgroundTasksOnPrint` + ceiling（无条件，解耦 keepAliveOnExit） (AFK)
+  - #237 — [PRD-0023] session 层 print drain — `waitForBackgroundTasksOnPrint` + ceiling（无条件，解耦 keepAliveOnExit） (AFK) — Done
   - #238 — [PRD-0023] Compaction 摘要可见 — Ctrl-O 展开 + handler 接线 (AFK) — Done
-  - #239 — [PRD-0023] /add-dir 多工作区 — 斜杠命令 + `--add-dir` + 项目记忆 `.byf/local.toml` (AFK)
+  - #239 — [PRD-0023] /add-dir 多工作区 — 斜杠命令 + `--add-dir` + 项目记忆 `.byf/local.toml` (AFK) — Done
   - #240 — [PRD-0023] turn-step media-degraded/stripped 一次性重发 — 413/毒图恢复 + compaction 路径对齐 (AFK, blocked by #235) — Done
-  - #241 — [PRD-0023] headless 完成判定状态机 — goal hold + 双触发 + headless-exit (AFK, blocked by #237)
-  - #242 — [PRD-0023] headless `/goal` 创建与 exit code — `parseHeadlessGoalCreate` + 0/3/6 映射 (AFK, blocked by #241)
-  - #243 — [PRD-0023] Cron 内核 — scheduler/persist/jitter/types + manager facade (AFK, blocked by #241)
-  - #244 — [PRD-0023] Cron 工具与 TUI — Create/List/Delete + 权限 + notice + headless keep-alive (AFK, blocked by #243)
-- **Implemented by**: —
-- **Debugged by**: —
+  - #241 — [PRD-0023] headless 完成判定状态机 — goal hold + 双触发 + headless-exit (AFK, blocked by #237) — Done
+  - #242 — [PRD-0023] headless `/goal` 创建与 exit code — `parseHeadlessGoalCreate` + 0/3/6 映射 (AFK, blocked by #241) — Done
+  - #243 — [PRD-0023] Cron 内核 — scheduler/persist/jitter/types + manager facade (AFK, blocked by #241) — Done
+  - #244 — [PRD-0023] Cron 工具与 TUI — Create/List/Delete + 权限 + notice + headless keep-alive (AFK, blocked by #243) — Done
+- **Implemented by**: `/implement`（2026-07-12）— 全部 child seams 落地；commits on `dev`（含 print-wait NaN 修复 7b8f143）；issues #234–#244 closed
+- **Debugged by**: `/implement` follow-up — `resolvePrintWaitCeilingS`（env>config>3600，避免 parseInt('') → NaN）
 - **Arch reviewed by**: —
 - **Reviewed by**: —
 - **New terms**: Headless drain、Print wait ceiling、ImageLimits、media-degraded / media-stripped、会话内 Cron、项目本地配置 `.byf/local.toml`、Additional dir
