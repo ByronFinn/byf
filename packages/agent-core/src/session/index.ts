@@ -240,6 +240,57 @@ export class Session {
     );
   }
 
+  /**
+   * Wait for background tasks to finish before the print/headless run exits
+   * (ADR-0029 §2). Unconditional in print mode — does NOT gate on
+   * `keepAliveOnExit` (that option only controls `Session.close` stopAll).
+   * Bounded by `printWaitCeilingS` (default 3600s); on timeout, returns
+   * without killing tasks (close path handles cleanup). Multi-pass: a
+   * subagent may fan-out new tasks while we enumerate, so we loop until no
+   * active task remains or the deadline expires.
+   */
+  async waitForBackgroundTasksOnPrint(): Promise<void> {
+    const ceilingS =
+      this.config.background?.printWaitCeilingS ??
+      Number.parseInt(process.env['BYF_PRINT_WAIT_CEILING_S'] ?? '', 10) ??
+      3600;
+    const deadline = Date.now() + ceilingS * 1000;
+    // Track tasks we've already launched a wait for, so we don't re-await
+    // the same id on every pass (its wait promise is already in flight).
+    const seen = new Set<string>();
+    for (;;) {
+      const now = Date.now();
+      if (now >= deadline) return;
+      // Collect active tasks across all agents (main + subagents).
+      const activeTaskIds: string[] = [];
+      for (const agent of this.agents.values()) {
+        for (const info of agent.background.list(true)) {
+          if (!seen.has(info.taskId)) {
+            seen.add(info.taskId);
+            activeTaskIds.push(info.taskId);
+          }
+        }
+      }
+      if (activeTaskIds.length === 0) return;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return;
+      // Wait for each newly-seen task with the remaining budget. Tasks that
+      // finish naturally resolve; the deadline caps the total wait.
+      await Promise.all(
+        activeTaskIds.map(async (taskId) => {
+          for (const agent of this.agents.values()) {
+            if (agent.background.getTask(taskId) !== undefined) {
+              await agent.background.wait(taskId, remaining);
+              return;
+            }
+          }
+        }),
+      );
+      // Loop again: subagents may have spawned new tasks. The seen-set
+      // prevents re-awaiting finished ones; new ids get picked up.
+    }
+  }
+
   async createAgent(
     config: Partial<AgentConfig>,
     profile?: ResolvedAgentProfile,

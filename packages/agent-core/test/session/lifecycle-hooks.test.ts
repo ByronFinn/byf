@@ -161,6 +161,78 @@ describe('Session lifecycle hooks', () => {
   });
 });
 
+describe('Session.waitForBackgroundTasksOnPrint', () => {
+  it('waits for background tasks to finish (unconditional, ignores keepAliveOnExit)', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      // keepAliveOnExit: true (default) — drain must run anyway (ADR-0029 §2/§5)
+      background: { keepAliveOnExit: true, printWaitCeilingS: 5 },
+    });
+    const agent = await session.createMain();
+    const { proc } = pendingProcess(0); // exit 0 = natural completion
+    const taskId = agent.background.register(proc, 'sleep 1', 'print drain test');
+
+    // Start wait; then complete the task shortly after via manual kill
+    // (simulates natural completion — drain itself never kills).
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    await new Promise((r) => setTimeout(r, 50));
+    await proc.kill(); // resolves waitPromise → task finishes
+    await waitP;
+
+    // Task finished (not killed by drain — drain only waits)
+    expect(agent.background.getTask(taskId)?.status).toBe('completed');
+    await session.close();
+  });
+
+  it('returns immediately when no active background tasks exist', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-empty',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+    });
+    await session.createMain();
+
+    const start = Date.now();
+    await session.waitForBackgroundTasksOnPrint();
+    expect(Date.now() - start).toBeLessThan(500);
+    await session.close();
+  });
+
+  it('does not kill tasks on ceiling timeout', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-timeout',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { printWaitCeilingS: 1 },
+    });
+    const agent = await session.createMain();
+    const { proc, killSpy } = pendingProcess();
+    agent.background.register(proc, 'sleep 60', 'timeout test');
+
+    await session.waitForBackgroundTasksOnPrint();
+
+    // Ceiling expired — task NOT killed, still running
+    expect(killSpy).not.toHaveBeenCalled();
+    // Clean up
+    await proc.kill();
+    await session.close();
+  });
+});
+
 async function hookFixture(): Promise<{
   readonly command: string;
   readonly logPath: string;

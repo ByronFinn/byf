@@ -158,6 +158,11 @@ export class SDKRpcClient {
     return rpc.closeSession({ sessionId: input.sessionId });
   }
 
+  async waitForBackgroundTasksOnPrint(input: SessionIdRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.waitForBackgroundTasksOnPrint({ sessionId: input.sessionId });
+  }
+
   async listSessions(input: ListSessionsOptions): Promise<readonly SessionSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listSessions(input);

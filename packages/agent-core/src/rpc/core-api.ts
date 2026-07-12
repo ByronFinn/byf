@@ -299,6 +299,7 @@ export interface CoreAPI extends SessionAPIWithId {
   removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
+  waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;
   resumeSession: (payload: ResumeSessionPayload) => ResumeSessionResult;
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];

@@ -263,6 +263,13 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     }
   }
 
+  async waitForBackgroundTasksOnPrint({ sessionId }: CloseSessionPayload): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      await session.waitForBackgroundTasksOnPrint();
+    }
+  }
+
   async resumeSession(input: ResumeSessionPayload): Promise<ResumeSessionResult> {
     const summary = await this.sessionStore.get(input.sessionId);
     const active = this.sessions.get(summary.id);

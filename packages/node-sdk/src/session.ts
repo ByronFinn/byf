@@ -381,6 +381,16 @@ export class Session {
     }
   }
 
+  /**
+   * Wait for background tasks to settle before the print/headless run exits
+   * (ADR-0029). Unconditional in print mode — does NOT gate on
+   * `keepAliveOnExit`. Bounded by `printWaitCeilingS` (default 3600s).
+   */
+  async waitForBackgroundTasksOnPrint(): Promise<void> {
+    if (this.closed) return;
+    await this.rpc.waitForBackgroundTasksOnPrint({ sessionId: this.id });
+  }
+
   /** @internal */
   emitMetaUpdated(patch: { readonly title?: string }): void {
     this.emit({
