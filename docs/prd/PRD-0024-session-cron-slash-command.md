@@ -1,8 +1,8 @@
 # 会话内 Cron 的 slash 命令（/cron）
 
-> **Status**: In Progress | **PRD**: PRD-0024 | **Created**: 2026-07-13 | **Last updated**: 2026-07-13
+> **Status**: Done | **PRD**: PRD-0024 | **Created**: 2026-07-13 | **Last updated**: 2026-07-13
 >
-> **计划已批准** · **Grill** · **Sliced** · **In Progress**（implement 2026-07-13）。父 Issue #245。
+> **计划已批准** · **Grill** · **Sliced** · **Implemented** · **Reviewed**（2026-07-13）。父 Issue #245。
 
 ## Goal
 
