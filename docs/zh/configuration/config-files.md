@@ -67,6 +67,7 @@ reserved_context_size = 50000
 max_running_tasks = 4
 keep_alive_on_exit = false
 agent_task_timeout_s = 900
+print_wait_ceiling_s = 3600
 
 [[permission.rules]]
 decision = "allow"
@@ -159,13 +160,33 @@ max_context_size = 1047576
 
 `background` 控制后台任务的运行限制。后台任务通过 `Bash` 工具或 `Agent` 工具的 `run_in_background=true` 参数启动。
 
-| 字段                   | 类型      | 默认值 | 说明                                                                                                                           |
-| ---------------------- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `max_running_tasks`    | `integer` | —      | 同时运行的最大后台任务数                                                                                                       |
-| `keep_alive_on_exit`   | `boolean` | `true` | 会话关闭时是否保留仍在运行的后台任务。设为 `false` 后，`byf -p` 完成退出、SDK 关闭 session 或 harness 关闭时会请求停止后台任务 |
-| `agent_task_timeout_s` | `integer` | —      | 后台 Agent 任务的最大运行时间（秒）                                                                                            |
+| 字段                   | 类型      | 默认值 | 说明                                                                                                                                                                                                 |
+| ---------------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_running_tasks`    | `integer` | —      | 同时运行的最大后台任务数                                                                                                                                                                             |
+| `keep_alive_on_exit`   | `boolean` | `true` | 会话关闭时是否保留仍在运行的后台任务（close 时是否 `stopAll`）。**不是** print 模式的完成等待协议，见下方 `print_wait_ceiling_s`。                                                                   |
+| `agent_task_timeout_s` | `integer` | —      | 后台 Agent 任务的最大运行时间（秒）                                                                                                                                                                  |
+| `print_wait_ceiling_s` | `integer` | `3600` | `byf -p` 在主 turn 结束后（以及 goal/cron hold 释放后）等待后台任务的最长秒数。超时则结束等待并以非 0 退出，不会 kill 任务。**不**限制 goal hold 或会话内 Cron keep-alive。                            |
 
-`keep_alive_on_exit` 可以被环境变量 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` 覆盖；环境变量优先级高于 `config.toml`。schema 还预留了 `kill_grace_period_ms`、`print_wait_ceiling_s` 两个字段，目前仅 schema 校验通过，CLI 运行时不会读取。
+`keep_alive_on_exit` 可被环境变量 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` 覆盖；`print_wait_ceiling_s` 可被 `BYF_PRINT_WAIT_CEILING_S` 覆盖。环境变量优先级高于 `config.toml`。schema 还预留了 `kill_grace_period_ms`，目前仅通过校验，CLI 运行时不会读取。
+
+## 项目本地配置（`.byf/local.toml`）
+
+除用户级 `~/.byf/config.toml` 外，**项目**可在仓库根下维护一份工作区本地文件：
+
+```toml
+# <project-root>/.byf/local.toml
+[workspace]
+additional_dir = ["../shared", "/abs/path/to/fixtures"]
+```
+
+| 字段 / 键                      | 类型            | 说明                                                                                                                                                         |
+| ------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workspace.additional_dir`     | `array<string>` | 在本项目中启动新会话时自动加载的额外工作区根（与 CLI `--add-dir`、斜杠 `/add-dir` 相同语义）。可为绝对路径或相对项目根的相对路径；必须存在且为目录。         |
+
+- 与用户 `config.toml` 分离，不合并到供应商 / 模型设置。
+- 在 `/add-dir` 中选择**记住**时创建或更新。
+- 路径因机器而异时，团队常把 `.byf/local.toml` 加入 `.gitignore`。
+- 另见 [斜杠命令 — 工作区根目录](../reference/slash-commands.md#工作区根目录) 与 [byf 命令 — 额外工作区根目录](../reference/byf-command.md#额外工作区根目录)。
 
 ## `services`
 

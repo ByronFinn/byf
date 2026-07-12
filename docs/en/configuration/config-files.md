@@ -67,6 +67,7 @@ reserved_context_size = 50000
 max_running_tasks = 4
 keep_alive_on_exit = false
 agent_task_timeout_s = 900
+print_wait_ceiling_s = 3600
 
 [[permission.rules]]
 decision = "allow"
@@ -162,10 +163,30 @@ max_context_size = 1047576
 | Field                  | Type      | Default | Description                                                                                                                                                                                                        |
 | ---------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `max_running_tasks`    | `integer` | —       | Maximum number of background tasks running concurrently                                                                                                                                                            |
-| `keep_alive_on_exit`   | `boolean` | `true`  | Whether to keep still-running background tasks when the session closes. Set to `false` to request stopping background tasks when `byf -p` finishes and exits, when an SDK session closes, or when a harness closes |
+| `keep_alive_on_exit`   | `boolean` | `true`  | Whether to keep still-running background tasks when the session closes (stopAll on close). This is **not** the print-mode wait protocol — see `print_wait_ceiling_s` below.                                          |
 | `agent_task_timeout_s` | `integer` | —       | Maximum runtime in seconds for background agent tasks                                                                                                                                                              |
+| `print_wait_ceiling_s` | `integer` | `3600`  | Maximum seconds `byf -p` waits for background tasks after the main turn (and after goal/cron holds release). On timeout the wait ends and the process exits non-zero without killing tasks. Does **not** limit goal hold or session-cron keep-alive. |
 
-`keep_alive_on_exit` can be overridden by the `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable; the environment variable has higher priority than `config.toml`. The schema also reserves `kill_grace_period_ms` and `print_wait_ceiling_s`; these fields currently pass schema validation only and are not read by the CLI runtime.
+`keep_alive_on_exit` can be overridden by the `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` environment variable; `print_wait_ceiling_s` can be overridden by `BYF_PRINT_WAIT_CEILING_S`. Environment variables have higher priority than `config.toml`. The schema also reserves `kill_grace_period_ms`, which currently passes validation only and is not read by the CLI runtime.
+
+## Project-local config (`.byf/local.toml`)
+
+In addition to the user-level `~/.byf/config.toml`, a **project** may keep a small workspace-local file at the project root:
+
+```toml
+# <project-root>/.byf/local.toml
+[workspace]
+additional_dir = ["../shared", "/abs/path/to/fixtures"]
+```
+
+| Field / key                    | Type            | Description                                                                                                                                                                                                 |
+| ------------------------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace.additional_dir`     | `array<string>` | Extra workspace roots loaded automatically for new sessions in this project (same role as CLI `--add-dir` / slash `/add-dir`). Paths may be absolute or relative to the project root; must exist and be directories. |
+
+- Separated from user `config.toml`; not merged into provider/model settings.
+- Created or updated when you choose **remember** in `/add-dir`.
+- Teams often add `.byf/local.toml` to `.gitignore` when paths are machine-specific.
+- See also [Slash commands — Workspace roots](../reference/slash-commands.md#workspace-roots) and [The byf command — Extra workspace roots](../reference/byf-command.md#extra-workspace-roots).
 
 ## `services`
 

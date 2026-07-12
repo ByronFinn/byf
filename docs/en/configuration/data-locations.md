@@ -66,6 +66,8 @@ The tree above shows a typical layout under the default data root (`~/.byf/`). T
 
 `config.toml` is BYF's main config file, holding user-level settings such as providers, models, and loop control. See [Config files](./config-files.md) for details.
 
+A **project-local** workspace file may also exist at `<project-root>/.byf/local.toml` (not under `BYF_HOME`). It currently stores `workspace.additional_dir` for `/add-dir` memory. See [Config files — Project-local config](./config-files.md#project-local-config-byflocaltoml).
+
 `mcp.json` holds user-level MCP server declarations and is merged with the project-local `.byf/mcp.json` at load time. The fields are the same as the project-level file; see [MCP](../customization/mcp.md) for details.
 
 OAuth credentials are stored as files under the `credentials/` subdirectory of the data root. The parent directory uses mode `0o700` and each credential file uses mode `0o600`, readable and writable only by the current user. There are two sub-locations:

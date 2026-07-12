@@ -66,6 +66,8 @@ $BYF_HOME  (默认 ~/.byf)
 
 `config.toml` 是 BYF 的主配置文件，存放供应商、模型、循环控制等用户级设置。详见 [配置文件](./config-files.md)。
 
+项目根下还可能有**项目本地**工作区文件 `<project-root>/.byf/local.toml`（不在 `BYF_HOME` 下），当前用于 `/add-dir` 记忆的 `workspace.additional_dir`。详见 [配置文件 — 项目本地配置](./config-files.md#项目本地配置byflocaltoml)。
+
 `mcp.json` 是用户级 MCP server 声明，会与项目内的 `.byf/mcp.json` 合并加载。字段与项目级文件相同，详见 [MCP](../customization/mcp.md)。
 
 OAuth 凭据以文件形式存放在数据根下的 `credentials/` 子目录，目录权限 `0o700`、文件权限 `0o600`，仅当前用户可读写。其中：
