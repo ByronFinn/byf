@@ -9,10 +9,11 @@
 
 import { randomUUID } from 'node:crypto';
 
-import type { TokenUsage } from '@byfriends/kosong';
+import { APIRequestTooLargeError, isImageFormatError, type TokenUsage } from '@byfriends/kosong';
 
 import type { Logger } from '#/logging/types';
 
+import { errorMessage } from './errors';
 import type { LoopEventDispatcher } from './events';
 import type { LLM, LLMChatParams, LLMChatResponse } from './llm';
 import { chatWithRetry } from './retry';
@@ -28,6 +29,8 @@ export interface ExecuteLoopStepDeps {
   readonly turnId: string;
   readonly signal: AbortSignal;
   readonly buildMessages: LoopMessageBuilder;
+  readonly buildMessagesMediaDegraded?: LoopMessageBuilder;
+  readonly buildMessagesMediaStripped?: LoopMessageBuilder;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly llm: LLM;
   readonly tools?: readonly ExecutableTool[];
@@ -38,14 +41,20 @@ export interface ExecuteLoopStepDeps {
   readonly recordUsage: (usage: TokenUsage) => void;
 }
 
-export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
+export interface LoopStepResult {
   readonly usage: TokenUsage;
   readonly stopReason: LoopStepStopReason;
-}> {
+  readonly mediaDegradedResendUsed: boolean;
+  readonly mediaStrippedResendUsed: boolean;
+}
+
+export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<LoopStepResult> {
   const {
     turnId,
     signal,
     buildMessages,
+    buildMessagesMediaDegraded,
+    buildMessagesMediaStripped,
     dispatchEvent,
     llm,
     tools,
@@ -105,7 +114,7 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
       stepUuid,
     }),
   };
-  const response: LLMChatResponse = await chatWithRetry({
+  const retryInput = {
     llm,
     params: chatParams,
     dispatchEvent,
@@ -114,7 +123,78 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     stepUuid,
     maxAttempts: maxRetryAttempts,
     log,
-  });
+  } as const;
+  let response: LLMChatResponse;
+  let mediaDegradedResendUsed = false;
+  let mediaStrippedResendUsed = false;
+  try {
+    response = await chatWithRetry(retryInput);
+  } catch (error) {
+    if (buildMessagesMediaDegraded !== undefined && error instanceof APIRequestTooLargeError) {
+      // The provider rejected the request BODY as too large (HTTP 413) —
+      // accumulated base64 media, not tokens, so compaction's token-driven
+      // recovery never fires. Resend ONCE with the media-degraded projection
+      // (old media → text markers, most recent kept); a rejection of that
+      // rebuild propagates unchanged.
+      signal.throwIfAborted();
+      log?.warn('provider rejected request as too large; resending with degraded media', {
+        turnStep: `${turnId}.${String(currentStep)}`,
+        model: llm.modelName,
+      });
+      const degradedMessages = await buildMessagesMediaDegraded();
+      signal.throwIfAborted();
+      try {
+        response = await chatWithRetry({
+          ...retryInput,
+          params: { ...chatParams, messages: degradedMessages },
+        });
+      } catch (degradedError) {
+        log?.error('media-degraded resend still rejected by provider', {
+          turnStep: `${turnId}.${String(currentStep)}`,
+          model: llm.modelName,
+          originalError: errorMessage(error),
+          degradedError: errorMessage(degradedError),
+        });
+        throw degradedError;
+      }
+      mediaDegradedResendUsed = true;
+      log?.info('recovered after media-degraded resend', {
+        turnStep: `${turnId}.${String(currentStep)}`,
+      });
+    } else if (buildMessagesMediaStripped !== undefined && isImageFormatError(error)) {
+      // The provider rejected an IMAGE in the request (unsupported format or
+      // undecodable data). The error never says WHICH image is poison, and
+      // the same history is re-sent every turn, so the session would stay
+      // stuck. Resend ONCE with every media part replaced by a text marker.
+      signal.throwIfAborted();
+      log?.warn('provider rejected an image in the request; resending with all media stripped', {
+        turnStep: `${turnId}.${String(currentStep)}`,
+        model: llm.modelName,
+      });
+      const strippedMessages = await buildMessagesMediaStripped();
+      signal.throwIfAborted();
+      try {
+        response = await chatWithRetry({
+          ...retryInput,
+          params: { ...chatParams, messages: strippedMessages },
+        });
+      } catch (strippedError) {
+        log?.error('media-stripped resend still rejected by provider', {
+          turnStep: `${turnId}.${String(currentStep)}`,
+          model: llm.modelName,
+          originalError: errorMessage(error),
+          strippedError: errorMessage(strippedError),
+        });
+        throw strippedError;
+      }
+      mediaStrippedResendUsed = true;
+      log?.info('recovered after media-stripped resend', {
+        turnStep: `${turnId}.${String(currentStep)}`,
+      });
+    } else {
+      throw error;
+    }
+  }
   const usage = response.usage;
   recordUsage(usage);
   const stopReason = deriveStepStopReason(response);
@@ -164,7 +244,12 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     }
   }
 
-  return { usage, stopReason: effectiveStopReason };
+  return {
+    usage,
+    stopReason: effectiveStopReason,
+    mediaDegradedResendUsed,
+    mediaStrippedResendUsed,
+  };
 }
 
 function deriveStepStopReason(response: LLMChatResponse): LoopStepStopReason {

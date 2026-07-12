@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import { sliceCompleteMessages } from '../../src/agent/context/complete-slice';
 import { renderNotificationXml } from '../../src/agent/context/notification-xml';
-import { project } from '../../src/agent/context/projector';
+import {
+  degradeOlderMediaParts,
+  MEDIA_DEGRADE_KEEP_RECENT,
+  MEDIA_STRIPPED_PLACEHOLDERS,
+  project,
+} from '../../src/agent/context/projector';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
@@ -906,3 +911,99 @@ function textOf(message: Message): string {
     .map((part) => part.text)
     .join('');
 }
+
+// ---------------------------------------------------------------------------
+// degradeOlderMediaParts (media-degraded / media-stripped projections)
+// ---------------------------------------------------------------------------
+
+function mediaMessage(role: 'user' | 'assistant', ...content: Message['content']): Message {
+  return { role, content, toolCalls: [] };
+}
+
+function imageUrl(url: string): { type: 'image_url'; imageUrl: { url: string } } {
+  return { type: 'image_url', imageUrl: { url } };
+}
+
+describe('degradeOlderMediaParts', () => {
+  it('returns input by reference when no media parts exist', () => {
+    const messages: Message[] = [mediaMessage('user', { type: 'text', text: 'hi' })];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    expect(result).toBe(messages);
+  });
+
+  it('returns input by reference when media count <= keepRecent', () => {
+    const messages: Message[] = [
+      mediaMessage('user', { type: 'text', text: 'look' }, imageUrl('data:a')),
+    ];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    expect(result).toBe(messages);
+  });
+
+  it('degrades older media, keeps the most recent 2 (default)', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:old1')),
+      mediaMessage('user', imageUrl('data:old2')),
+      mediaMessage('user', imageUrl('data:old3')),
+      mediaMessage('user', imageUrl('data:recent1')),
+      mediaMessage('user', imageUrl('data:recent2')),
+    ];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    // 5 images, keep last 2 → degrade first 3
+    expect(result[0]?.content[0]).toMatchObject({ type: 'text' });
+    expect(result[1]?.content[0]).toMatchObject({ type: 'text' });
+    expect(result[2]?.content[0]).toMatchObject({ type: 'text' });
+    // Last 2 survive
+    expect(result[3]?.content[0]).toMatchObject({ type: 'image_url' });
+    expect(result[4]?.content[0]).toMatchObject({ type: 'image_url' });
+  });
+
+  it('uses degraded placeholder text pointing to re-read', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:old'), imageUrl('data:recent')),
+    ];
+    const result = degradeOlderMediaParts(messages, 0); // keep none
+    const text = textOf(result[0]!);
+    expect(text).toContain('re-read the file');
+    expect(text).toContain('request size limit');
+  });
+
+  it('with keepRecent=0 and stripped placeholders, uses stripped marker text', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:bad')),
+      mediaMessage('user', imageUrl('data:ok')),
+    ];
+    const result = degradeOlderMediaParts(messages, 0, MEDIA_STRIPPED_PLACEHOLDERS);
+    const text0 = textOf(result[0]!);
+    const text1 = textOf(result[1]!);
+    expect(text0).toContain('provider rejected this image');
+    expect(text1).toContain('provider rejected this image');
+  });
+
+  it('does not mutate the input history (read-side transform)', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:original')),
+      mediaMessage('user', imageUrl('data:later')),
+    ];
+    const originalContent = messages[0]!.content;
+    degradeOlderMediaParts(messages, 0);
+    // Input array and its content parts are untouched
+    expect(messages[0]!.content).toBe(originalContent);
+    expect(messages[0]!.content[0]).toMatchObject({ type: 'image_url' });
+  });
+
+  it('preserves surrounding text parts including ReadMediaFile wrappers', () => {
+    const messages: Message[] = [
+      mediaMessage(
+        'user',
+        { type: 'text', text: '<image path="/tmp/screenshot.png">' },
+        imageUrl('data:big'),
+        { type: 'text', text: '</image>' },
+      ),
+    ];
+    const result = degradeOlderMediaParts(messages, 0);
+    const text = textOf(result[0]!);
+    expect(text).toContain('<image path="/tmp/screenshot.png">');
+    expect(text).toContain('</image>');
+    expect(text).toContain('re-read the file');
+  });
+});

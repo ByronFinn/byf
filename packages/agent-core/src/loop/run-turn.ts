@@ -33,6 +33,8 @@ export interface RunTurnInput {
   readonly signal: AbortSignal;
   readonly llm: LLM;
   readonly buildMessages: LoopMessageBuilder;
+  readonly buildMessagesMediaDegraded?: LoopMessageBuilder;
+  readonly buildMessagesMediaStripped?: LoopMessageBuilder;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly tools?: readonly ExecutableTool[];
   readonly hooks?: LoopHooks;
@@ -47,6 +49,8 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     signal,
     llm,
     buildMessages,
+    buildMessagesMediaDegraded,
+    buildMessagesMediaStripped,
     dispatchEvent,
     tools,
     hooks,
@@ -59,6 +63,11 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
   // Normal exits overwrite this with the completed step's stop reason.
   let stopReason: LoopTurnStopReason = 'end_turn';
   let activeStep: number | undefined;
+  // Sticky media projection: once a step only succeeded via a degraded or
+  // stripped resend, later steps in the same turn keep using that projection
+  // (avoids re-paying a rejection every step — the same media is re-sent).
+  let mediaDegradedActive = false;
+  let mediaStrippedActive = false;
   const recordStepUsage = (stepUsage: TokenUsage): void => {
     usage = addUsage(usage, stepUsage);
   };
@@ -73,10 +82,20 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
 
       steps += 1;
       activeStep = steps;
+      // Pick the active projection for this step. Stripped takes priority
+      // over degraded (a format rejection is stricter than a size rejection).
+      const activeBuildMessages =
+        mediaStrippedActive && buildMessagesMediaStripped !== undefined
+          ? buildMessagesMediaStripped
+          : mediaDegradedActive && buildMessagesMediaDegraded !== undefined
+            ? buildMessagesMediaDegraded
+            : buildMessages;
       const stepResult = await executeLoopStep({
         turnId,
         signal,
-        buildMessages,
+        buildMessages: activeBuildMessages,
+        buildMessagesMediaDegraded: mediaDegradedActive ? undefined : buildMessagesMediaDegraded,
+        buildMessagesMediaStripped: mediaStrippedActive ? undefined : buildMessagesMediaStripped,
         dispatchEvent,
         llm,
         tools,
@@ -86,6 +105,10 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
         maxRetryAttempts,
         recordUsage: recordStepUsage,
       });
+      // Latch the sticky projection: once degraded/stripped succeeds, it
+      // stays active for the rest of the turn.
+      if (stepResult.mediaDegradedResendUsed) mediaDegradedActive = true;
+      if (stepResult.mediaStrippedResendUsed) mediaStrippedActive = true;
       activeStep = undefined;
 
       if (stepResult.stopReason === 'tool_use') {

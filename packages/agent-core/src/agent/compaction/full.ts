@@ -1,9 +1,12 @@
 import {
   APIConnectionError,
   APIEmptyResponseError,
+  APIRequestTooLargeError,
   APIStatusError,
   APITimeoutError,
   inputTotal,
+  isImageFormatError,
+  type ContentPart,
   type GenerateResult,
   type Message,
   type TokenUsage,
@@ -466,6 +469,8 @@ export class FullCompaction implements RecordRestoreHandler {
       DEFAULT_MAX_RETRY_ATTEMPTS;
     const delays = retryBackoffDelays(maxAttempts);
     let retryCount = 0;
+    let historyForModel = messages;
+    let mediaStripAttempted = false;
 
     // Clamp the completion budget against the compaction input. Compaction
     // is triggered when context is already near full, so an unbounded
@@ -479,7 +484,7 @@ export class FullCompaction implements RecordRestoreHandler {
       provider: this.agent.config.provider,
       budget: completionBudget,
       capability: this.agent.config.modelCapabilities,
-      messages,
+      messages: historyForModel,
       systemPrompt: this.agent.config.systemPrompt,
       tools: this.agent.tools.loopTools,
     });
@@ -490,13 +495,35 @@ export class FullCompaction implements RecordRestoreHandler {
           effectiveProvider,
           this.agent.config.systemPrompt,
           [...this.agent.tools.loopTools],
-          messages,
+          historyForModel,
           undefined,
           { signal },
         );
         const summary = extractCompactionSummary(response);
         return { response, summary, retryCount };
       } catch (error) {
+        // Media recovery: a 413 body-size or image-format rejection means
+        // the summarizer input carries too much media (or a poisoned image).
+        // Strip ALL media into text markers (the summarizer does not need
+        // pixels) and retry. Only attempted once — a second media rejection
+        // propagates so the caller's overflow/compaction path handles it.
+        const mediaRejected = error instanceof APIRequestTooLargeError || isImageFormatError(error);
+        if (mediaRejected && !mediaStripAttempted) {
+          mediaStripAttempted = true;
+          const stripped = replaceMediaPartsWithMarkers(historyForModel);
+          if (stripped !== historyForModel) {
+            historyForModel = stripped;
+            retryCount = 0;
+            this.agent.log.warn(
+              'compaction request rejected for media; retrying with media stripped',
+              {
+                error: error instanceof Error ? error.name : 'Unknown',
+              },
+            );
+            attempt = 0; // restart the attempt counter for the stripped pass
+            continue;
+          }
+        }
         if (attempt >= maxAttempts || !isRetryableCompactionError(error)) {
           throw error;
         }
@@ -604,4 +631,31 @@ function isRetryableCompactionError(error: unknown): boolean {
   if (!(error instanceof APIStatusError)) return false;
   const statusCode = (error as { readonly statusCode?: unknown }).statusCode;
   return typeof statusCode === 'number' && [429, 500, 502, 503, 504].includes(statusCode);
+}
+
+const COMPACTION_MEDIA_MARKER: Record<string, string> = {
+  image_url: '[image omitted from compaction input]',
+  audio_url: '[audio omitted from compaction input]',
+  video_url: '[video omitted from compaction input]',
+};
+
+/**
+ * Replace every media part in the message array with a compact text marker.
+ * The compaction summarizer does not need pixels — it only needs the text
+ * conversation — so a full strip is always safe here (unlike the turn path
+ * which keeps the most recent media). Returns the input array by reference
+ * when no media exists, so the caller can detect a no-op.
+ */
+function replaceMediaPartsWithMarkers(messages: readonly Message[]): Message[] {
+  let changed = false;
+  const result = messages.map((message) => {
+    if (!message.content.some((p) => p.type in COMPACTION_MEDIA_MARKER)) return message;
+    changed = true;
+    const content: ContentPart[] = message.content.map((part) => {
+      const marker = COMPACTION_MEDIA_MARKER[part.type];
+      return marker !== undefined ? { type: 'text', text: marker } : part;
+    });
+    return { ...message, content };
+  });
+  return changed ? result : (messages as Message[]);
 }

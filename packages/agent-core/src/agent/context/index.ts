@@ -14,7 +14,13 @@ import {
   type MaskingResult,
 } from './observation-masking';
 import { DEFAULT_OFFLOADING_CONFIG, offloadOutput } from './output-offloading';
-import { project, type EphemeralInjection } from './projector';
+import {
+  degradeOlderMediaParts,
+  MEDIA_DEGRADE_KEEP_RECENT,
+  MEDIA_STRIPPED_PLACEHOLDERS,
+  project,
+  type EphemeralInjection,
+} from './projector';
 import { ScratchManager } from './scratch-manager';
 import {
   USER_PROMPT_ORIGIN,
@@ -153,6 +159,31 @@ export class ContextMemory implements RecordRestoreHandler {
 
   get messages(): Message[] {
     return this.getMessages();
+  }
+
+  /**
+   * Media-degraded projection of the current messages: all but the most
+   * recent {@link MEDIA_DEGRADE_KEEP_RECENT} media parts are replaced by
+   * text markers. Used for the one-shot resend after the provider rejects
+   * the request body as too large (HTTP 413 body-size). Read-side only —
+   * the underlying history is left untouched.
+   *
+   * Accepts the same optional ephemeral injections as {@link getMessages}
+   * so the degraded projection includes the same per-request dynamic
+   * content (timestamp, permission mode) as the normal projection.
+   */
+  getMediaDegradedMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
+    return degradeOlderMediaParts(this.getMessages(ephemeral), MEDIA_DEGRADE_KEEP_RECENT);
+  }
+
+  /**
+   * Media-stripped projection: ALL media parts replaced by text markers.
+   * Used for the one-shot resend after the provider rejects an image's
+   * format/data (the poisoned image could be anywhere, so only a full
+   * strip guarantees a clean request). Read-side only.
+   */
+  getMediaStrippedMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
+    return degradeOlderMediaParts(this.getMessages(ephemeral), 0, MEDIA_STRIPPED_PLACEHOLDERS);
   }
 
   /**

@@ -553,6 +553,20 @@ export class TurnFlow implements RecordRestoreHandler {
               previousTurnMessageCount: this._previousTurnMessageCount,
             });
           },
+          buildMessagesMediaDegraded: () => {
+            const ephemeral = this.agent.injection.getEphemeralInjections();
+            const messages = this.agent.context.getMediaDegradedMessages(ephemeral);
+            return applyCacheStaking(messages, {
+              previousTurnMessageCount: this._previousTurnMessageCount,
+            });
+          },
+          buildMessagesMediaStripped: () => {
+            const ephemeral = this.agent.injection.getEphemeralInjections();
+            const messages = this.agent.context.getMediaStrippedMessages(ephemeral);
+            return applyCacheStaking(messages, {
+              previousTurnMessageCount: this._previousTurnMessageCount,
+            });
+          },
           dispatchEvent: this.buildDispatchEvent(turnId),
           tools: this.agent.tools.loopTools,
           log: this.agent.log,
