@@ -1590,6 +1590,54 @@ describe('Permission rule helpers', () => {
     });
     expect(requestApproval).not.toHaveBeenCalled();
   });
+
+  it('session-approving CronCreate payload A does not auto-approve payload B (PRD-0023 #244)', async () => {
+    // Integration through PermissionManager: approve_for_session on one
+    // create payload must not unlock a different (cron, prompt, recurring) tuple.
+    const payloadA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadB = { cron: '*/5 * * * *', prompt: 'B', recurring: true };
+    const actionA = describeApprovalAction('CronCreate', payloadA, genericDisplay());
+
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+      selectedLabel: 'Approve for this session',
+    }));
+
+    // First create with payload A → asks once, records session approval for A only.
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_a1', toolName: 'CronCreate', args: payloadA }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval.mock.calls[0]![0]).toMatchObject({
+      toolName: 'CronCreate',
+      action: actionA,
+    });
+    // No bare CronCreate allow rule (would match every payload).
+    expect(manager.data().rules.some((r) => r.pattern === 'CronCreate')).toBe(false);
+
+    // Same payload A again → sessionApprovedActions auto-allows without a new prompt.
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_a2', toolName: 'CronCreate', args: payloadA }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    // Different payload B → must ask again (not auto-approved by A's session grant).
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_b1', toolName: 'CronCreate', args: payloadB }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(2);
+    expect(requestApproval.mock.calls[1]![0]).toMatchObject({
+      toolName: 'CronCreate',
+      action: describeApprovalAction('CronCreate', payloadB, genericDisplay()),
+    });
+  });
 });
 
 function bashCall(): ToolCall {

@@ -28,6 +28,16 @@ const mocks = vi.hoisted(() => {
         permission: 'manual',
       }),
     ),
+    // PRD-0023 headless completion (evaluateRunCompletion)
+    getGoal: vi.fn(async (): Promise<{ status: string } | null> => null),
+    getCronTasks: vi.fn(
+      async (): Promise<{ tasks: readonly { nextFireAt: number | null }[] }> => ({
+        tasks: [],
+      }),
+    ),
+    waitForBackgroundTasksOnPrint: vi.fn(async () => {}),
+    listBackgroundTasks: vi.fn(async (): Promise<readonly unknown[]> => []),
+    createGoal: vi.fn(async () => ({ status: 'active' })),
     onEvent: vi.fn((handler: (event: any) => void) => {
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);
@@ -106,6 +116,7 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     outputFormat: undefined,
     prompt: 'say hello',
     skillsDirs: [],
+    addDirs: [] as string[],
     ...overrides,
   };
 }
@@ -159,6 +170,19 @@ describe('runPrompt', () => {
     mocks.createByfDeviceId.mockImplementation(() => 'device-1');
     mocks.resolveByfHome.mockImplementation((homeDir?: string) => homeDir ?? '/tmp/byf-test-home');
     mocks.harnessCreatesDeviceIdOnConstruction = false;
+    // Restore default headless completion mocks after completion-suite overrides.
+    mocks.session.getGoal.mockImplementation(async () => null);
+    mocks.session.getCronTasks.mockImplementation(async () => ({ tasks: [] }));
+    mocks.session.waitForBackgroundTasksOnPrint.mockImplementation(async () => {});
+    mocks.session.listBackgroundTasks.mockImplementation(async () => []);
+    mocks.session.prompt.mockImplementation(async () => {
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
+        handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 1, delta: 'hello' }));
+        handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 1, delta: ' world' }));
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
+      }
+    });
   });
 
   it('creates a fresh auto-permission session and streams assistant output to stdout', async () => {
@@ -873,6 +897,163 @@ describe('runPrompt', () => {
       expect(process.listenerCount('SIGHUP')).toBe(beforeSighup);
       expect(process.stdout.listenerCount('error')).toBe(beforeStdoutError);
       expect(process.stderr.listenerCount('error')).toBe(beforeStderrError);
+    });
+  });
+
+  /**
+   * PRD-0023 #241 — headless evaluateRunCompletion on the real run-prompt path.
+   * Mock session APIs control goal/cron; events drive the dual-trigger state machine.
+   */
+  describe('headless completion (evaluateRunCompletion)', () => {
+    it('holds after turn.ended while goal is active; releases on goal.updated terminal', async () => {
+      let goalStatus: 'active' | 'blocked' = 'active';
+      mocks.session.getGoal.mockImplementation(async () => ({ status: goalStatus }));
+
+      const run = runPrompt(opts(), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      // Default prompt already emitted turn.ended → evaluate should hold on active goal.
+      await waitForAssertion(() => {
+        expect(mocks.session.getGoal).toHaveBeenCalled();
+      });
+      // Must NOT have drained background yet (still holding for goal).
+      expect(mocks.session.waitForBackgroundTasksOnPrint).not.toHaveBeenCalled();
+
+      // Dual-trigger: terminal goal.updated with no active turn releases hold.
+      goalStatus = 'blocked';
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({
+            type: 'goal.updated',
+            snapshot: {
+              status: 'blocked',
+              objective: 'x',
+              usage: { turns: 1, tokens: 0, wallClockMs: 0 },
+            },
+          }),
+        );
+      }
+
+      await run;
+      expect(mocks.session.waitForBackgroundTasksOnPrint).toHaveBeenCalled();
+      expect(mocks.session.getCronTasks).toHaveBeenCalled();
+      expect(mocks.harnessClose).toHaveBeenCalled();
+    });
+
+    it('goal.updated (non-active) triggers completion without a further turn.ended', async () => {
+      // Budget-blocked path: turn already ended (activeTurnId cleared) then
+      // goal.updated fires — evaluateRunCompletion must run from that event alone.
+      mocks.session.getGoal.mockImplementation(async () => ({ status: 'blocked' }));
+
+      // Hang the first prompt so we control when turn ends.
+      let releaseFirst!: () => void;
+      mocks.session.prompt.mockImplementationOnce(async () => {
+        for (const handler of mocks.eventHandlers) {
+          handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
+          handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 1, delta: 'working' }));
+        }
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve;
+        });
+      });
+
+      const run = runPrompt(opts(), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      await waitForAssertion(() => {
+        expect(mocks.session.prompt).toHaveBeenCalled();
+      });
+
+      // End turn first (clears activeTurnId), hold is not needed if goal already terminal.
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
+      }
+      releaseFirst();
+
+      // Also fire goal.updated terminal — dual-trigger path (even if turn.ended already settled).
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({
+            type: 'goal.updated',
+            snapshot: {
+              status: 'blocked',
+              objective: 'budget',
+              usage: { turns: 3, tokens: 100, wallClockMs: 1 },
+            },
+          }),
+        );
+      }
+
+      await run;
+      expect(mocks.session.waitForBackgroundTasksOnPrint).toHaveBeenCalled();
+    });
+
+    it('holds while any cron task has a future nextFireAt', async () => {
+      mocks.session.getGoal.mockImplementation(async () => null);
+      mocks.session.getCronTasks
+        .mockImplementationOnce(async () => ({
+          tasks: [{ nextFireAt: Date.now() + 60_000 }],
+        }))
+        .mockImplementation(async () => ({
+          tasks: [{ nextFireAt: null }],
+        }));
+
+      // Hang after turn so we can re-fire turn.ended after clearing cron.
+      let releasePrompt!: () => void;
+      mocks.session.prompt.mockImplementationOnce(async () => {
+        for (const handler of mocks.eventHandlers) {
+          handler(mocks.mainEvent({ type: 'turn.started', turnId: 1, origin: { kind: 'user' } }));
+          handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 1, delta: 'scheduled' }));
+        }
+        await new Promise<void>((resolve) => {
+          releasePrompt = resolve;
+        });
+      });
+
+      const run = runPrompt(opts(), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      await waitForAssertion(() => {
+        expect(mocks.session.prompt).toHaveBeenCalled();
+      });
+
+      // First turn.ended → cron nextFireAt set → hold (no waitForBackground yet).
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 1, reason: 'completed' }));
+      }
+      releasePrompt();
+
+      await waitForAssertion(() => {
+        expect(mocks.session.getCronTasks).toHaveBeenCalled();
+      });
+      expect(mocks.session.waitForBackgroundTasksOnPrint).not.toHaveBeenCalled();
+
+      // Simulate a later turn after cron no longer has a future fire.
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'turn.started', turnId: 2, origin: { kind: 'user' } }));
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 2, reason: 'completed' }));
+      }
+
+      await run;
+      expect(mocks.session.waitForBackgroundTasksOnPrint).toHaveBeenCalled();
+    });
+
+    it('passes --add-dir values into createSession additionalDirs', async () => {
+      await runPrompt(opts({ addDirs: ['/tmp/a', '/tmp/b'] }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+      expect(mocks.harnessCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          additionalDirs: ['/tmp/a', '/tmp/b'],
+        }),
+      );
     });
   });
 });

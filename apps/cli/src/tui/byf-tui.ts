@@ -115,6 +115,7 @@ import {
   type BackgroundTaskCallbacks,
 } from './events/background-task-handler';
 import { CompactionHandler, type CompactionCallbacks } from './events/compaction-handler';
+import { formatCronFiredNotice } from './events/cron-fired-notice';
 import { GoalEventHandler } from './events/goal-event-handler';
 import {
   handleSessionError,
@@ -2243,14 +2244,8 @@ export class ByfTui implements DialogHost {
         this.goalEventHandler.handleEvent(event);
         break;
       case 'cron.fired': {
-        const { origin, prompt } = event;
-        const stale = origin.stale ? ' · stale' : '';
-        const coalesce =
-          origin.coalescedCount > 1 ? ` · coalesced×${String(origin.coalescedCount)}` : '';
-        this.showNotice(
-          `Cron ${origin.jobId} fired${stale}${coalesce}`,
-          prompt.length > 200 ? `${prompt.slice(0, 200)}…` : prompt,
-        );
+        const notice = formatCronFiredNotice(event.origin, event.prompt);
+        this.showNotice(notice.title, notice.detail);
         break;
       }
       case 'mcp.server.status':
