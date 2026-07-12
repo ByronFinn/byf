@@ -175,7 +175,7 @@ _无 docs/research 命中。_
   - #247 — [PRD-0024] Host deleteCronTask — 用户特权删除 RPC/SDK (AFK) — Done
   - #248 — [PRD-0024] TUI /cron slash — list、delete 与文档 (AFK) — Done
 - **Implemented by**: `/implement` (2026-07-13) — #246 #247 #248
-- **Reviewed by**: —
+- **Reviewed by**: `/review` (2026-07-13) — three-perspective Approve (Test: Comments with non-blocking gaps; Code/Impact: Approve); ship `b1dcbdd`
 - **New terms**: `/cron`（会话 Cron slash）；会话内 Cron 双路径说明
 - **New decisions**: ADR-0030 host cron delete 用户特权
 
