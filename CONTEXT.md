@@ -253,3 +253,31 @@ agent 自主多轮推进一个 active goal 的运行模式。`driveGoal` 在 tur
 ### Goal Reminder（目标提醒）
 
 注入到 context 的 goal 上下文提示，告知模型当前存在 goal 及其状态/预算。三档强度：active（完整 reminder + budget 指引）、blocked（轻提示 + objective）、paused（守卫提示）。走 ephemeral injection 的 `before_user` 位置（ADR-0022），每 step 重新生成，不进 wire records，不破坏 cache prefix。
+
+### Headless drain（无头完成协议）
+
+`byf -p`（print / `uiMode: 'print'`）在进程退出前必须满足的完成条件协议，而非「首个 turn 结束即退」。判定顺序：goal 仍 `active` 则 hold → 会话内 Cron 仍有未来 `nextFireAt` 则无限 hold → 否则等待后台任务（受 Print wait ceiling 约束）再退出。详见 ADR-0029、PRD-0023。
+
+### Print wait ceiling
+
+print 模式下等待后台任务结束的最长秒数（配置语义 `printWaitCeilingS`，默认 3600）。超时后结束等待并以非 0 退出。**不**限制 goal hold 或 cron hold。与 `background.keepAliveOnExit`（仅控制 session close 时是否 stopAll）是不同概念。
+
+### ImageLimits
+
+每 Agent/core 实例持有的图片摄入预算（最长边、字节上限等），可由 config/env 配置。`ReadMediaFile`、TUI 粘贴等所有把图像送入模型的入口共用同一 limits 实例，避免「工具压了粘贴没压」。
+
+### media-degraded 投影 / media-stripped 投影
+
+请求侧（不改写持久 history）的一次性降级投影：provider 因请求体过大（request-too-large / 典型 HTTP 413 body-size）拒绝时，将较旧 media 换成 text marker 并保留最近媒体后重发一次（media-degraded）；因不支持/不可解码图片拒绝时，将全部 media 换成 marker 后重发一次（media-stripped）。与 context overflow（token 超限）恢复路径分离。
+
+### 会话内 Cron（Session Cron）
+
+绑定**当前会话**的本地定时任务：标准 5 段 cron（本地时区）、one-shot 或 recurring、idle 时 `steer` 注入 prompt、persist 在 session 目录、同 session resume 恢复。不是系统 crontab，也不按工作目录跨 session 共享。Recurring 有 7 日 stale 自动删除等契约（见 PRD-0023）。触发时 TUI 以 notice 展示。
+
+### Additional dir（额外工作目录）
+
+主 `workspaceDir` 之外、工具路径策略允许访问的额外根目录列表（`WorkspaceConfig.additionalDirs`）。可通过 `/add-dir`、`--add-dir` 在会话中追加；可选「记住到项目」写入项目根 `.byf/local.toml` 的 `workspace.additional_dir`。
+
+### 项目本地配置（`.byf/local.toml`）
+
+位于项目根下的工作区本地配置文件，与用户级 `~/.byf/config.toml` 分离。当前用途：`workspace.additional_dir` 数组（`/add-dir` 记住的额外根）。可按团队需要加入 `.gitignore`。

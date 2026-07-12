@@ -17,6 +17,7 @@ export { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 
 export class ConfigState implements RecordRestoreHandler {
   private _cwd: string = '';
+  private _additionalDirs: readonly string[] = [];
   private _modelAlias: string | undefined;
   private _profileName: string | undefined;
   private _thinkingLevel: ThinkingEffort = 'off';
@@ -43,6 +44,7 @@ export class ConfigState implements RecordRestoreHandler {
       config: changed,
     });
     if (changed.cwd !== undefined) this._cwd = changed.cwd;
+    if (changed.additionalDirs !== undefined) this._additionalDirs = changed.additionalDirs;
     if (Object.hasOwn(changed, 'modelAlias')) {
       this._modelAlias = changed.modelAlias ?? undefined;
     }
@@ -50,7 +52,12 @@ export class ConfigState implements RecordRestoreHandler {
     if (changed.thinkingLevel !== undefined)
       this._thinkingLevel = changed.thinkingLevel as ThinkingEffort;
     if (changed.systemPrompt !== undefined) this._systemPrompt = changed.systemPrompt;
-    if (this.hasProvider && (changed.cwd !== undefined || Object.hasOwn(changed, 'modelAlias'))) {
+    if (
+      this.hasProvider &&
+      (changed.cwd !== undefined ||
+        changed.additionalDirs !== undefined ||
+        Object.hasOwn(changed, 'modelAlias'))
+    ) {
       this.agent.tools.initializeBuiltinTools();
     }
     this.agent.emitStatusUpdated();
@@ -60,6 +67,7 @@ export class ConfigState implements RecordRestoreHandler {
     const resolved = this.tryResolvedProviderConfig();
     return {
       cwd: this.cwd,
+      additionalDirs: this._additionalDirs,
       provider: resolved?.provider,
       modelAlias: this._modelAlias,
       modelCapabilities: resolved?.modelCapabilities ?? UNKNOWN_CAPABILITY,
@@ -71,6 +79,10 @@ export class ConfigState implements RecordRestoreHandler {
 
   get cwd(): string {
     return this._cwd;
+  }
+
+  get additionalDirs(): readonly string[] {
+    return this._additionalDirs;
   }
 
   get hasModel(): boolean {

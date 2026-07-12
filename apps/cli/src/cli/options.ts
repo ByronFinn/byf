@@ -9,6 +9,7 @@ export interface CLIOptions {
   outputFormat: PromptOutputFormat | undefined;
   prompt: string | undefined;
   skillsDirs: string[];
+  addDirs: string[];
 }
 
 export interface ValidatedOptions {

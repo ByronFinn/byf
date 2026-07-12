@@ -3,6 +3,7 @@
 
 import type { SlashCommandHandler, SlashCommandHandlerRegistry } from '../handler-registry';
 import type { BuiltinSlashCommandName } from '../registry';
+import { createAddDirHandlers } from './add-dir';
 import { createAuthHandlers } from './auth';
 import { createConfigHandlers } from './config';
 import { createDialogHandlers } from './dialog';
@@ -28,6 +29,7 @@ export function registerBuiltinSlashHandlers(
     ...createAuthHandlers(host),
     ...createGoalHandlers(host),
     ...createConfigHandlers(host),
+    ...createAddDirHandlers(host),
   } satisfies Record<BuiltinSlashCommandName, SlashCommandHandler>;
 
   for (const [name, handler] of Object.entries(handlers)) {

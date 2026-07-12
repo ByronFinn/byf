@@ -36,6 +36,14 @@ describe('CLI options parsing', () => {
       expect(opts.outputFormat).toBeUndefined();
       expect(opts.prompt).toBeUndefined();
       expect(opts.skillsDirs).toEqual([]);
+      expect(opts.addDirs).toEqual([]);
+    });
+  });
+
+  describe('--add-dir', () => {
+    it('collects repeated --add-dir values', () => {
+      const opts = parse(['--add-dir', '/tmp/a', '--add-dir', '/tmp/b']);
+      expect(opts.addDirs).toEqual(['/tmp/a', '/tmp/b']);
     });
   });
 
@@ -224,7 +232,6 @@ describe('CLI options parsing', () => {
         '--print',
         '--wire',
         '--agent=default',
-        '--add-dir=/',
         '--raw-model',
         '--config-file=x',
         '--quiet',
