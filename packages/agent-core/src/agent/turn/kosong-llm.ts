@@ -16,12 +16,9 @@
  */
 
 import {
-  APIConnectionError,
-  APIEmptyResponseError,
-  APIStatusError,
-  APITimeoutError,
   emptyUsage,
   generate as kosongGenerate,
+  isRetryableGenerateError,
   type ChatProvider,
   type GenerateCallbacks,
   type Message,
@@ -139,15 +136,7 @@ export class KosongLLM implements LLM {
   }
 
   isRetryableError(error: unknown): boolean {
-    if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
-      return true;
-    }
-    if (error instanceof APIEmptyResponseError) {
-      return true;
-    }
-    return (
-      error instanceof APIStatusError && [429, 500, 502, 503, 504, 529].includes(error.statusCode)
-    );
+    return isRetryableGenerateError(error);
   }
 }
 
