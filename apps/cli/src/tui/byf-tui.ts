@@ -2381,8 +2381,8 @@ export class ByfTui implements DialogHost {
       beginCompactionBlock: (instruction) => {
         this.beginCompaction(instruction);
       },
-      endCompactionBlock: (tokensBefore, tokensAfter) => {
-        this.endCompaction(tokensBefore, tokensAfter);
+      endCompactionBlock: (tokensBefore, tokensAfter, summary) => {
+        this.endCompaction(tokensBefore, tokensAfter, summary);
       },
       cancelCompactionBlock: () => {
         this.cancelCompactionBlock();
@@ -2701,10 +2701,10 @@ export class ByfTui implements DialogHost {
   }
 
   // Marks the active compaction block complete.
-  private endCompaction(tokensBefore?: number, tokensAfter?: number): void {
+  private endCompaction(tokensBefore?: number, tokensAfter?: number, summary?: string): void {
     const block = this.state.activeCompactionBlock;
     if (block === undefined) return;
-    block.markDone(tokensBefore, tokensAfter);
+    block.markDone(tokensBefore, tokensAfter, summary);
     this.state.activeCompactionBlock = undefined;
     this.state.ui.requestRender();
   }

@@ -58,7 +58,7 @@ type CallbackCalls = {
   setAppState: Partial<AppState>[];
   resetLivePane: number;
   beginCompactionBlock: Array<string | undefined>;
-  endCompactionBlock: Array<{ tokensBefore?: number; tokensAfter?: number }>;
+  endCompactionBlock: Array<{ tokensBefore?: number; tokensAfter?: number; summary?: string }>;
   cancelCompactionBlock: number;
 };
 
@@ -78,8 +78,8 @@ function makeCallbacks(): { callbacks: CompactionCallbacks; calls: CallbackCalls
       calls.resetLivePane++;
     },
     beginCompactionBlock: (instruction) => calls.beginCompactionBlock.push(instruction),
-    endCompactionBlock: (tokensBefore, tokensAfter) =>
-      calls.endCompactionBlock.push({ tokensBefore, tokensAfter }),
+    endCompactionBlock: (tokensBefore, tokensAfter, summary) =>
+      calls.endCompactionBlock.push({ tokensBefore, tokensAfter, summary }),
     cancelCompactionBlock: () => {
       calls.cancelCompactionBlock++;
     },
@@ -230,6 +230,26 @@ describe('CompactionHandler', () => {
 
       expect(calls.endCompactionBlock).toEqual([
         { tokensBefore: undefined, tokensAfter: undefined },
+      ]);
+    });
+
+    it('threads result.summary through to endCompactionBlock', () => {
+      const { handler, calls } = makeHandler({
+        appState: makeAppState({ isCompacting: true }),
+      });
+      const sendQueued = vi.fn();
+
+      handler.handleEnd(
+        compactionCompleted({
+          tokensBefore: 200,
+          tokensAfter: 80,
+          summary: 'Older turns summarized',
+        }),
+        sendQueued,
+      );
+
+      expect(calls.endCompactionBlock).toEqual([
+        { tokensBefore: 200, tokensAfter: 80, summary: 'Older turns summarized' },
       ]);
     });
   });
