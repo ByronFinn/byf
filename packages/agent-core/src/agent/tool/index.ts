@@ -339,14 +339,14 @@ export class ToolManager implements RecordRestoreHandler {
   initializeBuiltinTools(): void {
     const {
       runtime: { kaos, osEnv, urlFetcher, webSearcher },
-      config: { cwd, provider, modelCapabilities },
+      config: { cwd, additionalDirs, provider, modelCapabilities },
       background,
     } = this.agent;
     const videoUploader = this.createVideoUploader(provider);
     const workspace = extendWorkspaceWithSkillRoots(
       {
         workspaceDir: cwd,
-        additionalDirs: [],
+        additionalDirs: [...additionalDirs],
       },
       this.agent.skills?.registry.getSkillRoots() ?? [],
     );
@@ -399,6 +399,10 @@ export class ToolManager implements RecordRestoreHandler {
         this.agent.type === 'main' && new b.GetGoalTool(this.agent),
         this.agent.type === 'main' && new b.SetGoalBudgetTool(this.agent),
         this.agent.type === 'main' && new b.UpdateGoalTool(this.agent),
+        // Session-scoped cron tools (PRD-0023 R3); only when CronManager is attached.
+        this.agent.cron && new b.CronCreateTool(this.agent.cron),
+        this.agent.cron && new b.CronListTool(this.agent.cron),
+        this.agent.cron && new b.CronDeleteTool(this.agent.cron),
         webSearcher && new b.WebSearchTool(webSearcher),
         urlFetcher && new b.FetchURLTool(urlFetcher),
       ]

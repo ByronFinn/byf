@@ -214,6 +214,7 @@ export interface TUIStartupOptions {
   readonly yolo: boolean;
   readonly model?: string;
   readonly startupNotice?: string;
+  readonly addDirs?: readonly string[];
 }
 
 export interface ByfTuiOptions {
@@ -473,6 +474,7 @@ export class ByfTui implements DialogHost {
         yolo: startupInput.cliOptions.yolo,
         model: startupInput.cliOptions.model,
         startupNotice: startupInput.startupNotice,
+        addDirs: startupInput.cliOptions.addDirs,
       },
       resolvedTheme: startupInput.resolvedTheme,
     };
@@ -812,6 +814,9 @@ export class ByfTui implements DialogHost {
       workDir,
       model: startup.model,
       permission: startup.yolo ? 'yolo' : undefined,
+      ...(startup.addDirs !== undefined && startup.addDirs.length > 0
+        ? { additionalDirs: startup.addDirs }
+        : {}),
     };
 
     try {
@@ -2237,6 +2242,17 @@ export class ByfTui implements DialogHost {
       case 'goal.updated':
         this.goalEventHandler.handleEvent(event);
         break;
+      case 'cron.fired': {
+        const { origin, prompt } = event;
+        const stale = origin.stale ? ' · stale' : '';
+        const coalesce =
+          origin.coalescedCount > 1 ? ` · coalesced×${String(origin.coalescedCount)}` : '';
+        this.showNotice(
+          `Cron ${origin.jobId} fired${stale}${coalesce}`,
+          prompt.length > 200 ? `${prompt.slice(0, 200)}…` : prompt,
+        );
+        break;
+      }
       case 'mcp.server.status':
         this.renderMcpServerStatus(event.server);
         break;

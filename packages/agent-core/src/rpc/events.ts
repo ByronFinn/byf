@@ -307,6 +307,20 @@ export interface GoalUpdatedEvent {
   readonly change?: GoalChange;
 }
 
+/** Fired when a session-scoped cron task delivers its prompt (PRD-0023 R3.3). */
+export interface CronFiredEvent {
+  readonly type: 'cron.fired';
+  readonly origin: {
+    readonly kind: 'cron_job';
+    readonly jobId: string;
+    readonly cron: string;
+    readonly recurring: boolean;
+    readonly coalescedCount: number;
+    readonly stale: boolean;
+  };
+  readonly prompt: string;
+}
+
 export type ToolListUpdatedReason = 'mcp.connected' | 'mcp.disconnected' | 'mcp.failed';
 
 export interface ToolListUpdatedEvent {
@@ -365,6 +379,7 @@ export type AgentEvent =
   | BtwDeltaEvent
   | BtwCompletedEvent
   | BtwFailedEvent
-  | GoalUpdatedEvent;
+  | GoalUpdatedEvent
+  | CronFiredEvent;
 
 export type Event = AgentEvent & { agentId: string; sessionId: string };

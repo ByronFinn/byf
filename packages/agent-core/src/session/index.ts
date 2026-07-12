@@ -45,6 +45,7 @@ export interface SessionConfig {
   readonly byfHomeDir?: string;
   readonly rpc: SDKSessionRPC;
   readonly cwd?: string;
+  readonly additionalDirs?: readonly string[];
   readonly initializeMainAgent?: boolean;
   readonly providerManager?: ProviderManager;
   readonly background?: BackgroundConfig;
@@ -214,6 +215,7 @@ export class Session {
 
   async close(): Promise<void> {
     try {
+      await this.stopCronManagers();
       await this.stopBackgroundTasksOnExit();
       await this.flushMetadata();
       await this.triggerSessionEnd('exit');
@@ -224,6 +226,14 @@ export class Session {
         await this.logHandle?.close();
       }
     }
+  }
+
+  private async stopCronManagers(): Promise<void> {
+    await Promise.all(
+      Array.from(this.agents.values(), async (agent) => {
+        await agent.cron?.stop();
+      }),
+    );
   }
 
   private async stopBackgroundTasksOnExit(): Promise<void> {
@@ -291,6 +301,69 @@ export class Session {
     }
   }
 
+  /**
+   * Append a directory to the main agent's workspace additionalDirs at
+   * runtime (PRD-0023 R5.1). Validates existence + directory shape.
+   * When `persist` is true, also appends to project `.byf/local.toml`
+   * (R5.4). Triggers tool rebuild so path-access policies pick up the
+   * new root immediately.
+   */
+  async addWorkspaceDir(
+    dir: string,
+    options: { persist?: boolean } = {},
+  ): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+    configPath?: string;
+  }> {
+    const main = this.agents.get('main');
+    if (main === undefined) {
+      throw new Error('No main agent; cannot add workspace directory.');
+    }
+    const { resolveWorkspaceAdditionalDirs, appendWorkspaceAdditionalDir } =
+      await import('../config/workspace-local');
+    const [resolved] = await resolveWorkspaceAdditionalDirs(
+      this.config.runtime.kaos,
+      main.config.cwd,
+      [dir],
+    );
+    if (resolved === undefined) {
+      throw new Error('workspace.additional_dir must exist and be a directory');
+    }
+    const existing = main.config.additionalDirs;
+    if (!existing.includes(resolved) && resolved !== main.config.cwd) {
+      main.config.update({ additionalDirs: [...existing, resolved] });
+    }
+
+    let configPath: string | undefined;
+    if (options.persist === true) {
+      const persisted = await appendWorkspaceAdditionalDir(
+        this.config.runtime.kaos,
+        main.config.cwd,
+        dir,
+        main.config.additionalDirs,
+      );
+      configPath = persisted.configPath;
+    }
+
+    return {
+      workspaceDir: main.config.cwd,
+      additionalDirs: main.config.additionalDirs,
+      configPath,
+    };
+  }
+
+  /**
+   * Current workspace roots for the main agent (cwd + additionalDirs).
+   */
+  getWorkspaceRoots(): { workspaceDir: string; additionalDirs: readonly string[] } {
+    const main = this.agents.get('main');
+    if (main === undefined) {
+      throw new Error('No main agent; cannot read workspace roots.');
+    }
+    return { workspaceDir: main.config.cwd, additionalDirs: main.config.additionalDirs };
+  }
+
   async createAgent(
     config: Partial<AgentConfig>,
     profile?: ResolvedAgentProfile,
@@ -305,7 +378,7 @@ export class Session {
     if (profile) {
       await this.bootstrapAgentProfile(agent, profile);
     } else if (this.config.cwd !== undefined) {
-      agent.config.update({ cwd: this.config.cwd });
+      agent.config.update(this.sessionWorkspaceUpdate());
     }
 
     this.agents.set(id, agent);
@@ -321,13 +394,24 @@ export class Session {
   }
 
   /**
+   * Build the config update payload that carries session-level workspace
+   * settings (cwd + additionalDirs) into each agent's ConfigState.
+   */
+  private sessionWorkspaceUpdate(): { cwd: string; additionalDirs?: readonly string[] } {
+    const cwd = this.config.cwd!;
+    const additionalDirs = this.config.additionalDirs;
+    return additionalDirs !== undefined ? { cwd, additionalDirs } : { cwd };
+  }
+
+  /**
    * Applies a profile's derived config — cwd, system prompt, active tools — to
    * an agent. Fresh creation and resume-of-an-incomplete-wire both route
    * through here so the two paths cannot drift apart.
    */
+
   private async bootstrapAgentProfile(agent: Agent, profile: ResolvedAgentProfile): Promise<void> {
     if (this.config.cwd !== undefined) {
-      agent.config.update({ cwd: this.config.cwd });
+      agent.config.update(this.sessionWorkspaceUpdate());
     }
     const context = await prepareSystemPromptContext(this.config.runtime.kaos, agent.config.cwd);
     agent.useProfile(profile, context);

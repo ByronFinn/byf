@@ -13,9 +13,13 @@ describe('builtin tool default permissions', () => {
   });
 
   it('marks side-effectful tools as ask', () => {
-    for (const toolName of ['Bash', 'Write', 'Edit', 'TaskStop']) {
+    for (const toolName of ['Bash', 'Write', 'Edit', 'TaskStop', 'CronCreate', 'CronDelete']) {
       expect(getBuiltinToolDefaultPermission(toolName), toolName).toBe('ask');
     }
+  });
+
+  it('marks CronList as auto-allow', () => {
+    expect(isDefaultAutoAllowTool('CronList')).toBe(true);
   });
 
   it('leaves external and MCP tools unspecified', () => {

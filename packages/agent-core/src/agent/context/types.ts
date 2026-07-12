@@ -48,6 +48,22 @@ export interface HookResultOrigin {
   readonly blocked?: boolean;
 }
 
+/** Origin for a session-cron fire injected via steer (PRD-0023 R3). */
+export interface CronJobOrigin {
+  readonly kind: 'cron_job';
+  readonly jobId: string;
+  readonly cron: string;
+  readonly recurring: boolean;
+  readonly coalescedCount: number;
+  readonly stale: boolean;
+}
+
+/** Origin for an explicit missed-cron banner (reserved; coalesce covers most cases). */
+export interface CronMissedOrigin {
+  readonly kind: 'cron_missed';
+  readonly count: number;
+}
+
 export type PromptOrigin =
   | UserPromptOrigin
   | SkillActivationOrigin
@@ -55,7 +71,9 @@ export type PromptOrigin =
   | CompactionSummaryOrigin
   | SystemTriggerOrigin
   | BackgroundTaskOrigin
-  | HookResultOrigin;
+  | HookResultOrigin
+  | CronJobOrigin
+  | CronMissedOrigin;
 
 export type ContextMessage = Message & {
   readonly origin?: PromptOrigin;

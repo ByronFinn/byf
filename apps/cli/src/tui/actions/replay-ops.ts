@@ -315,6 +315,8 @@ function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
     case 'hook_result':
     case 'injection':
     case 'system_trigger':
+    case 'cron_job':
+    case 'cron_missed':
       return false;
   }
 }

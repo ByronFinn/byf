@@ -44,6 +44,7 @@ import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
+import { CronManager } from './cron';
 import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
@@ -77,6 +78,7 @@ export type {
   GoalUsage,
 } from './goal';
 export { GoalMode, MAX_GOAL_OBJECTIVE_LENGTH } from './goal';
+export { CronManager, type CronManagerOptions, type CronTaskSnapshot } from './cron';
 
 export type AgentType = 'main' | 'sub' | 'independent';
 
@@ -162,6 +164,11 @@ export class Agent {
   readonly usage: UsageRecorder;
   readonly tools: ToolManager;
   readonly background: BackgroundManager;
+  /**
+   * Session-scoped cron scheduler. `null` for subagents (they never
+   * schedule; getCronTasks reports an empty list).
+   */
+  readonly cron: CronManager | null;
   readonly replayBuilder: ReplayBuilder;
   readonly log: Logger;
 
@@ -216,6 +223,8 @@ export class Agent {
       maxRunningTasks: config.backgroundMaxRunningTasks ?? 10,
       sessionDir: config.backgroundSessionDir,
     });
+    // Subagents never host cron tasks — only the main agent does.
+    this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.replayBuilder = new ReplayBuilder(this);
 
     // Register restore handlers after all subsystems are initialized
@@ -429,6 +438,7 @@ export class Agent {
       this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
+      await this.cron?.loadFromDisk();
       this.turn.finishResume();
       return result;
     } catch (error) {
@@ -501,6 +511,8 @@ export class Agent {
         this.goal.cancel();
         return this.goal.getSnapshot();
       },
+      // Subagents never schedule; report empty so host polls stay uniform.
+      getCronTasks: () => ({ tasks: this.cron?.listTaskSnapshots() ?? [] }),
       setModel: async (payload) => {
         const previous = this.config.modelAlias;
         const resolved = await this.providerManager?.resolveProviderForModel(payload.model);

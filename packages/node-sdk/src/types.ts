@@ -27,6 +27,7 @@ export type {
   ExportSessionManifest,
   ByfConfig,
   ByfConfigPatch,
+  CronTaskSnapshot,
   GoalBudgetLimits,
   GoalBudgetReport,
   GoalChange,
@@ -74,6 +75,7 @@ export interface ByfHarnessOptions {
 export interface CreateSessionOptions {
   readonly id?: string;
   readonly workDir: string;
+  readonly additionalDirs?: readonly string[];
   readonly model?: string;
   readonly thinking?: string;
   readonly permission?: PermissionMode;

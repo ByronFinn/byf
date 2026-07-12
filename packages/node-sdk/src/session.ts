@@ -7,6 +7,7 @@ import type { SDKRpcClient } from '#/rpc';
 import type {
   BackgroundTaskInfo,
   CompactOptions,
+  CronTaskSnapshot,
   GoalBudgetLimits,
   GoalSnapshot,
   McpServerInfo,
@@ -235,6 +236,15 @@ export class Session {
     return this.rpc.cancelGoal({ sessionId: this.id });
   }
 
+  /**
+   * List session-scoped cron tasks with post-jitter nextFireAt (PRD-0023).
+   * Used by headless keep-alive to decide whether to hold the event loop.
+   */
+  async getCronTasks(): Promise<{ tasks: readonly CronTaskSnapshot[] }> {
+    this.ensureOpen();
+    return this.rpc.getCronTasks({ sessionId: this.id });
+  }
+
   async compact(options: CompactOptions = {}): Promise<void> {
     this.ensureOpen();
     const instruction = normalizeOptionalString(options.instruction);
@@ -389,6 +399,35 @@ export class Session {
   async waitForBackgroundTasksOnPrint(): Promise<void> {
     if (this.closed) return;
     await this.rpc.waitForBackgroundTasksOnPrint({ sessionId: this.id });
+  }
+
+  /**
+   * Append an additional workspace root (PRD-0023 `/add-dir`). When
+   * `persist` is true, also write project `.byf/local.toml`.
+   */
+  async addWorkspaceDir(
+    dir: string,
+    options: { persist?: boolean } = {},
+  ): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+    configPath?: string;
+  }> {
+    this.ensureOpen();
+    return this.rpc.addWorkspaceDir({
+      sessionId: this.id,
+      dir,
+      persist: options.persist,
+    });
+  }
+
+  /** List the main workspace root and additional allowed roots. */
+  async getWorkspaceRoots(): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+  }> {
+    this.ensureOpen();
+    return this.rpc.getWorkspaceRoots({ sessionId: this.id });
   }
 
   /** @internal */

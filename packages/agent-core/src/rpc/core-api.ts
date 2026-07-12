@@ -2,6 +2,7 @@ import type { ContentPart } from '@byfriends/kosong';
 
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
+import type { CronTaskSnapshot } from '#/agent/cron';
 import type { GoalBudgetLimits, GoalSnapshot } from '#/agent/goal';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
@@ -32,6 +33,7 @@ export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 export interface CreateSessionPayload {
   readonly id?: string;
   readonly workDir: string;
+  readonly additionalDirs?: readonly string[];
   readonly model?: string;
   readonly thinking?: string;
   readonly permission?: PermissionMode;
@@ -40,6 +42,18 @@ export interface CreateSessionPayload {
 
 export interface CloseSessionPayload {
   readonly sessionId: string;
+}
+
+export interface AddWorkspaceDirPayload {
+  readonly sessionId: string;
+  readonly dir: string;
+  readonly persist?: boolean;
+}
+
+export interface AddWorkspaceDirResult {
+  readonly workspaceDir: string;
+  readonly additionalDirs: readonly string[];
+  readonly configPath?: string;
 }
 
 export interface ResumeSessionPayload {
@@ -243,6 +257,10 @@ export interface ShellExecResult {
   readonly timedOut: boolean;
 }
 
+export interface GetCronTasksResult {
+  readonly tasks: readonly CronTaskSnapshot[];
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -256,6 +274,7 @@ export interface AgentAPI {
   pauseGoal: (payload: EmptyPayload) => PauseGoalResult;
   resumeGoal: (payload: EmptyPayload) => ResumeGoalResult;
   cancelGoal: (payload: EmptyPayload) => CancelGoalResult;
+  getCronTasks: (payload: EmptyPayload) => GetCronTasksResult;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
   beginCompaction: (payload: BeginCompactionPayload) => void;
@@ -300,6 +319,8 @@ export interface CoreAPI extends SessionAPIWithId {
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;
+  addWorkspaceDir: (payload: AddWorkspaceDirPayload) => AddWorkspaceDirResult;
+  getWorkspaceRoots: (payload: CloseSessionPayload) => AddWorkspaceDirResult;
   resumeSession: (payload: ResumeSessionPayload) => ResumeSessionResult;
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];
