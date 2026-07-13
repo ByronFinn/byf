@@ -251,7 +251,7 @@ describe('AgentRecords handler registration and routing', () => {
     it('every record type is routed to a handler or in the explicit no-handler list', () => {
       const unaccounted = ALL_RECORD_TYPES.filter((type) => {
         if (NO_HANDLER_TYPES.has(type)) return false;
-        const prefix = type.split('.')[0]!;
+        const prefix = type.split('.')[0] ?? '';
         return !ROUTED_PREFIXES.has(prefix);
       });
       expect(unaccounted).toEqual([]);
@@ -260,7 +260,7 @@ describe('AgentRecords handler registration and routing', () => {
     it('live-only debugging records are listed as explicit no-ops', () => {
       for (const type of LIVE_ONLY_NOOP_TYPES) {
         expect(ALL_RECORD_TYPES).toContain(type);
-        const prefix = type.split('.')[0]!;
+        const prefix = type.split('.')[0] ?? '';
         expect(ROUTED_PREFIXES.has(prefix)).toBe(true);
         expect(NO_HANDLER_TYPES.has(type)).toBe(false);
       }
