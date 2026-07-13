@@ -23,17 +23,17 @@ Some commands are only available in the idle state. Running them while the sessi
 
 ## Session management
 
-| Command                    | Alias     | Description                                                                                                                                                 | Always available |
-| -------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `/new`                     | `/clear`  | Start a brand-new session, discarding the current context.                                                                                                  | No               |
-| `/sessions`                | `/resume` | Browse historical sessions and switch to or resume one.                                                                                                     | No               |
-| `/tasks`                   | `/task`   | Browse the background task list (BPM processes — **not** session cron).                                                                                     | Yes              |
-| `/cron [list\|delete …]`   | `/schedule` | List or delete **session-scoped** cron jobs. See [Session cron](#session-cron).                                                                           | Yes              |
-| `/fork`                    | —         | Fork a new session from the current one, preserving the full conversation history.                                                                          | No               |
-| `/title [<text>]`          | `/rename` | Without arguments, show the current session title; with an argument, set it as the new title (up to 200 characters).                                        | Yes              |
-| `/compact [<instruction>]` | —         | Compact the current conversation context to free up token usage; optionally pass a custom instruction telling the model what to preserve during compaction. | No               |
-| `/init`                    | —         | Analyze the current codebase and generate `AGENTS.md`.                                                                                                      | No               |
-| `/add-dir [path\|list]`    | —         | Add an extra workspace root, or list current roots. See [Workspace roots](#workspace-roots).                                                                | No               |
+| Command                    | Alias       | Description                                                                                                                                                 | Always available |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/new`                     | `/clear`    | Start a brand-new session, discarding the current context.                                                                                                  | No               |
+| `/sessions`                | `/resume`   | Browse historical sessions and switch to or resume one.                                                                                                     | No               |
+| `/tasks`                   | `/task`     | Browse the background task list (BPM processes — **not** session cron).                                                                                     | Yes              |
+| `/cron [list\|delete …]`   | `/schedule` | List or delete **session-scoped** cron jobs. See [Session cron](#session-cron).                                                                             | Yes              |
+| `/fork`                    | —           | Fork a new session from the current one, preserving the full conversation history.                                                                          | No               |
+| `/title [<text>]`          | `/rename`   | Without arguments, show the current session title; with an argument, set it as the new title (up to 200 characters).                                        | Yes              |
+| `/compact [<instruction>]` | —           | Compact the current conversation context to free up token usage; optionally pass a custom instruction telling the model what to preserve during compaction. | No               |
+| `/init`                    | —           | Analyze the current codebase and generate `AGENTS.md`.                                                                                                      | No               |
+| `/add-dir [path\|list]`    | —           | Add an extra workspace root, or list current roots. See [Workspace roots](#workspace-roots).                                                                | No               |
 
 ### Workspace roots
 
@@ -49,18 +49,19 @@ Choosing **remember** appends the path to the project root’s `.byf/local.toml`
 
 ## Session cron
 
-| Command               | Alias       | Description                                                                                                                                                                      | Always available |
-| --------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `/cron`               | `/schedule` | List all cron jobs in the current session (id, expression, human schedule, recurring, nextFireAt, truncated prompt). Empty list shows a clear empty state.                       | Yes              |
-| `/cron list`          | —           | Same as `/cron`.                                                                                                                                                                 | Yes              |
-| `/cron delete <id>`   | —           | Delete by 8-char lowercase hex id. User host path — does **not** go through model tool `CronDelete` permission (ADR-0030).                                                       | Yes              |
+| Command             | Alias       | Description                                                                                                                                                | Always available |
+| ------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `/cron`             | `/schedule` | List all cron jobs in the current session (id, expression, human schedule, recurring, nextFireAt, truncated prompt). Empty list shows a clear empty state. | Yes              |
+| `/cron list`        | —           | Same as `/cron`.                                                                                                                                           | Yes              |
+| `/cron delete <id>` | —           | Delete by 8-char lowercase hex id. User host path — does **not** go through model tool `CronDelete` permission (ADR-0030).                                 | Yes              |
 
 ::: tip vs `/tasks` and model tools
+
 - **`/cron`**: session-scoped schedules (steer prompt when idle). Bound to the current session; resume restores them.
 - **`/tasks`**: running background bash/agent processes, not timers.
 - **Model tools** `CronCreate` / `CronList` / `CronDelete`: agent-invoked; `CronDelete` defaults to ask. User `/cron delete` is a privilege path that does not re-prompt.
 - Slash **create** is out of scope; scheduling stays on the model tools for now.
-:::
+  :::
 
 ## Autonomous goal mode
 

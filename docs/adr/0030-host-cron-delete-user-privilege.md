@@ -25,24 +25,24 @@ PRD-0024 增加人机 slash `/cron delete <id>`。若删除走同一 `CronDelete
 
 ### Positive
 
-* 用户随时可撤销 session cron（含 streaming 中），不依赖模型或 yolo。
-* 与 `/goal` 的用户特权生命周期控制一致。
-* 工具安全策略不被「用户自救」稀释。
+- 用户随时可撤销 session cron（含 streaming 中），不依赖模型或 yolo。
+- 与 `/goal` 的用户特权生命周期控制一致。
+- 工具安全策略不被「用户自救」稀释。
 
 ### Negative
 
-* 双路径语义（host vs tool）需文档与代码分层维持，避免日后误把 host 删塞回 tool permission。
-* 任意能调用 Session RPC 的 host 都能删 cron（与 cancelGoal 同级信任假设）。
+- 双路径语义（host vs tool）需文档与代码分层维持，避免日后误把 host 删塞回 tool permission。
+- 任意能调用 Session RPC 的 host 都能删 cron（与 cancelGoal 同级信任假设）。
 
 ## Alternatives Considered
 
-* **合成 CronDelete tool call** — 复用工具，但用户操作仍可能 ask；否决。
-* **可配置是否绕过** — 灵活但 MVP 过重；需要时再开。
-* **降低 CronDelete 默认 permission 为 allow** — 削弱对模型的约束；否决。
+- **合成 CronDelete tool call** — 复用工具，但用户操作仍可能 ask；否决。
+- **可配置是否绕过** — 灵活但 MVP 过重；需要时再开。
+- **降低 CronDelete 默认 permission 为 allow** — 削弱对模型的约束；否决。
 
 ## References
 
-* PRD-0024 `docs/prd/PRD-0024-session-cron-slash-command.md`
-* PRD-0023 会话内 Cron
-* `packages/agent-core/src/tools/policies/default-permissions.ts`（CronDelete: ask）
-* Goal 用户路径：`cancelGoal` Session/RPC（PRD-0019）
+- PRD-0024 `docs/prd/PRD-0024-session-cron-slash-command.md`
+- PRD-0023 会话内 Cron
+- `packages/agent-core/src/tools/policies/default-permissions.ts`（CronDelete: ask）
+- Goal 用户路径：`cancelGoal` Session/RPC（PRD-0019）
