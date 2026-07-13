@@ -1,13 +1,17 @@
 import chalk from 'chalk';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 
 import { highlightFirstSlashToken } from '#/tui/components/editor/custom-editor';
 
+const previousChalkLevel = chalk.level;
 beforeAll(() => {
   // Vitest runs without a TTY so chalk auto-detects colour support as
   // 0 (no colours). Force full colour so the highlighter actually
   // emits the SGR escapes we're asserting on.
   chalk.level = 3;
+});
+afterAll(() => {
+  chalk.level = previousChalkLevel;
 });
 
 function strip(s: string): string {

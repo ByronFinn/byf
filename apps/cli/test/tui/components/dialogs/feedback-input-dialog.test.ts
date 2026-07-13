@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   FeedbackInputDialogComponent,
@@ -15,8 +15,12 @@ function strip(text: string): string {
   return text.replaceAll(ANSI_RE, '');
 }
 
+const previousChalkLevel = chalk.level;
 beforeAll(() => {
   chalk.level = 3;
+});
+afterAll(() => {
+  chalk.level = previousChalkLevel;
 });
 
 function makeDialog(): {
