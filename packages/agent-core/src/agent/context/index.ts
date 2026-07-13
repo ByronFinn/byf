@@ -439,7 +439,7 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores context.* records it owns
+    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- AgentRecords routes by prefix; this handler only owns context.* records (see restore-coverage test)
     switch (record.type) {
       case 'context.append_message':
         this.appendMessage(record.message);
@@ -460,6 +460,13 @@ export class ContextMemory implements RecordRestoreHandler {
         break;
       case 'context.observation_masking':
         this.restoreObservationMasking();
+        break;
+      case 'context.output_offloaded':
+      case 'context.pruning':
+        // Live-only debugging records — no-op on restore. Offload/pruning are
+        // recomputed on the next turn during restore (see ADR-0031 /
+        // CONTEXT.md「输出卸载」). Listed explicitly so they are not mistaken
+        // for a forgotten case; see restore-coverage test for the guarantee.
         break;
     }
   }
