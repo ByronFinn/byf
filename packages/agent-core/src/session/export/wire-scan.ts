@@ -34,23 +34,30 @@ export async function scanSessionWire(sessionDir: string): Promise<SessionWireSc
     const record = parsed as {
       type?: unknown;
       time?: unknown;
-      userInput?: unknown;
+      input?: unknown;
+      origin?: unknown;
     };
     const timeMs = typeof record.time === 'number' ? normalizeTimestampMs(record.time) : undefined;
     if (timeMs !== undefined) {
       firstActivityMs ??= timeMs;
       lastActivityMs = timeMs;
     }
-    if (record.type === 'turn_begin') {
+    // User prompts are recorded as `turn.prompt` / `turn.steer` with `origin.kind === 'user'`
+    // (see CONTEXT.md 「upToMessage」). The legacy `turn_begin` shape with a flat `userInput`
+    // string predates the current wire protocol and is no longer emitted; matching it produced
+    // phantom firstUserInput on historical wires.
+    if (
+      (record.type === 'turn.prompt' || record.type === 'turn.steer') &&
+      isUserOrigin(record.origin)
+    ) {
       if (timeMs !== undefined) {
         lastUserMessageMs = timeMs;
       }
-      if (
-        firstUserInput === undefined &&
-        typeof record.userInput === 'string' &&
-        record.userInput.trim().length > 0
-      ) {
-        firstUserInput = record.userInput;
+      if (firstUserInput === undefined) {
+        const text = extractUserInputText(record.input);
+        if (text !== undefined && text.trim().length > 0) {
+          firstUserInput = text;
+        }
       }
     }
   }
@@ -61,6 +68,33 @@ export async function scanSessionWire(sessionDir: string): Promise<SessionWireSc
     lastUserMessageMs,
     firstUserInput,
   };
+}
+
+function isUserOrigin(origin: unknown): boolean {
+  return (
+    typeof origin === 'object' && origin !== null && (origin as { kind?: unknown }).kind === 'user'
+  );
+}
+
+/**
+ * Concatenate the text parts of a `turn.prompt` / `turn.steer` input.
+ * Mirrors the text-extraction intent of `promptPartText` (kept inline so wire-scan
+ * stays a dependency-free reader of raw JSONL rather than importing runtime types).
+ */
+function extractUserInputText(input: unknown): string | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const parts: string[] = [];
+  for (const part of input) {
+    if (
+      typeof part === 'object' &&
+      part !== null &&
+      (part as { type?: unknown }).type === 'text' &&
+      typeof (part as { text?: unknown }).text === 'string'
+    ) {
+      parts.push((part as { text: string }).text);
+    }
+  }
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 export function normalizeTimestampMs(value: number): number | undefined {

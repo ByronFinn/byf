@@ -1,6 +1,6 @@
 # wire 投影纯函数抽取与 pi-tui 升级
 
-> **Status**: Sliced | **PRD**: PRD-0025 | **Created**: 2026-07-13 | **Last updated**: 2026-07-13
+> **Status**: In Progress | **PRD**: PRD-0025 | **Created**: 2026-07-13 | **Last updated**: 2026-07-13
 >
 > 父 Issue #249。
 
