@@ -1,3 +1,13 @@
+import {
+  buildPreview,
+  DEFAULT_OFFLOADING_CONFIG,
+  resetWireFoldState,
+  foldAppendMessage,
+  foldLoopEvent,
+  shouldOffload,
+  createWireFoldState,
+  type WireFoldState,
+} from '@byfriends/agent-core';
 // Context-projection DTOs — canonical definitions live in @byfriends/vis-shared
 import type {
   ProjectedMessage,
@@ -6,138 +16,133 @@ import type {
   ContextProjection,
 } from '@byfriends/vis-shared';
 
-import type { ContentPart, ContextMessage, TokenUsage, WireEntry } from './agent-record-types';
+import type { ContextMessage, TokenUsage, WireEntry } from './agent-record-types';
 
 export type { ProjectedMessage, UsageTotals, ConfigSnapshot, ContextProjection };
 
 const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 
 /** Build a conversation timeline + derived state from a sequence of
- *  wire entries. The reconstruction mirrors agent-core's own
- *  `appendLoopEvent` logic, so:
+ *  wire entries.
  *
- *  - `context.append_message` records become messages as-is (the
- *    user / tool messages and any explicit assistant injections).
- *  - `step.begin` pushes a fresh assistant message; later
- *    `content.part` and `tool.call` events on the same step **mutate
- *    that same message** to grow its content / toolCalls. `step.end`
- *    just closes the step.
- *  - `tool.result` events emit an independent `role: 'tool'` message,
- *    matching how agent-core surfaces tool exchanges to the model.
+ *  The fold logic (step.begin/content.part/tool.call/tool.result/step.end,
+ *  deferred-message flushing during tool exchanges, tool-output
+ *  normalisation, output-offload previews) is delegated to agent-core's
+ *  pure `wire-fold` module — the single source of truth shared with the live
+ *  agent. Previously this file mirrored that logic by hand and silently
+ *  diverged on empty/error tool outputs, partial compaction (it dropped
+ *  post-summary messages), and deferred-message ordering.
  *
- *  Without this loop-event reconstruction the timeline would only
- *  show user prompts — agent-core does not emit a synthetic
- *  `context.append_message` for assistant turns. */
-export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjection {
-  let messages: ProjectedMessage[] = [];
+ *  vis-specific concerns stay here: attaching `lineNo` / `time` / `source`
+ *  display metadata to each projected message, and aggregating usage /
+ *  config / permission snapshots that the fold does not own. */
+export async function projectContext(
+  entries: ReadonlyArray<WireEntry>,
+): Promise<ContextProjection> {
+  const messages: ProjectedMessage[] = [];
+  const state: WireFoldState = createWireFoldState();
   const usage: UsageTotals = {
     byScope: { session: { ...ZERO }, turn: { ...ZERO } },
     byModel: {},
   };
   const config: ConfigSnapshot = {};
   let permissionMode: 'manual' | 'yolo' | 'auto' | null = null;
-  // Maps step.uuid → the assistant ProjectedMessage that step is filling in.
-  // Cleared on context.clear / context.apply_compaction.
-  let openSteps = new Map<string, ProjectedMessage>();
+
+  // Track the wire entry currently being folded so `onMessage` can attach
+  // its lineNo/time as display metadata. Updated per-entry below.
+  let currentEntry: WireEntry | undefined;
+
+  // Keep a side index of step uuid → the projected message(s) it fills, so
+  // we can stamp toolStepUuids for debugging. Mirrors how the fold tracks
+  // openSteps but on the projected (metadata-bearing) side.
+  const openProjected = new Map<string, ProjectedMessage>();
+
+  const handlers = {
+    onMessage: (message: ContextMessage) => {
+      const entry = currentEntry!;
+      const projected: ProjectedMessage = {
+        lineNo: entry.lineNo,
+        time: entry.data.time,
+        source:
+          entry.data.type === 'context.apply_compaction' ? 'compaction_summary' : 'append_message',
+        message,
+        toolStepUuids: [],
+      };
+      messages.push(projected);
+      // If this message is an assistant message we just opened via step.begin,
+      // remember it so subsequent tool.call/content.part on the same step can
+      // stamp their stepUuid. The fold already mutated the message in place;
+      // we only track the uuid here.
+    },
+    offloadToolOutput: (_id, toolName, result) => {
+      // vis never writes a scratch file, but to keep the rendered timeline
+      // faithful to what the model actually saw, synthesise the same preview
+      // (first N chars + a placeholder reference) the live agent would have
+      // produced. Callers that prefer the full output can read the raw
+      // tool.result wire entry directly from the wire-list view.
+      const output = result.output;
+      if (typeof output !== 'string' || !shouldOffload(output, DEFAULT_OFFLOADING_CONFIG)) {
+        return Promise.resolve(undefined);
+      }
+      const preview = buildPreview(
+        output,
+        toolName,
+        `<vis-placeholder:${_id}>`,
+        DEFAULT_OFFLOADING_CONFIG.previewChars,
+      );
+      return Promise.resolve({ output: preview });
+    },
+  };
 
   for (const entry of entries) {
+    currentEntry = entry;
     const rec = entry.data;
-    // We only project record types that affect the conversation timeline
-    // or derived state. Lifecycle records (background.*, goal.*, tools.*,
-    // turn.*, metadata, full_compaction.*, permission.record_* etc.) are
-    // intentionally ignored — see the loop-event reconstruction note above.
+
     if (rec.type === 'context.append_message') {
-      messages.push({
-        lineNo: entry.lineNo,
-        time: rec.time,
-        source: 'append_message',
-        message: rec.message,
-        toolStepUuids: [],
-      });
+      foldAppendMessage(state, rec.message, handlers);
     } else if (rec.type === 'context.append_loop_event') {
+      // Track step / tool-call uuids on projected messages for debugging.
+      // Fold first (it pushes the new message via onMessage), then stamp the
+      // last projected message — which is the one just appended for step.begin
+      // or the assistant message owning the tool call.
       const ev = rec.event;
+      const before = messages.length;
+      await foldLoopEvent(state, ev, handlers);
       if (ev.type === 'step.begin') {
-        const message: ContextMessage = {
-          role: 'assistant',
-          content: [],
-          toolCalls: [],
-        };
-        const projected: ProjectedMessage = {
-          lineNo: entry.lineNo,
-          time: rec.time,
-          source: 'append_message',
-          message,
-          toolStepUuids: [ev.uuid],
-        };
-        messages.push(projected);
-        openSteps.set(ev.uuid, projected);
-      } else if (ev.type === 'content.part') {
-        const projected = openSteps.get(ev.stepUuid);
-        if (projected !== undefined) {
-          projected.message.content.push(ev.part);
-        }
-      } else if (ev.type === 'tool.call') {
-        const projected = openSteps.get(ev.stepUuid);
-        if (projected !== undefined) {
-          const args =
-            typeof ev.args === 'string'
-              ? ev.args
-              : ev.args === undefined
-                ? null
-                : JSON.stringify(ev.args);
-          projected.message.toolCalls.push({
-            type: 'function',
-            id: ev.toolCallId,
-            name: ev.name,
-            arguments: args,
-          });
+        const opened = messages.at(-1);
+        if (opened !== undefined && messages.length > before) {
+          opened.toolStepUuids.push(ev.uuid);
+          openProjected.set(ev.uuid, opened);
         }
       } else if (ev.type === 'step.end') {
-        openSteps.delete(ev.uuid);
-      } else if (ev.type === 'tool.result') {
-        const output = ev.result.output;
-        const content: ContentPart[] =
-          typeof output === 'string' ? [{ type: 'text', text: output }] : (output as ContentPart[]);
-        const toolMsg: ContextMessage = {
-          role: 'tool',
-          content,
-          toolCalls: [],
-          toolCallId: ev.toolCallId,
-          isError: ev.result.isError === true || undefined,
-        };
-        messages.push({
-          lineNo: entry.lineNo,
-          time: rec.time,
-          source: 'append_message',
-          message: toolMsg,
-          toolStepUuids: [],
-        });
+        openProjected.delete(ev.uuid);
       }
     } else if (rec.type === 'context.clear') {
-      messages = [];
-      openSteps = new Map();
+      resetWireFoldState(state);
+      messages.length = 0;
+      openProjected.clear();
     } else if (rec.type === 'context.apply_compaction') {
-      openSteps = new Map();
-      // Mirror agent-core's actual `applyCompaction` behaviour: the
-      // summary is inserted as an *assistant* message tagged with
-      // `origin.kind = 'compaction_summary'` (see
-      // `packages/agent-core/src/agent/context/index.ts`). Using
-      // 'system' here would skew role counts and any downstream tool
-      // that diffs the projected timeline against agent-core history.
-      messages = [
-        {
-          lineNo: entry.lineNo,
-          time: rec.time,
-          source: 'compaction_summary',
-          message: {
-            role: 'assistant',
-            content: [{ type: 'text', text: rec.summary }],
-            toolCalls: [],
-            origin: { kind: 'compaction_summary' },
-          } as ContextMessage,
-          toolStepUuids: [],
-        },
-      ];
+      // Mirror agent-core's applyCompaction: prepend the summary as an
+      // assistant message with origin.kind = 'compaction_summary' and KEEP
+      // the remaining uncompacted tail (history.slice(compactedCount)). The
+      // previous hand-written version reset messages to only the summary,
+      // silently dropping post-compaction history.
+      const summaryMessage: ContextMessage = {
+        role: 'assistant',
+        content: [{ type: 'text', text: rec.summary }],
+        toolCalls: [],
+        origin: { kind: 'compaction_summary' },
+      };
+      state.history.splice(0, rec.compactedCount, summaryMessage);
+      messages.splice(0, rec.compactedCount, {
+        lineNo: entry.lineNo,
+        time: rec.time,
+        source: 'compaction_summary',
+        message: summaryMessage,
+        toolStepUuids: [],
+      });
+      state.openSteps.clear();
+      openProjected.clear();
     } else if (rec.type === 'usage.record') {
       const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
       addUsage(usage.byScope[scope], rec.usage);

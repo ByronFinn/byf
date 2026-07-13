@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 
-import { createToolMessage, type ContentPart, type Message } from '@byfriends/kosong';
+import { type ContentPart, type Message } from '@byfriends/kosong';
 
 import type { Agent } from '..';
-import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
+import type { LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import type { RecordRestoreHandler } from '../restore-handler';
@@ -28,17 +28,19 @@ import {
   type ContextMessage,
   type PromptOrigin,
 } from './types';
+import {
+  flushDeferred,
+  foldAppendMessage,
+  foldLoopEvent,
+  resetWireFoldState,
+  type WireFoldHandlers,
+} from './wire-fold';
 
 export * from './types';
 export * from './observation-masking';
 export * from './output-offloading';
 export * from './scratch-manager';
-
-const TOOL_ERROR_STATUS = '<system>ERROR: Tool execution failed.</system>';
-const TOOL_EMPTY_STATUS = '<system>Tool output is empty.</system>';
-const TOOL_EMPTY_ERROR_STATUS =
-  '<system>ERROR: Tool execution failed. Tool output is empty.</system>';
-const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
+export * from './wire-fold';
 
 export class ContextMemory implements RecordRestoreHandler {
   private _history: ContextMessage[] = [];
@@ -103,13 +105,9 @@ export class ContextMemory implements RecordRestoreHandler {
 
   clear(): void {
     this.agent.records.logRecord({ type: 'context.clear' });
-    this._history = [];
+    resetWireFoldState(this.foldState());
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
-    this.openSteps.clear();
-    this.pendingToolResultIds.clear();
-    this.deferredMessages = [];
-    this.toolCallInfo.clear();
     void this.scratchManager?.cleanup();
     this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
@@ -130,7 +128,7 @@ export class ContextMemory implements RecordRestoreHandler {
       ...this._history.slice(summary.compactedCount),
     ];
     this.openSteps.clear();
-    this.flushDeferredMessagesIfToolExchangeClosed();
+    flushDeferred(this.foldState(), this.foldHandlers);
     this._tokenCount = summary.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.injection.onContextCompacted(summary.compactedCount);
@@ -305,100 +303,7 @@ export class ContextMemory implements RecordRestoreHandler {
       type: 'context.append_loop_event',
       event,
     });
-    switch (event.type) {
-      case 'step.begin': {
-        const message: ContextMessage = {
-          role: 'assistant',
-          content: [],
-          toolCalls: [],
-        };
-        this.pushHistory(message);
-        this.openSteps.set(event.uuid, message);
-        return;
-      }
-      case 'step.end': {
-        const openStep = this.openSteps.get(event.uuid);
-        this.openSteps.delete(event.uuid);
-        if (event.usage !== undefined) {
-          const openStepIndex = openStep === undefined ? -1 : this._history.indexOf(openStep);
-          this._tokenCount =
-            event.usage.inputCacheRead +
-            event.usage.inputCacheCreation +
-            event.usage.inputOther +
-            event.usage.output;
-          this.tokenCountCoveredMessageCount =
-            openStepIndex === -1 ? this._history.length : openStepIndex + 1;
-        }
-        this.flushDeferredMessagesIfToolExchangeClosed();
-        return;
-      }
-      case 'content.part': {
-        const openStep = this.openSteps.get(event.stepUuid);
-        if (openStep === undefined) {
-          throw new Error(
-            `Received content_part for unknown step_uuid '${event.stepUuid}' (no open step_begin)`,
-          );
-        }
-        openStep.content.push(event.part);
-        return;
-      }
-      case 'tool.call': {
-        const openStep = this.openSteps.get(event.stepUuid);
-        if (openStep === undefined) {
-          throw new Error(
-            `Received tool_call for unknown step_uuid '${event.stepUuid}' (no open step_begin)`,
-          );
-        }
-        openStep.toolCalls.push({
-          type: 'function',
-          id: event.toolCallId,
-          name: event.name,
-          arguments: event.args === undefined ? null : JSON.stringify(event.args),
-        });
-        this.pendingToolResultIds.add(event.toolCallId);
-        this.toolCallInfo.set(event.toolCallId, { name: event.name, args: event.args });
-        return;
-      }
-      case 'tool.result': {
-        let result = event.result;
-
-        // Attempt output offloading for large string outputs.
-        // Agent tool results are subagent summaries — distilled by another LLM
-        // — and should never be offloaded (see ADR in commit message).
-        if (
-          !this.agent.records.restoring &&
-          this.scratchManager !== undefined &&
-          typeof result.output === 'string' &&
-          (this.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown') !== 'Agent'
-        ) {
-          const offloadResult = await offloadOutput(
-            event.toolCallId,
-            this.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown',
-            result,
-            this.scratchManager,
-            DEFAULT_OFFLOADING_CONFIG,
-          );
-          if (offloadResult.offloaded) {
-            result = { ...result, output: offloadResult.output! };
-            this.agent.records.logRecord({
-              type: 'context.output_offloaded',
-              toolCallId: event.toolCallId,
-              filePath: offloadResult.filePath,
-            });
-          }
-        }
-
-        const message = createToolMessage(event.toolCallId, toolResultOutputForModel(result));
-        this.pushHistory({
-          ...message,
-          role: 'tool',
-          isError: result.isError,
-        });
-        this.pendingToolResultIds.delete(event.toolCallId);
-        this.flushDeferredMessagesIfToolExchangeClosed();
-        return;
-      }
-    }
+    await foldLoopEvent(this.foldState(), event, this.foldHandlers);
   }
 
   appendMessage(message: ContextMessage): void {
@@ -406,36 +311,77 @@ export class ContextMemory implements RecordRestoreHandler {
       type: 'context.append_message',
       message,
     });
-    if (this.hasOpenToolExchange()) {
-      this.deferredMessages.push(message);
-      return;
-    }
-    this.pushHistory(message);
+    foldAppendMessage(this.foldState(), message, this.foldHandlers);
   }
 
-  private flushDeferredMessagesIfToolExchangeClosed(): void {
-    if (this.pendingToolResultIds.size > 0 || this.deferredMessages.length === 0) {
-      return;
-    }
-    this.pushHistory(...this.deferredMessages);
-    this.deferredMessages = [];
+  /** Expose ContextMemory's fold-relevant fields as a WireFoldState view.
+   *  The returned object shares storage with this instance — foldLoopEvent /
+   *  foldAppendMessage mutate the same maps/arrays in place. */
+  private foldState() {
+    return {
+      history: this._history,
+      openSteps: this.openSteps,
+      pendingToolResultIds: this.pendingToolResultIds,
+      toolCallInfo: this.toolCallInfo,
+      deferredMessages: this.deferredMessages,
+    };
   }
 
-  private hasOpenToolExchange(): boolean {
-    return this.pendingToolResultIds.size > 0;
-  }
-
-  private pushHistory(...messages: ContextMessage[]): void {
-    this._history.push(...messages);
-    for (const message of messages) {
-      if (message.origin?.kind === 'background_task') {
-        this.agent.background.markDeliveredNotification(message.origin);
+  private foldHandlers: WireFoldHandlers = {
+    onMessage: (message) => {
+      this.pushHistorySideEffects(message);
+    },
+    onStepEnd: (_uuid, openStepIndex, usage) => {
+      if (usage !== undefined) {
+        this._tokenCount =
+          usage.inputCacheRead + usage.inputCacheCreation + usage.inputOther + usage.output;
+        this.tokenCountCoveredMessageCount =
+          openStepIndex === -1 ? this._history.length : openStepIndex + 1;
       }
-      this.agent.replayBuilder.push({
-        type: 'message',
-        message,
+    },
+    offloadToolOutput: (toolCallId, toolName, result) => {
+      // Offloading requires a scratch manager and is suppressed during restore
+      // (the scratch file is ephemeral; the live agent recompresses on the
+      // next turn via beforeStep). See ADR-0031 / CONTEXT.md. Return
+      // synchronously in those cases so the fold stays synchronous and
+      // restoreRecord feeds messages into history before the caller reads it.
+      if (
+        this.agent.records.restoring ||
+        this.scratchManager === undefined ||
+        typeof result.output !== 'string'
+      ) {
+        return undefined;
+      }
+      return offloadOutput(
+        toolCallId,
+        toolName,
+        result,
+        this.scratchManager,
+        DEFAULT_OFFLOADING_CONFIG,
+      ).then((offloaded) => {
+        if (!offloaded.offloaded) return undefined;
+        this.agent.records.logRecord({
+          type: 'context.output_offloaded',
+          toolCallId,
+          filePath: offloaded.filePath,
+        });
+        return { output: offloaded.output! };
       });
+    },
+  };
+
+  /** Apply the live-agent side-effects for a message that the fold logic has
+   *  already pushed onto `_history`: notify background-task delivery and feed
+   *  the replay builder. The pure fold function owns the actual `_history`
+   *  mutation; this runs alongside it via the `onMessage` handler. */
+  private pushHistorySideEffects(message: ContextMessage): void {
+    if (message.origin?.kind === 'background_task') {
+      this.agent.background.markDeliveredNotification(message.origin);
     }
+    this.agent.replayBuilder.push({
+      type: 'message',
+      message,
+    });
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
@@ -465,13 +411,9 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   private restoreClear(): void {
-    this._history = [];
+    resetWireFoldState(this.foldState());
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
-    this.openSteps.clear();
-    this.pendingToolResultIds.clear();
-    this.deferredMessages = [];
-    this.toolCallInfo.clear();
     this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
   }
@@ -493,7 +435,7 @@ export class ContextMemory implements RecordRestoreHandler {
       ...this._history.slice(compactedCount),
     ];
     this.openSteps.clear();
-    this.flushDeferredMessagesIfToolExchangeClosed();
+    flushDeferred(this.foldState(), this.foldHandlers);
     this._tokenCount = tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.injection.onContextCompacted(compactedCount);
@@ -532,35 +474,6 @@ export class ContextMemory implements RecordRestoreHandler {
     this._history = history;
     this.agent.emitStatusUpdated();
   }
-}
-
-function toolResultOutputForModel(result: ExecutableToolResult): string | ContentPart[] {
-  const output = result.output;
-  if (typeof output === 'string') {
-    if (result.isError === true) {
-      if (output.length === 0) return TOOL_EMPTY_ERROR_STATUS;
-      if (output.trimStart().startsWith('<system>ERROR:')) return output;
-      return `${TOOL_ERROR_STATUS}\n${output}`;
-    }
-    return isEmptyOutputText(output) ? TOOL_EMPTY_STATUS : output;
-  }
-
-  if (output.length === 0) {
-    return [
-      {
-        type: 'text',
-        text: result.isError === true ? TOOL_EMPTY_ERROR_STATUS : TOOL_EMPTY_STATUS,
-      },
-    ];
-  }
-  if (result.isError === true) {
-    return [{ type: 'text', text: TOOL_ERROR_STATUS }, ...output];
-  }
-  return output;
-}
-
-function isEmptyOutputText(output: string): boolean {
-  return output.length === 0 || output.trim() === TOOL_OUTPUT_EMPTY_TEXT;
 }
 
 /**

@@ -32,6 +32,26 @@ export type {
   PromptOrigin,
   UserPromptOrigin,
 } from './agent/context';
+// Pure wire-fold logic + output-offload helpers — shared with external
+// readers (apps/vis) so they reconstruct the conversation timeline the same
+// way the live agent does. See PRD-0025 / wire-fold.ts.
+export {
+  createWireFoldState,
+  foldAppendMessage,
+  foldLoopEvent,
+  flushDeferred,
+  resetWireFoldState,
+  toolResultOutputForModel,
+  buildPreview,
+  shouldOffload,
+  DEFAULT_OFFLOADING_CONFIG,
+} from './agent/context';
+export type {
+  WireFoldState,
+  WireFoldHandlers,
+  OffloadingConfig,
+  OffloadResult,
+} from './agent/context';
 // Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with the
 // CLI so live and replay produce identical output (PRD R14).
 export {

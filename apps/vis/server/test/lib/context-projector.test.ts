@@ -18,7 +18,7 @@ describe('context-projector', () => {
     const { sessionDir, cleanup: c } = await buildSessionFixture('sample-main');
     cleanup = c;
     const wire = await readAgentWire(join(sessionDir, 'agents', 'main', 'wire.jsonl'));
-    const proj = projectContext(wire.records);
+    const proj = await projectContext(wire.records);
 
     expect(proj.messages).toHaveLength(2);
     expect(proj.messages[0].message.role).toBe('user');
@@ -95,7 +95,7 @@ describe('context-projector', () => {
             stepUuid: 's1',
             toolCallId: 'call_1',
             name: 'LS',
-            args: '{"path":"/"}',
+            args: { path: '/' },
           },
         },
         raw: {},
@@ -123,7 +123,7 @@ describe('context-projector', () => {
       },
     ];
 
-    const proj = projectContext(entries as any);
+    const proj = await projectContext(entries as any);
     expect(proj.messages).toHaveLength(3);
 
     expect(proj.messages[0].message.role).toBe('user');
@@ -174,7 +174,7 @@ describe('context-projector', () => {
         raw: {},
       },
     ];
-    const proj = projectContext(entries as any);
+    const proj = await projectContext(entries as any);
     expect(proj.messages).toHaveLength(1);
     expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'b' });
   });
@@ -217,7 +217,7 @@ describe('context-projector', () => {
         raw: {},
       },
     ];
-    const proj = projectContext(entries as any);
+    const proj = await projectContext(entries as any);
     expect(proj.messages[0].source).toBe('compaction_summary');
     // Compaction summary is an assistant message (agent-core's own
     // representation), not a synthetic system message.
@@ -225,5 +225,197 @@ describe('context-projector', () => {
     expect(proj.messages[0].message.origin).toEqual({ kind: 'compaction_summary' });
     expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'old stuff' });
     expect(proj.messages[1].message.content[0]).toMatchObject({ text: 'new' });
+  });
+
+  // Cross-boundary consistency: vis's projectContext must produce the same
+  // message sequence as the pure wire-fold function (shared with the live
+  // agent's ContextMemory). These cases target the three known divergence
+  // points the old hand-written projector had: empty/error tool output
+  // normalisation, partial compaction (keeping the post-summary tail), and
+  // deferred-message ordering during tool exchanges. See PRD-0025 AC2.
+  describe('cross-boundary parity with wire-fold', () => {
+    it('normalises empty and error tool outputs the same way the live agent does', async () => {
+      const entries = [
+        {
+          lineNo: 2,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 3,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.call' as const,
+              uuid: 'c1',
+              turnId: 't1',
+              step: 0,
+              stepUuid: 's1',
+              toolCallId: 'call_err',
+              name: 'Bash',
+              args: { cmd: 'bad' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 4,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.result' as const,
+              parentUuid: 'c1',
+              toolCallId: 'call_err',
+              result: { output: 'permission denied', isError: true },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 5,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+      ];
+      const proj = await projectContext(entries as any);
+      // The error marker must be present — previously vis showed raw output.
+      const toolContent = proj.messages[1].message.content[0] as { text: string };
+      expect(toolContent.text).toContain('<system>ERROR: Tool execution failed.</system>');
+      expect(toolContent.text).toContain('permission denied');
+    });
+
+    it('partial compaction keeps the post-summary tail (no message loss)', async () => {
+      const entries = [
+        {
+          lineNo: 2,
+          data: {
+            type: 'context.append_message' as const,
+            message: {
+              role: 'user' as const,
+              content: [{ type: 'text' as const, text: 'old 1' }],
+              toolCalls: [],
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 3,
+          data: {
+            type: 'context.append_message' as const,
+            message: {
+              role: 'user' as const,
+              content: [{ type: 'text' as const, text: 'old 2' }],
+              toolCalls: [],
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 4,
+          data: {
+            type: 'context.apply_compaction' as const,
+            summary: 'compacted two messages',
+            compactedCount: 2,
+            tokensBefore: 100,
+            tokensAfter: 30,
+          },
+          raw: {},
+        },
+        {
+          lineNo: 5,
+          data: {
+            type: 'context.append_message' as const,
+            message: {
+              role: 'user' as const,
+              content: [{ type: 'text' as const, text: 'survives compaction' }],
+              toolCalls: [],
+            },
+          },
+          raw: {},
+        },
+      ];
+      const proj = await projectContext(entries as any);
+      // [summary, post-compaction-tail] — NOT just [summary].
+      expect(proj.messages).toHaveLength(2);
+      expect(proj.messages[0].source).toBe('compaction_summary');
+      expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'compacted two messages' });
+      expect(proj.messages[1].message.content[0]).toMatchObject({ text: 'survives compaction' });
+    });
+
+    it('defers messages during an open tool exchange and flushes when it closes', async () => {
+      // Simulate: step.begin → tool.call → (background message arrives, must
+      // defer) → tool.result → deferred message flushes after the tool message.
+      const entries = [
+        {
+          lineNo: 2,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 3,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.call' as const,
+              uuid: 'c1',
+              turnId: 't1',
+              step: 0,
+              stepUuid: 's1',
+              toolCallId: 'call_1',
+              name: 'Bash',
+              args: { cmd: 'ls' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 4,
+          data: {
+            type: 'context.append_message' as const,
+            message: {
+              role: 'user' as const,
+              content: [{ type: 'text' as const, text: 'bg notification' }],
+              toolCalls: [],
+              origin: { kind: 'background_task' as const, taskId: 't1' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 5,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.result' as const,
+              parentUuid: 'c1',
+              toolCallId: 'call_1',
+              result: { output: 'file.txt' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 6,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+      ];
+      const proj = await projectContext(entries as any);
+      // Order: [assistant(step.begin), tool(result), user(bg, flushed after tool)]
+      const roles = proj.messages.map((m) => m.message.role);
+      expect(roles).toEqual(['assistant', 'tool', 'user']);
+    });
   });
 });
