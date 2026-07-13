@@ -93,7 +93,7 @@ describe('compressImageForModel', () => {
   });
 
   it('walks the JPEG quality ladder for an over-budget JPEG source', async () => {
-    const data = await makeJpeg(3000, 3000, 95);
+    const data = await makeJpeg(2000, 2000, 95);
     // Force the budget below the source so compression must kick in.
     const result = await compressImageForModel({
       data,
