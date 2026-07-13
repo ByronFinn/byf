@@ -30,7 +30,8 @@
  * when `fd` is missing AND we're in a git repo.
  */
 
-import { basename } from 'node:path';
+import { readdirSync } from 'node:fs';
+import { basename, join } from 'node:path';
 
 import {
   CombinedAutocompleteProvider,
@@ -47,6 +48,15 @@ import type { GitLsFilesCache, GitSnapshot } from '#/utils/git/git-ls-files';
 const MAX_SUGGESTIONS_WHEN_QUERY = 50;
 const MAX_SUGGESTIONS_WHEN_EMPTY = 15;
 
+// readdir fallback caps. Only walked when both `fd` and git are
+// unavailable (no fd on PATH, non-git dir), so the bounds exist purely to
+// keep a pathological work dir (e.g. a giant node_modules outside git)
+// from blocking the keystroke loop.
+const READDIR_MAX_DEPTH = 3;
+const READDIR_MAX_ENTRIES = 1000;
+const READDIR_SKIP_DIRS = new Set(['.git', 'node_modules', '.next', 'dist', 'build', '.cache']);
+const READDIR_SKIP_FILES = new Set(['.DS_Store', 'Thumbs.db']);
+
 // Mirrors pi-tui's PATH_DELIMITERS. Keeping a local copy so @-detection
 // stays aligned even if pi-tui extends its set.
 const PATH_DELIMITERS = new Set([' ', '\t', '"', "'", '=']);
@@ -56,7 +66,7 @@ export class FileMentionProvider implements AutocompleteProvider {
 
   constructor(
     slashCommands: SlashCommand[],
-    workDir: string,
+    private readonly workDir: string,
     private readonly fdPath: string | null,
     private readonly gitCache: GitLsFilesCache,
   ) {
@@ -85,29 +95,37 @@ export class FileMentionProvider implements AutocompleteProvider {
       return this.inner.getSuggestions(lines, cursorLine, cursorCol, options);
     }
 
-    const snapshot = this.gitCache.getSnapshot();
-    if (snapshot === null || snapshot.files.length === 0) {
-      return this.inner.getSuggestions(lines, cursorLine, cursorCol, options);
-    }
-
     const query = atPrefix.slice(1); // strip leading '@'
-    const includeDotDirs = query.startsWith('.');
-    const candidates = includeDotDirs
-      ? snapshot.files
-      : snapshot.files.filter((p) => !containsDotSegment(p));
 
-    const items =
-      query.length === 0
-        ? rankForEmptyQuery(candidates, snapshot)
-        : rankForQuery(candidates, query, snapshot);
-
-    if (items.length === 0) {
-      // Git cache had nothing useful — fall through to readdir (user
-      // may be typing a path that exists but isn't tracked, e.g. a
-      // freshly created file not yet in the 2s cache).
-      return this.inner.getSuggestions(lines, cursorLine, cursorCol, options);
+    // Primary source: git ls-files cache (fast, respects .gitignore,
+    // carries recency/mtime signals). Only available inside a git repo.
+    const snapshot = this.gitCache.getSnapshot();
+    if (snapshot !== null && snapshot.files.length > 0) {
+      const ranked = rankFromSource(snapshot.files, snapshot, query, atPrefix);
+      if (ranked !== null) return ranked;
+      // Git cache had nothing useful — fall through to readdir (user may
+      // be typing a path that exists but isn't tracked yet).
     }
-    return { items, prefix: atPrefix };
+
+    // Last-resort source when both fd and git are unavailable (no fd on
+    // PATH, non-git directory): pi-tui's `@` branch needs `fd` and returns
+    // [] without it, so the menu would silently never appear. Walk the
+    // work dir ourselves so `@` still works outside git repos.
+    const dirFiles = collectFilesViaReaddir(this.workDir, query.startsWith('.'));
+    if (dirFiles.length > 0) {
+      const emptySnapshot: GitSnapshot = {
+        files: dirFiles,
+        mtimeByPath: new Map(),
+        recencyOrder: new Map(),
+      };
+      const ranked = rankFromSource(dirFiles, emptySnapshot, query, atPrefix);
+      if (ranked !== null) return ranked;
+    }
+
+    // readdir also empty / errored → hand off to pi-tui for the remaining
+    // branches (`/path`, slash commands). Its `@` branch will return null,
+    // matching the empty-result behaviour the caller already tolerates.
+    return this.inner.getSuggestions(lines, cursorLine, cursorCol, options);
   }
 
   applyCompletion(
@@ -140,6 +158,92 @@ function extractAtPrefix(text: string): string | null {
   }
   if (text[tokenStart] !== '@') return null;
   return text.slice(tokenStart);
+}
+
+/**
+ * Run the shared @ ranking over a candidate source and wrap the result in
+ * the `{ items, prefix }` shape pi-tui expects. Returns `null` when the
+ * source yields nothing for this query, so the caller can try the next
+ * source (git → readdir → pi-tui) instead of showing an empty menu.
+ *
+ * `prefix` is the raw `@…` token captured from the editor line, used
+ * verbatim so pi-tui knows what span to replace on apply.
+ */
+function rankFromSource(
+  files: readonly string[],
+  snapshot: GitSnapshot,
+  query: string,
+  prefix: string,
+): AutocompleteSuggestions | null {
+  const includeDotDirs = query.startsWith('.');
+  const candidates = includeDotDirs ? files : files.filter((p) => !containsDotSegment(p));
+  const items =
+    query.length === 0
+      ? rankForEmptyQuery(candidates, snapshot)
+      : rankForQuery(candidates, query, snapshot);
+  if (items.length === 0) return null;
+  return { items, prefix };
+}
+
+/**
+ * Walk `workDir` and collect regular-file paths (POSIX, relative to
+ * workDir) for the readdir fallback. Bounded by `READDIR_MAX_DEPTH` and
+ * `READDIR_MAX_ENTRIES` so a giant non-git tree can't stall the keystroke
+ * loop. Skips the usual build/VCS noise directories; opt into dot dirs
+ * only when the user's query itself starts with `.` (same semantics as
+ * the git branch's dot-directory filter).
+ *
+ * Errors (ENOENT, EACCES, …) collapse to an empty list — the caller
+ * then hands off to pi-tui, which already returns null on empty.
+ */
+function collectFilesViaReaddir(workDir: string, includeDotDirs: boolean): string[] {
+  const out: string[] = [];
+  try {
+    walkReaddir(workDir, '', 0, includeDotDirs, out);
+  } catch {
+    // Whole-workDir read failed (permissions, unmounted, …) — nothing to
+    // offer; the caller falls through to pi-tui.
+  }
+  return out;
+}
+
+function walkReaddir(
+  root: string,
+  relDir: string,
+  depth: number,
+  includeDotDirs: boolean,
+  out: string[],
+): void {
+  if (depth >= READDIR_MAX_DEPTH || out.length >= READDIR_MAX_ENTRIES) return;
+  const absDir = relDir.length === 0 ? root : join(root, relDir);
+  let entries;
+  try {
+    entries = readdirSync(absDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (out.length >= READDIR_MAX_ENTRIES) return;
+    const name = entry.name;
+    const isDot = name.startsWith('.');
+    if (entry.isDirectory()) {
+      if (READDIR_SKIP_DIRS.has(name)) continue;
+      // Hide dot-directories unless the user explicitly opted in.
+      if (isDot && !includeDotDirs) continue;
+      walkReaddir(
+        root,
+        relDir.length === 0 ? name : `${relDir}/${name}`,
+        depth + 1,
+        includeDotDirs,
+        out,
+      );
+    } else if (entry.isFile()) {
+      if (READDIR_SKIP_FILES.has(name)) continue;
+      if (isDot && !includeDotDirs) continue;
+      const rel = relDir.length === 0 ? name : `${relDir}/${name}`;
+      out.push(rel);
+    }
+  }
 }
 
 /** True when any path segment starts with a dot (e.g. `.github/x.yml`). */
