@@ -38,6 +38,7 @@ import { applyCacheStaking } from '../cache-staking';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { KosongLLM } from './kosong-llm';
@@ -811,7 +812,7 @@ export class TurnFlow implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores turn.* records
+    if (!isAgentRecordOfPrefix(record, 'turn')) return;
     switch (record.type) {
       case 'turn.prompt':
         // During restore, we need to process each turn.prompt record

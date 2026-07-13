@@ -8,6 +8,7 @@ import {
 
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
@@ -146,7 +147,7 @@ export class ConfigState implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores config.* records; other record types are handled by sibling subsystems
+    if (!isAgentRecordOfPrefix(record, 'config')) return;
     switch (record.type) {
       case 'config.update':
         // During restore, we call the normal update method but it should not log

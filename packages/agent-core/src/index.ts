@@ -38,6 +38,7 @@ export type {
 export {
   createWireFoldState,
   foldAppendMessage,
+  foldApplyCompaction,
   foldLoopEvent,
   flushDeferred,
   resetWireFoldState,

@@ -181,10 +181,9 @@ describe('AgentRecords handler registration and routing', () => {
 
   // PRD-0025 / ADR-0031: every record type must be covered by a restore
   // handler (via the prefix routing map) or be in the explicit no-handler
-  // exception list. This is the real drift guard — the per-subsystem
-  // `restoreRecord` switches can't be made exhaustive over the full
-  // AgentRecord union (each owns only its prefix), so this test is what
-  // catches a new record type that was forgotten in the routing map.
+  // exception list. Per-subsystem switches are exhaustively checked over
+  // their prefix subset (via isAgentRecordOfPrefix); this test is the
+  // routing-layer drift guard for new record types.
   describe('record type restore coverage (drift guard)', () => {
     // Prefixes routed to a handler by getHandlerKey. Must mirror the mapping
     // in packages/agent-core/src/agent/records/index.ts.
@@ -204,9 +203,16 @@ describe('AgentRecords handler registration and routing', () => {
     //   (BackgroundProcessManager), intentionally no handler here.
     const NO_HANDLER_TYPES: ReadonlySet<string> = new Set(['metadata', 'background.stop']);
 
-    // `satisfies` checks both directions: every entry is a valid key, AND
-    // (via the second conditional) every union member is present. If a record
-    // type is added to AgentRecordEvents without updating this list, TS fails.
+    // Live-only debugging records: routed to ContextMemory but intentionally
+    // no-op on restore (see ADR-0031 / CONTEXT.md「输出卸载」).
+    const LIVE_ONLY_NOOP_TYPES: ReadonlySet<string> = new Set([
+      'context.output_offloaded',
+      'context.pruning',
+    ]);
+
+    // Every AgentRecordEvents key must appear here. The value assignment
+    // forces TypeScript to evaluate Missing — an unused type alias alone
+    // does not fail typecheck.
     const ALL_RECORD_TYPES = [
       'metadata',
       'turn.prompt',
@@ -236,9 +242,11 @@ describe('AgentRecords handler registration and routing', () => {
       'goal.update',
       'goal.clear',
     ] as const;
-    // Compile-time exhaustiveness: every union member must appear in the list.
     type Missing = Exclude<keyof AgentRecordEvents, (typeof ALL_RECORD_TYPES)[number]>;
-    type _Check = [Missing] extends [never] ? true : `missing: ${Missing & string}`;
+    // If a record type is added to AgentRecordEvents without updating the
+    // list above, Missing is a non-never union and this assignment errors.
+    const _exhaustive: [Missing] extends [never] ? true : Missing = true;
+    void _exhaustive;
 
     it('every record type is routed to a handler or in the explicit no-handler list', () => {
       const unaccounted = ALL_RECORD_TYPES.filter((type) => {
@@ -247,6 +255,15 @@ describe('AgentRecords handler registration and routing', () => {
         return !ROUTED_PREFIXES.has(prefix);
       });
       expect(unaccounted).toEqual([]);
+    });
+
+    it('live-only debugging records are listed as explicit no-ops', () => {
+      for (const type of LIVE_ONLY_NOOP_TYPES) {
+        expect(ALL_RECORD_TYPES).toContain(type);
+        const prefix = type.split('.')[0]!;
+        expect(ROUTED_PREFIXES.has(prefix)).toBe(true);
+        expect(NO_HANDLER_TYPES.has(type)).toBe(false);
+      }
     });
   });
 });

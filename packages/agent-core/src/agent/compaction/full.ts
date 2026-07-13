@@ -27,6 +27,7 @@ import {
 } from '../../utils/tokens';
 import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
@@ -600,7 +601,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores full_compaction.* records
+    if (!isAgentRecordOfPrefix(record, 'full_compaction')) return;
     switch (record.type) {
       case 'full_compaction.begin':
         // During restore, we call begin but it should not start the worker

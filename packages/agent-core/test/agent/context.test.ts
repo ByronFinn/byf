@@ -9,6 +9,16 @@ import {
   MEDIA_STRIPPED_PLACEHOLDERS,
   project,
 } from '../../src/agent/context/projector';
+import type { ContextMessage } from '../../src/agent/context/types';
+import {
+  createWireFoldState,
+  foldAppendMessage,
+  foldApplyCompaction,
+  foldLoopEvent,
+  toolResultOutputForModel,
+  type WireFoldHandlers,
+} from '../../src/agent/context/wire-fold';
+import type { LoopRecordedEvent } from '../../src/loop';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
@@ -1005,5 +1015,238 @@ describe('degradeOlderMediaParts', () => {
     expect(text).toContain('<image path="/tmp/screenshot.png">');
     expect(text).toContain('</image>');
     expect(text).toContain('re-read the file');
+  });
+});
+
+// PRD-0025: pure wire-fold vs ContextMemory (kernel) parity + live-only restore.
+describe('wire-fold pure API (PRD-0025)', () => {
+  const pureHandlers = (): WireFoldHandlers => ({
+    onMessage: () => {},
+  });
+
+  async function pureFoldLoop(events: readonly LoopRecordedEvent[]): Promise<ContextMessage[]> {
+    const state = createWireFoldState();
+    const handlers = pureHandlers();
+    for (const event of events) {
+      await foldLoopEvent(state, event, handlers);
+    }
+    return [...state.history];
+  }
+
+  it('toolResultOutputForModel normalises empty and error outputs', () => {
+    expect(toolResultOutputForModel({ output: '', isError: true })).toBe(
+      '<system>ERROR: Tool execution failed. Tool output is empty.</system>',
+    );
+    expect(toolResultOutputForModel({ output: '' })).toBe('<system>Tool output is empty.</system>');
+    expect(toolResultOutputForModel({ output: 'permission denied', isError: true })).toBe(
+      '<system>ERROR: Tool execution failed.</system>\npermission denied',
+    );
+  });
+
+  it('matches ContextMemory on empty tool output, error output, and partial compaction', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+
+    // Kernel path: produce real wire via ContextMemory APIs.
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'old 1' }]);
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'old 2' }]);
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'remaining tail' }]);
+
+    await ctx.agent.context.appendLoopEvent({
+      type: 'step.begin',
+      uuid: 's1',
+      turnId: 't1',
+      step: 0,
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: 'c_empty',
+      turnId: 't1',
+      step: 0,
+      stepUuid: 's1',
+      toolCallId: 'call_empty',
+      name: 'Bash',
+      args: { cmd: 'true' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: 'c_empty',
+      toolCallId: 'call_empty',
+      result: { output: '' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: 'c_err',
+      turnId: 't1',
+      step: 0,
+      stepUuid: 's1',
+      toolCallId: 'call_err',
+      name: 'Bash',
+      args: { cmd: 'bad' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: 'c_err',
+      toolCallId: 'call_err',
+      result: { output: 'permission denied', isError: true },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'step.end',
+      uuid: 's1',
+      turnId: 't1',
+      step: 0,
+    });
+
+    // Partial compaction: compact first 2 user messages, keep remaining tail.
+    ctx.agent.context.applyCompaction({
+      summary: 'compacted old 1+2',
+      compactedCount: 2,
+      tokensBefore: 100,
+      tokensAfter: 40,
+    });
+
+    const kernelHistory = structuredClone(ctx.agent.context.history) as ContextMessage[];
+
+    // Pure fold path: rebuild from the same logical operations (no offload port).
+    const pure = createWireFoldState();
+    const handlers = pureHandlers();
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old 1' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old 2' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'remaining tail' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    for (const event of [
+      { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
+      {
+        type: 'tool.call' as const,
+        uuid: 'c_empty',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_empty',
+        name: 'Bash',
+        args: { cmd: 'true' },
+      },
+      {
+        type: 'tool.result' as const,
+        parentUuid: 'c_empty',
+        toolCallId: 'call_empty',
+        result: { output: '' },
+      },
+      {
+        type: 'tool.call' as const,
+        uuid: 'c_err',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_err',
+        name: 'Bash',
+        args: { cmd: 'bad' },
+      },
+      {
+        type: 'tool.result' as const,
+        parentUuid: 'c_err',
+        toolCallId: 'call_err',
+        result: { output: 'permission denied', isError: true },
+      },
+      { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
+    ] satisfies LoopRecordedEvent[]) {
+      await foldLoopEvent(pure, event, handlers);
+    }
+    foldApplyCompaction(pure, { summary: 'compacted old 1+2', compactedCount: 2 }, handlers);
+
+    expect(pure.history).toEqual(kernelHistory);
+
+    // Known divergence points locked:
+    // 1) partial compaction keeps residual tail (not just summary)
+    expect(kernelHistory.map((m) => m.role)).toEqual([
+      'assistant', // summary
+      'user', // remaining tail
+      'assistant', // step
+      'tool', // empty
+      'tool', // error
+    ]);
+    expect(kernelHistory[0]?.origin).toEqual({ kind: 'compaction_summary' });
+    expect(kernelHistory[1]?.content).toEqual([{ type: 'text', text: 'remaining tail' }]);
+    // 2) empty + error tool normalisation
+    expect(kernelHistory[3]?.content).toEqual([
+      { type: 'text', text: '<system>Tool output is empty.</system>' },
+    ]);
+    expect(kernelHistory[4]?.content).toEqual([
+      {
+        type: 'text',
+        text: '<system>ERROR: Tool execution failed.</system>\npermission denied',
+      },
+    ]);
+  });
+
+  it('live-only output_offloaded and pruning restore are no-ops on history', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'keep me' }]);
+    const before = structuredClone(ctx.agent.context.history);
+
+    ctx.agent.context.restoreRecord({
+      type: 'context.output_offloaded',
+      toolCallId: 'call_x',
+      filePath: '/tmp/scratch/x',
+    });
+    ctx.agent.context.restoreRecord({
+      type: 'context.pruning',
+      prunedCount: 3,
+    });
+
+    expect(ctx.agent.context.history).toEqual(before);
+  });
+
+  it('pure fold without offload port still normalises empty tool output', async () => {
+    const history = await pureFoldLoop([
+      { type: 'step.begin', uuid: 's1', turnId: 't1', step: 0 },
+      {
+        type: 'tool.call',
+        uuid: 'c1',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_1',
+        name: 'Bash',
+        args: {},
+      },
+      {
+        type: 'tool.result',
+        parentUuid: 'c1',
+        toolCallId: 'call_1',
+        result: { output: '' },
+      },
+      { type: 'step.end', uuid: 's1', turnId: 't1', step: 0 },
+    ]);
+    expect(history[1]?.content).toEqual([
+      { type: 'text', text: '<system>Tool output is empty.</system>' },
+    ]);
   });
 });

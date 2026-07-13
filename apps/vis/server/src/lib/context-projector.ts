@@ -3,6 +3,7 @@ import {
   DEFAULT_OFFLOADING_CONFIG,
   resetWireFoldState,
   foldAppendMessage,
+  foldApplyCompaction,
   foldLoopEvent,
   shouldOffload,
   createWireFoldState,
@@ -28,10 +29,10 @@ const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCac
  *  The fold logic (step.begin/content.part/tool.call/tool.result/step.end,
  *  deferred-message flushing during tool exchanges, tool-output
  *  normalisation, output-offload previews) is delegated to agent-core's
- *  pure `wire-fold` module — the single source of truth shared with the live
- *  agent. Previously this file mirrored that logic by hand and silently
- *  diverged on empty/error tool outputs, partial compaction (it dropped
- *  post-summary messages), and deferred-message ordering.
+ *  `wire-fold` module (effect-port design; single source of truth shared
+ *  with the live agent). Previously this file mirrored that logic by hand
+ *  and silently diverged on empty/error tool outputs, partial compaction
+ *  (it dropped post-summary messages), and deferred-message ordering.
  *
  *  vis-specific concerns stay here: attaching `lineNo` / `time` / `source`
  *  display metadata to each projected message, and aggregating usage /
@@ -122,18 +123,13 @@ export async function projectContext(
       messages.length = 0;
       openProjected.clear();
     } else if (rec.type === 'context.apply_compaction') {
-      // Mirror agent-core's applyCompaction: prepend the summary as an
-      // assistant message with origin.kind = 'compaction_summary' and KEEP
-      // the remaining uncompacted tail (history.slice(compactedCount)). The
-      // previous hand-written version reset messages to only the summary,
-      // silently dropping post-compaction history.
-      const summaryMessage: ContextMessage = {
-        role: 'assistant',
-        content: [{ type: 'text', text: rec.summary }],
-        toolCalls: [],
-        origin: { kind: 'compaction_summary' },
-      };
-      state.history.splice(0, rec.compactedCount, summaryMessage);
+      // Shared with ContextMemory via foldApplyCompaction: summary + uncompacted
+      // tail (history.slice(compactedCount)). Display metadata is vis-only.
+      const summaryMessage = foldApplyCompaction(
+        state,
+        { summary: rec.summary, compactedCount: rec.compactedCount },
+        handlers,
+      );
       messages.splice(0, rec.compactedCount, {
         lineNo: entry.lineNo,
         time: rec.time,
@@ -141,7 +137,6 @@ export async function projectContext(
         message: summaryMessage,
         toolStepUuids: [],
       });
-      state.openSteps.clear();
       openProjected.clear();
     } else if (rec.type === 'usage.record') {
       const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';

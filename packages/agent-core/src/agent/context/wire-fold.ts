@@ -1,5 +1,5 @@
 /**
- * Pure wire-fold logic, extracted from `ContextMemory.appendLoopEvent`.
+ * Wire-fold logic, extracted from `ContextMemory.appendLoopEvent`.
  *
  * This module folds a stream of `LoopRecordedEvent`s and explicit
  * `context.append_message` records into a `ContextMessage[]` timeline. It is
@@ -8,16 +8,15 @@
  * `ContextMemory`) and external readers (e.g. apps/vis), eliminating the
  * duplicate fold logic that previously drifted between them.
  *
- * Purity contract:
- * - No disk I/O, no record logging, no event emission, no injection hooks.
- * - The only side-effectful seam is the optional `offloadToolOutput` handler
- *   (output offloading needs a scratch filesystem). Callers that don't need
- *   offloading (e.g. vis, which synthesises a preview without writing files)
- *   pass their own handler or omit it.
- *
- * The caller owns the message collection via `onMessage` — this lets the live
- * agent apply its side-effects (background notifications, replay builder) and
- * lets vis attach display metadata (lineNo / time / source).
+ * Effect-port contract (core fold is pure when ports are inert):
+ * - No disk I/O, record logging, event emission, or injection hooks inside
+ *   this module itself.
+ * - Optional `offloadToolOutput` is an **effect port**: when supplied, the
+ *   fold may await it (live agent writes scratch files + logs
+ *   `context.output_offloaded`). Callers that only need history (or that
+ *   synthesise a preview without writing files) pass a pure stub or omit it.
+ * - `onMessage` / `onStepEnd` are also ports for caller-owned side effects
+ *   (background notifications, replay builder, display metadata).
  */
 
 import { createToolMessage, type ContentPart, type TokenUsage } from '@byfriends/kosong';
@@ -255,6 +254,36 @@ export function resetWireFoldState(state: WireFoldState): void {
   state.pendingToolResultIds.clear();
   state.toolCallInfo.clear();
   state.deferredMessages.length = 0;
+}
+
+/**
+ * Apply a compaction summary in place: replace the first `compactedCount`
+ * messages with a single summary assistant message and keep the uncompacted
+ * tail (`history.slice(compactedCount)`). Clears open steps and flushes any
+ * deferred messages once the tool-exchange gate allows.
+ *
+ * Shared by `ContextMemory` and external readers (vis) so partial-compaction
+ * tails cannot drift again.
+ */
+export function foldApplyCompaction(
+  state: WireFoldState,
+  input: { summary: string; compactedCount: number },
+  handlers: WireFoldHandlers,
+): ContextMessage {
+  const summaryMessage: ContextMessage = {
+    role: 'assistant',
+    content: [{ type: 'text', text: input.summary }],
+    toolCalls: [],
+    origin: { kind: 'compaction_summary' },
+  };
+  const tail = state.history.slice(input.compactedCount);
+  // Mutate in place so callers that hold a field-view (ContextMemory) see the
+  // rebuild without reassigning their `_history` reference.
+  state.history.length = 0;
+  state.history.push(summaryMessage, ...tail);
+  state.openSteps.clear();
+  flushDeferredIfToolExchangeClosed(state, handlers);
+  return summaryMessage;
 }
 
 function commitMessage(

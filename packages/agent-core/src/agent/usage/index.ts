@@ -3,6 +3,7 @@ import { addUsage, cacheHitRate, type TokenUsage } from '@byfriends/kosong';
 import type { UsageStatus } from '#/rpc';
 
 import type { Agent } from '..';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 
 export type UsageRecordScope = 'session' | 'turn';
@@ -74,7 +75,7 @@ export class UsageRecorder implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- AgentRecords routes by prefix; this handler only owns usage.* records (see restore-coverage test)
+    if (!isAgentRecordOfPrefix(record, 'usage')) return;
     switch (record.type) {
       case 'usage.record':
         // During restore, we always use 'session' scope regardless of the original scope

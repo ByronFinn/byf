@@ -14,6 +14,7 @@ import { extendWorkspaceWithSkillRoots } from '../../skill';
 import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import { globMatch } from '../permission/path-glob-match';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import type {
   BuiltinTool,
@@ -453,7 +454,7 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores tools.* records
+    if (!isAgentRecordOfPrefix(record, 'tools')) return;
     switch (record.type) {
       case 'tools.register_user_tool':
         // Call the normal registerUserTool method but it should not log

@@ -102,6 +102,24 @@ export type AgentRecordOf<K extends keyof AgentRecordEvents> = Extract<
   { readonly type: K }
 >;
 
+/**
+ * Records whose `type` is `Prefix.*` (e.g. `context`, `turn`).
+ * Used by subsystem `restoreRecord` handlers so their switches can be
+ * exhaustively checked over the routed subset only.
+ */
+export type AgentRecordsOfPrefix<Prefix extends string> = Extract<
+  AgentRecord,
+  { readonly type: `${Prefix}.${string}` }
+>;
+
+/** Type guard: narrow `AgentRecord` to the prefix subset routed to one handler. */
+export function isAgentRecordOfPrefix<Prefix extends string>(
+  record: AgentRecord,
+  prefix: Prefix,
+): record is AgentRecordsOfPrefix<Prefix> {
+  return record.type.startsWith(`${prefix}.`);
+}
+
 export interface AgentRecordPersistence {
   read(): AsyncIterable<AgentRecord>;
   append(input: AgentRecord): void;

@@ -3,6 +3,7 @@ import type { PrepareToolExecutionResult, ToolExecutionHookContext } from '../..
 import type { TelemetryPropertyValue } from '../../telemetry';
 import type { ToolInputDisplay } from '../../tools/display';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
@@ -347,7 +348,7 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores permission.* records
+    if (!isAgentRecordOfPrefix(record, 'permission')) return;
     switch (record.type) {
       case 'permission.set_mode':
         // Call the normal setMode method but it should not log

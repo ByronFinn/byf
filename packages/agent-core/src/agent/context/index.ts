@@ -6,6 +6,7 @@ import type { Agent } from '..';
 import type { LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
+import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import {
   applyObservationMasking,
@@ -29,8 +30,8 @@ import {
   type PromptOrigin,
 } from './types';
 import {
-  flushDeferred,
   foldAppendMessage,
+  foldApplyCompaction,
   foldLoopEvent,
   resetWireFoldState,
   type WireFoldHandlers,
@@ -118,17 +119,11 @@ export class ContextMemory implements RecordRestoreHandler {
       type: 'context.apply_compaction',
       ...summary,
     });
-    this._history = [
-      {
-        role: 'assistant',
-        content: [{ type: 'text', text: summary.summary }],
-        toolCalls: [],
-        origin: { kind: 'compaction_summary' },
-      },
-      ...this._history.slice(summary.compactedCount),
-    ];
-    this.openSteps.clear();
-    flushDeferred(this.foldState(), this.foldHandlers);
+    foldApplyCompaction(
+      this.foldState(),
+      { summary: summary.summary, compactedCount: summary.compactedCount },
+      this.foldHandlers,
+    );
     this._tokenCount = summary.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.injection.onContextCompacted(summary.compactedCount);
@@ -384,8 +379,10 @@ export class ContextMemory implements RecordRestoreHandler {
     });
   }
 
-  restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- AgentRecords routes by prefix; this handler only owns context.* records (see restore-coverage test)
+  restoreRecord(record: AgentRecord): void {
+    // AgentRecords routes by prefix; only context.* records reach this handler.
+    // Narrow so the switch is exhaustive over the owned subset (PRD-0025 R4).
+    if (!isAgentRecordOfPrefix(record, 'context')) return;
     switch (record.type) {
       case 'context.append_message':
         this.appendMessage(record.message);
@@ -426,34 +423,21 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   private restoreApplyCompaction(
-    record: Extract<import('../records/types').AgentRecord, { type: 'context.apply_compaction' }>,
+    record: Extract<AgentRecord, { type: 'context.apply_compaction' }>,
   ): void {
-    const compactedCount = record.compactedCount;
-    const summary = record.summary;
-    const tokensAfter = record.tokensAfter;
-
-    this._history = [
-      {
-        role: 'assistant',
-        content: [{ type: 'text', text: summary }],
-        toolCalls: [],
-        origin: { kind: 'compaction_summary' },
-      },
-      ...this._history.slice(compactedCount),
-    ];
-    this.openSteps.clear();
-    flushDeferred(this.foldState(), this.foldHandlers);
-    this._tokenCount = tokensAfter;
+    foldApplyCompaction(
+      this.foldState(),
+      { summary: record.summary, compactedCount: record.compactedCount },
+      this.foldHandlers,
+    );
+    this._tokenCount = record.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
-    this.agent.injection.onContextCompacted(compactedCount);
+    this.agent.injection.onContextCompacted(record.compactedCount);
     this.agent.emitStatusUpdated();
   }
 
   private restoreMarkLastUserPromptBlocked(
-    record: Extract<
-      import('../records/types').AgentRecord,
-      { type: 'context.mark_last_user_prompt_blocked' }
-    >,
+    record: Extract<AgentRecord, { type: 'context.mark_last_user_prompt_blocked' }>,
   ): void {
     const hookEvent = record.hookEvent;
     for (let i = this._history.length - 1; i >= 0; i--) {
@@ -468,7 +452,7 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   private async restoreAppendLoopEvent(
-    record: Extract<import('../records/types').AgentRecord, { type: 'context.append_loop_event' }>,
+    record: Extract<AgentRecord, { type: 'context.append_loop_event' }>,
   ): Promise<void> {
     // During restore, we call the normal appendLoopEvent but it should not log
     // The restoring flag prevents logging

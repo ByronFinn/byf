@@ -1,6 +1,14 @@
 import { join } from 'node:path';
 
 // apps/vis/server/test/lib/context-projector.test.ts
+import {
+  createWireFoldState,
+  foldAppendMessage,
+  foldApplyCompaction,
+  foldLoopEvent,
+  type ContextMessage,
+  type LoopRecordedEvent,
+} from '@byfriends/agent-core';
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { projectContext } from '../../src/lib/context-projector';
@@ -227,70 +235,45 @@ describe('context-projector', () => {
     expect(proj.messages[1].message.content[0]).toMatchObject({ text: 'new' });
   });
 
-  // Cross-boundary consistency: vis's projectContext must produce the same
-  // message sequence as the pure wire-fold function (shared with the live
-  // agent's ContextMemory). These cases target the three known divergence
-  // points the old hand-written projector had: empty/error tool output
-  // normalisation, partial compaction (keeping the post-summary tail), and
-  // deferred-message ordering during tool exchanges. See PRD-0025 AC2.
+  // PRD-0025 AC2: pure wire-fold and vis projectContext must produce the same
+  // ContextMessage sequence for the known divergence points (empty/error tool
+  // output, true partial compaction with residual tail, deferred messages).
+  // Kernel vs pure is locked in agent-core context.test.ts; here we lock
+  // pure vs vis on the same fixtures.
   describe('cross-boundary parity with wire-fold', () => {
-    it('normalises empty and error tool outputs the same way the live agent does', async () => {
-      const entries = [
-        {
-          lineNo: 2,
-          data: {
-            type: 'context.append_loop_event' as const,
-            event: { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
-          },
-          raw: {},
-        },
-        {
-          lineNo: 3,
-          data: {
-            type: 'context.append_loop_event' as const,
-            event: {
-              type: 'tool.call' as const,
-              uuid: 'c1',
-              turnId: 't1',
-              step: 0,
-              stepUuid: 's1',
-              toolCallId: 'call_err',
-              name: 'Bash',
-              args: { cmd: 'bad' },
+    async function pureHistoryFromEntries(
+      entries: ReadonlyArray<{ data: { type: string } & Record<string, unknown> }>,
+    ): Promise<ContextMessage[]> {
+      const state = createWireFoldState();
+      const handlers = { onMessage: () => {} };
+      for (const entry of entries) {
+        const rec = entry.data;
+        if (rec.type === 'context.append_message') {
+          foldAppendMessage(state, rec.message as ContextMessage, handlers);
+        } else if (rec.type === 'context.append_loop_event') {
+          await foldLoopEvent(state, rec.event as LoopRecordedEvent, handlers);
+        } else if (rec.type === 'context.apply_compaction') {
+          foldApplyCompaction(
+            state,
+            {
+              summary: rec.summary as string,
+              compactedCount: rec.compactedCount as number,
             },
-          },
-          raw: {},
-        },
-        {
-          lineNo: 4,
-          data: {
-            type: 'context.append_loop_event' as const,
-            event: {
-              type: 'tool.result' as const,
-              parentUuid: 'c1',
-              toolCallId: 'call_err',
-              result: { output: 'permission denied', isError: true },
-            },
-          },
-          raw: {},
-        },
-        {
-          lineNo: 5,
-          data: {
-            type: 'context.append_loop_event' as const,
-            event: { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
-          },
-          raw: {},
-        },
-      ];
-      const proj = await projectContext(entries as any);
-      // The error marker must be present — previously vis showed raw output.
-      const toolContent = proj.messages[1].message.content[0] as { text: string };
-      expect(toolContent.text).toContain('<system>ERROR: Tool execution failed.</system>');
-      expect(toolContent.text).toContain('permission denied');
-    });
+            handlers,
+          );
+        } else if (rec.type === 'context.clear') {
+          state.history.length = 0;
+          state.openSteps.clear();
+          state.pendingToolResultIds.clear();
+          state.toolCallInfo.clear();
+          state.deferredMessages.length = 0;
+        }
+      }
+      return [...state.history];
+    }
 
-    it('partial compaction keeps the post-summary tail (no message loss)', async () => {
+    it('three-way equality: pure fold === vis projectContext on empty/error tool + true partial compaction', async () => {
+      // History before compact: [old1, old2, remaining] — compactedCount 2 keeps remaining.
       const entries = [
         {
           lineNo: 2,
@@ -319,38 +302,127 @@ describe('context-projector', () => {
         {
           lineNo: 4,
           data: {
-            type: 'context.apply_compaction' as const,
-            summary: 'compacted two messages',
-            compactedCount: 2,
-            tokensBefore: 100,
-            tokensAfter: 30,
+            type: 'context.append_message' as const,
+            message: {
+              role: 'user' as const,
+              content: [{ type: 'text' as const, text: 'remaining tail' }],
+              toolCalls: [],
+            },
           },
           raw: {},
         },
         {
           lineNo: 5,
           data: {
-            type: 'context.append_message' as const,
-            message: {
-              role: 'user' as const,
-              content: [{ type: 'text' as const, text: 'survives compaction' }],
-              toolCalls: [],
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 6,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.call' as const,
+              uuid: 'c_empty',
+              turnId: 't1',
+              step: 0,
+              stepUuid: 's1',
+              toolCallId: 'call_empty',
+              name: 'Bash',
+              args: { cmd: 'true' },
             },
           },
           raw: {},
         },
+        {
+          lineNo: 7,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.result' as const,
+              parentUuid: 'c_empty',
+              toolCallId: 'call_empty',
+              result: { output: '' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 8,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.call' as const,
+              uuid: 'c_err',
+              turnId: 't1',
+              step: 0,
+              stepUuid: 's1',
+              toolCallId: 'call_err',
+              name: 'Bash',
+              args: { cmd: 'bad' },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 9,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: {
+              type: 'tool.result' as const,
+              parentUuid: 'c_err',
+              toolCallId: 'call_err',
+              result: { output: 'permission denied', isError: true },
+            },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 10,
+          data: {
+            type: 'context.append_loop_event' as const,
+            event: { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
+          },
+          raw: {},
+        },
+        {
+          lineNo: 11,
+          data: {
+            type: 'context.apply_compaction' as const,
+            summary: 'compacted old 1+2',
+            compactedCount: 2,
+            tokensBefore: 100,
+            tokensAfter: 40,
+          },
+          raw: {},
+        },
       ];
+
+      const pure = await pureHistoryFromEntries(entries);
       const proj = await projectContext(entries as any);
-      // [summary, post-compaction-tail] — NOT just [summary].
-      expect(proj.messages).toHaveLength(2);
-      expect(proj.messages[0].source).toBe('compaction_summary');
-      expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'compacted two messages' });
-      expect(proj.messages[1].message.content[0]).toMatchObject({ text: 'survives compaction' });
+      const visMessages = proj.messages.map((m) => m.message);
+
+      expect(visMessages).toEqual(pure);
+
+      // True partial compaction: compactedCount < history.length at compact time
+      // yields [summary, remaining, assistant, tool_empty, tool_err] — NOT just [summary].
+      expect(pure).toHaveLength(5);
+      expect(pure[0]?.origin).toEqual({ kind: 'compaction_summary' });
+      expect(pure[1]?.content).toEqual([{ type: 'text', text: 'remaining tail' }]);
+      expect(pure[3]?.content).toEqual([
+        { type: 'text', text: '<system>Tool output is empty.</system>' },
+      ]);
+      expect(pure[4]?.content).toEqual([
+        {
+          type: 'text',
+          text: '<system>ERROR: Tool execution failed.</system>\npermission denied',
+        },
+      ]);
     });
 
     it('defers messages during an open tool exchange and flushes when it closes', async () => {
-      // Simulate: step.begin → tool.call → (background message arrives, must
-      // defer) → tool.result → deferred message flushes after the tool message.
       const entries = [
         {
           lineNo: 2,
@@ -412,10 +484,10 @@ describe('context-projector', () => {
           raw: {},
         },
       ];
+      const pure = await pureHistoryFromEntries(entries);
       const proj = await projectContext(entries as any);
-      // Order: [assistant(step.begin), tool(result), user(bg, flushed after tool)]
-      const roles = proj.messages.map((m) => m.message.role);
-      expect(roles).toEqual(['assistant', 'tool', 'user']);
+      expect(proj.messages.map((m) => m.message)).toEqual(pure);
+      expect(pure.map((m) => m.role)).toEqual(['assistant', 'tool', 'user']);
     });
   });
 });
