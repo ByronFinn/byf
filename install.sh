@@ -83,9 +83,14 @@ main() {
 
   local download_url="https://github.com/${GITHUB_REPO}/releases/latest/download/${BINARY_NAME}-${platform}.zip"
   local install_path
+  # tmpdir must not be `local`: EXIT traps run after main returns, when locals
+  # are already unbound (`set -u` → "tmpdir: unbound variable").
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
+  # Expand the path when registering the trap so cleanup does not depend on
+  # the local binding still being in scope.
+  # shellcheck disable=SC2064
+  trap "rm -rf $(printf '%q' "$tmpdir")" EXIT
 
   echo "Downloading BYF for ${platform}..."
 
