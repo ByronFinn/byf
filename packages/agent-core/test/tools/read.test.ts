@@ -1016,4 +1016,46 @@ describe('ReadFileTracker', () => {
     expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
     expect(tracker.hasRead('/tmp/b.txt')).toBe(true);
   });
+
+  // Regression: store writes flow through `tools.update_store` records that
+  // are persisted with JSON.stringify. A Set serialises to `{}`, so on session
+  // restore the store held a plain object, and `markRead`/`hasRead` threw
+  // `t.has is not a function`. The store must keep a JSON-native array, and
+  // the tracker must survive a real JSON round-trip of its own writes.
+  function makeJsonWireStore(): ToolStore {
+    const data: Record<string, unknown> = {};
+    return {
+      get: (key) => JSON.parse(JSON.stringify(data[key] ?? null)) as never,
+      set: (key, value) => {
+        data[key] = JSON.parse(JSON.stringify(value));
+      },
+    };
+  }
+
+  it('survives a JSON wire round-trip of its own writes', () => {
+    const store = makeJsonWireStore();
+    const tracker = new ReadFileTracker(store);
+    tracker.markRead('/tmp/a.txt');
+    tracker.markRead('/tmp/b.txt');
+
+    // A brand-new tracker over the same (post-JSON) store must still see both
+    // files, and re-marking must not throw or lose entries.
+    const restored = new ReadFileTracker(store);
+    expect(restored.hasRead('/tmp/a.txt')).toBe(true);
+    expect(restored.hasRead('/tmp/b.txt')).toBe(true);
+    expect(() => restored.markRead('/tmp/c.txt')).not.toThrow();
+    expect(restored.hasRead('/tmp/c.txt')).toBe(true);
+  });
+
+  it('tolerates a legacy non-array readFiles value without throwing', () => {
+    // Simulate a restored session whose `readFiles` is the `{}` produced by
+    // JSON-serialising a Set under the old implementation.
+    const store = makeStore();
+    (store as unknown as { set: (k: string, v: unknown) => void }).set('readFiles', {});
+    const tracker = new ReadFileTracker(store);
+
+    expect(tracker.hasRead('/tmp/a.txt')).toBe(false);
+    expect(() => tracker.markRead('/tmp/a.txt')).not.toThrow();
+    expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
+  });
 });
