@@ -25,6 +25,7 @@ import type {
   ExportSessionResult,
   ForkSessionInput,
   GetConfigOptions,
+  CronTaskSnapshot,
   GoalBudgetLimits,
   GoalSnapshot,
   ByfConfig,
@@ -50,10 +51,10 @@ import type {
 const MAIN_AGENT_ID = 'main';
 
 export interface SDKRpcClientOptions {
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
+  readonly homeDir?: string;
+  readonly configPath?: string;
   readonly skillDirs?: readonly string[];
-  readonly runtime?: RuntimeConfig | undefined;
+  readonly runtime?: RuntimeConfig;
 }
 
 export interface SessionPromptRpcInput {
@@ -71,7 +72,7 @@ export interface SetSessionModelRpcInput extends SessionIdRpcInput {
 
 export interface SetSessionModelRpcResult {
   readonly model: string;
-  readonly providerName?: string | undefined;
+  readonly providerName?: string;
 }
 
 export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
@@ -90,7 +91,7 @@ export interface CreateSessionGoalRpcInput extends SessionIdRpcInput {
 
 export interface ActivateSkillRpcInput extends SessionIdRpcInput {
   readonly name: string;
-  readonly args?: string | undefined;
+  readonly args?: string;
 }
 
 export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
@@ -158,6 +159,32 @@ export class SDKRpcClient {
     return rpc.closeSession({ sessionId: input.sessionId });
   }
 
+  async waitForBackgroundTasksOnPrint(input: SessionIdRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.waitForBackgroundTasksOnPrint({ sessionId: input.sessionId });
+  }
+
+  async addWorkspaceDir(input: { sessionId: string; dir: string; persist?: boolean }): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+    configPath?: string;
+  }> {
+    const rpc = await this.getRpc();
+    return rpc.addWorkspaceDir({
+      sessionId: input.sessionId,
+      dir: input.dir,
+      persist: input.persist,
+    });
+  }
+
+  async getWorkspaceRoots(input: SessionIdRpcInput): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+  }> {
+    const rpc = await this.getRpc();
+    return rpc.getWorkspaceRoots({ sessionId: input.sessionId });
+  }
+
   async listSessions(input: ListSessionsOptions): Promise<readonly SessionSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listSessions(input);
@@ -216,7 +243,7 @@ export class SDKRpcClient {
 
   async askSide(
     input: { sessionId: string; query: string; queryId: string },
-    options?: { signal?: AbortSignal | undefined },
+    options?: { signal?: AbortSignal },
   ): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.askSide(
@@ -310,12 +337,26 @@ export class SDKRpcClient {
     return rpc.cancelGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
   }
 
+  async getCronTasks(input: SessionIdRpcInput): Promise<{ tasks: readonly CronTaskSnapshot[] }> {
+    const rpc = await this.getRpc();
+    return rpc.getCronTasks({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
+  }
+
+  async deleteCronTask(input: SessionIdRpcInput & { id: string }): Promise<{ deleted: boolean }> {
+    const rpc = await this.getRpc();
+    return rpc.deleteCronTask({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      id: input.id,
+    });
+  }
+
   async compact(input: SessionIdRpcInput & CompactOptions): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.beginCompaction({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
-      ...(input.instruction !== undefined ? { instruction: input.instruction } : {}),
+      instruction: input.instruction,
     });
   }
 

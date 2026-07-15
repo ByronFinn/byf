@@ -15,7 +15,7 @@
 
 export interface ParsedPattern {
   readonly toolName: string;
-  readonly argPattern?: string | undefined;
+  readonly argPattern?: string;
 }
 
 /**

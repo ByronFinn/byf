@@ -21,14 +21,9 @@ export type RPCMethods<T> = {
     : never;
 };
 
-export type RPCClient<Self extends Record<string, any>, Other extends Record<string, any>> = (
-  self: PromisableMethods<Self>,
-) => Promise<RPCMethods<Other>>;
+export type RPCClient<Self, Other> = (self: PromisableMethods<Self>) => Promise<RPCMethods<Other>>;
 
-export function createRPC<Left extends Record<string, any>, Right extends Record<string, any>>(): [
-  RPCClient<Left, Right>,
-  RPCClient<Right, Left>,
-] {
+export function createRPC<Left, Right>(): [RPCClient<Left, Right>, RPCClient<Right, Left>] {
   const left = createControlledPromise<PromisableMethods<Left>>();
   const right = createControlledPromise<PromisableMethods<Right>>();
 
@@ -45,8 +40,10 @@ export function createRPC<Left extends Record<string, any>, Right extends Record
     return signal === undefined ? promise : abortable(promise, signal);
   }
 
-  function mapRpcFunction(fn: Function): Function {
-    return async (payload: any, options?: RPCCallOptions) => {
+  function mapRpcFunction(
+    fn: (payload: unknown) => unknown,
+  ): (payload: unknown, options?: RPCCallOptions) => Promise<unknown> {
+    return async (payload: unknown, options?: RPCCallOptions) => {
       const signal = options?.signal;
       const rpcPayload = await simulateNetwork(payload);
       signal?.throwIfAborted();
@@ -64,7 +61,7 @@ export function createRPC<Left extends Record<string, any>, Right extends Record
     };
   }
 
-  function bindAllFunctions<T extends Record<string, any>>(obj: T): T {
+  function bindAllFunctions<T extends object>(obj: T): T {
     const bound: Record<string, unknown> = {};
     let current: object | null = obj;
 

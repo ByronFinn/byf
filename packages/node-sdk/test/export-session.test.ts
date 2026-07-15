@@ -73,7 +73,7 @@ function makeSummary(input: {
   readonly id: string;
   readonly sessionDir: string;
   readonly workDir: string;
-  readonly title?: string | undefined;
+  readonly title?: string;
 }): SessionSummary {
   return {
     id: input.id,

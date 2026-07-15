@@ -14,8 +14,8 @@ const GLOBAL_LOG_REL = 'logs/global/byf.log';
 export async function exportSessionDirectory(input: {
   readonly request: ExportSessionPayload;
   readonly summary: SessionSummary;
-  readonly homeDir?: string | undefined;
-  readonly globalLogPath?: string | undefined;
+  readonly homeDir?: string;
+  readonly globalLogPath?: string;
 }): Promise<ExportSessionResult> {
   const sessionDir = input.summary.sessionDir;
   const sessionFiles = await collectFilesRecursive(sessionDir);

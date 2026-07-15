@@ -73,6 +73,9 @@ OAuth 流程默认连接 BYF 官方的认证与托管端点，下列变量可以
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `BYF_DISABLE_TELEMETRY`             | 关闭遥测上报                                                                                                                                                                                                                                                                                               | `1`、`true`、`t`、`yes`、`y`（不区分大小写）                                                                 |
 | `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` | 覆盖 `[background].keep_alive_on_exit`，控制会话关闭时是否保留仍在运行的后台任务                                                                                                                                                                                                                           | 真值：`1`、`true`、`yes`、`on`；假值：`0`、`false`、`no`、`off`；未设置时读取 `config.toml`，再回退到 `true` |
+| `BYF_PRINT_WAIT_CEILING_S`          | 覆盖 `[background].print_wait_ceiling_s`：`byf -p` 在主 turn 结束后（以及 goal/cron hold 释放后）等待后台任务的最长秒数。超时则结束等待并以非 0 退出，不会 kill 任务。**不**限制 goal hold 或会话内 Cron keep-alive。                                                                                      | 正整数秒；未设置时读取 `config.toml`，再默认 `3600`                                                          |
+| `BYF_DISABLE_CRON`                  | 会话内 Cron 总开关：设为 `1` 时 `CronCreate` 失败，调度器不再触发任务                                                                                                                                                                                                                                      | 恰好为 `1`                                                                                                   |
+| `BYF_CRON_NO_JITTER`                | 关闭按任务确定性 fire 抖动（便于测试 / bench）。生产环境应保持未设置。                                                                                                                                                                                                                                     | 恰好为 `1`                                                                                                   |
 | `BYF_SHELL_PATH`                    | 覆盖 Windows 上 Git Bash (`bash.exe`) 的绝对路径，仅在 Windows 自动探测失败时需要                                                                                                                                                                                                                          | 无                                                                                                           |
 | `BYF_MODEL_MAX_COMPLETION_TOKENS`   | 单步 LLM 请求 `max_completion_tokens` 的显式硬上限。未设置时，对于已知上下文窗口的模型，BYF 会使用安全的剩余上下文窗口；设为 `0` 或负数则完全禁用 clamp。**目前只对 `byf` 类型的供应商生效**；Anthropic 等其它供应商请改用 `[models.<alias>].max_output_size`（详见 [配置文件](./config-files.md#models)） | 未设置：按剩余上下文计算；未知上下文窗口时回退到 `loop_control.reserved_context_size`，再回退到 32000        |
 
@@ -83,6 +86,12 @@ export BYF_DISABLE_TELEMETRY="1"
 ```
 
 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT` 的优先级高于 `config.toml`。例如临时运行 `BYF_BACKGROUND_KEEP_ALIVE_ON_EXIT=0 byf -p "..."` 时，即使配置文件里写了 `keep_alive_on_exit = true`，本次进程退出前也会请求停止后台任务。
+
+`BYF_PRINT_WAIT_CEILING_S` 同样覆盖 `print_wait_ceiling_s`。CI 中缩短等待示例：
+
+```sh
+BYF_PRINT_WAIT_CEILING_S=120 byf -p "跑冒烟测试"
+```
 
 ## 诊断日志
 

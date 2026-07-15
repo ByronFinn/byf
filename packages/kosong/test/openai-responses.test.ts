@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ChatProviderError } from '#/errors';
 import { generate } from '#/generate';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
+import type { PromptPlan } from '#/prompt-plan';
 import {
   OpenAIResponsesChatProvider,
   OpenAIResponsesStreamedMessage,
@@ -248,7 +249,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_text', text: 'Listen' },
         { type: 'input_file', file_data: 'QUJD', filename: 'inline.mp3' },
       ]);
@@ -266,7 +267,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_file', file_data: 'V0FW', filename: 'inline.wav' },
       ]);
     });
@@ -283,7 +284,7 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([
+      expect(input[0].content).toEqual([
         { type: 'input_file', file_url: 'https://example.com/speech.mp3' },
       ]);
     });
@@ -304,7 +305,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // Only the text part survives; the unsupported ogg audio is dropped.
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Bare text' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Bare text' }]);
     });
 
     it('multiple consecutive ThinkParts with the same encrypted value aggregate into one reasoning item with multiple summaries', async () => {
@@ -751,6 +752,53 @@ describe('OpenAIResponsesChatProvider', () => {
     });
   });
 
+  describe('prompt_cache_key (PromptPlan)', () => {
+    // Adapter-level guard for the H3 cache-key wiring. The helper
+    // (deriveCacheKeyFromPromptPlan) returns undefined when nothing is
+    // cacheable; the Responses path must then OMIT prompt_cache_key entirely
+    // (unlike the Completions path, which falls back to a dummy hash).
+    async function captureBodyWithPlan(
+      promptPlan: PromptPlan | undefined,
+    ): Promise<Record<string, unknown>> {
+      const provider = createProvider();
+      let captured: Record<string, unknown> | undefined;
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockImplementation((params: unknown) => {
+          captured = params as Record<string, unknown>;
+          return Promise.resolve(makeResponsesAPIResponse());
+        });
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'hi' }], toolCalls: [] }],
+        { promptPlan },
+      );
+      for await (const _ of stream) void _;
+      if (captured === undefined) throw new Error('responses.create not called');
+      return captured;
+    }
+
+    it('omits prompt_cache_key when the plan has no cacheable blocks', async () => {
+      const body = await captureBodyWithPlan({
+        blocks: [
+          { name: 'project', text: 'project ctx', cacheScope: 'project' },
+          { name: 'session', text: 'session ctx', cacheScope: 'session' },
+        ],
+      });
+      expect(body['prompt_cache_key']).toBeUndefined();
+    });
+
+    it('sends prompt_cache_key when the plan has a global-scope block', async () => {
+      const body = await captureBodyWithPlan({
+        blocks: [{ name: 'system', text: 'You are helpful', cacheScope: 'global' }],
+      });
+      expect(typeof body['prompt_cache_key']).toBe('string');
+      expect((body['prompt_cache_key'] as string).length).toBeGreaterThan(0);
+    });
+  });
+
   describe('reasoning configuration', () => {
     it('omits reasoning by default', async () => {
       const provider = createProvider();
@@ -1087,7 +1135,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       // Only the text part survives; video is dropped.
       const input = body['input'] as Array<{ content: unknown[] }>;
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Watch this:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Watch this:' }]);
     });
 
     it('audio_url with unsupported scheme is silently dropped from user content', async () => {
@@ -1106,7 +1154,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // file:// URL is unsupported → drop
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'Hear:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'Hear:' }]);
     });
 
     it('audio_url data URL with unknown subtype is silently dropped', async () => {
@@ -1125,7 +1173,7 @@ describe('OpenAIResponsesChatProvider', () => {
 
       const input = body['input'] as Array<{ content: unknown[] }>;
       // ogg subtype is not mp3/wav → drop
-      expect(input[0]!.content).toEqual([{ type: 'input_text', text: 'OGG:' }]);
+      expect(input[0].content).toEqual([{ type: 'input_text', text: 'OGG:' }]);
     });
   });
 
@@ -1704,7 +1752,7 @@ function makeAsyncIterable(
       return {
         next(): Promise<IteratorResult<Record<string, unknown>>> {
           if (index < events.length) {
-            return Promise.resolve({ value: events[index++]!, done: false });
+            return Promise.resolve({ value: events[index++], done: false });
           }
           return Promise.resolve({
             value: undefined as unknown as Record<string, unknown>,

@@ -16,12 +16,9 @@
  */
 
 import {
-  APIConnectionError,
-  APIEmptyResponseError,
-  APIStatusError,
-  APITimeoutError,
   emptyUsage,
   generate as kosongGenerate,
+  isRetryableGenerateError,
   type ChatProvider,
   type GenerateCallbacks,
   type Message,
@@ -49,24 +46,24 @@ export interface KosongLLMConfig {
   readonly provider: ChatProvider;
   readonly modelName: string;
   readonly systemPrompt: string;
-  readonly capability?: ModelCapability | undefined;
+  readonly capability?: ModelCapability;
   /**
    * Optional override for the kosong `generate()` entry point. Lets the
    * agent host (and its test harness) inject a scripted generator without
    * having to substitute the entire LLM implementation.
    */
-  readonly generate?: GenerateFn | undefined;
+  readonly generate?: GenerateFn;
   /**
    * Completion budget config resolved from agent/provider settings. The
    * final cap is computed per request from the current messages and tools.
    */
-  readonly completionBudgetConfig?: CompletionBudgetConfig | undefined;
+  readonly completionBudgetConfig?: CompletionBudgetConfig;
 }
 
 export class KosongLLM implements LLM {
   readonly systemPrompt: string;
   readonly modelName: string;
-  readonly capability?: ModelCapability | undefined;
+  readonly capability?: ModelCapability;
 
   private readonly provider: ChatProvider;
   private readonly generate: GenerateFn;
@@ -131,25 +128,15 @@ export class KosongLLM implements LLM {
       ...(result.finishReason !== null ? { providerFinishReason: result.finishReason } : {}),
       ...(result.rawFinishReason !== null ? { rawFinishReason: result.rawFinishReason } : {}),
       usage: result.usage ?? emptyUsage(),
-      ...(result.llmFirstTokenLatencyMs !== undefined
-        ? { llmFirstTokenLatencyMs: result.llmFirstTokenLatencyMs }
-        : {}),
-      ...(result.llmStreamDurationMs !== undefined
-        ? { llmStreamDurationMs: result.llmStreamDurationMs }
-        : {}),
+      llmFirstTokenLatencyMs: result.llmFirstTokenLatencyMs,
+      llmStreamDurationMs: result.llmStreamDurationMs,
     };
 
     return response;
   }
 
   isRetryableError(error: unknown): boolean {
-    if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
-      return true;
-    }
-    if (error instanceof APIEmptyResponseError) {
-      return true;
-    }
-    return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
+    return isRetryableGenerateError(error);
   }
 }
 
@@ -198,7 +185,7 @@ export function getProviderCacheCapability(provider: ChatProvider): ProviderCach
 
 function buildKosongCallbacks(params: LLMChatParams): GenerateCallbacks {
   type ToolCallIdentity = { readonly toolCallId: string; readonly name: string };
-  type BufferedToolCallDelta = { readonly argumentsPart?: string | undefined };
+  type BufferedToolCallDelta = { readonly argumentsPart?: string };
 
   const toolCallIdentities = new Map<number | string, ToolCallIdentity>();
   const pendingIndexedToolCallDeltas = new Map<number | string, BufferedToolCallDelta[]>();

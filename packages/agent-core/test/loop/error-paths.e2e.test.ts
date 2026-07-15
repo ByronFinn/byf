@@ -8,6 +8,7 @@
  * names the cause.
  */
 
+import { APIRequestTooLargeError, APIStatusError, type Message } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
@@ -159,6 +160,144 @@ describe('runTurn — error paths', () => {
     expect(sink.count('step.begin')).toBe(1);
     expect(sink.count('step.end')).toBe(0);
     expect(sink.count('turn.interrupted')).toBe(1);
+  });
+});
+
+/**
+ * PRD-0023 #240 — turn-step media-degraded / media-stripped one-shot resend.
+ * Drives the real `runTurn` → `executeLoopStep` path with FakeLLM rejections.
+ */
+describe('runTurn — media-degraded / media-stripped recovery (PRD-0023 #240)', () => {
+  const fullMessages: Message[] = [
+    {
+      role: 'user',
+      content: [{ type: 'image_url', imageUrl: { url: 'data:image/png;base64,FULL' } }],
+      toolCalls: [],
+    },
+  ];
+  const degradedMessages: Message[] = [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: '[older media omitted — re-read the file if needed]' }],
+      toolCalls: [],
+    },
+  ];
+  const strippedMessages: Message[] = [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: '[image omitted — provider rejected this image]' }],
+      toolCalls: [],
+    },
+  ];
+
+  it('APIRequestTooLargeError triggers one media-degraded resend then succeeds', async () => {
+    const tooLarge = new APIRequestTooLargeError(413, 'request entity too large');
+    const { result, llm } = await runTurn({
+      responses: [makeEndTurnResponse('unused'), makeEndTurnResponse('recovered')],
+      llmThrowOnIndex: { index: 0, error: tooLarge },
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaDegraded: async () => degradedMessages,
+    });
+
+    expect(result.stopReason).toBe('end_turn');
+    // First call full body (rejected), second call degraded projection
+    expect(llm.callCount).toBe(2);
+    expect(llm.calls[0]?.messages).toBe(fullMessages);
+    expect(llm.calls[1]?.messages).toBe(degradedMessages);
+  });
+
+  it('second media-degraded rejection propagates (no infinite degrade loop)', async () => {
+    const first = new APIRequestTooLargeError(413, 'request entity too large');
+    const second = new APIRequestTooLargeError(413, 'payload too large');
+    const { error, llm } = await runTurnExpectingThrow({
+      responses: [makeEndTurnResponse('never')],
+      llmThrowOnIndex: [
+        { index: 0, error: first },
+        { index: 1, error: second },
+      ],
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaDegraded: async () => degradedMessages,
+    });
+
+    expect(error).toBe(second);
+    expect(llm.callCount).toBe(2);
+  });
+
+  it('image format error triggers one media-stripped resend then succeeds', async () => {
+    // isImageFormatError: status 400 + image format/data wording
+    const formatError = new APIStatusError(400, 'Unsupported image format');
+    const { result, llm } = await runTurn({
+      responses: [makeEndTurnResponse('unused'), makeEndTurnResponse('stripped-ok')],
+      llmThrowOnIndex: { index: 0, error: formatError },
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaStripped: async () => strippedMessages,
+    });
+
+    expect(result.stopReason).toBe('end_turn');
+    expect(llm.callCount).toBe(2);
+    expect(llm.calls[1]?.messages).toBe(strippedMessages);
+  });
+
+  it('second media-stripped rejection propagates (no infinite strip loop)', async () => {
+    const first = new APIStatusError(400, 'Unsupported image format');
+    const second = new APIStatusError(400, 'Invalid image data');
+    const { error, llm } = await runTurnExpectingThrow({
+      responses: [makeEndTurnResponse('never')],
+      llmThrowOnIndex: [
+        { index: 0, error: first },
+        { index: 1, error: second },
+      ],
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaStripped: async () => strippedMessages,
+    });
+
+    expect(error).toBe(second);
+    expect(llm.callCount).toBe(2);
+  });
+
+  it('sticky media-degraded projection is reused on later steps without re-paying 413', async () => {
+    const echo = new EchoTool();
+    const tooLarge = new APIRequestTooLargeError(413, 'request entity too large');
+    // Step 1: call0 throw 413 → call1 tool_use with degraded (sticky latches)
+    // Step 2: call2 end_turn with degraded as primary buildMessages (no resend needed)
+    const { result, llm } = await runTurn({
+      tools: [echo],
+      responses: [
+        makeEndTurnResponse('unused-slot-0'),
+        makeToolUseResponse([makeToolCall('echo', { text: 'step1' }, 'c1')]),
+        makeEndTurnResponse('step2-done'),
+      ],
+      llmThrowOnIndex: { index: 0, error: tooLarge },
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaDegraded: async () => degradedMessages,
+    });
+
+    expect(result.stopReason).toBe('end_turn');
+    expect(result.steps).toBe(2);
+    expect(llm.callCount).toBe(3);
+    // After sticky latch, step 2 uses degraded messages as the primary builder
+    expect(llm.calls[2]?.messages).toBe(degradedMessages);
+  });
+
+  it('does not treat context-overflow-shaped 413 as body-size (no media-degraded path)', async () => {
+    // Vertex-style: 413 + prompt-too-long is APIContextOverflowError after
+    // kosong normalize; here we inject a plain Error that is NOT
+    // APIRequestTooLargeError so media recovery must not fire.
+    const overflow = new Error('context_length_exceeded');
+    const degradedCalls: number[] = [];
+    const { error, llm } = await runTurnExpectingThrow({
+      responses: [makeEndTurnResponse('never')],
+      llmThrowOnIndex: { index: 0, error: overflow },
+      buildMessages: async () => fullMessages,
+      buildMessagesMediaDegraded: async () => {
+        degradedCalls.push(1);
+        return degradedMessages;
+      },
+    });
+
+    expect(error).toBe(overflow);
+    expect(llm.callCount).toBe(1);
+    expect(degradedCalls).toEqual([]);
   });
 });
 

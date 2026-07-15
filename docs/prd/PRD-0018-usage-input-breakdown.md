@@ -1,6 +1,6 @@
 # Usage 面板 Input Token 分项展示
 
-> **Status**: Sliced | **PRD**: PRD-0018 | **Created**: 2026-07-02 | **Last updated**: 2026-07-03 | **Think skill**: converged | **Grilled by**: grill skill | **Sliced by**: story skill
+> **Status**: Done | **PRD**: PRD-0018 | **Created**: 2026-07-02 | **Last updated**: 2026-07-10（状态对齐：已落地，架构对齐） | **Think skill**: converged | **Grilled by**: grill skill | **Sliced by**: story skill
 
 > **修订（2026-07-03）**：百分比分母由「六项 token 估算之和」（最大余数法归一化强制相加=100%）改为「模型 `max_context_tokens`」。这样各行百分比与同面板 "Context window: used/max" 行同口径，直接回答「某类占窗口多少」。原先的「自洽估算 + 强制闭合」方案废弃——其百分比与窗口脱钩、无法回答占比问题。详见下方技术发现 #3/#9、Decision 与 Traceability 的 Debugged by。
 
@@ -176,6 +176,7 @@ Average cache hit rate    81%
 
 - **Debugged by**: `/debug` (2026-07-03) — 百分比分母由「六项估算之和 + 最大余数法归一化」改为 `max_context_tokens`；移除 `normalizePercent`，`estimateInputBreakdown` 增加 `maxContextTokens` 参数，`Agent.getUsage` 传入 `modelCapabilities.max_context_tokens`。
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `UsageRecorder` 边界保持清晰，按需估算对齐 PRD；无阻塞发现。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — `estimateInputBreakdown` + CLI Context breakdown 面板已接线，架构对齐 ✅；建议将 PRD Status 从 Sliced 标为 Done。
 
 **Sliced into:**
 

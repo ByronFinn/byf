@@ -1,5 +1,5 @@
-// Raw-string imports for prompt sources. The `raw-text-plugin` (used by both
-// tsdown and vitest) loads `.md` / `.yaml` files as their string content.
+// Raw-string imports for prompt sources. The bunfig.toml `[loader]` section
+// loads `.md` / `.yaml` files as their string content.
 
 declare module '*.md' {
   const content: string;

@@ -4,6 +4,7 @@ import {
   AgentRecords,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
+  type AgentRecordEvents,
 } from '../../../src/agent/records';
 import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
@@ -175,6 +176,94 @@ describe('AgentRecords handler registration and routing', () => {
       records.restore(testRecord);
 
       expect(receivedRecord).toEqual(testRecord);
+    });
+  });
+
+  // PRD-0025 / ADR-0031: every record type must be covered by a restore
+  // handler (via the prefix routing map) or be in the explicit no-handler
+  // exception list. Per-subsystem switches are exhaustively checked over
+  // their prefix subset (via isAgentRecordOfPrefix); this test is the
+  // routing-layer drift guard for new record types.
+  describe('record type restore coverage (drift guard)', () => {
+    // Prefixes routed to a handler by getHandlerKey. Must mirror the mapping
+    // in packages/agent-core/src/agent/records/index.ts.
+    const ROUTED_PREFIXES: ReadonlySet<string> = new Set([
+      'context',
+      'config',
+      'turn',
+      'permission',
+      'tools',
+      'usage',
+      'full_compaction',
+      'goal',
+    ]);
+    // Record types with no restore handler by design.
+    // - metadata: handled directly by AgentRecords (protocol envelope).
+    // - background.*: restored via a separate persistence path
+    //   (BackgroundProcessManager), intentionally no handler here.
+    const NO_HANDLER_TYPES: ReadonlySet<string> = new Set(['metadata', 'background.stop']);
+
+    // Live-only debugging records: routed to ContextMemory but intentionally
+    // no-op on restore (see ADR-0031 / CONTEXT.md「输出卸载」).
+    const LIVE_ONLY_NOOP_TYPES: ReadonlySet<string> = new Set([
+      'context.output_offloaded',
+      'context.pruning',
+    ]);
+
+    // Every AgentRecordEvents key must appear here. The value assignment
+    // forces TypeScript to evaluate Missing — an unused type alias alone
+    // does not fail typecheck.
+    const ALL_RECORD_TYPES = [
+      'metadata',
+      'turn.prompt',
+      'turn.steer',
+      'turn.cancel',
+      'config.update',
+      'permission.set_mode',
+      'permission.record_approval_result',
+      'full_compaction.begin',
+      'full_compaction.cancel',
+      'full_compaction.complete',
+      'tools.register_user_tool',
+      'tools.unregister_user_tool',
+      'tools.set_active_tools',
+      'tools.update_store',
+      'background.stop',
+      'usage.record',
+      'context.append_message',
+      'context.mark_last_user_prompt_blocked',
+      'context.append_loop_event',
+      'context.clear',
+      'context.apply_compaction',
+      'context.observation_masking',
+      'context.output_offloaded',
+      'context.pruning',
+      'goal.create',
+      'goal.update',
+      'goal.clear',
+    ] as const;
+    type Missing = Exclude<keyof AgentRecordEvents, (typeof ALL_RECORD_TYPES)[number]>;
+    // If a record type is added to AgentRecordEvents without updating the
+    // list above, Missing is a non-never union and this assignment errors.
+    const _exhaustive: [Missing] extends [never] ? true : Missing = true;
+    void _exhaustive;
+
+    it('every record type is routed to a handler or in the explicit no-handler list', () => {
+      const unaccounted = ALL_RECORD_TYPES.filter((type) => {
+        if (NO_HANDLER_TYPES.has(type)) return false;
+        const prefix = type.split('.')[0] ?? '';
+        return !ROUTED_PREFIXES.has(prefix);
+      });
+      expect(unaccounted).toEqual([]);
+    });
+
+    it('live-only debugging records are listed as explicit no-ops', () => {
+      for (const type of LIVE_ONLY_NOOP_TYPES) {
+        expect(ALL_RECORD_TYPES).toContain(type);
+        const prefix = type.split('.')[0] ?? '';
+        expect(ROUTED_PREFIXES.has(prefix)).toBe(true);
+        expect(NO_HANDLER_TYPES.has(type)).toBe(false);
+      }
     });
   });
 });

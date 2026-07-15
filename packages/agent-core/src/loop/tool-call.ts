@@ -47,9 +47,9 @@ const TOOL_OUTPUT_NON_TEXT = 'Tool returned non-text content.';
 const validators = new WeakMap<ExecutableTool, ToolArgsValidator>();
 
 export interface ToolCallStepContext {
-  readonly tools?: readonly ExecutableTool[] | undefined;
-  readonly hooks?: LoopHooks | undefined;
-  readonly log?: Logger | undefined;
+  readonly tools?: readonly ExecutableTool[];
+  readonly hooks?: LoopHooks;
+  readonly log?: Logger;
   readonly dispatchEvent: LoopEventDispatcher;
   readonly llm: LLM;
   readonly signal: AbortSignal;
@@ -82,13 +82,13 @@ type PrepareToolExecutionDecision =
       readonly kind: 'synthetic';
       readonly args: unknown;
       readonly result: ExecutableToolResult;
-      readonly skip?: boolean | undefined;
+      readonly skip?: boolean;
     }
   | {
       readonly kind: 'blocked';
       readonly args: unknown;
       readonly output: string;
-      readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+      readonly blockedReason?: 'rejected' | 'cancelled';
     }
   | { readonly kind: 'hookFailed'; readonly args: unknown; readonly output: string };
 
@@ -97,18 +97,18 @@ interface PendingToolResult {
   readonly toolName: string;
   readonly args: unknown;
   readonly result: ExecutableToolResult;
-  readonly stopTurn?: boolean | undefined;
+  readonly stopTurn?: boolean;
 }
 
 interface PreparedToolCallTask {
   readonly task: ToolCallTask<PendingToolResult>;
-  readonly stopBatchAfterThis?: boolean | undefined;
+  readonly stopBatchAfterThis?: boolean;
   /**
    * When true, the tool call was deduplicated (same-step dedup) and was never
    * actually executed. Skip both `tool.call` and `tool.result` events — the
    * original call already covers them.
    */
-  readonly skip?: boolean | undefined;
+  readonly skip?: boolean;
 }
 
 type ToolCallDisplayFields = Pick<LoopToolCallEvent, 'description' | 'display'>;
@@ -665,7 +665,7 @@ function makeErrorToolResult(
   call: PreflightedToolCall,
   args: unknown,
   output: string,
-  blockedReason?: 'rejected' | 'cancelled' | undefined,
+  blockedReason?: 'rejected' | 'cancelled',
 ): PendingToolResult {
   return makeToolResult(call, args, { output, isError: true, blockedReason });
 }
@@ -678,7 +678,7 @@ async function dispatchToolCall(
   step: ToolCallStepContext,
   call: PreflightedToolCall,
   args: unknown,
-  displayFields?: ToolCallDisplayFields | undefined,
+  displayFields?: ToolCallDisplayFields,
 ): Promise<void> {
   const { toolCall, toolName } = call;
   await step.dispatchEvent({

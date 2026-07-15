@@ -1,4 +1,8 @@
 import {
+  APIConnectionError,
+  APIEmptyResponseError,
+  APIStatusError,
+  APITimeoutError,
   emptyUsage,
   type ChatProvider,
   type StreamedMessagePart,
@@ -130,3 +134,43 @@ function stripStreamIndex(toolCall: ToolCall): ToolCall {
   const { _streamIndex: _, ...rest } = toolCall;
   return rest;
 }
+
+describe('KosongLLM.isRetryableError', () => {
+  // Pin the production retryable-status set (mirrors kosong-llm.ts). The
+  // retry.test.ts mock owns its own list; this test guards the real rule so
+  // a production regression (e.g. dropping 529) turns red.
+  function makeLlm(): KosongLLM {
+    return new KosongLLM({
+      provider,
+      modelName: 'test-model',
+      systemPrompt: 'system',
+      generate: async () => {
+        throw new Error('not reached');
+      },
+    });
+  }
+
+  it.each([429, 500, 502, 503, 504, 529])('retries HTTP %s', (status) => {
+    const llm = makeLlm();
+    expect(llm.isRetryableError(new APIStatusError(status, 'err'))).toBe(true);
+  });
+
+  it('retries connection / timeout / empty-response errors', () => {
+    const llm = makeLlm();
+    expect(llm.isRetryableError(new APIConnectionError('conn'))).toBe(true);
+    expect(llm.isRetryableError(new APITimeoutError('timeout'))).toBe(true);
+    expect(llm.isRetryableError(new APIEmptyResponseError('empty'))).toBe(true);
+  });
+
+  it('does not retry non-retryable status codes (400/401/403/404)', () => {
+    const llm = makeLlm();
+    expect(llm.isRetryableError(new APIStatusError(400, 'bad request'))).toBe(false);
+    expect(llm.isRetryableError(new APIStatusError(401, 'unauthorized'))).toBe(false);
+    expect(llm.isRetryableError(new APIStatusError(404, 'not found'))).toBe(false);
+  });
+
+  it('does not retry arbitrary errors', () => {
+    const llm = makeLlm();
+    expect(llm.isRetryableError(new Error('boom'))).toBe(false);
+  });
+});

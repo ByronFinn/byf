@@ -1,6 +1,6 @@
 import { CURSOR_MARKER } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { QuestionDialogComponent } from '#/tui/components/dialogs/question-dialog';
 import type { PendingQuestion } from '#/tui/reverse-rpc/types';
@@ -10,8 +10,12 @@ function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
+const previousChalkLevel = chalk.level;
 beforeAll(() => {
   chalk.level = 3;
+});
+afterAll(() => {
+  chalk.level = previousChalkLevel;
 });
 
 function makePending(

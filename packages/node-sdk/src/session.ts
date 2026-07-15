@@ -7,6 +7,7 @@ import type { SDKRpcClient } from '#/rpc';
 import type {
   BackgroundTaskInfo,
   CompactOptions,
+  CronTaskSnapshot,
   GoalBudgetLimits,
   GoalSnapshot,
   McpServerInfo,
@@ -27,20 +28,20 @@ const MAIN_AGENT_ID = 'main';
 export interface SessionOptions {
   readonly id: string;
   readonly workDir: string;
-  readonly summary?: SessionSummary | undefined;
-  readonly resumeState?: ResumedSessionState | undefined;
+  readonly summary?: SessionSummary;
+  readonly resumeState?: ResumedSessionState;
   readonly rpc: SDKRpcClient;
-  readonly onClose?: (() => void | Promise<void>) | undefined;
+  readonly onClose?: () => void | Promise<void>;
 }
 
 export class Session {
   readonly id: string;
   readonly workDir: string;
-  readonly summary?: SessionSummary | undefined;
+  readonly summary?: SessionSummary;
   private readonly resumeState: ResumedSessionState | undefined;
 
   private readonly rpc: SDKRpcClient;
-  private readonly onClose?: (() => void | Promise<void>) | undefined;
+  private readonly onClose?: () => void | Promise<void>;
   private closed = false;
 
   constructor(options: SessionOptions) {
@@ -121,8 +122,8 @@ export class Session {
   async askSide(
     query: string,
     options: {
-      readonly signal?: AbortSignal | undefined;
-      readonly queryId?: string | undefined;
+      readonly signal?: AbortSignal;
+      readonly queryId?: string;
     } = {},
   ): Promise<{ readonly queryId: string }> {
     this.ensureOpen();
@@ -235,12 +236,31 @@ export class Session {
     return this.rpc.cancelGoal({ sessionId: this.id });
   }
 
+  /**
+   * List session-scoped cron tasks with post-jitter nextFireAt (PRD-0023).
+   * Used by headless keep-alive to decide whether to hold the event loop.
+   * Snapshots include `prompt` and `humanSchedule` for host UIs (PRD-0024).
+   */
+  async getCronTasks(): Promise<{ tasks: readonly CronTaskSnapshot[] }> {
+    this.ensureOpen();
+    return this.rpc.getCronTasks({ sessionId: this.id });
+  }
+
+  /**
+   * Host-privilege delete of a session cron task (PRD-0024 / ADR-0030).
+   * Does not go through CronDelete tool permission.
+   */
+  async deleteCronTask(id: string): Promise<{ deleted: boolean }> {
+    this.ensureOpen();
+    return this.rpc.deleteCronTask({ sessionId: this.id, id });
+  }
+
   async compact(options: CompactOptions = {}): Promise<void> {
     this.ensureOpen();
     const instruction = normalizeOptionalString(options.instruction);
     await this.rpc.compact({
       sessionId: this.id,
-      ...(instruction !== undefined ? { instruction } : {}),
+      instruction,
     });
   }
 
@@ -355,7 +375,7 @@ export class Session {
     await this.rpc.reconnectMcpServer({ sessionId: this.id, name });
   }
 
-  async activateSkill(name: string, args?: string | undefined): Promise<void> {
+  async activateSkill(name: string, args?: string): Promise<void> {
     this.ensureOpen();
     const skillName = normalizeRequiredString(
       name,
@@ -366,7 +386,7 @@ export class Session {
     await this.rpc.activateSkill({
       sessionId: this.id,
       name: skillName,
-      ...(skillArgs !== undefined ? { args: skillArgs } : {}),
+      args: skillArgs,
     });
   }
 
@@ -381,8 +401,47 @@ export class Session {
     }
   }
 
+  /**
+   * Wait for background tasks to settle before the print/headless run exits
+   * (ADR-0029). Unconditional in print mode — does NOT gate on
+   * `keepAliveOnExit`. Bounded by `printWaitCeilingS` (default 3600s).
+   */
+  async waitForBackgroundTasksOnPrint(): Promise<void> {
+    if (this.closed) return;
+    await this.rpc.waitForBackgroundTasksOnPrint({ sessionId: this.id });
+  }
+
+  /**
+   * Append an additional workspace root (PRD-0023 `/add-dir`). When
+   * `persist` is true, also write project `.byf/local.toml`.
+   */
+  async addWorkspaceDir(
+    dir: string,
+    options: { persist?: boolean } = {},
+  ): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+    configPath?: string;
+  }> {
+    this.ensureOpen();
+    return this.rpc.addWorkspaceDir({
+      sessionId: this.id,
+      dir,
+      persist: options.persist,
+    });
+  }
+
+  /** List the main workspace root and additional allowed roots. */
+  async getWorkspaceRoots(): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+  }> {
+    this.ensureOpen();
+    return this.rpc.getWorkspaceRoots({ sessionId: this.id });
+  }
+
   /** @internal */
-  emitMetaUpdated(patch: { readonly title?: string | undefined }): void {
+  emitMetaUpdated(patch: { readonly title?: string }): void {
     this.emit({
       type: 'session.meta.updated',
       sessionId: this.id,

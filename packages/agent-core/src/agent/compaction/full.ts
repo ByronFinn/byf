@@ -1,9 +1,12 @@
 import {
   APIConnectionError,
   APIEmptyResponseError,
+  APIRequestTooLargeError,
   APIStatusError,
   APITimeoutError,
   inputTotal,
+  isImageFormatError,
+  type ContentPart,
   type GenerateResult,
   type Message,
   type TokenUsage,
@@ -24,6 +27,7 @@ import {
 } from '../../utils/tokens';
 import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
@@ -36,7 +40,7 @@ export interface CompactionStrategy {
   computeCompactCount(messages: readonly Message[], maxSize: number): number;
   readonly checkAfterStep: boolean;
   readonly maxCompactionPerTurn: number;
-  readonly maskingConfig?: import('../context/observation-masking').MaskingConfig | undefined;
+  readonly maskingConfig?: import('../context/observation-masking').MaskingConfig;
 }
 
 export class DefaultCompactionStrategy implements CompactionStrategy {
@@ -210,11 +214,7 @@ export class FullCompaction implements RecordRestoreHandler {
     this.agent.emitEvent({ type: 'compaction.cancelled' });
   }
 
-  complete(
-    result: CompactionResult,
-    llmUsage?: TokenUsage | undefined,
-    retryCount: number = 0,
-  ): void {
+  complete(result: CompactionResult, llmUsage?: TokenUsage, retryCount: number = 0): void {
     this.agent.records.logRecord({
       type: 'full_compaction.complete',
       ...result,
@@ -459,7 +459,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }: {
     readonly messages: Message[];
     readonly signal: AbortSignal;
-    readonly onRetry?: ((retryCount: number) => void) | undefined;
+    readonly onRetry?: (retryCount: number) => void;
   }): Promise<{
     readonly response: GenerateResult;
     readonly summary: string;
@@ -470,6 +470,9 @@ export class FullCompaction implements RecordRestoreHandler {
       DEFAULT_MAX_RETRY_ATTEMPTS;
     const delays = retryBackoffDelays(maxAttempts);
     let retryCount = 0;
+    let historyForModel = messages;
+    let mediaStripAttempted = false;
+    let overflowShrinkCount = 0;
 
     // Clamp the completion budget against the compaction input. Compaction
     // is triggered when context is already near full, so an unbounded
@@ -483,7 +486,7 @@ export class FullCompaction implements RecordRestoreHandler {
       provider: this.agent.config.provider,
       budget: completionBudget,
       capability: this.agent.config.modelCapabilities,
-      messages,
+      messages: historyForModel,
       systemPrompt: this.agent.config.systemPrompt,
       tools: this.agent.tools.loopTools,
     });
@@ -494,13 +497,60 @@ export class FullCompaction implements RecordRestoreHandler {
           effectiveProvider,
           this.agent.config.systemPrompt,
           [...this.agent.tools.loopTools],
-          messages,
+          historyForModel,
           undefined,
           { signal },
         );
         const summary = extractCompactionSummary(response);
         return { response, summary, retryCount };
       } catch (error) {
+        // Media recovery: a 413 body-size or image-format rejection means
+        // the summarizer input carries too much media (or a poisoned image).
+        // Strip ALL media into text markers (the summarizer does not need
+        // pixels) and retry once. A second image-format rejection propagates
+        // (dropping history cannot fix a poisoned image). A second body-size
+        // 413 falls through to the shrink ladder below.
+        const mediaRejected = error instanceof APIRequestTooLargeError || isImageFormatError(error);
+        if (mediaRejected && !mediaStripAttempted) {
+          mediaStripAttempted = true;
+          const stripped = replaceMediaPartsWithMarkers(historyForModel);
+          if (stripped !== historyForModel) {
+            historyForModel = stripped;
+            retryCount = 0;
+            this.agent.log.warn(
+              'compaction request rejected for media; retrying with media stripped',
+              {
+                error: error instanceof Error ? error.name : 'Unknown',
+              },
+            );
+            attempt = 0; // restart the attempt counter for the stripped pass
+            continue;
+          }
+        }
+        // Post-strip body-size recovery: keep recent messages within a
+        // shrinking token budget (0.7 / 0.5 / 0.35 of current estimate).
+        // Format errors after strip are not shrinkable — rethrow below.
+        if (error instanceof APIRequestTooLargeError && historyForModel.length > 1) {
+          overflowShrinkCount += 1;
+          if (overflowShrinkCount <= MAX_COMPACTION_OVERFLOW_SHRINK_ATTEMPTS) {
+            const before = historyForModel.length;
+            historyForModel = shrinkCompactionHistoryAfterOverflow(
+              historyForModel,
+              overflowShrinkCount,
+            );
+            this.agent.log.warn(
+              'compaction request still too large after media strip; shrinking history',
+              {
+                shrinkAttempt: overflowShrinkCount,
+                messagesBefore: before,
+                messagesAfter: historyForModel.length,
+              },
+            );
+            retryCount = 0;
+            attempt = 0;
+            continue;
+          }
+        }
         if (attempt >= maxAttempts || !isRetryableCompactionError(error)) {
           throw error;
         }
@@ -551,7 +601,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores full_compaction.* records
+    if (!isAgentRecordOfPrefix(record, 'full_compaction')) return;
     switch (record.type) {
       case 'full_compaction.begin':
         // During restore, we call begin but it should not start the worker
@@ -608,4 +658,78 @@ function isRetryableCompactionError(error: unknown): boolean {
   if (!(error instanceof APIStatusError)) return false;
   const statusCode = (error as { readonly statusCode?: unknown }).statusCode;
   return typeof statusCode === 'number' && [429, 500, 502, 503, 504].includes(statusCode);
+}
+
+const COMPACTION_MEDIA_MARKER: Record<string, string> = {
+  image_url: '[image omitted from compaction input]',
+  audio_url: '[audio omitted from compaction input]',
+  video_url: '[video omitted from compaction input]',
+};
+
+/**
+ * Replace every media part in the message array with a compact text marker.
+ * The compaction summarizer does not need pixels — it only needs the text
+ * conversation — so a full strip is always safe here (unlike the turn path
+ * which keeps the most recent media). Returns the input array by reference
+ * when no media exists, so the caller can detect a no-op.
+ */
+function replaceMediaPartsWithMarkers(messages: readonly Message[]): Message[] {
+  let changed = false;
+  const result = messages.map((message) => {
+    if (!message.content.some((p) => p.type in COMPACTION_MEDIA_MARKER)) return message;
+    changed = true;
+    const content: ContentPart[] = message.content.map((part) => {
+      const marker = COMPACTION_MEDIA_MARKER[part.type];
+      return marker !== undefined ? { type: 'text', text: marker } : part;
+    });
+    return { ...message, content };
+  });
+  return changed ? result : (messages as Message[]);
+}
+
+/** Max body-size shrink retries after media strip (ratios 0.7 / 0.5 / 0.35). */
+const MAX_COMPACTION_OVERFLOW_SHRINK_ATTEMPTS = 3;
+const COMPACTION_OVERFLOW_SHRINK_RATIOS = [0.7, 0.5, 0.35] as const;
+
+/**
+ * Drop oldest messages so the retained tail fits within `ratio` of the
+ * current token estimate. Leading tool results after the cut are dropped
+ * so the summarizer does not start mid tool-call.
+ */
+function shrinkCompactionHistoryAfterOverflow(
+  messages: readonly Message[],
+  attempt: number,
+): Message[] {
+  if (messages.length <= 1) return messages.slice();
+  const ratio =
+    COMPACTION_OVERFLOW_SHRINK_RATIOS[
+      Math.min(attempt - 1, COMPACTION_OVERFLOW_SHRINK_RATIOS.length - 1)
+    ]!;
+  const tokenBudget = Math.floor(estimateTokensForMessages(messages) * ratio);
+  return takeRecentMessagesWithinTokenBudget(messages, tokenBudget);
+}
+
+function takeRecentMessagesWithinTokenBudget(
+  messages: readonly Message[],
+  tokenBudget: number,
+): Message[] {
+  let start = messages.length;
+  let tokens = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const messageTokens = estimateTokensForMessage(messages[i]!);
+    if (tokens + messageTokens > tokenBudget) break;
+    tokens += messageTokens;
+    start = i;
+  }
+  // Always drop at least the oldest message so progress is guaranteed.
+  if (start === 0) start = 1;
+  return dropLeadingToolResults(messages.slice(start));
+}
+
+function dropLeadingToolResults(messages: readonly Message[]): Message[] {
+  let start = 0;
+  while (start < messages.length && messages[start]!.role === 'tool') {
+    start += 1;
+  }
+  return messages.slice(start);
 }

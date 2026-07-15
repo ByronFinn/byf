@@ -167,7 +167,7 @@ export interface CompactionTranscriptData {
  */
 export interface GoalCompletionData {
   readonly objective: string;
-  readonly reason?: string | undefined;
+  readonly reason?: string;
   readonly turns: number;
   readonly tokens: number;
   readonly wallClockMs: number;

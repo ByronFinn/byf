@@ -36,6 +36,7 @@ import {
 } from './openai-common';
 import { OpenAICompatFiles } from './openai-compat-files';
 import { normalizeOpenAICompatToolSchema } from './openai-compat-schema';
+import { deriveCacheKeyFromPromptPlan } from './prompt-cache-key';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both
@@ -71,16 +72,16 @@ export interface OpenAICompletionsOptions {
 }
 
 export interface GenerationKwargs {
-  max_tokens?: number | undefined;
-  max_completion_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_p?: number | undefined;
-  n?: number | undefined;
-  presence_penalty?: number | undefined;
-  frequency_penalty?: number | undefined;
-  stop?: string | string[] | undefined;
-  reasoning_effort?: string | undefined;
-  prompt_cache_key?: string | undefined;
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  n?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
+  stop?: string | string[];
+  reasoning_effort?: string;
+  prompt_cache_key?: string;
   extra_body?: ExtraBody;
   [key: string]: unknown;
 }
@@ -98,10 +99,10 @@ export interface ExtraBody {
 
 interface OpenAIMessage {
   role: string;
-  content?: string | OpenAIContentPart[] | undefined;
-  tool_calls?: OpenAIToolCallOut[] | undefined;
-  tool_call_id?: string | undefined;
-  name?: string | undefined;
+  content?: string | OpenAIContentPart[];
+  tool_calls?: OpenAIToolCallOut[];
+  tool_call_id?: string;
+  name?: string;
   [key: string]: unknown;
 }
 
@@ -109,7 +110,7 @@ interface OpenAIToolCallOut {
   type: string;
   id: string;
   function: { name: string; arguments: string | null };
-  extras?: Record<string, unknown> | undefined;
+  extras?: Record<string, unknown>;
 }
 
 function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
@@ -121,32 +122,17 @@ function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
 }
 
 /**
- * Derive a stable SHA256 hash from cacheable blocks in a PromptPlan.
+ * Derive the `prompt_cache_key` for the OpenAI Chat Completions path.
  *
- * Only blocks with cacheScope 'global' are included in the hash, as OpenAI
- * only supports caching the prefix (global scope).
- *
- * @param promptPlan - The prompt plan containing cacheable blocks.
- * @returns A hexadecimal SHA256 hash string.
+ * Delegates the SHA256 computation to the shared
+ * {@link deriveCacheKeyFromPromptPlan | helper}, but — unlike the Responses
+ * path — preserves the legacy behavior of ALWAYS sending a key, even when
+ * nothing is cacheable: when the helper returns `undefined` (no plan, no
+ * blocks, or no global-scope blocks), fall back to the SHA256 of the empty
+ * string. This keeps a dummy key on the wire for backward compatibility.
  */
-function deriveCacheKeyFromPromptPlan(promptPlan: PromptPlan | undefined): string {
-  if (!promptPlan || promptPlan.blocks.length === 0) {
-    // Hash of empty string
-    return createHash('sha256').digest('hex');
-  }
-
-  // Concatenate only global-scope blocks in order
-  const cacheableTexts: string[] = [];
-  for (const block of promptPlan.blocks) {
-    if (block.cacheScope === 'global') {
-      cacheableTexts.push(block.text);
-    }
-  }
-
-  const concatenated = cacheableTexts.join('');
-
-  // Use Node.js crypto for SHA256
-  return createHash('sha256').update(concatenated).digest('hex');
+function completionsCacheKey(promptPlan: PromptPlan | undefined): string {
+  return deriveCacheKeyFromPromptPlan(promptPlan) ?? createHash('sha256').digest('hex');
 }
 
 function convertMessage(
@@ -511,7 +497,6 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
     // Remove undefined values from kwargs
     for (const key of Object.keys(kwargs)) {
       if (kwargs[key] === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete kwargs[key];
       }
     }
@@ -520,7 +505,6 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
     if (kwargs['max_completion_tokens'] === undefined && kwargs['max_tokens'] !== undefined) {
       kwargs['max_completion_tokens'] = kwargs['max_tokens'];
     }
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete kwargs['max_tokens'];
 
     const { extra_body: extraBody, ...requestKwargs } = kwargs;
@@ -543,7 +527,7 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
 
     // Inject prompt_cache_key from PromptPlan if provided
     if (options?.promptPlan) {
-      const cacheKey = deriveCacheKeyFromPromptPlan(options.promptPlan);
+      const cacheKey = completionsCacheKey(options.promptPlan);
       if (cacheKey) {
         createParams['prompt_cache_key'] = cacheKey;
       }

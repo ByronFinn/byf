@@ -88,7 +88,7 @@ export function waitForSDKEvent(
 
 interface PromptStreamWatcher {
   readonly started: Promise<number>;
-  readonly firstDelta?: Promise<Event> | undefined;
+  readonly firstDelta?: Promise<Event>;
   readonly ended: Promise<Event>;
   dispose(): void;
 }

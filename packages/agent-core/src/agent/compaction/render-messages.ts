@@ -73,7 +73,7 @@ function renderToolCallArguments(args: string | null): string {
   }
 }
 
-function renderMediaPart(type: string, url: string, id?: string | undefined): string {
+function renderMediaPart(type: string, url: string, id?: string): string {
   if (id === undefined) return `${type}: ${url}`;
   return `${type}: ${url} (id=${id})`;
 }

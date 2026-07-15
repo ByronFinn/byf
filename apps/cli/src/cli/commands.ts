@@ -58,6 +58,14 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
         .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
         .default([]),
     )
+    .addOption(
+      new Option(
+        '--add-dir <dir>',
+        'Add a directory to the workspace (additional allowed root for Read/Grep/Glob/etc.). Can be repeated.',
+      )
+        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
+        .default([]),
+    )
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false));
 
@@ -92,6 +100,7 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
       outputFormat: raw['outputFormat'] as CLIOptions['outputFormat'],
       prompt: raw['prompt'] as string | undefined,
       skillsDirs: raw['skillsDir'] as string[],
+      addDirs: raw['addDir'] as string[],
     };
 
     onMain(opts);

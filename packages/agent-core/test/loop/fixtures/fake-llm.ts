@@ -18,31 +18,34 @@ import type {
 export type FakeOutputPart = TextPart | ThinkPart;
 
 export interface FakeLLMResponse extends LLMChatResponse {
-  readonly contentParts?: readonly FakeOutputPart[] | undefined;
+  readonly contentParts?: readonly FakeOutputPart[];
 }
+
+export type FakeLLMThrowSpec = { readonly index: number; readonly error: unknown };
 
 export interface FakeLLMOptions {
   readonly responses: readonly FakeLLMResponse[];
-  readonly throwOnIndex?: { readonly index: number; readonly error: unknown } | undefined;
+  /** Single-index throw (legacy) or multiple call indices that throw. */
+  readonly throwOnIndex?: FakeLLMThrowSpec | readonly FakeLLMThrowSpec[];
   readonly abortOnIndex?:
     | { readonly index: number; readonly controller: AbortController }
     | undefined;
-  readonly delayMs?: number | undefined;
-  readonly modelName?: string | undefined;
-  readonly capability?: ModelCapability | undefined;
-  readonly systemPrompt?: string | undefined;
+  readonly delayMs?: number;
+  readonly modelName?: string;
+  readonly capability?: ModelCapability;
+  readonly systemPrompt?: string;
 }
 
 export class FakeLLM implements LLM {
   readonly systemPrompt: string;
   readonly modelName: string;
-  readonly capability?: ModelCapability | undefined;
+  readonly capability?: ModelCapability;
 
   readonly calls: LLMChatParams[] = [];
 
   private index = 0;
   private readonly responses: readonly FakeLLMResponse[];
-  private readonly throwOnIndex: FakeLLMOptions['throwOnIndex'];
+  private readonly throwByIndex: ReadonlyMap<number, unknown>;
   private readonly abortOnIndex: FakeLLMOptions['abortOnIndex'];
   private readonly delayMs: number;
 
@@ -51,7 +54,7 @@ export class FakeLLM implements LLM {
     this.modelName = opts.modelName ?? 'fake-model';
     this.capability = opts.capability;
     this.responses = opts.responses;
-    this.throwOnIndex = opts.throwOnIndex;
+    this.throwByIndex = normalizeThrowMap(opts.throwOnIndex);
     this.abortOnIndex = opts.abortOnIndex;
     this.delayMs = opts.delayMs ?? 0;
   }
@@ -75,8 +78,8 @@ export class FakeLLM implements LLM {
       throw err;
     }
 
-    if (this.throwOnIndex !== undefined && this.throwOnIndex.index === current) {
-      throw this.throwOnIndex.error;
+    if (this.throwByIndex.has(current)) {
+      throw this.throwByIndex.get(current);
     }
 
     if (current >= this.responses.length) {
@@ -204,4 +207,16 @@ export function makeToolCall(name: string, args: unknown, id?: string): ToolCall
     name,
     arguments: JSON.stringify(args),
   };
+}
+
+function normalizeThrowMap(
+  throwOnIndex: FakeLLMOptions['throwOnIndex'],
+): ReadonlyMap<number, unknown> {
+  if (throwOnIndex === undefined) return new Map();
+  const specs = Array.isArray(throwOnIndex) ? throwOnIndex : [throwOnIndex];
+  const map = new Map<number, unknown>();
+  for (const spec of specs) {
+    map.set(spec.index, spec.error);
+  }
+  return map;
 }

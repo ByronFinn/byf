@@ -255,9 +255,9 @@ describe('Permission auto mode', () => {
     const result = injector.getEphemeral();
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.kind).toBe('system_reminder');
-    expect(result[0]!.content).toContain('Do NOT call AskUserQuestion while auto mode is active');
-    expect(result[0]!.position).toBe('before_user');
+    expect(result[0].kind).toBe('system_reminder');
+    expect(result[0].content).toContain('Do NOT call AskUserQuestion while auto mode is active');
+    expect(result[0].position).toBe('before_user');
   });
 
   it('blocks AskUserQuestion in auto mode before execution', async () => {
@@ -901,10 +901,10 @@ describe('Default git CWD Write/Edit permission', () => {
 
   function gitKaos(
     options: {
-      readonly markerPath?: string | undefined;
-      readonly markerMode?: number | undefined;
-      readonly statModes?: Readonly<Record<string, number>> | undefined;
-      readonly readText?: Kaos['readText'] | undefined;
+      readonly markerPath?: string;
+      readonly markerMode?: number;
+      readonly statModes?: Readonly<Record<string, number>>;
+      readonly readText?: Kaos['readText'];
       readonly missingError?: (path: string) => Error;
     } = {},
   ): { kaos: Kaos; stat: ReturnType<typeof vi.fn<Kaos['stat']>> } {
@@ -1535,6 +1535,109 @@ describe('Permission rule helpers', () => {
     expect(actionToRulePattern('edit file outside of working directory', 'Edit')).toBe('Write');
     expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
   });
+
+  it('scopes CronCreate session approval to the full create payload (PRD-0023 #244)', () => {
+    // Without payload encoding, every CronCreate would share action
+    // `call CronCreate` and a broad rule pattern `CronCreate` — one
+    // scope:session approval would auto-authorize any future schedule.
+    const payloadA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadB = { cron: '*/5 * * * *', prompt: 'B', recurring: true };
+    const payloadSameA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadDifferentCron = { cron: '0 9 * * *', prompt: 'A', recurring: true };
+
+    const actionA = describeApprovalAction('CronCreate', payloadA, genericDisplay());
+    const actionB = describeApprovalAction('CronCreate', payloadB, genericDisplay());
+    const actionSameA = describeApprovalAction('CronCreate', payloadSameA, genericDisplay());
+    const actionDiffCron = describeApprovalAction(
+      'CronCreate',
+      payloadDifferentCron,
+      genericDisplay(),
+    );
+
+    expect(actionA).not.toBe(actionB);
+    expect(actionA).not.toBe(actionDiffCron);
+    expect(actionA).toBe(actionSameA);
+    expect(actionA.startsWith('call CronCreate ')).toBe(true);
+    expect(actionA).toContain('"prompt":"A"');
+
+    // Must NOT create a bare CronCreate PermissionRule (would match all creates).
+    expect(actionToRulePattern(actionA, 'CronCreate')).toBeUndefined();
+    // Non-payload tools still get a name fallback rule.
+    expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
+  });
+
+  it('denies CronCreate when an explicit deny rule matches (permission reject path)', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.rules.push({
+      decision: 'deny',
+      scope: 'user',
+      pattern: 'CronCreate',
+      reason: 'cron disabled by policy',
+    });
+    await expect(
+      manager.beforeToolCall(
+        hookContext({
+          id: 'call_cron',
+          toolName: 'CronCreate',
+          args: { cron: '* * * * *', prompt: 'x', recurring: true },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      block: true,
+      reason: 'Tool "CronCreate" was denied by permission rule. Reason: cron disabled by policy',
+    });
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('session-approving CronCreate payload A does not auto-approve payload B (PRD-0023 #244)', async () => {
+    // Integration through PermissionManager: approve_for_session on one
+    // create payload must not unlock a different (cron, prompt, recurring) tuple.
+    const payloadA = { cron: '*/5 * * * *', prompt: 'A', recurring: true };
+    const payloadB = { cron: '*/5 * * * *', prompt: 'B', recurring: true };
+    const actionA = describeApprovalAction('CronCreate', payloadA, genericDisplay());
+
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+      selectedLabel: 'Approve for this session',
+    }));
+
+    // First create with payload A → asks once, records session approval for A only.
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_a1', toolName: 'CronCreate', args: payloadA }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval.mock.calls[0]![0]).toMatchObject({
+      toolName: 'CronCreate',
+      action: actionA,
+    });
+    // No bare CronCreate allow rule (would match every payload).
+    expect(manager.data().rules.some((r) => r.pattern === 'CronCreate')).toBe(false);
+
+    // Same payload A again → sessionApprovedActions auto-allows without a new prompt.
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_a2', toolName: 'CronCreate', args: payloadA }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    // Different payload B → must ask again (not auto-approved by A's session grant).
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_b1', toolName: 'CronCreate', args: payloadB }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(2);
+    expect(requestApproval.mock.calls[1]![0]).toMatchObject({
+      toolName: 'CronCreate',
+      action: describeApprovalAction('CronCreate', payloadB, genericDisplay()),
+    });
+  });
 });
 
 function bashCall(): ToolCall {
@@ -1550,7 +1653,7 @@ function makePermissionManager(
   handleApproval: (request: unknown) => Promise<ApprovalResponse>,
   options: {
     readonly policies?: readonly PermissionPolicy[];
-    readonly parent?: PermissionManager | undefined;
+    readonly parent?: PermissionManager;
     readonly kaos?: Kaos;
     readonly cwd?: string;
   } = {},
@@ -1580,8 +1683,8 @@ function makePermissionManager(
 
 function hookContext(input: {
   readonly id: string;
-  readonly toolName?: string | undefined;
-  readonly args?: Record<string, unknown> | undefined;
+  readonly toolName?: string;
+  readonly args?: Record<string, unknown>;
 }): ToolExecutionHookContext {
   const toolName = input.toolName ?? 'Bash';
   const args = input.args ?? { command: 'printf first', timeout: 60 };

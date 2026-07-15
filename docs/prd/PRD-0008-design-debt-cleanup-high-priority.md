@@ -1,8 +1,9 @@
 # [DONE] PRD-0008: 设计债清理 — 三个 High 项
 
-**Status**: Approved
+**Status**: Done（H1 行数目标未达成，已记入"实现后验收记录"；H1 根文件治理转为持续性结构性约束，见 `docs/architecture-debt-roadmap.md`）
 **Created**: 2026-06-17
 **Source**: `improve-architecture` 扫描报告（11 个发现中的 H1/H3/H4）
+**Arch reviewed by**: `/improve-architecture` (2026-07-11) — H1 仍 3819 行（结构性约束生效，H1-a Done）；H3 判别联合保持；H4 BaseChatProvider 已落地，仅剩 deriveCacheKey 局部重复
 
 ## Child Issues
 
@@ -464,6 +465,8 @@ function extractCacheUsage(total: number, cached: number, output: number): Token
 - **Sliced by**: `/story` (2026-06-17) → Child Issues above（8 片：H4 三片 #132/#137/#138、H3 一片 #133、H1 两片 #134/#139、收尾两片 #135/#136）
 - **Arch reviewed by**: `/improve-architecture` (2026-06-24) — H1 行数缺口已记录且符合 PRD "诚实版" 范围；后续风险：byf-tui.ts 经 PRD-0015 fork 又回升至 4164 行（H1 完成时 3916），TUI 分解为持续部分完成态（Medium）；H3/H4 ADR 合规通过、无漂移。
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `byf-tui.ts` 回升至 4289 行/170 个方法且承载 `/btw` overlay 与子代理视图，H1 风险升为 High；H3/H4 仍符合 ADR。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — `byf-tui.ts` 再升至 4380 行（4 周最高频改动文件）；slash 仍为 switch 分发、~354 行 callback assembly 税仍在；H3/H4 合规；H1 保持 High。
+- **Calibrated by**: 人工复查 (2026-07-10) — 上述扫描结论有 6 处偏差，已逐一校准并记入 `docs/architecture-debt-roadmap.md`：(1) `byf-tui.ts` 实测 4178 行（非 4380），AGENTS.md baseline 已据此修正；(2) btw 抽出建议已完成（`BtwController` 259 行），从路线图删除；(3) `restoreRecord` 实际 24 行（非 209），M1 拆分价值降级；(4) provider 已有 `provider-common.ts`+`openai-common.ts` 两层共享，H3 只剩 `deriveCacheKeyFromPromptPlan` 局部重复；(5) M6 rg-runner 无复用收益（grep 是唯一消费者）；(6) AGENTS.md 已有 Size Budget 章节，已校准 + 强化结构性约束。H1 保持 High（slash handler 注册表化为首个落地实例）。
 
 ## Expansion Considerations
 

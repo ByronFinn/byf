@@ -6,8 +6,6 @@
  * archival limits, and UI concerns stay outside these contracts.
  *
  * Field naming is camelCase unless a reused Kosong type says otherwise.
- * Optional fields use `?: T | undefined` intentionally under
- * `exactOptionalPropertyTypes: true`.
  */
 
 import type { ContentPart, Message, TokenUsage, Tool, ToolCall } from '@byfriends/kosong';
@@ -63,7 +61,7 @@ export type ExecutableToolOutput = string | ContentPart[];
 
 export interface ExecutableToolSuccessResult {
   readonly output: ExecutableToolOutput;
-  readonly isError?: false | undefined;
+  readonly isError?: false;
   /**
    * Optional human-readable side channel for tool-result metadata that
    * should not contaminate the data stream the model sees (e.g. a
@@ -71,36 +69,36 @@ export interface ExecutableToolSuccessResult {
    * `output`: callers rendering tool results decide whether to surface
    * this to the user.
    */
-  readonly message?: string | undefined;
+  readonly message?: string;
 }
 
 export interface ExecutableToolErrorResult {
   readonly output: ExecutableToolOutput;
   readonly isError: true;
   /** See {@link ExecutableToolSuccessResult.message}. */
-  readonly message?: string | undefined;
+  readonly message?: string;
   /**
    * Internal loop-control hint. Tool result events strip this field before
    * persistence; it only tells the current turn whether another model step is
    * allowed after this tool batch.
    */
-  readonly stopTurn?: boolean | undefined;
+  readonly stopTurn?: boolean;
   /**
    * Set when the tool was not executed because the approval request was
    * rejected or cancelled by the user. Distinguishes "blocked by user" from
    * "tool ran but failed".
    */
-  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+  readonly blockedReason?: 'rejected' | 'cancelled';
 }
 
 export type ExecutableToolResult = ExecutableToolSuccessResult | ExecutableToolErrorResult;
 
 export interface ToolUpdate {
   kind: 'stdout' | 'stderr' | 'progress' | 'status' | 'custom';
-  text?: string | undefined;
-  percent?: number | undefined;
+  text?: string;
+  percent?: number;
   /** Vendor-defined event identifier when `kind === 'custom'`. */
-  customKind?: string | undefined;
+  customKind?: string;
   /** Opaque payload paired with `customKind`. */
   customData?: unknown;
 }
@@ -113,13 +111,13 @@ export interface ExecutableToolContext {
   readonly toolCallId: string;
   readonly metadata?: unknown;
   readonly signal: AbortSignal;
-  readonly onUpdate?: ((update: ToolUpdate) => void) | undefined;
+  readonly onUpdate?: (update: ToolUpdate) => void;
 }
 
 export interface RunnableToolExecution {
-  readonly isError?: false | undefined;
-  readonly accesses?: ToolAccesses | undefined;
-  readonly display?: ToolInputDisplay | undefined;
+  readonly isError?: false;
+  readonly accesses?: ToolAccesses;
+  readonly display?: ToolInputDisplay;
   readonly description?: string;
   readonly execute: (ctx: ExecutableToolContext) => Promise<ExecutableToolResult>;
 }
@@ -144,17 +142,17 @@ export interface LoopStepHookContext {
 
 export interface ToolExecutionHookContext extends LoopStepHookContext {
   readonly toolCall: ToolCall;
-  readonly tool?: ExecutableTool | undefined;
+  readonly tool?: ExecutableTool;
   readonly args: unknown;
 }
 
 export interface PrepareToolExecutionResult {
-  readonly block?: boolean | undefined;
-  readonly reason?: string | undefined;
+  readonly block?: boolean;
+  readonly reason?: string;
   readonly updatedArgs?: unknown;
-  readonly syntheticResult?: ExecutableToolResult | undefined;
+  readonly syntheticResult?: ExecutableToolResult;
   readonly executionMetadata?: unknown;
-  readonly blockedReason?: 'rejected' | 'cancelled' | undefined;
+  readonly blockedReason?: 'rejected' | 'cancelled';
   /**
    * When true, the tool call is a same-step duplicate and was never actually
    * executed. The loop will skip both `tool.call` and `tool.result` events
@@ -162,7 +160,7 @@ export interface PrepareToolExecutionResult {
    *
    * This is an internal implementation detail; external hooks need not set it.
    */
-  readonly skip?: boolean | undefined;
+  readonly skip?: boolean;
 }
 
 export interface FinalizeToolResultContext extends ToolExecutionHookContext {
@@ -180,8 +178,8 @@ export interface LoopStoppedStepContext extends LoopStepHookContext {
 }
 
 export interface BeforeStepResult {
-  readonly block?: boolean | undefined;
-  readonly reason?: string | undefined;
+  readonly block?: boolean;
+  readonly reason?: string;
 }
 
 export interface ShouldContinueAfterStopResult {
@@ -215,9 +213,9 @@ export type ShouldContinueAfterStopHook = (
  * resolved at stable transcript points.
  */
 export interface LoopHooks {
-  beforeStep?: BeforeStepHook | undefined;
-  afterStep?: AfterStepHook | undefined;
-  prepareToolExecution?: PrepareToolExecutionHook | undefined;
-  finalizeToolResult?: FinalizeToolResultHook | undefined;
-  shouldContinueAfterStop?: ShouldContinueAfterStopHook | undefined;
+  beforeStep?: BeforeStepHook;
+  afterStep?: AfterStepHook;
+  prepareToolExecution?: PrepareToolExecutionHook;
+  finalizeToolResult?: FinalizeToolResultHook;
+  shouldContinueAfterStop?: ShouldContinueAfterStopHook;
 }

@@ -16,7 +16,7 @@ export interface CompactionCallbacks {
   setAppState(patch: Partial<AppState>): void;
   resetLivePane(): void;
   beginCompactionBlock(instruction?: string): void;
-  endCompactionBlock(tokensBefore?: number, tokensAfter?: number): void;
+  endCompactionBlock(tokensBefore?: number, tokensAfter?: number, summary?: string): void;
   cancelCompactionBlock(): void;
 }
 
@@ -37,7 +37,11 @@ export class CompactionHandler {
   }
 
   handleEnd(event: CompactionCompletedEvent, sendQueued: (item: QueuedMessage) => void): void {
-    this.callbacks.endCompactionBlock(event.result.tokensBefore, event.result.tokensAfter);
+    this.callbacks.endCompactionBlock(
+      event.result.tokensBefore,
+      event.result.tokensAfter,
+      event.result.summary,
+    );
     this.finishCompaction(sendQueued);
   }
 

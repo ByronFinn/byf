@@ -176,7 +176,7 @@ describe('applyProviderConfig', () => {
       baseUrl: 'https://api.deepseek.com/v1',
       apiKey: 'sk-test',
       models,
-      selectedModel: models[0]!,
+      selectedModel: models[0],
       thinking: true,
     });
 
@@ -230,7 +230,7 @@ describe('applyProviderConfig', () => {
       baseUrl: 'https://api.deepseek.com/v1',
       apiKey: 'sk-new',
       models,
-      selectedModel: models[0]!,
+      selectedModel: models[0],
       thinking: false,
     });
 
@@ -256,7 +256,7 @@ describe('applyProviderConfig', () => {
       baseUrl: 'https://api.anthropic.com/v1',
       apiKey: 'sk-ant-test',
       models,
-      selectedModel: models[0]!,
+      selectedModel: models[0],
       thinking: false,
     });
 
@@ -284,7 +284,7 @@ describe('applyProviderConfig', () => {
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-test',
       models,
-      selectedModel: models[0]!,
+      selectedModel: models[0],
       thinking: false,
     });
 
@@ -365,7 +365,7 @@ describe('fetchModelsByType', () => {
     // Must NOT use Bearer auth.
     const firstCallHeaders = (
       fetchMock.mock.calls as unknown as Array<[string, { headers: Record<string, string> }]>
-    )[0]![1].headers;
+    )[0][1].headers;
     expect(firstCallHeaders['Authorization']).toBeUndefined();
   });
 
@@ -399,7 +399,7 @@ describe('fetchModelsByType', () => {
     expect(models).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     // Second request carries after_id from the first page's last_id.
-    expect((fetchMock.mock.calls as unknown as Array<[string, unknown]>)[1]![0]).toBe(
+    expect((fetchMock.mock.calls as unknown as Array<[string, unknown]>)[1][0]).toBe(
       'https://api.anthropic.com/v1/models?after_id=claude-opus-4-7',
     );
   });

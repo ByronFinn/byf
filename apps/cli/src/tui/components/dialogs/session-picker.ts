@@ -20,7 +20,7 @@ export interface SessionRow {
   readonly last_prompt?: string | null;
   readonly work_dir: string;
   readonly updated_at: number;
-  readonly metadata?: Readonly<Record<string, unknown>> | undefined;
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 const ELLIPSIS = '…';

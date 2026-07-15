@@ -11,17 +11,18 @@ byf <subcommand> [options]
 
 下表列出 `byf` 主命令支持的全部选项。所有 flag 都是可选的，直接运行 `byf` 即可进入交互式会话。
 
-| 选项                       | 简写 | 说明                                                                                                                                |
-| -------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `--version`                | `-V` | 打印版本号并退出。                                                                                                                  |
-| `--help`                   | `-h` | 显示帮助信息并退出。                                                                                                                |
-| `--session [id]`           | `-S` | 恢复一个会话。带 ID 时直接打开指定会话；不带 ID 时进入交互式选择器，从历史会话中挑选。                                              |
-| `--continue`               | `-C` | 继续当前工作目录下最近一次的会话，无需手动指定 ID。                                                                                 |
-| `--model <model>`          | `-m` | 为本次启动指定模型别名。省略时，新会话使用配置文件中的 `default_model`，恢复会话使用会话当前模型。                                  |
-| `--prompt <prompt>`        | `-p` | 非交互执行单次 prompt，并把 Assistant 输出流式写到 stdout。该模式会使用 `auto` 权限处理工具调用，不会打开 TUI。                     |
-| `--output-format <format>` |      | 设置非交互输出格式，支持 `text` 与 `stream-json`。仅可与 `--prompt` 一起使用，默认 `text`。                                         |
-| `--yolo`                   | `-y` | 自动批准普通工具调用，跳过审批请求。                                                                                                |
-| `--skills-dir <dir>`       |      | 从指定目录加载 Skills，替换自动发现的用户和项目目录。可重复传入以叠加多个目录。详见下文 [自定义 Skills 目录](#自定义-skills-目录)。 |
+| 选项                       | 简写 | 说明                                                                                                                                                                   |
+| -------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`                | `-V` | 打印版本号并退出。                                                                                                                                                     |
+| `--help`                   | `-h` | 显示帮助信息并退出。                                                                                                                                                   |
+| `--session [id]`           | `-S` | 恢复一个会话。带 ID 时直接打开指定会话；不带 ID 时进入交互式选择器，从历史会话中挑选。                                                                                 |
+| `--continue`               | `-C` | 继续当前工作目录下最近一次的会话，无需手动指定 ID。                                                                                                                    |
+| `--model <model>`          | `-m` | 为本次启动指定模型别名。省略时，新会话使用配置文件中的 `default_model`，恢复会话使用会话当前模型。                                                                     |
+| `--prompt <prompt>`        | `-p` | 非交互执行单次 prompt，并把 Assistant 输出流式写到 stdout。该模式会使用 `auto` 权限处理工具调用，不会打开 TUI。退出条件与 headless goal 见 [非交互执行](#非交互执行)。 |
+| `--output-format <format>` |      | 设置非交互输出格式，支持 `text` 与 `stream-json`。仅可与 `--prompt` 一起使用，默认 `text`。                                                                            |
+| `--add-dir <dir>`          |      | 追加额外工作区根目录（Read/Grep/Glob/Write/Edit 等路径策略允许访问）。可重复传入；相对路径相对当前工作目录解析。项目 `.byf/local.toml` 中的配置也会自动加载。          |
+| `--yolo`                   | `-y` | 自动批准普通工具调用，跳过审批请求。                                                                                                                                   |
+| `--skills-dir <dir>`       |      | 从指定目录加载 Skills，替换自动发现的用户和项目目录。可重复传入以叠加多个目录。详见下文 [自定义 Skills 目录](#自定义-skills-目录)。                                    |
 
 `-r` / `--resume` 是 `--session` 的隐藏别名；`--yes` 和 `--auto-approve` 是 `--yolo` 的隐藏别名。它们在帮助信息中不会显示，行为与对应的官方 flag 完全一致。
 
@@ -94,6 +95,48 @@ byf -p "Summarize the current repository status"
 ```
 
 输出采用 transcript 样式：thinking 内容和 Assistant 正文都会以 `• ` 开头，换行后使用两个空格缩进。Assistant 正文会输出到 stdout；thinking、工具进度和 `To resume this session: byf -r <id>` 提示输出到 stderr。`-p` 模式不会请求人工审批，普通工具调用、Plan 审批和 Agent 提问都会按 `auto` 权限策略处理。静态 deny 规则仍然会阻止匹配的工具调用。
+
+### `-p` 何时退出
+
+print 模式**不会**在第一次 `turn.ended` 就立刻退出。进程会一直保持，直到同时满足：
+
+1. 主 agent 没有仍为 **active** 的自主目标（或目标已进入终态）；
+2. 会话内没有带未来 `nextFireAt` 的 Cron 任务；
+3. 后台任务已结束，或已达到 print 等待上限（默认 **3600** 秒，配置项 `printWaitCeilingS` / 环境变量 `BYF_PRINT_WAIT_CEILING_S`）。若超时后仍有活跃后台任务，进程以**非 0** 退出，且不会主动 kill 任务。
+
+::: warning 周期性 Cron 会让 `-p` 一直不退出
+若模型在 `-p` 运行期间创建了**周期性**（或其它仍有未来 fire）的会话内 Cron 任务，进程会**无限保持 event loop**，直到这些任务都没有未来 fire，或被外部 kill。脚本 / CI 中请优先使用 one-shot Cron，或避免在 `-p` 里创建 Cron。
+:::
+
+### Headless goal 模式
+
+不打开 TUI 也可以创建并跑完 goal：
+
+```sh
+byf -p "/goal 修掉 packages/agent-core 里所有 lint 报错"
+```
+
+只有 `/goal` 的 **create** 形态会走 headless 专用路径。malformed create（例如 `/goal replace` 后目标为空）会在调用模型**之前**失败并以非 0 退出。其它子命令（`status`、`pause` 等）不走 create 路径，会当作普通 prompt。
+
+goal 终态后的进程退出码：
+
+| Goal 状态  | 退出码 |
+| ---------- | ------ |
+| `complete` | `0`    |
+| `blocked`  | `3`    |
+| `paused`   | `6`    |
+
+`--output-format stream-json` 时会在 stdout 写出 `goal.summary` JSON；text 模式则在 stderr 打印一行摘要。
+
+### 额外工作区根目录
+
+允许工具访问会话工作目录以外的路径时：
+
+```sh
+byf --add-dir ../shared --add-dir /tmp/fixtures -p "比较两棵目录树"
+```
+
+`--add-dir` 可重复。交互会话里也可用 [`/add-dir`](./slash-commands.md#工作区根目录)。项目级记忆写在 `.byf/local.toml` 的 `workspace.additional_dir`；若路径因机器而异，建议把该文件加入 `.gitignore`。
 
 需要临时切换模型时，加上 `-m`：
 

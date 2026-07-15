@@ -16,7 +16,7 @@
 import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin';
 
 export interface BearerTokenProvider {
-  getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
+  getAccessToken(options?: { readonly force?: boolean }): Promise<string>;
 }
 
 export interface RemoteFetchURLProviderOptions {

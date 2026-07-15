@@ -92,6 +92,7 @@ describe('built-in slash command registry', () => {
         'agent',
         'btw',
         'compact',
+        'cron',
         'editor',
         'exit',
         'fork',

@@ -24,6 +24,43 @@ async function resolvePublicDir(): Promise<string | null> {
   return null;
 }
 
+/**
+ * The `@byfriends/cli` native compile binary embeds the SPA assets via
+ * `bun build --compile` (see apps/cli/scripts/compile/build.mjs). Each entry is
+ * a `Map<relativePath, embeddedVirtualPath>`; values are `/$bunfs/root/...`
+ * strings that `Bun.file()` can read directly. In source/JS-bundle layouts this
+ * global is absent and this returns `null`.
+ */
+function resolveEmbeddedAssets(): Map<string, string> | null {
+  const raw = (globalThis as Record<string, unknown>)['__BYF_VIS_EMBEDDED_ASSETS__'];
+  if (!(raw instanceof Map)) return null;
+  return raw;
+}
+
+/** Where the SPA bundle is served from — disk (source/bundle) or embedded
+ * (native compile binary). `null` means API-only (no SPA bundle available). */
+type StaticSource =
+  | { readonly kind: 'disk'; readonly publicDir: string }
+  | { readonly kind: 'embedded'; readonly assets: Map<string, string> };
+
+/** Pick the static source, preferring an explicit `publicDir`, then embedded
+ * assets (native binary), then the on-disk bundle next to the server module. */
+async function resolveStaticSource(publicDir: string | undefined): Promise<StaticSource | null> {
+  if (publicDir !== undefined) {
+    try {
+      const s = await stat(publicDir);
+      if (s.isDirectory()) return { kind: 'disk', publicDir };
+    } catch {
+      // fall through to other sources
+    }
+  }
+  const embedded = resolveEmbeddedAssets();
+  if (embedded !== null && embedded.size > 0) return { kind: 'embedded', assets: embedded };
+  const disk = await resolvePublicDir();
+  if (disk !== null) return { kind: 'disk', publicDir: disk };
+  return null;
+}
+
 const STATIC_EXT_MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -72,8 +109,15 @@ function tokenMatches(actual: string, expected: string): boolean {
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
 }
 
+/** Result of building the Hono app; `staticEnabled` is false in API-only mode. */
+export interface CreateAppResult {
+  readonly app: Hono;
+  /** Whether the SPA bundle is being served. False means API-only. */
+  readonly staticEnabled: boolean;
+}
+
 /** Build a Hono app mounting /api/* routes, plus SPA static fallback. */
-export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
+export async function createApp(options: CreateAppOptions = {}): Promise<CreateAppResult> {
   const app = new Hono();
 
   // /api/* handlers.
@@ -101,9 +145,38 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
 
   app.route('/api', api);
 
-  // Static + SPA fallback (production only).
-  const publicDir = options.publicDir ?? (await resolvePublicDir());
-  if (publicDir !== null) {
+  // Static + SPA fallback. Serves from disk (source/bundle) or embedded assets
+  // (native compile binary); when neither is available the server is API-only.
+  const staticSource = await resolveStaticSource(options.publicDir);
+  if (staticSource === null) {
+    process.stderr.write(
+      '[vis-server] SPA bundle not found; serving API only (/api/*). ' +
+        'Rebuild with `bun run build:vis` or set the publicDir explicitly.\n',
+    );
+  } else if (staticSource.kind === 'embedded') {
+    const assets = staticSource.assets;
+    app.get('*', (c) => {
+      const url = new URL(c.req.url);
+      const rawPath = decodeURIComponent(url.pathname);
+      if (rawPath.startsWith('/api')) {
+        return c.json({ error: `api route not found: ${rawPath}`, code: 'NOT_FOUND' }, 404);
+      }
+      // Direct asset lookup by relative path (root → index.html).
+      const rel = rawPath === '/' || rawPath === '' ? 'index.html' : rawPath.replace(/^\//, '');
+      const direct = assets.get(rel);
+      if (direct !== undefined) {
+        return new Response(Bun.file(direct), { headers: { 'content-type': mimeFor(rel) } });
+      }
+      // SPA fallback — index.html for any unknown GET so client-side React
+      // Router can resolve the route.
+      const indexVpath = assets.get('index.html');
+      if (indexVpath === undefined) return c.text('not found', 404);
+      return new Response(Bun.file(indexVpath), {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    });
+  } else {
+    const publicDir = staticSource.publicDir;
     app.get('*', async (c) => {
       const url = new URL(c.req.url);
       let pathname = decodeURIComponent(url.pathname);
@@ -142,5 +215,5 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Hono> {
     });
   }
 
-  return app;
+  return { app, staticEnabled: staticSource !== null };
 }

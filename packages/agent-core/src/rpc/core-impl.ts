@@ -18,9 +18,12 @@ import { getCoreVersion } from '#/version';
 import {
   ensureByfHome,
   mergeConfigPatch,
+  normalizeAdditionalDirs,
   readConfigFile,
+  readWorkspaceAdditionalDirs,
   resolveConfigPath,
   resolveByfHome,
+  resolveWorkspaceAdditionalDirs,
   writeConfigFile,
   type ByfConfig,
   type ByfServiceConfig,
@@ -46,10 +49,13 @@ import type {
   CancelPayload,
   CancelSideQueryPayload,
   CloseSessionPayload,
+  AddWorkspaceDirPayload,
+  AddWorkspaceDirResult,
   CoreAPI,
   CoreInfo,
   CreateGoalPayload,
   CreateSessionPayload,
+  DeleteCronTaskPayload,
   EmptyPayload,
   ExportSessionPayload,
   ExportSessionResult,
@@ -99,11 +105,11 @@ type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
 
 export interface ByfCoreOptions {
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
-  readonly runtime?: RuntimeConfig | undefined;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly homeDir?: string;
+  readonly configPath?: string;
+  readonly runtime?: RuntimeConfig;
+  readonly byfRequestHeaders?: Record<string, string>;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   readonly skillDirs?: readonly string[];
 }
 
@@ -211,6 +217,10 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       byfHomeDir: this.homeDir,
       rpc: proxyWithExtraPayload(await this.sdk, { sessionId: summary.id }),
       cwd: workDir,
+      additionalDirs: await this.resolveCreateSessionAdditionalDirs(
+        workDir,
+        options.additionalDirs,
+      ),
       providerManager: this.providerManager,
       background: config.background,
       hooks: config.hooks,
@@ -261,6 +271,29 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       await session.close();
       this.sessions.delete(sessionId);
     }
+  }
+
+  async waitForBackgroundTasksOnPrint({ sessionId }: CloseSessionPayload): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      await session.waitForBackgroundTasksOnPrint();
+    }
+  }
+
+  async addWorkspaceDir({
+    sessionId,
+    dir,
+    persist,
+  }: AddWorkspaceDirPayload): Promise<AddWorkspaceDirResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    return session.addWorkspaceDir(dir, { persist });
+  }
+
+  getWorkspaceRoots({ sessionId }: CloseSessionPayload): AddWorkspaceDirResult {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    return session.getWorkspaceRoots();
   }
 
   async resumeSession(input: ResumeSessionPayload): Promise<ResumeSessionResult> {
@@ -471,6 +504,14 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).cancelGoal(payload);
   }
 
+  getCronTasks({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getCronTasks(payload);
+  }
+
+  deleteCronTask({ sessionId, ...payload }: SessionAgentPayload<DeleteCronTaskPayload>) {
+    return this.sessionApi(sessionId).deleteCronTask(payload);
+  }
+
   getModel({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getModel(payload);
   }
@@ -613,6 +654,24 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     };
   }
 
+  /**
+   * Merge `.byf/local.toml` workspace.additional_dir with caller `--add-dir`
+   * paths (PRD-0023 R5.2 / R5.4). Local config loads first; CLI flags append.
+   */
+  private async resolveCreateSessionAdditionalDirs(
+    workDir: string,
+    callerDirs: readonly string[] | undefined,
+  ): Promise<readonly string[] | undefined> {
+    const runtime = this.runtime ?? (await this.resolveRuntime(this.reloadProviderManager()));
+    const local = await readWorkspaceAdditionalDirs(runtime.kaos, workDir);
+    const caller =
+      callerDirs !== undefined && callerDirs.length > 0
+        ? await resolveWorkspaceAdditionalDirs(runtime.kaos, workDir, callerDirs)
+        : [];
+    const merged = normalizeAdditionalDirs([...local.additionalDirs, ...caller]);
+    return merged.length > 0 ? merged : undefined;
+  }
+
   private sessionApi(sessionId: string): SessionAPIImpl {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
@@ -669,8 +728,8 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
 async function createRuntimeConfig(input: {
   readonly config: ByfConfig;
-  readonly byfRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly byfRequestHeaders?: Record<string, string>;
+  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
 }): Promise<RuntimeConfig> {
   const proxiedFetch = createProxiedFetch({
     envLookup: (key) => process.env[key],
@@ -718,9 +777,9 @@ function serviceCredentials(
   service: ByfServiceConfig,
   resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
 ): {
-  readonly apiKey?: string | undefined;
-  readonly tokenProvider?: BearerTokenProvider | undefined;
-  readonly customHeaders?: Record<string, string> | undefined;
+  readonly apiKey?: string;
+  readonly tokenProvider?: BearerTokenProvider;
+  readonly customHeaders?: Record<string, string>;
 } {
   const apiKey = nonEmptyString(service.apiKey);
   return {

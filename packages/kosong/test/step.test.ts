@@ -98,8 +98,8 @@ describe('step()', () => {
 
     const toolResults = await result.toolResults();
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.toolCallId).toBe('plus#123');
-    expect(toolResults[0]!.returnValue.output).toBe('3');
+    expect(toolResults[0].toolCallId).toBe('plus#123');
+    expect(toolResults[0].returnValue.output).toBe('3');
   });
 
   it('fires onMessagePart and onToolResult callbacks', async () => {
@@ -140,7 +140,7 @@ describe('step()', () => {
 
     expect(toolResults).toHaveLength(1);
     expect(collectedToolResults).toHaveLength(1);
-    expect(collectedToolResults[0]!.toolCallId).toBe('plus#123');
+    expect(collectedToolResults[0].toolCallId).toBe('plus#123');
   });
 
   it('returns empty toolResults when no tool calls', async () => {
@@ -203,8 +203,8 @@ describe('step()', () => {
 
     expect(stepResult.toolCalls).toHaveLength(2);
     expect(toolResults).toHaveLength(2);
-    expect(toolResults[0]!.toolCallId).toBe('call-1');
-    expect(toolResults[1]!.toolCallId).toBe('call-2');
+    expect(toolResults[0].toolCallId).toBe('call-1');
+    expect(toolResults[1].toolCallId).toBe('call-2');
   });
   it('does not dispatch tool calls when provider throws mid-stream', async () => {
     // With deferred dispatch, onToolCall only fires *after* the stream
@@ -434,8 +434,8 @@ describe('step()', () => {
       { id: 'tc-b', args: '{"a":3,"b":4}' },
     ]);
     expect(toolResults).toHaveLength(2);
-    expect(toolResults[0]!.toolCallId).toBe('tc-a');
-    expect(toolResults[1]!.toolCallId).toBe('tc-b');
+    expect(toolResults[0].toolCallId).toBe('tc-a');
+    expect(toolResults[1].toolCallId).toBe('tc-b');
   });
 
   it('handles sync toolset.handle() return', async () => {
@@ -463,7 +463,7 @@ describe('step()', () => {
     const toolResults = await stepResult.toolResults();
 
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.returnValue.output).toBe('sync-result');
+    expect(toolResults[0].returnValue.output).toBe('sync-result');
   });
 
   describe('finishReason propagation', () => {

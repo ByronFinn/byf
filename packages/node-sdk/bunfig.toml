@@ -1,0 +1,12 @@
+# Bun configuration for @byfriends/sdk.
+# The root bunfig.toml is not consulted for modules resolved under this
+# package. agent-core embeds profile/prompt files as raw text via the
+# loaders below — without them DEFAULT_AGENT_PROFILES fails to load.
+# See ../../bunfig.toml for the monorepo-wide rationale.
+[loader]
+".md" = "text"
+".yaml" = "text"
+
+[test]
+# Relative to this package cwd. Mirrors root bunfig test preload (#215).
+preload = ["../../build/test-preload.ts"]

@@ -102,6 +102,12 @@
       }
     },
     {
+      "files": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+      "rules": {
+        "typescript/no-explicit-any": "warn"
+      }
+    },
+    {
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",
@@ -150,8 +156,10 @@
     "coverage/",
     "node_modules/",
     "scripts/",
+    "build/",
     "apps/*/scripts/",
     "packages/*/scripts/",
+    "apps/*/bin/",
     "docs/smoke-archive/",
     "*.generated.ts"
   ]

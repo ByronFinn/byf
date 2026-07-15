@@ -31,6 +31,7 @@ import type { RuntimeConfig } from '../runtime-types';
 import type { SessionSubagentHost } from '../session/subagent-host';
 import type { SkillRegistry } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import { ImageLimits } from '../tools/support/image-limits';
 import { linkAbortSignal } from '../utils/abort';
 import {
   estimateInputBreakdown,
@@ -43,6 +44,7 @@ import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
+import { CronManager } from './cron';
 import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
@@ -76,6 +78,7 @@ export type {
   GoalUsage,
 } from './goal';
 export { GoalMode, MAX_GOAL_OBJECTIVE_LENGTH } from './goal';
+export { CronManager, type CronManagerOptions, type CronTaskSnapshot } from './cron';
 
 export type AgentType = 'main' | 'sub' | 'independent';
 
@@ -115,22 +118,30 @@ export interface AgentConfig {
   readonly type?: AgentType;
   readonly generate?: typeof generate;
   readonly compactionStrategy?: CompactionStrategy;
-  readonly providerManager?: ProviderManager | undefined;
+  readonly providerManager?: ProviderManager;
   readonly sessionId?: string;
-  readonly subagentHost?: SessionSubagentHost | undefined;
+  readonly subagentHost?: SessionSubagentHost;
   readonly mcp?: McpConnectionManager;
   readonly hookEngine?: HookEngine;
   readonly backgroundMaxRunningTasks?: number;
   readonly backgroundSessionDir?: string;
-  readonly permission?: PermissionManagerOptions | undefined;
+  readonly imageLimits?: ImageLimits;
+  readonly permission?: PermissionManagerOptions;
   /** Parent logger; the agent appends its own ctx (agentId already bound by session). */
   readonly log?: Logger;
-  readonly telemetry?: TelemetryClient | undefined;
+  readonly telemetry?: TelemetryClient;
 }
 
 export class Agent {
   readonly runtime: RuntimeConfig;
   readonly homedir?: string;
+  /**
+   * Session-scoped working directory for side files that should follow the
+   * session lifecycle (background task output logs, media-originals cache).
+   * `undefined` when persistence is off — callers fall back to os.tmpdir().
+   */
+  readonly backgroundSessionDir?: string;
+  readonly imageLimits: ImageLimits;
   readonly skills?: SkillManager;
   readonly rawGenerate: typeof generate;
   readonly rpc: SDKAgentRPC;
@@ -153,6 +164,11 @@ export class Agent {
   readonly usage: UsageRecorder;
   readonly tools: ToolManager;
   readonly background: BackgroundManager;
+  /**
+   * Session-scoped cron scheduler. `null` for subagents (they never
+   * schedule; getCronTasks reports an empty list).
+   */
+  readonly cron: CronManager | null;
   readonly replayBuilder: ReplayBuilder;
   readonly log: Logger;
 
@@ -164,6 +180,8 @@ export class Agent {
     this.log = config.log ?? log;
     this.runtime = config.runtime;
     this.homedir = config.homedir;
+    this.backgroundSessionDir = config.backgroundSessionDir;
+    this.imageLimits = config.imageLimits ?? new ImageLimits();
     if (config.skills !== undefined) {
       this.skills = new SkillManager(this, config.skills);
     }
@@ -205,6 +223,8 @@ export class Agent {
       maxRunningTasks: config.backgroundMaxRunningTasks ?? 10,
       sessionDir: config.backgroundSessionDir,
     });
+    // Subagents never host cron tasks — only the main agent does.
+    this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.replayBuilder = new ReplayBuilder(this);
 
     // Register restore handlers after all subsystems are initialized
@@ -259,8 +279,8 @@ export class Agent {
   async askSide(
     query: string,
     options: {
-      readonly signal?: AbortSignal | undefined;
-      readonly queryId?: string | undefined;
+      readonly signal?: AbortSignal;
+      readonly queryId?: string;
     } = {},
   ): Promise<{ readonly queryId: string }> {
     if (query.trim().length === 0) {
@@ -418,6 +438,7 @@ export class Agent {
       this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
+      await this.cron?.loadFromDisk();
       this.turn.finishResume();
       return result;
     } catch (error) {
@@ -490,6 +511,10 @@ export class Agent {
         this.goal.cancel();
         return this.goal.getSnapshot();
       },
+      // Subagents never schedule; report empty so host polls stay uniform.
+      getCronTasks: () => ({ tasks: this.cron?.listTaskSnapshots() ?? [] }),
+      // Host privilege delete (PRD-0024 / ADR-0030) — not tool permission.
+      deleteCronTask: (payload) => this.cron?.deleteCronTask(payload.id) ?? { deleted: false },
       setModel: async (payload) => {
         const previous = this.config.modelAlias;
         const resolved = await this.providerManager?.resolveProviderForModel(payload.model);
@@ -598,7 +623,7 @@ export class Agent {
     });
   }
 
-  private emitRecordsWriteError(error: unknown, record?: AgentRecord | undefined): void {
+  private emitRecordsWriteError(error: unknown, record?: AgentRecord): void {
     const message = error instanceof Error ? error.message : String(error);
     this.log.error('wire record persist failed', {
       agentHomedir: this.homedir,

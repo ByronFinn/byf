@@ -1,6 +1,7 @@
 import type { Logger } from '../../../src/logging';
 import type {
   ExecutableTool,
+  LoopMessageBuilder,
   RunTurnInput,
   LoopHooks,
   LoopLiveEventEmitter,
@@ -8,24 +9,30 @@ import type {
 } from '../../../src/loop/index';
 import { createLoopEventDispatcher, runTurn as runTurnImpl } from '../../../src/loop/index';
 import { CollectingSink, type SinkErrorMode } from './collecting-sink';
-import { FakeLLM, type FakeLLMResponse } from './fake-llm';
+import { FakeLLM, type FakeLLMResponse, type FakeLLMThrowSpec } from './fake-llm';
 import { RecordingContext, type RecordingContextOptions } from './recording-context';
 
 export interface RunTurnOptions {
   readonly responses: readonly FakeLLMResponse[];
-  readonly tools?: readonly ExecutableTool[] | undefined;
-  readonly hooks?: LoopHooks | undefined;
-  readonly log?: Logger | undefined;
-  readonly maxSteps?: number | undefined;
-  readonly turnId?: string | undefined;
-  readonly signal?: AbortSignal | undefined;
-  readonly emitLiveEvent?: LoopLiveEventEmitter | undefined;
-  readonly llmThrowOnIndex?: { index: number; error: unknown } | undefined;
-  readonly llmAbortOnIndex?: { index: number; controller: AbortController } | undefined;
-  readonly llmDelayMs?: number | undefined;
-  readonly systemPrompt?: string | undefined;
-  readonly contextOptions?: RecordingContextOptions | undefined;
-  readonly sinkErrorMode?: SinkErrorMode | undefined;
+  readonly tools?: readonly ExecutableTool[];
+  readonly hooks?: LoopHooks;
+  readonly log?: Logger;
+  readonly maxSteps?: number;
+  readonly turnId?: string;
+  readonly signal?: AbortSignal;
+  readonly emitLiveEvent?: LoopLiveEventEmitter;
+  readonly llmThrowOnIndex?: FakeLLMThrowSpec | readonly FakeLLMThrowSpec[];
+  readonly llmAbortOnIndex?: { index: number; controller: AbortController };
+  readonly llmDelayMs?: number;
+  readonly systemPrompt?: string;
+  readonly contextOptions?: RecordingContextOptions;
+  readonly sinkErrorMode?: SinkErrorMode;
+  /** Media-degraded projection builder (PRD-0023 #240). */
+  readonly buildMessagesMediaDegraded?: LoopMessageBuilder;
+  /** Media-stripped projection builder (PRD-0023 #240). */
+  readonly buildMessagesMediaStripped?: LoopMessageBuilder;
+  /** Override the default RecordingContext message builder. */
+  readonly buildMessages?: LoopMessageBuilder;
 }
 
 export interface RunTurnResult {
@@ -39,6 +46,30 @@ export interface RunTurnResult {
  * Run one turn end-to-end with sensible defaults. Returns the turn result
  * plus the fixture instances so tests can assert against them.
  */
+function buildRunTurnInput(
+  opts: RunTurnOptions,
+  llm: FakeLLM,
+  context: RecordingContext,
+  sink: CollectingSink,
+): RunTurnInput {
+  return {
+    turnId: opts.turnId ?? 'turn-1',
+    signal: opts.signal ?? new AbortController().signal,
+    llm,
+    buildMessages: opts.buildMessages ?? context.buildMessages,
+    buildMessagesMediaDegraded: opts.buildMessagesMediaDegraded,
+    buildMessagesMediaStripped: opts.buildMessagesMediaStripped,
+    dispatchEvent: createLoopEventDispatcher({
+      appendTranscriptRecord: context.appendTranscriptRecord,
+      emitLiveEvent: opts.emitLiveEvent ?? sink.emit,
+    }),
+    tools: opts.tools,
+    hooks: opts.hooks,
+    log: opts.log,
+    maxSteps: opts.maxSteps,
+  };
+}
+
 export async function runTurn(opts: RunTurnOptions): Promise<RunTurnResult> {
   const llm = new FakeLLM({
     responses: opts.responses,
@@ -48,23 +79,8 @@ export async function runTurn(opts: RunTurnOptions): Promise<RunTurnResult> {
     systemPrompt: opts.systemPrompt,
   });
   const context = new RecordingContext(opts.contextOptions ?? {});
-  const fallback = new CollectingSink({ errorMode: opts.sinkErrorMode });
-  const sink = fallback;
-  const input: RunTurnInput = {
-    turnId: opts.turnId ?? 'turn-1',
-    signal: opts.signal ?? new AbortController().signal,
-    llm,
-    buildMessages: context.buildMessages,
-    dispatchEvent: createLoopEventDispatcher({
-      appendTranscriptRecord: context.appendTranscriptRecord,
-      emitLiveEvent: opts.emitLiveEvent ?? fallback.emit,
-    }),
-    tools: opts.tools,
-    hooks: opts.hooks,
-    log: opts.log,
-    maxSteps: opts.maxSteps,
-  };
-  const result = await runTurnImpl(input);
+  const sink = new CollectingSink({ errorMode: opts.sinkErrorMode });
+  const result = await runTurnImpl(buildRunTurnInput(opts, llm, context, sink));
   return { result, llm, context, sink };
 }
 
@@ -86,24 +102,9 @@ export async function runTurnExpectingThrow(opts: RunTurnOptions): Promise<{
     systemPrompt: opts.systemPrompt,
   });
   const context = new RecordingContext(opts.contextOptions ?? {});
-  const fallback = new CollectingSink({ errorMode: opts.sinkErrorMode });
-  const sink = fallback;
-  const input: RunTurnInput = {
-    turnId: opts.turnId ?? 'turn-1',
-    signal: opts.signal ?? new AbortController().signal,
-    llm,
-    buildMessages: context.buildMessages,
-    dispatchEvent: createLoopEventDispatcher({
-      appendTranscriptRecord: context.appendTranscriptRecord,
-      emitLiveEvent: opts.emitLiveEvent ?? fallback.emit,
-    }),
-    tools: opts.tools,
-    hooks: opts.hooks,
-    log: opts.log,
-    maxSteps: opts.maxSteps,
-  };
+  const sink = new CollectingSink({ errorMode: opts.sinkErrorMode });
   try {
-    await runTurnImpl(input);
+    await runTurnImpl(buildRunTurnInput(opts, llm, context, sink));
   } catch (error) {
     return { error, llm, context, sink };
   }

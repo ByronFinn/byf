@@ -26,7 +26,7 @@ type UpdateGoalStatus = (typeof VALID_STATUSES)[number];
 
 export interface UpdateGoalInput {
   readonly status: UpdateGoalStatus;
-  readonly reason?: string | undefined;
+  readonly reason?: string;
 }
 
 export const UpdateGoalInputSchema: z.ZodType<UpdateGoalInput> = z.object({

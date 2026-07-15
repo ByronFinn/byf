@@ -76,7 +76,14 @@ export async function handleVis(
   const target = sessionId === undefined ? '/' : `/sessions/${sessionId}`;
   const url = `${handle.url}${target}`;
   const authToken = process.env['VIS_AUTH_TOKEN'];
-  deps.stdout.write(formatVisStartupBanner({ authToken, host: handle.host, port: handle.port }));
+  deps.stdout.write(
+    formatVisStartupBanner({
+      authToken,
+      host: handle.host,
+      port: handle.port,
+      staticEnabled: handle.staticEnabled,
+    }),
+  );
 
   // Open the browser unless suppressed.
   if (opts.open) {

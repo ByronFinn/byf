@@ -38,10 +38,10 @@ export interface LogEntry {
   readonly t: number;
   readonly level: Exclude<LogLevel, 'off'>;
   readonly msg: string;
-  readonly ctx?: LogContext | undefined;
-  readonly error?: { readonly message: string; readonly stack?: string } | undefined;
-  readonly sessionId?: string | undefined;
-  readonly sessionLogId?: string | undefined;
+  readonly ctx?: LogContext;
+  readonly error?: { readonly message: string; readonly stack?: string };
+  readonly sessionId?: string;
+  readonly sessionLogId?: string;
 }
 
 export interface LoggingConfig {

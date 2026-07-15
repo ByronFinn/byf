@@ -105,6 +105,13 @@ export const BackgroundConfigSchema = z.object({
 
 export type BackgroundConfig = z.infer<typeof BackgroundConfigSchema>;
 
+export const ImageConfigSchema = z.object({
+  maxEdgePx: z.number().int().min(1).optional(),
+  readByteBudget: z.number().int().min(1).optional(),
+});
+
+export type ImageConfig = z.infer<typeof ImageConfigSchema>;
+
 export const HookDefSchema = z
   .object({
     event: z.enum(HOOK_EVENT_TYPES),
@@ -229,6 +236,7 @@ export const ByfConfigSchema = z.object({
   extraSkillDirs: z.array(z.string()).optional(),
   loopControl: LoopControlSchema.optional(),
   background: BackgroundConfigSchema.optional(),
+  image: ImageConfigSchema.optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -240,6 +248,7 @@ const ThinkingConfigPatchSchema = ThinkingConfigSchema.partial();
 const PermissionConfigPatchSchema = PermissionConfigSchema.partial();
 const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
+const ImageConfigPatchSchema = ImageConfigSchema.partial();
 const ByfServiceConfigPatchSchema = ByfServiceConfigSchema.partial();
 const ServicesConfigPatchSchema = z.object({
   webSearch: WebSearchConfigSchema.optional(),
@@ -263,6 +272,7 @@ export const ByfConfigPatchSchema = z
     extraSkillDirs: z.array(z.string()).optional(),
     loopControl: LoopControlPatchSchema.optional(),
     background: BackgroundConfigPatchSchema.optional(),
+    image: ImageConfigPatchSchema.optional(),
   })
   .strict();
 

@@ -5,7 +5,7 @@ import type { TUIState } from '#/tui/types';
 
 export interface TerminalNotification {
   readonly title: string;
-  readonly body?: string | undefined;
+  readonly body?: string;
 }
 
 export interface EmitOptions {

@@ -6,11 +6,11 @@ import { syncDir } from '../../utils/fs';
 import { type AgentRecord, type AgentRecordPersistence } from './types';
 
 export interface FileSystemAgentRecordPersistenceOptions {
-  readonly onError?: ((error: unknown) => void) | undefined;
+  readonly onError?: (error: unknown) => void;
 }
 
 export interface InMemoryAgentRecordPersistenceOptions {
-  readonly onRecord?: ((record: AgentRecord) => void) | undefined;
+  readonly onRecord?: (record: AgentRecord) => void;
 }
 
 export class InMemoryAgentRecordPersistence implements AgentRecordPersistence {

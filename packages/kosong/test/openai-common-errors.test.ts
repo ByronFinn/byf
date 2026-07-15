@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   APIConnectionError,
   APIContextOverflowError,
+  APIProviderRateLimitError,
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
@@ -106,6 +107,31 @@ describe('convertOpenAIError: context overflow', () => {
     const result = convertOpenAIError(err);
     expect(result).toBeInstanceOf(APIContextOverflowError);
     expect((result as APIContextOverflowError).statusCode).toBe(413);
+  });
+});
+describe('convertOpenAIError: Retry-After header → APIProviderRateLimitError', () => {
+  it('threads the Retry-After header (seconds) into retryAfterMs for a 429', () => {
+    // The OpenAI SDK exposes response headers on APIError.headers (Headers).
+    // convertOpenAIError must parse `retry-after` and surface it on the
+    // resulting APIProviderRateLimitError so the retry loop can honor it.
+    const headers = new Headers({ 'retry-after': '30' });
+    const err = new OpenAIAPIError(429, { message: 'Too many requests' }, 'rate limited', headers);
+    const result = convertOpenAIError(err);
+    expect(result).toBeInstanceOf(APIProviderRateLimitError);
+    expect((result as APIProviderRateLimitError).retryAfterMs).toBe(30_000);
+    expect((result as APIProviderRateLimitError).statusCode).toBe(429);
+  });
+
+  it('leaves retryAfterMs null when the 429 response has no Retry-After header', () => {
+    const err = new OpenAIAPIError(
+      429,
+      { message: 'Too many requests' },
+      'rate limited',
+      new Headers(),
+    );
+    const result = convertOpenAIError(err);
+    expect(result).toBeInstanceOf(APIProviderRateLimitError);
+    expect((result as APIProviderRateLimitError).retryAfterMs).toBeNull();
   });
 });
 describe('convertOpenAIError: subclass errors still match first', () => {

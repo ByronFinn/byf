@@ -222,8 +222,8 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text: string }>;
       expect(arr).toHaveLength(1);
-      expect(arr[0]!.type).toBe('text');
-      expect(arr[0]!.text).toBe('hello' + REMINDER_TEXT_1);
+      expect(arr[0].type).toBe('text');
+      expect(arr[0].text).toBe('hello' + REMINDER_TEXT_1);
     });
 
     it('appends reminder2 to a trailing text part at streak 5', async () => {
@@ -242,8 +242,8 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text: string }>;
       expect(arr).toHaveLength(1);
-      expect(arr[0]!.type).toBe('text');
-      expect(arr[0]!.text).toBe('hello' + makeReminderText2('X', 5, { a: 1 }));
+      expect(arr[0].type).toBe('text');
+      expect(arr[0].text).toBe('hello' + makeReminderText2('X', 5, { a: 1 }));
     });
 
     it('pushes a new text part when trailing part is non-text', async () => {
@@ -262,9 +262,9 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text?: string }>;
       expect(arr).toHaveLength(2);
-      expect(arr[0]!.type).toBe('image_url');
-      expect(arr[1]!.type).toBe('text');
-      expect(arr[1]!.text).toBe(REMINDER_TEXT_1);
+      expect(arr[0].type).toBe('image_url');
+      expect(arr[1].type).toBe('text');
+      expect(arr[1].text).toBe(REMINDER_TEXT_1);
     });
 
     it('preserves isError flag when injecting reminder', async () => {

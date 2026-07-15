@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   FeedbackInputDialogComponent,
@@ -15,8 +15,12 @@ function strip(text: string): string {
   return text.replaceAll(ANSI_RE, '');
 }
 
+const previousChalkLevel = chalk.level;
 beforeAll(() => {
   chalk.level = 3;
+});
+afterAll(() => {
+  chalk.level = previousChalkLevel;
 });
 
 function makeDialog(): {
@@ -50,7 +54,7 @@ describe('FeedbackInputDialogComponent', () => {
     const { dialog } = makeDialog();
     const rendered = dialog.render(60).join('\n');
     const sample = chalk.hex(darkColors.primary)('x');
-    const ansiOpen = sample.split('x')[0]!;
+    const ansiOpen = sample.split('x')[0];
     expect(rendered).toContain(`${ansiOpen}╭`);
     expect(rendered).toContain(`${ansiOpen}╰`);
   });

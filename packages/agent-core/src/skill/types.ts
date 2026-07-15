@@ -1,13 +1,13 @@
 export type SkillSource = 'project' | 'user' | 'extra' | 'builtin';
 
 export interface SkillMetadata {
-  readonly name?: string | undefined;
-  readonly description?: string | undefined;
-  readonly type?: string | undefined;
-  readonly whenToUse?: string | undefined;
-  readonly disableModelInvocation?: boolean | undefined;
-  readonly safe?: boolean | undefined;
-  readonly arguments?: readonly unknown[] | string | undefined;
+  readonly name?: string;
+  readonly description?: string;
+  readonly type?: string;
+  readonly whenToUse?: string;
+  readonly disableModelInvocation?: boolean;
+  readonly safe?: boolean;
+  readonly arguments?: readonly unknown[] | string;
   readonly [key: string]: unknown;
 }
 
@@ -19,7 +19,7 @@ export interface SkillDefinition {
   readonly content: string;
   readonly metadata: SkillMetadata;
   readonly source: SkillSource;
-  readonly mermaid?: string | undefined;
+  readonly mermaid?: string;
   readonly d2?: string;
 }
 
@@ -28,8 +28,8 @@ export interface SkillSummary {
   readonly description: string;
   readonly path: string;
   readonly source: SkillSource;
-  readonly type?: string | undefined;
-  readonly disableModelInvocation?: boolean | undefined;
+  readonly type?: string;
+  readonly disableModelInvocation?: boolean;
 }
 
 export interface SkillRoot {

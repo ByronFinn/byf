@@ -27,7 +27,7 @@ describe('e2e: extreme streaming scenarios', () => {
 
       // Single merged text part.
       expect(result.message.content).toHaveLength(1);
-      expect(result.message.content[0]!.type).toBe('text');
+      expect(result.message.content[0].type).toBe('text');
 
       const text = extractText(result.message);
       expect(text.length).toBe(count);
@@ -52,19 +52,19 @@ describe('e2e: extreme streaming scenarios', () => {
 
       // 4 merged blocks (2 text, 2 think) appearing in order.
       expect(result.message.content).toHaveLength(4);
-      expect(result.message.content[0]!.type).toBe('text');
-      expect(result.message.content[1]!.type).toBe('think');
-      expect(result.message.content[2]!.type).toBe('text');
-      expect(result.message.content[3]!.type).toBe('think');
+      expect(result.message.content[0].type).toBe('text');
+      expect(result.message.content[1].type).toBe('think');
+      expect(result.message.content[2].type).toBe('text');
+      expect(result.message.content[3].type).toBe('think');
 
       // Each block carries exactly 2500 characters.
-      const c0 = result.message.content[0]!;
-      const c2 = result.message.content[2]!;
+      const c0 = result.message.content[0];
+      const c2 = result.message.content[2];
       expect(c0.type === 'text' && c0.text.length === 2500).toBe(true);
       expect(c2.type === 'text' && c2.text.length === 2500).toBe(true);
 
-      const c1 = result.message.content[1]!;
-      const c3 = result.message.content[3]!;
+      const c1 = result.message.content[1];
+      const c3 = result.message.content[3];
       expect(c1.type === 'think' && c1.think.length === 2500).toBe(true);
       expect(c3.type === 'think' && c3.think.length === 2500).toBe(true);
     });
@@ -106,7 +106,7 @@ describe('e2e: extreme streaming scenarios', () => {
       // arguments and NO cross-contamination.
       expect(result.message.toolCalls).toHaveLength(n);
       for (let i = 0; i < n; i++) {
-        const tc = result.message.toolCalls[i]!;
+        const tc = result.message.toolCalls[i];
         expect(tc.id).toBe(`tc_${i}`);
         expect(tc.name).toBe('f');
         expect(tc.arguments).toBe(`{"i":${i}}`);
@@ -138,7 +138,7 @@ describe('e2e: extreme streaming scenarios', () => {
       const elapsed = Date.now() - t0;
 
       expect(result.message.toolCalls).toHaveLength(1);
-      const args = result.message.toolCalls[0]!.arguments;
+      const args = result.message.toolCalls[0].arguments;
       if (args === null) {
         throw new Error('Expected assembled tool-call arguments');
       }
@@ -178,7 +178,7 @@ describe('e2e: extreme streaming scenarios', () => {
 
       expect(result.message.toolCalls).toHaveLength(n);
       for (let i = 0; i < n; i++) {
-        const tc = result.message.toolCalls[i]!;
+        const tc = result.message.toolCalls[i];
         // Assembled args preserve the per-call routing contract.
         expect(tc.arguments).toBe(`{"idx":${i}}`);
       }

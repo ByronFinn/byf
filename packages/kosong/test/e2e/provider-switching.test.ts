@@ -125,8 +125,8 @@ describe('e2e: provider switching', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.content).toHaveLength(2);
-      expect(result.message.content[0]!.type).toBe('think');
-      expect(result.message.content[1]!.type).toBe('text');
+      expect(result.message.content[0].type).toBe('think');
+      expect(result.message.content[1].type).toBe('text');
       expect(extractText(result.message)).toBe('answer');
     });
   });

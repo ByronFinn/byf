@@ -60,6 +60,7 @@ export {
   renderStatusLine,
 } from '@byfriends/agent-core';
 export { MAX_GOAL_OBJECTIVE_LENGTH } from '@byfriends/agent-core';
+export { compressImageForModel, ImageLimits } from '@byfriends/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-core';
 
 export * from '#/events';

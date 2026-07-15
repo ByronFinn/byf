@@ -6,7 +6,7 @@ import type { PermissionMode, PermissionRule, PermissionRuleDecision } from './t
 export interface CheckRulesResult {
   readonly decision: PermissionRuleDecision;
   /** Rule that produced `decision`. `undefined` for mode/default auto-allow. */
-  readonly matchedRule?: PermissionRule | undefined;
+  readonly matchedRule?: PermissionRule;
 }
 
 export function checkMatchingRules(

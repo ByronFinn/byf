@@ -32,8 +32,18 @@ export const PROVIDER_TYPE_VALUES = Object.keys(webSearchProviderRegistry) as [
 
 // ── Runtime provider class registry ──────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ProviderConstructor = new (...args: any[]) => WebSearchProvider;
+/**
+ * Constructor options shared by every builtin web-search provider. Each
+ * provider's own options interface is structurally identical to this, so the
+ * concrete classes satisfy {@link ProviderConstructor} without `any`.
+ */
+export interface WebSearchProviderOptions {
+  apiKeys: string[];
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}
+
+type ProviderConstructor = new (options: WebSearchProviderOptions) => WebSearchProvider;
 
 const providerClassMap = new Map<ProviderType, ProviderConstructor>();
 
@@ -43,7 +53,7 @@ export function registerProvider(type: ProviderType, cls: ProviderConstructor): 
 
 export function createProvider(
   type: ProviderType,
-  options: Record<string, unknown>,
+  options: WebSearchProviderOptions,
 ): WebSearchProvider {
   const cls = providerClassMap.get(type);
   if (cls === undefined) {

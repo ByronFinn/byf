@@ -23,7 +23,7 @@ export interface AudioURLPart {
 
 export interface VideoURLPart {
   type: 'video_url';
-  videoUrl: { url: string; id?: string | undefined };
+  videoUrl: { url: string; id?: string };
 }
 
 /**

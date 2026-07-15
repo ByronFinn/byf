@@ -63,13 +63,37 @@ Main directories:
 
 If a section keeps growing, split pure functions, state projections, presentation components, and handler logic into the corresponding directories rather than continuing to expand `ByfTUI`.
 
+## ByfTui Size Budget
+
+`byf-tui.ts` is a composition root, not a feature dumping ground. It has a history of creeping back up after each refactor (3916 → 4164 → 4289 → 4178 → ~3893 after H1-a slash migration → **3819** after DialogManager / narrow host polish, measured 2026-07-11), so the following budget governs every change to it.
+
+**Baseline and target.** Honest baseline today: **3819 lines** (measured 2026-07-11, post PRD-0021 H1-a + DialogManager polish). Long-term honest target: ~2800 lines (per PRD-0008 H1 and ADR-0017). "Honest" means we do not chase a number by creating parasitic pass-through classes; stateful logic that genuinely belongs to the root stays in the root. See `docs/architecture-debt-roadmap.md` for the full governance rationale.
+
+**Net-zero growth rule.** A new TUI feature must not cause `byf-tui.ts` to grow net. Default to sinking logic out of the root:
+
+- Stateful interactive flows (overlays, multi-step dialogs, side queries) → an independent Controller/Manager that takes `TUIState` + a narrow host interface by constructor injection, never a reference to the full `ByfTui` instance. See `DialogManager` and `BtwController` as the reference patterns.
+- Pure logic with no UI-state dependency → `actions/` or `utils/`.
+- Event handling → `events/` (one module per concern).
+- Slash command parsing/grammar → `commands/`.
+
+**Allowed to stay in the root** (these are genuinely root responsibilities; extracting them creates shallow wrappers or parasitic classes, violating ADR-0017's "no pass-through module" rule):
+
+- `setupEditorHandlers` — the Ctrl-C / Ctrl-D / Ctrl-S state machine reads and writes `pendingExit`, `cancelInFlight`, and `cancelCurrentStream`; it is the coupling surface between the editor component and the `ByfTui` lifecycle.
+- Streaming-rendering `*Callbacks()` assemblies — behavior adapters binding `ByfTui` methods with inline logic (e.g. `notifyTurnComplete`); they have real encapsulation value, unlike pure field forwarders.
+- Session lifecycle (`start`/`init`/`stop`), layout/`buildLayout`, input dispatch, send/queue logic.
+- Simple 3–5 line slash commands (direct delegation to an existing controller or a one-liner).
+
+**Enforcement — structural rule.** A new TUI feature must **not** land as a new private method on `byf-tui.ts`. It must go through an already-extracted controller/registry pattern — a `Controller`/`Manager` that takes `TUIState` + a narrow host interface by constructor injection (`BtwController`, `DialogManager` as reference), a pure function under `actions/`/`utils/`, an `events/` module, or a `commands/` module. The only exceptions are the "Allowed to stay in the root" items above. When adding a slash command whose handler exceeds ~20 lines or holds cross-call state, extract it into its own module first, then register it. A PR touching `byf-tui.ts` should state the net line-count impact in its description.
+
+The first concrete application of this rule is **slash handler registry-ization** (H1-a, delivered in PRD-0021): `handleBuiltInSlashCommand` is a Map dispatch over group-based command-modules under `commands/handlers/`, each receiving a narrow `SlashCommandHost` interface (never a full `ByfTui` reference). New commands are added by registration, not by growing a switch.
+
 ## Where New Features Go
 
 The feature type decides where it lands:
 
 - New CLI arguments: change `src/cli/commands.ts` / `src/cli/options.ts`, then pass them into the TUI via `src/cli/run-shell.ts`. Do not let the CLI operate on the session directly.
 - New CLI subcommands: put them under `src/cli/sub/`, with non-interactive command logic only; when SDK access is needed, go through `@byfriends/sdk`.
-- New slash commands: first change definition, parsing, and types under `src/tui/commands/`; put the execution entry into the slash-command handler section of `ByfTUI`; split complex execution logic into `actions` or `utils`.
+- New slash commands: first change definition, parsing, and types under `src/tui/commands/`; register the handler under `src/tui/commands/handlers/` (group module + `SlashCommandHost`); split complex execution logic into `actions` or `utils`. Do not add a new private method on `byf-tui.ts` for the handler body.
   - `/btw` is the side-query command: it opens a `BtwViewer` overlay (`src/tui/components/dialogs/btw-viewer.ts`) that streams an answer from a read-only snapshot of the conversation. The handler generates a `queryId`, passes it to `Session.askSide`, and cancels the in-flight query via `Session.cancelSideQuery` when the overlay closes.
 - New skill-derived commands: hook into `buildSkillSlashCommands` / the skill command map — do not hard-code a single skill.
 - New transcript message types: define the data shape in `src/tui/types.ts`, add or extend a component under `components/messages/`, and register the renderer in `createTranscriptComponent`.

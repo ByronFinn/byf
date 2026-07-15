@@ -20,25 +20,25 @@ export interface DiffDisplayBlock {
   path: string;
   old_text: string;
   new_text: string;
-  old_start?: number | undefined;
-  new_start?: number | undefined;
-  is_summary?: boolean | undefined;
+  old_start?: number;
+  new_start?: number;
+  is_summary?: boolean;
 }
 
 export interface ShellDisplayBlock {
   type: 'shell';
   language: string;
   command: string;
-  cwd?: string | undefined;
-  description?: string | undefined;
-  danger?: string | undefined;
+  cwd?: string;
+  description?: string;
+  danger?: string;
 }
 
 export interface FileOpDisplayBlock {
   type: 'file_op';
   operation: 'read' | 'write' | 'edit' | 'glob' | 'grep';
   path: string;
-  detail?: string | undefined;
+  detail?: string;
 }
 
 /** Full file content preview for Write — a code block, not a diff. */
@@ -46,26 +46,26 @@ export interface FileContentDisplayBlock {
   type: 'file_content';
   path: string;
   content: string;
-  language?: string | undefined;
+  language?: string;
 }
 
 export interface UrlFetchDisplayBlock {
   type: 'url_fetch';
   url: string;
-  method?: string | undefined;
+  method?: string;
 }
 
 export interface SearchDisplayBlock {
   type: 'search';
   query: string;
-  scope?: string | undefined;
+  scope?: string;
 }
 
 export interface InvocationDisplayBlock {
   type: 'invocation';
   kind: 'agent' | 'skill';
   name: string;
-  description?: string | undefined;
+  description?: string;
 }
 
 export interface TodoDisplayItem {
@@ -101,8 +101,8 @@ export type DisplayBlock =
 export interface ApprovalPanelChoice {
   label: string;
   response: 'approved' | 'approved_for_session' | 'rejected' | 'cancelled';
-  selected_label?: string | undefined;
-  requires_feedback?: boolean | undefined;
+  selected_label?: string;
+  requires_feedback?: boolean;
 }
 
 // ── Approval / Question view payloads ────────────────────────────────
@@ -137,7 +137,7 @@ export type QuestionSubmissionMethod = QuestionAnswerMethod;
 
 export interface QuestionPanelResponse {
   readonly answers: string[];
-  readonly method?: QuestionSubmissionMethod | undefined;
+  readonly method?: QuestionSubmissionMethod;
 }
 
 // ── Pending state wrappers ───────────────────────────────────────────

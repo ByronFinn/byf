@@ -23,7 +23,7 @@ A few environment variables explicitly override related config fields. For examp
 Ordinary runtime parameters **do not** fall back to shell environment variables. For example, provider `api_key` / `base_url` are read only from fields in `config.toml` (including the `[providers.<name>.env]` subtable); they do not fall back to shell exports like `export BYF_API_KEY`. See [Provider credentials](#provider-credentials) below.
 :::
 
-BYF currently reads only one user-level config file. There is no project-level (in-repo) config file mechanism. To isolate configuration between projects, point `BYF_HOME` at a different data directory (see [Typical scenarios](#typical-scenarios) below) or temporarily override specific fields with CLI flags at launch.
+BYF’s main preferences live in one user-level config file (`$BYF_HOME/config.toml`). A separate project-local file, `<project-root>/.byf/local.toml`, may store workspace roots only (`workspace.additional_dir`); it is not a full project override of providers or models. To isolate the full user config between projects, point `BYF_HOME` at a different data directory (see [Typical scenarios](#typical-scenarios) below) or temporarily override specific fields with CLI flags at launch. See [Config files — Project-local config](./config-files.md#project-local-config-byflocaltoml).
 
 ## Config file
 

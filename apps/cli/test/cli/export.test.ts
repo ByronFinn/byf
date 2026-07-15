@@ -60,7 +60,7 @@ vi.mock('@byfriends/sdk', () => {
       getConfig = mocks.harnessGetConfig;
       track = mocks.harnessTrack;
       constructor(...args: unknown[]) {
-        const options = args[0] as { readonly homeDir?: string } | undefined;
+        const options = args[0] as { readonly homeDir?: string };
         this.homeDir = options?.homeDir ?? '/tmp/byf-export-home';
         if (mocks.harnessCreatesDeviceIdOnConstruction) {
           mocks.createByfDeviceId(this.homeDir);
@@ -329,7 +329,9 @@ describe('byf export', () => {
     await program.parseAsync(['node', 'byf', 'export', '--no-include-global-log', '-y']);
 
     expect(exitCodes).toEqual([]);
-    expect(exportInputs).toEqual([{ id: 'ses_global_log', version: '1.0.0-test' }]);
+    expect(exportInputs).toEqual([
+      { id: 'ses_global_log', version: '1.0.0-test', includeGlobalLog: false },
+    ]);
     expect(stdout.join('').trim()).toBe(join(tmp, 'ses_global_log.zip'));
   });
 
@@ -352,7 +354,7 @@ describe('byf export', () => {
 
     expect(exitCodes).toEqual([]);
     expect(exportInputs).toEqual([
-      { id: 'ses_after_id', outputPath: output, version: '1.0.0-test' },
+      { id: 'ses_after_id', outputPath: output, version: '1.0.0-test', includeGlobalLog: false },
     ]);
   });
 });

@@ -329,7 +329,7 @@ describe('PriorityRouter', () => {
     const router = new PriorityRouter([p1, p2]);
     const results = await router.search('test');
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('From P1');
+    expect(results[0].title).toBe('From P1');
     expect(p2.search).not.toHaveBeenCalled();
   });
 
@@ -343,7 +343,7 @@ describe('PriorityRouter', () => {
     const router = new PriorityRouter([p1, p2]);
     const results = await router.search('test');
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('Fallback');
+    expect(results[0].title).toBe('Fallback');
     expect(p1.search).toHaveBeenCalledTimes(1);
     expect(p2.search).toHaveBeenCalledTimes(1);
   });
@@ -405,7 +405,7 @@ describe('PriorityRouter', () => {
     const router = new PriorityRouter([p5, p10]);
     const results = await router.search('test');
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('P5 wins');
+    expect(results[0].title).toBe('P5 wins');
   });
 });
 
@@ -458,11 +458,11 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
     expect(results).toHaveLength(1);
-    expect(results[0]!.title).toBe('Exa Result');
-    expect(results[0]!.url).toBe('https://exa.example/page');
-    expect(results[0]!.snippet).toBe('Full content text for checking snippet and content mapping');
-    expect(results[0]!.content).toBe('Full content text for checking snippet and content mapping');
-    expect(results[0]!.date).toBe('2025-03-15');
+    expect(results[0].title).toBe('Exa Result');
+    expect(results[0].url).toBe('https://exa.example/page');
+    expect(results[0].snippet).toBe('Full content text for checking snippet and content mapping');
+    expect(results[0].content).toBe('Full content text for checking snippet and content mapping');
+    expect(results[0].date).toBe('2025-03-15');
   });
 
   it('maps highlights[0] to snippet when includeContent=false', async () => {
@@ -477,9 +477,9 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: false });
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet).toBe('Highlighted relevant snippet');
-    expect(results[0]!.content).toBeUndefined();
-    expect(results[0]!.date).toBe('2025-03-15');
+    expect(results[0].snippet).toBe('Highlighted relevant snippet');
+    expect(results[0].content).toBeUndefined();
+    expect(results[0].date).toBe('2025-03-15');
   });
 
   it('snippet from highlights is truncated to 300 chars', async () => {
@@ -490,7 +490,7 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet.length).toBe(300);
+    expect(results[0].snippet.length).toBe(300);
   });
 
   it('snippet from text is truncated to 300 chars when includeContent=true', async () => {
@@ -501,8 +501,8 @@ describe('ExaWebSearchProvider', () => {
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
     expect(results).toHaveLength(1);
-    expect(results[0]!.snippet.length).toBe(300);
-    expect(results[0]!.content!.length).toBe(500);
+    expect(results[0].snippet.length).toBe(300);
+    expect(results[0].content!.length).toBe(500);
   });
 
   it('snippet is empty string when highlights array is empty', async () => {
@@ -511,14 +511,14 @@ describe('ExaWebSearchProvider', () => {
     ]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
-    expect(results[0]!.snippet).toBe('');
+    expect(results[0].snippet).toBe('');
   });
 
   it('snippet is empty string when highlights is undefined', async () => {
     const fetchImpl = exaFetchOk([{ title: 'No Highlights', url: 'https://exa.example/no' }]);
     const provider = new ExaWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
-    expect(results[0]!.snippet).toBe('');
+    expect(results[0].snippet).toBe('');
   });
 
   it('throws errors with convention: "Exa search failed: HTTP {status}"', async () => {
@@ -568,9 +568,9 @@ describe('BraveWebSearchProvider', () => {
     ]);
     const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
-    expect(results[0]!.title).toBe('Brave Result');
-    expect(results[0]!.snippet).toBe('A description');
-    expect(results[0]!.date).toBe('2025-03-15');
+    expect(results[0].title).toBe('Brave Result');
+    expect(results[0].snippet).toBe('A description');
+    expect(results[0].date).toBe('2025-03-15');
   });
 
   it('content is always undefined (Brave does not return full text)', async () => {
@@ -579,7 +579,7 @@ describe('BraveWebSearchProvider', () => {
     ]);
     const provider = new BraveWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
-    expect(results[0]!.content).toBeUndefined();
+    expect(results[0].content).toBeUndefined();
   });
 
   it('throws errors with convention: "Brave search failed: HTTP {status}"', async () => {
@@ -632,10 +632,10 @@ describe('FirecrawlWebSearchProvider', () => {
     ]);
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test');
-    expect(results[0]!.title).toBe('FC Result');
-    expect(results[0]!.snippet).toBe('FC snippet');
-    expect(results[0]!.date).toBeUndefined();
-    expect(results[0]!.content).toBeUndefined();
+    expect(results[0].title).toBe('FC Result');
+    expect(results[0].snippet).toBe('FC snippet');
+    expect(results[0].date).toBeUndefined();
+    expect(results[0].content).toBeUndefined();
   });
 
   it('maps markdown to content when includeContent is true', async () => {
@@ -649,9 +649,9 @@ describe('FirecrawlWebSearchProvider', () => {
     ]);
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
-    expect(results[0]!.title).toBe('FC Content');
-    expect(results[0]!.snippet).toBe('FC snippet');
-    expect(results[0]!.content).toBe('# Full\n\nMarkdown content');
+    expect(results[0].title).toBe('FC Content');
+    expect(results[0].snippet).toBe('FC snippet');
+    expect(results[0].content).toBe('# Full\n\nMarkdown content');
   });
 
   it('markdown null does not set content (even with includeContent=true)', async () => {
@@ -665,8 +665,8 @@ describe('FirecrawlWebSearchProvider', () => {
     ]);
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
-    expect(results[0]!.content).toBeUndefined();
-    expect(results[0]!.snippet).toBe('snippet only');
+    expect(results[0].content).toBeUndefined();
+    expect(results[0].snippet).toBe('snippet only');
   });
 
   it('markdown undefined does not set content (even with includeContent=true)', async () => {
@@ -679,7 +679,7 @@ describe('FirecrawlWebSearchProvider', () => {
     ]);
     const provider = new FirecrawlWebSearchProvider({ apiKeys: ['test-key'], fetchImpl });
     const results = await provider.search('test', { includeContent: true });
-    expect(results[0]!.content).toBeUndefined();
+    expect(results[0].content).toBeUndefined();
   });
 
   it('throws errors with convention: "Firecrawl search failed: HTTP {status}"', async () => {

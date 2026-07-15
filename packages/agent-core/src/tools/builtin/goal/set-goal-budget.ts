@@ -43,9 +43,9 @@ const BudgetPatchSchema = z
   );
 
 export interface SetGoalBudgetInput {
-  readonly turn_budget?: number | undefined;
-  readonly token_budget?: number | undefined;
-  readonly wall_clock_budget_ms?: number | undefined;
+  readonly turn_budget?: number;
+  readonly token_budget?: number;
+  readonly wall_clock_budget_ms?: number;
 }
 
 export const SetGoalBudgetInputSchema: z.ZodType<SetGoalBudgetInput> = z.object({

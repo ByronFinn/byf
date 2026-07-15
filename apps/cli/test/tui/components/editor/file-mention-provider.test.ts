@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, it, expect } from 'vitest';
 
 import { FileMentionProvider } from '#/tui/components/editor/file-mention-provider';
@@ -211,5 +215,52 @@ describe('FileMentionProvider — @ prefix detection + git-backed suggestions', 
     const result = await provider.getSuggestions(['@foo'], 0, 4, { signal: ctrl() });
     // pi-tui readdir on a nonexistent basePath returns [] → null.
     expect(result).toBeNull();
+  });
+
+  // Regression: when `fd` is absent AND the dir is not a git repo, pi-tui's
+  // `@` branch returns [] (it requires fd) and the menu silently never
+  // appeared. FileMentionProvider now walks the work dir itself.
+  describe('readdir fallback (no fd, non-git dir)', () => {
+    function makeTempRepo(): string {
+      const root = mkdtempSync(join(tmpdir(), 'byf-readdir-'));
+      writeFileSync(join(root, 'readme.md'), 'x');
+      writeFileSync(join(root, 'a.ts'), 'x');
+      mkdirSync(join(root, 'src'));
+      writeFileSync(join(root, 'src', 'b.ts'), 'x');
+      // build-noise dirs that should be skipped by the walk
+      mkdirSync(join(root, 'node_modules'));
+      writeFileSync(join(root, 'node_modules', 'dep.js'), 'x');
+      return root;
+    }
+
+    it('bare @ lists files from the work dir via readdir', async () => {
+      const root = makeTempRepo();
+      const provider = new FileMentionProvider([], root, NO_FD, stubGitCache(null));
+      const result = await provider.getSuggestions(['@'], 0, 1, { signal: ctrl() });
+      expect(result).not.toBeNull();
+      const values = result!.items.map((i) => i.value);
+      expect(values).toContain('@a.ts');
+      expect(values).toContain('@readme.md');
+      expect(values).toContain('@src/b.ts');
+      // node_modules contents must not leak through.
+      expect(values.some((v) => v.includes('node_modules'))).toBe(false);
+    });
+
+    it('non-empty query ranks basename-prefix matches first', async () => {
+      const root = makeTempRepo();
+      const provider = new FileMentionProvider([], root, NO_FD, stubGitCache(null));
+      const result = await provider.getSuggestions(['@read'], 0, 5, { signal: ctrl() });
+      expect(result).not.toBeNull();
+      const values = result!.items.map((i) => i.value);
+      // readme.md basename starts with "read" → cat 0, ranks first.
+      expect(values[0]).toBe('@readme.md');
+    });
+
+    it('returns null for an empty non-git dir (no files to offer)', async () => {
+      const empty = mkdtempSync(join(tmpdir(), 'byf-empty-'));
+      const provider = new FileMentionProvider([], empty, NO_FD, stubGitCache(null));
+      const result = await provider.getSuggestions(['@'], 0, 1, { signal: ctrl() });
+      expect(result).toBeNull();
+    });
   });
 });

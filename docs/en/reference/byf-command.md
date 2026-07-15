@@ -11,17 +11,18 @@ byf <subcommand> [options]
 
 The table below lists all options supported by the `byf` main command. All flags are optional — running `byf` on its own is enough to enter an interactive session.
 
-| Option                     | Short | Description                                                                                                                                                                                                                         |
-| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--version`                | `-V`  | Print the version number and exit.                                                                                                                                                                                                  |
-| `--help`                   | `-h`  | Show help information and exit.                                                                                                                                                                                                     |
-| `--session [id]`           | `-S`  | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions.                                                                                  |
-| `--continue`               | `-C`  | Continue the most recent session in the current working directory, without manually specifying an ID.                                                                                                                               |
-| `--model <model>`          | `-m`  | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model.                                                                   |
-| `--prompt <prompt>`        | `-p`  | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI.                                                                                  |
-| `--output-format <format>` |       | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`.                                                                                               |
-| `--yolo`                   | `-y`  | Auto-approve ordinary tool calls, skipping approval requests.                                                                                                                                                                       |
-| `--skills-dir <dir>`       |       | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below. |
+| Option                     | Short | Description                                                                                                                                                                                                                                                |
+| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`                | `-V`  | Print the version number and exit.                                                                                                                                                                                                                         |
+| `--help`                   | `-h`  | Show help information and exit.                                                                                                                                                                                                                            |
+| `--session [id]`           | `-S`  | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions.                                                                                                         |
+| `--continue`               | `-C`  | Continue the most recent session in the current working directory, without manually specifying an ID.                                                                                                                                                      |
+| `--model <model>`          | `-m`  | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model.                                                                                          |
+| `--prompt <prompt>`        | `-p`  | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI. See [Non-interactive execution](#non-interactive-execution) for exit conditions and headless goal mode. |
+| `--output-format <format>` |       | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`.                                                                                                                      |
+| `--add-dir <dir>`          |       | Add an extra workspace root (allowed for Read/Grep/Glob/Write/Edit/etc.). Can be repeated. Relative paths resolve against the current working directory. Also loaded from project `.byf/local.toml` when present.                                          |
+| `--yolo`                   | `-y`  | Auto-approve ordinary tool calls, skipping approval requests.                                                                                                                                                                                              |
+| `--skills-dir <dir>`       |       | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below.                        |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo`. They do not appear in the help output and behave identically to their official counterparts.
 
@@ -94,6 +95,48 @@ byf -p "Summarize the current repository status"
 ```
 
 Output uses transcript-style blocks: thinking and assistant text start with `• `, with continuation lines indented by two spaces. Assistant text is written to stdout; thinking, tool progress, and the `To resume this session: byf -r <id>` hint are written to stderr. Prompt mode does not wait for manual approvals: ordinary tool calls, Plan approvals, and agent questions follow the `auto` permission policy. Static deny rules still block matching tool calls.
+
+### When `-p` exits
+
+Print mode does **not** exit on the first `turn.ended` alone. The process stays up until all of the following are true:
+
+1. The main agent has no **active** autonomous goal (or the goal has reached a terminal status).
+2. There is no session-scoped cron task with a future `nextFireAt`.
+3. Background tasks have finished, or the print wait ceiling has elapsed (default **3600** seconds via `printWaitCeilingS` / `BYF_PRINT_WAIT_CEILING_S`). If tasks are still running after the ceiling, the process exits with a **non-zero** code without killing them.
+
+::: warning Periodic cron keeps `-p` alive
+If the model creates a **recurring** (or otherwise future-firing) session cron job during a `-p` run, the process **holds the event loop indefinitely** until every such task has no future fire, or until you kill the process externally. Prefer one-shot cron jobs in scripts, or avoid creating cron from `-p` if you need a finite CI step.
+:::
+
+### Headless goal mode
+
+You can create and drive a goal without the TUI:
+
+```sh
+byf -p "/goal Fix all lint errors in packages/agent-core"
+```
+
+Only the **create** form of `/goal` is handled specially. Malformed creates (for example `/goal replace` with an empty objective) fail **before** the model is called and exit non-zero. Other `/goal` subcommands (`status`, `pause`, …) are not headless create paths and fall through as ordinary prompts.
+
+After the goal finishes, print mode maps the terminal status to the process exit code:
+
+| Goal status | Exit code |
+| ----------- | --------- |
+| `complete`  | `0`       |
+| `blocked`   | `3`       |
+| `paused`    | `6`       |
+
+With `--output-format stream-json`, a final `goal.summary` JSON object is written to stdout; in text mode a short summary line goes to stderr.
+
+### Extra workspace roots
+
+To allow tools to read or write outside the session working directory for this run:
+
+```sh
+byf --add-dir ../shared --add-dir /tmp/fixtures -p "Compare the two trees"
+```
+
+`--add-dir` can be repeated. Interactive sessions can also use [`/add-dir`](./slash-commands.md#workspace-roots). Project-local memory lives in `.byf/local.toml` (`workspace.additional_dir`); consider adding that file to `.gitignore` if the paths are machine-specific.
 
 To switch models for a single invocation, add `-m`:
 

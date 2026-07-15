@@ -67,6 +67,7 @@ PRD-0020 与 `/grill` 收敛了「全量迁 Bun」的边界与三条对外契约
 - `vi.resetModules()`：Bun 无模块注册表重置；跨文件隔离依赖 `build/run-tests.mjs` 的进程级 `bun test` 分片
 - `expect.addSnapshotSerializer()`：Bun 未实现自定义 serializer；agent-core 等用 harness 内显式 format helper
 - `toMatchInlineSnapshot`：Bun 会重序列化多行字符串（外层引号 + 内部转义），与 Vitest 观感不同；属可接受权衡，勿为「可读性」手改转义导致快照失效
+- **CI / 全量门禁入口**：`make test` / `bun run test`（`build/run-tests.mjs`，每文件独立进程，`BYF_TEST_ISOLATED=1`）。仓库根目录无路径参数的裸 `bun test` 由 `build/test-preload.ts` 拒绝，避免与门禁结论不一致；包内或路径限定的 `bun test` 仍可用。
 
 ## 备选方案
 

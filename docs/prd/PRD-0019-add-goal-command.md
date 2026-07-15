@@ -1,6 +1,6 @@
 # Autonomous Goal Mode (`/goal`)
 
-> **Status**: Sliced | **PRD**: PRD-0019 | **Created**: 2026-07-03 | **Last updated**: 2026-07-04 | **Grilled by**: grill skill（4 ADR：0022/0023/0024/0025；二轮 grill 2026-07-04 补全 cancel 语义、replace record 序列、pause 软停/cancel 硬停、sub 工具门控、模型 CreateGoal 入口、completion clear 延迟、budget 接口与口径、status transcript 输出、compaction 计入 budget、输入锁、错误码边界）| **Sliced by**: `/story` 2026-07-04（6 issues：#200-#205）
+> **Status**: Done | **PRD**: PRD-0019 | **Created**: 2026-07-03 | **Last updated**: 2026-07-10（状态对齐：已落地，ADR-0022~0027 合规；残留债——`driveGoal` 外移到 `goal/driver.ts` 见 `docs/architecture-debt-roadmap.md` M1） | **Grilled by**: grill skill（4 ADR：0022/0023/0024/0025；二轮 grill 2026-07-04 补全 cancel 语义、replace record 序列、pause 软停/cancel 硬停、sub 工具门控、模型 CreateGoal 入口、completion clear 延迟、budget 接口与口径、status transcript 输出、compaction 计入 budget、输入锁、错误码边界）| **Sliced by**: `/story` 2026-07-04（6 issues：#200-#205） | **Arch reviewed by**: `/improve-architecture` (2026-07-11) — goal 子系统合规；`driveGoal` 仍嵌在 `turn/index.ts`（M1，顺势做），Medium
 
 ## Goal
 
@@ -315,6 +315,7 @@ byf 当前对 goal **零支持**，是干净底座。关键扩展点已存在：
 - **相关既有 ADR**：ADR-0011（cache staking，reminder 机制需遵守）、ADR-0020（fork 截断锚点，fork 清空 goal 落在其路径上）。
 - **Parent Issue**：#199（手动创建；本 PRD 由 `/think` 产出但未自动建 Issue，grill 阶段补建）。
 - **Sliced by**: `/story` → Child Issues below（2026-07-04）
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — Goal 子系统 + ADR-0022–0027 落地良好；`TurnFlow`（1055 行）与 `byf-tui` 因 driver/UI 接线增重为 High 附带债；PRD Status 仍为 Sliced 建议对齐 Done。
 - **Sliced into**:
   - #200 — [PRD-0019] agent-core goal 状态机 + records + 事件 + fork 清空 (AFK)
   - #201 — [PRD-0019] goal 续跑驱动 + ephemeral reminder 注入 (AFK, blocked by #200)

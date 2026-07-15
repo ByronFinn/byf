@@ -7,20 +7,15 @@
  * flows back to the harness.
  */
 
-import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { resolve as resolvePath } from 'node:path';
 
-import { applyProviderConfig, fetchModelsByType, isAbortError, log } from '@byfriends/sdk';
+import { compressImageForModel, ImageLimits, isAbortError, log } from '@byfriends/sdk';
 import type {
   BackgroundTaskInfo,
-  BtwCompletedEvent,
-  BtwDeltaEvent,
-  BtwFailedEvent,
   CreateSessionOptions,
   Event,
   ByfHarness,
-  McpServerInfo,
   PermissionMode,
   PromptPart,
   Session,
@@ -34,7 +29,6 @@ import {
   type Component,
   type Focusable,
   getCapabilities,
-  type OverlayHandle,
   ProcessTerminal,
   type SlashCommand,
   Spacer,
@@ -53,7 +47,6 @@ import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/exte
 import { detectFdPath } from '#/utils/process/fd-detect';
 
 import { BUILT_IN_CATALOG_JSON } from '../built-in-catalog';
-import { handleGoalCommand } from './actions/goal';
 import { hydrateTranscriptFromReplay, type ReplayHydrationHooks } from './actions/replay-ops';
 import { createTranscriptComponent } from './actions/transcript-renderer';
 import {
@@ -67,9 +60,10 @@ import {
   sortSlashCommands,
   type BuiltinSlashCommandName,
   type ByfSlashCommand,
-  parseGoalCommand,
   type SkillListSession,
 } from './commands';
+import { SlashCommandHandlerRegistry } from './commands/handler-registry';
+import { registerBuiltinSlashHandlers, type SlashCommandHost } from './commands/handlers';
 import { FooterComponent } from './components/chrome/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
@@ -80,7 +74,7 @@ import {
   type ApprovalPanelResponse,
   resolveSection,
 } from './components/dialogs/approval-panel';
-import { BtwViewer } from './components/dialogs/btw-viewer';
+import { BtwController } from './components/dialogs/btw-controller';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
@@ -94,16 +88,13 @@ import { CustomEditor } from './components/editor/custom-editor';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { buildMcpStatusReportLines } from './components/messages/mcp-status-panel';
 import { ReadGroupComponent } from './components/messages/read-group';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
 } from './components/messages/status-message';
-import { buildStatusReportLines } from './components/messages/status-panel';
 import { ThinkingComponent } from './components/messages/thinking';
 import { ToolCallComponent } from './components/messages/tool-call';
-import { buildUsageReportLines, UsagePanelComponent } from './components/messages/usage-panel';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { QueuePaneComponent } from './components/panes/queue-pane';
 import { saveTuiConfig, type TuiConfig } from './config';
@@ -117,7 +108,6 @@ import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from './constant/byf-tui';
-import { FEEDBACK_ISSUE_URL } from './constant/feedback';
 import { CHROME_GUTTER } from './constant/rendering';
 import { DialogManager, type DialogManagerCallbacks } from './dialog-manager';
 import {
@@ -125,6 +115,7 @@ import {
   type BackgroundTaskCallbacks,
 } from './events/background-task-handler';
 import { CompactionHandler, type CompactionCallbacks } from './events/compaction-handler';
+import { formatCronFiredNotice } from './events/cron-fired-notice';
 import { GoalEventHandler } from './events/goal-event-handler';
 import {
   handleSessionError,
@@ -148,9 +139,6 @@ import {
   type SubagentEventState,
 } from './events/subagent-event-handler';
 import { TurnEventHandler, type TurnEventCallbacks } from './events/turn-event-handler';
-import { ConnectFlow } from './flows/connect-flow';
-import { promptConfiguredProviderSelection } from './flows/dialog-prompts';
-import { LoginFlow } from './flows/login-flow';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
@@ -165,7 +153,7 @@ import type {
 } from './reverse-rpc/types';
 import { createByfTuiThemeBundle } from './theme/bundle';
 import type { ResolvedTheme } from './theme/colors';
-import { isTheme, type Theme } from './theme/index';
+import type { Theme } from './theme/index';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -227,6 +215,7 @@ export interface TUIStartupOptions {
   readonly yolo: boolean;
   readonly model?: string;
   readonly startupNotice?: string;
+  readonly addDirs?: readonly string[];
 }
 
 export interface ByfTuiOptions {
@@ -461,20 +450,8 @@ export class ByfTui implements DialogHost {
   private readonly compactionHandler: CompactionHandler;
   private readonly backgroundTaskHandler: BackgroundTaskHandler;
   private readonly goalEventHandler: GoalEventHandler;
-  /** Active `/btw` side-query overlay, or undefined when none is open. */
-  private btwOverlay:
-    | {
-        readonly queryId: string;
-        readonly component: BtwViewer;
-        readonly handle: OverlayHandle;
-        readonly abort: AbortController;
-        answer: string;
-        status: 'streaming' | 'completed' | 'failed';
-        readonly startedAt: number;
-        readonly duringStreaming: boolean;
-        readonly maxHeight: number;
-      }
-    | undefined;
+  private readonly btwController: BtwController;
+  private readonly slashCommandHandlers: SlashCommandHandlerRegistry;
 
   /** Hide function for an active approval overlay, or undefined. */
   private approvalOverlayHide: (() => void) | undefined;
@@ -498,6 +475,7 @@ export class ByfTui implements DialogHost {
         yolo: startupInput.cliOptions.yolo,
         model: startupInput.cliOptions.model,
         startupNotice: startupInput.startupNotice,
+        addDirs: startupInput.cliOptions.addDirs,
       },
       resolvedTheme: startupInput.resolvedTheme,
     };
@@ -511,6 +489,15 @@ export class ByfTui implements DialogHost {
       this.state,
       this.backgroundTaskCallbacks(),
     );
+    this.btwController = new BtwController(this.state, {
+      getSession: () => this.session,
+      showError: (message) => {
+        this.showError(message);
+      },
+      track: (event, properties) => {
+        this.track(event, properties);
+      },
+    });
     this.goalEventHandler = new GoalEventHandler({
       // Forward snapshots to the footer badge (PRD-0019 R13).
       onGoalSnapshotChange: (snapshot) => {
@@ -564,6 +551,98 @@ export class ByfTui implements DialogHost {
     this.buildLayout();
     this.tasksBrowserController = new TasksBrowserController(this.createTasksBrowserEnv());
     this.agentsController = new SubagentsController(this.createSubagentsEnv());
+    this.slashCommandHandlers = new SlashCommandHandlerRegistry();
+    this.slashHost = this.createSlashCommandHost();
+    registerBuiltinSlashHandlers(this.slashCommandHandlers, this.slashHost);
+  }
+
+  /**
+   * Narrow SlashCommandHost — capability bag for command-modules.
+   * Handlers read live state via getters; the host never holds a ByfTui ref.
+   */
+  private slashHost!: SlashCommandHost;
+
+  private createSlashCommandHost(): SlashCommandHost {
+    return {
+      showStatus: (message, color?) => {
+        this.showStatus(message, color);
+      },
+      showError: (message) => {
+        this.showError(message);
+      },
+      showNotice: (title, detail?) => {
+        this.showNotice(title, detail);
+      },
+      requestRender: () => {
+        this.state.ui.requestRender();
+      },
+      getVersion: () => this.state.appState.version,
+      getSession: () => this.session,
+      createNewSession: () => this.createNewSession(),
+      stop: () => {
+        void this.stop();
+      },
+      dialogManager: this.dialogManager,
+      dialogHost: this,
+      getThemeColors: () => this.state.theme.colors,
+      getAppState: () => ({
+        availableModels: this.state.appState.availableModels,
+        sessionTitle: this.state.appState.sessionTitle,
+        sessionId: this.state.appState.sessionId,
+        yolo: this.state.appState.yolo,
+        model: this.state.appState.model,
+        permissionMode: this.state.appState.permissionMode,
+        maxContextTokens: this.state.appState.maxContextTokens,
+      }),
+      setAppState: (patch) => {
+        this.setAppState(patch);
+      },
+      showTasksBrowser: () => {
+        void this.tasksBrowserController.show();
+      },
+      showSubagentsViewer: () => {
+        this.agentsController.show();
+      },
+      showBtw: (args) => this.btwController.show(args),
+      applyEditorChoice: (value) => this.applyEditorChoice(value),
+      applyThemeChoice: (theme) => this.applyThemeChoice(theme),
+      cancelCurrentStream: () => {
+        this.cancelCurrentStream();
+      },
+      appendTranscriptStatus: (message) => {
+        this.appendTranscriptEntry({
+          id: nextTranscriptId(),
+          kind: 'status',
+          renderMode: 'plain',
+          content: message,
+        });
+      },
+      sendNormalUserInput: (text) => {
+        this.sendNormalUserInput(text);
+      },
+      getConfig: () => this.harness.getConfig(),
+      setConfig: (cfg) => this.harness.setConfig(cfg),
+      removeProvider: (id) => this.harness.removeProvider(id),
+      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
+      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
+      track: (event, props?) => {
+        this.track(event, props);
+      },
+      getBuiltInCatalogJson: () => BUILT_IN_CATALOG_JSON,
+      setCancelInFlight: (cancel) => {
+        this.cancelInFlight = cancel;
+      },
+      clearCancelInFlight: (cancel) => {
+        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
+      },
+      renameSession: (input) => this.harness.renameSession(input),
+      getUserMessageContents: () =>
+        this.state.transcriptEntries
+          .filter((entry) => entry.kind === 'user')
+          .map((entry) => entry.content),
+      performForkRewind: (session, upToMessage) => this.performForkRewind(session, upToMessage),
+      runInitCommand: () => this.handleInitCommand(),
+    };
   }
 
   // =========================================================================
@@ -736,6 +815,9 @@ export class ByfTui implements DialogHost {
       workDir,
       model: startup.model,
       permission: startup.yolo ? 'yolo' : undefined,
+      ...(startup.addDirs !== undefined && startup.addDirs.length > 0
+        ? { additionalDirs: startup.addDirs }
+        : {}),
     };
 
     try {
@@ -803,7 +885,7 @@ export class ByfTui implements DialogHost {
       clearTimeout(this.pendingExit.timer);
       this.pendingExit = null;
     }
-    this.closeBtwOverlay();
+    this.btwController.close();
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
@@ -1247,7 +1329,31 @@ export class ByfTui implements DialogHost {
 
     const meta = parseImageMeta(media.bytes);
     if (meta === null) return false;
-    const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
+
+    // Compress pasted images through the same pipeline as ReadMediaFile so
+    // a full-resolution screenshot does not blow the request body. Uses the
+    // session's ImageLimits (env > config > default) — the same budget the
+    // tool uses, so changing config/env affects both entry points together.
+    const config = await this.harness.getConfig();
+    const imageLimits = new ImageLimits(process.env, config.image);
+    let effectiveBytes = media.bytes;
+    let effectiveMime: string = meta.mime;
+    const compressResult = await compressImageForModel({
+      data: Buffer.from(media.bytes),
+      mimeType: meta.mime,
+      maxEdgePx: imageLimits.maxEdgePx(),
+    });
+    if (compressResult.outcome.kind !== 'error') {
+      effectiveBytes = compressResult.data;
+      effectiveMime = compressResult.mimeType;
+    }
+
+    const attachment = this.imageStore.addImage(
+      effectiveBytes,
+      effectiveMime,
+      meta.width,
+      meta.height,
+    );
     this.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
     this.state.ui.requestRender();
     this.track('shortcut_paste', { kind: 'image' });
@@ -1415,100 +1521,14 @@ export class ByfTui implements DialogHost {
     name: BuiltinSlashCommandName,
     args: string,
   ): Promise<void> {
-    switch (name) {
-      case 'exit':
-        void this.stop();
-        return;
-      case 'help':
-        this.dialogManager.showHelpPanel();
-        return;
-      case 'version':
-        this.showStatus(`Byf Code v${this.state.appState.version}`);
-        return;
-      case 'new':
-        await this.createNewSession();
-        this.state.ui.requestRender();
-        return;
-      case 'sessions':
-        void this.dialogManager.showSessionPicker();
-        return;
-      case 'tasks':
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        void this.tasksBrowserController.show();
-        return;
-      case 'agent':
-        if (this.session === undefined) {
-          this.showError('No active session.');
-          return;
-        }
-        this.agentsController.show();
-        return;
-      case 'mcp':
-        void this.showMcpServers();
-        return;
-      case 'editor':
-        await this.handleEditorCommand(args, {});
-        return;
-      case 'theme':
-        await this.handleThemeCommand(args);
-        return;
-      case 'model':
-        this.handleModelCommand(args);
-        return;
-      case 'permission':
-        this.dialogManager.showPermissionPicker();
-        return;
-      case 'settings':
-        this.dialogManager.showSettingsSelector();
-        return;
-      case 'usage':
-        void this.showUsage();
-        return;
-      case 'status':
-        void this.showStatusReport();
-        return;
-      case 'feedback':
-        await this.handleFeedbackCommand();
-        return;
-      case 'title':
-        await this.handleTitleCommand(args);
-        return;
-      case 'yolo':
-        await this.handleYoloCommand(args);
-        return;
-      case 'btw':
-        await this.handleBtwCommand(args);
-        return;
-      case 'compact':
-        await this.handleCompactCommand(args);
-        return;
-      case 'goal':
-        await this.handleGoalCommand(args);
-        return;
-      case 'init':
-        await this.handleInitCommand();
-        return;
-      case 'fork':
-        await this.handleForkCommand(args);
-        return;
-      case 'connect':
-        await this.handleConnectCommand(args);
-        return;
-      case 'login':
-        await this.handleLoginCommand();
-        return;
-      case 'logout':
-        await this.handleLogoutCommand(args);
-        return;
-      default:
-        // Unreachable: every BuiltinSlashCommandName has a case above. Kept as
-        // a runtime guard; String() widens the narrowed `never` for the message.
-        this.showError(`Unknown slash command: /${String(name)}`);
-        return;
+    const handler = this.slashCommandHandlers.get(name);
+    if (handler === undefined) {
+      // Unreachable: registerBuiltinSlashHandlers covers every BuiltinSlashCommandName
+      // (enforced by the `satisfies Record<BuiltinSlashCommandName, ...>` check).
+      this.showError(`Unknown slash command: /${name}`);
+      return;
     }
+    await handler(args);
   }
 
   // Sends regular user input after validating model and media support.
@@ -1907,7 +1927,7 @@ export class ByfTui implements DialogHost {
     // Close the /btw overlay before clearing approval/question panels: the
     // panel hide handlers restore a hidden btw overlay, so tearing the btw
     // down first avoids a spurious restore→close flicker.
-    this.closeBtwOverlay();
+    this.btwController.close();
     this.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
@@ -2132,7 +2152,7 @@ export class ByfTui implements DialogHost {
       return;
     }
 
-    if (this.handleBtwEvent(event)) {
+    if (this.btwController.handleEvent(event)) {
       return;
     }
 
@@ -2223,6 +2243,11 @@ export class ByfTui implements DialogHost {
       case 'goal.updated':
         this.goalEventHandler.handleEvent(event);
         break;
+      case 'cron.fired': {
+        const notice = formatCronFiredNotice(event.origin, event.prompt);
+        this.showNotice(notice.title, notice.detail);
+        break;
+      }
       case 'mcp.server.status':
         this.renderMcpServerStatus(event.server);
         break;
@@ -2363,10 +2388,15 @@ export class ByfTui implements DialogHost {
       performModelSwitch: (alias, thinkingEffort) => this.performModelSwitch(alias, thinkingEffort),
       applyPermissionChoice: (mode) => this.applyPermissionChoice(mode),
       applyThemeChoice: (theme) => this.applyThemeChoice(theme),
-      showUsage: () => this.showUsage(),
+      loadUsageReport: () => this.loadSessionUsageReport(),
+      loadStatusReport: () => this.loadRuntimeStatusReport(),
+      listMcpServers: () => this.requireSession().listMcpServers(),
       getSlashCommands: () => this.getSlashCommands(),
       showNotice: (title, detail) => {
         this.showNotice(title, detail);
+      },
+      showError: (message) => {
+        this.showError(message);
       },
       stop: () => this.stop(),
     };
@@ -2386,8 +2416,8 @@ export class ByfTui implements DialogHost {
       beginCompactionBlock: (instruction) => {
         this.beginCompaction(instruction);
       },
-      endCompactionBlock: (tokensBefore, tokensAfter) => {
-        this.endCompaction(tokensBefore, tokensAfter);
+      endCompactionBlock: (tokensBefore, tokensAfter, summary) => {
+        this.endCompaction(tokensBefore, tokensAfter, summary);
       },
       cancelCompactionBlock: () => {
         this.cancelCompactionBlock();
@@ -2706,10 +2736,10 @@ export class ByfTui implements DialogHost {
   }
 
   // Marks the active compaction block complete.
-  private endCompaction(tokensBefore?: number, tokensAfter?: number): void {
+  private endCompaction(tokensBefore?: number, tokensAfter?: number, summary?: string): void {
     const block = this.state.activeCompactionBlock;
     if (block === undefined) return;
-    block.markDone(tokensBefore, tokensAfter);
+    block.markDone(tokensBefore, tokensAfter, summary);
     this.state.activeCompactionBlock = undefined;
     this.state.ui.requestRender();
   }
@@ -3210,23 +3240,6 @@ export class ByfTui implements DialogHost {
     this.state.ui.requestRender();
   }
 
-  // Mounts the /btw overlay as a centered, focusable layer that mirrors the
-  // approval panel / question dialog overlays. Unlike mountEditorReplacement,
-  // an overlay never disturbs the editor container, so closing it needs no
-  // restoreEditor — hide() is enough.
-  private mountBtwOverlay(
-    panel: Component & Focusable,
-    width: number,
-    maxHeight: number,
-  ): OverlayHandle {
-    const handle = this.state.ui.showOverlay(panel, {
-      anchor: 'center',
-      width,
-      maxHeight,
-    });
-    return handle;
-  }
-
   public show(panel: Component & Focusable): void {
     this.mountEditorReplacement(panel);
   }
@@ -3581,67 +3594,6 @@ export class ByfTui implements DialogHost {
     this.showStatus(`Theme set to "${theme}"${detail}.`);
   }
 
-  // Loads and renders current usage information.
-  private async showUsage(): Promise<void> {
-    const sessionUsage = await this.loadSessionUsageReport();
-    const lines = buildUsageReportLines({
-      colors: this.state.theme.colors,
-      sessionUsage: sessionUsage.usage,
-      sessionUsageError: sessionUsage.error,
-      contextUsage: this.state.appState.contextUsage,
-      contextTokens: this.state.appState.contextTokens,
-      maxContextTokens: this.state.appState.maxContextTokens,
-    });
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary);
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
-  }
-
-  // Loads and renders current runtime status.
-  private async showStatusReport(): Promise<void> {
-    const runtimeStatus = await this.loadRuntimeStatusReport();
-    const appState = this.state.appState;
-    const lines = buildStatusReportLines({
-      colors: this.state.theme.colors,
-      version: appState.version,
-      model: appState.model,
-      workDir: appState.workDir,
-      sessionId: appState.sessionId,
-      sessionTitle: appState.sessionTitle,
-      thinking: appState.thinkingEffort !== 'off',
-      permissionMode: appState.permissionMode,
-      contextUsage: appState.contextUsage,
-      contextTokens: appState.contextTokens,
-      maxContextTokens: appState.maxContextTokens,
-      availableModels: appState.availableModels,
-      status: runtimeStatus.status,
-      statusError: runtimeStatus.error,
-    });
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, ' Status ');
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
-  }
-
-  // Loads and renders current MCP server status.
-  private async showMcpServers(): Promise<void> {
-    let servers: readonly McpServerInfo[];
-    try {
-      servers = await this.requireSession().listMcpServers();
-    } catch (error) {
-      this.showError(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
-      return;
-    }
-
-    const lines = buildMcpStatusReportLines({
-      colors: this.state.theme.colors,
-      servers,
-    });
-    const title = servers.length > 0 ? ` MCP (${servers.length}) ` : ' MCP ';
-    const panel = new UsagePanelComponent(lines, this.state.theme.colors.primary, title);
-    this.state.transcriptContainer.addChild(panel);
-    this.state.ui.requestRender();
-  }
-
   // Loads per-session usage and captures displayable errors.
   private async loadSessionUsageReport(): Promise<SessionUsageResult> {
     try {
@@ -3671,7 +3623,7 @@ export class ByfTui implements DialogHost {
   // Shows an approval panel and connects its response callback.
   private showApprovalPanel(payload: ApprovalPanelData): void {
     this.patchLivePane({ pendingApproval: { data: payload } });
-    this.hideBtwOverlayForModal();
+    this.btwController.hideForModal();
     notifyTerminalOnce(this.state, `approval:${payload.id}`, {
       title: 'Byf Code approval required',
       body: payload.tool_name,
@@ -3753,13 +3705,13 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
-    this.restoreBtwOverlay();
+    this.btwController.restore();
   }
 
   // Shows a question dialog and connects its response callback.
   private showQuestionDialog(payload: QuestionPanelData): void {
     this.patchLivePane({ pendingQuestion: { data: payload } });
-    this.hideBtwOverlayForModal();
+    this.btwController.hideForModal();
     notifyTerminalOnce(this.state, `question:${payload.id}`, {
       title: 'Byf Code needs your answer',
       body: payload.questions[0]?.question,
@@ -3800,131 +3752,12 @@ export class ByfTui implements DialogHost {
     } else {
       this.restoreEditor();
     }
-    this.restoreBtwOverlay();
+    this.btwController.restore();
   }
 
   // =========================================================================
-  // Slash Command Handlers
+  // Root-coupled slash seams (invoked via SlashCommandHost)
   // =========================================================================
-
-  // Handles the /editor command.
-  private async handleEditorCommand(args: string, _eCtx: {}): Promise<void> {
-    const command = args.trim();
-    if (command.length === 0) {
-      this.dialogManager.showEditorPicker();
-      return;
-    }
-    await this.applyEditorChoice(command);
-  }
-
-  // Handles the /theme command.
-  private async handleThemeCommand(args: string): Promise<void> {
-    const theme = args.trim();
-    if (theme.length === 0) {
-      this.dialogManager.showThemePicker();
-      return;
-    }
-    if (!isTheme(theme)) {
-      this.showError(`Unknown theme: ${theme}`);
-      return;
-    }
-    await this.applyThemeChoice(theme);
-  }
-
-  // Handles the /model command.
-  private handleModelCommand(args: string): void {
-    const alias = args.trim();
-    if (alias.length === 0) {
-      this.dialogManager.showModelPicker();
-      return;
-    }
-    if (this.state.appState.availableModels[alias] === undefined) {
-      this.showError(`Unknown model alias: ${alias}`);
-      return;
-    }
-    this.dialogManager.showModelPicker(alias);
-  }
-
-  // Handles the /title command.
-  private async handleTitleCommand(args: string): Promise<void> {
-    const title = args.trim();
-    if (title.length === 0) {
-      const current = this.state.appState.sessionTitle;
-      this.showStatus(
-        current !== null && current.length > 0
-          ? `Session title: ${current}`
-          : `Session title: (not set) — id: ${this.state.appState.sessionId}`,
-      );
-      return;
-    }
-
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const newTitle = title.slice(0, 200);
-    try {
-      await this.harness.renameSession({ id: session.id, title: newTitle });
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to set title: ${msg}`);
-      return;
-    }
-    this.showStatus(`Session title set to: ${newTitle}`);
-  }
-
-  // Handles the /fork command.
-  private async handleForkCommand(args: string): Promise<void> {
-    void args;
-
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    // Build the list of user messages from the transcript. Each `kind === 'user'`
-    // entry corresponds to a user-origin turn in wire (a turn.prompt/turn.steer
-    // record with origin.kind === 'user') — see ADR-0020. The ordinal passed to
-    // forkSession.upToMessage is 1-based and matches this list order.
-    const userMessages = this.state.transcriptEntries.filter((entry) => entry.kind === 'user');
-
-    if (userMessages.length === 0) {
-      this.showError('No user messages to fork from in this session.');
-      return;
-    }
-
-    const options = userMessages.map((entry, index) => {
-      const ordinal = index + 1;
-      const summary = summarizeUserMessage(entry.content);
-      return {
-        value: String(ordinal),
-        label: `${ordinal}. ${summary}`,
-      };
-    });
-    // A trailing "after last message" option = full copy, equivalent to the
-    // pre-rewind behavior. Lets the user fork the whole session without
-    // dropping anything (PRD-0015 R2 / AC4).
-    options.push({
-      value: '0',
-      label: `${userMessages.length + 1}. After last message (full copy)`,
-    });
-
-    this.dialogManager.showForkRewindPicker(
-      options,
-      (value) => {
-        const ordinal = Number.parseInt(value, 10);
-        // value 0 = full copy (no rewind); omit upToMessage.
-        const upToMessage = ordinal > 0 ? ordinal : undefined;
-        void this.performForkRewind(session, upToMessage);
-      },
-      () => {
-        this.showStatus('Fork cancelled.');
-      },
-    );
-  }
 
   // Executes a fork. upToMessage undefined = full copy; otherwise rewinds to
   // just before the Nth user message.
@@ -3967,260 +3800,7 @@ export class ByfTui implements DialogHost {
     return summaryTitle.length > 0 ? summaryTitle : session.id;
   }
 
-  // Handles the /yolo command.
-  private async handleYoloCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    let enabled: boolean;
-    if (args === 'on') enabled = true;
-    else if (args === 'off') enabled = false;
-    else enabled = !this.state.appState.yolo;
-
-    await session.setPermission(enabled ? 'yolo' : 'manual');
-    this.setAppState({ yolo: enabled, permissionMode: enabled ? 'yolo' : 'manual' });
-    if (enabled) {
-      this.showNotice(
-        'YOLO mode: ON',
-        'All actions will be approved automatically. Use with caution.',
-      );
-      return;
-    }
-    this.showNotice('YOLO mode: OFF');
-  }
-
-  // Handles the /btw command — opens a side-query overlay and streams the
-  // answer. The exchange never enters the main transcript (see handleBtwEvent).
-  private async handleBtwCommand(args: string): Promise<void> {
-    const query = args.trim();
-    if (query.length === 0) {
-      this.showError('Usage: /btw <question>');
-      return;
-    }
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-    if (this.state.appState.model.trim().length === 0) {
-      this.showError(LLM_NOT_SET_MESSAGE);
-      return;
-    }
-    if (this.btwOverlay !== undefined) {
-      this.closeBtwOverlay();
-    }
-
-    const startedAt = Date.now();
-    const duringStreaming = this.state.appState.isStreaming;
-    const queryId = `cli-btw-${randomUUID()}`;
-    const overlayWidth = Math.min(80, Math.floor(this.state.terminal.columns * 0.85));
-    const overlayMaxHeight = Math.floor(this.state.terminal.rows * 0.82);
-    const component = new BtwViewer(
-      {
-        query,
-        answer: '',
-        status: 'streaming',
-        maxHeight: overlayMaxHeight,
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.closeBtwOverlay();
-        },
-      },
-      this.state.terminal,
-    );
-    const handle = this.mountBtwOverlay(component, overlayWidth, overlayMaxHeight);
-    const abort = new AbortController();
-    this.btwOverlay = {
-      queryId,
-      component,
-      handle,
-      abort,
-      answer: '',
-      status: 'streaming',
-      startedAt,
-      duringStreaming,
-      maxHeight: overlayMaxHeight,
-    };
-
-    try {
-      await session.askSide(query, { signal: abort.signal, queryId });
-    } catch {
-      // Errors surface as a btw.failed event; ignore the rejected promise.
-    }
-  }
-
-  // Closes an active /btw overlay, aborting any in-flight side query.
-  private closeBtwOverlay(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined) return;
-    const session = this.session;
-    if (session !== undefined) {
-      void session.cancelSideQuery(overlay.queryId);
-    }
-    overlay.abort.abort();
-    overlay.handle.hide();
-    this.btwOverlay = undefined;
-  }
-
-  // Temporarily hides the /btw overlay so an approval/question modal can take
-  // the foreground. The side query keeps streaming in the background; the
-  // overlay is restored once the modal resolves (see restoreBtwOverlay).
-  private hideBtwOverlayForModal(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined || overlay.handle.isHidden()) return;
-    overlay.handle.setHidden(true);
-  }
-
-  // Restores a /btw overlay that was hidden for a modal, bringing it back to
-  // the foreground. Safe to call when no btw overlay is open or it was never
-  // hidden.
-  private restoreBtwOverlay(): void {
-    const overlay = this.btwOverlay;
-    if (overlay === undefined || !overlay.handle.isHidden()) return;
-    overlay.handle.setHidden(false);
-    overlay.handle.focus();
-  }
-
-  // Routes a btw.* event to the active overlay (filtered by queryId).
-  // Returns true when handled.
-  private handleBtwEvent(event: Event): boolean {
-    if (!('type' in event) || typeof event.type !== 'string' || !event.type.startsWith('btw.')) {
-      return false;
-    }
-    const overlay = this.btwOverlay;
-    if (overlay === undefined) return false;
-    const queryId = (event as { queryId?: string }).queryId;
-    if (queryId === undefined || queryId !== overlay.queryId) {
-      return false;
-    }
-
-    const refresh = (
-      answer: string,
-      status: 'streaming' | 'completed' | 'failed',
-      usage?: {
-        inputCacheRead: number;
-        inputCacheCreation: number;
-        inputOther: number;
-        output: number;
-      },
-      error?: string,
-    ): void => {
-      overlay.answer = answer;
-      overlay.status = status;
-      overlay.component.setProps({
-        query: overlay.component.query,
-        answer,
-        status,
-        usage,
-        error,
-        maxHeight: overlay.maxHeight,
-        colors: this.state.theme.colors,
-        onClose: () => {
-          this.closeBtwOverlay();
-        },
-      });
-      this.state.ui.requestRender();
-    };
-
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- guard above narrows to btw.* events; default handles the rest.
-    switch (event.type) {
-      case 'btw.started':
-        return true;
-      case 'btw.delta':
-        refresh(overlay.answer + (event as BtwDeltaEvent).delta, 'streaming');
-        return true;
-      case 'btw.completed': {
-        const completed = event as BtwCompletedEvent;
-        const durationMs = Date.now() - overlay.startedAt;
-        const telemetryPayload: Record<string, boolean | number> = {
-          duration_ms: durationMs,
-          during_streaming: overlay.duringStreaming,
-        };
-        if (completed.usage !== undefined) {
-          telemetryPayload['input_cache_read'] = completed.usage.inputCacheRead;
-          telemetryPayload['input_cache_creation'] = completed.usage.inputCacheCreation;
-          telemetryPayload['input_other'] = completed.usage.inputOther;
-          telemetryPayload['output'] = completed.usage.output;
-        }
-        this.track('btw_query', telemetryPayload);
-        refresh(
-          completed.text,
-          'completed',
-          completed.usage !== undefined
-            ? {
-                inputCacheRead: completed.usage.inputCacheRead,
-                inputCacheCreation: completed.usage.inputCacheCreation,
-                inputOther: completed.usage.inputOther,
-                output: completed.usage.output,
-              }
-            : undefined,
-        );
-        return true;
-      }
-      case 'btw.failed':
-        refresh(overlay.answer, 'failed', undefined, (event as BtwFailedEvent).message);
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  private async handleCompactCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const customInstruction = args.trim() || undefined;
-    await session.compact({ instruction: customInstruction });
-  }
-
-  // =========================================================================
-  // /goal — autonomous goal mode (PRD-0019 #204)
-  // =========================================================================
-
-  private async handleGoalCommand(args: string): Promise<void> {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    const command = parseGoalCommand(args);
-    await handleGoalCommand(session, command, {
-      showStatus: (msg) => {
-        this.showStatus(msg);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      abortActiveTurn: () => {
-        this.cancelCurrentStream();
-      },
-      appendTranscriptLine: (msg) => {
-        this.appendTranscriptEntry({
-          id: nextTranscriptId(),
-          kind: 'status',
-          renderMode: 'plain',
-          content: msg,
-        });
-      },
-    });
-    // PRD-0019 R5：slash 入口创建 goal 后必须发起首个 user turn，turnWorker 在
-    // 该 turn 结束时读到 active 才会进入 driveGoal 续跑循环（PRD 数据流：
-    // "sendNormalUserInput(objective) [发起首个 turn，origin=user]"）。否则 goal
-    // 卡在 active、turns/tokens 永远为 0。
-    if (command.kind === 'create') {
-      this.sendNormalUserInput(command.objective);
-    }
-    this.state.ui.requestRender();
-  }
-
-  // Handles the /init command.
+  // /init — turn-state machine stays on the composition root.
   private async handleInitCommand(): Promise<void> {
     const session = this.session;
     if (this.state.appState.model.trim().length === 0 || session === undefined) {
@@ -4248,102 +3828,6 @@ export class ByfTui implements DialogHost {
       this.deferUserMessages = false;
     }
   }
-
-  // =========================================================================
-  // /login — add a custom OpenAI-compatible provider
-  // =========================================================================
-
-  private async handleLoginCommand(): Promise<void> {
-    const flow = new LoginFlow({
-      colors: this.state.theme.colors,
-      dialogHost: this,
-      getConfig: () => this.harness.getConfig(),
-      setConfig: (cfg) => this.harness.setConfig(cfg),
-      fetchModels: (type, baseUrl, apiKey) => fetchModelsByType(type, baseUrl, apiKey),
-      applyProviderConfig: (config, opts) => applyProviderConfig(config, opts),
-      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => {
-        this.showStatus(msg, color);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      showLoginProgressSpinner: (label) => this.showLoginProgressSpinner(label),
-      track: (event, props?) => {
-        this.track(event, props);
-      },
-      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
-    });
-    await flow.run();
-  }
-
-  private async handleLogoutCommand(_args: string | undefined): Promise<void> {
-    const config = await this.harness.getConfig();
-
-    const providerName = await promptConfiguredProviderSelection(
-      this,
-      this.state.theme.colors,
-      config,
-      (msg) => {
-        this.showError(msg);
-      },
-    );
-    if (providerName === undefined) {
-      return;
-    }
-
-    const activeModel = this.state.appState.model;
-    const activeProvider = this.state.appState.availableModels[activeModel]?.provider;
-    const wasActiveModel = activeProvider === providerName;
-
-    await this.harness.removeProvider(providerName);
-    await this.refreshConfigAfterLogin();
-
-    if (wasActiveModel) {
-      this.setAppState({ model: '', maxContextTokens: 0 });
-    }
-
-    this.showStatus(`Provider "${providerName}" removed.`, this.state.theme.colors.success);
-
-    if (wasActiveModel) {
-      this.showStatus('No active model. Run /login or /connect to configure a provider.');
-    }
-  }
-
-  private async handleConnectCommand(args: string): Promise<void> {
-    const flow = new ConnectFlow({
-      builtInCatalogJson: BUILT_IN_CATALOG_JSON,
-      colors: this.state.theme.colors,
-      dialogHost: this,
-      getConfig: () => this.harness.getConfig(),
-      setConfig: (cfg) => this.harness.setConfig(cfg),
-      removeProvider: (id) => this.harness.removeProvider(id),
-      refreshConfigAfterLogin: () => this.refreshConfigAfterLogin(),
-      showStatus: (msg, color?) => {
-        this.showStatus(msg, color);
-      },
-      showError: (msg) => {
-        this.showError(msg);
-      },
-      showSpinner: (label) => this.showLoginProgressSpinner(label),
-      setCancelInFlight: (cancel) => {
-        this.cancelInFlight = cancel;
-      },
-      clearCancelInFlight: (cancel) => {
-        if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
-      },
-      track: (event, props?) => {
-        this.track(event, props);
-      },
-    });
-    await flow.run(args);
-  }
-
-  // Handles the /feedback command — opens the GitHub Issues page.
-  private async handleFeedbackCommand(): Promise<void> {
-    this.showStatus(FEEDBACK_ISSUE_URL);
-    openUrl(FEEDBACK_ISSUE_URL);
-  }
 }
 
 function toShellExecTranscriptResult(
@@ -4367,14 +3851,4 @@ function toShellExecTranscriptResult(
     output: output.length > 0 ? output : '(no output)',
     is_error: result.exitCode !== 0 || result.timedOut,
   };
-}
-
-/**
- * Builds a short single-line summary of a user message for the fork rewind
- * picker. Collapses whitespace and truncates so the list stays scannable.
- */
-function summarizeUserMessage(content: string): string {
-  const collapsed = content.replaceAll(/\s+/g, ' ').trim();
-  if (collapsed.length === 0) return '(empty message)';
-  return collapsed.length > 60 ? `${collapsed.slice(0, 60)}…` : collapsed;
 }

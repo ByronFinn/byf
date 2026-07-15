@@ -38,3 +38,12 @@ export const BYF_RELEASES_INSTALL_PS1_URL = `${BYF_RELEASES_BASE}/latest/downloa
 // Native install commands, split by platform. Use these for prompt copy and spawn calls only; do not assemble the strings elsewhere.
 export const NATIVE_INSTALL_COMMAND_UNIX = `curl -fsSL ${BYF_RELEASES_INSTALL_SH_URL} | bash`;
 export const NATIVE_INSTALL_COMMAND_WIN = `irm ${BYF_RELEASES_INSTALL_PS1_URL} | iex`;
+
+/** Grace period before force-exiting a completed headless (`byf -p`) run. */
+export const HEADLESS_FORCE_EXIT_GRACE_MS = 2000;
+
+/** Max wait for stdout/stderr to drain before arming the headless force-exit. */
+export const HEADLESS_STDIO_DRAIN_TIMEOUT_MS = 10000;
+
+/** Bound for headless cleanup so a wedged shutdown cannot hang forever. */
+export const PROMPT_CLEANUP_TIMEOUT_MS = 15_000;

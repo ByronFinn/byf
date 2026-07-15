@@ -5,12 +5,18 @@
  *   - constructed on `compaction.started` → blinking white bullet +
  *     "Compacting context..." and optional custom instruction
  *   - `markDone()` on `compaction.completed` → solid green bullet +
- *     "Compaction complete (X → Y tokens)"
+ *     "Compaction complete (X → Y tokens)" + optional summary (Ctrl-O)
  *   - `markCanceled()` on `compaction.cancelled` → solid warning bullet +
  *     "Compaction cancelled"
  *
  * Bullet animation mirrors `ToolCallComponent` (500ms blink) so the user
  * reads the same "work in progress" signal across the UI.
+ *
+ * Implements `Expandable` so Ctrl-O (`toggleToolOutputExpansion`) can
+ * show/hide the compaction summary — the same shared shortcut used by
+ * tool output and thinking blocks. The summary text comes from the
+ * already-existing `CompactionCompletedEvent.result.summary` field; no
+ * new core field is added.
  */
 
 import { Container, Text, Spacer } from '@earendil-works/pi-tui';
@@ -19,10 +25,12 @@ import chalk from 'chalk';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import type { ColorPalette } from '#/tui/theme/colors';
+import type { Expandable } from '#/tui/utils/component-capabilities';
 
 const BLINK_INTERVAL = 500;
+const SUMMARY_INDENT = '  ';
 
-export class CompactionComponent extends Container {
+export class CompactionComponent extends Container implements Expandable {
   private readonly colors: ColorPalette;
   private readonly ui: TUI | undefined;
   private readonly headerText: Text;
@@ -32,8 +40,10 @@ export class CompactionComponent extends Container {
   private canceled = false;
   private tokensBefore: number | undefined;
   private tokensAfter: number | undefined;
+  private summary: string | undefined;
+  private expanded = false;
 
-  constructor(colors: ColorPalette, ui?: TUI, instruction?: string | undefined) {
+  constructor(colors: ColorPalette, ui?: TUI, instruction?: string) {
     super();
     this.colors = colors;
     this.ui = ui;
@@ -50,11 +60,12 @@ export class CompactionComponent extends Container {
     this.startBlink();
   }
 
-  markDone(tokensBefore?: number, tokensAfter?: number): void {
+  markDone(tokensBefore?: number, tokensAfter?: number, summary?: string): void {
     if (this.done || this.canceled) return;
     this.done = true;
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
+    this.summary = summary;
     this.stopBlink();
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
@@ -68,8 +79,31 @@ export class CompactionComponent extends Container {
     this.ui?.requestRender();
   }
 
+  setExpanded(expanded: boolean): void {
+    if (this.expanded === expanded) return;
+    this.expanded = expanded;
+    // Re-render the header so the Ctrl-O hint flips between
+    // "show" and "hide".
+    this.headerText.setText(this.buildHeader());
+    this.ui?.requestRender();
+  }
+
   dispose(): void {
     this.stopBlink();
+  }
+
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    // Only show the summary body when expanded and a non-empty summary
+    // exists. When collapsed (or no summary), the header alone renders —
+    // no misleading "show summary" hint.
+    if (this.done && this.expanded && this.summary && this.summary.trim().length > 0) {
+      const summaryText = new Text(chalk.dim(this.summary), 0, 0);
+      for (const line of summaryText.render(Math.max(1, width - SUMMARY_INDENT.length))) {
+        lines.push(SUMMARY_INDENT + line);
+      }
+    }
+    return lines;
   }
 
   private buildHeader(): string {
@@ -80,7 +114,15 @@ export class CompactionComponent extends Container {
         this.tokensBefore !== undefined && this.tokensAfter !== undefined
           ? chalk.dim(` (${String(this.tokensBefore)} → ${String(this.tokensAfter)} tokens)`)
           : '';
-      return `${bullet}${label}${detail}`;
+      const hint =
+        this.summary && this.summary.trim().length > 0
+          ? chalk.dim(
+              this.expanded
+                ? ' (Ctrl-O to hide compaction summary)'
+                : ' (Ctrl-O to show compaction summary)',
+            )
+          : '';
+      return `${bullet}${label}${detail}${hint}`;
     }
     if (this.canceled) {
       const bullet = chalk.hex(this.colors.warning)(STATUS_BULLET);

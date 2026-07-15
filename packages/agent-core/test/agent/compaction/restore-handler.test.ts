@@ -63,8 +63,8 @@ describe('FullCompaction restore handler', () => {
       // Verify the compaction history was updated
       // The complete method stores a text snapshot, not the result
       expect(agent.fullCompaction.compactedHistory).toHaveLength(1);
-      expect(agent.fullCompaction.compactedHistory[0]!).toHaveProperty('text');
-      expect(typeof agent.fullCompaction.compactedHistory[0]!.text).toBe('string');
+      expect(agent.fullCompaction.compactedHistory[0]).toHaveProperty('text');
+      expect(typeof agent.fullCompaction.compactedHistory[0].text).toBe('string');
     });
 
     it('should restore multiple full_compaction.complete records', () => {
@@ -94,10 +94,10 @@ describe('FullCompaction restore handler', () => {
       // Verify both compaction records were restored
       // The complete method stores text snapshots, not the results
       expect(agent.fullCompaction.compactedHistory).toHaveLength(2);
-      expect(agent.fullCompaction.compactedHistory[0]!).toHaveProperty('text');
-      expect(agent.fullCompaction.compactedHistory[1]!).toHaveProperty('text');
-      expect(typeof agent.fullCompaction.compactedHistory[0]!.text).toBe('string');
-      expect(typeof agent.fullCompaction.compactedHistory[1]!.text).toBe('string');
+      expect(agent.fullCompaction.compactedHistory[0]).toHaveProperty('text');
+      expect(agent.fullCompaction.compactedHistory[1]).toHaveProperty('text');
+      expect(typeof agent.fullCompaction.compactedHistory[0].text).toBe('string');
+      expect(typeof agent.fullCompaction.compactedHistory[1].text).toBe('string');
     });
   });
 });

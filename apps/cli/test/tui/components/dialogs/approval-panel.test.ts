@@ -36,14 +36,14 @@ function makeDialog(): {
   dialog: ApprovalPanelComponent;
   responses: Array<{
     response: string;
-    feedback?: string | undefined;
-    selected_label?: string | undefined;
+    feedback?: string;
+    selected_label?: string;
   }>;
 } {
   const responses: Array<{
     response: string;
-    feedback?: string | undefined;
-    selected_label?: string | undefined;
+    feedback?: string;
+    selected_label?: string;
   }> = [];
   const dialog = new ApprovalPanelComponent(
     makePending(),
@@ -118,7 +118,7 @@ describe('resolveSection', () => {
       COLORS,
     );
     expect(section.lines.length).toBe(1);
-    const plain = strip(section.lines[0]!);
+    const plain = strip(section.lines[0]);
     expect(plain).toContain('hello');
   });
 });
@@ -467,8 +467,8 @@ describe('ApprovalPanelComponent', () => {
   it('returns feedback for revise choice', () => {
     const responses: Array<{
       response: string;
-      feedback?: string | undefined;
-      selected_label?: string | undefined;
+      feedback?: string;
+      selected_label?: string;
     }> = [];
     const pending: PendingApproval = {
       data: {
@@ -597,7 +597,7 @@ describe('ApprovalPanelComponent', () => {
     }
 
     // All lines (border + body) must have the same visible width.
-    const expectedWidth = plain[0]!.length;
+    const expectedWidth = plain[0].length;
     for (const line of plain) {
       expect(line.length).toBe(expectedWidth);
     }

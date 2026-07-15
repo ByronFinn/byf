@@ -145,7 +145,7 @@ describe('HarnessAPI session skills', () => {
     });
     // The skill body must carry the secret-handling instruction (config.toml
     // holds plaintext api_key values) and point at the schema source of truth.
-    const promptInput = (prompt as { input?: ReadonlyArray<{ text?: string }> } | undefined)?.input;
+    const promptInput = (prompt as { input?: ReadonlyArray<{ text?: string }> })?.input;
     expect(promptInput?.[0]?.text).toContain('Never echo secrets');
     expect(promptInput?.[0]?.text).toContain('schema.ts');
   });
@@ -261,12 +261,12 @@ describe('HarnessAPI session skills', () => {
         },
       },
     });
-    expect(
-      (prompt as { origin?: { activationId?: string } } | undefined)?.origin?.activationId,
-    ).toBe((skillEvent as { activationId?: string } | undefined)?.activationId);
-    expect((skillEvent as { activationId?: string } | undefined)?.activationId).toBe(
-      (userMessage as { message?: { origin?: { activationId?: string } } } | undefined)?.message
-        ?.origin?.activationId,
+    expect((prompt as { origin?: { activationId?: string } })?.origin?.activationId).toBe(
+      (skillEvent as { activationId?: string })?.activationId,
+    );
+    expect((skillEvent as { activationId?: string })?.activationId).toBe(
+      (userMessage as { message?: { origin?: { activationId?: string } } })?.message?.origin
+        ?.activationId,
     );
 
     const context = await rpc.getContext({ sessionId: created.id, agentId: 'main' });
@@ -504,7 +504,7 @@ describe('HarnessAPI session skills', () => {
         skillSource: 'builtin',
       },
     });
-    const promptInput = (prompt as { input?: ReadonlyArray<{ text?: string }> } | undefined)?.input;
+    const promptInput = (prompt as { input?: ReadonlyArray<{ text?: string }> })?.input;
     expect(promptInput?.[0]?.text).toContain('Interactive MCP server configuration');
     expect(promptInput?.[0]?.text).toContain('AskUserQuestion');
   });

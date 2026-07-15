@@ -68,7 +68,7 @@ describe('e2e: fake provider harness', () => {
       });
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0]!.pathname).toBe('/json');
+      expect(harness.requests[0].pathname).toBe('/json');
     } finally {
       await harness.close();
     }
@@ -86,7 +86,7 @@ describe('e2e: fake provider harness', () => {
       expect(text).toBe('hello');
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0]!.pathname).toBe('/stream');
+      expect(harness.requests[0].pathname).toBe('/stream');
     } finally {
       await harness.close();
     }

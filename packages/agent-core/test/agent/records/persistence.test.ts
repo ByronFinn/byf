@@ -46,7 +46,7 @@ describe('FileSystemAgentRecordPersistence', () => {
 
     const lines = await readLines(wirePath);
     expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0]!)['type']).toBe('turn.prompt');
+    expect(JSON.parse(lines[0])['type']).toBe('turn.prompt');
   });
 
   it('appends to an existing file without injecting records', async () => {
@@ -96,7 +96,7 @@ describe('FileSystemAgentRecordPersistence', () => {
       type: 'metadata',
       protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
     });
-    expect(records[1]!.type).toBe('turn.prompt');
+    expect(records[1].type).toBe('turn.prompt');
   });
 
   it('rewrites records from the beginning and then appends after them', async () => {
@@ -132,8 +132,8 @@ describe('FileSystemAgentRecordPersistence', () => {
       'turn.prompt',
       'turn.prompt',
     ]);
-    expect(JSON.parse(lines[1]!)['input'][0]['text']).toBe('new');
-    expect(JSON.parse(lines[2]!)['input'][0]['text']).toBe('later');
+    expect(JSON.parse(lines[1])['input'][0]['text']).toBe('new');
+    expect(JSON.parse(lines[2])['input'][0]['text']).toBe('later');
   });
 
   it('rewrites already flushed records from the beginning', async () => {
@@ -162,7 +162,7 @@ describe('FileSystemAgentRecordPersistence', () => {
 
     const lines = await readLines(wirePath);
     expect(lines.map((line) => JSON.parse(line)['type'])).toEqual(['metadata', 'turn.prompt']);
-    expect(JSON.parse(lines[1]!)['input'][0]['text']).toBe('new');
+    expect(JSON.parse(lines[1])['input'][0]['text']).toBe('new');
   });
 
   it('flushes pending records on close', async () => {
@@ -178,7 +178,7 @@ describe('FileSystemAgentRecordPersistence', () => {
 
     const lines = await readLines(wirePath);
     expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0]!)['type']).toBe('turn.prompt');
+    expect(JSON.parse(lines[0])['type']).toBe('turn.prompt');
   });
 
   it('enters error state after a write failure', async () => {

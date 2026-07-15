@@ -87,9 +87,7 @@ describe('SessionSubagentHost', () => {
         prompt: 'Implement the fix',
       },
     });
-    expect((startArgs as { readonly signal?: unknown } | undefined)?.signal).toBeInstanceOf(
-      AbortSignal,
-    );
+    expect((startArgs as { readonly signal?: unknown })?.signal).toBeInstanceOf(AbortSignal);
     expect(fireAndForgetTrigger).toHaveBeenCalledWith('SubagentStop', {
       matcherValue: 'coder',
       inputData: {
@@ -1420,8 +1418,8 @@ function profile(input: {
   readonly name: string;
   readonly tools: readonly string[];
   readonly systemPrompt: string;
-  readonly description?: string | undefined;
-  readonly subagents?: Record<string, ResolvedAgentProfile> | undefined;
+  readonly description?: string;
+  readonly subagents?: Record<string, ResolvedAgentProfile>;
 }): ResolvedAgentProfile {
   return {
     name: input.name,

@@ -18,7 +18,7 @@ export type AppendCall =
   | { kind: 'appendToolResult'; input: LoopToolResultEvent };
 
 export interface RecordingContextOptions {
-  readonly messages?: Message[] | undefined;
+  readonly messages?: Message[];
 }
 
 /**

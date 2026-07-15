@@ -2,6 +2,7 @@ import {
   ByfHarness,
   log,
   type Event,
+  type GoalSnapshot,
   type HookResultEvent,
   type Session,
   type SessionStatus,
@@ -9,11 +10,19 @@ import {
 
 import { isDeadTerminalError } from '#/tui/utils/dead-terminal';
 
+import {
+  formatGoalSummaryText,
+  goalExitCode,
+  goalSummaryJson,
+  parseHeadlessGoalCreate,
+  type HeadlessGoalCreate,
+} from './goal-prompt';
+import { finalizeHeadlessRun } from './headless-exit';
 import type { CLIOptions, PromptOutputFormat } from './options';
 import { createByfHostIdentity } from './version';
 
 interface PromptOutput {
-  readonly columns?: number | undefined;
+  readonly columns?: number;
   write(chunk: string): boolean;
 }
 
@@ -87,10 +96,55 @@ export async function runPrompt(
     restorePromptSessionPermission = restorePermission;
 
     const outputFormat = opts.outputFormat ?? 'text';
-    await runPromptTurn(session, opts.prompt!, outputFormat, stdout, stderr);
+    // Headless goal mode: `byf -p "/goal <objective>"`.
+    const goalCreate = parseHeadlessGoalCreate(opts.prompt!);
+    if (goalCreate !== undefined) {
+      await runHeadlessGoal(session, goalCreate, outputFormat, stdout, stderr);
+    } else {
+      await runPromptTurn(session, opts.prompt!, outputFormat, stdout, stderr);
+    }
     writeResumeHint(session.id, outputFormat, stdout, stderr);
   } finally {
     await cleanupPromptRun();
+    // Drain stdio + arm unref'd force-exit so a leaked handle cannot hang `-p`.
+    await finalizeHeadlessRun(promptProcess, [process.stdout, process.stderr], () =>
+      typeof process.exitCode === 'number' ? process.exitCode : 0,
+    );
+  }
+}
+
+async function runHeadlessGoal(
+  session: Session,
+  goal: HeadlessGoalCreate,
+  outputFormat: PromptOutputFormat,
+  stdout: PromptOutput,
+  stderr: PromptOutput,
+): Promise<void> {
+  await session.createGoal(goal.objective, { replace: goal.replace });
+  let completedSnapshot: GoalSnapshot | null = null;
+  const unsubscribeGoalEvents = session.onEvent((event) => {
+    if (
+      event.type === 'goal.updated' &&
+      event.agentId === 'main' &&
+      event.change?.kind === 'completion' &&
+      event.snapshot !== null
+    ) {
+      completedSnapshot = event.snapshot;
+    }
+  });
+  try {
+    await runPromptTurn(session, goal.objective, outputFormat, stdout, stderr);
+  } finally {
+    unsubscribeGoalEvents();
+    const snapshot = completedSnapshot ?? (await session.getGoal());
+    if (outputFormat === 'stream-json') {
+      stdout.write(`${JSON.stringify(goalSummaryJson(snapshot))}\n`);
+    } else {
+      stderr.write(`${formatGoalSummaryText(snapshot)}\n`);
+    }
+    if (snapshot !== null && snapshot.status !== 'complete') {
+      process.exitCode = goalExitCode(snapshot.status);
+    }
   }
 }
 
@@ -117,7 +171,12 @@ async function resolvePromptSession(
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
-  const session = await harness.createSession({ workDir, model, permission: 'auto' });
+  const session = await harness.createSession({
+    workDir,
+    model,
+    permission: 'auto',
+    ...(opts.addDirs.length > 0 ? { additionalDirs: opts.addDirs } : {}),
+  });
   installHeadlessHandlers(session);
   return { session, resumed: false, restorePermission: async () => {} };
 }
@@ -265,11 +324,24 @@ function runPromptTurn(
       : new PromptTranscriptWriter(stdout, stderr);
   let settled = false;
   let unsubscribe: (() => void) | undefined;
+  // Hold the event loop while goal is active or cron has a future fire.
+  // Cron scheduler ticks are unref'd; without a ref'd handle the process
+  // would drain and exit before the next turn is steered.
+  let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+  const holdEventLoop = (): void => {
+    keepAliveTimer ??= setInterval(() => {}, 60_000);
+  };
+  const releaseEventLoop = (): void => {
+    if (keepAliveTimer === undefined) return;
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = undefined;
+  };
 
   return new Promise<void>((resolve, reject) => {
     const finish = (error?: Error): void => {
       if (settled) return;
       settled = true;
+      releaseEventLoop();
       unsubscribe?.();
       outputWriter.finish();
       if (error !== undefined) {
@@ -277,6 +349,28 @@ function runPromptTurn(
         return;
       }
       resolve();
+    };
+
+    // Dual-trigger completion (ADR-0029): turn.ended and terminal goal.updated.
+    // Order: active goal → cron nextFireAt → wait background → settle.
+    const evaluateRunCompletion = async (): Promise<void> => {
+      try {
+        const goal = await session.getGoal();
+        if (settled || activeTurnId !== undefined) return;
+        if (goal?.status === 'active') {
+          holdEventLoop();
+          return;
+        }
+        const { tasks } = await session.getCronTasks();
+        if (settled || activeTurnId !== undefined) return;
+        if (tasks.some((task) => task.nextFireAt !== null)) {
+          holdEventLoop();
+          return;
+        }
+        await finishCompletedTurn();
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
     };
 
     unsubscribe = session.onEvent((event) => {
@@ -293,6 +387,16 @@ function runPromptTurn(
         }
         activeTurnId = event.turnId;
         activeAgentId = event.agentId;
+        return;
+      }
+      if (
+        event.type === 'goal.updated' &&
+        event.agentId === PROMPT_MAIN_AGENT_ID &&
+        activeTurnId === undefined &&
+        event.snapshot !== null &&
+        event.snapshot.status !== 'active'
+      ) {
+        void evaluateRunCompletion();
         return;
       }
       if (
@@ -339,7 +443,10 @@ function runPromptTurn(
           return;
         case 'turn.ended':
           if (event.reason === 'completed') {
-            finish();
+            outputWriter.flushAssistant();
+            activeTurnId = undefined;
+            activeAgentId = undefined;
+            void evaluateRunCompletion();
             return;
           }
           finish(new Error(formatTurnEndedFailure(event)));
@@ -356,6 +463,7 @@ function runPromptTurn(
         case 'compaction.cancelled':
         case 'compaction.completed':
         case 'compaction.started':
+        case 'cron.fired':
         case 'goal.updated':
         case 'mcp.server.status':
         case 'observation_masking.applied':
@@ -376,6 +484,34 @@ function runPromptTurn(
     session.prompt(prompt).catch((error: unknown) => {
       finish(error instanceof Error ? error : new Error(String(error)));
     });
+
+    async function finishCompletedTurn(): Promise<void> {
+      outputWriter.flushAssistant();
+      try {
+        await session.waitForBackgroundTasksOnPrint();
+      } catch (error) {
+        log.warn('waitForBackgroundTasksOnPrint failed', { error });
+        // AC-H1: unfinished / failed print drain must not exit 0.
+        if (process.exitCode === undefined || process.exitCode === 0) {
+          process.exitCode = 1;
+        }
+      }
+      // Non-zero exit when background tasks remain after ceiling (AC-H1).
+      try {
+        const remaining = await session.listBackgroundTasks({ activeOnly: true });
+        if (Array.isArray(remaining) && remaining.length > 0) {
+          process.exitCode =
+            process.exitCode === undefined || process.exitCode === 0 ? 1 : process.exitCode;
+        }
+      } catch (error) {
+        log.warn('listBackgroundTasks after print wait failed', { error });
+        // Opaque drain (list failed after wait) must not look like success.
+        if (process.exitCode === undefined || process.exitCode === 0) {
+          process.exitCode = 1;
+        }
+      }
+      finish();
+    }
   });
 }
 

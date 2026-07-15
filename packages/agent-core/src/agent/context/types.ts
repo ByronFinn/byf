@@ -5,7 +5,7 @@ import type { BackgroundTaskStatus } from '../../tools/background';
 
 export interface UserPromptOrigin {
   readonly kind: 'user';
-  readonly blockedByHook?: string | undefined;
+  readonly blockedByHook?: string;
 }
 
 export const USER_PROMPT_ORIGIN: UserPromptOrigin = { kind: 'user' };
@@ -14,11 +14,11 @@ export interface SkillActivationOrigin {
   readonly kind: 'skill_activation';
   readonly activationId: string;
   readonly skillName: string;
-  readonly skillArgs?: string | undefined;
+  readonly skillArgs?: string;
   readonly trigger: 'user-slash' | 'model-tool' | 'nested-skill';
-  readonly skillType?: string | undefined;
-  readonly skillPath?: string | undefined;
-  readonly skillSource?: SkillSource | undefined;
+  readonly skillType?: string;
+  readonly skillPath?: string;
+  readonly skillSource?: SkillSource;
 }
 
 export interface InjectionOrigin {
@@ -48,6 +48,22 @@ export interface HookResultOrigin {
   readonly blocked?: boolean;
 }
 
+/** Origin for a session-cron fire injected via steer (PRD-0023 R3). */
+export interface CronJobOrigin {
+  readonly kind: 'cron_job';
+  readonly jobId: string;
+  readonly cron: string;
+  readonly recurring: boolean;
+  readonly coalescedCount: number;
+  readonly stale: boolean;
+}
+
+/** Origin for an explicit missed-cron banner (reserved; coalesce covers most cases). */
+export interface CronMissedOrigin {
+  readonly kind: 'cron_missed';
+  readonly count: number;
+}
+
 export type PromptOrigin =
   | UserPromptOrigin
   | SkillActivationOrigin
@@ -55,10 +71,12 @@ export type PromptOrigin =
   | CompactionSummaryOrigin
   | SystemTriggerOrigin
   | BackgroundTaskOrigin
-  | HookResultOrigin;
+  | HookResultOrigin
+  | CronJobOrigin
+  | CronMissedOrigin;
 
 export type ContextMessage = Message & {
-  readonly origin?: PromptOrigin | undefined;
+  readonly origin?: PromptOrigin;
   readonly isError?: boolean;
 };
 

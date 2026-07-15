@@ -27,6 +27,7 @@ export type {
   ExportSessionManifest,
   ByfConfig,
   ByfConfigPatch,
+  CronTaskSnapshot,
   GoalBudgetLimits,
   GoalBudgetReport,
   GoalChange,
@@ -62,22 +63,23 @@ export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'vi
 export type PromptInput = readonly PromptPart[];
 
 export interface ByfHarnessOptions {
-  readonly identity?: HostIdentity | undefined;
-  readonly homeDir?: string | undefined;
-  readonly configPath?: string | undefined;
-  readonly runtime?: RuntimeConfig | undefined;
-  readonly autoLoadConfig?: boolean | undefined;
+  readonly identity?: HostIdentity;
+  readonly homeDir?: string;
+  readonly configPath?: string;
+  readonly runtime?: RuntimeConfig;
+  readonly autoLoadConfig?: boolean;
   readonly uiMode?: string;
   readonly skillDirs?: readonly string[];
 }
 
 export interface CreateSessionOptions {
-  readonly id?: string | undefined;
+  readonly id?: string;
   readonly workDir: string;
-  readonly model?: string | undefined;
-  readonly thinking?: string | undefined;
-  readonly permission?: PermissionMode | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly additionalDirs?: readonly string[];
+  readonly model?: string;
+  readonly thinking?: string;
+  readonly permission?: PermissionMode;
+  readonly metadata?: JsonObject;
 }
 
 export interface RenameSessionInput {
@@ -91,16 +93,16 @@ export interface ResumeSessionInput {
 
 export interface ForkSessionInput {
   readonly id: string;
-  readonly forkId?: string | undefined;
-  readonly title?: string | undefined;
+  readonly forkId?: string;
+  readonly title?: string;
   readonly metadata?: JsonObject;
   readonly upToMessage?: number;
 }
 
 export interface ExportSessionInput {
   readonly id: string;
-  readonly outputPath?: string | undefined;
-  readonly includeGlobalLog?: boolean | undefined;
+  readonly outputPath?: string;
+  readonly includeGlobalLog?: boolean;
   readonly version: string;
 }
 
@@ -116,11 +118,11 @@ export interface ListSessionsOptions {
 }
 
 export interface GetConfigOptions {
-  readonly reload?: boolean | undefined;
+  readonly reload?: boolean;
 }
 
 export interface CompactOptions {
-  readonly instruction?: string | undefined;
+  readonly instruction?: string;
 }
 
 export interface TokenUsage {
@@ -131,9 +133,9 @@ export interface TokenUsage {
 }
 
 export interface SessionUsage {
-  readonly byModel?: Record<string, TokenUsage> | undefined;
-  readonly currentTurn?: TokenUsage | undefined;
-  readonly total?: TokenUsage | undefined;
+  readonly byModel?: Record<string, TokenUsage>;
+  readonly currentTurn?: TokenUsage;
+  readonly total?: TokenUsage;
   /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
   readonly cacheHitRate?: number;
   readonly inputBreakdown?: InputTokenBreakdown;
@@ -151,14 +153,14 @@ export interface SessionStatus {
 
 export interface SessionSummary {
   readonly id: string;
-  readonly title?: string | undefined;
+  readonly title?: string;
   readonly lastPrompt?: string;
   readonly workDir: string;
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
-  readonly archived?: boolean | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly archived?: boolean;
+  readonly metadata?: JsonObject;
 }
 
 export type ResumedSessionState = Pick<

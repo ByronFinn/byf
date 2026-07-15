@@ -135,9 +135,9 @@ describe('e2e: kosong toolchain bridges', () => {
     expect(extractText(first.message)).toBe('I will route the shipment.');
     expect(first.toolCalls).toHaveLength(1);
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.toolCallId).toBe('tc-route');
-    expect(toolResults[0]!.returnValue.isError).toBe(false);
-    expect(toolResults[0]!.returnValue.output).toBe('pkg-42 -> Shanghai:200000');
+    expect(toolResults[0].toolCallId).toBe('tc-route');
+    expect(toolResults[0].returnValue.isError).toBe(false);
+    expect(toolResults[0].returnValue.output).toBe('pkg-42 -> Shanghai:200000');
     expect(extractText(second.message)).toBe('Shipment routed.');
   });
 
@@ -225,7 +225,7 @@ describe('e2e: kosong toolchain bridges', () => {
       shipping: { city: 'Hangzhou', zip: '310000' },
       billing: { city: 'Shenzhen', zip: '518000' },
     });
-    expect(toolResults[0]!.returnValue.output).toBe('ship:ok');
+    expect(toolResults[0].returnValue.output).toBe('ship:ok');
     expect(extractText(second.message)).toBe('Shipment booked.');
   });
 });

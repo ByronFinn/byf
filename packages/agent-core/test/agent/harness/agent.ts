@@ -94,11 +94,11 @@ interface ResumeStateSnapshot {
 }
 
 interface TestAgentOptions {
-  readonly kaos?: Kaos | undefined;
-  readonly runtime?: RuntimeConfig | undefined;
-  readonly cwd?: string | undefined;
-  readonly compactionStrategy?: CompactionStrategy | undefined;
-  readonly generate?: GenerateFn | undefined;
+  readonly kaos?: Kaos;
+  readonly runtime?: RuntimeConfig;
+  readonly cwd?: string;
+  readonly compactionStrategy?: CompactionStrategy;
+  readonly generate?: GenerateFn;
   readonly hookEngine?: AgentConfig['hookEngine'];
   readonly type?: AgentConfig['type'];
   readonly permission?: AgentConfig['permission'];
@@ -106,16 +106,16 @@ interface TestAgentOptions {
   readonly sessionId?: string;
   readonly homedir?: string;
   readonly subagentHost?: AgentConfig['subagentHost'];
-  readonly onEvent?: ((event: AgentRecord) => AgentRecord | undefined) | undefined;
-  readonly persistence?: AgentRecordPersistence | undefined;
-  readonly telemetry?: TelemetryClient | undefined;
+  readonly onEvent?: (event: AgentRecord) => AgentRecord | undefined;
+  readonly persistence?: AgentRecordPersistence;
+  readonly telemetry?: TelemetryClient;
   readonly log?: Logger;
 }
 
 interface ConfigureOptions {
-  readonly tools?: readonly string[] | undefined;
-  readonly provider?: ProviderConfig | undefined;
-  readonly modelCapabilities?: ModelCapability | undefined;
+  readonly tools?: readonly string[];
+  readonly provider?: ProviderConfig;
+  readonly modelCapabilities?: ModelCapability;
 }
 
 export type TestAgentContext = AgentTestContext;
@@ -239,10 +239,7 @@ export class AgentTestContext {
     this.lastEventCount = this.allEvents.length;
   }
 
-  configureRuntimeModel(
-    provider: ProviderConfig,
-    modelCapabilities?: ModelCapability | undefined,
-  ): void {
+  configureRuntimeModel(provider: ProviderConfig, modelCapabilities?: ModelCapability): void {
     this.agent.providerManager?.updateConfig(
       configWithProvider(this.agent.providerManager.config, provider, modelCapabilities),
     );
@@ -373,7 +370,7 @@ export class AgentTestContext {
     });
     if (index === -1) return undefined;
 
-    const event = this.allEvents[index]!;
+    const event = this.allEvents[index];
     return { event: event as RpcLogEntry, index };
   }
 
@@ -395,7 +392,7 @@ export class AgentTestContext {
       type: '[rpc]',
       event: method,
       args,
-      ...(response !== undefined ? { [RPC_RESPONSE]: response } : {}),
+      [RPC_RESPONSE]: response,
     };
     this.allEvents.push(event);
     this.emitter.emit(method, event);

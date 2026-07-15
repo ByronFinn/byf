@@ -2,6 +2,7 @@ import type { ContentPart } from '@byfriends/kosong';
 
 import type { AgentConfigData } from '#/agent/config';
 import type { AgentContextData } from '#/agent/context';
+import type { CronTaskSnapshot } from '#/agent/cron';
 import type { GoalBudgetLimits, GoalSnapshot } from '#/agent/goal';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
@@ -30,16 +31,29 @@ export type EmptyPayload = {};
 export type SessionMetadataPatch = Partial<Omit<SessionMeta, 'agents'>>;
 
 export interface CreateSessionPayload {
-  readonly id?: string | undefined;
+  readonly id?: string;
   readonly workDir: string;
-  readonly model?: string | undefined;
-  readonly thinking?: string | undefined;
-  readonly permission?: PermissionMode | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly additionalDirs?: readonly string[];
+  readonly model?: string;
+  readonly thinking?: string;
+  readonly permission?: PermissionMode;
+  readonly metadata?: JsonObject;
 }
 
 export interface CloseSessionPayload {
   readonly sessionId: string;
+}
+
+export interface AddWorkspaceDirPayload {
+  readonly sessionId: string;
+  readonly dir: string;
+  readonly persist?: boolean;
+}
+
+export interface AddWorkspaceDirResult {
+  readonly workspaceDir: string;
+  readonly additionalDirs: readonly string[];
+  readonly configPath?: string;
 }
 
 export interface ResumeSessionPayload {
@@ -56,13 +70,13 @@ export interface ForkSessionPayload {
 
 export interface ExportSessionPayload {
   readonly sessionId: string;
-  readonly outputPath?: string | undefined;
+  readonly outputPath?: string;
   /**
    * When true, the active global diagnostic log (`$BYF_HOME/logs/byf.log`)
    * is copied into the zip at `logs/global/byf.log`. Off by default to
    * avoid bundling events from concurrent sessions / other projects.
    */
-  readonly includeGlobalLog?: boolean | undefined;
+  readonly includeGlobalLog?: boolean;
   /** Host version to record in the export manifest. */
   readonly version: string;
 }
@@ -74,14 +88,14 @@ export interface ExportSessionManifest {
   readonly wireProtocolVersion: string;
   readonly os: string;
   readonly nodejsVersion: string;
-  readonly sessionFirstActivity?: string | undefined;
-  readonly sessionLastActivity?: string | undefined;
-  readonly title?: string | undefined;
-  readonly workspaceDir?: string | undefined;
+  readonly sessionFirstActivity?: string;
+  readonly sessionLastActivity?: string;
+  readonly title?: string;
+  readonly workspaceDir?: string;
   /** zip-relative path to the session diagnostic log when present. */
-  readonly sessionLogPath?: string | undefined;
+  readonly sessionLogPath?: string;
   /** zip-relative path to the bundled global diagnostic log (only when --include-global-log). */
-  readonly globalLogPath?: string | undefined;
+  readonly globalLogPath?: string;
 }
 
 export interface ExportSessionResult {
@@ -101,14 +115,14 @@ export interface CoreInfo {
 
 export interface SessionSummary {
   readonly id: string;
-  readonly title?: string | undefined;
+  readonly title?: string;
   readonly lastPrompt?: string;
   readonly workDir: string;
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
-  readonly archived?: boolean | undefined;
-  readonly metadata?: JsonObject | undefined;
+  readonly archived?: boolean;
+  readonly metadata?: JsonObject;
 }
 
 export interface PromptPayload {
@@ -147,7 +161,7 @@ export interface SetModelPayload {
 }
 export interface SetModelResult {
   readonly model: string;
-  readonly providerName?: string | undefined;
+  readonly providerName?: string;
 }
 export interface BeginCompactionPayload {
   readonly instruction?: string;
@@ -190,13 +204,13 @@ export interface SkillSummary {
   readonly description: string;
   readonly path: string;
   readonly source: 'builtin' | 'user' | 'extra' | 'project';
-  readonly type?: string | undefined;
-  readonly disableModelInvocation?: boolean | undefined;
+  readonly type?: string;
+  readonly disableModelInvocation?: boolean;
 }
 
 export interface ActivateSkillPayload {
   readonly name: string;
-  readonly args?: string | undefined;
+  readonly args?: string;
 }
 
 export interface McpServerInfo {
@@ -243,6 +257,19 @@ export interface ShellExecResult {
   readonly timedOut: boolean;
 }
 
+export interface GetCronTasksResult {
+  readonly tasks: readonly CronTaskSnapshot[];
+}
+
+/** Host-path cron delete (PRD-0024 / ADR-0030). Not a tool permission surface. */
+export interface DeleteCronTaskPayload {
+  readonly id: string;
+}
+
+export interface DeleteCronTaskResult {
+  readonly deleted: boolean;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -256,6 +283,8 @@ export interface AgentAPI {
   pauseGoal: (payload: EmptyPayload) => PauseGoalResult;
   resumeGoal: (payload: EmptyPayload) => ResumeGoalResult;
   cancelGoal: (payload: EmptyPayload) => CancelGoalResult;
+  getCronTasks: (payload: EmptyPayload) => GetCronTasksResult;
+  deleteCronTask: (payload: DeleteCronTaskPayload) => DeleteCronTaskResult;
   setModel: (payload: SetModelPayload) => SetModelResult;
   getModel: (payload: EmptyPayload) => string;
   beginCompaction: (payload: BeginCompactionPayload) => void;
@@ -299,6 +328,9 @@ export interface CoreAPI extends SessionAPIWithId {
   removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
+  waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;
+  addWorkspaceDir: (payload: AddWorkspaceDirPayload) => AddWorkspaceDirResult;
+  getWorkspaceRoots: (payload: CloseSessionPayload) => AddWorkspaceDirResult;
   resumeSession: (payload: ResumeSessionPayload) => ResumeSessionResult;
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];

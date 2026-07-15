@@ -10,12 +10,12 @@ import type {
 
 interface MergedAgentProfile {
   readonly name: string;
-  readonly description?: string | undefined;
+  readonly description?: string;
   readonly systemPromptTemplate: string;
   readonly promptVars: Record<string, string>;
   readonly tools: string[];
-  readonly whenToUse?: string | undefined;
-  readonly subagents?: Record<string, RawSubagentProfile> | undefined;
+  readonly whenToUse?: string;
+  readonly subagents?: Record<string, RawSubagentProfile>;
 }
 
 /**

@@ -34,11 +34,6 @@ interface MessageDriver {
   getCurrentSessionId(): string;
 }
 
-interface FeedbackDriver extends MessageDriver {
-  handleFeedbackCommand(): Promise<void>;
-  promptFeedbackInput(): Promise<string | undefined>;
-}
-
 function makeStartupInput(): ByfTuiStartupInput {
   return {
     cliOptions: {
@@ -181,11 +176,13 @@ function renderTranscript(driver: MessageDriver): string {
 /**
  * Returns the active BtwViewer mounted as a /btw overlay, or undefined.
  * The overlay lives in the pi-tui overlay stack (not the editor container),
- * so we read it back through the ByfTui's internal overlay state.
+ * so we read it back through the BtwController's internal overlay state.
  */
 function getBtwViewer(driver: MessageDriver): BtwViewer | undefined {
-  return (driver as unknown as { btwOverlay?: { component: BtwViewer } | undefined }).btwOverlay
-    ?.component;
+  const controller = (
+    driver as unknown as { btwController?: { overlay?: { component: BtwViewer } | undefined } }
+  ).btwController;
+  return controller?.overlay?.component;
 }
 
 function expectBtwViewer(driver: MessageDriver): BtwViewer {
@@ -280,7 +277,7 @@ describe('ByfTui message flow', () => {
     expect(harness.track).toHaveBeenCalledWith('theme_switch', { theme: 'light' });
   });
 
-  it('opens GitHub issues for /feedback', async () => {
+  it('opens GitHub issues for /feedback via slash dispatch', async () => {
     const { driver, harness } = await makeDriver(makeSession(), {
       getConfig: vi.fn(async () => ({
         models: {
@@ -292,35 +289,15 @@ describe('ByfTui message flow', () => {
         },
       })),
     });
-    const feedbackDriver = driver as unknown as FeedbackDriver;
     harness.track.mockClear();
 
-    await feedbackDriver.handleFeedbackCommand();
+    driver.handleUserInput('/feedback');
 
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('https://github.com/ByronFinn/byf/issues');
-    expect(harness.auth.submitFeedback).not.toHaveBeenCalled();
-    expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
-  });
-
-  it('does not track feedback when the dialog is cancelled', async () => {
-    const { driver, harness } = await makeDriver(makeSession(), {
-      getConfig: vi.fn(async () => ({
-        models: {
-          k2: {
-            model: 'byf-v1',
-            maxContextSize: 100,
-            provider: 'test-provider',
-          },
-        },
-      })),
+    await vi.waitFor(() => {
+      expect(stripSgr(renderTranscript(driver))).toContain(
+        'https://github.com/ByronFinn/byf/issues',
+      );
     });
-    const feedbackDriver = driver as unknown as FeedbackDriver;
-    feedbackDriver.promptFeedbackInput = vi.fn(async () => undefined);
-    harness.track.mockClear();
-
-    await feedbackDriver.handleFeedbackCommand();
-
     expect(harness.auth.submitFeedback).not.toHaveBeenCalled();
     expect(harness.track).not.toHaveBeenCalledWith('feedback_submitted', undefined);
   });
@@ -541,8 +518,9 @@ describe('ByfTui message flow', () => {
         expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
-      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
-        .btwOverlay;
+      const overlay = (
+        driver as unknown as { btwController: { overlay: { handle: { isHidden: () => boolean } } } }
+      ).btwController.overlay;
 
       // An approval arrives while the btw overlay is open → it must hide.
       // showApprovalPanel is driven directly (the session mock bypasses the
@@ -576,8 +554,9 @@ describe('ByfTui message flow', () => {
         expect(getBtwViewer(driver)).toBeInstanceOf(BtwViewer);
       });
 
-      const overlay = (driver as unknown as { btwOverlay: { handle: { isHidden: () => boolean } } })
-        .btwOverlay;
+      const overlay = (
+        driver as unknown as { btwController: { overlay: { handle: { isHidden: () => boolean } } } }
+      ).btwController.overlay;
       const internal = driver as unknown as {
         showQuestionDialog(data: unknown): void;
         hideQuestionDialog(): void;

@@ -161,6 +161,212 @@ describe('Session lifecycle hooks', () => {
   });
 });
 
+describe('Session.waitForBackgroundTasksOnPrint', () => {
+  it('waits for background tasks to finish (unconditional, ignores keepAliveOnExit)', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      // keepAliveOnExit: true (default) — drain must run anyway (ADR-0029 §2/§5)
+      background: { keepAliveOnExit: true, printWaitCeilingS: 5 },
+    });
+    const agent = await session.createMain();
+    const { proc } = pendingProcess(0); // exit 0 = natural completion
+    const taskId = agent.background.register(proc, 'sleep 1', 'print drain test');
+
+    // Start wait; then complete the task shortly after via manual kill
+    // (simulates natural completion — drain itself never kills).
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    await new Promise((r) => setTimeout(r, 50));
+    await proc.kill(); // resolves waitPromise → task finishes
+    await waitP;
+
+    // Task finished (not killed by drain — drain only waits)
+    expect(agent.background.getTask(taskId)?.status).toBe('completed');
+    await session.close();
+  });
+
+  it('returns immediately when no active background tasks exist', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-empty',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+    });
+    await session.createMain();
+
+    const start = Date.now();
+    await session.waitForBackgroundTasksOnPrint();
+    expect(Date.now() - start).toBeLessThan(500);
+    await session.close();
+  });
+
+  it('does not kill tasks on ceiling timeout', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-timeout',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { printWaitCeilingS: 1 },
+    });
+    const agent = await session.createMain();
+    const { proc, killSpy } = pendingProcess();
+    agent.background.register(proc, 'sleep 60', 'timeout test');
+
+    await session.waitForBackgroundTasksOnPrint();
+
+    // Ceiling expired — task NOT killed, still running
+    expect(killSpy).not.toHaveBeenCalled();
+    // Clean up
+    await proc.kill();
+    await session.close();
+  });
+
+  it('uses env BYF_PRINT_WAIT_CEILING_S when background config omits printWaitCeilingS', async () => {
+    // Default path: no printWaitCeilingS in SessionConfig.background — must not
+    // hang on NaN deadline (old bug: parseInt('') ?? 3600). Env short-ceiling
+    // proves the real shipped resolvePrintWaitCeilingS path fires.
+    const prev = process.env['BYF_PRINT_WAIT_CEILING_S'];
+    process.env['BYF_PRINT_WAIT_CEILING_S'] = '1';
+    try {
+      const { sessionDir, workDir } = await hookFixture();
+      const session = new Session({
+        runtime: { kaos: localKaos, osEnv: OS_ENV },
+        id: 'session-print-drain-env-default',
+        homedir: sessionDir,
+        cwd: workDir,
+        rpc: createSessionRpc(),
+        skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+        // intentionally no background.printWaitCeilingS
+      });
+      const agent = await session.createMain();
+      const { proc, killSpy } = pendingProcess();
+      agent.background.register(proc, 'sleep 60', 'env ceiling test');
+
+      const start = Date.now();
+      await session.waitForBackgroundTasksOnPrint();
+      const elapsed = Date.now() - start;
+
+      // ~1s ceiling (not 3600s hang, not immediate NaN-deadline skip)
+      expect(elapsed).toBeGreaterThanOrEqual(800);
+      expect(elapsed).toBeLessThan(5000);
+      expect(killSpy).not.toHaveBeenCalled();
+      await proc.kill();
+      await session.close();
+    } finally {
+      if (prev === undefined) {
+        delete process.env['BYF_PRINT_WAIT_CEILING_S'];
+      } else {
+        process.env['BYF_PRINT_WAIT_CEILING_S'] = prev;
+      }
+    }
+  });
+
+  it('env overrides config printWaitCeilingS on the real wait path', async () => {
+    const prev = process.env['BYF_PRINT_WAIT_CEILING_S'];
+    process.env['BYF_PRINT_WAIT_CEILING_S'] = '1';
+    try {
+      const { sessionDir, workDir } = await hookFixture();
+      const session = new Session({
+        runtime: { kaos: localKaos, osEnv: OS_ENV },
+        id: 'session-print-drain-env-over-config',
+        homedir: sessionDir,
+        cwd: workDir,
+        rpc: createSessionRpc(),
+        skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+        // Config would wait ~60s if env did not win.
+        background: { printWaitCeilingS: 60 },
+      });
+      const agent = await session.createMain();
+      const { proc } = pendingProcess();
+      agent.background.register(proc, 'sleep 60', 'env beats config');
+
+      const start = Date.now();
+      await session.waitForBackgroundTasksOnPrint();
+      expect(Date.now() - start).toBeLessThan(5000);
+
+      await proc.kill();
+      await session.close();
+    } finally {
+      if (prev === undefined) {
+        delete process.env['BYF_PRINT_WAIT_CEILING_S'];
+      } else {
+        process.env['BYF_PRINT_WAIT_CEILING_S'] = prev;
+      }
+    }
+  });
+
+  it('still drains when keepAliveOnExit is false (unconditional, decoupled)', async () => {
+    // AC #237: print drain must NOT read keepAliveOnExit — that flag only
+    // controls Session.close stopAll. keepAliveOnExit=false must still wait.
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-no-keepalive',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { keepAliveOnExit: false, printWaitCeilingS: 5 },
+    });
+    const agent = await session.createMain();
+    const { proc } = pendingProcess(0);
+    const taskId = agent.background.register(proc, 'sleep 1', 'no-keepalive drain');
+
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    await new Promise((r) => setTimeout(r, 50));
+    await proc.kill();
+    await waitP;
+
+    expect(agent.background.getTask(taskId)?.status).toBe('completed');
+    await session.close();
+  });
+
+  it('re-scans for fan-out tasks registered while waiting (multi-pass)', async () => {
+    // AC #237: subagent fan-out may register new background tasks after the
+    // first enumeration; wait must loop until the active set is empty.
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-print-drain-fanout',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      background: { printWaitCeilingS: 8 },
+    });
+    const agent = await session.createMain();
+    const first = pendingProcess(0);
+    const second = pendingProcess(0);
+    const firstId = agent.background.register(first.proc, 'sleep 1', 'fanout-first');
+
+    const waitP = session.waitForBackgroundTasksOnPrint();
+    // While the first task is still active, fan-out a second task so the
+    // next scan of waitForBackgroundTasksOnPrint must pick it up.
+    await new Promise((r) => setTimeout(r, 30));
+    const secondId = agent.background.register(second.proc, 'sleep 1', 'fanout-second');
+    await first.proc.kill();
+    // Give the wait loop a moment to re-scan before completing the second.
+    await new Promise((r) => setTimeout(r, 80));
+    await second.proc.kill();
+    await waitP;
+
+    expect(agent.background.getTask(firstId)?.status).toBe('completed');
+    expect(agent.background.getTask(secondId)?.status).toBe('completed');
+    await session.close();
+  });
+});
+
 async function hookFixture(): Promise<{
   readonly command: string;
   readonly logPath: string;

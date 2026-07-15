@@ -14,6 +14,7 @@ import { extendWorkspaceWithSkillRoots } from '../../skill';
 import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import { globMatch } from '../permission/path-glob-match';
+import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import type {
   BuiltinTool,
@@ -339,14 +340,14 @@ export class ToolManager implements RecordRestoreHandler {
   initializeBuiltinTools(): void {
     const {
       runtime: { kaos, osEnv, urlFetcher, webSearcher },
-      config: { cwd, provider, modelCapabilities },
+      config: { cwd, additionalDirs, provider, modelCapabilities },
       background,
     } = this.agent;
     const videoUploader = this.createVideoUploader(provider);
     const workspace = extendWorkspaceWithSkillRoots(
       {
         workspaceDir: cwd,
-        additionalDirs: [],
+        additionalDirs: [...additionalDirs],
       },
       this.agent.skills?.registry.getSkillRoots() ?? [],
     );
@@ -366,7 +367,14 @@ export class ToolManager implements RecordRestoreHandler {
           allowBackground,
         }),
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
-          new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+          new b.ReadMediaFileTool(
+            kaos,
+            workspace,
+            modelCapabilities,
+            videoUploader,
+            this.agent.backgroundSessionDir,
+            this.agent.imageLimits,
+          ),
         new b.AskUserQuestionTool(this.agent),
         new b.TodoListTool(this.toolStore),
         new b.TaskListTool(background),
@@ -392,6 +400,10 @@ export class ToolManager implements RecordRestoreHandler {
         this.agent.type === 'main' && new b.GetGoalTool(this.agent),
         this.agent.type === 'main' && new b.SetGoalBudgetTool(this.agent),
         this.agent.type === 'main' && new b.UpdateGoalTool(this.agent),
+        // Session-scoped cron tools (PRD-0023 R3); only when CronManager is attached.
+        this.agent.cron && new b.CronCreateTool(this.agent.cron),
+        this.agent.cron && new b.CronListTool(this.agent.cron),
+        this.agent.cron && new b.CronDeleteTool(this.agent.cron),
         webSearcher && new b.WebSearchTool(webSearcher),
         urlFetcher && new b.FetchURLTool(urlFetcher),
       ]
@@ -442,7 +454,7 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores tools.* records
+    if (!isAgentRecordOfPrefix(record, 'tools')) return;
     switch (record.type) {
       case 'tools.register_user_tool':
         // Call the normal registerUserTool method but it should not log

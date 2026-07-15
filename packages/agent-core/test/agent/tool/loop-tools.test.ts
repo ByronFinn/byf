@@ -41,7 +41,7 @@ describe('ToolManager.loopTools stability ordering', () => {
 
     // All builtin tools must come before all MCP tools
     if (mcpToolNames.length > 0) {
-      const firstMcpIndex = names.indexOf(mcpToolNames[0]!);
+      const firstMcpIndex = names.indexOf(mcpToolNames[0]);
       for (const bn of builtinNames) {
         expect(names.indexOf(bn)).toBeLessThan(firstMcpIndex);
       }

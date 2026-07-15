@@ -9,10 +9,12 @@ linker = "isolated"
 
 [loader]
 # Import .md / .yaml as raw-string modules (default export = file text).
-# Replaces the Node ESM load hook in build/register-raw-text-loader.mjs
-# (used by the former tsx dev entry). Source code imports prompt/profile
-# files and parses them itself, so they must arrive as strings, not as
-# Bun's built-in parsed YAML object.
+# Source code imports prompt/profile files and parses them itself, so they
+# must arrive as strings, not as Bun's built-in parsed YAML object.
+#
+# NOTE: Bun does not walk parent directories for bunfig.toml. Every package
+# that needs these loaders (or the test preload below) must declare its own
+# bunfig.toml. See apps/cli/bunfig.toml and packages/agent-core/bunfig.toml.
 ".md" = "text"
 ".yaml" = "text"
 

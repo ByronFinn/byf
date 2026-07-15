@@ -78,7 +78,9 @@ async function worker() {
         cwd: root,
         stdout: 'pipe',
         stderr: 'pipe',
-        env: process.env,
+        // BYF_TEST_ISOLATED: allow full-suite via per-file processes; root bare
+        // `bun test` is rejected in build/test-preload.ts (mock.module leakage).
+        env: { ...process.env, BYF_TEST_ISOLATED: '1' },
       },
     );
     const timeout = setTimeout(() => {

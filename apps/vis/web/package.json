@@ -30,6 +30,7 @@
   "devDependencies": {
     "@byfriends/agent-core": "workspace:*",
     "@byfriends/kosong": "workspace:*",
+    "@byfriends/vis-shared": "workspace:*",
     "@tailwindcss/vite": "^4.1.4",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

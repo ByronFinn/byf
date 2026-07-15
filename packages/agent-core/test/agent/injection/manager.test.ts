@@ -134,8 +134,8 @@ describe('InjectionManager.getEphemeralInjections', () => {
     const result = ctx.agent.injection.getEphemeralInjections();
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.content).toBe('test ephemeral content');
-    expect(result[0]!.position).toBe('before_user');
+    expect(result[0].content).toBe('test ephemeral content');
+    expect(result[0].position).toBe('before_user');
   });
 
   it('returns empty when no injectors implement getEphemeral', () => {
@@ -158,9 +158,9 @@ describe('InjectionManager.getEphemeralInjections', () => {
     const result = ctx.agent.injection.getEphemeralInjections();
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.kind).toBe('system_reminder');
-    expect(result[0]!.position).toBe('before_user');
-    expect(result[0]!.content).toMatch(/ISO format/);
+    expect(result[0].kind).toBe('system_reminder');
+    expect(result[0].position).toBe('before_user');
+    expect(result[0].content).toMatch(/ISO format/);
   });
 });
 
@@ -183,8 +183,8 @@ describe('PermissionModeInjector (ephemeral)', () => {
     const result = injector.getEphemeral();
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.kind).toBe('system_reminder');
-    expect(result[0]!.position).toBe('before_user');
-    expect(result[0]!.content).toContain('Auto permission mode is active');
+    expect(result[0].kind).toBe('system_reminder');
+    expect(result[0].position).toBe('before_user');
+    expect(result[0].content).toContain('Auto permission mode is active');
   });
 });

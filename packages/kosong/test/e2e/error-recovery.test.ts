@@ -266,16 +266,16 @@ describe('e2e: error recovery', () => {
 
       expect(toolResults).toHaveLength(3);
       // First tool: success
-      expect(toolResults[0]!.returnValue.isError).toBe(false);
-      expect(toolResults[0]!.returnValue.output).toBe('success');
+      expect(toolResults[0].returnValue.isError).toBe(false);
+      expect(toolResults[0].returnValue.output).toBe('success');
       // Second tool: runtime error
-      expect(toolResults[1]!.returnValue.isError).toBe(true);
-      expect(toolResults[1]!.returnValue.message).toBe(
+      expect(toolResults[1].returnValue.isError).toBe(true);
+      expect(toolResults[1].returnValue.message).toBe(
         'Error running tool: Tool timeout simulation',
       );
       // Third tool: success
-      expect(toolResults[2]!.returnValue.isError).toBe(false);
-      expect(toolResults[2]!.returnValue.output).toBe('success');
+      expect(toolResults[2].returnValue.isError).toBe(false);
+      expect(toolResults[2].returnValue.output).toBe('success');
     });
 
     it('tool not found → toolNotFoundError in results', async () => {
@@ -296,8 +296,8 @@ describe('e2e: error recovery', () => {
       const toolResults = await result.toolResults();
 
       expect(toolResults).toHaveLength(1);
-      expect(toolResults[0]!.returnValue.isError).toBe(true);
-      expect(toolResults[0]!.returnValue.message).toContain('nonexistent_tool');
+      expect(toolResults[0].returnValue.isError).toBe(true);
+      expect(toolResults[0].returnValue.message).toContain('nonexistent_tool');
     });
 
     it('tool with invalid JSON arguments → toolParseError', async () => {
@@ -321,9 +321,9 @@ describe('e2e: error recovery', () => {
       const toolResults = await result.toolResults();
 
       expect(toolResults).toHaveLength(1);
-      expect(toolResults[0]!.returnValue.isError).toBe(true);
+      expect(toolResults[0].returnValue.isError).toBe(true);
       // The message should describe a parse error
-      expect(toolResults[0]!.returnValue.display).toEqual(
+      expect(toolResults[0].returnValue.display).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ type: 'brief', text: 'Invalid arguments' }),
         ]),
@@ -354,8 +354,8 @@ describe('e2e: error recovery', () => {
       const toolResults = await result.toolResults();
 
       expect(toolResults).toHaveLength(1);
-      expect(toolResults[0]!.returnValue.isError).toBe(true);
-      expect(toolResults[0]!.returnValue.message).toBe('Error running tool: a raw string error');
+      expect(toolResults[0].returnValue.isError).toBe(true);
+      expect(toolResults[0].returnValue.message).toBe('Error running tool: a raw string error');
     });
   });
 

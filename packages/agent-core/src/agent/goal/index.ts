@@ -1,6 +1,6 @@
 import type { Agent } from '..';
 import { ByfError, ErrorCodes } from '../../errors';
-import type { AgentRecord } from '../records/types';
+import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from './constants';
 import type {
@@ -289,7 +289,7 @@ export class GoalMode implements RecordRestoreHandler {
   // —— replay ——
 
   restoreRecord(record: AgentRecord): void {
-    // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- restoreRecord only restores goal.* records
+    if (!isAgentRecordOfPrefix(record, 'goal')) return;
     switch (record.type) {
       case 'goal.create':
         // goal.create 含 objective/budget/createdAt——重建初始 active snapshot。

@@ -34,7 +34,7 @@ function tempPathFromSpawn(cmd: string, args: string[]): string {
   const shellCmd = args[0] === '-c' ? (args[1] ?? '') : cmd;
   const match = shellCmd.match(/'([^']+)'$/);
   if (!match) throw new Error(`Could not parse temp path from: ${shellCmd}`);
-  return match[1]!;
+  return match[1];
 }
 
 afterEach(() => {

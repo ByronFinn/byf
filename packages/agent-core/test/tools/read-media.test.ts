@@ -2,8 +2,13 @@
  * ReadMediaFileTool tests for the current output/capability contract.
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { Kaos } from '@byfriends/kaos';
 import type { ContentPart, ModelCapability } from '@byfriends/kosong';
+import { Jimp } from 'jimp';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';
@@ -13,6 +18,10 @@ import {
   ReadMediaFileTool,
 } from '../../src/tools/builtin/file/read-media';
 import { MEDIA_SNIFF_BYTES } from '../../src/tools/support/file-type';
+import {
+  gateImageFormat,
+  MODEL_ACCEPTED_IMAGE_MIMES,
+} from '../../src/tools/support/image-format-policy';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';
 
@@ -40,6 +49,19 @@ const MP4_HEADER = Buffer.concat([
   Buffer.from('mp42isom'),
 ]);
 
+// Minimal HEIC ftyp box: 4-byte big-endian size + 'ftyp' + brand 'heic'.
+// detectFileType recognises this via FTYP_IMAGE_BRANDS → image/heic.
+const HEIC_HEADER = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftyp'),
+  Buffer.from('heic'),
+  Buffer.from([0x00, 0x00, 0x00, 0x00]),
+  Buffer.from('mif1heic'),
+]);
+
+// BMP file starts with ASCII 'BM'; pad so it parses as a small bitmap.
+const BMP_HEADER = Buffer.concat([Buffer.from('BM'), Buffer.alloc(30, 0x00)]);
+
 function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability {
   return {
     image_in: true,
@@ -57,9 +79,10 @@ function capabilities(overrides: Partial<ModelCapability> = {}): ModelCapability
 
 function makeReadMediaTool(
   input: {
-    readonly stat?: Kaos['stat'] | undefined;
-    readonly readBytes?: Kaos['readBytes'] | undefined;
-    readonly modelCapabilities?: ModelCapability | undefined;
+    readonly stat?: Kaos['stat'];
+    readonly readBytes?: Kaos['readBytes'];
+    readonly modelCapabilities?: ModelCapability;
+    readonly sessionDir?: string;
   } = {},
 ): ReadMediaFileTool {
   const kaos = createFakeKaos({
@@ -70,6 +93,8 @@ function makeReadMediaTool(
     kaos,
     PERMISSIVE_WORKSPACE,
     input.modelCapabilities ?? capabilities(),
+    undefined,
+    input.sessionDir,
   );
 }
 
@@ -569,5 +594,221 @@ describe('ReadMediaFileTool', () => {
     });
     expect(relative.isError).toBe(true);
     expect(readBytes).not.toHaveBeenCalled();
+  });
+
+  // ── Image format gating (issue #232) ────────────────────────────────
+
+  it('rejects an HEIC image with a conversion hint before reading the full file', async () => {
+    // readBytes is called twice: first with MEDIA_SNIFF_BYTES (header sniff),
+    // then with no args (full read). The gate runs after the sniff and before
+    // the full read, so the second call must never happen for a rejected
+    // format — assert that only the sniff call occurred.
+    const readBytes = vi.fn<Kaos['readBytes']>().mockResolvedValue(HEIC_HEADER);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({
+        ...DEFAULT_STAT,
+        stSize: HEIC_HEADER.length,
+      }),
+      readBytes,
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_heic',
+      args: { path: '/workspace/photo.heic' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/heic/i);
+    expect(result.output).toMatch(/sips|heif-convert|magick|convert/i);
+    // The full-file read is skipped: only the sniff call happened.
+    expect(readBytes).toHaveBeenCalledTimes(1);
+    expect(readBytes).toHaveBeenCalledWith('/workspace/photo.heic', MEDIA_SNIFF_BYTES);
+  });
+
+  it('rejects a BMP image with a conversion hint', async () => {
+    const readBytes = vi.fn<Kaos['readBytes']>().mockResolvedValue(BMP_HEADER);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({
+        ...DEFAULT_STAT,
+        stSize: BMP_HEADER.length,
+      }),
+      readBytes,
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_bmp',
+      args: { path: '/workspace/legacy.bmp' },
+      signal,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/bmp|image\/bmp/i);
+    expect(result.output).toMatch(/sips|heif-convert|magick|convert/i);
+  });
+
+  it('lets a PNG pass the format gate and returns the normal 4-part wrap', async () => {
+    const data = Buffer.concat([PNG_HEADER, Buffer.from('pngdata')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_png_gate',
+      args: { path: '/workspace/ok.png' },
+      signal,
+    });
+
+    const parts = outputParts(result);
+    expect(parts).toHaveLength(4);
+    expect(parts[2]).toMatchObject({ type: 'image_url' });
+    // The model-accepted MIME appears in the data URL — confirms the gate
+    // let image/png through rather than rejecting it.
+    expect((parts[2] as { imageUrl: { url: string } }).imageUrl.url).toContain('image/png');
+  });
+
+  it('gateImageFormat accepts model-supported MIME types and rejects others with a notice', () => {
+    // Accepted set matches the exported constant.
+    expect(gateImageFormat('image/png').accepted).toBe(true);
+    expect(gateImageFormat('image/jpeg').accepted).toBe(true);
+    expect(gateImageFormat('image/gif').accepted).toBe(true);
+    expect(gateImageFormat('image/webp').accepted).toBe(true);
+
+    // Sanity: the accepted set is exactly png/jpeg/gif/webp.
+    expect(MODEL_ACCEPTED_IMAGE_MIMES).toEqual(
+      new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+    );
+
+    // Rejected formats each carry a non-empty notice naming the MIME and a
+    // conversion command.
+    for (const mime of [
+      'image/heic',
+      'image/avif',
+      'image/bmp',
+      'image/tiff',
+      'image/ico',
+      'image/x-icon',
+    ]) {
+      const gate = gateImageFormat(mime);
+      expect(gate.accepted).toBe(false);
+      if (!gate.accepted) {
+        expect(gate.notice).toContain(mime);
+        expect(gate.notice.length).toBeGreaterThan(0);
+        expect(gate.notice).toMatch(/sips|heif-convert|magick|convert/i);
+      }
+    }
+  });
+
+  // ── Image compression integration (issue #233) ─────────────────────
+
+  it('compresses a large image and surfaces a compression note in the <system> summary', async () => {
+    // A 3000x3000 PNG exceeds the 2000px edge cap, so compression fires.
+    const img = new Jimp({ width: 3000, height: 3000, color: 0xff0000ff });
+    const bigPng = Buffer.from(await img.getBuffer('image/png'));
+    const sessionDir = mkdtempSync(join(tmpdir(), 'byf-rm-compress-'));
+    try {
+      const tool = makeReadMediaTool({
+        stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: bigPng.length }),
+        readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(bigPng),
+        sessionDir,
+      });
+
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c_compress',
+        args: { path: '/workspace/big.png' },
+      });
+
+      const parts = outputParts(result);
+      const systemText = (parts[0] as { text: string }).text;
+      // The summary records that compression happened.
+      expect(systemText).toMatch(/compress/i);
+      expect(systemText).toContain('image/png');
+      expect(systemText).toMatch(/Original:/);
+      expect(systemText).toMatch(/ReadMediaFile on that path/i);
+      // The data URL now carries the post-compress bytes. For a solid-color
+      // PNG Jimp keeps it as PNG (lossless is smallest), so the mime may
+      // match — but the byte payload must differ from the original.
+      const url = (parts[2] as { imageUrl: { url: string } }).imageUrl.url;
+      expect(url).toMatch(/^data:image\//);
+      const base64 = url.slice(url.indexOf('base64,') + 'base64,'.length);
+      const decoded = Buffer.from(base64, 'base64');
+      expect(decoded.length).toBeLessThan(bigPng.length);
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a small PNG uncompressed (passthrough): identical data URL, no compression note', async () => {
+    // A tiny PNG is under both the edge cap and the byte budget — passthrough.
+    const data = Buffer.concat([PNG_HEADER, Buffer.from('pngdata')]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_passthrough',
+      args: { path: '/workspace/small.png' },
+    });
+
+    const parts = outputParts(result);
+    const systemText = (parts[0] as { text: string }).text;
+    expect(systemText).not.toMatch(/compress/i);
+    expect((parts[2] as { imageUrl: { url: string } }).imageUrl.url).toBe(
+      `data:image/png;base64,${data.toString('base64')}`,
+    );
+  });
+
+  it('rejects a misnamed image whose bytes are an unsupported format (magic over extension)', async () => {
+    // A file named .png but whose bytes are a BMP magic. detectFileType
+    // trusts the extension when the kind agrees (both image), so the reported
+    // MIME is image/png — but the model receives BMP bytes. The format gate
+    // must key off the magic MIME and reject the real (unsupported) format.
+    const data = Buffer.concat([BMP_HEADER, Buffer.alloc(32, 0x00)]);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: data.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(data),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_lying_ext',
+      args: { path: '/workspace/photo.png' },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/bmp|image\/bmp/i);
+  });
+
+  it('fail-closes when compression reports an error instead of forwarding raw bytes', async () => {
+    // Construct a PNG whose IHDR advertises large dimensions (3000x3000 >
+    // edge cap) so the compress pipeline skips the fast-path passthrough,
+    // but whose body is garbage so Jimp.read fails → error outcome. The tool
+    // must refuse rather than base64-encode the raw bytes into the prompt.
+    const lyingPng = Buffer.alloc(64, 0);
+    PNG_HEADER.copy(lyingPng);
+    // IHDR width/height are big-endian uint32 at offsets 16/20. Set 3000 each
+    // so withinEdge() reports false and the decode path is taken.
+    lyingPng.writeUInt32BE(3000, 16);
+    lyingPng.writeUInt32BE(3000, 20);
+    const tool = makeReadMediaTool({
+      stat: vi.fn<Kaos['stat']>().mockResolvedValue({ ...DEFAULT_STAT, stSize: lyingPng.length }),
+      readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(lyingPng),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c_bomb',
+      args: { path: '/workspace/bomb.png' },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/could not be prepared|convert or downscale/i);
   });
 });

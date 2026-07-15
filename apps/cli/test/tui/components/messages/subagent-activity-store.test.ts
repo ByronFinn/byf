@@ -95,8 +95,8 @@ describe('SubagentActivityStore', () => {
     });
     expect(store.ongoingSubCalls.has('tc_glob')).toBe(false);
     expect(store.finishedSubCalls.length).toBe(1);
-    expect(store.finishedSubCalls[0]!.name).toBe('Glob');
-    expect(store.finishedSubCalls[0]!.output).toBe('1 file');
+    expect(store.finishedSubCalls[0].name).toBe('Glob');
+    expect(store.finishedSubCalls[0].output).toBe('1 file');
     expect(listener).toHaveBeenCalledTimes(6);
 
     // finish the second tool
@@ -262,13 +262,13 @@ describe('SubagentActivityStore', () => {
 
     // Activities array — sorted by orderSeq
     expect(detail.activities.length).toBe(2);
-    expect(detail.activities[0]!.name).toBe('Read');
-    expect(detail.activities[0]!.phase).toBe('done');
-    expect(detail.activities[0]!.output).toBe('content');
-    expect(detail.activities[0]!.isError).toBe(false);
-    expect(detail.activities[1]!.name).toBe('Bash');
-    expect(detail.activities[1]!.phase).toBe('ongoing');
-    expect(detail.activities[1]!.output).toBeUndefined();
+    expect(detail.activities[0].name).toBe('Read');
+    expect(detail.activities[0].phase).toBe('done');
+    expect(detail.activities[0].output).toBe('content');
+    expect(detail.activities[0].isError).toBe(false);
+    expect(detail.activities[1].name).toBe('Bash');
+    expect(detail.activities[1].phase).toBe('ongoing');
+    expect(detail.activities[1].output).toBeUndefined();
 
     // Elapsed seconds
     expect(detail.elapsedSeconds).toBe(10); // 20s - 10s
@@ -445,7 +445,7 @@ describe('SubagentActivityStore', () => {
     expect(store.hasSubagentState()).toBe(true);
     expect(store.subagentText).toBe('Replayed text content');
     expect(store.finishedSubCalls.length).toBe(1);
-    expect(store.finishedSubCalls[0]!.name).toBe('Glob');
+    expect(store.finishedSubCalls[0].name).toBe('Glob');
     expect(store.ongoingSubCalls.has('t2')).toBe(true);
     expect(store.usageTokens).toBe(1500);
   });
@@ -467,8 +467,8 @@ describe('SubagentActivityStore', () => {
 
     // Only the last 4 should remain
     expect(store.finishedSubCalls.length).toBe(4);
-    expect(store.finishedSubCalls[0]!.name).toBe('Read');
-    expect(store.finishedSubCalls[0]!.args['path']).toBe('f2.ts'); // first 2 trimmed
+    expect(store.finishedSubCalls[0].name).toBe('Read');
+    expect(store.finishedSubCalls[0].args['path']).toBe('f2.ts'); // first 2 trimmed
     expect(store.hiddenSubCallCount).toBe(2);
   });
 
@@ -543,8 +543,8 @@ describe('SubagentActivityStore', () => {
 
     const recent = store.getRecentSubToolActivities();
     expect(recent.length).toBe(4); // MAX_SINGLE_SUBAGENT_TOOL_ROWS
-    expect(recent[0]!.id).toBe('tc_2');
-    expect(recent[3]!.id).toBe('tc_5');
+    expect(recent[0].id).toBe('tc_2');
+    expect(recent[3].id).toBe('tc_5');
   });
 
   // ── syncElapsedTimer / stopElapsedTimer ────────────────────────────

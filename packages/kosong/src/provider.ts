@@ -115,7 +115,7 @@ export interface GenerateOptions {
 export interface VideoUploadInput {
   readonly data: Uint8Array;
   readonly mimeType: string;
-  readonly filename?: string | undefined;
+  readonly filename?: string;
 }
 
 /**

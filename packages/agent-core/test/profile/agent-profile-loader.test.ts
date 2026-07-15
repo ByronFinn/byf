@@ -245,7 +245,7 @@ describe('default agent profiles', () => {
       skills: '',
     });
 
-    const tokens = estimateTokens(prompt!);
+    const tokens = estimateTokens(prompt);
     expect(tokens).toBeGreaterThan(0);
     expect(tokens).toBeLessThanOrEqual(4500);
   });

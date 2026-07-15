@@ -182,14 +182,14 @@ export function isWithinWorkspace(
 export interface AssertPathOptions {
   readonly mode: PathAccessOperation;
   /** When true (default), also reject paths matching a sensitive-file pattern. */
-  readonly checkSensitive?: boolean | undefined;
-  readonly pathClass?: PathClass | undefined;
+  readonly checkSensitive?: boolean;
+  readonly pathClass?: PathClass;
 }
 
 export interface ResolvePathAccessOptions {
   readonly operation: PathAccessOperation;
-  readonly policy?: WorkspaceAccessPolicy | undefined;
-  readonly pathClass?: PathClass | undefined;
+  readonly policy?: WorkspaceAccessPolicy;
+  readonly pathClass?: PathClass;
   readonly homeDir?: string;
 }
 

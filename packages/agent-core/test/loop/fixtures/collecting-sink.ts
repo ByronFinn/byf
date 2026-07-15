@@ -7,8 +7,8 @@ export type SinkErrorMode =
   | { kind: 'every-call-throws' };
 
 export interface CollectingSinkOptions {
-  readonly errorMode?: SinkErrorMode | undefined;
-  readonly id?: string | undefined;
+  readonly errorMode?: SinkErrorMode;
+  readonly id?: string;
 }
 
 /**

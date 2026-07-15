@@ -19,8 +19,8 @@ describe('agent-tree', () => {
   it('returns single main agent as the only root', () => {
     const tree = buildAgentTree([info({ agentId: 'main', type: 'main' })]);
     expect(tree).toHaveLength(1);
-    expect(tree[0]!.agentId).toBe('main');
-    expect(tree[0]!.children).toEqual([]);
+    expect(tree[0].agentId).toBe('main');
+    expect(tree[0].children).toEqual([]);
   });
 
   it('attaches a sub agent to its main parent', () => {
@@ -29,10 +29,10 @@ describe('agent-tree', () => {
       info({ agentId: 'agent-0', type: 'sub', parentAgentId: 'main' }),
     ]);
     expect(tree).toHaveLength(1);
-    expect(tree[0]!.agentId).toBe('main');
-    expect(tree[0]!.children).toHaveLength(1);
-    expect(tree[0]!.children[0]!.agentId).toBe('agent-0');
-    expect(tree[0]!.children[0]!.parentAgentId).toBe('main');
+    expect(tree[0].agentId).toBe('main');
+    expect(tree[0].children).toHaveLength(1);
+    expect(tree[0].children[0].agentId).toBe('agent-0');
+    expect(tree[0].children[0].parentAgentId).toBe('main');
   });
 
   it('treats orphan parentAgentId as a root node', () => {
@@ -54,6 +54,6 @@ describe('agent-tree', () => {
       info({ agentId: 'main', type: 'main' }),
       info({ agentId: 'agent-2', type: 'sub', parentAgentId: 'orphan' }),
     ]);
-    expect(tree[0]!.agentId).toBe('main');
+    expect(tree[0].agentId).toBe('main');
   });
 });

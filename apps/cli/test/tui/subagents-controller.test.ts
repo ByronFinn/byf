@@ -204,7 +204,7 @@ describe('SubagentsController', () => {
 
     // Simulate selecting the entry to open the live viewer
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n');
 
     // Snapshot listener should have fired and requested a render
@@ -232,13 +232,13 @@ describe('SubagentsController', () => {
 
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n');
 
     // The viewer should be the current fullscreen panel and focused
     expect(envHelper.fullscreenPanels.length).toBe(2);
     const viewer = envHelper
-      .fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
+      .fullscreenPanels[1] as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
     expect(envHelper.focusedComponents.at(-1)).toBe(viewer);
 
     // Pressing q closes the viewer and returns focus to the list
@@ -268,7 +268,7 @@ describe('SubagentsController', () => {
 
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     listApp.handleInput('\n');
     listApp.handleInput('\n'); // second Enter should be ignored
@@ -307,7 +307,7 @@ describe('SubagentsController', () => {
 
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     const initialDetail = listApp['props'].selectedDetail;
     const initialPreview = listApp['props'].selectedPreview;
@@ -353,7 +353,7 @@ describe('SubagentsController', () => {
 
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     expect(listApp['props'].selectedDetail?.toolList).toContain('• Grep');
     expect(listApp['props'].selectedDetail?.toolList).toContain('… Read');
@@ -392,7 +392,7 @@ describe('SubagentsController', () => {
 
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
 
     expect(listApp['props'].selectedPreview?.activityLines).toContain('Using Read (src/foo.ts)');
   });
@@ -454,7 +454,7 @@ describe('SubagentsController', () => {
     const ctrl = new SubagentsController(envHelper.env);
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n'); // open viewer
 
     expect(registeredCb).toBeDefined();
@@ -535,13 +535,13 @@ describe('SubagentsController', () => {
     const ctrl = new SubagentsController(envHelper.env);
     ctrl.show();
     const listApp = envHelper
-      .fullscreenPanels[0]! as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
+      .fullscreenPanels[0] as import('#/tui/components/dialogs/subagents/list-app').SubagentsListApp;
     listApp.handleInput('\n'); // open viewer
 
     // Schedule a coalesced render, then close before the timer fires.
     registeredCb!();
     const viewer = envHelper
-      .fullscreenPanels[1]! as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
+      .fullscreenPanels[1] as import('#/tui/components/dialogs/subagents/live-viewer').SubagentLiveViewer;
     viewer.handleInput('q'); // close viewer; restores list layer (+1 render)
 
     // After close, advancing the pending timer must NOT produce another render.

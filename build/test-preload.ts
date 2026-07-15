@@ -6,8 +6,131 @@ import { jest, mock, vi } from 'bun:test';
  * monorepo so tests can keep importing from `vitest` (remapped to `bun:test`).
  *
  * Loaded via root `bunfig.toml` `[test] preload`.
+ *
+ * Full monorepo runs must use process isolation (`bun run test` / `make test` →
+ * `build/run-tests.mjs`). Bun's `mock.module` / `vi.mock` is process-global and
+ * `mock.restore()` does not reliably unhook modules across files (ADR 0028 / #215).
  */
+import { existsSync, readFileSync } from 'node:fs';
 import * as nodeOs from 'node:os';
+import { join } from 'node:path';
+
+/** Flags whose next argv token is a value, not a test path. */
+const FLAGS_WITH_VALUE = new Set([
+  '--preload',
+  '--timeout',
+  '-t',
+  '--test-name-pattern',
+  '--rerun-each',
+  '--max-concurrency',
+  '--seed',
+  '--reporter',
+  '--coverage-reporter',
+  '--coverage-dir',
+  '--bail',
+  '--dots',
+]);
+
+function isByfMonorepoRoot(cwd: string): boolean {
+  if (!existsSync(join(cwd, 'build/run-tests.mjs'))) return false;
+  try {
+    const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as {
+      name?: string;
+    };
+    return pkg.name === '@byfriends/monorepo';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Bun rewrites `process.argv` to `[bun, <current-test-file>]` while the suite
+ * runs, so we recover the original CLI from the OS process command line
+ * (bare `bun test` vs `bun test path/to/file.test.ts`).
+ */
+function readOsCmdline(): string[] | null {
+  if (process.platform === 'linux') {
+    try {
+      const parts = readFileSync('/proc/self/cmdline', 'utf8').split('\0').filter(Boolean);
+      return parts.length > 0 ? parts : null;
+    } catch {
+      return null;
+    }
+  }
+  // macOS / BSD — best-effort; fail closed at monorepo root if unreadable.
+  try {
+    const proc = Bun.spawnSync(['ps', '-p', String(process.pid), '-www', '-o', 'args='], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (proc.exitCode !== 0) return null;
+    const line = new TextDecoder().decode(proc.stdout).trim();
+    if (!line) return null;
+    return line.split(/\s+/).filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+/** True when the original `bun test` CLI included explicit file/dir targets. */
+function hasExplicitTestTargets(cmd: string[]): boolean {
+  const testIdx = cmd.findIndex((a) => a === 'test');
+  const start = testIdx >= 0 ? testIdx + 1 : 1;
+  for (let i = start; i < cmd.length; i++) {
+    const a = cmd[i]!;
+    if (a === '--') continue;
+    if (a.startsWith('-')) {
+      const flag = a.includes('=') ? a.slice(0, a.indexOf('=')) : a;
+      if (!a.includes('=') && FLAGS_WITH_VALUE.has(flag)) {
+        i += 1; // skip value
+      }
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Refuse root-level full-suite `bun test` without process isolation.
+ * Package-scoped runs (`cd packages/foo && bun test`) and path-scoped
+ * `bun test path/to/file.test.ts` remain allowed.
+ */
+function rejectUnisolatedMonorepoRootFullSuite(): void {
+  if (process.env.BYF_TEST_ISOLATED === '1') return;
+  if (process.env.BYF_ALLOW_UNISOLATED_TEST === '1') return;
+  if (!isByfMonorepoRoot(process.cwd())) return;
+
+  const cmd = readOsCmdline();
+  // Fail closed when the OS cmdline is unavailable: path-scoped users can set
+  // BYF_ALLOW_UNISOLATED_TEST=1 or use package cwd; CI always sets ISOLATED.
+  if (cmd !== null && hasExplicitTestTargets(cmd)) return;
+
+  console.error(`
+error: full-suite \`bun test\` at the monorepo root is not the CI gate.
+
+  Bun runs all files in one process. \`mock.module\` / \`vi.mock\` leak across
+  files, so a green package-scoped run can still fail (or pass spuriously) when
+  the whole tree is loaded together. See ADR 0028 / #215.
+
+  Use the process-isolated runner instead:
+
+    make test
+    bun run test
+
+  Package-scoped or path-scoped runs are fine:
+
+    cd packages/agent-core && bun test
+    bun test apps/cli/test/cli/options.test.ts
+
+  To force a single-process full suite (debug only):
+
+    BYF_ALLOW_UNISOLATED_TEST=1 bun test
+`);
+  process.exit(1);
+}
+
+rejectUnisolatedMonorepoRootFullSuite();
 
 // Bun caches the process home directory and ignores later process.env.HOME
 // changes. Vitest's vi.stubEnv('HOME', ...) expects Node-like re-read behavior
@@ -53,7 +176,7 @@ function waitFor<T>(fn: () => T | Promise<T>, options: WaitForOptions = {}): Pro
   })();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Bun vi is a partial surface we extend at runtime
+// Bun vi is a partial surface we extend at runtime.
 const viAny = vi as any;
 
 // Vitest runs hoisted factories before imports; Bun does not hoist, so calling
@@ -164,7 +287,6 @@ viAny.unstubAllGlobals = () => {
     if (snap.had) {
       target[name] = snap.value;
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete target[name];
     }
   }
@@ -188,7 +310,7 @@ viAny.doMock = (path: string, factory: () => unknown) => {
 // handled by explicit format helpers in the agent-core test harness.
 import { expect } from 'bun:test';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Bun ships a stub that throws
+// Bun ships a stub that throws "Not implemented".
 (expect as any).addSnapshotSerializer = () => {
   // no-op — see packages/agent-core/test/agent/harness/snapshots.ts
 };

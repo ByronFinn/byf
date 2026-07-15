@@ -36,14 +36,14 @@ export type GoalCommand =
       readonly kind: 'create';
       readonly objective: string;
       readonly replace: boolean;
-      readonly budget?: GoalCommandBudget | undefined;
+      readonly budget?: GoalCommandBudget;
     }
   | { readonly kind: 'error'; readonly message: string; readonly severity?: 'warn' | 'error' };
 
 export interface GoalCommandBudget {
-  readonly turnBudget?: number | undefined;
-  readonly tokenBudget?: number | undefined;
-  readonly wallClockBudgetMs?: number | undefined;
+  readonly turnBudget?: number;
+  readonly tokenBudget?: number;
+  readonly wallClockBudgetMs?: number;
 }
 
 const BUDGET_FLAGS = new Set(['--max-turns', '--max-tokens', '--max-seconds']);

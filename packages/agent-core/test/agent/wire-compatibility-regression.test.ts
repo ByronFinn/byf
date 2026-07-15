@@ -150,8 +150,8 @@ describe('Wire.jsonl compatibility regression tests', () => {
 
       // 验证compaction历史被正确恢复
       expect(agent.fullCompaction.compactedHistory).toHaveLength(1);
-      expect(agent.fullCompaction.compactedHistory[0]!).toHaveProperty('text');
-      expect(typeof agent.fullCompaction.compactedHistory[0]!.text).toBe('string');
+      expect(agent.fullCompaction.compactedHistory[0]).toHaveProperty('text');
+      expect(typeof agent.fullCompaction.compactedHistory[0].text).toBe('string');
     });
   });
 

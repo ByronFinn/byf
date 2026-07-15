@@ -48,7 +48,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(baseState({ cacheHitRate: 0.87 }), darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    expect(strip(line2!)).toMatch(/cache:\s*87%/);
+    expect(strip(line2)).toMatch(/cache:\s*87%/);
   });
 
   // ── B2: hides badge at 0 ───────────────────────────────────────
@@ -56,7 +56,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(baseState({ cacheHitRate: 0 }), darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    const stripped = strip(line2!);
+    const stripped = strip(line2);
     expect(stripped).not.toMatch(/cache:/);
     // context line still renders
     expect(stripped).toMatch(/context:/);
@@ -67,7 +67,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(baseState({ cacheHitRate: undefined }), darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    const stripped = strip(line2!);
+    const stripped = strip(line2);
     expect(stripped).not.toMatch(/cache:/);
     expect(stripped).toMatch(/context:/);
   });
@@ -77,7 +77,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(baseState({ cacheHitRate: 0.999 }), darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    expect(strip(line2!)).toMatch(/cache:\s*100%/);
+    expect(strip(line2)).toMatch(/cache:\s*100%/);
   });
 
   // ── B5: 49.5% → 50% ───────────────────────────────────────────
@@ -85,7 +85,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(baseState({ cacheHitRate: 0.495 }), darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    expect(strip(line2!)).toMatch(/cache:\s*50%/);
+    expect(strip(line2)).toMatch(/cache:\s*50%/);
   });
 
   // ── B10: formatContextStatus unchanged ────────────────────────
@@ -138,7 +138,7 @@ describe('Footer — cache badge (Group B)', () => {
     const fc = new FooterComponent(stateWithout, darkColors);
     const [, line2] = fc.render(120);
     expect(line2).toBeDefined();
-    const stripped = strip(line2!);
+    const stripped = strip(line2);
     expect(stripped).not.toMatch(/cache:/);
     expect(stripped).toMatch(/context:/);
   });
@@ -163,7 +163,7 @@ describe('Footer — goal badge (PRD-0019 R13)', () => {
       darkColors,
     );
     const [line1] = fc.render(120);
-    expect(strip(line1!)).toMatch(/▶ goal · 2 turns · 1\.5k tokens · 18s/);
+    expect(strip(line1)).toMatch(/▶ goal · 2 turns · 1\.5k tokens · 18s/);
   });
 
   it('shows ⏸ glyph for a paused goal', () => {
@@ -172,7 +172,7 @@ describe('Footer — goal badge (PRD-0019 R13)', () => {
       darkColors,
     );
     const [line1] = fc.render(120);
-    expect(strip(line1!)).toMatch(/⏸ goal/);
+    expect(strip(line1)).toMatch(/⏸ goal/);
   });
 
   it('shows ⚠ glyph for a blocked goal', () => {
@@ -183,13 +183,13 @@ describe('Footer — goal badge (PRD-0019 R13)', () => {
       darkColors,
     );
     const [line1] = fc.render(120);
-    expect(strip(line1!)).toMatch(/⚠ goal/);
+    expect(strip(line1)).toMatch(/⚠ goal/);
   });
 
   it('hides the goal badge when goalSnapshot is null', () => {
     const fc = new FooterComponent(baseState({ goalSnapshot: null }), darkColors);
     const [line1] = fc.render(120);
-    expect(strip(line1!)).not.toMatch(/goal/);
+    expect(strip(line1)).not.toMatch(/goal/);
   });
 
   it('formatGoalBadge returns null for null snapshot', () => {
@@ -291,7 +291,7 @@ describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
     );
     vi.advanceTimersByTime(2500);
     const [line1] = fc.render(120);
-    const stripped = strip(line1!);
+    const stripped = strip(line1);
     // 18000 + 2500 = 20500ms → round(20.5) = 21s (banker's rounding → 20)
     // Use a range assertion to avoid coupling to rounding direction at .5.
     expect(stripped).toMatch(/2 turns · 1\.5k tokens · (20|21)s/);
@@ -311,7 +311,7 @@ describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
     vi.advanceTimersByTime(10_000);
     const [line1] = fc.render(120);
     // Still 18s — paused wall-clock is frozen, not extrapolated.
-    expect(strip(line1!)).toMatch(/2 turns · 1\.5k tokens · 18s/);
+    expect(strip(line1)).toMatch(/2 turns · 1\.5k tokens · 18s/);
     fc.dispose();
   });
 
@@ -330,7 +330,7 @@ describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
     vi.advanceTimersByTime(2000);
     const [line1] = fc.render(120);
     // Anchor not reset → total elapsed = 3s of extrapolation + 10s base = 13s.
-    expect(strip(line1!)).toMatch(/2 turns · 1\.5k tokens · 13s/);
+    expect(strip(line1)).toMatch(/2 turns · 1\.5k tokens · 13s/);
     fc.dispose();
   });
 
@@ -359,7 +359,7 @@ describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
     vi.advanceTimersByTime(1000);
     const [line1] = fc.render(120);
     // Anchor reset at the new event: 15s base + 1s extrapolation = 16s.
-    expect(strip(line1!)).toMatch(/3 turns · 2\.0k tokens · 16s/);
+    expect(strip(line1)).toMatch(/3 turns · 2\.0k tokens · 16s/);
     fc.dispose();
   });
 
@@ -406,7 +406,7 @@ describe('Footer — goal live wall-clock timer (ADR-0027)', () => {
     expect(onRefresh).toHaveBeenCalledTimes(0);
     const [line1] = fc.render(120);
     // Frozen at 30s — complete never extrapolates.
-    expect(strip(line1!)).toMatch(/3 turns · 2\.0k tokens · 30s/);
+    expect(strip(line1)).toMatch(/3 turns · 2\.0k tokens · 30s/);
     fc.dispose();
   });
 });

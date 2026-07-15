@@ -1,12 +1,9 @@
-import { createHash } from 'node:crypto';
-
 import OpenAI from 'openai';
 
 import type { ModelCapability } from '#/capability';
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
 import { extractText } from '#/message';
-import type { PromptPlan } from '#/prompt-plan';
 import type {
   FinishReason,
   GenerateOptions,
@@ -28,6 +25,7 @@ import {
   reasoningEffortToThinkingEffort,
   thinkingEffortToReasoningEffort,
 } from './openai-common';
+import { deriveCacheKeyFromPromptPlan } from './prompt-cache-key';
 import { extractCacheUsage } from './provider-common';
 
 /**
@@ -65,27 +63,6 @@ function normalizeResponsesFinishReason(
     return { finishReason: 'other', rawFinishReason: 'failed' };
   }
   return { finishReason: null, rawFinishReason: null };
-}
-
-/**
- * Derive a stable cache key from cacheable blocks in a PromptPlan.
- *
- * Only blocks with cacheScope 'global' are included in the hash, as OpenAI
- * only supports caching the prefix (global scope).
- */
-function deriveCacheKeyFromPromptPlan(promptPlan: PromptPlan | undefined): string | undefined {
-  if (!promptPlan || promptPlan.blocks.length === 0) return undefined;
-
-  const cacheableTexts: string[] = [];
-  for (const block of promptPlan.blocks) {
-    if (block.cacheScope === 'global') {
-      cacheableTexts.push(block.text);
-    }
-  }
-
-  if (cacheableTexts.length === 0) return undefined;
-
-  return createHash('sha256').update(cacheableTexts.join('')).digest('hex');
 }
 
 type RawObject = Record<string, unknown>;
@@ -252,21 +229,21 @@ function formatResponsesFailedResponse(response: RawObject): string {
 }
 
 export interface OpenAIResponsesOptions {
-  apiKey?: string | undefined;
-  baseUrl?: string | undefined;
+  apiKey?: string;
+  baseUrl?: string;
   model: string;
-  maxOutputTokens?: number | undefined;
+  maxOutputTokens?: number;
   httpClient?: unknown;
   defaultHeaders?: Record<string, string>;
-  toolMessageConversion?: ToolMessageConversion | undefined;
+  toolMessageConversion?: ToolMessageConversion;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
 }
 
 export interface OpenAIResponsesGenerationKwargs {
-  max_output_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_p?: number | undefined;
-  reasoning_effort?: string | undefined;
+  max_output_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  reasoning_effort?: string;
   [key: string]: unknown;
 }
 interface ResponseInputItem {
@@ -881,7 +858,6 @@ export class OpenAIResponsesChatProvider extends BaseChatProvider<OpenAIResponse
     // Remove undefined values
     for (const key of Object.keys(kwargs)) {
       if (kwargs[key] === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete kwargs[key];
       }
     }

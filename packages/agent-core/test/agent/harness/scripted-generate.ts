@@ -20,8 +20,8 @@ export type GenerateFn = NonNullable<AgentConfig['generate']>;
 
 interface ScriptedResponse {
   readonly parts: readonly StreamedMessagePart[];
-  readonly finishReason?: FinishReason | null | undefined;
-  readonly rawFinishReason?: string | null | undefined;
+  readonly finishReason?: FinishReason | null;
+  readonly rawFinishReason?: string | null;
 }
 
 export function createScriptedGenerate() {
@@ -34,14 +34,14 @@ export function createScriptedGenerate() {
   }
 
   function mockNextProviderResponse(input: {
-    readonly parts?: readonly StreamedMessagePart[] | undefined;
-    readonly finishReason?: FinishReason | null | undefined;
-    readonly rawFinishReason?: string | null | undefined;
+    readonly parts?: readonly StreamedMessagePart[];
+    readonly finishReason?: FinishReason | null;
+    readonly rawFinishReason?: string | null;
   }) {
     responses.push({
       parts: structuredClone(input.parts ?? []),
-      ...(input.finishReason !== undefined ? { finishReason: input.finishReason } : {}),
-      ...(input.rawFinishReason !== undefined ? { rawFinishReason: input.rawFinishReason } : {}),
+      finishReason: input.finishReason,
+      rawFinishReason: input.rawFinishReason,
     });
   }
 
@@ -128,7 +128,7 @@ export function createScriptedGenerate() {
   };
 }
 
-function extractGenerateOptions(options: { promptPlan?: PromptPlan } | undefined): {
+function extractGenerateOptions(options: { promptPlan?: PromptPlan }): {
   promptPlan?: PromptPlan;
 } {
   if (options?.promptPlan === undefined) return {};

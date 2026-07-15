@@ -169,9 +169,9 @@ describe('BtwViewer', () => {
     expect(topLine).toBeDefined();
     expect(bottomLine).toBeDefined();
     expect(footerLine).toBeDefined();
-    expect(strip(topLine!)).toBe('─'.repeat(80));
-    expect(strip(bottomLine!)).toBe('─'.repeat(80));
-    expect(strip(footerLine!)).toContain('scroll');
+    expect(strip(topLine)).toBe('─'.repeat(80));
+    expect(strip(bottomLine)).toBe('─'.repeat(80));
+    expect(strip(footerLine)).toContain('scroll');
   });
 
   it('keeps every rendered line within the requested width', () => {

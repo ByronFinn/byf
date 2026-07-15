@@ -10,6 +10,8 @@
 
 - **Grilled by**: `/grill` (completed 2026-06-25) — 9 项决议：删除 `byfHome` 覆盖参数（代码矛盾）、验证 `publicDir` 注入不破坏 dev、token 缺失友好提示、端口占用快速失败、SIGINT/SIGTERM 优雅关闭、确认 BYF_HOME 已对齐、首次发布 changeset 分配（PR1 无 / PR2 vis-server minor / PR3 cli minor）、CONTEXT.md 新增 vis/vis-server 术语、D2 升格为 ADR-0021。
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — ADR-0021 外部运行时依赖已按代码落地；vis web/server 仍重复维护 DTO 类型，Medium。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-10) — `byf vis` + ADR-0021 落地确认；`apps/vis/web/src/shared-types.ts` 仍是 `shared/types.ts` 近副本（已有 PermissionMode 漂移），Medium。
+- **Arch reviewed by**: `/improve-architecture` (2026-07-11) — vis DTO 已单一来源（`@byfriends/vis-shared`，PRD-0021 M2 Done）；PRD Status 仍为 `Grilled` 但 `byf vis` 已实现 — Medium 文档债。
 
 ## Goal
 

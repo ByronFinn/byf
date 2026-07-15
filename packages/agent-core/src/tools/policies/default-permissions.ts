@@ -17,6 +17,9 @@ export type KnownBuiltinToolName =
   | 'TodoList'
   | 'TaskList'
   | 'TaskOutput'
+  | 'CronList'
+  | 'CronCreate'
+  | 'CronDelete'
   | 'WebSearch'
   | 'FetchURL'
   | 'Agent'
@@ -40,6 +43,9 @@ const BUILTIN_TOOL_DEFAULT_PERMISSION_TABLE: BuiltinToolDefaultPermissionTable =
   TodoList: 'auto_allow',
   TaskList: 'auto_allow',
   TaskOutput: 'auto_allow',
+  CronList: 'auto_allow',
+  CronCreate: 'ask',
+  CronDelete: 'ask',
   WebSearch: 'auto_allow',
   FetchURL: 'auto_allow',
   Agent: 'auto_allow',

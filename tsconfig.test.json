@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "packages/*/test/**/*.ts",
+    "packages/*/test/**/*.tsx",
+    "apps/*/test/**/*.ts",
+    "apps/*/test/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "dist", "dist-types", "**/*.disabled", "**/*.disabled/**"]
+}

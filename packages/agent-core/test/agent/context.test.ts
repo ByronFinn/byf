@@ -3,7 +3,22 @@ import { describe, expect, it } from 'vitest';
 
 import { sliceCompleteMessages } from '../../src/agent/context/complete-slice';
 import { renderNotificationXml } from '../../src/agent/context/notification-xml';
-import { project } from '../../src/agent/context/projector';
+import {
+  degradeOlderMediaParts,
+  MEDIA_DEGRADE_KEEP_RECENT,
+  MEDIA_STRIPPED_PLACEHOLDERS,
+  project,
+} from '../../src/agent/context/projector';
+import type { ContextMessage } from '../../src/agent/context/types';
+import {
+  createWireFoldState,
+  foldAppendMessage,
+  foldApplyCompaction,
+  foldLoopEvent,
+  toolResultOutputForModel,
+  type WireFoldHandlers,
+} from '../../src/agent/context/wire-fold';
+import type { LoopRecordedEvent } from '../../src/loop';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
@@ -559,9 +574,9 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0]!)).toMatch(/^<notification /);
-    expect(textOf(messages[0]!)).toContain('Task done');
-    expect(textOf(messages[1]!)).toBe('Actual user prompt');
+    expect(textOf(messages[0])).toMatch(/^<notification /);
+    expect(textOf(messages[0])).toContain('Task done');
+    expect(textOf(messages[1])).toBe('Actual user prompt');
   });
 
   it('places before_user injections after history (dynamic zone)', () => {
@@ -584,11 +599,11 @@ describe('Agent context notification projection', () => {
     // Expected order: [after_system] [history...] [before_user]
     // before_user injections go at the end so they don't break the cached prefix
     expect(messages).toHaveLength(5);
-    expect(textOf(messages[0]!)).toContain('After system content');
-    expect(textOf(messages[1]!)).toBe('Hello');
-    expect(textOf(messages[2]!)).toBe('Hi there');
-    expect(textOf(messages[3]!)).toBe('Do something');
-    expect(textOf(messages[4]!)).toContain('Before user content');
+    expect(textOf(messages[0])).toContain('After system content');
+    expect(textOf(messages[1])).toBe('Hello');
+    expect(textOf(messages[2])).toBe('Hi there');
+    expect(textOf(messages[3])).toBe('Do something');
+    expect(textOf(messages[4])).toContain('Before user content');
   });
 
   it('places before_user injections at the end even with no after_system injections', () => {
@@ -604,8 +619,8 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0]!)).toBe('Question');
-    expect(textOf(messages[1]!)).toContain('Dynamic context');
+    expect(textOf(messages[0])).toBe('Question');
+    expect(textOf(messages[1])).toContain('Dynamic context');
   });
 });
 
@@ -906,3 +921,332 @@ function textOf(message: Message): string {
     .map((part) => part.text)
     .join('');
 }
+
+// ---------------------------------------------------------------------------
+// degradeOlderMediaParts (media-degraded / media-stripped projections)
+// ---------------------------------------------------------------------------
+
+function mediaMessage(role: 'user' | 'assistant', ...content: Message['content']): Message {
+  return { role, content, toolCalls: [] };
+}
+
+function imageUrl(url: string): { type: 'image_url'; imageUrl: { url: string } } {
+  return { type: 'image_url', imageUrl: { url } };
+}
+
+describe('degradeOlderMediaParts', () => {
+  it('returns input by reference when no media parts exist', () => {
+    const messages: Message[] = [mediaMessage('user', { type: 'text', text: 'hi' })];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    expect(result).toBe(messages);
+  });
+
+  it('returns input by reference when media count <= keepRecent', () => {
+    const messages: Message[] = [
+      mediaMessage('user', { type: 'text', text: 'look' }, imageUrl('data:a')),
+    ];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    expect(result).toBe(messages);
+  });
+
+  it('degrades older media, keeps the most recent 2 (default)', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:old1')),
+      mediaMessage('user', imageUrl('data:old2')),
+      mediaMessage('user', imageUrl('data:old3')),
+      mediaMessage('user', imageUrl('data:recent1')),
+      mediaMessage('user', imageUrl('data:recent2')),
+    ];
+    const result = degradeOlderMediaParts(messages, MEDIA_DEGRADE_KEEP_RECENT);
+    // 5 images, keep last 2 → degrade first 3
+    expect(result[0]?.content[0]).toMatchObject({ type: 'text' });
+    expect(result[1]?.content[0]).toMatchObject({ type: 'text' });
+    expect(result[2]?.content[0]).toMatchObject({ type: 'text' });
+    // Last 2 survive
+    expect(result[3]?.content[0]).toMatchObject({ type: 'image_url' });
+    expect(result[4]?.content[0]).toMatchObject({ type: 'image_url' });
+  });
+
+  it('uses degraded placeholder text pointing to re-read', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:old'), imageUrl('data:recent')),
+    ];
+    const result = degradeOlderMediaParts(messages, 0); // keep none
+    const text = textOf(result[0]);
+    expect(text).toContain('re-read the file');
+    expect(text).toContain('request size limit');
+  });
+
+  it('with keepRecent=0 and stripped placeholders, uses stripped marker text', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:bad')),
+      mediaMessage('user', imageUrl('data:ok')),
+    ];
+    const result = degradeOlderMediaParts(messages, 0, MEDIA_STRIPPED_PLACEHOLDERS);
+    const text0 = textOf(result[0]);
+    const text1 = textOf(result[1]);
+    expect(text0).toContain('provider rejected this image');
+    expect(text1).toContain('provider rejected this image');
+  });
+
+  it('does not mutate the input history (read-side transform)', () => {
+    const messages: Message[] = [
+      mediaMessage('user', imageUrl('data:original')),
+      mediaMessage('user', imageUrl('data:later')),
+    ];
+    const originalContent = messages[0].content;
+    degradeOlderMediaParts(messages, 0);
+    // Input array and its content parts are untouched
+    expect(messages[0].content).toBe(originalContent);
+    expect(messages[0].content[0]).toMatchObject({ type: 'image_url' });
+  });
+
+  it('preserves surrounding text parts including ReadMediaFile wrappers', () => {
+    const messages: Message[] = [
+      mediaMessage(
+        'user',
+        { type: 'text', text: '<image path="/tmp/screenshot.png">' },
+        imageUrl('data:big'),
+        { type: 'text', text: '</image>' },
+      ),
+    ];
+    const result = degradeOlderMediaParts(messages, 0);
+    const text = textOf(result[0]);
+    expect(text).toContain('<image path="/tmp/screenshot.png">');
+    expect(text).toContain('</image>');
+    expect(text).toContain('re-read the file');
+  });
+});
+
+// PRD-0025: pure wire-fold vs ContextMemory (kernel) parity + live-only restore.
+describe('wire-fold pure API (PRD-0025)', () => {
+  const pureHandlers = (): WireFoldHandlers => ({
+    onMessage: () => {},
+  });
+
+  async function pureFoldLoop(events: readonly LoopRecordedEvent[]): Promise<ContextMessage[]> {
+    const state = createWireFoldState();
+    const handlers = pureHandlers();
+    for (const event of events) {
+      await foldLoopEvent(state, event, handlers);
+    }
+    return [...state.history];
+  }
+
+  it('toolResultOutputForModel normalises empty and error outputs', () => {
+    expect(toolResultOutputForModel({ output: '', isError: true })).toBe(
+      '<system>ERROR: Tool execution failed. Tool output is empty.</system>',
+    );
+    expect(toolResultOutputForModel({ output: '' })).toBe('<system>Tool output is empty.</system>');
+    expect(toolResultOutputForModel({ output: 'permission denied', isError: true })).toBe(
+      '<system>ERROR: Tool execution failed.</system>\npermission denied',
+    );
+  });
+
+  it('matches ContextMemory on empty tool output, error output, and partial compaction', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+
+    // Kernel path: produce real wire via ContextMemory APIs.
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'old 1' }]);
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'old 2' }]);
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'remaining tail' }]);
+
+    await ctx.agent.context.appendLoopEvent({
+      type: 'step.begin',
+      uuid: 's1',
+      turnId: 't1',
+      step: 0,
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: 'c_empty',
+      turnId: 't1',
+      step: 0,
+      stepUuid: 's1',
+      toolCallId: 'call_empty',
+      name: 'Bash',
+      args: { cmd: 'true' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: 'c_empty',
+      toolCallId: 'call_empty',
+      result: { output: '' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: 'c_err',
+      turnId: 't1',
+      step: 0,
+      stepUuid: 's1',
+      toolCallId: 'call_err',
+      name: 'Bash',
+      args: { cmd: 'bad' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: 'c_err',
+      toolCallId: 'call_err',
+      result: { output: 'permission denied', isError: true },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'step.end',
+      uuid: 's1',
+      turnId: 't1',
+      step: 0,
+    });
+
+    // Partial compaction: compact first 2 user messages, keep remaining tail.
+    ctx.agent.context.applyCompaction({
+      summary: 'compacted old 1+2',
+      compactedCount: 2,
+      tokensBefore: 100,
+      tokensAfter: 40,
+    });
+
+    const kernelHistory = structuredClone(ctx.agent.context.history) as ContextMessage[];
+
+    // Pure fold path: rebuild from the same logical operations (no offload port).
+    const pure = createWireFoldState();
+    const handlers = pureHandlers();
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old 1' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old 2' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    foldAppendMessage(
+      pure,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'remaining tail' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      handlers,
+    );
+    for (const event of [
+      { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
+      {
+        type: 'tool.call' as const,
+        uuid: 'c_empty',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_empty',
+        name: 'Bash',
+        args: { cmd: 'true' },
+      },
+      {
+        type: 'tool.result' as const,
+        parentUuid: 'c_empty',
+        toolCallId: 'call_empty',
+        result: { output: '' },
+      },
+      {
+        type: 'tool.call' as const,
+        uuid: 'c_err',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_err',
+        name: 'Bash',
+        args: { cmd: 'bad' },
+      },
+      {
+        type: 'tool.result' as const,
+        parentUuid: 'c_err',
+        toolCallId: 'call_err',
+        result: { output: 'permission denied', isError: true },
+      },
+      { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
+    ] satisfies LoopRecordedEvent[]) {
+      await foldLoopEvent(pure, event, handlers);
+    }
+    foldApplyCompaction(pure, { summary: 'compacted old 1+2', compactedCount: 2 }, handlers);
+
+    expect(pure.history).toEqual(kernelHistory);
+
+    // Known divergence points locked:
+    // 1) partial compaction keeps residual tail (not just summary)
+    expect(kernelHistory.map((m) => m.role)).toEqual([
+      'assistant', // summary
+      'user', // remaining tail
+      'assistant', // step
+      'tool', // empty
+      'tool', // error
+    ]);
+    expect(kernelHistory[0]?.origin).toEqual({ kind: 'compaction_summary' });
+    expect(kernelHistory[1]?.content).toEqual([{ type: 'text', text: 'remaining tail' }]);
+    // 2) empty + error tool normalisation
+    expect(kernelHistory[3]?.content).toEqual([
+      { type: 'text', text: '<system>Tool output is empty.</system>' },
+    ]);
+    expect(kernelHistory[4]?.content).toEqual([
+      {
+        type: 'text',
+        text: '<system>ERROR: Tool execution failed.</system>\npermission denied',
+      },
+    ]);
+  });
+
+  it('live-only output_offloaded and pruning restore are no-ops on history', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'keep me' }]);
+    const before = structuredClone(ctx.agent.context.history);
+
+    ctx.agent.context.restoreRecord({
+      type: 'context.output_offloaded',
+      toolCallId: 'call_x',
+      filePath: '/tmp/scratch/x',
+    });
+    ctx.agent.context.restoreRecord({
+      type: 'context.pruning',
+      prunedCount: 3,
+    });
+
+    expect(ctx.agent.context.history).toEqual(before);
+  });
+
+  it('pure fold without offload port still normalises empty tool output', async () => {
+    const history = await pureFoldLoop([
+      { type: 'step.begin', uuid: 's1', turnId: 't1', step: 0 },
+      {
+        type: 'tool.call',
+        uuid: 'c1',
+        turnId: 't1',
+        step: 0,
+        stepUuid: 's1',
+        toolCallId: 'call_1',
+        name: 'Bash',
+        args: {},
+      },
+      {
+        type: 'tool.result',
+        parentUuid: 'c1',
+        toolCallId: 'call_1',
+        result: { output: '' },
+      },
+      { type: 'step.end', uuid: 's1', turnId: 't1', step: 0 },
+    ]);
+    expect(history[1]?.content).toEqual([
+      { type: 'text', text: '<system>Tool output is empty.</system>' },
+    ]);
+  });
+});

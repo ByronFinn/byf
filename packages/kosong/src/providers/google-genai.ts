@@ -71,21 +71,21 @@ function normalizeGoogleGenAIFinishReason(raw: unknown): {
   }
 }
 export interface GoogleGenAIOptions {
-  apiKey?: string | undefined;
+  apiKey?: string;
   model: string;
-  vertexai?: boolean | undefined;
-  project?: string | undefined;
-  location?: string | undefined;
-  stream?: boolean | undefined;
+  vertexai?: boolean;
+  project?: string;
+  location?: string;
+  stream?: boolean;
   clientFactory?: (auth: ProviderRequestAuth) => GenAIClient;
 }
 
 export interface GoogleGenAIGenerationKwargs {
-  max_output_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_k?: number | undefined;
-  top_p?: number | undefined;
-  thinking_config?: ThinkingConfig | undefined;
+  max_output_tokens?: number;
+  temperature?: number;
+  top_k?: number;
+  top_p?: number;
+  thinking_config?: ThinkingConfig;
   [key: string]: unknown;
 }
 

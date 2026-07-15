@@ -9,7 +9,7 @@ export const DEFAULT_SESSION_FILES = 3; // 5 MB x 3 = 15 MB
 
 export interface ResolveLoggingInput {
   readonly homeDir: string;
-  readonly env?: NodeJS.ProcessEnv | undefined;
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 /**

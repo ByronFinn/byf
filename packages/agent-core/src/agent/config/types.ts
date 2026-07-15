@@ -2,6 +2,7 @@ import type { ModelCapability, ProviderConfig } from '@byfriends/kosong';
 
 export interface AgentConfigData {
   cwd: string;
+  additionalDirs: readonly string[];
   provider?: ProviderConfig;
   modelAlias?: string;
   modelCapabilities: ModelCapability;
@@ -12,6 +13,7 @@ export interface AgentConfigData {
 
 export type AgentConfigUpdateData = Partial<{
   cwd: string;
+  additionalDirs: readonly string[];
   modelAlias: string;
   profileName: string;
   thinkingLevel: string;

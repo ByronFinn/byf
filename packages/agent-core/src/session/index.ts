@@ -10,7 +10,12 @@ import { proxyWithExtraPayload } from '#/rpc/types';
 import { Agent, type AgentConfig, type AgentType } from '../agent';
 import { HookEngine, createKaosHookExec, type HookDef } from '../agent/hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
-import { parseBooleanEnv, resolveConfigValue, type BackgroundConfig } from '../config';
+import {
+  parseBooleanEnv,
+  resolveConfigValue,
+  resolvePrintWaitCeilingS,
+  type BackgroundConfig,
+} from '../config';
 import { makeErrorPayload } from '../errors';
 import {
   McpConnectionManager,
@@ -35,23 +40,25 @@ import {
   type SkillSummary,
 } from '../skill';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import { ImageLimits } from '../tools/support/image-limits';
 import { SessionSubagentHost } from './subagent-host';
 
 export interface SessionConfig {
   readonly runtime: RuntimeConfig;
-  readonly id?: string | undefined;
+  readonly id?: string;
   readonly homedir: string;
   readonly byfHomeDir?: string;
   readonly rpc: SDKSessionRPC;
   readonly cwd?: string;
-  readonly initializeMainAgent?: boolean | undefined;
-  readonly providerManager?: ProviderManager | undefined;
-  readonly background?: BackgroundConfig | undefined;
+  readonly additionalDirs?: readonly string[];
+  readonly initializeMainAgent?: boolean;
+  readonly providerManager?: ProviderManager;
+  readonly background?: BackgroundConfig;
   readonly hooks?: readonly HookDef[];
   readonly permissionRules?: readonly PermissionRule[];
   readonly skills?: SessionSkillConfig;
   readonly mcpConfig?: SessionMcpConfig;
-  readonly telemetry?: TelemetryClient | undefined;
+  readonly telemetry?: TelemetryClient;
 }
 
 export interface SessionSkillConfig {
@@ -72,7 +79,7 @@ export interface AgentMeta {
    * uses it on resume to map a main-agent `Agent` tool-call back to its child
    * agent's activity (the child's own replay/usage/text).
    */
-  readonly parentToolCallId?: string | undefined;
+  readonly parentToolCallId?: string;
 }
 
 export interface SessionMeta {
@@ -83,7 +90,7 @@ export interface SessionMeta {
   lastPrompt?: string;
   forkedFrom?: string;
   agents: Record<string, AgentMeta>;
-  custom: Record<string, any>;
+  custom: Record<string, unknown>;
 }
 
 const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'BYF_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT';
@@ -94,6 +101,7 @@ export class Session {
   readonly skills: SkillRegistry;
   readonly agents: Map<string, Agent> = new Map();
   readonly mcp: McpConnectionManager;
+  readonly imageLimits: ImageLimits;
   readonly log: Logger;
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
@@ -124,6 +132,7 @@ export class Session {
       this.logHandle?.logger ??
       (config.id === undefined ? log : log.createChild({ sessionId: config.id }));
     this.rpc = config.rpc;
+    this.imageLimits = new ImageLimits(process.env, config.providerManager?.config.image);
     this.hookEngine = new HookEngine(
       config.hooks ?? [],
       {
@@ -211,6 +220,7 @@ export class Session {
 
   async close(): Promise<void> {
     try {
+      await this.stopCronManagers();
       await this.stopBackgroundTasksOnExit();
       await this.flushMetadata();
       await this.triggerSessionEnd('exit');
@@ -221,6 +231,14 @@ export class Session {
         await this.logHandle?.close();
       }
     }
+  }
+
+  private async stopCronManagers(): Promise<void> {
+    await Promise.all(
+      Array.from(this.agents.values(), async (agent) => {
+        await agent.cron?.stop();
+      }),
+    );
   }
 
   private async stopBackgroundTasksOnExit(): Promise<void> {
@@ -237,11 +255,126 @@ export class Session {
     );
   }
 
+  /**
+   * Wait for background tasks to finish before the print/headless run exits
+   * (ADR-0029 §2). Unconditional in print mode — does NOT gate on
+   * `keepAliveOnExit` (that option only controls `Session.close` stopAll).
+   * Bounded by `printWaitCeilingS` (default 3600s); on timeout, returns
+   * without killing tasks (close path handles cleanup). Multi-pass: a
+   * subagent may fan-out new tasks while we enumerate, so we loop until no
+   * active task remains or the deadline expires.
+   */
+  async waitForBackgroundTasksOnPrint(): Promise<void> {
+    // env → config → 3600 (never NaN). See resolvePrintWaitCeilingS / ADR-0029.
+    const ceilingS = resolvePrintWaitCeilingS({
+      env: process.env,
+      configValue: this.config.background?.printWaitCeilingS,
+    });
+    const deadline = Date.now() + ceilingS * 1000;
+    // Track tasks we've already launched a wait for, so we don't re-await
+    // the same id on every pass (its wait promise is already in flight).
+    const seen = new Set<string>();
+    for (;;) {
+      const now = Date.now();
+      if (now >= deadline) return;
+      // Collect active tasks across all agents (main + subagents).
+      const activeTaskIds: string[] = [];
+      for (const agent of this.agents.values()) {
+        for (const info of agent.background.list(true)) {
+          if (!seen.has(info.taskId)) {
+            seen.add(info.taskId);
+            activeTaskIds.push(info.taskId);
+          }
+        }
+      }
+      if (activeTaskIds.length === 0) return;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return;
+      // Wait for each newly-seen task with the remaining budget. Tasks that
+      // finish naturally resolve; the deadline caps the total wait.
+      await Promise.all(
+        activeTaskIds.map(async (taskId) => {
+          for (const agent of this.agents.values()) {
+            if (agent.background.getTask(taskId) !== undefined) {
+              await agent.background.wait(taskId, remaining);
+              return;
+            }
+          }
+        }),
+      );
+      // Loop again: subagents may have spawned new tasks. The seen-set
+      // prevents re-awaiting finished ones; new ids get picked up.
+    }
+  }
+
+  /**
+   * Append a directory to the main agent's workspace additionalDirs at
+   * runtime (PRD-0023 R5.1). Validates existence + directory shape.
+   * When `persist` is true, also appends to project `.byf/local.toml`
+   * (R5.4). Triggers tool rebuild so path-access policies pick up the
+   * new root immediately.
+   */
+  async addWorkspaceDir(
+    dir: string,
+    options: { persist?: boolean } = {},
+  ): Promise<{
+    workspaceDir: string;
+    additionalDirs: readonly string[];
+    configPath?: string;
+  }> {
+    const main = this.agents.get('main');
+    if (main === undefined) {
+      throw new Error('No main agent; cannot add workspace directory.');
+    }
+    const { resolveWorkspaceAdditionalDirs, appendWorkspaceAdditionalDir } =
+      await import('../config/workspace-local');
+    const [resolved] = await resolveWorkspaceAdditionalDirs(
+      this.config.runtime.kaos,
+      main.config.cwd,
+      [dir],
+    );
+    if (resolved === undefined) {
+      throw new Error('workspace.additional_dir must exist and be a directory');
+    }
+    const existing = main.config.additionalDirs;
+    if (!existing.includes(resolved) && resolved !== main.config.cwd) {
+      main.config.update({ additionalDirs: [...existing, resolved] });
+    }
+
+    let configPath: string | undefined;
+    if (options.persist === true) {
+      const persisted = await appendWorkspaceAdditionalDir(
+        this.config.runtime.kaos,
+        main.config.cwd,
+        dir,
+        main.config.additionalDirs,
+      );
+      configPath = persisted.configPath;
+    }
+
+    return {
+      workspaceDir: main.config.cwd,
+      additionalDirs: main.config.additionalDirs,
+      configPath,
+    };
+  }
+
+  /**
+   * Current workspace roots for the main agent (cwd + additionalDirs).
+   */
+  getWorkspaceRoots(): { workspaceDir: string; additionalDirs: readonly string[] } {
+    const main = this.agents.get('main');
+    if (main === undefined) {
+      throw new Error('No main agent; cannot read workspace roots.');
+    }
+    return { workspaceDir: main.config.cwd, additionalDirs: main.config.additionalDirs };
+  }
+
   async createAgent(
     config: Partial<AgentConfig>,
     profile?: ResolvedAgentProfile,
-    parentAgentId?: string | undefined,
-    parentToolCallId?: string | undefined,
+    parentAgentId?: string,
+    parentToolCallId?: string,
   ): Promise<{ readonly id: string; readonly agent: Agent }> {
     await this.skillsReady;
     const type = config.type ?? 'main';
@@ -251,7 +384,7 @@ export class Session {
     if (profile) {
       await this.bootstrapAgentProfile(agent, profile);
     } else if (this.config.cwd !== undefined) {
-      agent.config.update({ cwd: this.config.cwd });
+      agent.config.update(this.sessionWorkspaceUpdate());
     }
 
     this.agents.set(id, agent);
@@ -267,13 +400,24 @@ export class Session {
   }
 
   /**
+   * Build the config update payload that carries session-level workspace
+   * settings (cwd + additionalDirs) into each agent's ConfigState.
+   */
+  private sessionWorkspaceUpdate(): { cwd: string; additionalDirs?: readonly string[] } {
+    const cwd = this.config.cwd!;
+    const additionalDirs = this.config.additionalDirs;
+    return additionalDirs !== undefined ? { cwd, additionalDirs } : { cwd };
+  }
+
+  /**
    * Applies a profile's derived config — cwd, system prompt, active tools — to
    * an agent. Fresh creation and resume-of-an-incomplete-wire both route
    * through here so the two paths cannot drift apart.
    */
+
   private async bootstrapAgentProfile(agent: Agent, profile: ResolvedAgentProfile): Promise<void> {
     if (this.config.cwd !== undefined) {
-      agent.config.update({ cwd: this.config.cwd });
+      agent.config.update(this.sessionWorkspaceUpdate());
     }
     const context = await prepareSystemPromptContext(this.config.runtime.kaos, agent.config.cwd);
     agent.useProfile(profile, context);
@@ -453,6 +597,7 @@ export class Session {
       mcp: this.mcp,
       backgroundMaxRunningTasks: this.config.background?.maxRunningTasks,
       backgroundSessionDir: homedir,
+      imageLimits: this.imageLimits,
       permission: this.permissionOptions(parentAgentId, config.permission),
       telemetry: this.telemetry,
       log: this.log.createChild({ agentId: id }),
@@ -461,7 +606,7 @@ export class Session {
 
   private permissionOptions(
     parentAgentId: string | null,
-    input?: PermissionManagerOptions | undefined,
+    input?: PermissionManagerOptions,
   ): PermissionManagerOptions {
     if (parentAgentId === null) {
       return {

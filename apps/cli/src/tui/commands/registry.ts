@@ -114,6 +114,20 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: (args) => goalAvailability(args),
   },
   {
+    name: 'cron',
+    aliases: ['schedule'],
+    description: 'List or delete session-scoped cron jobs',
+    priority: 80,
+    availability: 'always',
+  },
+  {
+    name: 'add-dir',
+    aliases: [],
+    description: 'Add a directory to the workspace, or list current workspace roots',
+    priority: 80,
+    availability: 'idle-only',
+  },
+  {
     name: 'status',
     aliases: [],
     description: 'Show current session and runtime status',

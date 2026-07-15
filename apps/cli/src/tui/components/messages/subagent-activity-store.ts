@@ -360,11 +360,7 @@ export class SubagentActivityStore {
     this.notifySnapshotChange();
   }
 
-  onSubagentSpawned(meta: {
-    agentId: string;
-    agentName?: string | undefined;
-    runInBackground: boolean;
-  }): void {
+  onSubagentSpawned(meta: { agentId: string; agentName?: string; runInBackground: boolean }): void {
     this.subagentAgentId = meta.agentId;
     this.subagentAgentName = meta.agentName;
     this.subagentPhase = meta.runInBackground ? 'backgrounded' : 'spawning';
@@ -373,10 +369,7 @@ export class SubagentActivityStore {
     this.notifySnapshotChange();
   }
 
-  onSubagentCompleted(payload: {
-    usage?: SubagentTokenUsage | undefined;
-    resultSummary: string;
-  }): void {
+  onSubagentCompleted(payload: { usage?: SubagentTokenUsage; resultSummary: string }): void {
     this.subagentPhase = 'done';
     this.subagentEndedAtMs ??= Date.now();
     this.subagentUsage = payload.usage;
@@ -433,11 +426,7 @@ export class SubagentActivityStore {
     this.notifySnapshotChange();
   }
 
-  appendSubToolCallDelta(delta: {
-    id: string;
-    name?: string | undefined;
-    argumentsPart: string | null;
-  }): void {
+  appendSubToolCallDelta(delta: { id: string; name?: string; argumentsPart: string | null }): void {
     const existing = this.ongoingSubCalls.get(delta.id);
     const nextArgsText = appendStreamingArgsPreview(
       existing?.streamingArguments,
@@ -453,11 +442,7 @@ export class SubagentActivityStore {
     this.notifySnapshotChange();
   }
 
-  finishSubToolCall(result: {
-    tool_call_id: string;
-    output: string;
-    is_error?: boolean | undefined;
-  }): void {
+  finishSubToolCall(result: { tool_call_id: string; output: string; is_error?: boolean }): void {
     const ongoing = this.ongoingSubCalls.get(result.tool_call_id);
     if (ongoing === undefined) return;
     this.ongoingSubCalls.delete(result.tool_call_id);

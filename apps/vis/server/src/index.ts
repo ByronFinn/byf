@@ -7,7 +7,14 @@ async function main(): Promise<void> {
   const authToken = resolveVisAuthToken(host);
   const handle = await startVisServer({ host, port, authToken });
   // Startup banner.
-  process.stdout.write(formatVisStartupBanner({ authToken, host, port: handle.port }));
+  process.stdout.write(
+    formatVisStartupBanner({
+      authToken,
+      host,
+      port: handle.port,
+      staticEnabled: handle.staticEnabled,
+    }),
+  );
 }
 
 try {

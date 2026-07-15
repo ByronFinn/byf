@@ -55,12 +55,12 @@ export interface RgResolution {
 }
 
 export interface EnsureRgPathOptions {
-  readonly shareDir?: string | undefined;
+  readonly shareDir?: string;
   /**
    * Cancels this caller's wait. A shared bootstrap download that is already in
    * progress may continue so other callers can still use the same result.
    */
-  readonly signal?: AbortSignal | undefined;
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -75,10 +75,7 @@ export async function ensureRgPath(options: EnsureRgPathOptions = {}): Promise<R
   return options.signal === undefined ? resolution : abortable(resolution, options.signal);
 }
 
-async function resolveRgPath(
-  shareDir: string,
-  signal?: AbortSignal | undefined,
-): Promise<RgResolution> {
+async function resolveRgPath(shareDir: string, signal?: AbortSignal): Promise<RgResolution> {
   const existing = await findExistingRg(shareDir);
   if (existing) return existing;
   signal?.throwIfAborted();

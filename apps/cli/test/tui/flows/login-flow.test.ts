@@ -1108,7 +1108,7 @@ describe('LoginFlow', () => {
     };
 
     for (let i = 0; i < registryOptions.length; i++) {
-      const expectedType = registryOptions[i]!.value;
+      const expectedType = registryOptions[i].value;
       const expectedBaseUrl = loginProviderRegistry[expectedType].defaultBaseUrl;
 
       const deps = makeDeps({

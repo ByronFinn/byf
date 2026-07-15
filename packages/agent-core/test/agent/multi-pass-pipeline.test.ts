@@ -146,7 +146,7 @@ describe('Multi-pass compaction pipeline', () => {
         type: 'tool.result',
         parentUuid: `tc-${String(i)}`,
         toolCallId: `call_${String(i)}`,
-        result: { output: toolResults[i]! },
+        result: { output: toolResults[i] },
       });
     }
     await ctx.agent.context.appendLoopEvent({

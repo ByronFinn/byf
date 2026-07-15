@@ -37,6 +37,8 @@ export interface VisServerHandle {
   readonly host: string;
   /** The port the server is bound to. */
   readonly port: number;
+  /** Whether the SPA bundle is being served. False means API-only. */
+  readonly staticEnabled: boolean;
   /** Base URL (\`http://<host>:<port>\`), with IPv6 hosts bracketed. */
   readonly url: string;
   /** Stop the server. Subsequent connections are refused. */
@@ -61,6 +63,7 @@ export declare function formatVisStartupBanner(input: {
   readonly authToken?: string;
   readonly host: string;
   readonly port: number;
+  readonly staticEnabled?: boolean;
 }): string;
 `;
 

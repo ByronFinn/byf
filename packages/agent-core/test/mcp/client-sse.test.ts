@@ -99,7 +99,9 @@ async function startInProcessSseMcpServer(opts?: {
       if (!httpServer.listening) return;
       await new Promise<void>((resolve, reject) => {
         httpServer.closeAllConnections?.();
-        const timer = setTimeout(() => resolve(), 200);
+        const timer = setTimeout(() => {
+          resolve();
+        }, 200);
         httpServer.close((err) => {
           clearTimeout(timer);
           if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {

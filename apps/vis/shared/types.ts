@@ -50,7 +50,7 @@ export interface ContextProjection {
   messages: ProjectedMessage[];
   usage: UsageTotals;
   config: ConfigSnapshot;
-  permission: { mode: 'manual' | 'yolo' | 'auto' | null };
+  permission: { mode: PermissionMode | null };
 }
 
 // ── Session / agent / wire DTOs ────────────────────────────────────────────
