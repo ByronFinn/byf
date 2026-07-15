@@ -1,5 +1,40 @@
 # @byfriends/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 55be6ea: 为 ReadMediaFile 增加图片摄入管线：不支持的格式 (HEIC/AVIF/BMP/TIFF/ICO 等) 在进入对话前被拒绝并给出转换提示（以文件实际字节为准，防止扩展名欺骗）；大图在发送前自动压缩 (最长边 2000px、JPEG 质量阶梯) 并缓存原图供回读，降低 token 与上下文消耗；压缩遇炸弹/解码失败时改为拒绝而非继续发送原图。原图缓存随会话目录清理。
+- 8fa0581: 新增 `/add-dir` 与可重复的 `--add-dir`，可把额外工作目录加入会话；选择记住时写入项目 `.byf/local.toml` 的 `workspace.additional_dir`。运行 `/add-dir list` 查看当前 roots。
+- 5446a7d: print 模式完成判定支持 goal hold、后台 drain 与 headless 防挂死；支持 `byf -p "/goal …"`，按 complete/blocked/paused 退出 0/3/6。注意：会话内有未来 fire 的周期 cron 时 `-p` 会保持进程不退出。
+- 5446a7d: 新增会话内 Cron 工具（创建/列表/删除），触发时注入当前会话并在 TUI 显示 notice。在 `-p` 中创建有未来 fire 的周期任务会使进程保持运行直至任务结束或被外部终止。
+- b1dcbdd: 新增 `/cron`（别名 `/schedule`）斜杠命令，用于列出与删除当前会话内的定时任务；用户删除不经模型工具权限。运行 `/cron` 查看，`/cron delete <id>` 删除。
+
+### Patch Changes
+
+- 1d67ebd: 将 /mcp、/usage、/status 的实现从斜杠命令宿主收窄进对话框管理器，减少宿主接口表面。
+- 31fb6fe: 清理全仓可选属性类型签名中的冗余 `| undefined`，将条件展开改为直接传值。删除已失效的 Nix 打包配置和旧构建辅助脚本。
+- ef31d64: 将后台任务的输出缓冲与磁盘读取职责从后台任务管理器中拆出为独立模块，降低该类的复杂度并便于后续维护。
+- 31fb6fe: 修复原生编译版 `byf vis` 打开网页后页面空白：SPA 静态资源未随二进制打包，现已内嵌，浏览器可直接访问可视化界面。
+- cd76b0c: 将 /btw 侧边查询浮层的生命周期从终端主装配器中抽离为独立模块，不再随新功能向主装配器堆积私有方法。
+- ab60696: 修复未安装 fd 且当前目录不在 git 仓库时，输入 @ 不弹出文件选择列表的问题：改为直接列举工作目录文件作为兜底。
+- 7fcaffc: 修复恢复含已读文件记录的会话时，首次读取或编辑文件报错 `t.has is not a function` 的问题：已读文件记录改为用数组持久化，避免经 JSON 落盘后丢失。
+- ad9c41d: 升级终端 UI 框架依赖，纳入编辑器粘贴行为与图像渲染的多项上游修复。
+- 7fa595d: 为恢复处理器补全两个仅用于调试的记录分支，并新增记录类型覆盖测试以防 live 写与 restore 读再次漂移。
+- 6740d96: 抽出 wire 折叠纯函数，统一 agent 内核与外部读取方的对话时间线重建逻辑。
+- ad9c41d: 修复会话导出扫描器对已废弃记录形状的匹配，使其识别当前的用户提示记录。
+- 6a805d8: 修复会话内批准一次 Cron 创建后会放行任意后续定时任务的问题：现在按完整创建内容分别授权。
+- b95d104: 区分请求体过大与上下文溢出错误，大图撑爆请求体时走丢图/缩图恢复而非压缩历史。
+- b95d104: print 等待或列举后台任务失败时改为非零退出；全量压缩在去图后仍因请求体过大时按比例收缩历史重试；拒绝非有限 `createdAt` 的 cron 任务。
+- 55be6ea: 增强 provider 故障韧性：HTTP 529 (provider overloaded) 纳入自动重试；解析 Retry-After 响应头并以服务端要求的等待时间覆盖本地退避（并设上限，避免恶意/异常值挂死当前回合），避免过早重试触发二次限流。
+- 961fbff: 将内置斜杠命令按分组迁入独立 command-module，经窄 host 注册分发。
+- Updated dependencies [1d67ebd]
+- Updated dependencies [31fb6fe]
+- Updated dependencies [6740d96]
+- Updated dependencies [31fb6fe]
+- Updated dependencies [961fbff]
+  - @byfriends/vis-server@0.4.1
+
 ## 0.4.1
 
 ### Patch Changes
@@ -218,6 +253,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -519,6 +555,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -529,6 +566,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -537,6 +575,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -549,6 +588,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -571,6 +611,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -583,6 +624,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

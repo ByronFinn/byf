@@ -1,5 +1,11 @@
 # @byfriends/kaos
 
+## 0.4.1
+
+### Patch Changes
+
+- 31fb6fe: 清理全仓可选属性类型签名中的冗余 `| undefined`，将条件展开改为直接传值。删除已失效的 Nix 打包配置和旧构建辅助脚本。
+
 ## 0.4.0
 
 ### Minor Changes

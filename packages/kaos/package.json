@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/kaos",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Execution environment and filesystem/process abstractions for BYF",
   "keywords": [
     "agent",

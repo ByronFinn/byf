@@ -1,5 +1,34 @@
 # @byfriends/agent-core
 
+## 0.5.0
+
+### Minor Changes
+
+- 55be6ea: 为 ReadMediaFile 增加图片摄入管线：不支持的格式 (HEIC/AVIF/BMP/TIFF/ICO 等) 在进入对话前被拒绝并给出转换提示（以文件实际字节为准，防止扩展名欺骗）；大图在发送前自动压缩 (最长边 2000px、JPEG 质量阶梯) 并缓存原图供回读，降低 token 与上下文消耗；压缩遇炸弹/解码失败时改为拒绝而非继续发送原图。原图缓存随会话目录清理。
+- 8fa0581: 新增 `/add-dir` 与可重复的 `--add-dir`，可把额外工作目录加入会话；选择记住时写入项目 `.byf/local.toml` 的 `workspace.additional_dir`。运行 `/add-dir list` 查看当前 roots。
+- 5446a7d: print 模式完成判定支持 goal hold、后台 drain 与 headless 防挂死；支持 `byf -p "/goal …"`，按 complete/blocked/paused 退出 0/3/6。注意：会话内有未来 fire 的周期 cron 时 `-p` 会保持进程不退出。
+- 5446a7d: 新增会话内 Cron 工具（创建/列表/删除），触发时注入当前会话并在 TUI 显示 notice。在 `-p` 中创建有未来 fire 的周期任务会使进程保持运行直至任务结束或被外部终止。
+- b1dcbdd: 新增 `/cron`（别名 `/schedule`）斜杠命令，用于列出与删除当前会话内的定时任务；用户删除不经模型工具权限。运行 `/cron` 查看，`/cron delete <id>` 删除。
+
+### Patch Changes
+
+- 31fb6fe: 清理全仓可选属性类型签名中的冗余 `| undefined`，将条件展开改为直接传值。删除已失效的 Nix 打包配置和旧构建辅助脚本。
+- ef31d64: 将后台任务的输出缓冲与磁盘读取职责从后台任务管理器中拆出为独立模块，降低该类的复杂度并便于后续维护。
+- 7fcaffc: 修复恢复含已读文件记录的会话时，首次读取或编辑文件报错 `t.has is not a function` 的问题：已读文件记录改为用数组持久化，避免经 JSON 落盘后丢失。
+- 7fa595d: 为恢复处理器补全两个仅用于调试的记录分支，并新增记录类型覆盖测试以防 live 写与 restore 读再次漂移。
+- 6740d96: 抽出 wire 折叠纯函数，统一 agent 内核与外部读取方的对话时间线重建逻辑。
+- ad9c41d: 修复会话导出扫描器对已废弃记录形状的匹配，使其识别当前的用户提示记录。
+- 6a805d8: 修复会话内批准一次 Cron 创建后会放行任意后续定时任务的问题：现在按完整创建内容分别授权。
+- b95d104: 区分请求体过大与上下文溢出错误，大图撑爆请求体时走丢图/缩图恢复而非压缩历史。
+- b95d104: print 等待或列举后台任务失败时改为非零退出；全量压缩在去图后仍因请求体过大时按比例收缩历史重试；拒绝非有限 `createdAt` 的 cron 任务。
+- 55be6ea: 增强 provider 故障韧性：HTTP 529 (provider overloaded) 纳入自动重试；解析 Retry-After 响应头并以服务端要求的等待时间覆盖本地退避（并设上限，避免恶意/异常值挂死当前回合），避免过早重试触发二次限流。
+- 299a20f: 收紧内部类型定义,移除 RPC、搜索提供者注册表与会话元信息中残留的 `any`,改用 `unknown` 或精确的选项类型。
+- Updated dependencies [31fb6fe]
+- Updated dependencies [b95d104]
+- Updated dependencies [55be6ea]
+  - @byfriends/kosong@0.4.1
+  - @byfriends/kaos@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
@@ -205,6 +234,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -224,11 +254,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -317,6 +347,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -335,6 +366,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
+
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)

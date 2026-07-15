@@ -1,5 +1,33 @@
 # @byfriends/vis-server
 
+## 0.4.1
+
+### Patch Changes
+
+- 1d67ebd: 将会话投影的分支结构由 switch 改写为 if 链，并修复用量累加的空值类型错误。
+- 31fb6fe: 清理全仓可选属性类型签名中的冗余 `| undefined`，将条件展开改为直接传值。删除已失效的 Nix 打包配置和旧构建辅助脚本。
+- 6740d96: 会话时间线投影改用 agent-core 的纯折叠函数，修正工具输出美化、部分压缩丢消息、工具调用期间消息错序三处与内核不一致的偏差。
+- 31fb6fe: 可视化服务器支持从编译时内嵌的资源加载 SPA 页面，并在仅提供 API 时给出明确提示。
+- 961fbff: 会话可视化前后端共享 DTO 改为单一来源。
+- Updated dependencies [31fb6fe]
+- Updated dependencies [ef31d64]
+- Updated dependencies [7fcaffc]
+- Updated dependencies [55be6ea]
+- Updated dependencies [7fa595d]
+- Updated dependencies [6740d96]
+- Updated dependencies [ad9c41d]
+- Updated dependencies [8fa0581]
+- Updated dependencies [6a805d8]
+- Updated dependencies [5446a7d]
+- Updated dependencies [b95d104]
+- Updated dependencies [b95d104]
+- Updated dependencies [5446a7d]
+- Updated dependencies [b1dcbdd]
+- Updated dependencies [55be6ea]
+- Updated dependencies [299a20f]
+  - @byfriends/agent-core@0.5.0
+  - @byfriends/vis-shared@0.1.1
+
 ## 0.4.0
 
 ### Minor Changes
