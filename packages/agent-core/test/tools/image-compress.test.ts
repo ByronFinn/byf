@@ -75,6 +75,8 @@ describe('compressImageForModel', () => {
     expect(result.mimeType).toBe('image/gif');
   });
 
+  // Heavy encode/decode (Jimp is synchronous JS) — needs more than the 5s
+  // default per-test timeout on slow CI runners.
   it('compresses a large PNG: downscaled to the edge cap and smaller', async () => {
     const data = await makePng(3000, 3000, 0xff0000ff);
     const result = await compressImageForModel({ data, mimeType: 'image/png' });
@@ -90,7 +92,7 @@ describe('compressImageForModel', () => {
     expect(result.data.length).toBeLessThan(data.length);
     expect(result.outcome.originalBytes).toBe(data.length);
     expect(result.outcome.finalBytes).toBe(result.data.length);
-  });
+  }, 30_000);
 
   it('walks the JPEG quality ladder for an over-budget JPEG source', async () => {
     const data = await makeJpeg(2000, 2000, 95);
@@ -105,7 +107,7 @@ describe('compressImageForModel', () => {
     if (result.outcome.kind !== 'compressed') return;
     expect(result.mimeType).toBe('image/jpeg');
     expect(result.data.length).toBeLessThan(data.length);
-  });
+  }, 30_000);
 
   it('refuses to decode a buffer exceeding MAX_DECODE_BYTES (bomb guard)', async () => {
     const bomb = Buffer.alloc(MAX_DECODE_BYTES + 1, 0);
