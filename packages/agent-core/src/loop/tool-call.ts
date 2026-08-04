@@ -18,6 +18,7 @@ import type { ContentPart } from '@byfriends/kosong';
 import type { Logger } from '#/logging/types';
 
 import {
+  coerceToolArgs,
   compileToolArgsValidator,
   validateToolArgs,
   type JsonType,
@@ -196,17 +197,19 @@ function preflightToolCall(
       output: `Invalid args for tool "${toolName}": malformed JSON in arguments: ${parsedArgs.error}`,
     };
   }
-  const validationError = validateExecutableToolArgs(tool, parsedArgs.data);
+  // Coerce model-provided args before validation (e.g. "5" → 5 for integer fields).
+  const coercedArgs = coerceToolArgs(tool.parameters, parsedArgs.data as JsonType);
+  const validationError = validateExecutableToolArgs(tool, coercedArgs);
   if (validationError !== null) {
     return {
       kind: 'rejected',
       toolCall,
       toolName,
-      args: parsedArgs.data,
+      args: coercedArgs,
       output: `Invalid args for tool "${toolName}": ${validationError}`,
     };
   }
-  return { kind: 'runnable', toolCall, toolName, tool, args: parsedArgs.data };
+  return { kind: 'runnable', toolCall, toolName, tool, args: coercedArgs };
 }
 
 function parseToolCallArguments(
@@ -275,14 +278,16 @@ async function prepareToolCall(
     };
   }
 
-  const validationError = validateExecutableToolArgs(call.tool, decision.args);
+  // Re-coerce in case the hook returned modified args with string-encoded numbers.
+  const coercedHookArgs = coerceToolArgs(call.tool.parameters, decision.args as JsonType);
+  const validationError = validateExecutableToolArgs(call.tool, coercedHookArgs);
   if (validationError !== null) {
-    await dispatchToolCall(step, call, decision.args);
+    await dispatchToolCall(step, call, coercedHookArgs);
     const output = `Invalid args for tool "${call.toolName}" after prepareToolExecution hook: ${validationError}`;
-    return { task: makeResolvedToolCallTask(makeErrorToolResult(call, decision.args, output)) };
+    return { task: makeResolvedToolCallTask(makeErrorToolResult(call, coercedHookArgs, output)) };
   }
 
-  const effectiveArgs = decision.args;
+  const effectiveArgs = coercedHookArgs;
   let execution: ToolExecution;
   try {
     execution = call.tool.resolveExecution(effectiveArgs);
