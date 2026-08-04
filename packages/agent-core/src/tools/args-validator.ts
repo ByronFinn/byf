@@ -88,19 +88,16 @@ const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
  * that could mask genuinely malformed calls.
  */
 export function coerceToolArgs(schema: Record<string, unknown>, args: JsonType): JsonType {
-  if (!isRecord(args)) return args;
+  if (!isJsonObject(args)) return args;
   return coerceObjectProperties(schema, args);
 }
 
-function coerceObjectProperties(
-  schema: Record<string, unknown>,
-  args: Record<string, unknown>,
-): Record<string, unknown> {
+function coerceObjectProperties(schema: Record<string, unknown>, args: JsonObject): JsonObject {
   const properties = schema['properties'];
   if (!isRecord(properties)) return args;
 
   const required = collectRequiredPropertyNames(schema);
-  const result: Record<string, unknown> = {};
+  const result: JsonObject = {};
 
   for (const [key, value] of Object.entries(args)) {
     const propSchema = properties[key];
@@ -124,7 +121,7 @@ function coerceObjectProperties(
     }
 
     // Recurse into nested objects.
-    if (type === 'object' && isRecord(value)) {
+    if (type === 'object' && isJsonObject(value)) {
       result[key] = coerceObjectProperties(propSchema, value);
       continue;
     }
@@ -140,10 +137,12 @@ function coerceObjectProperties(
   return result;
 }
 
-function coerceArrayItems(schema: Record<string, unknown>, items: unknown[]): unknown[] {
+function coerceArrayItems(schema: Record<string, unknown>, items: JsonArray): JsonArray {
   const itemSchema = schema['items'];
   if (!isRecord(itemSchema) || itemSchema['type'] !== 'object') return items;
-  return items.map((item) => (isRecord(item) ? coerceObjectProperties(itemSchema, item) : item));
+  return items.map((item) =>
+    isJsonObject(item) ? coerceObjectProperties(itemSchema, item) : item,
+  );
 }
 
 function collectRequiredPropertyNames(schema: Record<string, unknown>): ReadonlySet<string> {
@@ -170,6 +169,10 @@ function tryParseCoercibleNumber(value: string, expectedType: string): number | 
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
