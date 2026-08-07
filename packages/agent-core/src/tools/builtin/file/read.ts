@@ -19,9 +19,6 @@ export const MAX_BYTES: number = 100 * 1024;
 const S_IFMT = 0o170000;
 const S_IFREG = 0o100000;
 
-const PositiveLineOffsetSchema = z.number().int().min(1);
-const TailLineOffsetSchema = z.number().int().min(-MAX_LINES).max(-1);
-
 export const ReadInputSchema = z.object({
   path: z
     .string()
@@ -29,7 +26,10 @@ export const ReadInputSchema = z.object({
       'Path to a text file. Relative paths resolve against the working directory; a path outside the working directory must be absolute. Directories are not supported; use `ls` via Bash for a known directory, or Glob for pattern search.',
     ),
   line_offset: z
-    .union([PositiveLineOffsetSchema, TailLineOffsetSchema])
+    .number()
+    .int()
+    .min(-MAX_LINES)
+    .refine((n) => n !== 0, { message: 'line_offset must not be 0' })
     .optional()
     .describe(
       `The line number to start reading from. Omit to start at line 1. Negative values read from the end of the file; the absolute value cannot exceed ${String(MAX_LINES)}.`,

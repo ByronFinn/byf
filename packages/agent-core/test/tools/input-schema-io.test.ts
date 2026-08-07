@@ -14,9 +14,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { compileToolArgsValidator, validateToolArgs } from '../../src/tools/args-validator';
+import {
+  coerceToolArgs,
+  compileToolArgsValidator,
+  validateToolArgs,
+} from '../../src/tools/args-validator';
 import { TaskListTool } from '../../src/tools/background/task-list';
 import { AskUserQuestionTool } from '../../src/tools/builtin/collaboration/ask-user';
+import { ReadTool } from '../../src/tools/builtin/file/read';
 
 /** Collect every `required` array nested anywhere inside a JSON Schema. */
 function collectRequired(schema: unknown, acc: string[] = []): string[] {
@@ -86,5 +91,66 @@ describe('builtin tool input JSON Schema', () => {
     };
     // The closed-object guard must hold at every nesting level.
     expect(validateToolArgs(validator, { questions: [question] })).not.toBeNull();
+  });
+});
+
+describe('coerceToolArgs', () => {
+  const readSchema = new ReadTool({} as never, {} as never).parameters;
+
+  it('coerces string-encoded integer for line_offset', () => {
+    // Models sometimes serialize numbers as strings ("5" instead of 5).
+    // The coerced result must pass AJV validation.
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: '5' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', line_offset: 5 });
+    expect(validateToolArgs(compileToolArgsValidator(readSchema), coerced)).toBeNull();
+  });
+
+  it('coerces string-encoded negative integer for line_offset', () => {
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: '-3' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', line_offset: -3 });
+    expect(validateToolArgs(compileToolArgsValidator(readSchema), coerced)).toBeNull();
+  });
+
+  it('coerces string-encoded integer for n_lines', () => {
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', n_lines: '20' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', n_lines: 20 });
+    expect(validateToolArgs(compileToolArgsValidator(readSchema), coerced)).toBeNull();
+  });
+
+  it('leaves native integers untouched', () => {
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: 5, n_lines: 2 });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', line_offset: 5, n_lines: 2 });
+  });
+
+  it('drops null for optional fields', () => {
+    // null on an optional field means "not specified" — same as omitting the key.
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: null });
+    expect(coerced).toEqual({ path: '/tmp/a.txt' });
+  });
+
+  it('does not coerce non-integer strings', () => {
+    // "abc" is not a valid integer — left as-is so AJV rejects it.
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: 'abc' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', line_offset: 'abc' });
+    expect(validateToolArgs(compileToolArgsValidator(readSchema), coerced)).not.toBeNull();
+  });
+
+  it('does not coerce floats', () => {
+    // 5.5 is not an integer — left as-is so AJV rejects it.
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt', line_offset: '5.5' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt', line_offset: '5.5' });
+    expect(validateToolArgs(compileToolArgsValidator(readSchema), coerced)).not.toBeNull();
+  });
+
+  it('does not touch string fields', () => {
+    // `path` is declared as `type: string` — must remain a string.
+    const coerced = coerceToolArgs(readSchema, { path: '/tmp/a.txt' });
+    expect(coerced).toEqual({ path: '/tmp/a.txt' });
+  });
+
+  it('does not touch boolean fields', () => {
+    const taskListSchema = new TaskListTool({} as never).parameters;
+    const coerced = coerceToolArgs(taskListSchema, { active_only: true, limit: 5 });
+    expect(coerced).toEqual({ active_only: true, limit: 5 });
   });
 });
