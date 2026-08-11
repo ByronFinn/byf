@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "#/*": ["../../packages/agent-core/src/*"]
+    },
+    "noEmit": true
+  },
+  "include": ["load.ts"]
+}

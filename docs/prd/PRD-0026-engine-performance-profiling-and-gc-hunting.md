@@ -1,6 +1,6 @@
 # 引擎性能剖析与 GC 根因定位(换语言决策依据)
 
-> **Status**: Grilled | **PRD**: PRD-0026 | **Created**: 2026-08-11 | **Last updated**: 2026-08-11
+> **Status**: Done | **PRD**: PRD-0026 | **Created**: 2026-08-11 | **Last updated**: 2026-08-11
 
 ## Goal
 
@@ -78,13 +78,13 @@
 
 ## Acceptance Criteria
 
-- [ ] R1 负载脚本存在、可重复运行,**三种模式(A 交互长会话 / B resume 大会话 / C 多 subagent 并行)均可跑**,文档说明运行方法与规模参数
-- [ ] R2 CPU profile 报告:top 函数 + 热点归属百分比表(每种模式各一份或汇总)
-- [ ] R3 GC 时间占比、暂停统计、堆增长曲线已量化
-- [ ] R4 `--smol` 对照实验完成并记录结论
-- [ ] R5 决策标准定稿(阈值明确),并给出推荐路径与依据
-- [ ] R6 优化清单产出(若决策为优化路径)
-- [ ] 运行方法沉淀为 `scripts/perf/README.md`(或等价文档),后续任何人可复跑
+- [x] R1 负载脚本存在、可重复运行,**三种模式(A 交互长会话 / B resume 大会话 / C 多 subagent 并行)均可跑**,文档说明运行方法与规模参数 — `scripts/perf/load.ts` + `README.md`(#256)
+- [x] R2 CPU profile 报告:top 函数 + 热点归属百分比表(每种模式各一份或汇总) — `docs/perf/mode-{a,b,c}.md` + `REPORT-0026.md` §2(#257)
+- [x] R3 GC 时间占比、暂停统计、堆增长曲线已量化 — `REPORT-0026.md` §3(默认 6.0% / 关并发 GC 5.6% / --smol 5.9%)(#258)
+- [x] R4 `--smol` 对照实验完成并记录结论 — `REPORT-0026.md` §3(三组无显著差异,GC 非放大器)(#258)
+- [x] R5 决策标准定稿(阈值明确),并给出推荐路径与依据 — `REPORT-0026.md` §1(GC ~6% < 15% → 定点优化,不切语言)(#259)
+- [x] R6 优化清单产出(若决策为优化路径) — `REPORT-0026.md` §5(3 项,首项预期消除 ~80% CPU)(#259)
+- [x] 运行方法沉淀为 `scripts/perf/README.md`(或等价文档),后续任何人可复跑(#256)
 
 ## Definition of Done
 
@@ -179,11 +179,13 @@
 
 - **Created by**: `/think` (2026-08-11)
 - **Sliced by**: `/story` → Child Issues below (2026-08-11)
+- **Implemented by**: `/goal` → grill → story → implement → review (2026-08-11)
+- **Report**: `docs/perf/REPORT-0026.md`(决策门判定:GC ~6% < 15% → 定点优化,不切语言;首项优化预期消除 ~80% CPU)
 - **Sliced into**:
-  - #256 — [PRD-0026] 负载脚手架 — 三模式可复跑的进程内负载脚本 (AFK)
-  - #257 — [PRD-0026] CPU 采谱与热点归属 — profile 报告 + 归属百分比表 (AFK, blocked by #256)
-  - #258 — [PRD-0026] GC 量化与对照实验 — GC 占比 + 暂停统计 + 堆曲线 + --smol 对照 (AFK, blocked by #256)
-  - #259 — [PRD-0026] 报告与决策 — 决策门定稿 + 推荐路径 + 优化清单 (HITL, blocked by #257, #258)
+  - #256 — [PRD-0026] 负载脚手架 — 三模式可复跑的进程内负载脚本 (AFK) — **Done**
+  - #257 — [PRD-0026] CPU 采谱与热点归属 — profile 报告 + 归属百分比表 (AFK, blocked by #256) — **Done**
+  - #258 — [PRD-0026] GC 量化与对照实验 — GC 占比 + 暂停统计 + 堆曲线 + --smol 对照 (AFK, blocked by #256) — **Done**
+  - #259 — [PRD-0026] 报告与决策 — 决策门定稿 + 推荐路径 + 优化清单 (HITL, blocked by #257, #258) — **Done**
 - **Grilled by**: `/grill` (completed 2026-08-11 一轮 + 2026-08-11 二轮代码复核) — 一轮 6 项待决全部解决:基线定稿(默认基线 + 2x 压力)、GC 量化方法三管齐下(BUN_JSC_* 探针本机验证)、术语精炼(回放 Provider 进 CONTEXT.md)、决策门阈值定稿(>25%/<15%/中间带/总闸)、不建 ADR、脚本落位独立薄副本。**二轮代码复核修正 3 处事实错误**:(1) `test/agent/harness/` 路径不存在,真实先例是 `packages/kosong/test/fixtures/echo-provider.ts` + `AgentConfig.generate` 注入;(2) `generate` 注入点返回 `Promise<GenerateResult>`、流式经 `callbacks.onMessagePart` 回调推送(非 async iterable);(3) 凭证校验在 `resolveRuntimeProvider`(`runtime-provider.ts:100-110`)、模型解析时触发(非构造时、非 `createAuthResolverForModel`)。
 - **New terms**: 回放 Provider 已进 CONTEXT.md(2026-08-11)
 
