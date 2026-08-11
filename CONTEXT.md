@@ -124,7 +124,7 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### 回放 Provider (Replay Provider)
 
-性能负载与可重复测试中使用的注入式生成器：在 `AgentConfig.generate` 注入点回放预录/脚本化的 `StreamedMessagePart` 流，完全忽略 provider 参数，零 API 成本、完全可重复。区别于真实 `ChatProvider`——回放 Provider 不实现 `ChatProvider` 接口，provider 对象仍由 `createProvider(dummyConfig)` 构造（保证 `name/modelName/thinkingEffort/getCapability/withThinking` 真实存在），只替换 `generate`。官方先例：`test/agent/harness/scripted-generate.ts`。参见 PRD-0026。
+性能负载与可重复测试中使用的注入式生成器：在 `AgentConfig.generate` 注入点回放预录/脚本化的 `StreamedMessagePart`，经 `callbacks.onMessagePart` 回调推送 part、返回组装好的 `GenerateResult`，完全忽略 provider 参数，零 API 成本、完全可重复。区别于真实 `ChatProvider`——回放 Provider 不实现 `ChatProvider` 接口，provider 对象仍由 `createProvider(dummyConfig)` 构造（保证 `name/modelName/thinkingEffort/getCapability/withThinking` 真实存在），只替换 `generate`。官方先例：`packages/kosong/test/fixtures/echo-provider.ts` 的 `ScriptedEchoChatProvider`（provider 层 DSL）与 `AgentConfig.generate` 函数层注入。参见 PRD-0026。
 
 ### Kaos
 

@@ -1,6 +1,6 @@
 # 引擎性能剖析与 GC 根因定位(换语言决策依据)
 
-> **Status**: In Progress | **PRD**: PRD-0026 | **Created**: 2026-08-11 | **Last updated**: 2026-08-11
+> **Status**: Grilled | **PRD**: PRD-0026 | **Created**: 2026-08-11 | **Last updated**: 2026-08-11
 
 ## Goal
 
@@ -25,7 +25,7 @@
 | --- | --- |
 | 脚本化负载可代表交互长会话的引擎热路径 | ✅ 代码核验:turn 状态机不依赖 Session/TUI(`turn/index.ts:224-343` 只依赖 records/context/telemetry/compaction/usage 等);TUI 渲染已排除出范围 |
 | GC 时间占比可量化且能归因 | ✅ 方法定稿:三管齐下(`--expose-gc` 插桩计时 + `BUN_JSC_useConcurrentGC=0` 对照 + profile GC 帧),工具全部本机验证 |
-| 回放 provider 足以驱动引擎热路径,真实 API 仅校准 | ✅ 官方先例:`test/agent/harness/`(`agent.ts:196-211` + `scripted-generate.ts:48-95`)已是同款模式;注入缝隙 `AgentConfig.generate` + `providerManager` 确认;dummy provider 需非空 apiKey |
+| 回放 provider 足以驱动引擎热路径,真实 API 仅校准 | ✅ 注入缝隙核实(代码复核 2026-08-11 二轮):`AgentConfig.generate`(`agent/index.ts:119`,类型 `typeof generate`,即 kosong `GenerateFn`)+ `AgentConfig.providerManager`;kosong 的 `generate`(`kosong/src/generate.ts:94`)签名是 `(provider, systemPrompt, tools, history, callbacks?, options?) => Promise<GenerateResult>`,**流式经 `callbacks.onMessagePart` 回调推送**(非 async iterable),mock 既可经回调灌入大量 part 压测事件风暴,又返回组装好的 `GenerateResult`。注:先前写的 `test/agent/harness/agent.ts:196-211` + `scripted-generate.ts` 路径**不存在**(代码核实)——真实可复用先例是 `packages/kosong/test/fixtures/echo-provider.ts` 的 `ScriptedEchoChatProvider`(provider 层 DSL)与 `AgentConfig.generate` 注入(函数层),负载脚本用后者更轻 |
 | `--smol` 仅作对照,不是解决方向 | ✅ 确认;另加 `BUN_JSC_*` GC 探针(collectContinuously / gcMaxHeapSize) |
 
 ## Open Questions
@@ -103,16 +103,16 @@
 
 ## Technical Approach
 
-1. **负载形态**:进程内脚本直接驱动 `Agent` + 注入 mock 生成器(不是实现 ChatProvider)。**代码已核验(2026-08-11)**:`AgentConfig.generate`(GenerateFn)+ `AgentConfig.providerManager`(带 dummy `ByfConfig`)双注入即可绕过真实 HTTP/鉴权;官方测试 harness(`test/agent/harness/agent.ts:196-211` + `scripted-generate.ts:48-95`)已是同款模式,负载脚本复用该模式。
+1. **负载形态**:进程内脚本直接驱动 `Agent` + 注入 mock 生成器(不是实现 ChatProvider)。**代码已核验(2026-08-11 二轮)**:`AgentConfig.generate`(`agent/index.ts:119`,类型 `typeof generate`)+ `AgentConfig.providerManager`(带 dummy `ByfConfig`)双注入即可绕过真实 HTTP/鉴权。注:kosong `generate`(`kosong/src/generate.ts:94`)签名是 `(provider, systemPrompt, tools, history, callbacks?, options?) => Promise<GenerateResult>`,**流式经 `callbacks.onMessagePart` 回调推送**(非 async iterable);mock 通过回调灌入大量 `StreamedMessagePart`(压测事件风暴),并返回组装好的 `GenerateResult`(`{id, message, usage, finishReason, ...}`)。先前写的 `test/agent/harness/` 路径**不存在**(代码核实),真实可复用先例是 `packages/kosong/test/fixtures/echo-provider.ts` 的 `ScriptedEchoChatProvider`(provider 层 DSL)与 `AgentConfig.generate` 注入(函数层),负载脚本用后者更轻。
 2. **注入细节(代码核验结论)**:
-   - 最小 Agent:`new Agent({ runtime: {kaos, osEnv}, rpc: stubRpc, generate: scriptedGenerate, providerManager: new ProviderManager({ config: dummyByfConfig }), persistence })` + `agent.config.update({ modelAlias, cwd, systemPrompt })`,然后循环 `agent.rpcMethods.prompt(...)` / `await agent.turn.waitForCurrentTurn()`。
-   - **dummy provider 必须带非空 `apiKey`**(如 `'test-key'`)——`createAuthResolverForModel` 路径会做凭证校验(`runtime-provider.ts:100-110`),否则构造即失败。
-   - 模式 A/C 用 `InMemoryAgentRecordPersistence`(免文件);**模式 B(resume)必须用 `FileSystemAgentRecordPersistence` + 临时 homedir**(wire.jsonl 惰性创建,目录自动 mkdir),先跑长会话产出 wire,再 `agent.resume()` 测 replay。
+   - 最小 Agent:`new Agent({ runtime: {kaos, osEnv}, rpc: stubRpc, generate: scriptedGenerate, providerManager: new ProviderManager({ config: dummyByfConfig }), persistence })` + `agent.config.update({ modelAlias, cwd, systemPrompt })`,然后循环 `agent.rpcMethods.prompt(payload)`(`agent/index.ts:454`)/ `await agent.turn.waitForCurrentTurn()`(`turn/index.ts:181`)。
+   - **dummy provider 必须带非空 `apiKey`**(如 `'test-key'`)——凭证校验在 `resolveRuntimeProvider`(`runtime-provider.ts:100-110`,不是 `createAuthResolverForModel`),触发时机是模型解析(如 `config.update({modelAlias})` 调 `tryResolvedProviderConfig` → `providerManager.resolveProviderConfigForModel`),不是 Agent 构造时;亦可设 `validateCredentials:false` 绕过。
+   - 模式 A/C 用 `InMemoryAgentRecordPersistence`(`persistence.ts:16-44`,纯内存);**模式 B(resume)必须用 `FileSystemAgentRecordPersistence` + 临时 homedir**(`persistence.ts:46-184`,`drainBatch` 先 `mkdir -p` 再 `open('a')`,wire.jsonl 惰性创建),先跑长会话产出 wire,再 `agent.resume()` 测 replay。注:`resume()`(`agent/index.ts:434`)做的是**记录回放重建状态**(`records.replay()` 路由到各子系统 `restoreRecord`),**不重新执行 turn**——因此模式 B 测的是「记录 parse + 8 子系统 restore」的开销,正合「resume 恢复峰值」目标。
 3. **采谱命令**:`bun --cpu-prof --cpu-prof-md --cpu-prof-interval=1000 scripts/perf/load.ts`;堆:`bun --heap-prof --heap-prof-md`;GC 实验:`--expose-gc` + 脚本内定时 `gc()` 采样。
 4. **归属分析**:CPU markdown 报告按函数→模块映射到已知热点清单(projector/cache-staking、persistence、tokens、fingerprint、turn-step/generate、wire-fold),输出百分比表。
 5. **决策门(草案,报告阶段校准)**:GC 占比、热点集中度(前 N 函数占比)、消除可行性三要素综合;最终阈值以实测数据定稿。
 6. **产出**:报告 + 决策记录(ADR-lite)+ 优化清单;不施工。
-7. **负载脚本落位**(grill 定 2026-08-11):`scripts/perf/load.ts` 独立薄副本——复制 `test/agent/harness/` 模式(`agent.ts` + `scripted-generate.ts`),**不 import 测试内部设施**(测试代码非稳定 API);mock 生成器随脚本自带。
+7. **负载脚本落位**(grill 定 2026-08-11):`scripts/perf/load.ts` 独立薄副本——参考 `packages/kosong/test/fixtures/echo-provider.ts`(provider 层 DSL)与 `AgentConfig.generate` 函数层注入的模式,**不 import 测试内部设施**(测试代码非稳定 API);mock 生成器(`GenerateFn` 经 `callbacks.onMessagePart` 推送 part + 返回 `GenerateResult`)随脚本自带。
 8. **ADR 判定**(grill 定 2026-08-11):方案 A 纯测量不建 ADR(流程选择,非难逆转技术决策);决策门阈值数据定稿后若升格为项目性能政策,再补 ADR。
 
 ## Feasible Approaches
@@ -184,14 +184,14 @@
   - #257 — [PRD-0026] CPU 采谱与热点归属 — profile 报告 + 归属百分比表 (AFK, blocked by #256)
   - #258 — [PRD-0026] GC 量化与对照实验 — GC 占比 + 暂停统计 + 堆曲线 + --smol 对照 (AFK, blocked by #256)
   - #259 — [PRD-0026] 报告与决策 — 决策门定稿 + 推荐路径 + 优化清单 (HITL, blocked by #257, #258)
-- **Grilled by**: `/grill` (completed 2026-08-11) — 6 项待决全部解决:基线定稿(默认基线 + 2x 压力)、GC 量化方法三管齐下(BUN_JSC_* 探针本机验证)、术语精炼(回放 Provider 进 CONTEXT.md)、决策门阈值定稿(>25%/<15%/中间带/总闸)、不建 ADR、脚本落位独立薄副本
+- **Grilled by**: `/grill` (completed 2026-08-11 一轮 + 2026-08-11 二轮代码复核) — 一轮 6 项待决全部解决:基线定稿(默认基线 + 2x 压力)、GC 量化方法三管齐下(BUN_JSC_* 探针本机验证)、术语精炼(回放 Provider 进 CONTEXT.md)、决策门阈值定稿(>25%/<15%/中间带/总闸)、不建 ADR、脚本落位独立薄副本。**二轮代码复核修正 3 处事实错误**:(1) `test/agent/harness/` 路径不存在,真实先例是 `packages/kosong/test/fixtures/echo-provider.ts` + `AgentConfig.generate` 注入;(2) `generate` 注入点返回 `Promise<GenerateResult>`、流式经 `callbacks.onMessagePart` 回调推送(非 async iterable);(3) 凭证校验在 `resolveRuntimeProvider`(`runtime-provider.ts:100-110`)、模型解析时触发(非构造时、非 `createAuthResolverForModel`)。
 - **New terms**: 回放 Provider 已进 CONTEXT.md(2026-08-11)
 
 ## Domain Terms (draft — for /grill to refine)
 
 | Term | Working Definition | Status |
 | --- | --- | --- |
-| 回放 Provider (Replay Provider) | 在 `AgentConfig.generate` 注入点回放预录流式输出的生成器，零成本可重复，区别于真实 `ChatProvider`（后者仍由 `createProvider` 构造，只替换 generate） | **已进 CONTEXT.md**（2026-08-11） |
+| 回放 Provider (Replay Provider) | 在 `AgentConfig.generate` 注入点回放预录/脚本化 part 流的生成器（经 `callbacks.onMessagePart` 推送 part、返回组装好的 `GenerateResult`），零成本可重复，区别于真实 `ChatProvider`（后者仍由 `createProvider` 构造，只替换 generate） | **已进 CONTEXT.md**（2026-08-11） |
 | GC 放大器 (GC amplifier) | GC 把分配密集的应用层热点（投影深拷贝、事件风暴、token 估算）放大为「单核 CPU 100%」的现象；GC 本身不是根因，消除分配热点才是治本 | PRD 内部术语，不进产品术语表 |
 | 决策门 (decision gate) | 由 GC 时间占比 × 热点集中度 × 消除可行性三要素构成的路径选择标准（定点优化 / 混合 native / 全量重写），阈值以实测数据校准定稿 | PRD 内部术语，不进产品术语表 |
 
