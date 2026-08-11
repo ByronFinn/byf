@@ -24,7 +24,7 @@
     },
     "apps/cli": {
       "name": "@byfriends/cli",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "bin": {
         "byf": "bin/byf.cjs",
       },
@@ -53,11 +53,11 @@
     },
     "apps/cli/npm/darwin-arm64": {
       "name": "@byfriends/cli-darwin-arm64",
-      "version": "0.4.0",
+      "version": "0.5.0",
     },
     "apps/cli/npm/linux-x64": {
       "name": "@byfriends/cli-linux-x64",
-      "version": "0.4.0",
+      "version": "0.5.0",
     },
     "apps/vis": {
       "name": "@byfriends/vis",
@@ -68,7 +68,7 @@
     },
     "apps/vis/server": {
       "name": "@byfriends/vis-server",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@byfriends/agent-core": "workspace:^",
         "@byfriends/vis-shared": "workspace:*",
@@ -81,7 +81,7 @@
     },
     "apps/vis/shared": {
       "name": "@byfriends/vis-shared",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@byfriends/agent-core": "workspace:*",
         "@byfriends/kosong": "workspace:*",
@@ -123,7 +123,7 @@
     },
     "packages/agent-core": {
       "name": "@byfriends/agent-core",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "dependencies": {
         "@antfu/utils": "^9.3.0",
         "@byfriends/kaos": "workspace:^",
@@ -162,11 +162,11 @@
     },
     "packages/kaos": {
       "name": "@byfriends/kaos",
-      "version": "0.4.0",
+      "version": "0.4.1",
     },
     "packages/kosong": {
       "name": "@byfriends/kosong",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.95.2",
         "@google/genai": "^1.49.0",
@@ -181,7 +181,7 @@
     },
     "packages/node-sdk": {
       "name": "@byfriends/sdk",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "dependencies": {
         "@antfu/utils": "^9.3.0",
         "smol-toml": "^1.6.1",
@@ -198,7 +198,7 @@
     },
     "packages/oauth": {
       "name": "@byfriends/oauth",
-      "version": "0.4.0",
+      "version": "0.4.1",
     },
   },
   "trustedDependencies": [
