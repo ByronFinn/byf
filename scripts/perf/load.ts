@@ -145,8 +145,8 @@ function parseArgs(argv: readonly string[]): CliOptions {
       case '--steps': {
         const range = next();
         const [min, max] = range.split('-').map(Number);
-        if (min === undefined || max === undefined) {
-          throw new Error(`Invalid --steps range: ${range}`);
+        if (min === undefined || max === undefined || min < 1 || max < min) {
+          throw new Error(`Invalid --steps range (expect "min-max", min>=1, max>=min): ${range}`);
         }
         opts.stepsMin = min;
         opts.stepsMax = max;
@@ -596,51 +596,56 @@ async function runModeB(
   const persistence = new FileSystemAgentRecordPersistence(wirePath, {
     onError: (error) => console.error('[perf] wire write error:', error),
   });
-  const generator = buildGenerator(opts);
-  const agent = createPerfAgent({
-    persistence,
-    generate: generator.generateFn,
-    homedir: home,
-    sessionId: 'perf-session',
-    toolResultChars: opts.toolResultChars,
-  });
-  const t0 = performance.now();
-  await runTurns(agent, opts.turns, opts.promptChars, opts.seed, sampler);
-  const sessionMs = performance.now() - t0;
-  await persistence.flush();
+  try {
+    const generator = buildGenerator(opts);
+    const agent = createPerfAgent({
+      persistence,
+      generate: generator.generateFn,
+      homedir: home,
+      sessionId: 'perf-session',
+      toolResultChars: opts.toolResultChars,
+    });
+    const t0 = performance.now();
+    await runTurns(agent, opts.turns, opts.promptChars, opts.seed, sampler);
+    const sessionMs = performance.now() - t0;
+    await persistence.flush();
 
-  const wireBytes = (await stat(wirePath)).size;
+    const wireBytes = (await stat(wirePath)).size;
 
-  // resume 全量 replay:replay 不应调用 LLM(records.replay 只重建状态,不重放 turn)。
-  const failGenerate: GenerateFn = async () => {
-    throw new Error('resume replay unexpectedly called generate');
-  };
-  const resumed = createPerfAgent({
-    persistence,
-    generate: failGenerate,
-    homedir: home,
-    sessionId: 'perf-session',
-    toolResultChars: opts.toolResultChars,
-  });
-  const t1 = performance.now();
-  const resumeResult = await resumed.resume();
-  const resumeMs = performance.now() - t1;
-  await persistence.close();
-  await rm(home, { recursive: true, force: true });
+    // resume 全量 replay:replay 不应调用 LLM(records.replay 只重建状态,不重放 turn)。
+    const failGenerate: GenerateFn = async () => {
+      throw new Error('resume replay unexpectedly called generate');
+    };
+    const resumed = createPerfAgent({
+      persistence,
+      generate: failGenerate,
+      homedir: home,
+      sessionId: 'perf-session',
+      toolResultChars: opts.toolResultChars,
+    });
+    const t1 = performance.now();
+    const resumeResult = await resumed.resume();
+    const resumeMs = performance.now() - t1;
 
-  return {
-    mode: 'b',
-    wallMs: sessionMs,
-    gc: { samples: 0, ms: 0 },
-    memory: { peakRss: 0, peakHeap: 0, startHeap: 0, endHeap: 0 },
-    memorySamples: [],
-    generateCalls: generator.callCount,
-    records: -1,
-    wireBytes,
-    resumeMs,
-    resumeError: resumeResult.error?.message,
-    subagentCompletions: 0,
-  };
+    return {
+      mode: 'b',
+      wallMs: sessionMs,
+      gc: { samples: 0, ms: 0 },
+      memory: { peakRss: 0, peakHeap: 0, startHeap: 0, endHeap: 0 },
+      memorySamples: [],
+      generateCalls: generator.callCount,
+      records: -1,
+      wireBytes,
+      resumeMs,
+      resumeError: resumeResult.error?.message,
+      subagentCompletions: 0,
+    };
+  } finally {
+    // finally 保证即便 runTurns/resume/stat 抛错也清理临时 homedir,不泄漏到 $TMPDIR。
+    // 先关持久化句柄再删目录,避免 rm 撞上未刷新的文件句柄。
+    await persistence.close().catch(() => {});
+    await rm(home, { recursive: true, force: true });
+  }
 }
 
 async function runModeC(

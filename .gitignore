@@ -1,9 +1,12 @@
 node_modules/
 dist/
 dist-native/
-# Perf profiles: large binaries, regenerable via scripts/perf/load.ts (see docs/perf/REPORT-0026.md)
+# Perf profiles: large binaries & machine-generated markdown, regenerable via
+# scripts/perf/load.ts (see docs/perf/REPORT-0026.md). The REPORT itself is committed;
+# raw CPU/heap dumps embed machine-specific paths and rot fast.
 docs/perf/*.cpuprofile
 docs/perf/*.heapsnapshot
+docs/perf/mode-*.md
 # Compile binaries staged into npm platform packages before publish (#220).
 apps/cli/npm/*/bin/byf
 apps/cli/npm/*/bin/byf.exe

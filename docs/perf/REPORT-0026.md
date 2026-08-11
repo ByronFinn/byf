@@ -143,4 +143,4 @@ bun --smol --expose-gc scripts/perf/load.ts --mode a --json
 
 - **Closes**: #257(CPU 采谱与热点归属)、#258(GC 量化与对照)、#259(报告与决策)
 - **Depends on**: #256(负载脚手架,已完成)
-- **原始数据**:`docs/perf/CPU.*.cpuprofile`、`docs/perf/mode-{a,b,c}.cpuprofile`、`docs/perf/mode-{a,b,c}.md`
+- **原始数据**:CPU/heap dump(`*.cpuprofile`、`mode-*.md`)为机器生成、含本机绝对路径,已 gitignore,按 §7 命令可复跑;本报告 §2 的归属百分比表是经人工提炼的结论,不依赖原始 dump 入库。
