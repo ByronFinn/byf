@@ -228,3 +228,71 @@ describe('Agent churn dispatch (integration via harness)', () => {
     await ctx.expectResumeMatches();
   });
 });
+
+/**
+ * Prefix-stability regression guard (PRD-0029 R4).
+ *
+ * A CI canary: if a future change accidentally makes the static prefix (PromptPlan blocks +
+ * tools) drift across turns during normal operation, churn fires and these tests go red.
+ * The negative case proves the guard is not vacuous (it does fire when the prefix changes).
+ */
+describe('prefix stability regression guard (PRD-0029 R4)', () => {
+  // Multi-block system prompt using the implicit boundary headers → global/project/session
+  // scoped blocks, mirroring a realistic stable prefix.
+  const STABLE_PROMPT = [
+    'You are a concise test agent for the prefix-stability guard.',
+    '# Project Information',
+    'The project follows the byf cache-release contract.',
+    '# Working Environment',
+    'Bun 1.3.14 is the sole toolchain.',
+    '# Skills',
+    'No skills are active in this guard.',
+  ].join('\n\n');
+
+  it('global-scope block hashes stay byte-identical across 5 stable turns (no churn)', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.config.update({ systemPrompt: STABLE_PROMPT });
+
+    for (let i = 0; i < 5; i++) {
+      ctx.mockNextResponse({ type: 'text', text: 'ok' });
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: `turn ${String(i)}` }] });
+      await ctx.untilTurnEnd();
+    }
+
+    // Guard A: no churn across all 5 turns (churn fires on ANY static-prefix diff).
+    expect(ctx.getRecords().filter((r) => r.type === 'context.cache_churn')).toHaveLength(0);
+
+    // Guard B: per-turn per-block hashes are identical (literal R4 assertion).
+    const plans = ctx.llmCalls
+      .map((c) => c.options?.promptPlan)
+      .filter((p): p is PromptPlan => p !== undefined);
+    expect(plans.length).toBe(5);
+    const blockHashesPerTurn = plans.map((p) => JSON.stringify(extractCacheBlockHashes(p)));
+    const firstTurnHashes = blockHashesPerTurn[0]!;
+    expect(blockHashesPerTurn.every((h) => h === firstTurnHashes)).toBe(true);
+  });
+
+  it('guard is not vacuous: an injected dynamic prefix change dispatches churn (negative case)', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.config.update({ systemPrompt: STABLE_PROMPT });
+
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'turn 0' }] });
+    await ctx.untilTurnEnd();
+    expect(ctx.getRecords().filter((r) => r.type === 'context.cache_churn')).toHaveLength(0);
+
+    // Simulate a regression: a dynamic injector accidentally mutates the static prefix.
+    ctx.agent.config.update({
+      systemPrompt: `${STABLE_PROMPT}\n\n[dynamic: ${String(Date.now())}]`,
+    });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'turn 1' }] });
+    await ctx.untilTurnEnd();
+
+    // The guard catches it — a churn is dispatched for the changed block.
+    const churn = ctx.getRecords().filter((r) => r.type === 'context.cache_churn');
+    expect(churn.length).toBeGreaterThanOrEqual(1);
+  });
+});
