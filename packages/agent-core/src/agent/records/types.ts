@@ -69,9 +69,13 @@ export interface AgentRecordEvents {
   'context.output_offloaded': {
     toolCallId: string;
     filePath?: string;
+    /** 替换进历史 tool message 的预览文本（Phase 5 transient op 载荷；旧记录无此字段）。 */
+    preview?: string;
   };
   'context.pruning': {
     prunedCount: number;
+    /** 本次实际修剪的 message 索引（Phase 5 transient op 载荷；旧记录无此字段）。 */
+    maskedIndices?: number[];
   };
 
   'tools.update_store': ToolStoreUpdate;

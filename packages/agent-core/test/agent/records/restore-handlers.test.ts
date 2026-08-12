@@ -7,13 +7,15 @@ import '../../../src/agent/wire/ops';
 import { OP_REGISTRY } from '../../../src/agent/wire';
 
 describe('AgentRecords facade — record type restore coverage (drift guard)', () => {
-  // Phase 1 Facade 的路由模型：每个 record 类型由以下之一覆盖——
-  // 1. OP_REGISTRY：7 个纯 reducer 子系统（goal/usage/tools/turn/permission/config/
-  //    full_compaction）+ background 的 Op 已注册，restore 走 silent apply。
-  // 2. legacyRoute：context.*（Phase 5 深水区前保留）走 restoreRecord。
+  // Facade 的路由模型：每个 record 类型由以下之一覆盖——
+  // 1. OP_REGISTRY：8 个纯 reducer 子系统（goal/usage/tools/turn/permission/config/
+  //    full_compaction/context，Phase 5 完成）+ background 的 Op 已注册，restore 走
+  //    silent apply。
+  // 2. legacyRoute：context.observation_masking（apply 需读 config 的 maxContextSize，
+  //    Phase 5 决议保留）走 restoreRecord。
   // 3. metadata：wire 协议信封，restore 时直接处理。
   // 新增 record 类型时必须落入其中一类，否则 restore 会按 replay tolerance 静默跳过。
-  const LEGACY_ROUTED_PREFIXES: ReadonlySet<string> = new Set(['context']);
+  const LEGACY_ROUTED_TYPES: ReadonlySet<string> = new Set(['context.observation_masking']);
 
   // 所有 AgentRecordEvents key 必须出现在这里。赋值强制 TS 求值 Missing ——
   // 仅声明未使用的 type alias 不会触发 typecheck。
@@ -53,21 +55,19 @@ describe('AgentRecords facade — record type restore coverage (drift guard)', (
   it('every record type is a registered Op, legacy-routed, or metadata', () => {
     const unaccounted = ALL_RECORD_TYPES.filter((type) => {
       if (type === 'metadata') return false; // wire 协议信封，restore 直接处理
-      const prefix = type.split('.')[0] ?? '';
-      if (LEGACY_ROUTED_PREFIXES.has(prefix)) return false; // context.* → legacyRoute
+      if (LEGACY_ROUTED_TYPES.has(type)) return false; // context.observation_masking → legacyRoute
       return !OP_REGISTRY.has(type); // 其余必须是已注册 Op
     });
     expect(unaccounted).toEqual([]);
   });
 
   it('all pure-reducer subsystems are registered as Ops (non-legacy, non-metadata)', () => {
-    // 除 context.*（8 个）legacy 与 metadata（协议）外，全部在 OP_REGISTRY。
+    // 除 context.observation_masking（1 个）legacy 与 metadata（协议）外，全部在 OP_REGISTRY。
     const registered = ALL_RECORD_TYPES.filter((type) => {
       if (type === 'metadata') return false;
-      const prefix = type.split('.')[0] ?? '';
-      if (LEGACY_ROUTED_PREFIXES.has(prefix)) return false;
+      if (LEGACY_ROUTED_TYPES.has(type)) return false;
       return OP_REGISTRY.has(type);
     });
-    expect(registered).toHaveLength(ALL_RECORD_TYPES.length - 8 - 1);
+    expect(registered).toHaveLength(ALL_RECORD_TYPES.length - 1 - 1);
   });
 });

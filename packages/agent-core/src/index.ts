@@ -47,12 +47,7 @@ export {
   shouldOffload,
   DEFAULT_OFFLOADING_CONFIG,
 } from './agent/context';
-export type {
-  WireFoldState,
-  WireFoldHandlers,
-  OffloadingConfig,
-  OffloadResult,
-} from './agent/context';
+export type { WireFoldState, OffloadingConfig, OffloadResult } from './agent/context';
 // Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with the
 // CLI so live and replay produce identical output (PRD R14).
 export {

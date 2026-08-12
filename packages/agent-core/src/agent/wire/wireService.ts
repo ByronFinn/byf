@@ -171,6 +171,17 @@ export class WireService {
     return this.ensureModel(model).state as DeepReadonly<S>;
   }
 
+  /**
+   * 以调用方提供的初始状态挂载 model（Phase 5 context 用）：把该 model 的实例状态
+   * 替换为调用方持有的 fold 视图容器，使 apply 的原地变更直接作用在调用方的嵌套
+   * 结构上（单次 fold、无内存双份）。须在第一次 dispatch/getModel 语义消费前调用
+   * （context 子系统在构造时挂载，早于 restore/首次 dispatch）。
+   */
+  mountModel<S>(model: ModelDef<S>, state: S): void {
+    const inst = this.ensureModel(model);
+    inst.state = state;
+  }
+
   dispatch(...ops: Op[]): void {
     if (ops.length === 0) return;
     if (this.restorePhase === 'restoring') {

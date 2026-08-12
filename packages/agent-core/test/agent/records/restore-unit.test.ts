@@ -12,6 +12,7 @@ import {
   type WireRecord,
 } from '../../../src/agent/wire';
 import { turnModel } from '../../../src/agent/wire/ops/turn';
+// import 触发全部业务 Op 注册（context.* 在 Phase 5 起已注册，仅 observation_masking 遗留）。
 import { testAgent } from '../harness/agent';
 
 class InMemoryWirePersistence implements WirePersistence {
@@ -38,6 +39,14 @@ const USER_MESSAGE = {
   toolCalls: [],
 };
 
+const MASKING_RECORD: WireRecord = {
+  type: 'context.observation_masking',
+  maskedCount: 2,
+  tokensBefore: 1000,
+  tokensAfter: 800,
+  time: 1,
+};
+
 describe('AgentRecords facade — logRecord routing', () => {
   it('routes registered-op records through dispatch (persist + apply + metadata envelope)', () => {
     const persistence = new InMemoryAgentRecordPersistence();
@@ -55,7 +64,7 @@ describe('AgentRecords facade — logRecord routing', () => {
     expect(agent.wire.getModel(turnModel).turnId).toBe(0);
   });
 
-  it('routes context records through persistRaw (persist only, no apply)', () => {
+  it('routes context records through dispatch (Phase 5：context.* 已注册 Op)', () => {
     const persistence = new InMemoryAgentRecordPersistence();
     const { agent } = testAgent({ persistence });
 
@@ -69,7 +78,8 @@ describe('AgentRecords facade — logRecord routing', () => {
       'metadata',
       'context.append_message',
     ]);
-    // context 无 Op —— persistRaw 不跑 apply，不产生 model。
+    // apply 更新了共享 model 状态（history 折叠进 context model）。
+    expect(agent.context.history).toHaveLength(1);
   });
 
   it('is a no-op while restoring', async () => {
@@ -77,10 +87,7 @@ describe('AgentRecords facade — logRecord routing', () => {
     // facade 的 logRecord 应直接 return（不落盘、不抛 persistRaw 相位守卫）。
     let wire: WireService;
     let legacyLogCalls = 0;
-    const persistence = new InMemoryWirePersistence([
-      createWireMetadataRecord(1),
-      { type: 'context.clear', time: 1 },
-    ]);
+    const persistence = new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]);
     const records = new AgentRecords(
       (wire = new WireService({
         persistence,
@@ -104,10 +111,7 @@ describe('AgentRecords facade — restoring flag', () => {
     let wire: WireService;
     const observed: boolean[] = [];
     wire = new WireService({
-      persistence: new InMemoryWirePersistence([
-        createWireMetadataRecord(1),
-        { type: 'context.append_message', message: USER_MESSAGE, time: 1 },
-      ]),
+      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
       legacyRoute: () => {
         observed.push(wire.phase === 'restoring');
       },
@@ -122,13 +126,13 @@ describe('AgentRecords facade — restoring flag', () => {
 });
 
 describe('AgentRecords facade — legacyRoute during restore', () => {
-  it('routes unregistered (context.*) records to legacyRoute instead of skipping', async () => {
+  it('routes unregistered (context.observation_masking) records to legacyRoute instead of skipping', async () => {
     const routed: string[] = [];
     const wire = new WireService({
       persistence: new InMemoryWirePersistence([
         createWireMetadataRecord(1),
-        { type: 'context.append_message', message: USER_MESSAGE, time: 1 },
-        { type: 'context.clear', time: 2 },
+        MASKING_RECORD,
+        { type: 'context.append_message', message: USER_MESSAGE, time: 2 },
       ]),
       legacyRoute: (record) => routed.push(record.type),
     });
@@ -136,15 +140,12 @@ describe('AgentRecords facade — legacyRoute during restore', () => {
 
     await records.replay();
 
-    expect(routed).toEqual(['context.append_message', 'context.clear']);
+    expect(routed).toEqual(['context.observation_masking']);
   });
 
   it('propagates legacyRoute errors through restore (Agent.resume catches)', async () => {
     const wire = new WireService({
-      persistence: new InMemoryWirePersistence([
-        createWireMetadataRecord(1),
-        { type: 'context.append_message', message: USER_MESSAGE, time: 1 },
-      ]),
+      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
       legacyRoute: () => {
         throw new Error('Test restoration error');
       },

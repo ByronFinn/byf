@@ -243,9 +243,14 @@ export class Agent {
         this.routeLegacyRecord(record as AgentRecord);
       },
       onReplayRecord: (record: WireRecord) => {
-        // config 走纯 reducer（update() 不执行），replayBuilder 的 config_updated
-        // 在此派生（payload 即 changed 子集，对标旧路径 config/index.ts:43 的 push）。
-        if (isAgentRecordOfPrefix(record as AgentRecord, 'config')) {
+        // context 走纯 reducer（appendMessage/appendLoopEvent 不执行），committed
+        // 副作用（background 投递 / replayBuilder / token 快照）在此逐条执行
+        // （Phase 5 拆 port 后的 restore 路径）。
+        if (isAgentRecordOfPrefix(record as AgentRecord, 'context')) {
+          this.context.handleReplayRecord(record as AgentRecord);
+        } else if (isAgentRecordOfPrefix(record as AgentRecord, 'config')) {
+          // config 走纯 reducer（update() 不执行），replayBuilder 的 config_updated
+          // 在此派生（payload 即 changed 子集，对标旧路径 config/index.ts:43 的 push）。
           this.replayBuilder.push({
             type: 'config_updated',
             config: wireRecordToPayload(record) as AgentConfigUpdateData,
@@ -337,16 +342,22 @@ export class Agent {
 
   /**
    * 单条 record 的 restore 语义（测试 harness 的 dispatch 用）。
-   * - 已注册 Op：logRecord 的 dispatch 已 apply 到 model，此处同步 model→私有。
-   * - legacy 前缀（context / permission / full_compaction）：restoreRecord 在
-   *   restoring 相位下执行（调 appendMessage/setMode 等 live 方法，靠 restoring
-   *   抑制其 logRecord/emit —— 对标旧 records.restore 的 _restoring 语义）。
+   * - 已注册 Op（context 的 append_message / append_loop_event / clear /
+   *   apply_compaction / mark_last_user_prompt_blocked 等）：logRecord 的 dispatch
+   *   已 apply 到共享状态，此处补 restore 语义的 service 层副作用
+   *   （context.handleReplayRecord —— token 快照 / committed 投递）。
+   * - legacy 残留（context.observation_masking）：restoreRecord 在 restoring 相位
+   *   下执行（调 live 方法，靠 restoring 抑制其 logRecord/emit）。
    * 生产路径不使用（restore 走 wire.restore() 全量 + onDidRestore hooks）。
    */
   restoreRecord(record: AgentRecord): void {
     if (isLegacyRestorePrefix(record)) {
       this.wire.withRestoringPhase(() => {
-        this.routeLegacyRecord(record);
+        if (record.type === 'context.observation_masking') {
+          this.routeLegacyRecord(record);
+        } else {
+          this.context.handleReplayRecord(record);
+        }
       });
     } else {
       this.syncFromWire();

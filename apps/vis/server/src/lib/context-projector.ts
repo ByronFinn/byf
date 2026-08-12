@@ -1,11 +1,8 @@
 import {
-  buildPreview,
-  DEFAULT_OFFLOADING_CONFIG,
-  resetWireFoldState,
   foldAppendMessage,
   foldApplyCompaction,
   foldLoopEvent,
-  shouldOffload,
+  resetWireFoldState,
   createWireFoldState,
   type WireFoldState,
 } from '@byfriends/agent-core';
@@ -28,18 +25,17 @@ const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCac
  *
  *  The fold logic (step.begin/content.part/tool.call/tool.result/step.end,
  *  deferred-message flushing during tool exchanges, tool-output
- *  normalisation, output-offload previews) is delegated to agent-core's
- *  `wire-fold` module (effect-port design; single source of truth shared
- *  with the live agent). Previously this file mirrored that logic by hand
- *  and silently diverged on empty/error tool outputs, partial compaction
- *  (it dropped post-summary messages), and deferred-message ordering.
+ *  normalisation) is delegated to agent-core's `wire-fold` module (pure
+ *  functions; single source of truth shared with the live agent). Each fold
+ *  call returns the messages it committed, so vis attaches its display
+ *  metadata (`lineNo` / `time` / `source`) to the return values instead of an
+ *  `onMessage` effect port (Phase 5 signature adaptation — the effect ports
+ *  are gone from the shared fold).
  *
  *  vis-specific concerns stay here: attaching `lineNo` / `time` / `source`
  *  display metadata to each projected message, and aggregating usage /
  *  config / permission snapshots that the fold does not own. */
-export async function projectContext(
-  entries: ReadonlyArray<WireEntry>,
-): Promise<ContextProjection> {
+export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjection {
   const messages: ProjectedMessage[] = [];
   const state: WireFoldState = createWireFoldState();
   const usage: UsageTotals = {
@@ -49,69 +45,42 @@ export async function projectContext(
   const config: ConfigSnapshot = {};
   let permissionMode: 'manual' | 'yolo' | 'auto' | null = null;
 
-  // Track the wire entry currently being folded so `onMessage` can attach
-  // its lineNo/time as display metadata. Updated per-entry below.
-  let currentEntry: WireEntry | undefined;
-
   // Keep a side index of step uuid → the projected message(s) it fills, so
   // we can stamp toolStepUuids for debugging. Mirrors how the fold tracks
   // openSteps but on the projected (metadata-bearing) side.
   const openProjected = new Map<string, ProjectedMessage>();
 
-  const handlers = {
-    onMessage: (message: ContextMessage) => {
-      const entry = currentEntry!;
-      const projected: ProjectedMessage = {
+  // Attach display metadata to every message a fold committed.
+  const pushProjected = (committed: readonly ContextMessage[], entry: WireEntry): void => {
+    for (const message of committed) {
+      messages.push({
         lineNo: entry.lineNo,
         time: entry.data.time,
-        source:
-          entry.data.type === 'context.apply_compaction' ? 'compaction_summary' : 'append_message',
+        source: 'append_message',
         message,
         toolStepUuids: [],
-      };
-      messages.push(projected);
-      // If this message is an assistant message we just opened via step.begin,
-      // remember it so subsequent tool.call/content.part on the same step can
-      // stamp their stepUuid. The fold already mutated the message in place;
-      // we only track the uuid here.
-    },
-    offloadToolOutput: (_id, toolName, result) => {
-      // vis never writes a scratch file, but to keep the rendered timeline
-      // faithful to what the model actually saw, synthesise the same preview
-      // (first N chars + a placeholder reference) the live agent would have
-      // produced. Callers that prefer the full output can read the raw
-      // tool.result wire entry directly from the wire-list view.
-      const output = result.output;
-      if (typeof output !== 'string' || !shouldOffload(output, DEFAULT_OFFLOADING_CONFIG)) {
-        return Promise.resolve(undefined);
-      }
-      const preview = buildPreview(
-        output,
-        toolName,
-        `<vis-placeholder:${_id}>`,
-        DEFAULT_OFFLOADING_CONFIG.previewChars,
-      );
-      return Promise.resolve({ output: preview });
-    },
+      });
+    }
   };
 
   for (const entry of entries) {
-    currentEntry = entry;
     const rec = entry.data;
 
     if (rec.type === 'context.append_message') {
-      foldAppendMessage(state, rec.message, handlers);
+      pushProjected(foldAppendMessage(state, rec.message), entry);
     } else if (rec.type === 'context.append_loop_event') {
       // Track step / tool-call uuids on projected messages for debugging.
-      // Fold first (it pushes the new message via onMessage), then stamp the
-      // last projected message — which is the one just appended for step.begin
-      // or the assistant message owning the tool call.
+      // Fold first (it returns the newly committed messages), then stamp the
+      // last committed one — which is the assistant message just appended for
+      // step.begin or the assistant message owning the tool call.
       const ev = rec.event;
-      const before = messages.length;
-      await foldLoopEvent(state, ev, handlers);
+      const committed = foldLoopEvent(state, ev);
+      pushProjected(committed, entry);
       if (ev.type === 'step.begin') {
+        // step.begin 恒提交 assistant 消息（不 defer），pushProjected 后它就是
+        // 投影列表的最后一条 —— 在投影侧（带 toolStepUuids 元数据）打 step uuid。
         const opened = messages.at(-1);
-        if (opened !== undefined && messages.length > before) {
+        if (opened !== undefined) {
           opened.toolStepUuids.push(ev.uuid);
           openProjected.set(ev.uuid, opened);
         }
@@ -125,11 +94,10 @@ export async function projectContext(
     } else if (rec.type === 'context.apply_compaction') {
       // Shared with ContextMemory via foldApplyCompaction: summary + uncompacted
       // tail (history.slice(compactedCount)). Display metadata is vis-only.
-      const summaryMessage = foldApplyCompaction(
-        state,
-        { summary: rec.summary, compactedCount: rec.compactedCount },
-        handlers,
-      );
+      const { summary: summaryMessage } = foldApplyCompaction(state, {
+        summary: rec.summary,
+        compactedCount: rec.compactedCount,
+      });
       messages.splice(0, rec.compactedCount, {
         lineNo: entry.lineNo,
         time: rec.time,

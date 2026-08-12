@@ -15,3 +15,4 @@ export * from './permission';
 export * from './full-compaction';
 export * from './config';
 export * from './background';
+export * from './context';
