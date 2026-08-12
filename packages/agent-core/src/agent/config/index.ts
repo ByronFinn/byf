@@ -147,8 +147,9 @@ export class ConfigState {
     if (!isAgentRecordOfPrefix(record, 'config')) return;
     switch (record.type) {
       case 'config.update':
-        // During restore, we call the normal update method but it should not log
-        // because the restoring flag prevents logging
+        // Test-only entry point (restore-handler unit tests). Production restore
+        // uses the pure wire reducer (wire.restore → apply → syncFromWire) and
+        // never reaches this method.
         this.update(record);
         break;
     }

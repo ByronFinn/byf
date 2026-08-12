@@ -202,6 +202,7 @@ export class WireService {
     }
     this.appendRecord(createWireMetadataRecord());
     this.metadataInitialized = true;
+    await this.persistence.flush();
   }
 
   /**

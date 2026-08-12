@@ -452,22 +452,19 @@ export class ToolManager {
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'tools')) return;
+    // Test-only entry point (restore-handler unit tests). Production restore
+    // uses the pure wire reducer (wire.restore → apply → syncFromWire).
     switch (record.type) {
       case 'tools.register_user_tool':
-        // Call the normal registerUserTool method but it should not log
-        // because the restoring flag prevents logging
         this.registerUserTool(record);
         break;
       case 'tools.unregister_user_tool':
-        // Call the normal unregisterUserTool method but it should not log
         this.unregisterUserTool(record.name);
         break;
       case 'tools.set_active_tools':
-        // Call the normal setActiveTools method but it should not log
         this.setActiveTools(record.names);
         break;
       case 'tools.update_store':
-        // Call the normal updateStore method but it should not log
         this.updateStore(record.key, record.value);
         break;
     }

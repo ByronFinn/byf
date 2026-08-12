@@ -1,13 +1,11 @@
 /**
  * `wire/ops/full-compaction` —— full_compaction 子系统的 Op 定义（纯 reducer）。
  *
- * reducer 状态 = `{ compactionCountInTurn, compactions }`：
- * - `compactionCountInTurn`：begin 更新（manual 重置 0、auto +1，对标
- *   compaction/full.ts:176-179）；cancel / complete 对计数 no-op。
- * - `compactions`：每次 complete 的结构化结果列表（summary/compactedCount/
- *   tokensBefore/tokensAfter）—— `_compactedHistory` 的**文本**快照（依赖活的
- *   context 历史，apply 纯函数无法读）由 Agent 的 onReplayRecord 在 complete 记录
- *   重放后生成（此时 context 已恢复到该点，时序与 legacy 路径等价）。
+ * reducer 状态 = `{ compactionCountInTurn }`：begin 更新（manual 重置 0、auto +1，
+ * 对标 compaction/full.ts:176-179）；cancel / complete 对计数 no-op。
+ * `_compactedHistory` 的**文本**快照（依赖活的 context 历史，apply 纯函数无法读）
+ * 由 Agent 的 onReplayRecord 在 complete 记录重放后生成（此时 context 已恢复到该
+ * 点，时序与 legacy 路径等价）；complete 的结构化结果仅用于 schema 校验，不进 reducer。
  *
  * **已知精度边界**：begin 的 `if (compacting) return` 早返回在 restore 期不触发
  * （restore 期 compacting 恒 null），故「begin 时已有 compaction 在跑」的重叠场景下
@@ -36,13 +34,11 @@ const compactionResultSchema = z.object({
 
 export interface FullCompactionModelState {
   readonly compactionCountInTurn: number;
-  /** 每次 complete 的结构化结果（顺序 = 完成顺序）。 */
-  readonly compactions: readonly CompactionResult[];
 }
 
 export const fullCompactionModel = defineModel(
   'full_compaction',
-  (): FullCompactionModelState => ({ compactionCountInTurn: 0, compactions: [] }),
+  (): FullCompactionModelState => ({ compactionCountInTurn: 0 }),
 );
 
 // —— Ops ——
@@ -62,10 +58,7 @@ export const fullCompactionCancel = fullCompactionModel.defineOp('full_compactio
 
 export const fullCompactionComplete = fullCompactionModel.defineOp('full_compaction.complete', {
   schema: compactionResultSchema,
-  apply: (state, payload) => ({
-    ...state,
-    compactions: [...state.compactions, payload],
-  }),
+  apply: (state) => state,
 });
 
 declare module '#/agent/wire/types' {

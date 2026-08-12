@@ -216,4 +216,35 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
       protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
     });
   });
+
+  it('legacy transient 记录（output_offloaded / pruning 无可选字段）restore 为静默 no-op', async () => {
+    // 旧 journal 里的 context.output_offloaded / context.pruning 在它们变成
+    // transient（persist:false）之前是落盘的，且没有 preview / maskedIndices 字段。
+    // 新代码 restore 时：schema 接受（optional 字段缺失）→ apply 无操作 →
+    // handleReplayRecord 也是 no-op，不算 skipped，历史保持原样（全量输出）。
+    const { agent } = fixtureAgent([
+      {
+        type: 'context.append_message',
+        message: {
+          role: 'tool',
+          toolCallId: 'c1',
+          content: [{ type: 'text', text: 'full tool output' }],
+        },
+      },
+      // legacy：transient 化之前落盘的记录，无 preview 字段。
+      { type: 'context.output_offloaded', toolCallId: 'c1', filePath: '/scratch/1' },
+      // legacy：无 maskedIndices 字段。
+      { type: 'context.pruning', prunedCount: 1 },
+    ] as readonly AgentRecord[]);
+
+    const result = await agent.resume();
+
+    expect(result.error).toBeUndefined();
+    // 历史里仍是全量输出，未被 preview / [pruned] 替换。
+    expect(agent.context.history).toHaveLength(1);
+    expect(agent.context.history[0]).toMatchObject({ role: 'tool', toolCallId: 'c1' });
+    expect((agent.context.history[0]?.content[0] as { text?: string })?.text).toBe(
+      'full tool output',
+    );
+  });
 });

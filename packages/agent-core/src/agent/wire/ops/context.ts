@@ -88,7 +88,7 @@ export const contextModel = defineModel('context', (): WireFoldState => createWi
 export const contextAppendMessage = contextModel.defineOp('context.append_message', {
   schema: z.object({ message: contextMessageSchema }),
   apply: (state, payload) => {
-    foldAppendMessage(state, payload.message as never);
+    foldAppendMessage(state, payload.message);
     return state;
   },
 });
@@ -96,7 +96,7 @@ export const contextAppendMessage = contextModel.defineOp('context.append_messag
 export const contextAppendLoopEvent = contextModel.defineOp('context.append_loop_event', {
   schema: z.object({ event: loopEventSchema }),
   apply: (state, payload) => {
-    foldLoopEvent(state, payload.event as never);
+    foldLoopEvent(state, payload.event);
     return state;
   },
 });

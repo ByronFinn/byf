@@ -596,20 +596,19 @@ export class FullCompaction {
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'full_compaction')) return;
+    // Test-only entry point (restore-handler unit tests). Production restore
+    // uses the pure wire reducer (wire.restore → apply → syncFromWire); begin is
+    // never called during restore (no worker starts), so no restoring gate is
+    // needed (see the live-only guard at the worker-start call site).
     switch (record.type) {
       case 'full_compaction.begin':
-        // During restore, we call begin but it should not start the worker
-        // because the restoring flag prevents starting async operations
         this.begin(record);
         break;
       case 'full_compaction.cancel':
-        // During restore, cancel is a no-op since there's no active compaction
-        // The compacting state check will handle this
+        // cancel is a no-op when there is no active compaction.
         this.cancel();
         break;
       case 'full_compaction.complete':
-        // During restore, we call complete but it should not trigger side effects
-        // because the restoring flag prevents logging and events
         this.complete(record);
         break;
     }
@@ -628,9 +627,8 @@ export class FullCompaction {
 
   /**
    * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 4）。
-   * compactionCountInTurn 由 begin 的纯 apply 重建；compactions（结构化结果列表）
-   * 由 complete 的 apply 重建，_compactedHistory 文本由 onReplayRecord 生成
-   * （pushCompactedHistory）。
+   * compactionCountInTurn 由 begin 的纯 apply 重建；_compactedHistory 文本由
+   * onReplayRecord 在 complete 记录重放后生成（pushCompactedHistory）。
    */
   syncFromWire(): void {
     this.compactionCountInTurn =

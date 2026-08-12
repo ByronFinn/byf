@@ -14,19 +14,19 @@
 
 ### 架构现状（命令式事件日志，接近 kimi v1）
 
-| 维度 | 现状 | 证据 |
-| --- | --- | --- |
-| 记录类型定义 | 手工 `AgentRecordEvents` interface 映射 → mapped type 生成 `AgentRecord` 联合（26 种业务 record + metadata） | `agent/records/types.ts:13-98` |
-| 载荷校验 | 无 schema，纯 TS 类型，运行时零校验，`JSON.parse(line) as AgentRecord` | `records/persistence.ts:194` |
-| 状态模型 | 无 Model/reducer 抽象，状态散在 8 个子系统类的私有字段里，可变、无 freeze | `context/index.ts:47-53`、`usage/index.ts:16-17` 等 |
-| 写入 API | 命令式 `logRecord({...})`，散落在每个子系统变更方法里，共 ~31 处 | `context/index.ts:304-310`、`goal/index.ts:110-115` 等 |
-| 恢复机制 | 前缀→handler 路由表 + 每个子系统各自的 `restoreRecord` switch；多数靠「调正常方法 + `restoring` 标志抑制副作用」 | `records/index.ts:68-104`；各子系统 restoreRecord |
-| 恢复时 | **重放副作用调用**（除 context 已抽纯 fold） | `config/index.ts:155`、`permission/index.ts:356,361` 等 |
-| 事件派生 | 无 `toEvent`，record（落盘）与 event（UI）是两条独立路径，手动各发一次 | `goal/index.ts:372-373` |
-| persist 策略 | 无 transient 标志，全部落盘 | `context.output_offloaded`/`pruning`「落盘但 restore no-op」灰色地带 |
-| undo / checkpoint | 不支持运行时 undo；fork 是文件级截断 | `session/store/session-store.ts:396-452` |
-| manifest | 无 wire-manifest，类型表手工维护 | — |
-| 协议版本 | `1.1`，迁移链仅 1.0→1.1 | `records/migration/index.ts:4,17` |
+| 维度              | 现状                                                                                                             | 证据                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 记录类型定义      | 手工 `AgentRecordEvents` interface 映射 → mapped type 生成 `AgentRecord` 联合（26 种业务 record + metadata）     | `agent/records/types.ts:13-98`                                       |
+| 载荷校验          | 无 schema，纯 TS 类型，运行时零校验，`JSON.parse(line) as AgentRecord`                                           | `records/persistence.ts:194`                                         |
+| 状态模型          | 无 Model/reducer 抽象，状态散在 8 个子系统类的私有字段里，可变、无 freeze                                        | `context/index.ts:47-53`、`usage/index.ts:16-17` 等                  |
+| 写入 API          | 命令式 `logRecord({...})`，散落在每个子系统变更方法里，共 ~31 处                                                 | `context/index.ts:304-310`、`goal/index.ts:110-115` 等               |
+| 恢复机制          | 前缀→handler 路由表 + 每个子系统各自的 `restoreRecord` switch；多数靠「调正常方法 + `restoring` 标志抑制副作用」 | `records/index.ts:68-104`；各子系统 restoreRecord                    |
+| 恢复时            | **重放副作用调用**（除 context 已抽纯 fold）                                                                     | `config/index.ts:155`、`permission/index.ts:356,361` 等              |
+| 事件派生          | 无 `toEvent`，record（落盘）与 event（UI）是两条独立路径，手动各发一次                                           | `goal/index.ts:372-373`                                              |
+| persist 策略      | 无 transient 标志，全部落盘                                                                                      | `context.output_offloaded`/`pruning`「落盘但 restore no-op」灰色地带 |
+| undo / checkpoint | 不支持运行时 undo；fork 是文件级截断                                                                             | `session/store/session-store.ts:396-452`                             |
+| manifest          | 无 wire-manifest，类型表手工维护                                                                                 | —                                                                    |
+| 协议版本          | `1.1`，迁移链仅 1.0→1.1                                                                                          | `records/migration/index.ts:4,17`                                    |
 
 ### 已落地的局部 v2 式改造（地基已搭一半）
 
@@ -36,12 +36,12 @@
 
 ### ADR-0031 的否决理由，现在的复核
 
-| ADR-0031 理由 | 现在还成立？ | 复核结论 |
-| --- | --- | --- |
-| ① kimi v2 是移动靶（WIP） | ✅ 仍成立 | 精读源码确认 v2 是 `rw-model-design.md` 的**子集**，本身还在演进。自研框架只采纳已验证落地子集，规避此问题 |
-| ② on-disk 格式不对齐（byf 1.1 vs kimi 1.5） | ⚠️ 对「移植」成立，对「自研」不成立 | 自研框架的 Op type 直接复用现有 26 种 record 名，`opToWireRecord` 产出的 JSONL 形状与现有 `logRecord` 完全一致，**零数据迁移** |
-| ③ 重写成本数周-数月 | ❌ 过时 | 逐子系统精读后：0 个高难度，goal+context 地基已搭好，总估时 7-12 工作日 |
-| ④ byf 已做过 ADR-0010 restore 重构 | 仍成立，但其遗留（双写漂移）正是本次要解决 | ADR-0010 的「写/读对称」已实现，遗留的「统一 apply」正是 v2 的核心价值 |
+| ADR-0031 理由                               | 现在还成立？                               | 复核结论                                                                                                                       |
+| ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| ① kimi v2 是移动靶（WIP）                   | ✅ 仍成立                                  | 精读源码确认 v2 是 `rw-model-design.md` 的**子集**，本身还在演进。自研框架只采纳已验证落地子集，规避此问题                     |
+| ② on-disk 格式不对齐（byf 1.1 vs kimi 1.5） | ⚠️ 对「移植」成立，对「自研」不成立        | 自研框架的 Op type 直接复用现有 26 种 record 名，`opToWireRecord` 产出的 JSONL 形状与现有 `logRecord` 完全一致，**零数据迁移** |
+| ③ 重写成本数周-数月                         | ❌ 过时                                    | 逐子系统精读后：0 个高难度，goal+context 地基已搭好，总估时 7-12 工作日                                                        |
+| ④ byf 已做过 ADR-0010 restore 重构          | 仍成立，但其遗留（双写漂移）正是本次要解决 | ADR-0010 的「写/读对称」已实现，遗留的「统一 apply」正是 v2 的核心价值                                                         |
 
 ### kimi v2 实现精读关键结论
 
@@ -53,33 +53,33 @@
 
 ### 迁移成本评估（逐子系统，来自精读）
 
-| 子系统 | 难度 | 持久状态 | 关键发现 |
-| --- | --- | --- | --- |
-| **goal** | 极低 | snapshot + completeReason + wallClockResumedAt | 已是声明式（直接赋值），迁移≈改名。`normalizeAfterReplay` 改 `onDidRestore` hook。**参考范本** |
-| usage | 低 | byModel + currentTurn | 2 字段 reducer；restore 时 scope 强制为 `'session'` 语义保留 |
-| tools | 低 | userTools + enabledTools + store | 4 case 各改 map/set；MCP 工具不走 wire 不进 reducer |
-| turn | 低 | turnId 计数器 | telemetry Map 是运行态不进 reducer；`finishResume` 改 `onDidRestore` hook |
-| permission | 低-中 | modeOverride + sessionApprovedActions + rules | reducer 清晰；`parent`/`policies` 构造注入不进 reducer |
-| config | 低-中 | 6 标量字段 | **坑点**：`initializeBuiltinTools()` 副作用外提为 `onDidRestore` hook |
-| full_compaction | 中 | compactionCountInTurn + _compactedHistory | **唯一在业务方法内检查 `restoring` 的子系统**（`full.ts:181`）；worker 启动/context 读取/telemetry 全外移 |
-| context | 中 | _history + tokenCount 等 | 核心 fold 已是纯函数；需移除 `offloadToolOutput` port + 修 `append_loop_event` 异步契约违规（`context/index.ts:402`）+ 拆 `onMessage`/`onStepEnd` port 里的副作用 |
-| background | 特例 | （不进 reducer） | 进程状态无法 event-source，维持双轨（`<sessionDir>/tasks/*.json` 供状态重建） |
+| 子系统          | 难度  | 持久状态                                       | 关键发现                                                                                                                                                          |
+| --------------- | ----- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **goal**        | 极低  | snapshot + completeReason + wallClockResumedAt | 已是声明式（直接赋值），迁移≈改名。`normalizeAfterReplay` 改 `onDidRestore` hook。**参考范本**                                                                    |
+| usage           | 低    | byModel + currentTurn                          | 2 字段 reducer；restore 时 scope 强制为 `'session'` 语义保留                                                                                                      |
+| tools           | 低    | userTools + enabledTools + store               | 4 case 各改 map/set；MCP 工具不走 wire 不进 reducer                                                                                                               |
+| turn            | 低    | turnId 计数器                                  | telemetry Map 是运行态不进 reducer；`finishResume` 改 `onDidRestore` hook                                                                                         |
+| permission      | 低-中 | modeOverride + sessionApprovedActions + rules  | reducer 清晰；`parent`/`policies` 构造注入不进 reducer                                                                                                            |
+| config          | 低-中 | 6 标量字段                                     | **坑点**：`initializeBuiltinTools()` 副作用外提为 `onDidRestore` hook                                                                                             |
+| full_compaction | 中    | compactionCountInTurn + \_compactedHistory     | **唯一在业务方法内检查 `restoring` 的子系统**（`full.ts:181`）；worker 启动/context 读取/telemetry 全外移                                                         |
+| context         | 中    | \_history + tokenCount 等                      | 核心 fold 已是纯函数；需移除 `offloadToolOutput` port + 修 `append_loop_event` 异步契约违规（`context/index.ts:402`）+ 拆 `onMessage`/`onStepEnd` port 里的副作用 |
+| background      | 特例  | （不进 reducer）                               | 进程状态无法 event-source，维持双轨（`<sessionDir>/tasks/*.json` 供状态重建）                                                                                     |
 
 **`restoring` 全局门控的 7 处耦合点**（迁移要消除）：`records/index.ts:38,60`、`agent/index.ts:597,602`、`compaction/full.ts:181`、`context/index.ts:344`、`replay/index.ts:10`。
 
 ## Assumptions
 
-| 假设 | 决议 |
-| --- | --- |
-| on-disk wire 格式不变 | ✅ 是。Op type 复用现有 26 种 record 名，`opToWireRecord` 形状与 `logRecord` 一致，`protocol_version` 仍 `1.1`，迁移链原样保留（仅目录从 `records/migration/` 搬到 `wire/migration/`） |
-| 自研框架 vs 移植 kimi 代码 | ✅ 自研。规避移动靶 + 格式不对齐两大否决理由；Op type 复用现有词汇表实现零数据迁移 |
-| 不引入 blob codec | ✅ 是。byf 的 offload 用现有 scratch 文件机制 + transient op（`persist:false`）解决，不引入 blob 文件存储 |
-| 不追设计文档未落地原语 | ✅ 是。逻辑 seq、Session 流、`stream.subscribe` 统一订阅面、`readView` 冷读、`defineEffect` 注册制、`maxCauseDepth` 因果深度、相位机均为 kimi WIP，本轮不实现 |
-| `background.*` 写入路径统一、状态重建双轨 | ✅ 是（grill 代码核查决议）。`background.stop` 注册为空 Model + **no-op apply** 的 Persisted Op（照搬 kimi v2 `llm.request` 模式，`llmRequestOps.ts:52-75`），写入走 `dispatch`（R4 统一）。**任务状态重建**仍走 `<sessionDir>/tasks/*.json`（`loadFromDisk`/`reconcile`），因进程状态（PID、文件句柄）无法 event-source。两者正交，「双轨」= 状态重建双轨，非写入双轨 |
-| on-disk 形状逐字节一致（代码核查） | ✅ 已验证。全部 26 种业务 record 的 payload 都是对象 → `opToWireRecord` 永远走展开分支，形状与现有 `logRecord` 逐字节一致；vis reader 形状无关（`wire-reader.ts:60` 只要求顶层对象 + string `type`），不会读错。**实现约束**：Op payload 类型必须派生自 `AgentRecordEvents[K]`，堵死裸标量/数组入口（防 `tools.set_active_tools` 被传 `['a','b']` 而非 `{names:[...]}`）；`opToWireRecord` 的 time 补全必须复刻 `records/index.ts:39-40`（`time` undefined → `Date.now()`） |
-| 无 op→op 同步级联（代码核查） | ✅ 已验证。`emitEvent`/`emitStatusUpdated` 在 agent-core 内零消费者（纯出站），RPC 传输 `setTimeout(0)` 强制异步；3 套内部同步 pub/sub（MCP/background/loop）监听者全是纯通知。故初版**不需要 MAX_DRAIN**。**不变量（必须保持）**：① toEvent 监听者必须保持「纯通知」（不在回调里同步 dispatch/改持久化状态）；② 保持「先写后发」顺序（对标 `loop/events.ts:158-164`） |
-| apply 强制纯函数 | ✅ 是。`(state, payload) => S`，无 handlers 参数、无 async；Object.freeze 编译期 + 运行时双重保证；新增「apply 改 frozen state 抛错」单测 |
-| schema 校验时机 | dispatch 时不校验（payload 由 Op 工厂类型推断保证）；restore 时校验（`safeParse`，失败跳过并计数 = replay tolerance） |
+| 假设                                      | 决议                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| on-disk wire 格式不变                     | ✅ 是。Op type 复用现有 26 种 record 名，`opToWireRecord` 形状与 `logRecord` 一致，`protocol_version` 仍 `1.1`，迁移链原样保留（仅目录从 `records/migration/` 搬到 `wire/migration/`）                                                                                                                                                                                                                                                                                      |
+| 自研框架 vs 移植 kimi 代码                | ✅ 自研。规避移动靶 + 格式不对齐两大否决理由；Op type 复用现有词汇表实现零数据迁移                                                                                                                                                                                                                                                                                                                                                                                          |
+| 不引入 blob codec                         | ✅ 是。byf 的 offload 用现有 scratch 文件机制 + transient op（`persist:false`）解决，不引入 blob 文件存储                                                                                                                                                                                                                                                                                                                                                                   |
+| 不追设计文档未落地原语                    | ✅ 是。逻辑 seq、Session 流、`stream.subscribe` 统一订阅面、`readView` 冷读、`defineEffect` 注册制、`maxCauseDepth` 因果深度、相位机均为 kimi WIP，本轮不实现                                                                                                                                                                                                                                                                                                               |
+| `background.*` 写入路径统一、状态重建双轨 | ✅ 是（grill 代码核查决议）。`background.stop` 注册为空 Model + **no-op apply** 的 Persisted Op（照搬 kimi v2 `llm.request` 模式，`llmRequestOps.ts:52-75`），写入走 `dispatch`（R4 统一）。**任务状态重建**仍走 `<sessionDir>/tasks/*.json`（`loadFromDisk`/`reconcile`），因进程状态（PID、文件句柄）无法 event-source。两者正交，「双轨」= 状态重建双轨，非写入双轨                                                                                                      |
+| on-disk 形状逐字节一致（代码核查）        | ✅ 已验证。全部 26 种业务 record 的 payload 都是对象 → `opToWireRecord` 永远走展开分支，形状与现有 `logRecord` 逐字节一致；vis reader 形状无关（`wire-reader.ts:60` 只要求顶层对象 + string `type`），不会读错。**实现约束**：Op payload 类型必须派生自 `AgentRecordEvents[K]`，堵死裸标量/数组入口（防 `tools.set_active_tools` 被传 `['a','b']` 而非 `{names:[...]}`）；`opToWireRecord` 的 time 补全必须复刻 `records/index.ts:39-40`（`time` undefined → `Date.now()`） |
+| 无 op→op 同步级联（代码核查）             | ✅ 已验证。`emitEvent`/`emitStatusUpdated` 在 agent-core 内零消费者（纯出站），RPC 传输 `setTimeout(0)` 强制异步；3 套内部同步 pub/sub（MCP/background/loop）监听者全是纯通知。故初版**不需要 MAX_DRAIN**。**不变量（必须保持）**：① toEvent 监听者必须保持「纯通知」（不在回调里同步 dispatch/改持久化状态）；② 保持「先写后发」顺序（对标 `loop/events.ts:158-164`）                                                                                                      |
+| apply 强制纯函数                          | ✅ 是。`(state, payload) => S`，无 handlers 参数、无 async；Object.freeze 编译期 + 运行时双重保证；新增「apply 改 frozen state 抛错」单测                                                                                                                                                                                                                                                                                                                                   |
+| schema 校验时机                           | dispatch 时不校验（payload 由 Op 工厂类型推断保证）；restore 时校验（`safeParse`，失败跳过并计数 = replay tolerance）                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Requirements
 
@@ -105,14 +105,14 @@
 
 分两段：Phase 0-1 是一次性切换（方案 C），Phase 2-6 是逐子系统 apply 纯化（每阶段独立可验证、可回滚）。
 
-| Phase | 子系统 | 关键工作 |
-| --- | --- | --- |
-| 0 | （框架） | WireService / ModelDef / defineOp / execute 骨架 + 单测，不接入 Agent |
-| 1 | 全部（一次性切换） | 26 种 record 注册为 Op；goal apply = 纯 reducer（范本）；其余 7 个 = legacy adapter（委托 `restoreRecord`，仍读 `restoring`）；WireService 独占 `wire.jsonl`；goal 的 `normalizeAfterReplay` → `onDidRestore` hook |
-| 2 | usage / tools / turn | legacy adapter → 纯 reducer；`finishResume` → `onDidRestore`；usage 的 `scope='session'` 语义保留 |
-| 3 | permission / config | apply 纯化；`config.initializeBuiltinTools()` 外提为 `onDidRestore` hook |
-| 4 | full_compaction | apply 纯化（只管 count + history 文本）；worker 启动 / `agent.context.history` 读取 / telemetry 全移到 service 层 |
-| 5 | context | 移除 `wire-fold.ts` 的 `offloadToolOutput` port；修 `append_loop_event` 异步契约违规；拆 `onMessage`/`onStepEnd` port 里的 background/replayBuilder/token 副作用到 service 层。`wire-fold.ts` 保留为 context Model 的 apply 实现，vis 仍共用 |
+| Phase | 子系统               | 关键工作                                                                                                                                                                                                                                     |
+| ----- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | （框架）             | WireService / ModelDef / defineOp / execute 骨架 + 单测，不接入 Agent                                                                                                                                                                        |
+| 1     | 全部（一次性切换）   | 26 种 record 注册为 Op；goal apply = 纯 reducer（范本）；其余 7 个 = legacy adapter（委托 `restoreRecord`，仍读 `restoring`）；WireService 独占 `wire.jsonl`；goal 的 `normalizeAfterReplay` → `onDidRestore` hook                           |
+| 2     | usage / tools / turn | legacy adapter → 纯 reducer；`finishResume` → `onDidRestore`；usage 的 `scope='session'` 语义保留                                                                                                                                            |
+| 3     | permission / config  | apply 纯化；`config.initializeBuiltinTools()` 外提为 `onDidRestore` hook                                                                                                                                                                     |
+| 4     | full_compaction      | apply 纯化（只管 count + history 文本）；worker 启动 / `agent.context.history` 读取 / telemetry 全移到 service 层                                                                                                                            |
+| 5     | context              | 移除 `wire-fold.ts` 的 `offloadToolOutput` port；修 `append_loop_event` 异步契约违规；拆 `onMessage`/`onStepEnd` port 里的 background/replayBuilder/token 副作用到 service 层。`wire-fold.ts` 保留为 context Model 的 apply 实现，vis 仍共用 |
 
 每个 Op 定义包含：`schema`（zod）、`apply`（纯函数）、可选 `toEvent`、可选 `persist:false`。
 
@@ -176,13 +176,13 @@
 
 ### 自研框架与 kimi v2 的关键差异
 
-| 维度 | kimi v2（移植路径，不采纳） | byf 自研（采纳） |
-| --- | --- | --- |
-| on-disk 格式 | 绑定 kimi 1.5，需写 byf 1.1→kimi 1.5 跨树迁移 | 复用 byf 1.1，Op type = 现有 record 名，零迁移 |
-| blob codec | `ModelBlobCodec` dehydrate/rehydrate | 不引入；offload 用 scratch + transient op |
-| `WireModelContribution` | Feature 运行时贡献词汇 + 撤回容错 | 不引入；`OP_REGISTRY` 仅静态注册 |
-| `CycleError`/`MAX_DRAIN` | dispatch 级联保护（100 上限） | 初版不引入（byf 无 op→op 级联场景）；后续按需 |
-| 移动靶风险 | 绑定 kimi WIP | 自研，不随上游演进 |
+| 维度                     | kimi v2（移植路径，不采纳）                   | byf 自研（采纳）                               |
+| ------------------------ | --------------------------------------------- | ---------------------------------------------- |
+| on-disk 格式             | 绑定 kimi 1.5，需写 byf 1.1→kimi 1.5 跨树迁移 | 复用 byf 1.1，Op type = 现有 record 名，零迁移 |
+| blob codec               | `ModelBlobCodec` dehydrate/rehydrate          | 不引入；offload 用 scratch + transient op      |
+| `WireModelContribution`  | Feature 运行时贡献词汇 + 撤回容错             | 不引入；`OP_REGISTRY` 仅静态注册               |
+| `CycleError`/`MAX_DRAIN` | dispatch 级联保护（100 上限）                 | 初版不引入（byf 无 op→op 级联场景）；后续按需  |
+| 移动靶风险               | 绑定 kimi WIP                                 | 自研，不随上游演进                             |
 
 ### execute 引擎核心逻辑（参照 kimi `wireService.ts:275-299`，简化）
 
@@ -204,22 +204,23 @@ execute(group: {ops, silent}):
 ```
 
 关键不变量：
+
 - apply 拿到的 `inst.state` 已 freeze（测试守卫「apply 改 frozen state 抛错」）。
 - cross-reducer 在 `silent` 分支外，**总是运行**——让依赖其他域 op 的派生状态在 restore 时也能正确重建。
 - toEvent 拿 post-apply state，保证事件反映最新状态。
 
 ### 分阶段实施（small PRs）
 
-| PR | Phase | 内容 | 可回滚性 |
-| --- | --- | --- | --- |
-| PR-1 | Phase 0 | 框架骨架 + 单测（移植 kimi 核心场景） | 独立，零生产影响 |
-| PR-2 | Phase 1 | 一次性切换：WireService 独占 `wire.jsonl`，26 种 Op 注册（goal 纯 reducer，7 个 legacy adapter）+ AC1 等价测试 | 大 PR；legacy adapter 保行为，靠 AC1 守卫；回退整个 PR 无副作用残留 |
-| PR-3 | Phase 2 | usage / tools / turn apply 纯化 | 机械性 |
-| PR-4 | Phase 3 | permission / config apply 纯化 | 注意 `initializeBuiltinTools` 外提 |
-| PR-5 | Phase 4 | full_compaction apply 纯化 | 注意 worker 启动外移 |
-| PR-6 | Phase 5 | context apply 纯化（深水区）✅ 已落地 | 最多工作量 |
-| PR-7 | Phase 6 | 删除 `restoring`/`RecordRestoreHandler`/`AgentRecords` + 统一 toEvent ✅ 已落地（goal.updated 事件含 live 瞬态（complete status、实时 wallClockMs），toEvent 的 post-apply state 无法表达，未迁移，记待办） | 全量回归 |
-| PR-8+ | Phase 7 | transient op ✅ 已随 Phase 5 落地（`context.output_offloaded`/`context.pruning`）；manifest / checkpoint（可选，按需） | 独立 |
+| PR    | Phase   | 内容                                                                                                                                                                                                        | 可回滚性                                                            |
+| ----- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| PR-1  | Phase 0 | 框架骨架 + 单测（移植 kimi 核心场景）                                                                                                                                                                       | 独立，零生产影响                                                    |
+| PR-2  | Phase 1 | 一次性切换：WireService 独占 `wire.jsonl`，26 种 Op 注册（goal 纯 reducer，7 个 legacy adapter）+ AC1 等价测试                                                                                              | 大 PR；legacy adapter 保行为，靠 AC1 守卫；回退整个 PR 无副作用残留 |
+| PR-3  | Phase 2 | usage / tools / turn apply 纯化                                                                                                                                                                             | 机械性                                                              |
+| PR-4  | Phase 3 | permission / config apply 纯化                                                                                                                                                                              | 注意 `initializeBuiltinTools` 外提                                  |
+| PR-5  | Phase 4 | full_compaction apply 纯化                                                                                                                                                                                  | 注意 worker 启动外移                                                |
+| PR-6  | Phase 5 | context apply 纯化（深水区）✅ 已落地                                                                                                                                                                       | 最多工作量                                                          |
+| PR-7  | Phase 6 | 删除 `restoring`/`RecordRestoreHandler`/`AgentRecords` + 统一 toEvent ✅ 已落地（goal.updated 事件含 live 瞬态（complete status、实时 wallClockMs），toEvent 的 post-apply state 无法表达，未迁移，记待办） | 全量回归                                                            |
+| PR-8+ | Phase 7 | transient op ✅ 已随 Phase 5 落地（`context.output_offloaded`/`context.pruning`）；manifest / checkpoint（可选，按需）                                                                                      | 独立                                                                |
 
 ## Domain Terms
 
@@ -238,21 +239,22 @@ execute(group: {ops, silent}):
 
 （grill 后全部解决；以下为决议记录。）
 
-| # | 问题 | 决议 |
-| --- | --- | --- |
-| 1 | 新旧并存策略（已迁移 + 未迁移子系统如何共享 `wire.jsonl`） | **方案 C：一次性切换**。Phase 0 只建骨架（零生产影响）；Phase 1 一个 PR 切换——WireService 独占 `wire.jsonl`，26 种 record 注册为 Op（goal 纯 reducer，7 个 legacy adapter 委托 `restoreRecord`）。从 Phase 1 起单一 restore/写路径。安全网 = AC1 行为等价测试 + legacy adapter 保行为。 |
-| 2 | context offload 重构（Phase 5）性能回归风险 | **低风险**（offload 已是 async）。**Phase 5 前置 have-a-try 原型**验证「offload 移出 fold 后 token 压缩行为不变」。fallback：同步 effect hook。见 R3。 |
-| 3 | ReplayBuilder 精简边界 | **Phase 6 定**。原则：能从 `getModel()` 派生的改读 model；`approval_result` 历史可能保留。约束：不破坏 `ResumedAgentState` 对 CLI 的契约。见 R4。 |
-| 4 | changeset bump 级别 | **minor**（内部架构重构，on-disk 格式不变 AC6，`@byfriends/agent-core` 公共 API 面向后兼容——WireService 新增为 additive，AgentRecords/RecordRestoreHandler 是内部实现）。若实现阶段发现公共 API break，停下来与用户确认是否 major。 |
-| 5 | onDidRestore hook 顺序 | **无跨子系统依赖**（代码核查：每个 hook 只读自身状态），注册顺序即可。唯一硬约束：`config.initializeBuiltinTools` 在 resume 返回前完成。 |
-| 6 | usage `scope='session'` 在 reducer 里的语义 | `apply` 硬编码 session 语义（只更新 `byModel`，忽略 payload 的 `usageScope`），保留 `usage/index.ts:84` 覆写。 |
-| 7 | 「service 层」术语 | 已澄清：byf 子系统类（ContextMemory 等）既是 Model 定义者又是 dispatch 调用者又是 effect 处理者，三者合一。见 Domain Terms。 |
-| 8 | vis `projectContext` 范围边界（Out of Scope 与 R3 表面矛盾） | 已澄清：移除 `wire-fold.ts` 的 offload port 是共享模块签名适配（vis 停止传该参数），**非** vis reader 重写，属本轮范围。vis 读取/解析 `wire.jsonl` 的逻辑不动。 |
-| 9 | Goal 列 4 项能力但 AC 只要求 1 项 | 已对齐：Goal = 「打开能力门」（框架支持）；AC7 = transient op 本轮交付证明；R5 = 其余 3 项可选按需。 |
+| #   | 问题                                                         | 决议                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 新旧并存策略（已迁移 + 未迁移子系统如何共享 `wire.jsonl`）   | **方案 C：一次性切换**。Phase 0 只建骨架（零生产影响）；Phase 1 一个 PR 切换——WireService 独占 `wire.jsonl`，26 种 record 注册为 Op（goal 纯 reducer，7 个 legacy adapter 委托 `restoreRecord`）。从 Phase 1 起单一 restore/写路径。安全网 = AC1 行为等价测试 + legacy adapter 保行为。 |
+| 2   | context offload 重构（Phase 5）性能回归风险                  | **低风险**（offload 已是 async）。**Phase 5 前置 have-a-try 原型**验证「offload 移出 fold 后 token 压缩行为不变」。fallback：同步 effect hook。见 R3。                                                                                                                                  |
+| 3   | ReplayBuilder 精简边界                                       | **Phase 6 定**。原则：能从 `getModel()` 派生的改读 model；`approval_result` 历史可能保留。约束：不破坏 `ResumedAgentState` 对 CLI 的契约。见 R4。                                                                                                                                       |
+| 4   | changeset bump 级别                                          | **minor**（内部架构重构，on-disk 格式不变 AC6，`@byfriends/agent-core` 公共 API 面向后兼容——WireService 新增为 additive，AgentRecords/RecordRestoreHandler 是内部实现）。若实现阶段发现公共 API break，停下来与用户确认是否 major。                                                     |
+| 5   | onDidRestore hook 顺序                                       | **无跨子系统依赖**（代码核查：每个 hook 只读自身状态），注册顺序即可。唯一硬约束：`config.initializeBuiltinTools` 在 resume 返回前完成。                                                                                                                                                |
+| 6   | usage `scope='session'` 在 reducer 里的语义                  | `apply` 硬编码 session 语义（只更新 `byModel`，忽略 payload 的 `usageScope`），保留 `usage/index.ts:84` 覆写。                                                                                                                                                                          |
+| 7   | 「service 层」术语                                           | 已澄清：byf 子系统类（ContextMemory 等）既是 Model 定义者又是 dispatch 调用者又是 effect 处理者，三者合一。见 Domain Terms。                                                                                                                                                            |
+| 8   | vis `projectContext` 范围边界（Out of Scope 与 R3 表面矛盾） | 已澄清：移除 `wire-fold.ts` 的 offload port 是共享模块签名适配（vis 停止传该参数），**非** vis reader 重写，属本轮范围。vis 读取/解析 `wire.jsonl` 的逻辑不动。                                                                                                                         |
+| 9   | Goal 列 4 项能力但 AC 只要求 1 项                            | 已对齐：Goal = 「打开能力门」（框架支持）；AC7 = transient op 本轮交付证明；R5 = 其余 3 项可选按需。                                                                                                                                                                                    |
 
 ## Traceability
 
 - **Grilled by**: `/grill`（2026-08-12）—— 9 项开放决议全部解决：① 一次性切换策略（方案 C）；② offload 性能风险（低，前置 have-a-try 原型）；③ ReplayBuilder 边界（Phase 6 定）；④ changeset minor；⑤ onDidRestore 顺序（无依赖）；⑥ usage scope 硬编码；⑦ service 术语澄清；⑧ vis 边界澄清；⑨ Goal/AC 能力 framing 对齐。3 项代码核查：形状一致性成立、无 emitEvent 重入（不需 MAX_DRAIN）、background.stop 走 no-op Op。CONTEXT.md 术语待 /grill 后更新。
+- **Reviewed by**: `/review`（2026-08-12，PR #262）—— Test/Code/Impact 三视角并行评审，无矛盾。实现质量与测试覆盖均 Approve；阻塞项：① CI `fmt:check` 失败（已修，含 1 个本 PR 文件 + 3 个 dev 遗留）；② changeset 级别——`WireFoldHandlers` 删除 + fold helper 签名变更触及 agent-core barrel 导出，经用户确认为 **minor**（@byfriends/agent-core 未发布到 npm，wire-fold 唯一消费者 apps/vis 已在本 PR 同步，视为 monorepo-internal）。minor 清理一并并入：`seal()` 补 flush、context ops 去除冗余 cast、full-compaction 移除未消费的 `compactions` 状态、6 处 stale restoring 注释、新增 legacy-transient restore 回归测试。
 - **Parent Issue**: #260
 - **Supersedes**: ADR-0031（暂不迁移至 kimi agent-core-v2 的 wire 架构）→ 新增 ADR-0032
 - **Related**: PRD-0025（wire 投影纯函数抽取，已完成，其 Out of Scope 的「全面 v2 迁移」由本 PRD 兑现）、ADR-0010（上一代 restore 重构）、ADR-0006（vis→wire-record 依赖边界）、ADR-0020（fork 截断锚点）

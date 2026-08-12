@@ -73,9 +73,10 @@ export class UsageRecorder {
     if (!isAgentRecordOfPrefix(record, 'usage')) return;
     switch (record.type) {
       case 'usage.record':
-        // During restore, we always use 'session' scope regardless of the original scope
-        // This matches the old restoration behavior and ensures currentTurn is not set
-        // The restoring flag prevents logging
+        // Test-only entry point (restore-handler unit tests). The 'session' scope
+        // preserves the legacy restore semantics (currentTurn is never rebuilt).
+        // Production restore uses the pure wire reducer (wire.restore → apply →
+        // syncFromWire) and never reaches this method.
         this.record(record.model, record.usage, 'session');
         break;
     }

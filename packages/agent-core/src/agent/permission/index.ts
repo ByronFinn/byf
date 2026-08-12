@@ -347,15 +347,13 @@ export class PermissionManager {
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'permission')) return;
+    // Test-only entry point (restore-handler unit tests). Production restore
+    // uses the pure wire reducer (wire.restore → apply → syncFromWire).
     switch (record.type) {
       case 'permission.set_mode':
-        // Call the normal setMode method but it should not log
-        // because the restoring flag prevents logging
         this.setMode(record.mode);
         break;
       case 'permission.record_approval_result':
-        // Call the normal recordApprovalResult method but it should not log
-        // because the restoring flag prevents logging
         this.recordApprovalResult(record);
         break;
     }
