@@ -2,6 +2,7 @@ import type { Message, PromptBlock, PromptPlan, Tool } from '@byfriends/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
+  clearTokenEstimateCache,
   estimateInputBreakdown,
   estimateTokens,
   estimateTokensForMessages,
@@ -384,5 +385,25 @@ describe('estimateInputBreakdown', () => {
       expect(Object.values(result.tokens).every((v) => v === 0)).toBe(true);
       expect(result.percent).toEqual(ALL_UNDEFINED_PERCENT);
     });
+  });
+});
+
+describe('estimateTokens cache', () => {
+  it('is transparent: repeated calls return identical results (cache hit path)', () => {
+    const text = textOf(10);
+    expect(estimateTokens(text)).toBe(10);
+    expect(estimateTokens(text)).toBe(10);
+  });
+
+  it('still returns correct results after clearTokenEstimateCache()', () => {
+    const text = textOf(10);
+    const first = estimateTokens(text);
+    clearTokenEstimateCache();
+    expect(estimateTokens(text)).toBe(first);
+  });
+
+  it('caches zero-token results for empty input', () => {
+    expect(estimateTokens('')).toBe(0);
+    expect(estimateTokens('')).toBe(0);
   });
 });

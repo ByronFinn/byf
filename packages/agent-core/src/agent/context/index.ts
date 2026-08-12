@@ -4,7 +4,7 @@ import { type ContentPart, type Message, type TokenUsage } from '@byfriends/koso
 
 import type { Agent } from '..';
 import type { LoopRecordedEvent } from '../../loop';
-import { estimateTokensForMessages } from '../../utils/tokens';
+import { clearTokenEstimateCache, estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
 import {
@@ -121,6 +121,8 @@ export class ContextMemory {
     this.agent.wire.dispatch(contextClear({}));
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
+    // 历史被清空，token 估算缓存里的旧文本失去引用——一并丢弃。
+    clearTokenEstimateCache();
     void this.scratchManager?.cleanup();
     this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
@@ -131,6 +133,8 @@ export class ContextMemory {
     this.agent.wire.dispatch(contextApplyCompaction(summary));
     this._tokenCount = summary.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
+    // 压缩丢弃了最早的消息，其文本仍被缓存强引用——清理以约束长会话内存。
+    clearTokenEstimateCache();
     this.agent.injection.onContextCompacted(summary.compactedCount);
     this.agent.emitStatusUpdated();
   }

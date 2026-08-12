@@ -139,8 +139,23 @@ bun --smol --expose-gc scripts/perf/load.ts --mode a --json
 
 完整参数说明见 `scripts/perf/README.md`。规模参数化(`--turns --steps --tools --output-kb` 等),同参数可复现。
 
+## 8. 优化复跑结果(PRD-0028,2026-08-12)
+
+`estimateTokens` 加字符串级 `Map<string, number>` 缓存后的模式 A 复跑(同参数:50 turn、seed 42、200 generate 调用):
+
+| 指标 | 基线(REPORT-0026 §4) | PRD-0028 后 | 变化 |
+| --- | ---: | ---: | --- |
+| wall time | 4.3-4.5s | **0.55s** | **~8 倍加速(87.5% ↓)** |
+| `estimateTokens` 自采样 | 83.3% | **22.3%** | 83% → 22.3% |
+| peakHeap | 25-90MB | 81MB | 同量级 |
+
+**残留归因**:22.3%(211ms)与新内容一次性扫描的固有成本吻合——每 step 新产生 ~55KB 文本必须被逐字符扫描一次(200 steps × 55KB ≈ 11MB 字符循环);同 step 3x 冗余与跨 step 重复扫描已被缓存消除。负载脚本 tool args 仅 ~50 字节,JSON.stringify 重序列化残留可忽略(真实会话大参数工具时此残留才显著,Layer 2 评估点,见 PRD-0028 Out of Scope)。
+
+**结论**:PRD-0026 R6 优化清单项 1 完成,83% CPU 热点中的可消除部分已全部消除;残余为新内容固有下限。真实会话中每 step 残留 ~1ms,被 LLM 往返延迟覆盖。
+
 ## Traceability
 
-- **Closes**: #257(CPU 采谱与热点归属)、#258(GC 量化与对照)、#259(报告与决策)
+- **Closes**: #257(CPU 采谱与热点归属)、#258(GC 量化与对照实验)、#259(报告与决策)
 - **Depends on**: #256(负载脚手架,已完成)
+- **§8 由 PRD-0028 追加**(#267 实施,2026-08-12)
 - **原始数据**:CPU/heap dump(`*.cpuprofile`、`mode-*.md`)为机器生成、含本机绝对路径,已 gitignore,按 §7 命令可复跑;本报告 §2 的归属百分比表是经人工提炼的结论,不依赖原始 dump 入库。
