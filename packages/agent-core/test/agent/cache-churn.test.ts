@@ -251,6 +251,25 @@ describe('Agent churn dispatch (integration via harness)', () => {
     expect(after.lastCacheChurn).toMatchObject({ blockName: 'base', cacheScope: 'none' });
     expect(after.lastCacheChurn?.turnsAgo).toBe(0);
   });
+
+  it('does not dispatch churn on the /btw side-query path (wire-silent, detached)', async () => {
+    // Main turn with real tools → establishes a non-empty toolsHash baseline.
+    const ctx = testAgent();
+    ctx.configure({ tools: ['Bash'] });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hi' }] });
+    await ctx.untilTurnEnd();
+    const churnBefore = ctx.getRecords().filter((r) => r.type === 'context.cache_churn').length;
+
+    // askSide runs detached with tools=[] + a throwaway promptPlan. Without the gate this
+    // would fire a spurious `tools` churn (empty toolsHash ≠ main toolsHash) AND persist a
+    // wire record, violating askSide's detachment invariant. Must stay wire-silent.
+    ctx.mockNextResponse({ type: 'text', text: 'side answer' });
+    await ctx.agent.askSide('quick question?');
+
+    const churnAfter = ctx.getRecords().filter((r) => r.type === 'context.cache_churn').length;
+    expect(churnAfter).toBe(churnBefore);
+  });
 });
 
 /**

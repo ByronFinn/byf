@@ -547,19 +547,28 @@ export class Agent {
       ...context,
       ...buildLlmRequestMetadata(systemPrompt, tools, history),
     });
-    this.detectCacheChurn(options?.promptPlan, tools);
+    this.detectCacheChurn(options?.promptPlan, tools, context);
   }
 
   /**
    * 破坏侧归因（PRD-0029 R2/R3）：比对当前 turn 与上一 turn 的静态前缀指纹（桩1
    * PromptPlan 块 + 桩2 tools），检测到变化时 dispatch 持久化 `context.cache_churn`。
    *
+   * 仅在主对话 turn 运行（`context.turnId` 存在）；`/btw` 等侧查询（askSide）以
+   * `tools=[]` + 一次性 promptPlan 脱离主对话运行，且其契约要求**不写 wire 记录**
+   * （resume/fork 看不到）——故侧查询既不参与比对、也不 dispatch churn。
+   *
    * restore 重放时不调用（logLlmRequest 只在 live generate 路径触发）；restore 后
    * `previousStaticPrefix` 为 undefined，首个 live turn 建立基线、不报 churn，此后正
    * 常比对。压缩只改历史消息、不改静态前缀，故天然不触发 churn。
    */
-  private detectCacheChurn(promptPlan: PromptPlan | undefined, tools: readonly Tool[]): void {
+  private detectCacheChurn(
+    promptPlan: PromptPlan | undefined,
+    tools: readonly Tool[],
+    context: LlmRequestContextFields,
+  ): void {
     if (this.wire.phase === 'restoring') return;
+    if (context.turnId === undefined) return;
     if (promptPlan === undefined || promptPlan.blocks.length === 0) {
       this.previousStaticPrefix = undefined;
       return;

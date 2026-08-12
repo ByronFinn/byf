@@ -92,17 +92,13 @@ export function diffStaticPrefix(
 
   const changes: CacheChurnChange[] = [];
 
-  // 桩1：逐块比对（scope 取当前块）。
+  // 桩1：逐块比对（scope 取当前块）。beforeHash/afterHash 在新增/删除块时为 undefined，
+  // 直接以可选属性传入（wire 序列化与 zod .optional() 均接受 undefined）。
   for (const block of currentPlan.blocks) {
     const afterHash = currentBlockHashes[block.name];
     const beforeHash = previous.blocks[block.name];
     if (beforeHash !== afterHash) {
-      changes.push({
-        blockName: block.name,
-        cacheScope: block.cacheScope,
-        ...(beforeHash !== undefined ? { beforeHash } : {}),
-        ...(afterHash !== undefined ? { afterHash } : {}),
-      });
+      changes.push({ blockName: block.name, cacheScope: block.cacheScope, beforeHash, afterHash });
     }
   }
 

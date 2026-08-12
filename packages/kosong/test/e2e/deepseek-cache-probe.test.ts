@@ -60,41 +60,34 @@ async function generateOnce(
   return stream.usage ?? emptyUsage();
 }
 
-describe.skipIf(KEY === undefined)(
-  'DeepSeek cache probe (opt-in, requires DEEPSEEK_API_KEY)',
-  () => {
-    it('parses prompt_cache_hit_tokens and shows a hot call hitting cache more than cold', async () => {
-      const provider = createProvider();
+describe.skipIf(!KEY)('DeepSeek cache probe (opt-in, requires DEEPSEEK_API_KEY)', () => {
+  it('parses prompt_cache_hit_tokens and shows a hot call hitting cache more than cold', async () => {
+    const provider = createProvider();
 
-      // Cold: first request with this prefix → expected miss (hit ≈ 0).
-      const cold = await generateOnce(
-        provider,
-        STATIC_PREFIX,
-        'Reply with the single word: ready.',
-      );
-      // Hot: same static prefix → expected cache hit (hit > 0, and ≥ cold).
-      const hot = await generateOnce(provider, STATIC_PREFIX, 'Reply with the single word: ready.');
+    // Cold: first request with this prefix → expected miss (hit ≈ 0).
+    const cold = await generateOnce(provider, STATIC_PREFIX, 'Reply with the single word: ready.');
+    // Hot: same static prefix → expected cache hit (hit > 0, and ≥ cold).
+    const hot = await generateOnce(provider, STATIC_PREFIX, 'Reply with the single word: ready.');
 
-      // Sanity: parsed usage is non-negative and cache-read never exceeds total input.
-      for (const usage of [cold, hot]) {
-        expect(usage.inputCacheRead, 'inputCacheRead must be ≥ 0').toBeGreaterThanOrEqual(0);
-        expect(usage.inputOther, 'inputOther must be ≥ 0').toBeGreaterThanOrEqual(0);
-        expect(
-          usage.inputCacheRead + usage.inputOther,
-          'identity: hit + miss ≈ prompt_tokens',
-        ).toBeGreaterThan(0);
-        expect(usage.inputCacheRead, 'hit must not exceed total input').toBeLessThanOrEqual(
-          usage.inputCacheRead + usage.inputOther,
-        );
-      }
-
-      // Core assertion: the hot call engages DeepSeek's automatic cache (proving both that the
-      // provider caches on identical prefixes AND that our extractUsage parses hit tokens).
-      expect(hot.inputCacheRead, 'hot call must show cache hits').toBeGreaterThan(0);
+    // Sanity: parsed usage is non-negative and cache-read never exceeds total input.
+    for (const usage of [cold, hot]) {
+      expect(usage.inputCacheRead, 'inputCacheRead must be ≥ 0').toBeGreaterThanOrEqual(0);
+      expect(usage.inputOther, 'inputOther must be ≥ 0').toBeGreaterThanOrEqual(0);
       expect(
-        hot.inputCacheRead,
-        'hot call must read at least as much from cache as the cold call',
-      ).toBeGreaterThanOrEqual(cold.inputCacheRead);
-    }, 60_000);
-  },
-);
+        usage.inputCacheRead + usage.inputOther,
+        'identity: hit + miss ≈ prompt_tokens',
+      ).toBeGreaterThan(0);
+      expect(usage.inputCacheRead, 'hit must not exceed total input').toBeLessThanOrEqual(
+        usage.inputCacheRead + usage.inputOther,
+      );
+    }
+
+    // Core assertion: the hot call engages DeepSeek's automatic cache (proving both that the
+    // provider caches on identical prefixes AND that our extractUsage parses hit tokens).
+    expect(hot.inputCacheRead, 'hot call must show cache hits').toBeGreaterThan(0);
+    expect(
+      hot.inputCacheRead,
+      'hot call must read at least as much from cache as the cold call',
+    ).toBeGreaterThanOrEqual(cold.inputCacheRead);
+  }, 60_000);
+});

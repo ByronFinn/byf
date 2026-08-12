@@ -137,6 +137,7 @@
 - **D**：只做 **DeepSeek 单 provider** 探针（byf 转向 user-provided key 后最普遍、且缺口 A 的直接受益方）。
 - **升级路径**：数值门禁与历史归因留待真实探针跑出真实分布后，再评估是否升级到 Approach B。
 - **已知风险**：用户在生产中遇到命中率下滑、且根因在历史侧（如某次压缩异常）时，A 的归因覆盖不到——靠 D 的真实探针与既有读侧命中率展示（PRD-0007）兜底。
+- **落地偏差（实现时记录）**：B 段「发生当 turn 低存在感 notice」与「既有逐 turn TokenBar overlay churn 标记」**本轮未实现**——属展示细化，留待真实探针沉淀分布后随 Approach B 升级评估。已落地：`context.cache_churn` wire op + CLI `/status`「Last prefix change」行 + vis churn ribbon + `/usage` 累计 churn 次数。另：实现时发现「指纹生产已就绪」（`agent/index.ts` 早已产出 per-block 哈希），PR2 实际收窄为「消费侧比对 + 事件 + restore」。
 
 ## Implementation Plan (small PRs)
 
