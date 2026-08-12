@@ -1,6 +1,6 @@
 # wire v2 reducer 重构：命令式事件日志 → 声明式 event-sourcing
 
-> **Status**: Grilled | **PRD**: PRD-0027 | **Created**: 2026-08-11 | **Last updated**: 2026-08-12
+> **Status**: In Progress（Phase 1-6 完成，PR-2~PR-7 已落地） | **PRD**: PRD-0027 | **Created**: 2026-08-11 | **Last updated**: 2026-08-12
 >
 > 父 Issue #260。作废 ADR-0031，新增 ADR-0032。
 
@@ -217,9 +217,9 @@ execute(group: {ops, silent}):
 | PR-3 | Phase 2 | usage / tools / turn apply 纯化 | 机械性 |
 | PR-4 | Phase 3 | permission / config apply 纯化 | 注意 `initializeBuiltinTools` 外提 |
 | PR-5 | Phase 4 | full_compaction apply 纯化 | 注意 worker 启动外移 |
-| PR-6 | Phase 5 | context apply 纯化（深水区） | 最多工作量 |
-| PR-7 | Phase 6 | 删除 `restoring`/`RecordRestoreHandler`/`AgentRecords` + 统一 toEvent | 全量回归 |
-| PR-8+ | Phase 7 | transient op / manifest / checkpoint（可选，按需） | 独立 |
+| PR-6 | Phase 5 | context apply 纯化（深水区）✅ 已落地 | 最多工作量 |
+| PR-7 | Phase 6 | 删除 `restoring`/`RecordRestoreHandler`/`AgentRecords` + 统一 toEvent ✅ 已落地（goal.updated 事件含 live 瞬态（complete status、实时 wallClockMs），toEvent 的 post-apply state 无法表达，未迁移，记待办） | 全量回归 |
+| PR-8+ | Phase 7 | transient op ✅ 已随 Phase 5 落地（`context.output_offloaded`/`context.pruning`）；manifest / checkpoint（可选，按需） | 独立 |
 
 ## Domain Terms
 
