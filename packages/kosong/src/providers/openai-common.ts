@@ -228,8 +228,16 @@ export function extractUsage(usage: unknown): TokenUsage | null {
   const completionTokens = typeof u['completion_tokens'] === 'number' ? u['completion_tokens'] : 0;
 
   let cached = 0;
-  // Byf proprietary: top-level cached_tokens
-  if (typeof u['cached_tokens'] === 'number') {
+  // Field-presence based, capability-driven (no provider-name branching):
+  // 1. DeepSeek (OpenAI-compatible): top-level prompt_cache_hit_tokens.
+  //    DeepSeek caching is fully automatic (no prompt_cache_key) and reported
+  //    via top-level hit/miss fields; miss ≈ hit × 50–120 in V4 pricing.
+  // 2. Byf proprietary: top-level cached_tokens.
+  // 3. OpenAI standard: nested prompt_tokens_details.cached_tokens.
+  if (typeof u['prompt_cache_hit_tokens'] === 'number') {
+    cached = u['prompt_cache_hit_tokens'];
+  } else if (typeof u['cached_tokens'] === 'number') {
+    // Byf proprietary: top-level cached_tokens
     cached = u['cached_tokens'];
   } else if (
     typeof u['prompt_tokens_details'] === 'object' &&
