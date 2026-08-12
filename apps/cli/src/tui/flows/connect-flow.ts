@@ -3,8 +3,6 @@ import {
   applyCatalogProvider,
   catalogBaseUrl,
   catalogProviderModels,
-  CatalogFetchError,
-  fetchCatalog,
   inferWireType,
   loadBuiltInCatalog,
 } from '@byfriends/sdk';
@@ -16,6 +14,7 @@ import {
 } from '#/tui/flows/dialog-prompts';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
+import { fetchCatalogWithFallback, type SpinnerHandle } from '#/tui/utils/catalog-fetch';
 import { resolveConnectCatalogRequest } from '#/tui/utils/connect-catalog';
 
 export interface ModelSelection {
@@ -23,12 +22,11 @@ export interface ModelSelection {
   thinkingEffort: ThinkingEffortLevel;
 }
 
-export interface SpinnerHandle {
-  stop(opts: { ok: boolean; label: string }): void;
-}
+export type { SpinnerHandle } from '#/tui/utils/catalog-fetch';
 
 export interface ConnectFlowDeps {
   readonly builtInCatalogJson: string | undefined;
+  readonly catalogFetchTimeoutMs?: number;
   readonly dialogHost: DialogHost;
   readonly colors: ColorPalette;
   getConfig(): Promise<ByfConfig>;
@@ -64,9 +62,29 @@ export class ConnectFlow {
       }
     }
 
-    catalog ??= await this.fetchCatalog(url, allowBuiltInFallback);
-
-    if (catalog === undefined) return;
+    if (catalog === undefined) {
+      const result = await fetchCatalogWithFallback({
+        url,
+        allowBuiltInFallback,
+        builtInCatalogJson: this.deps.builtInCatalogJson,
+        timeoutMs: this.deps.catalogFetchTimeoutMs,
+        reportUnavailable: true, // the catalog is essential for /connect; surface failures
+        showSpinner: (label) => {
+          return this.deps.showSpinner(label);
+        },
+        setCancelInFlight: (cancel) => {
+          this.deps.setCancelInFlight(cancel);
+        },
+        clearCancelInFlight: (cancel) => {
+          this.deps.clearCancelInFlight(cancel);
+        },
+        showError: (msg) => {
+          this.deps.showError(msg);
+        },
+      });
+      if (result.kind !== 'catalog') return;
+      catalog = result.catalog;
+    }
 
     const providerId = await promptProviderSelectionViaHost(
       this.deps.dialogHost,
@@ -132,47 +150,4 @@ export class ConnectFlow {
     this.deps.track('connect', { provider: providerId, model: selection.model.id });
     this.deps.showStatus(`Connected: ${entry.name ?? providerId} · ${selection.model.id}`);
   }
-
-  private async fetchCatalog(
-    url: string,
-    allowBuiltInFallback: boolean,
-  ): Promise<Catalog | undefined> {
-    const controller = new AbortController();
-    const cancel = (): void => {
-      controller.abort();
-    };
-    this.deps.setCancelInFlight(cancel);
-
-    const spinner = this.deps.showSpinner(`Fetching catalog from ${url}`);
-    try {
-      const catalog = await fetchCatalog(url, controller.signal);
-      spinner.stop({ ok: true, label: 'Catalog loaded.' });
-      return catalog;
-    } catch (error: unknown) {
-      if (controller.signal.aborted) {
-        spinner.stop({ ok: false, label: 'Aborted.' });
-      } else {
-        const hint = error instanceof CatalogFetchError ? ` (HTTP ${error.status})` : '';
-        if (!allowBuiltInFallback) {
-          spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-          this.deps.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-        } else {
-          const fallback = loadBuiltInCatalog(this.deps.builtInCatalogJson);
-          if (fallback !== undefined) {
-            spinner.stop({ ok: true, label: 'Using built-in catalog (offline mode).' });
-            return fallback;
-          }
-          spinner.stop({ ok: false, label: 'Failed to load catalog.' });
-          this.deps.showError(`Failed to fetch catalog${hint}: ${formatErrorMessage(error)}`);
-        }
-      }
-      return undefined;
-    } finally {
-      this.deps.clearCancelInFlight(cancel);
-    }
-  }
-}
-
-function formatErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

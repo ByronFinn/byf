@@ -30,6 +30,12 @@ export function createAuthHandlers(
           host.showError(msg);
         },
         showLoginProgressSpinner: (label) => host.showLoginProgressSpinner(label),
+        setCancelInFlight: (cancel) => {
+          host.setCancelInFlight(cancel);
+        },
+        clearCancelInFlight: (cancel) => {
+          host.clearCancelInFlight(cancel);
+        },
         track: (event, props?) => {
           host.track(event, props);
         },
