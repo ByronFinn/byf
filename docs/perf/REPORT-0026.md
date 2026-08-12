@@ -143,11 +143,11 @@ bun --smol --expose-gc scripts/perf/load.ts --mode a --json
 
 `estimateTokens` 加字符串级 `Map<string, number>` 缓存后的模式 A 复跑(同参数:50 turn、seed 42、200 generate 调用):
 
-| 指标 | 基线(REPORT-0026 §4) | PRD-0028 后 | 变化 |
-| --- | ---: | ---: | --- |
-| wall time | 4.3-4.5s | **0.55s** | **~8 倍加速(87.5% ↓)** |
-| `estimateTokens` 自采样 | 83.3% | **22.3%** | 83% → 22.3% |
-| peakHeap | 25-90MB | 81MB | 同量级 |
+| 指标                    | 基线(REPORT-0026 §4) | PRD-0028 后 | 变化                   |
+| ----------------------- | -------------------: | ----------: | ---------------------- |
+| wall time               |             4.3-4.5s |   **0.55s** | **~8 倍加速(87.5% ↓)** |
+| `estimateTokens` 自采样 |                83.3% |   **22.3%** | 83% → 22.3%            |
+| peakHeap                |              25-90MB |        81MB | 同量级                 |
 
 **残留归因**:22.3%(211ms)与新内容一次性扫描的固有成本吻合——每 step 新产生 ~55KB 文本必须被逐字符扫描一次(200 steps × 55KB ≈ 11MB 字符循环);同 step 3x 冗余与跨 step 重复扫描已被缓存消除。负载脚本 tool args 仅 ~50 字节,JSON.stringify 重序列化残留可忽略(真实会话大参数工具时此残留才显著,Layer 2 评估点,见 PRD-0028 Out of Scope)。
 

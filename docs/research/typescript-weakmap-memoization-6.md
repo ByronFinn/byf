@@ -1,6 +1,6 @@
 # TypeScript: WeakMap 记忆化与缓存原语选择
 
-> **Stack**: typescript@6.0.2  | **Major**: 6  | **Verified**: 2026-08-12  | **Status**: verified
+> **Stack**: typescript@6.0.2 | **Major**: 6 | **Verified**: 2026-08-12 | **Status**: verified
 
 ## TL;DR
 
@@ -16,18 +16,18 @@
 
 ## Findings
 
-| 原语 | key 类型 | 引用强度 | 失效方式 | 适用场景 |
-|---|---|---|---|---|
-| `WeakMap<object \| symbol, T>` | 仅 object 与非 registered symbol(ECMA-262) | 弱引用(不阻止 key 被 GC) | key 不可达时 entry 自动被 GC 回收,无需手动删除 | 对象键的记忆化;变更模式为「替换为新对象」时零维护 |
-| `Map<string, T>` | 任意值(含原始值) | 强引用(阻止 key 被 GC) | 必须手动 `delete` 或清空;不清理则随 unique key 单调增长 | 原始值(字符串)键的纯函数记忆化;live unique key 有上界时可接受 |
-| 对象上挂字段 `_cache?: T` | 任意 | 与对象同生命周期 | 对象 GC 时字段自然消失 | 同一所有权域内的对象;会污染对象 shape / 枚举 |
+| 原语                           | key 类型                                   | 引用强度                 | 失效方式                                                | 适用场景                                                      |
+| ------------------------------ | ------------------------------------------ | ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------- |
+| `WeakMap<object \| symbol, T>` | 仅 object 与非 registered symbol(ECMA-262) | 弱引用(不阻止 key 被 GC) | key 不可达时 entry 自动被 GC 回收,无需手动删除          | 对象键的记忆化;变更模式为「替换为新对象」时零维护             |
+| `Map<string, T>`               | 任意值(含原始值)                           | 强引用(阻止 key 被 GC)   | 必须手动 `delete` 或清空;不清理则随 unique key 单调增长 | 原始值(字符串)键的纯函数记忆化;live unique key 有上界时可接受 |
+| 对象上挂字段 `_cache?: T`      | 任意                                       | 与对象同生命周期         | 对象 GC 时字段自然消失                                  | 同一所有权域内的对象;会污染对象 shape / 枚举                  |
 
 **WeakMap 失效的两种变更模式**:
 
-| 变更模式 | WeakMap 行为 | 是否需要显式失效 |
-|---|---|---|
-| **替换为新对象**(`state.history[i] = {...message, content: [...]}`) | 旧对象不可达 → entry 自动 GC;新对象 WeakMap miss → 重算后缓存 | **否**——自动失效 |
-| **原地修改**(`message.content.push(part)`,身份不变) | WeakMap 仍命中**旧值**(stale!) | **是**——必须删除或排除 |
+| 变更模式                                                            | WeakMap 行为                                                  | 是否需要显式失效       |
+| ------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
+| **替换为新对象**(`state.history[i] = {...message, content: [...]}`) | 旧对象不可达 → entry 自动 GC;新对象 WeakMap miss → 重算后缓存 | **否**——自动失效       |
+| **原地修改**(`message.content.push(part)`,身份不变)                 | WeakMap 仍命中**旧值**(stale!)                                | **是**——必须删除或排除 |
 
 **关键约束(原始值不能做 WeakMap key)**:ECMA-262 规定 WeakMap key「must be objects or non-registered symbols」。字符串、数字等原始值不是合法 key——`new WeakMap().set('foo', 1)` 抛 `TypeError`。因此对 `estimateTokens(text: string)` 这类**原始值输入的纯函数**,只能用 `Map<string, number>`,并接受强引用增长(或自行 LRU / 周期清理)。
 
@@ -47,8 +47,10 @@
 ## Sources
 
 **Tier 1(maintainer-authored, required)**
+
 - [ECMA-262® 2027 Language Specification — Keyed Collections (§24.3 WeakMap)](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-weakmap-objects) — WeakMap key 必须为 object 或非 registered symbol、弱引用、key 不可达时 entry 可被 GC
 - [MDN Web Docs — WeakMap](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap) — Mozilla 维护;明确列出 Caching 为推荐用途并给出 `cache.has(obj) → cache.set(obj, heavyComputation)` 示例;key 按对象身份比较(`compared by reference, not by value`)
 
 **Tier 2(supplementary only, never sole evidence)**
+
 - [TC39 proposal: Symbols as WeakMap keys(已并入 ES2023)](https://github.com/tc39/proposal-symbols-as-weakmap-keys) — 非 registered symbol 可做 WeakMap key 的合并提案

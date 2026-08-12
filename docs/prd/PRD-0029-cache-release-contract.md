@@ -13,10 +13,12 @@
 来源：四路代码探索 + 直接读码验证（详见审计报告）。
 
 **已验证的实锤（直接读码）**：
+
 - `packages/kosong/src/providers/openai-common.ts:222-245` 的 `extractUsage` 只读顶层 `cached_tokens`（"Byf proprietary"）与 `prompt_tokens_details.cached_tokens`（OpenAI 标准）；全仓 `rg "prompt_cache_hit|prompt_cache_miss"` 生产代码零命中。→ DeepSeek 直连命中率永远显示 0%。
 - `packages/kosong/src/providers/openai-completions.ts:528-534` 在 `createParams` spread 之后写 `prompt_cache_key`，`completionsCacheKey`（:134-136）总返回值 → 永远覆盖 generationKwargs 里 sessionId 映射来的 key（AGENTS.md 宣称的 sessionId 提示在 completions 路径是死配置）。
 
 **既有基础设施（可复用）**：
+
 - `PromptPlan` + `CacheStrategy`（`explicit-block`/`prompt-cache-key`/`prefix-match`/`none`）+ `CacheScope`（`global`/`project`/`session`/`none`）已是 vendor 中立模型（`packages/kosong/src/prompt-plan.ts`、`capability-registry.ts`）。
 - `cacheBlockHashes` / `providerCacheStrategy` 的 per-block SHA256 指纹**设计已完成**，但**只存在于测试脚手架**（`packages/agent-core/test/agent/cache-observability.test.ts:164-235`、`cache-observability-integration.test.ts`），注释 `// After implementation, LlmConfigMetadata should include: ...`；生产 src 零命中。
 - 读侧命中率展示链路已端到端打通（PRD-0007 Done）：`usage.ts:57-71` `cacheHitRate()` → CLI footer / `/usage` / `/status` / subagent chip / vis。
@@ -25,6 +27,7 @@
 - 所有 e2e 用 `FakeLLM`（`streaming.e2e.test.ts:6-9`），`it.live`/`RUN_LIVE` 零命中；无真实 provider 探针。
 
 **官方事实（DeepSeek/Anthropic/OpenAI 文档）**：
+
 - DeepSeek：缓存全自动、不支持 `prompt_cache_key`、用顶层 `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens` 上报、miss≈hit 的 50–120 倍（V4 定价）。
 - Anthropic：最多 4 个 `cache_control` 断点、`tools→system→messages` 顺序、`tool_use` key 顺序随机化会失效、命中 0.1×。
 - OpenAI：`prompt_cache_key` 是 best-effort 路由提示、必须跨请求稳定复用、命中 0.5×。
@@ -132,6 +135,7 @@
 **Decision**: **Approach A（最小可验证切片）**（grill 2026-08-12 与用户确认）。
 
 **Consequences**:
+
 - **B**：只做**静态前缀**归因——桩1（PromptPlan 块）逐块指纹 + 桩2（tools 数组）哈希。**归因呈现升级为 user-visible**（grill 中与用户确认）：持久化 wire op `context.cache_churn`（payload `{ blockName, cacheScope, beforeHash, afterHash }`）+ CLI `/status` Cache 段「Last prefix change」行 + 发生当 turn notice + vis ribbon（与压缩 ribbon 同范式）+ 趋势（既有逐 turn TokenBar overlay churn 标记 + `/usage` 累计 churn 次数）。比对状态 in-memory 挂 Agent（上一 turn per-block 哈希），restore 时从 system prompt 重算。**历史维度归因（桩3 / 压缩后历史前缀变化）仍推迟**——压缩本就会、且应当改写历史前缀（CONTEXT.md 已明确压缩是预期事件），历史侧 churn 大量为"预期"，归因边际价值低于静态前缀侧。
 - **C**：只做前缀稳定性回归断言（连续 turn 桩1/桩2 哈希不变）+ cache-impact PR 标注。**不设 CI 命中率数值门禁**——在没有真实探针沉淀出可信基线前，给 mock 数据设数值门禁是"测我们自己的假设"（critique #5），风险高于收益。
 - **D**：只做 **DeepSeek 单 provider** 探针（byf 转向 user-provided key 后最普遍、且缺口 A 的直接受益方）。

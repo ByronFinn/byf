@@ -20,9 +20,9 @@
 
 ### typescript
 
-| Topic                 | Major | Version   | Verdict                                                                                                  | File                                                               | Status   |
-| --------------------- | ----- | --------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------- |
-| weakmap-memoization   | 6     | 6.0.2     | 对象键用 WeakMap(身份键控、GC 自动失效);原始值键用 Map(纯函数恒正确、需管生命周期)                     | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md) | verified |
+| Topic               | Major | Version | Verdict                                                                            | File                                                                       | Status   |
+| ------------------- | ----- | ------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------- |
+| weakmap-memoization | 6     | 6.0.2   | 对象键用 WeakMap(身份键控、GC 自动失效);原始值键用 Map(纯函数恒正确、需管生命周期) | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md) | verified |
 
 ### Spikes (verification records, not versioned topics)
 
@@ -32,14 +32,14 @@
 
 ## By Topic
 
-| Topic                              | Stacks | See                                                                                        |
-| ---------------------------------- | ------ | ------------------------------------------------------------------------------------------ |
-| package-manager                    | bun@1  | [bun-package-manager-1.md](bun-package-manager-1.md)                                       |
-| test-runner                        | bun@1  | [bun-test-runner-1.md](bun-test-runner-1.md)                                               |
-| bundler                            | bun@1  | [bun-bundler-1.md](bun-bundler-1.md)                                                       |
-| runtime                            | bun@1  | [bun-runtime-1.md](bun-runtime-1.md)                                                       |
-| monorepo-workspaces-catalog        | bun@1  | [bun-monorepo-workspaces-catalog-1.md](bun-monorepo-workspaces-catalog-1.md)               |
-| publish-workspace-protocol-rewrite | bun@1  | [bun-publish-workspace-protocol-rewrite-1.md](bun-publish-workspace-protocol-rewrite-1.md) |
-| compile-native-addons              | bun@1  | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           |
-| test-migration-from-vitest         | bun@1  | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 |
+| Topic                              | Stacks       | See                                                                                        |
+| ---------------------------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| package-manager                    | bun@1        | [bun-package-manager-1.md](bun-package-manager-1.md)                                       |
+| test-runner                        | bun@1        | [bun-test-runner-1.md](bun-test-runner-1.md)                                               |
+| bundler                            | bun@1        | [bun-bundler-1.md](bun-bundler-1.md)                                                       |
+| runtime                            | bun@1        | [bun-runtime-1.md](bun-runtime-1.md)                                                       |
+| monorepo-workspaces-catalog        | bun@1        | [bun-monorepo-workspaces-catalog-1.md](bun-monorepo-workspaces-catalog-1.md)               |
+| publish-workspace-protocol-rewrite | bun@1        | [bun-publish-workspace-protocol-rewrite-1.md](bun-publish-workspace-protocol-rewrite-1.md) |
+| compile-native-addons              | bun@1        | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           |
+| test-migration-from-vitest         | bun@1        | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 |
 | weakmap-memoization                | typescript@6 | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md)                 |
