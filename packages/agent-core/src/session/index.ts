@@ -443,7 +443,7 @@ export class Session {
         kind: 'injection',
         variant: 'init',
       });
-      await mainAgent.records.flush();
+      await mainAgent.wire.flush();
     } catch (error) {
       throw new ByfError(
         ErrorCodes.SESSION_INIT_FAILED,
@@ -483,7 +483,7 @@ export class Session {
   async flushMetadata() {
     await this.skillsReady;
     await this.writeMetadataPromise;
-    await Promise.all(Array.from(this.agents.values()).map((agent) => agent.records.flush()));
+    await Promise.all(Array.from(this.agents.values()).map((agent) => agent.wire.flush()));
   }
 
   async listSkills(): Promise<readonly SkillSummary[]> {

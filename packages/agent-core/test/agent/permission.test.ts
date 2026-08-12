@@ -703,15 +703,18 @@ describe('Agent-local approve for session', () => {
     });
     expect(record).toHaveBeenCalledWith({
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_1',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
-        scope: 'session',
-        selectedLabel: 'Approve for this session',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_1',
+        toolName: 'Bash',
+        action: 'run command',
+        result: {
+          decision: 'approved',
+          scope: 'session',
+          selectedLabel: 'Approve for this session',
+        },
       },
+      descriptor: expect.anything(),
     });
     expect(manager.data().rules).toContainEqual({
       decision: 'allow',
@@ -749,23 +752,29 @@ describe('Agent-local approve for session', () => {
     expect(record).toHaveBeenCalledTimes(2);
     expect(record).toHaveBeenNthCalledWith(1, {
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_1',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_1',
+        toolName: 'Bash',
+        action: 'run command',
+        result: {
+          decision: 'approved',
+        },
       },
+      descriptor: expect.anything(),
     });
     expect(record).toHaveBeenNthCalledWith(2, {
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_2',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_2',
+        toolName: 'Bash',
+        action: 'run command',
+        result: {
+          decision: 'approved',
+        },
       },
+      descriptor: expect.anything(),
     });
     expect(manager.data().rules).toEqual([]);
   });
@@ -1667,7 +1676,7 @@ function makePermissionManager(
     config: { cwd: options.cwd ?? '/workspace' },
     runtime: { kaos: options.kaos ?? createFakeKaos() },
     emitStatusUpdated: vi.fn(),
-    records: { logRecord: record },
+    wire: { dispatch: record },
     replayBuilder: { push: vi.fn() },
     rpc: { requestApproval },
     telemetry: { track: telemetryTrack },

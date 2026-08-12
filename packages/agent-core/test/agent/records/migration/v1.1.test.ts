@@ -75,9 +75,9 @@ describe('1.0 to 1.1', () => {
         },
       } as unknown as AgentRecord,
     ]);
-    const records = new AgentRecords(new WireService({ persistence }));
+    const wire = new WireService({ persistence });
 
-    await records.replay();
+    await wire.restore();
 
     expect(persistence.records[0]).toMatchObject({
       type: 'metadata',

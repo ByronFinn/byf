@@ -19,7 +19,7 @@ import { defineModel } from '#/agent/wire';
 
 const configUpdateSchema = z.object({
   cwd: z.string().optional(),
-  additionalDirs: z.array(z.string()).optional(),
+  additionalDirs: z.array(z.string()).readonly().optional(),
   modelAlias: z.string().optional(),
   profileName: z.string().optional(),
   thinkingLevel: z.string().optional(),

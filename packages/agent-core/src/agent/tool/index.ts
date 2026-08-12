@@ -15,8 +15,13 @@ import * as b from '../../tools/builtin';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import { globMatch } from '../permission/path-glob-match';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { toolsModel } from '../wire/ops/tools';
+import {
+  toolsModel,
+  toolsRegisterUserTool,
+  toolsSetActiveTools,
+  toolsUnregisterUserTool,
+  toolsUpdateStore,
+} from '../wire/ops/tools';
 import type {
   BuiltinTool,
   McpServerRegistrationResult,
@@ -32,7 +37,7 @@ interface McpToolEntry {
   readonly serverName: string;
 }
 
-export class ToolManager implements RecordRestoreHandler {
+export class ToolManager {
   protected builtinTools: Map<string, BuiltinTool> = new Map();
   protected userTools: Map<string, ExecutableTool> = new Map();
   protected readonly mcpTools: Map<string, McpToolEntry> = new Map();
@@ -74,19 +79,12 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   updateStore<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
-    this.agent.records.logRecord({
-      type: 'tools.update_store',
-      key,
-      value,
-    });
+    this.agent.wire.dispatch(toolsUpdateStore({ key, value }));
     this.store[key] = value;
   }
 
   registerUserTool(input: UserToolRegistration): void {
-    this.agent.records.logRecord({
-      type: 'tools.register_user_tool',
-      ...input,
-    });
+    this.agent.wire.dispatch(toolsRegisterUserTool(input));
     this.userTools.set(input.name, this.buildUserTool(input));
     this.enabledTools.add(input.name);
   }
@@ -116,10 +114,7 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   unregisterUserTool(name: string): void {
-    this.agent.records.logRecord({
-      type: 'tools.unregister_user_tool',
-      name,
-    });
+    this.agent.wire.dispatch(toolsUnregisterUserTool({ name }));
     this.userTools.delete(name);
     this.enabledTools.delete(name);
   }
@@ -293,10 +288,7 @@ export class ToolManager implements RecordRestoreHandler {
   }
 
   setActiveTools(names: readonly string[]): void {
-    this.agent.records.logRecord({
-      type: 'tools.set_active_tools',
-      names,
-    });
+    this.agent.wire.dispatch(toolsSetActiveTools({ names }));
     // MCP entries are glob patterns gated separately; the rest are exact
     // builtin/user tool names. The split keeps every caller on one string[].
     this.enabledTools = new Set(names.filter((name) => !isMcpToolName(name)));

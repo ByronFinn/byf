@@ -9,15 +9,14 @@ import {
 import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { configModel } from '../wire/ops/config';
+import { configModel, configUpdate } from '../wire/ops/config';
 import { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
 
 export * from './types';
 export { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 
-export class ConfigState implements RecordRestoreHandler {
+export class ConfigState {
   private _cwd: string = '';
   private _additionalDirs: readonly string[] = [];
   private _modelAlias: string | undefined;
@@ -37,10 +36,7 @@ export class ConfigState implements RecordRestoreHandler {
         this.agent.providerManager?.config.thinking,
       );
     }
-    this.agent.records.logRecord({
-      type: 'config.update',
-      ...changed,
-    });
+    this.agent.wire.dispatch(configUpdate(changed));
     this.agent.replayBuilder.push({
       type: 'config_updated',
       config: changed,

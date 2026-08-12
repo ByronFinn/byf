@@ -11,6 +11,7 @@ import {
 } from '../../tools/builtin';
 import type { BackgroundTaskOrigin } from '../context';
 import { renderNotificationXml } from '../context/notification-xml';
+import { backgroundStop } from '../wire/ops/background';
 
 type BackgroundTaskNotification = Record<string, unknown> & {
   readonly id: string;
@@ -166,10 +167,7 @@ export class BackgroundManager extends BackgroundProcessManager {
   }
 
   override stop(taskId: string, reason?: string) {
-    this.agent.records.logRecord({
-      type: 'background.stop',
-      taskId,
-    });
+    this.agent.wire.dispatch(backgroundStop({ taskId }));
     return super.stop(taskId, reason);
   }
 

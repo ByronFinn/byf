@@ -73,7 +73,7 @@ export const toolsUnregisterUserTool = toolsModel.defineOp('tools.unregister_use
 });
 
 export const toolsSetActiveTools = toolsModel.defineOp('tools.set_active_tools', {
-  schema: z.object({ names: z.array(z.string()) }),
+  schema: z.object({ names: z.array(z.string()).readonly() }),
   apply: (state, payload) => ({
     ...state,
     enabledTools: new Set(payload.names.filter((name) => !isMcpToolName(name))),

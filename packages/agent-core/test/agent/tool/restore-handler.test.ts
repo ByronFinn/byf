@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('ToolManager restore handler', () => {
@@ -9,8 +8,7 @@ describe('ToolManager restore handler', () => {
     it('should restore tools.register_user_tool records', () => {
       const { agent } = testAgent();
 
-      // Ensure tools implements RecordRestoreHandler
-      const tools = agent.tools as unknown as RecordRestoreHandler;
+      const tools = agent.tools;
 
       const testRecord: AgentRecord = {
         type: 'tools.register_user_tool',
@@ -35,7 +33,7 @@ describe('ToolManager restore handler', () => {
       const { agent } = testAgent();
 
       // First register a tool
-      const tools = agent.tools as unknown as RecordRestoreHandler;
+      const tools = agent.tools;
 
       const registerRecord: AgentRecord = {
         type: 'tools.register_user_tool',
@@ -71,7 +69,7 @@ describe('ToolManager restore handler', () => {
       const ctx = testAgent();
       ctx.configure();
 
-      const tools = ctx.agent.tools as unknown as RecordRestoreHandler;
+      const tools = ctx.agent.tools;
 
       const testRecord: AgentRecord = {
         type: 'tools.set_active_tools',
@@ -93,7 +91,7 @@ describe('ToolManager restore handler', () => {
     it('should restore tools.update_store records', () => {
       const { agent } = testAgent();
 
-      const tools = agent.tools as unknown as RecordRestoreHandler;
+      const tools = agent.tools;
 
       const testRecord: AgentRecord = {
         type: 'tools.update_store',

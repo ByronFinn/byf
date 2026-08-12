@@ -54,7 +54,6 @@ import {
   type PermissionMode,
 } from './permission';
 import {
-  AgentRecords,
   FileSystemAgentRecordPersistence,
   isAgentRecordOfPrefix,
   type AgentRecord,
@@ -142,7 +141,7 @@ export interface AgentConfig {
 
 /**
  * 无 homedir / 无注入 persistence 时的 no-op journal（记录丢弃、restore 空转）。
- * 等价旧 AgentRecords 无 persistence 语义（logRecord 丢记录）；replay 由旧「抛错」
+ * 等价无 persistence 语义（dispatch 丢记录）；replay 由旧「抛错」
  * 放宽为「空 journal no-op」（无调用点依赖旧抛错，session 层恒有 homedir）。
  */
 const NOOP_WIRE_PERSISTENCE: WirePersistence = {
@@ -180,7 +179,6 @@ export class Agent {
   readonly type: AgentType;
   /** wire reducer 引擎：独占 wire.jsonl（PRD-0027 Phase 1）。 */
   readonly wire: WireService;
-  readonly records: AgentRecords;
   readonly fullCompaction: FullCompaction;
   readonly context: ContextMemory;
   readonly config: ConfigState;
@@ -272,7 +270,6 @@ export class Agent {
         this.log.error('wire record skipped during restore', { error });
       },
     });
-    this.records = new AgentRecords(this.wire);
     this.fullCompaction = new FullCompaction(this, config.compactionStrategy);
     this.context = new ContextMemory(this, config.sessionId);
     this.config = new ConfigState(this);
@@ -290,18 +287,6 @@ export class Agent {
     // Subagents never host cron tasks — only the main agent does.
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.replayBuilder = new ReplayBuilder(this);
-
-    // Register restore handlers after all subsystems are initialized
-    this.records.registerHandlers({
-      context: this.context,
-      config: this.config,
-      usage: this.usage,
-      turn: this.turn,
-      permission: this.permission,
-      tools: this.tools,
-      fullCompaction: this.fullCompaction,
-      goal: this.goal,
-    });
 
     // restore 后的 model → 私有状态同步 + 归一化副作用（kimi 式分布式 hook）。
     // 顺序即注册顺序（goal/turn/config 各自先 sync 再归一化；其余只 sync）。
@@ -575,7 +560,7 @@ export class Agent {
       // wire.restore() 内部：重放（7 纯 reducer + context legacy）→ onDidRestore
       // hooks（goal.normalizeAfterReplay / turn.finishResume / config.initializeBuiltinTools
       // 已随各子系统 hook 在 restore 返回前完成）。
-      const result = await this.records.replay();
+      const result = await this.wire.restore();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();
@@ -733,12 +718,12 @@ export class Agent {
   }
 
   emitEvent(event: AgentEvent): void {
-    if (this.records.restoring) return;
+    if (this.wire.phase === 'restoring') return;
     void this.rpc.emitEvent(event);
   }
 
   emitStatusUpdated(): void {
-    if (this.records.restoring) return;
+    if (this.wire.phase === 'restoring') return;
     if (!this.config.hasModel) return;
 
     const contextTokens = this.context.tokenCount;

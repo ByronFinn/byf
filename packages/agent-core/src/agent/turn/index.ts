@@ -39,8 +39,7 @@ import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { turnModel } from '../wire/ops/turn';
+import { turnCancel, turnModel, turnPrompt, turnSteer } from '../wire/ops/turn';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { KosongLLM } from './kosong-llm';
 import { ToolCallDeduplicator } from './tool-dedup';
@@ -62,7 +61,7 @@ export interface TurnEndResult {
 
 const LLM_NOT_SET_MESSAGE = 'LLM not set, send "/login" to login';
 
-export class TurnFlow implements RecordRestoreHandler {
+export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private _previousTurnMessageCount = 0;
@@ -86,22 +85,14 @@ export class TurnFlow implements RecordRestoreHandler {
 
   // Returns the new turnId, or null if the turn was marked as resuming.
   prompt(input: readonly ContentPart[], origin: PromptOrigin = USER_PROMPT_ORIGIN): number | null {
-    this.agent.records.logRecord({
-      type: 'turn.prompt',
-      input,
-      origin,
-    });
+    this.agent.wire.dispatch(turnPrompt({ input, origin }));
     return this.launch(input, origin);
   }
 
   // Returns the new turnId, or null if the input was buffered as a steer
   // message or the turn was marked as resuming.
   steer(input: readonly ContentPart[], origin: PromptOrigin = USER_PROMPT_ORIGIN): number | null {
-    this.agent.records.logRecord({
-      type: 'turn.steer',
-      input,
-      origin,
-    });
+    this.agent.wire.dispatch(turnSteer({ input, origin }));
     if (this.activeTurn) {
       this.steerBuffer.push({ input, origin });
       return null;
@@ -163,7 +154,7 @@ export class TurnFlow implements RecordRestoreHandler {
   }
 
   cancel(turnId?: number): void {
-    this.agent.records.logRecord({ type: 'turn.cancel', turnId });
+    this.agent.wire.dispatch(turnCancel({ turnId }));
     if (turnId !== undefined && turnId !== this.currentId) {
       return; // Ignore cancel for non-active turn
     }

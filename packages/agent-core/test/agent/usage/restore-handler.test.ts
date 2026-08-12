@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('UsageRecorder restore handler', () => {
@@ -9,8 +8,7 @@ describe('UsageRecorder restore handler', () => {
     it('should restore usage.record records', () => {
       const { agent } = testAgent();
 
-      // Ensure usage implements RecordRestoreHandler
-      const usage = agent.usage as unknown as RecordRestoreHandler;
+      const usage = agent.usage;
 
       const testRecord: AgentRecord = {
         type: 'usage.record',
@@ -48,7 +46,7 @@ describe('UsageRecorder restore handler', () => {
     it('should restore usage with turn scope as session scope', () => {
       const { agent } = testAgent();
 
-      const usage = agent.usage as unknown as RecordRestoreHandler;
+      const usage = agent.usage;
 
       const turnRecord: AgentRecord = {
         type: 'usage.record',
@@ -79,7 +77,7 @@ describe('UsageRecorder restore handler', () => {
     it('should accumulate multiple usage records for the same model', () => {
       const { agent } = testAgent();
 
-      const usage = agent.usage as unknown as RecordRestoreHandler;
+      const usage = agent.usage;
 
       const record1: AgentRecord = {
         type: 'usage.record',

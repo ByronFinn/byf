@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { InMemoryAgentRecordPersistence, type AgentRecord } from '../../../src/agent/records';
 import {
-  AgentRecords,
-  InMemoryAgentRecordPersistence,
-  type AgentRecord,
-} from '../../../src/agent/records';
-import {
+  OP_REGISTRY,
   WireService,
   createWireMetadataRecord,
+  wireRecordToPayload,
   type WirePersistence,
   type WireRecord,
 } from '../../../src/agent/wire';
-import { turnModel } from '../../../src/agent/wire/ops/turn';
+import { turnModel, turnPrompt } from '../../../src/agent/wire/ops/turn';
 // import 触发全部业务 Op 注册（context.* 在 Phase 5 起已注册，仅 observation_masking 遗留）。
 import { testAgent } from '../harness/agent';
 
@@ -47,16 +45,14 @@ const MASKING_RECORD: WireRecord = {
   time: 1,
 };
 
-describe('AgentRecords facade — logRecord routing', () => {
+describe('WireService logRecord 路由（Phase 6：AgentRecords facade 已删，行为归 wire 引擎）', () => {
   it('routes registered-op records through dispatch (persist + apply + metadata envelope)', () => {
     const persistence = new InMemoryAgentRecordPersistence();
     const { agent } = testAgent({ persistence });
 
-    agent.records.logRecord({
-      type: 'turn.prompt',
-      input: [{ type: 'text', text: 'hello' }],
-      origin: { kind: 'user' },
-    });
+    agent.wire.dispatch(
+      turnPrompt({ input: [{ type: 'text', text: 'hello' }], origin: { kind: 'user' } }),
+    );
 
     // 持久化 + metadata 信封（逐字节兼容）。
     expect(persistence.records.map((record) => record.type)).toEqual(['metadata', 'turn.prompt']);
@@ -68,10 +64,11 @@ describe('AgentRecords facade — logRecord routing', () => {
     const persistence = new InMemoryAgentRecordPersistence();
     const { agent } = testAgent({ persistence });
 
-    agent.records.logRecord({
+    agent.wire.dispatch({
       type: 'context.append_message',
-      message: USER_MESSAGE,
-    } as unknown as AgentRecord);
+      payload: { message: USER_MESSAGE },
+      descriptor: OP_REGISTRY.get('context.append_message')!,
+    } as never);
 
     // 持久化 + metadata 信封。
     expect(persistence.records.map((record) => record.type)).toEqual([
@@ -82,65 +79,18 @@ describe('AgentRecords facade — logRecord routing', () => {
     expect(agent.context.history).toHaveLength(1);
   });
 
-  it('is a no-op while restoring', async () => {
-    // legacyRoute 模拟 legacy restore 内部调用 logRecord —— restoring 相位下
-    // facade 的 logRecord 应直接 return（不落盘、不抛 persistRaw 相位守卫）。
-    let wire: WireService;
-    let legacyLogCalls = 0;
-    const persistence = new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]);
-    const records = new AgentRecords(
-      (wire = new WireService({
-        persistence,
-        legacyRoute: (record) => {
-          records.logRecord(record as unknown as AgentRecord);
-          legacyLogCalls++;
-        },
-      })),
-    );
-
-    await records.replay();
-
-    expect(legacyLogCalls).toBe(1);
-    expect(persistence.records).toHaveLength(2); // 无新增（logRecord 被抑制）
-    expect(records.restoring).toBe(false);
-  });
-});
-
-describe('AgentRecords facade — restoring flag', () => {
-  it('is true during restore (legacyRoute runs mid-replay) and false after', async () => {
-    let wire: WireService;
-    const observed: boolean[] = [];
-    wire = new WireService({
-      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
-      legacyRoute: () => {
-        observed.push(wire.phase === 'restoring');
-      },
-    });
-    const records = new AgentRecords(wire);
-
-    expect(records.restoring).toBe(false);
-    await records.replay();
-    expect(observed).toEqual([true]);
-    expect(records.restoring).toBe(false);
-  });
-});
-
-describe('AgentRecords facade — legacyRoute during restore', () => {
-  it('routes unregistered (context.observation_masking) records to legacyRoute instead of skipping', async () => {
+  it('persistRaw 落盘未注册记录（context.observation_masking），restore 由 legacyRoute 兜底', async () => {
     const routed: string[] = [];
+    const persistence = new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]);
     const wire = new WireService({
-      persistence: new InMemoryWirePersistence([
-        createWireMetadataRecord(1),
-        MASKING_RECORD,
-        { type: 'context.append_message', message: USER_MESSAGE, time: 2 },
-      ]),
+      persistence,
       legacyRoute: (record) => routed.push(record.type),
     });
-    const records = new AgentRecords(wire);
 
-    await records.replay();
+    await wire.restore();
 
     expect(routed).toEqual(['context.observation_masking']);
+    expect(wire.phase).toBe('ready');
   });
 
   it('propagates legacyRoute errors through restore (Agent.resume catches)', async () => {
@@ -150,8 +100,33 @@ describe('AgentRecords facade — legacyRoute during restore', () => {
         throw new Error('Test restoration error');
       },
     });
-    const records = new AgentRecords(wire);
 
-    await expect(records.replay()).rejects.toThrow('Test restoration error');
+    await expect(wire.restore()).rejects.toThrow('Test restoration error');
+  });
+
+  it('restoring 相位：replay 期间 phase=restoring，之后 ready（replayBuilder 的收集窗口）', async () => {
+    let wire: WireService;
+    const observed: boolean[] = [];
+    wire = new WireService({
+      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
+      legacyRoute: () => {
+        observed.push(wire.phase === 'restoring');
+      },
+    });
+
+    expect(wire.phase).toBe('new');
+    await wire.restore();
+    expect(observed).toEqual([true]);
+    expect(wire.phase).toBe('ready');
+  });
+
+  it('wireRecordToPayload 提取 payload（dispatch 用）', () => {
+    const payload = wireRecordToPayload({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'x' }],
+      origin: { kind: 'user' },
+      time: 123,
+    } as unknown as WireRecord);
+    expect(payload).toEqual({ input: [{ type: 'text', text: 'x' }], origin: { kind: 'user' } });
   });
 });

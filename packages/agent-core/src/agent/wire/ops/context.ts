@@ -28,6 +28,7 @@
 import { z } from 'zod';
 
 import type { CompactionResult } from '#/agent/compaction';
+import type { ContextMessage } from '#/agent/context/types';
 import {
   createWireFoldState,
   foldAppendMessage,
@@ -46,7 +47,7 @@ const contextMessageSchema = z
     role: z.string(),
     content: z.unknown(),
   })
-  .passthrough();
+  .passthrough() as unknown as z.ZodType<ContextMessage>;
 
 /** 宽松结构校验：只查 fold 真正消费的字段，未知/多余字段放行（replay tolerance）。 */
 const loopEventSchema = z.discriminatedUnion('type', [

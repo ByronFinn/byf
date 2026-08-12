@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('TurnFlow restore handler', () => {
@@ -9,8 +8,7 @@ describe('TurnFlow restore handler', () => {
     it('should restore turn.prompt records', () => {
       const { agent } = testAgent();
 
-      // Ensure turn implements RecordRestoreHandler
-      const turn = agent.turn as unknown as RecordRestoreHandler;
+      const turn = agent.turn;
 
       const testRecord: AgentRecord = {
         type: 'turn.prompt',
@@ -30,7 +28,7 @@ describe('TurnFlow restore handler', () => {
     it('should restore turn.steer records', () => {
       const { agent } = testAgent();
 
-      const turn = agent.turn as unknown as RecordRestoreHandler;
+      const turn = agent.turn;
 
       const testRecord: AgentRecord = {
         type: 'turn.steer',
@@ -49,7 +47,7 @@ describe('TurnFlow restore handler', () => {
     it('should restore turn.cancel records', () => {
       const { agent } = testAgent();
 
-      const turn = agent.turn as unknown as RecordRestoreHandler;
+      const turn = agent.turn;
 
       const testRecord: AgentRecord = {
         type: 'turn.cancel',
@@ -67,7 +65,7 @@ describe('TurnFlow restore handler', () => {
     it('should increment turnId for multiple turn.prompt records', () => {
       const { agent } = testAgent();
 
-      const turn = agent.turn as unknown as RecordRestoreHandler;
+      const turn = agent.turn;
 
       const promptRecord: AgentRecord = {
         type: 'turn.prompt',

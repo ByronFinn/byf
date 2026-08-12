@@ -28,8 +28,12 @@ import {
 import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { fullCompactionModel } from '../wire/ops/full-compaction';
+import {
+  fullCompactionBegin,
+  fullCompactionCancel,
+  fullCompactionComplete,
+  fullCompactionModel,
+} from '../wire/ops/full-compaction';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
 import { renderMessagesToText } from './render-messages';
@@ -138,7 +142,7 @@ export interface CompactedHistory {
 
 type CompactionTelemetryTrigger = CompactionBeginData['source'] | 'manual-with-prompt' | 'unknown';
 
-export class FullCompaction implements RecordRestoreHandler {
+export class FullCompaction {
   protected compactionCountInTurn = 0;
   protected compacting: {
     abortController: AbortController;
@@ -168,10 +172,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }
 
   begin(data: Readonly<CompactionBeginData>): void {
-    this.agent.records.logRecord({
-      type: 'full_compaction.begin',
-      ...data,
-    });
+    this.agent.wire.dispatch(fullCompactionBegin(data));
     if (this.compacting) return;
     if (data.source === 'manual') {
       this.compactionCountInTurn = 0;
@@ -207,19 +208,14 @@ export class FullCompaction implements RecordRestoreHandler {
 
   private markCanceled(): void {
     if (!this.compacting) return;
-    this.agent.records.logRecord({
-      type: 'full_compaction.cancel',
-    });
+    this.agent.wire.dispatch(fullCompactionCancel({}));
     this.compacting.abortController.abort();
     this.compacting = null;
     this.agent.emitEvent({ type: 'compaction.cancelled' });
   }
 
   complete(result: CompactionResult, llmUsage?: TokenUsage, retryCount: number = 0): void {
-    this.agent.records.logRecord({
-      type: 'full_compaction.complete',
-      ...result,
-    });
+    this.agent.wire.dispatch(fullCompactionComplete(result));
     const active = this.compacting;
     this.compacting = null;
     this.pushCompactedHistory();

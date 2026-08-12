@@ -4,8 +4,11 @@ import type { TelemetryPropertyValue } from '../../telemetry';
 import type { ToolInputDisplay } from '../../tools/display';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { permissionModel } from '../wire/ops/permission';
+import {
+  permissionModel,
+  permissionRecordApprovalResult,
+  permissionSetMode,
+} from '../wire/ops/permission';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
 import type { PermissionPathMatchOptions } from './path-glob-match';
@@ -28,7 +31,7 @@ export interface PermissionManagerOptions {
   readonly parent?: PermissionManager;
 }
 
-export class PermissionManager implements RecordRestoreHandler {
+export class PermissionManager {
   rules: PermissionRule[] = [];
   private _modeOverride: PermissionMode | undefined;
   private readonly parent: PermissionManager | undefined;
@@ -60,10 +63,7 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   setMode(mode: PermissionMode): void {
-    this.agent.records.logRecord({
-      type: 'permission.set_mode',
-      mode,
-    });
+    this.agent.wire.dispatch(permissionSetMode({ mode }));
     this.agent.replayBuilder.push({
       type: 'permission_updated',
       mode,
@@ -73,10 +73,7 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   recordApprovalResult(record: PermissionApprovalResultRecord): void {
-    this.agent.records.logRecord({
-      type: 'permission.record_approval_result',
-      ...record,
-    });
+    this.agent.wire.dispatch(permissionRecordApprovalResult(record));
     this.agent.replayBuilder.push({
       type: 'approval_result',
       record,

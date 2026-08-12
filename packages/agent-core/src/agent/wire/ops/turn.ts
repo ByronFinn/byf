@@ -16,7 +16,7 @@ import { z } from 'zod';
 
 import { defineModel } from '#/agent/wire';
 
-const promptInputSchema = z.array(z.unknown());
+const promptInputSchema = z.array(z.unknown()).readonly();
 const promptOriginSchema = z.unknown();
 
 // —— Model ——

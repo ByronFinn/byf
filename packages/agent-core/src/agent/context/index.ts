@@ -7,8 +7,16 @@ import type { LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { contextModel } from '../wire/ops/context';
+import {
+  contextAppendLoopEvent,
+  contextApplyCompaction,
+  contextAppendMessage,
+  contextClear,
+  contextMarkLastUserPromptBlocked,
+  contextModel,
+  contextOutputOffloaded,
+  contextPruning,
+} from '../wire/ops/context';
 import {
   applyObservationMasking,
   DEFAULT_MASKING_CONFIG,
@@ -42,7 +50,7 @@ export * from './wire-fold';
  * ContextMemory —— context 子系统的 service 层（PRD-0027 Phase 5）。
  *
  * 状态归 `context` wire model 所有：构造时把本实例的 fold 视图挂载为 model 状态
- * （`WireService.mountModel`），因此每次 `records.logRecord` → dispatch → apply
+ * （`WireService.mountModel`），因此每次 `wire.dispatch(op)` → apply
  * （wire-fold 纯函数）直接原地变更共享的 `_history` 等嵌套结构 —— 单次 fold、无
  * 内存双份，restore 重放也落在同一状态上（无需 syncFromWire）。
  *
@@ -52,7 +60,7 @@ export * from './wire-fold';
  * service 层 effect —— 写 scratch 文件 + dispatch `context.output_offloaded`
  * （transient，persist:false，只改内存不落盘）。
  */
-export class ContextMemory implements RecordRestoreHandler {
+export class ContextMemory {
   private _history: ContextMessage[] = [];
   private _tokenCount = 0;
   private tokenCountCoveredMessageCount = 0;
@@ -105,15 +113,12 @@ export class ContextMemory implements RecordRestoreHandler {
   markLastUserPromptBlocked(hookEvent: string): void {
     // 纯替换逻辑在 `context.mark_last_user_prompt_blocked` 的 apply 内（按 origin
     // 从后往前找最后一条 user prompt 消息，打 blockedByHook 标记）。
-    this.agent.records.logRecord({
-      type: 'context.mark_last_user_prompt_blocked',
-      hookEvent,
-    });
+    this.agent.wire.dispatch(contextMarkLastUserPromptBlocked({ hookEvent }));
   }
 
   clear(): void {
     // 状态清空在 `context.clear` 的 apply 内（resetWireFoldState）。
-    this.agent.records.logRecord({ type: 'context.clear' });
+    this.agent.wire.dispatch(contextClear({}));
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
     void this.scratchManager?.cleanup();
@@ -123,10 +128,7 @@ export class ContextMemory implements RecordRestoreHandler {
 
   applyCompaction(summary: CompactionResult): void {
     // 历史重建在 `context.apply_compaction` 的 apply 内（foldApplyCompaction）。
-    this.agent.records.logRecord({
-      type: 'context.apply_compaction',
-      ...summary,
-    });
+    this.agent.wire.dispatch(contextApplyCompaction(summary));
     this._tokenCount = summary.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.injection.onContextCompacted(summary.compactedCount);
@@ -223,7 +225,7 @@ export class ContextMemory implements RecordRestoreHandler {
       effectiveConfig,
     );
     if (result.masked) {
-      this.agent.records.logRecord({
+      this.agent.wire.persistRaw({
         type: 'context.observation_masking',
         maskedCount: result.maskedCount,
         tokensBefore: result.tokensBefore,
@@ -268,11 +270,9 @@ export class ContextMemory implements RecordRestoreHandler {
 
     if (prunedCount > 0) {
       // 实际替换在 `context.pruning` 的 apply 内（transient：只改内存不落盘）。
-      this.agent.records.logRecord({
-        type: 'context.pruning',
-        prunedCount,
-        maskedIndices: maskedIndices.slice(0, prunedCount),
-      });
+      this.agent.wire.dispatch(
+        contextPruning({ prunedCount, maskedIndices: maskedIndices.slice(0, prunedCount) }),
+      );
       this.agent.emitStatusUpdated();
     }
 
@@ -284,10 +284,7 @@ export class ContextMemory implements RecordRestoreHandler {
     // 函数）。dispatch 后按 committed 切片跑 service 层副作用；offload 是
     // dispatch 后的异步 effect（写 scratch + transient op 替换预览）。
     const before = this._history.length;
-    this.agent.records.logRecord({
-      type: 'context.append_loop_event',
-      event,
-    });
+    this.agent.wire.dispatch(contextAppendLoopEvent({ event }));
     for (const message of this._history.slice(before)) {
       this.pushHistorySideEffects(message);
     }
@@ -304,10 +301,7 @@ export class ContextMemory implements RecordRestoreHandler {
     // 打开时消息被 defer，committed 切片为空 → 副作用延迟到 flush 时（后续某个
     // fold 调用的 committed 切片里）。
     const before = this._history.length;
-    this.agent.records.logRecord({
-      type: 'context.append_message',
-      message,
-    });
+    this.agent.wire.dispatch(contextAppendMessage({ message }));
     for (const committed of this._history.slice(before)) {
       this.pushHistorySideEffects(committed);
     }
@@ -435,12 +429,13 @@ export class ContextMemory implements RecordRestoreHandler {
     ) {
       return;
     }
-    this.agent.records.logRecord({
-      type: 'context.output_offloaded',
-      toolCallId: event.toolCallId,
-      filePath: offloaded.filePath,
-      preview: offloaded.output,
-    });
+    this.agent.wire.dispatch(
+      contextOutputOffloaded({
+        toolCallId: event.toolCallId,
+        filePath: offloaded.filePath,
+        preview: offloaded.output,
+      }),
+    );
   }
 
   restoreRecord(record: AgentRecord): void {

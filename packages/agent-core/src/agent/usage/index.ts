@@ -4,8 +4,7 @@ import type { UsageStatus } from '#/rpc';
 
 import type { Agent } from '..';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
-import { usageModel } from '../wire/ops/usage';
+import { usageModel, usageRecord } from '../wire/ops/usage';
 
 export type UsageRecordScope = 'session' | 'turn';
 
@@ -13,7 +12,7 @@ function copyUsage(usage: TokenUsage): TokenUsage {
   return { ...usage };
 }
 
-export class UsageRecorder implements RecordRestoreHandler {
+export class UsageRecorder {
   private readonly byModel: Record<string, TokenUsage> = {};
   private currentTurn: TokenUsage | undefined;
 
@@ -28,12 +27,7 @@ export class UsageRecorder implements RecordRestoreHandler {
   }
 
   record(model: string, usage: TokenUsage, scope: UsageRecordScope = 'session'): void {
-    this.agent?.records.logRecord({
-      type: 'usage.record',
-      model,
-      usage,
-      usageScope: scope,
-    });
+    this.agent?.wire.dispatch(usageRecord({ model, usage, usageScope: scope }));
     const current = this.byModel[model];
     this.byModel[model] = current === undefined ? copyUsage(usage) : addUsage(current, usage);
 
