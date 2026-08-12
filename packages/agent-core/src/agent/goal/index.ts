@@ -1,7 +1,7 @@
 import type { Agent } from '..';
 import { ByfError, ErrorCodes } from '../../errors';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
-import { goalClear, goalCreate, goalModel, goalUpdate } from '../wire/ops/goal';
+import { goalClear, goalCreate, goalModel, goalUpdate, goalUpdated } from '../wire/ops/goal';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from './constants';
 import type {
   GoalBudgetLimits,
@@ -410,8 +410,13 @@ export class GoalMode {
     return { ...current.usage, wallClockMs: current.usage.wallClockMs + elapsed };
   }
 
+  /**
+   * 统一走 wire.dispatch（transient 车辆 op，PRD-0027 Phase 6 待办）：事件内容由
+   * 调用方在 payload 里给出 live snapshot（complete 瞬态 overlay / 实时 wallClock），
+   * 由 toEvent 透传派生。restore 静默（silent execute 不派发 toEvent），无需 phase 守卫。
+   */
   protected emitGoalUpdated(snapshot: GoalSnapshot | null, change?: GoalChange): void {
-    this.agent.emitEvent({ type: 'goal.updated', snapshot, change });
+    this.agent.wire.dispatch(goalUpdated({ snapshot, change }));
   }
 }
 

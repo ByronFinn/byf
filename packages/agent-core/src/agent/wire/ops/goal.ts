@@ -14,7 +14,13 @@
 
 import { z } from 'zod';
 
-import type { GoalBudgetLimits, GoalSnapshot, GoalStatus, GoalUsage } from '#/agent/goal/types';
+import type {
+  GoalBudgetLimits,
+  GoalChange,
+  GoalSnapshot,
+  GoalStatus,
+  GoalUsage,
+} from '#/agent/goal/types';
 import { defineModel } from '#/agent/wire';
 
 // —— zod schema（restore 时 safeParse 校验 + replay tolerance 的唯一事实源） ——
@@ -47,6 +53,11 @@ export const goalSnapshotSchema = z.object({
   usage: goalUsageSchema,
   createdAt: z.number(),
 }) satisfies z.ZodType<GoalSnapshot>;
+
+const goalChangeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('completion'), reason: z.string().optional() }),
+  z.object({ kind: z.literal('blocked'), reason: z.string() }),
+]) satisfies z.ZodType<GoalChange>;
 
 // —— Model ——
 
@@ -86,10 +97,36 @@ export const goalClear = goalModel.defineOp('goal.clear', {
   apply: () => ({ snapshot: null }),
 });
 
+/**
+ * transient：`goal.updated` 事件载体（persist:false，apply identity）。
+ *
+ * live snapshot（complete 瞬态 overlay、实时 wallClockMs）由调用方在 dispatch 时
+ * 放进 payload —— 对标 kimi `skill.activate`（skillOps.ts：op 只为派生事件而存在，
+ * carries no replayable state），也即 PRD-0027 Phase 6 待办的决议：goal.updated 的
+ * 事件内容依赖 live 瞬态（post-apply state 无法表达），统一走 dispatch 获得结构性
+ * 保证（restore 静默不派发 toEvent、事件与状态变更同序）。
+ */
+export const goalUpdated = goalModel.defineOp('goal.updated', {
+  persist: false,
+  schema: z.object({
+    snapshot: goalSnapshotSchema.nullable(),
+    change: goalChangeSchema.optional(),
+  }),
+  apply: (state) => state,
+  toEvent: (payload) => ({
+    type: 'goal.updated',
+    snapshot: payload.snapshot,
+    change: payload.change,
+  }),
+});
+
 declare module '#/agent/wire/types' {
   interface PersistedOpMap {
     'goal.create': typeof goalCreate;
     'goal.update': typeof goalUpdate;
     'goal.clear': typeof goalClear;
+  }
+  interface TransientOpMap {
+    'goal.updated': typeof goalUpdated;
   }
 }
