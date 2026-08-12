@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import {
   generate,
+  type CacheScope,
   type CacheStrategy,
   type ChatProvider,
   type ContentPart,
@@ -212,6 +213,13 @@ export class Agent {
    * 不持久化本身（restore 时从当前 system prompt 重算）。
    */
   private previousStaticPrefix?: StaticPrefixSnapshot;
+  /**
+   * 最近一次静态前缀变化的归因备忘（PRD-0029 R3），用于 /status「Last prefix change」。
+   * `turnId` 仅 live 已知；restore 重放来的 churn 无 turnId（turnsAgo 随之为 undefined）。
+   */
+  private lastCacheChurnMemento?: { blockName: string; cacheScope: CacheScope; turnId?: number };
+  /** 本会话累计 churn 次数（PRD-0029 R3），含 restore 重放的记录。 */
+  private cacheChurnCount = 0;
   private btwQueryCounter = 0;
   private readonly btwQueries = new Map<string, AbortController>();
 
@@ -566,8 +574,49 @@ export class Agent {
     );
     for (const change of changes) {
       this.wire.dispatch(contextCacheChurn(change));
+      this.lastCacheChurnMemento = {
+        blockName: change.blockName,
+        cacheScope: change.cacheScope,
+        turnId: this.turn.currentId,
+      };
+      this.cacheChurnCount += 1;
     }
     this.previousStaticPrefix = { blocks: currentBlockHashes, toolsHash: currentToolsHash };
+  }
+
+  /**
+   * restore 重放 `context.cache_churn` 记录时由 ContextMemory 调用：补登归因备忘与计数，
+   * 使 resume 后 /status 与 /usage 反映历史 churn（PRD-0029 R3）。turnId 未持久化，故
+   * `turnsAgo` 不可推导（显示时省略）。
+   */
+  recordReplayedCacheChurn(blockName: string, cacheScope: CacheScope): void {
+    this.lastCacheChurnMemento = { blockName, cacheScope };
+    this.cacheChurnCount += 1;
+  }
+
+  /**
+   * 构造 usage 载荷里的 churn 归因片段（PRD-0029 R3）。无 churn 时返回空对象（调用方
+   * 用 spread 自然静默）。
+   */
+  private cacheChurnStatus(): {
+    lastCacheChurn?: { blockName: string; cacheScope: CacheScope; turnsAgo?: number };
+    cacheChurnCount?: number;
+  } {
+    const memento = this.lastCacheChurnMemento;
+    const lastCacheChurn =
+      memento === undefined
+        ? undefined
+        : {
+            blockName: memento.blockName,
+            cacheScope: memento.cacheScope,
+            ...(memento.turnId !== undefined
+              ? { turnsAgo: Math.max(0, this.turn.currentId - memento.turnId) }
+              : {}),
+          };
+    return {
+      ...(lastCacheChurn !== undefined ? { lastCacheChurn } : {}),
+      ...(this.cacheChurnCount > 0 ? { cacheChurnCount: this.cacheChurnCount } : {}),
+    };
   }
 
   private logLlmConfigIfChanged(
@@ -752,7 +801,7 @@ export class Agent {
           messages: this.context.getMessages(),
           maxContextTokens: this.config.modelCapabilities.max_context_tokens,
         });
-        return { ...usageData, inputBreakdown };
+        return { ...usageData, inputBreakdown, ...this.cacheChurnStatus() };
       },
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
@@ -776,6 +825,13 @@ export class Agent {
         : undefined;
     const usage: UsageStatus | undefined = this.usage.status();
     const model = this.config.model;
+    const churn = this.cacheChurnStatus();
+    const usageWithChurn: UsageStatus | undefined =
+      usage === undefined &&
+      churn.lastCacheChurn === undefined &&
+      churn.cacheChurnCount === undefined
+        ? undefined
+        : { ...usage, ...churn };
 
     this.emitEvent({
       type: 'agent.status.updated',
@@ -785,7 +841,7 @@ export class Agent {
       contextUsage,
 
       permission: this.permission.mode,
-      usage,
+      usage: usageWithChurn,
     });
   }
 

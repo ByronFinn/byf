@@ -227,6 +227,30 @@ describe('Agent churn dispatch (integration via harness)', () => {
     // and reach an equivalent observable state.
     await ctx.expectResumeMatches();
   });
+
+  it('exposes lastCacheChurn + cacheChurnCount via getUsage (PRD-0029 R3 attribution UI)', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hi' }] });
+    await ctx.untilTurnEnd();
+
+    // Baseline turn: no churn → no attribution fields.
+    const before = await ctx.rpc.getUsage({});
+    expect(before.lastCacheChurn).toBeUndefined();
+    expect(before.cacheChurnCount).toBeUndefined();
+
+    // Change the static prefix → next turn churns.
+    ctx.agent.config.update({ systemPrompt: 'A materially different system prompt.' });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'again' }] });
+    await ctx.untilTurnEnd();
+
+    const after = await ctx.rpc.getUsage({});
+    expect(after.cacheChurnCount).toBe(1);
+    expect(after.lastCacheChurn).toMatchObject({ blockName: 'base', cacheScope: 'none' });
+    expect(after.lastCacheChurn?.turnsAgo).toBe(0);
+  });
 });
 
 /**

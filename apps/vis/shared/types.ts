@@ -28,7 +28,7 @@ export type {
 export interface ProjectedMessage {
   lineNo: number;
   time?: number;
-  source: 'append_message' | 'compaction_summary';
+  source: 'append_message' | 'compaction_summary' | 'cache_churn';
   message: ContextMessage;
   toolStepUuids: string[];
 }

@@ -164,7 +164,7 @@
 - **Sliced into**:
   - #269 — [PRD-0029] DeepSeek usage 解析 (AFK) — Done
   - #270 — [PRD-0029] 前缀指纹比对 + cache_churn 事件 (AFK) — Done
-  - #271 — [PRD-0029] churn 归因 UI（CLI/vis） (AFK, blocked by #270)
+  - #271 — [PRD-0029] churn 归因 UI（CLI/vis） (AFK, blocked by #270) — Done
   - #272 — [PRD-0029] CI 前缀稳定性回归 + cache-impact PR 标注门禁 (AFK, blocked by #270) — Done
   - #273 — [PRD-0029] DeepSeek 真实探针测试 (AFK, blocked by #269) — Done
   - #274 — [PRD-0029] AGENTS.md 死配置清理 (AFK) — Done

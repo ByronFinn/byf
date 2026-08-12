@@ -4,6 +4,7 @@ import { useContext } from '../../hooks/useContext';
 import { useSession } from '../../hooks/useSession';
 import type { TokenUsage } from '../../types';
 import { Pill } from '../shared/Pill';
+import { ChurnRibbon } from './ChurnRibbon';
 import { CompactionRibbon } from './CompactionRibbon';
 import { MessageBubble } from './MessageBubble';
 
@@ -91,6 +92,9 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
             messages.map((m) => {
               if (m.source === 'compaction_summary') {
                 return <CompactionRibbon key={m.lineNo} message={m} />;
+              }
+              if (m.source === 'cache_churn') {
+                return <ChurnRibbon key={m.lineNo} message={m} />;
               }
               return <MessageBubble key={m.lineNo} message={m} />;
             })
