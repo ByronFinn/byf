@@ -1,6 +1,6 @@
 # 缓存发布契约 — 破坏侧归因、CI 门禁与真实探针
 
-> **Status**: Grilled | **PRD**: PRD-0029 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
+> **Status**: Sliced | **PRD**: PRD-0029 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
 
 ## Goal
 
@@ -160,7 +160,15 @@
 
 - **Created by**: `/think`（2026-08-12，基于 `docs/cache-optimization-audit.md` 审计）
 - **Grilled by**: `/grill`（2026-08-12）— 选定 Approach A；指纹粒度 per-block；破坏侧归因升级 user-visible（持久化 `context.cache_churn` wire op + CLI `/status` + vis ribbon + 趋势 overlay）；CI cache-impact glob 门禁 + Replay Provider 前缀稳定性回归（不设数值门禁）；DeepSeek 单 provider 真实探针；G12 死配置清理纳入；4 个新术语入 CONTEXT.md（缓存桩 / 前缀指纹 / 破坏侧归因 / 真实探针）。无决策升级正式 ADR。
+- **Sliced by**: `/story`（2026-08-12）→ Child Issues below
+- **Sliced into**:
+  - #269 — [PRD-0029] DeepSeek usage 解析 (AFK)
+  - #270 — [PRD-0029] 前缀指纹比对 + cache_churn 事件 (AFK)
+  - #271 — [PRD-0029] churn 归因 UI（CLI/vis） (AFK, blocked by #270)
+  - #272 — [PRD-0029] CI 前缀稳定性回归 + cache-impact PR 标注门禁 (AFK, blocked by #270)
+  - #273 — [PRD-0029] DeepSeek 真实探针测试 (AFK, blocked by #269)
+  - #274 — [PRD-0029] AGENTS.md 死配置清理 (AFK)
 
 ## Issue
 
-（父 Issue 待创建——用户指示先建 PRD 再走 grill，parent issue 在 grill 收敛后于 `/think` Step 10 补建。）
+#268 — 缓存发布契约——破坏侧归因、CI 门禁与真实探针 (PRD-0029)
