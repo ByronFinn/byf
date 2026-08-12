@@ -91,12 +91,16 @@ describe('GoalMode records replay (AC-2)', () => {
     ...overrides,
   });
 
-  it('single goal.create rebuilds active goal', async () => {
+  it('single goal.create rebuilds an active goal, then normalizeAfterReplay downgrades to paused', async () => {
     const { agent } = makeAgentWithRecords([goalCreateRecord('ship feature', 1234)]);
     await agent.records.replay();
 
+    // PRD-0027 Phase 1：normalizeAfterReplay 移入 onDidRestore hook（replay 内完成），
+    // 故 replay 后 active goal 已被降级为 paused —— 这是 Agent.resume() 后的真实状态
+    // （进程重启后无法确认推进，保守降级，等用户显式 resume）。
     const snapshot = agent.goal.getSnapshot();
-    expect(snapshot?.status).toBe('active');
+    expect(snapshot?.status).toBe('paused');
+    expect(snapshot?.pausedReason).toBe('Paused after agent resume');
     expect(snapshot?.objective).toBe('ship feature');
     expect(snapshot?.createdAt).toBe(1234);
     expect(snapshot?.budget.turnBudget).toBe(5);

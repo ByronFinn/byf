@@ -1,18 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Agent } from '../../../../src/agent';
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   AgentRecords,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../../src/agent/records';
+import { WireService } from '../../../../src/agent/wire';
 import { eventSnapshot, formatHarnessSnapshot } from '../../harness/snapshots';
-
-const agent = {
-  context: { appendMessage() {}, appendLoopEvent() {} },
-  tools: { registerUserTool() {} },
-} as unknown as Agent;
 
 describe('1.0 to 1.1', () => {
   it('rewrites v1.0 records to the v1.1 wire shape', async () => {
@@ -80,7 +75,7 @@ describe('1.0 to 1.1', () => {
         },
       } as unknown as AgentRecord,
     ]);
-    const records = new AgentRecords(agent, persistence);
+    const records = new AgentRecords(new WireService({ persistence }));
 
     await records.replay();
 

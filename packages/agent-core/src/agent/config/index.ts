@@ -10,6 +10,7 @@ import type { Agent } from '..';
 import type { ResolvedRuntimeProvider } from '../../providers/runtime-provider';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { configModel } from '../wire/ops/config';
 import { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 import type { AgentConfigData, AgentConfigUpdateData } from './types';
 
@@ -155,5 +156,22 @@ export class ConfigState implements RecordRestoreHandler {
         this.update(record);
         break;
     }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * 6 个字段由 config.update 的纯 apply 重建。initializeBuiltinTools 副作用已外提
+   * 为 Agent 的 onDidRestore hook（本方法只同步状态，不触发工具初始化）。
+   */
+  syncFromWire(): void {
+    const model = this.agent.wire.getModel(configModel);
+    if (model.cwd !== undefined) this._cwd = model.cwd;
+    if (model.additionalDirs !== undefined) this._additionalDirs = model.additionalDirs;
+    if (model.modelAlias !== undefined) this._modelAlias = model.modelAlias;
+    if (model.profileName !== undefined) this._profileName = model.profileName;
+    if (model.thinkingLevel !== undefined) {
+      this._thinkingLevel = model.thinkingLevel as ThinkingEffort;
+    }
+    if (model.systemPrompt !== undefined) this._systemPrompt = model.systemPrompt;
   }
 }

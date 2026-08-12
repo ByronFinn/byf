@@ -397,9 +397,13 @@ export class ContextMemory implements RecordRestoreHandler {
         this.restoreMarkLastUserPromptBlocked(record);
         break;
       case 'context.append_loop_event':
-        // This is handled asynchronously, but restoreRecord must be synchronous
-        // We'll handle this in the next implementation step
-        void this.restoreAppendLoopEvent(record);
+        // 直接同步 fold（PRD-0027 Phase 1 Facade 修复「append_loop_event 异步契约
+        // 违规」）：restore 期 offloadToolOutput 被 restoring 抑制（同步返回
+        // undefined），foldLoopEvent 内部无 await、全同步执行，效果立即落地——
+        // 后续同步 restoreRecord（如 observation_masking）能读到完整 fold 状态。
+        // 旧 fire-and-forget 写法（void this.restoreAppendLoopEvent(record)）存在
+        // 时序竞态：masking 可能在 toolCallInfo 填充前运行，导致遮蔽失效。
+        void foldLoopEvent(this.foldState(), record.event, this.foldHandlers);
         break;
       case 'context.observation_masking':
         this.restoreObservationMasking();
@@ -449,14 +453,6 @@ export class ContextMemory implements RecordRestoreHandler {
       };
       return;
     }
-  }
-
-  private async restoreAppendLoopEvent(
-    record: Extract<AgentRecord, { type: 'context.append_loop_event' }>,
-  ): Promise<void> {
-    // During restore, we call the normal appendLoopEvent but it should not log
-    // The restoring flag prevents logging
-    await this.appendLoopEvent(record.event);
   }
 
   private restoreObservationMasking(): void {

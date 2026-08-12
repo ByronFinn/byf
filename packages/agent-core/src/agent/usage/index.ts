@@ -5,6 +5,7 @@ import type { UsageStatus } from '#/rpc';
 import type { Agent } from '..';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { usageModel } from '../wire/ops/usage';
 
 export type UsageRecordScope = 'session' | 'turn';
 
@@ -83,6 +84,22 @@ export class UsageRecorder implements RecordRestoreHandler {
         // The restoring flag prevents logging
         this.record(record.model, record.usage, 'session');
         break;
+    }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * byModel 由 usage.record 的 session 硬编码 apply 重建；currentTurn 是每轮
+   * beginTurn/endTurn 重置的瞬态，不重建（对标 v1 restore 语义）。
+   */
+  syncFromWire(): void {
+    const model = this.agent?.wire.getModel(usageModel);
+    if (model === undefined) return;
+    for (const key of Object.keys(this.byModel)) {
+      delete this.byModel[key];
+    }
+    for (const [modelName, usage] of Object.entries(model.byModel)) {
+      this.byModel[modelName] = copyUsage(usage);
     }
   }
 }

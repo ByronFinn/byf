@@ -1,152 +1,66 @@
-import type { Agent } from '..';
-import {
-  AGENT_WIRE_PROTOCOL_VERSION,
-  isNewerWireVersion,
-  migrateWireRecord,
-  resolveWireMigrations,
-  type WireMigration,
-  type WireMigrationRecord,
-} from './migration';
-import type { AgentRecord, AgentRecordPersistence } from './types';
+import { OP_REGISTRY, type WireService, wireRecordToPayload, type WireRecord } from '../wire';
+import type { AgentRecord } from './types';
 
 export * from './types';
 export { AGENT_WIRE_PROTOCOL_VERSION } from './migration';
 export { FileSystemAgentRecordPersistence, InMemoryAgentRecordPersistence } from './persistence';
 export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
 
+/**
+ * AgentRecords —— WireService 的薄门面（PRD-0027 Phase 1 Facade）。
+ *
+ * WireService 独占 `wire.jsonl`（持久化 + restore）。本类保留旧公共表面
+ * （`logRecord` / `restoring` / `replay` / `flush` / `registerHandlers`），使 31 个
+ * `agent.records.logRecord(...)` 调用点和 5 个 `restoring` 消费点零改动：
+ *
+ * - `logRecord(record)`：type ∈ OP_REGISTRY（8 个纯 reducer 子系统）→ `wire.dispatch(op)`
+ *   （apply 更新 model + 持久化）；type ∉ OP_REGISTRY（context.* / metadata）→
+ *   `wire.persistRaw(record)`（仅持久化，不跑 apply）。metadata 信封行为由 wire 端
+ *   `appendToJournal` 保留（逐字节兼容 AC6）。
+ * - `restoring`：由 `wire.phase === 'restoring'` 支撑（replay 期间 true，onDidRestore
+ *   前切 'ready'），语义与旧 `_restoring` 一致。
+ * - `replay()`：委托 `wire.restore()`（单一 restore 路径）。
+ * - `registerHandlers`：Phase 1 起 restore 改由 OP_REGISTRY + legacyRoute 路由，本表
+ *   不再被消费，保留仅为过渡兼容；Phase 7 删除。
+ */
 export class AgentRecords {
-  private _restoring = false;
-  private metadataInitialized = false;
   private handlers: Record<string, import('../restore-handler').RecordRestoreHandler> = {};
 
-  constructor(
-    private readonly agent: Agent,
-    private readonly persistence?: AgentRecordPersistence,
-  ) {}
+  constructor(private readonly wire: WireService) {}
 
   get restoring() {
-    return this._restoring;
+    return this.wire.phase === 'restoring';
   }
 
   registerHandlers(
     handlers: Record<string, import('../restore-handler').RecordRestoreHandler>,
   ): void {
+    // Phase 1：restore 已改由 WireService 路由（OP_REGISTRY 纯 reducer + legacyRoute
+    // context），本注册表不再被消费。保留仅为过渡兼容，Phase 7 删除。
     this.handlers = { ...handlers };
   }
 
   logRecord(record: AgentRecord): void {
-    if (this._restoring) return;
-    const stamped: AgentRecord =
-      record.time !== undefined ? record : { ...record, time: Date.now() };
-    if (
-      this.persistence !== undefined &&
-      !this.metadataInitialized &&
-      stamped.type !== 'metadata'
-    ) {
-      this.persistence.append({
-        type: 'metadata',
-        protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
-        created_at: Date.now(),
+    if (this.restoring) return;
+    const descriptor = OP_REGISTRY.get(record.type);
+    if (descriptor !== undefined) {
+      // 纯 reducer 子系统：dispatch（apply 更新 model + 持久化 + metadata 信封）。
+      this.wire.dispatch({
+        type: record.type,
+        payload: wireRecordToPayload(record as WireRecord),
+        descriptor,
       });
-      this.metadataInitialized = true;
+    } else {
+      // context.* / metadata：raw 持久化（无 apply）。
+      this.wire.persistRaw(record as WireRecord);
     }
-    if (stamped.type === 'metadata') {
-      this.metadataInitialized = true;
-    }
-    this.persistence?.append(stamped);
-  }
-
-  restore(record: AgentRecord): void {
-    this._restoring = true;
-    try {
-      this.routeToHandler(record);
-    } finally {
-      this._restoring = false;
-    }
-  }
-
-  private routeToHandler(record: AgentRecord): void {
-    const handlerKey = this.getHandlerKey(record.type);
-    if (handlerKey === null || this.handlers[handlerKey] === undefined) {
-      // Silently skip unregistered record types
-      return;
-    }
-
-    const handler = this.handlers[handlerKey];
-    handler.restoreRecord(record);
-  }
-
-  private getHandlerKey(recordType: string): string | null {
-    // Special case: metadata is handled directly
-    if (recordType === 'metadata') {
-      return null;
-    }
-
-    // Extract the prefix from the record type
-    const prefix = recordType.split('.')[0]!;
-
-    // Map prefixes to handler keys. Each entry must correspond to a handler
-    // registered in Agent's `records.registerHandlers({...})`. `background.*`
-    // records are restored through a separate persistence path (BackgroundProcessManager),
-    // so they have no handler here and are silently skipped on replay.
-    const mapping: Record<string, string> = {
-      context: 'context',
-      config: 'config',
-      turn: 'turn',
-      permission: 'permission',
-      tools: 'tools',
-      usage: 'usage',
-      full_compaction: 'fullCompaction',
-      goal: 'goal',
-    };
-
-    return mapping[prefix] ?? null;
   }
 
   async replay(): Promise<{ warning?: string }> {
-    if (!this.persistence) throw new Error('No persistence provided for AgentRecords');
-    let migrations: readonly WireMigration[] = [];
-    let hasMetadata = false;
-    let shouldRewrite = false;
-    let warning: string | undefined;
-    const replayedRecords: AgentRecord[] = [];
-    for await (const record of this.persistence.read()) {
-      if (!hasMetadata) {
-        if (record.type !== 'metadata') {
-          throw new Error('AgentRecords replay expected metadata as the first record');
-        }
-        hasMetadata = true;
-        this.metadataInitialized = true;
-        const readVersion = record.protocol_version;
-        if (isNewerWireVersion(readVersion)) {
-          warning = `Session wire protocol version ${readVersion} is newer than the current version ${AGENT_WIRE_PROTOCOL_VERSION}. Records will be replayed without migration.`;
-          shouldRewrite = false;
-        } else {
-          migrations = resolveWireMigrations(readVersion);
-          shouldRewrite = readVersion !== AGENT_WIRE_PROTOCOL_VERSION;
-        }
-      }
-      let migratedRecord = migrateWireRecord(
-        record as WireMigrationRecord,
-        migrations,
-      ) as AgentRecord;
-      if (migratedRecord.type === 'metadata') {
-        migratedRecord = {
-          ...migratedRecord,
-          protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
-        };
-      }
-      replayedRecords.push(migratedRecord);
-      this.restore(migratedRecord);
-    }
-    if (shouldRewrite) {
-      this.persistence.rewrite(replayedRecords);
-      await this.persistence.flush();
-    }
-    return { warning };
+    return this.wire.restore();
   }
 
   async flush(): Promise<void> {
-    await this.persistence?.flush();
+    await this.wire.flush();
   }
 }

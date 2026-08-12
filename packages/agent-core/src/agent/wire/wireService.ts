@@ -91,6 +91,12 @@ export interface WireServiceOptions {
   readonly publishEvent?: (event: unknown) => void;
   /** restore 时遇到未知 / 损坏 record 的回调（replay tolerance，AC5）。默认无操作。 */
   readonly onSkippedRecord?: (error: WireError) => void;
+  /**
+   * restore 时 type 不在 OP_REGISTRY 的 record 的兜底路由（Phase 1 的 context
+   * legacy adapter 走这里 → context.restoreRecord）。未提供时按 replay tolerance
+   * 跳过并计数。提供时视为已处理（不报 skipped）。
+   */
+  readonly legacyRoute?: (record: WireRecord) => void;
 }
 
 export class WireService {
@@ -103,6 +109,7 @@ export class WireService {
   private readonly persistence: WirePersistence;
   private readonly publishEvent?: (event: unknown) => void;
   private readonly onSkippedRecord?: (error: WireError) => void;
+  private readonly legacyRoute?: (record: WireRecord) => void;
 
   private restorePhase: RestorePhase = 'new';
   /** 是否已写入 / 见过 metadata 信封（复刻 records/index.ts 的 metadataInitialized）。 */
@@ -112,6 +119,44 @@ export class WireService {
     this.persistence = opts.persistence;
     this.publishEvent = opts.publishEvent;
     this.onSkippedRecord = opts.onSkippedRecord;
+    this.legacyRoute = opts.legacyRoute;
+  }
+
+  /** 当前 restore 相位（供 AgentRecords.restoring 等外部读取）。 */
+  get phase(): RestorePhase {
+    return this.restorePhase;
+  }
+
+  /**
+   * 在 `restoring` 相位下运行 `fn`（测试 harness 的单条 restore 用）。
+   * 生产 restore 在 `wire.restore()` 内已有该相位（legacyRoute 在 replay 循环中执行）。
+   * 相位期间 logRecord/emitEvent 被抑制、replayBuilder.push 启用——与完整 restore
+   * 的 legacy 路由语义一致。
+   */
+  withRestoringPhase<T>(fn: () => T): T {
+    const prev = this.restorePhase;
+    this.restorePhase = 'restoring';
+    try {
+      return fn();
+    } finally {
+      this.restorePhase = prev;
+    }
+  }
+
+  /**
+   * 直接落盘一条 record（绕过 dispatch/apply，metadata 信封行为保留）。
+   * Phase 1 供 context legacy 子系统在 live 路径持久化用（context 无纯 reducer，
+   * 不走 dispatch 以避免 apply 双重作用）。
+   */
+  persistRaw(record: WireRecord): void {
+    if (this.restorePhase === 'restoring' || this.restorePhase === 'failed') {
+      throw new WireError(
+        WireErrorCodes.WIRE_PHASE_VIOLATION,
+        `Wire persistRaw called while restore phase is ${this.restorePhase}`,
+        { phase: this.restorePhase },
+      );
+    }
+    this.appendToJournal(record);
   }
 
   getModel<S>(model: ModelDef<S>): DeepReadonly<S> {
@@ -143,8 +188,11 @@ export class WireService {
   /**
    * 读 journal → 迁移 → 逐条静默重放 → 跑 onDidRestore hooks。
    * silent 时无 persist、无 toEvent，但 cross-reducer 总是运行。
+   *
+   * 返回 `{ warning }`（journal 协议版本比当前新时的提示，复刻
+   * records/index.ts:121-123 的 Agent.resume 契约）。
    */
-  async restore(): Promise<void> {
+  async restore(): Promise<{ warning?: string }> {
     if (this.restorePhase !== 'new') {
       throw new WireError(
         WireErrorCodes.WIRE_PHASE_VIOLATION,
@@ -153,6 +201,7 @@ export class WireService {
       );
     }
     this.restorePhase = 'restoring';
+    let warning: string | undefined;
     try {
       let migrations: readonly WireMigration[] = [];
       let rewrittenRecords: WireRecord[] | undefined;
@@ -181,6 +230,7 @@ export class WireService {
           } else if (isNewerWireVersion(candidate.protocol_version)) {
             // 更新版本：原样重放，不迁移、不重写。
             newerWireVersion = true;
+            warning = `Session wire protocol version ${candidate.protocol_version} is newer than the current version ${AGENT_WIRE_PROTOCOL_VERSION}. Records will be replayed without migration.`;
             migrations = [];
           } else {
             migrations = resolveWireMigrations(candidate.protocol_version);
@@ -218,6 +268,7 @@ export class WireService {
       this.metadataInitialized = true;
       this.restorePhase = 'ready';
       await this.hooks.onDidRestore.run(undefined);
+      return { warning };
     } catch (error) {
       this.restorePhase = 'failed';
       throw error;
@@ -231,7 +282,12 @@ export class WireService {
   private replayRecord(record: WireRecord, index: number): void {
     const descriptor = OP_REGISTRY.get(record.type);
     if (descriptor === undefined) {
-      this.reportSkippedRecord(record.type, index);
+      if (this.legacyRoute !== undefined) {
+        // legacy adapter（Phase 1 的 context）：交由调用方路由，不报 skipped。
+        this.legacyRoute(record);
+      } else {
+        this.reportSkippedRecord(record.type, index);
+      }
       return;
     }
     const payload = descriptor.schema.safeParse(wireRecordToPayload(record));
@@ -293,8 +349,9 @@ export class WireService {
   }
 
   /**
-   * 追加一条 record 到 journal，复刻 records/index.ts:41-56 的 metadata 信封行为：
-   * 首条非 metadata record 前自动补 metadata。
+   * 追加一条 record 到 journal，复刻 records/index.ts:39-56：
+   * - time 缺失时补 `Date.now()`（:39-40，字节兼容 AC6）。
+   * - 首条非 metadata record 前自动补 metadata 信封（:41-52）。
    */
   private appendToJournal(record: WireRecord): void {
     if (!this.metadataInitialized && record.type !== 'metadata') {
@@ -304,7 +361,9 @@ export class WireService {
     if (record.type === 'metadata') {
       this.metadataInitialized = true;
     }
-    this.appendRecord(record);
+    const stamped: WireRecord =
+      record.time !== undefined ? record : { ...record, time: Date.now() };
+    this.appendRecord(stamped);
   }
 
   private appendRecord(record: WireRecord): void {

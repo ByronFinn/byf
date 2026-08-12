@@ -90,8 +90,9 @@ describe('InjectionManager.onContextCompacted', () => {
     const recorder = new RecordingInjector(ctx.agent);
     installInjectors(ctx.agent.injection, [recorder]);
 
-    ctx.agent.records.restore({ type: 'context.clear' });
-    ctx.agent.records.restore({
+    // Facade：单条 restore 语义走 agent.restoreRecord（records.restore 已移除）。
+    ctx.agent.restoreRecord({ type: 'context.clear' });
+    ctx.agent.restoreRecord({
       type: 'context.apply_compaction',
       summary: 'Compacted summary.',
       compactedCount: 2,

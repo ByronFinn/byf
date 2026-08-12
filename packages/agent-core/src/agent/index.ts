@@ -52,11 +52,14 @@ import { PermissionManager, type PermissionManagerOptions } from './permission';
 import {
   AgentRecords,
   FileSystemAgentRecordPersistence,
+  isAgentRecordOfPrefix,
   type AgentRecord,
   type AgentRecordPersistence,
 } from './records';
 import { ReplayBuilder } from './replay';
 import { SkillManager } from './skill';
+// import 即注册全部业务 Op（纯 reducer 子系统；legacy 前缀走 legacyRoute）。
+import './wire/ops';
 import { ToolManager } from './tool/index';
 import { TurnFlow } from './turn';
 import {
@@ -65,6 +68,7 @@ import {
   type GenerateOptionsWithRequestLog,
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
+import { WireService, type WirePersistence, type WireRecord } from './wire';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
@@ -132,6 +136,28 @@ export interface AgentConfig {
   readonly telemetry?: TelemetryClient;
 }
 
+/**
+ * 无 homedir / 无注入 persistence 时的 no-op journal（记录丢弃、restore 空转）。
+ * 等价旧 AgentRecords 无 persistence 语义（logRecord 丢记录）；replay 由旧「抛错」
+ * 放宽为「空 journal no-op」（无调用点依赖旧抛错，session 层恒有 homedir）。
+ */
+const NOOP_WIRE_PERSISTENCE: WirePersistence = {
+  read: async function* () {},
+  append: () => {},
+  rewrite: () => {},
+  flush: async () => {},
+  close: async () => {},
+};
+
+/** Phase 1 legacy adapter 前缀：restore 走 restoreRecord（非纯 reducer）。 */
+function isLegacyRestorePrefix(record: AgentRecord): boolean {
+  return (
+    isAgentRecordOfPrefix(record, 'context') ||
+    isAgentRecordOfPrefix(record, 'permission') ||
+    isAgentRecordOfPrefix(record, 'full_compaction')
+  );
+}
+
 export class Agent {
   readonly runtime: RuntimeConfig;
   readonly homedir?: string;
@@ -152,6 +178,8 @@ export class Agent {
   readonly hooks: HookEngine | undefined;
 
   readonly type: AgentType;
+  /** wire reducer 引擎：独占 wire.jsonl（PRD-0027 Phase 1）。 */
+  readonly wire: WireService;
   readonly records: AgentRecords;
   readonly fullCompaction: FullCompaction;
   readonly context: ContextMemory;
@@ -198,17 +226,27 @@ export class Agent {
 
     this.rpc = config.rpc;
     this.telemetry = config.telemetry ?? noopTelemetryClient;
-    this.records = new AgentRecords(
-      this,
-      config.persistence ??
+    this.wire = new WireService({
+      persistence:
+        config.persistence ??
         (config.homedir
           ? new FileSystemAgentRecordPersistence(join(config.homedir, 'wire.jsonl'), {
               onError: (error) => {
                 this.emitRecordsWriteError(error);
               },
             })
-          : undefined),
-    );
+          : NOOP_WIRE_PERSISTENCE),
+      publishEvent: (event) => {
+        this.emitEvent(event as AgentEvent);
+      },
+      legacyRoute: (record: WireRecord) => {
+        this.routeLegacyRecord(record as AgentRecord);
+      },
+      onSkippedRecord: (error) => {
+        this.log.error('wire record skipped during restore', { error });
+      },
+    });
+    this.records = new AgentRecords(this.wire);
     this.fullCompaction = new FullCompaction(this, config.compactionStrategy);
     this.context = new ContextMemory(this, config.sessionId);
     this.config = new ConfigState(this);
@@ -238,6 +276,77 @@ export class Agent {
       fullCompaction: this.fullCompaction,
       goal: this.goal,
     });
+
+    // restore 后的 model → 私有状态同步 + 归一化副作用（kimi 式分布式 hook）。
+    // 顺序即注册顺序（goal/turn/config 各自先 sync 再归一化；其余只 sync）。
+    // 注意：hook 在 wire.restore() 内、phase='ready' 后同步跑完 —— restore 返回前
+    // 子系统状态已就绪（Agent.resume 的下轮 turn 依赖）。
+    this.wire.hooks.onDidRestore.register('sync', () => {
+      this.syncFromWire();
+    });
+    this.wire.hooks.onDidRestore.register('goal', () => {
+      this.goal.normalizeAfterReplay();
+    });
+    this.wire.hooks.onDidRestore.register('turn', () => {
+      this.turn.finishResume();
+    });
+    this.wire.hooks.onDidRestore.register('config', () => {
+      // 坑点外提（PRD Phase 3）：initializeBuiltinTools 从「replay 期间副作用」
+      // 移到 onDidRestore（restore 返回前完成，下轮 turn 需要工具实例）。幂等。
+      if (this.config.hasProvider) {
+        this.tools.initializeBuiltinTools();
+      }
+    });
+  }
+
+  /**
+   * 5 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
+   * 测试 harness 的单条 restore 都用）。context / permission / full_compaction 是
+   * legacy（restoreRecord 直接改私有状态），不在此列。
+   */
+  syncFromWire(): void {
+    this.goal.syncFromWire();
+    this.usage.syncFromWire();
+    this.tools.syncFromWire();
+    this.turn.syncFromWire();
+    this.config.syncFromWire();
+  }
+
+  /**
+   * 单条 record 的 restore 语义（测试 harness 的 dispatch 用）。
+   * - 已注册 Op：logRecord 的 dispatch 已 apply 到 model，此处同步 model→私有。
+   * - legacy 前缀（context / permission / full_compaction）：restoreRecord 在
+   *   restoring 相位下执行（调 appendMessage/setMode 等 live 方法，靠 restoring
+   *   抑制其 logRecord/emit —— 对标旧 records.restore 的 _restoring 语义）。
+   * 生产路径不使用（restore 走 wire.restore() 全量 + onDidRestore hooks）。
+   */
+  restoreRecord(record: AgentRecord): void {
+    if (isLegacyRestorePrefix(record)) {
+      this.wire.withRestoringPhase(() => {
+        this.routeLegacyRecord(record);
+      });
+    } else {
+      this.syncFromWire();
+    }
+  }
+
+  /**
+   * legacy adapter 路由（context / permission / full_compaction 的 restoreRecord）。
+   * 被 wire.legacyRoute（完整 restore）与 restoreRecord（测试 harness）共用。
+   */
+  private routeLegacyRecord(record: AgentRecord): void {
+    if (isAgentRecordOfPrefix(record, 'context')) {
+      // context 的 restore 会读 config 私有状态（如 observation masking 读
+      // modelCapabilities 判定遮蔽压力）。config 私有字段在 restore 结束的
+      // onDidRestore 'sync' hook 才同步，此处先同步，使 mid-replay 读取到该时间点
+      // 的最新配置（对标旧路径 config.restoreRecord 立即更新私有状态的语义）。
+      this.config.syncFromWire();
+      this.context.restoreRecord(record);
+    } else if (isAgentRecordOfPrefix(record, 'permission')) {
+      this.permission.restoreRecord(record);
+    } else if (isAgentRecordOfPrefix(record, 'full_compaction')) {
+      this.fullCompaction.restoreRecord(record);
+    }
   }
 
   get generate(): typeof generate {
@@ -433,13 +542,13 @@ export class Agent {
 
   async resume(): Promise<{ warning?: string; error?: Error }> {
     try {
+      // wire.restore() 内部：重放（7 纯 reducer + context legacy）→ onDidRestore
+      // hooks（goal.normalizeAfterReplay / turn.finishResume / config.initializeBuiltinTools
+      // 已随各子系统 hook 在 restore 返回前完成）。
       const result = await this.records.replay();
-      // goal 在 replay 后修正状态（active→paused 降级、清零 wall-clock 锚点）。
-      this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();
-      this.turn.finishResume();
       return result;
     } catch (error) {
       // Return error instead of throwing

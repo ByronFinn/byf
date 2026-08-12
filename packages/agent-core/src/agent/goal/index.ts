@@ -2,6 +2,7 @@ import type { Agent } from '..';
 import { ByfError, ErrorCodes } from '../../errors';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { goalModel } from '../wire/ops/goal';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from './constants';
 import type {
   GoalBudgetLimits,
@@ -287,6 +288,16 @@ export class GoalMode implements RecordRestoreHandler {
   }
 
   // —— replay ——
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * snapshot 由 goal.create/update/clear 的纯 apply 重建；completeReason 是瞬态，
+   * 归零；wallClockResumedAt 锚点由 normalizeAfterReplay 清零。
+   */
+  syncFromWire(): void {
+    this.snapshot = this.agent.wire.getModel(goalModel).snapshot;
+    this.completeReason = undefined;
+  }
 
   restoreRecord(record: AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'goal')) return;

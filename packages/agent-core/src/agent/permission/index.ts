@@ -29,9 +29,9 @@ export interface PermissionManagerOptions {
 
 export class PermissionManager implements RecordRestoreHandler {
   rules: PermissionRule[] = [];
-  private modeOverride: PermissionMode | undefined;
+  private _modeOverride: PermissionMode | undefined;
   private readonly parent: PermissionManager | undefined;
-  private readonly sessionApprovedActions = new Set<string>();
+  private sessionApprovedActions = new Set<string>();
   private readonly policies: readonly PermissionPolicy[];
 
   constructor(
@@ -44,11 +44,11 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   get mode(): PermissionMode {
-    return this.modeOverride ?? this.parent?.mode ?? 'manual';
+    return this._modeOverride ?? this.parent?.mode ?? 'manual';
   }
 
   set mode(mode: PermissionMode) {
-    this.modeOverride = mode;
+    this._modeOverride = mode;
   }
 
   data(): PermissionData {
@@ -67,7 +67,7 @@ export class PermissionManager implements RecordRestoreHandler {
       type: 'permission_updated',
       mode,
     });
-    this.modeOverride = mode;
+    this._modeOverride = mode;
     this.agent.emitStatusUpdated();
   }
 

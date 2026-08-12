@@ -460,16 +460,10 @@ export class AgentTestContext {
   }
 
   private appendRecord(event: AgentRecord): void {
-    const records = (
-      this.agent as unknown as {
-        records: {
-          logRecord(record: AgentRecord): void;
-          restore(record: AgentRecord): void;
-        };
-      }
-    ).records;
-    records.logRecord(event);
-    records.restore(event);
+    this.agent.records.logRecord(event);
+    // Facade：已注册 Op 的 dispatch 已 apply 到 model，此处同步 model→私有；
+    // context.* 走 legacy route（context.restoreRecord）。
+    this.agent.restoreRecord(event);
   }
 
   private wrapPersistence(persistence: AgentRecordPersistence): AgentRecordPersistence {

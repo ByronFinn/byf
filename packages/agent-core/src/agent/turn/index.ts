@@ -40,6 +40,7 @@ import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/cons
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { turnModel } from '../wire/ops/turn';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { KosongLLM } from './kosong-llm';
 import { ToolCallDeduplicator } from './tool-dedup';
@@ -834,6 +835,15 @@ export class TurnFlow implements RecordRestoreHandler {
         // The turnId tracking is handled by restorePrompt/restoreSteer
         break;
     }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * turnId 由 turn.prompt/steer 的纯 apply 重建；activeTurn / steerBuffer 是运行态，
+   * 由 finishResume 收尾（restore 期不进入 'resuming'）。
+   */
+  syncFromWire(): void {
+    this.turnId = this.agent.wire.getModel(turnModel).turnId;
   }
 }
 

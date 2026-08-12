@@ -6,15 +6,14 @@ import { testAgent } from './harness/agent';
 
 describe('Session.resume() integration tests', () => {
   describe('主agent和subagent错误处理', () => {
-    it('应该在主agent恢复失败时抛出异常', async () => {
-      // 这个测试验证主agent失败时的行为
-      // 由于我们不能直接创建Session实例，我们通过现有的测试来验证
+    it('应该在主agent恢复失败时返回错误而不是抛出', async () => {
+      // Facade：restore 走 wire.restore()（唯一 restore 路径）。损坏的 metadata
+      // 信封（缺 created_at）使 restore 抛错，resume 捕获并返回 {error}。
       const persistence = new InMemoryAgentRecordPersistence([
         {
           type: 'metadata',
           protocol_version: '1.1',
-          created_at: 1,
-        },
+        } as unknown as AgentRecord,
         {
           type: 'config.update',
           modelAlias: 'test-model',
@@ -23,20 +22,11 @@ describe('Session.resume() integration tests', () => {
 
       const { agent } = testAgent({ persistence });
 
-      // 模拟主agent恢复失败
-      const mockHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          throw new Error('Main agent restoration failed');
-        },
-      };
-
-      agent.records.registerHandlers({ config: mockHandler });
-
       const result = await agent.resume();
 
       // 主agent错误应该被返回而不是抛出
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain('Main agent restoration failed');
+      expect(result.error?.message).toContain('metadata');
     });
 
     it('应该处理多个记录的恢复', async () => {
@@ -182,20 +172,18 @@ describe('Session.resume() integration tests', () => {
       const persistence = new InMemoryAgentRecordPersistence(records);
       const { agent } = testAgent({ persistence });
 
-      // 让context恢复失败
-      const erroringHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          throw new Error('Context restoration failed');
-        },
-      };
+      // Facade：无迁移链的更旧版本（0.9）使 restore 在第一个错误时停止并返回 {error}。
+      const badPersistence = new InMemoryAgentRecordPersistence([
+        { type: 'metadata', protocol_version: '0.9', created_at: 1 },
+        { type: 'config.update', modelAlias: 'model1' },
+      ]);
+      const { agent: agent2 } = testAgent({ persistence: badPersistence });
 
-      agent.records.registerHandlers({ context: erroringHandler });
+      const result = await agent2.resume();
 
-      const result = await agent.resume();
-
-      // 错误应该被返回
+      // 错误应该被返回（restore 在首个错误停止）
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain('Context restoration failed');
+      expect(result.error?.message).toContain('0.9');
     });
 
     it('应该处理边界情况和异常记录', async () => {

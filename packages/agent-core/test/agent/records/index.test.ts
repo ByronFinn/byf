@@ -43,7 +43,8 @@ describe('AgentRecords persistence metadata', () => {
     expect(persistence.records.map((record) => record.type)).toEqual(['metadata', 'turn.prompt']);
   });
 
-  it('rejects replaying a non-empty stream without metadata', async () => {
+  it('synthesizes a metadata envelope when replaying a non-empty stream without metadata (replay tolerance)', async () => {
+    // PRD-0027 AC5：kimi 式容错 —— 无 metadata 时合成信封并按最旧版本迁移，不抛错。
     const persistence = new InMemoryAgentRecordPersistence([
       {
         type: 'turn.prompt',
@@ -53,9 +54,13 @@ describe('AgentRecords persistence metadata', () => {
     ]);
     const records = testAgent({ persistence }).agent.records;
 
-    await expect(records.replay()).rejects.toThrow(
-      'AgentRecords replay expected metadata as the first record',
-    );
+    await records.replay();
+
+    expect(persistence.records[0]).toMatchObject({
+      type: 'metadata',
+      protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
+    });
+    expect(persistence.records[1]?.type).toBe('turn.prompt');
   });
 
   it('does not duplicate metadata after replaying existing records', async () => {

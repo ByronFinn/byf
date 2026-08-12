@@ -16,6 +16,7 @@ import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import { globMatch } from '../permission/path-glob-match';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { toolsModel } from '../wire/ops/tools';
 import type {
   BuiltinTool,
   McpServerRegistrationResult,
@@ -33,7 +34,7 @@ interface McpToolEntry {
 
 export class ToolManager implements RecordRestoreHandler {
   protected builtinTools: Map<string, BuiltinTool> = new Map();
-  protected readonly userTools: Map<string, ExecutableTool> = new Map();
+  protected userTools: Map<string, ExecutableTool> = new Map();
   protected readonly mcpTools: Map<string, McpToolEntry> = new Map();
   /** server name → list of qualified tool names registered for that server. */
   protected readonly mcpToolsByServer: Map<string, string[]> = new Map();
@@ -86,8 +87,14 @@ export class ToolManager implements RecordRestoreHandler {
       type: 'tools.register_user_tool',
       ...input,
     });
+    this.userTools.set(input.name, this.buildUserTool(input));
+    this.enabledTools.add(input.name);
+  }
+
+  /** 由注册信息构造可执行工具（不含 logRecord —— syncFromWire 复用）。 */
+  private buildUserTool(input: UserToolRegistration): ExecutableTool {
     const { name, description, parameters } = input;
-    const tool: ExecutableTool = {
+    return {
       name,
       description,
       parameters,
@@ -106,8 +113,6 @@ export class ToolManager implements RecordRestoreHandler {
         };
       },
     };
-    this.userTools.set(name, tool);
-    this.enabledTools.add(name);
   }
 
   unregisterUserTool(name: string): void {
@@ -474,5 +479,26 @@ export class ToolManager implements RecordRestoreHandler {
         this.updateStore(record.key, record.value);
         break;
     }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * userTools 由注册信息重建可执行工具（resolveExecution 闭包）；enabledTools /
+   * mcpAccessPatterns 由 set_active_tools 拆分结果重建；store 逐键拷贝。
+   * 注意：MCP 工具不走 wire（由 attachMcpTools 在构造期接回），此处不动 mcpTools。
+   */
+  syncFromWire(): void {
+    const model = this.agent.wire.getModel(toolsModel);
+    this.userTools = new Map();
+    for (const [name, registration] of model.userTools) {
+      this.userTools.set(name, this.buildUserTool(registration));
+    }
+    this.enabledTools = new Set(model.enabledTools);
+    this.mcpAccessPatterns = [...model.mcpAccessPatterns];
+    const store = this.store as Record<string, unknown>;
+    for (const key of Object.keys(store)) {
+      delete store[key];
+    }
+    Object.assign(store, model.store);
   }
 }
