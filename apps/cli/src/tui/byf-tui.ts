@@ -1194,6 +1194,13 @@ export class ByfTui implements DialogHost {
     };
 
     editor.onEscape = () => {
+      if (this.cancelInFlight !== undefined) {
+        const cancel = this.cancelInFlight;
+        this.cancelInFlight = undefined;
+        this.clearPendingExit();
+        cancel();
+        return;
+      }
       if (this.pendingExit) this.clearPendingExit();
       if (this.state.showingSessionPicker) {
         this.dialogManager.hideSessionPicker();
