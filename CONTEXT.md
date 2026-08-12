@@ -257,6 +257,22 @@ BYF 使用的特定观察掩码变体。工具结果按优先级分类：高持�
 
 按来源类别拆分的输入 token 估算占比，用于回答"上下文被什么占满"。六个互斥类别：System prompt（核心规则块）、Meta context（项目指令 + 工作环境块）、Skills（技能列表块）、MCP tools / System tools（按工具名前缀拆分的工具 schema）、Messages（历史消息）。**估算值**（char 启发式，provider 不返回按类别的精确 token）。百分比分母为模型 `max_context_tokens`（即 `/usage` 面板 "Context window" 行的 max 值，同口径），每项 = 该类估算 token / `max_context_tokens`，一位小数；六项之和 = 估算 input 占窗口比例，通常远小于 100%。无 model 配置（`max_context_tokens` 缺失或为 0）时百分比全为 `undefined`，面板仅显示估算绝对值。仅在 `/usage` 面板按需展示。
 
+### 缓存桩 (Cache Stake)
+
+ADR-0011 的 3+1 模型——请求中放置缓存断点的 4 个位置：**桩1**=系统提示末尾（PromptPlan 块）、**桩2**=工具数组末尾、**桩3**=上一轮最后一条助手消息（`isLastTurnEnd`）、**桩4**=当前轮最大内容块（`isSuddenLargeContext`，条件性，即「动态上下文锚点」）。桩1+桩2 是**静态前缀**（PromptPlan + tools），桩3+桩4 是**每请求动态消息锚点**（`cacheHint`）。CacheStakingStrategy 产生桩3/桩4 的逻辑标签，provider 适配器翻译为各自的缓存控制格式。
+
+### 前缀指纹 (Prefix Fingerprint)
+
+对缓存前缀内容（PromptPlan 各块 + tools 数组）计算的**逐块 SHA256 哈希**，用于 turn 间比对以检测前缀是否变化。区别于 `prompt_cache_key`（仅 global 块、拼成单串、作 OpenAI 路由提示）——前缀指纹覆盖各 cacheScope 的块、逐块、作**归因观测**而非路由。
+
+### 破坏侧归因 (Break-side Attribution) / 缓存抖动 (Cache Churn)
+
+当缓存前缀被打破时，定位到具体变化来源（哪个 system 块 / tools）的能力，与**读侧缓存命中率**（事后看到命中下降）互补：读侧回答「缓存工作吗」，破坏侧回答「谁打破了前缀」。**churn 事件** = 静态前缀块指纹跨 turn 变化时产出的归因信号（`context.cache_churn`）。压缩是预期内、且应当改写历史前缀的事件，不报为 churn。
+
+### 真实探针 (Real Probe)
+
+env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（不进常规 CI）。区别于回放 Provider / FakeLLM 的 mock 测试——mock 测的是「我们对 provider 行为的假设」，真实探针校准「provider 实际行为」。通常发布前人工运行，弥补 mock 与现实的断层。
+
 ### 结构化摘要 (Structured Summary)
 
 掩码工具结果使用的紧凑表示。示例：`[Bash: 'npm test', exit=0, 127 lines, stderr: none]`。保留工具调用元数据和小段头/尾片段，以便代理判断是否需要重新读取完整输出。
