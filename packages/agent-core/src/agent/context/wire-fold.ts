@@ -8,18 +8,16 @@
  * `ContextMemory`) and external readers (e.g. apps/vis), eliminating the
  * duplicate fold logic that previously drifted between them.
  *
- * Effect-port contract (core fold is pure when ports are inert):
- * - No disk I/O, record logging, event emission, or injection hooks inside
- *   this module itself.
- * - Optional `offloadToolOutput` is an **effect port**: when supplied, the
- *   fold may await it (live agent writes scratch files + logs
- *   `context.output_offloaded`). Callers that only need history (or that
- *   synthesise a preview without writing files) pass a pure stub or omit it.
- * - `onMessage` / `onStepEnd` are also ports for caller-owned side effects
- *   (background notifications, replay builder, display metadata).
+ * Pure-function contract (PRD-0027 Phase 5): no disk I/O, record logging,
+ * event emission, injection hooks, or caller-supplied effect ports inside
+ * this module. Each fold function mutates `state` in place and **returns the
+ * messages committed to the timeline** (including any deferred messages
+ * flushed when a tool exchange closes) — callers run their own side effects
+ * (background delivery, replay builder, token snapshots, output offloading)
+ * against the returned messages in the service layer.
  */
 
-import { createToolMessage, type ContentPart, type TokenUsage } from '@byfriends/kosong';
+import { createToolMessage, type ContentPart } from '@byfriends/kosong';
 
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
 import type { ContextMessage } from './types';
@@ -71,6 +69,9 @@ function isEmptyOutputText(output: string): boolean {
 /**
  * Mutable fold state. The live `ContextMemory` and vis each hold one instance
  * and feed records through {@link foldLoopEvent} / {@link foldAppendMessage}.
+ * The live agent shares its instance with the `context` wire model
+ * (`WireService.mountModel`), so the fold functions double as the model's
+ * `apply` implementations.
  */
 export interface WireFoldState {
   history: ContextMessage[];
@@ -81,8 +82,9 @@ export interface WireFoldState {
    *  until the exchange closes (otherwise user/background messages would be
    *  interleaved into the assistant's tool-call run, confusing the model). */
   pendingToolResultIds: Set<string>;
-  /** tool-call id → {name, args}; consulted to decide offloading (Agent-tool
-   *  subagent summaries are never offloaded) and by observation masking. */
+  /** tool-call id → {name, args}; consulted by observation masking / pruning
+   *  and by the service layer's output-offload decision (Agent-tool subagent
+   *  summaries are never offloaded). */
   toolCallInfo: Map<string, { name: string; args: unknown }>;
   /** Messages queued during an open tool exchange; flushed when the last
    *  pending tool result lands and the exchange closes. */
@@ -100,66 +102,28 @@ export function createWireFoldState(): WireFoldState {
 }
 
 /**
- * Caller-supplied seams. Both are optional: vis passes only `onMessage`
- * (and optionally `offloadToolOutput` for preview parity); the live agent
- * passes both.
+ * Push a message into state, honouring the tool-exchange deferral rule:
+ * if a tool exchange is open (some tool call still awaiting its result),
+ * queue the message; it flushes when the exchange closes. Returns the
+ * messages committed to history (empty when deferred).
  */
-export interface WireFoldHandlers {
-  /** Receive each message as it is committed to the timeline. May carry
-   *  side-effects (background delivery, replay builder) or attach display
-   *  metadata. Must not mutate the message in a way that breaks fold state. */
-  onMessage: (message: ContextMessage) => void;
-  /**
-   * Called after a `step.end` is folded, with the index of the step's
-   *  assistant message in `state.history` (or -1 if the step was unknown)
-   *  and the usage delta if the event carried one. The live agent uses this
-   *  to refresh its token-count snapshot; external readers can ignore it.
-   */
-  onStepEnd?: (stepUuid: string, openStepIndex: number, usage?: TokenUsage) => void;
-  /**
-   * Optionally offload a large tool output to a scratch store and return the
-   * replacement output string. Returning `undefined` means "do not offload".
-   * May return synchronously or via Promise — when the decision is
-   * synchronous (e.g. the live agent during restore, which skips offload), no
-   * `await` happens and the fold stays synchronous, preserving the contract
-   * that `restoreRecord` feeds messages into history before the caller reads
-   * it.
-   *
-   * The live agent writes the full output to a scratch file and returns a
-   * preview + file reference. vis returns a preview with a placeholder path
-   * (so its rendered timeline matches what the model actually saw) without
-   * writing any file.
-   */
-  offloadToolOutput?: (
-    toolCallId: string,
-    toolName: string,
-    result: ExecutableToolResult,
-  ) => { output: string } | undefined | Promise<{ output: string } | undefined>;
+export function foldAppendMessage(state: WireFoldState, message: ContextMessage): ContextMessage[] {
+  if (state.pendingToolResultIds.size > 0) {
+    state.deferredMessages.push(message);
+    return [];
+  }
+  commitMessage(state, message);
+  return [message];
 }
 
 /**
- * Push a message into state, honouring the tool-exchange deferral rule:
- * if a tool exchange is open (some tool call still awaiting its result),
- * queue the message; it flushes when the exchange closes.
+ * Fold one loop event into state. Pure and synchronous: no side effects, no
+ * async (tool outputs enter the timeline in full; output offloading is a
+ * service-layer effect after dispatch, see PRD-0027 R3). Returns the messages
+ * committed to history (may include deferred messages flushed when a tool
+ * exchange closes).
  */
-export function foldAppendMessage(
-  state: WireFoldState,
-  message: ContextMessage,
-  handlers: WireFoldHandlers,
-): void {
-  if (state.pendingToolResultIds.size > 0) {
-    state.deferredMessages.push(message);
-    return;
-  }
-  commitMessage(state, message, handlers);
-}
-
-/** Fold one loop event into state. Async because offloading may be async. */
-export async function foldLoopEvent(
-  state: WireFoldState,
-  event: LoopRecordedEvent,
-  handlers: WireFoldHandlers,
-): Promise<void> {
+export function foldLoopEvent(state: WireFoldState, event: LoopRecordedEvent): ContextMessage[] {
   switch (event.type) {
     case 'step.begin': {
       const message: ContextMessage = {
@@ -167,19 +131,13 @@ export async function foldLoopEvent(
         content: [],
         toolCalls: [],
       };
-      commitMessage(state, message, handlers);
+      commitMessage(state, message);
       state.openSteps.set(event.uuid, message);
-      return;
+      return [message];
     }
     case 'step.end': {
-      const openStep = state.openSteps.get(event.uuid);
       state.openSteps.delete(event.uuid);
-      if (handlers.onStepEnd !== undefined) {
-        const openStepIndex = openStep === undefined ? -1 : state.history.indexOf(openStep);
-        handlers.onStepEnd(event.uuid, openStepIndex, event.usage);
-      }
-      flushDeferredIfToolExchangeClosed(state, handlers);
-      return;
+      return flushDeferredIfToolExchangeClosed(state);
     }
     case 'content.part': {
       const openStep = state.openSteps.get(event.stepUuid);
@@ -189,7 +147,7 @@ export async function foldLoopEvent(
         );
       }
       openStep.content.push(event.part);
-      return;
+      return [];
     }
     case 'tool.call': {
       const openStep = state.openSteps.get(event.stepUuid);
@@ -206,37 +164,18 @@ export async function foldLoopEvent(
       });
       state.pendingToolResultIds.add(event.toolCallId);
       state.toolCallInfo.set(event.toolCallId, { name: event.name, args: event.args });
-      return;
+      return [];
     }
     case 'tool.result': {
-      let result = event.result;
-
-      // Agent-tool subagent summaries are never offloaded — they are already
-      // distilled by another LLM (see output-offloading design). The live
-      // agent skips offload during restore (the scratch file is ephemeral);
-      // external readers skip it when no handler is supplied.
-      const toolName = state.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown';
-      if (toolName !== 'Agent' && handlers.offloadToolOutput !== undefined) {
-        const maybeOffloaded = handlers.offloadToolOutput(event.toolCallId, toolName, result);
-        const offloaded = isPromise(maybeOffloaded) ? await maybeOffloaded : maybeOffloaded;
-        if (offloaded !== undefined) {
-          result = { ...result, output: offloaded.output };
-        }
-      }
-
-      const message = createToolMessage(event.toolCallId, toolResultOutputForModel(result));
-      commitMessage(
-        state,
-        {
-          ...message,
-          role: 'tool',
-          isError: result.isError,
-        },
-        handlers,
-      );
+      const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
+      const toolMessage: ContextMessage = {
+        ...message,
+        role: 'tool',
+        isError: event.result.isError,
+      };
+      commitMessage(state, toolMessage);
       state.pendingToolResultIds.delete(event.toolCallId);
-      flushDeferredIfToolExchangeClosed(state, handlers);
-      return;
+      return [toolMessage, ...flushDeferredIfToolExchangeClosed(state)];
     }
   }
 }
@@ -268,8 +207,7 @@ export function resetWireFoldState(state: WireFoldState): void {
 export function foldApplyCompaction(
   state: WireFoldState,
   input: { summary: string; compactedCount: number },
-  handlers: WireFoldHandlers,
-): ContextMessage {
+): { summary: ContextMessage; committed: ContextMessage[] } {
   const summaryMessage: ContextMessage = {
     role: 'assistant',
     content: [{ type: 'text', text: input.summary }],
@@ -282,23 +220,11 @@ export function foldApplyCompaction(
   state.history.length = 0;
   state.history.push(summaryMessage, ...tail);
   state.openSteps.clear();
-  flushDeferredIfToolExchangeClosed(state, handlers);
-  return summaryMessage;
+  return { summary: summaryMessage, committed: flushDeferredIfToolExchangeClosed(state) };
 }
 
-function commitMessage(
-  state: WireFoldState,
-  message: ContextMessage,
-  handlers: WireFoldHandlers,
-): void {
+function commitMessage(state: WireFoldState, message: ContextMessage): void {
   state.history.push(message);
-  handlers.onMessage(message);
-}
-
-function isPromise<T>(value: T | Promise<T>): value is Promise<T> {
-  return (
-    typeof value === 'object' && value !== null && typeof (value as Promise<T>).then === 'function'
-  );
 }
 
 /**
@@ -306,18 +232,46 @@ function isPromise<T>(value: T | Promise<T>): value is Promise<T> {
  * out-of-band state changes (e.g. `applyCompaction` rebuilding the history)
  * can re-check the deferral rule without going through `foldLoopEvent`.
  */
-export function flushDeferred(state: WireFoldState, handlers: WireFoldHandlers): void {
-  flushDeferredIfToolExchangeClosed(state, handlers);
+export function flushDeferred(state: WireFoldState): ContextMessage[] {
+  return flushDeferredIfToolExchangeClosed(state);
 }
 
-function flushDeferredIfToolExchangeClosed(state: WireFoldState, handlers: WireFoldHandlers): void {
+function flushDeferredIfToolExchangeClosed(state: WireFoldState): ContextMessage[] {
   if (state.pendingToolResultIds.size > 0 || state.deferredMessages.length === 0) {
-    return;
+    return [];
   }
   // Drain in place so a state view (e.g. ContextMemory's field references)
   // sees the clear — reassigning the field would break the view.
   const deferred = state.deferredMessages.splice(0);
   for (const message of deferred) {
-    commitMessage(state, message, handlers);
+    commitMessage(state, message);
   }
+  return deferred;
+}
+
+/**
+ * Find the history indices of tool messages whose content starts with the
+ * `[ToolName:` masked prefix (observation masking leaves this signature).
+ * Pure helper shared by the `context.pruning` apply and the service layer's
+ * prune-counting (PRD-0027 Phase 5).
+ */
+export function findMaskedToolResultIndices(state: WireFoldState): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < state.history.length; i++) {
+    const message = state.history[i];
+    if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+    const info = state.toolCallInfo.get(message.toolCallId);
+    if (info === undefined) continue;
+    const text =
+      typeof message.content === 'string'
+        ? message.content
+        : message.content
+            .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+            .map((part) => part.text)
+            .join('');
+    if (text.startsWith(`[${info.name}:`)) {
+      indices.push(i);
+    }
+  }
+  return indices;
 }

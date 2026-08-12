@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('FullCompaction restore handler', () => {
@@ -9,8 +8,7 @@ describe('FullCompaction restore handler', () => {
     it('should restore full_compaction.begin records', () => {
       const { agent } = testAgent();
 
-      // Ensure fullCompaction implements RecordRestoreHandler
-      const fullCompaction = agent.fullCompaction as unknown as RecordRestoreHandler;
+      const fullCompaction = agent.fullCompaction;
 
       const testRecord: AgentRecord = {
         type: 'full_compaction.begin',
@@ -29,7 +27,7 @@ describe('FullCompaction restore handler', () => {
     it('should restore full_compaction.cancel records', () => {
       const { agent } = testAgent();
 
-      const fullCompaction = agent.fullCompaction as unknown as RecordRestoreHandler;
+      const fullCompaction = agent.fullCompaction;
 
       const testRecord: AgentRecord = {
         type: 'full_compaction.cancel',
@@ -46,7 +44,7 @@ describe('FullCompaction restore handler', () => {
     it('should restore full_compaction.complete records', () => {
       const { agent } = testAgent();
 
-      const fullCompaction = agent.fullCompaction as unknown as RecordRestoreHandler;
+      const fullCompaction = agent.fullCompaction;
 
       const testRecord: AgentRecord = {
         type: 'full_compaction.complete',
@@ -70,7 +68,7 @@ describe('FullCompaction restore handler', () => {
     it('should restore multiple full_compaction.complete records', () => {
       const { agent } = testAgent();
 
-      const fullCompaction = agent.fullCompaction as unknown as RecordRestoreHandler;
+      const fullCompaction = agent.fullCompaction;
 
       const testRecord1: AgentRecord = {
         type: 'full_compaction.complete',

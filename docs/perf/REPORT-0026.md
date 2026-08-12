@@ -8,11 +8,11 @@
 
 **决策:定点优化路径。不切语言。**
 
-| 决策门要素 | 实测 | 阈值 | 判定 |
-| --- | --- | --- | --- |
-| GC 时间占比 | **~6%**(默认 6.0% / 关并发 GC 5.6% / --smol 5.9%) | <15% → 定点优化 | ✅ 落入定点优化区 |
-| 热点集中度 | 前 1 函数(`estimateTokensForMessage`)**占 83%** 自采样 | >50% 集中 | ✅ 高度集中(单一函数) |
-| 消除可行性 | 字符级 token 估算,可在 TS 层消除(缓存/向量化) | 总闸:固有不可消除才升格 native | ✅ 可消除,不触发总闸 |
+| 决策门要素  | 实测                                                   | 阈值                           | 判定                  |
+| ----------- | ------------------------------------------------------ | ------------------------------ | --------------------- |
+| GC 时间占比 | **~6%**(默认 6.0% / 关并发 GC 5.6% / --smol 5.9%)      | <15% → 定点优化                | ✅ 落入定点优化区     |
+| 热点集中度  | 前 1 函数(`estimateTokensForMessage`)**占 83%** 自采样 | >50% 集中                      | ✅ 高度集中(单一函数) |
+| 消除可行性  | 字符级 token 估算,可在 TS 层消除(缓存/向量化)          | 总闸:固有不可消除才升格 native | ✅ 可消除,不触发总闸  |
 
 GC 不是「单核 100%」的根因——**根因是 `estimateTokensForMessage` 的逐字符循环每 step 对整份历史跑多次**,纯 CPU、与 GC 无关。换语言无数据依据。
 
@@ -20,30 +20,30 @@ GC 不是「单核 100%」的根因——**根因是 `estimateTokensForMessage` 
 
 ### 模式 A 交互长会话(主场景,默认基线 50 turn)
 
-| 归属 | 自采样占比 | 代表函数 | 位置 |
-| --- | ---: | --- | --- |
-| **token 估算** | **~88%** | `estimateTokensForMessage` 83.3% + `estimateTokensForContentPart` 4.2% + `estimateTokens` 0.3% | `utils/tokens.ts:44,58,13` |
-| native 运行时 | ~5% | `next`(JSC 迭代器) | `[native code]` |
-| 其他(agent-core 各处) | ~7% | `cloneObject`、`structuredClone`、`stringify`、`applyCacheStaking`、`cloneMessage`、`applyPruning`、`maskToolResult` 等,各项 <0.5% | 散布 |
+| 归属                  | 自采样占比 | 代表函数                                                                                                                           | 位置                       |
+| --------------------- | ---------: | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| **token 估算**        |   **~88%** | `estimateTokensForMessage` 83.3% + `estimateTokensForContentPart` 4.2% + `estimateTokens` 0.3%                                     | `utils/tokens.ts:44,58,13` |
+| native 运行时         |        ~5% | `next`(JSC 迭代器)                                                                                                                 | `[native code]`            |
+| 其他(agent-core 各处) |        ~7% | `cloneObject`、`structuredClone`、`stringify`、`applyCacheStaking`、`cloneMessage`、`applyPruning`、`maskToolResult` 等,各项 <0.5% | 散布                       |
 
 **调用链**(自顶向下,模式 A):`runTurn` → `beforeStep`(compaction) → `applyObservationMasking`(36.6% total) → `estimateTokensForMessages`(93.6% total) → `estimateTokensForMessage`(83.6% total)。同一路径还有 `buildLlmRequestMetadata`(18.7%)与 `computeCompletionBudgetCap`(18.3%)各自独立调用 token 估算——即**同一份历史每 step 被 O(n) 扫多次**。
 
 ### 模式 B resume 大会话(默认基线)
 
-| 归属 | 自采样占比 | 备注 |
-| --- | ---: | --- |
-| token 估算 | **~89%**(`estimateTokensForMessage` 83.6%) | 与模式 A 一致:resume replay 重建状态后,后续 turn 仍是同一热点 |
-| native / 其他 | ~11% | `next` 5.1%、`stringify`、`cloneObject` 等 |
+| 归属          |                                 自采样占比 | 备注                                                          |
+| ------------- | -----------------------------------------: | ------------------------------------------------------------- |
+| token 估算    | **~89%**(`estimateTokensForMessage` 83.6%) | 与模式 A 一致:resume replay 重建状态后,后续 turn 仍是同一热点 |
+| native / 其他 |                                       ~11% | `next` 5.1%、`stringify`、`cloneObject` 等                    |
 
 模式 B 的 resume 阶段(replay 不调 LLM,5ms 完成 115KB wire)开销可忽略;热点出现在 replay 后的「继续会话」部分,与模式 A 同源。
 
 ### 模式 C 多 subagent 并行(5 子 agent × 4 turn)
 
-| 归属 | 自采样占比 | 备注 |
-| --- | ---: | --- |
-| token 估算 | **~49%**(`estimateTokensForContentPart` 21% + `estimateTokens` 20.8% + 其他) | 子 agent 历史短,单次估算更快;占比下降但仍是第一 |
-| native 调度 | ~31%(`(anonymous)` 22.3% + `(anonymous)` 9.0%) | 并发调度的运行时开销凸显 |
-| 其他 | ~20%(`addUsage`、`async chatOnce` 等) | 多 agent 的 usage 聚合、请求构建 |
+| 归属        |                                                                   自采样占比 | 备注                                            |
+| ----------- | ---------------------------------------------------------------------------: | ----------------------------------------------- |
+| token 估算  | **~49%**(`estimateTokensForContentPart` 21% + `estimateTokens` 20.8% + 其他) | 子 agent 历史短,单次估算更快;占比下降但仍是第一 |
+| native 调度 |                               ~31%(`(anonymous)` 22.3% + `(anonymous)` 9.0%) | 并发调度的运行时开销凸显                        |
+| 其他        |                                        ~20%(`addUsage`、`async chatOnce` 等) | 多 agent 的 usage 聚合、请求构建                |
 
 模式 C 验证了并发场景下 token 估算仍是第一热点,但相对份额下降——并发调度的 native 开销占比上升。
 
@@ -51,11 +51,11 @@ GC 不是「单核 100%」的根因——**根因是 `estimateTokensForMessage` 
 
 三组对照(模式 A 默认基线,各跑一次):
 
-| 配置 | wall(ms) | gc 采样数 | gc 耗时(ms) | gc 占比 | peakHeap |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 默认并发 GC | 4485 | 50 | 271 | **6.0%** | 24.7MB |
-| `BUN_JSC_useConcurrentGC=0` | 4466 | 50 | 252 | **5.6%** | 24.6MB |
-| `--smol` | 4490 | 50 | 263 | **5.9%** | 24.6MB |
+| 配置                        | wall(ms) | gc 采样数 | gc 耗时(ms) |  gc 占比 | peakHeap |
+| --------------------------- | -------: | --------: | ----------: | -------: | -------: |
+| 默认并发 GC                 |     4485 |        50 |         271 | **6.0%** |   24.7MB |
+| `BUN_JSC_useConcurrentGC=0` |     4466 |        50 |         252 | **5.6%** |   24.6MB |
+| `--smol`                    |     4490 |        50 |         263 | **5.9%** |   24.6MB |
 
 **关键观察**:
 
@@ -68,11 +68,11 @@ GC 不是「单核 100%」的根因——**根因是 `estimateTokensForMessage` 
 
 ## 4. 规模基线实测
 
-| 模式 | 默认基线 wall | records | wire | peakHeap | 说明 |
-| --- | ---: | ---: | ---: | ---: | --- |
-| A | 4.3-4.5s | 14,395 | — | 25-90MB | 主场景,200 次 generate 调用 |
-| B | 7.5-7.8s(含 resume) | — | 115KB-随规模 | 46-131MB | resume 阶段 5ms,可忽略 |
-| C | 0.25s(5 子 × 4 turn) | — | — | 24MB | 并发,子 agent 历史短 |
+| 模式 |        默认基线 wall | records |         wire | peakHeap | 说明                        |
+| ---- | -------------------: | ------: | -----------: | -------: | --------------------------- |
+| A    |             4.3-4.5s |  14,395 |            — |  25-90MB | 主场景,200 次 generate 调用 |
+| B    |  7.5-7.8s(含 resume) |       — | 115KB-随规模 | 46-131MB | resume 阶段 5ms,可忽略      |
+| C    | 0.25s(5 子 × 4 turn) |       — |            — |     24MB | 并发,子 agent 历史短        |
 
 (2x 压力档未单列,按 `--scale 2` 翻倍参数即可复跑。)
 

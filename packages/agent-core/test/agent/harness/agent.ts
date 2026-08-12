@@ -24,6 +24,7 @@ import {
   AGENT_WIRE_PROTOCOL_VERSION,
   InMemoryAgentRecordPersistence,
 } from '../../../src/agent/records';
+import { OP_REGISTRY, wireRecordToPayload } from '../../../src/agent/wire';
 import type { ByfConfig } from '../../../src/config';
 import type { Logger } from '../../../src/logging';
 import type { ExecutableToolResult } from '../../../src/loop';
@@ -460,16 +461,21 @@ export class AgentTestContext {
   }
 
   private appendRecord(event: AgentRecord): void {
-    const records = (
-      this.agent as unknown as {
-        records: {
-          logRecord(record: AgentRecord): void;
-          restore(record: AgentRecord): void;
-        };
-      }
-    ).records;
-    records.logRecord(event);
-    records.restore(event);
+    // Phase 6：Facade 已删除，通用路由在此复刻 —— 已注册 Op 走 dispatch（apply +
+    // 持久化），未注册（context.observation_masking）走 persistRaw。
+    const descriptor = OP_REGISTRY.get(event.type);
+    if (descriptor !== undefined) {
+      this.agent.wire.dispatch({
+        type: event.type,
+        payload: wireRecordToPayload(event as import('../../../src/agent/wire').WireRecord),
+        descriptor,
+      });
+    } else {
+      this.agent.wire.persistRaw(event as import('../../../src/agent/wire').WireRecord);
+    }
+    // 已注册 Op 的 dispatch 已 apply 到共享状态，此处补 restore 语义的 service 层
+    // 副作用（context.handleReplayRecord —— token 快照 / committed 投递）。
+    this.agent.restoreRecord(event);
   }
 
   private wrapPersistence(persistence: AgentRecordPersistence): AgentRecordPersistence {

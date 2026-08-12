@@ -7,7 +7,7 @@ export class ReplayBuilder {
   constructor(public readonly agent: Agent) {}
 
   push(record: AgentReplayRecord): void {
-    if (this.agent.records.restoring) {
+    if (this.agent.wire.phase === 'restoring') {
       this.records.push(record);
     }
   }

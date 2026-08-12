@@ -1,13 +1,22 @@
 import { join } from 'node:path';
 
-import { type ContentPart, type Message } from '@byfriends/kosong';
+import { type ContentPart, type Message, type TokenUsage } from '@byfriends/kosong';
 
 import type { Agent } from '..';
 import type { LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
 import type { CompactionResult } from '../compaction';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
+import {
+  contextAppendLoopEvent,
+  contextApplyCompaction,
+  contextAppendMessage,
+  contextClear,
+  contextMarkLastUserPromptBlocked,
+  contextModel,
+  contextOutputOffloaded,
+  contextPruning,
+} from '../wire/ops/context';
 import {
   applyObservationMasking,
   DEFAULT_MASKING_CONFIG,
@@ -29,13 +38,7 @@ import {
   type ContextMessage,
   type PromptOrigin,
 } from './types';
-import {
-  foldAppendMessage,
-  foldApplyCompaction,
-  foldLoopEvent,
-  resetWireFoldState,
-  type WireFoldHandlers,
-} from './wire-fold';
+import { findMaskedToolResultIndices, type WireFoldState } from './wire-fold';
 
 export * from './types';
 export * from './observation-masking';
@@ -43,7 +46,21 @@ export * from './output-offloading';
 export * from './scratch-manager';
 export * from './wire-fold';
 
-export class ContextMemory implements RecordRestoreHandler {
+/**
+ * ContextMemory —— context 子系统的 service 层（PRD-0027 Phase 5）。
+ *
+ * 状态归 `context` wire model 所有：构造时把本实例的 fold 视图挂载为 model 状态
+ * （`WireService.mountModel`），因此每次 `wire.dispatch(op)` → apply
+ * （wire-fold 纯函数）直接原地变更共享的 `_history` 等嵌套结构 —— 单次 fold、无
+ * 内存双份，restore 重放也落在同一状态上（无需 syncFromWire）。
+ *
+ * 副作用（background 投递 / replayBuilder / token 快照 / offload 写 scratch）不在
+ * apply 内：live 路径在本类方法里 dispatch 之后执行；restore 路径由 Agent 的
+ * `onReplayRecord` 回调逐条调用 {@link handleReplayRecord}。offload 是 dispatch 后的
+ * service 层 effect —— 写 scratch 文件 + dispatch `context.output_offloaded`
+ * （transient，persist:false，只改内存不落盘）。
+ */
+export class ContextMemory {
   private _history: ContextMessage[] = [];
   private _tokenCount = 0;
   private tokenCountCoveredMessageCount = 0;
@@ -51,12 +68,17 @@ export class ContextMemory implements RecordRestoreHandler {
   private pendingToolResultIds = new Set<string>();
   private deferredMessages: ContextMessage[] = [];
   private toolCallInfo = new Map<string, { name: string; args: unknown }>();
+  /** restore 重放时已处理副作用的 message 水位（handleReplayRecord 的 committed 切片）。 */
+  private replayCommittedWatermark = 0;
   readonly scratchManager: ScratchManager | undefined;
 
   constructor(
     protected readonly agent: Agent,
     sessionId?: string,
   ) {
+    // 共享状态：把本实例的 fold 视图挂载为 context model 的实例状态，apply 的原地
+    // 变更直接作用于下方字段（须在首次 dispatch / restore 前完成）。
+    agent.wire.mountModel(contextModel, this.foldState());
     if (agent.homedir !== undefined && sessionId !== undefined) {
       this.scratchManager = new ScratchManager(agent.runtime.kaos, {
         scratchDir: join(agent.homedir, 'sessions', sessionId, 'scratch'),
@@ -89,24 +111,14 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   markLastUserPromptBlocked(hookEvent: string): void {
-    this.agent.records.logRecord({
-      type: 'context.mark_last_user_prompt_blocked',
-      hookEvent,
-    });
-    for (let i = this._history.length - 1; i >= 0; i--) {
-      const message = this._history[i];
-      if (message?.role !== 'user' || message.origin?.kind !== 'user') continue;
-      this._history[i] = {
-        ...message,
-        origin: { ...message.origin, blockedByHook: hookEvent },
-      };
-      return;
-    }
+    // 纯替换逻辑在 `context.mark_last_user_prompt_blocked` 的 apply 内（按 origin
+    // 从后往前找最后一条 user prompt 消息，打 blockedByHook 标记）。
+    this.agent.wire.dispatch(contextMarkLastUserPromptBlocked({ hookEvent }));
   }
 
   clear(): void {
-    this.agent.records.logRecord({ type: 'context.clear' });
-    resetWireFoldState(this.foldState());
+    // 状态清空在 `context.clear` 的 apply 内（resetWireFoldState）。
+    this.agent.wire.dispatch(contextClear({}));
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
     void this.scratchManager?.cleanup();
@@ -115,15 +127,8 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   applyCompaction(summary: CompactionResult): void {
-    this.agent.records.logRecord({
-      type: 'context.apply_compaction',
-      ...summary,
-    });
-    foldApplyCompaction(
-      this.foldState(),
-      { summary: summary.summary, compactedCount: summary.compactedCount },
-      this.foldHandlers,
-    );
+    // 历史重建在 `context.apply_compaction` 的 apply 内（foldApplyCompaction）。
+    this.agent.wire.dispatch(contextApplyCompaction(summary));
     this._tokenCount = summary.tokensAfter;
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.injection.onContextCompacted(summary.compactedCount);
@@ -220,13 +225,14 @@ export class ContextMemory implements RecordRestoreHandler {
       effectiveConfig,
     );
     if (result.masked) {
-      this.agent.records.logRecord({
+      this.agent.wire.persistRaw({
         type: 'context.observation_masking',
         maskedCount: result.maskedCount,
         tokensBefore: result.tokensBefore,
         tokensAfter: result.tokensAfter,
       });
-      this._history = history;
+      // 原地替换：`_history` 与 context model 状态共享同一数组引用，不能换字段。
+      replaceHistoryInPlace(this._history, history);
       this.agent.emitStatusUpdated();
     }
     return result;
@@ -248,24 +254,8 @@ export class ContextMemory implements RecordRestoreHandler {
       return { pruned: false, prunedCount: 0 };
     }
 
-    // Find masked tool results (identified by content starting with `[ToolName:`)
-    const maskedIndices: number[] = [];
-    for (let i = 0; i < this._history.length; i++) {
-      const message = this._history[i];
-      if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
-      const info = this.toolCallInfo.get(message.toolCallId);
-      if (info === undefined) continue;
-      const text =
-        typeof message.content === 'string'
-          ? message.content
-          : message.content
-              .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-              .map((part) => part.text)
-              .join('');
-      if (text.startsWith(`[${info.name}:`)) {
-        maskedIndices.push(i);
-      }
-    }
+    // 被 masking 遮蔽的 tool message 索引（与 `context.pruning` apply 同源纯函数）。
+    const maskedIndices = findMaskedToolResultIndices(this.foldState());
 
     let prunedCount = 0;
     let tokensAfter = currentTokens;
@@ -274,19 +264,15 @@ export class ContextMemory implements RecordRestoreHandler {
       const message = this._history[index];
       if (message === undefined) continue;
       const tokensBeforeMessage = estimateTokensForMessages([message]);
-      this._history[index] = {
-        ...message,
-        content: [{ type: 'text', text: '[pruned]' }],
-      };
       tokensAfter -= tokensBeforeMessage;
       prunedCount++;
     }
 
     if (prunedCount > 0) {
-      this.agent.records.logRecord({
-        type: 'context.pruning',
-        prunedCount,
-      });
+      // 实际替换在 `context.pruning` 的 apply 内（transient：只改内存不落盘）。
+      this.agent.wire.dispatch(
+        contextPruning({ prunedCount, maskedIndices: maskedIndices.slice(0, prunedCount) }),
+      );
       this.agent.emitStatusUpdated();
     }
 
@@ -294,25 +280,86 @@ export class ContextMemory implements RecordRestoreHandler {
   }
 
   async appendLoopEvent(event: LoopRecordedEvent): Promise<void> {
-    this.agent.records.logRecord({
-      type: 'context.append_loop_event',
-      event,
-    });
-    await foldLoopEvent(this.foldState(), event, this.foldHandlers);
+    // 状态变更在 `context.append_loop_event` 的 apply 内（foldLoopEvent，同步纯
+    // 函数）。dispatch 后按 committed 切片跑 service 层副作用；offload 是
+    // dispatch 后的异步 effect（写 scratch + transient op 替换预览）。
+    const before = this._history.length;
+    this.agent.wire.dispatch(contextAppendLoopEvent({ event }));
+    for (const message of this._history.slice(before)) {
+      this.pushHistorySideEffects(message);
+    }
+    if (event.type === 'step.end' && event.usage !== undefined) {
+      this.refreshTokenFromStepEnd(event.usage);
+    }
+    if (event.type === 'tool.result') {
+      await this.offloadToolResult(event);
+    }
   }
 
   appendMessage(message: ContextMessage): void {
-    this.agent.records.logRecord({
-      type: 'context.append_message',
-      message,
-    });
-    foldAppendMessage(this.foldState(), message, this.foldHandlers);
+    // 状态变更在 `context.append_message` 的 apply 内（foldAppendMessage）。交换
+    // 打开时消息被 defer，committed 切片为空 → 副作用延迟到 flush 时（后续某个
+    // fold 调用的 committed 切片里）。
+    const before = this._history.length;
+    this.agent.wire.dispatch(contextAppendMessage({ message }));
+    for (const committed of this._history.slice(before)) {
+      this.pushHistorySideEffects(committed);
+    }
+  }
+
+  /**
+   * restore 重放路径的逐条副作用（Agent.onReplayRecord 回调调用）：对
+   * append_message / append_loop_event 按水位切片跑 committed 副作用与 token
+   * 快照，clear / apply_compaction 补 service 层状态。纯状态变更已由 wire 引擎的
+   * silent apply 落在共享状态上，此处只做 apply 不能做的部分。
+   */
+  handleReplayRecord(record: AgentRecord): void {
+    if (!isAgentRecordOfPrefix(record, 'context')) return;
+    switch (record.type) {
+      case 'context.append_message':
+      case 'context.append_loop_event': {
+        const committed = this._history.slice(this.replayCommittedWatermark);
+        this.replayCommittedWatermark = this._history.length;
+        for (const message of committed) {
+          this.pushHistorySideEffects(message);
+        }
+        if (record.type === 'context.append_loop_event' && record.event.type === 'step.end') {
+          if (record.event.usage !== undefined) this.refreshTokenFromStepEnd(record.event.usage);
+        }
+        return;
+      }
+      case 'context.clear':
+        this._tokenCount = 0;
+        this.tokenCountCoveredMessageCount = 0;
+        this.replayCommittedWatermark = 0;
+        this.agent.injection.onContextClear();
+        this.agent.emitStatusUpdated();
+        return;
+      case 'context.apply_compaction':
+        this._tokenCount = record.tokensAfter;
+        this.tokenCountCoveredMessageCount = this._history.length;
+        this.replayCommittedWatermark = this._history.length;
+        this.agent.injection.onContextCompacted(record.compactedCount);
+        this.agent.emitStatusUpdated();
+        return;
+      case 'context.mark_last_user_prompt_blocked':
+        // apply 已原地替换；水位不变（长度不变）。
+        return;
+      case 'context.observation_masking':
+        // legacyRoute 已先跑 restoreObservationMasking；长度不变，水位不动。
+        return;
+      case 'context.output_offloaded':
+      case 'context.pruning':
+        // transient（旧 journal 才有）：apply 已按 schema 可选字段 no-op。
+        return;
+    }
   }
 
   /** Expose ContextMemory's fold-relevant fields as a WireFoldState view.
-   *  The returned object shares storage with this instance — foldLoopEvent /
-   *  foldAppendMessage mutate the same maps/arrays in place. */
-  private foldState() {
+   *  The returned object shares storage with this instance — fold functions
+   *  mutate the same maps/arrays in place. Also mounted as the `context` wire
+   *  model's instance state (single fold, no duplicate history copy). */
+  private foldState(): WireFoldState {
     return {
       history: this._history,
       openSteps: this.openSteps,
@@ -322,53 +369,9 @@ export class ContextMemory implements RecordRestoreHandler {
     };
   }
 
-  private foldHandlers: WireFoldHandlers = {
-    onMessage: (message) => {
-      this.pushHistorySideEffects(message);
-    },
-    onStepEnd: (_uuid, openStepIndex, usage) => {
-      if (usage !== undefined) {
-        this._tokenCount =
-          usage.inputCacheRead + usage.inputCacheCreation + usage.inputOther + usage.output;
-        this.tokenCountCoveredMessageCount =
-          openStepIndex === -1 ? this._history.length : openStepIndex + 1;
-      }
-    },
-    offloadToolOutput: (toolCallId, toolName, result) => {
-      // Offloading requires a scratch manager and is suppressed during restore
-      // (the scratch file is ephemeral; the live agent recompresses on the
-      // next turn via beforeStep). See ADR-0031 / CONTEXT.md. Return
-      // synchronously in those cases so the fold stays synchronous and
-      // restoreRecord feeds messages into history before the caller reads it.
-      if (
-        this.agent.records.restoring ||
-        this.scratchManager === undefined ||
-        typeof result.output !== 'string'
-      ) {
-        return undefined;
-      }
-      return offloadOutput(
-        toolCallId,
-        toolName,
-        result,
-        this.scratchManager,
-        DEFAULT_OFFLOADING_CONFIG,
-      ).then((offloaded) => {
-        if (!offloaded.offloaded) return undefined;
-        this.agent.records.logRecord({
-          type: 'context.output_offloaded',
-          toolCallId,
-          filePath: offloaded.filePath,
-        });
-        return { output: offloaded.output! };
-      });
-    },
-  };
-
-  /** Apply the live-agent side-effects for a message that the fold logic has
-   *  already pushed onto `_history`: notify background-task delivery and feed
-   *  the replay builder. The pure fold function owns the actual `_history`
-   *  mutation; this runs alongside it via the `onMessage` handler. */
+  /** Apply the live-agent side-effects for a message that the fold has
+   *  already pushed onto `_history` (dispatch after / replay watermark):
+   *  notify background-task delivery and feed the replay builder. */
   private pushHistorySideEffects(message: ContextMessage): void {
     if (message.origin?.kind === 'background_task') {
       this.agent.background.markDeliveredNotification(message.origin);
@@ -379,92 +382,95 @@ export class ContextMemory implements RecordRestoreHandler {
     });
   }
 
+  /**
+   * step.end 后刷新 token 快照（service 层替代旧的 onStepEnd port）：usage 覆盖
+   * 到该 step 的 assistant 消息为止，之后的 tool 消息计入 pending。step 按顺序
+   * 流式推进（step.begin → … → step.end 不嵌套），故该 step 的 assistant 就是
+   * 历史上最后一条 assistant 消息（与旧 fold 内 indexOf(openStep) 等价）。
+   */
+  private refreshTokenFromStepEnd(usage: TokenUsage): void {
+    const openStepIndex = findLastAssistantIndex(this._history);
+    this._tokenCount =
+      usage.inputCacheRead + usage.inputCacheCreation + usage.inputOther + usage.output;
+    this.tokenCountCoveredMessageCount =
+      openStepIndex === -1 ? this._history.length : openStepIndex + 1;
+  }
+
+  /**
+   * Offload effect（dispatch 后）：把大 tool 输出写 scratch 文件并 dispatch
+   * `context.output_offloaded`（transient），其 apply 把历史里的 tool message
+   * 内容替换为预览 —— 历史最终形态与旧 fold 内 offload 等价（PRD R3 原型验证）。
+   * Agent-tool 子代理摘要（已由另一 LLM 蒸馏）永不卸载；restore 不触发（本方法
+   * 只在 live 路径被调，restore 重放 apply 同步折叠完整输出，下一轮 beforeStep
+   * 重做压缩）。
+   */
+  private async offloadToolResult(
+    event: Extract<LoopRecordedEvent, { type: 'tool.result' }>,
+  ): Promise<void> {
+    const toolName = this.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown';
+    if (
+      toolName === 'Agent' ||
+      this.scratchManager === undefined ||
+      typeof event.result.output !== 'string'
+    ) {
+      return;
+    }
+    const offloaded = await offloadOutput(
+      event.toolCallId,
+      toolName,
+      event.result,
+      this.scratchManager,
+      DEFAULT_OFFLOADING_CONFIG,
+    );
+    if (
+      !offloaded.offloaded ||
+      offloaded.output === undefined ||
+      offloaded.filePath === undefined
+    ) {
+      return;
+    }
+    this.agent.wire.dispatch(
+      contextOutputOffloaded({
+        toolCallId: event.toolCallId,
+        filePath: offloaded.filePath,
+        preview: offloaded.output,
+      }),
+    );
+  }
+
   restoreRecord(record: AgentRecord): void {
-    // AgentRecords routes by prefix; only context.* records reach this handler.
-    // Narrow so the switch is exhaustive over the owned subset (PRD-0025 R4).
+    // AgentRecords 按前缀路由：Phase 5 起仅 context.observation_masking 未注册
+    // Op（apply 需读 config 的 maxContextSize），其余 context.* 由 wire 引擎重放。
     if (!isAgentRecordOfPrefix(record, 'context')) return;
     switch (record.type) {
-      case 'context.append_message':
-        this.appendMessage(record.message);
-        break;
-      case 'context.clear':
-        this.restoreClear();
-        break;
-      case 'context.apply_compaction':
-        this.restoreApplyCompaction(record);
-        break;
-      case 'context.mark_last_user_prompt_blocked':
-        this.restoreMarkLastUserPromptBlocked(record);
-        break;
-      case 'context.append_loop_event':
-        // This is handled asynchronously, but restoreRecord must be synchronous
-        // We'll handle this in the next implementation step
-        void this.restoreAppendLoopEvent(record);
-        break;
       case 'context.observation_masking':
         this.restoreObservationMasking();
         break;
+      case 'context.append_message':
+      case 'context.append_loop_event':
+      case 'context.clear':
+      case 'context.apply_compaction':
+      case 'context.mark_last_user_prompt_blocked':
       case 'context.output_offloaded':
       case 'context.pruning':
-        // Live-only debugging records — no-op on restore. Offload/pruning are
-        // recomputed on the next turn during restore (see ADR-0031 /
-        // CONTEXT.md「输出卸载」). Listed explicitly so they are not mistaken
-        // for a forgotten case; see restore-coverage test for the guarantee.
+        // 已注册 Op（Phase 5），restore 由 wire 引擎重放，不会到达（防漂移守卫）。
         break;
     }
-  }
-
-  private restoreClear(): void {
-    resetWireFoldState(this.foldState());
-    this._tokenCount = 0;
-    this.tokenCountCoveredMessageCount = 0;
-    this.agent.injection.onContextClear();
-    this.agent.emitStatusUpdated();
-  }
-
-  private restoreApplyCompaction(
-    record: Extract<AgentRecord, { type: 'context.apply_compaction' }>,
-  ): void {
-    foldApplyCompaction(
-      this.foldState(),
-      { summary: record.summary, compactedCount: record.compactedCount },
-      this.foldHandlers,
-    );
-    this._tokenCount = record.tokensAfter;
-    this.tokenCountCoveredMessageCount = this._history.length;
-    this.agent.injection.onContextCompacted(record.compactedCount);
-    this.agent.emitStatusUpdated();
-  }
-
-  private restoreMarkLastUserPromptBlocked(
-    record: Extract<AgentRecord, { type: 'context.mark_last_user_prompt_blocked' }>,
-  ): void {
-    const hookEvent = record.hookEvent;
-    for (let i = this._history.length - 1; i >= 0; i--) {
-      const message = this._history[i];
-      if (message?.role !== 'user' || message.origin?.kind !== 'user') continue;
-      this._history[i] = {
-        ...message,
-        origin: { ...message.origin, blockedByHook: hookEvent },
-      };
-      return;
-    }
-  }
-
-  private async restoreAppendLoopEvent(
-    record: Extract<AgentRecord, { type: 'context.append_loop_event' }>,
-  ): Promise<void> {
-    // During restore, we call the normal appendLoopEvent but it should not log
-    // The restoring flag prevents logging
-    await this.appendLoopEvent(record.event);
   }
 
   private restoreObservationMasking(): void {
     const maxContextSize = this.agent.config.modelCapabilities.max_context_tokens;
     const { history } = applyObservationMasking(this._history, maxContextSize, this.toolCallInfo);
-    this._history = history;
+    // 原地替换：`_history` 与 context model 状态共享同一数组引用，不能换字段。
+    replaceHistoryInPlace(this._history, history);
     this.agent.emitStatusUpdated();
   }
+}
+
+/** 把 source 内容原地写入 target（保持引用不变，供共享状态数组使用）。 */
+function replaceHistoryInPlace(target: ContextMessage[], source: readonly ContextMessage[]): void {
+  target.length = 0;
+  target.push(...source);
 }
 
 /**
@@ -485,6 +491,14 @@ function findLastAssistantWithPendingToolCall(
     if (message.toolCalls.some((call) => pendingToolResultIds.has(call.id))) {
       return i;
     }
+  }
+  return -1;
+}
+
+/** 最后一条 assistant 消息的下标（无则 -1）。 */
+function findLastAssistantIndex(messages: readonly ContextMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'assistant') return i;
   }
   return -1;
 }

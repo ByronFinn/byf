@@ -1,269 +1,73 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  AgentRecords,
-  InMemoryAgentRecordPersistence,
-  type AgentRecord,
-  type AgentRecordEvents,
-} from '../../../src/agent/records';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
-import { testAgent } from '../harness/agent';
+import type { AgentRecordEvents } from '../../../src/agent/records/types';
+// import 触发全部业务 Op 注册（import = register）—— per-file 隔离进程下必须显式
+// 导入（否则 OP_REGISTRY 为空，drift guard 失效）。
+import '../../../src/agent/wire/ops';
+import { OP_REGISTRY } from '../../../src/agent/wire';
 
-describe('AgentRecords handler registration and routing', () => {
-  describe('registerHandlers method', () => {
-    it('should allow registering restore handlers', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
+describe('AgentRecords facade — record type restore coverage (drift guard)', () => {
+  // Facade 的路由模型：每个 record 类型由以下之一覆盖——
+  // 1. OP_REGISTRY：8 个纯 reducer 子系统（goal/usage/tools/turn/permission/config/
+  //    full_compaction/context，Phase 5 完成）+ background 的 Op 已注册，restore 走
+  //    silent apply。
+  // 2. legacyRoute：context.observation_masking（apply 需读 config 的 maxContextSize，
+  //    Phase 5 决议保留）走 restoreRecord。
+  // 3. metadata：wire 协议信封，restore 时直接处理。
+  // 新增 record 类型时必须落入其中一类，否则 restore 会按 replay tolerance 静默跳过。
+  const LEGACY_ROUTED_TYPES: ReadonlySet<string> = new Set(['context.observation_masking']);
 
-      // Create a mock handler
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {},
-      };
+  // 所有 AgentRecordEvents key 必须出现在这里。赋值强制 TS 求值 Missing ——
+  // 仅声明未使用的 type alias 不会触发 typecheck。
+  const ALL_RECORD_TYPES = [
+    'metadata',
+    'turn.prompt',
+    'turn.steer',
+    'turn.cancel',
+    'config.update',
+    'permission.set_mode',
+    'permission.record_approval_result',
+    'full_compaction.begin',
+    'full_compaction.cancel',
+    'full_compaction.complete',
+    'tools.register_user_tool',
+    'tools.unregister_user_tool',
+    'tools.set_active_tools',
+    'tools.update_store',
+    'background.stop',
+    'usage.record',
+    'context.append_message',
+    'context.mark_last_user_prompt_blocked',
+    'context.append_loop_event',
+    'context.clear',
+    'context.apply_compaction',
+    'context.observation_masking',
+    'context.output_offloaded',
+    'context.pruning',
+    'goal.create',
+    'goal.update',
+    'goal.clear',
+  ] as const;
+  type Missing = Exclude<keyof AgentRecordEvents, (typeof ALL_RECORD_TYPES)[number]>;
+  const _exhaustive: [Missing] extends [never] ? true : Missing = true;
+  void _exhaustive;
 
-      // Test that registerHandlers method exists and can be called
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-
-      expect(typeof agentRecords.registerHandlers).toBe('function');
-
-      expect(() => {
-        agentRecords.registerHandlers({ test: mockHandler });
-      }).not.toThrow();
+  it('every record type is a registered Op, legacy-routed, or metadata', () => {
+    const unaccounted = ALL_RECORD_TYPES.filter((type) => {
+      if (type === 'metadata') return false; // wire 协议信封，restore 直接处理
+      if (LEGACY_ROUTED_TYPES.has(type)) return false; // context.observation_masking → legacyRoute
+      return !OP_REGISTRY.has(type); // 其余必须是已注册 Op
     });
-
-    it('should overwrite previously registered handlers', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
-
-      const firstHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {},
-      };
-
-      const secondHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {},
-      };
-
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-
-      agentRecords.registerHandlers({ test: firstHandler });
-      agentRecords.registerHandlers({ test: secondHandler });
-
-      // Should not throw - second handler overwrote first
-      expect(() => {
-        agentRecords.registerHandlers({ test: secondHandler });
-      }).not.toThrow();
-    });
+    expect(unaccounted).toEqual([]);
   });
 
-  describe('record type routing', () => {
-    it('should route context.* records to context handler', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
-
-      let receivedRecord: AgentRecord | undefined;
-      const contextHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('context.')) {
-            receivedRecord = record;
-          }
-        },
-      };
-
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-      agentRecords.registerHandlers({ context: contextHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      records.restore(testRecord);
-
-      expect(receivedRecord).toEqual(testRecord);
+  it('all pure-reducer subsystems are registered as Ops (non-legacy, non-metadata)', () => {
+    // 除 context.observation_masking（1 个）legacy 与 metadata（协议）外，全部在 OP_REGISTRY。
+    const registered = ALL_RECORD_TYPES.filter((type) => {
+      if (type === 'metadata') return false;
+      if (LEGACY_ROUTED_TYPES.has(type)) return false;
+      return OP_REGISTRY.has(type);
     });
-
-    it('should route config.* records to config handler', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
-
-      let receivedRecord: AgentRecord | undefined;
-      const configHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('config.')) {
-            receivedRecord = record;
-          }
-        },
-      };
-
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-      agentRecords.registerHandlers({ config: configHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'config.update',
-        modelAlias: 'test-model',
-      };
-
-      records.restore(testRecord);
-
-      expect(receivedRecord).toEqual(testRecord);
-    });
-
-    it('should silently skip unregistered record types', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
-
-      let handlerCalled = false;
-      const contextHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          handlerCalled = true;
-        },
-      };
-
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-      agentRecords.registerHandlers({ context: contextHandler });
-
-      // This record type is not registered, should be silently skipped
-      const unregisteredRecord: AgentRecord = {
-        type: 'unregistered.type',
-        data: 'test',
-      } as unknown as AgentRecord;
-
-      expect(() => {
-        records.restore(unregisteredRecord);
-      }).not.toThrow();
-
-      expect(handlerCalled).toBe(false);
-    });
-  });
-
-  describe('type prefix to handler key mapping', () => {
-    it('should handle naming inconsistencies like full_compaction -> fullCompaction', () => {
-      const persistence = new InMemoryAgentRecordPersistence();
-      const records = testAgent({ persistence }).agent.records;
-
-      let receivedRecord: AgentRecord | undefined;
-      const fullCompactionHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('full_compaction.')) {
-            receivedRecord = record;
-          }
-        },
-      };
-
-      const agentRecords = records as unknown as AgentRecords & {
-        registerHandlers: (handlers: Record<string, RecordRestoreHandler>) => void;
-      };
-      agentRecords.registerHandlers({ fullCompaction: fullCompactionHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'full_compaction.begin',
-        turnId: 'test-turn',
-      } as unknown as AgentRecord;
-
-      records.restore(testRecord);
-
-      expect(receivedRecord).toEqual(testRecord);
-    });
-  });
-
-  // PRD-0025 / ADR-0031: every record type must be covered by a restore
-  // handler (via the prefix routing map) or be in the explicit no-handler
-  // exception list. Per-subsystem switches are exhaustively checked over
-  // their prefix subset (via isAgentRecordOfPrefix); this test is the
-  // routing-layer drift guard for new record types.
-  describe('record type restore coverage (drift guard)', () => {
-    // Prefixes routed to a handler by getHandlerKey. Must mirror the mapping
-    // in packages/agent-core/src/agent/records/index.ts.
-    const ROUTED_PREFIXES: ReadonlySet<string> = new Set([
-      'context',
-      'config',
-      'turn',
-      'permission',
-      'tools',
-      'usage',
-      'full_compaction',
-      'goal',
-    ]);
-    // Record types with no restore handler by design.
-    // - metadata: handled directly by AgentRecords (protocol envelope).
-    // - background.*: restored via a separate persistence path
-    //   (BackgroundProcessManager), intentionally no handler here.
-    const NO_HANDLER_TYPES: ReadonlySet<string> = new Set(['metadata', 'background.stop']);
-
-    // Live-only debugging records: routed to ContextMemory but intentionally
-    // no-op on restore (see ADR-0031 / CONTEXT.md「输出卸载」).
-    const LIVE_ONLY_NOOP_TYPES: ReadonlySet<string> = new Set([
-      'context.output_offloaded',
-      'context.pruning',
-    ]);
-
-    // Every AgentRecordEvents key must appear here. The value assignment
-    // forces TypeScript to evaluate Missing — an unused type alias alone
-    // does not fail typecheck.
-    const ALL_RECORD_TYPES = [
-      'metadata',
-      'turn.prompt',
-      'turn.steer',
-      'turn.cancel',
-      'config.update',
-      'permission.set_mode',
-      'permission.record_approval_result',
-      'full_compaction.begin',
-      'full_compaction.cancel',
-      'full_compaction.complete',
-      'tools.register_user_tool',
-      'tools.unregister_user_tool',
-      'tools.set_active_tools',
-      'tools.update_store',
-      'background.stop',
-      'usage.record',
-      'context.append_message',
-      'context.mark_last_user_prompt_blocked',
-      'context.append_loop_event',
-      'context.clear',
-      'context.apply_compaction',
-      'context.observation_masking',
-      'context.output_offloaded',
-      'context.pruning',
-      'goal.create',
-      'goal.update',
-      'goal.clear',
-    ] as const;
-    type Missing = Exclude<keyof AgentRecordEvents, (typeof ALL_RECORD_TYPES)[number]>;
-    // If a record type is added to AgentRecordEvents without updating the
-    // list above, Missing is a non-never union and this assignment errors.
-    const _exhaustive: [Missing] extends [never] ? true : Missing = true;
-    void _exhaustive;
-
-    it('every record type is routed to a handler or in the explicit no-handler list', () => {
-      const unaccounted = ALL_RECORD_TYPES.filter((type) => {
-        if (NO_HANDLER_TYPES.has(type)) return false;
-        const prefix = type.split('.')[0] ?? '';
-        return !ROUTED_PREFIXES.has(prefix);
-      });
-      expect(unaccounted).toEqual([]);
-    });
-
-    it('live-only debugging records are listed as explicit no-ops', () => {
-      for (const type of LIVE_ONLY_NOOP_TYPES) {
-        expect(ALL_RECORD_TYPES).toContain(type);
-        const prefix = type.split('.')[0] ?? '';
-        expect(ROUTED_PREFIXES.has(prefix)).toBe(true);
-        expect(NO_HANDLER_TYPES.has(type)).toBe(false);
-      }
-    });
+    expect(registered).toHaveLength(ALL_RECORD_TYPES.length - 1 - 1);
   });
 });

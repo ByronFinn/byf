@@ -42,7 +42,7 @@ function testProviderManager(): ProviderManager {
 /**
  * AC-2：goal records 经 replay 重建状态。
  *
- * 预填 goal.* records 到 InMemoryAgentRecordPersistence，调 records.replay()，
+ * 预填 goal.* records 到 InMemoryAgentRecordPersistence，调 wire.restore()，
  * 验证 goal.getSnapshot() 反映 replay 重建的最终状态。
  */
 describe('GoalMode records replay (AC-2)', () => {
@@ -91,12 +91,16 @@ describe('GoalMode records replay (AC-2)', () => {
     ...overrides,
   });
 
-  it('single goal.create rebuilds active goal', async () => {
+  it('single goal.create rebuilds an active goal, then normalizeAfterReplay downgrades to paused', async () => {
     const { agent } = makeAgentWithRecords([goalCreateRecord('ship feature', 1234)]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
+    // PRD-0027 Phase 1：normalizeAfterReplay 移入 onDidRestore hook（replay 内完成），
+    // 故 replay 后 active goal 已被降级为 paused —— 这是 Agent.resume() 后的真实状态
+    // （进程重启后无法确认推进，保守降级，等用户显式 resume）。
     const snapshot = agent.goal.getSnapshot();
-    expect(snapshot?.status).toBe('active');
+    expect(snapshot?.status).toBe('paused');
+    expect(snapshot?.pausedReason).toBe('Paused after agent resume');
     expect(snapshot?.objective).toBe('ship feature');
     expect(snapshot?.createdAt).toBe(1234);
     expect(snapshot?.budget.turnBudget).toBe(5);
@@ -108,7 +112,7 @@ describe('GoalMode records replay (AC-2)', () => {
       goalCreateRecord('obj'),
       goalUpdateRecord(baseSnapshot({ status: 'paused', pausedReason: 'user paused' })),
     ]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     const snapshot = agent.goal.getSnapshot();
     expect(snapshot?.status).toBe('paused');
@@ -120,7 +124,7 @@ describe('GoalMode records replay (AC-2)', () => {
       goalCreateRecord('obj'),
       goalUpdateRecord(baseSnapshot({ status: 'blocked', blockedReason: 'missing dep' })),
     ]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     const snapshot = agent.goal.getSnapshot();
     expect(snapshot?.status).toBe('blocked');
@@ -129,7 +133,7 @@ describe('GoalMode records replay (AC-2)', () => {
 
   it('goal.create + goal.clear rebuilds to absent', async () => {
     const { agent } = makeAgentWithRecords([goalCreateRecord('obj'), { type: 'goal.clear' }]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     expect(agent.goal.getSnapshot()).toBeNull();
   });
@@ -139,7 +143,7 @@ describe('GoalMode records replay (AC-2)', () => {
       goalCreateRecord('obj'),
       goalUpdateRecord(baseSnapshot({ usage: { turns: 3, tokens: 1500, wallClockMs: 12000 } })),
     ]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     const snapshot = agent.goal.getSnapshot();
     expect(snapshot?.usage).toEqual({ turns: 3, tokens: 1500, wallClockMs: 12000 });
@@ -152,7 +156,7 @@ describe('GoalMode records replay (AC-2)', () => {
       goalUpdateRecord(baseSnapshot({ status: 'active', blockedReason: undefined })),
       { type: 'goal.clear' },
     ]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     expect(agent.goal.getSnapshot()).toBeNull();
   });
@@ -163,7 +167,7 @@ describe('GoalMode records replay (AC-2)', () => {
       goalUpdateRecord(baseSnapshot({ status: 'paused' })),
       { type: 'goal.clear' },
     ]);
-    await agent.records.replay();
+    await agent.wire.restore();
 
     // replay 期间 records.restoring=true，emitEvent 应被抑制——不发任何 goal.updated。
     expect(emitted.filter((e) => e['type'] === 'goal.updated')).toHaveLength(0);

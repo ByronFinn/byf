@@ -29,7 +29,7 @@ interface FakeAgent {
     steer: (...args: unknown[]) => number | null;
   };
   context: { appendUserMessage: (...args: unknown[]) => void };
-  records: { restoring: boolean; logRecord: (record: unknown) => void };
+  wire: { phase: 'new' | 'restoring' | 'ready' | 'failed'; dispatch: (op: unknown) => void };
   telemetry: { track: ReturnType<typeof vi.fn> };
   background: BackgroundManager;
 }
@@ -48,7 +48,7 @@ function makeAgent(options: { hooks?: FakeAgent['hooks'] } = {}): FakeAgent {
       steer: vi.fn(() => 1),
     },
     context: { appendUserMessage: vi.fn() },
-    records: { restoring: false, logRecord: vi.fn() },
+    wire: { phase: 'new', dispatch: vi.fn() },
     telemetry: { track: vi.fn() },
   } as unknown as FakeAgent;
   const manager = new BackgroundManager(agent as never);
@@ -612,7 +612,7 @@ describe('BackgroundManager — RPC event emission', () => {
     );
   });
 
-  // Note: the `records.restoring` guard is enforced inside `Agent.emitEvent`
+  // Note: the `wire.phase === 'restoring'` guard is enforced inside `Agent.emitEvent`
   // (see agent/index.ts). BackgroundManager unconditionally forwards
   // lifecycle events to the agent; suppression is the agent's job.
 });

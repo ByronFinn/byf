@@ -4,7 +4,7 @@ Date: 2026-07-13
 
 ## Status
 
-Accepted
+Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精读 + 逐子系统迁移成本评估），ADR-0032 决定自研 reducer 框架，激活本 ADR 留档的备选迁移路径。
 
 ## Context
 

@@ -26,7 +26,7 @@ describe('context-projector', () => {
     const { sessionDir, cleanup: c } = await buildSessionFixture('sample-main');
     cleanup = c;
     const wire = await readAgentWire(join(sessionDir, 'agents', 'main', 'wire.jsonl'));
-    const proj = await projectContext(wire.records);
+    const proj = projectContext(wire.records);
 
     expect(proj.messages).toHaveLength(2);
     expect(proj.messages[0].message.role).toBe('user');
@@ -131,7 +131,7 @@ describe('context-projector', () => {
       },
     ];
 
-    const proj = await projectContext(entries as any);
+    const proj = projectContext(entries as any);
     expect(proj.messages).toHaveLength(3);
 
     expect(proj.messages[0].message.role).toBe('user');
@@ -182,7 +182,7 @@ describe('context-projector', () => {
         raw: {},
       },
     ];
-    const proj = await projectContext(entries as any);
+    const proj = projectContext(entries as any);
     expect(proj.messages).toHaveLength(1);
     expect(proj.messages[0].message.content[0]).toMatchObject({ text: 'b' });
   });
@@ -225,7 +225,7 @@ describe('context-projector', () => {
         raw: {},
       },
     ];
-    const proj = await projectContext(entries as any);
+    const proj = projectContext(entries as any);
     expect(proj.messages[0].source).toBe('compaction_summary');
     // Compaction summary is an assistant message (agent-core's own
     // representation), not a synthetic system message.
@@ -245,22 +245,17 @@ describe('context-projector', () => {
       entries: ReadonlyArray<{ data: { type: string } & Record<string, unknown> }>,
     ): Promise<ContextMessage[]> {
       const state = createWireFoldState();
-      const handlers = { onMessage: () => {} };
       for (const entry of entries) {
         const rec = entry.data;
         if (rec.type === 'context.append_message') {
-          foldAppendMessage(state, rec.message as ContextMessage, handlers);
+          foldAppendMessage(state, rec.message as ContextMessage);
         } else if (rec.type === 'context.append_loop_event') {
-          await foldLoopEvent(state, rec.event as LoopRecordedEvent, handlers);
+          foldLoopEvent(state, rec.event as LoopRecordedEvent);
         } else if (rec.type === 'context.apply_compaction') {
-          foldApplyCompaction(
-            state,
-            {
-              summary: rec.summary as string,
-              compactedCount: rec.compactedCount as number,
-            },
-            handlers,
-          );
+          foldApplyCompaction(state, {
+            summary: rec.summary as string,
+            compactedCount: rec.compactedCount as number,
+          });
         } else if (rec.type === 'context.clear') {
           state.history.length = 0;
           state.openSteps.clear();
@@ -401,7 +396,7 @@ describe('context-projector', () => {
       ];
 
       const pure = await pureHistoryFromEntries(entries);
-      const proj = await projectContext(entries as any);
+      const proj = projectContext(entries as any);
       const visMessages = proj.messages.map((m) => m.message);
 
       expect(visMessages).toEqual(pure);
@@ -485,7 +480,7 @@ describe('context-projector', () => {
         },
       ];
       const pure = await pureHistoryFromEntries(entries);
-      const proj = await projectContext(entries as any);
+      const proj = projectContext(entries as any);
       expect(proj.messages.map((m) => m.message)).toEqual(pure);
       expect(pure.map((m) => m.role)).toEqual(['assistant', 'tool', 'user']);
     });

@@ -13,9 +13,9 @@ const MCP_OUTPUT_TRUNCATED_TEXT =
 
 function fakeAgent(calls: unknown[] = []): Agent {
   return {
-    records: {
-      logRecord(record: unknown) {
-        calls.push(record);
+    wire: {
+      dispatch(op: unknown) {
+        calls.push(op);
       },
     },
     config: {

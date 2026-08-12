@@ -2,23 +2,21 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
-  AgentRecords,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../src/agent/records';
+import { turnPrompt } from '../../../src/agent/wire/ops/turn';
 import { testAgent } from '../harness/agent';
 
-describe('AgentRecords persistence metadata', () => {
+describe('WireService persistence metadata（Phase 6：AgentRecords 已删，直接测 wire）', () => {
   it('writes metadata before the first persisted record', async () => {
     const persistence = new InMemoryAgentRecordPersistence();
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    records.logRecord({
-      type: 'turn.prompt',
-      input: [{ type: 'text', text: 'hello' }],
-      origin: { kind: 'user' },
-    });
-    await records.flush();
+    wire.dispatch(
+      turnPrompt({ input: [{ type: 'text', text: 'hello' }], origin: { kind: 'user' } }),
+    );
+    await wire.flush();
 
     expect(persistence.records).toHaveLength(2);
     expect(persistence.records[0]).toMatchObject({
@@ -30,20 +28,17 @@ describe('AgentRecords persistence metadata', () => {
 
   it('does not write metadata when replaying an empty stream', async () => {
     const persistence = new InMemoryAgentRecordPersistence();
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await records.replay();
-    records.logRecord({
-      type: 'turn.prompt',
-      input: [{ type: 'text', text: 'one' }],
-      origin: { kind: 'user' },
-    });
-    await records.flush();
+    await wire.restore();
+    wire.dispatch(turnPrompt({ input: [{ type: 'text', text: 'one' }], origin: { kind: 'user' } }));
+    await wire.flush();
 
     expect(persistence.records.map((record) => record.type)).toEqual(['metadata', 'turn.prompt']);
   });
 
-  it('rejects replaying a non-empty stream without metadata', async () => {
+  it('synthesizes a metadata envelope when replaying a non-empty stream without metadata (replay tolerance)', async () => {
+    // PRD-0027 AC5：kimi 式容错 —— 无 metadata 时合成信封并按最旧版本迁移，不抛错。
     const persistence = new InMemoryAgentRecordPersistence([
       {
         type: 'turn.prompt',
@@ -51,11 +46,15 @@ describe('AgentRecords persistence metadata', () => {
         origin: { kind: 'user' },
       },
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await expect(records.replay()).rejects.toThrow(
-      'AgentRecords replay expected metadata as the first record',
-    );
+    await wire.restore();
+
+    expect(persistence.records[0]).toMatchObject({
+      type: 'metadata',
+      protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
+    });
+    expect(persistence.records[1]?.type).toBe('turn.prompt');
   });
 
   it('does not duplicate metadata after replaying existing records', async () => {
@@ -71,15 +70,11 @@ describe('AgentRecords persistence metadata', () => {
         origin: { kind: 'user' },
       },
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await records.replay();
-    records.logRecord({
-      type: 'turn.prompt',
-      input: [{ type: 'text', text: 'two' }],
-      origin: { kind: 'user' },
-    });
-    await records.flush();
+    await wire.restore();
+    wire.dispatch(turnPrompt({ input: [{ type: 'text', text: 'two' }], origin: { kind: 'user' } }));
+    await wire.flush();
 
     expect(persistence.records.map((record) => record.type)).toEqual([
       'metadata',
@@ -102,9 +97,9 @@ describe('AgentRecords persistence metadata', () => {
         origin: { kind: 'user' },
       },
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await records.replay();
+    await wire.restore();
 
     expect(persistence.rewrites).toEqual([]);
   });
@@ -134,9 +129,9 @@ describe('AgentRecords persistence metadata', () => {
         },
       } as unknown as AgentRecord,
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await records.replay();
+    await wire.restore();
 
     expect(persistence.rewrites).toHaveLength(1);
     expect(persistence.records[0]).toMatchObject({
@@ -163,9 +158,9 @@ describe('AgentRecords persistence metadata', () => {
         created_at: 1,
       },
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    const result = await records.replay();
+    const result = await wire.restore();
     expect(result.warning).toContain('9.9');
     expect(result.warning).toContain(AGENT_WIRE_PROTOCOL_VERSION);
   });
@@ -178,9 +173,9 @@ describe('AgentRecords persistence metadata', () => {
         created_at: 1,
       },
     ]);
-    const records = testAgent({ persistence }).agent.records;
+    const wire = testAgent({ persistence }).agent.wire;
 
-    await expect(records.replay()).rejects.toThrow('Missing wire migration for version 0.9');
+    await expect(wire.restore()).rejects.toThrow('Missing wire migration for version 0.9');
   });
 });
 

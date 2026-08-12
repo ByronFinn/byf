@@ -108,15 +108,13 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### Wire Records
 
-事件溯源持久化层（`AgentRecords`）。将所有状态变更操作以 JSONL 格式记录到 `wire.jsonl`。支持协议版本迁移。用于会话恢复（回放记录以重建内存状态）和 vis 调试。
+事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。
 
-**两类 record**：(1) 可恢复 record——restore 时由各子系统的 `RecordRestoreHandler.restoreRecord` 重建状态；(2) live-only 调试 record——仅记录 live 时发生的瞬时优化（如 `context.output_offloaded`/`context.pruning`），restore **显式 no-op**（case 列出但不改状态），仅供 vis wire 视图展示调试徽章。后者**不是**遗漏，见 ADR-0031。
-
-各子系统 `restoreRecord` 经 `isAgentRecordOfPrefix` 收窄到本前缀子集后做穷尽 switch；未知 type 仍在 `routeToHandler` 层静默 skip。
+**两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
 
 ### wire 折叠 (wire fold) / 投影函数 (projection function)
 
-把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的 effect-port 折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory` 与 `apps/vis` 的 `projectContext` 共用。折叠核心在 effect port 惰性时是纯的；可选 `offloadToolOutput` / `onMessage` / `onStepEnd` 是调用方副作用端口（live 写 scratch + 落盘、vis 挂 display 元数据）。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
+把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 `apps/vis` 的 `projectContext` 共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
 
 ### wire reducer（Op / Model）
 
@@ -133,7 +131,7 @@ PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-
 - **cross-reducer**：Model 声明对其他域 Op 的归约，一个 Op dispatch 时触发多个 Model 的 fold，无需持久化额外记录。
 - **子系统（service）**：byf 里 `ContextMemory`/`GoalMode` 等类既是 Model 定义者、又是 dispatch 调用者、又是 post-dispatch effect 处理者，三者合一（区别于 kimi v2 把 Service 与 Model 分成两类）。
 
-参见 PRD-0027、ADR-0032。落地后「Wire Records」「wire 折叠」条目将同步更新（RecordRestoreHandler 被 Model apply 取代、offloadToolOutput port 被移除）。
+参见 PRD-0027、ADR-0032。
 
 ### ChatProvider
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('PermissionManager restore handler', () => {
@@ -9,8 +8,7 @@ describe('PermissionManager restore handler', () => {
     it('should restore permission.set_mode records', () => {
       const { agent } = testAgent();
 
-      // Ensure permission implements RecordRestoreHandler
-      const permission = agent.permission as unknown as RecordRestoreHandler;
+      const permission = agent.permission;
 
       const testRecord: AgentRecord = {
         type: 'permission.set_mode',
@@ -28,7 +26,7 @@ describe('PermissionManager restore handler', () => {
     it('should restore permission.record_approval_result records', () => {
       const { agent } = testAgent();
 
-      const permission = agent.permission as unknown as RecordRestoreHandler;
+      const permission = agent.permission;
 
       const testRecord: AgentRecord = {
         type: 'permission.record_approval_result',
@@ -61,7 +59,7 @@ describe('PermissionManager restore handler', () => {
     it('should not add duplicate rules for the same action', () => {
       const { agent } = testAgent();
 
-      const permission = agent.permission as unknown as RecordRestoreHandler;
+      const permission = agent.permission;
 
       const testRecord: AgentRecord = {
         type: 'permission.record_approval_result',
@@ -87,7 +85,7 @@ describe('PermissionManager restore handler', () => {
     it('should only add rules for approved session-scoped results', () => {
       const { agent } = testAgent();
 
-      const permission = agent.permission as unknown as RecordRestoreHandler;
+      const permission = agent.permission;
 
       // Rejected result should not add a rule
       const rejectedRecord: AgentRecord = {
