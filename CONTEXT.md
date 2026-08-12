@@ -118,6 +118,23 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的 effect-port 折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory` 与 `apps/vis` 的 `projectContext` 共用。折叠核心在 effect port 惰性时是纯的；可选 `offloadToolOutput` / `onMessage` / `onStepEnd` 是调用方副作用端口（live 写 scratch + 落盘、vis 挂 display 元数据）。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
 
+### wire reducer（Op / Model）
+
+PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-core-v2` 实际落地子集，非移植）。取代现有 `AgentRecords`/`RecordRestoreHandler` 的命令式 restore。核心原语：
+
+- **Op**：操作即数据。`defineOp` 注册后既是可调用 factory（`createGoal({...})`）又携带 `.type`/`.apply`/`.schema` 元信息。Op type 复用现有 wire record 名（如 `goal.create`），产出的 JSONL 形状不变。
+- **Model**：声明式状态容器（`ModelDef<S>`，name + initial）。状态实例归 `WireService` 所有，`DeepReadonly` + `Object.freeze` 保证不可变。
+- **apply（纯归约）**：`(state, payload) => S`，状态变更的唯一途径——无副作用、无 async、无 handlers 参数。
+- **dispatch**：声明式写入入口。`dispatch(...ops)` 在单方法内顺序完成 apply + persist + toEvent，一致性由结构保证。
+- **restore（静默重放）**：读 journal → 逐条 silent fold（无 persist、无 toEvent）→ 跑 `onDidRestore` hooks。
+- **toEvent**：Op 的可选 live 事件派生。dispatch 时用 post-apply state 派发；restore 时不派发。
+- **onDidRestore hook**：restore 完成后的一次性副作用钩子（如工具重建、goal active→paused 降级）。
+- **transient op**：`persist:false` 的 Op，只改内存不落盘（如 `context.output_offloaded`）。
+- **cross-reducer**：Model 声明对其他域 Op 的归约，一个 Op dispatch 时触发多个 Model 的 fold，无需持久化额外记录。
+- **子系统（service）**：byf 里 `ContextMemory`/`GoalMode` 等类既是 Model 定义者、又是 dispatch 调用者、又是 post-dispatch effect 处理者，三者合一（区别于 kimi v2 把 Service 与 Model 分成两类）。
+
+参见 PRD-0027、ADR-0032。落地后「Wire Records」「wire 折叠」条目将同步更新（RecordRestoreHandler 被 Model apply 取代、offloadToolOutput port 被移除）。
+
 ### ChatProvider
 
 `kosong` 中的 LLM provider 接口。定义 `generate()` 返回 `StreamedMessage`（`TextPart`、`ThinkPart`、`ToolCall`、`ToolCallPart` 的异步迭代器）。适配器：`openai-completions`、`openai_responses`、`anthropic`、`google-genai`、`vertexai`。通过 `createProvider(config)` 工厂创建。

@@ -38,7 +38,7 @@ ADR-0031 在 Consequences 里留了作废触发条件：「未来若 wire 子系
 
 5. **`background.*` 维持双轨特例**。进程状态（PID、文件句柄）无法 event-source，继续走 `<sessionDir>/tasks/*.json` 供状态重建，wire 仅作审计日志。
 
-6. **分阶段迁移，不要大爆炸**（遵循 ADR-0031 备选路径精神）：goal（PoC）→ usage/tools/turn → permission/config → full_compaction → context → 清理。每阶段独立 PR、可验证、可回滚。
+6. **一次性行为中性切换 + 逐子系统 apply 纯化**（遵循 ADR-0031 备选路径「不要大爆炸」精神）。Phase 0 建框架骨架（零生产影响）；Phase 1 一个 PR 完成「WireService 独占 `wire.jsonl` + 全部 26 种 record 注册为 Op」——其中 goal 的 apply 是纯 reducer，其余 7 个子系统暂为 legacy adapter（委托现有 `restoreRecord`，**行为逐字节保留**，靠 AC1 行为等价测试守卫）。这不是「大爆炸」——危险工作（apply 纯化）仍在 Phase 2-6 逐子系统渐进推进、每阶段独立 PR、可验证、可回滚。详见 PRD-0027 Technical Approach。
 
 ## Reasoning
 
