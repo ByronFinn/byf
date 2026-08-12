@@ -12,3 +12,6 @@ export * from './usage';
 export * from './tools';
 export * from './turn';
 export * from './permission';
+export * from './config';
+export * from './full-compaction';
+export * from './background';
