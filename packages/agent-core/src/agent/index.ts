@@ -155,9 +155,7 @@ const NOOP_WIRE_PERSISTENCE: WirePersistence = {
 
 /** Phase 1 legacy adapter 前缀：restore 走 restoreRecord（非纯 reducer）。 */
 function isLegacyRestorePrefix(record: AgentRecord): boolean {
-  return (
-    isAgentRecordOfPrefix(record, 'context') || isAgentRecordOfPrefix(record, 'full_compaction')
-  );
+  return isAgentRecordOfPrefix(record, 'context');
 }
 
 export class Agent {
@@ -259,6 +257,10 @@ export class Agent {
           if (payload.mode !== undefined) {
             this.replayBuilder.push({ type: 'permission_updated', mode: payload.mode });
           }
+        } else if (record.type === 'full_compaction.complete') {
+          // full_compaction 走纯 reducer（complete() 不执行），_compactedHistory 文本
+          // 快照在此生成（context 已按序恢复到该点，与 legacy 路径时点等价）。
+          this.fullCompaction.pushCompactedHistory();
         }
       },
       onSkippedRecord: (error) => {
@@ -319,9 +321,9 @@ export class Agent {
   }
 
   /**
-   * 6 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
-   * 测试 harness 的单条 restore 都用）。context / full_compaction 是 legacy
-   * （restoreRecord 直接改私有状态），不在此列。
+   * 7 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
+   * 测试 harness 的单条 restore 都用）。context 是 legacy（restoreRecord 直接改
+   * 私有状态），不在此列。
    */
   syncFromWire(): void {
     this.goal.syncFromWire();
@@ -330,6 +332,7 @@ export class Agent {
     this.turn.syncFromWire();
     this.permission.syncFromWire();
     this.config.syncFromWire();
+    this.fullCompaction.syncFromWire();
   }
 
   /**
@@ -362,8 +365,6 @@ export class Agent {
       // 的最新配置（对标旧路径 config.restoreRecord 立即更新私有状态的语义）。
       this.config.syncFromWire();
       this.context.restoreRecord(record);
-    } else if (isAgentRecordOfPrefix(record, 'full_compaction')) {
-      this.fullCompaction.restoreRecord(record);
     }
   }
 

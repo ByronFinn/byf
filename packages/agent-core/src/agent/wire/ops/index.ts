@@ -12,8 +12,6 @@ export * from './usage';
 export * from './tools';
 export * from './turn';
 export * from './permission';
-// full_compaction 暂不注册（Phase 4 legacy adapter）：complete 的 _compactedHistory
-// 依赖活的 context 历史（renderMessagesToText），无法纯重建。
-// export * from './full-compaction';
+export * from './full-compaction';
 export * from './config';
 export * from './background';

@@ -29,6 +29,7 @@ import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { fullCompactionModel } from '../wire/ops/full-compaction';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
 import { renderMessagesToText } from './render-messages';
@@ -178,9 +179,9 @@ export class FullCompaction implements RecordRestoreHandler {
       this.compactionCountInTurn += 1;
     }
     if (this.compactionCountInTurn > this.strategy.maxCompactionPerTurn) return;
-    if (!this.agent.records.restoring) {
-      this.startCompactionWorker(data);
-    }
+    // Phase 4：restore 走纯 reducer（不调 begin()），此处只在 live 被调，
+    // restoring 门控不再需要。
+    this.startCompactionWorker(data);
   }
 
   private startCompactionWorker(data: Readonly<CompactionBeginData>): void {
@@ -221,10 +222,7 @@ export class FullCompaction implements RecordRestoreHandler {
     });
     const active = this.compacting;
     this.compacting = null;
-    const history = this.agent.context.history;
-    this._compactedHistory.push({
-      text: renderMessagesToText(history),
-    });
+    this.pushCompactedHistory();
     this.agent.emitEvent({ type: 'compaction.completed', result });
     if (active !== null) {
       const properties: Record<string, TelemetryPropertyValue> = {
@@ -619,6 +617,28 @@ export class FullCompaction implements RecordRestoreHandler {
         this.complete(record);
         break;
     }
+  }
+
+  /**
+   * 用当前 context 历史生成压缩历史文本快照（live complete() 与 restore 期
+   * Agent.onReplayRecord 共用）。restore 时 context 已按序恢复到 complete 记录
+   * 之前的消息 —— 与 live 时点的文本一致。
+   */
+  pushCompactedHistory(): void {
+    this._compactedHistory.push({
+      text: renderMessagesToText(this.agent.context.history),
+    });
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 4）。
+   * compactionCountInTurn 由 begin 的纯 apply 重建；compactions（结构化结果列表）
+   * 由 complete 的 apply 重建，_compactedHistory 文本由 onReplayRecord 生成
+   * （pushCompactedHistory）。
+   */
+  syncFromWire(): void {
+    this.compactionCountInTurn =
+      this.agent.wire.getModel(fullCompactionModel).compactionCountInTurn;
   }
 }
 

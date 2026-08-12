@@ -1,22 +1,23 @@
 /**
- * `wire/ops/full-compaction` —— full_compaction 子系统的 Op 定义。
+ * `wire/ops/full-compaction` —— full_compaction 子系统的 Op 定义（纯 reducer）。
  *
- * **Phase 1 部分纯化**：reducer 状态暂只管 `compactionCountInTurn`（对标
- * compaction/full.ts:176-179 的计数语义：manual 重置 0、auto +1）。begin 影响计数；
- * cancel / complete 对计数 no-op。
+ * reducer 状态 = `{ compactionCountInTurn, compactions }`：
+ * - `compactionCountInTurn`：begin 更新（manual 重置 0、auto +1，对标
+ *   compaction/full.ts:176-179）；cancel / complete 对计数 no-op。
+ * - `compactions`：每次 complete 的结构化结果列表（summary/compactedCount/
+ *   tokensBefore/tokensAfter）—— `_compactedHistory` 的**文本**快照（依赖活的
+ *   context 历史，apply 纯函数无法读）由 Agent 的 onReplayRecord 在 complete 记录
+ *   重放后生成（此时 context 已恢复到该点，时序与 legacy 路径等价）。
  *
- * **尚未进 reducer（Phase 4）**：
- * - `_compactedHistory`：complete 时 `renderMessagesToText(agent.context.history)` 依赖
- *   活的 context 历史，无法从 record 纯重建 —— 须在 service 层于 restore 后重做。
- * - worker 启动（begin 的 startCompactionWorker，现靠 restoring 门控抑制）→ onDidRestore。
- * - **已知精度边界**：begin 的 `if (compacting) return` 早返回在 restore 期不触发
- *   （restore 期 compacting 恒 null），故「begin 时已有 compaction 在跑」的重叠场景下，
- *   reducer 会比 live 多计一次。正常序列（begin↔complete/cancel 不重叠）不受影响，
- *   重叠处理的彻底纯化属 Phase 4。
+ * **已知精度边界**：begin 的 `if (compacting) return` 早返回在 restore 期不触发
+ * （restore 期 compacting 恒 null），故「begin 时已有 compaction 在跑」的重叠场景下
+ * reducer 会比 live 多计一次。正常序列（begin↔complete/cancel 不重叠）不受影响。
+ * worker 启动是 service 层 effect（restore 不启动），不在 apply 里。
  */
 
 import { z } from 'zod';
 
+import type { CompactionResult } from '#/agent/compaction';
 import { defineModel } from '#/agent/wire';
 
 const compactionBeginSchema = z.object({
@@ -29,17 +30,19 @@ const compactionResultSchema = z.object({
   compactedCount: z.number(),
   tokensBefore: z.number(),
   tokensAfter: z.number(),
-});
+}) satisfies z.ZodType<CompactionResult>;
 
 // —— Model ——
 
 export interface FullCompactionModelState {
   readonly compactionCountInTurn: number;
+  /** 每次 complete 的结构化结果（顺序 = 完成顺序）。 */
+  readonly compactions: readonly CompactionResult[];
 }
 
 export const fullCompactionModel = defineModel(
   'full_compaction',
-  (): FullCompactionModelState => ({ compactionCountInTurn: 0 }),
+  (): FullCompactionModelState => ({ compactionCountInTurn: 0, compactions: [] }),
 );
 
 // —— Ops ——
@@ -47,6 +50,7 @@ export const fullCompactionModel = defineModel(
 export const fullCompactionBegin = fullCompactionModel.defineOp('full_compaction.begin', {
   schema: compactionBeginSchema,
   apply: (state, payload) => ({
+    ...state,
     compactionCountInTurn: payload.source === 'manual' ? 0 : state.compactionCountInTurn + 1,
   }),
 });
@@ -58,7 +62,10 @@ export const fullCompactionCancel = fullCompactionModel.defineOp('full_compactio
 
 export const fullCompactionComplete = fullCompactionModel.defineOp('full_compaction.complete', {
   schema: compactionResultSchema,
-  apply: (state) => state,
+  apply: (state, payload) => ({
+    ...state,
+    compactions: [...state.compactions, payload],
+  }),
 });
 
 declare module '#/agent/wire/types' {
