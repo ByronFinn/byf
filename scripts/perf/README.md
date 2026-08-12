@@ -11,11 +11,11 @@
 
 ## 三模式
 
-| 模式 | 含义 | 说明 |
-| --- | --- | --- |
-| `a` | 交互长会话(主场景) | 多 turn、每 turn 多 step 多工具、大输出 |
-| `b` | resume 大会话 | 先跑长会话产出 wire,再 resume 全量 replay 测恢复峰值 |
-| `c` | 多 subagent 并行 | 脚本内 `Promise.all` 并行 spawn `--subagents` 个子 agent,各自跑独立长会话,放大并发分配与内存峰值 |
+| 模式 | 含义               | 说明                                                                                             |
+| ---- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| `a`  | 交互长会话(主场景) | 多 turn、每 turn 多 step 多工具、大输出                                                          |
+| `b`  | resume 大会话      | 先跑长会话产出 wire,再 resume 全量 replay 测恢复峰值                                             |
+| `c`  | 多 subagent 并行   | 脚本内 `Promise.all` 并行 spawn `--subagents` 个子 agent,各自跑独立长会话,放大并发分配与内存峰值 |
 
 ## 快速开始
 
@@ -33,20 +33,20 @@ bun scripts/perf/load.ts --mode c
 
 ## 规模参数(默认基线)
 
-| 参数 | 默认 | 说明 |
-| --- | --- | --- |
-| `--turns` | 50 | turn 数 |
-| `--steps "3-5"` | 3-5 | 每 turn step 数范围(确定性伪随机) |
-| `--tools` | 2 | 每 step 工具调用数 |
-| `--output-kb` | 15 | 每 turn 最终输出 KB(分块流式,复现流式事件风暴) |
-| `--tool-result-kb` | 20 | 每次工具结果 KB(1x 约 5K token,**低于 8K token offload 阈值**;2x 超过阈值会触发 offload) |
-| `--prompt-kb` | 2 | 每 turn 用户输入 KB |
-| `--subagents` | 5 | 模式 C 子 agent 数上限 |
-| `--child-turns` | 4 | 模式 C 子 agent 每实例 turn 数 |
-| `--seed` | 42 | 确定性随机种子,同参数可复现 |
-| `--scale 1\|2` | 1 | 压力档:2 使 turns/output/tool-result/child-turns 翻倍 |
-| `--gc-interval-ms` | 500 | 定时 `gc()` 采样间隔(`--expose-gc` 时生效) |
-| `--json` | off | 输出机器可读 JSON 摘要(含内存采样曲线) |
+| 参数               | 默认 | 说明                                                                                     |
+| ------------------ | ---- | ---------------------------------------------------------------------------------------- |
+| `--turns`          | 50   | turn 数                                                                                  |
+| `--steps "3-5"`    | 3-5  | 每 turn step 数范围(确定性伪随机)                                                        |
+| `--tools`          | 2    | 每 step 工具调用数                                                                       |
+| `--output-kb`      | 15   | 每 turn 最终输出 KB(分块流式,复现流式事件风暴)                                           |
+| `--tool-result-kb` | 20   | 每次工具结果 KB(1x 约 5K token,**低于 8K token offload 阈值**;2x 超过阈值会触发 offload) |
+| `--prompt-kb`      | 2    | 每 turn 用户输入 KB                                                                      |
+| `--subagents`      | 5    | 模式 C 子 agent 数上限                                                                   |
+| `--child-turns`    | 4    | 模式 C 子 agent 每实例 turn 数                                                           |
+| `--seed`           | 42   | 确定性随机种子,同参数可复现                                                              |
+| `--scale 1\|2`     | 1    | 压力档:2 使 turns/output/tool-result/child-turns 翻倍                                    |
+| `--gc-interval-ms` | 500  | 定时 `gc()` 采样间隔(`--expose-gc` 时生效)                                               |
+| `--json`           | off  | 输出机器可读 JSON 摘要(含内存采样曲线)                                                   |
 
 历史规模:10-step、每 step 2 工具的 turn ≈ 35-60 条 wire 记录;50 turn 会话 ≈ 2000-3000 条记录,
 wire 常见几 MB~几十 MB(模式 B 结束时打印 `wire:` 字节数)。
@@ -100,7 +100,7 @@ bun --expose-gc scripts/perf/load.ts --mode a --json           # 默认组
 - dummy provider 必须带非空 `apiKey`(凭证校验在 `resolveRuntimeProvider`,`runtime-provider.ts:100-110`,模型解析时触发)。
 - 模式 A/C 用内存持久化(免文件);模式 B 必须用文件持久化 + 临时 homedir(resume 全量 replay)。
 - 模式 C 直接在脚本内 `Promise.all` 并行驱动子 agent,不走 Agent 工具的 background 路径——
-  那是 Session 级设施(后台任务完成注入、Task* 工具激活、turn/step 重对齐),对基准脚本过重且脆弱。
+  那是 Session 级设施(后台任务完成注入、Task\* 工具激活、turn/step 重对齐),对基准脚本过重且脆弱。
   各子 agent 用不同 seed,负载形态有差异但仍可复现。
 - 2x 压力档的工具结果超过 offload 阈值(8K token):模式 B(有 homedir)会触发 scratch 卸载,
   模式 A/C(无 homedir)输出保持内联——这是预期行为,不是错误。

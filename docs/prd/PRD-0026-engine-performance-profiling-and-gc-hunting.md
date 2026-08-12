@@ -8,30 +8,30 @@
 
 ## What I already know
 
-| 事实 | 来源 |
-| --- | --- |
-| 用户观察:Bun(官方路径)、长会话交互运行中单核 CPU 100%,未 profile 过 | 用户确认(2026-08-11) |
-| 仓库刚完成 Node→Bun 迁移(ADR-0028 / PRD-0020),CLI 分发为 `bun build --compile` 单二进制 | `docs/adr/0028-full-bun-toolchain.md` |
-| **GC 是放大器而非根因**:长会话每 step 都有整份历史投影深拷贝(2 倍消息量临时对象)+ 多次 O(n) token 估算 + SHA256 指纹 + 数万事件对象流 | 热点清单(见 Technical Notes) |
-| wire 是 JSONL 事件溯源 WAL(27 种 record、协议 1.1),写路径微任务批量 + 每批 fsync;resume 全量 replay;vis 整文件读入双份对象 | 探索报告(wire 设计还原) |
+| 事实                                                                                                                                                                                                                     | 来源                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| 用户观察:Bun(官方路径)、长会话交互运行中单核 CPU 100%,未 profile 过                                                                                                                                                      | 用户确认(2026-08-11)                        |
+| 仓库刚完成 Node→Bun 迁移(ADR-0028 / PRD-0020),CLI 分发为 `bun build --compile` 单二进制                                                                                                                                  | `docs/adr/0028-full-bun-toolchain.md`       |
+| **GC 是放大器而非根因**:长会话每 step 都有整份历史投影深拷贝(2 倍消息量临时对象)+ 多次 O(n) token 估算 + SHA256 指纹 + 数万事件对象流                                                                                    | 热点清单(见 Technical Notes)                |
+| wire 是 JSONL 事件溯源 WAL(27 种 record、协议 1.1),写路径微任务批量 + 每批 fsync;resume 全量 replay;vis 整文件读入双份对象                                                                                               | 探索报告(wire 设计还原)                     |
 | Bun 1.3.14(本机,与仓库基线一致)官方 profile 工具齐备:`--cpu-prof`(+`--cpu-prof-md` markdown 输出专为 LLM 分析设计、`--cpu-prof-interval` 采样间隔默认 1000μs)、`--heap-prof`(+`--heap-prof-md`)、`--smol`、`--expose-gc` | 本机 `bun --help`(权威来源,2026-08-11 核实) |
-| CLI 运行时存在**两份 agent-core**(bundle 在 dist/main.mjs + 经 vis-server 从 node_modules 解析),双类副本、双模块级单例 | `apps/vis/server` 依赖分析 |
-| `Agent` 类可独立使用(构造不强制 Session),适合做进程内负载脚本 | AGENTS.md 硬规则 + `agent/index.ts` |
-| 热点函数分布于:投影(projector.ts/cache-staking)、records 序列化(persistence.ts)、token 估算(utils/tokens.ts)、SHA256 指纹(agent/index.ts)、流式事件(turn-step.ts/generate.ts)、TUI 渲染 | 探索报告(GC/CPU 热点清单) |
+| CLI 运行时存在**两份 agent-core**(bundle 在 dist/main.mjs + 经 vis-server 从 node_modules 解析),双类副本、双模块级单例                                                                                                   | `apps/vis/server` 依赖分析                  |
+| `Agent` 类可独立使用(构造不强制 Session),适合做进程内负载脚本                                                                                                                                                            | AGENTS.md 硬规则 + `agent/index.ts`         |
+| 热点函数分布于:投影(projector.ts/cache-staking)、records 序列化(persistence.ts)、token 估算(utils/tokens.ts)、SHA256 指纹(agent/index.ts)、流式事件(turn-step.ts/generate.ts)、TUI 渲染                                  | 探索报告(GC/CPU 热点清单)                   |
 
 ## Assumptions (resolved — grill 2026-08-11)
 
-| 假设 | 验证结论 |
-| --- | --- |
-| 脚本化负载可代表交互长会话的引擎热路径 | ✅ 代码核验:turn 状态机不依赖 Session/TUI(`turn/index.ts:224-343` 只依赖 records/context/telemetry/compaction/usage 等);TUI 渲染已排除出范围 |
-| GC 时间占比可量化且能归因 | ✅ 方法定稿:三管齐下(`--expose-gc` 插桩计时 + `BUN_JSC_useConcurrentGC=0` 对照 + profile GC 帧),工具全部本机验证 |
+| 假设                                             | 验证结论                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 脚本化负载可代表交互长会话的引擎热路径           | ✅ 代码核验:turn 状态机不依赖 Session/TUI(`turn/index.ts:224-343` 只依赖 records/context/telemetry/compaction/usage 等);TUI 渲染已排除出范围                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| GC 时间占比可量化且能归因                        | ✅ 方法定稿:三管齐下(`--expose-gc` 插桩计时 + `BUN_JSC_useConcurrentGC=0` 对照 + profile GC 帧),工具全部本机验证                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 回放 provider 足以驱动引擎热路径,真实 API 仅校准 | ✅ 注入缝隙核实(代码复核 2026-08-11 二轮):`AgentConfig.generate`(`agent/index.ts:119`,类型 `typeof generate`,即 kosong `GenerateFn`)+ `AgentConfig.providerManager`;kosong 的 `generate`(`kosong/src/generate.ts:94`)签名是 `(provider, systemPrompt, tools, history, callbacks?, options?) => Promise<GenerateResult>`,**流式经 `callbacks.onMessagePart` 回调推送**(非 async iterable),mock 既可经回调灌入大量 part 压测事件风暴,又返回组装好的 `GenerateResult`。注:先前写的 `test/agent/harness/agent.ts:196-211` + `scripted-generate.ts` 路径**不存在**(代码核实)——真实可复用先例是 `packages/kosong/test/fixtures/echo-provider.ts` 的 `ScriptedEchoChatProvider`(provider 层 DSL)与 `AgentConfig.generate` 注入(函数层),负载脚本用后者更轻 |
-| `--smol` 仅作对照,不是解决方向 | ✅ 确认;另加 `BUN_JSC_*` GC 探针(collectContinuously / gcMaxHeapSize) |
+| `--smol` 仅作对照,不是解决方向                   | ✅ 确认;另加 `BUN_JSC_*` GC 探针(collectContinuously / gcMaxHeapSize)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## Open Questions
 
-* 场景范围已定(2026-08-11):主场景 + resume 大会话 + 多 subagent 并行;goal 续跑/headless 不单列(被主场景覆盖);vis 不加。
-* 方案已定(2026-08-11):A 纯测量。无剩余开放问题。
+- 场景范围已定(2026-08-11):主场景 + resume 大会话 + 多 subagent 并行;goal 续跑/headless 不单列(被主场景覆盖);vis 不加。
+- 方案已定(2026-08-11):A 纯测量。无剩余开放问题。
 
 ## Requirements
 
@@ -143,9 +143,9 @@
 
 ## Implementation Plan (small PRs)
 
-* PR1: 负载脚手架——`scripts/perf/load.ts` + mock ChatProvider + 规模参数 + README
-* PR2: 采谱与 GC 量化——CPU/heap profile 运行、`--smol` 对照、数据归因
-* PR3: 报告与决策——热点归属表、GC 占比、决策标准定稿、优化清单、(按决策)第一批优化
+- PR1: 负载脚手架——`scripts/perf/load.ts` + mock ChatProvider + 规模参数 + README
+- PR2: 采谱与 GC 量化——CPU/heap profile 运行、`--smol` 对照、数据归因
+- PR3: 报告与决策——热点归属表、GC 占比、决策标准定稿、优化清单、(按决策)第一批优化
 
 ## Technical Notes
 
@@ -186,16 +186,16 @@
   - #257 — [PRD-0026] CPU 采谱与热点归属 — profile 报告 + 归属百分比表 (AFK, blocked by #256) — **Done**
   - #258 — [PRD-0026] GC 量化与对照实验 — GC 占比 + 暂停统计 + 堆曲线 + --smol 对照 (AFK, blocked by #256) — **Done**
   - #259 — [PRD-0026] 报告与决策 — 决策门定稿 + 推荐路径 + 优化清单 (HITL, blocked by #257, #258) — **Done**
-- **Grilled by**: `/grill` (completed 2026-08-11 一轮 + 2026-08-11 二轮代码复核) — 一轮 6 项待决全部解决:基线定稿(默认基线 + 2x 压力)、GC 量化方法三管齐下(BUN_JSC_* 探针本机验证)、术语精炼(回放 Provider 进 CONTEXT.md)、决策门阈值定稿(>25%/<15%/中间带/总闸)、不建 ADR、脚本落位独立薄副本。**二轮代码复核修正 3 处事实错误**:(1) `test/agent/harness/` 路径不存在,真实先例是 `packages/kosong/test/fixtures/echo-provider.ts` + `AgentConfig.generate` 注入;(2) `generate` 注入点返回 `Promise<GenerateResult>`、流式经 `callbacks.onMessagePart` 回调推送(非 async iterable);(3) 凭证校验在 `resolveRuntimeProvider`(`runtime-provider.ts:100-110`)、模型解析时触发(非构造时、非 `createAuthResolverForModel`)。
+- **Grilled by**: `/grill` (completed 2026-08-11 一轮 + 2026-08-11 二轮代码复核) — 一轮 6 项待决全部解决:基线定稿(默认基线 + 2x 压力)、GC 量化方法三管齐下(BUN*JSC*\* 探针本机验证)、术语精炼(回放 Provider 进 CONTEXT.md)、决策门阈值定稿(>25%/<15%/中间带/总闸)、不建 ADR、脚本落位独立薄副本。**二轮代码复核修正 3 处事实错误**:(1) `test/agent/harness/` 路径不存在,真实先例是 `packages/kosong/test/fixtures/echo-provider.ts` + `AgentConfig.generate` 注入;(2) `generate` 注入点返回 `Promise<GenerateResult>`、流式经 `callbacks.onMessagePart` 回调推送(非 async iterable);(3) 凭证校验在 `resolveRuntimeProvider`(`runtime-provider.ts:100-110`)、模型解析时触发(非构造时、非 `createAuthResolverForModel`)。
 - **New terms**: 回放 Provider 已进 CONTEXT.md(2026-08-11)
 
 ## Domain Terms (draft — for /grill to refine)
 
-| Term | Working Definition | Status |
-| --- | --- | --- |
+| Term                            | Working Definition                                                                                                                                                                                                                   | Status                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
 | 回放 Provider (Replay Provider) | 在 `AgentConfig.generate` 注入点回放预录/脚本化 part 流的生成器（经 `callbacks.onMessagePart` 推送 part、返回组装好的 `GenerateResult`），零成本可重复，区别于真实 `ChatProvider`（后者仍由 `createProvider` 构造，只替换 generate） | **已进 CONTEXT.md**（2026-08-11） |
-| GC 放大器 (GC amplifier) | GC 把分配密集的应用层热点（投影深拷贝、事件风暴、token 估算）放大为「单核 CPU 100%」的现象；GC 本身不是根因，消除分配热点才是治本 | PRD 内部术语，不进产品术语表 |
-| 决策门 (decision gate) | 由 GC 时间占比 × 热点集中度 × 消除可行性三要素构成的路径选择标准（定点优化 / 混合 native / 全量重写），阈值以实测数据校准定稿 | PRD 内部术语，不进产品术语表 |
+| GC 放大器 (GC amplifier)        | GC 把分配密集的应用层热点（投影深拷贝、事件风暴、token 估算）放大为「单核 CPU 100%」的现象；GC 本身不是根因，消除分配热点才是治本                                                                                                    | PRD 内部术语，不进产品术语表      |
+| 决策门 (decision gate)          | 由 GC 时间占比 × 热点集中度 × 消除可行性三要素构成的路径选择标准（定点优化 / 混合 native / 全量重写），阈值以实测数据校准定稿                                                                                                        | PRD 内部术语，不进产品术语表      |
 
 ## Issue
 
