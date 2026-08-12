@@ -145,7 +145,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
       case '--steps': {
         const range = next();
         const [min, max] = range.split('-').map(Number);
-        if (min === undefined || max === undefined || min < 1 || max < min) {
+        if (!Number.isFinite(min) || !Number.isFinite(max) || min < 1 || max < min) {
           throw new Error(`Invalid --steps range (expect "min-max", min>=1, max>=min): ${range}`);
         }
         opts.stepsMin = min;
