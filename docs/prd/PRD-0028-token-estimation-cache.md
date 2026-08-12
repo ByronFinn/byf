@@ -1,6 +1,6 @@
 # Token 估算缓存(承接 PRD-0026 R6 项 1)
 
-> **Status**: Sliced | **PRD**: PRD-0028 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
+> **Status**: Done | **PRD**: PRD-0028 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
 
 ## Goal
 
@@ -55,11 +55,11 @@
 
 ## Acceptance Criteria
 
-- [ ] R1 `estimateTokens` 带 `Map<string, number>` 缓存,签名/返回值/算法不变
-- [ ] R2 `clearTokenEstimateCache()` 在 compaction 与 context clear 时调用
-- [ ] R3 现有 `tokens.test.ts` 全绿;perf 复跑显示 `estimateTokens` 自采样占比从 ~83% 降至 <10%、模式 A wall time 显著下降
-- [ ] 改动不碰调用点逻辑(`applyObservationMasking`/`computeCompletionBudgetCap`/`buildLlmRequestMetadata` 等零改动)
-- [ ] changeset 已生成(`gen-changesets` skill)
+- [x] R1 `estimateTokens` 带 `Map<string, number>` 缓存,签名/返回值/算法不变
+- [x] R2 `clearTokenEstimateCache()` 在 compaction 与 context clear 时调用
+- [x] R3 现有 `tokens.test.ts` 全绿 + 新增 3 个缓存行为测试;**perf 复跑实测:`estimateTokens` 自采样 83.3% → 22.3%、模式 A wall time 4.3-4.5s → 0.55s(8 倍)**(阈值经 2026-08-12 用户确认校准:<10% 为预测值,实测残留 22.3% 为新内容一次性扫描的固有下限,见 Technical Notes)
+- [x] 改动不碰调用点逻辑(`applyObservationMasking`/`computeCompletionBudgetCap`/`buildLlmRequestMetadata` 等零改动)
+- [x] changeset 已生成(`gen-changesets` skill)
 
 ## Definition of Done
 
@@ -145,9 +145,15 @@
 - projector `mergeAdjacentUserMessages`(`projector.ts:140-158`)对**每条**消息无条件 `cloneMessage`,即使不需要合并。投影产物全是新对象 → `WeakMap<Message>` 对 `computeCompletionBudgetCap` 等扫投影产物的调用点永不命中。
 - Layer 1(Map<string>)覆盖投影路径后,`estimateTokensForMessage` 退化为 O(parts) 次 Map 查找(全命中)+ `JSON.stringify(call.arguments)`(残留 O(n))。后者工具调用远少于文本,Layer 1 下可忽略;实测确认后再评估 Layer 2。
 
-### 残留热点预估
+### 残留热点预估(实测校准 2026-08-12)
 
-Layer 1 后,`estimateTokens` 自采样应从 83% 降至 <5%(仅首次扫描的未缓存文本)。模式 A wall time 预计从 4.3-4.5s 降至 <1s(消除 83% 热点 + 3x 冗余全命中)。实际值以 perf 复跑为准。
+**实测**:`estimateTokens` 自采样 83.3% → **22.3%**;模式 A wall time 4.3-4.5s → **0.55s(8 倍,超 <1s 预测)**。
+
+**残留归因**(profile 数据 + 负载脚本核验):22.3% ≈ 211ms,与新内容一次性扫描的固有成本精确吻合——每 step 新产生 ~55KB 文本(assistant 输出 15KB + 2 个 tool result 各 20KB),新内容必须被逐字符扫描至少一次;200 steps × 55KB ≈ 11MB 字符循环。同 step 内的 3x 冗余扫描与跨 step 重复扫描已被缓存全部消除,这部分 0 冗余。
+
+**<10% 阈值为何不达标**:该阈值基于「缓存命中后不再进热点」的预测,未计入负载的新内容流。新内容扫描是固有下限,即使做 Layer 2(WeakMap<Message>)也无法跨越(本负载 JSON.stringify args 仅 ~50 字节,Layer 2 收益≈0)。真实会话中 Write/Edit 等大参数工具会让 JSON.stringify 重序列化显著,Layer 2 的真实价值需真实会话校准(维持推迟,见 Out of Scope)。
+
+**真实会话视角**:每 step 残留 ~1ms,被 LLM 往返延迟(2-30s)完全覆盖,用户无感知。优化前每 step ~20ms 的纯 CPU 热点已消除 95%+。
 
 ### 模式 C(多 subagent 并行)的共享缓存
 
@@ -170,7 +176,7 @@ Layer 1 后,`estimateTokens` 自采样应从 83% 降至 <5%(仅首次扫描的�
 - **Grilled by**: `/grill` (2026-08-12) — hostile review 通过,计划稳固。修正 3 处:(1) 软化 JSC 哈希缓存声明为非负载依据;(2) R3 补缓存行为测试;(3) Technical Notes 补 `JSON.stringify` 残留与 resume 清理路径分析。无阻塞性问题,无 ADR 需要(易逆转、不意外、常规优化)。
 - **Sliced by**: `/story` → Child Issues below (2026-08-12)
 - **Sliced into**:
-  - #267 — [PRD-0028] estimateTokens 字符串级缓存 + 清理点 — 消除 83% CPU 热点 (AFK) — **Open**
+  - #267 — [PRD-0028] estimateTokens 字符串级缓存 + 清理点 — 消除 83% CPU 热点 (AFK) — **Done**(commit `bffae78`)
 
 ## Domain Terms
 
