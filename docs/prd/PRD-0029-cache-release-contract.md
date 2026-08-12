@@ -1,6 +1,6 @@
 # 缓存发布契约 — 破坏侧归因、CI 门禁与真实探针
 
-> **Status**: In Progress | **PRD**: PRD-0029 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
+> **Status**: Done | **PRD**: PRD-0029 | **Created**: 2026-08-12 | **Last updated**: 2026-08-12
 
 ## Goal
 
