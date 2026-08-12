@@ -12,6 +12,7 @@ import {
 import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
+import type { SlashCommandHost } from '#/tui/commands/handlers/slash-host';
 import { BtwViewer } from '#/tui/components/dialogs/btw-viewer';
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
@@ -940,6 +941,59 @@ describe('ByfTui message flow', () => {
     driver.state.editor.onCtrlC?.();
 
     expect(session.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape cancels the registered in-flight operation exactly once without falling through', async () => {
+    const { driver, session } = await makeDriver();
+    const cancel = vi.fn();
+
+    // `cancelInFlight` is a private ByfTui field with no public accessor and
+    // DialogHost (types.ts) exposes only show/close. The public-surface route
+    // to arm it is the SlashCommandHost capability bag (slash-host.ts
+    // `setCancelInFlight`), which the driver stores in its private
+    // `slashHost` field — same cast pattern as getBtwViewer above.
+    const slashHost = (driver as unknown as { slashHost: SlashCommandHost }).slashHost;
+    slashHost.setCancelInFlight(cancel);
+
+    // Streaming is also active: Esc must take the cancel-in-flight branch and
+    // NOT fall through to the stream-cancel branch (AC1).
+    driver.state.appState.isStreaming = true;
+
+    driver.state.editor.onEscape?.();
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(session.cancel).not.toHaveBeenCalled();
+
+    // The handler was cleared by the first Esc, so the second Esc falls
+    // through to the existing streaming branch.
+    driver.state.editor.onEscape?.();
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(session.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape clears a pending Ctrl-C exit hint', async () => {
+    const { driver } = await makeDriver();
+
+    // Arm the exit-confirmation window exactly the way Ctrl-C arms it today:
+    // empty editor, nothing streaming/compacting, no in-flight cancel.
+    driver.state.editor.onCtrlC?.();
+
+    const renderHint = () => stripSgr(driver.state.footer.render(120)[1]);
+    expect(renderHint()).toContain('Press Ctrl+C again to exit');
+
+    driver.state.editor.onEscape?.();
+
+    expect(renderHint()).not.toContain('Press Ctrl+C again to exit');
+  });
+
+  it('Escape hides the session picker when shown', async () => {
+    const { driver } = await makeDriver();
+
+    driver.state.showingSessionPicker = true;
+    driver.state.editor.onEscape?.();
+
+    expect(driver.state.showingSessionPicker).toBe(false);
   });
 
   it('dispatches the next queued message after the active turn ends', async () => {
