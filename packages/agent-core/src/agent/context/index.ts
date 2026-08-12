@@ -349,6 +349,11 @@ export class ContextMemory {
       case 'context.mark_last_user_prompt_blocked':
         // apply 已原地替换；水位不变（长度不变）。
         return;
+      case 'context.cache_churn':
+        // 归因/展示元数据（PRD-0029 R3）：apply 对 fold 无操作，水位/长度不动。
+        // 持久化仅为 vis/replay 渲染 churn ribbon；live 侧的「上一 turn 指纹」比对状态
+        // 由 Agent 在 restore 后首个 live turn 从当前 system prompt 重算基线。
+        return;
       case 'context.observation_masking':
         // legacyRoute 已先跑 restoreObservationMasking；长度不变，水位不动。
         return;

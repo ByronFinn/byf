@@ -1,0 +1,230 @@
+import type { PromptPlan, Tool } from '@byfriends/kosong';
+import { describe, it, expect } from 'vitest';
+
+import { computeToolsHash, extractCacheBlockHashes, diffStaticPrefix } from '#/agent/cache-churn';
+
+import { testAgent } from './harness/agent';
+
+const plan = (
+  blocks: { name: string; text: string; cacheScope: PromptPlan['blocks'][number]['cacheScope'] }[],
+): PromptPlan => ({
+  blocks,
+});
+
+const tools = (...names: string[]): Tool[] =>
+  names.map(
+    (name) =>
+      ({ name, description: `desc-${name}`, parameters: { type: 'object' } }) as unknown as Tool,
+  );
+
+describe('computeToolsHash', () => {
+  it('is deterministic for the same tools', () => {
+    const t = tools('a', 'b');
+    expect(computeToolsHash(t)).toBe(computeToolsHash(t));
+  });
+
+  it('changes when a tool name differs', () => {
+    expect(computeToolsHash(tools('a'))).not.toBe(computeToolsHash(tools('b')));
+  });
+
+  it('changes when tool description or parameters differ', () => {
+    const base = tools('a');
+    const modified = [
+      { name: 'a', description: 'changed', parameters: { type: 'object' } },
+    ] as unknown as Tool[];
+    expect(computeToolsHash(base)).not.toBe(computeToolsHash(modified));
+  });
+
+  it('is order-sensitive (stable ordering is the caller contract)', () => {
+    expect(computeToolsHash(tools('a', 'b'))).not.toBe(computeToolsHash(tools('b', 'a')));
+  });
+});
+
+describe('extractCacheBlockHashes', () => {
+  it('produces a per-block name → SHA256 map', () => {
+    const hashes = extractCacheBlockHashes(
+      plan([
+        { name: 'base', text: 'hello', cacheScope: 'global' },
+        { name: 'sessionContext', text: 'world', cacheScope: 'session' },
+      ]),
+    );
+    expect(Object.keys(hashes).toSorted()).toEqual(['base', 'sessionContext']);
+    expect(hashes['base']).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashes['base']).not.toBe(hashes['sessionContext']);
+  });
+
+  it('hashes only text content (same text → same hash regardless of scope)', () => {
+    const a = extractCacheBlockHashes(plan([{ name: 'base', text: 'x', cacheScope: 'global' }]));
+    const b = extractCacheBlockHashes(plan([{ name: 'base', text: 'x', cacheScope: 'session' }]));
+    expect(a['base']).toBe(b['base']);
+  });
+});
+
+describe('diffStaticPrefix', () => {
+  it('returns no changes when previous is undefined (baseline turn)', () => {
+    const current = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    expect(
+      diffStaticPrefix(undefined, current, extractCacheBlockHashes(current), computeToolsHash([])),
+    ).toEqual([]);
+  });
+
+  it('returns no changes when the static prefix is byte-identical', () => {
+    const current = plan([
+      { name: 'base', text: 'hi', cacheScope: 'global' },
+      { name: 'sessionContext', text: 'turn', cacheScope: 'session' },
+    ]);
+    const snapshot = {
+      blocks: extractCacheBlockHashes(current),
+      toolsHash: computeToolsHash(tools('a')),
+    };
+    expect(
+      diffStaticPrefix(
+        snapshot,
+        current,
+        extractCacheBlockHashes(current),
+        computeToolsHash(tools('a')),
+      ),
+    ).toEqual([]);
+  });
+
+  it('reports a block content change with before/after hash and current scope', () => {
+    const before = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    const after = plan([{ name: 'base', text: 'changed', cacheScope: 'global' }]);
+    const snapshot = { blocks: extractCacheBlockHashes(before), toolsHash: computeToolsHash([]) };
+    const changes = diffStaticPrefix(
+      snapshot,
+      after,
+      extractCacheBlockHashes(after),
+      computeToolsHash([]),
+    );
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      blockName: 'base',
+      cacheScope: 'global',
+      beforeHash: extractCacheBlockHashes(before)['base'],
+      afterHash: extractCacheBlockHashes(after)['base'],
+    });
+  });
+
+  it('reports a newly added block with afterHash only (no beforeHash)', () => {
+    const before = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    const after = plan([
+      { name: 'base', text: 'hi', cacheScope: 'global' },
+      { name: 'projectInstructions', text: 'new injection', cacheScope: 'project' },
+    ]);
+    const snapshot = { blocks: extractCacheBlockHashes(before), toolsHash: computeToolsHash([]) };
+    const changes = diffStaticPrefix(
+      snapshot,
+      after,
+      extractCacheBlockHashes(after),
+      computeToolsHash([]),
+    );
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.blockName).toBe('projectInstructions');
+    expect(changes[0]?.cacheScope).toBe('project');
+    expect(changes[0]?.beforeHash).toBeUndefined();
+    expect(changes[0]?.afterHash).toBeDefined();
+  });
+
+  it('reports a tools change as a single tools-block churn', () => {
+    const before = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    const after = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    const prevTools = computeToolsHash(tools('a'));
+    const nextTools = computeToolsHash(tools('a', 'b'));
+    const snapshot = { blocks: extractCacheBlockHashes(before), toolsHash: prevTools };
+    const changes = diffStaticPrefix(snapshot, after, extractCacheBlockHashes(after), nextTools);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      blockName: 'tools',
+      cacheScope: 'global',
+      beforeHash: prevTools,
+      afterHash: nextTools,
+    });
+  });
+
+  it('reports block and tools changes together when both changed', () => {
+    const before = plan([{ name: 'base', text: 'hi', cacheScope: 'global' }]);
+    const after = plan([{ name: 'base', text: 'CHANGED', cacheScope: 'session' }]);
+    const snapshot = {
+      blocks: extractCacheBlockHashes(before),
+      toolsHash: computeToolsHash(tools('a')),
+    };
+    const changes = diffStaticPrefix(
+      snapshot,
+      after,
+      extractCacheBlockHashes(after),
+      computeToolsHash(tools('b')),
+    );
+    expect(changes).toHaveLength(2);
+    // scope reflects the CURRENT block's scope
+    const blockChange = changes.find((c) => c.blockName === 'base');
+    expect(blockChange?.cacheScope).toBe('session');
+    expect(changes.some((c) => c.blockName === 'tools')).toBe(true);
+  });
+});
+
+describe('Agent churn dispatch (integration via harness)', () => {
+  it('does not dispatch churn on the baseline turn', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hi' }] });
+    await ctx.untilTurnEnd();
+
+    expect(ctx.getRecords().map((r) => r.type)).not.toContain('context.cache_churn');
+  });
+
+  it('dispatches context.cache_churn when the static prefix changes between turns', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hi' }] });
+    await ctx.untilTurnEnd();
+
+    // Change the static prefix (system prompt) → next turn's PromptPlan differs.
+    ctx.agent.config.update({ systemPrompt: 'A materially different system prompt.' });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'again' }] });
+    await ctx.untilTurnEnd();
+
+    const churn = ctx.getRecords().filter((r) => r.type === 'context.cache_churn');
+    expect(churn.length).toBe(1);
+    const change = churn[0]!;
+    // Short prompts without boundary headers fall back to a single 'base' block.
+    expect(change.blockName).toBe('base');
+    expect(change.beforeHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(change.afterHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(change.beforeHash).not.toBe(change.afterHash);
+  });
+
+  it('does not dispatch churn across stable turns (same system prompt)', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'turn-1' }] });
+    await ctx.untilTurnEnd();
+    // Same system prompt → static prefix byte-identical → no churn.
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'turn-2' }] });
+    await ctx.untilTurnEnd();
+
+    expect(ctx.getRecords().filter((r) => r.type === 'context.cache_churn')).toHaveLength(0);
+  });
+
+  it('restore replays context.cache_churn records without error', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hi' }] });
+    await ctx.untilTurnEnd();
+    ctx.agent.config.update({ systemPrompt: 'changed prompt to force churn' });
+    ctx.mockNextResponse({ type: 'text', text: 'ok' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'again' }] });
+    await ctx.untilTurnEnd();
+
+    expect(ctx.getRecords().some((r) => r.type === 'context.cache_churn')).toBe(true);
+    // Fresh agent seeded with the journal must restore (replay cache_churn) cleanly
+    // and reach an equivalent observable state.
+    await ctx.expectResumeMatches();
+  });
+});

@@ -182,6 +182,8 @@ describe('Agent config', () => {
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Start a fresh turn" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-5>", "turnId": "1", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 1, "step": 1, "stepId": "<uuid-5>" }
+      [wire] context.cache_churn         { "blockName": "base", "cacheScope": "none", "beforeHash": "ec9c34379c88babbc468ef2f3e0e08cd2f422c8c4a910664fb8bb394d703a575", "afterHash": "7617cb8b42659214c397a1d7505fce204b673b078a10de8bcccc697d88dcda56", "time": "<time>" }
+      [wire] context.cache_churn         { "blockName": "tools", "cacheScope": "global", "beforeHash": "638f32c14edbf9d053c2d85d3816935eda2c5990f6cb431f6d24f3d8647e71a1", "afterHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945", "time": "<time>" }
       [emit] assistant.delta             { "turnId": 1, "delta": "Now the changed config is active." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-6>", "turnId": "1", "step": 1, "stepUuid": "<uuid-5>", "part": { "type": "text", "text": "Now the changed config is active." } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-5>", "turnId": "1", "step": 1, "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }, "time": "<time>" }

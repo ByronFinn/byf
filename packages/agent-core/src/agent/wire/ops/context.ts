@@ -186,6 +186,30 @@ export const contextPruning = contextModel.defineOp('context.pruning', {
   },
 });
 
+/**
+ * 静态前缀块（桩1 PromptPlan 块 / 桩2 tools 数组）的 SHA256 跨 turn 变化时 dispatch。
+ *
+ * 破坏侧归因（PRD-0029 R3）：读侧命中率回答「缓存工作吗」，本事件回答「谁打破了
+ * 前缀」。payload 携带变化块名 + cacheScope（让读者推导严重度：global 块变 = 打破
+ * 所有会话缓存最该报警，session 块在会话内变 = 本会话回归信号）+ before/after hash。
+ * apply 对 context fold 无操作——churn 是归因/展示元数据，不改上下文历史；持久化是
+ * 为了 vis/replay 能渲染 churn ribbon（对齐 compaction ribbon 范式）。压缩是预期内、
+ * 且应当改写历史前缀的事件，不通过本事件上报（只比对静态前缀）。
+ */
+export const contextCacheChurn = contextModel.defineOp('context.cache_churn', {
+  schema: z.object({
+    // 变化的块名：PromptPlan 块名（base / projectInstructions / workingEnvironment /
+    // sessionContext 等）或桩2 的固定标识 'tools'。
+    blockName: z.string(),
+    // 块的 cacheScope（global / project / session / none）；tools 桩用 'global'。
+    cacheScope: z.enum(['global', 'project', 'session', 'none']),
+    // 可选：新增块无 beforeHash；删除块无 afterHash。
+    beforeHash: z.string().optional(),
+    afterHash: z.string().optional(),
+  }),
+  apply: (state) => state,
+});
+
 declare module '#/agent/wire/types' {
   interface PersistedOpMap {
     'context.append_message': typeof contextAppendMessage;
@@ -193,6 +217,7 @@ declare module '#/agent/wire/types' {
     'context.clear': typeof contextClear;
     'context.apply_compaction': typeof contextApplyCompaction;
     'context.mark_last_user_prompt_blocked': typeof contextMarkLastUserPromptBlocked;
+    'context.cache_churn': typeof contextCacheChurn;
   }
 
   interface TransientOpMap {

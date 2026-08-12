@@ -41,6 +41,12 @@ import {
 } from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
+import {
+  computeToolsHash,
+  diffStaticPrefix,
+  extractCacheBlockHashes,
+  type StaticPrefixSnapshot,
+} from './cache-churn';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState, type AgentConfigUpdateData } from './config';
 import { ContextMemory } from './context';
@@ -61,9 +67,9 @@ import {
 } from './records';
 import { ReplayBuilder } from './replay';
 import { SkillManager } from './skill';
+import { ToolManager } from './tool/index';
 // import 即注册全部业务 Op（纯 reducer 子系统；legacy 前缀走 legacyRoute）。
 import './wire/ops';
-import { ToolManager } from './tool/index';
 import { TurnFlow } from './turn';
 import {
   GENERATE_REQUEST_LOG_CONTEXT,
@@ -72,6 +78,7 @@ import {
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
 import { WireService, wireRecordToPayload, type WirePersistence, type WireRecord } from './wire';
+import { contextCacheChurn } from './wire/ops/context';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
@@ -199,6 +206,12 @@ export class Agent {
   readonly log: Logger;
 
   private lastLlmConfigLogSignature?: string;
+  /**
+   * 上一 turn 的静态前缀快照（桩1 逐块哈希 + 桩2 toolsHash），用于破坏侧归因比对
+   * （PRD-0029 R2/R3）。restore 后为 undefined——首个 live turn 建立基线、不报 churn。
+   * 不持久化本身（restore 时从当前 system prompt 重算）。
+   */
+  private previousStaticPrefix?: StaticPrefixSnapshot;
   private btwQueryCounter = 0;
   private readonly btwQueries = new Map<string, AbortController>();
 
@@ -526,6 +539,35 @@ export class Agent {
       ...context,
       ...buildLlmRequestMetadata(systemPrompt, tools, history),
     });
+    this.detectCacheChurn(options?.promptPlan, tools);
+  }
+
+  /**
+   * 破坏侧归因（PRD-0029 R2/R3）：比对当前 turn 与上一 turn 的静态前缀指纹（桩1
+   * PromptPlan 块 + 桩2 tools），检测到变化时 dispatch 持久化 `context.cache_churn`。
+   *
+   * restore 重放时不调用（logLlmRequest 只在 live generate 路径触发）；restore 后
+   * `previousStaticPrefix` 为 undefined，首个 live turn 建立基线、不报 churn，此后正
+   * 常比对。压缩只改历史消息、不改静态前缀，故天然不触发 churn。
+   */
+  private detectCacheChurn(promptPlan: PromptPlan | undefined, tools: readonly Tool[]): void {
+    if (this.wire.phase === 'restoring') return;
+    if (promptPlan === undefined || promptPlan.blocks.length === 0) {
+      this.previousStaticPrefix = undefined;
+      return;
+    }
+    const currentBlockHashes = extractCacheBlockHashes(promptPlan);
+    const currentToolsHash = computeToolsHash(tools);
+    const changes = diffStaticPrefix(
+      this.previousStaticPrefix,
+      promptPlan,
+      currentBlockHashes,
+      currentToolsHash,
+    );
+    for (const change of changes) {
+      this.wire.dispatch(contextCacheChurn(change));
+    }
+    this.previousStaticPrefix = { blocks: currentBlockHashes, toolsHash: currentToolsHash };
   }
 
   private logLlmConfigIfChanged(
@@ -920,33 +962,15 @@ function getProviderCacheStrategy(provider: ChatProvider): CacheStrategy | undef
   return capability?.cache?.strategy;
 }
 
-/**
- * Extract cache block hashes from a PromptPlan.
- *
- * Returns a Record mapping block names to their SHA256 hashes.
- */
-function extractCacheBlockHashes(promptPlan: PromptPlan): Record<string, string> {
-  const hashes: Record<string, string> = {};
-  for (const block of promptPlan.blocks) {
-    hashes[block.name] = fingerprint(block.text);
-  }
-  return hashes;
-}
-
 function buildLlmConfigSignature(
   metadata: LlmConfigMetadata,
   systemPrompt: string,
   tools: readonly Tool[],
 ): string {
-  const toolsForSignature = tools.map(({ name, description, parameters }) => ({
-    name,
-    description,
-    parameters,
-  }));
   return JSON.stringify({
     ...metadata,
     systemPromptHash: fingerprint(systemPrompt),
-    toolsHash: fingerprint(JSON.stringify(toolsForSignature)),
+    toolsHash: computeToolsHash(tools),
   });
 }
 
