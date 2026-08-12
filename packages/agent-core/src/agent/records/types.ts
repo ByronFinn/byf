@@ -1,4 +1,4 @@
-import type { ContentPart, TokenUsage } from '@byfriends/kosong';
+import type { CacheScope, ContentPart, TokenUsage } from '@byfriends/kosong';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { ToolStoreUpdate } from '../../tools/store';
@@ -61,6 +61,16 @@ export interface AgentRecordEvents {
   'context.append_loop_event': { event: LoopRecordedEvent };
   'context.clear': {};
   'context.apply_compaction': CompactionResult;
+  'context.cache_churn': {
+    /** 变化的块名：PromptPlan 块名，或桩2 的固定标识 'tools'。 */
+    blockName: string;
+    /** 块的 cacheScope（tools 桩用 'global'）。 */
+    cacheScope: CacheScope;
+    /** 可选：新增块无 beforeHash。 */
+    beforeHash?: string;
+    /** 可选：删除块无 afterHash（当前比对仅报当前存在的块，故通常存在）。 */
+    afterHash?: string;
+  };
   'context.observation_masking': {
     maskedCount: number;
     tokensBefore: number;

@@ -10,24 +10,24 @@
 
 ## What I already know
 
-| 事实 | 来源 |
-| --- | --- |
-| `estimateTokens` 占模式 A/B 自采样 83%,是单一压倒性热点;GC 仅 ~6%,非根因 | `docs/perf/REPORT-0026.md` §1-§3 |
-| 同一步内 `applyObservationMasking`、`computeCompletionBudgetCap`、`buildLlmRequestMetadata` 三处各自全量扫描历史(3x 冗余) | REPORT-0026 §5 调用链 |
-| `estimateTokens(text)` 是纯函数(同输入恒同输出),代码注释明确「transient — 下次 LLM 调用返回真实值即取代」 | `utils/tokens.ts:5-12` |
-| 字符串值在原始历史与投影克隆中相同(projector 克隆按值拷贝字符串)→ 字符串级缓存通吃所有路径 | `projector.ts:154-155` cloneMessage + ECMA-262 字符串按值比较 |
-| 投影路径每次产生新 Message 对象 → WeakMap<Message> 对投影路径失效;但字符串值不变 → Map<string> 不受影响 | Explore 变更点图谱 + `projector.ts:155` |
-| Bun/JSC 对字符串哈希做惰性缓存,同一字符串对象的重复 `Map.get` 接近 O(1)(非负载依据——即使无哈希缓存,原生字节级哈希仍远快于 JS codePoint 逐字符循环) | JSC JSString m_hash 缓存机制(非 Tier 1,仅参考) |
-| WeakMap 对象键缓存是 ECMA-262 §24.3 + MDN 官方推荐用例(Caching);但原始值(字符串)不能做 WeakMap key,必须用 Map | `docs/research/typescript-weakmap-memoization-6.md`(verified) |
-| 5 个消息内容变更点中,4 个「替换为新对象」、1 个「流式原地 append」(仅影响 partial 消息) | Explore 变更点图谱 |
+| 事实                                                                                                                                               | 来源                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `estimateTokens` 占模式 A/B 自采样 83%,是单一压倒性热点;GC 仅 ~6%,非根因                                                                           | `docs/perf/REPORT-0026.md` §1-§3                              |
+| 同一步内 `applyObservationMasking`、`computeCompletionBudgetCap`、`buildLlmRequestMetadata` 三处各自全量扫描历史(3x 冗余)                          | REPORT-0026 §5 调用链                                         |
+| `estimateTokens(text)` 是纯函数(同输入恒同输出),代码注释明确「transient — 下次 LLM 调用返回真实值即取代」                                          | `utils/tokens.ts:5-12`                                        |
+| 字符串值在原始历史与投影克隆中相同(projector 克隆按值拷贝字符串)→ 字符串级缓存通吃所有路径                                                         | `projector.ts:154-155` cloneMessage + ECMA-262 字符串按值比较 |
+| 投影路径每次产生新 Message 对象 → WeakMap<Message> 对投影路径失效;但字符串值不变 → Map<string> 不受影响                                            | Explore 变更点图谱 + `projector.ts:155`                       |
+| Bun/JSC 对字符串哈希做惰性缓存,同一字符串对象的重复 `Map.get` 接近 O(1)(非负载依据——即使无哈希缓存,原生字节级哈希仍远快于 JS codePoint 逐字符循环) | JSC JSString m_hash 缓存机制(非 Tier 1,仅参考)                |
+| WeakMap 对象键缓存是 ECMA-262 §24.3 + MDN 官方推荐用例(Caching);但原始值(字符串)不能做 WeakMap key,必须用 Map                                      | `docs/research/typescript-weakmap-memoization-6.md`(verified) |
+| 5 个消息内容变更点中,4 个「替换为新对象」、1 个「流式原地 append」(仅影响 partial 消息)                                                            | Explore 变更点图谱                                            |
 
 ## Assumptions
 
-| 假设 | 验证结论 |
-| --- | --- |
-| 字符串级缓存可消除绝大部分热点 | ✅ 83% 自采样来自 `estimateTokens` 的逐字符循环;缓存命中后跳过循环,直接返回 |
-| 缓存不需要失效逻辑 | ✅ 纯函数:`f(x)` 对同一 `x` 恒返回同一值;ECMA-262 保证字符串按值比较 |
-| 内存增长可接受 | ✅ live unique 文本受会话规模上界约束(200K token ≈ 数千唯一字符串 ≈ <500KB);compaction/clear 时清理双保险 |
+| 假设                           | 验证结论                                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| 字符串级缓存可消除绝大部分热点 | ✅ 83% 自采样来自 `estimateTokens` 的逐字符循环;缓存命中后跳过循环,直接返回                               |
+| 缓存不需要失效逻辑             | ✅ 纯函数:`f(x)` 对同一 `x` 恒返回同一值;ECMA-262 保证字符串按值比较                                      |
+| 内存增长可接受                 | ✅ live unique 文本受会话规模上界约束(200K token ≈ 数千唯一字符串 ≈ <500KB);compaction/clear 时清理双保险 |
 
 ## Open Questions
 
@@ -78,6 +78,7 @@
 ## Technical Approach
 
 1. **缓存实现**(`utils/tokens.ts`):
+
    ```ts
    const tokenEstimateCache = new Map<string, number>();
 
@@ -94,12 +95,14 @@
      tokenEstimateCache.clear();
    }
    ```
+
 2. **清理点**(`context/index.ts`):`applyCompaction` 末尾 + `clear` 末尾各加 `clearTokenEstimateCache()`。
 3. **验证**:`bun test packages/agent-core/test/utils/tokens.test.ts`;perf 复跑 `bun --cpu-prof --cpu-prof-md scripts/perf/load.ts --mode a --json`。
 
 ### 为什么字符串级缓存通吃所有路径
 
 `estimateTokens` 是叶子函数,被 `estimateTokensForContentPart`(文本/think)、`estimateTokensForMessage`(role + toolCalls 的 name/arguments)调用。这些字符串的来源:
+
 - **原始历史路径**(`applyObservationMasking` 扫 `_history`):字符串是消息对象上的 `part.text`,跨 step 稳定 → 命中。
 - **投影路径**(`computeCompletionBudgetCap` 等扫 `project()` 产物):projector 克隆消息对象但**按值拷贝字符串**;Map 按值比较 → 同一文本命中。
 - **跨 step**:不变的消息内容字符串值相同 → 命中。

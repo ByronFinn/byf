@@ -214,11 +214,19 @@ function buildCacheHitRateSection(
   value: Colorize,
 ): string[] {
   const hitRateStr = formatCacheHitRate(usage?.cacheHitRate);
-  if (hitRateStr === undefined) return [];
-  return [
-    accent('Cache hit rate (cumulative)'),
-    `  Average across all turns  ${value(hitRateStr)}`,
-  ];
+  const churnCount = usage?.cacheChurnCount;
+  if (hitRateStr === undefined && churnCount === undefined) return [];
+  const out: string[] = [];
+  if (hitRateStr !== undefined) {
+    out.push(accent('Cache hit rate (cumulative)'));
+    out.push(`  Average across all turns  ${value(hitRateStr)}`);
+  }
+  // Break-side attribution (PRD-0029 R3): how often the static prefix changed this session.
+  if (churnCount !== undefined) {
+    out.push(accent('Prefix stability'));
+    out.push(`  Prefix changes this session  ${value(String(churnCount))}`);
+  }
+  return out;
 }
 
 export function buildManagedUsageReportLines(options: ManagedUsageReportLineOptions): string[] {

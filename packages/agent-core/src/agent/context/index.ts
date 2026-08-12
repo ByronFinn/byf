@@ -349,6 +349,13 @@ export class ContextMemory {
       case 'context.mark_last_user_prompt_blocked':
         // apply 已原地替换；水位不变（长度不变）。
         return;
+      case 'context.cache_churn':
+        // 归因/展示元数据（PRD-0029 R3）：apply 对 fold 无操作，水位/长度不动。
+        // 持久化仅为 vis/replay 渲染 churn ribbon；补登 live 侧归因备忘与计数，使 resume
+        // 后 /status 与 /usage 反映历史 churn。live 侧的「上一 turn 指纹」比对状态由 Agent
+        // 在 restore 后首个 live turn 从当前 system prompt 重算基线。
+        this.agent.recordReplayedCacheChurn(record.blockName, record.cacheScope);
+        return;
       case 'context.observation_masking':
         // legacyRoute 已先跑 restoreObservationMasking；长度不变，水位不动。
         return;
@@ -457,7 +464,8 @@ export class ContextMemory {
       case 'context.mark_last_user_prompt_blocked':
       case 'context.output_offloaded':
       case 'context.pruning':
-        // 已注册 Op（Phase 5），restore 由 wire 引擎重放，不会到达（防漂移守卫）。
+      case 'context.cache_churn':
+        // 已注册 Op（Phase 5 / PRD-0029），restore 由 wire 引擎重放，不会到达（防漂移守卫）。
         break;
     }
   }

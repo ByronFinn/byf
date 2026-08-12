@@ -1,0 +1,78 @@
+# Cache-impact PR annotation gate (PRD-0029 R5).
+#
+# When a PR touches cache-sensitive paths, require the PR body to carry an explicit
+# `cache-impact: <none|low|medium|high>` annotation. Empty / missing / TODO values fail the
+# check. This turns prefix stability into a mechanized release contract: reviewers and the
+# release flow are told, per PR, whether the static prefix (system blocks + tools) may break.
+#
+# Runs only on pull_request (the check is meaningless on direct pushes to main/dev).
+
+name: cache-impact
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+concurrency:
+  group: cache-impact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify cache-impact annotation when cache-sensitive paths change
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Cache-sensitive globs (PRD-0029 Open Question 5) + the churn detection module.
+          PATTERNS=(
+            '^packages/kosong/src/providers/'
+            '^packages/kosong/src/prompt-plan\.ts$'
+            '^packages/kosong/src/usage\.ts$'
+            '^packages/agent-core/src/prompt-plan/'
+            '^packages/agent-core/src/agent/cache-staking/'
+            '^packages/agent-core/src/agent/injection/'
+            '^packages/agent-core/src/agent/compaction/'
+            '^packages/agent-core/src/agent/cache-churn\.ts$'
+            '^packages/agent-core/src/agent/context/projector\.ts$'
+            '^packages/agent-core/src/agent/tool/index\.ts$'
+          )
+
+          mapfile -t CHANGED < <(gh pr view "$PR_NUMBER" --json files --jq '.files[].path')
+
+          touch_sensitive=0
+          matched=""
+          for f in "${CHANGED[@]}"; do
+            for p in "${PATTERNS[@]}"; do
+              if [[ "$f" =~ $p ]]; then
+                touch_sensitive=1
+                matched+="$f"$'\n'
+                break
+              fi
+            done
+          done
+
+          if [ "$touch_sensitive" -eq 0 ]; then
+            echo "No cache-sensitive paths changed — cache-impact annotation not required."
+            exit 0
+          fi
+
+          echo "Cache-sensitive paths changed:"
+          printf '%s' "$matched"
+          echo "Checking PR body for a 'cache-impact:' annotation..."
+
+          BODY="$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""')"
+          if printf '%s' "$BODY" | grep -Eqi 'cache-impact:[[:space:]]*(none|low|medium|high)\b'; then
+            echo "cache-impact annotation present — OK."
+            exit 0
+          fi
+
+          echo "::error::This PR touches cache-sensitive paths (prefix stability / provider cache behavior) but the PR body is missing a 'cache-impact: <none|low|medium|high>' annotation. Add a line describing the cache prefix impact (e.g. 'cache-impact: none')."
+          exit 1

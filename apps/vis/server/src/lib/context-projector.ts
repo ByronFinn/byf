@@ -106,6 +106,20 @@ export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjec
         toolStepUuids: [],
       });
       openProjected.clear();
+    } else if (rec.type === 'context.cache_churn') {
+      // Break-side attribution (PRD-0029 R3): a static-prefix block changed between
+      // turns. Pure display metadata — does not mutate the fold (the op's own apply is
+      // identity). Rendered as a ribbon aligned with the compaction ribbon paradigm.
+      messages.push({
+        lineNo: entry.lineNo,
+        time: rec.time,
+        source: 'cache_churn',
+        message: {
+          role: 'system',
+          content: [{ type: 'text', text: `${rec.blockName} · ${rec.cacheScope}` }],
+        },
+        toolStepUuids: [],
+      });
     } else if (rec.type === 'usage.record') {
       const scope: keyof UsageTotals['byScope'] = rec.usageScope === 'turn' ? 'turn' : 'session';
       addUsage(usage.byScope[scope], rec.usage);

@@ -1197,6 +1197,55 @@ describe('OpenAICompletionsChatProvider', () => {
       });
     });
 
+    it('reads DeepSeek prompt_cache_hit_tokens from top-level field', () => {
+      // DeepSeek (OpenAI-compatible) reports top-level prompt_cache_hit_tokens /
+      // prompt_cache_miss_tokens instead of the OpenAI nested cached_tokens.
+      // Without this branch, DeepSeek-direct hit rate is permanently 0% (PRD-0029 R1).
+      const result = extractUsage({
+        prompt_tokens: 1000,
+        completion_tokens: 50,
+        prompt_cache_hit_tokens: 700,
+        prompt_cache_miss_tokens: 300,
+      });
+      expect(result).toEqual({
+        inputOther: 300, // prompt_tokens(1000) - hit(700) ≈ miss(300)
+        output: 50,
+        inputCacheRead: 700,
+        inputCacheCreation: 0,
+      });
+    });
+
+    it('satisfies DeepSeek identity prompt_tokens ≈ hit + miss', () => {
+      // DeepSeek identity: prompt_tokens ≈ hit + miss. We map hit → inputCacheRead
+      // and derive inputOther = prompt_tokens - hit ≈ miss.
+      const result = extractUsage({
+        prompt_tokens: 5000,
+        completion_tokens: 100,
+        prompt_cache_hit_tokens: 4200,
+        prompt_cache_miss_tokens: 800,
+      });
+      expect(result!.inputCacheRead).toBe(4200);
+      expect(result!.inputOther).toBe(800);
+      // identity holds exactly when prompt_tokens = hit + miss
+      expect(result!.inputCacheRead + result!.inputOther).toBe(5000);
+    });
+
+    it('treats DeepSeek cold cache (hit=0) as zero read, all input other', () => {
+      // First-turn cold call: nothing cached yet.
+      const result = extractUsage({
+        prompt_tokens: 2000,
+        completion_tokens: 40,
+        prompt_cache_hit_tokens: 0,
+        prompt_cache_miss_tokens: 2000,
+      });
+      expect(result).toEqual({
+        inputOther: 2000,
+        output: 40,
+        inputCacheRead: 0,
+        inputCacheCreation: 0,
+      });
+    });
+
     it('reads cached_tokens from prompt_tokens_details', () => {
       const result = extractUsage({
         prompt_tokens: 1000,

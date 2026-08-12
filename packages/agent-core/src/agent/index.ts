@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import {
   generate,
+  type CacheScope,
   type CacheStrategy,
   type ChatProvider,
   type ContentPart,
@@ -41,6 +42,12 @@ import {
 } from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
+import {
+  computeToolsHash,
+  diffStaticPrefix,
+  extractCacheBlockHashes,
+  type StaticPrefixSnapshot,
+} from './cache-churn';
 import { FullCompaction, type CompactionStrategy } from './compaction';
 import { ConfigState, type AgentConfigUpdateData } from './config';
 import { ContextMemory } from './context';
@@ -61,9 +68,9 @@ import {
 } from './records';
 import { ReplayBuilder } from './replay';
 import { SkillManager } from './skill';
+import { ToolManager } from './tool/index';
 // import 即注册全部业务 Op（纯 reducer 子系统；legacy 前缀走 legacyRoute）。
 import './wire/ops';
-import { ToolManager } from './tool/index';
 import { TurnFlow } from './turn';
 import {
   GENERATE_REQUEST_LOG_CONTEXT,
@@ -72,6 +79,7 @@ import {
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
 import { WireService, wireRecordToPayload, type WirePersistence, type WireRecord } from './wire';
+import { contextCacheChurn } from './wire/ops/context';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
@@ -199,6 +207,19 @@ export class Agent {
   readonly log: Logger;
 
   private lastLlmConfigLogSignature?: string;
+  /**
+   * 上一 turn 的静态前缀快照（桩1 逐块哈希 + 桩2 toolsHash），用于破坏侧归因比对
+   * （PRD-0029 R2/R3）。restore 后为 undefined——首个 live turn 建立基线、不报 churn。
+   * 不持久化本身（restore 时从当前 system prompt 重算）。
+   */
+  private previousStaticPrefix?: StaticPrefixSnapshot;
+  /**
+   * 最近一次静态前缀变化的归因备忘（PRD-0029 R3），用于 /status「Last prefix change」。
+   * `turnId` 仅 live 已知；restore 重放来的 churn 无 turnId（turnsAgo 随之为 undefined）。
+   */
+  private lastCacheChurnMemento?: { blockName: string; cacheScope: CacheScope; turnId?: number };
+  /** 本会话累计 churn 次数（PRD-0029 R3），含 restore 重放的记录。 */
+  private cacheChurnCount = 0;
   private btwQueryCounter = 0;
   private readonly btwQueries = new Map<string, AbortController>();
 
@@ -526,6 +547,85 @@ export class Agent {
       ...context,
       ...buildLlmRequestMetadata(systemPrompt, tools, history),
     });
+    this.detectCacheChurn(options?.promptPlan, tools, context);
+  }
+
+  /**
+   * 破坏侧归因（PRD-0029 R2/R3）：比对当前 turn 与上一 turn 的静态前缀指纹（桩1
+   * PromptPlan 块 + 桩2 tools），检测到变化时 dispatch 持久化 `context.cache_churn`。
+   *
+   * 仅在主对话 turn 运行（`context.turnId` 存在）；`/btw` 等侧查询（askSide）以
+   * `tools=[]` + 一次性 promptPlan 脱离主对话运行，且其契约要求**不写 wire 记录**
+   * （resume/fork 看不到）——故侧查询既不参与比对、也不 dispatch churn。
+   *
+   * restore 重放时不调用（logLlmRequest 只在 live generate 路径触发）；restore 后
+   * `previousStaticPrefix` 为 undefined，首个 live turn 建立基线、不报 churn，此后正
+   * 常比对。压缩只改历史消息、不改静态前缀，故天然不触发 churn。
+   */
+  private detectCacheChurn(
+    promptPlan: PromptPlan | undefined,
+    tools: readonly Tool[],
+    context: LlmRequestContextFields,
+  ): void {
+    if (this.wire.phase === 'restoring') return;
+    if (context.turnId === undefined) return;
+    if (promptPlan === undefined || promptPlan.blocks.length === 0) {
+      this.previousStaticPrefix = undefined;
+      return;
+    }
+    const currentBlockHashes = extractCacheBlockHashes(promptPlan);
+    const currentToolsHash = computeToolsHash(tools);
+    const changes = diffStaticPrefix(
+      this.previousStaticPrefix,
+      promptPlan,
+      currentBlockHashes,
+      currentToolsHash,
+    );
+    for (const change of changes) {
+      this.wire.dispatch(contextCacheChurn(change));
+      this.lastCacheChurnMemento = {
+        blockName: change.blockName,
+        cacheScope: change.cacheScope,
+        turnId: this.turn.currentId,
+      };
+      this.cacheChurnCount += 1;
+    }
+    this.previousStaticPrefix = { blocks: currentBlockHashes, toolsHash: currentToolsHash };
+  }
+
+  /**
+   * restore 重放 `context.cache_churn` 记录时由 ContextMemory 调用：补登归因备忘与计数，
+   * 使 resume 后 /status 与 /usage 反映历史 churn（PRD-0029 R3）。turnId 未持久化，故
+   * `turnsAgo` 不可推导（显示时省略）。
+   */
+  recordReplayedCacheChurn(blockName: string, cacheScope: CacheScope): void {
+    this.lastCacheChurnMemento = { blockName, cacheScope };
+    this.cacheChurnCount += 1;
+  }
+
+  /**
+   * 构造 usage 载荷里的 churn 归因片段（PRD-0029 R3）。无 churn 时返回空对象（调用方
+   * 用 spread 自然静默）。
+   */
+  private cacheChurnStatus(): {
+    lastCacheChurn?: { blockName: string; cacheScope: CacheScope; turnsAgo?: number };
+    cacheChurnCount?: number;
+  } {
+    const memento = this.lastCacheChurnMemento;
+    const lastCacheChurn =
+      memento === undefined
+        ? undefined
+        : {
+            blockName: memento.blockName,
+            cacheScope: memento.cacheScope,
+            ...(memento.turnId !== undefined
+              ? { turnsAgo: Math.max(0, this.turn.currentId - memento.turnId) }
+              : {}),
+          };
+    return {
+      ...(lastCacheChurn !== undefined ? { lastCacheChurn } : {}),
+      ...(this.cacheChurnCount > 0 ? { cacheChurnCount: this.cacheChurnCount } : {}),
+    };
   }
 
   private logLlmConfigIfChanged(
@@ -710,7 +810,7 @@ export class Agent {
           messages: this.context.getMessages(),
           maxContextTokens: this.config.modelCapabilities.max_context_tokens,
         });
-        return { ...usageData, inputBreakdown };
+        return { ...usageData, inputBreakdown, ...this.cacheChurnStatus() };
       },
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
@@ -734,6 +834,13 @@ export class Agent {
         : undefined;
     const usage: UsageStatus | undefined = this.usage.status();
     const model = this.config.model;
+    const churn = this.cacheChurnStatus();
+    const usageWithChurn: UsageStatus | undefined =
+      usage === undefined &&
+      churn.lastCacheChurn === undefined &&
+      churn.cacheChurnCount === undefined
+        ? undefined
+        : { ...usage, ...churn };
 
     this.emitEvent({
       type: 'agent.status.updated',
@@ -743,7 +850,7 @@ export class Agent {
       contextUsage,
 
       permission: this.permission.mode,
-      usage,
+      usage: usageWithChurn,
     });
   }
 
@@ -920,33 +1027,15 @@ function getProviderCacheStrategy(provider: ChatProvider): CacheStrategy | undef
   return capability?.cache?.strategy;
 }
 
-/**
- * Extract cache block hashes from a PromptPlan.
- *
- * Returns a Record mapping block names to their SHA256 hashes.
- */
-function extractCacheBlockHashes(promptPlan: PromptPlan): Record<string, string> {
-  const hashes: Record<string, string> = {};
-  for (const block of promptPlan.blocks) {
-    hashes[block.name] = fingerprint(block.text);
-  }
-  return hashes;
-}
-
 function buildLlmConfigSignature(
   metadata: LlmConfigMetadata,
   systemPrompt: string,
   tools: readonly Tool[],
 ): string {
-  const toolsForSignature = tools.map(({ name, description, parameters }) => ({
-    name,
-    description,
-    parameters,
-  }));
   return JSON.stringify({
     ...metadata,
     systemPromptHash: fingerprint(systemPrompt),
-    toolsHash: fingerprint(JSON.stringify(toolsForSignature)),
+    toolsHash: computeToolsHash(tools),
   });
 }
 

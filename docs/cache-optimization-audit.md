@@ -16,11 +16,11 @@
 
 三个外部参照：
 
-| 参照 | 提供什么 |
-|---|---|
-| Reasonix 正面分析 | 「缓存优先」架构的最佳实践清单（字节稳定前缀、分离投影/请求工具集、TTL 宁大勿小、会话级 PINNED、e2e 命中率守卫等） |
-| 官方文档（DeepSeek / Anthropic / OpenAI）| 缓存机制事实：字段名、计费倍数、失效条件、`prompt_cache_key` 语义 |
-| Reasonix 结构性批判（七类缺点） | 警示模式：缓存税、架构绑架、staleness、经济前提脆弱、可观测盲区、多进程盲区、无界增长 |
+| 参照                                      | 提供什么                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Reasonix 正面分析                         | 「缓存优先」架构的最佳实践清单（字节稳定前缀、分离投影/请求工具集、TTL 宁大勿小、会话级 PINNED、e2e 命中率守卫等） |
+| 官方文档（DeepSeek / Anthropic / OpenAI） | 缓存机制事实：字段名、计费倍数、失效条件、`prompt_cache_key` 语义                                                  |
+| Reasonix 结构性批判（七类缺点）           | 警示模式：缓存税、架构绑架、staleness、经济前提脆弱、可观测盲区、多进程盲区、无界增长                              |
 
 **重要前提**：byf 是 TypeScript monorepo，Reasonix 是 Go 单二进制。两者目标相似（provider 前缀稳定）但架构起点不同。下文先做坐标校正，避免照搬批判。
 
@@ -30,15 +30,15 @@
 
 盲目套用 Reasonix 的批判会误伤 byf。下表把七类缺点逐条对照 byf 实际情况：
 
-| Reasonix 缺点 | byf 的情况 | 结论 |
-|---|---|---|
-| #4 硬编码 vendor 知识（host 检测、24h TTL 写死） | byf 是 **capability-driven**：provider 声明 `CacheStrategy`（`explicit-block`/`prompt-cache-key`/`prefix-match`/`none`）+ `CacheScope`（`global`/`project`/`session`/`none`），靠 `packages/kosong/src/providers/capability-registry.ts` 协商，无写死的 host→TTL 表 | ✅ byf 更干净 |
-| #3 MCP schema "deferred one session" 实为永不刷新 | byf **不缓存 MCP schema 到磁盘**，每会话 `listTools()` 现拉（`packages/agent-core/src/mcp/connection-manager.ts:342-350`），用启动延迟换新鲜度 | ✅ byf 主动避开最臭名昭著的 staleness 陷阱 |
-| #7 磁盘缓存无界增长 | `native-assets` 缓存自带 GC（`apps/cli/src/native/native-assets.ts:304-353`），版本号+内容哈希双键；OAuth/rg 亦有版本或哈希 | ✅ byf 治理更好 |
-| #2 架构被缓存绑架 | `CacheScope` 分层允许 `session` 作用域块，比 Reasonix 全有全无灵活；但 `before_user` tail-riding 仍在（`packages/agent-core/src/agent/injection/timestamp.ts:6-9`） | 🟡 部分缓解 |
-| #1 全局隐式不变量「缓存税」 | byf 把约束写进 ADR/CONTEXT/注释，但 **CI 无 cache-impact 门禁**（见缺口 C），纪律更非正式 | 🔴 byf 更弱 |
-| #5 可观测盲区 | byf 只有读侧命中率，破坏侧归因是脚手架未落地（见缺口 B），且连 Reasonix 的 mock 守卫都没有（见缺口 C/D） | 🔴 byf 更弱 |
-| #6 多进程/并行盲区 | 共享 provider 账户的 LRU 互相驱逐问题对两者都存在，低优先 | 🟡 通用问题 |
+| Reasonix 缺点                                     | byf 的情况                                                                                                                                                                                                                                                          | 结论                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| #4 硬编码 vendor 知识（host 检测、24h TTL 写死）  | byf 是 **capability-driven**：provider 声明 `CacheStrategy`（`explicit-block`/`prompt-cache-key`/`prefix-match`/`none`）+ `CacheScope`（`global`/`project`/`session`/`none`），靠 `packages/kosong/src/providers/capability-registry.ts` 协商，无写死的 host→TTL 表 | ✅ byf 更干净                              |
+| #3 MCP schema "deferred one session" 实为永不刷新 | byf **不缓存 MCP schema 到磁盘**，每会话 `listTools()` 现拉（`packages/agent-core/src/mcp/connection-manager.ts:342-350`），用启动延迟换新鲜度                                                                                                                      | ✅ byf 主动避开最臭名昭著的 staleness 陷阱 |
+| #7 磁盘缓存无界增长                               | `native-assets` 缓存自带 GC（`apps/cli/src/native/native-assets.ts:304-353`），版本号+内容哈希双键；OAuth/rg 亦有版本或哈希                                                                                                                                         | ✅ byf 治理更好                            |
+| #2 架构被缓存绑架                                 | `CacheScope` 分层允许 `session` 作用域块，比 Reasonix 全有全无灵活；但 `before_user` tail-riding 仍在（`packages/agent-core/src/agent/injection/timestamp.ts:6-9`）                                                                                                 | 🟡 部分缓解                                |
+| #1 全局隐式不变量「缓存税」                       | byf 把约束写进 ADR/CONTEXT/注释，但 **CI 无 cache-impact 门禁**（见缺口 C），纪律更非正式                                                                                                                                                                           | 🔴 byf 更弱                                |
+| #5 可观测盲区                                     | byf 只有读侧命中率，破坏侧归因是脚手架未落地（见缺口 B），且连 Reasonix 的 mock 守卫都没有（见缺口 C/D）                                                                                                                                                            | 🔴 byf 更弱                                |
+| #6 多进程/并行盲区                                | 共享 provider 账户的 LRU 互相驱逐问题对两者都存在，低优先                                                                                                                                                                                                           | 🟡 通用问题                                |
 
 **一句话**：byf 在「避免 staleness、避免无界增长、vendor 中立」三方面比 Reasonix 更克制；但在「把缓存做成可验证的发布契约」上明显落后。**byf 的优化方向不是『学 Reasonix 加缓存』，而是『补可观测与治理短板，并修两个实测可证的缺口』。**
 
@@ -66,6 +66,7 @@
 #### 🔴 缺口 A — DeepSeek（及多数兼容端）缓存命中统计完全丢失
 
 **证据（已读码确认）**：
+
 - `packages/kosong/src/providers/openai-common.ts:222-245` 的 `extractUsage` 只读两类字段：
   - 顶层 `cached_tokens`（注释 "Byf proprietary"，即 byf 自家网关格式）
   - `prompt_tokens_details.cached_tokens`（OpenAI 标准）
@@ -74,6 +75,7 @@
 **影响**：DeepSeek 官方端点用顶层 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`（非 OpenAI 标准）上报命中。byf 走 openai-completions 路径，这两个字段**完全不被解析** → 用户直连 DeepSeek 时，状态栏 / `/usage` / vis 的缓存命中率**永远显示 0%**。
 
 **为什么最该先修**：
+
 1. byf 正在转向 user-provided API key（AGENTS.md 明示），直连 DeepSeek 会越来越普遍。
 2. 经济前提比 Reasonix 假设的还极端：DeepSeek V4 当前 miss ≈ hit 的 **50–120 倍**（非 Reasonix 写的 10 倍）。命中极值钱却看不见——好的缓存工程被一个解析漏斗抹成零。
 3. 修复成本极低：`extractUsage` 加一个 `prompt_cache_hit_tokens` 分支，十几行。
@@ -102,6 +104,7 @@
 **影响**：byf 把「缓存稳定」写进了 ADR-0009/0011/0013 和 CONTEXT.md 术语表（文档层一流），但**没翻译成可执行的 CI 契约**。批判 #5「守卫测的是模拟」对 byf 更严重——byf 连模拟守卫都没有。任何新注入器不小心把动态内容塞进 `after_system`（`projector.ts:47-56` 已警告过），**没有任何自动化手段能拦住**，只能靠人眼读注释。
 
 **建议方向**：
+
 1. 加「同会话连续 N turn，桩1/桩2 块 SHA256 不变」回归测试。
 2. 改动 `prompt-plan.ts` / `cache-staking/` / `projector.ts` / compaction 切分逻辑时，强制 PR 标 `cache-impact`（参考 Reasonix 的 `scripts/check-cache-impact.sh`）。
 
@@ -119,12 +122,12 @@
 
 ### Tier 2 — 设计异味、中价值
 
-| 缺口 | 证据 | 判断 |
-|---|---|---|
+| 缺口                                     | 证据                                                                                                                                                                                                           | 判断                                                                                                                                                                                                                            |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **E. `prompt_cache_key` 覆盖 sessionId** | `openai-completions.ts:528-534` 在 `createParams` spread 之后写 `prompt_cache_key`，`completionsCacheKey`（:134-136）**总返回值**（空 plan 回退空串哈希）→ 永远覆盖 generationKwargs 里 sessionId 映射来的 key | AGENTS.md 宣称的「sessionId→prompt_cache_key 提示」在 completions 路径**实际是死配置**。但内容哈希跨轮稳定、作路由 key 可辩护——所以不是缓存质量 bug，是**文档承诺与实现脱节的清理项**。注意 DeepSeek 不支持该字段，发了也白发。 |
-| **F. tools schema 无 canonicalize** | `convertTool`（`openai-completions.ts:222-237`）只透传 `tool.parameters`；agent-core 做了确定性排序但 kosong 不做 schema key 排序 | Anthropic 明确警告 `tool_use` key 顺序随机化会失效。TS 对象 key 序列化通常稳定，但若某 MCP server 返回的 schema key 顺序跨会话不一致，会静默 churn。**主要影响 Anthropic vendor。** |
-| **G. MCP schema 无磁盘缓存 → 启动延迟** | `connection-manager.ts:342-350` 每会话 `listTools()` 现拉 | 这是 byf **刻意避免 staleness 的取舍**（正确），但代价是多 MCP server 启动慢。可加 short-TTL（如 5min）+ stale-while-revalidate：命中缓存秒回、后台异步校验、下会话生效——既不重蹈 Reasonix「永不刷新」覆辙，又砍启动延迟。 |
-| **H. models.dev catalog 无磁盘缓存** | `apps/cli/src/tui/utils/catalog-fetch.ts` 全文件无 writeFile，每次 `/login`/`/connect` 联网（8s 超时） | 近期 commit `b98ac3f /login catalog fetch timeout fix` 正是这块痛点信号。短 TTL 本地副本能改善弱网/离线。 |
+| **F. tools schema 无 canonicalize**      | `convertTool`（`openai-completions.ts:222-237`）只透传 `tool.parameters`；agent-core 做了确定性排序但 kosong 不做 schema key 排序                                                                              | Anthropic 明确警告 `tool_use` key 顺序随机化会失效。TS 对象 key 序列化通常稳定，但若某 MCP server 返回的 schema key 顺序跨会话不一致，会静默 churn。**主要影响 Anthropic vendor。**                                             |
+| **G. MCP schema 无磁盘缓存 → 启动延迟**  | `connection-manager.ts:342-350` 每会话 `listTools()` 现拉                                                                                                                                                      | 这是 byf **刻意避免 staleness 的取舍**（正确），但代价是多 MCP server 启动慢。可加 short-TTL（如 5min）+ stale-while-revalidate：命中缓存秒回、后台异步校验、下会话生效——既不重蹈 Reasonix「永不刷新」覆辙，又砍启动延迟。      |
+| **H. models.dev catalog 无磁盘缓存**     | `apps/cli/src/tui/utils/catalog-fetch.ts` 全文件无 writeFile，每次 `/login`/`/connect` 联网（8s 超时）                                                                                                         | 近期 commit `b98ac3f /login catalog fetch timeout fix` 正是这块痛点信号。短 TTL 本地副本能改善弱网/离线。                                                                                                                       |
 
 ---
 
@@ -138,17 +141,17 @@
 
 ## 4. 优先级矩阵
 
-| 缺口 | 价值 | 置信度 | 成本 | 价值×置信÷成本 | 建议节奏 |
-|---|---|---|---|---|---|
-| **A. DeepSeek usage 解析** | 高 | 高（已读码证实） | 极低 | ★★★★★ | **立即做**，可走 /tdd |
-| **C. CI 缓存门禁** | 高 | 高 | 中 | ★★★★ | 顺势做，需设计测试夹具 |
-| **B. 破坏侧可观测落地** | 高 | 高（脚手架已存在） | 中高 | ★★★ | 谨慎做，设计量最大 |
-| **D. 真实 provider 探针** | 中高 | 高 | 中 | ★★★ | 与 B/C 配套 |
-| **H. catalog 短 TTL 缓存** | 中 | 高 | 低 | ★★★ | 顺势做 |
-| **E. sessionId 死配置清理** | 中 | 高 | 低 | ★★ | 顺手清理 |
-| **F. schema canonicalize** | 中 | 中 | 中 | ★★ | 主要 Anthropic 用户受益 |
-| **G. MCP schema SWR 缓存** | 中 | 中 | 中高 | ★★ | 需权衡 staleness |
-| I/J/K | 低 | — | — | ★ | 观察项 |
+| 缺口                        | 价值 | 置信度             | 成本 | 价值×置信÷成本 | 建议节奏                |
+| --------------------------- | ---- | ------------------ | ---- | -------------- | ----------------------- |
+| **A. DeepSeek usage 解析**  | 高   | 高（已读码证实）   | 极低 | ★★★★★          | **立即做**，可走 /tdd   |
+| **C. CI 缓存门禁**          | 高   | 高                 | 中   | ★★★★           | 顺势做，需设计测试夹具  |
+| **B. 破坏侧可观测落地**     | 高   | 高（脚手架已存在） | 中高 | ★★★            | 谨慎做，设计量最大      |
+| **D. 真实 provider 探针**   | 中高 | 高                 | 中   | ★★★            | 与 B/C 配套             |
+| **H. catalog 短 TTL 缓存**  | 中   | 高                 | 低   | ★★★            | 顺势做                  |
+| **E. sessionId 死配置清理** | 中   | 高                 | 低   | ★★             | 顺手清理                |
+| **F. schema canonicalize**  | 中   | 中                 | 中   | ★★             | 主要 Anthropic 用户受益 |
+| **G. MCP schema SWR 缓存**  | 中   | 中                 | 中高 | ★★             | 需权衡 staleness        |
+| I/J/K                       | 低   | —                  | —    | ★              | 观察项                  |
 
 **推荐路径**：A（快胜，立竿见影）→ C（治理地基）→ B+D（把缓存做成可验证契约）→ 其余顺势。
 
@@ -157,6 +160,7 @@
 ## 5. 附录：关键代码索引
 
 **Provider / 请求组装**
+
 - `packages/kosong/src/prompt-plan.ts` — `CacheStrategy` / `CacheScope` 类型
 - `packages/kosong/src/providers/capability-registry.ts` — per-provider 能力声明
 - `packages/kosong/src/providers/openai-common.ts:222-245` — `extractUsage`（缺口 A 现场）
@@ -167,6 +171,7 @@
 - `packages/kosong/src/usage.ts:57-71` — `cacheHitRate()`
 
 **前缀稳定性**
+
 - `packages/agent-core/src/agent/injection/timestamp.ts:6-9` — 时间戳放 `before_user`
 - `packages/agent-core/src/agent/context/projector.ts:47-64` — `after_system` 警告
 - `packages/agent-core/src/agent/tool/index.ts:426-451` — 确定性工具排序
@@ -174,11 +179,13 @@
 - `packages/agent-core/src/agent/cache-staking/index.ts:29` — 浅拷贝不 mutate
 
 **可观测 / 治理（缺口现场）**
+
 - `packages/agent-core/test/agent/cache-observability.test.ts:164-235` — `cacheBlockHashes` 脚手架（缺口 B）
 - `.github/workflows/ci.yml` — 单一 quality job，无 cache 门禁（缺口 C）
 - `packages/agent-core/test/loop/streaming.e2e.test.ts:6-9` — FakeLLM（缺口 D）
 
 **本地缓存**
+
 - `packages/agent-core/src/utils/fs.ts` — 原子/耐久写原语
 - `packages/agent-core/src/mcp/connection-manager.ts:342-350` — MCP schema 不落盘（缺口 G）
 - `apps/cli/src/tui/utils/catalog-fetch.ts` — catalog 不落盘（缺口 H）
@@ -186,6 +193,7 @@
 - `apps/cli/src/utils/git/git-ls-files.ts` — 全仓唯一 TTL+mtime 缓存
 
 **相关 ADR**
+
 - `docs/adr/0009-context-minimization-strategy.md` — 多通道压缩 + 缓存基础设施
 - `docs/adr/0011-turn-boundary-cache-staking.md` — 3+1 桩模型（缓存架构主纲）
 - `docs/adr/0013-*` — 四块架构分离全局/会话

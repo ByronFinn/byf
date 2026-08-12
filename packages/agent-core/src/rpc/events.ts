@@ -1,4 +1,4 @@
-import type { CacheHitRate, FinishReason, TokenUsage } from '@byfriends/kosong';
+import type { CacheHitRate, CacheScope, FinishReason, TokenUsage } from '@byfriends/kosong';
 
 import type { PromptOrigin } from '../agent/context';
 import type { GoalChange, GoalSnapshot } from '../agent/goal/types';
@@ -24,6 +24,18 @@ export interface UsageStatus {
    * caller has not requested it. See {@link InputTokenBreakdown}.
    */
   readonly inputBreakdown?: InputTokenBreakdown;
+  /**
+   * Break-side attribution (PRD-0029 R3): the most recent static-prefix change
+   * detected this session. `undefined` when no churn has occurred. `turnsAgo` is
+   * `undefined` for churns replayed from the journal (turn id not persisted).
+   */
+  readonly lastCacheChurn?: {
+    readonly blockName: string;
+    readonly cacheScope: CacheScope;
+    readonly turnsAgo?: number;
+  };
+  /** Total `context.cache_churn` events this session (PRD-0029 R3). `undefined` when zero. */
+  readonly cacheChurnCount?: number;
 }
 
 export interface ToolUpdate {
