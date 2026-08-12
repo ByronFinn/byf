@@ -1,7 +1,8 @@
 import { mock as bunMock } from 'bun:test';
 
+import { DEFAULT_CATALOG_URL, fetchCatalog, type Catalog } from '@byfriends/sdk';
 import type { Component, Focusable } from '@earendil-works/pi-tui';
-import { describe, expect, it, vi, afterAll } from 'vitest';
+import { describe, expect, it, vi, afterAll, afterEach } from 'vitest';
 
 import { LoginFlow, type LoginFlowDeps } from '#/tui/flows/login-flow';
 
@@ -116,12 +117,52 @@ function makeDeps(overrides: Partial<LoginFlowDeps> = {}): LoginFlowDeps {
     showStatus: vi.fn(),
     showError: vi.fn(),
     showLoginProgressSpinner: vi.fn(() => ({ stop: vi.fn() })),
+    setCancelInFlight: vi.fn(),
+    clearCancelInFlight: vi.fn(),
     track: vi.fn(),
     ...overrides,
   } as LoginFlowDeps;
 }
 
+/**
+ * A fetchCatalog that never settles until its signal aborts — models a network
+ * that TCP-connects but never responds. Called with no signal (the pre-fix
+ * call) nothing can ever abort it, so the promise hangs forever.
+ */
+function hangingCatalogFetch(_url: string, signal?: AbortSignal): Promise<Catalog> {
+  return new Promise<Catalog>((_resolve, reject) => {
+    if (signal === undefined) return;
+    if (signal.aborted) {
+      reject(new Error('aborted'));
+      return;
+    }
+    signal.addEventListener(
+      'abort',
+      () => {
+        reject(new Error('aborted'));
+      },
+      { once: true },
+    );
+  });
+}
+
+const SINGLE_MODEL = {
+  id: 'gpt-4o',
+  contextLength: 128000,
+  supportsReasoning: false,
+  supportsImageIn: false,
+  supportsVideoIn: false,
+} as const;
+
 describe('LoginFlow', () => {
+  // The catalog-fetch tests below override the module-level fetchCatalog mock
+  // (hang / resolve). Restore the default rejecting behavior after each test so
+  // every test keeps exercising the built-in fallback path.
+  afterEach(() => {
+    vi.mocked(fetchCatalog).mockReset();
+    vi.mocked(fetchCatalog).mockRejectedValue(new Error('test: no network'));
+  });
+
   it('completes the full flow with model selection', async () => {
     const models = [
       {
@@ -1160,6 +1201,334 @@ describe('LoginFlow', () => {
         expect.objectContaining({ type: expectedType }),
       );
     }
+  });
+
+  // ── Catalog fetch bounding (bug: hanging catalog fetch froze /login) ──
+
+  it('times out a hanging catalog fetch and still completes the login', async () => {
+    vi.mocked(fetchCatalog).mockImplementation(hangingCatalogFetch);
+
+    let activeCancel: (() => void) | undefined;
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [SINGLE_MODEL]),
+      catalogFetchTimeoutMs: 50,
+      setCancelInFlight: vi.fn((cancel) => {
+        activeCancel = cancel;
+      }),
+      clearCancelInFlight: vi.fn(),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select API type (first option = openai-completions)
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    selectHighlighted(host);
+
+    // Step 2: type provider name
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'myprovider');
+
+    // Step 3: type base URL
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'https://api.example.com/v1');
+
+    // Step 4: type API key
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    // The catalog fetch hangs; the timeout must bound it and the model
+    // selector must still appear (catalog is best-effort, ADR 0012).
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    expect(deps.applyProviderConfig).toHaveBeenCalled();
+    expect(deps.setConfig).toHaveBeenCalled();
+    expect(deps.showError).not.toHaveBeenCalled();
+
+    // Catalog fetch was bounded: a cancel handler was registered and cleared.
+    expect(activeCancel).toBeTypeOf('function');
+    expect(deps.clearCancelInFlight).toHaveBeenCalledWith(activeCancel);
+
+    // Second spinner = catalog fetch, stopped with the failure label since
+    // there is no built-in catalog to fall back to.
+    const spinnerResults = vi.mocked(deps.showLoginProgressSpinner).mock.results;
+    expect(spinnerResults).toHaveLength(2);
+    expect(deps.showLoginProgressSpinner).toHaveBeenNthCalledWith(
+      2,
+      `Fetching catalog from ${DEFAULT_CATALOG_URL}`,
+    );
+    expect(spinnerResults[1].value.stop).toHaveBeenCalledWith({
+      ok: false,
+      label: 'Failed to load catalog.',
+    });
+  });
+
+  it('falls back to the built-in catalog when a hanging fetch times out', async () => {
+    vi.mocked(fetchCatalog).mockImplementation(hangingCatalogFetch);
+
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [SINGLE_MODEL]),
+      catalogFetchTimeoutMs: 50,
+      builtInCatalogJson: JSON.stringify({
+        openai: {
+          name: 'OpenAI',
+          api: 'https://api.openai.com',
+          npm: 'openai',
+          models: {
+            'gpt-4o': {
+              id: 'gpt-4o',
+              name: 'GPT-4o',
+              limit: { context: 128000 },
+              tool_call: true,
+              modalities: { input: ['text'], output: ['text'] },
+            },
+          },
+        },
+      }),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select API type (first option = openai-completions)
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    selectHighlighted(host);
+
+    // Step 2: type provider name
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'myprovider');
+
+    // Step 3: type base URL
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'https://api.example.com/v1');
+
+    // Step 4: type API key
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    // The catalog fetch hangs; the timeout must fall back to the built-in
+    // catalog (ADR 0012) and the login still completes.
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    expect(deps.showError).not.toHaveBeenCalled();
+    expect(deps.applyProviderConfig).toHaveBeenCalled();
+    expect(deps.setConfig).toHaveBeenCalled();
+    expect(
+      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
+    ).toHaveBeenCalledWith({ ok: true, label: 'Using built-in catalog (offline mode).' });
+  });
+
+  it('aborts the whole login when the user cancels during the catalog fetch', async () => {
+    vi.mocked(fetchCatalog).mockImplementation(hangingCatalogFetch);
+
+    let activeCancel: (() => void) | undefined;
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [SINGLE_MODEL]),
+      // Generous so the user cancel always wins the race against the timeout.
+      catalogFetchTimeoutMs: 1000,
+      setCancelInFlight: vi.fn((cancel) => {
+        activeCancel = cancel;
+      }),
+      clearCancelInFlight: vi.fn((cancel) => {
+        if (activeCancel === cancel) activeCancel = undefined;
+      }),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select API type (first option = openai-completions)
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    selectHighlighted(host);
+
+    // Step 2: type provider name
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'myprovider');
+
+    // Step 3: type base URL
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'https://api.example.com/v1');
+
+    // Step 4: type API key
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    // The catalog fetch registers a cancel handler; invoking it must abort the
+    // entire login before any config is written.
+    await vi.waitFor(() => {
+      expect(activeCancel).toBeTypeOf('function');
+    });
+    const cancel = activeCancel!;
+    cancel();
+
+    await flowPromise;
+
+    expect(deps.setConfig).not.toHaveBeenCalled();
+    expect(deps.applyProviderConfig).not.toHaveBeenCalled();
+    expect(deps.track).not.toHaveBeenCalled();
+    expect(host.panel).toBeNull();
+    expect(deps.clearCancelInFlight).toHaveBeenCalledWith(cancel);
+    expect(
+      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
+    ).toHaveBeenCalledWith({ ok: false, label: 'Aborted.' });
+  });
+
+  // ── Catalog regression guards ──
+
+  it('continues silently when the catalog fetch fails with no built-in catalog', async () => {
+    // Module-level fetchCatalog mock rejects by default; no builtInCatalogJson.
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [SINGLE_MODEL]),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select API type (first option = openai-completions)
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    selectHighlighted(host);
+
+    // Step 2: type provider name
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'myprovider');
+
+    // Step 3: type base URL
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'https://api.example.com/v1');
+
+    // Step 4: type API key
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    // Model selector still appears; /login must not surface the catalog error.
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    expect(deps.showError).not.toHaveBeenCalled();
+    expect(deps.applyProviderConfig).toHaveBeenCalled();
+    expect(deps.setConfig).toHaveBeenCalled();
+    expect(deps.setCancelInFlight).toHaveBeenCalled();
+    expect(deps.clearCancelInFlight).toHaveBeenCalled();
+    expect(
+      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
+    ).toHaveBeenCalledWith({ ok: false, label: 'Failed to load catalog.' });
+  });
+
+  it('enriches models from a successfully fetched catalog (happy path)', async () => {
+    const catalog: Catalog = {
+      openai: {
+        name: 'OpenAI',
+        api: 'https://api.openai.com',
+        npm: 'openai',
+        models: {
+          'gpt-4o': {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            limit: { context: 200000 },
+            tool_call: true,
+            modalities: { input: ['text'], output: ['text'] },
+          },
+        },
+      },
+    };
+    vi.mocked(fetchCatalog).mockResolvedValue(catalog);
+
+    const deps = makeDeps({
+      fetchModels: vi.fn(async () => [SINGLE_MODEL]),
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new LoginFlow(deps).run();
+
+    // Step 1: select API type (first option = openai-completions)
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    selectHighlighted(host);
+
+    // Step 2: type provider name
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'myprovider');
+
+    // Step 3: type base URL
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'https://api.example.com/v1');
+
+    // Step 4: type API key
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    // Step 5: select model
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r');
+
+    await flowPromise;
+
+    // Catalog enrichment overrides the provider-reported context length.
+    expect(deps.setConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        models: expect.objectContaining({
+          'myprovider/gpt-4o': expect.objectContaining({ maxContextSize: 200000 }),
+        }),
+      }),
+    );
+    expect(
+      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
+    ).toHaveBeenCalledWith({ ok: true, label: 'Catalog loaded.' });
   });
 });
 
