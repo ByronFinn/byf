@@ -18,6 +18,12 @@
 | compile-native-addons              | 1     | unknown | --compile 可嵌 N-API；koffi/clipboard 必须 spike           | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           | verified |
 | test-migration-from-vitest         | 1     | unknown | 唯一 runner 可行；vi 兼容+单进程清障，勿长期双跑           | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 | verified |
 
+### typescript
+
+| Topic                 | Major | Version   | Verdict                                                                                                  | File                                                               | Status   |
+| --------------------- | ----- | --------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------- |
+| weakmap-memoization   | 6     | 6.0.2     | 对象键用 WeakMap(身份键控、GC 自动失效);原始值键用 Map(纯函数恒正确、需管生命周期)                     | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md) | verified |
+
 ### Spikes (verification records, not versioned topics)
 
 | Spike                                        | Verdict                                                                         | File                                                                     |
@@ -36,3 +42,4 @@
 | publish-workspace-protocol-rewrite | bun@1  | [bun-publish-workspace-protocol-rewrite-1.md](bun-publish-workspace-protocol-rewrite-1.md) |
 | compile-native-addons              | bun@1  | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           |
 | test-migration-from-vitest         | bun@1  | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 |
+| weakmap-memoization                | typescript@6 | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md)                 |
