@@ -464,7 +464,8 @@ export class ContextMemory {
       case 'context.mark_last_user_prompt_blocked':
       case 'context.output_offloaded':
       case 'context.pruning':
-        // 已注册 Op（Phase 5），restore 由 wire 引擎重放，不会到达（防漂移守卫）。
+      case 'context.cache_churn':
+        // 已注册 Op（Phase 5 / PRD-0029），restore 由 wire 引擎重放，不会到达（防漂移守卫）。
         break;
     }
   }
