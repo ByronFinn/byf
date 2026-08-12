@@ -90,6 +90,8 @@ describe('GoalUpdatedEvent emission (AC-4)', () => {
     // 但写 record
     const goalRecords = persistence.records.filter((r) => r.type.startsWith('goal.'));
     expect(goalRecords.at(-1)!.type).toBe('goal.update');
+    // 车辆 op（persist:false）不落盘。
+    expect(goalRecords.map((r) => r.type)).not.toContain('goal.updated');
     expect(
       (goalRecords.at(-1) as { snapshot: { usage: { turns: number } } }).snapshot.usage.turns,
     ).toBe(1);

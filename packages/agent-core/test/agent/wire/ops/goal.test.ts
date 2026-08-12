@@ -10,7 +10,13 @@ import {
   type WireRecord,
 } from '../../../../src/agent/wire';
 // import 触发 goal Op 注册（import = register）。
-import { goalCreate, goalClear, goalModel, goalUpdate } from '../../../../src/agent/wire/ops/goal';
+import {
+  goalClear,
+  goalCreate,
+  goalModel,
+  goalUpdate,
+  goalUpdated,
+} from '../../../../src/agent/wire/ops/goal';
 
 class InMemoryWirePersistence implements WirePersistence {
   readonly records: WireRecord[] = [];
@@ -150,6 +156,75 @@ describe('goal reducer — restore round-trip (AC1 precursor)', () => {
     await replayed.restore();
 
     expect(replayed.getModel(goalModel).snapshot?.objective).toBe('ok');
+    expect(skipped).toHaveLength(1);
+  });
+});
+
+describe('goal.updated — transient 事件载体（PRD-0027 Phase 6 待办决议）', () => {
+  it('registers as a transient op (persist: false)', () => {
+    expect(OP_REGISTRY.has('goal.updated')).toBe(true);
+    expect(OP_REGISTRY.get('goal.updated')?.persist).toBe(false);
+  });
+
+  it('dispatch derives the goal.updated event from payload without persisting or touching state', () => {
+    const events: unknown[] = [];
+    const persistence = new InMemoryWirePersistence();
+    const wire = new WireService({
+      persistence,
+      publishEvent: (event) => events.push(event),
+    });
+
+    wire.dispatch(goalCreate({ objective: 'x', createdAt: 1 }));
+    // live snapshot：complete 瞬态 overlay（status='complete'）+ 实时 wallClockMs。
+    const live: GoalSnapshot = {
+      ...ACTIVE,
+      status: 'complete',
+      usage: { ...ACTIVE.usage, wallClockMs: 15000 },
+    };
+    wire.dispatch(
+      goalUpdated({ snapshot: live, change: { kind: 'completion', reason: 'shipped' } }),
+    );
+
+    expect(events).toEqual([
+      { type: 'goal.updated', snapshot: live, change: { kind: 'completion', reason: 'shipped' } },
+    ]);
+    // persist:false —— journal 无车辆记录。
+    expect(persistence.records.map((r) => r.type)).not.toContain('goal.updated');
+    // apply identity —— model snapshot 仍是 goal.create 建的 active。
+    expect(wire.getModel(goalModel).snapshot?.status).toBe('active');
+  });
+
+  it('restore of a goal.updated record is a silent no-op (replay tolerance)', async () => {
+    const events: unknown[] = [];
+    const skipped: unknown[] = [];
+    const replayed = new WireService({
+      persistence: new InMemoryWirePersistence([
+        createWireMetadataRecord(1),
+        { type: 'goal.updated', snapshot: { ...ACTIVE, status: 'complete' }, time: 1 },
+      ]),
+      publishEvent: (event) => events.push(event),
+      onSkippedRecord: (error) => skipped.push(error),
+    });
+
+    await replayed.restore();
+
+    expect(events).toEqual([]); // silent：不派发事件。
+    expect(skipped).toHaveLength(0); // schema 接受，不算坏记录。
+    expect(replayed.getModel(goalModel).snapshot).toBeNull(); // apply no-op。
+  });
+
+  it('rejects a malformed change payload on restore (schema is the fact source)', async () => {
+    const skipped: unknown[] = [];
+    const replayed = new WireService({
+      persistence: new InMemoryWirePersistence([
+        createWireMetadataRecord(1),
+        { type: 'goal.updated', snapshot: { ...ACTIVE }, change: { kind: 'nope' }, time: 1 },
+      ]),
+      onSkippedRecord: (error) => skipped.push(error),
+    });
+
+    await replayed.restore();
+
     expect(skipped).toHaveLength(1);
   });
 });

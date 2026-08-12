@@ -161,7 +161,7 @@ describe('GoalMode records replay (AC-2)', () => {
     expect(agent.goal.getSnapshot()).toBeNull();
   });
 
-  it('replay does not emit goal.updated events (restoring suppresses emit)', async () => {
+  it('replay does not emit goal.updated events (silent replay suppresses toEvent)', async () => {
     const { agent, emitted } = makeAgentWithRecords([
       goalCreateRecord('obj'),
       goalUpdateRecord(baseSnapshot({ status: 'paused' })),
@@ -169,7 +169,7 @@ describe('GoalMode records replay (AC-2)', () => {
     ]);
     await agent.wire.restore();
 
-    // replay 期间 records.restoring=true，emitEvent 应被抑制——不发任何 goal.updated。
+    // restore 走 silent execute，不派发 toEvent——不发任何 goal.updated（框架结构性保证）。
     expect(emitted.filter((e) => e['type'] === 'goal.updated')).toHaveLength(0);
   });
 });

@@ -127,7 +127,7 @@ PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-
 - **restore（静默重放）**：读 journal → 逐条 silent fold（无 persist、无 toEvent）→ 跑 `onDidRestore` hooks。
 - **toEvent**：Op 的可选 live 事件派生。dispatch 时用 post-apply state 派发；restore 时不派发。
 - **onDidRestore hook**：restore 完成后的一次性副作用钩子（如工具重建、goal active→paused 降级）。
-- **transient op**：`persist:false` 的 Op，只改内存不落盘（如 `context.output_offloaded`）。
+- **transient op**：`persist:false` 的 Op，只改内存不落盘（如 `context.output_offloaded`）；变体为纯事件车辆 op（identity apply，只为派生事件而存在，如 `goal.updated`，对标 kimi `skill.activate`）。
 - **cross-reducer**：Model 声明对其他域 Op 的归约，一个 Op dispatch 时触发多个 Model 的 fold，无需持久化额外记录。
 - **子系统（service）**：byf 里 `ContextMemory`/`GoalMode` 等类既是 Model 定义者、又是 dispatch 调用者、又是 post-dispatch effect 处理者，三者合一（区别于 kimi v2 把 Service 与 Model 分成两类）。
 
