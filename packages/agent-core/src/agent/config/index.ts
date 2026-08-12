@@ -164,14 +164,15 @@ export class ConfigState implements RecordRestoreHandler {
    * 为 Agent 的 onDidRestore hook（本方法只同步状态，不触发工具初始化）。
    */
   syncFromWire(): void {
+    // 无条件赋值 + 构造默认值兜底：model 的 undefined 可能是「显式清除」
+    // （config.update 的 Object.hasOwn 语义，如 modelAlias: undefined），
+    // `!== undefined` 守卫会跳过它导致残留 stale 值。model 是 restore 权威。
     const model = this.agent.wire.getModel(configModel);
-    if (model.cwd !== undefined) this._cwd = model.cwd;
-    if (model.additionalDirs !== undefined) this._additionalDirs = model.additionalDirs;
-    if (model.modelAlias !== undefined) this._modelAlias = model.modelAlias;
-    if (model.profileName !== undefined) this._profileName = model.profileName;
-    if (model.thinkingLevel !== undefined) {
-      this._thinkingLevel = model.thinkingLevel as ThinkingEffort;
-    }
-    if (model.systemPrompt !== undefined) this._systemPrompt = model.systemPrompt;
+    this._cwd = model.cwd ?? '';
+    this._additionalDirs = model.additionalDirs ?? [];
+    this._modelAlias = model.modelAlias;
+    this._profileName = model.profileName;
+    this._thinkingLevel = (model.thinkingLevel as ThinkingEffort) ?? 'off';
+    this._systemPrompt = model.systemPrompt ?? '';
   }
 }

@@ -73,25 +73,28 @@ describe('AgentRecords facade — logRecord routing', () => {
   });
 
   it('is a no-op while restoring', async () => {
-    const persistence = new InMemoryAgentRecordPersistence([
-      {
-        type: 'metadata',
-        protocol_version: '1.1',
-        created_at: 1,
-      },
-      {
-        type: 'turn.prompt',
-        input: [{ type: 'text', text: 'one' }],
-        origin: { kind: 'user' },
-      },
+    // legacyRoute 模拟 legacy restore 内部调用 logRecord —— restoring 相位下
+    // facade 的 logRecord 应直接 return（不落盘、不抛 persistRaw 相位守卫）。
+    let wire: WireService;
+    let legacyLogCalls = 0;
+    const persistence = new InMemoryWirePersistence([
+      createWireMetadataRecord(1),
+      { type: 'context.clear', time: 1 },
     ]);
-    const { agent } = testAgent({ persistence });
+    const records = new AgentRecords(
+      (wire = new WireService({
+        persistence,
+        legacyRoute: (record) => {
+          records.logRecord(record as unknown as AgentRecord);
+          legacyLogCalls++;
+        },
+      })),
+    );
 
-    // 用 legacyRoute 观察 replay 期间的 logRecord —— 应被 restoring 抑制。
-    const records = agent.records;
     await records.replay();
 
-    expect(persistence.records).toHaveLength(2); // 无新 record（无重复）
+    expect(legacyLogCalls).toBe(1);
+    expect(persistence.records).toHaveLength(2); // 无新增（logRecord 被抑制）
     expect(records.restoring).toBe(false);
   });
 });

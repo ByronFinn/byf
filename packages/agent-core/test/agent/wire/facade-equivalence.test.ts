@@ -101,6 +101,26 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
         type: 'context.append_message',
         message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }], toolCalls: [] },
       },
+      // loop event（同步 fold）+ mark_blocked。
+      {
+        type: 'context.append_loop_event',
+        event: { type: 'step.begin', uuid: 'step-1', turnId: '0', step: 1 },
+      },
+      {
+        type: 'context.append_loop_event',
+        event: {
+          type: 'content.part',
+          uuid: 'part-1',
+          turnId: '0',
+          step: 1,
+          stepUuid: 'step-1',
+          part: { type: 'text', text: 'streamed part' },
+        },
+      },
+      {
+        type: 'context.mark_last_user_prompt_blocked',
+        hookEvent: 'test-hook',
+      },
       // full_compaction（legacy）：begin(auto) + complete。
       { type: 'full_compaction.begin', source: 'auto' },
       {
@@ -132,8 +152,16 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
       inputCacheRead: 0,
       inputCacheCreation: 0,
     });
-    // tools：注册 + 激活（MCP glob 拆分）。
-    expect(agent.tools.data().map((t) => t.name)).toContain('myTool');
+    // tools：注册 + 激活（MCP glob 拆分：mcp__ 名进 mcpAccessPatterns，不进 enabledTools）。
+    const toolData = agent.tools.data();
+    expect(toolData.map((t) => t.name)).toContain('myTool');
+    expect(agent.tools.enabledTools).not.toContain('mcp__github__*');
+    // context：loop event fold 出的消息 + mark_blocked 生效。
+    expect(agent.context.history.map((m) => m.content[0]?.text ?? '')).toContain('streamed part');
+    expect(agent.context.history[0]).toMatchObject({
+      role: 'user',
+      origin: expect.objectContaining({ blockedByHook: 'test-hook' }),
+    });
     // turn：turnId = 1。
     expect(agent.turn.currentId).toBe(1);
     // config。
@@ -144,8 +172,8 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
     expect(agent.permission.data().rules).toContainEqual(
       expect.objectContaining({ decision: 'allow', scope: 'session-runtime' }),
     );
-    // context：两条消息。
-    expect(agent.context.history).toHaveLength(2);
+    // context：两条消息 + loop event fold 出的流式消息。
+    expect(agent.context.history).toHaveLength(3);
     expect(agent.context.history[0]).toMatchObject({ role: 'user' });
     expect(agent.context.history[1]).toMatchObject({ role: 'assistant' });
     // full_compaction（legacy）：count + _compactedHistory。

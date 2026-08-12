@@ -322,7 +322,7 @@ describe('WireService — restore / replay (AC4 / AC5)', () => {
     await expect(replayed.restore()).rejects.toBe(expected);
   });
 
-  it('rethrows restore error and moves to failed phase (no further dispatch)', async () => {
+  it('rethrows restore error; dispatch stays available after failed (matches old logRecord semantics)', async () => {
     const replayed = new WireService({
       persistence: new InMemoryWirePersistence([
         { type: 'metadata', protocol_version: '0.9', created_at: 1 } as WireRecord,
@@ -331,9 +331,12 @@ describe('WireService — restore / replay (AC4 / AC5)', () => {
 
     // resolveWireMigrations 对无迁移链的更旧版本抛错。
     await expect(replayed.restore()).rejects.toThrow(/Missing wire migration for version 0.9/);
+    // L1：restore 失败后写路径保持可用（旧路径 replay 失败后 logRecord 仍工作），
+    // 仅 restore 期间（phase='restoring'）禁止 dispatch。
     expect(() => {
       replayed.dispatch(counterAdd({ by: 1 }));
-    }).toThrow(WireError);
+    }).not.toThrow();
+    expect(replayed.getModel(CounterModel)).toEqual({ value: 1 });
   });
 });
 

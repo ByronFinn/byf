@@ -147,43 +147,29 @@ describe('Session.resume() integration tests', () => {
   });
 
   describe('错误恢复和容错', () => {
-    it('应该在第一个错误时停止恢复', async () => {
-      const records: AgentRecord[] = [
-        {
-          type: 'metadata',
-          protocol_version: '1.1',
-          created_at: 1,
-        },
-        {
-          type: 'config.update',
-          modelAlias: 'model1',
-        },
+    it('应该在第一个错误时停止恢复（失败记录之后的记录不被应用）', async () => {
+      // metadata 损坏（缺 created_at）使 restore 抛错并停止；其后有效的
+      // context.append_message 不应被应用。
+      const badPersistence = new InMemoryAgentRecordPersistence([
+        { type: 'metadata', protocol_version: '1.1' } as unknown as AgentRecord,
         {
           type: 'context.append_message',
           message: {
             role: 'user',
-            content: [{ type: 'text', text: 'Test message' }],
+            content: [{ type: 'text', text: 'should not apply' }],
             toolCalls: [],
             origin: { kind: 'user' },
           },
         },
-      ];
-
-      const persistence = new InMemoryAgentRecordPersistence(records);
-      const { agent } = testAgent({ persistence });
-
-      // Facade：无迁移链的更旧版本（0.9）使 restore 在第一个错误时停止并返回 {error}。
-      const badPersistence = new InMemoryAgentRecordPersistence([
-        { type: 'metadata', protocol_version: '0.9', created_at: 1 },
-        { type: 'config.update', modelAlias: 'model1' },
       ]);
-      const { agent: agent2 } = testAgent({ persistence: badPersistence });
+      const { agent } = testAgent({ persistence: badPersistence });
 
-      const result = await agent2.resume();
+      const result = await agent.resume();
 
-      // 错误应该被返回（restore 在首个错误停止）
+      // 错误应该被返回（restore 在首个错误停止，后续记录未应用）。
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain('0.9');
+      expect(result.error?.message).toContain('metadata');
+      expect(agent.context.history).toHaveLength(0);
     });
 
     it('应该处理边界情况和异常记录', async () => {

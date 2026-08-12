@@ -97,6 +97,12 @@ export interface WireServiceOptions {
    * 跳过并计数。提供时视为已处理（不报 skipped）。
    */
   readonly legacyRoute?: (record: WireRecord) => void;
+  /**
+   * 每条非 metadata record 重放后的回调（Phase 1：config.update 的 replayBuilder
+   * config_updated 派生 —— 纯 reducer 不跑 update()，旧路径的 push 丢失）。执行于
+   * restoring 相位（replayBuilder.push 依赖 restoring=true）。
+   */
+  readonly onReplayRecord?: (record: WireRecord) => void;
 }
 
 export class WireService {
@@ -110,6 +116,7 @@ export class WireService {
   private readonly publishEvent?: (event: unknown) => void;
   private readonly onSkippedRecord?: (error: WireError) => void;
   private readonly legacyRoute?: (record: WireRecord) => void;
+  private readonly onReplayRecord?: (record: WireRecord) => void;
 
   private restorePhase: RestorePhase = 'new';
   /** 是否已写入 / 见过 metadata 信封（复刻 records/index.ts 的 metadataInitialized）。 */
@@ -120,6 +127,7 @@ export class WireService {
     this.publishEvent = opts.publishEvent;
     this.onSkippedRecord = opts.onSkippedRecord;
     this.legacyRoute = opts.legacyRoute;
+    this.onReplayRecord = opts.onReplayRecord;
   }
 
   /** 当前 restore 相位（供 AgentRecords.restoring 等外部读取）。 */
@@ -149,7 +157,7 @@ export class WireService {
    * 不走 dispatch 以避免 apply 双重作用）。
    */
   persistRaw(record: WireRecord): void {
-    if (this.restorePhase === 'restoring' || this.restorePhase === 'failed') {
+    if (this.restorePhase === 'restoring') {
       throw new WireError(
         WireErrorCodes.WIRE_PHASE_VIOLATION,
         `Wire persistRaw called while restore phase is ${this.restorePhase}`,
@@ -165,7 +173,7 @@ export class WireService {
 
   dispatch(...ops: Op[]): void {
     if (ops.length === 0) return;
-    if (this.restorePhase === 'restoring' || this.restorePhase === 'failed') {
+    if (this.restorePhase === 'restoring') {
       throw new WireError(
         WireErrorCodes.WIRE_PHASE_VIOLATION,
         `Wire dispatch called while restore phase is ${this.restorePhase}`,
@@ -287,18 +295,20 @@ export class WireService {
         this.legacyRoute(record);
       } else {
         this.reportSkippedRecord(record.type, index);
+        return;
       }
-      return;
+    } else {
+      const payload = descriptor.schema.safeParse(wireRecordToPayload(record));
+      if (!payload.success) {
+        this.reportSkippedRecord(record.type, index, true);
+        return;
+      }
+      this.execute({
+        ops: [{ type: record.type, payload: payload.data, descriptor }],
+        silent: true,
+      });
     }
-    const payload = descriptor.schema.safeParse(wireRecordToPayload(record));
-    if (!payload.success) {
-      this.reportSkippedRecord(record.type, index, true);
-      return;
-    }
-    this.execute({
-      ops: [{ type: record.type, payload: payload.data, descriptor }],
-      silent: true,
-    });
+    this.onReplayRecord?.(record);
   }
 
   private reportSkippedRecord(type: string | undefined, index: number, malformed = false): void {

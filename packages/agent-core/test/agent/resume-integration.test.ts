@@ -47,6 +47,76 @@ describe('Agent.resume() integration tests', () => {
       });
     });
 
+    it('config.update 显式清除 modelAlias 后 resume 不残留 stale 值', async () => {
+      // M2 回归：syncFromWire 必须无条件赋值（hasOwn 语义的显式 undefined 即清除），
+      // `!== undefined` 守卫会跳过清除导致残留旧值。
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'config.update',
+          modelAlias: 'm1',
+        },
+        {
+          type: 'config.update',
+          modelAlias: undefined,
+        },
+        {
+          type: 'context.append_message',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Hello' }],
+            toolCalls: [],
+            origin: { kind: 'user' },
+          },
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      expect(agent.config.modelAlias).toBeUndefined();
+    });
+
+    it('resume 后 replayBuilder 派生 config_updated（纯 reducer 不跑 update()）', async () => {
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'config.update',
+          modelAlias: 'm1',
+          systemPrompt: 'p1',
+        },
+        {
+          type: 'context.append_message',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Hello' }],
+            toolCalls: [],
+            origin: { kind: 'user' },
+          },
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      // config 走纯 reducer：update() 不执行，config_updated 由 onReplayRecord 派生
+      // （payload = changed 子集）。
+      expect(agent.replayBuilder.buildResult()).toContainEqual({
+        type: 'config_updated',
+        config: expect.objectContaining({ modelAlias: 'm1', systemPrompt: 'p1' }),
+      });
+    });
+
     it('应该返回迁移警告', async () => {
       const persistence = new InMemoryAgentRecordPersistence([
         {

@@ -42,7 +42,7 @@ import {
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
 import { FullCompaction, type CompactionStrategy } from './compaction';
-import { ConfigState } from './config';
+import { ConfigState, type AgentConfigUpdateData } from './config';
 import { ContextMemory } from './context';
 import { CronManager } from './cron';
 import { GoalMode } from './goal';
@@ -68,7 +68,7 @@ import {
   type GenerateOptionsWithRequestLog,
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
-import { WireService, type WirePersistence, type WireRecord } from './wire';
+import { WireService, wireRecordToPayload, type WirePersistence, type WireRecord } from './wire';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
@@ -241,6 +241,16 @@ export class Agent {
       },
       legacyRoute: (record: WireRecord) => {
         this.routeLegacyRecord(record as AgentRecord);
+      },
+      onReplayRecord: (record: WireRecord) => {
+        // config 走纯 reducer（update() 不执行），replayBuilder 的 config_updated
+        // 在此派生（payload 即 changed 子集，对标旧路径 config/index.ts:43 的 push）。
+        if (isAgentRecordOfPrefix(record as AgentRecord, 'config')) {
+          this.replayBuilder.push({
+            type: 'config_updated',
+            config: wireRecordToPayload(record) as AgentConfigUpdateData,
+          });
+        }
       },
       onSkippedRecord: (error) => {
         this.log.error('wire record skipped during restore', { error });
