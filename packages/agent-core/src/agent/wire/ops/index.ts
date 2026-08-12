@@ -11,13 +11,9 @@ export * from './goal';
 export * from './usage';
 export * from './tools';
 export * from './turn';
-// permission / full_compaction 暂不注册（Phase 1 legacy adapter）：
-// - permission：restore 有纯 reducer 无法重现的副作用 —— replayBuilder.push
-//   （approval_result 逐条审批历史，process 非 state）+ this.rules（session 规则需
-//   action→toolName 映射）。Phase 3 纯化。
-// - full_compaction：complete 的 _compactedHistory 依赖活的 context 历史
-//   （renderMessagesToText），无法纯重建。Phase 4 纯化。
-// export * from './permission';
+export * from './permission';
+// full_compaction 暂不注册（Phase 4 legacy adapter）：complete 的 _compactedHistory
+// 依赖活的 context 历史（renderMessagesToText），无法纯重建。
 // export * from './full-compaction';
 export * from './config';
 export * from './background';

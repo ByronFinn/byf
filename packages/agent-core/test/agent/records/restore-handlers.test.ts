@@ -8,18 +8,13 @@ import { OP_REGISTRY } from '../../../src/agent/wire';
 
 describe('AgentRecords facade — record type restore coverage (drift guard)', () => {
   // Phase 1 Facade 的路由模型：每个 record 类型由以下之一覆盖——
-  // 1. OP_REGISTRY：5 个纯 reducer 子系统（goal/usage/tools/turn/config）+ background
-  //    的 Op 已注册，restore 走 silent apply。
-  // 2. legacyRoute：context.*（Phase 5 深水区前保留）、permission.*（approval_result
-  //    逐条审批历史 + session 规则需 action→toolName 映射，Phase 3 纯化）、
-  //    full_compaction.*（_compactedHistory 依赖活 context，Phase 4 纯化）走 restoreRecord。
+  // 1. OP_REGISTRY：6 个纯 reducer 子系统（goal/usage/tools/turn/permission/config）
+  //    + background 的 Op 已注册，restore 走 silent apply。
+  // 2. legacyRoute：context.*（Phase 5 深水区前保留）、full_compaction.*
+  //    （_compactedHistory 依赖活 context，Phase 4 纯化）走 restoreRecord。
   // 3. metadata：wire 协议信封，restore 时直接处理。
   // 新增 record 类型时必须落入其中一类，否则 restore 会按 replay tolerance 静默跳过。
-  const LEGACY_ROUTED_PREFIXES: ReadonlySet<string> = new Set([
-    'context',
-    'permission',
-    'full_compaction',
-  ]);
+  const LEGACY_ROUTED_PREFIXES: ReadonlySet<string> = new Set(['context', 'full_compaction']);
 
   // 所有 AgentRecordEvents key 必须出现在这里。赋值强制 TS 求值 Missing ——
   // 仅声明未使用的 type alias 不会触发 typecheck。
@@ -67,14 +62,14 @@ describe('AgentRecords facade — record type restore coverage (drift guard)', (
   });
 
   it('all pure-reducer subsystems are registered as Ops (non-legacy, non-metadata)', () => {
-    // 除 context.*（8 个）+ permission.*（2 个）+ full_compaction.*（3 个）legacy
-    // 与 metadata（协议）外，全部在 OP_REGISTRY。
+    // 除 context.*（8 个）+ full_compaction.*（3 个）legacy 与 metadata（协议）外，
+    // 全部在 OP_REGISTRY。
     const registered = ALL_RECORD_TYPES.filter((type) => {
       if (type === 'metadata') return false;
       const prefix = type.split('.')[0] ?? '';
       if (LEGACY_ROUTED_PREFIXES.has(prefix)) return false;
       return OP_REGISTRY.has(type);
     });
-    expect(registered).toHaveLength(ALL_RECORD_TYPES.length - 8 - 2 - 3 - 1);
+    expect(registered).toHaveLength(ALL_RECORD_TYPES.length - 8 - 3 - 1);
   });
 });

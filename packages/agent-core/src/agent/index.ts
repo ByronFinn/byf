@@ -48,7 +48,11 @@ import { CronManager } from './cron';
 import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
-import { PermissionManager, type PermissionManagerOptions } from './permission';
+import {
+  PermissionManager,
+  type PermissionManagerOptions,
+  type PermissionMode,
+} from './permission';
 import {
   AgentRecords,
   FileSystemAgentRecordPersistence,
@@ -152,9 +156,7 @@ const NOOP_WIRE_PERSISTENCE: WirePersistence = {
 /** Phase 1 legacy adapter 前缀：restore 走 restoreRecord（非纯 reducer）。 */
 function isLegacyRestorePrefix(record: AgentRecord): boolean {
   return (
-    isAgentRecordOfPrefix(record, 'context') ||
-    isAgentRecordOfPrefix(record, 'permission') ||
-    isAgentRecordOfPrefix(record, 'full_compaction')
+    isAgentRecordOfPrefix(record, 'context') || isAgentRecordOfPrefix(record, 'full_compaction')
   );
 }
 
@@ -250,6 +252,13 @@ export class Agent {
             type: 'config_updated',
             config: wireRecordToPayload(record) as AgentConfigUpdateData,
           });
+        } else if (record.type === 'permission.set_mode') {
+          // permission 走纯 reducer（setMode() 不执行），permission_updated 在此派生。
+          // approval_result 是 TUI no-op（projectReplayRecord 直接 return），不派生。
+          const payload = wireRecordToPayload(record) as { mode?: PermissionMode };
+          if (payload.mode !== undefined) {
+            this.replayBuilder.push({ type: 'permission_updated', mode: payload.mode });
+          }
         }
       },
       onSkippedRecord: (error) => {
@@ -310,15 +319,16 @@ export class Agent {
   }
 
   /**
-   * 5 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
-   * 测试 harness 的单条 restore 都用）。context / permission / full_compaction 是
-   * legacy（restoreRecord 直接改私有状态），不在此列。
+   * 6 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
+   * 测试 harness 的单条 restore 都用）。context / full_compaction 是 legacy
+   * （restoreRecord 直接改私有状态），不在此列。
    */
   syncFromWire(): void {
     this.goal.syncFromWire();
     this.usage.syncFromWire();
     this.tools.syncFromWire();
     this.turn.syncFromWire();
+    this.permission.syncFromWire();
     this.config.syncFromWire();
   }
 
@@ -352,8 +362,6 @@ export class Agent {
       // 的最新配置（对标旧路径 config.restoreRecord 立即更新私有状态的语义）。
       this.config.syncFromWire();
       this.context.restoreRecord(record);
-    } else if (isAgentRecordOfPrefix(record, 'permission')) {
-      this.permission.restoreRecord(record);
     } else if (isAgentRecordOfPrefix(record, 'full_compaction')) {
       this.fullCompaction.restoreRecord(record);
     }

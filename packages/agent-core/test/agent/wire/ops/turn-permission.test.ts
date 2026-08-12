@@ -76,19 +76,29 @@ describe('permission reducer — mode + approved actions', () => {
     expect(wire.getModel(permissionModel).modeOverride).toBe('auto');
   });
 
-  it('record_approval_result adds action to sessionApprovedActions, dedupes', () => {
+  it('record_approval_result records action→toolName for approved+session only, dedupes', () => {
     const wire = new WireService({ persistence: new InMemoryWirePersistence() });
     const rec = {
       turnId: 0,
       toolCallId: 'c1',
       toolName: 'Bash',
       action: 'Bash(ls)',
-      result: 'allow',
+      result: { decision: 'approved', scope: 'session' },
     };
     wire.dispatch(permissionRecordApprovalResult(rec));
     wire.dispatch(permissionRecordApprovalResult({ ...rec, toolCallId: 'c2' })); // same action
+    // 非 session / 非 approved 不进 sessionApproved。
+    wire.dispatch(
+      permissionRecordApprovalResult({
+        ...rec,
+        action: 'one-shot',
+        result: { decision: 'approved' },
+      }),
+    );
 
-    expect([...wire.getModel(permissionModel).sessionApprovedActions]).toEqual(['Bash(ls)']);
+    expect([...wire.getModel(permissionModel).sessionApproved.entries()]).toEqual([
+      ['Bash(ls)', 'Bash'],
+    ]);
   });
 
   it('restore round-trip rebuilds mode + approved actions', async () => {
@@ -101,7 +111,7 @@ describe('permission reducer — mode + approved actions', () => {
         toolCallId: 'c1',
         toolName: 'Bash',
         action: 'Bash(rm)',
-        result: 'deny',
+        result: { decision: 'approved', scope: 'session' },
       }),
     );
 
@@ -111,6 +121,8 @@ describe('permission reducer — mode + approved actions', () => {
     await replayed.restore();
 
     expect(replayed.getModel(permissionModel).modeOverride).toBe('manual');
-    expect([...replayed.getModel(permissionModel).sessionApprovedActions]).toEqual(['Bash(rm)']);
+    expect([...replayed.getModel(permissionModel).sessionApproved.entries()]).toEqual([
+      ['Bash(rm)', 'Bash'],
+    ]);
   });
 });

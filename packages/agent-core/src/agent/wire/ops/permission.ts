@@ -1,11 +1,17 @@
 /**
  * `wire/ops/permission` —— permission 子系统的 Op 定义（纯 reducer）。
  *
- * reducer 状态 = `{ modeOverride, sessionApprovedActions }`（对标 permission/index.ts:32
- * 与 `parent`/`policies` 构造注入，不进 reducer）。set_mode 覆写 modeOverride；
- * record_approval_result 把 action 加入 sessionApprovedActions（已存在则 no-op，
- * 对标 permission/index.ts:86-89）。`replayBuilder.push` 是 CLI resume 渲染用的运行态
- * 收集，不在 reducer 状态里。
+ * reducer 状态 = `{ modeOverride, sessionApproved }`（对标 permission/index.ts 的
+ * `_modeOverride` / `sessionApprovedActions` 持久部分；`parent`/`policies` 构造注入，
+ * 不进 reducer）。set_mode 覆写 modeOverride；record_approval_result 仅当
+ * `approved + scope='session'` 时把 `action → toolName` 记入 sessionApproved
+ * （已存在则 no-op）—— sync 时据此重建 sessionApprovedActions 与 session-runtime
+ * rules（actionToRulePattern 需要 toolName，Phase 3 从旧 legacy 路径迁入）。
+ *
+ * `replayBuilder.push`（approval_result / permission_updated）是 CLI resume 渲染用
+ * 的派生事件，不在 reducer 状态里 —— approval_result 由 TUI 视为 no-op（Phase 1
+ * 核实 projectReplayRecord 直接 return），permission_updated 由 Agent 的
+ * onReplayRecord 按最终 mode 派生。
  */
 
 import { z } from 'zod';
@@ -19,14 +25,15 @@ const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodT
 
 export interface PermissionModelState {
   readonly modeOverride: PermissionMode | undefined;
-  readonly sessionApprovedActions: ReadonlySet<string>;
+  /** action → toolName（仅 approved + session 的审批；重建 session rules 用）。 */
+  readonly sessionApproved: ReadonlyMap<string, string>;
 }
 
 export const permissionModel = defineModel(
   'permission',
   (): PermissionModelState => ({
     modeOverride: undefined,
-    sessionApprovedActions: new Set(),
+    sessionApproved: new Map(),
   }),
 );
 
@@ -45,14 +52,16 @@ export const permissionRecordApprovalResult = permissionModel.defineOp(
       toolCallId: z.string(),
       toolName: z.string(),
       action: z.string(),
-      // ApprovalResponse —— reducer 只用 action，result 结构宽松即可（replay tolerance）。
+      // ApprovalResponse —— reducer 只用 decision/scope，其余结构宽松即可（replay tolerance）。
       result: z.unknown(),
     }),
     apply: (state, payload) => {
-      if (state.sessionApprovedActions.has(payload.action)) return state;
+      const result = payload.result as { decision?: string; scope?: string } | undefined;
+      if (result?.decision !== 'approved' || result?.scope !== 'session') return state;
+      if (state.sessionApproved.has(payload.action)) return state;
       return {
         ...state,
-        sessionApprovedActions: new Set([...state.sessionApprovedActions, payload.action]),
+        sessionApproved: new Map([...state.sessionApproved, [payload.action, payload.toolName]]),
       };
     },
   },

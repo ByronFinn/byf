@@ -5,6 +5,7 @@ import type { ToolInputDisplay } from '../../tools/display';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import { isAgentRecordOfPrefix } from '../records/types';
 import type { RecordRestoreHandler } from '../restore-handler';
+import { permissionModel } from '../wire/ops/permission';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
 import type { PermissionPathMatchOptions } from './path-glob-match';
@@ -360,6 +361,32 @@ export class PermissionManager implements RecordRestoreHandler {
         // because the restoring flag prevents logging
         this.recordApprovalResult(record);
         break;
+    }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 3）。
+   * modeOverride 由 set_mode 的纯 apply 重建；sessionApproved（action→toolName）
+   * 重建 sessionApprovedActions 与 session-runtime rules（actionToRulePattern +
+   * hasRule 去重，对标旧 restoreRecord → recordApprovalResult 的 rules 追加）。
+   * parent / policies 是构造注入，不动。
+   */
+  syncFromWire(): void {
+    const model = this.agent.wire.getModel(permissionModel);
+    this._modeOverride = model.modeOverride;
+    this.sessionApprovedActions = new Set(model.sessionApproved.keys());
+    for (const [action, toolName] of model.sessionApproved) {
+      const pattern = actionToRulePattern(action, toolName);
+      if (pattern === undefined) continue;
+      const rule: PermissionRule = {
+        decision: 'allow',
+        scope: 'session-runtime',
+        pattern,
+        reason: `approve_for_session: ${action}`,
+      };
+      if (!this.hasRule(rule)) {
+        this.rules.push(rule);
+      }
     }
   }
 }

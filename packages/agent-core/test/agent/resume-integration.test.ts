@@ -47,6 +47,30 @@ describe('Agent.resume() integration tests', () => {
       });
     });
 
+    it('resume 后 replayBuilder 派生 permission_updated（纯 reducer 不跑 setMode()）', async () => {
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'permission.set_mode',
+          mode: 'yolo',
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      expect(agent.permission.mode).toBe('yolo');
+      expect(agent.replayBuilder.buildResult()).toContainEqual({
+        type: 'permission_updated',
+        mode: 'yolo',
+      });
+    });
+
     it('config.update 显式清除 modelAlias 后 resume 不残留 stale 值', async () => {
       // M2 回归：syncFromWire 必须无条件赋值（hasOwn 语义的显式 undefined 即清除），
       // `!== undefined` 守卫会跳过清除导致残留旧值。
