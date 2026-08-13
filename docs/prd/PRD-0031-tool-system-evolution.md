@@ -177,7 +177,7 @@
 ## Traceability
 
 - **Created by**: `/think`（2026-08-13）
-- **Prototyped by**: （待 PR1-0a-spike）
+- **Prototyped by**: `/have-a-try`（2026-08-13）— PR1-0a-spike：shell-decompose 基准 44 条命令 **100% 覆盖**（33 narrow / 7 broad / 4 force-approval / 0 missed）→ **GO**（门禁 ≥80%）；`cat .env`/`cat ~/.ssh/id_rsa` 敏感命中、`echo hi; rm x` 逐子命令、`bash -c` 剥壳、eval/interpreter 转强制审批全部按设计成立
 - **Grilled by**: `/grill`（2026-08-13）— 7 项决策解析（Q1 逐子命令匹配语义、Q2 敏感文件硬拒、Q3 动词分类表、Q4 SECURITY.md 扩展、Q5 spike ≥80% 门禁、Q6 Bash 描述 cache-impact 变更、Q7 旧规则不迁移）；2 术语入 CONTEXT.md；ADR-0033 已在 think 阶段建立
 - **Sliced into**: （待 `/story`）
 - **New terms**: 资源感知权限模型（resource-aware permission）、shell-decompose、威胁模型文档化（draft，待 `/grill` 提炼）
