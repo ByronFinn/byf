@@ -170,6 +170,8 @@ export class GrepTool implements BuiltinTool<GrepInput> {
   readonly name = 'Grep' as const;
   readonly description = GREP_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(GrepInputSchema);
+  /** PRD-0031 2c：结构化输出契约（运行时校验）。 */
+  readonly outputSchema = GrepOutputSchema;
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,

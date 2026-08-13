@@ -148,6 +148,8 @@ export class BashTool implements BuiltinTool<BashInput> {
   readonly name = 'Bash' as const;
   readonly description: string;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(BashInputSchema);
+  /** PRD-0031 2c：结构化输出契约（运行时校验；字符串输出为文本通道豁免）。 */
+  readonly outputSchema = BashOutputSchema;
 
   private readonly isWindowsBash: boolean;
 

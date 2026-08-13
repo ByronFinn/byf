@@ -139,7 +139,7 @@ export type { PermissionPathMatchOptions } from './path-glob-match';
 /** 资源规则的 DSL 命名空间：`Resource(read:*.env)`。 */
 export const RESOURCE_RULE_NAMESPACE = 'Resource';
 
-const RESOURCE_OPERATIONS: readonly string[] = new Set(['read', 'write', 'readwrite', 'search']);
+const RESOURCE_OPERATIONS = new Set(['read', 'write', 'readwrite', 'search']);
 
 /**
  * 从工具调用提取 `(operation, path)` 资源访问（与调度层 `ToolAccesses`

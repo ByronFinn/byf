@@ -62,6 +62,8 @@ export class WriteTool implements BuiltinTool<WriteInput> {
   readonly name = 'Write' as const;
   readonly description = WRITE_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(WriteInputSchema);
+  /** PRD-0031 2c：结构化输出契约（运行时校验）。 */
+  readonly outputSchema = WriteOutputSchema;
 
   constructor(
     private readonly kaos: Kaos,

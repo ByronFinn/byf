@@ -99,6 +99,8 @@ interface PendingToolResult {
   readonly args: unknown;
   readonly result: ExecutableToolResult;
   readonly stopTurn?: boolean;
+  /** PRD-0031 2c：工具声明的结构化输出契约（coerce 边界校验用）。 */
+  readonly outputSchema?: import('zod').ZodType<unknown>;
 }
 
 interface PreparedToolCallTask {
@@ -473,7 +475,16 @@ async function finalizePendingToolResult(
 ): Promise<PendingToolResult> {
   const { hooks, signal, turnId, currentStep, llm } = step;
   if (hooks?.finalizeToolResult === undefined) {
-    return { ...pendingResult, result: normalizeToolResult(pendingResult.result) };
+    return {
+      ...pendingResult,
+      result: normalizeToolResult(
+        validateStructuredOutput(
+          pendingResult.result,
+          pendingResult.outputSchema,
+          pendingResult.toolName,
+        ),
+      ),
+    };
   }
 
   try {
@@ -486,8 +497,9 @@ async function finalizePendingToolResult(
       signal,
       llm,
     });
-    const effectiveResult = coerceToolResult(
-      finalizedResult ?? pendingResult.result,
+    const effectiveResult = validateStructuredOutput(
+      coerceToolResult(finalizedResult ?? pendingResult.result, pendingResult.toolName),
+      pendingResult.outputSchema,
       pendingResult.toolName,
     );
     return {
@@ -617,6 +629,36 @@ function coerceToolResult(value: unknown, toolName: string): ExecutableToolResul
   return value as ExecutableToolResult;
 }
 
+/**
+ * PRD-0031 2c：工具输出 schema 运行时校验（coerceToolResult 前置）。
+ *
+ * 工具声明 `outputSchema` 且返回**结构化对象输出**时，按该 schema 校验；
+ * 畸形输出转为结构化错误（含校验失败原因，公理 A：模型可区分「执行失败」
+ * 与「畸形输出」）。字符串/文本内容数组是文本通道（legacy），豁免——
+ * 合法输出零回归。错误结果跳过校验。
+ */
+export function validateStructuredOutput(
+  result: ExecutableToolResult,
+  outputSchema: import('zod').ZodType<unknown> | undefined,
+  toolName: string,
+): ExecutableToolResult {
+  if (outputSchema === undefined) return result;
+  if (result.isError === true) return result;
+  if (typeof result.output === 'string' || Array.isArray(result.output)) return result;
+
+  const parsed = outputSchema.safeParse(result.output);
+  if (parsed.success) return result;
+  const issues = parsed.error.issues
+    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('; ');
+  return {
+    isError: true,
+    output:
+      `Tool "${toolName}" returned output that violates its declared output schema: ${issues}. ` +
+      `This is a tool implementation bug — do not retry the call; report the malformed output instead.`,
+  };
+}
+
 function normalizeToolResult(r: ExecutableToolResult): ExecutableToolResult {
   let output: ExecutableToolResult['output'];
   if (typeof r.output === 'string') {
@@ -659,6 +701,7 @@ function makeToolResult(
     args,
     result,
     stopTurn: toolResultStopsTurn(result),
+    outputSchema: call.kind === 'runnable' ? call.tool.outputSchema : undefined,
   };
 }
 
