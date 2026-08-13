@@ -169,6 +169,14 @@ PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-
 
 工具执行前的权限门控。代理向用户展示工具调用（包含命令、diff 或文件操作详情），用户选择批准、拒绝或取消。审批结果作为 `blockedReason`（`'rejected'` | `'cancelled'`）流入工具结果，表示工具未执行。通过审批的工具正常执行。
 
+### 资源感知权限模型 (Resource-Aware Permission Model)
+
+byf 工具系统的演进目标（PRD-0031，Tier 2）：权限规则与调度声明共享同一份 `(资源类型, 操作, 路径)` 资源抽象——Bash 命令被解析成资源访问序列后，与 `ToolAccesses` 调度元数据消费同一资源模型，实现「调度图与权限图统一」。**当前权限层仍是命令字符串匹配（调度图与权限图不对称，见 `docs/roadmap/tool-system-evolution.md` §1.2）；此模型是目标态，非现状。**
+
+### shell-decompose
+
+PRD-0031 0a 采用的 Bash 命令解析方案：按 `; && || |` 分解复合命令、剥离 `bash -c`/`sh -c` 包装、提取文件路径参数、检测间接执行（`eval`/`source`/`xargs`/`env`/`sudo` 等）。解析输出 `(path, op)` 序列，供敏感文件层（`resolvePathAccess`）与**逐子命令权限匹配**消费。非语法级解析（tree-sitter 为后续强化候选）；无法静态解析的命令转强制审批。
+
 ### 子代理活动追踪 (Sub-agent Activity Trace)
 
 向用户展示子代理工作期间的活动记录：生命周期状态、可见的助手输出、工具活动、审批等待、错误和最终结果。不是模型的私有思考链。
