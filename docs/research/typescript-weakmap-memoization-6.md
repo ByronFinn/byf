@@ -42,7 +42,7 @@
 - **symbols as WeakMap keys**:ES2023 起非 registered symbol 可做 WeakMap key(ECMA-262 已合并);本项目 TS 6.0.2 target 远高于此,可用。但对本场景无实际意义(key 是 Message 对象)。
 - **不可枚举性**:WeakMap 不可遍历 / 不可查 size——无法做「清空全部」「统计命中数」;调试需另挂计数器。这是规范的固有约束,非缺陷。
 - **原地修改是陷阱**:若对象身份不变但内容被改(如流式 append),WeakMap 返回 stale 值。必须用 `partial` 标志排除未冻结对象,或在变更点显式 `delete`。
-- **Map<string> 的字符串哈希**:引擎(V8/JSC)对字符串哈希做惰性计算并缓存于字符串对象上;对**同一字符串对象**的重复 `Map.get` 是 O(1)。但对 `JSON.stringify` 每次产生的新字符串,首次哈希仍 O(n)——primitive-keyed 缓存对「每次重新序列化」的输入,省的是「计算」而非「哈希」。
+- **`Map<string>` 的字符串哈希**:引擎(V8/JSC)对字符串哈希做惰性计算并缓存于字符串对象上;对**同一字符串对象**的重复 `Map.get` 是 O(1)。但对 `JSON.stringify` 每次产生的新字符串,首次哈希仍 O(n)——primitive-keyed 缓存对「每次重新序列化」的输入,省的是「计算」而非「哈希」。
 
 ## Sources
 
