@@ -24,7 +24,7 @@ import { formatErrorMessage } from '#/tui/utils/event-payload';
  * the dialog layer a pure function of state + host + callbacks.
  */
 /**
- * Result type for usage loading (success or captured error message).
+ * 用量加载的结果类型(成功或捕获的错误消息)。
  */
 export interface UsageReportResult {
   readonly usage?: SessionUsage;
@@ -32,7 +32,7 @@ export interface UsageReportResult {
 }
 
 /**
- * Result type for runtime status loading (success or captured error message).
+ * 运行时状态加载的结果类型(成功或捕获的错误消息)。
  */
 export interface StatusReportResult {
   readonly status?: SessionStatus;
@@ -56,9 +56,8 @@ export interface DialogManagerCallbacks {
 }
 
 /**
- * Owns the editor-replacement dialogs and selectors that were previously
- * private methods on ByfTui. This shrinks the TUI god object while leaving
- * stateful editor/streaming/approval logic where it belongs.
+ * 拥有此前为 ByfTui 私有方法的编辑器替换对话框与选择器。
+ * 这缩小了 TUI 上帝对象,同时把有状态的编辑器 / 流式 / 审批逻辑留在原位。
  */
 export class DialogManager {
   constructor(

@@ -1,16 +1,13 @@
 /**
- * ReadMediaFile renderer.
+ * ReadMediaFile 渲染器。
  *
- * The ReadMediaFile tool `output` is the JSON-serialized array of
- * content parts the tool returned — which includes the full base64 of
- * the image/video. Dumping that string into the transcript blasts a
- * multi-screen blob of base64. This renderer parses the envelope and
- * surfaces just the human-readable bits (kind, path, mime, size) via
- * a header chip + a tiny expanded body. It never emits the base64.
+ * ReadMediaFile 工具的 `output` 是工具返回的内容 part 的 JSON 序列化数组——
+ * 包含图片 / 视频的完整 base64。把该字符串倾泻进 transcript 会爆出多屏
+ * base64 大块。本渲染器解析信封,仅通过头部 chip + 微型展开主体呈现
+ * 人类可读的部分(kind、path、mime、size)。它绝不发出 base64。
  *
- * On error, or when the output isn't the expected media envelope, we
- * fall back to the truncated renderer so the user still sees the raw
- * message.
+ * 出错或输出不是预期的媒体信封时,回退到截断渲染器,使用户仍能看到
+ * 原始消息。
  */
 
 import type { Component } from '@earendil-works/pi-tui';

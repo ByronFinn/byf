@@ -1,5 +1,5 @@
 /**
- * SubagentsController — manages the /agent full-screen lifecycle.
+ * SubagentsController — 管理 /agent 全屏生命周期。
  */
 
 import type { Terminal } from '@earendil-works/pi-tui';

@@ -1,7 +1,6 @@
 /**
- * UsagePanelComponent — wraps pre-coloured `/usage` lines in a blue box
- * border with a left indent, mirroring the PlanBoxComponent layout so
- * the pattern stays consistent across command-triggered panels.
+ * UsagePanelComponent — 把已着色的 `/usage` 行包进蓝色边框盒,带左缩进,
+ * 镜像 PlanBoxComponent 布局,使命令触发的面板保持一致的样式。
  */
 
 import type { InputTokenBreakdown, SessionUsage, TokenUsage } from '@byfriends/sdk';

@@ -1,10 +1,9 @@
 /**
- * Cached git branch + working-tree status for the footer/statusline.
+ * 页脚 / 状态行使用的缓存 git 分支 + 工作树状态。
  *
- * Branch name refreshes every 5s, porcelain status every 15s. Branch
- * and status reads stay synchronous with short timeouts. Pull request
- * lookup uses an async cache so a slow `gh pr view` never blocks
- * footer rendering.
+ * 分支名每 5s 刷新,porcelain 状态每 15s。分支与状态读取保持同步,
+ * 带短超时。拉取请求查找使用异步缓存,使慢 `gh pr view` 永不阻塞
+ * 页脚渲染。
  */
 
 import { execFile, spawnSync } from 'node:child_process';

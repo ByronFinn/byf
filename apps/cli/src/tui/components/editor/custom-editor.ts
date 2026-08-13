@@ -1,5 +1,5 @@
 /**
- * Custom editor extending pi-tui Editor with app-level keybindings.
+ * 扩展 pi-tui Editor、带应用级按键绑定的自定义编辑器。
  */
 
 import { Editor, isKeyRelease, matchesKey, Key, type TUI } from '@earendil-works/pi-tui';
@@ -30,18 +30,16 @@ interface AutocompleteInternals {
 }
 
 /**
- * Workaround for a pi-tui bug that surfaces when Kitty keyboard protocol
- * is active AND caps_lock is on. In that state terminals emit, e.g.,
- * `ESC[68;69u` for ctrl+d (codepoint=68=`D`, modifier=ctrl|caps_lock).
- * pi-tui's `matchesKittySequence` masks `caps_lock` out of the *modifier*
- * but leaves the *codepoint* capitalised, so `matchesKey(data, "ctrl+d")`
- * (which expects codepoint=100=`d`) fails and every ctrl-shortcut is
- * silently dropped.
+ * 针对 pi-tui 在 Kitty 键盘协议激活**且** caps_lock 开启时暴露的 bug 的
+ * 变通方案。该状态下终端为 ctrl+d 发出例如 `ESC[68;69u`
+ * (codepoint=68=`D`,modifier=ctrl|caps_lock)。pi-tui 的
+ * `matchesKittySequence` 会把 `caps_lock` 从 *modifier* 中掩掉,但
+ * *codepoint* 仍是大写,因此 `matchesKey(data, "ctrl+d")`(期望
+ * codepoint=100=`d`)失败,所有 ctrl 快捷键被静默丢弃。
  *
- * We rewrite the sequence back to its unlocked form before dispatching,
- * but only when ctrl is held and shift is not — i.e. exactly the
- * `ctrl+<letter>` case. Plain uppercase (caps_lock only, no ctrl) and
- * explicit ctrl+shift+<letter> are left alone.
+ * 我们在分发前把序列重写回未锁定形式,但仅在按住 ctrl 且未按 shift 时——
+ * 即恰好是 `ctrl+<letter>` 情形。纯大写(caps_lock 仅开、无 ctrl)与
+ * 显式 ctrl+shift+<letter> 保持原样。
  */
 export function normalizeCapsLockedCtrl(data: string): string {
   const m = data.match(KITTY_CSI_U);
@@ -292,10 +290,9 @@ export class CustomEditor extends Editor {
 }
 
 /**
- * Return a copy of `line` with the first `/token` coloured using `hex`.
- * `line` may already contain SGR escapes (cursor inverse, etc.); we
- * locate `/` via visible-index math so ANSI pass-through survives.
- * Returns `undefined` if no token is found.
+ * 返回 `line` 的副本,第一个 `/token` 用 `hex` 着色。
+ * `line` 可能已含 SGR 转义(光标反显等);我们经可见索引数学定位 `/`,
+ * 使 ANSI 透传得以存活。未找到 token 时返回 `undefined`。
  */
 export function highlightFirstSlashToken(line: string, hex: string): string | undefined {
   const visible = stripSgr(line);
@@ -324,14 +321,12 @@ export function highlightFirstSlashToken(line: string, hex: string): string | un
 }
 
 /**
- * Overlay a terminal-style `> ` prompt symbol on the first content line.
- * Column 0 is reserved for the left vertical border (overlaid later by
- * wrapWithSideBorders); column 1 is a single-space gap, so the `>` token
- * lives at column 2 with column 3 separating it from content.
- * Relies on the editor being configured with `paddingX >= 4` so the line
- * starts with at least four literal spaces. Emits no SGR so the terminal's
- * default foreground colour renders the symbol. Returns `undefined` if the
- * line is too short or doesn't begin with the expected padding.
+ * 在首个内容行上叠加终端风格的 `> ` 提示符。
+ * 列 0 预留给左侧垂直边框(稍后由 wrapWithSideBorders 叠加);列 1 是
+ * 单空格间隙,因此 `>` token 位于列 2,列 3 将其与内容分隔。
+ * 依赖编辑器配置为 `paddingX >= 4`,使行以至少四个字面空格开头。
+ * 不发出 SGR,使终端的默认前景色渲染该符号。行过短或不以预期内边距
+ * 开头时返回 `undefined`。
  */
 export function injectPromptSymbol(
   line: string,
@@ -376,16 +371,13 @@ function stripVisiblePrefix(input: string, expected: string): string | null {
 }
 
 /**
- * Post-process pi-tui's editor output to draw a full box around it.
+ * 后处理 pi-tui 的编辑器输出,在其周围绘制完整边框。
  *
- * pi-tui only renders horizontal top/bottom borders; we wrap them with
- * `╭╮╰╯` corners and add vertical `│` bars on each row's outer columns.
- * Horizontal-border rows (those whose first visible char is `─`, including
- * scroll indicators like `── ↑ N more ──`) are stripped of their existing
- * SGR and repainted as a single box-drawn span. Content rows keep their
- * inner SGR intact; only column 0 and the last column are overlaid, and
- * only if they're literal spaces — that protects the cursor-overflow
- * case where the rightmost column is an SGR-tagged inverse cursor.
+ * pi-tui 只渲染水平顶 / 底边框;我们用 `╭╮╰╯` 角包裹它们,并在每行
+ * 外侧列添加垂直 `│` 条。水平边框行(首个可见字符为 `─` 的行,含
+ * `── ↑ N more ──` 之类的滚动指示器)会剥离既有 SGR,重绘为单个
+ * 盒绘 span。内容行保持内部 SGR 完整;只叠加列 0 与最后一列,且仅当
+ * 它们是字面空格时——这保护了最右列是 SGR 标记反显光标的光标溢出情形。
  */
 export function wrapWithSideBorders(lines: string[], paint: (s: string) => string): string[] {
   let seenTop = false;

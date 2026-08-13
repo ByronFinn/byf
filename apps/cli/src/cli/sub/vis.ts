@@ -1,10 +1,9 @@
 /**
- * `byf vis` sub-command.
+ * `byf vis` 子命令。
  *
- * CLI glue: parse flags, start the vis HTTP server in-process, open a browser,
- * and keep the process alive until interrupted. Server start and browser open
- * are delegated through `VisDeps` so the logic is testable without a real
- * network or GUI.
+ * CLI 胶水:解析标志、进程内启动 vis HTTP 服务器、打开浏览器,并保持
+ * 进程存活直到被中断。服务器启动与浏览器打开经 `VisDeps` 委托,
+ * 使逻辑无需真实网络或 GUI 即可测试。
  */
 
 import { createRequire } from 'node:module';
@@ -37,8 +36,8 @@ export const DEFAULT_VIS_PORT = 3001;
 export const DEFAULT_VIS_HOST = '127.0.0.1';
 
 /**
- * Run `byf vis`. Starts the server, prints a banner, optionally opens a
- * browser, and blocks until SIGINT/SIGTERM.
+ * 运行 `byf vis`。启动服务器、打印横幅、可选打开浏览器,
+ * 并阻塞直到 SIGINT/SIGTERM。
  */
 export async function handleVis(
   deps: VisDeps,

@@ -1,18 +1,17 @@
 /**
- * AgentGroupComponent renders 2+ Agent tool calls from the same step as one group.
+ * AgentGroupComponent 把同一步骤中的 2+ 个 Agent 工具调用渲染为一组。
  *
- * Design:
- * - State container: each child Agent keeps its real state in its
- *   `ToolCallComponent` (subagent meta, phase, sub-tool calls, tokens, text).
- *   AgentGroup only stores references and does not copy state. Event handlers
- *   still route through `state.pendingToolComponents.get(parent_tool_call_id)`.
- * - Subscription: `attach` registers a snapshot listener on each child so the
- *   group can refresh when child state changes.
- * - Throttling: normal changes are coalesced into one render every 200ms.
- *   Phase transitions (spawning -> running -> done/failed) flush immediately.
- * - Mounting: `ByfTui` attaches the group to the transcript at the
- *   right time; the group handles `invalidate` plus `ui.requestRender`.
- * - Ungrouping is not implemented. Once formed, a group stays grouped.
+ * 设计:
+ * - 状态容器:每个子 Agent 的真实状态留在各自的 `ToolCallComponent`
+ *   (subagent 元信息、阶段、子工具调用、tokens、文本)。AgentGroup 只存引用,
+ *   不复制状态。事件处理器仍经
+ *   `state.pendingToolComponents.get(parent_tool_call_id)` 路由。
+ * - 订阅:`attach` 在每个子组件上注册快照监听器,子状态变化时组可刷新。
+ * - 节流:普通变化每 200ms 合并为一次渲染。阶段转换
+ *   (spawning → running → done/failed)立即刷出。
+ * - 挂载:`ByfTui` 在适当时机把组挂到 transcript;组处理 `invalidate` 与
+ *   `ui.requestRender`。
+ * - 未实现取消分组。一旦形成,组保持分组。
  */
 
 import type { TUI } from '@earendil-works/pi-tui';

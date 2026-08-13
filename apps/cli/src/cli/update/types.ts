@@ -3,15 +3,14 @@ import { NPM_PACKAGE_NAME } from '#/constant/app';
 export { NPM_PACKAGE_NAME };
 
 /**
- * Where the running CLI was installed from. Drives update command + spawn.
+ * 运行中的 CLI 的安装来源。驱动 update 命令与 spawn。
  *
- * - `npm-global` / `pnpm-global` / `yarn-global` / `bun-global`: package-manager
- *   global install of the **new** optionalDep layout (launcher + platform binary).
- * - `npm-global-js`: legacy npm global where the bin still points at the old
- *   Node-interpreted `dist/main.mjs` layout — prompt reinstall, do not assume
- *   Node can keep upgrading in place.
- * - `native`: GitHub Release / `install.sh` compile binary (not under node_modules).
- * - `unsupported`: unknown layout; print a manual command only.
+ * - `npm-global` / `pnpm-global` / `yarn-global` / `bun-global`:包管理器
+ *   对**新** optionalDep 布局(启动器 + 平台二进制)的全局安装。
+ * - `npm-global-js`:遗留 npm 全局,bin 仍指向旧的 Node 解释执行
+ *   `dist/main.mjs` 布局——提示重装,不要假定 Node 能原地持续升级。
+ * - `native`:GitHub Release / `install.sh` compile 二进制(不在 node_modules 下)。
+ * - `unsupported`:未知布局;只打印手动命令。
  */
 export type InstallSource =
   | 'npm-global'

@@ -104,11 +104,11 @@ export function promptConfiguredProviderSelection(
 }
 
 /**
- * Opens the API interface-type picker shown as the first `/login` step.
- * Returns the chosen ProviderType string, or `undefined` when cancelled.
+ * 打开作为 `/login` 第一步显示的 API 接口类型选择器。
+ * 返回选中的 ProviderType 字符串,取消时返回 `undefined`。
  *
- * Options are owned by the caller (`options`) so login-flow can keep the
- * per-type base-URL defaults next to the dispatch logic.
+ * 选项由调用方(`options`)持有,使 login-flow 能把各类型的 base-URL
+ * 默认值保留在分发逻辑旁。
  */
 export function promptApiTypeSelection(
   host: DialogHost,

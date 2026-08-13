@@ -31,10 +31,9 @@ export interface ModelSelection {
 export type { SpinnerHandle } from '#/tui/utils/catalog-fetch';
 
 /**
- * Interface types offered by `/login`. Each entry maps to its native
- * model-listing fetcher and its official default base URL (used when the user
- * leaves the base-URL input empty). `google-genai` / `vertexai` are deferred —
- * their runtime does not consume a user-supplied baseUrl (ADR 0016).
+ * `/login` 提供的接口类型。每个条目映射到其原生模型列表获取器与官方默认
+ * base URL(用户留空 base-URL 输入时使用)。`google-genai` / `vertexai`
+ * 被推迟——其运行时不消费用户提供的 baseUrl(ADR 0016)。
  */
 
 export interface LoginFlowDeps {

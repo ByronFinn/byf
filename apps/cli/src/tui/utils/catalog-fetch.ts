@@ -24,10 +24,9 @@ export interface CatalogFetchOptions {
 }
 
 /**
- * Fetches the models.dev catalog with a hard timeout and cancel-in-flight
- * wiring, falling back to the built-in catalog when allowed. Shared by
- * /login (best-effort enrichment, ADR 0012) and /connect (catalog is
- * essential, errors are surfaced).
+ * 带硬超时与取消进行中请求接线的 models.dev 目录获取,允许时回退到内置
+ * 目录。/login(尽力增强,ADR 0012)与 /connect(目录是必需的,错误被
+ * 呈现)共享。
  */
 export async function fetchCatalogWithFallback(
   opts: CatalogFetchOptions,

@@ -1,4 +1,4 @@
-// Config / session-ops slash commands: title / yolo / compact / fork / init / feedback.
+// 配置 / 会话操作斜杠命令:title / yolo / compact / fork / init / feedback。
 
 import { NO_ACTIVE_SESSION_MESSAGE } from '#/tui/constant/byf-tui';
 import { FEEDBACK_ISSUE_URL } from '#/tui/constant/feedback';

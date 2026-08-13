@@ -1,10 +1,9 @@
 /**
- * ByfTui owns the terminal UI shell for a Byf Code session.
+ * ByfTui 拥有 Byf Code 会话的终端 UI 外壳。
  *
- * It builds the pi-tui layout, tracks view state, wires editor shortcuts and
- * slash commands, drives session startup/switching, renders SDK events into the
- * transcript and live panes, and bridges approval, question, auth, and config
- * flows back to the harness.
+ * 它构建 pi-tui 布局、跟踪视图状态、接线编辑器快捷键与斜杠命令、驱动
+ * 会话启动 / 切换、把 SDK 事件渲染进 transcript 与实时面板,并把审批、
+ * 问题、认证与配置流程桥接回 harness。
  */
 
 import { homedir } from 'node:os';

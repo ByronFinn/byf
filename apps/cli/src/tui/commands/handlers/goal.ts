@@ -1,4 +1,4 @@
-// /goal — calls actions/goal.ts directly (PRD-0021 AC15).
+// /goal — 直接调用 actions/goal.ts(PRD-0021 AC15)。
 
 import { handleGoalCommand as runGoalAction } from '#/tui/actions/goal';
 import { parseGoalCommand } from '#/tui/commands/goal';

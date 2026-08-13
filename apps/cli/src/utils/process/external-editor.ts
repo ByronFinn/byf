@@ -1,11 +1,10 @@
 /**
- * External-editor helper — spawn $VISUAL / $EDITOR (or a configured
- * command) on a temp file seeded with the current editor buffer, then
- * read the edited contents back.
+ * 外部编辑器辅助——在预置当前编辑器缓冲区的临时文件上拉起
+ * $VISUAL / $EDITOR(或配置的命令),然后读回编辑后的内容。
  *
- * Resolution priority:
- *   configured (from Core/SDK defaults or `/editor`) >
- *   $VISUAL > $EDITOR > undefined (caller handles "no editor" toast).
+ * 解析优先级:
+ *   配置的(来自 Core/SDK 默认或 `/editor`)>
+ *   $VISUAL > $EDITOR > undefined(调用方处理「无编辑器」toast)。
  */
 
 import { spawn } from 'node:child_process';
@@ -24,12 +23,11 @@ export function resolveEditorCommand(configured?: string | null): string | undef
 }
 
 /**
- * Launch `command` (tokenised via a shell) against a temp file seeded
- * with `initialText`. Returns the edited contents on success, or
- * `undefined` if the editor exited non-zero / the file disappeared.
+ * 对预置 `initialText` 的临时文件拉起 `command`(经 shell 分词)。
+ * 成功时返回编辑后的内容;编辑器以非零退出或文件消失时返回 `undefined`。
  *
- * The command is passed to `/bin/sh -c "<cmd> <tmpfile>"` so users can
- * supply argv-style strings like `"code --wait"` or `"nvim +set ft=markdown"`.
+ * 命令传给 `/bin/sh -c "<cmd> <tmpfile>"`,使用户可提供 `"code --wait"`
+ * 或 `"nvim +set ft=markdown"` 这类 argv 风格字符串。
  */
 export async function editInExternalEditor(
   initialText: string,

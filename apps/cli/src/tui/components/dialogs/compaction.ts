@@ -1,18 +1,18 @@
 /**
- * Renders a compaction block in the transcript.
+ * 在 transcript 中渲染压缩块。
  *
- * Lifecycle:
- *   - constructed on `compaction.started` → blinking white bullet +
- *     "Compacting context..." and optional custom instruction
- *   - `markDone()` on `compaction.completed` → solid green bullet +
- *     "Compaction complete (X → Y tokens)" + optional summary (Ctrl-O)
- *   - `markCanceled()` on `compaction.cancelled` → solid warning bullet +
+ * 生命周期:
+ *   - `compaction.started` 时构造 → 闪烁白色圆点 +
+ *     "Compacting context..." 与可选的自定义指令
+ *   - `compaction.completed` 时 `markDone()` → 实心绿点 +
+ *     "Compaction complete (X → Y tokens)" + 可选摘要(Ctrl-O)
+ *   - `compaction.cancelled` 时 `markCanceled()` → 实心警示圆点 +
  *     "Compaction cancelled"
  *
- * Bullet animation mirrors `ToolCallComponent` (500ms blink) so the user
- * reads the same "work in progress" signal across the UI.
+ * 圆点动画镜像 `ToolCallComponent`(500ms 闪烁),使整个 UI 传达相同的
+ * 「进行中」信号。
  *
- * Implements `Expandable` so Ctrl-O (`toggleToolOutputExpansion`) can
+ * 实现 `Expandable`,使 Ctrl-O(`toggleToolOutputExpansion`)可以
  * show/hide the compaction summary — the same shared shortcut used by
  * tool output and thinking blocks. The summary text comes from the
  * already-existing `CompactionCompletedEvent.result.summary` field; no

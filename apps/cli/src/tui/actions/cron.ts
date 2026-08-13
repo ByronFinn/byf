@@ -1,8 +1,8 @@
 /**
- * /cron command actions (PRD-0024).
+ * /cron 命令动作(PRD-0024)。
  *
- * List writes a transcript block; delete uses a status toast.
- * Host-path delete does not go through CronDelete tool permission (ADR-0030).
+ * 列表写入 transcript 块;删除使用状态 toast。
+ * 宿主路径删除不经 CronDelete 工具权限(ADR-0030)。
  */
 
 import type { CronTaskSnapshot, Session } from '@byfriends/sdk';
@@ -50,7 +50,7 @@ export async function handleCronCommand(
   }
 }
 
-/** Pure formatter for unit tests + live list. */
+/** 单元测试与实时列表的纯格式化器。 */
 export function formatCronList(tasks: readonly CronTaskSnapshot[]): string {
   if (tasks.length === 0) {
     return 'cron_jobs: 0\nNo cron jobs scheduled.';
@@ -80,7 +80,7 @@ export function truncatePrompt(prompt: string, max = PROMPT_PREVIEW_MAX): string
   return `${prompt.slice(0, max)}…`;
 }
 
-/** Local wall time with offset (CLI-side; avoids depending on agent-core). */
+/** 带偏移的本地墙钟时间(CLI 侧;避免依赖 agent-core)。 */
 export function formatLocalIsoWithOffset(ms: number): string {
   const d = new Date(ms);
   if (!Number.isFinite(ms) || Number.isNaN(d.getTime())) {

@@ -1,5 +1,5 @@
 /**
- * Renders a user message in the transcript.
+ * 在 transcript 中渲染一条用户消息。
  */
 
 import type { Component } from '@earendil-works/pi-tui';

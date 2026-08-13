@@ -1,4 +1,4 @@
-// /cron — list/delete session cron tasks (PRD-0024).
+// /cron — 列出 / 删除会话 cron 任务(PRD-0024)。
 
 import { handleCronCommand as runCronAction } from '#/tui/actions/cron';
 import { parseCronCommand } from '#/tui/commands/cron';

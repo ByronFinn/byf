@@ -1,12 +1,11 @@
 /**
- * Format a `BackgroundTaskInfo` snapshot into the transcript card data
- * consumed by `BackgroundAgentStatusComponent`.
+ * 把 `BackgroundTaskInfo` 快照格式化为
+ * `BackgroundAgentStatusComponent` 消费的 transcript 卡片数据。
  *
- * Background tasks have six statuses (running / awaiting_approval /
- * completed / failed / killed / lost) but the transcript card only
- * renders three visual phases (started / completed / failed). The
- * mapping packs the extra nuance — exit code, kill reason, lost-reason
- * — into the dim detail line so the user still sees it.
+ * 后台任务有六种状态(running / awaiting_approval / completed / failed /
+ * killed / lost),但 transcript 卡片只渲染三个视觉阶段
+ * (started / completed / failed)。该映射把额外的细微信息——退出码、
+ * 终止原因、丢失原因——压进暗色详情行,使用户仍能看到。
  */
 
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';
@@ -88,10 +87,9 @@ function detailFor(info: BackgroundTaskInfo): string | undefined {
 }
 
 /**
- * Build a transcript card payload for a background task lifecycle
- * snapshot. The returned phase drives bullet color in the renderer
- * (`BackgroundAgentStatusComponent`); the detail line carries the extra
- * status nuance (exit code, kill reason, etc.).
+ * 为后台任务生命周期快照构建 transcript 卡片负载。返回的阶段驱动渲染器
+ * (`BackgroundAgentStatusComponent`)中的圆点颜色;详情行携带额外状态
+ * 细微信息(退出码、终止原因等)。
  */
 export function formatBackgroundTaskTranscript(
   info: BackgroundTaskInfo,

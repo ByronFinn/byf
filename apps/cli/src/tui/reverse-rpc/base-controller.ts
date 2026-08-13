@@ -1,11 +1,10 @@
 /**
- * Base class for promise-based reverse RPC dialog controllers.
+ * 基于 promise 的 reverse RPC 对话框控制器基类。
  *
- * Approval and question flows wait for a UI action before returning a response.
- * Subclasses only need to define the default cancellation response.
+ * 审批与问题流程在返回响应前等待 UI 动作。子类只需定义默认取消响应。
  *
- * When concurrent requests arrive (e.g. multiple parallel subagents each
- * needing approval), only one panel is shown at a time; additional requests
+ * 并发请求到达时(如多个并行子 agent 各自需要审批),同一时间只显示一个
+ * 面板;额外请求
  * are queued in arrival order and advance after the current one resolves.
  */
 

@@ -1,17 +1,14 @@
 /**
- * TodoPanel — live-updating TODO list shown before the input area.
+ * TodoPanel — 输入区前实时更新的 TODO 列表。
  *
- * Mounted as a dedicated `Container` slot between the activity pane
- * (spinners / thinking stream) and the queue / editor block. The host
- * calls {@link setTodos} whenever the LLM invokes the `TodoList`
- * tool; state survives across turns so the list stays visible until
- * explicitly cleared (`todos: []`), a new session starts, or `/clear`
- * is issued.
+ * 挂载在活动面板(spinners / 思考流)与队列 / 编辑器块之间的专用
+ * `Container` 槽位。LLM 每次调用 `TodoList` 工具时宿主调用
+ * {@link setTodos};状态跨 turn 存活,列表保持可见,直到显式清空
+ * (`todos: []`)、新会话开始或发出 `/clear`。
  *
- * Implements {@link Expandable} so the host can toggle between a
- * collapsed view (up to 5 items + "+N more") and a fully expanded
- * view (all items + "collapse" hint).  Uses `Ctrl+T` via the
- * editor keybinding system (see `custom-editor.ts`).
+ * 实现 {@link Expandable},使宿主可在折叠视图(最多 5 项 + "+N more")
+ * 与完全展开视图(全部项 + "collapse" 提示)间切换。经编辑器按键系统
+ * 使用 `Ctrl+T`(见 `custom-editor.ts`)。
  */
 
 import type { Component } from '@earendil-works/pi-tui';

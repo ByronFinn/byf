@@ -1,15 +1,15 @@
 /**
- * /goal slash command parser (PRD-0019 #204).
+ * /goal 斜杠命令解析器(PRD-0019 #204)。
  *
- * `parseGoalCommand(rawArgs)` returns a tagged union over the six goal
- * sub-commands. The parser is intentionally pure (string in → union out);
- * side effects live in `apps/cli/src/tui/actions/goal.ts`.
+ * `parseGoalCommand(rawArgs)` 返回六个 goal 子命令的带标签联合。
+ * 解析器刻意保持纯函数(字符串进 → 联合出);副作用位于
+ * `apps/cli/src/tui/actions/goal.ts`。
  *
- * Grammar (PRD R2):
- *   /goal                                → status
- *   /goal status                         → status
- *   /goal pause                          → pause (soft stop)
- *   /goal resume                         → resume
+ * 文法(PRD R2):
+ *   /goal                                → 状态
+ *   /goal status                         → 状态
+ *   /goal pause                          → 暂停(软停)
+ *   /goal resume                         → 恢复
  *   /goal cancel                         → cancel (hard stop)
  *   /goal <objective>                    → create
  *   /goal <objective> --max-turns N ...  → create with budget

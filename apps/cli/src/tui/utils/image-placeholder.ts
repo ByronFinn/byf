@@ -1,18 +1,15 @@
 /**
- * Scan submitted text for media placeholders and produce
- * the `PromptPart[]` we'll send to the SDK prompt endpoint.
+ * 扫描提交的文本中的媒体占位符,生成要发送到 SDK prompt 端点的
+ * `PromptPart[]`。
  *
- * Rules:
- *   - Only placeholders that resolve against `store` get extracted.
- *     A literal `[image #999 ...]` the user typed themselves stays in
- *     the text (we can't hallucinate files for it).
- *   - Order is preserved for text/image/video segments. Image placeholders
- *     expand to image content parts so the prompt reaches the provider
- *     without relying on a model tool call. Video placeholders still expand
- *     to file-path tags so `ReadMediaFile` can own video upload behavior.
- *   - Adjacent text segments are flattened — empty / whitespace-only
- *     segments drop out so we never emit `{type:'text', text:' '}`
- *     noise between two media parts.
+ * 规则:
+ *   - 只有能对照 `store` 解析的占位符才被提取。用户自己输入的
+ *     字面量 `[image #999 ...]` 保留在文本中(我们不能为它臆造文件)。
+ *   - 文本 / 图片 / 视频段的顺序被保留。图片占位符展开为图片内容 part,
+ *     使提示词无需依赖模型工具调用即可到达 provider。视频占位符仍展开为
+ *     文件路径标签,让 `ReadMediaFile` 负责视频上传行为。
+ *   - 相邻文本段被展平——空 / 仅空白的段被丢弃,避免在两个媒体 part 之间
+ *     发出 `{type:'text', text:' '}` 噪声。
  */
 
 import type { PromptPart } from '@byfriends/sdk';

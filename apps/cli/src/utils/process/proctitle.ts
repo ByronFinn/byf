@@ -1,11 +1,11 @@
 /**
- * Early-startup process name initialization.
+ * 早期启动的进程名初始化。
  *
- * Sets the process title so `ps`/`top` and the terminal tab show
- * `Byf Code` from the moment the binary launches — before Commander
- * parses argv, before any preflight, even on `--help`/`--version`.
+ * 设置进程标题,使 `ps`/`top` 与终端标签页从二进制启动那一刻起就显示
+ * `Byf Code`——在 Commander 解析 argv 之前、任何预检之前,
+ * 甚至在 `--help`/`--version` 上也是如此。
  *
- * OSC is written to stderr (not stdout) so it still reaches the terminal
+ * OSC 写入 stderr(而非 stdout),使它仍能到达终端
  * when stdout is piped, e.g. `byf --print | grep ...`.
  */
 import { PRODUCT_NAME } from '#/constant/app';

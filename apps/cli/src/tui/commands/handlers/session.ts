@@ -1,4 +1,4 @@
-// Session lifecycle slash commands: exit / help / version / new / sessions.
+// 会话生命周期斜杠命令:exit / help / version / new / sessions。
 
 import type { SlashCommandHandler } from '../handler-registry';
 import type { SlashCommandHost } from './slash-host';

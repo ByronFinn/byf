@@ -3,14 +3,13 @@ import { valid } from 'semver';
 import { BYF_RELEASES_LATEST_URL } from '#/constant/app';
 
 /**
- * Fetch the latest published BYF version from the GitHub Releases /latest API.
+ * 从 GitHub Releases /latest API 获取最新发布的 BYF 版本。
  *
- * **Throws** on any failure (network error, non-2xx, missing tag_name, invalid
- * semver). Callers must catch — `refreshUpdateCache` deliberately lets the
- * error propagate so the existing cache stays intact instead of being
- * overwritten with a null `latest` on a transient blip.
+ * 任何失败(网络错误、非 2xx、缺少 tag_name、无效 semver)都会**抛出**。
+ * 调用方必须捕获——`refreshUpdateCache` 刻意让错误传播,使既有缓存保持
+ * 完整,而非在瞬时抖动时被 null `latest` 覆盖。
  *
- * `fetchImpl` is injectable for tests; defaults to the global `fetch`.
+ * `fetchImpl` 可注入供测试;默认为全局 `fetch`。
  */
 export async function fetchLatestVersionFromGitHub(
   fetchImpl: typeof fetch = fetch,

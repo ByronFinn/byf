@@ -1,8 +1,7 @@
 /**
- * Renders thinking content in the transcript.
- * Supports live in-place updates while thinking streams, then finalizes
- * without replacing the component.
- * Supports expand/collapse via Ctrl+O (shared with tool output).
+ * 在 transcript 中渲染思考内容。
+ * 思考流式输出时支持原地实时更新,完成后定型而不替换组件。
+ * 支持通过 Ctrl+O 展开 / 折叠(与工具输出共享)。
  */
 
 import type { Component, TUI } from '@earendil-works/pi-tui';

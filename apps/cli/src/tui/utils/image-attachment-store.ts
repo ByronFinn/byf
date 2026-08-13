@@ -1,18 +1,15 @@
 /**
- * Registry for media pasted into the input box.
+ * 粘贴进输入框的媒体注册表。
  *
- * Each paste produces an `ImageAttachment` with an auto-incrementing id
- * or `VideoAttachment` with a human-readable placeholder (`[image #1
- * (640×480)]` / `[video #2 sample.mov]`). The placeholder is what the
- * user sees in the input field; on submit, `extractMediaAttachments`
- * walks the text and expands image placeholders to image content parts
- * and video placeholders to file-path tags for `ReadMediaFile`.
+ * 每次粘贴产生一个带自增 id 的 `ImageAttachment`,或带人类可读占位符的
+ * `VideoAttachment`(`[image #1 (640×480)]` / `[video #2 sample.mov]`)。
+ * 占位符是用户在输入字段中看到的内容;提交时,`extractMediaAttachments`
+ * 遍历文本,把图片占位符展开为图片内容 part,视频占位符展开为
+ * `ReadMediaFile` 的文件路径标签。
  *
- * Scope is per-`ByfTui` instance. Reloads (`/new`, `/clear`,
- * session switch) call `clear()` so ids restart from 1 and stale
- * prompt attachments are dropped. We intentionally do NOT persist
- * attachments across sessions — coding-agent doesn't either, and
- * `--resume` wouldn't know how to materialize the files anyway.
+ * 作用域为每个 `ByfTui` 实例。重载(`/new`、`/clear`、切换会话)调用
+ * `clear()`,使 id 从 1 重新开始,过期提示附件被丢弃。我们刻意**不**跨会话
+ * 持久化附件——coding-agent 也不这么做,且 `--resume` 无从物化这些文件。
  */
 
 export interface ImageAttachment {

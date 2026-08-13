@@ -1,13 +1,10 @@
 /**
- * Summary-style renderers — produce optional inline-glance content for
- * tools whose raw output is high-volume but low-information (Grep,
- * Glob). The numeric summary (line counts, exit codes, sizes) lives in
- * the header chip (see chip.ts), so most tools intentionally render an
- * empty body and only expose details when the global expand toggle is
- * on.
+ * 摘要式渲染器——为原始输出量大但信息量低的工具(Grep、Glob)生成可选
+ * 的一瞥式内联内容。数值摘要(行数、退出码、大小)位于头部 chip
+ * (见 chip.ts),因此多数工具有意渲染空主体,仅在全局展开开关开启时
+ * 暴露细节。
  *
- * Errors always fall through to the truncated renderer so the user
- * sees the actual error message, not a synthetic summary.
+ * 错误总是回退到截断渲染器,使用户看到真实错误消息,而非合成摘要。
  */
 
 import type { Component } from '@earendil-works/pi-tui';

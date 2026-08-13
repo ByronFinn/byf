@@ -1,13 +1,11 @@
 /**
- * Tool result renderer registry.
+ * 工具结果渲染器注册表。
  *
- * Each tool name maps to a `ResultRenderer` that turns the tool's
- * `ToolResultBlockData` into renderable Components. Tools without an
- * explicit entry fall through to `renderTruncated` (the original
- * 3-line + ctrl+o behavior).
+ * 每个工具名映射到一个把工具的 `ToolResultBlockData` 变为可渲染
+ * Component 的 `ResultRenderer`。没有显式条目的工具回退到
+ * `renderTruncated`(原始的 3 行 + ctrl+o 行为)。
  *
- * Keep this dispatch flat — tool names live next to the renderer they
- * choose, so adding a new tool means appending one case.
+ * 保持此分发扁平——工具名与其选择的渲染器相邻,新增工具只需追加一个分支。
  */
 
 import { shellExecutionResultRenderer } from '../shell-execution';

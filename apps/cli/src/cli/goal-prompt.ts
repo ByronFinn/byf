@@ -3,12 +3,11 @@ import type { GoalSnapshot } from '@byfriends/sdk';
 import { parseGoalCommand } from '#/tui/commands/index';
 
 /**
- * Headless goal-mode support for the `byf -p "/goal <objective>"` prompt path.
+ * `byf -p "/goal <objective>"` 提示路径的 headless goal 模式支持。
  *
- * The goal driver keeps the prompt's turn-run alive across continuation turns
- * until the goal reaches a terminal state, so the existing prompt-turn waiter
- * already blocks until then. This module adds the create-on-entry parsing, a
- * machine-readable summary, and the terminal-status → exit-code mapping.
+ * goal 驱动使提示词的 turn 运行跨续行保持存活,直到 goal 达到终态,
+ * 因此既有的提示 turn 等待器已阻塞到那时。本模块补充进入时的 create
+ * 解析、机器可读摘要,以及终态 → 退出码的映射。
  */
 
 export interface HeadlessGoalCreate {
@@ -17,11 +16,10 @@ export interface HeadlessGoalCreate {
 }
 
 /**
- * Exit codes by final goal status. The lifecycle has only one success outcome
- * (`complete` → 0) and two resumable stopped states: `blocked` (the system
- * stopped pursuing — the model's UpdateGoal, a budget, or an error) and `paused`
- * (a turn abort / SIGINT). Both are non-zero — the goal did not complete. An absent goal
- * (should not happen on the create path) maps to success.
+ * 按最终 goal 状态的退出码。生命周期只有一个成功结果(`complete` → 0)
+ * 与两个可恢复的停止态:`blocked`(系统停止追求——模型的 UpdateGoal、
+ * 预算或错误)与 `paused`(turn 中止 / SIGINT)。两者都非零——goal 未完成。
+ * 缺失 goal(create 路径上不应发生)映射为成功。
  */
 export const GOAL_EXIT_CODES = {
   complete: 0,
@@ -38,12 +36,10 @@ export function goalExitCode(status: string | undefined): number {
 const GOAL_PREFIX = /^\/goal(\s|$)/;
 
 /**
- * Parses a headless prompt into a goal-create request, or `undefined` when the
- * prompt is not a `/goal` create command (so the caller runs it as a normal
- * prompt). Non-create goal subcommands are not supported headless and fall
- * through to normal prompt handling. Malformed create commands throw instead of
- * falling through, so validation errors are reported before anything is sent to
- * the model.
+ * 把 headless 提示词解析为 goal-create 请求;提示词不是 `/goal` create
+ * 命令时返回 `undefined`(调用方按普通提示词运行)。非 create 的 goal
+ * 子命令在 headless 下不受支持,回退到普通提示词处理。畸形 create 命令
+ * 抛出而非回退,使校验错误在向模型发送任何内容前被报告。
  */
 export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | undefined {
   const trimmed = prompt.trim();

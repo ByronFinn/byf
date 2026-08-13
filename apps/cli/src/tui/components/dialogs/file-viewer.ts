@@ -1,11 +1,10 @@
 /**
- * FileViewerComponent — fullscreen viewer for reviewing file content and
- * diffs during approval prompts. Displays pre-computed sections (each with
- * a header and ANSI-rendered lines) as a single scrollable view with
- * vim-style navigation.
+ * FileViewerComponent — 审批提示期间审阅文件内容与 diff 的全屏查看器。
+ * 把预计算的区块(各带标题与 ANSI 渲染行)显示为单个可滚动视图,
+ * 支持 vim 风格导航。
  *
- * Follows the same pattern as TaskOutputViewer: Container + Focusable,
- * Terminal-aware, header/body/footer layout, scroll management.
+ * 遵循与 TaskOutputViewer 相同的模式:Container + Focusable、
+ * Terminal 感知、头部 / 主体 / 页脚布局、滚动管理。
  */
 
 import {
