@@ -25,6 +25,25 @@ function makeReminderText2(toolName: string, repeatCount: number, args: unknown)
   );
 }
 
+/** PRD-0031 1a：跨 step 连续重复达该阈值时强制停止（不再执行该调用）。
+ *  参考 kimi-cli 的 3/5/8/12 阶梯：3/5/8 为 advisory 提醒，12 为 force-stop。 */
+export const FORCE_STOP_STREAK = 12;
+
+function makeForceStopMessage(toolName: string, repeatCount: number, args: unknown): string {
+  const argsStr = canonicalTelemetryArgs(args);
+  return (
+    `Tool "${toolName}" was force-stopped because the exact same call was repeated ` +
+    `${String(repeatCount)} times across steps without progress.\n` +
+    'The repeated calls were not executed. Repeated tool call detected:\n' +
+    `- tool: ${toolName}\n` +
+    `- repeated_times: ${String(repeatCount)}\n` +
+    `- arguments: ${argsStr}\n` +
+    'This is a force-stop, not a tool failure: the loop is likely stuck. Do NOT retry this ' +
+    'exact call. Inspect the latest tool results, choose a genuinely different approach, or ' +
+    'finish the task and report the blocker.'
+  );
+}
+
 interface Deferred<T> {
   readonly promise: Promise<T>;
   resolve(value: T): void;
@@ -80,13 +99,20 @@ const DEDUP_PLACEHOLDER_RESULT: ExecutableToolResult = { output: '' };
  * - 同 step 去重:同一 LLM step 内发出的重复 `(toolName, args)` 复用原调用
  *   的结果,而不是执行两次工具。
  * - 跨 step 去重:同一调用连续跨 step 重复时,返回给模型的结果会在特定
- *   连续阈值(3、5、8)处追加系统提醒,引导模型尝试不同方法。
+ *   连续阈值(3、5、8)处追加系统提醒,引导模型尝试不同方法;连续重复达
+ *   `FORCE_STOP_STREAK`(12)时**强制停止**——调用不再执行,直接回传
+ *   结构化错误(公理 A:模型可区分「被强制停止」与「执行失败」)。
  */
 export class ToolCallDeduplicator {
   private stepDeferreds = new Map<string, Deferred<ExecutableToolResult>>();
   private stepCalls: string[] = [];
   private originalCallIndex = new Map<string, number>();
   private syntheticCallIds = new Set<string>();
+  /**
+   * 达到 force-stop 阈值的调用 id:prepare 阶段返回结构化错误且不执行,
+   * finalize 阶段原样返回该错误(不 resolve deferred、不追加提醒)。
+   */
+  private forceStoppedCallIds = new Set<string>();
   /**
    * Records the dedup key used at `checkSameStep` time, keyed by `toolCallId`.
    * The loop is allowed to rewrite args between `prepareToolExecution` and
@@ -110,6 +136,7 @@ export class ToolCallDeduplicator {
     this.stepCalls = [];
     this.originalCallIndex.clear();
     this.syntheticCallIds.clear();
+    this.forceStoppedCallIds.clear();
     this.callKeyByCallId.clear();
   }
 
@@ -138,6 +165,13 @@ export class ToolCallDeduplicator {
     this.stepCalls.push(key);
     this.callKeyByCallId.set(toolCallId, key);
 
+    // PRD-0031 1a：跨 step 连续重复达阈值 → 强制停止（不再执行该调用）。
+    // streak 语义与 finalizeResult 完全一致（含本次调用）。
+    if (this.computeStreak() >= FORCE_STOP_STREAK) {
+      this.forceStoppedCallIds.add(toolCallId);
+      return { output: makeForceStopMessage(toolName, FORCE_STOP_STREAK, args), isError: true };
+    }
+
     const existing = this.stepDeferreds.get(key);
     if (existing !== undefined) {
       this.syntheticCallIds.add(toolCallId);
@@ -146,6 +180,25 @@ export class ToolCallDeduplicator {
     this.stepDeferreds.set(key, makeDeferred<ExecutableToolResult>());
     this.originalCallIndex.set(toolCallId, index);
     return null;
+  }
+
+  /**
+   * 计算 stepCalls 末尾调用的连续重复次数——与 `finalizeResult` 的 streak
+   * 推导逻辑逐行一致（consecutiveKey/count 承接上一 step 的尾部连续段，
+   * 当前 step 的调用序列按序延续或重置）。
+   */
+  private computeStreak(): number {
+    let lastKey = this.consecutiveKey;
+    let streak = this.consecutiveCount;
+    for (const k of this.stepCalls) {
+      if (k === lastKey) {
+        streak += 1;
+      } else {
+        lastKey = k;
+        streak = 1;
+      }
+    }
+    return streak;
   }
 
   /**
@@ -165,6 +218,12 @@ export class ToolCallDeduplicator {
     const key = this.callKeyByCallId.get(toolCallId);
     if (key === undefined) return result;
     this.callKeyByCallId.delete(toolCallId);
+
+    // Force-stopped calls: keep the structured error as-is (no deferred await,
+    // no advisory reminder — the call never executed).
+    if (this.forceStoppedCallIds.delete(toolCallId)) {
+      return result;
+    }
 
     if (this.syntheticCallIds.delete(toolCallId)) {
       const deferred = this.stepDeferreds.get(key);
@@ -202,4 +261,5 @@ export class ToolCallDeduplicator {
 export const __testing = {
   REMINDER_TEXT_1,
   makeReminderText2,
+  makeForceStopMessage,
 };

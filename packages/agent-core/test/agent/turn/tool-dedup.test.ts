@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { ToolCallDeduplicator, __testing } from '../../../src/agent/turn/tool-dedup';
+import {
+  FORCE_STOP_STREAK,
+  ToolCallDeduplicator,
+  __testing,
+} from '../../../src/agent/turn/tool-dedup';
 import type { ExecutableToolResult } from '../../../src/loop/types';
 
 const { REMINDER_TEXT_1, makeReminderText2 } = __testing;
@@ -354,5 +358,101 @@ describe('ToolCallDeduplicator', () => {
       const finalDup = await dedup.finalizeResult('dup', 'Read', { p: 1 }, dupCached!);
       expect(finalDup).toEqual(dupCached);
     });
+  });
+});
+
+describe('PRD-0031 1a force-stop', () => {
+  it('force-stops at FORCE_STOP_STREAK consecutive repeats (no execution, distinguishable error)', async () => {
+    const dedup = new ToolCallDeduplicator();
+    let last: ExecutableToolResult | undefined;
+    for (let i = 0; i < FORCE_STOP_STREAK; i += 1) {
+      dedup.beginStep();
+      const cached = dedup.checkSameStep(`c${String(i)}`, 'Bash', { command: 'rm x' });
+      // 第 12 次：prepare 阶段即返回 force-stop 错误（不执行）
+      if (i === FORCE_STOP_STREAK - 1) {
+        expect(cached).not.toBeNull();
+        expect(cached!.isError).toBe(true);
+        expect(cached!.output as string).toContain('force-stopped');
+        expect(cached!.output as string).toContain('were not executed');
+        expect(cached!.output as string).not.toContain('Command failed with exit code');
+        // finalize 原样保留该错误（不 resolve 其他结果）
+        const finalized = await dedup.finalizeResult(
+          `c${String(i)}`,
+          'Bash',
+          { command: 'rm x' },
+          cached!,
+        );
+        expect(finalized).toEqual(cached);
+      } else {
+        expect(cached).toBeNull();
+        await dedup.finalizeResult(`c${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      }
+      dedup.endStep();
+    }
+  });
+
+  it('continues force-stopping on further repeats beyond the threshold', async () => {
+    const dedup = new ToolCallDeduplicator();
+    for (let i = 0; i < FORCE_STOP_STREAK + 1; i += 1) {
+      dedup.beginStep();
+      const cached = dedup.checkSameStep(`c${String(i)}`, 'Bash', { command: 'rm x' });
+      if (i >= FORCE_STOP_STREAK - 1) {
+        expect(cached).not.toBeNull();
+        expect(cached!.output as string).toContain('force-stopped');
+      } else {
+        expect(cached).toBeNull();
+      }
+      if (cached === null)
+        await dedup.finalizeResult(`c${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+  });
+
+  it('does not force-stop when a different call breaks the streak', async () => {
+    const dedup = new ToolCallDeduplicator();
+    // 11 次 rm x 后插入一次不同调用，然后 rm x 再来——streak 重置，不触发
+    for (let i = 0; i < FORCE_STOP_STREAK - 1; i += 1) {
+      dedup.beginStep();
+      expect(dedup.checkSameStep(`rm${String(i)}`, 'Bash', { command: 'rm x' })).toBeNull();
+      await dedup.finalizeResult(`rm${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+    dedup.beginStep();
+    expect(dedup.checkSameStep('other', 'Bash', { command: 'echo hi' })).toBeNull();
+    await dedup.finalizeResult('other', 'Bash', { command: 'echo hi' }, okResult('R'));
+    dedup.endStep();
+    dedup.beginStep();
+    const cached = dedup.checkSameStep('rm_again', 'Bash', { command: 'rm x' });
+    expect(cached).toBeNull(); // streak 被 echo hi 打断，重新计数
+    await dedup.finalizeResult('rm_again', 'Bash', { command: 'rm x' }, okResult('R'));
+    dedup.endStep();
+  });
+
+  it('same-step dups count toward the streak (goal-mode runaway guard)', async () => {
+    const dedup = new ToolCallDeduplicator();
+    // 10 个 step 的 rm x + 同 step 内第 1 次调用（streak 11）+ 重复（streak 12）→ force-stop
+    for (let i = 0; i < FORCE_STOP_STREAK - 2; i += 1) {
+      dedup.beginStep();
+      expect(dedup.checkSameStep(`rm${String(i)}`, 'Bash', { command: 'rm x' })).toBeNull();
+      await dedup.finalizeResult(`rm${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+    dedup.beginStep();
+    expect(dedup.checkSameStep('first', 'Bash', { command: 'rm x' })).toBeNull();
+    const cached = dedup.checkSameStep('dup', 'Bash', { command: 'rm x' });
+    expect(cached).not.toBeNull();
+    expect(cached!.output as string).toContain('force-stopped');
+  });
+
+  it('advisory reminders (3/5/8) still apply below the force-stop threshold', async () => {
+    const dedup = new ToolCallDeduplicator();
+    let last: ExecutableToolResult | undefined;
+    for (let i = 0; i < 8; i += 1) {
+      dedup.beginStep();
+      last = await runOriginal(dedup, `c${String(i)}`, 'Read', { p: 1 }, okResult('R'));
+      dedup.endStep();
+    }
+    expect(last!.output as string).toContain('<system-reminder>');
+    expect(last!.output as string).not.toContain('force-stopped');
   });
 });
