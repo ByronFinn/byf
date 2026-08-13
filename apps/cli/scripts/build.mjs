@@ -28,6 +28,8 @@ const args = [
   '--bundle-workspace',
   '--never-bundle',
   '@byfriends/vis-server',
+  '--never-bundle',
+  '@byfriends/web-server',
   '--no-splitting',
   `--define=${BUILT_IN_CATALOG_DEFINE}=${defineValue}`,
 ];
