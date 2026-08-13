@@ -423,23 +423,38 @@ function convertMessage(
       if (part.type === 'think') {
         // Flush accumulated non-reasoning parts first
         flushPendingParts();
-        // Aggregate consecutive ThinkParts with the same `encrypted` value
+        // Aggregate consecutive ThinkParts with the same `encrypted` value.
         const encryptedValue = part.encrypted;
-        const summaries: unknown[] = [{ type: 'summary_text', text: part.think || '' }];
+        const texts: string[] = [part.think || ''];
         i += 1;
         while (i < n) {
           const nextPart = message.content[i];
           if (nextPart === undefined) break;
           if (nextPart.type !== 'think') break;
           if (nextPart.encrypted !== encryptedValue) break;
-          summaries.push({ type: 'summary_text', text: nextPart.think || '' });
+          texts.push(nextPart.think || '');
           i += 1;
         }
-        result.push({
-          summary: summaries,
-          type: 'reasoning',
-          encrypted_content: encryptedValue,
-        });
+        // Echo reasoning back in the form the provider emits on output, so the
+        // round-trip stays native on each wire:
+        //  - encrypted present (OpenAI, black-box): the model reads
+        //    `encrypted_content` for multi-turn continuity; `summary` is the
+        //    human-readable digest the API returns alongside it.
+        //  - encrypted absent (DeepSeek Responses, white-box plaintext): the
+        //    provider emits reasoning as `content[].reasoning_text`; echo it
+        //    back in that same `content` form rather than OpenAI's `summary`.
+        if (encryptedValue !== undefined) {
+          result.push({
+            summary: texts.map((text) => ({ type: 'summary_text', text })),
+            type: 'reasoning',
+            encrypted_content: encryptedValue,
+          });
+        } else {
+          result.push({
+            content: texts.map((text) => ({ type: 'reasoning_text', text })),
+            type: 'reasoning',
+          });
+        }
       } else {
         pendingParts.push(part);
         i += 1;

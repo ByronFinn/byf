@@ -363,6 +363,94 @@ describe('OpenAIResponsesChatProvider', () => {
       expect(reasoningItems[1]).toMatchObject({ encrypted_content: 'enc_2' });
     });
 
+    it('ThinkPart without encrypted (DeepSeek plaintext reasoning) echoes as native content[reasoning_text], not summary', async () => {
+      // Best practice: when the source reasoning carried no `encrypted` blob
+      // (DeepSeek Responses emits plaintext reasoning_text, no encrypted_content),
+      // echo it back in the provider's native `content` form rather than OpenAI's
+      // `summary` form. See docs/research/deepseek-api-format-4.md.
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'plaintext thought' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(1);
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        content: [{ type: 'reasoning_text', text: 'plaintext thought' }],
+      });
+    });
+
+    it('consecutive plaintext ThinkParts aggregate into one reasoning item with multiple content entries', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'first' },
+            { type: 'think', think: 'second' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(1);
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        content: [
+          { type: 'reasoning_text', text: 'first' },
+          { type: 'reasoning_text', text: 'second' },
+        ],
+      });
+    });
+
+    it('mixed encrypted and plaintext ThinkParts produce separate reasoning items in their native forms', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'enc reasoning', encrypted: 'enc_blob' },
+            { type: 'think', think: 'plain reasoning' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(2);
+      // Encrypted form: OpenAI summary + encrypted_content.
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        summary: [{ type: 'summary_text', text: 'enc reasoning' }],
+        encrypted_content: 'enc_blob',
+      });
+      // Plaintext form: native content[reasoning_text].
+      expect(reasoningItems[1]).toEqual({
+        type: 'reasoning',
+        content: [{ type: 'reasoning_text', text: 'plain reasoning' }],
+      });
+    });
+
     it('toolMessageConversion=extract_text flattens tool result content to a plain string', async () => {
       const provider = new OpenAIResponsesChatProvider({
         model: 'gpt-4.1',
