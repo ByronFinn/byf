@@ -106,7 +106,7 @@
 - **Prototyped by**: `/have-a-try`（2026-08-13）— 0.84.1 图片序列与 0.80.10 逐字节一致、渲染性能全面不劣（冷渲染 -30%）、迁移面仅 `new TUI` 一处（实测 THROWS → `TuiMainScreen` 替代可行）
 - **Grilled by**: `/grill`（2026-08-13）— 真装 0.84.1 跑 typecheck 把迁移面从"1 处假设"收敛到"实测 2 处（import + 构造）"；验证 TuiMainScreen 主屏路径保留 Kitty 图片 diff；决议 exact 钉版（pi-tui 非 semver）。exhaustiveness gate 通过。
 - **Sliced into**:
-  - #285 — [PRD-0030] pi-tui 升级 0.80.6 → 0.84.1 — 依赖 bump + byf-tui 两处机械迁移 + 全量验证 (AFK) — 待实现
+  - #285 — [PRD-0030] pi-tui 升级 0.80.6 → 0.84.1 — 依赖 bump + byf-tui 两处机械迁移 + 全量验证 (AFK) — Done（commit 27a4156；AC1/2/4/5/6 绿，AC3 终端手动冒烟待人工）
 
 ## Issue
 
