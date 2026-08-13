@@ -1,6 +1,6 @@
 # 工具系统演进：调度图与权限图的统一
 
-> **Status**: Sliced | **PRD**: PRD-0031 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
+> **Status**: Done | **PRD**: PRD-0031 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
 
 ## Goal
 
@@ -68,26 +68,26 @@
 
 ### Phase 1
 
-- [ ] `cat .env` / `cat ~/.ssh/id_rsa` 经 Bash 被敏感文件层**硬拒**（解析出读 `.env` → 命中 `sensitive.ts` → `PATH_SENSITIVE`，错误作为数据回传）
-- [ ] `echo hi; rm x` 中 `rm` 被识别为独立子命令并受规则约束（逐子命令匹配，grill Q1）
-- [ ] 动词分类表生效（grill Q3）：审批 `git status` 生成 `Bash(git status*)`（`git status --short` 放行、`git log` 仍需审批）；审批 `curl <url>` 生成精确规则（其他 curl URL 仍需审批）
-- [ ] 0b 后新审批生成 per-prefix 规则；旧裸 `Bash` 规则不迁移、随会话失效（grill Q7）
-- [ ] Bash 工具描述已更新告知敏感文件拦截（grill Q6），改动按 PRD-0029 cache-impact 流程标注（一次性 churn，落地后前缀恢复稳定）
-- [ ] **缓存稳定**：0a/0b 的运行期行为（解析、规则生成、拦截）零 churn；唯一允许的 churn 是 Bash 描述的一次性 cache-impact 变更
-- [ ] 0a spike：基准命令集（~30 条）中可完整解析出 `(path, op)` 比例 **≥80% → GO**（grill Q5）；<80% 重新评估（tree-sitter 或接受局限 + 文档化）
-- [ ] 威胁模型文档（SECURITY.md「Threat Model」章节）存在，明确「权限层非安全边界」+ 已知绕过面，被 README/AGENTS 引用
+- [x] `cat .env` / `cat ~/.ssh/id_rsa` 经 Bash 被敏感文件层**硬拒**（解析出读 `.env` → 命中 `sensitive.ts` → `PATH_SENSITIVE`，错误作为数据回传）
+- [x] `echo hi; rm x` 中 `rm` 被识别为独立子命令并受规则约束（逐子命令匹配，grill Q1）
+- [x] 动词分类表生效（grill Q3）：审批 `git status` 生成 `Bash(git status*)`（`git status --short` 放行、`git log` 仍需审批）；审批 `curl <url>` 生成精确规则（其他 curl URL 仍需审批）
+- [x] 0b 后新审批生成 per-prefix 规则；旧裸 `Bash` 规则不迁移、随会话失效（grill Q7）
+- [x] Bash 工具描述已更新告知敏感文件拦截（grill Q6），改动按 PRD-0029 cache-impact 流程标注（一次性 churn，落地后前缀恢复稳定）
+- [x] **缓存稳定**：0a/0b 的运行期行为（解析、规则生成、拦截）零 churn；唯一允许的 churn 是 Bash 描述的一次性 cache-impact 变更
+- [x] 0a spike：基准命令集（~30 条）中可完整解析出 `(path, op)` 比例 **≥80% → GO**（grill Q5）；<80% 重新评估（tree-sitter 或接受局限 + 文档化）
+- [x] 威胁模型文档（SECURITY.md「Threat Model」章节）存在，明确「权限层非安全边界」+ 已知绕过面，被 README/AGENTS 引用
 
 ### Phase 2
 
-- [ ] 重复调用达 N 次后被强制停止（不再执行该调用）
-- [ ] 每个 builtin 工具都有契约测试且 CI 强制同步
-- [ ] MCP 工具数超阈值时，渐进披露生效（模型先见名字/描述，schema 按需注入 + `<tools_added>` 公告）
+- [x] 重复调用达 N 次后被强制停止（不再执行该调用）
+- [x] 每个 builtin 工具都有契约测试且 CI 强制同步
+- [x] MCP 工具数超阈值时，渐进披露生效（模型先见名字/描述，schema 按需注入 + `<tools_added>` 公告）
 
 ### Phase 3
 
-- [ ] 权限规则与调度声明共享同一 `(resource, operation)` 抽象（单一类型、单一来源）
-- [ ] 普通 turn 可通过声明式完成契约结束（非「无工具调用」启发式）
-- [ ] 工具输出过运行时 schema 校验，畸形输出转为结构化错误（`coerceToolResult` 前置）
+- [x] 权限规则与调度声明共享同一 `(resource, operation)` 抽象（单一类型、单一来源）
+- [x] 普通 turn 可通过声明式完成契约结束（非「无工具调用」启发式）
+- [x] 工具输出过运行时 schema 校验，畸形输出转为结构化错误（`coerceToolResult` 前置）
 
 ## Definition of Done
 
@@ -181,15 +181,15 @@
 - **Grilled by**: `/grill`（2026-08-13）— 7 项决策解析（Q1 逐子命令匹配语义、Q2 敏感文件硬拒、Q3 动词分类表、Q4 SECURITY.md 扩展、Q5 spike ≥80% 门禁、Q6 Bash 描述 cache-impact 变更、Q7 旧规则不迁移）；2 术语入 CONTEXT.md；ADR-0033 已在 think 阶段建立
 - **Sliced into**:
   - PR1-0a-spike — shell-decompose 覆盖率 spike — **Done**（2026-08-13，/have-a-try 100% → GO，见 `Prototyped by`）
-  - #287 — 0a-parse：Bash 命令资源解析层 + 敏感文件 Bash 防护（AFK，枢纽）
-  - #288 — 0b-rules：approve-for-session per-prefix 规则化（AFK，blocked by #287）
-  - #289 — 0c-threat：威胁模型文档化（AFK，并行）
-  - #290 — 1a-dedup-stop：跨 step 去重 force-stop 阶梯（AFK）
-  - #291 — 1b-contracts：builtin 工具契约测试（AFK）
-  - #292 — 1c-mcp-disclosure：MCP 渐进披露（AFK）
-  - #293 — 2a-resource-perm：资源感知权限模型（AFK，blocked by #287）
-  - #294 — 2b-completion：完成语义泛化（AFK）
-  - #295 — 2c-output-schema：输出 schema 运行时校验（AFK）
+  - #287 — 0a-parse：Bash 命令资源解析层 + 敏感文件 Bash 防护（AFK，枢纽） — **Done**（2026-08-13，见对应提交）
+  - #288 — 0b-rules：approve-for-session per-prefix 规则化（AFK，blocked by #287） — **Done**（2026-08-13，见对应提交）
+  - #289 — 0c-threat：威胁模型文档化（AFK，并行） — **Done**（2026-08-13，见对应提交）
+  - #290 — 1a-dedup-stop：跨 step 去重 force-stop 阶梯（AFK） — **Done**（2026-08-13，见对应提交）
+  - #291 — 1b-contracts：builtin 工具契约测试（AFK） — **Done**（2026-08-13，见对应提交）
+  - #292 — 1c-mcp-disclosure：MCP 渐进披露（AFK） — **Done**（2026-08-13，见对应提交）
+  - #293 — 2a-resource-perm：资源感知权限模型（AFK，blocked by #287） — **Done**（2026-08-13，见对应提交）
+  - #294 — 2b-completion：完成语义泛化（AFK） — **Done**（2026-08-13，见对应提交）
+  - #295 — 2c-output-schema：输出 schema 运行时校验（AFK） — **Done**（2026-08-13，见对应提交）
 - **New terms**: 资源感知权限模型（resource-aware permission）、shell-decompose、威胁模型文档化（draft，待 `/grill` 提炼）
 - **New decisions**: 不做进程内 OS 沙箱（已落 ADR-0033）；0a 解析方案 = shell-decompose 先行（D1，已记入 Decision）
 
