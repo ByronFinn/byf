@@ -1424,6 +1424,180 @@ describe('Permission rule helpers', () => {
     expect(matchesRule(permissionRule('Bad(unclosed'), 'Bad', {})).toBe(false);
   });
 
+  it('2a（PRD-0031）：Resource(op:glob) 规则与调度层共享 (operation, path) 抽象', () => {
+    // Bash 经命令解析提取资源（cat .env → read:.env）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 复合命令同样命中（逐子命令解析）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'echo hi; cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 文件工具共享同一抽象：Write 的 path 就是资源
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:**/.env*)', 'deny')],
+        'Write',
+        { path: '.env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:**/*.env)', 'deny')],
+        'Edit',
+        { path: 'src/x.env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 路径 glob（** 跨目录）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/credentials*)', 'deny')],
+        'Read',
+        { path: '/x/credentials.json' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 搜索资源
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(search:**/src/**)', 'deny')],
+        'Grep',
+        { pattern: 'src/foo.ts' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('2a（PRD-0031）：Resource 规则不匹配时行为不变；无资源可提取时不生效', () => {
+    // 不匹配的路径 → 无规则命中 → 默认表
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Read',
+        { path: 'foo.txt' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 点文件 glob 语义：`*.env` 不匹配 `.env`（与 shell 一致）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*.env)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // broad（bun test 无具体路径）与 indirect（eval）无资源可提取 → 规则不生效
+    // （已知局限：无法静态解析时资源规则无法匹配）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*)', 'deny')],
+        'Bash',
+        { command: 'bun test' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*)', 'deny')],
+        'Bash',
+        { command: 'eval "$CMD"' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 裸 Resource 无语义 → 不匹配
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 畸形 op/glob → 不匹配（规则保持 total）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:)', 'deny')],
+        'Write',
+        { path: '.env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('2a（PRD-0031）：Resource 规则遵循 deny 优先与模式覆盖', () => {
+    // yolo 模式下 deny 仍生效（deny wins in every mode）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // yolo 下 allow 被模式覆盖（非 deny → allow）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'allow')],
+        'Bash',
+        { command: 'cat .env' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    // allow + deny 并存：deny 优先
+    expect(
+      checkMatchingRules(
+        [
+          permissionRule('Resource(read:**/.env*)', 'allow'),
+          permissionRule('Resource(read:**/.env*)', 'deny'),
+        ],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('2a（PRD-0031）：Resource 规则 ! 否定——无资源命中时生效', () => {
+    // `!` 否定：无资源命中 `read:*.env` 才生效
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(!read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(!read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+  });
+
   it('matches path rules against lexical variants of the same absolute file', () => {
     const secret = '/workspace/project/secret.txt';
     const rule = permissionRule(`Read(${secret})`, 'deny');
