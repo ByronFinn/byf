@@ -61,6 +61,10 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 ## Agent skills
 
+### Security stance
+
+BYF's permission layer is a best-effort UX guard, **not a security boundary** — no in-process OS sandbox (ADR-0033). Never describe permission checks as "sandbox protection". See `SECURITY.md` (Threat Model) before making security-adjacent changes; untrusted-task isolation belongs to user containers/VMs.
+
 ### Issue tracker
 
 Issues tracked in GitHub Issues (`ByronFinn/byf`). Uses `gh` CLI. See `docs/agents/issue-tracker.md`.

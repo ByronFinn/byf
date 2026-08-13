@@ -203,6 +203,14 @@ Before submitting a feature or significant change, please open an issue first to
 
 ---
 
+## 🔒 Security
+
+BYF's permission layer is a best-effort UX guard, **not a security boundary** — BYF does not
+sandbox the agent (ADR-0033). When working with untrusted code or prompts, run BYF inside a
+container or VM. See the full [threat model](SECURITY.md).
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
