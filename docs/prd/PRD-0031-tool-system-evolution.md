@@ -1,6 +1,6 @@
 # 工具系统演进：调度图与权限图的统一
 
-> **Status**: Grilled | **PRD**: PRD-0031 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
+> **Status**: Sliced | **PRD**: PRD-0031 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
 
 ## Goal
 
@@ -179,10 +179,21 @@
 - **Created by**: `/think`（2026-08-13）
 - **Prototyped by**: `/have-a-try`（2026-08-13）— PR1-0a-spike：shell-decompose 基准 44 条命令 **100% 覆盖**（33 narrow / 7 broad / 4 force-approval / 0 missed）→ **GO**（门禁 ≥80%）；`cat .env`/`cat ~/.ssh/id_rsa` 敏感命中、`echo hi; rm x` 逐子命令、`bash -c` 剥壳、eval/interpreter 转强制审批全部按设计成立
 - **Grilled by**: `/grill`（2026-08-13）— 7 项决策解析（Q1 逐子命令匹配语义、Q2 敏感文件硬拒、Q3 动词分类表、Q4 SECURITY.md 扩展、Q5 spike ≥80% 门禁、Q6 Bash 描述 cache-impact 变更、Q7 旧规则不迁移）；2 术语入 CONTEXT.md；ADR-0033 已在 think 阶段建立
-- **Sliced into**: （待 `/story`）
+- **Sliced into**:
+  - PR1-0a-spike — shell-decompose 覆盖率 spike — **Done**（2026-08-13，/have-a-try 100% → GO，见 `Prototyped by`）
+  - #287 — 0a-parse：Bash 命令资源解析层 + 敏感文件 Bash 防护（AFK，枢纽）
+  - #288 — 0b-rules：approve-for-session per-prefix 规则化（AFK，blocked by #287）
+  - #289 — 0c-threat：威胁模型文档化（AFK，并行）
+  - #290 — 1a-dedup-stop：跨 step 去重 force-stop 阶梯（AFK）
+  - #291 — 1b-contracts：builtin 工具契约测试（AFK）
+  - #292 — 1c-mcp-disclosure：MCP 渐进披露（AFK）
+  - #293 — 2a-resource-perm：资源感知权限模型（AFK，blocked by #287）
+  - #294 — 2b-completion：完成语义泛化（AFK）
+  - #295 — 2c-output-schema：输出 schema 运行时校验（AFK）
 - **New terms**: 资源感知权限模型（resource-aware permission）、shell-decompose、威胁模型文档化（draft，待 `/grill` 提炼）
 - **New decisions**: 不做进程内 OS 沙箱（已落 ADR-0033）；0a 解析方案 = shell-decompose 先行（D1，已记入 Decision）
 
 ## Issue
 
-（父 Issue，待计划批准后创建）
+- **父 Issue**: [#286](https://github.com/ByronFinn/byf/issues/286)（计划已批准，Sliced 状态）
+- 子 Issue: #287–#295（见 Traceability Sliced into）
