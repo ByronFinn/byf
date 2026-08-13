@@ -1,5 +1,5 @@
-// Registers all builtin slash handlers from group modules.
-// Exhaustiveness is enforced via `satisfies Record<BuiltinSlashCommandName, …>`.
+// 从分组模块注册全部内置斜杠处理器。
+// 穷尽性经 `satisfies Record<BuiltinSlashCommandName, …>` 强制。
 
 import type { SlashCommandHandler, SlashCommandHandlerRegistry } from '../handler-registry';
 import type { BuiltinSlashCommandName } from '../registry';
@@ -16,8 +16,8 @@ import type { SlashCommandHost } from './slash-host';
 export type { SlashCommandHost } from './slash-host';
 
 /**
- * Register every BuiltinSlashCommandName against the registry.
- * Compiles only when the merged map covers the full name union.
+ * 向注册表注册每个 BuiltinSlashCommandName。
+ * 仅当合并后的映射覆盖完整名称联合时才可编译。
  */
 export function registerBuiltinSlashHandlers(
   registry: SlashCommandHandlerRegistry,

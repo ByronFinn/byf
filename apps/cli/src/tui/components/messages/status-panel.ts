@@ -1,8 +1,7 @@
 /**
- * Status report line builder for `/status`.
+ * `/status` 的状态报告行构建器。
  *
- * It mirrors `/usage` visual language but keeps runtime status formatting
- * separate from the TUI orchestration layer.
+ * 它镜像 `/usage` 的视觉语言,但把运行时状态格式化与 TUI 编排层分离。
  */
 
 import type { ModelAlias, PermissionMode, SessionStatus } from '@byfriends/sdk';

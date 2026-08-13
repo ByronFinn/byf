@@ -1,11 +1,11 @@
 /**
- * /cron slash command parser (PRD-0024).
+ * /cron 斜杠命令解析器(PRD-0024)。
  *
- * Grammar:
- *   /cron              → list
- *   /cron list         → list
- *   /cron delete <id>  → delete (id = 8 lowercase hex)
- *   anything else      → usage error
+ * 文法:
+ *   /cron              → 列表
+ *   /cron list         → 列表
+ *   /cron delete <id>  → 删除(id = 8 位小写十六进制)
+ *   其他任何内容      → 用法错误
  */
 
 export type CronCommand =

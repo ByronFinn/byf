@@ -1,4 +1,4 @@
-// Dialog / panel slash commands that mostly open an existing controller.
+// 对话框 / 面板斜杠命令,大多打开既有控制器。
 
 import type { SlashCommandHandler } from '../handler-registry';
 import type { SlashCommandHost } from './slash-host';

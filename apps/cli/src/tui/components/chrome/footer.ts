@@ -1,9 +1,9 @@
 /**
- * Footer/status bar — multi-line status display at the bottom of the TUI.
+ * 页脚 / 状态栏——TUI 底部的多行状态显示。
  *
- * Layout:
- *   Line 1: [yolo] [plan] <model> <cwd>  <git-badge>  <shortcut hints>
- *   Line 2: context: XX.X% (tokens/max)
+ * 布局:
+ *   第 1 行:[yolo] [plan] <model> <cwd>  <git-badge>  <快捷键提示>
+ *   第 2 行:context: XX.X% (tokens/max)
  */
 
 import type { GoalSnapshot } from '@byfriends/sdk';
@@ -119,14 +119,12 @@ function formatGoalUsageCompact(snapshot: GoalSnapshot, wallClockMs?: number): s
 }
 
 /**
- * Render the goal badge for the footer line 1 (PRD-0019 R13). Returns `null`
- * when there is no goal. The glyph encodes the status; the tail carries a
- * compact usage summary so the user can watch budget burn down at a glance.
+ * 渲染页脚第 1 行的 goal 徽章(PRD-0019 R13)。无 goal 时返回 `null`。
+ * 字形编码状态;尾部携带紧凑用量摘要,使用户能一眼看到预算消耗。
  *
- * `wallClockMs` overrides the snapshot's `usage.wallClockMs` — used by the
- * footer's 1s local timer to extrapolate the elapsed value mid-turn (the
- * snapshot's value is only updated at turn boundaries / status changes per
- * N3; between events the footer advances it locally, ADR-0027).
+ * `wallClockMs` 覆盖快照的 `usage.wallClockMs`——页脚的 1s 本地定时器
+ * 用它外推 turn 进行中的已用时间(快照值只在 turn 边界 / 状态变化时
+ * 更新,见 N3;事件之间页脚在本地推进它,ADR-0027)。
  */
 export function formatGoalBadge(
   snapshot: GoalSnapshot | null | undefined,

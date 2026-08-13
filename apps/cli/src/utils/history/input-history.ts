@@ -1,12 +1,12 @@
 /**
- * User input history persistence — JSONL file with `{"content": "..."}` per line.
+ * 用户输入历史持久化——JSONL 文件,每行 `{"content": "..."}`。
  *
- * Semantics:
- * - One JSON object per line (`InputHistoryEntry { content }`)
- * - Append-only writes
- * - Skip empty entries
- * - Skip when same as last entry (consecutive deduplication)
- * - Tolerate corrupt lines: log + skip, do not abort load
+ * 语义:
+ * - 每行一个 JSON 对象(`InputHistoryEntry { content }`)
+ * - 只追加写入
+ * - 跳过空条目
+ * - 与最后一条相同时跳过(连续去重)
+ * - 容忍损坏行:记录 + 跳过,不中止加载
  */
 
 import { z } from 'zod';
@@ -26,8 +26,8 @@ export async function loadInputHistory(file: string): Promise<InputHistoryEntry[
 }
 
 /**
- * Append an entry to the history file. Returns true if written, false if
- * skipped (empty or equal to `lastContent`).
+ * 向历史文件追加条目。写入时返回 true;跳过(空或等于 `lastContent`)
+ * 时返回 false。
  */
 export async function appendInputHistory(
   file: string,

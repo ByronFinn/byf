@@ -1,8 +1,8 @@
 /**
- * `/add-dir` slash command (PRD-0023 R5).
+ * `/add-dir` 斜杠命令(PRD-0023 R5)。
  *
- *   /add-dir list | (no args)  → list workspace + additional roots
- *   /add-dir <path>            → choice: session-only | remember to .byf/local.toml | cancel
+ *   /add-dir list | (无参数)  → 列出工作区 + 附加根目录
+ *   /add-dir <path>           → 选择:仅会话 | 记住到 .byf/local.toml | 取消
  */
 
 import { ChoicePickerComponent } from '#/tui/components/dialogs/choice-picker';

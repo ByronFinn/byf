@@ -111,8 +111,8 @@ function sanitizeSegment(value: string): string {
 }
 
 /**
- * Optional Node SEA asset source for legacy binaries only.
- * Official Bun `bun build --compile` embeds N-API modules directly — no SEA asset tree.
+ * 可选 Node SEA 资产源,仅用于遗留二进制。
+ * 官方 Bun `bun build --compile` 直接内嵌 N-API 模块——无 SEA 资产树。
  */
 export function getSeaAssetSource(): NativeAssetSource | null {
   const sea = loadSeaModule();
@@ -291,15 +291,14 @@ export interface CleanupResult {
 }
 
 /**
- * Remove stale native asset cache directories for the current (version, target).
+ * 移除当前 (version, target) 的过期原生资产缓存目录。
  *
- * Keeps:
- *   - the currentRoot (passed in by caller)
- *   - the most recently modified sibling (defensive: in case currentRoot calc changed)
+ * 保留:
+ *   - currentRoot(调用方传入)
+ *   - 最近修改的兄弟目录(防御性:以防 currentRoot 计算变化)
  *
- * Deletes all other sibling <manifest-hash> directories. Other versions and
- * other targets are never touched. Errors per-entry are collected and returned
- * (never throw — this is fire-and-forget background work).
+ * 删除所有其他兄弟 <manifest-hash> 目录。其他版本与其他 target 永不触碰。
+ * 逐条目收集并返回错误(绝不抛出——这是 fire-and-forget 后台工作)。
  */
 export function cleanupStaleNativeCache(options: CleanupOptions): CleanupResult {
   const { cacheBase, version, target, currentRoot } = options;
@@ -353,10 +352,10 @@ export function cleanupStaleNativeCache(options: CleanupOptions): CleanupResult 
 }
 
 /**
- * Convenience: discover currentRoot from embedded SEA manifest + run cleanup.
- * Safe to call without args from main.ts startup.
- * Returns null when not in SEA mode (including Bun compile standalone, which
- * does not materialize an extract-on-disk native asset cache).
+ * 便捷:从内嵌 SEA manifest 发现 currentRoot 并运行清理。
+ * 可从 main.ts 启动时无参调用。
+ * 非 SEA 模式时返回 null(包括 Bun compile standalone——它不物化
+ * 磁盘解压型原生资产缓存)。
  */
 export function cleanupStaleNativeCacheForCurrent(
   options: NativeAssetOptions = {},

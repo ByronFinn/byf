@@ -1,12 +1,10 @@
 /**
- * TaskOutputViewer — full-screen pi-tui rendered output viewer for
- * a single background task. Replaces the previous "shell out to less"
- * approach so the experience stays inside the TUI: same colors, same
- * fonts, same redraw cycle, no alt-screen flip-flop.
+ * TaskOutputViewer — 单个后台任务的全屏 pi-tui 渲染输出查看器。
+ * 取代之前「shell 出去用 less」的做法,使体验留在 TUI 内:同样的颜色、
+ * 同样的字体、同样的重绘周期,无 alt-screen 翻转。
  *
- * Mounted by `byf-tui.ts` via nested container swap on top of the
- * TasksBrowserApp. Snapshot view (no live tail) — content is fetched
- * once when the viewer opens.
+ * 由 `byf-tui.ts` 在 TasksBrowserApp 之上经嵌套容器交换挂载。
+ * 快照视图(无实时尾部)——查看器打开时一次性获取内容。
  */
 
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@byfriends/sdk';

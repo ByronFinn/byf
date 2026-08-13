@@ -1,17 +1,14 @@
 /**
- * goal.updated event handler (PRD-0019 #204 / #205).
+ * goal.updated 事件处理器(PRD-0019 #204 / #205)。
  *
- * Receives `goal.updated` events from the SDK event stream and projects them
- * onto two UI surfaces:
- *   1. The live footer badge — driven by the latest snapshot.
- *   2. The transcript — lifecycle markers (pause/resume/blocked/cancel) and
- *      the completion card, derived from the event `change` tag plus
- *      status-transition detection.
+ * 从 SDK 事件流接收 `goal.updated` 事件,投影到两个 UI 表面:
+ *   1. 实时页脚徽章——由最新快照驱动。
+ *   2. transcript——生命周期标记(pause/resume/blocked/cancel)与完成卡片,
+ *      由事件 `change` 标签加状态转换检测派生。
  *
- * Pure projection — does not mutate session state. Live/replay consistency is
- * guaranteed because both paths consume the same `goal.updated` event. The
- * handler tracks the previous status locally so pause/resume transitions
- * (which carry no `change` tag) can be surfaced as lifecycle markers.
+ * 纯投影——不修改会话状态。live/replay 一致性有保证,因为两条路径消费
+ * 同一个 `goal.updated` 事件。本处理器在本地跟踪上一状态,使不带
+ * `change` 标签的 pause/resume 转换也能作为生命周期标记呈现。
  */
 
 import type { GoalChange, GoalSnapshot, GoalStatus, GoalUpdatedEvent } from '@byfriends/sdk';

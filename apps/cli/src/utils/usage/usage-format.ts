@@ -1,8 +1,7 @@
 /**
- * Formatting helpers for the `/usage` slash command.
+ * `/usage` 斜杠命令的格式化辅助。
  *
- * Kept pure + ANSI-free so they're trivial to unit-test; the slash
- * command itself chalks the colour afterwards.
+ * 保持纯函数 + 无 ANSI,使单元测试简单;斜杠命令之后自行着色。
  */
 
 export function formatTokenCount(n: number): string {
@@ -13,8 +12,8 @@ export function formatTokenCount(n: number): string {
 }
 
 /**
- * Build a `[███░░░░░░░]` style bar. Returns a plain-ASCII string with
- * `filled`/`empty` glyphs — colouring is the caller's responsibility.
+ * 构建 `[███░░░░░░░]` 风格条。返回带 `filled`/`empty` 字形的纯 ASCII
+ * 字符串——着色是调用方的责任。
  */
 export function renderProgressBar(ratio: number, width = 20, filled = '█', empty = '░'): string {
   const clamped = safeUsageRatio(ratio);
@@ -27,8 +26,8 @@ export function safeUsageRatio(ratio: number): number {
 }
 
 /**
- * Map a usage ratio to a semantic colour token — the `/usage` renderer
- * translates these into palette hex values.
+ * 把用量比例映射为语义颜色 token——`/usage` 渲染器将其转换为调色板
+ * 十六进制值。
  */
 export function ratioSeverity(ratio: number): 'ok' | 'warn' | 'danger' {
   if (ratio >= 0.85) return 'danger';
@@ -37,16 +36,16 @@ export function ratioSeverity(ratio: number): 'ok' | 'warn' | 'danger' {
 }
 
 /**
- * Coerce RPC/serialized values to a safe non-negative finite number, defaulting to 0.
+ * 把 RPC / 序列化值强制为安全的非负有限数,默认 0。
  */
 export function safeNumber(value: unknown): number {
   return Number.isFinite(value) && (value as number) >= 0 ? (value as number) : 0;
 }
 
 /**
- * Compute cache hit rate (0..1).
- * Formula: inputCacheRead / (inputOther + inputCacheRead + inputCacheCreation)
- * Returns undefined when denominator is zero (signal: "no data").
+ * 计算缓存命中率(0..1)。
+ * 公式:inputCacheRead / (inputOther + inputCacheRead + inputCacheCreation)
+ * 分母为零时返回 undefined(信号:「无数据」)。
  */
 export function computeCacheHitRate(
   inputOther: number,
@@ -59,9 +58,9 @@ export function computeCacheHitRate(
 }
 
 /**
- * Format cache hit rate as integer percentage string like "87%".
- * Uses round-half-to-even (banker's rounding) for exact .5 ties.
- * Returns undefined when rate is undefined or ≤ 0 (signal: "don't display").
+ * 把缓存命中率格式化为「87%」式的整数百分比字符串。
+ * 对精确 .5 平局使用四舍六入五成双(银行家舍入)。
+ * rate 为 undefined 或 ≤ 0 时返回 undefined(信号:「不显示」)。
  */
 export function formatCacheHitRate(rate: number | undefined): string | undefined {
   if (rate === undefined || rate <= 0) return undefined;

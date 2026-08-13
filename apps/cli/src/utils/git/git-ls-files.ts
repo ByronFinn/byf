@@ -1,11 +1,10 @@
 /**
- * Git-aware file listing + relevance signals with a short-TTL cache.
- * Used as the cross-directory `@file` completion source when `fd` is
- * not installed.
+ * Git 感知的文件列表 + 相关信号,带短 TTL 缓存。
+ * 未安装 `fd` 时作为跨目录 `@file` 补全源。
  *
- * Tracks three things per snapshot, all refreshed atomically:
- *   - `files`            deduped (tracked + untracked-not-ignored), capped at 1000
- *   - `mtimeByPath`      absolute-path → fs mtime (ms), for recency ranking
+ * 每个快照跟踪三样东西,全部原子刷新:
+ *   - `files`           去重(已跟踪 + 未跟踪且未忽略),上限 1000
+ *   - `mtimeByPath`     绝对路径 → fs mtime(毫秒),用于近期排序
  *   - `recencyOrder`     file path → position in recent git history (0-indexed; smaller = more recent)
  *
  * Rebuild strategy: 2s TTL plus `.git/index` mtime invalidation so

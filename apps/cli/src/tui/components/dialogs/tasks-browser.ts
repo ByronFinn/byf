@@ -1,15 +1,12 @@
 /**
- * TasksBrowserApp — full-screen alt-screen takeover for browsing
- * background tasks. Three-pane layout (left task list, right top
- * detail, right bottom preview output) framed by a header row and
- * footer key hint.
+ * TasksBrowserApp — 浏览后台任务的全屏 alt-screen 接管。三栏布局
+ * (左任务列表、右上详情、右下输出预览),由头部行与页脚按键提示框定。
  *
- * Mounted by `byf-tui.ts` via container swap rather than `showOverlay`
- * — the main TUI's children are saved, cleared, and this component is
- * added as the sole child so it covers the entire screen. The
- * controller restores the children when the user exits.
+ * 由 `byf-tui.ts` 经容器交换而非 `showOverlay` 挂载——主 TUI 的子元素被
+ * 保存、清空,本组件作为唯一子元素添加,覆盖整个屏幕。用户退出时控制器
+ * 恢复原子元素。
  *
- * Data (tasks list, tail output) flows in via `setProps`; user actions
+ * 数据(任务列表、尾部输出)经 `setProps` 流入;用户操作
  * fire the `on*` callbacks back to the controller.
  */
 

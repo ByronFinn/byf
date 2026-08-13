@@ -1,6 +1,6 @@
 /**
- * Renders a tool call entry in the transcript.
- * Supports expand/collapse via Ctrl+O.
+ * 在 transcript 中渲染一条工具调用条目。
+ * 支持通过 Ctrl+O 展开 / 折叠。
  */
 
 import { Container, Text, Spacer, visibleWidth } from '@earendil-works/pi-tui';
@@ -36,10 +36,10 @@ const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
 
 /**
- * Immutable Read tool state snapshot. `ReadGroupComponent` reads one-time
- * views via `ToolCallComponent.getReadSnapshot()` and sums lines for the group
- * header. `lines` is 0 while pending or failed, and the non-empty result line
- * count when done, matching the single-card chip.
+ * 不可变 Read 工具状态快照。`ReadGroupComponent` 经
+ * `ToolCallComponent.getReadSnapshot()` 读取一次性视图,并为组头汇总行数。
+ * pending 或 failed 时 `lines` 为 0,完成时为非空结果行数,
+ * 与单卡片 chip 一致。
  */
 export interface ToolCallReadSnapshot {
   readonly toolCallId: string;

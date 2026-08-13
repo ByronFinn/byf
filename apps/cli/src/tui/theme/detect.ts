@@ -1,15 +1,14 @@
 /**
- * Terminal background detection.
+ * 终端背景检测。
  *
- * Strategy, in priority order:
- *   1. Reject — non-TTY, NO_COLOR, FORCE_COLOR=0, CI → safe `'dark'`.
- *   2. OSC 11 — write `ESC ] 11 ; ? BEL`, parse `ESC ] 11 ; rgb:RR/GG/BB BEL`,
- *      compute relative luminance. Capped at `timeoutMs` so unsupported
- *      terminals don't hang.
- *   3. COLORFGBG — VT100 / xterm fallback exposing `"fg;bg"`.
- *   4. Default — `'dark'`.
+ * 策略,按优先级:
+ *   1. 拒绝——非 TTY、NO_COLOR、FORCE_COLOR=0、CI → 安全 `'dark'`。
+ *   2. OSC 11——写入 `ESC ] 11 ; ? BEL`,解析 `ESC ] 11 ; rgb:RR/GG/BB BEL`,
+ *      计算相对亮度。以 `timeoutMs` 为上限,使不支持的终端不会挂起。
+ *   3. COLORFGBG——暴露 `"fg;bg"` 的 VT100 / xterm 回退。
+ *   4. 默认——`'dark'`。
  *
- * Must run before pi-tui enters raw mode; once the framework owns stdin
+ * 必须在 pi-tui 进入 raw 模式前运行;一旦框架拥有 stdin
  * the OSC reply gets eaten by the input loop.
  */
 
@@ -105,8 +104,8 @@ async function queryOsc11(opts: { timeoutMs: number }): Promise<ResolvedTheme | 
 }
 
 /**
- * COLORFGBG is `"fg;bg"` (sometimes `"fg;default;bg"`). The last token is
- * the background ANSI 16-color index; 0–6 and 8 are dark, the rest light.
+ * COLORFGBG 是 `"fg;bg"`(有时为 `"fg;default;bg"`)。最后一个 token 是
+ * 背景 ANSI 16 色索引;0–6 与 8 为暗色,其余为亮色。
  */
 export function parseColorFgBg(value: string | undefined): ResolvedTheme | null {
   if (value === undefined || value === '') return null;

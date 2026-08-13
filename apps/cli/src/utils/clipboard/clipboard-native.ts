@@ -1,11 +1,10 @@
 /**
- * Optional native clipboard binding.
+ * 可选的原生剪贴板绑定。
  *
- * `@mariozechner/clipboard` is a native Node binding that can read image
- * binaries from the system clipboard on macOS and Windows. It's an
- * optional dependency — if the native module fails to load (e.g. on a
- * platform where no prebuilt is available) we degrade to shell-based
- * fallbacks (wl-paste / xclip / PowerShell) in `clipboard-image.ts`.
+ * `@mariozechner/clipboard` 是可在 macOS 与 Windows 上从系统剪贴板读取
+ * 图片二进制的原生 Node 绑定。它是可选依赖——若原生模块加载失败
+ * (例如所在平台无预编译产物),我们在 `clipboard-image.ts` 中降级到
+ * 基于 shell 的回退(wl-paste / xclip / PowerShell)。
  */
 
 import { createRequire } from 'node:module';

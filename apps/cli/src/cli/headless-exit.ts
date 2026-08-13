@@ -2,29 +2,25 @@ import type { Writable } from 'node:stream';
 
 import { HEADLESS_FORCE_EXIT_GRACE_MS, HEADLESS_STDIO_DRAIN_TIMEOUT_MS } from '#/constant/app';
 
-/** Minimal process surface needed to force a headless run to terminate. */
+/** 强制终止 headless 运行所需的最小进程表面。 */
 export interface ExitableProcess {
   exit(code?: number): void;
 }
 
 /**
- * Schedule a best-effort force-exit for a completed headless (`byf -p`) run.
+ * 为已完成的 headless(`byf -p`)运行安排尽力而为的强制退出。
  *
- * Print mode does not call `process.exit()`; it relies on the Node event loop
- * draining once the run is done. If a stray ref'd handle survives shutdown — a
- * lingering socket (e.g. a connection blackholed by a restrictive firewall, or
- * an HTTP/2 session kept alive by PING), an un-cleared timer, or a child whose
- * pipes stay open — the loop never empties and the process hangs until an
- * external timeout kills it.
+ * 打印模式不调用 `process.exit()`;它依赖 Node 事件循环在运行完成后排空。
+ * 若游离的 ref'd 句柄在关停后存活——一个残留 socket(例如被严格防火墙
+ * 黑洞掉的连接,或被 PING 保活的 HTTP/2 会话)、一个未清除的定时器,
+ * 或管道仍打开的 child——循环永不满空,进程挂起直到外部超时将其杀死。
  *
- * This arms an **unref'd** fallback timer: a healthy run drains and exits
- * naturally before it fires (so behaviour is unchanged), and the timer itself
- * never keeps the loop alive. It only force-exits a run whose loop is already
- * wedged. The exit code is read lazily at fire time so callers may set
- * `process.exitCode` after scheduling (e.g. a goal turn mapping its terminal
- * status to a non-zero code).
+ * 本函数武装一个 **unref'd** 回退定时器:健康运行会在它触发前自然排空并
+ * 退出(行为不变),定时器本身也永不使循环存活。它只强制退出循环已卡死的
+ * 运行。退出码在触发时惰性读取,使调用方可在调度后设置
+ * `process.exitCode`(例如 goal turn 把终态映射为非零码)。
  *
- * Returns the timer handle so callers/tests can `clearTimeout` it.
+ * 返回定时器句柄,供调用方 / 测试 `clearTimeout`。
  */
 export function scheduleHeadlessForceExit(
   proc: ExitableProcess,
@@ -55,12 +51,11 @@ function flushStream(stream: Writable): Promise<void> {
 }
 
 /**
- * Wait for buffered output on the given streams to flush, bounded by `timeoutMs`.
+ * 等待给定流上的缓冲输出刷出,以 `timeoutMs` 为上限。
  *
- * A slow or piped consumer that hasn't read all of stdout/stderr yet leaves the
- * pipe as a legitimate ref'd handle keeping the loop alive. Flushing before any
- * force-exit prevents truncating output from an otherwise-successful run. The
- * wait is bounded so a permanently-stuck consumer can't re-introduce the hang.
+ * 尚未读完全部 stdout/stderr 的慢速或管道消费者,会把管道作为合法 ref'd
+ * 句柄使循环保持存活。在任何强制退出前刷出,可避免截断本会成功的运行的
+ * 输出。等待有界,使永久卡住的消费者无法重新引入挂起。
  */
 export async function drainStdio(
   streams: readonly Writable[],
@@ -79,13 +74,11 @@ export async function drainStdio(
 }
 
 /**
- * Finalize a completed headless run: flush stdio, then arm the force-exit
- * backstop.
+ * 完成 headless 运行:刷出 stdio,然后武装强制退出兜底。
  *
- * Draining first means in-flight legitimate output is fully written before the
- * backstop can fire, and — since drained stdio no longer holds the loop — only a
- * genuinely leaked handle can keep it alive afterwards, which is exactly what
- * the backstop is for.
+ * 先排空意味着进行中的合法输出在兜底触发前已完整写出,并且——排空后的
+ * stdio 不再持有循环——之后只有真正泄漏的句柄才能使其存活,这正是兜底
+ * 的用途。
  */
 export async function finalizeHeadlessRun(
   proc: ExitableProcess,

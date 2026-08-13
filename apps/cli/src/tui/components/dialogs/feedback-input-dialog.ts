@@ -1,9 +1,9 @@
 /**
- * FeedbackInputDialog — blue rounded box that collects a single line of
- * user feedback before submitting it to the managed Byf Code platform.
+ * FeedbackInputDialog — 在把单行用户反馈提交到受管的 Byf Code 平台前
+ * 收集它的蓝色圆角框。
  *
- * The box embeds a `pi-tui` Input for the actual text entry; cursor
- * visibility tracks the dialog's `focused` flag.
+ * 框内嵌一个 `pi-tui` Input 用于实际文本输入;光标可见性跟随对话框的
+ * `focused` 标志。
  */
 
 import {

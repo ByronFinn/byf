@@ -1,5 +1,5 @@
-// Auth slash commands: login / logout / connect.
-// Calls flows/login-flow.ts and flows/connect-flow.ts directly (PRD-0021 AC15).
+// 认证斜杠命令:login / logout / connect。
+// 直接调用 flows/login-flow.ts 与 flows/connect-flow.ts(PRD-0021 AC15)。
 
 import { applyProviderConfig, fetchModelsByType } from '@byfriends/sdk';
 

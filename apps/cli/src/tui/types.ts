@@ -111,11 +111,10 @@ export interface SubagentReplayToolCallData {
 }
 
 /**
- * Sub-agent token usage shape: the input breakdown (cache read/creation/other)
- * plus output. Mirrors `TokenUsage` from `@byfriends/kosong`, which is what
- * `ResumedAgentState.usage.total` carries. Shared by the live path
- * (`ToolCallComponent.subagentUsage`) and the replay path
- * (`SubagentReplayBlockData.usage`).
+ * 子 agent token 用量形态:输入细分(缓存读 / 创建 / 其他)加输出。
+ * 镜像 `@byfriends/kosong` 的 `TokenUsage`——`ResumedAgentState.usage.total`
+ * 携带的正是它。live 路径(`ToolCallComponent.subagentUsage`)与 replay
+ * 路径(`SubagentReplayBlockData.usage`)共享。
  */
 export interface SubagentTokenUsage {
   readonly input?: number;
@@ -160,10 +159,9 @@ export interface CompactionTranscriptData {
 }
 
 /**
- * Completion-card payload for a finished goal (PRD-0019 R14). Only a model
- * `UpdateGoal('complete')` produces this — `cancel` renders a plain lifecycle
- * marker instead. `snapshot` is the live snapshot captured at completion time
- * (carries objective + final usage); `reason` is the optional model reason.
+ * 已完成 goal 的完成卡片负载(PRD-0019 R14)。只有模型 `UpdateGoal('complete')`
+ * 产生它——`cancel` 改为渲染普通生命周期标记。`snapshot` 是完成时刻捕获的
+ * 实时快照(携带目标 + 最终用量);`reason` 是可选的模型原因。
  */
 export interface GoalCompletionData {
   readonly objective: string;

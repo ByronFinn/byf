@@ -1,24 +1,23 @@
-// Slash command handler registry.
+// 斜杠命令处理器注册表。
 //
-// Replaces the 27-case `handleBuiltInSlashCommand` switch with a Map-based
-// dispatch. Each builtin command registers its handler here; the dispatch
-// is a single `Map.get(name)(args)` lookup.
+// 用基于 Map 的分发取代 27 分支的 `handleBuiltInSlashCommand` switch。
+// 每个内置命令在此注册其处理器;分发就是一次 `Map.get(name)(args)` 查找。
 //
-// The `SlashCommandHost` interface lives in `handlers/slash-host.ts`.
-// Group modules under `handlers/` register against this registry.
+// `SlashCommandHost` 接口位于 `handlers/slash-host.ts`。
+// `handlers/` 下的分组模块向本注册表注册。
 
 import type { BuiltinSlashCommandName } from './registry';
 
 /**
- * A slash command handler: receives the raw args string, does its work.
+ * 斜杠命令处理器:接收原始参数字符串并执行其工作。
  */
 export type SlashCommandHandler = (args: string) => Promise<void>;
 
 /**
- * Registry mapping builtin command names to their handlers.
+ * 内置命令名到其处理器的注册表映射。
  *
- * Exhaustiveness is enforced at the registration site — the registrar must
- * provide a handler for every `BuiltinSlashCommandName`.
+ * 穷尽性在注册点强制——注册器必须为每个 `BuiltinSlashCommandName`
+ * 提供处理器。
  */
 export class SlashCommandHandlerRegistry {
   private readonly handlers = new Map<BuiltinSlashCommandName, SlashCommandHandler>();

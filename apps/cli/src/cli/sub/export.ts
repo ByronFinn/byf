@@ -1,8 +1,8 @@
 /**
- * `byf export` sub-command.
+ * `byf export` 子命令。
  *
- * CLI glue only: session lookup, previous-session confirmation, and output.
- * The actual ZIP/manifest export is owned by the SDK.
+ * 仅 CLI 胶水:会话查找、上一会话确认与输出。实际的 ZIP / manifest 导出
+ * 由 SDK 拥有。
  */
 
 import { createInterface } from 'node:readline/promises';

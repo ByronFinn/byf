@@ -1,8 +1,8 @@
 /**
- * CLI-owned data path helpers.
+ * CLI 自有的数据路径辅助。
  *
- * These paths are for local app data such as logs and input history. Config
- * files are owned by Core/SDK and intentionally do not live behind this module.
+ * 这些路径用于日志、输入历史等本地应用数据。配置文件由 Core/SDK 拥有,
+ * 刻意不放在本模块之后。
  */
 
 import { createHash } from 'node:crypto';
@@ -19,9 +19,9 @@ import {
 } from '#/constant/app';
 
 /**
- * Return the root data directory for BYF.
+ * 返回 BYF 的根数据目录。
  *
- * Priority: `BYF_HOME` env var > `~/.byf`.
+ * 优先级:`BYF_HOME` 环境变量 > `~/.byf`。
  */
 export function getDataDir(): string {
   const envDir = process.env[BYF_HOME_ENV];
@@ -32,22 +32,22 @@ export function getDataDir(): string {
 }
 
 /**
- * Return the diagnostic log directory: `<dataDir>/logs/`.
+ * 返回诊断日志目录:`<dataDir>/logs/`。
  */
 export function getLogDir(): string {
   return join(getDataDir(), BYF_LOG_DIR_NAME);
 }
 
 /**
- * Return the update cache file: `<dataDir>/updates/latest.json`.
+ * 返回更新缓存文件:`<dataDir>/updates/latest.json`。
  */
 export function getUpdateStateFile(): string {
   return join(getDataDir(), BYF_UPDATE_DIR_NAME, BYF_UPDATE_STATE_FILE_NAME);
 }
 
 /**
- * Return the user input history file for a given working directory.
- * Layout: `<share_dir>/user-history/<md5(cwd)>.jsonl`.
+ * 返回给定工作目录的用户输入历史文件。
+ * 布局:`<share_dir>/user-history/<md5(cwd)>.jsonl`。
  */
 export function getInputHistoryFile(workDir: string): string {
   const hash = createHash('md5').update(workDir, 'utf-8').digest('hex');

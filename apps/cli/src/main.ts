@@ -1,8 +1,8 @@
 /**
- * Byf Code entry point.
+ * Byf Code 入口点。
  *
- * Parses CLI arguments via Commander.js, validates options, runs the
- * outer update preflight, then delegates to the requested UI runner.
+ * 经 Commander.js 解析 CLI 参数、校验选项、运行外层 update 预检,
+ * 然后委托给请求的 UI 运行器。
  */
 
 import { flushDiagnosticLogs, log, resolveGlobalLogPath, resolveByfHome } from '@byfriends/sdk';

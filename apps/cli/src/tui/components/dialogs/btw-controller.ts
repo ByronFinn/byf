@@ -1,12 +1,11 @@
 /**
- * BtwController owns the `/btw` side-query overlay lifecycle.
+ * BtwController 拥有 `/btw` 侧查询浮层的生命周期。
  *
- * It mounts a {@link BtwViewer} as a center-anchored overlay, drives a read-only
- * side query through `Session.askSide`, routes the streaming `btw.*` events back
- * into the viewer, and manages hide/restore when an approval or question modal
- * needs the foreground. Extracted from `byf-tui.ts` per ADR-0017; follows the
- * same DI shape as `DialogManager` — it takes `TUIState` plus a narrow host
- * interface and never holds a reference to the full `ByfTui` instance.
+ * 它把 {@link BtwViewer} 挂载为居中锚定浮层,经 `Session.askSide` 驱动
+ * 只读侧查询,把流式 `btw.*` 事件路由回查看器,并在审批或问题模态框需要
+ * 前台时管理隐藏 / 恢复。按 ADR-0017 从 `byf-tui.ts` 抽出;遵循与
+ * `DialogManager` 相同的 DI 形态——接收 `TUIState` 加窄宿主接口,
+ * 绝不持有完整 `ByfTui` 实例的引用。
  */
 
 import { randomUUID } from 'node:crypto';
@@ -26,11 +25,11 @@ import type { TUIState } from '#/tui/types';
 import { BtwViewer } from './btw-viewer';
 
 /**
- * Narrow host capabilities the controller needs from its owner.
- * Kept explicit to avoid a reference back to the full ByfTui instance.
+ * 控制器需要从属主获得的窄宿主能力。
+ * 保持显式,避免对完整 ByfTui 实例的反向引用。
  */
 export interface BtwHost {
-  /** The active session. Dynamic (changes on create/switch), so a getter. */
+  /** 活跃会话。动态(创建 / 切换时变化),因此用 getter。 */
   getSession(): Session | undefined;
   /** Surface a transient error message outside the overlay. */
   showError(message: string): void;

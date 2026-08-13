@@ -1,15 +1,14 @@
 /**
- * Skill activation card.
+ * 技能激活卡片。
  *
- * When the user runs `/skill:foo bar`, the TUI renders a compact card instead
- * of expanding the SKILL.md body into the user bubble:
+ * 用户运行 `/skill:foo bar` 时,TUI 渲染紧凑卡片,而非把 SKILL.md 正文
+ * 展开进用户气泡:
  *
  *   ▶ Activated skill: foo
  *     bar
  *
- * The args line is optional. Core expands the skill body into the LLM context;
- * the TUI only consumes the `skill.activated` event and user_message origin
- * metadata.
+ * 参数行可选。核心把技能正文展开进 LLM 上下文;TUI 只消费
+ * `skill.activated` 事件与 user_message origin 元数据。
  */
 
 import { Container, Text, Spacer } from '@earendil-works/pi-tui';

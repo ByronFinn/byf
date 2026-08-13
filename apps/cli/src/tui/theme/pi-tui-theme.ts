@@ -1,8 +1,9 @@
 /**
- * Pi-tui theme adapters — MarkdownTheme and EditorTheme from our ColorPalette.
+ * Pi-tui 主题适配器——由我们的 ColorPalette 派生 MarkdownTheme 与
+ * EditorTheme。
  *
- * All chalk calls route through `ColorPalette` tokens so themes flip
- * cleanly. No raw `chalk.gray` / `chalk.dim` / `chalk.white` here.
+ * 所有 chalk 调用都经 `ColorPalette` token 路由,使主题可干净切换。
+ * 此处没有裸的 `chalk.gray` / `chalk.dim` / `chalk.white`。
  */
 
 import type { MarkdownTheme, EditorTheme } from '@earendil-works/pi-tui';

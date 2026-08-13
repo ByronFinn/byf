@@ -1,10 +1,9 @@
 /**
- * SubagentLiveViewer — full-screen real-time viewer of a foreground sub-agent's
- * tool-activity trail.
+ * SubagentLiveViewer — 前台子 agent 工具活动轨迹的全屏实时查看器。
  *
- * Based on TaskOutputViewer skeleton, aligned with approval-fullscreen-viewer
- * props pattern. Subscribes to ToolCallComponent.setSnapshotListener for live
- * updates; follow-tail when user is parked at the bottom.
+ * 基于 TaskOutputViewer 骨架,与 approval-fullscreen-viewer 的 props 模式
+ * 对齐。订阅 ToolCallComponent.setSnapshotListener 以实时更新;
+ * 用户停在底部时跟随尾部。
  */
 
 import {

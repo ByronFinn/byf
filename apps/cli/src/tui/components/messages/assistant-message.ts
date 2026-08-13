@@ -1,8 +1,7 @@
 /**
- * Renders an assistant message using pi-tui Markdown.
+ * 使用 pi-tui Markdown 渲染一条 assistant 消息。
  *
- * Displays a white bullet prefix with markdown content indented
- * to align after the bullet.
+ * 显示白色圆点前缀,markdown 内容缩进以与圆点对齐。
  */
 
 import type { Component, MarkdownTheme } from '@earendil-works/pi-tui';

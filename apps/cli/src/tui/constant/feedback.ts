@@ -1,10 +1,8 @@
 /**
- * Constants for the /feedback command — endpoints, telemetry keys, and
- * the status messages shown around the feedback submission flow.
+ * /feedback 命令的常量——端点、遥测键,以及反馈提交流程周围显示的状态消息。
  *
- * Dialog-internal copy (the box title, subtitle, footer) lives next to
- * the dialog component itself, since it is part of that component's
- * visual contract.
+ * 对话框内部文案(框标题、副标题、页脚)与对话框组件本体相邻,
+ * 因为它是该组件视觉契约的一部分。
  */
 
 import { FEEDBACK_VERSION_PREFIX } from '#/constant/app';

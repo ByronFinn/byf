@@ -1,12 +1,11 @@
 /**
- * Terminal window title synchronization.
+ * 终端窗口标题同步。
  *
- * Uses the session title when present, capped at 80 characters to keep tabs
- * readable. New or unnamed sessions fall back to `Byf Code`.
+ * 会话标题存在时使用它,截断到 80 字符以保持标签页可读。
+ * 新会话或无标题会话回退为 `Byf Code`。
  *
- * Writes both `process.title`, for process listings, and OSC 0/2 escape
- * sequences, which most terminals use for window/tab titles. Non-TTY stdout
- * skips the OSC write.
+ * 同时写入 `process.title`(用于进程列表)与 OSC 0/2 转义序列
+ * (多数终端用它设置窗口 / 标签页标题)。stdout 非 TTY 时跳过 OSC 写入。
  */
 import { PRODUCT_NAME } from '#/constant/app';
 import { MAX_PROCESS_TITLE_LENGTH } from '#/tui/constant/terminal';

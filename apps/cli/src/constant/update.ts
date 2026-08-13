@@ -1,5 +1,5 @@
-// Local palette for the pre-TUI update prompt. TUI colors still come
-// from `src/tui/theme`; do not use these in interactive TUI components.
+// 前 TUI 更新提示的本地调色板。TUI 颜色仍来自 `src/tui/theme`;
+// 不要在交互式 TUI 组件中使用这些。
 export const UPDATE_PROMPT_PRIMARY = '#1783ff';
 export const UPDATE_PROMPT_SUCCESS = '#16A34A';
 export const UPDATE_PROMPT_WARNING = '#CA8A04';

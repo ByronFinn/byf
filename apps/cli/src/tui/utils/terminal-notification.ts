@@ -57,19 +57,17 @@ export function formatNotification(notification: TerminalNotification): string {
 }
 
 /**
- * Build the OSC/BEL bytes for a terminal notification.
+ * 构建终端通知的 OSC/BEL 字节。
  *
- * - `supportsOsc9 === true`: emit a single OSC 9 sequence — the modern
- *   desktop-notification path used by iTerm2, WezTerm, Kitty, Ghostty
- *   and Warp.
- * - `supportsOsc9 === false`: fall back to a bare BEL so the user still
- *   gets the system bell on terminals that don't recognize OSC 9.
+ * - `supportsOsc9 === true`:发出单个 OSC 9 序列——iTerm2、WezTerm、
+ *   Kitty、Ghostty 与 Warp 使用的现代桌面通知路径。
+ * - `supportsOsc9 === false`:回退为裸 BEL,使不识别 OSC 9 的终端
+ *   用户仍能听到系统响铃。
  *
- * When `insideTmux === true` and we're emitting OSC 9, wrap the sequence
- * in a tmux DCS passthrough (`ESC P tmux ; <payload> ESC \`) and double
- * any `ESC` bytes inside the payload — otherwise tmux swallows the OSC.
- * BEL is single-byte and passes through tmux unchanged, so no wrap is
- * needed in the fallback path.
+ * 当 `insideTmux === true` 且发出 OSC 9 时,把序列包进 tmux DCS
+ * 直通(`ESC P tmux ; <payload> ESC \`),并把负载内的任何 `ESC` 字节
+ * 加倍——否则 tmux 会吞掉 OSC。BEL 是单字节,经 tmux 原样透传,
+ * 因此回退路径无需包裹。
  */
 export function buildTerminalNotificationSequences(
   notification: TerminalNotification,
@@ -89,11 +87,9 @@ export function buildTerminalNotificationSequences(
 }
 
 /**
- * Best-effort detection of OSC 9 desktop-notification support, driven
- * entirely off well-known environment variables. The allow-list is
- * intentionally short and conservative because BEL is safe everywhere,
- * while shipping OSC 9 to a terminal that doesn't grok it would print
- * escape garbage on screen.
+ * OSC 9 桌面通知支持的尽力检测,完全依据已知环境变量驱动。允许列表
+ * 刻意短而保守,因为 BEL 处处安全,而向不识别 OSC 9 的终端发送它会
+ * 在屏幕上打印转义垃圾。
  */
 export function supportsOsc9Notification(env: NodeJS.ProcessEnv = process.env): boolean {
   const termProgram = env['TERM_PROGRAM'] ?? '';

@@ -1,5 +1,5 @@
 /**
- * SessionPicker — pi-tui version of the session selection dialog.
+ * SessionPicker — 会话选择对话框的 pi-tui 版本。
  */
 
 import {
