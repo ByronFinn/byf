@@ -1,6 +1,6 @@
 # deepseek: API 格式契约（Chat Completions vs Responses）
 
-> **Stack**: deepseek@4  | **Major**: 4  | **Verified**: 2026-08-13  | **Status**: verified
+> **Stack**: deepseek@4 | **Major**: 4 | **Verified**: 2026-08-13 | **Status**: verified
 
 ## TL;DR
 
@@ -18,16 +18,16 @@ DeepSeek v4（v4-flash / v4-pro）在 Chat Completions 与 Responses 两条 API 
 
 ## Findings
 
-| 维度 | Chat Completions (`/chat/completions`) | Responses (`/responses`) |
-|---|---|---|
-| **reasoning 输出** | `message.reasoning_content`（字符串，与 `content` 同级） | `output[]` 里 `{type:"reasoning", content:[{type:"reasoning_text", text}], summary:[]}` 对象 |
-| **cache usage 字段** | 顶层 `prompt_cache_hit_tokens` + `prompt_cache_miss_tokens`；**同时**带嵌套 `prompt_tokens_details.cached_tokens`（= hit 值） | 仅嵌套 `input_tokens_details.cached_tokens`；**无**顶层 hit/miss |
-| **token 字段名** | `prompt_tokens` / `completion_tokens` | `input_tokens` / `output_tokens` |
-| **reasoning 计费** | `completion_tokens_details.reasoning_tokens` | `output_tokens_details.reasoning_tokens` |
-| **thinking 开启** | 顶层 `reasoning_effort:"high"` + `extra_body.thinking:{type:"enabled"}`（展开进 body） | 顶层 `reasoning:{effort:"high", summary:"auto"}` 被接受 |
-| **工具定义格式** | 嵌套 `{type:"function", function:{name, parameters}}` | 扁平 `{type:"function", name, description, parameters}`（用 completions 格式会 400 `missing field name`） |
-| **prompt_cache_key 字段** | 文档未提；body 可带但不被消费（缓存全自动） | 响应**含** `prompt_cache_key:null` 字段（请求未带时为 null），说明 API 认识该字段 |
-| **缓存命中实测** | cold：hit=0, miss=377（首请求） | 部分命中：`cached_tokens=256`（input=377） |
+| 维度                      | Chat Completions (`/chat/completions`)                                                                                        | Responses (`/responses`)                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **reasoning 输出**        | `message.reasoning_content`（字符串，与 `content` 同级）                                                                      | `output[]` 里 `{type:"reasoning", content:[{type:"reasoning_text", text}], summary:[]}` 对象              |
+| **cache usage 字段**      | 顶层 `prompt_cache_hit_tokens` + `prompt_cache_miss_tokens`；**同时**带嵌套 `prompt_tokens_details.cached_tokens`（= hit 值） | 仅嵌套 `input_tokens_details.cached_tokens`；**无**顶层 hit/miss                                          |
+| **token 字段名**          | `prompt_tokens` / `completion_tokens`                                                                                         | `input_tokens` / `output_tokens`                                                                          |
+| **reasoning 计费**        | `completion_tokens_details.reasoning_tokens`                                                                                  | `output_tokens_details.reasoning_tokens`                                                                  |
+| **thinking 开启**         | 顶层 `reasoning_effort:"high"` + `extra_body.thinking:{type:"enabled"}`（展开进 body）                                        | 顶层 `reasoning:{effort:"high", summary:"auto"}` 被接受                                                   |
+| **工具定义格式**          | 嵌套 `{type:"function", function:{name, parameters}}`                                                                         | 扁平 `{type:"function", name, description, parameters}`（用 completions 格式会 400 `missing field name`） |
+| **prompt_cache_key 字段** | 文档未提；body 可带但不被消费（缓存全自动）                                                                                   | 响应**含** `prompt_cache_key:null` 字段（请求未带时为 null），说明 API 认识该字段                         |
+| **缓存命中实测**          | cold：hit=0, miss=377（首请求）                                                                                               | 部分命中：`cached_tokens=256`（input=377）                                                                |
 
 **两条路径的 reasoning 形态不可互换**：Completions 永远用 `reasoning_content` 字符串；Responses 永远用 `reasoning` 对象（且文本在 `content[].text`，`summary` 为空数组）。
 
@@ -52,10 +52,12 @@ byf 对 DeepSeek 两条路径的**缓存与 reasoning 格式均已正确处理**
 ## Sources
 
 **Tier 1（maintainer-authored, required）**
+
 - [DeepSeek 官方 API reference: Chat Completions (create-chat-completion)](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion) — usage 字段定义（`prompt_tokens` = `prompt_cache_hit_tokens` + `prompt_cache_miss_tokens`）、顶层 hit/miss 字段
 - [DeepSeek 官方 API reference: Responses (create-response)](https://api-docs.deepseek.com/zh-cn/api/create-response) — usage 嵌套 `input_tokens_details.cached_tokens`、`input_tokens`/`output_tokens` 字段
 - [DeepSeek 官方指南: 上下文硬盘缓存 (kv_cache)](https://api-docs.deepseek.com/zh-cn/guides/kv_cache) — "对所有用户默认开启，用户无需修改代码即可享用"、完整前缀匹配、尽力而为；未提 `prompt_cache_key`
 - [DeepSeek 官方指南: 思考模式 (thinking_mode)](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode) — `reasoning_content` 与 content 同级、多轮有工具调用必须完整回传 reasoning_content、`reasoning_effort` + `extra_body.thinking`
 
 **实测验证（2026-08-13）**
+
 - 4 组合真实调用（deepseek-v4-flash / v4-pro × Chat Completions / Responses），返回 JSON 与上述文档逐字段一致；Responses reasoning 文本位于 `output[].content[]`（`reasoning_text`）而非 `summary` 为本记录新增发现，文档未明示此层级。

@@ -26,8 +26,8 @@
 
 ### deepseek
 
-| Topic      | Major | Version | Verdict                                                                                                                              | File                                         | Status   |
-| ---------- | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- | -------- |
+| Topic      | Major | Version | Verdict                                                                                                                                  | File                                                 | Status   |
+| ---------- | ----- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------- |
 | api-format | 4     | 4       | 两条 API 各遵循对应 OpenAI 标准(reasoning/cache 字段不同);byf 两路径均兼容;唯一缺口:Responses reasoning 文本在 content 而 byf 读 summary | [deepseek-api-format-4.md](deepseek-api-format-4.md) | verified |
 
 ### Spikes (verification records, not versioned topics)
@@ -49,4 +49,4 @@
 | compile-native-addons              | bun@1        | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           |
 | test-migration-from-vitest         | bun@1        | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 |
 | weakmap-memoization                | typescript@6 | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md)                 |
-| api-format                          | deepseek@4   | [deepseek-api-format-4.md](deepseek-api-format-4.md)                                       |
+| api-format                         | deepseek@4   | [deepseek-api-format-4.md](deepseek-api-format-4.md)                                       |
