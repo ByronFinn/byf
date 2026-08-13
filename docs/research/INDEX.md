@@ -26,9 +26,9 @@
 
 ### deepseek
 
-| Topic      | Major | Version | Verdict                                                                                                                           | File                                                 | Status   |
-| ---------- | ----- | ------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------- |
-| api-format | 4     | 4       | 两条 API 各遵循对应 OpenAI 标准(reasoning/cache 字段不同);byf 两路径均兼容;非流式/流式 reasoning 文本缺口均已修复;未验证:回传形态 | [deepseek-api-format-4.md](deepseek-api-format-4.md) | verified |
+| Topic      | Major | Version | Verdict                                                                                                                              | File                                                 | Status   |
+| ---------- | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | -------- |
+| api-format | 4     | 4       | 两条 API 各遵循对应 OpenAI 标准(reasoning/cache 字段不同);byf 两路径均兼容;非流式/流式 reasoning 文本缺口均已修复;回传形态已实测兼容 | [deepseek-api-format-4.md](deepseek-api-format-4.md) | verified |
 
 ### Spikes (verification records, not versioned topics)
 
