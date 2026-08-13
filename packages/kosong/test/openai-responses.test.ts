@@ -1081,6 +1081,90 @@ describe('OpenAIResponsesChatProvider', () => {
 
       expect(parts).toEqual([{ type: 'think', think: 'Thinking...' }]);
     });
+
+    it('non-stream reasoning with text in content (reasoning_text) and empty summary yields ThinkPart (DeepSeek shape)', async () => {
+      // DeepSeek Responses puts reasoning text in `output[].content[]` as
+      // `{type:"reasoning_text", text}` and leaves `summary` empty. The parser
+      // must fall back to content so reasoning is not lost.
+      const provider = createProvider();
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockResolvedValue({
+          id: 'resp_deepseek',
+          output: [
+            {
+              type: 'reasoning',
+              summary: [],
+              content: [
+                { type: 'reasoning_text', text: 'I should call get_weather for Shanghai.' },
+              ],
+            },
+            {
+              type: 'function_call',
+              id: 'fc_1',
+              call_id: 'call_1',
+              name: 'get_weather',
+              arguments: '{"city":"Shanghai"}',
+            },
+          ],
+          usage: {
+            input_tokens: 377,
+            input_tokens_details: { cached_tokens: 256 },
+            output_tokens: 68,
+            output_tokens_details: { reasoning_tokens: 22 },
+            total_tokens: 445,
+          },
+        });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'weather?' }], toolCalls: [] }],
+      );
+      const parts: StreamedMessagePart[] = [];
+      for await (const p of stream) parts.push(p);
+
+      expect(parts).toEqual([
+        { type: 'think', think: 'I should call get_weather for Shanghai.' },
+        {
+          type: 'function',
+          id: 'call_1',
+          name: 'get_weather',
+          arguments: '{"city":"Shanghai"}',
+        },
+      ]);
+    });
+
+    it('non-stream reasoning prefers summary when both summary and content are present (no duplication)', async () => {
+      // OpenAI shape: summary carries the text. content may also carry reasoning
+      // items (e.g. encrypted_content); summary must win to avoid duplicates.
+      const provider = createProvider();
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockResolvedValue({
+          id: 'resp_both',
+          output: [
+            {
+              type: 'reasoning',
+              summary: [{ type: 'summary_text', text: 'summary wins' }],
+              content: [{ type: 'reasoning_text', text: 'content fallback should NOT be used' }],
+            },
+          ],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      );
+      const parts: StreamedMessagePart[] = [];
+      for await (const p of stream) parts.push(p);
+
+      expect(parts).toEqual([{ type: 'think', think: 'summary wins' }]);
+    });
   });
 
   describe('provider property accessors', () => {

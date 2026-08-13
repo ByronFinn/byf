@@ -83,6 +83,12 @@ type ResponseOutputItemView =
       type: 'reasoning';
       encryptedContent?: string;
       summary: RawObject[];
+      /**
+       * Reasoning content items. OpenAI 标准把 reasoning 明文摘要放 {@link summary};
+       * 部分兼容端(如 DeepSeek Responses)把 reasoning 文本放在 content 的
+       * `reasoning_text` 项、summary 为空。解析时 summary 优先,content 作 fallback。
+       */
+      content?: RawObject[];
     }
   | {
       type: 'other';
@@ -174,6 +180,7 @@ function readResponseOutputItem(value: unknown, context: string): ResponseOutput
       type,
       encryptedContent: readStringField(item, 'encrypted_content'),
       summary: readObjectArrayField(item, 'summary') ?? [],
+      content: readObjectArrayField(item, 'content'),
     };
   }
 
@@ -532,9 +539,23 @@ export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
           arguments: outputItem.arguments ?? null,
         } satisfies ToolCall;
       } else if (outputItem.type === 'reasoning') {
+        // OpenAI 标准:reasoning 明文摘要走 summary(summary_text)。部分兼容端
+        // (如 DeepSeek Responses)把 reasoning 文本放在 content 的 reasoning_text 项、
+        // summary 为空 → summary 无文本时 fallback 到 content,避免漏读。
+        const thinkTexts: string[] = [];
         for (const summary of outputItem.summary) {
           const text = readStringField(summary, 'text');
-          if (text === undefined) continue;
+          if (text !== undefined) thinkTexts.push(text);
+        }
+        if (thinkTexts.length === 0 && outputItem.content !== undefined) {
+          for (const contentItem of outputItem.content) {
+            if (readStringField(contentItem, 'type') === 'reasoning_text') {
+              const text = readStringField(contentItem, 'text');
+              if (text !== undefined) thinkTexts.push(text);
+            }
+          }
+        }
+        for (const text of thinkTexts) {
           const thinkPart: StreamedMessagePart = {
             type: 'think',
             think: text,
