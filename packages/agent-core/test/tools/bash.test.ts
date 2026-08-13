@@ -924,3 +924,127 @@ describe('BashTool prompt / runtime consistency', () => {
     expect(tool.description).not.toMatch(/exit code will be provided in a system tag/);
   });
 });
+
+describe('BashTool — PRD-0031 0a 敏感文件硬拒', () => {
+  it('cat .env 经解析被敏感文件层硬拒（PATH_SENSITIVE，与 Read 一致）', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'cat .env' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+    expect(result.output).toMatch(/\.env/);
+  });
+
+  it('cat ~/.ssh/id_rsa 硬拒', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'cat ~/.ssh/id_rsa' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('sh -c 剥壳后内层 .env 仍被拦截', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'sh -c "cat .env"' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('重定向写入 .env（echo > .env）硬拒', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'echo "x" > .env' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('git add .env 硬拒（git 的路径参数同样过敏感检查）', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'git add .env' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('非敏感命令不受影响（正常执行）', async () => {
+    const proc = processWithOutput({ stdout: 'ok' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'printf ok' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('cd 累计 cwd 后敏感路径仍命中（cd ~/.ssh && cat id_rsa）', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'cd ~/.ssh && cat id_rsa' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('无法静态解析的命令（eval）不做敏感检查（已知绕过面）', async () => {
+    const proc = processWithOutput({ stdout: 'ok' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'eval "$CMD"' }));
+    // eval 转 indirect → 不抛敏感错误，正常进入执行
+    expect(result.isError).toBe(false);
+  });
+});
+
+describe('BashTool — PRD-0031 0a ToolAccesses 声明', () => {
+  function accessesOf(command: string) {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({ command });
+    if (execution.isError === true) {
+      throw new TypeError(`unexpected error result: ${JSON.stringify(execution.output)}`);
+    }
+    return execution.accesses;
+  }
+
+  it('cat 收窄为 read 文件访问（canonical 绝对路径）', () => {
+    expect(accessesOf('cat a.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/a.txt' },
+    ]);
+  });
+
+  it('cd 累计 cwd：cd src && cat foo.txt → /workspace/src/foo.txt', () => {
+    expect(accessesOf('cd src && cat foo.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/src/foo.txt' },
+    ]);
+  });
+
+  it('echo hi; cat a.txt：no-access 子命令不贡献访问', () => {
+    expect(accessesOf('echo hi; cat a.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/a.txt' },
+    ]);
+  });
+
+  it('纯 no-access 命令（echo hi / pwd）→ none()', () => {
+    expect(accessesOf('echo hi')).toEqual([]);
+    expect(accessesOf('pwd')).toEqual([]);
+  });
+
+  it('git / build-test / 网络 → 全局互斥 all()（执行期触碰不可预测文件）', () => {
+    expect(accessesOf('git status')).toEqual([{ kind: 'all' }]);
+    expect(accessesOf('bun test')).toEqual([{ kind: 'all' }]);
+    expect(accessesOf('curl https://example.com')).toEqual([{ kind: 'all' }]);
+    // build 动词带文件参数仍收窄失败（会加载任意依赖）
+    expect(accessesOf('bun test test/foo.test.ts')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('glob 路径无法静态展开 → all()', () => {
+    expect(accessesOf('rm *.tmp')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('indirect（eval）→ all()', () => {
+    expect(accessesOf('eval "$CMD"')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('搜索动词声明 search + recursive', () => {
+    expect(accessesOf('grep -r TODO src/')).toEqual([
+      { kind: 'file', operation: 'search', path: '/workspace/src', recursive: true },
+    ]);
+  });
+});

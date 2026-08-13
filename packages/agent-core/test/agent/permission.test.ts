@@ -1516,6 +1516,121 @@ describe('Permission rule helpers', () => {
     });
   });
 
+  it('Bash 逐子命令匹配（PRD-0031 grill Q1）：复合命令中的 deny 不再被整串匹配绕过', () => {
+    // 旧行为：`Bash(rm *)` deny 对 `echo hi; rm x` 整串不匹配 → rm 逃逸。
+    // 新行为：`rm x` 是独立子命令 → 命中 deny → 整条 deny。
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：任一子命令 ask（无 deny）→ 整条 ask', () => {
+    // `git status` 命中 allow，`echo hi` 无规则命中 → manual 默认 ask
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; echo hi' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'ask' });
+  });
+
+  it('Bash 逐子命令匹配：全部子命令命中 allow → allow', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; git log' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
+  it('Bash 逐子命令匹配：! 否定语义从整串不匹配变为无子命令匹配', () => {
+    // `Bash(!rm *)` allow（放行非 rm 命令）：`echo hi; rm x` 含 rm 子命令 →
+    // 不再整串放行（修掉绕过：旧行为整串不匹配 `rm *` → 取反 → 整条放行）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(!rm *)', 'allow')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'ask' });
+    // 纯非 rm 命令仍放行
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(!rm *)', 'allow')],
+        'Bash',
+        { command: 'echo hi' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
+  it('Bash 逐子命令匹配：单子命令命令与旧行为一致（零回归）', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'npm test' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：yolo 模式覆盖仍有效', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; echo hi' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：bash -c 剥壳后按内层叶节点匹配', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'bash -c "git status && git log"' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
   it('derives approval action labels from display semantics and MCP names', () => {
     expect(describeApprovalAction('Bash', {}, { kind: 'command', command: 'git status' })).toBe(
       'run command',
