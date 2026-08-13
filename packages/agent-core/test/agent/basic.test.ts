@@ -97,7 +97,7 @@ it('runs an agent turn through builtin tool approval and execution', async () =>
     [emit] assistant.delta             { "turnId": 0, "delta": "I will run that." }
     [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf lookup-result\\",\\"timeout\\":60}" }
     [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run that." } }, "time": "<time>" }
-    [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf lookup-result", "timeout": 60 } } }"
+    [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf lookup-result", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf lookup-result", "timeout": 60 } } }"
   `);
   expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
     "system: <system-prompt>
@@ -108,7 +108,7 @@ it('runs an agent turn through builtin tool approval and execution', async () =>
 
   ctx.mockNextResponse({ type: 'text', text: 'The command printed lookup-result.' });
   expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-    "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+    "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf lookup-result", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
     [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf lookup-result", "timeout": 60 }, "description": "Running: printf lookup-result" }, "time": "<time>" }
     [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf lookup-result", "timeout": 60 }, "description": "Running: printf lookup-result" }
     [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "lookup-result" } }, "time": "<time>" }

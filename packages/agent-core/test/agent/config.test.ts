@@ -123,7 +123,7 @@ describe('Agent config', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will run Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf original-result\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }"
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
       "system: <system-prompt>
@@ -142,7 +142,7 @@ describe('Agent config', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'Still using the original turn config.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
       [wire] config.update                       { "modelAlias": "changed-model", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
       [wire] config.update                       { "systemPrompt": "Changed system prompt.", "time": "<time>" }

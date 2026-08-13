@@ -204,7 +204,7 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will try Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will try Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }"
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
       "system: <system-prompt>
@@ -215,7 +215,7 @@ describe('Agent permission', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'I will not run the command.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true } }, "time": "<time>" }
@@ -707,7 +707,7 @@ describe('Agent-local approve for session', () => {
         turnId: 0,
         toolCallId: 'call_1',
         toolName: 'Bash',
-        action: 'run command',
+        action: 'run command: printf first',
         result: {
           decision: 'approved',
           scope: 'session',
@@ -716,13 +716,23 @@ describe('Agent-local approve for session', () => {
       },
       descriptor: expect.anything(),
     });
+    // 0b（PRD-0031）：规则为精确命令模式，非裸 Bash
     expect(manager.data().rules).toContainEqual({
       decision: 'allow',
       scope: 'session-runtime',
-      pattern: 'Bash',
-      reason: 'approve_for_session: run command',
+      pattern: 'Bash(printf first)',
+      reason: 'approve_for_session: run command: printf first',
     });
 
+    // 同命令经精确规则放行
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_1b', args: { command: 'printf first', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    // 不同命令不再被裸 Bash 放行（0b：精确规则不匹配 → 仍需审批）
     await expect(
       manager.beforeToolCall(
         hookContext({
@@ -732,7 +742,7 @@ describe('Agent-local approve for session', () => {
       ),
     ).resolves.toBeUndefined();
 
-    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledTimes(2);
     expect(telemetryTrack).toHaveBeenNthCalledWith(2, 'tool_approved', {
       tool_name: 'Bash',
       approval_mode: 'auto_session',
@@ -756,7 +766,7 @@ describe('Agent-local approve for session', () => {
         turnId: 0,
         toolCallId: 'call_1',
         toolName: 'Bash',
-        action: 'run command',
+        action: 'run command: printf first',
         result: {
           decision: 'approved',
         },
@@ -769,7 +779,7 @@ describe('Agent-local approve for session', () => {
         turnId: 0,
         toolCallId: 'call_2',
         toolName: 'Bash',
-        action: 'run command',
+        action: 'run command: printf first',
         result: {
           decision: 'approved',
         },
@@ -958,7 +968,7 @@ describe('Default git CWD Write/Edit permission', () => {
     expect(requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'Bash',
-        action: 'run command',
+        action: 'run command: printf first',
       }),
       expect.any(Object),
     );
@@ -1632,9 +1642,24 @@ describe('Permission rule helpers', () => {
   });
 
   it('derives approval action labels from display semantics and MCP names', () => {
+    // 0b（PRD-0031）：Bash 命令标签携带命令信息（构建类→前缀，其余→精确）
     expect(describeApprovalAction('Bash', {}, { kind: 'command', command: 'git status' })).toBe(
-      'run command',
+      'run command: git status',
     );
+    expect(
+      describeApprovalAction(
+        'Bash',
+        { command: 'git push origin main' },
+        { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      ),
+    ).toBe('run command: git push');
+    expect(
+      describeApprovalAction(
+        'Bash',
+        { command: 'curl https://x.com' },
+        { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      ),
+    ).toBe('run command: curl https://x.com');
     expect(
       describeApprovalAction('Write', {}, { kind: 'file_io', operation: 'write', path: 'x' }),
     ).toBe('write file');
@@ -1653,6 +1678,105 @@ describe('Permission rule helpers', () => {
     );
     expect(actionToRulePattern('edit file outside of working directory', 'Edit')).toBe('Write');
     expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
+  });
+
+  it('0b（PRD-0031 grill Q3）：approve-for-session 生成 per-prefix/精确规则而非裸 Bash', () => {
+    // 构建类动词 → 前 2 token 前缀规则
+    expect(actionToRulePattern('run command: git push', 'Bash')).toBe('Bash(git push*)');
+    expect(actionToRulePattern('run command: git status', 'Bash')).toBe('Bash(git status*)');
+    expect(actionToRulePattern('run command: bun test', 'Bash')).toBe('Bash(bun test*)');
+    expect(actionToRulePattern('run command: make', 'Bash')).toBe('Bash(make*)');
+    // 网络/破坏/解释器/未知 → 精确匹配（payload-scoped）
+    expect(actionToRulePattern('run command: curl https://x.com', 'Bash')).toBe(
+      'Bash(curl https://x.com)',
+    );
+    expect(actionToRulePattern('run command: rm -rf dist', 'Bash')).toBe('Bash(rm -rf dist)');
+    expect(actionToRulePattern('run command: python -c "print(1)"', 'Bash')).toBe(
+      'Bash(python -c "print(1)")',
+    );
+    // 空命令回退工具名
+    expect(actionToRulePattern('run command: ', 'Bash')).toBe('Bash');
+    // CronCreate 负载作用域不变
+    expect(actionToRulePattern('call CronCreate {}', 'CronCreate')).toBeUndefined();
+  });
+
+  it('0b 会话批准端到端：git status 放行 git status --short，git log 仍需审批', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    manager.recordApprovalResult({
+      turnId: 0,
+      toolCallId: 'call_1',
+      toolName: 'Bash',
+      action: 'run command: git status',
+      result: { decision: 'approved', scope: 'session' },
+    });
+
+    // 规则为 per-prefix，非裸 Bash
+    expect(manager.data().rules).toContainEqual({
+      decision: 'allow',
+      scope: 'session-runtime',
+      pattern: 'Bash(git status*)',
+      reason: 'approve_for_session: run command: git status',
+    });
+    // git status --short 经规则放行（无审批请求）
+    await expect(
+      manager.beforeToolCall(
+        hookContext({
+          id: 'call_status_short',
+          args: { command: 'git status --short', timeout: 60 },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).not.toHaveBeenCalled();
+    // git log 不匹配规则 → 仍需审批
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_log', args: { command: 'git log', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'run command: git log' }),
+      expect.anything(),
+    );
+  });
+
+  it('0b 会话批准端到端：curl 精确规则——其他 URL 仍需审批', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    manager.recordApprovalResult({
+      turnId: 0,
+      toolCallId: 'call_1',
+      toolName: 'Bash',
+      action: 'run command: curl https://x.com',
+      result: { decision: 'approved', scope: 'session' },
+    });
+    expect(manager.data().rules).toContainEqual({
+      decision: 'allow',
+      scope: 'session-runtime',
+      pattern: 'Bash(curl https://x.com)',
+      reason: 'approve_for_session: run command: curl https://x.com',
+    });
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_same', args: { command: 'curl https://x.com', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    // 其他 URL 不匹配精确规则 → 仍需审批
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_other', args: { command: 'curl https://y.com', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'run command: curl https://y.com' }),
+      expect.anything(),
+    );
   });
 
   it('scopes CronCreate session approval to the full create payload (PRD-0023 #244)', () => {
