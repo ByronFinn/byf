@@ -16,18 +16,18 @@
 | 同一步内 `applyObservationMasking`、`computeCompletionBudgetCap`、`buildLlmRequestMetadata` 三处各自全量扫描历史(3x 冗余)                          | REPORT-0026 §5 调用链                                         |
 | `estimateTokens(text)` 是纯函数(同输入恒同输出),代码注释明确「transient — 下次 LLM 调用返回真实值即取代」                                          | `utils/tokens.ts:5-12`                                        |
 | 字符串值在原始历史与投影克隆中相同(projector 克隆按值拷贝字符串)→ 字符串级缓存通吃所有路径                                                         | `projector.ts:154-155` cloneMessage + ECMA-262 字符串按值比较 |
-| 投影路径每次产生新 Message 对象 → WeakMap<Message> 对投影路径失效;但字符串值不变 → Map<string> 不受影响                                            | Explore 变更点图谱 + `projector.ts:155`                       |
+| 投影路径每次产生新 Message 对象 → `WeakMap<Message>` 对投影路径失效;但字符串值不变 → `Map<string>` 不受影响                                        | Explore 变更点图谱 + `projector.ts:155`                       |
 | Bun/JSC 对字符串哈希做惰性缓存,同一字符串对象的重复 `Map.get` 接近 O(1)(非负载依据——即使无哈希缓存,原生字节级哈希仍远快于 JS codePoint 逐字符循环) | JSC JSString m_hash 缓存机制(非 Tier 1,仅参考)                |
 | WeakMap 对象键缓存是 ECMA-262 §24.3 + MDN 官方推荐用例(Caching);但原始值(字符串)不能做 WeakMap key,必须用 Map                                      | `docs/research/typescript-weakmap-memoization-6.md`(verified) |
 | 5 个消息内容变更点中,4 个「替换为新对象」、1 个「流式原地 append」(仅影响 partial 消息)                                                            | Explore 变更点图谱                                            |
 
 ## Assumptions
 
-| 假设                           | 验证结论                                                                                                  |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| 字符串级缓存可消除绝大部分热点 | ✅ 83% 自采样来自 `estimateTokens` 的逐字符循环;缓存命中后跳过循环,直接返回                               |
-| 缓存不需要失效逻辑             | ✅ 纯函数:`f(x)` 对同一 `x` 恒返回同一值;ECMA-262 保证字符串按值比较                                      |
-| 内存增长可接受                 | ✅ live unique 文本受会话规模上界约束(200K token ≈ 数千唯一字符串 ≈ <500KB);compaction/clear 时清理双保险 |
+| 假设                           | 验证结论                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 字符串级缓存可消除绝大部分热点 | ✅ 83% 自采样来自 `estimateTokens` 的逐字符循环;缓存命中后跳过循环,直接返回                                  |
+| 缓存不需要失效逻辑             | ✅ 纯函数:`f(x)` 对同一 `x` 恒返回同一值;ECMA-262 保证字符串按值比较                                         |
+| 内存增长可接受                 | ✅ live unique 文本受会话规模上界约束(200K token ≈ 数千唯一字符串 ≈ `<500KB>`);compaction/clear 时清理双保险 |
 
 ## Open Questions
 
@@ -57,7 +57,7 @@
 
 - [x] R1 `estimateTokens` 带 `Map<string, number>` 缓存,签名/返回值/算法不变
 - [x] R2 `clearTokenEstimateCache()` 在 compaction 与 context clear 时调用
-- [x] R3 现有 `tokens.test.ts` 全绿 + 新增 3 个缓存行为测试;**perf 复跑实测:`estimateTokens` 自采样 83.3% → 22.3%、模式 A wall time 4.3-4.5s → 0.55s(8 倍)**(阈值经 2026-08-12 用户确认校准:<10% 为预测值,实测残留 22.3% 为新内容一次性扫描的固有下限,见 Technical Notes)
+- [x] R3 现有 `tokens.test.ts` 全绿 + 新增 3 个缓存行为测试;**perf 复跑实测:`estimateTokens` 自采样 83.3% → 22.3%、模式 A wall time 4.3-4.5s → 0.55s(8 倍)**(阈值经 2026-08-12 用户确认校准:`<10%` 为预测值,实测残留 22.3% 为新内容一次性扫描的固有下限,见 Technical Notes)
 - [x] 改动不碰调用点逻辑(`applyObservationMasking`/`computeCompletionBudgetCap`/`buildLlmRequestMetadata` 等零改动)
 - [x] changeset 已生成(`gen-changesets` skill)
 
@@ -69,7 +69,7 @@
 
 ## Out of Scope
 
-- **第 2 层(`estimateTokensForMessage` 的 WeakMap<Message,number>)**——Layer 1 测完后若残留热点(主要为 `JSON.stringify(call.arguments)` 的 O(n) 序列化)再评估。当前不在本 PRD。
+- **第 2 层(`estimateTokensForMessage` 的 `WeakMap<Message,number>`)**——Layer 1 测完后若残留热点(主要为 `JSON.stringify(call.arguments)` 的 O(n) 序列化)再评估。当前不在本 PRD。
 - **调用点合并 / 增量化**(REPORT-0026 项 2)——Layer 1 缓存后,3x 冗余扫描的第 2、3 次全命中,该项收益已被 Layer 1 覆盖,不再单独做。
 - **`estimateTokens` 向量化 / 正则化**(REPORT-0026 项 3)——缓存命中时不执行循环,该函数不再进热点,无需向量化。
 - **引入真实 tokenizer**(tiktoken / gpt-tokenizer)——代码注释明确「不付 tokenizer 成本」,估算精度已够用。
@@ -117,7 +117,7 @@
 - Pros: ~5 行核心改动;纯函数零失效逻辑;通吃原始 + 投影所有路径;消除同 step 冗余 + 跨 step 重复。
 - Cons: Map 强引用 key,compaction 后旧文本不随消息 GC(但 live 上界约束,清理点双保险)。
 
-**Approach B: 消息级 WeakMap<Message> 缓存(REPORT-0026 原建议)**
+**Approach B: 消息级 `WeakMap<Message>` 缓存(REPORT-0026 原建议)**
 
 - How: `estimateTokensForMessage` 加 `WeakMap<Message, number>`,按对象身份缓存。
 - Pros: WeakMap 弱引用,entry 随消息 GC;4/5 变更点自动失效。
@@ -131,7 +131,7 @@
 
 ## Decision (ADR-lite)
 
-**Context**: REPORT-0026 定位 83% CPU 在 `estimateTokens` 逐字符循环;需选缓存原语。代码核验发现 projector 无条件克隆消息,使 WeakMap<Message> 对投影路径失效。
+**Context**: REPORT-0026 定位 83% CPU 在 `estimateTokens` 逐字符循环;需选缓存原语。代码核验发现 projector 无条件克隆消息,使 `WeakMap<Message>` 对投影路径失效。
 **Decision**: 采用 **Approach A(字符串级 Map 缓存)**。`estimateTokens` 是 83% 热点的叶子函数,字符串值在原始/投影路径中相同,一个模块级 Map 通吃;纯函数保证零失效逻辑。WeakMap(Message 级)留作 Layer 2 备选。
 **Consequences**: 最小改动(~7 行)、最低风险、覆盖所有路径;代价是 Map 强引用需清理点约束长会话内存(已纳入 R2)。
 
@@ -143,18 +143,18 @@
 
 ## Technical Notes
 
-### 为什么不做 WeakMap<Message>(Layer 2)
+### 为什么不做 `WeakMap<Message>`(Layer 2)
 
 - projector `mergeAdjacentUserMessages`(`projector.ts:140-158`)对**每条**消息无条件 `cloneMessage`,即使不需要合并。投影产物全是新对象 → `WeakMap<Message>` 对 `computeCompletionBudgetCap` 等扫投影产物的调用点永不命中。
-- Layer 1(Map<string>)覆盖投影路径后,`estimateTokensForMessage` 退化为 O(parts) 次 Map 查找(全命中)+ `JSON.stringify(call.arguments)`(残留 O(n))。后者工具调用远少于文本,Layer 1 下可忽略;实测确认后再评估 Layer 2。
+- Layer 1(`Map<string>`)覆盖投影路径后,`estimateTokensForMessage` 退化为 O(parts) 次 Map 查找(全命中)+ `JSON.stringify(call.arguments)`(残留 O(n))。后者工具调用远少于文本,Layer 1 下可忽略;实测确认后再评估 Layer 2。
 
 ### 残留热点预估(实测校准 2026-08-12)
 
-**实测**:`estimateTokens` 自采样 83.3% → **22.3%**;模式 A wall time 4.3-4.5s → **0.55s(8 倍,超 <1s 预测)**。
+**实测**:`estimateTokens` 自采样 83.3% → **22.3%**;模式 A wall time 4.3-4.5s → **0.55s(8 倍,超 `<1s` 预测)**。
 
 **残留归因**(profile 数据 + 负载脚本核验):22.3% ≈ 211ms,与新内容一次性扫描的固有成本精确吻合——每 step 新产生 ~55KB 文本(assistant 输出 15KB + 2 个 tool result 各 20KB),新内容必须被逐字符扫描至少一次;200 steps × 55KB ≈ 11MB 字符循环。同 step 内的 3x 冗余扫描与跨 step 重复扫描已被缓存全部消除,这部分 0 冗余。
 
-**<10% 阈值为何不达标**:该阈值基于「缓存命中后不再进热点」的预测,未计入负载的新内容流。新内容扫描是固有下限,即使做 Layer 2(WeakMap<Message>)也无法跨越(本负载 JSON.stringify args 仅 ~50 字节,Layer 2 收益≈0)。真实会话中 Write/Edit 等大参数工具会让 JSON.stringify 重序列化显著,Layer 2 的真实价值需真实会话校准(维持推迟,见 Out of Scope)。
+**`<10%` 阈值为何不达标**:该阈值基于「缓存命中后不再进热点」的预测,未计入负载的新内容流。新内容扫描是固有下限,即使做 Layer 2(`WeakMap<Message>`)也无法跨越(本负载 JSON.stringify args 仅 ~50 字节,Layer 2 收益≈0)。真实会话中 Write/Edit 等大参数工具会让 JSON.stringify 重序列化显著,Layer 2 的真实价值需真实会话校准(维持推迟,见 Out of Scope)。
 
 **真实会话视角**:每 step 残留 ~1ms,被 LLM 往返延迟(2-30s)完全覆盖,用户无感知。优化前每 step ~20ms 的纯 CPU 热点已消除 95%+。
 
@@ -169,7 +169,7 @@
 
 ## Research References
 
-- [typescript weakmap-memoization](docs/research/typescript-weakmap-memoization-6.md) — 对象键用 WeakMap(GC 自动失效);原始值(字符串)键必须用 Map(纯函数恒正确)。本 PRD 的 Map<string> 选型直接依据此记录的「原始值键」结论。
+- [typescript weakmap-memoization](../research/typescript-weakmap-memoization-6.md) — 对象键用 WeakMap(GC 自动失效);原始值(字符串)键必须用 Map(纯函数恒正确)。本 PRD 的 `Map<string>` 选型直接依据此记录的「原始值键」结论。
 
 ## Traceability
 

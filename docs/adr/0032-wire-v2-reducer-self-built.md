@@ -2,13 +2,13 @@
 
 Date: 2026-08-11
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-Supersedes ADR-0031（暂不迁移至 kimi agent-core-v2 的 wire 架构）。
+取代 ADR-0031（暂不迁移至 kimi agent-core-v2 的 wire 架构）。
 
-## Context
+## 背景
 
 ADR-0031（2026-07-13）曾否决全面迁移到 kimi `agent-core-v2` 的 wire 架构，核心理由是：① kimi v2 是移动靶（WIP）；② on-disk 格式需重新对齐（byf 1.1 vs kimi 1.5）；③ 重写成本数周-数月，收益不匹配。
 
@@ -22,7 +22,7 @@ ADR-0031 在 Consequences 里留了作废触发条件：「未来若 wire 子系
 
 3. **ADR-0031 的两大否决理由对「自研」路径不成立**。「移动靶」针对移植 kimi 代码，自研框架只采纳已验证的设计思想；「格式不对齐」针对采纳 kimi 1.5 落盘格式，自研框架的 Op type 直接复用 byf 现有 26 种 record 名，`opToWireRecord` 形状与现有 `logRecord` 逐字节一致，零数据迁移。
 
-## Decision
+## 决策
 
 **自研 wire reducer 框架**，借鉴 kimi v2 **实际落地子集**（Op/Model/toEvent/cross-reducer/onDidRestore 五件套），**不移植 kimi 代码、不绑定其 on-disk 格式**。
 
@@ -40,7 +40,7 @@ ADR-0031 在 Consequences 里留了作废触发条件：「未来若 wire 子系
 
 6. **一次性行为中性切换 + 逐子系统 apply 纯化**（遵循 ADR-0031 备选路径「不要大爆炸」精神）。Phase 0 建框架骨架（零生产影响）；Phase 1 一个 PR 完成「WireService 独占 `wire.jsonl` + 全部 26 种 record 注册为 Op」——其中 goal 的 apply 是纯 reducer，其余 7 个子系统暂为 legacy adapter（委托现有 `restoreRecord`，**行为逐字节保留**，靠 AC1 行为等价测试守卫）。这不是「大爆炸」——危险工作（apply 纯化）仍在 Phase 2-6 逐子系统渐进推进、每阶段独立 PR、可验证、可回滚。详见 PRD-0027 Technical Approach。
 
-## Reasoning
+## 理由
 
 选择自研而非移植，三条理由按权重排序：
 
@@ -50,7 +50,7 @@ ADR-0031 在 Consequences 里留了作废触发条件：「未来若 wire 子系
 
 3. **零数据迁移，风险可控**。Op type 复用现有 record 名是关键设计——现有 `wire.jsonl` 文件无需任何迁移，新旧路径可并存验证，最差情况回退一个 PR 不影响线上会话。移植路径则需写 byf 1.1→kimi 1.5 的跨树迁移 + 接受 record 词汇表差异（v2 多 12 种、v1 多 2 种），是独立的高风险工程。
 
-## Consequences
+## 结果
 
 ### 正面
 
@@ -73,7 +73,7 @@ ADR-0031 在 Consequences 里留了作废触发条件：「未来若 wire 子系
 
 ADR-0031 的 Consequences 里关于「双写仍存在」「未来需重新评估」的预警，正是本 ADR 响应的触发条件。
 
-## References
+## 参考
 
 - PRD-0027：wire v2 reducer 重构（本决策的实施 PRD）
 - ADR-0031：暂不迁移至 kimi agent-core-v2 的 wire 架构（被本 ADR supersede）

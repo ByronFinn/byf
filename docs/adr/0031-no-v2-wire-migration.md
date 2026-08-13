@@ -2,11 +2,11 @@
 
 Date: 2026-07-13
 
-## Status
+## 状态
 
-Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精读 + 逐子系统迁移成本评估），ADR-0032 决定自研 reducer 框架，激活本 ADR 留档的备选迁移路径。
+已被 ADR-0032 取代（2026-08-12）。基于新的证据（kimi v2 实现精读 + 逐子系统迁移成本评估），ADR-0032 决定自研 reducer 框架，激活本 ADR 留档的备选迁移路径。
 
-## Context
+## 背景
 
 一次"对比 kimi-code `packages/agent-core-v2` 的 `wire`/`wireRecord` 与 byf `packages/agent-core`"的架构评审（见 PRD-0025）发现，kimi v2 的 wire 子系统是对 byf 现有 wire v1 的代际重设计，核心改进：
 
@@ -17,7 +17,7 @@ Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精�
 
 评审结论：这些改进**真实且有价值**，但全面迁移的代价过高。
 
-## Decision
+## 决策
 
 **暂不**迁移到 kimi v2 的 wire 架构。改为捕获其中**已经在发生、可低成本拿到**的确认收益（PRD-0025）：
 
@@ -27,7 +27,7 @@ Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精�
 
 明确排除全面 v2 迁移（Op/silent/DI scope/blob codec 等架构性重写）。
 
-## Reasoning
+## 理由
 
 四条理由，按权重排序：
 
@@ -39,7 +39,7 @@ Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精�
 
 4. **byf 已做过一次 restore 重构（ADR-0010）**。那次重构已实现"写/读路径分布式对称"，遗留的是"统一 apply"。这是 v2 的 `silent` 机制要补的一步，但不是非做不可——PRD-0025 的纯函数抽取已能解决最痛的内核/vis 重复。
 
-## Consequences
+## 结果
 
 ### 正面
 
@@ -57,7 +57,7 @@ Superseded by ADR-0032（2026-08-12）。基于新的证据（kimi v2 实现精�
 
 若某天决定迁移，路径参考：先做 `silent` 统一 dispatch/replay（ADR-0010 的自然延续，风险最低），再做 Op 即数据，最后做 DI scope 与派生模型。不要一次性大爆炸。
 
-## References
+## 参考
 
 - PRD-0025：wire 投影纯函数抽取与 pi-tui 升级
 - ADR-0010：AgentRecords 恢复机制重构（上一代 wire restore 重构）
