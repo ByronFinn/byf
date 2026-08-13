@@ -2,14 +2,13 @@ import type { KaosProcess } from './process';
 import type { StatResult } from './types';
 
 /**
- * Byf Agent Operating System (KAOS) interface.
+ * Byf Agent Operating System(KAOS)接口。
  *
- * This is the core abstraction that allows the agent to interact with
- * different execution environments (local, SSH, containers, etc.)
- * through a unified API.
+ * 这是使 agent 能经统一 API 与不同执行环境(本地、SSH、容器等)交互的
+ * 核心抽象。
  */
 export interface Kaos {
-  /** Human-readable name for this environment (e.g. `"local"`, `"ssh:host"`). */
+  /** 此环境的人类可读名称(如 `"local"`、`"ssh:host"`)。 */
   readonly name: string;
 
   // ── Path operations (sync) ──────────────────────────────────────────

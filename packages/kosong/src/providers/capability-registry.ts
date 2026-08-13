@@ -280,9 +280,8 @@ export function getGoogleGenAIModelCapability(modelName: string): ModelCapabilit
 }
 
 /**
- * Tries all provider-specific capability registries and returns the first
- * non-UNKNOWN match. Used when the provider context is unknown (e.g., catalog
- * enrichment) to fill in accurate thinking capability flags.
+ * 尝试全部 provider 特定能力注册表,返回首个非 UNKNOWN 匹配。
+ * 用于 provider 上下文未知时(如目录增强)填充准确的思考能力标志。
  */
 export function resolveCapabilityFromRegistry(modelName: string): ModelCapability | undefined {
   const registries: readonly ((name: string) => ModelCapability)[] = [

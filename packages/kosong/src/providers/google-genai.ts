@@ -612,7 +612,7 @@ export class GoogleGenAIStreamedMessage extends BaseStreamedMessage {
   }
 }
 /**
- * Convert a Google GenAI SDK error (or raw Error) to a kosong `ChatProviderError`.
+ * 把 Google GenAI SDK 错误(或原始 Error)转换为 kosong `ChatProviderError`。
  */
 export function convertGoogleGenAIError(error: unknown): ChatProviderError {
   // Google SDK's exported ApiError carries an HTTP status code

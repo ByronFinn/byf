@@ -1,4 +1,4 @@
-// Message types
+// 消息类型
 export {
   createAssistantMessage,
   createToolMessage,

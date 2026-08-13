@@ -1,11 +1,10 @@
 /**
- * Cross-provider normalization helpers shared by all ChatProvider adapters.
+ * 所有 ChatProvider 适配器共享的跨 provider 归一化辅助。
  *
- * Distinct from `openai-common.ts`, which holds OpenAI-family wire-format
- * conversion. This module holds helpers whose logic is structurally identical
- * across providers, parameterized only by per-provider tables or field names.
+ * 与持有 OpenAI 家族 wire 格式转换的 `openai-common.ts` 不同,本模块持有
+ * 逻辑在 provider 间结构一致、仅由 per-provider 表或字段名参数化的辅助。
  *
- * See ADR 0015 (BaseChatProvider) for the rationale.
+ * 理由见 ADR 0015(BaseChatProvider)。
  */
 
 import {
@@ -18,14 +17,14 @@ import type { FinishReason } from '#/provider';
 import type { TokenUsage } from '#/usage';
 
 /**
- * Build a finish-reason normalizer from a per-provider raw-string → FinishReason table.
+ * 由 per-provider 原始字符串 → FinishReason 表构建 finish-reason 归一化器。
  *
- * Mirrors the shape of the per-adapter `normalizeXxxFinishReason` functions:
- * - `null` / `undefined` raw → `{ finishReason: null, rawFinishReason: null }`
- * - raw present and in the table → mapped FinishReason, raw echoed back
- * - raw present but not in the table → `'other'`, raw echoed back
+ * 镜像各适配器 `normalizeXxxFinishReason` 函数的形态:
+ * - `null` / `undefined` 原始值 → `{ finishReason: null, rawFinishReason: null }`
+ * - 原始值存在且在表中 → 映射的 FinishReason,原始值回显
+ * - 原始值存在但不在表中 → `'other'`,原始值回显
  *
- * The returned function is stateless and safe to call repeatedly.
+ * 返回的函数无状态,可安全重复调用。
  */
 export function makeFinishReasonNormalizer(mapping: Readonly<Record<string, FinishReason>>): (
   raw: string | null | undefined,
@@ -43,14 +42,13 @@ export function makeFinishReasonNormalizer(mapping: Readonly<Record<string, Fini
 }
 
 /**
- * Build the four-field `TokenUsage` from already-parsed per-provider numbers,
- * applying the `inputOther = total - cached` formula shared by OpenAI-style and
- * Google providers (which expose only a total prompt count and a cached subset).
+ * 由已解析的 per-provider 数字构建四字段 `TokenUsage`,应用 OpenAI 风格与
+ * Google provider 共享的 `inputOther = total - cached` 公式(它们只暴露
+ * 提示总数与缓存子集)。
  *
- * `inputOther` is clamped to ≥ 0 when `cached` exceeds `total` (defensive — a
- * provider should never report more cached than total, but we never emit a
- * negative usage field). Anthropic is excluded: it reports a real
- * `inputCacheCreation` field that does not fit this formula.
+ * `cached` 超过 `total` 时 `inputOther` 被钳制为 ≥ 0(防御——provider
+ * 绝不应报告缓存多于总数,但我们绝不发出负用量字段)。Anthropic 被排除:
+ * 它报告真实的 `inputCacheCreation` 字段,不适合此公式。
  */
 export function extractCacheUsage(total: number, cached: number, output: number): TokenUsage {
   return {
@@ -64,46 +62,45 @@ export function extractCacheUsage(total: number, cached: number, output: number)
 const NETWORK_RE = /network|connection|connect|disconnect/i;
 const TIMEOUT_RE = /timed?\s*out|timeout|deadline/i;
 
-/** Options for {@link convertProviderError}. */
+/** {@link convertProviderError} 的选项。 */
 export interface ConvertProviderErrorOptions {
-  /** Numeric HTTP status code extracted from a provider-specific error, if any. */
+  /** 从 provider 特定错误提取的数字 HTTP 状态码(如有)。 */
   readonly status?: number;
-  /** Request id to attach to a status error, if any. */
+  /** 附加到状态错误的请求 id(如有)。 */
   readonly requestId?: string | null;
   /**
-   * Parsed `Retry-After` value (in milliseconds) extracted from a provider
-   * rate-limit response, if any. Threaded into `APIProviderRateLimitError`.
+   * 从 provider 限流响应提取的解析后 `Retry-After` 值(毫秒,如有)。
+   * 穿入 `APIProviderRateLimitError`。
    */
   readonly retryAfterMs?: number | null;
   /**
-   * Extra network-classification matchers the default `NETWORK_RE` does not
-   * cover. Google's SDK throws `fetch failed`, which is not in the default
-   * regex; Google supplies it here. Each matcher is tested against the
-   * lowercased message.
+   * 默认 `NETWORK_RE` 未覆盖的额外网络分类匹配器。Google 的 SDK 抛出
+   * `fetch failed`,不在默认正则中;Google 在此提供。每个匹配器针对
+   * 小写消息测试。
    */
   readonly extraNetworkMatchers?: readonly RegExp[];
   /**
-   * When set, a `TypeError` whose message includes this substring is also
-   * classified as a connection error (Google's fetch layer throws TypeError).
+   * 设置时,消息含此子串的 `TypeError` 也被归类为连接错误
+   * (Google 的 fetch 层抛出 TypeError)。
    */
   readonly extraTypeErrorMatch?: string;
 }
 
 /**
- * Convert a raw thrown value into a kosong `ChatProviderError` using the
- * shared message-based classification ladder:
+ * 用共享的基于消息的分类阶梯把原始抛出值转换为 kosong
+ * `ChatProviderError`:
  *
- * 1. already a `ChatProviderError` → returned as-is (identity)
- * 2. `status` provided → `normalizeAPIStatusError` (status + message + requestId)
- * 3. message matches `TIMEOUT_RE` → `APITimeoutError`
- * 4. message matches `NETWORK_RE` or any `extraNetworkMatchers`, or the value
- *    is a `TypeError` matching `extraTypeErrorMatch` → `APIConnectionError`
- * 5. otherwise → `ChatProviderError` wrapping the message
+ * 1. 已是 `ChatProviderError` → 原样返回(同一性)
+ * 2. 提供 `status` → `normalizeAPIStatusError`(status + message + requestId)
+ * 3. 消息匹配 `TIMEOUT_RE` → `APITimeoutError`
+ * 4. 消息匹配 `NETWORK_RE` 或任一 `extraNetworkMatchers`,或值是匹配
+ *    `extraTypeErrorMatch` 的 `TypeError` → `APIConnectionError`
+ * 5. 否则 → 包裹消息的 `ChatProviderError`
  *
- * Provider adapters that recognize SDK-specific error classes (e.g. OpenAI's
- * `APIConnectionTimeoutError`, Google's `GoogleApiError`) should unwrap them
- * into `(message, status?, requestId?)` before calling this function. The
- * SDK-class detection itself is provider-specific and stays in the adapter.
+ * 识别 SDK 特定错误类(如 OpenAI 的 `APIConnectionTimeoutError`、Google 的
+ * `GoogleApiError`)的 provider 适配器,应在调用此函数前把它们解包为
+ * `(message, status?, requestId?)`。SDK 类检测本身是 provider 特定的,
+ * 留在适配器中。
  */
 export function convertProviderError(
   error: unknown,

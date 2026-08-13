@@ -207,18 +207,15 @@ function lookupClaudeCeiling(version: ClaudeVersion): number | undefined {
 }
 
 /**
- * Resolve the default `max_tokens` for an Anthropic request.
+ * 解析 Anthropic 请求的默认 `max_tokens`。
  *
- * Precedence:
- *   1. Caller-provided `override` (e.g. `models.<alias>.maxOutputSize`
- *      from the harness config) — honored when present so users can
- *      intentionally lower the budget (handy for forcing truncation
- *      in tests) or raise it on a model we don't yet know about.
- *   2. When the model id parses to a known Claude family + version,
- *      the override is clamped to the documented Messages-API ceiling
- *      so we never send a value the server would reject.
- *   3. With no override and no recognized version, fall back to
- *      {@link FALLBACK_MAX_TOKENS}.
+ * 优先级:
+ *   1. 调用方提供的 `override`(如 harness 配置的
+ *      `models.<alias>.maxOutputSize`)——存在时尊重它,使用户可有意
+ *      降低预算(便于在测试中强制截断)或对尚不了解的模型提高预算。
+ *   2. 模型 id 解析为已知 Claude 家族 + 版本时,override 被钳制到文档化
+ *      的 Messages-API 上限,我们绝不发送服务端会拒绝的值。
+ *   3. 无 override 且无已识别版本时,回退到 {@link FALLBACK_MAX_TOKENS}。
  */
 export function resolveDefaultMaxTokens(model: string, override?: number): number {
   const parsed = parseClaudeVersion(model);

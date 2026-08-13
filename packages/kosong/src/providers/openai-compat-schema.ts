@@ -1,11 +1,10 @@
 /**
- * Dereference all `$ref` references in a JSON Schema by inlining definitions
- * from local JSON pointers such as `$defs` and draft-7 `definitions`. Resolved
- * top-level definition buckets are removed from the result.
+ * 通过内联 `$defs` 与 draft-7 `definitions` 等本地 JSON 指针中的定义,
+ * 解引用 JSON Schema 中的全部 `$ref` 引用。已解析的顶层定义桶从结果中
+ * 移除。
  *
- * Circular references are detected and left as `$ref` to avoid infinite
- * recursion; in that case the referenced definition bucket is preserved so the
- * remaining local `$ref` pointers stay resolvable to a JSON Schema validator.
+ * 循环引用被检测并保留为 `$ref`,以避免无限递归;此时引用的定义桶被
+ * 保留,使剩余的本地 `$ref` 指针仍可被 JSON Schema 校验器解析。
  */
 export function derefJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
   const visited = new Set<string>();
@@ -108,16 +107,13 @@ const NUMERIC_STRUCTURE_KEYS = new Set([
 ]);
 
 /**
- * Return a deep-cloned JSON Schema with missing `type` fields filled in for
- * OpenAI-compatible tool compatibility.
+ * 返回缺失 `type` 字段被补齐的深克隆 JSON Schema,以兼容 OpenAI 工具。
  *
- * The tool validator rejects some valid JSON Schema shapes when nested
- * property schemas omit `type` (for example enum-only MCP properties). This is
- * a provider-compatibility normalizer, not a complete JSON Schema compiler:
- * it resolves local refs, preserves combinator nodes, infers obvious
- * scalar/object/array types, and falls back to `string` only for nested
- * typeless property schemas. The root schema object is treated as a container
- * and is not itself normalized.
+ * 嵌套属性 schema 省略 `type` 时(如仅枚举的 MCP 属性),工具校验器会拒绝
+ * 一些合法 JSON Schema 形态。这是 provider 兼容性归一化器,而非完整 JSON
+ * Schema 编译器:它解析本地 refs、保留组合节点、推断明显的标量 / 对象 /
+ * 数组类型,并仅对嵌套的无类型属性 schema 回退为 `string`。根 schema
+ * 对象被视为容器,自身不参与归一化。
  */
 export function normalizeOpenAICompatToolSchema(
   schema: Record<string, unknown>,

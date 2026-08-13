@@ -1,13 +1,12 @@
 /**
- * Shared abstract base for the four ChatProvider adapters.
+ * 四个 ChatProvider 适配器共享的抽象基类。
  *
- * Holds the SDK-agnostic boilerplate (`_clone`, `withGenerationKwargs`, the
- * accessor trio, the `_createClient` shell) that was previously copy-pasted
- * across `anthropic.ts`, `openai-responses.ts`, `google-genai.ts`, and
- * `openai-completions.ts`. Protocol-specific logic (`generate`, message
- * mapping, streaming parsing, cache-control injection) stays in subclasses.
+ * 持有此前在 `anthropic.ts`、`openai-responses.ts`、`google-genai.ts` 与
+ * `openai-completions.ts` 间复制粘贴的 SDK 无关样板(`_clone`、
+ * `withGenerationKwargs`、访问器三件套、`_createClient` 外壳)。协议特定
+ * 逻辑(`generate`、消息映射、流式解析、缓存控制注入)留在子类。
  *
- * See ADR 0015 for the rationale.
+ * 理由见 ADR 0015。
  */
 
 import type { ModelCapability } from '#/capability';
@@ -27,14 +26,14 @@ import {
 import type { Tool } from '#/tool';
 
 /**
- * Per-provider generation-keyword bag. Each subclass constrains this to its
- * own interface (e.g. `GenerationKwargs`, `AnthropicGenerationKwargs`).
- * The index signature is the common supertype all four share.
+ * 每 provider 的生成关键字袋。每个子类把它约束到自己的接口
+ * (如 `GenerationKwargs`、`AnthropicGenerationKwargs`)。
+ * 索引签名是四个适配器共享的公共超类型。
  */
 export type BaseGenerationKwargs = Record<string, unknown>;
 
 /**
- * Resolved auth handed to {@link BaseChatProvider.createRawClient}.
+ * 交给 {@link BaseChatProvider.createRawClient} 的已解析认证。
  */
 export interface ResolvedAuth {
   readonly apiKey: string;
@@ -42,17 +41,18 @@ export interface ResolvedAuth {
 }
 
 /**
- * Abstract base implementing the SDK-agnostic ChatProvider boilerplate.
+ * 实现 SDK 无关 ChatProvider 样板的抽象基类。
  *
- * Subclasses must implement:
- * - `generate(...)` — the streaming/dispatch loop (protocol-specific)
- * - `createRawClient(auth, defaultHeaders)` — `new OpenAI(...)` / `new Anthropic(...)` / etc.
- * - `thinkingEffort` getter — per-provider effort mapping
- * - `getCapability(model?)` — per-provider capability registry lookup
- * - `withThinking(effort)` — per-provider thinking configuration
+ * 子类必须实现:
+ * - `generate(...)` — 流式 / 分发循环(协议特定)
+ * - `createRawClient(auth, defaultHeaders)` — `new OpenAI(...)` /
+ *   `new Anthropic(...)` 等
+ * - `thinkingEffort` getter — 每 provider 的努力映射
+ * - `getCapability(model?)` — 每 provider 的能力注册表查找
+ * - `withThinking(effort)` — 每 provider 的思考配置
  *
- * Subclasses inherit: `_clone`, `withGenerationKwargs`, `modelName`,
- * `modelParameters`, and the `_createClient` shell.
+ * 子类继承:`_clone`、`withGenerationKwargs`、`modelName`、
+ * `modelParameters` 与 `_createClient` 外壳。
  */
 export abstract class BaseChatProvider<
   TKwargs extends BaseGenerationKwargs,
