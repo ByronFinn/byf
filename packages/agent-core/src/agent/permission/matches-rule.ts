@@ -153,6 +153,7 @@ const RESOURCE_OPERATIONS = new Set(['read', 'write', 'readwrite', 'search']);
 function extractResourceAccesses(
   toolName: string,
   args: unknown,
+  homeDir: string | undefined,
 ):
   | readonly BashPathArg[]
   | readonly { readonly rawPath: string; readonly operation: ToolFileAccessOperation }[]
@@ -166,7 +167,30 @@ function extractResourceAccesses(
     case 'Background': {
       if (typeof rec['command'] !== 'string') return undefined;
       const subcommands = parseBashCommand(rec['command']).subcommands;
-      const paths = subcommands.flatMap((s) => s.paths);
+      // 与调度层 resolveBashResources 一致的 cd 累计语义：`cd src && cat x`
+      // 的 x 解析为 src 下的资源（目录作用域规则不可被 cd 绕过）。词法拼接，
+      // `..`/`.` 由 pathGlobMatch 的 canonicalizePath 归一化。
+      let accumulatedCwd: string | undefined;
+      const paths: BashPathArg[] = [];
+      for (const sub of subcommands) {
+        if (sub.verb === 'cd') {
+          if (sub.cdTarget !== undefined) {
+            accumulatedCwd = joinCdTarget(accumulatedCwd, sub.cdTarget, homeDir);
+          } else {
+            accumulatedCwd = undefined; // cd - / 裸 cd：回到会话 cwd
+          }
+          continue;
+        }
+        for (const p of sub.paths) {
+          paths.push({
+            rawPath:
+              accumulatedCwd === undefined
+                ? p.rawPath
+                : joinCdTarget(accumulatedCwd, p.rawPath, undefined),
+            operation: p.operation,
+          });
+        }
+      }
       return paths.length > 0 ? paths : undefined;
     }
     case 'Read':
@@ -209,6 +233,19 @@ function parseResourceArgPattern(argPattern: string): {
   };
 }
 
+/** 词法拼接 cd 目标（`~` 经 homeDir 展开；`..`/`.` 由 pathGlobMatch 归一化）。 */
+function joinCdTarget(
+  base: string | undefined,
+  target: string,
+  homeDir: string | undefined,
+): string {
+  if (target === '~') return homeDir ?? base ?? '';
+  if (target.startsWith('~/')) return `${homeDir ?? ''}/${target.slice(2)}`;
+  if (target.startsWith('/')) return target;
+  const prefix = base ?? '';
+  return prefix.length > 0 ? `${prefix}/${target}` : target;
+}
+
 function matchesResourceRule(
   argPattern: string,
   toolName: string,
@@ -219,7 +256,7 @@ function matchesResourceRule(
   const { negated, operation, glob } = parseResourceArgPattern(argPattern);
   if (operation === undefined || glob.length === 0) return false;
 
-  const resources = extractResourceAccesses(toolName, args);
+  const resources = extractResourceAccesses(toolName, args, pathOptions?.homeDir);
   if (resources === undefined || resources.length === 0) return false;
 
   const hit = resources.some((resource) => {

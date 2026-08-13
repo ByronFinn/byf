@@ -602,7 +602,13 @@ export class TurnFlow {
             },
             prepareToolExecution: async (ctx) => {
               const cached = deduper.checkSameStep(ctx.toolCall.id, ctx.toolCall.name, ctx.args);
-              if (cached !== null) return { syntheticResult: cached, skip: true };
+              if (cached !== null) {
+                // 同 step 去重占位符（非错误）→ skip（结果由原调用 finalize 补入）；
+                // force-stop 结构化错误（isError）→ 不 skip——错误必须回传模型
+                // （公理 A：可区分「被强制停止」与「执行失败」，否则模型只会
+                // 静默重试烧 token）。
+                return { syntheticResult: cached, skip: cached.isError !== true };
+              }
               const hookResult = await this.agent.hooks?.triggerBlock('PreToolUse', {
                 matcherValue: ctx.toolCall.name,
                 signal: ctx.signal,
@@ -960,6 +966,7 @@ function toolInputRecord(args: unknown): Record<string, unknown> {
 
 function toolOutputText(output: ExecutableToolResult['output']): string {
   if (typeof output === 'string') return output;
+  if (!Array.isArray(output)) return JSON.stringify(output);
   return output
     .filter((part): part is Extract<(typeof output)[number], { type: 'text' }> => {
       return typeof part === 'object' && part !== null && part.type === 'text';

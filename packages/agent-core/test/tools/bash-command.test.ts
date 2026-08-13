@@ -191,6 +191,54 @@ describe('bash-command parse — 复合命令', () => {
   });
 });
 
+describe('bash-command parse — review 修复（& / 换行 / find -exec / 深度上限）', () => {
+  it('单 & 是命令分隔符：echo hi & rm x 中 rm 是独立子命令', () => {
+    const r = parseBashCommand('echo hi & rm x');
+    expect(r.subcommands).toHaveLength(2);
+    expect(r.subcommands[1]!.verb).toBe('rm');
+    expect(r.subcommands[1]!.paths).toEqual([{ rawPath: 'x', operation: 'write' }]);
+    // 敏感文件裸名不再逃逸
+    const r2 = parseBashCommand('echo hi & rm id_rsa');
+    expect(r2.subcommands[1]!.paths).toEqual([{ rawPath: 'id_rsa', operation: 'write' }]);
+  });
+
+  it('换行是命令分隔符（多行命令逐行解析）', () => {
+    const r = parseBashCommand('echo hi\nrm x');
+    expect(r.subcommands).toHaveLength(2);
+    expect(r.subcommands[1]!.verb).toBe('rm');
+  });
+
+  it('&& 优先于单 & 判定（cmd1 && cmd2 仍是复合）', () => {
+    const r = parseBashCommand('echo a && echo b');
+    expect(r.subcommands).toHaveLength(2);
+  });
+
+  it('find -exec / -delete 的隐藏文件操作 → indirect', () => {
+    expect(parseBashCommand('find . -name "*.tmp" -delete').subcommands[0]!.kind).toBe('indirect');
+    expect(parseBashCommand('find . -exec rm -rf {} +').subcommands[0]!.kind).toBe('indirect');
+    // 普通 find 不受影响
+    expect(parseBashCommand('find . -name "*.ts"').subcommands[0]!.kind).toBe('narrow');
+  });
+
+  it('grep -f 的 pattern 文件作为 read 资源提取', () => {
+    const r = parseBashCommand('grep -f patterns.txt src/');
+    expect(r.subcommands[0]!.paths).toEqual([
+      { rawPath: 'patterns.txt', operation: 'read' },
+      { rawPath: 'src/', operation: 'search' },
+    ]);
+  });
+
+  it('bash -c 深层嵌套超限转 indirect（防栈溢出 DoS）', () => {
+    // 2000 层嵌套：不崩溃、超限后转 indirect
+    const deep = 'bash -c "'.repeat(2000) + 'echo hi' + '"'.repeat(2000);
+    let result;
+    expect(() => {
+      result = parseBashCommand(deep);
+    }).not.toThrow();
+    expect(result!.subcommands.some((s) => s.kind === 'indirect')).toBe(true);
+  });
+});
+
 describe('bash-command parse — 工具函数', () => {
   it('hasGlobChars 识别 glob 通配符', () => {
     expect(hasGlobChars('*.tmp')).toBe(true);

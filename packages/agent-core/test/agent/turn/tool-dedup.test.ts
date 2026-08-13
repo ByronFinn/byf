@@ -6,6 +6,8 @@ import {
   __testing,
 } from '../../../src/agent/turn/tool-dedup';
 import type { ExecutableToolResult } from '../../../src/loop/types';
+import { testAgent } from '../harness/agent';
+import { formatHarnessSnapshot } from '../harness/snapshots';
 
 const { REMINDER_TEXT_1, makeReminderText2 } = __testing;
 
@@ -454,5 +456,43 @@ describe('PRD-0031 1a force-stop', () => {
     }
     expect(last!.output as string).toContain('<system-reminder>');
     expect(last!.output as string).not.toContain('force-stopped');
+  });
+});
+
+describe('PRD-0031 1a force-stop 集成（loop 级）', () => {
+  it('12 次重复调用后模型收到 force-stopped 结构化错误（不静默丢弃）', async () => {
+    const ctx = testAgent();
+    ctx.configure({ tools: ['Bash'] });
+    // auto 模式：Bash 免审批直跑（force-stop 与模式无关）
+    await ctx.rpc.setPermission({ mode: 'auto' });
+    // 前 11 步各调用一次相同 Bash 命令（streak 1..11）
+    for (let i = 0; i < FORCE_STOP_STREAK - 1; i += 1) {
+      ctx.mockNextResponse(
+        { type: 'text', text: `call ${String(i)}` },
+        {
+          type: 'function',
+          id: `call_${String(i)}`,
+          name: 'Bash',
+          arguments: '{"command":"printf x"}',
+        },
+      );
+    }
+    // 第 12 次调用：触发 force-stop（不执行），错误回传模型
+    ctx.mockNextResponse(
+      { type: 'text', text: 'call 11' },
+      {
+        type: 'function',
+        id: 'call_11',
+        name: 'Bash',
+        arguments: '{"command":"printf x"}',
+      },
+    );
+    // 模型收到 force-stop 错误后给出最终文本
+    ctx.mockNextResponse({ type: 'text', text: 'Stopping now.' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run the loop' }] });
+    const snapshot = formatHarnessSnapshot(await ctx.untilTurnEnd());
+    // 模型必须看到 force-stopped 错误（公理 A：可区分被强制停止与执行失败）
+    expect(snapshot).toContain('force-stopped');
+    expect(snapshot).toContain('were not executed');
   });
 });

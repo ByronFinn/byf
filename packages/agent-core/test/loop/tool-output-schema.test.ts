@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { validateStructuredOutput } from '../../src/loop/tool-call';
+import { coerceToolResult, validateStructuredOutput } from '../../src/loop/tool-call';
 import type { ExecutableToolResult } from '../../src/loop/types';
 import { AgentTool } from '../../src/tools/builtin/collaboration/agent';
 import { GrepTool } from '../../src/tools/builtin/file/grep';
@@ -74,6 +74,33 @@ describe('validateStructuredOutput (PRD-0031 2c)', () => {
     );
     expect(result.isError).toBe(true);
     expect(typeof result.output === 'string' ? result.output : '').toBe('already failed');
+  });
+
+  it('finalize 路径组合（validateStructuredOutput ∘ coerceToolResult）：畸形结构化输出 → 结构化错误', () => {
+    // 与 finalizePendingToolResult 中实际执行的表达式一致
+    const result = validateStructuredOutput(
+      coerceToolResult({ output: { bytesWritten: 'not-a-number' } }, 'TestTool'),
+      TestOutputSchema,
+      'TestTool',
+    );
+    expect(result.isError).toBe(true);
+    expect(typeof result.output === 'string' ? result.output : '').toContain(
+      'violates its declared output schema',
+    );
+    // 合法结构化输出通过组合
+    const ok = validateStructuredOutput(
+      coerceToolResult({ output: { bytesWritten: 42 } }, 'TestTool'),
+      TestOutputSchema,
+      'TestTool',
+    );
+    expect(ok.isError).toBeFalsy();
+    // 字符串输出经组合后豁免
+    const text = validateStructuredOutput(
+      coerceToolResult({ output: 'plain text' }, 'TestTool'),
+      TestOutputSchema,
+      'TestTool',
+    );
+    expect(text.isError).toBeFalsy();
   });
 
   it('未声明 outputSchema 的工具不校验（全量兼容）', () => {

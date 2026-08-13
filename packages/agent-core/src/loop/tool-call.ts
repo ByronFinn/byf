@@ -609,7 +609,7 @@ function isMediaContentPart(part: ContentPart): boolean {
  * emit a paired `tool.result` event. This is the trust boundary between
  * arbitrary tool implementations and the rest of the loop.
  */
-function coerceToolResult(value: unknown, toolName: string): ExecutableToolResult {
+export function coerceToolResult(value: unknown, toolName: string): ExecutableToolResult {
   if (value === null || value === undefined) {
     return { output: `Tool "${toolName}" returned no result.`, isError: true };
   }
@@ -620,7 +620,12 @@ function coerceToolResult(value: unknown, toolName: string): ExecutableToolResul
     };
   }
   const candidate = value as { output?: unknown };
-  if (typeof candidate.output !== 'string' && !Array.isArray(candidate.output)) {
+  const output = candidate.output;
+  if (
+    typeof output !== 'string' &&
+    !Array.isArray(output) &&
+    (output === null || typeof output !== 'object')
+  ) {
     return {
       output: `Tool "${toolName}" returned a result with a missing or malformed "output" field.`,
       isError: true,
@@ -663,8 +668,11 @@ function normalizeToolResult(r: ExecutableToolResult): ExecutableToolResult {
   let output: ExecutableToolResult['output'];
   if (typeof r.output === 'string') {
     output = r.output.length > 0 ? r.output : TOOL_OUTPUT_EMPTY;
-  } else if (r.output.length === 0) {
+  } else if (Array.isArray(r.output) && r.output.length === 0) {
     output = TOOL_OUTPUT_EMPTY;
+  } else if (!Array.isArray(r.output)) {
+    // 结构化对象输出（PRD-0031 2c）：透传（schema 校验在 coerce 边界完成）
+    output = r.output;
   } else {
     const hasMediaBlock = r.output.some(isMediaContentPart);
     if (hasMediaBlock) {

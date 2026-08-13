@@ -1047,4 +1047,16 @@ describe('BashTool — PRD-0031 0a ToolAccesses 声明', () => {
       { kind: 'file', operation: 'search', path: '/workspace/src', recursive: true },
     ]);
   });
+
+  it('写操作一律 recursive（rm/mv/cp 等目录语义动词的保守超集声明）', () => {
+    // rm -rf dist/ 可能触及嵌套路径 → recursive 声明与嵌套文件写串行
+    expect(accessesOf('rm -rf dist/')).toEqual([
+      { kind: 'file', operation: 'write', path: '/workspace/dist', recursive: true },
+    ]);
+    // cp 的目标写同样 recursive（cp -r src 复制整树）
+    expect(accessesOf('cp src/a.ts dest/b.ts')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/src/a.ts' },
+      { kind: 'file', operation: 'write', path: '/workspace/dest/b.ts', recursive: true },
+    ]);
+  });
 });

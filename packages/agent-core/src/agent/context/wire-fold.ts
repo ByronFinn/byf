@@ -42,6 +42,16 @@ export function toolResultOutputForModel(result: ExecutableToolResult): string |
     return isEmptyOutputText(output) ? TOOL_EMPTY_STATUS : output;
   }
 
+  // 结构化对象输出（PRD-0031 2c）：序列化为 JSON 文本供模型阅读
+  if (!Array.isArray(output)) {
+    const text = JSON.stringify(output, null, 2);
+    return [
+      {
+        type: 'text',
+        text: result.isError === true ? `${TOOL_ERROR_STATUS}\n${text}` : text,
+      },
+    ];
+  }
   if (output.length === 0) {
     return [
       {

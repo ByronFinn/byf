@@ -27,6 +27,7 @@ export type KnownBuiltinToolName =
   | 'Skill'
   | 'Bash'
   | 'CompleteTask'
+  | 'McpTools'
   | 'Write'
   | 'Edit'
   | 'TaskStop';
@@ -54,6 +55,7 @@ const BUILTIN_TOOL_DEFAULT_PERMISSION_TABLE: BuiltinToolDefaultPermissionTable =
   Skill: 'auto_allow',
   Bash: 'ask',
   CompleteTask: 'auto_allow',
+  McpTools: 'auto_allow',
   Write: 'ask',
   Edit: 'ask',
   TaskStop: 'ask',

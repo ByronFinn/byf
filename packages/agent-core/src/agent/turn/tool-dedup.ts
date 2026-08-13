@@ -63,9 +63,12 @@ function makeKey(toolName: string, args: unknown): string {
 
 function appendReminder(result: ExecutableToolResult, reminderText: string): ExecutableToolResult {
   const output = result.output;
-  let newOutput: string | ContentPart[];
+  let newOutput: ExecutableToolResult['output'];
   if (typeof output === 'string') {
     newOutput = output + reminderText;
+  } else if (!Array.isArray(output)) {
+    // 结构化对象输出：序列化后追加提醒
+    newOutput = JSON.stringify(output) + reminderText;
   } else {
     const arr: ContentPart[] = [...output];
     const last = arr.at(-1);

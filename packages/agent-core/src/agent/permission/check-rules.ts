@@ -1,6 +1,7 @@
 import { parseBashCommand } from '../../tools/policies/bash-command';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
-import { matchesRule } from './matches-rule';
+import { matchesRule, RESOURCE_RULE_NAMESPACE } from './matches-rule';
+import { parsePattern } from './parse-pattern';
 import type { PermissionPathMatchOptions } from './path-glob-match';
 import type { PermissionMode, PermissionRule, PermissionRuleDecision } from './types';
 
@@ -57,11 +58,30 @@ function checkMatchingRulesPerSubcommand(
   mode: PermissionMode,
   pathOptions?: PermissionPathMatchOptions,
 ): CheckRulesResult | undefined {
+  // 2a Resource 规则（资源语义）：基于**全命令**解析的资源（cd 累计）匹配，
+  // 不参与逐子命令拆分——`cd src && cat foo.txt` 的 foo.txt 是 src 下的资源，
+  // 目录作用域规则不可被 cd 绕过（与调度层 resolveBashResources 语义一致）。
+  const resourceRules = rules.filter(isResourceRule);
+  if (resourceRules.length > 0) {
+    const resourceDecision = checkMatchingRulesCore(
+      resourceRules,
+      toolName,
+      toolInput,
+      mode,
+      pathOptions,
+    );
+    if (resourceDecision !== undefined && resourceDecision.decision !== 'allow') {
+      // deny / ask 短路（deny > ask > allow 聚合优先级的资源侧）
+      return resourceDecision;
+    }
+  }
+  const commandRules = rules.filter((rule) => !isResourceRule(rule));
+
   let anyAsk = false;
   let anyAllowMatch = false;
   for (const sub of subcommands) {
     const subInput = { ...(toolInput as Record<string, unknown>), command: sub };
-    const decision = checkMatchingRulesCore(rules, toolName, subInput, mode, pathOptions);
+    const decision = checkMatchingRulesCore(commandRules, toolName, subInput, mode, pathOptions);
     if (decision === undefined) {
       // 无规则命中 → 默认表：manual 下该子命令默认 ask，yolo/auto 与默认自动
       // 放行工具默认 allow
@@ -77,6 +97,10 @@ function checkMatchingRulesPerSubcommand(
   if (anyAsk) return { decision: 'ask' };
   if (anyAllowMatch) return { decision: 'allow' };
   return undefined;
+}
+
+function isResourceRule(rule: PermissionRule): boolean {
+  return parsePattern(rule.pattern).toolName === RESOURCE_RULE_NAMESPACE;
 }
 
 function checkMatchingRulesCore(

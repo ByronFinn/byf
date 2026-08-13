@@ -245,6 +245,9 @@ const OP_BY_VERB: Readonly<Record<string, BashResourceOperation>> = {
 
 const GLOB_CHARS = /[*?[\]{]/;
 
+/** bash -c 剥壳递归深度上限（防栈溢出 DoS）。 */
+const MAX_PARSE_DEPTH = 64;
+
 /** 路径中是否含 glob 通配符（无法静态收窄）。 */
 export function hasGlobChars(path: string): boolean {
   return GLOB_CHARS.test(path);
@@ -317,11 +320,18 @@ function splitOperators(s: string): string[] {
     } else if (c === ';') {
       parts.push(cur);
       cur = '';
-    } else if ((c === '&' || c === '|') && s[i + 1] === c) {
+    } else if (c === '&' && s[i + 1] === '&') {
+      // `&&` 先于单 `&` 判定
       parts.push(cur);
       cur = '';
       i++;
-    } else if (c === '|') {
+    } else if (c === '|' && s[i + 1] === '|') {
+      parts.push(cur);
+      cur = '';
+      i++;
+    } else if (c === '&' || c === '|' || c === '\n') {
+      // 单 `&`（后台列表分隔）与换行都是 bash 命令分隔符——不切分则
+      // `echo hi & rm x` 的 `rm` 逃逸逐子命令匹配与敏感检查（review 实证）
       parts.push(cur);
       cur = '';
     } else {
@@ -390,6 +400,11 @@ function extractPathArgs(
         const target = tokens[i + 1]?.text;
         if (target !== undefined) out.push({ rawPath: target, operation: 'write' });
       }
+      // grep -f/--file 的值是 pattern 文件——grep 实际读取它（read 资源）
+      if (verb === 'grep' && (t === '-f' || t === '--file')) {
+        const target = tokens[i + 1]?.text;
+        if (target !== undefined) out.push({ rawPath: target, operation: 'read' });
+      }
       if (verb === 'grep' && (t === '-e' || t === '--regexp' || t === '-f' || t === '--file')) {
         sawPatternFlag = true;
       }
@@ -434,7 +449,10 @@ function classifyGit(tokens: readonly Token[]): BashSubcommand {
 }
 
 /** 分类单个子命令（原始文本）。`bash -c` 剥壳展开为多个叶节点子命令。 */
-function classifySubcommand(raw: string): BashSubcommand | readonly BashSubcommand[] {
+function classifySubcommand(
+  raw: string,
+  depth: number,
+): BashSubcommand | readonly BashSubcommand[] {
   // 剥离前导 env 赋值前缀：VAR=val VAR2=val2 cmd ...
   let work = raw;
   const assignRe = /^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/;
@@ -462,11 +480,14 @@ function classifySubcommand(raw: string): BashSubcommand | readonly BashSubcomma
   // bash -c "..." / sh -c "..." → 剥壳递归到内层脚本，内层子命令展开为叶节点
   // （规则匹配与 accesses 都以叶为准）；内层 broad/indirect 向上传播
   if (SHELL_VERBS.has(verb) && tokens[idx + 1]?.text === '-c') {
+    if (depth >= MAX_PARSE_DEPTH) {
+      return { text: raw, verb: `${verb} -c`, kind: 'indirect', paths: [] };
+    }
     const script = tokens
       .slice(idx + 2)
       .map((t) => t.text)
       .join(' ');
-    return parseBashCommand(script).subcommands;
+    return parseBashCommand(script, depth + 1).subcommands;
   }
 
   if (verb === '.') {
@@ -482,6 +503,11 @@ function classifySubcommand(raw: string): BashSubcommand | readonly BashSubcomma
 
   if (verb === 'git') {
     return classifyGit(tokens);
+  }
+
+  // find -exec / -delete：隐藏的文件删除/执行操作对解析器不可见 → indirect
+  if (verb === 'find' && tokens.some((t) => t.text === '-exec' || t.text === '-delete')) {
+    return { text: raw, verb: 'find', kind: 'indirect', paths: [] };
   }
 
   // 解释器 -c/-e：内层代码为已知绕过面 → indirect（强制审批）
@@ -563,7 +589,7 @@ function classifySubcommand(raw: string): BashSubcommand | readonly BashSubcomma
  * 解析 Bash 命令。纯函数、确定性，从不 throw。
  * `bash -c`/`sh -c` 剥壳后内层子命令展开为叶节点（规则匹配与 accesses 都以叶为准）。
  */
-export function parseBashCommand(command: string): BashCommandParse {
-  const subcommands = splitOperators(command).flatMap(classifySubcommand);
+export function parseBashCommand(command: string, depth = 0): BashCommandParse {
+  const subcommands = splitOperators(command).flatMap((piece) => classifySubcommand(piece, depth));
   return { subcommands };
 }

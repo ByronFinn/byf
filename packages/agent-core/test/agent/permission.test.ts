@@ -1598,6 +1598,50 @@ describe('Permission rule helpers', () => {
     ).toBeUndefined();
   });
 
+  it('2a review 修复：Resource 规则跟踪 cd 累计 cwd（目录作用域不可被 cd 绕过）', () => {
+    const pathOptions = { cwd: '/workspace', pathClass: 'posix' as const };
+    // cd src && cat foo.txt → 读的是 /workspace/src/foo.txt
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cd src && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 无 cd 时 foo.txt 是 /workspace/foo.txt → 不命中
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toBeUndefined();
+    // cd src/.. 回到 /workspace：foo.txt 解析为 /workspace/foo.txt（`..` 归一化）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/foo.txt)', 'deny')],
+        'Bash',
+        { command: 'cd src/.. && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 规则为 /workspace/src/** 时不命中（文件在 /workspace 下）→ 默认 ask，非 deny
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cd src/.. && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'ask' });
+  });
+
   it('matches path rules against lexical variants of the same absolute file', () => {
     const secret = '/workspace/project/secret.txt';
     const rule = permissionRule(`Read(${secret})`, 'deny');

@@ -57,7 +57,7 @@ export interface TurnResult {
   usage: TokenUsage;
 }
 
-export type ExecutableToolOutput = string | ContentPart[];
+export type ExecutableToolOutput = string | ContentPart[] | Record<string, unknown>;
 
 export interface ExecutableToolSuccessResult {
   readonly output: ExecutableToolOutput;

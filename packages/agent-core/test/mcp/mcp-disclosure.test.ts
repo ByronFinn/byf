@@ -65,6 +65,14 @@ describe('MCP progressive disclosure (PRD-0031 1c)', () => {
     expect(names).not.toContain('McpTools');
   });
 
+  it('恰好阈值（MCP_DISCLOSURE_THRESHOLD）：仍全量平铺（> 严格大于）', async () => {
+    const ctx = await ctxWithMcpTools(MCP_DISCLOSURE_THRESHOLD);
+    const names = ctx.agent.tools.loopTools.map((t) => t.name);
+    expect(names).toContain('mcp__srv__tool_00');
+    expect(names).toContain('mcp__srv__tool_19');
+    expect(names).not.toContain('McpTools');
+  });
+
   it('超过阈值：McpTools 元工具替代全量平铺，MCP 工具仍注册可执行', async () => {
     const ctx = await ctxWithMcpTools(MCP_DISCLOSURE_THRESHOLD + 1);
     const names = ctx.agent.tools.loopTools.map((t) => t.name);

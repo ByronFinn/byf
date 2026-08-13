@@ -100,7 +100,7 @@ export class McpToolsTool implements BuiltinTool<McpToolsInput> {
       output:
         `<tools_added>\nTool "${tool.name}" is now loaded.\n` +
         `Call it directly by name with arguments matching the JSON schema below.\n</tools_added>\n\n` +
-        `${schema}`,
+        schema,
     };
   }
 }

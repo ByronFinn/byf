@@ -532,7 +532,9 @@ function resolveBashResources(
         kind: 'file',
         operation: path.operation,
         path: canonical,
-        recursive: path.operation === 'search' ? true : undefined,
+        // search 递归读、write 一律 recursive（rm/mv/cp 等目录语义动词可能
+        // 触及子路径——保守超集声明，避免与嵌套路径的并发写竞态）
+        recursive: path.operation === 'search' || path.operation === 'write' ? true : undefined,
       });
     }
     if (sub.kind === 'no-access') continue;
