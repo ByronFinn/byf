@@ -61,3 +61,12 @@ byf 对 DeepSeek 两条路径的**缓存与 reasoning 格式均已正确处理**
 **实测验证（2026-08-13）**
 
 - 4 组合真实调用（deepseek-v4-flash / v4-pro × Chat Completions / Responses），返回 JSON 与上述文档逐字段一致；Responses reasoning 文本位于 `output[].content[]`（`reasoning_text`）而非 `summary` 为本记录新增发现，文档未明示此层级。
+
+## Correction (2026-08-13)
+
+**非流式与流式 reasoning 文本缺口均已修复，原 Verdict「唯一缺口」过时。**
+
+- **非流式**：`openai-responses.ts` reasoning 解析在 summary 无文本时 fallback 到 content 的 `reasoning_text` 项（summary 优先、不重复 yield）。
+- **流式**：DeepSeek Responses 用 `response.reasoning_text.delta` 事件流式传输 reasoning（文本在 `delta` 字段，官方文档逐字确认），byf 原只处理 `reasoning_summary_text.delta` 导致该事件落 default 被静默丢弃。已补 `response.reasoning_text.delta` case，并**用真实 API 流式实测验证**（2026-08-13，deepseek-v4-flash 生产 `OpenAIResponsesChatProvider`：reasoning 逐 token 流式到达、think parts 有文本、`inputCacheRead=256` 缓存命中）。
+- `output_item.done` 的 reasoning item 里 content 是累计全文，delta 已流式传输，故不重复读（done 分支保持空 think 结束标记，与 OpenAI 形态一致）。
+- **仍未验证**：出站回传方向——byf 多轮回传把 ThinkPart 序列化为 `{type:'reasoning', summary:[summary_text]}`（OpenAI 形态），DeepSeek Responses 输入侧接受 summary 还是 content 形态未经实测。若用户走 DeepSeek Responses 多轮工具调用，建议实测确认回传格式后再定论。

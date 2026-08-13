@@ -747,6 +747,13 @@ export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
             yield { type: 'think', think: '' };
             break;
           case 'response.reasoning_summary_text.delta':
+          case 'response.reasoning_text.delta':
+            // 两者都是 Responses API 标准流式事件(OpenAI OpenAPI spec 均定义):
+            // summary_text.delta 是 OpenAI 摘要形态,reasoning_text.delta 是明文
+            // reasoning 形态(DeepSeek 用后者)。文本都在 `delta` 字段;同一 reasoning
+            // item 若两事件并发,think 流会同时含摘要与全文(内容变多,不崩溃)。
+            // output_item.done 的 reasoning item 里 content 是累计全文,delta 已流式
+            // 传输过,故不重复读(见 streaming 测试)。
             yield { type: 'think', think: requireStringField(chunk, 'delta', type) };
             break;
           case 'response.completed':
