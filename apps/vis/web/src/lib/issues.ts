@@ -1,14 +1,14 @@
-// Aggregate every "something went wrong" signal from a wire timeline
-// into a flat list consumable by the Issues drawer. Pure — no React.
+// 把 wire 时间线中的每个「出问题」信号聚合为 Issues 抽屉可消费的扁平
+// 列表。纯函数——无 React。
 //
-// Detection rules for the new agent-core wire protocol:
-//   - tool.call without paired tool.result (orphan tool.call)
-//   - tool.result without preceding tool.call (orphan tool.result)
-//   - step.begin without paired step.end (incomplete step)
-//   - full_compaction.begin without complete/cancel (incomplete compaction)
-//   - permission.record_approval_result with decision='rejected' (info)
+// 新 agent-core wire 协议的检测规则:
+//   - tool.call 无配对的 tool.result(孤儿 tool.call)
+//   - tool.result 无前导的 tool.call(孤儿 tool.result)
+//   - step.begin 无配对的 step.end(未完成 step)
+//   - full_compaction.begin 无 complete/cancel(未完成压缩)
+//   - permission.record_approval_result 且 decision='rejected'(信息)
 //
-// Wire-file parse warnings are appended as info-level entries with no lineNo.
+// Wire 文件解析警告作为无 lineNo 的信息级条目追加。
 
 import type { WireEntry } from '../types';
 
@@ -39,8 +39,8 @@ const SEVERITY_ORDER: Record<IssueSeverity, number> = {
   info: 2,
 };
 
-/** Scan `records` + `warnings` and produce an ordered issue list.
- *  Sorted by severity first, then lineNo ascending. Warnings (no lineNo) go last. */
+/** 扫描 `records` + `warnings`,产生有序问题列表。
+ *  先按严重度排序,再按 lineNo 升序。警告(无 lineNo)排在最后。 */
 export function computeIssues(entries: readonly WireEntry[], warnings: readonly string[]): Issue[] {
   const out: Issue[] = [];
 
@@ -158,7 +158,7 @@ export function computeIssues(entries: readonly WireEntry[], warnings: readonly 
   return out;
 }
 
-/** Top-level summary tone used for the toolbar pill — "worst wins". */
+/** 工具栏药丸使用的顶层摘要色调——「最差者胜」。 */
 export function topSeverity(issues: readonly Issue[]): IssueSeverity | null {
   if (issues.length === 0) return null;
   for (const i of issues) if (i.severity === 'error') return 'error';

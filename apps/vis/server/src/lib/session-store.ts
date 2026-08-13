@@ -8,11 +8,10 @@ import type { SessionSummary, SessionDetail, AgentInfo, SessionHealth } from './
 const SESSION_ID_RE = /^session_[A-Za-z0-9._-]+$/;
 const AGENT_ID_RE = /^[A-Za-z0-9._-]+$/;
 
-/** Reject agent ids that could escape the session directory via path
- *  joins. Defence-in-depth: the on-disk source of these ids is
- *  agent-core (which only generates main / agent-N), but a corrupted
- *  or hand-edited `state.json.agents` key could otherwise turn vis
- *  into a local-file-read primitive when exposed beyond loopback. */
+/** 拒绝可能经路径拼接逃出会话目录的 agent id。纵深防御:这些 id 的
+ *  磁盘来源是 agent-core(只生成 main / agent-N),但损坏或手工编辑的
+ *  `state.json.agents` 键,在 vis 暴露于回环之外时,可能把它变成
+ *  本地文件读取原语。 */
 export function isSafeAgentId(id: string): boolean {
   return AGENT_ID_RE.test(id) && id !== '.' && id !== '..';
 }

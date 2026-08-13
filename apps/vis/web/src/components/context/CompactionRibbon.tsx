@@ -6,10 +6,9 @@ interface CompactionRibbonProps {
 }
 
 /**
- * Horizontal ribbon that marks where a `context.apply_compaction` record
- * collapsed earlier messages into a single summary. Receives the
- * `ProjectedMessage` whose `source === 'compaction_summary'` so we can
- * render the summary text inline.
+ * 标记 `context.apply_compaction` 记录把早期消息折叠为单个摘要位置的水平
+ * 丝带。接收 `source === 'compaction_summary'` 的 `ProjectedMessage`,
+ * 使我们可以内联渲染摘要文本。
  */
 export function CompactionRibbon({ message }: CompactionRibbonProps) {
   const summary = extractSummary(message);

@@ -1,6 +1,6 @@
 // apps/vis/server/src/lib/agent-record-types.ts
-// Re-exports shared DTOs from @byfriends/vis-shared.
-// Server-only runtime code (e.g. AGENT_WIRE_PROTOCOL_VERSION) stays here.
+// 从 @byfriends/vis-shared 重导出共享 DTO。
+// 仅服务端运行时代码(如 AGENT_WIRE_PROTOCOL_VERSION)留在此处。
 
 export { AGENT_WIRE_PROTOCOL_VERSION } from '@byfriends/agent-core';
 

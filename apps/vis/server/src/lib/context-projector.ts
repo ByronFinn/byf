@@ -20,21 +20,18 @@ export type { ProjectedMessage, UsageTotals, ConfigSnapshot, ContextProjection }
 
 const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 
-/** Build a conversation timeline + derived state from a sequence of
- *  wire entries.
+/** 从一串 wire 条目构建会话时间线 + 派生状态。
  *
- *  The fold logic (step.begin/content.part/tool.call/tool.result/step.end,
- *  deferred-message flushing during tool exchanges, tool-output
- *  normalisation) is delegated to agent-core's `wire-fold` module (pure
- *  functions; single source of truth shared with the live agent). Each fold
- *  call returns the messages it committed, so vis attaches its display
- *  metadata (`lineNo` / `time` / `source`) to the return values instead of an
- *  `onMessage` effect port (Phase 5 signature adaptation — the effect ports
- *  are gone from the shared fold).
+ *  fold 逻辑(step.begin/content.part/tool.call/tool.result/step.end、
+ *  工具交换期间的延迟消息刷出、工具输出归一化)委托给 agent-core 的
+ *  `wire-fold` 模块(纯函数;与 live agent 共享的单一事实源)。每次 fold
+ *  调用返回其提交的消息,因此 vis 把展示元数据(`lineNo` / `time` /
+ *  `source`)附加到返回值,而非 `onMessage` effect 端口(Phase 5 签名
+ *  适配——共享 fold 中的 effect 端口已消失)。
  *
- *  vis-specific concerns stay here: attaching `lineNo` / `time` / `source`
- *  display metadata to each projected message, and aggregating usage /
- *  config / permission snapshots that the fold does not own. */
+ *  vis 特定关注点留在此处:为每条投影消息附加 `lineNo` / `time` /
+ *  `source` 展示元数据,并聚合 fold 不拥有的 usage / config /
+ *  permission 快照。 */
 export function projectContext(entries: ReadonlyArray<WireEntry>): ContextProjection {
   const messages: ProjectedMessage[] = [];
   const state: WireFoldState = createWireFoldState();

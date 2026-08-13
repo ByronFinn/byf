@@ -8,11 +8,11 @@ interface ImagePreviewProps {
   label?: string;
 }
 
-/** Inline preview for an image ContentPart URL.
- *  Renders the actual `<img>` for `data:image/*` and `http(s)://` URLs;
- *  falls back to the raw URL for any other scheme.
- *  Click "expand" to lift the height cap to 80vh; click "open in tab"
- *  to view the full asset in a new browser tab. */
+/** 图片 ContentPart URL 的内联预览。
+ *  对 `data:image/*` 与 `http(s)://` URL 渲染真实 `<img>`;
+ *  任何其他 scheme 回退为原始 URL。
+ *  点击「expand」把高度上限提升到 80vh;点击「open in tab」
+ *  在新浏览器标签页查看完整资产。 */
 export function ImagePreview({ url, label = 'image_url' }: ImagePreviewProps) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);

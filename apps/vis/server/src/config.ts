@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-/** Resolve BYF_HOME (env > ~/.byf). */
+/** 解析 BYF_HOME(env > ~/.byf)。 */
 export function resolveByfHome(): string {
   const envHome = process.env['BYF_HOME'];
   if (envHome !== undefined && envHome.length > 0) {
@@ -10,7 +10,7 @@ export function resolveByfHome(): string {
   return join(homedir(), '.byf');
 }
 
-/** HTTP port for the vis API server. */
+/** vis API 服务器的 HTTP 端口。 */
 export function resolvePort(): number {
   const raw = process.env['PORT'];
   if (raw !== undefined && raw.length > 0) {
@@ -22,7 +22,7 @@ export function resolvePort(): number {
   return 3001;
 }
 
-/** HTTP host for the vis API server. Defaults to loopback. */
+/** vis API 服务器的 HTTP 主机。默认为回环。 */
 export function resolveHost(): string {
   const raw = process.env['VIS_HOST'] ?? process.env['HOST'];
   const host = raw?.trim();

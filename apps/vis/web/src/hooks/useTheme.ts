@@ -32,9 +32,9 @@ function apply(resolved: ResolvedTheme): void {
 }
 
 /**
- * Three-state theme: auto (follow system), light, dark. The resolved concrete
- * theme is reflected on `<html data-theme="...">`. User choice is persisted
- * in localStorage; absence ⇒ auto.
+ * 三态主题:auto(跟随系统)、light、dark。解析后的具体主题反映在
+ * `<html data-theme="...">` 上。用户选择持久化在 localStorage;
+ * 缺席 ⇒ auto。
  */
 export function useTheme(): {
   choice: ThemeChoice;

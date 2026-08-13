@@ -29,15 +29,13 @@ function bestEffortMigrations(): readonly WireMigration[] {
   }
 }
 
-/** Read a single agent's `wire.jsonl`.
+/** 读取单个 agent 的 `wire.jsonl`。
  *
- *  Each record is returned as a `WireEntry` containing both the
- *  on-disk parsed form (`raw`) and the migrated current-protocol form
- *  (`data`). For wires that declare a protocol version `agent-core`
- *  does not recognise (historic 2.x labels, or truly future versions),
- *  the reader falls back to a best-effort path: records are run
- *  through the 1.0-onwards migration chain and a warning is added to
- *  `warnings[]` so the UI can surface the caveat. */
+ *  每条记录以 `WireEntry` 返回,同时含磁盘解析形态(`raw`)与迁移后的
+ *  当前协议形态(`data`)。对声明 `agent-core` 不认识的协议版本
+ *  (历史 2.x 标签,或真正未来的版本)的 wire,读取器回退到尽力路径:
+ *  记录经 1.0 起的迁移链运行,并向 `warnings[]` 添加警告,使 UI 能
+ *  呈现该注意事项。 */
 export async function readAgentWire(path: string): Promise<WireReadResult> {
   const stream = createReadStream(path, { encoding: 'utf8' });
   const rl = createInterface({ input: stream, crlfDelay: Infinity });

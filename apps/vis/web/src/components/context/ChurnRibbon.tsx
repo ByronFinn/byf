@@ -6,10 +6,10 @@ interface ChurnRibbonProps {
 }
 
 /**
- * Ribbon marking where the static cache prefix changed between turns
- * (PRD-0029 R3 — break-side attribution). Mirrors {@link CompactionRibbon}'s
- * horizontal-divider paradigm. The projector encodes the changed block name and
- * cache scope into the message text as `<blockName> · <cacheScope>`.
+ * 标记 turn 之间静态缓存前缀发生变化位置的丝带(PRD-0029 R3——
+ * 破坏侧归因)。镜像 {@link CompactionRibbon} 的水平分隔线范式。
+ * projector 把变化的块名与缓存作用域编码进消息文本,形如
+ * `<blockName> · <cacheScope>`。
  */
 export function ChurnRibbon({ message }: ChurnRibbonProps) {
   const detail = extractDetail(message);

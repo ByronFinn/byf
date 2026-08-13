@@ -20,11 +20,10 @@ interface StateJsonShape {
   custom?: Record<string, unknown> & { imported_from_byf_cli?: boolean };
 }
 
-/** State tab — renders the raw `state.json` blob from session detail.
- *  At the top, a handful of highlight cards surface the most-asked fields
- *  (title / lastPrompt / created / updated / agent count). Below that, the
- *  full JSON is shown via the shared JsonViewer so any custom fields the
- *  upstream writer adds remain readable without code changes. */
+/** 状态标签页——渲染会话详情中的原始 `state.json` 数据块。
+ *  顶部几张高亮卡片呈现最常被问的字段(title / lastPrompt / created /
+ *  updated / agent 数)。其下,完整 JSON 经共享 JsonViewer 显示,使上游
+ *  写入方添加的任何自定义字段无需代码变更即可保持可读。 */
 export function StateTab({ state }: StateTabProps) {
   const s = useMemo<StateJsonShape>(() => {
     return (state ?? {}) as StateJsonShape;
