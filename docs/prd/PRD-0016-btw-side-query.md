@@ -167,6 +167,7 @@
 
 - **Arch reviewed by**: `/improve-architecture` (2026-07-03) — `/btw` 已落地但 overlay 生命周期与事件路由继续聚合到 `byf-tui.ts`，TUI 分解回归风险为 High。
 - **Arch reviewed by**: `/improve-architecture` (2026-07-10) — 引擎侧 `askSide`/事件已齐；CLI 仍把 `handleBtwCommand`/`handleBtwEvent` 留在 `byf-tui.ts`（~140 行），加重 H1 回归（High）。
+- **Debugged by**: `/debug` (2026-08-13) — `askSide` 把 `role:'system'` 的只读指令插在历史与问题之间，qwen-3.6 等严格 chat template 要求 system 在最前，/btw 报 Jinja/500（与 pi-tui 升级无关）；指令角色改为 `user`（保留位置与缓存前缀，请求体恢复单条 system 领先）。
 
 **Sliced into:**
 

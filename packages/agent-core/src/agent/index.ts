@@ -106,9 +106,11 @@ export type AgentType = 'main' | 'sub' | 'independent';
  * via a tool, falls back to emitting tool-call syntax as plain text
  * (e.g. `<tool_call><function=WebSearch>…`). This directive closes that
  * gap by making the read-only, text-only contract explicit and forbidding
- * any tool-call-like output. It is injected as a `system` message
- * *between* the stable snapshot and the user's question, so the main
- * system prompt (and its cache prefix) is untouched.
+ * any tool-call-like output. It is injected as a `user` message *between*
+ * the stable snapshot and the user's question, so the main system prompt
+ * (and its cache prefix) is untouched and the wire request keeps exactly
+ * one leading `system` message — strict chat templates (e.g. qwen-3.6)
+ * reject a request whose system message is not the first one.
  */
 const BTW_READONLY_INSTRUCTION = [
   'You are answering a read-only side question ("by the way").',
@@ -119,7 +121,7 @@ const BTW_READONLY_INSTRUCTION = [
 ].join(' ');
 
 const BTW_READONLY_INSTRUCTION_MESSAGE: Message = {
-  role: 'system',
+  role: 'user',
   content: [{ type: 'text', text: BTW_READONLY_INSTRUCTION }],
   toolCalls: [],
 };
