@@ -31,7 +31,7 @@ import {
   ProcessTerminal,
   type SlashCommand,
   Spacer,
-  TUI,
+  TuiMainScreen,
 } from '@earendil-works/pi-tui';
 import chalk from 'chalk';
 
@@ -259,7 +259,7 @@ export function createTUIState(options: ByfTuiOptions): TUIState {
   const theme = createByfTuiThemeBundle(initialAppState.theme, options.resolvedTheme);
 
   const terminal = new ProcessTerminal();
-  const ui = new TUI(terminal);
+  const ui = new TuiMainScreen(terminal);
 
   // Every chrome container runs with a 2-column outer gutter on each
   // side. That gives the transcript, panels, the editor and the
