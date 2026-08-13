@@ -1496,6 +1496,79 @@ describe('OpenAIResponsesChatProvider', () => {
       ]);
     });
 
+    it('streams reasoning text from response.reasoning_text.delta (DeepSeek shape)', async () => {
+      // DeepSeek Responses streams reasoning via `response.reasoning_text.delta`
+      // (text in `delta`), NOT `response.reasoning_summary_text.delta`. The
+      // output_item.done reasoning item carries the accumulated full text in
+      // `content` (which must NOT be re-emitted — it would duplicate the
+      // already-streamed deltas; the done marker stays an empty think).
+      const events = [
+        {
+          type: 'response.output_item.added',
+          item: { id: 'rs_1', type: 'reasoning' },
+          output_index: 0,
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          item_id: 'rs_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Thinking about ',
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          item_id: 'rs_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'the weather...',
+        },
+        {
+          type: 'response.output_item.done',
+          item: {
+            id: 'rs_1',
+            type: 'reasoning',
+            summary: [],
+            content: [{ type: 'reasoning_text', text: 'Thinking about the weather...' }],
+          },
+          output_index: 0,
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is 42.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_ds_stream',
+            usage: {
+              input_tokens: 377,
+              input_tokens_details: { cached_tokens: 256 },
+              output_tokens: 68,
+              output_tokens_details: { reasoning_tokens: 22 },
+              total_tokens: 445,
+            },
+          },
+        },
+      ];
+
+      const stream = new OpenAIResponsesStreamedMessage(makeAsyncIterable(events), true);
+
+      const parts: StreamedMessagePart[] = [];
+      for await (const part of stream) {
+        parts.push(part);
+      }
+
+      expect(parts).toEqual([
+        { type: 'think', think: 'Thinking about ' },
+        { type: 'think', think: 'the weather...' },
+        { type: 'think', think: '' },
+        { type: 'text', text: 'The answer is 42.' },
+      ]);
+      expect(stream.usage).toEqual({
+        inputOther: 121,
+        output: 68,
+        inputCacheRead: 256,
+        inputCacheCreation: 0,
+      });
+    });
+
     it('stream.id is response.id, not output item id (tool call)', async () => {
       // Regression: previously `output_item.added` / `output_item.done`
       // overwrote `_id` with the item id (or undefined for tool-call items
