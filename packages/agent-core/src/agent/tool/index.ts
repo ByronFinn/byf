@@ -37,6 +37,12 @@ interface McpToolEntry {
   readonly serverName: string;
 }
 
+/**
+ * PRD-0031 1c：启用的 MCP 工具数超过该阈值时触发渐进披露——全量 schema
+ * 不再平铺进 prompt，改由 `McpTools` 元工具按需加载（公理 C：上下文有界）。
+ */
+export const MCP_DISCLOSURE_THRESHOLD = 20;
+
 export class ToolManager {
   protected builtinTools: Map<string, BuiltinTool> = new Map();
   protected userTools: Map<string, ExecutableTool> = new Map();
@@ -403,6 +409,8 @@ export class ToolManager {
         this.agent.cron && new b.CronDeleteTool(this.agent.cron),
         webSearcher && new b.WebSearchTool(webSearcher),
         urlFetcher && new b.FetchURLTool(urlFetcher),
+        // PRD-0031 1c：MCP 渐进披露元工具（超阈值时由 loopTools 注入）
+        new b.McpToolsTool(() => this.listEnabledMcpTools()),
       ]
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),
@@ -429,25 +437,45 @@ export class ToolManager {
     //    hidden when no goal is present — they have nothing to act on. The
     //    read/create tools (CreateGoal, GetGoal) stay visible so the model
     //    can discover the goal subsystem and create one.
+    //    PRD-0031 1c: McpTools 元工具仅在渐进披露激活时进入列表。
     const hasGoal = this.agent.goal.getSnapshot() !== null;
+
+    // 2. MCP tools: grouped by server, connection order preserved.
+    //    PRD-0031 1c：MCP 工具数超过阈值时渐进披露——全量 schema 不进入
+    //    prompt（公理 C），改由 McpTools 元工具按需加载；工具仍注册可执行。
+    //    tools 前缀因此对 MCP churn 免疫（超阈值后一次成型）。
+    const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
+    const mcpDisclosureActive = mcpNames.length > MCP_DISCLOSURE_THRESHOLD;
+
     const builtinNames = [...this.builtinTools.keys()]
       .filter((name) => this.enabledTools.has(name))
       .filter((name) => hasGoal || !b.GOAL_MUTATION_TOOL_NAMES.has(name))
+      .filter((name) => mcpDisclosureActive || name !== 'McpTools')
       .toSorted();
 
-    // 2. User tools: alphabetically sorted
+    // 3. User tools: alphabetically sorted
     const userNames = [...this.userTools.keys()]
       .filter((name) => this.enabledTools.has(name))
       .toSorted();
 
-    // 3. MCP tools last: grouped by server, connection order preserved
-    const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
-
     return [
       ...builtinNames.map((name) => this.builtinTools.get(name)),
       ...userNames.map((name) => this.userTools.get(name)),
-      ...mcpNames.map((name) => this.mcpTools.get(name)?.tool),
+      ...(mcpDisclosureActive
+        ? [this.builtinTools.get('McpTools')]
+        : mcpNames.map((name) => this.mcpTools.get(name)?.tool)),
     ].filter((tool): tool is ExecutableTool => !!tool);
+  }
+
+  /** PRD-0031 1c：McpTools 元工具读取的启用 MCP 工具摘要快照。 */
+  private listEnabledMcpTools(): readonly b.McpToolSummary[] {
+    return [...this.mcpTools.values()]
+      .filter((entry) => this.isMcpToolEnabled(entry.tool.name))
+      .map((entry) => ({
+        name: entry.tool.name,
+        description: entry.tool.description,
+        parameters: entry.tool.parameters,
+      }));
   }
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
