@@ -1,12 +1,12 @@
 /**
- * DSL parser for PermissionRule `pattern` strings.
+ * PermissionRule `pattern` 字符串的 DSL 解析器。
  *
- * Grammar:
+ * 文法:
  *   pattern    := toolName ( "(" argPattern ")" )?
- *   toolName   := identifier characters (e.g. `Bash`, `mcp__github__*`)
- *   argPattern := any string (may start with `!` for negation)
+ *   toolName   := 标识符字符(例如 `Bash`、`mcp__github__*`)
+ *   argPattern := 任意字符串(可以 `!` 开头表示取反)
  *
- * Examples:
+ * 示例:
  *   "Write"            → { toolName: "Write" }
  *   "Read(/etc/**)"    → { toolName: "Read", argPattern: "/etc/**" }
  *   "Bash(!rm *)"      → { toolName: "Bash", argPattern: "!rm *" }
@@ -19,9 +19,8 @@ export interface ParsedPattern {
 }
 
 /**
- * Parse a DSL pattern. Throws on malformed input (missing closing paren,
- * empty tool name). The parser is the single source of truth for DSL
- * syntax and is exercised by table-driven tests.
+ * 解析 DSL pattern。输入畸形时抛出(缺少闭合括号、工具名为空)。该解析器是
+ * DSL 语法的唯一事实源,由表驱动测试覆盖。
  */
 export function parsePattern(pattern: string): ParsedPattern {
   const trimmed = pattern.trim();

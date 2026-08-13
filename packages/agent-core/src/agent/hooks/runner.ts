@@ -8,28 +8,24 @@ export interface RunHookOptions {
   readonly cwd?: string;
   readonly signal?: AbortSignal;
   /**
-   * Execution backend used to spawn the hook command. Defaults to the local
-   * {@link Kaos} environment via {@link createKaosHookExec}; production wiring
-   * (HookEngine → Session) injects the runtime's active Kaos so hook execution
-   * follows the user's working directory, including under future SSHKaos
-   * (ADR 0006).
+   * 用于拉起 hook 命令的执行后端。默认经 {@link createKaosHookExec} 使用本地
+   * {@link Kaos} 环境;生产接线(HookEngine → Session)注入运行时的活跃 Kaos,
+   * 使 hook 执行跟随用户的工作目录,包括未来 SSHKaos 场景(ADR 0006)。
    */
   readonly exec?: HookExec;
 }
 
 /**
- * Execution backend used by {@link runHook}.
+ * {@link runHook} 使用的执行后端。
  *
- * Hooks run in the user's project working directory, which is the exact path
- * that becomes remote once `SSHKaos` (per ADR 0006) lands. Routing the spawn
- * through `Kaos.execWithEnv()` keeps hook execution on the correct side of the
- * local/remote boundary instead of always spawning on the BYF host.
+ * hook 在用户的项目工作目录中运行,而该目录正是 `SSHKaos`(ADR 0006)落地后
+ * 变为远程的路径。经 `Kaos.execWithEnv()` 路由 spawn,使 hook 执行保持在
+ * 本地 / 远程边界的正确一侧,而不是总在 BYF 宿主上拉起。
  */
 export interface HookExec {
   /**
-   * Spawn a shell-interpreted command with an optional working directory and
-   * environment, returning the running process. Mirrors `Kaos.execWithEnv` so
-   * the local implementation can delegate directly.
+   * 以可选工作目录与环境拉起一条由 shell 解释的命令,返回运行中的进程。
+   * 镜像 `Kaos.execWithEnv`,使本地实现可直接委托。
    */
   exec(
     command: string,
@@ -38,23 +34,22 @@ export interface HookExec {
 }
 
 /**
- * Build a {@link HookExec} backed by the active {@link Kaos} environment.
+ * 构建由活跃 {@link Kaos} 环境支撑的 {@link HookExec}。
  *
- * `Kaos.execWithEnv` spawns without shell interpretation and at the Kaos
- * instance's own cwd (the BYF host process dir, shared across sessions), so a
- * hook command needs two adaptations before it reaches `execWithEnv`:
+ * `Kaos.execWithEnv` 不经 shell 解释,且在 Kaos 实例自身的 cwd( BYF 宿主
+ * 进程目录,跨会话共享)中拉起,因此 hook 命令在到达 `execWithEnv` 前需要
+ * 两处适配:
  *
- * 1. **Shell interpretation** — hook commands are free-form shell strings
- *    (pipes, variables, `&&`, scripts). Wrap them as `["<shell>", "-c", cmd]`
- *    using the same cross-platform shell probe the Bash tool uses.
- * 2. **Working directory** — the Kaos instance is shared, so we cannot chdir
- *    it per hook. Switch directory inside the shell via
- *    `cd '<cwd>' && <command>` (POSIX single-quote escaping), mirroring the
- *    Bash tool's approach. When no cwd is given the shell's inherited cwd
- *    (the Kaos cwd) is used, preserving the previous fallthrough behavior.
+ * 1. **Shell 解释** — hook 命令是自由格式的 shell 字符串(管道、变量、
+ *    `&&`、脚本)。按 Bash 工具使用的同一跨平台 shell 探测,包装为
+ *    `["<shell>", "-c", cmd]`。
+ * 2. **工作目录** — Kaos 实例是共享的,无法为每个 hook 切换其目录。在
+ *    shell 内部经 `cd '<cwd>' && <command>` 切换(POSIX 单引号转义),
+ *    镜像 Bash 工具的做法。未给出 cwd 时使用 shell 继承的 cwd(Kaos cwd),
+ *    保留此前的回退行为。
  *
- * This keeps hook execution on the correct side of the local/remote boundary
- * (ADR 0006): once `SSHKaos` lands, the shell + cd run remotely.
+ * 这使 hook 执行保持在本地 / 远程边界的正确一侧(ADR 0006):
+ * `SSHKaos` 落地后,shell 与 cd 都在远程运行。
  */
 export function createKaosHookExec(kaos: Kaos, shellPath: string): HookExec {
   return {

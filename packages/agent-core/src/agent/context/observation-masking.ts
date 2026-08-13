@@ -4,13 +4,13 @@ import { estimateTokensForMessages } from '../../utils/tokens';
 import type { ContextMessage } from './types';
 
 export interface MaskingConfig {
-  /** Effective capacity ratio (default 0.6 = 60% of advertised capacity) */
+  /** 有效容量比例(默认 0.6 = 通告容量的 60%) */
   effectiveCapacityRatio: number;
-  /** Low priority masking threshold (default 0.60) */
+  /** 低优先级遮蔽阈值(默认 0.60) */
   lowPriorityThreshold: number;
-  /** Medium priority masking threshold (default 0.80) */
+  /** 中优先级遮蔽阈值(默认 0.80) */
   mediumPriorityThreshold: number;
-  /** High priority threshold — unmaskable, goes straight to compaction */
+  /** 高优先级阈值——不可遮蔽,直接进入压缩 */
   highPriorityThreshold: number;
 }
 
@@ -21,7 +21,7 @@ export const DEFAULT_MASKING_CONFIG: MaskingConfig = {
   highPriorityThreshold: 0.85,
 };
 
-/** Tool priority */
+/** 工具优先级 */
 export type ToolPriority = 'high' | 'medium' | 'low';
 
 export function getToolPriority(toolName: string): ToolPriority {
@@ -143,8 +143,8 @@ function maskToolResult(
 }
 
 /**
- * Apply observation masking to tool result messages in history.
- * Returns a new history array (does not mutate the original) and masking result.
+ * 对历史中的工具结果消息应用 observation masking。
+ * 返回新的历史数组(不修改原数组)与遮蔽结果。
  */
 export function applyObservationMasking(
   history: readonly ContextMessage[],

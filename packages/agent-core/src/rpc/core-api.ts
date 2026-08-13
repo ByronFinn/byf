@@ -72,12 +72,12 @@ export interface ExportSessionPayload {
   readonly sessionId: string;
   readonly outputPath?: string;
   /**
-   * When true, the active global diagnostic log (`$BYF_HOME/logs/byf.log`)
-   * is copied into the zip at `logs/global/byf.log`. Off by default to
-   * avoid bundling events from concurrent sessions / other projects.
+   * 为 true 时,活跃的全局诊断日志(`$BYF_HOME/logs/byf.log`)会被复制进
+   * zip 的 `logs/global/byf.log`。默认关闭,避免打包并发会话 / 其他项目
+   * 的事件。
    */
   readonly includeGlobalLog?: boolean;
-  /** Host version to record in the export manifest. */
+  /** 记录到导出 manifest 的宿主版本。 */
   readonly version: string;
 }
 
@@ -92,9 +92,9 @@ export interface ExportSessionManifest {
   readonly sessionLastActivity?: string;
   readonly title?: string;
   readonly workspaceDir?: string;
-  /** zip-relative path to the session diagnostic log when present. */
+  /** 会话诊断日志存在时的 zip 相对路径。 */
   readonly sessionLogPath?: string;
-  /** zip-relative path to the bundled global diagnostic log (only when --include-global-log). */
+  /** 打包的全局诊断日志的 zip 相对路径(仅当 --include-global-log 时)。 */
   readonly globalLogPath?: string;
 }
 
@@ -179,7 +179,7 @@ export interface SetActiveToolsPayload {
 }
 export interface StopBackgroundPayload {
   readonly taskId: string;
-  /** Free-form human-readable reason persisted with the task record. */
+  /** 随任务记录持久化的自由格式人类可读原因。 */
   readonly reason?: string;
 }
 export interface GetBackgroundOutputPayload {
@@ -191,12 +191,11 @@ export interface GetBackgroundOutputPathPayload {
 }
 export interface GetBackgroundPayload {
   /**
-   * When omitted, returns all tasks (including terminal/lost). Pass
-   * `true` to filter down to active-only — useful for model-facing
-   * surfaces. UI/TUI consumers should leave it undefined.
+   * 省略时返回所有任务(含 terminal/lost)。传 `true` 过滤为仅活跃任务——
+   * 对面向模型的表面有用。UI/TUI 消费者应保持 undefined。
    */
   readonly activeOnly?: boolean;
-  /** Caps the number of tasks returned. When omitted, returns all matching tasks. */
+  /** 限制返回的任务数。省略时返回全部匹配任务。 */
   readonly limit?: number;
 }
 export interface SkillSummary {
@@ -261,7 +260,7 @@ export interface GetCronTasksResult {
   readonly tasks: readonly CronTaskSnapshot[];
 }
 
-/** Host-path cron delete (PRD-0024 / ADR-0030). Not a tool permission surface. */
+/** 宿主路径 cron 删除(PRD-0024 / ADR-0030)。不是工具权限表面。 */
 export interface DeleteCronTaskPayload {
   readonly id: string;
 }

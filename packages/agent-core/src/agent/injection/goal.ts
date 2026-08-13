@@ -7,17 +7,17 @@ const PAUSED_HEADER = 'The goal is paused; do not take goal-directed action unti
 const COMPLETE_HEADER = 'The goal has been completed; finish any in-flight work cleanly.';
 
 /**
- * Ephemeral injector for goal mode state (PRD-0019 R6 / ADR-0022).
+ * goal 模式状态的 ephemeral 注入器(PRD-0019 R6 / ADR-0022)。
  *
- * Renders a `before_user` reminder reflecting the current goal tier:
- * - active: full reminder with objective + budget guidance + completion instruction.
- * - blocked: light reminder naming the blocked reason.
- * - paused: guard reminder (no goal-directed action).
- * - complete (transient): completion-tier reminder.
- * - no goal: empty.
+ * 渲染反映当前 goal 层级的 `before_user` 提醒:
+ * - active:完整提醒,含目标 + 预算指引 + 完成指令。
+ * - blocked:指明阻塞原因的轻量提醒。
+ * - paused:守卫提醒(不做目标导向行动)。
+ * - complete(瞬时):完成层级提醒。
+ * - 无 goal:为空。
  *
- * Ephemeral: not stored in history, regenerated each step, does not pollute the
- * cached prefix. Persistence/replay comes from the goal.* records, not from here.
+ * Ephemeral:不存入历史,每步重新生成,不污染缓存前缀。持久化 / replay
+ * 来自 goal.* 记录,而非此处。
  */
 export class GoalInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'goal';

@@ -7,16 +7,13 @@ const AUTO_MODE_REMINDER = [
 ].join('\n');
 
 /**
- * Ephemeral injector for permission mode state.
+ * 权限模式状态的 ephemeral 注入器。
  *
- * Emits the current permission mode as an ephemeral injection placed at
- * the `'before_user'` position. Unlike the previous persistent approach
- * (which recorded transition events into history), the ephemeral approach
- * always reflects the current state — surviving compaction and avoiding
- * history pollution.
+ * 把当前权限模式作为置于 `'before_user'` 位置的 ephemeral 注入发出。与旧的
+ * 持久化做法(把转换事件记录进历史)不同,ephemeral 做法始终反映当前状态——
+ * 扛住压缩,避免历史污染。
  *
- * Only auto mode produces an injection; in all other modes the absence
- * of a reminder signals that normal approval prompts apply.
+ * 只有 auto 模式产生注入;其他模式下提醒的缺席即表示常规审批提示适用。
  */
 export class PermissionModeInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'permission_mode';

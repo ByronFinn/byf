@@ -1,12 +1,12 @@
 /**
- * Error codes for Byf Core's public error protocol.
+ * Byf Core 公共错误协议的错误码。
  *
- * `ErrorCodes` is the source of truth for every code Byf Core may emit.
- * Downstream consumers (SDK, RPC clients, telemetry, agent-facing docs)
- * should depend on these string values rather than on class identity.
+ * `ErrorCodes` 是 Byf Core 可能发出的每个码的唯一事实源。下游消费者
+ * (SDK、RPC 客户端、遥测、面向 agent 的文档)应依赖这些字符串值,
+ * 而非类身份。
  *
- * Codes follow `domain.reason`. Adding a code is a minor change; renaming
- * or removing one is a major change.
+ * 码遵循 `domain.reason` 形式。新增一个码是 minor 变更;重命名或移除
+ * 一个是 major 变更。
  */
 export const ErrorCodes = {
   CONFIG_INVALID: 'config.invalid',

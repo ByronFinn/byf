@@ -1,12 +1,11 @@
 /**
- * matchesRule — pure function that decides whether a PermissionRule
- * applies to a given tool call.
+ * matchesRule — 判定 PermissionRule 是否适用于给定工具调用的纯函数。
  *
- * Contract:
- *   - No side effects, no `this`, no IO, no exceptions.
- *   - Deterministic: same `(rule, toolName, args)` → same result.
- *   - Returns boolean only; decision semantics (deny/ask/allow) are a
- *     caller concern (see `check-rules.ts`).
+ * 契约:
+ *   - 无副作用、无 `this`、无 IO、无异常。
+ *   - 确定性:相同 `(rule, toolName, args)` → 相同结果。
+ *   - 只返回布尔值;决策语义(deny/ask/allow)是调用方的事
+ *     (见 `check-rules.ts`)。
  */
 
 import picomatch from 'picomatch';
@@ -64,16 +63,15 @@ function extractArgField(toolName: string, args: unknown): ArgField | undefined 
 }
 
 /**
- * Decide whether a single rule matches a specific tool call.
+ * 判定单条规则是否匹配特定的工具调用。
  *
- * Algorithm:
- *   1. Parse `rule.pattern` into `{toolName, argPattern?}`.
- *   2. If parsed toolName is `*`, skip name check; otherwise compare with
- *      glob semantics so `mcp__github__*` matches `mcp__github__list`.
- *   3. If the rule has no argPattern, name match → rule fires.
- *   4. Otherwise extract the tool-specific field value and match against
- *      the glob. Handle the leading `!` negation prefix by flipping the
- *      final boolean.
+ * 算法:
+ *   1. 把 `rule.pattern` 解析为 `{toolName, argPattern?}`。
+ *   2. 若解析出的 toolName 为 `*`,跳过名称检查;否则按 glob 语义比较,
+ *      使 `mcp__github__*` 能匹配 `mcp__github__list`。
+ *   3. 若规则无 argPattern,名称匹配 → 规则生效。
+ *   4. 否则提取工具特定字段值,与 glob 匹配。对前导 `!` 取反前缀,
+ *      通过翻转最终布尔值处理。
  */
 export function matchesRule(
   rule: PermissionRule,

@@ -114,29 +114,26 @@ export interface ByfCoreOptions {
 }
 
 /**
- * Narrow handle returned by {@link createByfCore}.
+ * {@link createByfCore} 返回的窄句柄。
  *
- * SDK consumers only need the RPC channel (a `PromisableMethods<CoreAPI>`
- * that can be fed to `createRPC`) plus the two resolved paths. Exposing the
- * full `ByfCore` concrete class would leak the engine's 40+ internal members
- * (sessions map, sdk Promise, providerManager, sessionStore, telemetry, …)
- * through the SDK type surface and break the ADR 0006 isolation seam.
- * See ADR 0006 (Monorepo Layered Architecture).
+ * SDK 消费者只需要 RPC 通道(一个可喂给 `createRPC` 的
+ * `PromisableMethods<CoreAPI>`)加两个解析后的路径。暴露完整的 `ByfCore`
+ * 具体类会把引擎的 40+ 内部成员(sessions 映射、sdk Promise、
+ * providerManager、sessionStore、telemetry …)泄漏进 SDK 类型表面,
+ * 破坏 ADR 0006 的隔离接缝。见 ADR 0006(Monorepo 分层架构)。
  */
 export interface CoreEngineHandle {
-  /** CoreRPC-ready core: pass to the first slot of `createRPC<CoreAPI, SDKAPI>()`. */
+  /** CoreRPC 就绪的 core:传给 `createRPC<CoreAPI, SDKAPI>()` 的第一个槽位。 */
   readonly core: PromisableMethods<CoreAPI>;
   readonly homeDir: string;
   readonly configPath: string;
 }
 
 /**
- * Construct a {@link ByfCore} engine and return a narrow {@link CoreEngineHandle}.
+ * 构造 {@link ByfCore} 引擎,返回窄 {@link CoreEngineHandle}。
  *
- * This is the supported way for the SDK layer to bootstrap the engine. The
- * concrete `ByfCore` class is intentionally not re-exported from the package
- * public surface (see `rpc/index.ts`); callers program against the
- * {@link CoreAPI} contract via this factory.
+ * 这是 SDK 层引导引擎的受支持方式。具体 `ByfCore` 类刻意不重导出到包公开
+ * 面(见 `rpc/index.ts`);调用方经本工厂面向 {@link CoreAPI} 契约编程。
  */
 export function createByfCore(
   rpcClient: CoreRPCClient,

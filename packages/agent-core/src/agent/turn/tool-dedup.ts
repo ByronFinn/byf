@@ -74,15 +74,13 @@ function appendReminder(result: ExecutableToolResult, reminderText: string): Exe
 const DEDUP_PLACEHOLDER_RESULT: ExecutableToolResult = { output: '' };
 
 /**
- * Detects and suppresses repetitive tool calls within a single turn.
+ * 检测并抑制单个 turn 内重复的工具调用。
  *
- * Two behaviours are layered:
- * - Same-step dedup: a duplicate `(toolName, args)` issued in the same LLM step
- *   reuses the original call's result instead of executing the tool twice.
- * - Cross-step dedup: when the exact same call is repeated consecutively
- *   across steps, the result returned to the model is suffixed with a system
- *   reminder at specific streak thresholds (3, 5, and 8) to nudge the model
- *   to try a different approach.
+ * 两层行为叠加:
+ * - 同 step 去重:同一 LLM step 内发出的重复 `(toolName, args)` 复用原调用
+ *   的结果,而不是执行两次工具。
+ * - 跨 step 去重:同一调用连续跨 step 重复时,返回给模型的结果会在特定
+ *   连续阈值(3、5、8)处追加系统提醒,引导模型尝试不同方法。
  */
 export class ToolCallDeduplicator {
   private stepDeferreds = new Map<string, Deferred<ExecutableToolResult>>();
@@ -127,14 +125,12 @@ export class ToolCallDeduplicator {
   }
 
   /**
-   * Called from `prepareToolExecution`. If this `(toolName, args)` was already
-   * seen in the current step, returns a placeholder result so the loop can
-   * skip executing the tool again; the real result is patched in during
-   * `finalizeResult`. Returns `null` for the first occurrence so the normal
-   * execution path proceeds.
+   * 从 `prepareToolExecution` 调用。若此 `(toolName, args)` 在当前 step 中
+   * 已出现过,返回占位结果,使 loop 跳过再次执行工具;真实结果在
+   * `finalizeResult` 期间补入。首次出现返回 `null`,走正常执行路径。
    *
-   * This method is intentionally synchronous to avoid deadlocking the prepare
-   * loop on a deferred that only resolves in the finalize phase.
+   * 此方法刻意保持同步,避免 prepare 循环在仅于 finalize 阶段 resolve 的
+   * deferred 上死锁。
    */
   checkSameStep(toolCallId: string, toolName: string, args: unknown): ExecutableToolResult | null {
     const key = makeKey(toolName, args);
@@ -153,12 +149,10 @@ export class ToolCallDeduplicator {
   }
 
   /**
-   * Called from `finalizeToolResult`, in provider order. For first-occurrence
-   * calls, projects the consecutive streak ending at this call and, if the
-   * threshold is reached, appends the system reminder, then resolves the
-   * deferred so subsequent same-step dups can fetch the real result. For
-   * synthetic duplicates, awaits the original's deferred and returns its
-   * value, discarding the placeholder.
+   * 从 `finalizeToolResult` 调用,按 provider 顺序。对首次出现的调用,
+   * 计算止于此调用的连续重复次数,达到阈值时追加系统提醒,然后 resolve
+   * deferred,使后续同 step 重复调用可取到真实结果。对合成重复调用,
+   * 等待原调用的 deferred 并返回其值,丢弃占位结果。
    */
   async finalizeResult(
     toolCallId: string,

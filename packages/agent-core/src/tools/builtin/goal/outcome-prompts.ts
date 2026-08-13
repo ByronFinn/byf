@@ -1,30 +1,28 @@
 /**
- * Pure functions that render goal lifecycle transitions into user-facing
- * prose (PRD-0019 R14). They run from the `goal.updated` event snapshot in
- * both live and replay paths, so any change here automatically stays
- * consistent across both rendering modes.
+ * 把 goal 生命周期转换渲染为用户可见文案的纯函数(PRD-0019 R14)。
+ * 它们在 live 与 replay 两条路径中都基于 `goal.updated` 事件快照运行,
+ * 因此这里的任何改动都会自动保持两种渲染模式一致。
  *
- * Kept dependency-free on purpose: the CLI (#205) imports these so the
- * wording is shared instead of duplicated.
+ * 刻意保持零依赖:CLI(#205)导入这些函数,使措辞共享而非重复。
  */
 
 import type { GoalSnapshot } from '../../../agent/goal/types';
 
-/** Render the completion summary line for a finished goal. */
+/** 渲染已完成 goal 的完成摘要行。 */
 export function renderCompletionSummary(snapshot: GoalSnapshot, reason?: string): string {
   const usageLine = formatUsage(snapshot);
   const tail = reason && reason.trim().length > 0 ? ` — ${reason.trim()}` : '';
   return `Goal complete: ${snapshot.objective}${tail}\n${usageLine}`;
 }
 
-/** Render the blocked-reason line for a goal that hit a blocker. */
+/** 渲染遇到阻塞器的 goal 的阻塞原因行。 */
 export function renderBlockedReason(snapshot: GoalSnapshot): string {
   const usageLine = formatUsage(snapshot);
   const reason = snapshot.blockedReason ?? 'unknown blocker';
   return `Goal blocked: ${snapshot.objective} — ${reason}\n${usageLine}`;
 }
 
-/** Render a single-line snapshot for `/goal status`. */
+/** 渲染 `/goal status` 的单行快照。 */
 export function renderStatusLine(snapshot: GoalSnapshot): string {
   const budgetLine = formatBudgetRemaining(snapshot);
   const parts = [

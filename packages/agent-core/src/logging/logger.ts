@@ -397,20 +397,19 @@ function mergeCtx(
 }
 
 /**
- * Root logger. Import and use directly for events that don't belong to any
- * session (CLI startup, harness construction, etc.):
+ * 根日志器。对不属于任何会话的事件(CLI 启动、harness 构造等)直接导入使用:
  *
  *   import { log } from 'byf-sdk';
  *   log.info('byf starting', { version });
  *
- * For events scoped to a session or agent, use the parent's `log` field:
+ * 对限定于会话或 agent 的事件,使用父级的 `log` 字段:
  *
  *   session.log.error('mcp initial load failed', error);
  *   agent.log.error('turn failed', { turnId, error });
  *
- * Late-binding: methods look up the current `RootLogger` on every call, so
- * importing `log` at module load (before `ByfHarness` configures the root)
- * is safe — calls during the pre-configure window are silent noops.
+ * 晚绑定:方法在每次调用时查找当前 `RootLogger`,因此在模块加载时
+ * (`ByfHarness` 配置根日志器之前)导入 `log` 是安全的——配置前窗口内的
+ * 调用是静默空操作。
  */
 export const log: Logger = new LoggerImpl({});
 

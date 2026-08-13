@@ -1,5 +1,5 @@
 /**
- * file-type — magic-byte + extension detection. No npm dependency.
+ * file-type — magic-byte + 扩展名检测。无 npm 依赖。
  */
 
 export const MEDIA_SNIFF_BYTES = 512;
@@ -238,13 +238,11 @@ export interface ImageDimensions {
 }
 
 /**
- * Best-effort pixel-dimension reader for common raster formats.
+ * 常见栅格格式像素尺寸的尽力读取器。
  *
- * Inspects only the fixed region near the start of the file where each
- * format records its dimensions (the IHDR/DIB header, the RIFF chunk
- * after the `WEBP` tag, or the first JPEG SOFn segment). Returns `null`
- * for formats whose dimensions are not locatable from that region, or
- * when the supplied buffer is too short to cover it.
+ * 只检查文件起始附近各格式记录尺寸的固定区域(IHDR/DIB 头部、
+ * `WEBP` 标签后的 RIFF chunk,或首个 JPEG SOFn 段)。对无法从该区域
+ * 定位尺寸的格式,或提供的缓冲区过短不足以覆盖时,返回 `null`。
  */
 export function sniffImageDimensions(data: Buffer | Uint8Array): ImageDimensions | null {
   const buf = toBuffer(data);

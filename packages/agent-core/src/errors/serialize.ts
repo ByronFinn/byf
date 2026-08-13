@@ -9,14 +9,13 @@ import { ByfError } from './classes';
 import { ErrorCodes, BYF_ERROR_INFO, type ByfErrorCode } from './codes';
 
 /**
- * Wire-safe payload of a Byf error.
+ * Byf 错误的 wire 安全负载。
  *
- * The structure passed across process / language boundaries (RPC, events,
- * telemetry, SDK wrappers). Class identity does not survive the boundary;
- * downstream code must branch on `code` rather than `instanceof`.
+ * 这是跨进程 / 跨语言边界(RPC、事件、遥测、SDK 包装)传递的结构。类身份
+ * 无法跨过边界;下游代码必须按 `code` 分支而非 `instanceof`。
  *
- * `details` is JSON-serialized. `cause` is intentionally absent -- it is
- * local-only diagnostic state and must not cross the boundary.
+ * `details` 被 JSON 序列化。`cause` 刻意缺席——它是仅本地的诊断状态,
+ * 不得跨边界。
  */
 export interface ByfErrorPayload {
   readonly code: ByfErrorCode;
@@ -26,16 +25,15 @@ export interface ByfErrorPayload {
   readonly retryable: boolean;
 }
 
-/** Type guard for ByfError. */
+/** ByfError 的类型守卫。 */
 export function isByfError(error: unknown): error is ByfError {
   return error instanceof ByfError;
 }
 
 /**
- * Build a ByfErrorPayload directly from a code + message (no Error instance
- * needed). Use this for synthetic error events that are signaled, not thrown
- * -- e.g. "turn busy" or "compaction failed". `retryable` is filled from
- * BYF_ERROR_INFO so callers cannot drift out of sync with the registry.
+ * 直接由 code + message 构建 ByfErrorPayload(无需 Error 实例)。用于以信号
+ * 而非抛出的方式表达的错误事件——例如「turn 忙碌」或「压缩失败」。
+ * `retryable` 从 BYF_ERROR_INFO 填充,使调用方不会与注册表脱节。
  */
 export function makeErrorPayload(
   code: ByfErrorCode,
@@ -52,17 +50,16 @@ export function makeErrorPayload(
 }
 
 /**
- * Normalize any value into a ByfErrorPayload.
+ * 把任意值归一化为 ByfErrorPayload。
  *
- * Recognized errors:
- * - `ByfError`: passthrough.
- * - `APIStatusError`: 429 -> rate_limit, 401 -> auth_error, otherwise -> api_error.
- * - `APIConnectionError` / `APITimeoutError`: connection_error.
- * - `ChatProviderError`: api_error.
- * - Heuristic "Model not set" / "Provider not set" messages: model.not_configured.
+ * 可识别的错误:
+ * - `ByfError`:直接透传。
+ * - `APIStatusError`:429 → rate_limit,401 → auth_error,其余 → api_error。
+ * - `APIConnectionError` / `APITimeoutError`:connection_error。
+ * - `ChatProviderError`:api_error。
+ * - 启发式匹配「Model not set」/「Provider not set」消息:model.not_configured。
  *
- * Anything else collapses to `internal`. We never echo `cause` or stack on
- * the wire.
+ * 其余一切归并为 `internal`。我们绝不在 wire 上回显 `cause` 或堆栈。
  */
 export function toByfErrorPayload(error: unknown): ByfErrorPayload {
   if (isByfError(error)) {
@@ -138,9 +135,8 @@ export function toByfErrorPayload(error: unknown): ByfErrorPayload {
 }
 
 /**
- * Rehydrate a ByfErrorPayload into a ByfError. Used by SDK boundary code
- * receiving errors over RPC to re-surface them with a real class so
- * in-process consumers can still use `instanceof`.
+ * 把 ByfErrorPayload 重新水合为 ByfError。SDK 边界代码经 RPC 收到错误后用它
+ * 以真实类重新呈现,使进程内消费者仍可使用 `instanceof`。
  */
 export function fromByfErrorPayload(payload: ByfErrorPayload): ByfError {
   return new ByfError(payload.code, payload.message, {

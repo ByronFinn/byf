@@ -164,51 +164,44 @@ export class ContextMemory {
   }
 
   /**
-   * Media-degraded projection of the current messages: all but the most
-   * recent {@link MEDIA_DEGRADE_KEEP_RECENT} media parts are replaced by
-   * text markers. Used for the one-shot resend after the provider rejects
-   * the request body as too large (HTTP 413 body-size). Read-side only —
-   * the underlying history is left untouched.
+   * 当前消息的 media-degraded 投影:除最近
+   * {@link MEDIA_DEGRADE_KEEP_RECENT} 个媒体 part 外的全部被替换为文本标记。
+   * 用于 provider 以请求体过大(HTTP 413 体积)拒绝后的一次性重发。
+   * 纯读侧——底层历史原封不动。
    *
-   * Accepts the same optional ephemeral injections as {@link getMessages}
-   * so the degraded projection includes the same per-request dynamic
-   * content (timestamp, permission mode) as the normal projection.
+   * 接受与 {@link getMessages} 相同的可选 ephemeral 注入,使降级投影包含
+   * 与常规投影相同的每请求动态内容(时间戳、权限模式)。
    */
   getMediaDegradedMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
     return degradeOlderMediaParts(this.getMessages(ephemeral), MEDIA_DEGRADE_KEEP_RECENT);
   }
 
   /**
-   * Media-stripped projection: ALL media parts replaced by text markers.
-   * Used for the one-shot resend after the provider rejects an image's
-   * format/data (the poisoned image could be anywhere, so only a full
-   * strip guarantees a clean request). Read-side only.
+   * media-stripped 投影:所有媒体 part 被替换为文本标记。
+   * 用于 provider 拒绝图片格式 / 数据后的一次性重发(坏图可能位于任意位置,
+   * 只有整体剥离才能保证请求干净)。纯读侧。
    */
   getMediaStrippedMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
     return degradeOlderMediaParts(this.getMessages(ephemeral), 0, MEDIA_STRIPPED_PLACEHOLDERS);
   }
 
   /**
-   * Project history into provider-ready messages, optionally with
-   * ephemeral injections (e.g. timestamp, permission mode) appended
-   * at the `'before_user'` position.
+   * 把历史投影为 provider 就绪的消息,可选地在 `'before_user'` 位置
+   * 追加 ephemeral 注入(如时间戳、权限模式)。
    */
   getMessages(ephemeral?: readonly EphemeralInjection[]): Message[] {
     return project(this.history, ephemeral);
   }
 
   /**
-   * Provider-ready snapshot of the conversation history safe to feed into a
-   * detached, read-only LLM call (e.g. a `/btw` side query).
+   * 可安全喂给独立只读 LLM 调用(如 `/btw` 侧查询)的会话历史
+   * provider 就绪快照。
    *
-   * Unlike {@link getMessages}, this trims the trailing assistant message
-   * (and anything after it) when the main turn is mid-tool-call. A message
-   * sequence containing a `tool_call` without its paired `tool_result` is
-   * illegal and would be rejected by providers, so the snapshot rolls back
-   * to the last fully-complete step boundary. Ephemeral injections are
-   * excluded — a side query appends its own user message and the
-   * `before_user`-positioned injections would otherwise land between the
-   * main history and that question.
+   * 与 {@link getMessages} 不同,当主 turn 处于工具调用中间时,它会截掉
+   * 尾部 assistant 消息(及其后的任何内容)。含 `tool_call` 而无配对的
+   * `tool_result` 的消息序列是非法的,会被 provider 拒绝,因此快照回滚到
+   * 最后一个完整 step 边界。ephemeral 注入被排除——侧查询会追加自己的
+   * user 消息,否则 `before_user` 位置的注入会落在主历史与该问题之间。
    */
   getStableSnapshot(): Message[] {
     const messages = this.getMessages();

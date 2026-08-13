@@ -1,7 +1,7 @@
 const TRUE_BOOLEAN_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const FALSE_BOOLEAN_ENV_VALUES = new Set(['0', 'false', 'no', 'off']);
 
-/** Default print-mode background wait ceiling (seconds). ADR-0029 / PRD-0023. */
+/** 打印模式后台等待上限默认值(秒)。ADR-0029 / PRD-0023。 */
 export const DEFAULT_PRINT_WAIT_CEILING_S = 3600;
 
 export const PRINT_WAIT_CEILING_ENV_KEY = 'BYF_PRINT_WAIT_CEILING_S';
@@ -15,8 +15,8 @@ export interface ResolveConfigValueInput<T> {
 }
 
 /**
- * Precedence: env (parsed) → configValue → defaultValue.
- * Matches docs: environment variables override `config.toml`.
+ * 优先级:env(解析后)→ configValue → defaultValue。
+ * 与文档一致:环境变量覆盖 `config.toml`。
  */
 export function resolveConfigValue<T>(input: ResolveConfigValueInput<T>): T {
   return input.parseEnv(input.env?.[input.envKey]) ?? input.configValue ?? input.defaultValue;
@@ -31,9 +31,8 @@ export function parseBooleanEnv(value: string | undefined): boolean | undefined 
 }
 
 /**
- * Parse a positive integer env value. Empty, non-numeric, non-finite, or
- * non-positive values return `undefined` so resolution can fall through
- * (never returns `NaN`, which would break `??` chains).
+ * 解析正整数环境变量值。空、非数字、非有限或非正值返回 `undefined`,
+ * 使解析可以回退(绝不返回 `NaN`,那会破坏 `??` 链)。
  */
 export function parsePositiveIntEnv(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
@@ -45,9 +44,9 @@ export function parsePositiveIntEnv(value: string | undefined): number | undefin
 }
 
 /**
- * Resolve print-mode background wait ceiling in seconds.
- * Precedence: `BYF_PRINT_WAIT_CEILING_S` → `background.printWaitCeilingS` → 3600.
- * Always returns a finite positive integer (never NaN).
+ * 解析打印模式后台等待上限(秒)。
+ * 优先级:`BYF_PRINT_WAIT_CEILING_S` → `background.printWaitCeilingS` → 3600。
+ * 始终返回有限的正整数(绝不返回 NaN)。
  */
 export function resolvePrintWaitCeilingS(input: {
   readonly env?: Readonly<Record<string, string | undefined>>;

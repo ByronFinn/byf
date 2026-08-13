@@ -3,16 +3,14 @@ export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 export type LogContext = Record<string, unknown>;
 
 /**
- * Second argument to `log.error / warn / info / debug`.
+ * `log.error / warn / info / debug` 的第二个参数。
  *
- * Three usage shapes, detected at runtime:
- *   - `Error`     → stack is extracted onto the entry
- *   - `LogContext` (object) → merged into entry context; if it contains
- *                              `{ error: Error }`, that field is pulled out
- *                              and its stack extracted (bunyan-style)
- *   - `unknown`   → typically a `catch` binding; treated as an Error if
- *                   it's an Error instance, otherwise stringified into a
- *                   `reason` field
+ * 三种用法形态,运行时检测:
+ *   - `Error`     → 堆栈被提取到条目上
+ *   - `LogContext`(对象) → 合并进条目上下文;若含 `{ error: Error }`,
+ *                          该字段会被取出并提取其堆栈(bunyan 风格)
+ *   - `unknown`   → 通常是 `catch` 绑定;是 Error 实例则按 Error 处理,
+ *                   否则字符串化为 `reason` 字段
  */
 export type LogPayload = unknown;
 
@@ -22,14 +20,14 @@ export interface Logger {
   info(message: string, payload?: LogPayload): void;
   debug(message: string, payload?: LogPayload): void;
   /**
-   * Returns a new logger that adds `ctx` to every entry it emits. The bound
-   * context wins over per-call payload context, so callers can't accidentally
-   * overwrite ownership fields like `sessionId` / `agentId`:
+   * 返回一个新 logger,为其发出的每条条目添加 `ctx`。绑定上下文优先于
+   * 每次调用的负载上下文,使调用方不会意外覆盖 `sessionId` / `agentId`
+   * 等归属字段:
    *
    *   finalCtx = { ...payloadCtx, ...boundCtx }
    *
-   * Children chain — `parent.createChild({a: 1}).createChild({b: 2})` binds
-   * both.
+   * 子级可链式继承——`parent.createChild({a: 1}).createChild({b: 2})`
+   * 同时绑定两者。
    */
   createChild(ctx: LogContext): Logger;
 }
@@ -67,11 +65,11 @@ export interface SessionAttachInput {
 export interface RootLogger {
   configure(config: LoggingConfig): Promise<void>;
   attachSession(input: SessionAttachInput): SessionLogHandle;
-  /** False if any sink could not flush its pending batch. */
+  /** 任一 sink 未能刷出待处理批次时为 false。 */
   flush(): Promise<boolean>;
-  /** False if the global sink could not flush; true when there is no global sink. */
+  /** 全局 sink 未能刷出时为 false;无全局 sink 时为 true。 */
   flushGlobal(): Promise<boolean>;
-  /** False if the session sink could not flush; true when there is no active sink. */
+  /** 会话 sink 未能刷出时为 false;无活跃 sink 时为 true。 */
   flushSession(sessionId: string): Promise<boolean>;
   flushSync(): void;
   isConfigured(): boolean;
