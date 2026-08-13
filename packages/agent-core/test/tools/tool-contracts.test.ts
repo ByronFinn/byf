@@ -58,6 +58,11 @@ const TOOL_CONTRACTS: Readonly<Record<string, ToolContract>> = {
     params: ['command', 'cwd', 'timeout', 'description', 'run_in_background', 'disable_timeout'],
     required: ['command'],
   },
+  CompleteTask: {
+    descriptionMarkers: ['complete', 'task'],
+    params: [],
+    required: [],
+  },
   AskUserQuestion: {
     descriptionMarkers: ['question', 'user'],
     params: ['questions'],
@@ -144,6 +149,7 @@ describe('builtin tool contracts (PRD-0031 1b)', () => {
       [
         "AskUserQuestion",
         "Bash",
+        "CompleteTask",
         "CreateGoal",
         "CronCreate",
         "CronDelete",

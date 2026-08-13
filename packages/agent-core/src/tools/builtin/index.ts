@@ -18,6 +18,7 @@ export * from './file/write';
 export * from './goal';
 export * from './mcp/mcp-tools';
 export * from './shell/bash';
+export * from './state/complete-task';
 export * from './state/todo-list';
 export * from './web/fetch-url';
 export * from './web/web-search';

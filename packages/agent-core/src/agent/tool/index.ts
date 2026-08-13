@@ -411,6 +411,8 @@ export class ToolManager {
         urlFetcher && new b.FetchURLTool(urlFetcher),
         // PRD-0031 1c：MCP 渐进披露元工具（超阈值时由 loopTools 注入）
         new b.McpToolsTool(() => this.listEnabledMcpTools()),
+        // PRD-0031 2b：普通 turn 的声明式完成契约（completion guard 接 background）
+        new b.CompleteTaskTool(background),
       ]
         .filter((tool) => !!tool)
         .map((tool) => [tool.name, tool] as const),
