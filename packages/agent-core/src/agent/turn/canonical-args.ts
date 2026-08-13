@@ -1,6 +1,6 @@
 /**
- * JSON canonicalization used by tool-call telemetry and dedup.
- * Recursively sorts object keys so semantically-equal args produce identical keys.
+ * 工具调用遥测与去重使用的 JSON 规范化。
+ * 递归排序对象键,使语义相等的参数产生相同键。
  */
 export function canonicalTelemetryArgs(args: unknown): string {
   const json = JSON.stringify(sortJsonValue(args));

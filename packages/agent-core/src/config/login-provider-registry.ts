@@ -1,19 +1,18 @@
 /**
- * loginProviderRegistry — single source of truth for /login provider type choices.
+ * loginProviderRegistry — /login 提供方类型选项的唯一事实源。
  *
- * Only includes types whose base-URL propagation is end-to-end functional.
- * `google-genai` / `vertexai` are deliberately omitted (ADR 0016): their runtime
- * providers do not consume a user-supplied baseUrl.
+ * 只包含 base-URL 传播端到端可用的类型。`google-genai` / `vertexai`
+ * 刻意省略(ADR 0016):其运行时提供方不消费用户提供的 baseUrl。
  *
- * The `API_TYPE_OPTIONS` in login-flow.ts and `DEFAULT_BASE_URL` lookup are
- * both derived from this registry.
+ * login-flow.ts 中的 `API_TYPE_OPTIONS` 与 `DEFAULT_BASE_URL` 查找
+ * 均派生自本注册表。
  */
 
-/** Static entry for one login-capable provider type. */
+/** 单个可登录提供方类型的静态条目。 */
 export interface LoginProviderRegistryEntry {
-  /** Human-readable label shown in the choice picker. */
+  /** 选择器中展示的人类可读标签。 */
   readonly label: string;
-  /** Official default base URL (used when user leaves the input empty). */
+  /** 官方默认 base URL(用户留空输入时使用)。 */
   readonly defaultBaseUrl: string;
 }
 
@@ -34,7 +33,7 @@ export const loginProviderRegistry = {
 
 export type LoginProviderType = keyof typeof loginProviderRegistry;
 
-/** Choices array derived from registry keys — safe to pass to ChoicePicker. */
+/** 由注册表键派生的选项数组——可安全传给 ChoicePicker。 */
 export function getLoginProviderOptions(): ReadonlyArray<{
   value: LoginProviderType;
   label: string;

@@ -117,34 +117,30 @@ function findImplicitBoundaries(prompt: string): number[] {
 }
 
 /**
- * Diagnostics for the system prompt's cache-boundary structure.
+ * 系统提示词缓存边界结构的诊断。
  *
- * `buildPromptPlan` splits the prompt on {@link IMPLICIT_BOUNDARY_HEADERS}.
- * ADR 0013 requires all three headers to be present and ordered so the
- * 4-block cache architecture (base / project / workingEnvironment /
- * sessionContext) stays intact — a missing header silently degrades
- * caching (e.g. OpenAI's `prompt_cache_key` stops being stable across
- * sessions). These issues are otherwise invisible, since
- * {@link findImplicitBoundaries} skips missing headers without error.
+ * `buildPromptPlan` 按 {@link IMPLICIT_BOUNDARY_HEADERS} 切分提示词。
+ * ADR 0013 要求三个标题全部存在且有序,4 块缓存架构
+ * (base / project / workingEnvironment / sessionContext)才能保持完整——
+ * 缺少标题会静默劣化缓存(例如 OpenAI 的 `prompt_cache_key` 跨会话不再稳定)。
+ * 这些问题是隐形的,因为 {@link findImplicitBoundaries} 会无错跳过缺失标题。
  */
 export interface BoundaryDiagnostics {
-  /** Boundary headers expected but absent from the prompt. */
+  /** 期望出现但提示词中缺失的边界标题。 */
   readonly missingHeaders: readonly string[];
-  /** Boundary headers found in a position inconsistent with their declared order. */
+  /** 出现位置与声明顺序不一致的边界标题。 */
   readonly outOfOrderHeaders: readonly string[];
 }
 
 /**
- * Detect cache-boundary structural issues in a rendered system prompt.
+ * 检测渲染后的系统提示词中的缓存边界结构问题。
  *
- * Pure, side-effect free. Returns empty arrays when the prompt contains
- * all expected boundary headers in their declared order. Consumers (e.g.
- * the turn layer) may log the result; {@link buildPromptPlan} itself
- * never throws on these issues, so this function is the only way to
- * observe silent cache degradation.
+ * 纯函数,无副作用。提示词按声明顺序包含全部期望标题时返回空数组。
+ * 消费者(如 turn 层)可记录结果;{@link buildPromptPlan} 自身对这些
+ * 问题绝不抛出,因此本函数是观察静默缓存劣化的唯一途径。
  *
- * @param prompt - The fully rendered system prompt to inspect
- * @returns Diagnostics describing missing or out-of-order boundary headers
+ * @param prompt - 待检查的完整渲染系统提示词
+ * @returns 描述缺失或乱序边界标题的诊断
  */
 export function detectBoundaryDiagnostics(prompt: string): BoundaryDiagnostics {
   const missingHeaders: string[] = [];
@@ -267,14 +263,14 @@ function hasImplicitBoundaries(prompt: string): boolean {
 }
 
 /**
- * Build a prompt plan from a rendered system prompt and provider cache capability.
+ * 由渲染后的系统提示词与 provider 缓存能力构建提示计划。
  *
- * This function parses cache boundary markers from the system prompt and creates
- * a structured plan with named blocks, each with an appropriate cache scope.
+ * 本函数解析系统提示词中的缓存边界标记,创建带命名块的结构化计划,
+ * 每个块带有合适的缓存作用域。
  *
- * @param renderedSystemPrompt - The fully rendered system prompt (may contain `__CACHE_BOUNDARY__` markers)
- * @param providerCacheCapability - The provider's cache capability (for scope filtering)
- * @returns A prompt plan with cacheable blocks
+ * @param renderedSystemPrompt - 完整渲染的系统提示词(可能含 `__CACHE_BOUNDARY__` 标记)
+ * @param providerCacheCapability - provider 的缓存能力(用于作用域过滤)
+ * @returns 带可缓存块的提示计划
  *
  * @example
  * ```ts

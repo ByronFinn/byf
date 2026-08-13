@@ -1,23 +1,19 @@
 /**
- * describeApprovalAction — coarse action label for approve_for_session.
+ * describeApprovalAction — approve_for_session 的粗粒度动作标签。
  *
- * The label is the key used by `auto_approve_actions` set (session-level
- * approve-for-session cache). It must be **coarse** enough that the user
- * pressing "approve for session" on one request also unlocks *semantically
- * equivalent* future requests — otherwise approve-for-session degrades
- * into approve-once.
+ * 该标签是 `auto_approve_actions` 集合(会话级 approve-for-session 缓存)
+ * 使用的键。它必须**足够粗**,使用户在一次请求上按「批准本会话」也能解锁
+ * *语义等价*的未来请求——否则 approve-for-session 会退化为 approve-once。
  *
- * Derivation priority:
- *   1. `ApprovalDisplay.kind` mapping (the display already carries the
- *      semantic classification the UI renders):
+ * 推导优先级:
+ *   1. `ApprovalDisplay.kind` 映射(display 已携带 UI 渲染的语义分类):
  *        command    → "run command"
  *        diff       → "edit file"
  *        file_write → "write file"
  *        task_stop  → "stop background task"
- *        generic    → tool-name fallback
- *   2. Hard-coded toolName → action map for tools that emit `generic`
- *      display.
- *   3. Last resort: `call <toolName>`.
+ *        generic    → 工具名回退
+ *   2. 硬编码 toolName → 动作映射,服务于发出 `generic` display 的工具。
+ *   3. 最后手段:`call <toolName>`。
  */
 
 import type { ToolInputDisplay } from '../../tools/display/schemas';
@@ -49,16 +45,14 @@ const ACTION_TO_PATTERN: Readonly<Record<string, string | null>> = {
 };
 
 /**
- * Prefix for CronCreate action labels that embed the full create payload.
- * Session approval must be payload-scoped: approving one schedule must not
- * unlock arbitrary later CronCreate calls (PRD-0023 #244).
+ * CronCreate 动作标签的前缀,标签内嵌完整 create 负载。会话批准必须是
+ * 负载作用域的:批准一个调度不得解锁日后任意的 CronCreate 调用(PRD-0023 #244)。
  */
 export const CRON_CREATE_ACTION_PREFIX = 'call CronCreate ';
 
 /**
- * Stable action label for CronCreate that includes cron/prompt/recurring.
- * Same payload → same label (so re-approve-for-session keeps working);
- * different payload → different label.
+ * CronCreate 的稳定动作标签,包含 cron/prompt/recurring。
+ * 相同负载 → 相同标签(重新批准本会话继续有效);不同负载 → 不同标签。
  */
 export function describeCronCreateApprovalAction(args: unknown): string {
   return `${CRON_CREATE_ACTION_PREFIX}${serializeCronCreatePayload(args)}`;
@@ -155,16 +149,15 @@ export function describeApprovalAction(
 }
 
 /**
- * Inverse mapping from an approve_for_session action label to the
- * permission-rule pattern that should gate future same-action calls.
+ * approve_for_session 动作标签到权限规则模式的逆向映射,该规则将门控未来的
+ * 同类动作调用。
  *
- * When no entry matches, fall back to the concrete tool name. A `null`
- * table entry means the action should be cached by action label only,
- * without creating a broad PermissionRule.
+ * 无条目匹配时回退到具体工具名。`null` 表项表示该动作只按动作标签缓存,
+ * 不创建宽泛的 PermissionRule。
  *
- * Payload-scoped CronCreate actions also skip creating a rule: a bare
- * `CronCreate` pattern would match every future create (matchesRule name-only).
- * Same-payload re-approval is handled by `sessionApprovedActions` alone.
+ * 负载作用域的 CronCreate 动作同样跳过规则创建:裸的 `CronCreate` 模式会匹配
+ * 每次未来的 create(matchesRule 仅按名称匹配)。同负载的重新批准仅由
+ * `sessionApprovedActions` 处理。
  */
 export function actionToRulePattern(action: string, fallbackToolName: string): string | undefined {
   if (action.startsWith(CRON_CREATE_ACTION_PREFIX)) {

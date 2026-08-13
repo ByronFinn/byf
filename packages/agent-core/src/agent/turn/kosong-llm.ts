@@ -1,18 +1,15 @@
 /**
- * Kosong-backed implementation of the loop `LLM` interface.
+ * loop `LLM` 接口的 Kosong 支撑实现。
  *
- * Bridges the new `loop/llm.ts` contract onto
- * the kosong `generate()` streaming API:
+ * 把新的 `loop/llm.ts` 契约桥接到 kosong 的 `generate()` 流式 API:
  *
- *   - kosong's per-part `onMessagePart` is forwarded to loop per-delta
- *     callbacks (`onTextDelta`, `onThinkDelta`, `onToolCallDelta`).
- *   - loop per-block callbacks (`onTextPart`, `onThinkPart`) only fire
- *     after the kosong stream drains, iterating over the merged
- *     `result.message.content`. Completed
- *     blocks land on the WAL seam, raw deltas never do.
- *   - kosong's finish reasons are preserved as provider diagnostics. The loop
- *     derives loop control from the normalized response shape, not from the
- *     provider's finish-reason spelling.
+ *   - kosong 的逐 part `onMessagePart` 转发为 loop 的逐 delta 回调
+ *     (`onTextDelta`、`onThinkDelta`、`onToolCallDelta`)。
+ *   - loop 的逐块回调(`onTextPart`、`onThinkPart`)只在 kosong 流排空后触发,
+ *     遍历合并后的 `result.message.content`。完成的块落在 WAL 接缝上,
+ *     原始 delta 永不落盘。
+ *   - kosong 的 finish reason 作为 provider 诊断保留。loop 从归一化的响应
+ *     形态推导循环控制,而非 provider 对 finish reason 的拼写。
  */
 
 import {
@@ -48,14 +45,13 @@ export interface KosongLLMConfig {
   readonly systemPrompt: string;
   readonly capability?: ModelCapability;
   /**
-   * Optional override for the kosong `generate()` entry point. Lets the
-   * agent host (and its test harness) inject a scripted generator without
-   * having to substitute the entire LLM implementation.
+   * kosong `generate()` 入口的可选覆盖。使 agent 宿主(及其测试装置)注入
+   * 脚本化生成器,而无需替换整个 LLM 实现。
    */
   readonly generate?: GenerateFn;
   /**
-   * Completion budget config resolved from agent/provider settings. The
-   * final cap is computed per request from the current messages and tools.
+   * 由 agent / provider 设置解析出的完成预算配置。最终上限在每次请求时
+   * 根据当前消息与工具计算。
    */
   readonly completionBudgetConfig?: CompletionBudgetConfig;
 }
@@ -164,10 +160,10 @@ function generateOptions(
 }
 
 /**
- * Get the cache capability from a provider.
+ * 获取 provider 的缓存能力。
  *
- * Safely handles providers that don't implement getCapability or don't have cache.
- * Returns a default capability with 'none' strategy for non-caching providers.
+ * 安全处理未实现 getCapability 或没有缓存的 provider。
+ * 对非缓存 provider 返回带 `'none'` 策略的默认能力。
  */
 export function getProviderCacheCapability(provider: ChatProvider): ProviderCacheCapability {
   if (typeof provider.getCapability !== 'function') {

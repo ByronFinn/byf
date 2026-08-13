@@ -196,9 +196,8 @@ function cloneMessage(message: Message): Message {
 // ---------------------------------------------------------------------------
 
 /**
- * How many of the most recent media parts survive the media-degraded
- * projection. The tail images are what the model is actively working from
- * (the screenshot it just took); everything older is replaced by a marker.
+ * media-degraded 投影中保留的最近媒体 part 数量。尾部图像是模型正在实际
+ * 使用的(它刚截的屏);更旧的都被替换为标记。
  */
 export const MEDIA_DEGRADE_KEEP_RECENT = 2;
 
@@ -212,10 +211,9 @@ const MEDIA_DEGRADED_PLACEHOLDERS = {
 } as const;
 
 /**
- * Markers for the media-stripped resend after the provider rejected an
- * image's FORMAT (not its size): the image marker points the model at
- * re-reading the file, whose refusal carries per-OS conversion instructions;
- * audio/video are collateral of the full strip and say so.
+ * 提供方因图片**格式**(而非大小)拒绝后的 media-stripped 重发标记:
+ * 图片标记引导模型重新读取文件,其拒绝信息携带各 OS 的转换指引;
+ * 音频 / 视频是整体剥离的连带品,标记中如实说明。
  */
 export const MEDIA_STRIPPED_PLACEHOLDERS = {
   image_url:
@@ -233,17 +231,14 @@ function isDegradableMediaPart(
 }
 
 /**
- * Replace all but the `keepRecent` most recent media parts with deterministic
- * text markers. This is the media-degraded projection used to resend a request
- * the provider rejected as too large (HTTP 413 on accumulated base64 media)
- * and — with `keepRecent = 0` and `MEDIA_STRIPPED_PLACEHOLDERS` — the resend
- * after an image-format rejection, where the poisoned image could be anywhere
- * and only a full strip guarantees a clean request. A purely read-side
- * transform — the underlying history is left untouched — that trades pixels
- * for deliverability while the surrounding text (including ReadMediaFile's
- * `<image path="...">` wrapper) survives, so the model can re-read any file
- * it still needs. Untouched messages are returned by reference, and when
- * nothing needs degrading the input array itself is returned.
+ * 把除 `keepRecent` 个最近媒体 part 之外的全部替换为确定性文本标记。
+ * 这是 media-degraded 投影:用于重发被提供方判为过大的请求(累积 base64
+ * 媒体导致 HTTP 413);配合 `keepRecent = 0` 与 `MEDIA_STRIPPED_PLACEHOLDERS`
+ * 则是图片格式被拒后的重发——此时坏图可能位于任意位置,只有整体剥离才能
+ * 保证请求干净。这是纯读侧变换——底层历史原封不动——以像素换可达性,
+ * 同时周围文本(含 ReadMediaFile 的 `<image path="...">` 包装)保留,
+ * 使模型可重新读取它仍需要的任何文件。未触碰的消息按引用返回;无需降级
+ * 时直接返回输入数组本身。
  */
 export function degradeOlderMediaParts(
   messages: readonly Message[],

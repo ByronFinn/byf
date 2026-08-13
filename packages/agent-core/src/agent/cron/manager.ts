@@ -1,40 +1,32 @@
 /**
- * CronManager — Agent-facing facade for the cron scheduler.
+ * CronManager — 面向 Agent 的 cron 调度门面(facade)。
  *
- * This layer sits between the raw `CronScheduler` (which knows nothing
- * about agents) and the rest of the agent runtime (Agent / turn /
- * telemetry / tool surface). Its job is small but important:
+ * 本层位于原始 `CronScheduler`(它完全不了解 agent)与 agent 运行时其余部分
+ * (Agent / turn / 遥测 / 工具面)之间。职责小而关键:
  *
- *   - own the `SessionCronStore` for this session;
- *   - hand `() => store.list()` to the scheduler so add / delete are
- *     picked up automatically every tick;
- *   - gate fires on `agent.turn.hasActiveTurn` rather than maintaining a
- *     duplicate idle flag — the turn machinery already knows;
- *   - translate a fired `CronTask` into a `steer(...)` call carrying a
- *     `CronJobOrigin`, plus the `cron_fired` telemetry event;
- *   - mirror every store mutation to `<sessionDir>/cron/<id>.json`
- *     (via {@link addTask} / {@link removeTasks}) so that `byf resume`
- *     can call {@link loadFromDisk} to rehydrate previously-scheduled
- *     tasks. When no `sessionDir` is supplied (subagents, tests,
- *     ephemeral sessions) the manager stays purely in-memory.
- *   - provide a `handleMissed(...)` entry point that future boot-time
- *     missed-task notification will call. Today the scheduler's
- *     `coalescedCount` semantics handle missed fires inline, so this
- *     entry point is not wired by the framework — it stays exposed so
- *     adding a banner later does not require API churn here.
+ *   - 持有本会话的 `SessionCronStore`;
+ *   - 把 `() => store.list()` 交给调度器,使每次 tick 自动感知增删;
+ *   - 用 `agent.turn.hasActiveTurn` 门控触发,而非维护重复的空闲标志——
+ *     turn 机制本身已经知道是否空闲;
+ *   - 把一次触发的 `CronTask` 翻译为携带 `CronJobOrigin` 的 `steer(...)` 调用,
+ *     并发出 `cron_fired` 遥测事件;
+ *   - 把每次 store 变更镜像到 `<sessionDir>/cron/<id>.json`
+ *     (经 {@link addTask} / {@link removeTasks}),使 `byf resume` 可调用
+ *     {@link loadFromDisk} 重新水合此前已排定的任务。未提供 `sessionDir` 时
+ *     (subagent、测试、临时会话)管理器保持纯内存运行。
+ *   - 提供 `handleMissed(...)` 入口,供未来的启动期错过任务通知调用。目前调度器的
+ *     `coalescedCount` 语义已内联处理错过触发,因此框架不会调用此入口——它保持
+ *     暴露,以便日后增加横幅提示时无需改动本文件 API。
  *
- * The manager does NOT read `Date.now()` directly anywhere; every
- * wall-clock read goes through `this.clocks.wallNow()`. The
- * `no-date-now.test.ts` guard does not list this file (it covers the
- * scheduler / jitter layer), but the same discipline is intentional so
- * bench / test clock injection holds end-to-end.
+ * 管理器任何地方都不会直接读 `Date.now()`;所有墙钟读取都经由
+ * `this.clocks.wallNow()`。`no-date-now.test.ts` 守卫未列出本文件(它覆盖
+ * 调度器 / 抖动层),但同样的纪律在此有意为之,使 bench / 测试时钟注入
+ * 端到端生效。
  *
- * Note on `recurring` semantics: the canonical task representation uses
- * `recurring: boolean | undefined` where `undefined` means recurring
- * (cron tasks default to repeating). One-shot is the explicit
- * `recurring === false` opt-out. Every check in this file uses
- * `task.recurring !== false` to keep that default behaviour even when
- * the field is omitted by the caller.
+ * 关于 `recurring` 语义的说明:规范的任务表示使用
+ * `recurring: boolean | undefined`,`undefined` 表示循环(cron 任务默认重复)。
+ * 一次性任务通过显式 `recurring === false` 退出。本文件中的每次检查都用
+ * `task.recurring !== false`,使调用方省略该字段时仍保持默认行为。
  */
 import type { ContentPart } from '@byfriends/kosong';
 
@@ -69,54 +61,52 @@ import type { Agent } from '../index';
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Point-in-time view of a scheduled cron task, exposed over RPC so host
- * applications (e.g. the `byf -p` flow deciding whether pending work
- * remains before exit) can enumerate scheduled tasks without going
- * through the model-facing CronList tool.
+ * 已排定 cron 任务在某一时刻的快照,经 RPC 暴露,使宿主应用
+ * (例如 `byf -p` 流程在退出前判断是否仍有待办工作)无需经由面向模型的
+ * CronList 工具即可枚举已排定任务。
  */
 export interface CronTaskSnapshot {
   readonly id: string;
   readonly cron: string;
   /**
-   * Human-readable schedule derived from {@link cron}. Falls back to the
-   * raw expression when parsing fails (malformed store injects / tests).
+   * 由 {@link cron} 推导的人类可读调度描述。解析失败时回退到原始表达式
+   * (store 注入的畸形数据 / 测试场景)。
    */
   readonly humanSchedule: string;
-  /** Full prompt string; hosts (e.g. `/cron` list) may truncate for display. */
+  /** 完整提示词字符串;宿主(如 `/cron` 列表)可按需截断显示。 */
   readonly prompt: string;
   readonly recurring: boolean;
   readonly createdAt: number;
   readonly lastFiredAt: number | undefined;
-  /** Post-jitter next fire (epoch ms), or null when no future fire exists. */
+  /** 抖动后的下一次触发时间(epoch 毫秒);不存在未来触发时为 null。 */
   readonly nextFireAt: number | null;
 }
 
 export interface CronManagerOptions {
   /**
-   * Override for tests / bench. Defaults to
-   * `resolveClockSources(process.env.BYF_CRON_CLOCK)` so production
-   * picks up `BYF_CRON_CLOCK=file:...` automatically.
-   * When unset, falls through to {@link SYSTEM_CLOCKS}.
+   * 测试 / bench 用覆盖。默认取
+   * `resolveClockSources(process.env.BYF_CRON_CLOCK)`,使生产环境自动
+   * 读取 `BYF_CRON_CLOCK=file:...`。未设置时回退到 {@link SYSTEM_CLOCKS}。
    */
   readonly clocks?: ClockSources;
 
   /**
-   * Override scheduler poll interval. Defaults handled by the scheduler
-   * (1000ms unless `BYF_CRON_MANUAL_TICK=1`, which forces `null` here
-   * so the auto-tick `setInterval` is never installed). `null` or `0`
-   * means "no automatic timer — caller drives `tick()` manually".
+   * 覆盖调度器轮询间隔。默认值由调度器处理
+   * (1000ms;除非 `BYF_CRON_MANUAL_TICK=1`,此时此处强制为 `null`,
+   * 使自动 tick 的 `setInterval` 永不安装)。`null` 或 `0`
+   * 表示「无自动定时器——由调用方手动驱动 `tick()`」。
    */
   readonly pollIntervalMs?: number | null;
 }
 
 export class CronManager {
-  /** In-memory task store. Empty at construction; populated by
-   * {@link addTask} (and {@link loadFromDisk} on resume). */
+  /** 内存任务 store。构造时为空;由 {@link addTask}(及 resume 时的
+   * {@link loadFromDisk})填充。 */
   readonly store: SessionCronStore;
 
   /**
-   * Clock source used for the stale judgment. Also passed to the
-   * scheduler so the entire stack shares one notion of "now".
+   * 用于过期(stale)判断的时钟源。同样传给调度器,
+   * 使整个调用栈共享同一个「当前时间」概念。
    */
   readonly clocks: ClockSources;
 
@@ -191,18 +181,15 @@ export class CronManager {
   }
 
   /**
-   * Add a fresh task to the in-memory store and, when persistence is
-   * attached, mirror the new record to `<sessionDir>/cron/<id>.json`.
+   * 向内存 store 添加一个新任务;启用持久化时,将新记录镜像到
+   * `<sessionDir>/cron/<id>.json`。
    *
-   * The store call is synchronous (CronCreate needs the id for its
-   * response); the on-disk write is fire-and-forget so a slow disk
-   * never blocks the tool's reply. Per-id queueing serializes
-   * concurrent writes on the same id (e.g. add → stale auto-expire) so
-   * the rm cannot race the rename.
+   * store 调用是同步的(CronCreate 的响应需要 id);落盘写入为
+   * fire-and-forget,慢磁盘不会阻塞工具的回复。按 id 排队可串行化
+   * 同一 id 上的并发写入(例如 add → 过期自动清理),避免 rm 与 rename 竞争。
    *
-   * Persistence failures are logged via `agent.log.warn` and swallowed
-   * — a flaky disk drops cross-resume durability but must not crash
-   * the agent loop.
+   * 持久化失败经 `agent.log.warn` 记录并吞掉——磁盘抖动会丢失跨 resume
+   * 的持久性,但不能使 agent 循环崩溃。
    */
   addTask(init: SessionCronTaskInit): CronTask {
     const task = this.store.add(init, this.clocks.wallNow());
@@ -211,16 +198,13 @@ export class CronManager {
   }
 
   /**
-   * Remove a batch of tasks from the in-memory store and mirror each
-   * deletion to disk (when persistence is attached). Returns the
-   * subset of ids that were actually present, matching
-   * `SessionCronStore.remove`'s contract — callers (CronDelete /
-   * scheduler one-shot cleanup / stale auto-expire) read this to
-   * decide whether to emit telemetry.
+   * 从内存 store 移除一批任务,并(启用持久化时)把每次删除镜像到磁盘。
+   * 返回实际存在的 id 子集,与 `SessionCronStore.remove` 的契约一致——
+   * 调用方(CronDelete / 调度器一次性清理 / 过期自动清理)据此决定
+   * 是否发遥测。
    *
-   * Persistence failures are logged and swallowed; cross-resume the
-   * worst case is a ghost entry that gets dropped on the next
-   * `list()` shape-guard pass.
+   * 持久化失败被记录并吞掉;跨 resume 的最坏情况是残留一个幽灵条目,
+   * 会在下一次 `list()` 的形状守卫中被丢弃。
    */
   removeTasks(ids: readonly string[]): readonly string[] {
     const removed = this.store.remove(ids);
@@ -252,14 +236,12 @@ export class CronManager {
   }
 
   /**
-   * Rehydrate the in-memory store from `<sessionDir>/cron/` after
-   * `byf resume`. No-op when persistence is not attached. Idempotent:
-   * clears the in-memory map and re-inserts every record on disk.
+   * `byf resume` 后从 `<sessionDir>/cron/` 重新水合内存 store。
+   * 未启用持久化时为空操作。幂等:清空内存映射并重新插入磁盘上的每条记录。
    *
-   * Tasks are inserted via {@link SessionCronStore.adopt} so the
-   * original `id` and `createdAt` survive — `createdAt` is the
-   * scheduler's recurring baseline and the 7-day stale judgment's
-   * input, so a regenerated value would corrupt both.
+   * 任务经 {@link SessionCronStore.adopt} 插入,使原始 `id` 与 `createdAt`
+   * 得以保留——`createdAt` 是调度器的循环基线和 7 天过期判断的输入,
+   * 重新生成的值会同时破坏两者。
    */
   async loadFromDisk(): Promise<void> {
     if (this.persistStore === undefined) return;
@@ -296,13 +278,11 @@ export class CronManager {
   }
 
   /**
-   * Wait for every pending persistence write / remove scheduled via
-   * {@link addTask} / {@link removeTasks} to settle. Called from
-   * {@link stop} for graceful session shutdown and exposed publicly so
-   * tests can synchronise on disk-visible state without polling.
+   * 等待经 {@link addTask} / {@link removeTasks} 排入的所有待写 / 待删
+   * 持久化操作完成。{@link stop} 在优雅关停会话时调用它;它公开暴露,
+   * 使测试无需轮询即可同步到磁盘可见状态。
    *
-   * Errors are already swallowed by `persistEnqueue`, so this never
-   * rejects.
+   * 错误已被 `persistEnqueue` 吞掉,因此该方法永不 reject。
    */
   async flushPersist(): Promise<void> {
     // Snapshot the chain promises rather than the map itself — the
@@ -313,9 +293,8 @@ export class CronManager {
   }
 
   /**
-   * Begin the scheduler's auto-tick loop and bind the SIGUSR1 manual-tick
-   * hook (P1.8). Idempotent: a second call is a no-op so the boot
-   * sequence and tests can opt into "ensure started" without bookkeeping.
+   * 启动调度器的自动 tick 循环,并绑定 SIGUSR1 手动 tick 钩子(P1.8)。
+   * 幂等:重复调用为空操作,启动序列与测试无需记账即可「确保已启动」。
    */
   start(): void {
     if (this.started) return;
@@ -325,16 +304,13 @@ export class CronManager {
   }
 
   /**
-   * Stop the scheduler, drain pending persistence writes, clear
-   * in-flight bookkeeping, and unbind the SIGUSR1 handler. Idempotent
-   * and signal-handler-safe — multiple vitest files exercising the
-   * manager must not leave a SIGUSR1 listener dangling on the shared
-   * process.
+   * 停止调度器,排空待写持久化,清理进行中的记账,并解绑 SIGUSR1 处理器。
+   * 幂等且信号处理器安全——多个运行管理器的 vitest 文件不得在共享进程上
+   * 留下悬空的 SIGUSR1 监听器。
    *
-   * Draining persistence on shutdown matters for production: a session
-   * `close()` immediately after a CronCreate would otherwise tear the
-   * process down before the JSON file lands on disk, and the task
-   * would be missing from the resume's `loadFromDisk()`.
+   * 关停时排空持久化对生产环境很重要:否则 CronCreate 之后紧接着的会话
+   * `close()` 会在 JSON 文件落盘前拆掉进程,任务将缺失于 resume 的
+   * `loadFromDisk()`。
    */
   async stop(): Promise<void> {
     this.unbindSigusr1();
@@ -343,34 +319,31 @@ export class CronManager {
     this.started = false;
   }
 
-  /** Drive one scheduler tick synchronously. Used by tests + P1.8 SIGUSR1. */
+  /** 同步驱动一次调度器 tick。供测试与 P1.8 SIGUSR1 使用。 */
   tick(): void {
     this.scheduler.tick();
   }
 
   /**
-   * Earliest theoretical (post-jitter) next-fire across all tasks, or
-   * null if there are no tasks / none have a future fire. Used by the
-   * `/cron` slash command and external monitoring.
+   * 所有任务中最早的(抖动后)理论下一次触发时间;没有任务或均无未来触发
+   * 时为 null。供 `/cron` 斜杠命令与外部监控使用。
    */
   getNextFireTime(): number | null {
     return this.scheduler.getNextFireTime();
   }
 
   /**
-   * Per-task post-jitter next-fire. Forwards to the scheduler so
-   * CronList renders the same instant the scheduler will fire — even
-   * when an already-past ideal still has a pending jittered delivery
-   * in the current period.
+   * 单个任务抖动后的下一次触发时间。转发给调度器,使 CronList 渲染出
+   * 调度器实际触发的同一时刻——即使理想时刻已过、当期仍有待投递的
+   * 抖动交付。
    */
   getNextFireForTask(taskId: string): number | null {
     return this.scheduler.getNextFireForTask(taskId);
   }
 
   /**
-   * Enumerate every scheduled task with its post-jitter next fire time.
-   * Unlike the CronList tool (which renders for the model), this returns
-   * structured data for host applications polling for pending work.
+   * 枚举每个已排定任务及其抖动后的下一次触发时间。与面向模型的 CronList
+   * 工具不同,此方法为轮询待办工作的宿主应用返回结构化数据。
    */
   listTaskSnapshots(): readonly CronTaskSnapshot[] {
     return this.store.list().map((task) => {
@@ -394,9 +367,9 @@ export class CronManager {
   }
 
   /**
-   * Host-path delete (PRD-0024 / ADR-0030). Not a tool — no permission ask.
-   * Returns whether a task was actually removed. Invalid ids are treated as
-   * not found (`deleted: false`) so hosts can present a uniform error.
+   * 宿主路径删除(PRD-0024 / ADR-0030)。不是工具——不询问权限。
+   * 返回任务是否真的被移除。无效 id 按「未找到」处理(`deleted: false`),
+   * 使宿主可以呈现统一的错误。
    */
   deleteCronTask(id: string): { deleted: boolean } {
     if (!/^[0-9a-f]{8}$/.test(id)) {
@@ -411,17 +384,15 @@ export class CronManager {
   }
 
   /**
-   * Stale judgment.
+   * 过期(stale)判断。
    *
-   *   - `BYF_CRON_NO_STALE=1` short-circuits to false (bench).
-   *   - One-shot tasks (`recurring === false`) are never stale — they
-   *     fire at most once by construction; flagging them stale would be
-   *     a noisy false positive on every backlog wakeup.
-   *   - Otherwise: `wallNow() - createdAt >= 7 days`.
+   *   - `BYF_CRON_NO_STALE=1` 直接短路为 false(bench)。
+   *   - 一次性任务(`recurring === false`)永不过期——它们构造上最多触发一次;
+   *     标记其过期会在每次积压唤醒时产生嘈杂的误报。
+   *   - 其他情况:`wallNow() - createdAt >= 7 天`。
    *
-   * `Number.isFinite` guards against the wall clock being broken (e.g.
-   * a mis-set bench env that returns `NaN`); a non-finite age is
-   * treated as "we don't know, don't claim stale".
+   * `Number.isFinite` 防御墙钟损坏(例如错误设置的 bench 环境返回 `NaN`);
+   * 非有限年龄按「不知道,不声称过期」处理。
    */
   isStale(task: CronTask): boolean {
     if (process.env['BYF_CRON_NO_STALE'] === '1') return false;
@@ -489,23 +460,17 @@ export class CronManager {
   }
 
   /**
-   * Reserved hook for an explicit "you missed N fires while offline"
-   * banner. Today the scheduler's `coalescedCount` semantics already
-   * communicate missed fires inside the `cron_job` envelope (and
-   * recurring tasks past 7 days arrive with `stale: true`), so the
-   * resume path does NOT invoke this from the framework. The method
-   * stays exposed because adding a separate user-facing banner later
-   * — e.g. for one-shots whose fire times all landed during a long
-   * outage — should not require an API change here.
+   * 显式「离线期间错过了 N 次触发」横幅的保留钩子。目前调度器的
+   * `coalescedCount` 语义已在 `cron_job` 信封内传达错过触发(超过 7 天的
+   * 循环任务会以 `stale: true` 到达),因此 resume 路径不会从框架调用此方法。
+   * 它保持暴露,因为日后增加独立的用户可见横幅——例如为触发时间全部落在
+   * 长时间中断内的一次性任务——不应要求此处改 API。
    *
-   * The `renderMissedNotification` callback is supplied by the caller
-   * (rather than imported here) so this module stays free of UI / copy
-   * coupling; the same manager works for tests that want to inject a
-   * trivial renderer.
+   * `renderMissedNotification` 回调由调用方提供(而非在此导入),
+   * 使本模块不耦合 UI / 文案;同一个管理器也能服务于想注入简单渲染器的测试。
    *
-   * `count: 0` is a no-op — the scheduler-side missed-task detector
-   * filters empties before calling us, but defending here keeps the
-   * contract simple ("safe to call with anything, no-op when empty").
+   * `count: 0` 为空操作——调度器侧的错过任务检测器在调用我们之前已过滤
+   * 空集,但在此防御可使契约保持简单(「任何输入都可安全调用,空时无操作」)。
    */
   handleMissed(
     tasks: readonly CronTask[],
@@ -522,12 +487,10 @@ export class CronManager {
   }
 
   /**
-   * Emit `cron_scheduled` for a freshly-added task. Called by
-   * `CronCreate` after a successful `store.add(...)`. Kept as an
-   * explicit method so the tool layer never reaches into
-   * `manager.agent.telemetry` — preserves the "tools see the manager,
-   * the manager sees the agent" layering and matches the symmetric
-   * `emitDeleted` used by `CronDelete` (P1.6).
+   * 为新添加的任务发出 `cron_scheduled`。由 `CronCreate` 在成功
+   * `store.add(...)` 后调用。作为显式方法保留,使工具层永远不直接触碰
+   * `manager.agent.telemetry`——保持「工具只见管理器、管理器只见 agent」
+   * 的分层,并与 `CronDelete` 使用的对称 `emitDeleted` 一致(P1.6)。
    */
   emitScheduled(task: CronTask): void {
     this.agent.telemetry.track(CRON_SCHEDULED, {
@@ -536,9 +499,8 @@ export class CronManager {
   }
 
   /**
-   * Emit `cron_deleted` for a removed task. Wired up here so P1.6 can
-   * land without touching this file again. `task_id` matches the field
-   * naming used elsewhere in the telemetry surface (snake_case).
+   * 为已移除的任务发出 `cron_deleted`。在此接线,使 P1.6 无需再次改动本文件。
+   * `task_id` 与遥测面其他位置的字段命名一致(snake_case)。
    */
   emitDeleted(taskId: string): void {
     this.agent.telemetry.track(CRON_DELETED, { task_id: taskId });

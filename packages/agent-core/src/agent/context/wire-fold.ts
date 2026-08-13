@@ -1,20 +1,16 @@
 /**
- * Wire-fold logic, extracted from `ContextMemory.appendLoopEvent`.
+ * Wire-fold 逻辑,自 `ContextMemory.appendLoopEvent` 抽取。
  *
- * This module folds a stream of `LoopRecordedEvent`s and explicit
- * `context.append_message` records into a `ContextMessage[]` timeline. It is
- * the single source of truth for how wire records reconstruct the
- * conversation history — consumed by both the live agent (via
- * `ContextMemory`) and external readers (e.g. apps/vis), eliminating the
- * duplicate fold logic that previously drifted between them.
+ * 本模块把一串 `LoopRecordedEvent` 与显式 `context.append_message` 记录折叠为
+ * `ContextMessage[]` 时间线。它是 wire 记录如何重建会话历史的唯一事实源——
+ * 同时被 live agent(经 `ContextMemory`)与外部读者(如 apps/vis)消费,
+ * 消除了此前在两者间漂移的重复 fold 逻辑。
  *
- * Pure-function contract (PRD-0027 Phase 5): no disk I/O, record logging,
- * event emission, injection hooks, or caller-supplied effect ports inside
- * this module. Each fold function mutates `state` in place and **returns the
- * messages committed to the timeline** (including any deferred messages
- * flushed when a tool exchange closes) — callers run their own side effects
- * (background delivery, replay builder, token snapshots, output offloading)
- * against the returned messages in the service layer.
+ * 纯函数契约(PRD-0027 Phase 5):本模块内无磁盘 I/O、记录日志、事件发出、
+ * 注入钩子或调用方提供的 effect 端口。每个 fold 函数原地变更 `state`,
+ * 并**返回提交到时间线的消息**(含工具交换关闭时刷出的延迟消息)——调用方在
+ * service 层针对返回的消息运行自己的副作用(后台投递、replay builder、
+ * token 快照、输出 offload)。
  */
 
 import { createToolMessage, type ContentPart } from '@byfriends/kosong';
@@ -29,13 +25,11 @@ const TOOL_EMPTY_ERROR_STATUS =
 const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
 
 /**
- * Apply agent-core's output-normalisation to a tool result before it enters
- * the history: empty/error outputs get an explicit `<system>` marker so the
- * model can distinguish "tool ran, produced nothing" from "tool failed".
+ * 在工具结果进入历史前应用 agent-core 的输出归一化:空 / 错误输出会被加上
+ * 显式 `<system>` 标记,使模型能区分「工具运行了但没有产出」与「工具失败」。
  *
- * Exported so vis (and any external reader) can replicate the exact same
- * transformation the live agent applies — previously vis showed the raw
- * output and silently diverged on empty / error tool results.
+ * 导出供 vis(及任何外部读者)复现 live agent 施加的完全相同变换——
+ * 此前 vis 显示原始输出,在空 / 错误工具结果上会静默偏离。
  */
 export function toolResultOutputForModel(result: ExecutableToolResult): string | ContentPart[] {
   const output = result.output;
@@ -67,27 +61,23 @@ function isEmptyOutputText(output: string): boolean {
 }
 
 /**
- * Mutable fold state. The live `ContextMemory` and vis each hold one instance
- * and feed records through {@link foldLoopEvent} / {@link foldAppendMessage}.
- * The live agent shares its instance with the `context` wire model
- * (`WireService.mountModel`), so the fold functions double as the model's
- * `apply` implementations.
+ * 可变 fold 状态。live `ContextMemory` 与 vis 各持一个实例,经
+ * {@link foldLoopEvent} / {@link foldAppendMessage} 喂入记录。live agent 将其
+ * 实例与 `context` wire model 共享(`WireService.mountModel`),因此 fold 函数
+ * 同时充当 model 的 `apply` 实现。
  */
 export interface WireFoldState {
   history: ContextMessage[];
-  /** step.uuid → the assistant ContextMessage currently being filled in. */
+  /** step.uuid → 正在填充中的 assistant ContextMessage。 */
   openSteps: Map<string, ContextMessage>;
-  /** tool-call ids whose result hasn't arrived yet. Non-empty means we're
-   *  inside a tool exchange and explicit `appendMessage`s must be deferred
-   *  until the exchange closes (otherwise user/background messages would be
-   *  interleaved into the assistant's tool-call run, confusing the model). */
+  /** 结果尚未到达的 tool-call id。非空表示正处于工具交换中,显式
+   *  `appendMessage` 必须延迟到交换关闭(否则 user / background 消息会插入
+   *  assistant 的工具调用运行中,使模型困惑)。 */
   pendingToolResultIds: Set<string>;
-  /** tool-call id → {name, args}; consulted by observation masking / pruning
-   *  and by the service layer's output-offload decision (Agent-tool subagent
-   *  summaries are never offloaded). */
+  /** tool-call id → {name, args};observation masking / pruning 及 service 层的
+   *  输出 offload 决策会查阅(Agent 工具的子 agent 摘要永不 offload)。 */
   toolCallInfo: Map<string, { name: string; args: unknown }>;
-  /** Messages queued during an open tool exchange; flushed when the last
-   *  pending tool result lands and the exchange closes. */
+  /** 工具交换打开期间排队的消息;最后一个待决工具结果落地、交换关闭时刷出。 */
   deferredMessages: ContextMessage[];
 }
 
@@ -102,10 +92,8 @@ export function createWireFoldState(): WireFoldState {
 }
 
 /**
- * Push a message into state, honouring the tool-exchange deferral rule:
- * if a tool exchange is open (some tool call still awaiting its result),
- * queue the message; it flushes when the exchange closes. Returns the
- * messages committed to history (empty when deferred).
+ * 把消息推入 state,遵循工具交换延迟规则:若交换打开(仍有工具调用等待结果),
+ * 则排队消息;交换关闭时刷出。返回提交到历史的消息(延迟时为空)。
  */
 export function foldAppendMessage(state: WireFoldState, message: ContextMessage): ContextMessage[] {
   if (state.pendingToolResultIds.size > 0) {
@@ -117,11 +105,9 @@ export function foldAppendMessage(state: WireFoldState, message: ContextMessage)
 }
 
 /**
- * Fold one loop event into state. Pure and synchronous: no side effects, no
- * async (tool outputs enter the timeline in full; output offloading is a
- * service-layer effect after dispatch, see PRD-0027 R3). Returns the messages
- * committed to history (may include deferred messages flushed when a tool
- * exchange closes).
+ * 把一个 loop 事件折叠进 state。纯且同步:无副作用、无 async(工具输出完整进入
+ * 时间线;输出 offload 是 dispatch 之后的 service 层 effect,见 PRD-0027 R3)。
+ * 返回提交到历史的消息(可能包含工具交换关闭时刷出的延迟消息)。
  */
 export function foldLoopEvent(state: WireFoldState, event: LoopRecordedEvent): ContextMessage[] {
   switch (event.type) {
@@ -181,11 +167,9 @@ export function foldLoopEvent(state: WireFoldState, event: LoopRecordedEvent): C
 }
 
 /**
- * Reset fold state to empty in place (e.g. on `context.clear`). Mutates the
- * existing arrays/maps rather than replacing them, so callers whose state is
- * a view onto their own fields (like `ContextMemory.foldState()`) see the
- * reset. Callers that hold display metadata should clear their own
- * structures in parallel.
+ * 原地把 fold 状态重置为空(例如 `context.clear` 时)。变更既有数组 / 映射而非
+ * 替换它们,使 state 是其自身字段视图的调用方(如 `ContextMemory.foldState()`)
+ * 能看到重置。持有展示元数据的调用方应并行清空自己的结构。
  */
 export function resetWireFoldState(state: WireFoldState): void {
   state.history.length = 0;
@@ -196,13 +180,11 @@ export function resetWireFoldState(state: WireFoldState): void {
 }
 
 /**
- * Apply a compaction summary in place: replace the first `compactedCount`
- * messages with a single summary assistant message and keep the uncompacted
- * tail (`history.slice(compactedCount)`). Clears open steps and flushes any
- * deferred messages once the tool-exchange gate allows.
+ * 原地应用压缩摘要:把前 `compactedCount` 条消息替换为一条 summary assistant
+ * 消息,保留未压缩的尾部(`history.slice(compactedCount)`)。清空打开的 step,
+ * 并在工具交换闸门允许时刷出任何延迟消息。
  *
- * Shared by `ContextMemory` and external readers (vis) so partial-compaction
- * tails cannot drift again.
+ * 由 `ContextMemory` 与外部读者(vis)共享,使部分压缩尾部不再漂移。
  */
 export function foldApplyCompaction(
   state: WireFoldState,
@@ -228,9 +210,8 @@ function commitMessage(state: WireFoldState, message: ContextMessage): void {
 }
 
 /**
- * Flush any deferred messages when no tool exchange is open. Public so that
- * out-of-band state changes (e.g. `applyCompaction` rebuilding the history)
- * can re-check the deferral rule without going through `foldLoopEvent`.
+ * 在无工具交换打开时刷出任何延迟消息。公开使带外状态变更(例如 `applyCompaction`
+ * 重建历史)无需经过 `foldLoopEvent` 即可重新检查延迟规则。
  */
 export function flushDeferred(state: WireFoldState): ContextMessage[] {
   return flushDeferredIfToolExchangeClosed(state);
@@ -250,10 +231,9 @@ function flushDeferredIfToolExchangeClosed(state: WireFoldState): ContextMessage
 }
 
 /**
- * Find the history indices of tool messages whose content starts with the
- * `[ToolName:` masked prefix (observation masking leaves this signature).
- * Pure helper shared by the `context.pruning` apply and the service layer's
- * prune-counting (PRD-0027 Phase 5).
+ * 查找内容以 `[ToolName:` 掩码前缀开头的工具消息的历史索引(observation
+ * masking 会留下此签名)。纯辅助函数,由 `context.pruning` 的 apply 与 service
+ * 层的修剪计数共享(PRD-0027 Phase 5)。
  */
 export function findMaskedToolResultIndices(state: WireFoldState): number[] {
   const indices: number[] = [];

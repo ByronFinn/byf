@@ -16,25 +16,25 @@ export interface UsageStatus {
   readonly byModel?: Record<string, TokenUsage>;
   readonly currentTurn?: TokenUsage;
   readonly total?: TokenUsage;
-  /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
+  /** 全部已记录用量的缓存命中率(0–1);无数据时为 undefined。 */
   readonly cacheHitRate?: CacheHitRate;
   /**
-   * Estimated input-token distribution across six categories, computed on
-   * demand by the Agent (it owns config/tools/context). `undefined` when the
-   * caller has not requested it. See {@link InputTokenBreakdown}.
+   * 六个类别的估算输入 token 分布,由 Agent 按需计算(它拥有
+   * config/tools/context)。调用方未请求时为 `undefined`。
+   * 见 {@link InputTokenBreakdown}。
    */
   readonly inputBreakdown?: InputTokenBreakdown;
   /**
-   * Break-side attribution (PRD-0029 R3): the most recent static-prefix change
-   * detected this session. `undefined` when no churn has occurred. `turnsAgo` is
-   * `undefined` for churns replayed from the journal (turn id not persisted).
+   * 破坏侧归因(PRD-0029 R3):本会话检测到的最远一次静态前缀变化。
+   * 未发生 churn 时为 `undefined`。从 journal 重放的 churn 其 `turnsAgo`
+   * 为 `undefined`(turn id 未持久化)。
    */
   readonly lastCacheChurn?: {
     readonly blockName: string;
     readonly cacheScope: CacheScope;
     readonly turnsAgo?: number;
   };
-  /** Total `context.cache_churn` events this session (PRD-0029 R3). `undefined` when zero. */
+  /** 本会话 `context.cache_churn` 事件总数(PRD-0029 R3)。为零时为 `undefined`。 */
   readonly cacheChurnCount?: number;
 }
 
@@ -319,7 +319,7 @@ export interface GoalUpdatedEvent {
   readonly change?: GoalChange;
 }
 
-/** Fired when a session-scoped cron task delivers its prompt (PRD-0023 R3.3). */
+/** 会话内 cron 任务投递其提示词时触发(PRD-0023 R3.3)。 */
 export interface CronFiredEvent {
   readonly type: 'cron.fired';
   readonly origin: {

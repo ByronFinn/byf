@@ -117,16 +117,16 @@ export type AgentRecordOf<K extends keyof AgentRecordEvents> = Extract<
 >;
 
 /**
- * Records whose `type` is `Prefix.*` (e.g. `context`, `turn`).
- * Used by subsystem `restoreRecord` handlers so their switches can be
- * exhaustively checked over the routed subset only.
+ * `type` 为 `Prefix.*`(如 `context`、`turn`)的记录。
+ * 子系统 `restoreRecord` 处理器使用它,使其 switch 只需对被路由的子集
+ * 做穷尽检查。
  */
 export type AgentRecordsOfPrefix<Prefix extends string> = Extract<
   AgentRecord,
   { readonly type: `${Prefix}.${string}` }
 >;
 
-/** Type guard: narrow `AgentRecord` to the prefix subset routed to one handler. */
+/** 类型守卫:把 `AgentRecord` 收窄为路由到某一处理器的前缀子集。 */
 export function isAgentRecordOfPrefix<Prefix extends string>(
   record: AgentRecord,
   prefix: Prefix,

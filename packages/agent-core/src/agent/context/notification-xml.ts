@@ -1,20 +1,19 @@
 /**
- * Notification XML rendering — produces the chat-history injection text
- * shared between the live ContextMemory and the projector.
+ * 通知 XML 渲染——生成 live ContextMemory 与 projector 共享的
+ * 会话历史注入文本。
  *
- * Output shape:
+ * 输出形态:
  *   <notification id="..." category="..." type="..." source_kind="..." source_id="...">
  *   Title: ...
  *   Severity: ...
  *   <body>
- *   <task-notification>   (only when source_kind === 'background_task' and tail_output is non-empty)
- *   <truncated tail>
+ *   <task-notification>   (仅当 source_kind === 'background_task' 且 tail_output 非空)
+ *   <截断的尾部>
  *   </task-notification>
  *   </notification>
  *
- * The opening-tag names (`<notification ` / `<task-notification>`) are
- * load-bearing for the projector's `mergeAdjacentUserMessages` detector
- * — rename requires updating the detector too.
+ * 开标签名(`<notification ` / `<task-notification>`)对 projector 的
+ * `mergeAdjacentUserMessages` 检测器负有承重作用——改名必须同步更新检测器。
  */
 
 export function renderNotificationXml(data: Record<string, unknown>): string {
