@@ -1,6 +1,6 @@
 # pi-tui 升级 0.80.6 → 0.84.1
 
-> **Status**: In Progress | **PRD**: PRD-0030 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
+> **Status**: Done | **PRD**: PRD-0030 | **Created**: 2026-08-13 | **Last updated**: 2026-08-13
 
 ## Goal
 
@@ -106,8 +106,8 @@
 - **Prototyped by**: `/have-a-try`（2026-08-13）— 0.84.1 图片序列与 0.80.10 逐字节一致、渲染性能全面不劣（冷渲染 -30%）、迁移面仅 `new TUI` 一处（实测 THROWS → `TuiMainScreen` 替代可行）
 - **Grilled by**: `/grill`（2026-08-13）— 真装 0.84.1 跑 typecheck 把迁移面从"1 处假设"收敛到"实测 2 处（import + 构造）"；验证 TuiMainScreen 主屏路径保留 Kitty 图片 diff；决议 exact 钉版（pi-tui 非 semver）。exhaustiveness gate 通过。
 - **Sliced into**:
-  - #285 — [PRD-0030] pi-tui 升级 0.80.6 → 0.84.1 — 依赖 bump + byf-tui 两处机械迁移 + 全量验证 (AFK) — Done（commit 27a4156；AC1/2/4/5/6 绿，AC3 终端手动冒烟待人工）
-- **Reviewed by**: `/review`（2026-08-13）— 三视角（Test/Code/Impact）一致 Approve / Approve with Comments，无矛盾。实测 R2 偏差（彻底移除 `type TUI` 而非保留）正确优于计划。唯一门：AC3 终端手动冒烟（typecheck 看不到的运行时回归：Markdown 渲染/Editor 默认键位/overlay 定位/IME 光标）。低优 finding：exact 钉版策略缺持久化记录（建议补一行注释或短 ADR）。PRD Status 维持 In Progress（AC3 未过不升 Done）。
+  - #285 — [PRD-0030] pi-tui 升级 0.80.6 → 0.84.1 — 依赖 bump + byf-tui 两处机械迁移 + 全量验证 (AFK) — Done（commit 27a4156；AC1-AC6 全绿，AC3 已由用户 2026-08-13 人工冒烟验收：Ghostty 下发送后 transcript 正常渲染内联图；输入框内图片 token 为预期行为）
+- **Reviewed by**: `/review`（2026-08-13）— 三视角（Test/Code/Impact）一致 Approve / Approve with Comments，无矛盾。实测 R2 偏差（彻底移除 `type TUI` 而非保留）正确优于计划。AC3 终端手动冒烟由用户验收通过（Ghostty，kitty 协议；渲染管线决定性测试：0.80.10 与 0.84.1 经 diff 渲染器输出的 Kitty 序列逐字节一致）。低优 finding：exact 钉版策略缺持久化记录（建议补一行注释或短 ADR，未处理，非阻塞）。
 
 ## Issue
 
