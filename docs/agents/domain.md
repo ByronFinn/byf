@@ -29,44 +29,17 @@ Single-context repo:
 │   ├── prd/
 │   │   ├── PRD-0002-login-api-type-selector.md
 │   │   ├── PRD-0003-foreground-subagent-live-viewer.md
-│   │   ├── PRD-0004-agent-records-restoration-refactoring.md
-│   │   ├── PRD-0005-approval-fullscreen-viewer.md
-│   │   ├── PRD-0006-ephemeral-injection-cache-optimization.md
-│   │   ├── PRD-0007-cache-observability-cli.md
-│   │   ├── PRD-0008-design-debt-cleanup-high-priority.md
-│   │   ├── PRD-0010-user-configurable-providers.md
-│   │   ├── PRD-0011-turn-boundary-cache-staking.md
-│   │   ├── PRD-0012-websearch-multi-provider.md
-│   │   ├── PRD-0013-update-config-command.md
-│   │   ├── PRD-0014-legacy-sse-mcp-transport.md
-│   │   ├── PRD-0015-fork-step-rewind.md
-│   │   ├── PRD-0016-btw-side-query.md
-│   │   └── PRD-0017-byf-vis-command.md
-│   └── adr/
-│       ├── 0002-user-configurable-providers.md
-│       ├── 0003-lazy-plan-artifact-materialization.md
-│       ├── 0004-merge-openai-providers.md
-│       ├── 0005-thinking-effort-validation-and-clamping.md
-│       ├── 0006-monorepo-layered-architecture.md
-│       ├── 0007-approval-display-silent-transition.md
-│       ├── 0008-remove-plan-mode.md
-│       ├── 0009-context-minimization-strategy.md
-│       ├── 0010-agent-records-restoration-refactoring.md
-│       ├── 0011-turn-boundary-cache-staking.md
-│       ├── 0012-login-catalog-enrichment.md
-│       ├── 0013-remove-directory-tree-injection.md
-│       ├── 0014-task-entry-discriminated-union.md
-│       ├── 0015-base-chat-provider.md
-│       ├── 0016-login-multi-type-providers.md
-│       ├── 0017-decompose-byf-tui.md
-│       ├── 0018-websearch-multi-provider.md
-│       ├── 0019-update-config-as-skill.md
-│       ├── 0020-fork-rewind-truncation-anchor.md
-│       └── 0021-embed-vis-server-into-cli.md
+│   │   └── …                   ← representative samples; see docs/prd/ for the current full set
+│   ├── adr/
+│   │   ├── 0002-user-configurable-providers.md
+│   │   ├── 0003-lazy-plan-artifact-materialization.md
+│   │   └── …                   ← representative samples; see docs/adr/ for the current full set
+│   └── research/
+│       └── INDEX.md            ← searchable stack × topic × major index; records live alongside
 └── src/
 ```
 
-The `docs/research/` branch is omitted because it does not exist yet; `/research` will create it lazily.
+The tree shows representative entries only — PRD and ADR sets keep growing, so always read the live `docs/prd/` and `docs/adr/` directories for the current full set. `docs/research/` is created lazily by `/research`.
 
 **File naming conventions** (producer skills define these; consumer skills read them):
 

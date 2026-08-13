@@ -30,7 +30,7 @@ This is a Bun monorepo. The most relevant entry points are:
 - `apps/cli` — CLI / TUI
 - `apps/vis` — session replay and debugging visualizer
 - `packages/node-sdk` — public TypeScript SDK (`@byfriends/sdk`)
-- `packages/agent-core`, `packages/kosong`, `packages/kaos`, `packages/oauth`, `packages/telemetry` — core engine and supporting packages
+- `packages/agent-core`, `packages/kosong`, `packages/kaos`, `packages/oauth` — core engine and supporting packages
 - `docs/` — VitePress bilingual docs site
 
 For the full project map, see [AGENTS.md](AGENTS.md).
