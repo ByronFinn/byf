@@ -63,7 +63,7 @@ function loopEventSummary(ev: LoopRecordedEvent): string {
   }
 }
 
-/** Render the collapsed-headline for a wire record. */
+/** 渲染 wire 记录的折叠式标题。 */
 export function renderHeadline(r: AgentRecord): HeadlineRender {
   // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- minor context.* record kinds fall through to the unknown-record fallback below
   switch (r.type) {

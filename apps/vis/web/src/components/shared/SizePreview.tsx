@@ -49,11 +49,10 @@ export function SizePreview({
 }
 
 /**
- * Format a byte count into a human-readable string (B / KB / MB).
+ * 把字节数格式化为人类可读字符串(B / KB / MB)。
  *
- * MUST stay in sync with `apps/cli/src/utils/format.ts` — the canonical
- * definition.  Both apps deliberately duplicate this so neither needs
- * a shared utility package.
+ * 必须与 `apps/cli/src/utils/format.ts` 保持同步——那里是规范定义。
+ * 两个应用刻意重复此函数,使双方都不需要共享工具包。
  */
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

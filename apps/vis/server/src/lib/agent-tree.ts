@@ -5,11 +5,10 @@ export interface AgentNode extends AgentInfo {
 }
 
 /**
- * Build a parent/child tree from the flat agent inventory found on
- * `state.json.agents`. Roots are agents with no `parentAgentId`, plus any
- * agent whose `parentAgentId` does not resolve in the inventory (orphans).
- * The returned roots are sorted so that the `main` agent always appears
- * first; remaining roots fall back to a stable lexicographic order.
+ * 从 `state.json.agents` 上的扁平 agent 清单构建父子树。根是无
+ * `parentAgentId` 的 agent,加上任何 `parentAgentId` 在清单中无法解析的
+ * agent(孤儿)。返回的根已排序,使 `main` agent 总是首先出现;其余根
+ * 回退到稳定的字典序。
  */
 export function buildAgentTree(agents: ReadonlyArray<AgentInfo>): AgentNode[] {
   const byId = new Map<string, AgentNode>();

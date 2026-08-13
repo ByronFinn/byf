@@ -109,14 +109,14 @@ function tokenMatches(actual: string, expected: string): boolean {
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
 }
 
-/** Result of building the Hono app; `staticEnabled` is false in API-only mode. */
+/** 构建 Hono 应用的结果;API-only 模式下 `staticEnabled` 为 false。 */
 export interface CreateAppResult {
   readonly app: Hono;
-  /** Whether the SPA bundle is being served. False means API-only. */
+  /** 是否正在提供 SPA bundle。false 表示仅 API。 */
   readonly staticEnabled: boolean;
 }
 
-/** Build a Hono app mounting /api/* routes, plus SPA static fallback. */
+/** 构建挂载 /api/* 路由的 Hono 应用,外加 SPA 静态回退。 */
 export async function createApp(options: CreateAppOptions = {}): Promise<CreateAppResult> {
   const app = new Hono();
 

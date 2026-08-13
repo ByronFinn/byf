@@ -2,33 +2,33 @@ import { createApp } from './app';
 import { resolveByfHome, resolveHost, resolvePort, resolveVisAuthToken } from './config';
 import { formatStartupBanner } from './startup-banner';
 
-/** Options for starting a vis HTTP server programmatically. */
+/** 以编程方式启动 vis HTTP 服务器的选项。 */
 export interface StartVisServerOptions {
-  /** Bind host. Defaults to `resolveHost()` (loopback). */
+  /** 绑定主机。默认为 `resolveHost()`(回环)。 */
   readonly host?: string;
-  /** Bind port. Defaults to `resolvePort()` (3001). */
+  /** 绑定端口。默认为 `resolvePort()`(3001)。 */
   readonly port?: number;
-  /** Auth token. Defaults to `resolveVisAuthToken(host)` (required outside loopback). */
+  /** 认证 token。默认为 `resolveVisAuthToken(host)`(回环外必填)。 */
   readonly authToken?: string;
   /**
-   * Directory holding the built SPA assets to serve. When omitted, the
-   * `public/` directory next to the compiled server bundle is used (if any);
-   * in dev mode this resolves to `null` and only the API is served.
+   * 持有要提供的构建后 SPA 资产的目录。省略时,使用编译后的服务器
+   * bundle 旁的 `public/` 目录(若有);开发模式解析为 `null`,
+   * 只提供 API。
    */
   readonly publicDir?: string;
 }
 
-/** A handle to a running vis server. */
+/** 运行中 vis 服务器的句柄。 */
 export interface VisServerHandle {
-  /** The host the server is bound to. */
+  /** 服务器绑定的主机。 */
   readonly host: string;
-  /** The port the server is bound to. */
+  /** 服务器绑定的端口。 */
   readonly port: number;
-  /** Whether the SPA bundle is being served. False means API-only. */
+  /** 是否正在提供 SPA bundle。false 表示仅 API。 */
   readonly staticEnabled: boolean;
-  /** Base URL (`http://<host>:<port>`), with IPv6 hosts bracketed. */
+  /** Base URL(`http://<host>:<port>`),IPv6 主机带方括号。 */
   readonly url: string;
-  /** Stop the server. Subsequent connections are refused. */
+  /** 停止服务器。后续连接被拒绝。 */
   close(): void;
 }
 
@@ -38,12 +38,11 @@ function hostForUrl(host: string): string {
 }
 
 /**
- * Start the vis HTTP server programmatically. Resolves once the server is
- * listening. Used by the CLI `byf vis` subcommand (in-process) and by the
- * standalone `index.ts` entry.
+ * 以编程方式启动 vis HTTP 服务器。服务器开始监听后 resolve。
+ * CLI `byf vis` 子命令(进程内)与独立 `index.ts` 入口使用。
  *
- * Binds via `Bun.serve` (library runtime contract is Bun-only). Bind failures
- * such as `EADDRINUSE` throw synchronously so callers can catch them.
+ * 经 `Bun.serve` 绑定(库运行时契约仅 Bun)。`EADDRINUSE` 等绑定失败
+ * 同步抛出,使调用方可捕获。
  */
 export async function startVisServer(
   options: StartVisServerOptions = {},
@@ -78,16 +77,16 @@ export async function startVisServer(
 }
 
 /**
- * Resolve the BYF_HOME the server reads session records from. Exposed for the
- * standalone entry's startup banner. CLI consumers rely on the same env var.
+ * 解析服务器读取会话记录所用的 BYF_HOME。暴露给独立入口的启动横幅。
+ * CLI 消费者依赖同一环境变量。
  */
 export function resolveVisByfHome(): string {
   return resolveByfHome();
 }
 
 /**
- * Format the startup banner text. Exposed so the CLI can reuse the exact same
- * wording without depending on startup-banner internals.
+ * 格式化启动横幅文本。暴露使 CLI 无需依赖启动横幅内部实现即可复用
+ * 完全相同的措辞。
  */
 export function formatVisStartupBanner(input: {
   readonly authToken?: string;

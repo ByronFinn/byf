@@ -1,4 +1,4 @@
-/** Format an epoch-ms timestamp as a short relative string ("2m ago", "3h ago"). */
+/** 把 epoch 毫秒时间戳格式化为简短相对字符串("2m ago"、"3h ago")。 */
 export function formatRelativeTime(epochMs: number): string {
   if (!epochMs || !Number.isFinite(epochMs)) return '—';
   const diff = Date.now() - epochMs;
@@ -16,7 +16,7 @@ export function formatRelativeTime(epochMs: number): string {
   return `${Math.floor(mo / 12)}y ago`;
 }
 
-/** Format an epoch-ms timestamp as ISO-ish local time (YYYY-MM-DD HH:MM:SS). */
+/** 把 epoch 毫秒时间戳格式化为类 ISO 本地时间(YYYY-MM-DD HH:MM:SS)。 */
 export function formatAbsoluteTime(epochMs: number): string {
   if (!epochMs || !Number.isFinite(epochMs)) return '—';
   const d = new Date(epochMs);
@@ -24,7 +24,7 @@ export function formatAbsoluteTime(epochMs: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** Format an epoch-ms timestamp as HH:MM:SS (wall clock). */
+/** 把 epoch 毫秒时间戳格式化为 HH:MM:SS(墙钟)。 */
 export function formatWallClock(epochMs: number): string {
   if (!epochMs || !Number.isFinite(epochMs)) return '--:--:--';
   const d = new Date(epochMs);

@@ -3,12 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 
 /**
- * Fetch the projected context for a given agent in a session.
+ * 获取会话中给定 agent 的投影上下文。
  *
- * The `/api/sessions/:id/context?agent=<agentId>` route returns the
- * full `ContextProjection` (messages, usage totals, config snapshot,
- * permission mode). Defaults to `main` when no agent id
- * is provided, but callers should pass an explicit id for clarity.
+ * `/api/sessions/:id/context?agent=<agentId>` 路由返回完整
+ * `ContextProjection`(消息、用量总计、配置快照、权限模式)。
+ * 未提供 agent id 时默认为 `main`,但调用方应传显式 id 以求清晰。
  */
 export function useContext(sessionId: string, agentId: string) {
   return useQuery({

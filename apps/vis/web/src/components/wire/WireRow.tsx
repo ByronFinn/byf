@@ -6,10 +6,9 @@ import { TypeBadge } from './TypeBadge';
 import { renderHeadline } from './WireHeadline';
 import { WireRowDetail } from './WireRowDetail';
 
-/** Pairing hint for a `tool.call` ↔ `tool.result` row. Computed by the
- *  parent (WireTab) from the full record list and threaded down here so
- *  the row can render an inline cross-reference and participate in the
- *  hover-highlight protocol. */
+/** `tool.call` ↔ `tool.result` 行的配对提示。由父级(WireTab)从完整
+ *  记录列表计算,并向下传入,使行可渲染内联交叉引用并参与悬停高亮
+ *  协议。 */
 export interface PairHint {
   toolCallId: string;
   kind: 'call' | 'result';

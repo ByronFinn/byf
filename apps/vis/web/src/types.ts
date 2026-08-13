@@ -1,6 +1,6 @@
-// Client-side types — re-export vis DTOs (type-only).
-// Canonical shared DTO definitions live in @byfriends/vis-shared (apps/vis/shared/types.ts).
-// Both vis-web and vis-server import from the same single source.
+// 客户端类型——重导出 vis DTO(仅类型)。
+// 规范共享 DTO 定义位于 @byfriends/vis-shared(apps/vis/shared/types.ts)。
+// vis-web 与 vis-server 都从同一单一来源导入。
 
 export type {
   SessionSummary,
@@ -33,10 +33,10 @@ export interface DeleteSessionResponse {
 }
 
 /**
- * Shape returned by `GET /api/sessions/:id/context?agent=<agentId>`.
+ * `GET /api/sessions/:id/context?agent=<agentId>` 返回的形态。
  *
- * Mirrors `ContextProjection` from @byfriends/vis-shared, plus the `sessionId`
- * and `agentId` echoed by the route.
+ * 镜像 @byfriends/vis-shared 的 `ContextProjection`,外加路由回显的
+ * `sessionId` 与 `agentId`。
  */
 export interface ContextResponse {
   sessionId: string;

@@ -3,7 +3,7 @@ import type { PillTone } from '../shared/Pill';
 
 type RecordType = AgentRecord['type'];
 
-/** Visual tone for each record type. */
+/** 每种记录类型的视觉色调。 */
 export const TYPE_TONE: Record<RecordType, PillTone> = {
   metadata: 'meta',
   'config.update': 'config',
@@ -34,7 +34,7 @@ export const TYPE_TONE: Record<RecordType, PillTone> = {
   'goal.clear': 'warning',
 };
 
-/** Compact human label for each record type (used in the type badge). */
+/** 每种记录类型的紧凑人类标签(用于类型徽章)。 */
 export const TYPE_LABEL: Record<RecordType, string> = {
   metadata: 'meta',
   'config.update': 'config',

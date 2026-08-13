@@ -5,8 +5,8 @@ export interface RevealCommand {
   readonly args: readonly string[];
 }
 
-/** Resolve the platform-specific "reveal in file manager" command for
- *  the given absolute path. Kept pure (no IO) so it can be unit-tested. */
+/** 为给定绝对路径解析平台特定的「在文件管理器中显示」命令。
+ *  保持纯函数(无 IO),使可单元测试。 */
 export function revealCommandFor(
   path: string,
   platform: NodeJS.Platform = process.platform,
@@ -24,10 +24,9 @@ export function revealCommandFor(
   }
 }
 
-/** Spawn the OS file manager to reveal `path`. Resolves once the launcher
- *  process has started; rejects only if the launcher itself fails to
- *  spawn (missing binary etc.) — not if it later fails to find the path,
- *  since the launcher exits asynchronously after we've detached. */
+/** 拉起 OS 文件管理器显示 `path`。启动器进程启动后 resolve;仅在启动器
+ *  本身无法拉起(缺少二进制等)时 reject——不会因它后来找不到路径而
+ *  reject,因为启动器在我们 detach 后异步退出。 */
 export async function revealInOs(path: string): Promise<void> {
   const { command, args } = revealCommandFor(path);
   return new Promise<void>((resolve, reject) => {
