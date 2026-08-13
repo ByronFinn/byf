@@ -107,6 +107,7 @@
 - **Grilled by**: `/grill`（2026-08-13）— 真装 0.84.1 跑 typecheck 把迁移面从"1 处假设"收敛到"实测 2 处（import + 构造）"；验证 TuiMainScreen 主屏路径保留 Kitty 图片 diff；决议 exact 钉版（pi-tui 非 semver）。exhaustiveness gate 通过。
 - **Sliced into**:
   - #285 — [PRD-0030] pi-tui 升级 0.80.6 → 0.84.1 — 依赖 bump + byf-tui 两处机械迁移 + 全量验证 (AFK) — Done（commit 27a4156；AC1/2/4/5/6 绿，AC3 终端手动冒烟待人工）
+- **Reviewed by**: `/review`（2026-08-13）— 三视角（Test/Code/Impact）一致 Approve / Approve with Comments，无矛盾。实测 R2 偏差（彻底移除 `type TUI` 而非保留）正确优于计划。唯一门：AC3 终端手动冒烟（typecheck 看不到的运行时回归：Markdown 渲染/Editor 默认键位/overlay 定位/IME 光标）。低优 finding：exact 钉版策略缺持久化记录（建议补一行注释或短 ADR）。PRD Status 维持 In Progress（AC3 未过不升 Done）。
 
 ## Issue
 
