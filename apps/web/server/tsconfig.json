@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "dist-types",
+    "paths": {
+      "#/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "../../../packages/agent-core/src/prompt-modules.d.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../../../packages/node-sdk" }]
+}

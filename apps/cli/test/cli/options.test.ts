@@ -217,7 +217,7 @@ describe('CLI options parsing', () => {
     it('registers the sub-commands', () => {
       const program = createProgram('0.0.0', () => {});
       const commandNames: string[] = program.commands.map((command) => command.name());
-      expect(commandNames).toEqual(['export', 'vis']);
+      expect(commandNames).toEqual(['export', 'vis', 'web']);
     });
   });
 

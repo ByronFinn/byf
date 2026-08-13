@@ -1,0 +1,27 @@
+{
+  "name": "@byfriends/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web client for BYF — a browser UI that drives the agent live",
+  "keywords": [
+    "byf",
+    "chat",
+    "client",
+    "web"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "license": "MIT",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByronFinn/byf.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build:deps": "bun run --filter '@byfriends/sdk' build",
+    "predev": "bun run build:deps",
+    "dev": "bun scripts/dev.mjs",
+    "prestart": "bun run build:web",
+    "start": "bun server/dist/index.mjs"
+  }
+}
