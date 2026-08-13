@@ -30,26 +30,22 @@ export function mergeRequestHeaders(
 }
 
 /**
- * Resolve the SDK client to use for a single provider request, applying the
- * standard precedence shared by every provider adapter:
+ * 解析单个 provider 请求要使用的 SDK 客户端,应用每个 provider 适配器
+ * 共享的标准优先级:
  *
- * 1. If a `clientFactory` was supplied, delegate to it (it receives the
- *    per-request {@link ProviderRequestAuth}, defaulting to `{}`).
- * 2. Otherwise, if no per-request auth is needed AND a constructor-time
- *    client was cached, reuse the cached instance.
- * 3. Otherwise, call `build(auth)` to construct a fresh client for this
- *    request — typically using `requireProviderApiKey` plus
- *    `mergeRequestHeaders`.
+ * 1. 若提供了 `clientFactory`,委托给它(它接收每次请求的
+ *    {@link ProviderRequestAuth},默认为 `{}`)。
+ * 2. 否则,若无需每次请求的认证**且**构造时客户端已缓存,复用缓存实例。
+ * 3. 否则,调用 `build(auth)` 为本次请求构造全新客户端——通常使用
+ *    `requireProviderApiKey` 加 `mergeRequestHeaders`。
  *
- * Note: when per-request `auth` is provided (e.g. an OAuth bearer token
- * resolved immediately before each call), step 3 fires and a brand-new SDK
- * client is constructed per request. This is intentional — it keeps short-lived
- * credentials out of any long-lived shared state and avoids racing concurrent
- * requests on a mutable client. The trade-off is that connection-pool / keep-
- * alive state inside the SDK client isn't reused across requests on the OAuth
- * path. For the current agent-CLI workload (one LLM call per turn step) this
- * is fine; if a future host needs high-throughput per-request auth, the
- * obvious optimization is a small LRU keyed on `(apiKey, headers digest)`.
+ * 注意:提供每次请求 `auth` 时(如在每次调用前立即解析的 OAuth bearer
+ * token),步骤 3 触发,每次请求构造全新 SDK 客户端。这是有意的——把
+ * 短命凭据移出任何长命共享状态,并避免在可变客户端上竞争并发请求。
+ * 代价是 SDK 客户端内的连接池 / keep-alive 状态在 OAuth 路径上不跨请求
+ * 复用。对当前 agent-CLI 负载(每 turn 一步一次 LLM 调用)这没问题;
+ * 若未来宿主需要高吞吐的每次请求认证,显而易见的优化是以
+ * `(apiKey, headers digest)` 为键的小型 LRU。
  */
 export function resolveAuthBackedClient<TClient>(
   state: {

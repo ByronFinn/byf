@@ -1,15 +1,14 @@
 /**
- * Shared abstract base for the per-provider `StreamedMessage` implementations.
+ * 每 provider `StreamedMessage` 实现的共享抽象基类。
  *
- * Holds the field quartet (`_id` / `_usage` / `_finishReason` /
- * `_rawFinishReason`) and the four getters — boilerplate that was previously
- * copy-pasted across the four adapters. Subclasses own the protocol-specific
- * stream-conversion generator and implement `_buildIter()`.
+ * 持有字段四件套(`_id` / `_usage` / `_finishReason` / `_rawFinishReason`)
+ * 与四个 getter——此前在四个适配器间复制粘贴的样板。子类拥有协议特定
+ * 的流转换生成器,并实现 `_buildIter()`。
  *
- * The iterator is built lazily on first iteration so subclasses can initialize
- * any instance state after `super()` and before the generator runs.
+ * 迭代器在首次迭代时惰性构建,使子类可在 `super()` 之后、生成器运行前
+ * 初始化任何实例状态。
  *
- * See ADR 0015 for the rationale.
+ * 理由见 ADR 0015。
  */
 
 import type { StreamedMessagePart } from '#/message';

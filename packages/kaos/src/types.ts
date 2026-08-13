@@ -1,5 +1,5 @@
 /**
- * KAOS stat result, mirroring Python's os.stat_result fields.
+ * KAOS stat 结果,镜像 Python 的 os.stat_result 字段。
  */
 export interface StatResult {
   stMode: number;

@@ -23,7 +23,7 @@ export class CatalogFetchError extends Error {
   }
 }
 
-/** Fetches a models.dev-style catalog. Public endpoint, no credentials needed. */
+/** 获取 models.dev 风格目录。公开端点,无需凭据。 */
 export async function fetchCatalog(
   url: string,
   signal?: AbortSignal,
@@ -53,7 +53,7 @@ function capabilityToStrings(capability: ModelCapability): string[] | undefined 
   return caps.length > 0 ? caps : undefined;
 }
 
-/** Builds a byf model alias from a normalized catalog model. */
+/** 由归一化目录模型构建 byf 模型别名。 */
 export function catalogModelToAlias(providerId: string, model: CatalogModel): ModelAlias {
   return {
     provider: providerId,
@@ -77,9 +77,9 @@ export interface ApplyCatalogProviderOptions {
 }
 
 /**
- * Parses an optional pruned models.dev catalog string — typically the
- * `__BYF_CODE_BUILT_IN_CATALOG__` constant injected at build time
- * (`bun build` define). Returns `undefined` when the argument is missing or invalid.
+ * 解析可选的精简 models.dev 目录字符串——通常是构建时注入的
+ * `__BYF_CODE_BUILT_IN_CATALOG__` 常量(`bun build` define)。
+ * 参数缺失或无效时返回 `undefined`。
  */
 export function loadBuiltInCatalog(text?: string): Catalog | undefined {
   if (typeof text !== 'string' || text.length === 0) return undefined;
@@ -91,16 +91,14 @@ export function loadBuiltInCatalog(text?: string): Catalog | undefined {
 }
 
 /**
- * Writes a catalog-selected provider and its model aliases into `config` and
- * marks it the default. Model metadata (context, output limit, capabilities)
- * comes from the catalog, so the user does not hand-write it. Returns the
- * default model key.
+ * 把目录选定的 provider 及其模型别名写入 `config`,并标记为默认。
+ * 模型元数据(上下文、输出上限、能力)来自目录,用户无需手写。
+ * 返回默认模型键。
  *
- * NOTE: the same-provider cleanup below mutates the passed-in `config` only.
- * It clears stale aliases on disk solely when the caller overwrites the whole
- * config. Callers persisting via `setConfig` — a deep-merge patch that cannot
- * delete keys — must call `removeProvider` first, or removed aliases reappear
- * after the merge.
+ * 注意:下面的同 provider 清理只变更传入的 `config`。仅当调用方整体
+ * 覆盖 config 时,磁盘上的过期别名才会被清除。经 `setConfig` 持久化的
+ * 调用方——一种无法删除键的深合并补丁——必须先调用 `removeProvider`,
+ * 否则被移除的别名会在合并后重现。
  */
 export function applyCatalogProvider(
   config: ByfConfig,
@@ -132,9 +130,9 @@ export function applyCatalogProvider(
 // ---------------------------------------------------------------------------
 
 /**
- * Tests whether `candidate` is a prefix of `modelId` followed by either
- * end-of-string or a `-` separator. This matches `gpt-5.5` against
- * `gpt-5.5-2025-06-01` but not against `gpt-5.5-turbo` (different segment).
+ * 测试 `candidate` 是否为 `modelId` 的前缀,其后紧跟字符串结尾或 `-`
+ * 分隔符。这使 `gpt-5.5` 能匹配 `gpt-5.5-2025-06-01`,但不匹配
+ * `gpt-5.5-turbo`(不同段)。
  */
 export function catalogIdMatchesModelId(candidate: string, modelId: string): boolean {
   if (modelId === candidate) return true;
@@ -143,8 +141,8 @@ export function catalogIdMatchesModelId(candidate: string, modelId: string): boo
 }
 
 /**
- * Searches all providers in the catalog for a model whose ID matches
- * `modelId` (prefix + separator boundary). Returns the first match.
+ * 在目录的全部 provider 中搜索 ID 匹配 `modelId`(前缀 + 分隔符边界)
+ * 的模型。返回首个匹配。
  */
 export function findCatalogModel(catalog: Catalog, modelId: string): CatalogModel | undefined {
   for (const entry of Object.values(catalog)) {
@@ -165,9 +163,9 @@ export interface EnrichedModelAlias {
 }
 
 /**
- * Merges catalog metadata (priority) with provider-supplied values (fallback).
- * Catalog provides: capabilities, maxContextSize, maxOutputSize, reasoningKey.
- * Provider provides: displayName (user chose this provider, keep its naming).
+ * 合并目录元数据(优先)与 provider 提供的值(回退)。
+ * 目录提供:capabilities、maxContextSize、maxOutputSize、reasoningKey。
+ * Provider 提供:displayName(用户选择了此 provider,保留其命名)。
  */
 export function enrichWithCatalog(
   providerModel: {

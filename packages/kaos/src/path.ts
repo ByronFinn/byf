@@ -142,8 +142,8 @@ function isWin32DriveRelative(path: string): boolean {
 }
 
 /**
- * A path wrapper class that delegates all I/O operations to the current Kaos instance.
- * The path string is interpreted with the path class active at construction time.
+ * 把所有 I/O 操作委托给当前 Kaos 实例的路径包装类。
+ * 路径字符串按构造时活跃的路径类解释。
  */
 export class KaosPath {
   private _path: string;

@@ -1,51 +1,47 @@
 import type { CacheScope, CacheStrategy } from './prompt-plan';
 
 /**
- * Cache capability advertised by a provider.
+ * provider 声明的缓存能力。
  *
- * Providers that support prompt caching expose this via
- * {@link ModelCapability.cache} to describe which caching mechanisms they
- * implement and any constraints consumers must respect.
+ * 支持提示缓存的 provider 经 {@link ModelCapability.cache} 暴露它,描述
+ * 其实现的缓存机制与消费者必须尊重的约束。
  *
  * @readonly
  */
 export interface ProviderCacheCapability {
   /**
-   * The caching strategy supported by this provider.
+   * 此 provider 支持的缓存策略。
    *
-   * See {@link CacheStrategy} for strategy descriptions and semantics.
+   * 策略描述与语义见 {@link CacheStrategy}。
    */
   readonly strategy: CacheStrategy;
 
   /**
-   * Maximum number of cacheable blocks supported.
+   * 支持的最大可缓存块数。
    *
-   * Only applicable for `'explicit-block'` strategy. Providers may limit
-   * the number of distinct cache points they support (e.g., Anthropic
-   * supports up to 4 cache breakpoints). Omitted means "unknown" or "no
-   * practical limit."
+   * 仅对 `'explicit-block'` 策略适用。provider 可能限制其支持的缓存点
+   * 数量(如 Anthropic 最多支持 4 个缓存断点)。省略表示「未知」或
+   * 「无实际限制」。
    */
   readonly maxCacheableBlocks?: number;
 
   /**
-   * Cache scopes supported by this provider.
+   * 此 provider 支持的缓存作用域。
    *
-   * Providers may not support all scopes (e.g., some may not support
-   * `'global'` scoping). When omitted, consumers should assume all scopes
-   * are supported.
+   * provider 可能不支持全部作用域(如某些不支持 `'global'` 作用域)。
+   * 省略时,消费者应假定所有作用域都受支持。
    */
   readonly supportedScopes?: readonly CacheScope[];
 }
 
 /**
- * Declared capabilities for a specific model exposed by a {@link ChatProvider}.
+ * {@link ChatProvider} 暴露的特定模型声明能力。
  *
- * Providers return one of these from {@link ChatProvider.getCapability} so
- * callers can gate requests against modalities the model does not accept
- * without dispatching the request and watching it fail upstream.
+ * provider 从 {@link ChatProvider.getCapability} 返回其中之一,使调用方可
+ * 针对模型不接受的模态门控请求,而无需分发请求并眼看它在上游失败。
  *
- * `max_context_tokens: 0` means "unknown"; callers that do not gate on
- * context length can ignore the field.
+ * `max_context_tokens: 0` 表示「未知」;不按上下文长度门控的调用方可
+ * 忽略该字段。
  */
 export interface ModelCapability {
   readonly image_in: boolean;
@@ -58,11 +54,10 @@ export interface ModelCapability {
   readonly thinking_max: boolean;
   readonly max_context_tokens: number;
   /**
-   * Cache capability for this model.
+   * 此模型的缓存能力。
    *
-   * Present when the provider supports prompt caching. Consumers can inspect
-   * this field to determine which caching strategies and scopes are
-   * available, then construct appropriate {@link PromptPlan}s.
+   * provider 支持提示缓存时存在。消费者可检查此字段确定哪些缓存策略
+   * 与作用域可用,然后构造合适的 {@link PromptPlan}。
    */
   readonly cache?: ProviderCacheCapability;
 }
@@ -70,9 +65,8 @@ export interface ModelCapability {
 const UNKNOWN_CAPABILITY_MARKER = Symbol.for('byf.kosong.UNKNOWN_CAPABILITY');
 
 /**
- * Shared read-only default returned when a provider has not catalogued a
- * given model. Frozen so accidental mutation at one call site cannot leak
- * into another.
+ * provider 未编目给定模型时返回的共享只读默认值。已冻结,使一个调用点
+ * 的意外变更不会泄漏到另一调用点。
  */
 export const UNKNOWN_CAPABILITY: ModelCapability = Object.freeze(
   Object.defineProperty(

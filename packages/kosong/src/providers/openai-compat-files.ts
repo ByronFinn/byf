@@ -28,14 +28,13 @@ export interface OpenAICompatFilesOptions {
 }
 
 /**
- * OpenAI-compatible file upload client.
+ * OpenAI 兼容的文件上传客户端。
  *
- * Wraps the underlying OpenAI-compatible `files.create` API to upload videos
- * to the file service and return them as {@link VideoURLPart} values
- * suitable for use in chat messages.
+ * 包装底层 OpenAI 兼容 `files.create` API,把视频上传到文件服务,并返回
+ * 适合用于聊天消息的 {@link VideoURLPart} 值。
  *
- * An `OpenAICompatFiles` instance is typically obtained from
- * {@link OpenAICompatChatProvider.files}.
+ * `OpenAICompatFiles` 实例通常从 {@link OpenAICompatChatProvider.files}
+ * 获得。
  */
 export class OpenAICompatFiles {
   private readonly _apiKey: string | undefined;

@@ -10,10 +10,10 @@ function getDefaultKaos(): Kaos {
 }
 
 /**
- * Return the {@link Kaos} instance for the current async context.
+ * 返回当前异步上下文的 {@link Kaos} 实例。
  *
- * If {@link runWithKaos} has bound an instance for this context it is
- * returned; otherwise a lazily-created {@link LocalKaos} default is used.
+ * 若 {@link runWithKaos} 已为此上下文绑定实例则返回之;否则使用惰性创建
+ * 的 {@link LocalKaos} 默认实例。
  */
 export function getCurrentKaos(): Kaos {
   return kaosStorage.getStore() ?? getDefaultKaos();
@@ -24,20 +24,19 @@ export function runWithKaos<T>(kaos: Kaos, fn: () => T): T {
 }
 
 /**
- * Token returned by setCurrentKaos, used to restore the previous instance.
- * Mirrors Python's ContextVar Token pattern.
+ * setCurrentKaos 返回的 token,用于恢复先前的实例。
+ * 镜像 Python 的 ContextVar Token 模式。
  */
 export interface KaosToken {
   readonly previousKaos: Kaos | null;
 }
 
 /**
- * Set the current kaos instance and return a token for restoring the previous one.
+ * 设置当前 kaos 实例,返回用于恢复先前实例的 token。
  *
- * Unlike a plain module-level global, this binds the override to the current
- * async context so concurrent tasks do not pollute each other. The returned
- * token can later be passed to {@link resetCurrentKaos} to restore the
- * previously-visible instance, mirroring Python's ContextVar token pattern.
+ * 与普通模块级全局不同,它把覆盖绑定到当前异步上下文,使并发任务不会
+ * 互相污染。返回的 token 之后可传给 {@link resetCurrentKaos} 恢复此前
+ * 可见的实例,镜像 Python 的 ContextVar token 模式。
  */
 export function setCurrentKaos(kaos: Kaos): KaosToken {
   const token: KaosToken = { previousKaos: getCurrentKaos() };
