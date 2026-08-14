@@ -352,3 +352,23 @@ byf web 客户端 UI 重设计（PRD-0033 / ADR 0035）的设计 token 分层体
 ### 步骤时间轴 (Step Timeline)
 
 byf web 客户端 assistant 消息的渲染结构：把 thinking / tool / text 组织成 step，左侧竖线 + 圆点（活跃项辉光），可视化 agent 执行流。源自 kimi-code。是 PRD-0033 视觉风格（deepseek 精致骨架 + kimi 时间轴融合）的一部分。
+
+### 工具调用归组 (tool call grouping)
+
+web 客户端把同一 turn 内时间上相邻、同类型（`ToolInputDisplay.kind`）的连续工具调用折叠为「类型 + 数量 + 总耗时」摘要行的纯客户端投影；中间被 text/thinking step 打断则各自成组。归组不改事件契约。
+
+### 子 Agent 时间轴卡片 + drawer (subagent timeline card)
+
+web 客户端中子 agent 在主步骤时间轴内的信息卡片（分工、状态、耗时、usage、结果摘要）；点击卡片经右侧 overlay drawer 深度查看该子 agent 的完整调用轨迹（与主时间轴同构）。区别于内联展开与常驻 details 栏（have-a-try 三变体裁决的形态）。
+
+### 作用域白名单文件端点 (scoped file endpoint)
+
+web-server 的只读文件 HTTP 端点：realpath 规范化后仅允许已注册工作区根与 `media-originals` 缓存两类前缀，带大小/类型上限与 Range 支持。是 web 唯一的文件读取通道（ADR 0036）。
+
+### 只写不读密钥 (write-only secret)
+
+apiKey 的管理语义：仅接受写入、任何读取路径恒脱敏（仅报「是否已配置」）、编辑留空即不变、`env`/oauth 来源输入禁用。见 ADR 0036。
+
+### settle 后渲染 (render-after-settle)
+
+web 客户端流式渲染策略：流式期间保持纯文本，块完结（settle）后再做语法高亮、Mermaid 图表、LaTeX 公式等重渲染，避免每帧重排抖动（沿 PRD-0033 高亮决策推广到图表与公式）。
