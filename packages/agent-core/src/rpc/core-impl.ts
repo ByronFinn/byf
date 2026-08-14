@@ -68,6 +68,7 @@ import type {
   McpStartupMetrics,
   PromptPayload,
   ReconnectMcpServerPayload,
+  RemoveByfModelPayload,
   RemoveByfProviderPayload,
   RenameSessionPayload,
   ResumeSessionPayload,
@@ -451,6 +452,24 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       config.defaultProvider = undefined;
     }
 
+    await writeConfigFile(this.configPath, config);
+    const updated = readConfigFile(this.configPath);
+    this.providerManager.updateConfig(updated);
+    return updated;
+  }
+
+  /** PRD-0034 R-D3:删除模型别名(deepMerge 无法删键,镜像 removeByfProvider)。 */
+  async removeByfModel(input: RemoveByfModelPayload): Promise<ByfConfig> {
+    const config = readConfigFile(this.configPath);
+    const existingModels = config.models ?? {};
+    if (!(input.modelId in existingModels)) {
+      throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, `Unknown model alias: ${input.modelId}`);
+    }
+    delete existingModels[input.modelId];
+    config.models = existingModels;
+    if (config.defaultModel === input.modelId) {
+      config.defaultModel = undefined;
+    }
     await writeConfigFile(this.configPath, config);
     const updated = readConfigFile(this.configPath);
     this.providerManager.updateConfig(updated);

@@ -73,6 +73,7 @@ export function createMockHost(overrides: Partial<SlashCommandHost> = {}): Slash
     getUserMessageContents: () => [],
     performForkRewind: vi.fn(async () => {}),
     runInitCommand: vi.fn(async () => {}),
+    registerShutdownHook: vi.fn(),
     ...overrides,
   };
 }

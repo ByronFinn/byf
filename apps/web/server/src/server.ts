@@ -84,6 +84,7 @@ export function formatWebServerStartupBanner(input: {
   readonly host: string;
   readonly port: number;
   readonly staticEnabled?: boolean;
+  readonly lanIps?: readonly string[];
 }): string {
   return formatWebStartupBanner({
     authToken: input.authToken,
@@ -91,5 +92,9 @@ export function formatWebServerStartupBanner(input: {
     byfHome: resolveByfHome(),
     port: input.port,
     staticEnabled: input.staticEnabled,
+    lanIps: input.lanIps,
   });
 }
+
+/** 收集非回环 IPv4 地址(R-D1 LAN banner)。 */
+export { collectLanIps } from './startup-banner';

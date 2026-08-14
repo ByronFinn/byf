@@ -6,6 +6,8 @@ import type {
   CreateSessionBody,
   CreateSessionResponse,
   CreateWorkspaceBody,
+  DiscoverModelsBody,
+  DiscoverModelsResponse,
   ForkSessionResponse,
   FsEntry,
   FsListResponse,
@@ -20,6 +22,10 @@ import type {
   SetPermissionBody,
   SkillSummary,
   SteerBody,
+  ModelUpdateBody,
+  ModelUpsertBody,
+  ProviderCreateBody,
+  ProviderUpdateBody,
   UpdateConfigBody,
   UpdateSessionMetaBody,
   UpdateSessionModelBody,
@@ -198,6 +204,23 @@ export const api = {
 
   removeProvider: (providerId: string) =>
     request<ConfigResponse>(`/api/config/providers/${enc(providerId)}`, 'DELETE'),
+
+  createProvider: (body: ProviderCreateBody) =>
+    request<ConfigResponse>('/api/config/providers', 'POST', body),
+
+  updateProvider: (id: string, body: ProviderUpdateBody) =>
+    request<ConfigResponse>(`/api/config/providers/${enc(id)}`, 'PATCH', body),
+
+  createModel: (body: ModelUpsertBody) =>
+    request<ConfigResponse>('/api/config/models', 'POST', body),
+
+  updateModel: (id: string, body: ModelUpdateBody) =>
+    request<ConfigResponse>(`/api/config/models/${enc(id)}`, 'PATCH', body),
+
+  removeModel: (id: string) => request<ConfigResponse>(`/api/config/models/${enc(id)}`, 'DELETE'),
+
+  discoverModels: (body: DiscoverModelsBody) =>
+    request<DiscoverModelsResponse>('/api/config/discover-models', 'POST', body),
 
   closeSession: (id: string) =>
     request<{ sessionId: string; closed: boolean }>(`/api/sessions/${enc(id)}`, 'DELETE'),

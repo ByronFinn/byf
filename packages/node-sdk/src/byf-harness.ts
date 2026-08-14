@@ -178,6 +178,10 @@ export class ByfHarness {
     return this.rpc.setConfig(patch);
   }
 
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    return this.rpc.removeModel(modelId);
+  }
+
   async removeProvider(providerId: string): Promise<ByfConfig> {
     return this.rpc.removeProvider(providerId);
   }

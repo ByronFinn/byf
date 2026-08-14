@@ -227,6 +227,11 @@ export class SDKRpcClient {
     return rpc.setByfConfig(input);
   }
 
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    const rpc = await this.getRpc();
+    return rpc.removeByfModel({ modelId });
+  }
+
   async removeProvider(providerId: string): Promise<ByfConfig> {
     const rpc = await this.getRpc();
     return rpc.removeByfProvider({ providerId });

@@ -240,6 +240,55 @@ export interface ForkSessionResponse {
   readonly session: SessionSummary;
 }
 
+/** 新增 provider(PRD-0034 R-D3):一次提交建全(id + 至少一个模型别名)。 */
+export interface ProviderCreateBody {
+  readonly id: string;
+  readonly type:
+    | 'anthropic'
+    | 'openai-completions'
+    | 'google-genai'
+    | 'openai_responses'
+    | 'vertexai';
+  readonly baseUrl: string;
+  readonly apiKey?: string;
+  readonly customHeaders?: Record<string, string>;
+  readonly extraBody?: Record<string, unknown>;
+  readonly models: readonly ModelUpsertBody[];
+}
+
+/** 编辑 provider:apiKey 只写不读(空/缺省 = 不变)。 */
+export interface ProviderUpdateBody {
+  readonly apiKey?: string;
+  readonly baseUrl?: string;
+  readonly type?: ProviderCreateBody['type'];
+  readonly customHeaders?: Record<string, string>;
+  readonly extraBody?: Record<string, unknown>;
+}
+
+/** models 别名行(新增/编辑共用;maxContextSize 由客户端解析 256K/1M 后传数字)。 */
+export interface ModelUpsertBody {
+  readonly id: string;
+  readonly provider: string;
+  readonly model: string;
+  readonly maxContextSize: number;
+  readonly maxOutputSize?: number;
+  readonly capabilities?: readonly string[];
+  readonly displayName?: string;
+}
+
+export type ModelUpdateBody = Partial<Omit<ModelUpsertBody, 'id'>>;
+
+/** fetch available models 草稿探测(R-D3):不落盘。 */
+export interface DiscoverModelsBody {
+  readonly type: ProviderCreateBody['type'];
+  readonly baseUrl: string;
+  readonly apiKey?: string;
+}
+
+export interface DiscoverModelsResponse {
+  readonly models: readonly { readonly id: string }[];
+}
+
 /** 归档管理区数据源(PRD-0034 R-A3):session_index 聚合,不依赖工作区注册表。 */
 export interface ArchivedSessionsResponse {
   readonly sessions: readonly SessionSummary[];
@@ -267,6 +316,9 @@ export interface ConfigModelView {
   readonly provider: string;
   readonly model: string;
   readonly displayName?: string;
+  /** R-D3:编辑表单回显。 */
+  readonly maxContextSize?: number;
+  readonly capabilities?: readonly string[];
 }
 
 /** provider 摘要(不携带密钥本身,仅是否已配置)。 */
@@ -275,6 +327,9 @@ export interface ConfigProviderView {
   readonly type: string;
   readonly baseUrl?: string;
   readonly hasApiKey: boolean;
+  /** R-D3:key 来源标记:env 引用 → 输入禁用;oauth → 只读引导 CLI。 */
+  readonly keyFromEnv?: boolean;
+  readonly oauth?: boolean;
 }
 
 export interface ConfigResponse {

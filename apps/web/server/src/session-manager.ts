@@ -63,6 +63,7 @@ export interface HarnessLike {
   getConfig(): Promise<ByfConfig>;
   setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
   removeProvider(providerId: string): Promise<ByfConfig>;
+  removeModel(modelId: string): Promise<ByfConfig>;
   readonly configPath: string;
   close(): Promise<void>;
 }
@@ -249,6 +250,10 @@ export class WebSessionManager {
 
   setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
     return this.harness.setConfig(patch);
+  }
+
+  removeModel(modelId: string): Promise<ByfConfig> {
+    return this.harness.removeModel(modelId);
   }
 
   removeProvider(providerId: string): Promise<ByfConfig> {

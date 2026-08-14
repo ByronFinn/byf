@@ -211,8 +211,19 @@ class FakeHarness implements HarnessLike {
     return this.config;
   }
 
+  removedModels: string[] = [];
+
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    this.removedModels.push(modelId);
+    const models = { ...this.config.models };
+    delete models[modelId];
+    this.config = { ...this.config, models };
+    return this.config;
+  }
+
   async setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
-    this.config = { ...this.config, ...patch } as ByfConfig;
+    // 与 agent-core mergeConfigPatch 同语义的浅层深合并(测试镜像)。
+    this.config = fakeDeepMerge(this.config as never, patch as never) as ByfConfig;
     return this.config;
   }
 
@@ -226,6 +237,22 @@ class FakeHarness implements HarnessLike {
   async close(): Promise<void> {
     this.closed = true;
   }
+}
+
+/** 测试镜像:与 mergeConfigPatch 同语义的对象级深合并。 */
+function fakeDeepMerge(target: unknown, source: unknown): unknown {
+  if (!isPlainRecord(target) || !isPlainRecord(source)) return source;
+  const out: Record<string, unknown> = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    out[key] =
+      isPlainRecord(out[key]) && isPlainRecord(value) ? fakeDeepMerge(out[key], value) : value;
+  }
+  return out;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** FakeSession.summary 各字段 readonly;测试内经可变视图打补丁。 */
@@ -885,8 +912,17 @@ describe('Config routes', () => {
         type: 'openai-completions',
         baseUrl: 'http://127.0.0.1:11434/v1',
         hasApiKey: true,
+        keyFromEnv: false,
+        oauth: false,
       },
-      { id: 'bare', type: 'anthropic', baseUrl: undefined, hasApiKey: false },
+      {
+        id: 'bare',
+        type: 'anthropic',
+        baseUrl: undefined,
+        hasApiKey: false,
+        keyFromEnv: false,
+        oauth: false,
+      },
     ]);
     expect(JSON.stringify(body)).not.toContain('sk-secret');
     expect(body.models[0]?.provider).toBe('local');
@@ -1508,5 +1544,224 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
 
     const hidden = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`);
     expect(hidden.status).toBe(403);
+  });
+});
+
+// ---- LAN banner(PRD-0034 R-D1) -------------------------------------------------
+
+describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
+  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不变', async () => {
+    const { formatWebStartupBanner } = await import('./startup-banner');
+    const loopback = formatWebStartupBanner({
+      host: '127.0.0.1',
+      port: 4100,
+      byfHome: '/home/u/.byf',
+    });
+    expect(loopback).toBe(
+      '[web-server] listening on http://127.0.0.1:4100 (auth=disabled, BYF_HOME=/home/u/.byf)\n',
+    );
+
+    const lan = formatWebStartupBanner({
+      host: '0.0.0.0',
+      port: 4100,
+      byfHome: '/home/u/.byf',
+      authToken: 'tok-123',
+      lanIps: ['192.168.1.5', '10.0.0.3'],
+    });
+    expect(lan).toContain('listening on http://0.0.0.0:4100 (auth=required');
+    expect(lan).toContain('http://192.168.1.5:4100/?token=tok-123');
+    expect(lan).toContain('http://10.0.0.3:4100/?token=tok-123');
+    expect(lan).toContain('轮换');
+  });
+
+  test('collectLanIps 排除回环与内网 IPv6,返回 IPv4 地址', async () => {
+    const { collectLanIps } = await import('./startup-banner');
+    const ips = collectLanIps([
+      { address: '127.0.0.1', family: 'IPv4', internal: true, scopeid: undefined },
+      { address: '192.168.1.5', family: 'IPv4', internal: false, scopeid: undefined },
+      { address: 'fe80::1', family: 'IPv6', internal: false, scopeid: 5 },
+    ]);
+    expect(ips).toEqual(['192.168.1.5']);
+  });
+});
+
+// ---- provider/models 配置管理(PRD-0034 R-D3) -----------------------------------
+
+describe('config management routes (PRD-0034 R-D3)', () => {
+  async function setup(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }> {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  test('POST /api/config/providers:slug 校验/查重/baseUrl 必填,合法时一次建全', async () => {
+    const { app, harness } = await setup();
+    const badSlug = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'Bad_Slug',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [],
+      }),
+    });
+    expect(badSlug.status).toBe(400);
+
+    const noUrl = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'good', type: 'openai-completions', models: [] }),
+    });
+    expect(noUrl.status).toBe(400);
+
+    const noModels = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'good',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [],
+      }),
+    });
+    expect(noModels.status).toBe(400);
+
+    harness.config = {
+      providers: { existing: { type: 'openai-completions' } },
+      models: {},
+    };
+    const dup = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'existing',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [{ id: 'm', model: 'gpt', maxContextSize: 128000 }],
+      }),
+    });
+    expect(dup.status).toBe(409);
+
+    const ok = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'myprov',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        apiKey: 'sk-draft',
+        models: [{ id: 'fast', model: 'gpt-4o-mini', maxContextSize: 128000 }],
+      }),
+    });
+    expect(ok.status).toBe(201);
+    const merged = harness.config as unknown as {
+      providers: Record<string, unknown>;
+      models: Record<string, unknown>;
+    };
+    expect(merged.providers['myprov']).toMatchObject({
+      type: 'openai-completions',
+      baseUrl: 'https://x/v1',
+      apiKey: 'sk-draft',
+    });
+    expect(merged.models['fast']).toMatchObject({ provider: 'myprov', model: 'gpt-4o-mini' });
+  });
+
+  test('PATCH /api/config/providers/:id:apiKey 留空 = 不变;其余字段深合并', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: {
+        myprov: { type: 'openai-completions', baseUrl: 'https://old/v1', apiKey: 'sk-keep' },
+      },
+      models: {},
+    };
+    const res = await app.request('/api/config/providers/myprov', {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ baseUrl: 'https://new/v1' }),
+    });
+    expect(res.status).toBe(200);
+    const provider = (
+      harness.config as unknown as {
+        providers: Record<string, { baseUrl?: string; apiKey?: string }>;
+      }
+    ).providers['myprov']!;
+    expect(provider.baseUrl).toBe('https://new/v1');
+    expect(provider.apiKey).toBe('sk-keep');
+  });
+
+  test('POST/PATCH/DELETE /api/config/models:别名查重、更新、删除清理 defaultModel', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: { p: { type: 'openai-completions' } },
+      models: { existing: { provider: 'p', model: 'm1', maxContextSize: 1000 } },
+      defaultModel: 'existing',
+    };
+
+    const dup = await app.request('/api/config/models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'existing', provider: 'p', model: 'm2', maxContextSize: 1000 }),
+    });
+    expect(dup.status).toBe(409);
+
+    const created = await app.request('/api/config/models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'alias2', provider: 'p', model: 'm2', maxContextSize: 2000 }),
+    });
+    expect(created.status).toBe(201);
+
+    const patched = await app.request('/api/config/models/alias2', {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ model: 'm2-new' }),
+    });
+    expect(patched.status).toBe(200);
+    expect(
+      (harness.config as unknown as { models: Record<string, { model?: string }> }).models['alias2']
+        ?.model,
+    ).toBe('m2-new');
+
+    const removed = await app.request('/api/config/models/existing', { method: 'DELETE' });
+    expect(removed.status).toBe(200);
+    expect(harness.removedModels).toEqual(['existing']);
+  });
+
+  test('POST /api/config/discover-models:草稿探测远端 /v1/models,不落盘', async () => {
+    const { app, harness } = await setup();
+    const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: 'model-a' }, { id: 'model-b' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const res = await app.request('/api/config/discover-models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        type: 'openai-completions',
+        baseUrl: 'https://draft.example/v1',
+        apiKey: 'sk-draft',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { models: { id: string }[] };
+    expect(data.models.map((m) => m.id)).toEqual(['model-a', 'model-b']);
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0]!;
+    expect(String(calledUrl)).toBe('https://draft.example/v1/models');
+    expect((calledInit?.headers as Record<string, string>)['authorization']).toBe(
+      'Bearer sk-draft',
+    );
+    fetchMock.mockRestore();
+    // 不落盘:config 未变
+    expect(harness.metadataPatches).toEqual([]);
+    expect(harness.config.providers).toEqual({});
   });
 });

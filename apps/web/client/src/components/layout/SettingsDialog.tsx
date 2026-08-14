@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Copy, KeyRound, Monitor, Moon, Sun, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,7 @@ import {
   THINKING_MODES,
   THINKING_MODE_LABEL,
 } from '#/components/chat/ThinkingChip';
+import { ProvidersSection } from '#/components/settings/ProvidersSettings';
 import { Button } from '#/components/ui/button';
 import {
   DropdownMenu,
@@ -92,7 +93,7 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           {section === 'general' ? (
             <GeneralSection />
           ) : section === 'models' ? (
-            <ModelsSection />
+            <ProvidersSection />
           ) : (
             <ArchivesSection onClose={onClose} />
           )}
@@ -424,164 +425,6 @@ function GeneralSection(): React.JSX.Element {
             </Button>
           </div>
         )}
-      </section>
-    </div>
-  );
-}
-
-/** 模型:默认模型选择 + 模型/供应商列表 + 移除供应商。 */
-function ModelsSection(): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const { data: config } = useQuery({
-    queryKey: CONFIG_KEY,
-    queryFn: () => api.getConfig(),
-    staleTime: 60_000,
-  });
-  const patch = useMutation({
-    mutationFn: (body: UpdateConfigBody) => api.setConfig(body),
-    onSuccess: (cfg) => {
-      queryClient.setQueryData(CONFIG_KEY, cfg);
-      toast.success('设置已保存');
-    },
-    onError: (error: unknown) => {
-      toast.error(`保存设置失败:${errorMessage(error)}`);
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (providerId: string) => api.removeProvider(providerId),
-    onSuccess: (cfg) => {
-      queryClient.setQueryData(CONFIG_KEY, cfg);
-      toast.success('已移除 provider');
-    },
-    onError: (error: unknown) => {
-      toast.error(`移除 provider 失败:${errorMessage(error)}`);
-    },
-  });
-  // 内联二次确认:providerId → 是否处于确认态
-  const [confirming, setConfirming] = useState<string | null>(null);
-
-  return (
-    <div className="space-y-5">
-      <section>
-        <h2 className="text-sm font-semibold text-fg">模型</h2>
-        <p className="mt-0.5 text-xs text-fg-subtle">
-          当前配置的模型别名;点击「设为默认」后新会话使用它。
-        </p>
-        <ul className="mt-2 space-y-1">
-          {(config?.models ?? []).map((m) => {
-            const isDefault = config?.defaultModel === m.id;
-            return (
-              <li
-                key={m.id}
-                className="flex items-center gap-2 rounded-md border border-border bg-surface-1 px-2.5 py-1.5"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-fg">{m.displayName ?? m.id}</span>
-                  <span className="block truncate font-mono text-xs text-fg-subtle">
-                    {m.provider} / {m.model}
-                  </span>
-                </span>
-                {isDefault ? (
-                  <span className="shrink-0 rounded-full bg-brand/15 px-2 py-0.5 text-xs text-brand">
-                    默认
-                  </span>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={patch.isPending}
-                    onClick={() => {
-                      patch.mutate({ defaultModel: m.id });
-                    }}
-                  >
-                    设为默认
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-          {(config?.models ?? []).length === 0 && (
-            <p className="text-xs text-fg-subtle">
-              暂无模型。请用 CLI 运行 /login 添加 provider 与模型。
-            </p>
-          )}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-fg">Provider</h2>
-        <p className="mt-0.5 text-xs text-fg-subtle">
-          添加 provider 请在 CLI 运行 /login;此处可移除。
-        </p>
-        <ul className="mt-2 space-y-1">
-          {(config?.providers ?? []).map((p) => (
-            <li
-              key={p.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-surface-1 px-2.5 py-1.5"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-fg">{p.id}</span>
-                <span className="block truncate font-mono text-xs text-fg-subtle">
-                  {p.type}
-                  {p.baseUrl !== undefined ? ` · ${p.baseUrl}` : ''}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  'flex shrink-0 items-center gap-1 text-xs',
-                  p.hasApiKey ? 'text-state-success' : 'text-state-warning',
-                )}
-              >
-                <KeyRound className="size-3" aria-hidden />
-                {p.hasApiKey ? '已配置密钥' : '未配置密钥'}
-              </span>
-              {confirming === p.id ? (
-                <span className="flex shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      remove.mutate(p.id);
-                      setConfirming(null);
-                    }}
-                  >
-                    确认移除
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      setConfirming(null);
-                    }}
-                  >
-                    取消
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`移除 ${p.id}`}
-                  className="shrink-0 text-fg-muted hover:text-state-error"
-                  onClick={() => {
-                    setConfirming(p.id);
-                  }}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
-              )}
-            </li>
-          ))}
-          {(config?.providers ?? []).length === 0 && (
-            <p className="text-xs text-fg-subtle">暂无 provider。</p>
-          )}
-        </ul>
       </section>
     </div>
   );
