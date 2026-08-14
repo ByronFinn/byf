@@ -67,6 +67,7 @@ export interface SessionNode {
   title: string;
   updatedAt: number;
   workDir: string;
+  pinned: boolean;
 }
 
 /** 树节点:一个工作区分组。 */
@@ -90,7 +91,13 @@ function toNode(s: SessionSummary): SessionNode {
     title: s.title ?? s.lastPrompt ?? s.id,
     updatedAt: s.updatedAt,
     workDir: s.workDir,
+    pinned: s.pinned === true,
   };
+}
+
+/** 置顶为第一优先级(PRD-0034 R-A2):稳定分区,置顶内部与未置顶内部保持既有顺序。 */
+function pinnedFirst(nodes: readonly SessionNode[]): SessionNode[] {
+  return [...nodes.filter((n) => n.pinned), ...nodes.filter((n) => !n.pinned)];
 }
 
 /** 手动顺序与当前列表对账:存储序 + 未记录的新项按列表序补尾。 */
@@ -161,13 +168,14 @@ export function deriveWorkspaceTree(
     const nodes = workspace.sessions.map(toNode).filter((n) => matchesQuery(n, query));
     // 搜索时无匹配的组不显示;空闲时空工作区保留组行(对齐 deepseek 注册表语义)
     if (nodes.length === 0 && query.length > 0) continue;
-    const ordered =
+    const ordered = pinnedFirst(
       view.orderBy === 'manual'
         ? reconcileOrder(
             nodes.map((n) => n.id),
             view.sessionOrders[workspace.workDir],
           ).map((id) => nodes.find((n) => n.id === id)!)
-        : [...nodes].toSorted(byRecency);
+        : [...nodes].toSorted(byRecency),
+    );
     const expanded = view.expanded[workspace.workDir] ?? workspace.workDir === currentWorkDir;
     groups.push({
       workDir: workspace.workDir,
@@ -184,13 +192,14 @@ export function deriveWorkspaceTree(
   const allNodes = workspaces
     .flatMap((w) => w.sessions.map(toNode))
     .filter((n) => matchesQuery(n, query));
-  const flat =
+  const flat = pinnedFirst(
     view.orderBy === 'manual'
       ? reconcileOrder(
           allNodes.map((n) => n.id),
           view.flatOrder,
         ).map((id) => allNodes.find((n) => n.id === id)!)
-      : [...allNodes].toSorted(byRecency);
+      : [...allNodes].toSorted(byRecency),
+  );
 
   return { groups, flat };
 }

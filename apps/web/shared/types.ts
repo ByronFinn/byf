@@ -126,6 +126,17 @@ export interface ListSessionsQuery {
   readonly workDir: string;
 }
 
+/** 统一会话元数据端点(PRD-0034 R-A1):一次可改多项。 */
+export interface UpdateSessionMetaBody {
+  readonly title?: string;
+  readonly pinned?: boolean;
+  readonly archived?: boolean;
+}
+
+export interface ForkSessionBody {
+  readonly upToMessage?: number;
+}
+
 export interface PromptBody {
   readonly input: string;
 }
@@ -223,6 +234,15 @@ export interface PickDirectoryResponse {
 
 export interface CreateSessionResponse {
   readonly session: SessionSummary;
+}
+
+export interface ForkSessionResponse {
+  readonly session: SessionSummary;
+}
+
+/** 归档管理区数据源(PRD-0034 R-A3):session_index 聚合,不依赖工作区注册表。 */
+export interface ArchivedSessionsResponse {
+  readonly sessions: readonly SessionSummary[];
 }
 
 /**

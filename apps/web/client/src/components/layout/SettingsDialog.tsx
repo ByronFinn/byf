@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Copy, KeyRound, Monitor, Moon, Sun, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { api } from '#/api';
 import { PERMISSION_COPY } from '#/components/chat/PermissionChip';
@@ -19,16 +20,17 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
 import { useTheme } from '#/hooks/useTheme';
+import { relativeTimeLabel } from '#/lib/relative-time';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { UpdateConfigBody } from '#/types';
+import type { SessionSummary, UpdateConfigBody } from '#/types';
 
 const CONFIG_KEY = ['config'] as const;
 
 /** 设置弹层(对齐 deepseek 的 SettingsRoot):左侧导航 + 右侧内容,按 byf 能力裁两栏。 */
 export function SettingsDialog(props: { onClose: () => void }): React.JSX.Element {
   const { onClose } = props;
-  const [section, setSection] = useState<'general' | 'models'>('general');
+  const [section, setSection] = useState<'general' | 'models' | 'archives'>('general');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -76,12 +78,111 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           >
             模型
           </button>
+          <button
+            type="button"
+            className={navItem(section === 'archives')}
+            onClick={() => {
+              setSection('archives');
+            }}
+          >
+            归档管理
+          </button>
         </nav>
         <div className="min-w-0 flex-1 overflow-y-auto p-4">
-          {section === 'general' ? <GeneralSection /> : <ModelsSection />}
+          {section === 'general' ? (
+            <GeneralSection />
+          ) : section === 'models' ? (
+            <ModelsSection />
+          ) : (
+            <ArchivesSection onClose={onClose} />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** 归档管理(PRD-0034 R-A3):按工作区分组列出归档会话,支持恢复 / 进入。 */
+function ArchivesSection(props: { onClose: () => void }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ['archived-sessions'],
+    queryFn: () => api.listArchivedSessions(),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => api.patchSession(id, { archived: false }),
+    onSuccess: () => {
+      toast.success('会话已恢复到主列表');
+      void queryClient.invalidateQueries({ queryKey: ['archived-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+    },
+    onError: (error: Error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const byWorkspace = new Map<string, SessionSummary[]>();
+  for (const session of data ?? []) {
+    const list = byWorkspace.get(session.workDir) ?? [];
+    list.push(session);
+    byWorkspace.set(session.workDir, list);
+  }
+
+  return (
+    <section aria-label="归档管理">
+      <h2 className="text-sm font-semibold text-fg">归档管理</h2>
+      <p className="mt-1 text-xs text-fg-subtle">
+        归档会话默认从侧边栏隐藏;恢复后回到主列表(其工作区若被移除会自动重新登记)。
+      </p>
+      {isLoading && <p className="mt-3 text-xs text-fg-subtle">加载中…</p>}
+      {!isLoading && (data ?? []).length === 0 && (
+        <p className="mt-3 text-xs text-fg-subtle">暂无归档会话</p>
+      )}
+      {[...byWorkspace.entries()].map(([workDir, sessions]) => (
+        <div key={workDir} className="mt-4">
+          <h3 className="text-xs font-medium text-fg-muted">{workDir}</h3>
+          <ul className="mt-1.5 space-y-1">
+            {sessions.map((session) => (
+              <li
+                key={session.id}
+                className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-3 py-2"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm text-fg">
+                  {session.title ?? session.lastPrompt ?? session.id}
+                </span>
+                <span className="shrink-0 text-xs text-fg-subtle">
+                  {relativeTimeLabel(session.updatedAt)}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={restoreMutation.isPending}
+                  onClick={() => {
+                    restoreMutation.mutate(session.id);
+                  }}
+                >
+                  恢复
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    props.onClose();
+                    void navigate(`/sessions/${session.id}`);
+                  }}
+                >
+                  进入
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }
 

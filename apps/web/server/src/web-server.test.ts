@@ -26,6 +26,7 @@ import type {
 import { createApp } from './app';
 import { AsyncQueue } from './async-queue';
 import { WebSessionManager, type HarnessLike, type SessionLike } from './session-manager';
+import { WorkspaceRegistry } from './workspace-registry';
 
 // ---- Fake harness / session (实现 SessionLike / HarnessLike 契约) ------------
 
@@ -155,6 +156,31 @@ class FakeHarness implements HarnessLike {
     models: {},
   };
   configPath = '/tmp/fake-config.toml';
+  renames: Array<{ id: string; title: string }> = [];
+  metadataPatches: Array<{ id: string; metadata: Record<string, unknown> }> = [];
+  forks: Array<{ id: string; upToMessage?: number }> = [];
+  nextForkResult: SessionLike | undefined;
+
+  async renameSession(input: { readonly id: string; readonly title: string }): Promise<void> {
+    this.renames.push({ id: input.id, title: input.title });
+  }
+
+  async updateSessionMetadata(input: {
+    readonly id: string;
+    readonly metadata: Record<string, unknown>;
+  }): Promise<void> {
+    this.metadataPatches.push({ id: input.id, metadata: input.metadata });
+  }
+
+  async forkSession(input: {
+    readonly id: string;
+    readonly upToMessage?: number;
+  }): Promise<SessionLike> {
+    this.forks.push({ id: input.id, upToMessage: input.upToMessage });
+    const result = this.nextForkResult;
+    if (result === undefined) throw new Error('no fork result configured');
+    return result;
+  }
 
   async createSession(options: {
     readonly workDir: string;
@@ -1126,5 +1152,221 @@ describe('Static source hint', () => {
       stderrWrite.mockRestore();
       stdoutWrite.mockRestore();
     }
+  });
+});
+
+// ---- Wave A 会话组织路由(PRD-0034) ------------------------------------------
+
+describe('Wave A session organization routes (PRD-0034)', () => {
+  async function setup(homeDir?: string): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    homeDir: string;
+  }> {
+    const dir = homeDir ?? (await mkdtemp(join(tmpdir(), 'byf-wavea-')));
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: dir });
+    return { app: result.app, harness, homeDir: dir };
+  }
+
+  function seed(
+    harness: FakeHarness,
+    id: string,
+    workDir: string,
+    patch: Partial<SessionSummary> = {},
+  ): FakeSession {
+    const session = new FakeSession(id, workDir);
+    patchSummary(session, { id, workDir, ...patch });
+    harness.sessions.set(id, session);
+    return session;
+  }
+
+  test('PATCH /api/sessions/:id 重命名经 harness.renameSession', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_rename', '/proj', { title: 'Old' });
+
+    const res = await app.request('/api/sessions/ses_rename', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '新标题 🎯' }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.renames).toEqual([{ id: 'ses_rename', title: '新标题 🎯' }]);
+  });
+
+  test('PATCH 一次请求同时置顶 + 归档', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_pin', '/proj');
+
+    const res = await app.request('/api/sessions/ses_pin', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pinned: true, archived: true }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.metadataPatches).toEqual([
+      { id: 'ses_pin', metadata: { pinned: true, archived: true } },
+    ]);
+  });
+
+  test('PATCH 校验:title 超 200 字符 / 空白 / 空 body 返回 400', async () => {
+    const { app } = await setup();
+
+    const tooLong = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'a'.repeat(201) }),
+    });
+    expect(tooLong.status).toBe(400);
+
+    const blank = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '   ' }),
+    });
+    expect(blank.status).toBe(400);
+
+    const empty = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
+  });
+
+  test('PATCH 取消归档时把 hidden 工作区重新登记', async () => {
+    const { app, harness, homeDir } = await setup();
+    const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
+    seed(harness, 'ses_unarchive', workDir);
+    // registry: add 后 remove = hidden;session_index 记录 sessionId → workDir
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(workDir);
+    await registry.remove(workDir);
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_unarchive', sessionDir: '/tmp/ses_unarchive', workDir })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/sessions/ses_unarchive', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ archived: false }),
+    });
+    expect(res.status).toBe(200);
+
+    const registryAfter = new WorkspaceRegistry(homeDir);
+    expect(await registryAfter.list()).toContain(workDir);
+  });
+
+  test('POST /api/sessions/:id/fork 返回新会话 summary', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_src', '/proj');
+    const forked = seed(harness, 'ses_forked', '/proj', { title: 'Forked' });
+    harness.nextForkResult = forked;
+
+    const res = await app.request('/api/sessions/ses_src/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ upToMessage: 2 }),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { session: SessionSummary };
+    expect(data.session.id).toBe('ses_forked');
+    expect(harness.forks).toEqual([{ id: 'ses_src', upToMessage: 2 }]);
+  });
+
+  test('POST fork 对 busy 会话返回 409,turn 结束后恢复', async () => {
+    const { app, harness } = await setup();
+    const session = seed(harness, 'ses_busy', '/proj');
+    // resume 挂上事件监听(manager 跟踪 busy)
+    await app.request('/api/sessions/ses_busy/resume', { method: 'POST' });
+    session.emit({
+      type: 'turn.started',
+      sessionId: 'ses_busy',
+      agentId: 'main',
+      turnId: 0,
+      origin: { kind: 'user' },
+    });
+
+    const busy = await app.request('/api/sessions/ses_busy/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(busy.status).toBe(409);
+
+    session.emit({
+      type: 'turn.ended',
+      sessionId: 'ses_busy',
+      agentId: 'main',
+      turnId: 0,
+      reason: 'completed',
+    });
+    const forked = seed(harness, 'ses_forked2', '/proj');
+    harness.nextForkResult = forked;
+    const ok = await app.request('/api/sessions/ses_busy/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(ok.status).toBe(201);
+  });
+
+  test('GET /api/sessions 默认排除归档,?archived=true 仅返回归档', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_normal', '/proj', { title: 'Normal', updatedAt: 10 });
+    seed(harness, 'ses_arch', '/proj', { title: 'Archived', updatedAt: 20, archived: true });
+
+    const def = (await (await app.request('/api/sessions?workDir=/proj')).json()) as {
+      sessions: SessionSummary[];
+    };
+    expect(def.sessions.map((s) => s.id)).toEqual(['ses_normal']);
+
+    const arch = (await (
+      await app.request('/api/sessions?workDir=/proj&archived=true')
+    ).json()) as { sessions: SessionSummary[] };
+    expect(arch.sessions.map((s) => s.id)).toEqual(['ses_arch']);
+  });
+
+  test('GET /api/workspaces 的会话列表排除归档', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-ws-'));
+    const { app, harness } = await setup(homeDir);
+    const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
+    seed(harness, 'ses_normal', workDir, { title: 'Normal' });
+    seed(harness, 'ses_arch', workDir, { title: 'Archived', archived: true });
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_normal', sessionDir: '/tmp/ses_normal', workDir })}\n${JSON.stringify({ sessionId: 'ses_arch', sessionDir: '/tmp/ses_arch', workDir })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/workspaces');
+    const data = (await res.json()) as {
+      workspaces: { workDir: string; sessions: SessionSummary[] }[];
+    };
+    const view = data.workspaces.find((w) => w.workDir === workDir);
+    expect(view?.sessions.map((s) => s.id)).toEqual(['ses_normal']);
+  });
+
+  test('GET /api/archived-sessions 聚合所有工作目录(含 hidden)按 updatedAt 倒序', async () => {
+    const { app, harness, homeDir } = await setup();
+    const wd1 = await mkdtemp(join(tmpdir(), 'wd1-'));
+    const wd2 = await mkdtemp(join(tmpdir(), 'wd2-'));
+    seed(harness, 'ses_a1', wd1, { archived: true, updatedAt: 10 });
+    seed(harness, 'ses_a2', wd2, { archived: true, updatedAt: 30 });
+    seed(harness, 'ses_n', wd1, { updatedAt: 99 });
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_a1', sessionDir: '/tmp/ses_a1', workDir: wd1 })}\n${JSON.stringify({ sessionId: 'ses_a2', sessionDir: '/tmp/ses_a2', workDir: wd2 })}\n${JSON.stringify({ sessionId: 'ses_n', sessionDir: '/tmp/ses_n', workDir: wd1 })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/archived-sessions');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { sessions: SessionSummary[] };
+    expect(data.sessions.map((s) => s.id)).toEqual(['ses_a2', 'ses_a1']);
+    expect(data.sessions.every((s) => s.archived === true)).toBe(true);
   });
 });

@@ -13,6 +13,7 @@ import type {
   QuestionRequest,
   QuestionResult,
   ResumedSessionSummary,
+  SessionMetadataPatch,
   SkillSummary,
   Unsubscribe,
 } from '@byfriends/sdk';
@@ -53,6 +54,12 @@ export interface HarnessLike {
   createSession(options: CreateSessionOptions): Promise<SessionLike>;
   resumeSession(input: { readonly id: string }): Promise<SessionLike>;
   listSessions(options: { readonly workDir: string }): Promise<readonly SessionSummary[]>;
+  renameSession(input: { readonly id: string; readonly title: string }): Promise<void>;
+  updateSessionMetadata(input: {
+    readonly id: string;
+    readonly metadata: SessionMetadataPatch;
+  }): Promise<void>;
+  forkSession(input: { readonly id: string; readonly upToMessage?: number }): Promise<SessionLike>;
   getConfig(): Promise<ByfConfig>;
   setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
   removeProvider(providerId: string): Promise<ByfConfig>;
@@ -94,6 +101,8 @@ export class WebSessionManager {
   private readonly unsubscribers = new Map<string, Unsubscribe>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly pendingQuestions = new Map<string, PendingQuestion>();
+  /** 正在跑 turn 的会话(fork 拒绝;PRD-0034 R-A4)。 */
+  private readonly busySessions = new Set<string>();
   /** 进行中的 resume(id → promise),并发 resume 去重,防止重复 attach 双份 onEvent。 */
   private readonly resuming = new Map<string, Promise<SessionLike>>();
 
@@ -149,6 +158,25 @@ export class WebSessionManager {
 
   async listSessions(workDir: string): Promise<readonly SessionSummary[]> {
     return this.harness.listSessions({ workDir });
+  }
+
+  // ---- 会话组织(PRD-0034 Wave A) -------------------------------------------
+
+  async renameSession(id: string, title: string): Promise<void> {
+    await this.harness.renameSession({ id, title });
+  }
+
+  async updateSessionMetadata(id: string, metadata: SessionMetadataPatch): Promise<void> {
+    await this.harness.updateSessionMetadata({ id, metadata });
+  }
+
+  isSessionBusy(id: string): boolean {
+    return this.busySessions.has(id);
+  }
+
+  async forkSession(id: string, upToMessage?: number): Promise<SessionSummary> {
+    const forked = await this.harness.forkSession({ id, upToMessage });
+    return forked.summary ?? toSummary(forked);
   }
 
   getSession(id: string): SessionLike | undefined {
@@ -304,6 +332,7 @@ export class WebSessionManager {
     this.detach(id);
     this.rejectPendingForSession(id, new Error('session closed'));
     this.sessions.delete(id);
+    this.busySessions.delete(id);
     await session.close();
     return true;
   }
@@ -320,6 +349,12 @@ export class WebSessionManager {
 
   private attach(session: SessionLike): void {
     const unsub = session.onEvent((event) => {
+      // busy 跟踪:fork 拒绝语义(PRD-0034 R-A4)依赖 turn 生命周期事件。
+      if (event.type === 'turn.started') {
+        this.busySessions.add(session.id);
+      } else if (event.type === 'turn.ended') {
+        this.busySessions.delete(session.id);
+      }
       this.broadcast(session.id, { type: 'agent.event', event });
     });
     this.unsubscribers.set(session.id, unsub);

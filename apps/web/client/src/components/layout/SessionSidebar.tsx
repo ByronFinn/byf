@@ -1,10 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Archive,
   ChevronDown,
   Folder,
+  GitFork,
   MessageSquarePlus,
   MoreHorizontal,
   PanelLeft,
+  Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Settings,
@@ -29,6 +34,7 @@ import {
 } from '#/components/ui/dropdown-menu';
 import { useWorkspaceView } from '#/hooks/useWorkspaceView';
 import { relativeTimeLabel } from '#/lib/relative-time';
+import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
 import {
   deriveWorkspaceTree,
@@ -214,6 +220,98 @@ export function SessionSidebar(props: {
       setConfirm((prev) => (prev === null ? prev : { ...prev, error: error.message }));
     },
   });
+
+  // ---- 会话组织(PRD-0034 Wave A):重命名 / 置顶 / 归档 / 分叉 -----------------
+  const [rename, setRename] = useState<{
+    id: string;
+    title: string;
+    busy: boolean;
+    error: string | null;
+  } | null>(null);
+
+  const renameMutation = useMutation({
+    mutationFn: async (input: { id: string; title: string }) => {
+      await api.patchSession(input.id, { title: input.title });
+    },
+    onSuccess: (_data, input) => {
+      invalidateWorkspaces();
+      toast.success('会话已重命名');
+      setRename((prev) => (prev?.id === input.id ? null : prev));
+    },
+    onError: (error: Error) => {
+      setRename((prev) => (prev === null ? prev : { ...prev, busy: false, error: error.message }));
+    },
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: async (input: { id: string; pinned: boolean }) => {
+      await api.patchSession(input.id, { pinned: input.pinned });
+    },
+    onSuccess: () => {
+      invalidateWorkspaces();
+    },
+    onError: (error: Error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (input: { id: string; archived: boolean }) => {
+      await api.patchSession(input.id, { archived: input.archived });
+    },
+    onSuccess: () => {
+      invalidateWorkspaces();
+      toast.success('会话已归档,可在设置 → 归档管理中恢复');
+    },
+    onError: (error: Error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const forkMutation = useMutation({
+    mutationFn: (id: string) => api.forkSession(id),
+    onSuccess: (data) => {
+      invalidateWorkspaces();
+      toast.success('已创建会话分叉');
+      onNavigate?.();
+      void navigate(`/sessions/${data.session.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const openRename = (id: string, title: string): void => {
+    setRename({ id, title, busy: false, error: null });
+  };
+
+  const submitRename = (): void => {
+    if (rename === null) return;
+    const title = rename.title.trim();
+    if (title.length === 0) {
+      setRename((prev) => (prev === null ? prev : { ...prev, error: '标题不能为空' }));
+      return;
+    }
+    if (title.length > 200) {
+      setRename((prev) => (prev === null ? prev : { ...prev, error: '标题最长 200 字符' }));
+      return;
+    }
+    setRename((prev) => (prev === null ? prev : { ...prev, busy: true, error: null }));
+    renameMutation.mutate({ id: rename.id, title });
+  };
+
+  const sessionMenuActions = {
+    onRename: openRename,
+    onTogglePin: (node: SessionNode) => {
+      pinMutation.mutate({ id: node.id, pinned: !node.pinned });
+    },
+    onArchive: (node: SessionNode) => {
+      archiveMutation.mutate({ id: node.id, archived: true });
+    },
+    onFork: (node: SessionNode) => {
+      forkMutation.mutate(node.id);
+    },
+  } as const;
 
   // ---- 拖拽提交 ---------------------------------------------------------------
   const commitSessionDrop = (workDir: string, overId: string, half: 'before' | 'after'): void => {
@@ -448,6 +546,7 @@ export function SessionSidebar(props: {
                 marker={marker}
                 dragWorkspace={dragWorkspace}
                 dragSession={dragSession}
+                sessionMenu={sessionMenuActions}
                 onToggle={() => {
                   patch({
                     expanded: { ...view.expanded, [group.workDir]: !group.expanded },
@@ -504,6 +603,7 @@ export function SessionSidebar(props: {
                 manual={manual}
                 marker={marker}
                 dragSession={dragSession}
+                menu={sessionMenuActions}
                 onDragStart={() => {
                   setDragSession({ workDir: node.workDir, id: node.id });
                 }}
@@ -575,6 +675,20 @@ export function SessionSidebar(props: {
           }}
         />
       )}
+      {rename !== null && (
+        <RenameDialog
+          busy={rename.busy}
+          error={rename.error}
+          title={rename.title}
+          onTitleChange={(title) => {
+            setRename((prev) => (prev === null ? prev : { ...prev, title }));
+          }}
+          onSubmit={submitRename}
+          onCancel={() => {
+            setRename(null);
+          }}
+        />
+      )}
     </aside>
   );
 }
@@ -636,6 +750,7 @@ function WorkspaceGroupRow(props: {
   marker: DropMarker | null;
   dragWorkspace: string | null;
   dragSession: DragSession | null;
+  sessionMenu?: SessionMenuActions;
   onToggle: () => void;
   onNewSession: () => void;
   onDelete: () => void;
@@ -733,6 +848,7 @@ function WorkspaceGroupRow(props: {
             manual={manual}
             marker={dragSession !== null && marker?.id === node.id ? marker : null}
             dragSession={dragSession}
+            menu={props.sessionMenu}
             onDragStart={() => {
               props.onSessionDragStart(node.id);
             }}
@@ -763,7 +879,15 @@ function WorkspaceGroupRow(props: {
   );
 }
 
-/** 会话行:标题 + 相对时间 + active 高亮 + 拖拽。 */
+/** 会话行菜单动作(PRD-0034 Wave A)。 */
+interface SessionMenuActions {
+  onRename: (id: string, title: string) => void;
+  onTogglePin: (node: SessionNode) => void;
+  onArchive: (node: SessionNode) => void;
+  onFork: (node: SessionNode) => void;
+}
+
+/** 会话行:标题 + 相对时间 + active 高亮 + 拖拽 + 置顶/归档/分叉菜单。 */
 function SessionRow(props: {
   node: SessionNode;
   active: boolean;
@@ -776,8 +900,9 @@ function SessionRow(props: {
   onDragEnd: () => void;
   onNavigate?: () => void;
   indent?: boolean;
+  menu?: SessionMenuActions;
 }): React.JSX.Element {
-  const { node, active, manual, marker, dragSession, indent = false } = props;
+  const { node, active, manual, marker, dragSession, indent = false, menu } = props;
   const dragMarker = dragSession !== null && marker?.id === node.id ? marker.half : null;
   return (
     <Link
@@ -807,9 +932,115 @@ function SessionRow(props: {
         indent && 'pl-6',
       )}
     >
+      {node.pinned && <Pin className="size-3 shrink-0 text-brand" aria-label="已置顶" />}
       <span className="min-w-0 flex-1 truncate">{node.title}</span>
+      {menu !== undefined && (
+        <span className="flex shrink-0 items-center gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`${node.title} 菜单`}
+                className="hidden size-5 items-center justify-center rounded text-fg-subtle transition-colors group-hover:flex hover:bg-hover hover:text-fg data-[state=open]:flex"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  menu.onRename(node.id, node.title);
+                }}
+              >
+                <Pencil className="size-4" aria-hidden />
+                重命名
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  menu.onTogglePin(node);
+                }}
+              >
+                {node.pinned ? (
+                  <PinOff className="size-4" aria-hidden />
+                ) : (
+                  <Pin className="size-4" aria-hidden />
+                )}
+                {node.pinned ? '取消置顶' : '置顶'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  menu.onFork(node);
+                }}
+              >
+                <GitFork className="size-4" aria-hidden />
+                分叉此会话
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="danger"
+                onSelect={() => {
+                  menu.onArchive(node);
+                }}
+              >
+                <Archive className="size-4" aria-hidden />
+                归档
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      )}
       <span className="shrink-0 text-xs text-fg-subtle">{relativeTimeLabel(node.updatedAt)}</span>
     </Link>
+  );
+}
+
+/** 会话重命名弹窗(PRD-0034 R-A1,支持 Emoji 自由文本)。 */
+function RenameDialog(props: {
+  busy: boolean;
+  error: string | null;
+  title: string;
+  onTitleChange: (title: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const { busy, error, title, onTitleChange, onSubmit, onCancel } = props;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-scrim" onClick={onCancel} aria-hidden />
+      <div
+        role="dialog"
+        aria-label="重命名会话"
+        className="relative w-96 rounded-lg border border-border bg-popover p-4 shadow-3"
+      >
+        <h2 className="text-sm font-semibold text-fg">重命名会话</h2>
+        <input
+          type="text"
+          autoFocus
+          value={title}
+          maxLength={200}
+          placeholder="会话标题"
+          onChange={(e) => {
+            onTitleChange(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !busy) onSubmit();
+          }}
+          className="mt-2 w-full rounded-md border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none focus:border-brand"
+        />
+        {error !== null && <p className="mt-2 text-sm text-state-error">{error}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={busy}>
+            取消
+          </Button>
+          <Button type="button" size="sm" onClick={onSubmit} disabled={busy}>
+            {busy ? '保存中…' : '保存'}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

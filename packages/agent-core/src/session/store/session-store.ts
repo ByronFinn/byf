@@ -187,7 +187,7 @@ export class SessionStore {
       throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
     }
     const next: Record<string, unknown> = {
-      ...(parsed as Record<string, unknown>),
+      ...parsed,
       ...(patch as Record<string, unknown>),
     };
     await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');

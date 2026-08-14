@@ -1,10 +1,12 @@
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
+  ArchivedSessionsResponse,
   ConfigResponse,
   CreateSessionBody,
   CreateSessionResponse,
   CreateWorkspaceBody,
+  ForkSessionResponse,
   FsEntry,
   FsListResponse,
   ListSessionsResponse,
@@ -19,6 +21,7 @@ import type {
   SkillSummary,
   SteerBody,
   UpdateConfigBody,
+  UpdateSessionMetaBody,
   UpdateSessionModelBody,
   UpdateSessionThinkingBody,
   WorkspaceListResponse,
@@ -115,6 +118,17 @@ export const api = {
     request<CreateSessionResponse>('/api/sessions', 'POST', body),
 
   getSession: (id: string) => request<SessionStatusResponse>(`/api/sessions/${enc(id)}`, 'GET'),
+
+  patchSession: (id: string, body: UpdateSessionMetaBody) =>
+    request<{ ok: boolean }>(`/api/sessions/${enc(id)}`, 'PATCH', body),
+
+  forkSession: (id: string, upToMessage?: number) =>
+    request<ForkSessionResponse>(`/api/sessions/${enc(id)}/fork`, 'POST', { upToMessage }),
+
+  listArchivedSessions: async (): Promise<SessionSummary[]> => {
+    const r = await request<ArchivedSessionsResponse>('/api/archived-sessions', 'GET');
+    return [...r.sessions];
+  },
 
   resumeSession: (id: string) =>
     request<ResumeSessionResponse>(`/api/sessions/${enc(id)}/resume`, 'POST'),

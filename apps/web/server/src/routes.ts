@@ -5,9 +5,12 @@ import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
+  ArchivedSessionsResponse,
   ConfigResponse,
   CreateSessionBody,
   CreateWorkspaceBody,
+  ForkSessionBody,
+  ForkSessionResponse,
   FsEntry,
   FsListResponse,
   PromptBody,
@@ -16,8 +19,8 @@ import type {
   SetPermissionBody,
   SteerBody,
   ThinkingEffort,
-  ThinkingMode,
   UpdateConfigBody,
+  UpdateSessionMetaBody,
   UpdateSessionModelBody,
   UpdateSessionThinkingBody,
   WorkspaceView,
@@ -29,7 +32,12 @@ import { streamSSE } from 'hono/streaming';
 import { AsyncQueue } from './async-queue';
 import { pickDirectoryNative } from './native-directory-picker';
 import type { WebSessionManager } from './session-manager';
-import { WorkspaceRegistry, listIndexedWorkDirs, workspaceTitle } from './workspace-registry';
+import {
+  WorkspaceRegistry,
+  findSessionWorkDir,
+  listIndexedWorkDirs,
+  workspaceTitle,
+} from './workspace-registry';
 
 const VALID_DECISIONS: ReadonlySet<string> = new Set(['approved', 'rejected', 'cancelled']);
 const VALID_PERMISSIONS: ReadonlySet<string> = new Set(['yolo', 'manual', 'auto']);
@@ -65,7 +73,11 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const ordered = [...registered, ...indexed.filter((dir) => !registered.includes(dir))];
 
     const views = new Map<string, WorkspaceView>();
-    const sessionsList = await Promise.all(ordered.map((workDir) => manager.listSessions(workDir)));
+    const sessionsList = await Promise.all(
+      ordered.map((workDir) =>
+        manager.listSessions(workDir).then((sessions) => sessions.filter((s) => !s.archived)),
+      ),
+    );
     for (const [i, workDir] of ordered.entries()) {
       views.set(workDir, { workDir, title: workspaceTitle(workDir), sessions: sessionsList[i]! });
     }
@@ -128,15 +140,34 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const all = await manager.listSessions(workDir);
     // R17:可选 ?q= 在 title / lastPrompt 上做不区分大小写的子串过滤(SessionSummary 不变)。
     const q = c.req.query('q')?.trim().toLowerCase() ?? '';
+    // PRD-0034 R-A5:默认仅未归档;?archived=true 仅返回归档(归档管理数据源)。
+    const archivedOnly = c.req.query('archived') === 'true';
+    const byArchive = archivedOnly
+      ? all.filter((s) => s.archived === true)
+      : all.filter((s) => !s.archived);
     const sessions =
       q.length === 0
-        ? all
-        : all.filter(
+        ? byArchive
+        : byArchive.filter(
             (s) =>
               (s.title ?? '').toLowerCase().includes(q) ||
               (s.lastPrompt ?? '').toLowerCase().includes(q),
           );
     return c.json({ sessions });
+  });
+
+  // ---- 归档管理(PRD-0034 R-A3):session_index 聚合,不依赖工作区注册表,hidden
+  // 工作区的归档会话也可见 ------------------------------------------------------
+  r.get('/archived-sessions', async (c) => {
+    const registry = new WorkspaceRegistry(homeDir);
+    const workDirs = new Set([...(await registry.list()), ...(await listIndexedWorkDirs(homeDir))]);
+    const lists = await Promise.all([...workDirs].map((workDir) => manager.listSessions(workDir)));
+    const sessions = lists
+      .flat()
+      .filter((s) => s.archived === true)
+      .toSorted((a, b) => b.updatedAt - a.updatedAt);
+    const response: ArchivedSessionsResponse = { sessions };
+    return c.json(response);
   });
 
   r.post('/sessions', async (c) => {
@@ -164,6 +195,57 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const id = c.req.param('id');
     const session = await manager.resumeSession(id);
     return c.json({ session });
+  });
+
+  // ---- 会话组织(PRD-0034 R-A1/R-A4) -----------------------------------------
+
+  /** 统一元数据端点:一次可改 title/pinned/archived。 */
+  r.patch('/sessions/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<UpdateSessionMetaBody>();
+    const title = body.title?.trim();
+    if (title !== undefined && title.length === 0) {
+      return badRequest(c, 'title cannot be empty');
+    }
+    if (title !== undefined && title.length > 200) {
+      return badRequest(c, 'title must be at most 200 characters');
+    }
+    if (title === undefined && body.pinned === undefined && body.archived === undefined) {
+      return badRequest(c, 'at least one of title/pinned/archived is required');
+    }
+
+    if (title !== undefined) {
+      await manager.renameSession(id, title);
+    }
+    const metaPatch: { pinned?: boolean; archived?: boolean } = {};
+    if (body.pinned !== undefined) metaPatch.pinned = body.pinned;
+    if (body.archived !== undefined) metaPatch.archived = body.archived;
+    if (Object.keys(metaPatch).length > 0) {
+      await manager.updateSessionMetadata(id, metaPatch);
+    }
+
+    // 恢复归档时,若其工作区被隐藏(删除过),自动重新登记,使其回到侧栏。
+    if (body.archived === false) {
+      const workDir = await findSessionWorkDir(homeDir, id);
+      if (workDir !== undefined) {
+        const registry = new WorkspaceRegistry(homeDir);
+        if ((await registry.hidden()).includes(workDir)) {
+          await registry.add(workDir);
+        }
+      }
+    }
+    return c.json({ ok: true });
+  });
+
+  r.post('/sessions/:id/fork', async (c) => {
+    const id = c.req.param('id');
+    if (manager.isSessionBusy(id)) {
+      return c.json({ error: 'session is busy', code: 'SESSION_BUSY' }, 409);
+    }
+    const body = await c.req.json<ForkSessionBody>().catch(() => ({}) as ForkSessionBody);
+    const session = await manager.forkSession(id, body.upToMessage);
+    const response: ForkSessionResponse = { session };
+    return c.json(response, 201);
   });
 
   r.delete('/sessions/:id', async (c) => {
@@ -311,7 +393,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         if (!VALID_THINKING_MODES.has(body.thinking.mode)) {
           return badRequest(c, 'thinking.mode must be one of: auto, on, off');
         }
-        thinking.mode = body.thinking.mode as ThinkingMode;
+        thinking.mode = body.thinking.mode;
       }
       if (body.thinking.effort !== undefined) {
         if (!VALID_THINKING_EFFORTS.has(body.thinking.effort)) {
