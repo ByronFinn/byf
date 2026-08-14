@@ -224,7 +224,7 @@
   - #302 — [PRD-0033] 两栏布局 + 会话侧边栏 + 后端搜索 (Done)
   - #303 — [PRD-0033] 聊天消息流 + 智能滚动 + 用户气泡 (Done)
   - #304 — [PRD-0033] assistant 步骤时间轴 + Markdown + 工具卡片 (Done)
-  - #305 — [PRD-0033] Composer + 审批/提问卡片 + 空状态 + 回归 (AFK, ←#303,#304)
+  - #305 — [PRD-0033] Composer + 审批/提问卡片 + 空状态 + 回归 (Done)
 - **Sliced by**: `/story`（2026-08-14）→ 6 个 vertical slices，依赖链 300→301→302→303→304→305
 - **Implemented by**: —
 - **Reviewed by**: —
