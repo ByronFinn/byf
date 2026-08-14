@@ -16,7 +16,6 @@ import type {
   SetPermissionBody,
   SteerBody,
   ThinkingEffort,
-  ThinkingMode,
   UpdateConfigBody,
   UpdateSessionModelBody,
   UpdateSessionThinkingBody,
@@ -311,7 +310,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         if (!VALID_THINKING_MODES.has(body.thinking.mode)) {
           return badRequest(c, 'thinking.mode must be one of: auto, on, off');
         }
-        thinking.mode = body.thinking.mode as ThinkingMode;
+        thinking.mode = body.thinking.mode;
       }
       if (body.thinking.effort !== undefined) {
         if (!VALID_THINKING_EFFORTS.has(body.thinking.effort)) {
