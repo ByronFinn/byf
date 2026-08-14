@@ -28,6 +28,7 @@ import type {
   ResumedSessionSummary,
   SessionStatus,
   SessionSummary,
+  SkillSummary,
   ToolInputDisplay,
 } from '@byfriends/sdk';
 
@@ -53,6 +54,7 @@ export type {
   ResumedSessionSummary,
   SessionSummary,
   SessionStatus,
+  SkillSummary,
 };
 
 // ---- Server → client：SSE 帧 -------------------------------------------------
@@ -140,10 +142,40 @@ export interface UpdateSessionModelBody {
   readonly model: string;
 }
 
+/** 会话内推理强度档位(与 agent-core thinkingLevel / CLI 语义一致)。 */
+export type ThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+/** 全局思考模式:auto = 模型自动决定;on = 强制开启 + effort;off = 强制关闭。 */
+export type ThinkingMode = 'auto' | 'on' | 'off';
+
+export interface UpdateSessionThinkingBody {
+  readonly level: ThinkingEffort | 'off';
+}
+
+export interface ActivateSkillBody {
+  readonly name: string;
+  readonly args?: string;
+}
+
+/** 目录浏览条目(@ 引用文件/文件夹用)。 */
+export interface FsEntry {
+  readonly name: string;
+  /** 相对 root 的路径(选择后插入 `@path` 文本)。 */
+  readonly path: string;
+  readonly isDir: boolean;
+}
+
+export interface FsListResponse {
+  readonly entries: readonly FsEntry[];
+}
+
 export interface UpdateConfigBody {
   readonly defaultModel?: string;
   readonly defaultPermissionMode?: PermissionMode;
   readonly defaultThinking?: boolean;
+  readonly thinking?: {
+    readonly mode?: ThinkingMode;
+    readonly effort?: ThinkingEffort;
+  };
 }
 
 export interface ApprovalDecisionBody {
@@ -230,6 +262,11 @@ export interface ConfigResponse {
   readonly defaultModel?: string;
   readonly defaultPermissionMode?: PermissionMode;
   readonly defaultThinking?: boolean;
+  /** 思考模式与默认强度(设置弹层「思考」行)。 */
+  readonly thinking?: {
+    readonly mode?: ThinkingMode;
+    readonly effort?: ThinkingEffort;
+  };
   readonly models: readonly ConfigModelView[];
   readonly providers: readonly ConfigProviderView[];
 }

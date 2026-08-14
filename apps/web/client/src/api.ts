@@ -1,9 +1,12 @@
 import type {
+  ActivateSkillBody,
   ApprovalDecisionBody,
   ConfigResponse,
   CreateSessionBody,
   CreateSessionResponse,
   CreateWorkspaceBody,
+  FsEntry,
+  FsListResponse,
   ListSessionsResponse,
   PermissionMode,
   PickDirectoryResponse,
@@ -13,9 +16,11 @@ import type {
   SessionStatusResponse,
   SessionSummary,
   SetPermissionBody,
+  SkillSummary,
   SteerBody,
   UpdateConfigBody,
   UpdateSessionModelBody,
+  UpdateSessionThinkingBody,
   WorkspaceListResponse,
   WorkspaceResponse,
   WorkspaceView,
@@ -118,6 +123,33 @@ export const api = {
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/model`, 'PATCH', {
       model,
     } satisfies UpdateSessionModelBody),
+
+  setSessionThinking: (id: string, level: UpdateSessionThinkingBody['level']) =>
+    request<{ ok: boolean }>(`/api/sessions/${enc(id)}/thinking`, 'PATCH', {
+      level,
+    } satisfies UpdateSessionThinkingBody),
+
+  activateSkill: (id: string, name: string, args?: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${enc(id)}/activate-skill`, 'POST', {
+      name,
+      args,
+    } satisfies ActivateSkillBody),
+
+  /** 会话可激活的 skill 列表(slash 面板 skill 命令的数据源)。 */
+  listSkills: async (id: string): Promise<SkillSummary[]> => {
+    const r = await request<{ skills: SkillSummary[] }>(`/api/sessions/${enc(id)}/skills`, 'GET');
+    return [...r.skills];
+  },
+
+  compactSession: (id: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${enc(id)}/compact`, 'POST'),
+
+  /** 列工作区目录(@ 引用);root 必须是已注册工作区,path 相对 root。 */
+  listFs: async (root: string, path: string): Promise<FsEntry[]> => {
+    const params = new URLSearchParams({ root, path });
+    const r = await request<FsListResponse>(`/api/fs/list?${params.toString()}`, 'GET');
+    return [...r.entries];
+  },
 
   getConfig: () => request<ConfigResponse>('/api/config', 'GET'),
 

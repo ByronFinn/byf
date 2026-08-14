@@ -27,7 +27,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
-import { useWorkDir } from '#/hooks/useWorkDir';
 import { useWorkspaceView } from '#/hooks/useWorkspaceView';
 import { relativeTimeLabel } from '#/lib/relative-time';
 import { cn } from '#/lib/utils';
@@ -42,6 +41,13 @@ import {
 /** 工作区数据 query key(侧边栏与 hero 选择器共享缓存)。 */
 export function workspaceListKey(): readonly unknown[] {
   return ['workspaces'];
+}
+
+/** 全局「打开设置弹层」事件(slash 命令 /settings 等触发)。 */
+export const OPEN_SETTINGS_EVENT = 'byf:open-settings';
+
+export function openSettingsDialog(): void {
+  window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT));
 }
 
 /** 拖拽插入半区:行上半部 → before,下半部 → after。 */
@@ -95,10 +101,19 @@ export function SessionSidebar(props: {
   const location = useLocation();
   const queryClient = useQueryClient();
   const activeId = /^\/sessions\/([^/]+)/.exec(location.pathname)?.[1];
-  const { setDir } = useWorkDir();
 
   const [q, setQ] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // slash 命令 /settings、/login 等经全局事件打开设置弹层
+  useEffect(() => {
+    const open = (): void => {
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_SETTINGS_EVENT, open);
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, open);
+    };
+  }, []);
   const [focusSearchRequest, setFocusSearchRequest] = useState(0);
   const [dragSession, setDragSession] = useState<DragSession | null>(null);
   const [dragWorkspace, setDragWorkspace] = useState<string | null>(null);
@@ -147,9 +162,8 @@ export function SessionSidebar(props: {
   // ---- 添加工作区:原生选择器 → 失败 fallback 路径输入 -----------------------
   const addMutation = useMutation({
     mutationFn: (path: string) => api.addWorkspace(path),
-    onSuccess: (data) => {
+    onSuccess: () => {
       invalidateWorkspaces();
-      setDir(data.workspace.workDir);
     },
   });
 
@@ -171,9 +185,8 @@ export function SessionSidebar(props: {
     setAddDialog((prev) => ({ ...prev, busy: true, error: null }));
     void api
       .addWorkspace(path)
-      .then((data) => {
+      .then(() => {
         invalidateWorkspaces();
-        setDir(data.workspace.workDir);
         setAddDialog({ open: false, path: '', error: null, busy: false });
       })
       .catch((error: unknown) => {
@@ -236,9 +249,10 @@ export function SessionSidebar(props: {
   };
 
   const goNewSession = (workDir?: string): void => {
-    if (workDir !== undefined) setDir(workDir);
     onNavigate?.();
-    void navigate('/');
+    // 工作区预选走一次性导航 state(hero 读取后清除);不再写 localStorage——
+    // 工作区选择是"本次新建会话"的意图,不该跨会话持久化。
+    void navigate('/', { state: workDir !== undefined ? { workDir } : {} });
   };
 
   // ---- 折叠 rail --------------------------------------------------------------
@@ -655,19 +669,21 @@ function WorkspaceGroupRow(props: {
         />
         <Folder className="size-4 shrink-0 text-fg-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-fg">{group.title}</span>
-        <span className="hidden items-center gap-0.5 group-hover:flex">
+        {/* 菜单打开期间保持按钮可见(data-[state=open]:flex,state 在 Radix
+            trigger 即本按钮上):hover 消失时锚点仍在,菜单位置不会跳位。 */}
+        <span className="flex items-center gap-0.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label={`${group.title} 菜单`}
-                className="flex size-5 items-center justify-center rounded text-fg-subtle hover:bg-hover hover:text-fg"
+                className="hidden size-5 items-center justify-center rounded text-fg-subtle transition-colors group-hover:flex hover:bg-hover hover:text-fg data-[state=open]:flex"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent side="bottom" align="end">
               <DropdownMenuItem onSelect={props.onNewSession}>新建会话</DropdownMenuItem>
               <DropdownMenuItem variant="danger" onSelect={props.onDelete}>
                 <Trash2 className="size-4" aria-hidden />

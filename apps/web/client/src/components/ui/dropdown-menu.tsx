@@ -136,6 +136,11 @@ function DropdownMenuSubTrigger({
   );
 }
 
+/** 子菜单根(与 SubTrigger/SubContent 配套;此前缺失,原型期补全)。 */
+function DropdownMenuSub(props: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  return <DropdownMenuPrimitive.Sub {...props} />;
+}
+
 function DropdownMenuSubContent({
   className,
   ...props
@@ -161,6 +166,7 @@ export {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,

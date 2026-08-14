@@ -1,25 +1,18 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  BookOpen,
-  ChevronDown,
-  Folder,
-  FolderSearch,
-  ListChecks,
-  Slash,
-  Sparkles,
-} from 'lucide-react';
+import { BookOpen, ChevronDown, Folder, FolderSearch, ListChecks, Sparkles } from 'lucide-react';
 import { useEffect, useReducer, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
-import { ComposerCard } from '#/components/chat/ComposerCard';
+import { ComposerCard, type TriggerCommand } from '#/components/chat/ComposerCard';
 import { PermissionChip } from '#/components/chat/PermissionChip';
 import { QuestionCard } from '#/components/chat/QuestionCard';
 import { StatusBar } from '#/components/chat/StatusBar';
+import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
 import { Transcript } from '#/components/chat/Transcript';
-import { workspaceListKey } from '#/components/layout/SessionSidebar';
+import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
 import {
   DropdownMenu,
@@ -31,10 +24,12 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
 import { useEventStream } from '#/hooks/useEventStream';
-import { useWorkDir } from '#/hooks/useWorkDir';
+import { useTheme } from '#/hooks/useTheme';
 import { chatReducer, initialChatState, replayToEntries } from '#/lib/chat';
+import { userActivatableSkills } from '#/lib/skills';
+import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { PermissionMode } from '#/types';
+import type { PermissionMode, SkillSummary, ThinkingEffort } from '#/types';
 
 const EXAMPLE_PROMPTS: readonly { icon: typeof BookOpen; label: string; prompt: string }[] = [
   {
@@ -78,8 +73,14 @@ export function ChatPage(): React.JSX.Element {
  */
 function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Element {
   const location = useLocation();
+  const navigate = useNavigate();
   const [state, dispatch] = useReducer(chatReducer, undefined, initialChatState);
   const [resumed, setResumed] = useState(false);
+  // @ 引用的工作区根(来自 resume 的 session summary)
+  const [sessionWorkDir, setSessionWorkDir] = useState<string | null>(null);
+  // 会话可激活技能(slash 面板 skill 命令的数据源;与 TUI 同一数据链路)
+  const [skills, setSkills] = useState<readonly SkillSummary[]>([]);
+  const { choice, set } = useTheme();
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
@@ -95,6 +96,7 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       try {
         const { session } = await api.resumeSession(sessionId);
         if (!cancelled) {
+          setSessionWorkDir(session.workDir);
           const replay = session.agents?.['main']?.replay;
           if (replay !== undefined && replay.length > 0) {
             const { entries, toolIndex } = replayToEntries(replay);
@@ -131,6 +133,22 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     void api.prompt(sessionId, text);
   };
 
+  // 会话恢复后拉取技能列表(slash 面板 `skill:<name>` 命令数据源;与 TUI 的
+  // refreshSkillCommands 同链路)。失败不阻塞会话——面板仅显示内置命令。
+  useEffect(() => {
+    if (!resumed) return;
+    let cancelled = false;
+    void api
+      .listSkills(sessionId)
+      .then((list) => {
+        if (!cancelled) setSkills(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [resumed, sessionId]);
+
   const onCancel = (): void => {
     void api.cancel(sessionId);
   };
@@ -142,6 +160,79 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         dispatch({ type: 'status-loaded', status });
       }),
     );
+
+  // 推理强度切换:同上(ThinkingChip 内部乐观,settle 后回读确认)。
+  const onThinkingChange = (level: ThinkingEffort | 'off'): Promise<void> =>
+    api.setSessionThinking(sessionId, level).then(() =>
+      api.getSession(sessionId).then(({ status }) => {
+        dispatch({ type: 'status-loaded', status });
+      }),
+    );
+
+  // slash 命令集:web 能力的 TUI 命令投影 + 会话可用技能(skills 端点)。
+  // 注意不含 init:TUI 的 /init 是 CLI 内置的 init turn 机(分析代码库生成
+  // AGENTS.md),不是 skill;web 无该能力,不投影。用户自定义同名 skill 会
+  // 经下方技能列表自然出现。
+  const PERMISSION_CYCLE: readonly PermissionMode[] = ['manual', 'auto', 'yolo'];
+  const THEME_CYCLE = ['light', 'dark', 'system'] as const;
+  const builtinCommands: readonly TriggerCommand[] = [
+    {
+      name: 'permission',
+      description: '切换权限模式',
+      run: () => {
+        const current = state.status?.permission ?? 'manual';
+        const next =
+          PERMISSION_CYCLE[(PERMISSION_CYCLE.indexOf(current) + 1) % PERMISSION_CYCLE.length]!;
+        void onPermissionChange(next);
+      },
+    },
+    { name: 'model', description: '打开设置选择默认模型', run: openSettingsDialog },
+    { name: 'settings', description: '打开设置', run: openSettingsDialog },
+    {
+      name: 'compact',
+      description: '压缩会话上下文',
+      run: () => {
+        void api.compactSession(sessionId).then(
+          () => {
+            toast.info('已开始压缩会话上下文');
+          },
+          (error: unknown) => {
+            toast.error(`压缩会话失败:${errorMessage(error)}`);
+          },
+        );
+      },
+    },
+    { name: 'new', description: '开始新会话', run: () => navigate('/') },
+    {
+      name: 'theme',
+      description: '切换主题',
+      run: () => {
+        const idx = THEME_CYCLE.indexOf(choice);
+        set(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]!);
+      },
+    },
+    { name: 'login', description: '添加模型 provider(或 CLI /login)', run: openSettingsDialog },
+  ];
+  // 技能命令:与内置命令重名时内置优先(如权限/主题);执行即 activateSkill,
+  // 与 TUI 的 `/skill:<name> args` 同一语义。
+  const builtinNames = new Set(builtinCommands.map((c) => c.name));
+  const skillCommands: readonly TriggerCommand[] = userActivatableSkills(skills)
+    .filter((s) => !builtinNames.has(s.name))
+    .map((s) => ({
+      name: s.name,
+      description: s.description.length > 0 ? s.description : `激活技能 ${s.name}`,
+      run: (args: string) => {
+        void api.activateSkill(sessionId, s.name, args).then(
+          () => {
+            toast.success(`已激活技能「${s.name}」`);
+          },
+          (error: unknown) => {
+            toast.error(`技能「${s.name}」激活失败:${errorMessage(error)}`);
+          },
+        );
+      },
+    }));
+  const commands: readonly TriggerCommand[] = [...builtinCommands, ...skillCommands];
 
   const approvalIds = Object.keys(state.pendingApprovals);
   const questionIds = Object.keys(state.pendingQuestions);
@@ -182,7 +273,11 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         disabled={state.busy}
         model={state.status?.model}
         permission={state.status?.permission}
+        thinkingLevel={normalizeThinkingLevel(state.status?.thinkingLevel)}
+        workDir={sessionWorkDir}
+        commands={commands}
         onPermissionChange={onPermissionChange}
+        onThinkingChange={onThinkingChange}
         onSend={onSend}
         onCancel={onCancel}
       />
@@ -205,9 +300,16 @@ function readInitialPrompt(state: unknown): string | null {
  */
 function NewSessionHero(): React.JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
-  const { dir, setDir } = useWorkDir();
+  // 工作区是"本次新建会话"的选择:初始为空,仅接受侧边栏导航 state 的一次性
+  // 预选;不读 localStorage(旧持久化值会让 hero 默认带上上次的工作区)。
+  const [dir, setDir] = useState<string | null>(() => {
+    const fromState = (location.state as { workDir?: unknown } | null)?.workDir;
+    return typeof fromState === 'string' && fromState.length > 0 ? fromState : null;
+  });
   const [permission, setPermission] = useState<PermissionMode | null>(null);
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingEffort | 'off' | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,19 +320,38 @@ function NewSessionHero(): React.JSX.Element {
     busy: boolean;
   }>({ open: false, path: '', error: null, busy: false });
 
+  // 消费导航预选(侧边栏「新建会话」带工作区):useState 初始化只覆盖首次挂载;
+  // 已在 / 页时靠本 effect 响应 state 变化应用并清除(与 initialPrompt 同模式)。
+  useEffect(() => {
+    const fromState = (location.state as { workDir?: unknown } | null)?.workDir;
+    if (typeof fromState === 'string' && fromState.length > 0) {
+      setDir(fromState);
+    }
+    if (location.state !== null) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [location.state]);
+
   const { data: workspaces } = useQuery({
     queryKey: workspaceListKey(),
     queryFn: () => api.listWorkspaces(),
     staleTime: 30_000,
   });
 
-  // 配置(默认模型 / 默认权限):权限初值在用户主动选择前跟随配置
+  // 配置(默认模型 / 默认权限 / 思考档位):用户主动选择前跟随配置
   const { data: config } = useQuery({
     queryKey: ['config'],
     queryFn: () => api.getConfig(),
     staleTime: 60_000,
   });
   const currentPermission = permission ?? config?.defaultPermissionMode ?? 'manual';
+  const defaultThinkingLevel: ThinkingEffort | 'off' | undefined =
+    config?.thinking?.mode === 'on'
+      ? config.thinking.effort
+      : config?.thinking?.mode === 'off'
+        ? 'off'
+        : undefined; // auto / 未配置:跟随模型,不传 thinking
+  const currentThinkingLevel = thinkingLevel ?? defaultThinkingLevel;
 
   const startAddFlow = async (): Promise<void> => {
     try {
@@ -271,7 +392,12 @@ function NewSessionHero(): React.JSX.Element {
     setSending(true);
     setError(null);
     void api
-      .createSession({ workDir: dir, permission: currentPermission, model: config?.defaultModel })
+      .createSession({
+        workDir: dir,
+        permission: currentPermission,
+        model: config?.defaultModel,
+        thinking: currentThinkingLevel,
+      })
       .then(({ session }) => {
         void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
         void navigate(`/sessions/${session.id}`, { state: { initialPrompt: value } });
@@ -283,6 +409,31 @@ function NewSessionHero(): React.JSX.Element {
   };
 
   const selectedWorkspace = workspaces?.find((w) => w.workDir === dir);
+
+  // slash 命令集(hero 无会话:不含 init/compact/model)
+  const { choice: themeChoice, set: setTheme } = useTheme();
+  const HERO_PERMISSION_CYCLE: readonly PermissionMode[] = ['manual', 'auto', 'yolo'];
+  const HERO_THEME_CYCLE = ['light', 'dark', 'system'] as const;
+  const heroCommands: readonly TriggerCommand[] = [
+    {
+      name: 'permission',
+      description: '切换权限模式',
+      run: () => {
+        const idx = HERO_PERMISSION_CYCLE.indexOf(currentPermission);
+        setPermission(HERO_PERMISSION_CYCLE[(idx + 1) % HERO_PERMISSION_CYCLE.length]!);
+      },
+    },
+    { name: 'settings', description: '打开设置', run: openSettingsDialog },
+    {
+      name: 'theme',
+      description: '切换主题',
+      run: () => {
+        const idx = HERO_THEME_CYCLE.indexOf(themeChoice);
+        setTheme(HERO_THEME_CYCLE[(idx + 1) % HERO_THEME_CYCLE.length]!);
+      },
+    },
+    { name: 'login', description: '添加模型 provider(或 CLI /login)', run: openSettingsDialog },
+  ];
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -361,19 +512,11 @@ function NewSessionHero(): React.JSX.Element {
             model={config?.defaultModel}
             leading={
               <>
-                <button
-                  type="button"
-                  disabled
-                  aria-label="命令"
-                  title="命令"
-                  className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs text-fg-subtle"
-                >
-                  <Slash className="size-3.5" aria-hidden />
-                  命令
-                </button>
                 <PermissionChip mode={currentPermission} onChange={setPermission} />
+                <ThinkingChip level={currentThinkingLevel} onChange={setThinkingLevel} />
               </>
             }
+            trigger={{ commands: heroCommands, workDir: dir }}
           />
         </div>
       </div>

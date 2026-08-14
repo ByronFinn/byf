@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, Monitor, Moon, Sun, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, KeyRound, Monitor, Moon, Sun, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { api } from '#/api';
 import { PERMISSION_COPY } from '#/components/chat/PermissionChip';
+import {
+  THINKING_EFFORTS,
+  THINKING_EFFORT_LABEL,
+  THINKING_MODES,
+  THINKING_MODE_LABEL,
+} from '#/components/chat/ThinkingChip';
 import { Button } from '#/components/ui/button';
 import {
   DropdownMenu,
@@ -13,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
 import { useTheme } from '#/hooks/useTheme';
+import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
 import type { UpdateConfigBody } from '#/types';
 
@@ -86,6 +93,10 @@ function GeneralSection(): React.JSX.Element {
     mutationFn: (body: UpdateConfigBody) => api.setConfig(body),
     onSuccess: (cfg) => {
       queryClient.setQueryData(CONFIG_KEY, cfg);
+      toast.success('设置已保存');
+    },
+    onError: (error: unknown) => {
+      toast.error(`保存设置失败:${errorMessage(error)}`);
     },
   });
   const { choice, set } = useTheme();
@@ -181,19 +192,72 @@ function GeneralSection(): React.JSX.Element {
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-fg">默认思考</h2>
-        <p className="mt-0.5 text-xs text-fg-subtle">新会话是否启用推理思考。</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          onClick={() => {
-            apply({ defaultThinking: !(config?.defaultThinking ?? false) });
-          }}
-        >
-          {(config?.defaultThinking ?? false) ? '开启' : '关闭'}
-        </Button>
+        <h2 className="text-sm font-semibold text-fg">思考</h2>
+        <p className="mt-0.5 text-xs text-fg-subtle">
+          新会话的思考模式与推理强度;会话内可在输入区底部随时切换。
+        </p>
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-fg-muted">思考模式</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="justify-between gap-6">
+                  {THINKING_MODE_LABEL[config?.thinking?.mode ?? 'auto']}
+                  <ChevronDown className="size-3 text-fg-subtle" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {THINKING_MODES.map((m) => (
+                  <DropdownMenuCheckboxItem
+                    key={m}
+                    checked={(config?.thinking?.mode ?? 'auto') === m}
+                    onSelect={() => {
+                      apply({ thinking: { mode: m } });
+                    }}
+                  >
+                    {THINKING_MODE_LABEL[m]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div
+            className={cn(
+              'flex items-center justify-between gap-2',
+              (config?.thinking?.mode ?? 'auto') !== 'on' && 'opacity-40',
+            )}
+          >
+            <span className="text-sm text-fg-muted">推理强度</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-between gap-6"
+                  disabled={(config?.thinking?.mode ?? 'auto') !== 'on'}
+                >
+                  {config?.thinking?.effort !== undefined
+                    ? THINKING_EFFORT_LABEL[config.thinking.effort]
+                    : '中'}
+                  <ChevronDown className="size-3 text-fg-subtle" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {THINKING_EFFORTS.map((e) => (
+                  <DropdownMenuCheckboxItem
+                    key={e}
+                    checked={config?.thinking?.effort === e}
+                    onSelect={() => {
+                      apply({ thinking: { effort: e } });
+                    }}
+                  >
+                    {THINKING_EFFORT_LABEL[e]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </section>
 
       <section>
@@ -272,12 +336,20 @@ function ModelsSection(): React.JSX.Element {
     mutationFn: (body: UpdateConfigBody) => api.setConfig(body),
     onSuccess: (cfg) => {
       queryClient.setQueryData(CONFIG_KEY, cfg);
+      toast.success('设置已保存');
+    },
+    onError: (error: unknown) => {
+      toast.error(`保存设置失败:${errorMessage(error)}`);
     },
   });
   const remove = useMutation({
     mutationFn: (providerId: string) => api.removeProvider(providerId),
     onSuccess: (cfg) => {
       queryClient.setQueryData(CONFIG_KEY, cfg);
+      toast.success('已移除 provider');
+    },
+    onError: (error: unknown) => {
+      toast.error(`移除 provider 失败:${errorMessage(error)}`);
     },
   });
   // 内联二次确认:providerId → 是否处于确认态

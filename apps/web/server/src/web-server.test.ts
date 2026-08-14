@@ -1,10 +1,15 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ByfConfig, ByfConfigPatch, ResumedSessionSummary } from '@byfriends/sdk';
+import type {
+  ByfConfig,
+  ByfConfigPatch,
+  ResumedSessionSummary,
+  SkillSummary,
+} from '@byfriends/sdk';
 import type {
   ApprovalRequest,
   ApprovalResponse,
@@ -45,6 +50,7 @@ class FakeSession implements SessionLike {
   cancelled = false;
   permission: PermissionMode | undefined;
   model: string | undefined;
+  thinking: string | undefined;
   closed = false;
 
   constructor(id: string, workDir: string) {
@@ -110,6 +116,26 @@ class FakeSession implements SessionLike {
 
   async setModel(model: string): Promise<void> {
     this.model = model;
+  }
+
+  async setThinking(level: string): Promise<void> {
+    this.thinking = level;
+  }
+
+  activatedSkill: { name: string; args: string | undefined } | undefined;
+  compacted = false;
+  skills: readonly SkillSummary[] = [];
+
+  async activateSkill(name: string, args?: string): Promise<void> {
+    this.activatedSkill = { name, args };
+  }
+
+  async listSkills(): Promise<readonly SkillSummary[]> {
+    return this.skills;
+  }
+
+  async compact(): Promise<void> {
+    this.compacted = true;
   }
 
   async getStatus(): Promise<SessionStatus> {
@@ -720,6 +746,49 @@ describe('Workspace routes', () => {
     });
     expect(await list()).toEqual([oldDir, recentDir]);
   });
+
+  test('GET /api/fs/list 列出工作区目录(隐藏过滤、目录优先);非工作区 root 与路径逃逸 400', async () => {
+    const { app, projDir } = await setup();
+    await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    await mkdir(join(projDir, 'sub'));
+    await writeFile(join(projDir, 'a.txt'), 'x');
+    await writeFile(join(projDir, '.hidden'), 'x');
+
+    const list = async (
+      path: string,
+    ): Promise<{ status: number; entries?: { name: string; path: string; isDir: boolean }[] }> => {
+      const res = await app.request(
+        `/api/fs/list?root=${encodeURIComponent(projDir)}&path=${encodeURIComponent(path)}`,
+      );
+      const body = (await res.json()) as {
+        entries?: { name: string; path: string; isDir: boolean }[];
+      };
+      return { status: res.status, entries: body.entries };
+    };
+
+    const root = await list('');
+    expect(root.status).toBe(200);
+    expect(root.entries).toEqual([
+      { name: 'sub', path: 'sub', isDir: true },
+      { name: 'a.txt', path: 'a.txt', isDir: false },
+    ]); // 隐藏文件过滤;目录在前
+
+    const sub = await list('sub');
+    expect(sub.status).toBe(200);
+    expect(sub.entries).toEqual([]);
+
+    const badRoot = await app.request(`/api/fs/list?root=${encodeURIComponent('/not/registered')}`);
+    expect(badRoot.status).toBe(400);
+
+    const escape = await app.request(
+      `/api/fs/list?root=${encodeURIComponent(projDir)}&path=${encodeURIComponent('../../etc')}`,
+    );
+    expect(escape.status).toBe(400);
+  });
 });
 
 // ---- 配置与模型路由(设置弹层后端) --------------------------------------------
@@ -766,6 +835,7 @@ describe('Config routes', () => {
       defaultModel: 'local/qwen-3.6',
       defaultPermissionMode: 'yolo',
       defaultThinking: true,
+      thinking: { mode: 'on', effort: 'high' },
     };
     const res = await app.request('/api/config');
     expect(res.status).toBe(200);
@@ -774,6 +844,7 @@ describe('Config routes', () => {
       defaultModel?: string;
       defaultPermissionMode?: string;
       defaultThinking?: boolean;
+      thinking?: { mode?: string; effort?: string };
       providers: { id: string; type: string; baseUrl?: string; hasApiKey: boolean }[];
       models: { id: string; provider: string }[];
     };
@@ -781,6 +852,7 @@ describe('Config routes', () => {
     expect(body.defaultModel).toBe('local/qwen-3.6');
     expect(body.defaultPermissionMode).toBe('yolo');
     expect(body.defaultThinking).toBe(true);
+    expect(body.thinking).toEqual({ mode: 'on', effort: 'high' });
     expect(body.providers).toEqual([
       {
         id: 'local',
@@ -807,15 +879,35 @@ describe('Config routes', () => {
       body: JSON.stringify({
         defaultModel: 'm1',
         defaultPermissionMode: 'auto',
-        defaultThinking: false,
+        thinking: { mode: 'on', effort: 'xhigh' },
       }),
     });
     expect(ok.status).toBe(200);
-    const body = (await ok.json()) as { defaultModel: string; defaultPermissionMode: string };
+    const body = (await ok.json()) as {
+      defaultModel: string;
+      defaultPermissionMode: string;
+      thinking: { mode: string; effort: string };
+    };
     expect(body.defaultModel).toBe('m1');
     expect(body.defaultPermissionMode).toBe('auto');
+    expect(body.thinking).toEqual({ mode: 'on', effort: 'xhigh' });
     expect(harness.config.defaultModel).toBe('m1');
     expect(harness.config.defaultPermissionMode).toBe('auto');
+    expect(harness.config.thinking).toEqual({ mode: 'on', effort: 'xhigh' });
+
+    const badMode = await app.request('/api/config', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ thinking: { mode: 'bogus' } }),
+    });
+    expect(badMode.status).toBe(400);
+
+    const badEffort = await app.request('/api/config', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ thinking: { effort: 'insane' } }),
+    });
+    expect(badEffort.status).toBe(400);
 
     const bad = await app.request('/api/config', {
       method: 'PATCH',
@@ -868,6 +960,93 @@ describe('Config routes', () => {
     expect(empty.status).toBe(400);
   });
 
+  test('PATCH /api/sessions/:id/thinking 透传;非法档位 400', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+
+    for (const level of ['off', 'low', 'medium', 'high', 'xhigh', 'max']) {
+      const ok = await app.request(`/api/sessions/${id}/thinking`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ level }),
+      });
+      expect(ok.status).toBe(200);
+      expect(session.thinking).toBe(level);
+    }
+
+    const bad = await app.request(`/api/sessions/${id}/thinking`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ level: 'insane' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  test('POST activate-skill 与 compact 透传;空 skill 名 400', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+
+    const skill = await app.request(`/api/sessions/${id}/activate-skill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'init', args: 'src' }),
+    });
+    expect(skill.status).toBe(200);
+    expect(session.activatedSkill).toEqual({ name: 'init', args: 'src' });
+
+    const empty = await app.request(`/api/sessions/${id}/activate-skill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: '  ' }),
+    });
+    expect(empty.status).toBe(400);
+
+    const compact = await app.request(`/api/sessions/${id}/compact`, { method: 'POST' });
+    expect(compact.status).toBe(200);
+    expect(session.compacted).toBe(true);
+  });
+
+  test('GET /sessions/:id/skills 返回会话 skill 列表;未加载会话 404', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+    session.skills = [
+      {
+        name: 'research',
+        description: '调研技术主题',
+        path: '/skills/research',
+        source: 'builtin',
+      },
+      { name: 'init', description: '生成 AGENTS.md', path: '/skills/init', source: 'builtin' },
+    ];
+
+    const res = await app.request(`/api/sessions/${id}/skills`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { skills: SkillSummary[] };
+    expect(body.skills.map((s) => s.name)).toEqual(['research', 'init']);
+    expect(body.skills[0]?.description).toBe('调研技术主题');
+
+    const missing = await app.request('/api/sessions/nope/skills');
+    expect(missing.status).toBe(404);
+  });
+
   test('POST /api/sessions/:id/resume 响应携带 agents.main.replay(转录恢复的线路契约)', async () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
@@ -915,5 +1094,37 @@ describe('Config routes', () => {
     expect(
       (body.session.agents?.['main']?.replay[0] as { message: { role: string } }).message.role,
     ).toBe('user');
+  });
+});
+
+// ---- SPA 静态源提示 ----------------------------------------------------------
+
+describe('Static source hint', () => {
+  test('publicDir 显式但不可用 → stderr 诊断;未指定 → stdout 中性说明(api-only fallback)', async () => {
+    const stderrWrite = spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const stdoutWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
+    try {
+      await createApp({
+        manager: new WebSessionManager(new FakeHarness()),
+        publicDir: '/nonexistent-public-dir-xyz',
+      });
+      expect(
+        stderrWrite.mock.calls.some((args) => String(args[0]).includes('publicDir not found')),
+      ).toBe(true);
+
+      stderrWrite.mockClear();
+      stdoutWrite.mockClear();
+      await createApp({ manager: new WebSessionManager(new FakeHarness()) });
+      expect(
+        stdoutWrite.mock.calls.some((args) => String(args[0]).includes('serving API only')),
+      ).toBe(true);
+      // 未指定 publicDir 的 fallback 不是配置错误:不得走 stderr 警告。
+      expect(
+        stderrWrite.mock.calls.some((args) => String(args[0]).includes('publicDir not found')),
+      ).toBe(false);
+    } finally {
+      stderrWrite.mockRestore();
+      stdoutWrite.mockRestore();
+    }
   });
 });

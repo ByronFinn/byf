@@ -147,10 +147,21 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
 
   const staticSource = await resolveStaticSource(options.publicDir);
   if (staticSource === null) {
-    process.stderr.write(
-      '[web-server] SPA bundle not found; serving API only (/api/*). ' +
-        'Rebuild with `bun run build:web` or set the publicDir explicitly.\n',
-    );
+    if (options.publicDir !== undefined) {
+      // 调用方显式要求内置 SPA 但路径不可用:配置错误,值得一条 stderr 诊断。
+      process.stderr.write(
+        `[web-server] publicDir not found or not a directory: ${options.publicDir}; ` +
+          'serving API only (/api/*).\n',
+      );
+    } else {
+      // 未显式指定:api-only 是设计上的 fallback(dev 由 vite 提供前端;CLI /
+      // 独立部署需先构建)。用 stdout 说明而非 stderr 警告,避免被误读为启动失败。
+      process.stdout.write(
+        '[web-server] serving API only (/api/*): SPA bundle not found. ' +
+          'Dev frontend: `bun run --cwd apps/web/client dev` (vite). ' +
+          'Self-contained: run `bun run build:web` first.\n',
+      );
+    }
   } else if (staticSource.kind === 'embedded') {
     const assets = staticSource.assets;
     app.get('*', (c) => {

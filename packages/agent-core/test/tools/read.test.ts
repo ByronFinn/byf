@@ -1050,7 +1050,9 @@ describe('ReadFileTracker', () => {
     const restored = new ReadFileTracker(store);
     expect(restored.hasRead('/tmp/a.txt')).toBe(true);
     expect(restored.hasRead('/tmp/b.txt')).toBe(true);
-    expect(() => restored.markRead('/tmp/c.txt')).not.toThrow();
+    expect(() => {
+      restored.markRead('/tmp/c.txt');
+    }).not.toThrow();
     expect(restored.hasRead('/tmp/c.txt')).toBe(true);
   });
 

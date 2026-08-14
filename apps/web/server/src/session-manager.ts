@@ -13,6 +13,7 @@ import type {
   QuestionRequest,
   QuestionResult,
   ResumedSessionSummary,
+  SkillSummary,
   Unsubscribe,
 } from '@byfriends/sdk';
 import type {
@@ -40,6 +41,10 @@ export interface SessionLike {
   cancel(): Promise<void>;
   setPermission(mode: PermissionMode): Promise<void>;
   setModel(model: string): Promise<void>;
+  setThinking(level: string): Promise<void>;
+  activateSkill(name: string, args?: string): Promise<void>;
+  listSkills(): Promise<readonly SkillSummary[]>;
+  compact(): Promise<void>;
   getStatus(): Promise<SessionStatus>;
   close(): Promise<void>;
 }
@@ -186,6 +191,22 @@ export class WebSessionManager {
 
   async setModel(id: string, model: string): Promise<void> {
     await this.requireSession(id).setModel(model);
+  }
+
+  async setThinking(id: string, level: string): Promise<void> {
+    await this.requireSession(id).setThinking(level);
+  }
+
+  async activateSkill(id: string, name: string, args?: string): Promise<void> {
+    await this.requireSession(id).activateSkill(name, args);
+  }
+
+  async listSkills(id: string): Promise<readonly SkillSummary[]> {
+    return this.requireSession(id).listSkills();
+  }
+
+  async compact(id: string): Promise<void> {
+    await this.requireSession(id).compact();
   }
 
   // ---- 配置(直通 harness;设置页读写 byf 配置) --------------------------------

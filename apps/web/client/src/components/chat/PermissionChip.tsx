@@ -8,6 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
+import { errorMessage, toast } from '#/lib/toast';
 import type { PermissionMode } from '#/types';
 
 /** 权限模式展示文案(hero 与会话内共用,语义与 agent-core 的 PermissionMode 一致)。 */
@@ -50,20 +51,23 @@ export function PermissionChip(props: {
   const choose = (next: PermissionMode): void => {
     if (next === current) return;
     setPending(next);
+    const ok = (): void => {
+      setPending(null);
+      toast.success(`权限已切换为「${permissionName(next)}」`);
+    };
+    const fail = (error: unknown): void => {
+      setPending(null);
+      toast.error(`权限切换失败:${errorMessage(error)}`);
+    };
     try {
       const result = onChange(next);
       if (result instanceof Promise) {
-        void result.then(
-          () => {
-            setPending(null);
-          },
-          () => {
-            setPending(null);
-          },
-        );
+        void result.then(ok, fail);
+      } else {
+        ok();
       }
-    } catch {
-      setPending(null);
+    } catch (error) {
+      fail(error);
     }
   };
 

@@ -1,19 +1,25 @@
-import { stat } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
+import { isAbsolute, resolve, sep } from 'node:path';
 
 import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
 import type {
+  ActivateSkillBody,
   ApprovalDecisionBody,
   ConfigResponse,
   CreateSessionBody,
   CreateWorkspaceBody,
+  FsEntry,
+  FsListResponse,
   PromptBody,
   QuestionAnswerBody,
   ServerFrame,
   SetPermissionBody,
   SteerBody,
+  ThinkingEffort,
+  ThinkingMode,
   UpdateConfigBody,
   UpdateSessionModelBody,
+  UpdateSessionThinkingBody,
   WorkspaceView,
 } from '@byfriends/web-shared';
 import type { Context } from 'hono';
@@ -27,6 +33,22 @@ import { WorkspaceRegistry, listIndexedWorkDirs, workspaceTitle } from './worksp
 
 const VALID_DECISIONS: ReadonlySet<string> = new Set(['approved', 'rejected', 'cancelled']);
 const VALID_PERMISSIONS: ReadonlySet<string> = new Set(['yolo', 'manual', 'auto']);
+const VALID_THINKING_LEVELS: ReadonlySet<string> = new Set([
+  'off',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]);
+const VALID_THINKING_MODES: ReadonlySet<string> = new Set(['auto', 'on', 'off']);
+const VALID_THINKING_EFFORTS: ReadonlySet<string> = new Set([
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]);
 const HEARTBEAT_MS = 20_000;
 
 /** 构建挂载在 `/api` 下的路由树(无鉴权——鉴权由 `createApp` 包裹)。 */
@@ -194,7 +216,78 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     return c.json({ ok: true });
   });
 
+  r.patch('/sessions/:id/thinking', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<UpdateSessionThinkingBody>();
+    if (!VALID_THINKING_LEVELS.has(body.level)) {
+      return badRequest(c, 'level must be one of: off, low, medium, high, xhigh, max');
+    }
+    await manager.setThinking(id, body.level);
+    return c.json({ ok: true });
+  });
+
+  r.post('/sessions/:id/activate-skill', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<ActivateSkillBody>();
+    const name = (body.name ?? '').trim();
+    if (name.length === 0) return badRequest(c, 'name is required');
+    await manager.activateSkill(id, name, body.args);
+    return c.json({ ok: true });
+  });
+
+  // 会话可用的 skill 列表(slash 面板 `skill:<name>` 命令的数据源;同 TUI 的
+  // Session.listSkills 语义——用户可激活的类型由客户端过滤)。
+  r.get('/sessions/:id/skills', async (c) => {
+    const id = c.req.param('id');
+    if (manager.getSession(id) === undefined) return notFound(c, 'session not found');
+    return c.json({ skills: await manager.listSkills(id) });
+  });
+
+  r.post('/sessions/:id/compact', async (c) => {
+    const id = c.req.param('id');
+    await manager.compact(id);
+    return c.json({ ok: true });
+  });
+
   // ---- 配置(设置弹层:默认模型 / 默认权限 / 默认思考) -------------------------
+
+  // ---- 目录浏览(@ 引用文件/文件夹;仅允许工作区根内,防任意文件系统暴露) ----
+  r.get('/fs/list', async (c) => {
+    const root = c.req.query('root') ?? '';
+    const path = c.req.query('path') ?? '';
+    if (root.length === 0) return badRequest(c, 'root query is required');
+    const registry = new WorkspaceRegistry(homeDir);
+    const allowed = new Set(
+      [...(await registry.list()), ...(await listIndexedWorkDirs(homeDir))].map((d) => resolve(d)),
+    );
+    if (!allowed.has(resolve(root))) return badRequest(c, 'root must be a registered workspace');
+    const base = resolve(root);
+    const target = resolve(base, path);
+    if (target !== base && !target.startsWith(`${base}${sep}`)) {
+      return badRequest(c, 'path escapes the workspace root');
+    }
+    let entries: FsEntry[];
+    try {
+      const dirents = await readdir(target, { withFileTypes: true });
+      entries = dirents
+        .filter((d) => !d.name.startsWith('.'))
+        .toSorted((a, b) =>
+          a.isDirectory() === b.isDirectory()
+            ? a.name.localeCompare(b.name)
+            : a.isDirectory()
+              ? -1
+              : 1,
+        )
+        .map((d) => ({
+          name: d.name,
+          path: path.length === 0 ? d.name : `${path}/${d.name}`,
+          isDir: d.isDirectory(),
+        }));
+    } catch {
+      return notFound(c, `cannot read directory: ${target}`);
+    }
+    return c.json({ entries } satisfies FsListResponse);
+  });
 
   r.get('/config', async (c) => {
     const cfg = await manager.getConfig();
@@ -212,6 +305,22 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       patch.defaultPermissionMode = body.defaultPermissionMode;
     }
     if (body.defaultThinking !== undefined) patch.defaultThinking = body.defaultThinking;
+    if (body.thinking !== undefined) {
+      const thinking: NonNullable<ByfConfigPatch['thinking']> = {};
+      if (body.thinking.mode !== undefined) {
+        if (!VALID_THINKING_MODES.has(body.thinking.mode)) {
+          return badRequest(c, 'thinking.mode must be one of: auto, on, off');
+        }
+        thinking.mode = body.thinking.mode as ThinkingMode;
+      }
+      if (body.thinking.effort !== undefined) {
+        if (!VALID_THINKING_EFFORTS.has(body.thinking.effort)) {
+          return badRequest(c, 'thinking.effort must be one of: low, medium, high, xhigh, max');
+        }
+        thinking.effort = body.thinking.effort as ThinkingEffort;
+      }
+      if (Object.keys(thinking).length > 0) patch.thinking = thinking;
+    }
     if (Object.keys(patch).length === 0) return badRequest(c, 'no updatable fields provided');
     const cfg = await manager.setConfig(patch);
     return c.json(toConfigResponse(cfg, manager.configPath));
@@ -307,6 +416,7 @@ function toConfigResponse(cfg: ByfConfig, configPath: string): ConfigResponse {
     defaultModel: cfg.defaultModel,
     defaultPermissionMode: cfg.defaultPermissionMode,
     defaultThinking: cfg.defaultThinking,
+    thinking: cfg.thinking === undefined ? undefined : { ...cfg.thinking },
     models: Object.entries(cfg.models ?? {}).map(([id, m]) => ({
       id,
       provider: m.provider,
