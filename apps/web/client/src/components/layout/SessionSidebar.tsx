@@ -265,7 +265,12 @@ export function SessionSidebar(props: {
         <SidebarIconButton label="展开侧边栏" onClick={onToggleCollapsed} active>
           <Terminal aria-hidden />
         </SidebarIconButton>
-        <SidebarIconButton label="新建会话" onClick={() => goNewSession()}>
+        <SidebarIconButton
+          label="新建会话"
+          onClick={() => {
+            goNewSession();
+          }}
+        >
           <MessageSquarePlus aria-hidden />
         </SidebarIconButton>
         <SidebarIconButton
@@ -448,7 +453,9 @@ export function SessionSidebar(props: {
                     expanded: { ...view.expanded, [group.workDir]: !group.expanded },
                   });
                 }}
-                onNewSession={() => goNewSession(group.workDir)}
+                onNewSession={() => {
+                  goNewSession(group.workDir);
+                }}
                 onDelete={() => {
                   setConfirm({
                     workDir: group.workDir,
@@ -456,13 +463,17 @@ export function SessionSidebar(props: {
                     error: null,
                   });
                 }}
-                onSessionDragStart={(id) => setDragSession({ workDir: group.workDir, id })}
+                onSessionDragStart={(id) => {
+                  setDragSession({ workDir: group.workDir, id });
+                }}
                 onSessionDragOver={(e, id) => {
                   if (dragSession === null || dragSession.workDir !== group.workDir) return;
                   e.preventDefault();
                   setMarker({ id, half: rowHalf(e) });
                 }}
-                onSessionDrop={(id, half) => commitSessionDrop(group.workDir, id, half)}
+                onSessionDrop={(id, half) => {
+                  commitSessionDrop(group.workDir, id, half);
+                }}
                 onDragEnd={() => {
                   setDragSession(null);
                   setMarker(null);
@@ -476,7 +487,9 @@ export function SessionSidebar(props: {
                   e.preventDefault();
                   setMarker({ id: workDir, half: rowHalf(e) });
                 }}
-                onWorkspaceDrop={(workDir, half) => commitWorkspaceDrop(workDir, half)}
+                onWorkspaceDrop={(workDir, half) => {
+                  commitWorkspaceDrop(workDir, half);
+                }}
                 onWorkspaceDragEnd={() => {
                   setDragWorkspace(null);
                   setMarker(null);
@@ -491,13 +504,17 @@ export function SessionSidebar(props: {
                 manual={manual}
                 marker={marker}
                 dragSession={dragSession}
-                onDragStart={() => setDragSession({ workDir: node.workDir, id: node.id })}
+                onDragStart={() => {
+                  setDragSession({ workDir: node.workDir, id: node.id });
+                }}
                 onDragOver={(e, id) => {
                   if (dragSession === null) return;
                   e.preventDefault();
                   setMarker({ id, half: rowHalf(e) });
                 }}
-                onDrop={(id, half) => commitFlatDrop(id, half)}
+                onDrop={(id, half) => {
+                  commitFlatDrop(id, half);
+                }}
                 onDragEnd={() => {
                   setDragSession(null);
                   setMarker(null);
@@ -521,7 +538,13 @@ export function SessionSidebar(props: {
           设置
         </Button>
       </div>
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsDialog
+          onClose={() => {
+            setSettingsOpen(false);
+          }}
+        />
+      )}
 
       {/* 删除工作区确认 + 添加工作区路径弹窗 */}
       {confirm !== null && (
@@ -534,7 +557,9 @@ export function SessionSidebar(props: {
           onCancel={() => {
             setConfirm(null);
           }}
-          onConfirm={() => deleteMutation.mutate()}
+          onConfirm={() => {
+            deleteMutation.mutate();
+          }}
         />
       )}
       {addDialog.open && (
@@ -545,7 +570,9 @@ export function SessionSidebar(props: {
             setAddDialog({ open: false, path: '', error: null, busy: false });
           }}
           onSubmit={submitAddPath}
-          onPathChange={(path) => setAddDialog((prev) => ({ ...prev, path }))}
+          onPathChange={(path) => {
+            setAddDialog((prev) => ({ ...prev, path }));
+          }}
         />
       )}
     </aside>
@@ -644,7 +671,9 @@ function WorkspaceGroupRow(props: {
           e.dataTransfer.setData('text/plain', group.workDir);
           props.onWorkspaceDragStart(group.workDir);
         }}
-        onDragOver={(e) => props.onWorkspaceDragOver(e, group.workDir)}
+        onDragOver={(e) => {
+          props.onWorkspaceDragOver(e, group.workDir);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           props.onWorkspaceDrop(group.workDir, rowHalf(e));
@@ -678,7 +707,9 @@ function WorkspaceGroupRow(props: {
                 type="button"
                 aria-label={`${group.title} 菜单`}
                 className="hidden size-5 items-center justify-center rounded text-fg-subtle transition-colors group-hover:flex hover:bg-hover hover:text-fg data-[state=open]:flex"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </button>
@@ -702,12 +733,16 @@ function WorkspaceGroupRow(props: {
             manual={manual}
             marker={dragSession !== null && marker?.id === node.id ? marker : null}
             dragSession={dragSession}
-            onDragStart={() => props.onSessionDragStart(node.id)}
+            onDragStart={() => {
+              props.onSessionDragStart(node.id);
+            }}
             onDragOver={(e, id) => {
               if (dragSession === null || dragSession.workDir !== group.workDir) return;
               props.onSessionDragOver(e, id);
             }}
-            onDrop={(id, half) => props.onSessionDrop(id, half)}
+            onDrop={(id, half) => {
+              props.onSessionDrop(id, half);
+            }}
             onDragEnd={props.onDragEnd}
             onNavigate={undefined}
             indent
@@ -755,7 +790,9 @@ function SessionRow(props: {
         e.dataTransfer.setData('text/plain', node.id);
         props.onDragStart();
       }}
-      onDragOver={(e) => props.onDragOver(e, node.id)}
+      onDragOver={(e) => {
+        props.onDragOver(e, node.id);
+      }}
       onDrop={(e) => {
         e.preventDefault();
         props.onDrop(node.id, rowHalf(e));
@@ -834,7 +871,9 @@ function PathInputDialog(props: {
           type="text"
           autoFocus
           placeholder="/absolute/path/to/project"
-          onChange={(e) => onPathChange(e.target.value)}
+          onChange={(e) => {
+            onPathChange(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') onSubmit();
           }}

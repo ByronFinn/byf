@@ -61,14 +61,18 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           <button
             type="button"
             className={navItem(section === 'general')}
-            onClick={() => setSection('general')}
+            onClick={() => {
+              setSection('general');
+            }}
           >
             通用设置
           </button>
           <button
             type="button"
             className={navItem(section === 'models')}
-            onClick={() => setSection('models')}
+            onClick={() => {
+              setSection('models');
+            }}
           >
             模型
           </button>

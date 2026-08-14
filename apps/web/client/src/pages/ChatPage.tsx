@@ -526,7 +526,9 @@ function NewSessionHero(): React.JSX.Element {
           <div
             className="absolute inset-0 bg-scrim"
             aria-hidden
-            onClick={() => setAddDialog((prev) => ({ ...prev, open: false }))}
+            onClick={() => {
+              setAddDialog((prev) => ({ ...prev, open: false }));
+            }}
           />
           <div
             role="dialog"
@@ -539,7 +541,9 @@ function NewSessionHero(): React.JSX.Element {
               type="text"
               autoFocus
               placeholder="/absolute/path/to/project"
-              onChange={(e) => setAddDialog((prev) => ({ ...prev, path: e.target.value }))}
+              onChange={(e) => {
+                setAddDialog((prev) => ({ ...prev, path: e.target.value }));
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submitAddPath();
               }}
