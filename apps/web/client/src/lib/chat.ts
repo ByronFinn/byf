@@ -28,7 +28,27 @@ export interface ToolPart {
   readonly status: 'running' | 'done';
   readonly result?: unknown;
   readonly isError?: boolean;
+  /** Epoch ms,工具执行边界(PRD-0034 R-B1/R-B2);live 来自事件,replay 来自 tool_timing。 */
+  readonly startedAt?: number;
+  readonly endedAt?: number;
 }
+
+/**
+ * 相邻同 kind 工具调用的归组摘要(PRD-0034 R-B2)。**纯视图投影**:`groupParts`
+ * 在渲染层把扁平 parts 折叠,不进入 reducer 状态(toolIndex 定位保持扁平语义)。
+ */
+export interface ToolGroupPart {
+  readonly kind: 'tool-group';
+  /** 组内统一的 ToolInputDisplay.kind(如 file_io/command)。 */
+  readonly toolKind: string;
+  readonly tools: readonly ToolPart[];
+  /** span 总耗时 = max(endedAt) - min(startedAt)(并行工具按墙钟段,不按累加)。 */
+  readonly spanMs: number | undefined;
+  readonly hasRunning: boolean;
+}
+
+/** 渲染项:扁平 part 或归组摘要。 */
+export type RenderPart = AssistantPart | ToolGroupPart;
 
 export type AssistantPart = TextPart | ThinkingPart | ToolPart;
 
@@ -156,6 +176,17 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
 } {
   const entries: Entry[] = [];
   const toolIndex = new Map<string, { entry: number; part: number }>();
+  // tool_timing 记录与消息记录的先后顺序不保证(取决于 wire 落盘顺序),
+  // 先全量收集再按 toolCallId 落位。
+  const timing = new Map<string, { startedAt?: number; endedAt?: number }>();
+  for (const record of replay) {
+    if (record.type === 'tool_timing') {
+      timing.set(record.toolCallId, {
+        startedAt: record.startedAt,
+        endedAt: record.endedAt,
+      });
+    }
+  }
   let userSeq = 0;
   let turnSeq = 0;
   for (const record of replay) {
@@ -174,11 +205,14 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
       }
       for (const call of message.toolCalls) {
         const loc = { entry: entries.length, part: parts.length };
+        const t = timing.get(call.id);
         parts.push({
           kind: 'tool',
           toolCallId: call.id,
           name: call.name,
           status: 'running',
+          startedAt: t?.startedAt,
+          endedAt: t?.endedAt,
         });
         toolIndex.set(call.id, loc);
       }
@@ -204,6 +238,56 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
     // role === 'system'(注入/压缩摘要等)不渲染
   }
   return { entries, toolIndex };
+}
+
+/** ToolPart.display 的 ToolInputDisplay.kind(未知 display 归入 generic 桶)。 */
+function toolDisplayKind(part: ToolPart): string {
+  const kind = (part.display as { kind?: unknown } | undefined)?.kind;
+  return typeof kind === 'string' ? kind : 'generic';
+}
+
+/**
+ * 工具归组视图投影(PRD-0034 R-B2):同 turn 内时间相邻、同 ToolInputDisplay.kind
+ * 的工具调用(≥2)折叠为摘要行;text/thinking step 打断分组;被打断则各自成组。
+ * 流式期间未完结组照常产生(hasRunning=true),随事件实时更新。
+ */
+export function groupParts(parts: readonly AssistantPart[]): RenderPart[] {
+  const result: RenderPart[] = [];
+  let group: { toolKind: string; tools: ToolPart[] } | null = null;
+  const flush = (): void => {
+    if (group === null) return;
+    if (group.tools.length === 1) {
+      result.push(group.tools[0]!);
+    } else {
+      const starts = group.tools
+        .map((t) => t.startedAt)
+        .filter((v): v is number => v !== undefined);
+      const ends = group.tools.map((t) => t.endedAt).filter((v): v is number => v !== undefined);
+      const spanMs =
+        starts.length > 0 && ends.length > 0 ? Math.max(...ends) - Math.min(...starts) : undefined;
+      result.push({
+        kind: 'tool-group',
+        toolKind: group.toolKind,
+        tools: group.tools,
+        spanMs,
+        hasRunning: group.tools.some((t) => t.status === 'running'),
+      });
+    }
+    group = null;
+  };
+  for (const part of parts) {
+    if (part.kind === 'tool') {
+      const kind = toolDisplayKind(part);
+      if (group !== null && group.toolKind !== kind) flush();
+      if (group === null) group = { toolKind: kind, tools: [] };
+      group.tools.push(part);
+    } else {
+      flush();
+      result.push(part);
+    }
+  }
+  flush();
+  return result;
 }
 
 function applyFrame(state: ChatState, frame: ServerFrame): ChatState {
@@ -264,10 +348,18 @@ function applyEvent(state: ChatState, event: Event): ChatState {
       event.name,
       event.display,
       event.description,
+      event.startedAt,
     );
   }
   if (event.type === 'tool.result') {
-    return finishTool(state, event.toolCallId, event.output, event.isError);
+    return finishTool(
+      state,
+      event.toolCallId,
+      event.output,
+      event.isError,
+      event.startedAt,
+      event.endedAt,
+    );
   }
   if (event.type === 'agent.status.updated') {
     return {
@@ -341,6 +433,7 @@ function addTool(
   name: string,
   display: unknown,
   description: string | undefined,
+  startedAt: number | undefined,
 ): ChatState {
   return ensureTurn(state, turnId, (s) => {
     const idx = s.turnIndex.get(turnId);
@@ -354,6 +447,7 @@ function addTool(
       display,
       description,
       status: 'running',
+      startedAt,
     };
     const parts = [...entry.parts, toolPart];
     const entries = [...s.entries];
@@ -371,6 +465,8 @@ function finishTool(
   toolCallId: string,
   output: unknown,
   isError: boolean | undefined,
+  startedAt: number | undefined,
+  endedAt: number | undefined,
 ): ChatState {
   const loc = state.toolIndex.get(toolCallId);
   if (loc === undefined) return state;
@@ -378,7 +474,15 @@ function finishTool(
   if (entry === undefined || entry.kind !== 'assistant') return state;
   const part = entry.parts[loc.part];
   if (part === undefined || part.kind !== 'tool') return state;
-  const newPart: ToolPart = { ...part, status: 'done', result: output, isError: isError ?? false };
+  // result 事件自包含耗时(R-B1);startedAt 缺省时沿用 part 上已有的值。
+  const newPart: ToolPart = {
+    ...part,
+    status: 'done',
+    result: output,
+    isError: isError ?? false,
+    startedAt: part.startedAt ?? startedAt,
+    endedAt,
+  };
   const parts = [...entry.parts];
   parts[loc.part] = newPart;
   const entries = [...state.entries];

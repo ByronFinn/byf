@@ -1,11 +1,11 @@
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AssistantPart, Entry } from '#/lib/chat';
+import { groupParts, type Entry, type RenderPart } from '#/lib/chat';
 
 import { Markdown } from './Markdown';
 import { ThinkingBlock } from './ThinkingBlock';
-import { ToolCallView } from './ToolCallView';
+import { ToolCallView, ToolGroupView } from './ToolCallView';
 
 /** 距底小于该值视为「贴底」(bottom-follow 生效阈值)。 */
 const BOTTOM_THRESHOLD_PX = 80;
@@ -106,14 +106,16 @@ function EntryView(props: { entry: Entry; streaming: boolean }): React.JSX.Eleme
   }
   // 步骤时间轴(R16 / ADR 0035 D4):thinking / tool / text 各成一步,
   // 左侧竖线 + 圆点,活跃步(流式中的最后一步)辉光。
-  const last = entry.parts.length - 1;
+  // 工具归组(PRD-0034 R-B2)是渲染层投影:相邻同 kind 折叠为摘要行。
+  const renderParts = groupParts(entry.parts);
+  const last = renderParts.length - 1;
   return (
     <div className="relative space-y-2.5 pl-6">
       <span
         className="absolute top-3.5 bottom-3 left-[5px] w-0.5 bg-gradient-to-b from-border-strong to-transparent"
         aria-hidden
       />
-      {entry.parts.map((part, i) => (
+      {renderParts.map((part, i) => (
         <div key={i} className="relative">
           <span
             className={`absolute top-1.5 -left-6 size-3 rounded-full border ${
@@ -131,7 +133,7 @@ function EntryView(props: { entry: Entry; streaming: boolean }): React.JSX.Eleme
 }
 
 function PartView(props: {
-  part: AssistantPart;
+  part: RenderPart;
   active: boolean;
   streaming: boolean;
 }): React.JSX.Element {
@@ -141,6 +143,9 @@ function PartView(props: {
   }
   if (part.kind === 'thinking') {
     return <ThinkingBlock text={part.text} active={active} />;
+  }
+  if (part.kind === 'tool-group') {
+    return <ToolGroupView group={part} />;
   }
   return <ToolCallView part={part} />;
 }

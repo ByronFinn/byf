@@ -17,7 +17,12 @@ export type AgentReplayRecord =
   | { type: 'message'; message: ContextMessage }
   | { type: 'config_updated'; config: AgentConfigUpdateData }
   | { type: 'permission_updated'; mode: PermissionMode }
-  | { type: 'approval_result'; record: PermissionApprovalResultRecord };
+  | { type: 'approval_result'; record: PermissionApprovalResultRecord }
+  /**
+   * 工具耗时(PRD-0034 R-B2):restore 时从 loop 事件的 startedAt/endedAt 派生,
+   * 旧记录回退用 wire record `time` 差值。与消息记录的先后顺序不保证。
+   */
+  | { type: 'tool_timing'; toolCallId: string; startedAt?: number; endedAt?: number };
 
 export interface ResumedAgentState {
   readonly type: AgentType;
