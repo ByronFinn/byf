@@ -41,6 +41,7 @@ import type {
   SessionUsage,
   PromptInput,
   RenameSessionInput,
+  UpdateSessionMetadataInput,
   ResumeSessionInput,
   ResumedSessionSummary,
   SessionSummary,
@@ -195,6 +196,14 @@ export class SDKRpcClient {
     return rpc.renameSession({
       sessionId: input.id,
       title: input.title,
+    });
+  }
+
+  async updateSessionMetadata(input: UpdateSessionMetadataInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.updateSessionMetadata({
+      sessionId: input.id,
+      metadata: input.metadata,
     });
   }
 

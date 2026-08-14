@@ -24,6 +24,7 @@ import type {
   RenameSessionInput,
   ResumeSessionInput,
   ShellExecResult,
+  UpdateSessionMetadataInput,
   SessionSummary,
 } from '#/types';
 
@@ -146,6 +147,11 @@ export class ByfHarness {
   async renameSession(input: RenameSessionInput): Promise<void> {
     await this.rpc.renameSession(input);
     this.activeSessions.get(input.id)?.emitMetaUpdated({ title: input.title });
+  }
+
+  async updateSessionMetadata(input: UpdateSessionMetadataInput): Promise<void> {
+    await this.rpc.updateSessionMetadata(input);
+    this.activeSessions.get(input.id)?.emitMetaUpdated(input.metadata);
   }
 
   async exportSession(input: ExportSessionInput): Promise<ExportSessionResult> {

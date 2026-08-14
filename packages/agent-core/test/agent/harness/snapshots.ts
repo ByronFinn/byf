@@ -305,7 +305,8 @@ function normalizeValue(value: unknown, uuidLabels: Map<string, string>): unknow
     return Object.fromEntries(
       Object.entries(value).map(([key, nested]) => [
         key,
-        (key === 'time' || key === 'created_at') && typeof nested === 'number'
+        (key === 'time' || key === 'created_at' || key === 'startedAt' || key === 'endedAt') &&
+        typeof nested === 'number'
           ? '<time>'
           : normalizeValue(nested, uuidLabels),
       ]),

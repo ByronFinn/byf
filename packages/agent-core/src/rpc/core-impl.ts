@@ -369,6 +369,18 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     await this.sessionStore.rename(sessionId, payload.title);
   }
 
+  async updateSessionMetadata({
+    sessionId,
+    ...payload
+  }: UpdateSessionMetadataRequest): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session !== undefined) {
+      await new SessionAPIImpl(session).updateSessionMetadata(payload);
+      return;
+    }
+    await this.sessionStore.updateMetadata(sessionId, payload.metadata);
+  }
+
   async exportSession(input: ExportSessionPayload): Promise<ExportSessionResult> {
     const summary = await this.sessionStore.get(input.sessionId);
     const active = this.sessions.get(input.sessionId);
@@ -581,10 +593,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getBackground({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundPayload>) {
     return this.sessionApi(sessionId).getBackground(payload);
-  }
-
-  updateSessionMetadata({ sessionId, ...payload }: UpdateSessionMetadataRequest): Promise<void> {
-    return this.sessionApi(sessionId).updateSessionMetadata(payload);
   }
 
   getSessionMetadata({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): SessionMeta {

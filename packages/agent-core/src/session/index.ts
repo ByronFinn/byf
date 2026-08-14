@@ -89,6 +89,10 @@ export interface SessionMeta {
   isCustomTitle: boolean;
   lastPrompt?: string;
   forkedFrom?: string;
+  /** 会话置顶（PRD-0034 R-A2）：列表排序第一优先级。 */
+  pinned?: boolean;
+  /** 会话归档（PRD-0034 R-A3）：纯列表标记，默认从主列表隐藏。 */
+  archived?: boolean;
   agents: Record<string, AgentMeta>;
   custom: Record<string, unknown>;
 }

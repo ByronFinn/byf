@@ -441,7 +441,11 @@ export class Session {
   }
 
   /** @internal */
-  emitMetaUpdated(patch: { readonly title?: string }): void {
+  emitMetaUpdated(patch: {
+    readonly title?: string;
+    readonly pinned?: boolean;
+    readonly archived?: boolean;
+  }): void {
     this.emit({
       type: 'session.meta.updated',
       sessionId: this.id,

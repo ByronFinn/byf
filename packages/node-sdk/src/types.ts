@@ -3,6 +3,7 @@ import type {
   InputTokenBreakdown,
   ResumeSessionResult,
   RuntimeConfig,
+  SessionMetadataPatch,
 } from '@byfriends/agent-core';
 import type { CacheScope, ContentPart } from '@byfriends/kosong';
 
@@ -87,6 +88,11 @@ export interface RenameSessionInput {
   readonly title: string;
 }
 
+export interface UpdateSessionMetadataInput {
+  readonly id: string;
+  readonly metadata: SessionMetadataPatch;
+}
+
 export interface ResumeSessionInput {
   readonly id: string;
 }
@@ -167,6 +173,7 @@ export interface SessionSummary {
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
 }

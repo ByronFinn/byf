@@ -121,6 +121,7 @@ export interface SessionSummary {
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
 }

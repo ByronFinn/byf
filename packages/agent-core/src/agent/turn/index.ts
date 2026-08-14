@@ -895,6 +895,7 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         args: event.args,
         description: event.description,
         display: event.display,
+        startedAt: event.startedAt,
       };
     case 'tool.result': {
       const blockedReason = event.result.isError === true ? event.result.blockedReason : undefined;
@@ -905,6 +906,8 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         output: event.result.output,
         isError: event.result.isError,
         blockedReason,
+        startedAt: event.startedAt,
+        endedAt: event.endedAt,
       };
     }
     case 'turn.interrupted':

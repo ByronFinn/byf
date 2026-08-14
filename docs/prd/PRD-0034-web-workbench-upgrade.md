@@ -1,6 +1,6 @@
 # PRD-0034: byf Web 工作台能力升级（`apps/web` + 周边）
 
-> **Status**: Grilled | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: In Progress | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
 
 ## Goal
 
