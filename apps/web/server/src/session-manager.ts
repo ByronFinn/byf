@@ -236,6 +236,16 @@ export class WebSessionManager {
   // ---- 生命周期 --------------------------------------------------------------
 
   async closeSession(id: string): Promise<boolean> {
+    // 该 id 的 resume 仍在进行时先等它落地:否则 resume 会在 close 之后完成
+    // attach,把已请求关闭的会话留在内存里(需二次 DELETE 才能真正关闭)。
+    const pending = this.resuming.get(id);
+    if (pending !== undefined) {
+      try {
+        await pending;
+      } catch {
+        /* resume 失败则无会话可关,走下面的 not found 路径 */
+      }
+    }
     const session = this.sessions.get(id);
     if (session === undefined) return false;
     this.detach(id);

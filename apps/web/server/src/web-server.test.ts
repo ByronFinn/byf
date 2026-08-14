@@ -144,6 +144,11 @@ class FakeHarness implements HarnessLike {
   }
 }
 
+/** FakeSession.summary 各字段 readonly;测试内经可变视图打补丁。 */
+function patchSummary(session: FakeSession, patch: Partial<SessionSummary>): void {
+  Object.assign(session.summary as unknown as Record<string, unknown>, patch);
+}
+
 function assistantDelta(sessionId: string, turnId: number, delta: string): Event {
   return { type: 'assistant.delta', sessionId, agentId: 'main', turnId, delta };
 }
@@ -162,6 +167,29 @@ describe('WebSessionManager', () => {
 
     const frame = await queue.next();
     expect(frame?.type).toBe('agent.event');
+  });
+
+  test('closeSession 等待进行中的 resume 落地后再关闭', async () => {
+    const harness = new FakeHarness();
+    let release!: () => void;
+    const origResume = harness.resumeSession.bind(harness);
+    harness.resumeSession = async (input: { readonly id: string }) => {
+      await new Promise<void>((r) => {
+        release = r;
+      });
+      return origResume(input);
+    };
+    const manager = new WebSessionManager(harness);
+    const id = 'sess-closing';
+
+    const resuming = manager.resumeSession(id); // in-flight,尚未入 sessions map
+    const closing = manager.closeSession(id); // 并发 close 不应 404 漏关
+    expect(manager.getSession(id)).toBeUndefined();
+    release();
+    expect(await closing).toBe(true);
+    await resuming;
+    expect(manager.getSession(id)).toBeUndefined(); // 已关闭,未被 resume 复活
+    expect(harness.sessions.get(id)!.closed).toBe(true);
   });
 
   test('resume 失败后可重试:不永久毒化该 id', async () => {
@@ -329,7 +357,7 @@ describe('WebSessionManager', () => {
 
 describe('HTTP routes', () => {
   async function setup(authToken?: string): Promise<{
-    app: ReturnType<Awaited<ReturnType<typeof createApp>>['app']>;
+    app: Awaited<ReturnType<typeof createApp>>['app'];
     harness: FakeHarness;
   }> {
     const harness = new FakeHarness();
@@ -375,8 +403,8 @@ describe('HTTP routes', () => {
     const a = await mk();
     const b = await mk();
     const c = await mk();
-    harness.sessions.get(a)!.summary.title = 'Refactor Markdown renderer';
-    harness.sessions.get(b)!.summary.lastPrompt = '排查 SSE 重连丢帧';
+    patchSummary(harness.sessions.get(a)!, { title: 'Refactor Markdown renderer' });
+    patchSummary(harness.sessions.get(b)!, { lastPrompt: '排查 SSE 重连丢帧' });
     // c 两者皆空,任何 q 都不命中;id 也不参与过滤
 
     const list = async (q?: string): Promise<string[]> => {
@@ -390,6 +418,7 @@ describe('HTTP routes', () => {
     };
 
     expect(await list()).toEqual([a, b, c]);
+    expect(await list('   ')).toEqual([a, b, c]); // 纯空白 = 不过滤
     expect(await list('markdown')).toEqual([a]);
     expect(await list('SSE')).toEqual([b]);
     expect(await list('refactor')).toEqual([a]);

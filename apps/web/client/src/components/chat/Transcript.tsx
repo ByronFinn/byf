@@ -17,11 +17,14 @@ const BOTTOM_THRESHOLD_PX = 80;
 export function Transcript(props: { entries: readonly Entry[]; busy: boolean }): React.JSX.Element {
   const { entries, busy } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 程序化回底进行中:平滑滚动的中间位置不算"离开底部",避免按钮闪烁
+  const scrollingToBottom = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
 
   const scrollToBottom = useCallback((smooth = false) => {
     const el = scrollRef.current;
     if (el === null) return;
+    scrollingToBottom.current = smooth;
     el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
     setAtBottom(true);
   }, []);
@@ -30,7 +33,12 @@ export function Transcript(props: { entries: readonly Entry[]; busy: boolean }):
     const el = scrollRef.current;
     if (el === null) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setAtBottom(distance < BOTTOM_THRESHOLD_PX);
+    if (distance < BOTTOM_THRESHOLD_PX) {
+      scrollingToBottom.current = false;
+      setAtBottom(true);
+    } else if (!scrollingToBottom.current) {
+      setAtBottom(false);
+    }
   }, []);
 
   const lastEntry = entries.at(-1);

@@ -7,6 +7,8 @@ import { Checkbox } from '#/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group';
 import type { QuestionAnswers, QuestionRequest } from '#/types';
 
+/** 单选 Other 行的哨兵值;NUL 前缀确保不可能与真实选项标签字面量冲突。 */
+const OTHER_VALUE = '\u0000__other__';
 const OTHER_LABEL_DEFAULT = 'Other';
 
 export function QuestionCard(props: {
@@ -102,9 +104,9 @@ export function QuestionCard(props: {
               })
             ) : (
               <RadioGroup
-                value={useOther[i] === true ? '__other__' : (single[i] ?? '')}
+                value={useOther[i] === true ? OTHER_VALUE : (single[i] ?? '')}
                 onValueChange={(value) => {
-                  if (value === '__other__') {
+                  if (value === OTHER_VALUE) {
                     setUseOther((prev) => ({ ...prev, [i]: true }));
                     setSingle((prev) => ({ ...prev, [i]: '' }));
                   } else {
@@ -194,7 +196,7 @@ function OtherRow(props: {
           }}
         />
       ) : (
-        <RadioGroupItem className="mt-0.5" value="__other__" />
+        <RadioGroupItem className="mt-0.5" value={OTHER_VALUE} />
       )}
       <span className="min-w-0 flex-1">
         <span className="text-fg">{otherLabel ?? OTHER_LABEL_DEFAULT}</span>

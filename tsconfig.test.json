@@ -7,7 +7,9 @@
     "packages/*/test/**/*.ts",
     "packages/*/test/**/*.tsx",
     "apps/*/test/**/*.ts",
-    "apps/*/test/**/*.tsx"
+    "apps/*/test/**/*.tsx",
+    "apps/*/server/src/**/*.test.ts",
+    "apps/*/server/src/**/*.test.tsx"
   ],
   "exclude": ["node_modules", "dist", "dist-types", "**/*.disabled", "**/*.disabled/**"]
 }

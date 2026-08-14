@@ -7,6 +7,7 @@ import { api } from '#/api';
 import { Button } from '#/components/ui/button';
 import { useDebouncedValue } from '#/hooks/useDebouncedValue';
 import { useWorkDir } from '#/hooks/useWorkDir';
+import { cn } from '#/lib/utils';
 import type { SessionSummary } from '#/types';
 
 /** 会话列表 query key(workDir + 搜索词;首页与侧边栏共享缓存)。 */
@@ -15,10 +16,15 @@ export function sessionListKey(dir: string, q: string): readonly unknown[] {
 }
 
 /**
- * 常驻会话侧边栏(R7):新建 + 后端搜索(?q=)+ 会话列表;窄屏(<@4xl 容器)
- * 由 AppShell 的容器查询折叠隐藏。
+ * 常驻会话侧边栏(R7):新建 + 后端搜索(?q=)+ 会话列表。
+ * `static` 变体随 AppShell 容器查询在窄屏(<@4xl)折叠;`overlay` 变体供
+ * 窄屏头部按钮唤出(点击链接 / 遮罩 / Esc 关闭)。
  */
-export function SessionSidebar(): React.JSX.Element | null {
+export function SessionSidebar(props: {
+  variant?: 'static' | 'overlay';
+  onNavigate?: () => void;
+}): React.JSX.Element {
+  const { variant = 'static', onNavigate } = props;
   const location = useLocation();
   const activeId = /^\/sessions\/([^/]+)/.exec(location.pathname)?.[1];
   const { dir } = useWorkDir();
@@ -32,10 +38,15 @@ export function SessionSidebar(): React.JSX.Element | null {
   });
 
   return (
-    <aside className="hidden @4xl:flex min-h-0 flex-col border-r border-border bg-sidebar">
+    <aside
+      className={cn(
+        'flex min-h-0 flex-col border-r border-border bg-sidebar',
+        variant === 'static' ? 'hidden @4xl:flex' : 'h-full',
+      )}
+    >
       <div className="p-2 pb-1">
         <Button variant="outline" asChild className="w-full justify-start">
-          <Link to="/">
+          <Link to="/" onClick={onNavigate}>
             <MessageSquarePlus aria-hidden />
             New session
           </Link>
@@ -71,7 +82,7 @@ export function SessionSidebar(): React.JSX.Element | null {
           </p>
         )}
         {sessions?.map((s) => (
-          <SidebarRow key={s.id} session={s} active={s.id === activeId} />
+          <SidebarRow key={s.id} session={s} active={s.id === activeId} onNavigate={onNavigate} />
         ))}
         {isFetching &&
           sessions === undefined &&
@@ -83,12 +94,17 @@ export function SessionSidebar(): React.JSX.Element | null {
   );
 }
 
-function SidebarRow(props: { session: SessionSummary; active: boolean }): React.JSX.Element {
-  const { session, active } = props;
+function SidebarRow(props: {
+  session: SessionSummary;
+  active: boolean;
+  onNavigate?: () => void;
+}): React.JSX.Element {
+  const { session, active, onNavigate } = props;
   const updated = new Date(session.updatedAt);
   return (
     <Link
       to={`/sessions/${session.id}`}
+      onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
       className={`block rounded-md border border-transparent px-2.5 py-2 text-sm transition-colors ${
         active ? 'border-border bg-active text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg'

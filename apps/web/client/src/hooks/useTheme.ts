@@ -34,12 +34,13 @@ function applyTheme(resolved: ResolvedTheme): void {
   syncThemeColorMeta();
 }
 
-/** 读 --bg token 值写入 meta;样式表尚未就绪(读到空串)时下帧重试一次。 */
-function syncThemeColorMeta(): void {
+/** 读 --bg token 值写入 meta;样式表尚未就绪(读到空串)时下帧重试,封顶 30 帧。 */
+function syncThemeColorMeta(retriesLeft = 30): void {
   const value = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (value.length === 0) {
+    if (retriesLeft <= 0) return;
     requestAnimationFrame(() => {
-      syncThemeColorMeta();
+      syncThemeColorMeta(retriesLeft - 1);
     });
     return;
   }
