@@ -21,6 +21,8 @@ export function ChatPage(): React.JSX.Element {
 
   useEffect(() => {
     if (sessionId === undefined || sessionId.length === 0) return;
+    // 切换会话(侧边栏一键直达)时重置本地视图,避免上一会话消息残留
+    dispatch({ type: 'reset' });
     let cancelled = false;
     void (async () => {
       try {
