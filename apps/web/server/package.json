@@ -1,0 +1,69 @@
+{
+  "name": "@byfriends/web-server",
+  "version": "0.1.0",
+  "description": "HTTP server for the BYF web client — drives a live agent via @byfriends/sdk and streams events over SSE",
+  "keywords": [
+    "agent",
+    "byf",
+    "server",
+    "sse",
+    "web"
+  ],
+  "homepage": "https://github.com/ByronFinn/byf",
+  "bugs": {
+    "url": "https://github.com/ByronFinn/byf/issues"
+  },
+  "license": "MIT",
+  "author": "ByronFinn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ByronFinn/byf.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": [
+      "./src/*.ts",
+      "./src/*/index.ts"
+    ]
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.mts",
+      "default": "./src/server.ts",
+      "bun": "./src/server.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/server.d.mts",
+        "import": "./dist/server.mjs",
+        "default": "./dist/server.mjs"
+      },
+      "./package.json": "./package.json"
+    },
+    "access": "public",
+    "provenance": false
+  },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun ../../../build/bun-lib-build.mjs ./src/server.ts ./src/index.ts --bundle-workspace --target bun && bun scripts/build-dts.mjs && bun ../scripts/copy-web-dist.mjs",
+    "typecheck": "tsc --build",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@byfriends/sdk": "workspace:^",
+    "@byfriends/web-shared": "workspace:*",
+    "hono": "^4.7.7"
+  },
+  "devDependencies": {
+    "@byfriends/web-client": "workspace:*"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  }
+}
