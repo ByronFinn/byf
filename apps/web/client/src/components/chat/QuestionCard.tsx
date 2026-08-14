@@ -56,17 +56,17 @@ export function QuestionCard(props: {
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
+    <div className="space-y-3 rounded-xl border border-state-info/40 bg-state-info/5 p-3">
       {request.questions.map((item, i) => (
         <div key={i}>
           {item.header !== undefined && (
-            <div className="mb-0.5 text-sm font-semibold text-zinc-100">{item.header}</div>
+            <div className="mb-0.5 text-sm font-semibold text-fg">{item.header}</div>
           )}
           {item.question !== undefined && item.question !== item.header && (
-            <div className="mb-1 text-sm text-zinc-300">{item.question}</div>
+            <div className="mb-1 text-sm text-fg">{item.question}</div>
           )}
           {item.body !== undefined && (
-            <div className="mb-1.5 text-xs text-zinc-500">{item.body}</div>
+            <div className="mb-1.5 text-xs text-fg-muted">{item.body}</div>
           )}
           <div className="space-y-1">
             {item.options.map((opt) => {
@@ -76,7 +76,7 @@ export function QuestionCard(props: {
               return (
                 <label
                   key={opt.label}
-                  className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-white/5"
+                  className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover"
                 >
                   <input
                     type={item.multiSelect ? 'checkbox' : 'radio'}
@@ -98,16 +98,16 @@ export function QuestionCard(props: {
                     className="mt-0.5"
                   />
                   <span>
-                    <span className="text-zinc-200">{opt.label}</span>
+                    <span className="text-fg">{opt.label}</span>
                     {opt.description !== undefined && (
-                      <span className="block text-xs text-zinc-500">{opt.description}</span>
+                      <span className="block text-xs text-fg-muted">{opt.description}</span>
                     )}
                   </span>
                 </label>
               );
             })}
             {/* Other */}
-            <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-white/5">
+            <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover">
               <input
                 type={item.multiSelect ? 'checkbox' : 'radio'}
                 name={`q-${requestId}-${i}`}
@@ -123,9 +123,9 @@ export function QuestionCard(props: {
                 className="mt-0.5"
               />
               <span className="flex-1">
-                <span className="text-zinc-300">{item.otherLabel ?? OTHER_LABEL_DEFAULT}</span>
+                <span className="text-fg">{item.otherLabel ?? OTHER_LABEL_DEFAULT}</span>
                 {item.otherDescription !== undefined && (
-                  <span className="block text-xs text-zinc-500">{item.otherDescription}</span>
+                  <span className="block text-xs text-fg-muted">{item.otherDescription}</span>
                 )}
                 {useOther[i] === true && (
                   <input
@@ -135,7 +135,7 @@ export function QuestionCard(props: {
                       setOtherText((prev) => ({ ...prev, [i]: e.target.value }));
                     }}
                     placeholder="Type a custom answer…"
-                    className="mt-1 w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                    className="mt-1 w-full rounded border border-border-strong bg-input px-2 py-1 text-sm outline-none focus:border-state-info"
                   />
                 )}
               </span>
@@ -148,7 +148,7 @@ export function QuestionCard(props: {
           type="button"
           disabled={submitting}
           onClick={() => void submit()}
-          className="rounded-md bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-500 disabled:opacity-50"
+          className="rounded-md bg-state-info px-3 py-1 text-sm text-on-brand hover:opacity-90 disabled:opacity-50"
         >
           Submit
         </button>
@@ -156,7 +156,7 @@ export function QuestionCard(props: {
           type="button"
           disabled={submitting}
           onClick={() => void dismiss()}
-          className="rounded-md border border-white/15 px-3 py-1 text-sm text-zinc-400 hover:bg-white/5 disabled:opacity-50"
+          className="rounded-md border border-border-strong px-3 py-1 text-sm text-fg-muted hover:bg-hover disabled:opacity-50"
         >
           Dismiss
         </button>

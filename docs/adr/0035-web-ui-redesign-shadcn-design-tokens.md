@@ -13,6 +13,7 @@ PRD-0032 / ADR 0034 建立了 byf web 客户端的**传输骨架**（SSE + 反�
 本 ADR 记录 UI 重设计（PRD-0033）的一组互相关联决策：组件路线、设计 token 如何组织、主题如何处理、视觉风格走哪条路、品牌色怎么定。这些决策**难逆转**（整个渲染层重写），且未来读者会问「为什么不照搬 deepseek 全自建」「为什么保留绿色而不换蓝」。
 
 **调研依据**（三方源码对比）：
+
 - **deepseek-harness**：三层 token（`--dsw-static/alias/specific-*`）+ CSS Modules + 全自建（连图标手写 SVG）。精致度天花板最高，但投入重。
 - **kimi-code**：`apps/vscode/webview-ui` 用 shadcn（radix-nova + zinc）+ radix-ui + tabler 图标，**实证 shadcn 能做出产品级 agent 客户端**；`apps/vis/web` 的 token 系统（surface/fg + 8 类事件色 + 深浅 AA 覆盖）最成熟。
 - **byf 现状**：裸 HTML + 硬编码样式，但状态机（`lib/chat.ts`）扎实。
@@ -30,6 +31,7 @@ deepseek 的全自建（CSS Modules + 手写 SVG 图标）精致度更高但**�
 ### D2：三层设计 token，OKLCH 色彩空间，命名走 Tailwind v4 `@theme` 语义化
 
 三层（源自 deepseek 三层思想）：
+
 - **原始色板**：`--color-green-*`（品牌多级）+ `--color-neutral-*` + 状态色（red/amber/sky）。
 - **语义别名**：`--color-bg` / `--color-surface-1/2/3` / `--color-fg` / `--color-fg-muted` / `--color-border` / `--color-brand` / `--color-state-*`。
 - **组件专用**：`--color-bubble`（用户气泡）/ `--color-sidebar` / `--color-input` 等。

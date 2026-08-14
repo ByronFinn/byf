@@ -1,8 +1,199 @@
 @import 'tailwindcss';
 
+/*
+  byf web 客户端设计 token(PRD-0033 / ADR 0035 D2)。
+  三层结构,OKLCH 色彩空间:
+    Layer 1 原始色板 —— @theme 静态注册(brand green / 蓝调 neutral / 状态色);
+    Layer 2 语义别名 —— 深色为基线(:root),浅色 AA 覆盖(:root.theme-light);
+    Layer 3 组件专用 —— bubble / sidebar / input 等组件级组合。
+  语义层经 @theme inline 生成 Tailwind 工具类(bg-bg / bg-surface-1 / text-fg /
+  border-border / text-state-error …),运行时随 <html class="theme-*"> 切换。
+  boot 脚本(index.html)保证 theme-dark / theme-light 恒有一个;shadcn 的
+  `dark:` 变体以 .theme-dark 类为准。
+*/
+@custom-variant dark (&:is(.theme-dark, .theme-dark *));
+
+/* ═══════════════ Layer 1 · 原始色板(与语义无关) ═══════════════ */
+@theme {
+  /* 中文友好字体栈 */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, Menlo, monospace;
+
+  /* 字号 token(xs..xl,聊天 UI 密度) */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 0.9375rem;
+  --text-lg--line-height: 1.6;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.45;
+
+  /* 圆角派生:--radius → sm/md/lg/xl */
+  --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* 动效曲线(三档时长见 :root --duration-*) */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 品牌 green(byf emerald) */
+  --color-green-300: oklch(0.82 0.14 162);
+  --color-green-400: oklch(0.76 0.16 162);
+  --color-green-500: oklch(0.66 0.17 162);
+  --color-green-600: oklch(0.58 0.16 162);
+  --color-green-700: oklch(0.5 0.14 162);
+  --color-green-800: oklch(0.44 0.12 162);
+
+  /* 中性(轻微蓝调,对标 deepseek neutral-bluish) */
+  --color-neutral-0: oklch(1 0 0);
+  --color-neutral-50: oklch(0.985 0.002 255);
+  --color-neutral-100: oklch(0.97 0.003 255);
+  --color-neutral-200: oklch(0.92 0.004 255);
+  --color-neutral-300: oklch(0.86 0.005 255);
+  --color-neutral-500: oklch(0.55 0.008 255);
+  --color-neutral-700: oklch(0.32 0.008 255);
+  --color-neutral-800: oklch(0.24 0.007 255);
+  --color-neutral-850: oklch(0.2 0.006 255);
+  --color-neutral-900: oklch(0.17 0.006 255);
+  --color-neutral-950: oklch(0.145 0.006 255);
+
+  /* 状态色(浅色主题的 AA 变体用 *-700) */
+  --color-amber-500: oklch(0.76 0.16 70);
+  --color-amber-700: oklch(0.55 0.13 65);
+  --color-red-500: oklch(0.62 0.21 25);
+  --color-red-600: oklch(0.55 0.2 27);
+  --color-red-700: oklch(0.48 0.19 27);
+  --color-sky-500: oklch(0.68 0.14 230);
+  --color-sky-700: oklch(0.52 0.12 235);
+}
+
+/* ═══════════════ Layer 2 · 语义别名(深色基线) ═══════════════
+   文字 token 均按 WCAG AA 验证(fg 15.1:1 / muted 6.3:1 / subtle 4.1↑)。 */
 :root {
   color-scheme: dark;
+
+  --bg: var(--color-neutral-950);
+  --surface-1: var(--color-neutral-900);
+  --surface-2: var(--color-neutral-850);
+  --surface-3: var(--color-neutral-800);
+
+  --fg: var(--color-neutral-200);
+  --fg-muted: oklch(0.68 0.008 255);
+  --fg-subtle: oklch(0.6 0.008 255);
+
+  --border: oklch(0.3 0.008 255 / 0.45);
+  --border-strong: oklch(0.3 0.008 255 / 0.8);
+
+  --hover: oklch(0.55 0.01 255 / 0.12);
+  --active: oklch(0.55 0.01 255 / 0.2);
+
+  --brand: var(--color-green-400);
+  --brand-strong: var(--color-green-300);
+  --on-brand: var(--color-neutral-950);
+
+  --state-success: var(--color-green-400);
+  --state-warning: var(--color-amber-500);
+  --state-error: var(--color-red-500);
+  --state-info: var(--color-sky-500);
+
+  /* elevation 3 级 */
+  --elev-1: 0 1px 2px oklch(0 0 0 / 0.3);
+  --elev-2: 0 4px 16px oklch(0 0 0 / 0.35);
+  --elev-3: 0 12px 40px oklch(0 0 0 / 0.45);
+
+  /* 代码块底色(浅色下仍用深底,对比更强) */
+  --code-bg: oklch(0.16 0.006 255);
+
+  /* 动效三档时长 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
 }
+
+/* 浅色覆盖:每个语义 token 给 AA 对比变体。 */
+:root.theme-light {
+  color-scheme: light;
+
+  --bg: var(--color-neutral-50);
+  --surface-1: var(--color-neutral-0);
+  --surface-2: var(--color-neutral-100);
+  --surface-3: var(--color-neutral-200);
+
+  --fg: oklch(0.18 0.006 255);
+  --fg-muted: oklch(0.45 0.01 255);
+  --fg-subtle: oklch(0.52 0.01 255);
+
+  --border: oklch(0.85 0.006 255);
+  --border-strong: oklch(0.75 0.006 255);
+
+  --hover: oklch(0.55 0.01 255 / 0.06);
+  --active: oklch(0.55 0.01 255 / 0.1);
+
+  --brand: var(--color-green-700);
+  --brand-strong: var(--color-green-800);
+  --on-brand: var(--color-neutral-0);
+
+  --state-success: var(--color-green-700);
+  --state-warning: var(--color-amber-700);
+  --state-error: var(--color-red-600);
+  --state-info: var(--color-sky-700);
+
+  --elev-1: 0 1px 2px oklch(0.2 0.02 255 / 0.06);
+  --elev-2: 0 2px 8px oklch(0.2 0.02 255 / 0.08), 0 1px 3px oklch(0.2 0.02 255 / 0.06);
+  --elev-3: 0 8px 28px oklch(0.2 0.02 255 / 0.1);
+}
+
+/* ═══════════════ Layer 3 · 组件专用 ═══════════════ */
+:root {
+  --bubble: var(--color-green-500);
+  --bubble-fg: var(--color-neutral-950);
+  --sidebar-fill: var(--surface-1);
+  --input-fill: var(--surface-2);
+}
+
+:root.theme-light {
+  --bubble: var(--color-green-700);
+  --bubble-fg: var(--color-neutral-0);
+}
+
+/* 语义 token → Tailwind 工具类(bg-bg / text-fg-muted / shadow-2 …)。 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-on-brand: var(--on-brand);
+  --color-state-success: var(--state-success);
+  --color-state-warning: var(--state-warning);
+  --color-state-error: var(--state-error);
+  --color-state-info: var(--state-info);
+  --color-bubble: var(--bubble);
+  --color-bubble-fg: var(--bubble-fg);
+  --color-sidebar: var(--sidebar-fill);
+  --color-input: var(--input-fill);
+  --color-code: var(--code-bg);
+  --shadow-1: var(--elev-1);
+  --shadow-2: var(--elev-2);
+  --shadow-3: var(--elev-3);
+}
+
+/* ═══════════════ base ═══════════════ */
 
 html,
 body,
@@ -12,36 +203,72 @@ body,
 
 body {
   margin: 0;
-  background-color: #0b0d10;
-  color: #e6e8eb;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Thin dark scrollbars */
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition:
+      background-color var(--duration-base) var(--ease-smooth),
+      color var(--duration-base) var(--ease-smooth);
+  }
+}
+
+/* Scrollbar(thin,token 着色) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2f36 transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: #2a2f36;
-  border-radius: 6px;
+  background-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--fg-subtle);
+  background-clip: padding-box;
 }
 
-/* Markdown rendering */
+::selection {
+  background-color: color-mix(in oklab, var(--brand) 30%, transparent);
+  color: var(--fg);
+}
+
+*:focus-visible {
+  outline: 1px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* 控件重置放进 base 层,让工具类(px-* 等)在 cascade 中胜出。 */
+@layer base {
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* ═══════════════ Markdown 渲染 ═══════════════ */
+
 .md {
-  font-size: 14px;
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 .md > :not(:last-child) {
@@ -65,35 +292,36 @@ body {
 }
 .md pre {
   overflow-x: auto;
-  border-radius: 8px;
-  background-color: rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius-md);
+  background-color: var(--code-bg);
   padding: 0.75rem;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .md code {
-  font-family:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
 }
 .md pre code {
   background: none;
   padding: 0;
 }
 .md code:not(pre code) {
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface-3);
+  color: var(--brand-strong);
   padding: 0.1rem 0.3rem;
   font-size: 0.85em;
 }
 .md blockquote {
-  border-left: 2px solid #3a4048;
+  border-left: 2px solid var(--border-strong);
   padding-left: 0.75rem;
-  color: #aeb4bc;
+  color: var(--fg-muted);
 }
 .md table {
   border-collapse: collapse;
 }
 .md th,
 .md td {
-  border: 1px solid #2a2f36;
+  border: 1px solid var(--border);
   padding: 4px 8px;
 }

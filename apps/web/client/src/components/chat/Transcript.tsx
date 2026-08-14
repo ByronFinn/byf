@@ -27,7 +27,7 @@ function EntryView({ entry }: { entry: Entry }): React.JSX.Element | null {
   if (entry.kind === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-emerald-600/90 px-3 py-2 text-sm text-white">
+        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-bubble px-3 py-2 text-sm text-bubble-fg">
           {entry.text}
         </div>
       </div>
@@ -36,7 +36,7 @@ function EntryView({ entry }: { entry: Entry }): React.JSX.Element | null {
   if (entry.kind === 'system') {
     return (
       <div
-        className={`text-center text-xs ${entry.level === 'error' ? 'text-rose-400' : 'text-zinc-500'}`}
+        className={`text-center text-xs ${entry.level === 'error' ? 'text-state-error' : 'text-fg-muted'}`}
       >
         {entry.text}
       </div>
@@ -47,7 +47,7 @@ function EntryView({ entry }: { entry: Entry }): React.JSX.Element | null {
   }
   return (
     <div className="flex gap-3">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-xs">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs">
         ✦
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -65,7 +65,7 @@ function PartView({ part }: { part: AssistantPart }): React.JSX.Element {
   }
   if (part.kind === 'thinking') {
     return (
-      <details className="text-xs text-zinc-500">
+      <details className="text-xs text-fg-muted">
         <summary className="cursor-pointer select-none">thinking</summary>
         <div className="mt-1 whitespace-pre-wrap opacity-80">{part.text}</div>
       </details>

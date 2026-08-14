@@ -1,6 +1,6 @@
 # PRD-0033: byf Web 客户端 UI 重设计（`apps/web/client`）
 
-> **Status**: Sliced | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: In Progress | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
 
 ## Goal
 
@@ -156,6 +156,7 @@
 **Decision**：采用 **Approach A（shadcn 混合路线）**。架构 / 组件用 shadcn 生态（Radix + lucide + Shiki，保留 Tailwind v4），视觉语言 / 布局 / 交互精致度对标 deepseek-harness。品牌色保留 byf emerald 绿（纳入三层 token）；主题做深浅双主题 + system 三态；布局两栏（侧边栏 + 主区）。
 
 **Consequences**：
+
 - ✅ ROI 最高，kimi 已实证 shadcn 能做产品级 agent 客户端。
 - ✅ 保留现有 Tailwind v4 与状态机资产，重构包袱小。
 - ⚠️ 需在 token 层统一 shadcn zinc 底与 deepseek 视觉语言（可抹平）。
@@ -177,6 +178,7 @@
 ### 三方调研关键文件
 
 **deepseek-harness（视觉 / 交互参考）：**
+
 - 三层 token：`packages/client/ui-theme/src/styles/design-platform.css`
 - 字体 / 阴影 token：`packages/client/ui-theme/src/styles/gradient-shadow-text.css`
 - 三栏布局：`packages/client/ui-layout/src/client/AppFrame.tsx`
@@ -186,6 +188,7 @@
 - 代码块：`packages/client/ui-primitives/src/markdown/CodeBlock.tsx`
 
 **kimi-code（shadcn 实证 + token 范本）：**
+
 - shadcn 配置：`apps/vscode/webview-ui/components.json`（radix-nova + zinc）
 - shadcn 组件：`apps/vscode/webview-ui/src/components/ui/`（24 个）
 - token 系统范本：`apps/vis/web/src/theme.css`（surface / cat / 深浅 AA 覆盖）
@@ -193,6 +196,7 @@
 - 工具渲染器：`apps/vscode/webview-ui/src/components/ToolRenderers.tsx`
 
 **byf/apps/web/client（改造对象）：**
+
 - 唯一主题文件：`apps/web/client/src/theme.css:1-100`
 - 聊天页布局：`apps/web/client/src/pages/ChatPage.tsx:63-99`
 - 消息列表 + 滚动：`apps/web/client/src/components/chat/Transcript.tsx:8-75`
@@ -202,12 +206,12 @@
 
 ## Domain Terms（draft — for /grill to refine）
 
-| Term | Working Definition | Status |
-|------|--------------------|--------|
-| 三层设计 token | 原始色 → 语义别名 → 组件专用的 CSS 变量分层体系（源自 deepseek 三层思想，用 OKLCH + Tailwind v4 @theme `--color-*` 实现） | new |
-| 步骤时间轴 (Step Timeline) | assistant 消息按 thinking/tool/text 组织成 step，左侧竖线 + 圆点（活跃辉光），可视化 agent 执行流（源自 kimi） | new |
-| 设计 token 地基 | 本 PRD 的 R1-R3：token 体系 + 深浅双主题 + 防闪烁 boot 脚本，是其余所有改动的依赖 | new |
-| 渲染层 / 逻辑层分离 | 保留 `chat.ts` reducer（逻辑层）与 `useEventStream`（传输），仅重写组件渲染层 | new |
+| Term                       | Working Definition                                                                                                        | Status |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 三层设计 token             | 原始色 → 语义别名 → 组件专用的 CSS 变量分层体系（源自 deepseek 三层思想，用 OKLCH + Tailwind v4 @theme `--color-*` 实现） | new    |
+| 步骤时间轴 (Step Timeline) | assistant 消息按 thinking/tool/text 组织成 step，左侧竖线 + 圆点（活跃辉光），可视化 agent 执行流（源自 kimi）            | new    |
+| 设计 token 地基            | 本 PRD 的 R1-R3：token 体系 + 深浅双主题 + 防闪烁 boot 脚本，是其余所有改动的依赖                                         | new    |
+| 渲染层 / 逻辑层分离        | 保留 `chat.ts` reducer（逻辑层）与 `useEventStream`（传输），仅重写组件渲染层                                             | new    |
 
 ## Traceability
 

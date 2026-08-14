@@ -47,8 +47,8 @@ export function SessionListPage(): React.JSX.Element {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Sessions</h1>
-          <p className="text-sm text-zinc-500">
+          <h1 className="text-lg font-semibold text-fg">Sessions</h1>
+          <p className="text-sm text-fg-muted">
             Pick a working directory. Sessions are listed per directory (same as the CLI).
           </p>
         </div>
@@ -64,29 +64,29 @@ export function SessionListPage(): React.JSX.Element {
               if (e.key === 'Enter') load();
             }}
             placeholder="/absolute/path/to/project"
-            className="flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 font-mono text-sm outline-none focus:border-emerald-500"
+            className="flex-1 rounded-lg border border-border-strong bg-input px-3 py-2 font-mono text-sm outline-none focus:border-brand"
           />
           <button
             type="button"
             onClick={load}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-strong"
           >
             Load
           </button>
         </div>
 
         {error !== null && (
-          <div className="rounded-lg border border-rose-600/40 bg-rose-600/10 px-3 py-2 text-sm text-rose-300">
+          <div className="rounded-lg border border-state-error/40 bg-state-error/10 px-3 py-2 text-sm text-state-error">
             {error.message}
           </div>
         )}
 
-        {isLoading && <div className="text-sm text-zinc-500">Loading sessions…</div>}
+        {isLoading && <div className="text-sm text-fg-muted">Loading sessions…</div>}
 
         {sessions !== undefined && (
           <div className="space-y-2">
             {sessions.length === 0 && (
-              <div className="text-sm text-zinc-500">No sessions in this directory yet.</div>
+              <div className="text-sm text-fg-muted">No sessions in this directory yet.</div>
             )}
             {sessions.map((s) => (
               <SessionRow key={s.id} session={s} />
@@ -94,8 +94,8 @@ export function SessionListPage(): React.JSX.Element {
           </div>
         )}
 
-        <div className="rounded-xl border border-white/10 bg-[#11151a] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-200">Start a new session</h2>
+        <div className="rounded-xl border border-border bg-surface-1 p-4">
+          <h2 className="mb-3 text-sm font-semibold text-fg">Start a new session</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
             <input
               type="text"
@@ -104,14 +104,14 @@ export function SessionListPage(): React.JSX.Element {
                 setModel(e.target.value);
               }}
               placeholder="model alias (optional — uses default if blank)"
-              className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              className="rounded-lg border border-border-strong bg-input px-3 py-2 text-sm outline-none focus:border-brand"
             />
             <select
               value={permission}
               onChange={(e) => {
                 setPermission(e.target.value as PermissionMode);
               }}
-              className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none"
+              className="rounded-lg border border-border-strong bg-input px-3 py-2 text-sm outline-none"
             >
               <option value="manual">manual</option>
               <option value="auto">auto</option>
@@ -124,12 +124,12 @@ export function SessionListPage(): React.JSX.Element {
               createMutation.mutate();
             }}
             disabled={createMutation.isPending || (loadedDir ?? workDir).trim().length === 0}
-            className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+            className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-strong disabled:opacity-40"
           >
             {createMutation.isPending ? 'Starting…' : 'New session'}
           </button>
           {createMutation.isError && (
-            <div className="mt-2 text-sm text-rose-300">{createMutation.error.message}</div>
+            <div className="mt-2 text-sm text-state-error">{createMutation.error.message}</div>
           )}
         </div>
       </div>
@@ -142,16 +142,16 @@ function SessionRow({ session }: { session: SessionSummary }): React.JSX.Element
   return (
     <Link
       to={`/sessions/${session.id}`}
-      className="block rounded-lg border border-white/10 bg-[#11151a] px-4 py-3 hover:border-emerald-500/50 hover:bg-[#151a20]"
+      className="block rounded-lg border border-border bg-surface-1 px-4 py-3 hover:border-brand/50 hover:bg-surface-2"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-zinc-100">
+          <div className="truncate text-sm font-medium text-fg">
             {session.title ?? session.lastPrompt ?? session.id}
           </div>
-          <div className="truncate font-mono text-xs text-zinc-600">{session.workDir}</div>
+          <div className="truncate font-mono text-xs text-fg-subtle">{session.workDir}</div>
         </div>
-        <div className="shrink-0 text-xs text-zinc-600">
+        <div className="shrink-0 text-xs text-fg-subtle">
           {updated.toLocaleDateString()}{' '}
           {updated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>

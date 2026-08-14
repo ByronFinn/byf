@@ -54,7 +54,7 @@ export function ChatPage(): React.JSX.Element {
   };
 
   if (sessionId === undefined) {
-    return <div className="p-6 text-sm text-zinc-500">No session id in the URL.</div>;
+    return <div className="p-6 text-sm text-fg-muted">No session id in the URL.</div>;
   }
 
   const approvalIds = Object.keys(state.pendingApprovals);
@@ -73,7 +73,7 @@ export function ChatPage(): React.JSX.Element {
         <Transcript entries={state.entries} />
       </div>
       {(approvalIds.length > 0 || questionIds.length > 0) && (
-        <div className="max-h-64 overflow-y-auto border-t border-white/10 bg-[#0e1216] px-4 py-3">
+        <div className="max-h-64 overflow-y-auto border-t border-border bg-surface-2 px-4 py-3">
           <div className="mx-auto max-w-3xl space-y-3">
             {approvalIds.map((id) => (
               <ApprovalCard

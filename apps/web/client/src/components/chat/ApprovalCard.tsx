@@ -23,23 +23,23 @@ export function ApprovalCard(props: {
   };
 
   return (
-    <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+    <div className="rounded-xl border border-state-warning/40 bg-state-warning/5 p-3">
       <div className="mb-1 flex items-center gap-2 text-sm">
         <span
-          className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400"
+          className="inline-block h-2 w-2 animate-pulse rounded-full bg-state-warning"
           aria-hidden
         />
-        <span className="font-mono text-amber-300">{request.toolName}</span>
-        <span className="text-zinc-500">·</span>
-        <span className="text-zinc-400">{request.action}</span>
+        <span className="font-mono text-state-warning">{request.toolName}</span>
+        <span className="text-fg-muted">·</span>
+        <span className="text-fg-muted">{request.action}</span>
       </div>
-      {summary !== null && <div className="mb-2 font-mono text-xs text-zinc-400">{summary}</div>}
+      {summary !== null && <div className="mb-2 font-mono text-xs text-fg-muted">{summary}</div>}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={submitting}
           onClick={() => void decide('approved')}
-          className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="rounded-md bg-brand px-3 py-1 text-sm text-on-brand hover:bg-brand-strong disabled:opacity-50"
         >
           Approve
         </button>
@@ -47,7 +47,7 @@ export function ApprovalCard(props: {
           type="button"
           disabled={submitting}
           onClick={() => void decide('approved', 'session')}
-          className="rounded-md border border-emerald-600/60 px-3 py-1 text-sm text-emerald-300 hover:bg-emerald-600/10 disabled:opacity-50"
+          className="rounded-md border border-brand/60 px-3 py-1 text-sm text-brand hover:bg-hover disabled:opacity-50"
         >
           Approve · this session
         </button>
@@ -55,7 +55,7 @@ export function ApprovalCard(props: {
           type="button"
           disabled={submitting}
           onClick={() => void decide('rejected')}
-          className="rounded-md border border-rose-600/60 px-3 py-1 text-sm text-rose-300 hover:bg-rose-600/10 disabled:opacity-50"
+          className="rounded-md border border-state-error/60 px-3 py-1 text-sm text-state-error hover:bg-hover disabled:opacity-50"
         >
           Reject
         </button>

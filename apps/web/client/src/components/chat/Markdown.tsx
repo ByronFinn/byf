@@ -13,7 +13,7 @@ export const Markdown = memo(function Markdown({
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer" className="text-sky-400 underline">
+            <a href={href} target="_blank" rel="noreferrer" className="text-state-info underline">
               {children}
             </a>
           ),

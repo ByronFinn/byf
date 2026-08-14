@@ -21,39 +21,41 @@ export function StatusBar(props: {
   const current = status?.permission ?? 'manual';
 
   return (
-    <div className="flex items-center gap-3 border-b border-white/10 bg-[#0e1216] px-4 py-1.5 text-xs text-zinc-400">
+    <div className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-1.5 text-xs text-fg-muted">
       <div className="flex items-center gap-1.5">
         <span
-          className={`inline-block h-2 w-2 rounded-full ${busy ? 'animate-pulse bg-amber-400' : 'bg-emerald-400'}`}
+          className={`inline-block h-2 w-2 rounded-full ${
+            busy ? 'animate-pulse bg-state-warning' : 'bg-state-success'
+          }`}
           aria-hidden
         />
         <span>{busy ? 'working' : 'idle'}</span>
       </div>
-      <span className="text-zinc-700">·</span>
-      <span className={connected ? 'text-emerald-400' : 'text-zinc-600'}>
+      <span className="text-fg-subtle">·</span>
+      <span className={connected ? 'text-state-success' : 'text-fg-subtle'}>
         {connected ? 'live' : 'connecting…'}
       </span>
       {status?.model !== undefined && (
         <>
-          <span className="text-zinc-700">·</span>
-          <span className="font-mono text-zinc-300">{status.model}</span>
+          <span className="text-fg-subtle">·</span>
+          <span className="font-mono text-fg">{status.model}</span>
         </>
       )}
       {usagePct !== undefined && (
         <>
-          <span className="text-zinc-700">·</span>
+          <span className="text-fg-subtle">·</span>
           <span>ctx {usagePct}%</span>
         </>
       )}
       <div className="ml-auto flex items-center gap-1">
-        <div className="flex overflow-hidden rounded-md border border-white/10">
+        <div className="flex overflow-hidden rounded-md border border-border">
           {PERMISSIONS.map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => void api.setPermission(sessionId, mode)}
               className={`px-2 py-0.5 ${
-                current === mode ? 'bg-emerald-600/80 text-white' : 'text-zinc-400 hover:bg-white/5'
+                current === mode ? 'bg-brand text-on-brand' : 'text-fg-muted hover:bg-hover'
               }`}
             >
               {mode}
@@ -64,7 +66,7 @@ export function StatusBar(props: {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-rose-600/50 px-2 py-0.5 text-rose-300 hover:bg-rose-600/10"
+            className="rounded-md border border-state-error/50 px-2 py-0.5 text-state-error hover:bg-hover"
           >
             Cancel
           </button>
