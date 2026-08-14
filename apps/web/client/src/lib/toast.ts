@@ -55,9 +55,15 @@ export function errorMessage(error: unknown): string {
 }
 
 export const toast = {
-  success: (message: string) => pushToast('success', message),
-  error: (message: string) => pushToast('error', message),
-  info: (message: string) => pushToast('info', message),
+  success: (message: string): void => {
+    pushToast('success', message);
+  },
+  error: (message: string): void => {
+    pushToast('error', message);
+  },
+  info: (message: string): void => {
+    pushToast('info', message);
+  },
 };
 
 /** React 订阅入口(Toaster 组件使用)。 */
