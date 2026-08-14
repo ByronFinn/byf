@@ -517,3 +517,34 @@ describe('subagent board state', () => {
     });
   });
 });
+
+// ---- 媒体 ContentPart 渲染保留(PRD-0034 R-C1) ----------------------------------
+
+describe('replay media parts', () => {
+  test('tool 结果消息的 image ContentPart 原样保留到 ToolPart.result(live 同构)', () => {
+    const replay: AgentReplayRecord[] = [
+      assistantMessage([], [toolCall('t1', 'ReadMedia')]),
+      {
+        type: 'message',
+        message: {
+          role: 'tool',
+          toolCallId: 't1',
+          content: [
+            { type: 'image_url', imageUrl: { url: 'data:image/png;base64,aGVsbG8=' } },
+            { type: 'text', text: 'image caption' },
+          ],
+          toolCalls: [],
+        },
+      },
+    ];
+    const { entries } = replayToEntries(replay);
+    const entry = entries[0];
+    if (entry === undefined || entry.kind !== 'assistant') throw new Error('expected assistant');
+    expect(entry.parts[0]).toMatchObject({ kind: 'tool', status: 'done' });
+    const part = entry.parts[0] as { result: unknown };
+    expect(part.result).toEqual([
+      { type: 'image_url', imageUrl: { url: 'data:image/png;base64,aGVsbG8=' } },
+      { type: 'text', text: 'image caption' },
+    ]);
+  });
+});

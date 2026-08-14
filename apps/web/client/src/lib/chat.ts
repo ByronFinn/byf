@@ -263,10 +263,15 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
       const part = entry.parts[loc.part];
       if (part === undefined || part.kind !== 'tool') continue;
       const parts = [...entry.parts];
+      // R-C1:image ContentPart 原样保留(data-URL 由渲染层合成),与 live
+      // tool.result 的 output 同构;纯文本结果保持字符串。
+      const hasMedia = message.content.some(
+        (p) => p.type === 'image_url' || p.type === 'audio_url' || p.type === 'video_url',
+      );
       parts[loc.part] = {
         ...part,
         status: 'done',
-        result: textOf(message.content),
+        result: hasMedia ? message.content : textOf(message.content),
         isError: message.isError ?? false,
       };
       entries[loc.entry] = { ...entry, parts };

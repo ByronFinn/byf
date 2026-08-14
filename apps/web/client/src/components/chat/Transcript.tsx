@@ -20,6 +20,7 @@ export function Transcript(props: {
   busy: boolean;
   subagents?: Record<string, SubagentState>;
   onOpenSubagent?: (id: string) => void;
+  workDir?: string;
 }): React.JSX.Element {
   const { entries, busy } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -68,6 +69,7 @@ export function Transcript(props: {
               streaming={busy && entry.id === lastEntry?.id}
               subagents={props.subagents}
               onOpenSubagent={props.onOpenSubagent}
+              workDir={props.workDir}
             />
           ))}
         </div>
@@ -93,8 +95,9 @@ function EntryView(props: {
   streaming: boolean;
   subagents?: Record<string, SubagentState>;
   onOpenSubagent?: (id: string) => void;
+  workDir?: string;
 }): React.JSX.Element | null {
-  const { entry, streaming, subagents, onOpenSubagent } = props;
+  const { entry, streaming, subagents, onOpenSubagent, workDir } = props;
   if (entry.kind === 'user') {
     // 用户气泡(R9):右对齐 + 品牌 token + 22px 圆角(右下小角收尾)
     return (
@@ -151,7 +154,12 @@ function EntryView(props: {
             }`}
             aria-hidden
           />
-          <PartView part={part} active={streaming && i === last} streaming={streaming} />
+          <PartView
+            part={part}
+            active={streaming && i === last}
+            streaming={streaming}
+            workDir={workDir}
+          />
           {cardsAfter(part).map((sub) => (
             <SubagentCard key={sub.id} subagent={sub} onOpen={onOpenSubagent ?? (() => {})} />
           ))}
@@ -165,10 +173,15 @@ function PartView(props: {
   part: RenderPart;
   active: boolean;
   streaming: boolean;
+  workDir?: string;
 }): React.JSX.Element {
-  const { part, active, streaming } = props;
+  const { part, active, streaming, workDir } = props;
   if (part.kind === 'text') {
-    return <Markdown streaming={streaming}>{part.text}</Markdown>;
+    return (
+      <Markdown streaming={streaming} workDir={workDir}>
+        {part.text}
+      </Markdown>
+    );
   }
   if (part.kind === 'thinking') {
     return <ThinkingBlock text={part.text} active={active} />;

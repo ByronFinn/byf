@@ -106,6 +106,26 @@ async function request<T>(
 
 const enc = encodeURIComponent;
 
+/** 原始 fetch 包装(R-C3 文件端点):不解析 JSON,保留 headers 供内容类型探测。 */
+async function requestRaw(path: string, method: 'GET' | 'HEAD'): Promise<Response> {
+  const headers: Record<string, string> = {};
+  const token = authToken();
+  if (token !== null && token.length > 0) {
+    headers['authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(path, { method, headers });
+  if (!res.ok) {
+    let err: { error?: string } | null = null;
+    try {
+      err = (await res.json()) as { error?: string };
+    } catch {
+      /* ignore */
+    }
+    throw new Error(err?.error ?? `HTTP ${res.status} ${res.statusText}`);
+  }
+  return res;
+}
+
 export const api = {
   listSessions: async (workDir: string, q?: string): Promise<SessionSummary[]> => {
     const params = new URLSearchParams({ workDir });
@@ -129,6 +149,13 @@ export const api = {
     const r = await request<ArchivedSessionsResponse>('/api/archived-sessions', 'GET');
     return [...r.sessions];
   },
+
+  /** 文件端点探测(R-C3):文本端点返回 JSON 视图,媒体返回二进制 + content-type。 */
+  fetchFileHead: (path: string) => requestRaw(`/api/files?path=${enc(path)}`, 'GET'),
+
+  /** 文件端点 URL(图片/视频 src 直用;token 经 ?token= 附带)。 */
+  fileUrl: (path: string): string =>
+    `/api/files?path=${enc(path)}${authToken() !== null ? `&token=${enc(authToken() ?? '')}` : ''}`,
 
   resumeSession: (id: string) =>
     request<ResumeSessionResponse>(`/api/sessions/${enc(id)}/resume`, 'POST'),

@@ -84,6 +84,21 @@ function toolIcon(display: unknown): LucideIcon {
   return Wrench;
 }
 
+/** file_io/diff display 携带的可查看路径(R-C3;无 path 的 display 返回 null)。 */
+function displayFilePath(display: unknown): string | null {
+  if (display === null || typeof display !== 'object') return null;
+  const d = display as Record<string, unknown>;
+  if (d['kind'] !== 'file_io' && d['kind'] !== 'diff') return null;
+  return typeof d['path'] === 'string' && d['path'].length > 0 ? d['path'] : null;
+}
+
+/** 打开文件查看 drawer(全局事件,ChatPage 挂载监听;与 openSettingsDialog 同款)。 */
+export const OPEN_FILE_EVENT = 'byf:open-file';
+
+export function openFileDrawer(path: string): void {
+  window.dispatchEvent(new CustomEvent<string>(OPEN_FILE_EVENT, { detail: path }));
+}
+
 function isDiffDisplay(display: unknown): boolean {
   return (
     display !== null &&
@@ -92,10 +107,61 @@ function isDiffDisplay(display: unknown): boolean {
   );
 }
 
-/** diff 结果按 +/- 行着色的轻量渲染器;其余类型纯文本。 */
+/** ContentPart 形态的工具结果:提取图片 data-URL 内联渲染(PRD-0034 R-C1)。 */
+function mediaParts(result: unknown): {
+  images: string[];
+  text: string;
+} {
+  if (!Array.isArray(result)) return { images: [], text: '' };
+  const images: string[] = [];
+  const texts: string[] = [];
+  for (const item of result) {
+    if (
+      item !== null &&
+      typeof item === 'object' &&
+      (item as { type?: unknown }).type === 'image_url'
+    ) {
+      const url = (item as { imageUrl?: { url?: unknown } }).imageUrl?.url;
+      if (typeof url === 'string' && url.startsWith('data:')) {
+        images.push(url);
+      }
+    } else if (
+      item !== null &&
+      typeof item === 'object' &&
+      (item as { type?: unknown }).type === 'text'
+    ) {
+      const t = (item as { text?: unknown }).text;
+      if (typeof t === 'string') texts.push(t);
+    }
+  }
+  return { images, text: texts.join('') };
+}
+
+/** diff 结果按 +/- 行着色的轻量渲染器;其余类型纯文本;图片内联。 */
 function ResultBody(props: { part: ToolPart }): React.JSX.Element | null {
   const { part } = props;
   if (part.result === undefined) return null;
+  const media = mediaParts(part.result);
+  if (media.images.length > 0) {
+    return (
+      <div className="space-y-2 border-t border-border bg-bg px-3 py-2">
+        {media.images.map((src, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={i}
+            src={src}
+            alt={`工具结果图片 ${i + 1}`}
+            className="max-h-96 max-w-full rounded-md border border-border"
+          />
+        ))}
+        {media.text.length > 0 && (
+          <pre className="overflow-auto font-mono text-xs text-fg">
+            {truncate(media.text, 4000)}
+          </pre>
+        )}
+      </div>
+    );
+  }
   const resultText =
     typeof part.result === 'string' ? part.result : JSON.stringify(part.result, null, 2);
   const text = truncate(resultText, 4000);
@@ -136,6 +202,7 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
   const summary = summarizeDisplay(part.display) ?? part.description ?? null;
   const done = part.status === 'done';
   const Icon = toolIcon(part.display);
+  const viewablePath = displayFilePath(part.display);
   const duration =
     part.startedAt !== undefined && part.endedAt !== undefined
       ? formatDuration(part.endedAt - part.startedAt)
@@ -175,6 +242,17 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
         />
       </button>
       {open && <ResultBody part={part} />}
+      {open && viewablePath !== null && (
+        <button
+          type="button"
+          onClick={() => {
+            openFileDrawer(viewablePath);
+          }}
+          className="border-t border-border px-3 py-1.5 text-left text-xs text-brand transition-colors hover:bg-hover"
+        >
+          查看文件
+        </button>
+      )}
     </div>
   );
 }

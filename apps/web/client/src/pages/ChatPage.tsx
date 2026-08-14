@@ -7,11 +7,13 @@ import { api } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
 import { ComposerCard, type TriggerCommand } from '#/components/chat/ComposerCard';
+import { FileDrawer } from '#/components/chat/FileDrawer';
 import { PermissionChip } from '#/components/chat/PermissionChip';
 import { QuestionCard } from '#/components/chat/QuestionCard';
 import { StatusBar } from '#/components/chat/StatusBar';
 import { SubagentDrawer } from '#/components/chat/SubagentCard';
 import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
+import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
 import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
@@ -83,6 +85,17 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const [skills, setSkills] = useState<readonly SkillSummary[]>([]);
   // 子 Agent 深度查看 drawer(R-B3):当前打开的 subagentId
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
+  // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
+  const [openFilePath, setOpenFilePath] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (e: Event): void => {
+      setOpenFilePath((e as CustomEvent<string>).detail);
+    };
+    window.addEventListener(OPEN_FILE_EVENT, open);
+    return () => {
+      window.removeEventListener(OPEN_FILE_EVENT, open);
+    };
+  }, []);
   const { choice, set } = useTheme();
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
@@ -254,9 +267,18 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             busy={state.busy}
             subagents={state.subagents}
             onOpenSubagent={setOpenSubagentId}
+            workDir={sessionWorkDir ?? undefined}
           />
         )}
       </div>
+      {openFilePath !== null && (
+        <FileDrawer
+          path={openFilePath}
+          onClose={() => {
+            setOpenFilePath(null);
+          }}
+        />
+      )}
       {openSubagentId !== null && state.subagents[openSubagentId] !== undefined && (
         <SubagentDrawer
           subagent={state.subagents[openSubagentId]!}
