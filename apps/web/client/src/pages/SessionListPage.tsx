@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { api } from '#/api';
+import { Button } from '#/components/ui/button';
 import type { PermissionMode, SessionSummary } from '#/types';
 
 const WORKDIR_KEY = 'byf-web-workdir';
@@ -64,15 +65,11 @@ export function SessionListPage(): React.JSX.Element {
               if (e.key === 'Enter') load();
             }}
             placeholder="/absolute/path/to/project"
-            className="flex-1 rounded-lg border border-border-strong bg-input px-3 py-2 font-mono text-sm outline-none focus:border-brand"
+            className="flex-1 rounded-lg border border-border-strong bg-input-fill px-3 py-2 font-mono text-sm outline-none focus:border-brand"
           />
-          <button
-            type="button"
-            onClick={load}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-strong"
-          >
+          <Button type="button" onClick={load}>
             Load
-          </button>
+          </Button>
         </div>
 
         {error !== null && (
@@ -104,30 +101,30 @@ export function SessionListPage(): React.JSX.Element {
                 setModel(e.target.value);
               }}
               placeholder="model alias (optional — uses default if blank)"
-              className="rounded-lg border border-border-strong bg-input px-3 py-2 text-sm outline-none focus:border-brand"
+              className="rounded-lg border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none focus:border-brand"
             />
             <select
               value={permission}
               onChange={(e) => {
                 setPermission(e.target.value as PermissionMode);
               }}
-              className="rounded-lg border border-border-strong bg-input px-3 py-2 text-sm outline-none"
+              className="rounded-lg border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none"
             >
               <option value="manual">manual</option>
               <option value="auto">auto</option>
               <option value="yolo">yolo</option>
             </select>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => {
               createMutation.mutate();
             }}
             disabled={createMutation.isPending || (loadedDir ?? workDir).trim().length === 0}
-            className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-strong disabled:opacity-40"
+            className="mt-3 disabled:opacity-40"
           >
             {createMutation.isPending ? 'Starting…' : 'New session'}
-          </button>
+          </Button>
           {createMutation.isError && (
             <div className="mt-2 text-sm text-state-error">{createMutation.error.message}</div>
           )}

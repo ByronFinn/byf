@@ -163,6 +163,30 @@
   --bubble-fg: var(--color-neutral-0);
 }
 
+/* ═══ shadcn 语义 token 桥(ADR 0035 D1:在 token 层抹平 shadcn zinc 底)═══
+   shadcn 组件引用 --background / --primary 等语义名,这里全部映射到我们的
+   Layer 2,随主题自动切换,不引入 shadcn 默认调色板。 */
+:root {
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface-1);
+  --card-foreground: var(--fg);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: var(--on-brand);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--fg);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--hover);
+  --accent-foreground: var(--fg);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--color-neutral-0);
+  --input: var(--border-strong);
+  --ring: var(--brand);
+}
+
 /* 语义 token → Tailwind 工具类(bg-bg / text-fg-muted / shadow-2 …)。 */
 @theme inline {
   --color-bg: var(--bg);
@@ -186,11 +210,30 @@
   --color-bubble: var(--bubble);
   --color-bubble-fg: var(--bubble-fg);
   --color-sidebar: var(--sidebar-fill);
-  --color-input: var(--input-fill);
+  --color-input-fill: var(--input-fill);
   --color-code: var(--code-bg);
   --shadow-1: var(--elev-1);
   --shadow-2: var(--elev-2);
   --shadow-3: var(--elev-3);
+  /* shadcn 语义名 → 工具类(bg-background / text-foreground / ring-ring …) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 /* ═══════════════ base ═══════════════ */
@@ -266,6 +309,20 @@ body {
 }
 
 /* ═══════════════ Markdown 渲染 ═══════════════ */
+
+/* Shiki 输出的 pre 带 inline 背景,用我们的 --code-bg token 覆盖。 */
+.codeblock-highlight pre.shiki {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  background-color: var(--code-bg) !important;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+.codeblock-highlight pre.shiki code {
+  font-family: var(--font-mono);
+}
 
 .md {
   font-size: var(--text-base);

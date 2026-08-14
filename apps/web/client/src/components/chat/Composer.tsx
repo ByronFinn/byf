@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { Button } from '#/components/ui/button';
+
 export function Composer(props: {
   disabled: boolean;
   onSend: (text: string) => void;
@@ -34,16 +36,16 @@ export function Composer(props: {
               ? 'Agent is working… (Ctrl-C via Cancel)'
               : 'Message byf…  (Enter to send, Shift+Enter for newline)'
           }
-          className="max-h-48 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-border-strong bg-input px-3 py-2 text-sm outline-none placeholder:text-fg-subtle focus:border-brand"
+          className="max-h-48 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none placeholder:text-fg-subtle focus:border-brand"
         />
-        <button
+        <Button
           type="button"
           onClick={submit}
           disabled={disabled || text.trim().length === 0}
-          className="h-10 shrink-0 rounded-xl bg-brand px-4 text-sm font-medium text-on-brand hover:bg-brand-strong disabled:opacity-40"
+          className="h-10 shrink-0 rounded-xl px-4 disabled:opacity-40"
         >
           Send
-        </button>
+        </Button>
       </div>
     </div>
   );

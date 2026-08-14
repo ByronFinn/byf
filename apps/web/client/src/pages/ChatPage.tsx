@@ -70,7 +70,7 @@ export function ChatPage(): React.JSX.Element {
         onCancel={onCancel}
       />
       <div className="min-h-0 flex-1">
-        <Transcript entries={state.entries} />
+        <Transcript entries={state.entries} busy={state.busy} />
       </div>
       {(approvalIds.length > 0 || questionIds.length > 0) && (
         <div className="max-h-64 overflow-y-auto border-t border-border bg-surface-2 px-4 py-3">

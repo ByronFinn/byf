@@ -1,3 +1,4 @@
+import { Terminal } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { ThemeToggle } from './ThemeToggle';
@@ -7,7 +8,12 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-2 border-b border-border bg-surface-1 px-4 py-2.5">
         <Link to="/" className="flex items-center gap-2 font-semibold text-fg">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-brand" aria-hidden />
+          <span
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-on-brand"
+            aria-hidden
+          >
+            <Terminal className="size-3.5" />
+          </span>
           byf <span className="text-xs font-normal text-fg-muted">web client</span>
         </Link>
         <div className="ml-auto">

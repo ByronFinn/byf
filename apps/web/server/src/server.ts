@@ -58,6 +58,10 @@ export async function startWebServer(
     hostname: host,
     port,
     fetch: app.fetch,
+    // SSE 事件流在 heartbeat(20s)间隔内无写入,必须覆盖 Bun 默认 10s 的
+    // idleTimeout,否则空闲连接会被服务端掐断、丢失广播帧(PRD-0033 AC7
+    // 回归发现;契约不变,仅连接保活)。
+    idleTimeout: 255,
   });
 
   const actualPort = server.port ?? port;

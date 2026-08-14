@@ -135,7 +135,7 @@ export function QuestionCard(props: {
                       setOtherText((prev) => ({ ...prev, [i]: e.target.value }));
                     }}
                     placeholder="Type a custom answer…"
-                    className="mt-1 w-full rounded border border-border-strong bg-input px-2 py-1 text-sm outline-none focus:border-state-info"
+                    className="mt-1 w-full rounded border border-border-strong bg-input-fill px-2 py-1 text-sm outline-none focus:border-state-info"
                   />
                 )}
               </span>

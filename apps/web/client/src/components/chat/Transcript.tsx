@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import type { AssistantPart, Entry } from '#/lib/chat';
@@ -5,17 +6,20 @@ import type { AssistantPart, Entry } from '#/lib/chat';
 import { Markdown } from './Markdown';
 import { ToolCallView } from './ToolCallView';
 
-export function Transcript({ entries }: { entries: readonly Entry[] }): React.JSX.Element {
+export function Transcript(props: { entries: readonly Entry[]; busy: boolean }): React.JSX.Element {
+  const { entries, busy } = props;
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [entries]);
 
+  const lastId = entries.at(-1)?.id;
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-4">
         {entries.map((entry) => (
-          <EntryView key={entry.id} entry={entry} />
+          <EntryView key={entry.id} entry={entry} streaming={busy && entry.id === lastId} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -23,7 +27,8 @@ export function Transcript({ entries }: { entries: readonly Entry[] }): React.JS
   );
 }
 
-function EntryView({ entry }: { entry: Entry }): React.JSX.Element | null {
+function EntryView(props: { entry: Entry; streaming: boolean }): React.JSX.Element | null {
+  const { entry, streaming } = props;
   if (entry.kind === 'user') {
     return (
       <div className="flex justify-end">
@@ -47,21 +52,22 @@ function EntryView({ entry }: { entry: Entry }): React.JSX.Element | null {
   }
   return (
     <div className="flex gap-3">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs">
-        ✦
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3">
+        <Sparkles className="size-3.5 text-brand" aria-hidden />
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
         {entry.parts.map((part, i) => (
-          <PartView key={i} part={part} />
+          <PartView key={i} part={part} streaming={streaming} />
         ))}
       </div>
     </div>
   );
 }
 
-function PartView({ part }: { part: AssistantPart }): React.JSX.Element {
+function PartView(props: { part: AssistantPart; streaming: boolean }): React.JSX.Element {
+  const { part, streaming } = props;
   if (part.kind === 'text') {
-    return <Markdown>{part.text}</Markdown>;
+    return <Markdown streaming={streaming}>{part.text}</Markdown>;
   }
   if (part.kind === 'thinking') {
     return (
