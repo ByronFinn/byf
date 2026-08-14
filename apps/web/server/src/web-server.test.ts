@@ -169,6 +169,17 @@ describe('WebSessionManager', () => {
     expect(frame?.type).toBe('agent.event');
   });
 
+  test('closeSession 等待期间 resume 失败:返回 false 而非抛错', async () => {
+    const harness = new FakeHarness();
+    harness.resumeSession = async (): Promise<never> => {
+      throw new Error('resume boom');
+    };
+    const manager = new WebSessionManager(harness);
+    const closing = manager.closeSession('sess-failing'); // resume 失败被 catch
+    expect(await closing).toBe(false);
+    expect(manager.getSession('sess-failing')).toBeUndefined();
+  });
+
   test('closeSession 等待进行中的 resume 落地后再关闭', async () => {
     const harness = new FakeHarness();
     let release!: () => void;

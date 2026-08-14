@@ -9,7 +9,9 @@
     "apps/*/test/**/*.ts",
     "apps/*/test/**/*.tsx",
     "apps/*/server/src/**/*.test.ts",
-    "apps/*/server/src/**/*.test.tsx"
+    "apps/*/server/src/**/*.test.tsx",
+    "apps/web/client/test/**/*.ts",
+    "apps/web/client/test/**/*.tsx"
   ],
   "exclude": ["node_modules", "dist", "dist-types", "**/*.disabled", "**/*.disabled/**"]
 }

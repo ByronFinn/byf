@@ -53,8 +53,10 @@ const LAZY_LANGS: Record<string, LangLoader> = {
   batch: () => import('@shikijs/langs/batch'),
 };
 
-/** 常见别名归一;空返回 null。 */
-function normalizeLang(lang: string): string | null {
+/**
+ * 常见别名归一;空返回 null。导出供测试守护「别名输出 ⊆ boot ∪ LAZY_LANGS」。
+ */
+export function normalizeLang(lang: string): string | null {
   const l = lang.trim().toLowerCase();
   if (l.length === 0) return null;
   if (l === 'ts') return 'typescript';

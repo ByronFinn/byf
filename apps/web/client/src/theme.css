@@ -116,6 +116,9 @@
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 320ms;
+
+  /* 窄屏导航 overlay 的遮罩(深浅主题同值) */
+  --scrim: oklch(0 0 0 / 0.5);
 }
 
 /* 浅色覆盖:每个语义 token 给 AA 对比变体。 */
@@ -214,6 +217,7 @@
   --color-input-fill: var(--input-fill);
   --color-code: var(--code-bg);
   --color-code-fg: var(--code-fg);
+  --color-scrim: var(--scrim);
   --shadow-1: var(--elev-1);
   --shadow-2: var(--elev-2);
   --shadow-3: var(--elev-3);
@@ -236,6 +240,18 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-input: var(--input);
   --color-ring: var(--ring);
+}
+
+/* 窄屏 overlay 侧边栏滑入(prefers-reduced-motion 时退化为无动画) */
+@media (prefers-reduced-motion: no-preference) {
+  .overlay-in {
+    animation: overlay-in var(--duration-slow) var(--ease-smooth);
+  }
+  @keyframes overlay-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
 }
 
 /* ═══════════════ base ═══════════════ */

@@ -26,7 +26,9 @@ export function Transcript(props: { entries: readonly Entry[]; busy: boolean }):
     if (el === null) return;
     scrollingToBottom.current = smooth;
     el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
-    setAtBottom(true);
+    // smooth 路径不立即置 atBottom:由 onScroll 在抵达底部时收敛,否则状态翻转
+    // 会触发 follow effect 立即以 auto 覆盖平滑滚动
+    if (!smooth) setAtBottom(true);
   }, []);
 
   const onScroll = useCallback(() => {

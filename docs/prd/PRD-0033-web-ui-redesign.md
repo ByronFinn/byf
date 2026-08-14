@@ -226,8 +226,9 @@
   - #304 — [PRD-0033] assistant 步骤时间轴 + Markdown + 工具卡片 (Done)
   - #305 — [PRD-0033] Composer + 审批/提问卡片 + 空状态 + 回归 (Done)
 - **Sliced by**: `/story`（2026-08-14）→ 6 个 vertical slices，依赖链 300→301→302→303→304→305
-- **Implemented by**: `/implement`(2026-08-14)— 6 slices 全部完成;E2E 验证于真实 session(流式/时间轴/代码高亮/主题三态);顺带修复 web-server 存量 bug(SSE idleTimeout 掐断 + 并发 resume 双广播)
-- **Reviewed by**: `/review`(2026-08-14)— 三视角(Test/Code/Impact)通过;阻塞项(bun.lock 未提交、fmt)已修复,minor 项(CodeBlock catch、IME isComposing、enabled 口径、死代码、resume 失败重试测试)已收尾
+- **Implemented by**: `/implement`(2026-08-14)— 6 slices 全部完成;E2E 验证于真实 session(流式/时间轴/代码高亮/主题三态);顺带修复 web-server 存量 bug(SSE idleTimeout 掐断 + 并发 resume 双广播 + closeSession/resume 竞态)
+- **口径补记**(第二轮深度 review):R4「按需引入」落地为 button/checkbox/radio-group/select 四个组件(card/dialog 等按 UI 实际需要未引入,样式自写更贴合 deepseek 视觉语言);R12 权限切换保留在顶部 StatusBar(会话级设置,Composer 工具栏承载模型 chip + Send/Stop);窄屏侧边栏折叠后由头部按钮唤出非模态 overlay(AC3 增强)
+- **Reviewed by**: `/review`(2026-08-14,两轮)— 第一轮:阻塞项(bun.lock 未提交、fmt:check)修复;第二轮深度 review(对照 R1-R18/AC1-AC9 逐项):三视角全部 Approve,Comments 级项已收尾(平滑回底真生效、overlay 非模态+焦点管理、会话切换 key 重挂消闪烁、normalizeLang 别名守护测试、closeSession 失败路径测试、scrim/duration token 接线、changeset 措辞、R4/R12 口径补记)。非阻塞项开 #306(测试类型门禁基线)与 #307(后续优化清单)
 - **New terms**: 三层设计 token、设计 token 地基、渲染层 / 逻辑层分离（见上）
 - **New decisions**: shadcn 混合路线 + 深浅双主题 + 保留绿色品牌色（建议升格 ADR-0035）
 
