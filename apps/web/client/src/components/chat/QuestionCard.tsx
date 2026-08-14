@@ -1,6 +1,10 @@
+import { HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { api } from '#/api';
+import { Button } from '#/components/ui/button';
+import { Checkbox } from '#/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group';
 import type { QuestionAnswers, QuestionRequest } from '#/types';
 
 const OTHER_LABEL_DEFAULT = 'Other';
@@ -56,11 +60,14 @@ export function QuestionCard(props: {
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-state-info/40 bg-state-info/5 p-3">
+    <div className="space-y-3 rounded-xl border border-state-info/40 bg-state-info/5 p-3 shadow-1">
       {request.questions.map((item, i) => (
         <div key={i}>
           {item.header !== undefined && (
-            <div className="mb-0.5 text-sm font-semibold text-fg">{item.header}</div>
+            <div className="mb-0.5 flex items-center gap-1.5 text-sm font-semibold text-fg">
+              <HelpCircle className="size-3.5 text-state-info" aria-hidden />
+              {item.header}
+            </div>
           )}
           {item.question !== undefined && item.question !== item.header && (
             <div className="mb-1 text-sm text-fg">{item.question}</div>
@@ -69,98 +76,155 @@ export function QuestionCard(props: {
             <div className="mb-1.5 text-xs text-fg-muted">{item.body}</div>
           )}
           <div className="space-y-1">
-            {item.options.map((opt) => {
-              const checked = item.multiSelect
-                ? (multi[i] ?? new Set<string>()).has(opt.label)
-                : single[i] === opt.label;
-              return (
-                <label
-                  key={opt.label}
-                  className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover"
-                >
-                  <input
-                    type={item.multiSelect ? 'checkbox' : 'radio'}
-                    name={`q-${requestId}-${i}`}
-                    checked={checked}
-                    onChange={() => {
-                      if (item.multiSelect) {
+            {item.multiSelect ? (
+              item.options.map((opt) => {
+                const checked = (multi[i] ?? new Set<string>()).has(opt.label);
+                return (
+                  <label
+                    key={opt.label}
+                    className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover"
+                  >
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={checked}
+                      onCheckedChange={() => {
                         setMulti((prev) => {
                           const set = new Set(prev[i] ?? []);
                           if (set.has(opt.label)) set.delete(opt.label);
                           else set.add(opt.label);
                           return { ...prev, [i]: set };
                         });
-                      } else {
-                        setSingle((prev) => ({ ...prev, [i]: opt.label }));
-                        setUseOther((prev) => ({ ...prev, [i]: false }));
-                      }
-                    }}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="text-fg">{opt.label}</span>
-                    {opt.description !== undefined && (
-                      <span className="block text-xs text-fg-muted">{opt.description}</span>
-                    )}
-                  </span>
-                </label>
-              );
-            })}
-            {/* Other */}
-            <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover">
-              <input
-                type={item.multiSelect ? 'checkbox' : 'radio'}
-                name={`q-${requestId}-${i}`}
-                checked={useOther[i] === true}
-                onChange={() => {
-                  if (item.multiSelect) {
-                    setUseOther((prev) => ({ ...prev, [i]: !prev[i] }));
-                  } else {
+                      }}
+                    />
+                    <OptionBody label={opt.label} description={opt.description} />
+                  </label>
+                );
+              })
+            ) : (
+              <RadioGroup
+                value={useOther[i] === true ? '__other__' : (single[i] ?? '')}
+                onValueChange={(value) => {
+                  if (value === '__other__') {
                     setUseOther((prev) => ({ ...prev, [i]: true }));
                     setSingle((prev) => ({ ...prev, [i]: '' }));
+                  } else {
+                    setSingle((prev) => ({ ...prev, [i]: value }));
+                    setUseOther((prev) => ({ ...prev, [i]: false }));
                   }
                 }}
-                className="mt-0.5"
+                className="gap-1"
+              >
+                {item.options.map((opt) => (
+                  <label
+                    key={opt.label}
+                    className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover"
+                  >
+                    <RadioGroupItem className="mt-0.5" value={opt.label} />
+                    <OptionBody label={opt.label} description={opt.description} />
+                  </label>
+                ))}
+                {/* Other:radio 变体须在 RadioGroup 内注册 */}
+                <OtherRow
+                  otherLabel={item.otherLabel}
+                  otherDescription={item.otherDescription}
+                  multiSelect={false}
+                  active={useOther[i] === true}
+                  otherText={otherText[i] ?? ''}
+                  onOtherText={(v) => {
+                    setOtherText((prev) => ({ ...prev, [i]: v }));
+                  }}
+                />
+              </RadioGroup>
+            )}
+            {item.multiSelect && (
+              <OtherRow
+                otherLabel={item.otherLabel}
+                otherDescription={item.otherDescription}
+                multiSelect={true}
+                active={useOther[i] === true}
+                otherText={otherText[i] ?? ''}
+                onOtherText={(v) => {
+                  setOtherText((prev) => ({ ...prev, [i]: v }));
+                }}
+                onToggle={(checked) => {
+                  setUseOther((prev) => ({ ...prev, [i]: checked }));
+                }}
               />
-              <span className="flex-1">
-                <span className="text-fg">{item.otherLabel ?? OTHER_LABEL_DEFAULT}</span>
-                {item.otherDescription !== undefined && (
-                  <span className="block text-xs text-fg-muted">{item.otherDescription}</span>
-                )}
-                {useOther[i] === true && (
-                  <input
-                    type="text"
-                    value={otherText[i] ?? ''}
-                    onChange={(e) => {
-                      setOtherText((prev) => ({ ...prev, [i]: e.target.value }));
-                    }}
-                    placeholder="Type a custom answer…"
-                    className="mt-1 w-full rounded border border-border-strong bg-input-fill px-2 py-1 text-sm outline-none focus:border-state-info"
-                  />
-                )}
-              </span>
-            </label>
+            )}
           </div>
         </div>
       ))}
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => void submit()}
-          className="rounded-md bg-state-info px-3 py-1 text-sm text-on-brand hover:opacity-90 disabled:opacity-50"
-        >
+        <Button type="button" size="sm" disabled={submitting} onClick={() => void submit()}>
           Submit
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
+          variant="outline"
           disabled={submitting}
           onClick={() => void dismiss()}
-          className="rounded-md border border-border-strong px-3 py-1 text-sm text-fg-muted hover:bg-hover disabled:opacity-50"
         >
           Dismiss
-        </button>
+        </Button>
       </div>
     </div>
+  );
+}
+
+function OtherRow(props: {
+  otherLabel: string | undefined;
+  otherDescription: string | undefined;
+  multiSelect: boolean;
+  active: boolean;
+  otherText: string;
+  onOtherText: (v: string) => void;
+  onToggle?: (checked: boolean) => void;
+}): React.JSX.Element {
+  const { otherLabel, otherDescription, multiSelect, active, otherText, onOtherText, onToggle } =
+    props;
+  return (
+    <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-hover">
+      {multiSelect ? (
+        <Checkbox
+          className="mt-0.5"
+          checked={active}
+          onCheckedChange={(checked) => {
+            onToggle?.(checked === true);
+          }}
+        />
+      ) : (
+        <RadioGroupItem className="mt-0.5" value="__other__" />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="text-fg">{otherLabel ?? OTHER_LABEL_DEFAULT}</span>
+        {otherDescription !== undefined && (
+          <span className="block text-xs text-fg-muted">{otherDescription}</span>
+        )}
+        {active && (
+          <input
+            type="text"
+            value={otherText}
+            onChange={(e) => {
+              onOtherText(e.target.value);
+            }}
+            placeholder="Type a custom answer…"
+            className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-2 py-1 text-sm outline-none focus:border-state-info"
+          />
+        )}
+      </span>
+    </label>
+  );
+}
+
+function OptionBody(props: { label: string; description?: string }): React.JSX.Element {
+  const { label, description } = props;
+  return (
+    <span className="min-w-0">
+      <span className="text-fg">{label}</span>
+      {description !== undefined && (
+        <span className="block text-xs text-fg-muted">{description}</span>
+      )}
+    </span>
   );
 }

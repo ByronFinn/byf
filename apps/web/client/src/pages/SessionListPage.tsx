@@ -5,6 +5,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '#/api';
 import { sessionListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select';
 import { useWorkDir } from '#/hooks/useWorkDir';
 import type { PermissionMode, SessionSummary } from '#/types';
 
@@ -80,7 +87,17 @@ export function SessionListPage(): React.JSX.Element {
           </div>
         )}
 
-        {isLoading && <div className="text-sm text-fg-muted">Loading sessions…</div>}
+        {isLoading && (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-16 animate-pulse rounded-lg border border-border bg-surface-1"
+                aria-hidden
+              />
+            ))}
+          </div>
+        )}
 
         {sessions !== undefined && (
           <div className="space-y-2">
@@ -105,17 +122,21 @@ export function SessionListPage(): React.JSX.Element {
               placeholder="model alias (optional — uses default if blank)"
               className="rounded-lg border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none focus:border-brand"
             />
-            <select
+            <Select
               value={permission}
-              onChange={(e) => {
-                setPermission(e.target.value as PermissionMode);
+              onValueChange={(value) => {
+                setPermission(value as PermissionMode);
               }}
-              className="rounded-lg border border-border-strong bg-input-fill px-3 py-2 text-sm outline-none"
             >
-              <option value="manual">manual</option>
-              <option value="auto">auto</option>
-              <option value="yolo">yolo</option>
-            </select>
+              <SelectTrigger className="w-32" aria-label="Permission mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">manual</SelectItem>
+                <SelectItem value="auto">auto</SelectItem>
+                <SelectItem value="yolo">yolo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button
             type="button"

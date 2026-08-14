@@ -73,9 +73,11 @@ export function SessionSidebar(): React.JSX.Element | null {
         {sessions?.map((s) => (
           <SidebarRow key={s.id} session={s} active={s.id === activeId} />
         ))}
-        {isFetching && sessions === undefined && (
-          <p className="px-2 py-4 text-xs text-fg-subtle">Loading…</p>
-        )}
+        {isFetching &&
+          sessions === undefined &&
+          [0, 1, 2].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-md bg-surface-2" aria-hidden />
+          ))}
       </nav>
     </aside>
   );

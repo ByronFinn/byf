@@ -86,7 +86,7 @@
 
   --fg: var(--color-neutral-200);
   --fg-muted: oklch(0.68 0.008 255);
-  --fg-subtle: oklch(0.6 0.008 255);
+  --fg-subtle: oklch(0.62 0.008 255);
 
   --border: oklch(0.3 0.008 255 / 0.45);
   --border-strong: oklch(0.3 0.008 255 / 0.8);
@@ -108,8 +108,9 @@
   --elev-2: 0 4px 16px oklch(0 0 0 / 0.35);
   --elev-3: 0 12px 40px oklch(0 0 0 / 0.45);
 
-  /* 代码块底色(浅色下仍用深底,对比更强) */
+  /* 代码块(浅色下仍用深底,故文字也不随主题翻转) */
   --code-bg: oklch(0.16 0.006 255);
+  --code-fg: oklch(0.68 0.008 255);
 
   /* 动效三档时长 */
   --duration-fast: 120ms;
@@ -128,7 +129,7 @@
 
   --fg: oklch(0.18 0.006 255);
   --fg-muted: oklch(0.45 0.01 255);
-  --fg-subtle: oklch(0.52 0.01 255);
+  --fg-subtle: oklch(0.5 0.01 255);
 
   --border: oklch(0.85 0.006 255);
   --border-strong: oklch(0.75 0.006 255);
@@ -212,6 +213,7 @@
   --color-sidebar: var(--sidebar-fill);
   --color-input-fill: var(--input-fill);
   --color-code: var(--code-bg);
+  --color-code-fg: var(--code-fg);
   --shadow-1: var(--elev-1);
   --shadow-2: var(--elev-2);
   --shadow-3: var(--elev-3);

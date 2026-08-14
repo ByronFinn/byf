@@ -9,9 +9,8 @@ export function StatusBar(props: {
   status: StatusView | null;
   busy: boolean;
   connected: boolean;
-  onCancel: () => void;
 }): React.JSX.Element {
-  const { sessionId, status, busy, connected, onCancel } = props;
+  const { sessionId, status, busy, connected } = props;
   const usagePct =
     status?.contextUsage !== undefined
       ? Math.round(status.contextUsage * 100)
@@ -62,15 +61,6 @@ export function StatusBar(props: {
             </button>
           ))}
         </div>
-        {busy && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-state-error/50 px-2 py-0.5 text-state-error hover:bg-hover"
-          >
-            Cancel
-          </button>
-        )}
       </div>
     </div>
   );

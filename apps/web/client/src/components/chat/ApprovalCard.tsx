@@ -1,6 +1,8 @@
+import { ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 
 import { api } from '#/api';
+import { Button } from '#/components/ui/button';
 import { summarizeDisplay } from '#/lib/tool-display';
 import type { ApprovalRequest } from '#/types';
 
@@ -23,42 +25,42 @@ export function ApprovalCard(props: {
   };
 
   return (
-    <div className="rounded-xl border border-state-warning/40 bg-state-warning/5 p-3">
+    <div className="rounded-xl border border-state-warning/40 bg-state-warning/5 p-3 shadow-1">
       <div className="mb-1 flex items-center gap-2 text-sm">
-        <span
-          className="inline-block h-2 w-2 animate-pulse rounded-full bg-state-warning"
-          aria-hidden
-        />
+        <ShieldAlert className="size-4 shrink-0 animate-pulse text-state-warning" aria-hidden />
         <span className="font-mono text-state-warning">{request.toolName}</span>
         <span className="text-fg-muted">·</span>
         <span className="text-fg-muted">{request.action}</span>
       </div>
       {summary !== null && <div className="mb-2 font-mono text-xs text-fg-muted">{summary}</div>}
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
           type="button"
+          size="sm"
           disabled={submitting}
           onClick={() => void decide('approved')}
-          className="rounded-md bg-brand px-3 py-1 text-sm text-on-brand hover:bg-brand-strong disabled:opacity-50"
         >
           Approve
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
+          variant="outline"
           disabled={submitting}
           onClick={() => void decide('approved', 'session')}
-          className="rounded-md border border-brand/60 px-3 py-1 text-sm text-brand hover:bg-hover disabled:opacity-50"
         >
           Approve · this session
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
+          variant="outline"
           disabled={submitting}
           onClick={() => void decide('rejected')}
-          className="rounded-md border border-state-error/60 px-3 py-1 text-sm text-state-error hover:bg-hover disabled:opacity-50"
+          className="border-state-error/60 text-state-error hover:bg-hover hover:text-state-error"
         >
           Reject
-        </button>
+        </Button>
       </div>
     </div>
   );

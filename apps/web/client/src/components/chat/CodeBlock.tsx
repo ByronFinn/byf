@@ -54,7 +54,7 @@ export function CodeBlock(props: {
   return (
     <div className="my-3 overflow-hidden rounded-lg border border-border bg-code shadow-1">
       <div className="flex items-center justify-between border-b border-border px-3 py-1">
-        <span className="font-mono text-xs text-fg-subtle">{label}</span>
+        <span className="font-mono text-xs text-code-fg">{label}</span>
         <button
           type="button"
           onClick={() => void copy()}
@@ -71,7 +71,7 @@ export function CodeBlock(props: {
       {html !== null ? (
         <div className="codeblock-highlight" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
-        <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-fg">
+        <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-code-fg">
           <code>{code}</code>
         </pre>
       )}
