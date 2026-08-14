@@ -340,3 +340,15 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 ### 项目本地配置（`.byf/local.toml`）
 
 位于项目根下的工作区本地配置文件，与用户级 `~/.byf/config.toml` 分离。当前用途：`workspace.additional_dir` 数组（`/add-dir` 记住的额外根）。可按团队需要加入 `.gitignore`。
+
+### web 客户端 / web-client（`apps/web`）
+
+浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层。
+
+### 三层设计 token
+
+byf web 客户端 UI 重设计（PRD-0033 / ADR 0035）的设计 token 分层体系：原始色板（`--color-green-*` / `neutral-*` / 状态色）→ 语义别名（`--color-bg` / `surface-*` / `fg` / `border` / `brand`）→ 组件专用（`--color-bubble` 等）。用 OKLCH 色彩空间 + Tailwind v4 `@theme` 表达。源自 deepseek-harness 三层 token 思想。
+
+### 步骤时间轴 (Step Timeline)
+
+byf web 客户端 assistant 消息的渲染结构：把 thinking / tool / text 组织成 step，左侧竖线 + 圆点（活跃项辉光），可视化 agent 执行流。源自 kimi-code。是 PRD-0033 视觉风格（deepseek 精致骨架 + kimi 时间轴融合）的一部分。
