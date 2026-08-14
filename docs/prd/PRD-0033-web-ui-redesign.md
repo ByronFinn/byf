@@ -1,6 +1,6 @@
 # PRD-0033: byf Web 客户端 UI 重设计（`apps/web/client`）
 
-> **Status**: Implemented | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: Done | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
 
 ## Goal
 
@@ -227,7 +227,7 @@
   - #305 — [PRD-0033] Composer + 审批/提问卡片 + 空状态 + 回归 (Done)
 - **Sliced by**: `/story`（2026-08-14）→ 6 个 vertical slices，依赖链 300→301→302→303→304→305
 - **Implemented by**: `/implement`(2026-08-14)— 6 slices 全部完成;E2E 验证于真实 session(流式/时间轴/代码高亮/主题三态);顺带修复 web-server 存量 bug(SSE idleTimeout 掐断 + 并发 resume 双广播)
-- **Reviewed by**: `/review`(2026-08-14)— 进行中
+- **Reviewed by**: `/review`(2026-08-14)— 三视角(Test/Code/Impact)通过;阻塞项(bun.lock 未提交、fmt)已修复,minor 项(CodeBlock catch、IME isComposing、enabled 口径、死代码、resume 失败重试测试)已收尾
 - **New terms**: 三层设计 token、设计 token 地基、渲染层 / 逻辑层分离（见上）
 - **New decisions**: shadcn 混合路线 + 深浅双主题 + 保留绿色品牌色（建议升格 ADR-0035）
 
