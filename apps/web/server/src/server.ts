@@ -52,6 +52,7 @@ export async function startWebServer(
     manager,
     authToken,
     publicDir: options.publicDir,
+    homeDir: resolveByfHome(),
   });
 
   const server = Bun.serve({

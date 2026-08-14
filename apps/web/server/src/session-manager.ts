@@ -4,12 +4,15 @@ import type {
   ApprovalHandler,
   ApprovalRequest,
   ApprovalResponse,
+  ByfConfig,
+  ByfConfigPatch,
   CreateSessionOptions,
   Event,
   PermissionMode,
   QuestionHandler,
   QuestionRequest,
   QuestionResult,
+  ResumedSessionSummary,
   Unsubscribe,
 } from '@byfriends/sdk';
 import type {
@@ -36,6 +39,7 @@ export interface SessionLike {
   steer(input: string): Promise<void>;
   cancel(): Promise<void>;
   setPermission(mode: PermissionMode): Promise<void>;
+  setModel(model: string): Promise<void>;
   getStatus(): Promise<SessionStatus>;
   close(): Promise<void>;
 }
@@ -44,6 +48,10 @@ export interface HarnessLike {
   createSession(options: CreateSessionOptions): Promise<SessionLike>;
   resumeSession(input: { readonly id: string }): Promise<SessionLike>;
   listSessions(options: { readonly workDir: string }): Promise<readonly SessionSummary[]>;
+  getConfig(): Promise<ByfConfig>;
+  setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
+  removeProvider(providerId: string): Promise<ByfConfig>;
+  readonly configPath: string;
   close(): Promise<void>;
 }
 
@@ -99,9 +107,11 @@ export class WebSessionManager {
     return session.summary ?? toSummary(session);
   }
 
-  async resumeSession(id: string): Promise<SessionSummary> {
+  async resumeSession(id: string): Promise<ResumedSessionSummary> {
     const session = await this.resumeSessionOnce(id);
-    return session.summary ?? toSummary(session);
+    // 真实 harness 的 Session.summary 即完整 ResumeSessionResult(含
+    // agents.main.replay);fake 无 resume 状态时退化为普通摘要。
+    return (session.summary ?? toSummary(session)) as ResumedSessionSummary;
   }
 
   /**
@@ -172,6 +182,28 @@ export class WebSessionManager {
 
   async setPermission(id: string, mode: PermissionMode): Promise<void> {
     await this.requireSession(id).setPermission(mode);
+  }
+
+  async setModel(id: string, model: string): Promise<void> {
+    await this.requireSession(id).setModel(model);
+  }
+
+  // ---- 配置(直通 harness;设置页读写 byf 配置) --------------------------------
+
+  get configPath(): string {
+    return this.harness.configPath;
+  }
+
+  getConfig(): Promise<ByfConfig> {
+    return this.harness.getConfig();
+  }
+
+  setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
+    return this.harness.setConfig(patch);
+  }
+
+  removeProvider(providerId: string): Promise<ByfConfig> {
+    return this.harness.removeProvider(providerId);
   }
 
   // ---- 反向 RPC 裁决 ---------------------------------------------------------

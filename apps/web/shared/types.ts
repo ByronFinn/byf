@@ -9,10 +9,13 @@
  */
 
 import type {
+  AgentReplayRecord,
   ApprovalDecision,
   ApprovalRequest,
   ApprovalResponse,
   ApprovalScope,
+  ContentPart,
+  ContextMessage,
   Event,
   PermissionMode,
   QuestionAnswerMethod,
@@ -22,6 +25,7 @@ import type {
   QuestionRequest,
   QuestionResponse,
   QuestionResult,
+  ResumedSessionSummary,
   SessionStatus,
   SessionSummary,
   ToolInputDisplay,
@@ -29,6 +33,9 @@ import type {
 
 // 公开再导出:消费方(web-client / web-server)从 web-shared 取线路类型。
 export type {
+  AgentReplayRecord,
+  ContentPart,
+  ContextMessage,
   Event,
   ApprovalRequest,
   ApprovalResponse,
@@ -43,6 +50,7 @@ export type {
   QuestionResponse,
   QuestionResult,
   PermissionMode,
+  ResumedSessionSummary,
   SessionSummary,
   SessionStatus,
 };
@@ -128,6 +136,16 @@ export interface SetPermissionBody {
   readonly mode: PermissionMode;
 }
 
+export interface UpdateSessionModelBody {
+  readonly model: string;
+}
+
+export interface UpdateConfigBody {
+  readonly defaultModel?: string;
+  readonly defaultPermissionMode?: PermissionMode;
+  readonly defaultThinking?: boolean;
+}
+
 export interface ApprovalDecisionBody {
   readonly decision: ApprovalDecision;
   readonly scope?: ApprovalScope;
@@ -145,13 +163,75 @@ export interface ListSessionsResponse {
   readonly sessions: readonly SessionSummary[];
 }
 
+// ---- 工作区(对齐 deepseek harness 侧边栏:workDir 即工作区) -----------------
+
+/** 一个工作区:目录路径 + 显示名(basename)+ 该目录下的会话。 */
+export interface WorkspaceView {
+  readonly workDir: string;
+  readonly title: string;
+  readonly sessions: readonly SessionSummary[];
+}
+
+export interface WorkspaceListResponse {
+  readonly workspaces: readonly WorkspaceView[];
+}
+
+export interface CreateWorkspaceBody {
+  readonly path: string;
+}
+
+export interface WorkspaceResponse {
+  readonly workspace: WorkspaceView;
+}
+
+/** 原生目录选择结果:取消时为 null。 */
+export interface PickDirectoryResponse {
+  readonly path: string | null;
+}
+
 export interface CreateSessionResponse {
   readonly session: SessionSummary;
+}
+
+/**
+ * resume 响应。运行时对象即 SDK 的完整 `ResumeSessionResult`——除摘要字段外
+ * 还携带 `agents.main.replay`(agent-core 从磁盘 wire 重建的历史记录),客户端
+ * 据此恢复转录;此处仅收敛其类型,线路数据自 resume 端点原样透传。
+ */
+export interface ResumeSessionResponse {
+  readonly session: ResumedSessionSummary;
 }
 
 export interface SessionStatusResponse {
   readonly session: SessionSummary;
   readonly status: SessionStatus;
+}
+
+// ---- 配置(设置弹层;脱敏视图,apiKey 不回线路) --------------------------------
+
+/** 模型别名条目(可设为默认)。 */
+export interface ConfigModelView {
+  readonly id: string;
+  readonly provider: string;
+  readonly model: string;
+  readonly displayName?: string;
+}
+
+/** provider 摘要(不携带密钥本身,仅是否已配置)。 */
+export interface ConfigProviderView {
+  readonly id: string;
+  readonly type: string;
+  readonly baseUrl?: string;
+  readonly hasApiKey: boolean;
+}
+
+export interface ConfigResponse {
+  readonly configPath: string;
+  readonly defaultModel?: string;
+  readonly defaultPermissionMode?: PermissionMode;
+  readonly defaultThinking?: boolean;
+  readonly models: readonly ConfigModelView[];
+  readonly providers: readonly ConfigProviderView[];
 }
 
 export interface ApiError {

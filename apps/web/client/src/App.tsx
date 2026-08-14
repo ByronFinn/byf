@@ -2,13 +2,13 @@ import { Route, Routes, useParams } from 'react-router-dom';
 
 import { AppShell } from '#/components/layout/AppShell';
 import { ChatPage } from '#/pages/ChatPage';
-import { SessionListPage } from '#/pages/SessionListPage';
 
 export function App(): React.JSX.Element {
   return (
     <AppShell>
       <Routes>
-        <Route path="/" element={<SessionListPage />} />
+        {/* "/" = 新会话 hero(无 sessionId);带 id 走 ChatRoute */}
+        <Route path="/" element={<ChatPage />} />
         <Route path="/sessions/:sessionId" element={<ChatRoute />} />
       </Routes>
     </AppShell>

@@ -1,26 +1,103 @@
+import { stat } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
+
+import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
 import type {
   ApprovalDecisionBody,
+  ConfigResponse,
   CreateSessionBody,
+  CreateWorkspaceBody,
   PromptBody,
   QuestionAnswerBody,
   ServerFrame,
   SetPermissionBody,
   SteerBody,
+  UpdateConfigBody,
+  UpdateSessionModelBody,
+  WorkspaceView,
 } from '@byfriends/web-shared';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 
 import { AsyncQueue } from './async-queue';
+import { pickDirectoryNative } from './native-directory-picker';
 import type { WebSessionManager } from './session-manager';
+import { WorkspaceRegistry, listIndexedWorkDirs, workspaceTitle } from './workspace-registry';
 
 const VALID_DECISIONS: ReadonlySet<string> = new Set(['approved', 'rejected', 'cancelled']);
 const VALID_PERMISSIONS: ReadonlySet<string> = new Set(['yolo', 'manual', 'auto']);
 const HEARTBEAT_MS = 20_000;
 
 /** 构建挂载在 `/api` 下的路由树(无鉴权——鉴权由 `createApp` 包裹)。 */
-export function createApiRouter(manager: WebSessionManager): Hono {
+export function createApiRouter(manager: WebSessionManager, homeDir: string): Hono {
   const r = new Hono();
+
+  // ---- 工作区(侧边栏分组/添加;workDir 即工作区) ----
+  r.get('/workspaces', async (c) => {
+    const registry = new WorkspaceRegistry(homeDir);
+    const registered = await registry.list();
+    // 用户删除过的工作区从索引枚举中同样排除,否则会"删除后复活"
+    const hidden = new Set(await registry.hidden());
+    const indexed = (await listIndexedWorkDirs(homeDir)).filter((dir) => !hidden.has(dir));
+    const ordered = [...registered, ...indexed.filter((dir) => !registered.includes(dir))];
+
+    const views = new Map<string, WorkspaceView>();
+    const sessionsList = await Promise.all(ordered.map((workDir) => manager.listSessions(workDir)));
+    for (const [i, workDir] of ordered.entries()) {
+      views.set(workDir, { workDir, title: workspaceTitle(workDir), sessions: sessionsList[i]! });
+    }
+    // 注册表顺序在前;仅索引出现的目录按最近会话更新时间倒序补入。
+    const registeredViews = registered
+      .map((dir) => views.get(dir))
+      .filter((v): v is WorkspaceView => v !== undefined);
+    const indexedOnly = [...views.values()]
+      .filter((v) => !registered.includes(v.workDir))
+      .toSorted(
+        (a, b) =>
+          maxSessionUpdatedAt(b) - maxSessionUpdatedAt(a) || (a.workDir < b.workDir ? -1 : 1),
+      );
+    return c.json({ workspaces: [...registeredViews, ...indexedOnly] });
+  });
+
+  r.post('/workspaces', async (c) => {
+    const body = await c.req.json<CreateWorkspaceBody>();
+    const path = (body.path ?? '').trim();
+    if (path.length === 0) return badRequest(c, 'path is required');
+    if (!isAbsolute(path)) return badRequest(c, 'path must be absolute');
+    const resolved = resolve(path);
+    let isDir = false;
+    try {
+      isDir = (await stat(resolved)).isDirectory();
+    } catch {
+      // 目录不存在 → 400
+    }
+    if (!isDir) return badRequest(c, `not a directory: ${resolved}`);
+
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(resolved);
+    const sessions = await manager.listSessions(resolved);
+    return c.json({ workspace: { workDir: resolved, title: workspaceTitle(resolved), sessions } });
+  });
+
+  r.delete('/workspaces', async (c) => {
+    const workDir = c.req.query('workDir') ?? '';
+    if (workDir.length === 0) return badRequest(c, 'workDir query is required');
+    const registry = new WorkspaceRegistry(homeDir);
+    const removed = await registry.remove(resolve(workDir));
+    return c.json({ ok: true, removed });
+  });
+
+  r.post('/workspaces/pick', async (c) => {
+    if (process.platform !== 'darwin') {
+      return c.json(
+        { error: 'native directory picker is only available on macOS', code: 'UNSUPPORTED' },
+        501,
+      );
+    }
+    const path = await pickDirectoryNative();
+    return c.json({ path });
+  });
 
   // ---- 会话集合 ----
   r.get('/sessions', async (c) => {
@@ -108,6 +185,45 @@ export function createApiRouter(manager: WebSessionManager): Hono {
     return c.json({ ok: true });
   });
 
+  r.patch('/sessions/:id/model', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<UpdateSessionModelBody>();
+    const model = (body.model ?? '').trim();
+    if (model.length === 0) return badRequest(c, 'model is required');
+    await manager.setModel(id, model);
+    return c.json({ ok: true });
+  });
+
+  // ---- 配置(设置弹层:默认模型 / 默认权限 / 默认思考) -------------------------
+
+  r.get('/config', async (c) => {
+    const cfg = await manager.getConfig();
+    return c.json(toConfigResponse(cfg, manager.configPath));
+  });
+
+  r.patch('/config', async (c) => {
+    const body = await c.req.json<UpdateConfigBody>();
+    const patch: ByfConfigPatch = {};
+    if (body.defaultModel !== undefined) patch.defaultModel = body.defaultModel;
+    if (body.defaultPermissionMode !== undefined) {
+      if (!VALID_PERMISSIONS.has(body.defaultPermissionMode)) {
+        return badRequest(c, 'defaultPermissionMode must be one of: yolo, manual, auto');
+      }
+      patch.defaultPermissionMode = body.defaultPermissionMode;
+    }
+    if (body.defaultThinking !== undefined) patch.defaultThinking = body.defaultThinking;
+    if (Object.keys(patch).length === 0) return badRequest(c, 'no updatable fields provided');
+    const cfg = await manager.setConfig(patch);
+    return c.json(toConfigResponse(cfg, manager.configPath));
+  });
+
+  r.delete('/config/providers/:id', async (c) => {
+    const id = c.req.param('id');
+    if (id.length === 0) return badRequest(c, 'provider id is required');
+    const cfg = await manager.removeProvider(id);
+    return c.json(toConfigResponse(cfg, manager.configPath));
+  });
+
   // ---- 反向 RPC 裁决 ----
   r.post('/sessions/:id/approvals/:requestId', async (c) => {
     const requestId = c.req.param('requestId');
@@ -173,4 +289,35 @@ function badRequest(c: Context, error: string): Response {
 
 function notFound(c: Context, error: string): Response {
   return c.json({ error, code: 'NOT_FOUND' }, 404);
+}
+
+/** 工作区最近会话更新时间(无会话 → 0)。 */
+function maxSessionUpdatedAt(workspace: WorkspaceView): number {
+  let max = 0;
+  for (const session of workspace.sessions) {
+    if (session.updatedAt > max) max = session.updatedAt;
+  }
+  return max;
+}
+
+/** 把 ByfConfig 映射为脱敏线路视图(apiKey 不回线路,仅标记是否已配置)。 */
+function toConfigResponse(cfg: ByfConfig, configPath: string): ConfigResponse {
+  return {
+    configPath,
+    defaultModel: cfg.defaultModel,
+    defaultPermissionMode: cfg.defaultPermissionMode,
+    defaultThinking: cfg.defaultThinking,
+    models: Object.entries(cfg.models ?? {}).map(([id, m]) => ({
+      id,
+      provider: m.provider,
+      model: m.model,
+      displayName: m.displayName,
+    })),
+    providers: Object.entries(cfg.providers ?? {}).map(([id, p]) => ({
+      id,
+      type: p.type,
+      baseUrl: p.baseUrl,
+      hasApiKey: p.apiKey !== undefined && p.apiKey.length > 0,
+    })),
+  };
 }

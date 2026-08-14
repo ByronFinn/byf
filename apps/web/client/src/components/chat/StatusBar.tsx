@@ -1,23 +1,21 @@
-import { api } from '#/api';
 import type { StatusView } from '#/lib/chat';
-import type { PermissionMode } from '#/types';
 
-const PERMISSIONS: readonly PermissionMode[] = ['yolo', 'manual', 'auto'];
-
+/**
+ * 顶部状态栏:会话状态 + 模型 + 上下文占用。权限选择已移入 Composer
+ * 底栏(对齐 deepseek 的 PermissionSelect 座位)。
+ */
 export function StatusBar(props: {
-  sessionId: string;
   status: StatusView | null;
   busy: boolean;
   connected: boolean;
 }): React.JSX.Element {
-  const { sessionId, status, busy, connected } = props;
+  const { status, busy, connected } = props;
   const usagePct =
     status?.contextUsage !== undefined
       ? Math.round(status.contextUsage * 100)
       : status?.maxContextTokens && status?.contextTokens
         ? Math.round((status.contextTokens / status.maxContextTokens) * 100)
         : undefined;
-  const current = status?.permission ?? 'manual';
 
   return (
     <div className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-1.5 text-xs text-fg-muted">
@@ -46,22 +44,6 @@ export function StatusBar(props: {
           <span>ctx {usagePct}%</span>
         </>
       )}
-      <div className="ml-auto flex items-center gap-1">
-        <div className="flex overflow-hidden rounded-md border border-border">
-          {PERMISSIONS.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => void api.setPermission(sessionId, mode)}
-              className={`px-2 py-0.5 ${
-                current === mode ? 'bg-brand text-on-brand' : 'text-fg-muted hover:bg-hover'
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

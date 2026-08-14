@@ -1,15 +1,24 @@
 import type {
   ApprovalDecisionBody,
+  ConfigResponse,
   CreateSessionBody,
   CreateSessionResponse,
+  CreateWorkspaceBody,
   ListSessionsResponse,
   PermissionMode,
+  PickDirectoryResponse,
   PromptBody,
   QuestionAnswerBody,
+  ResumeSessionResponse,
   SessionStatusResponse,
   SessionSummary,
   SetPermissionBody,
   SteerBody,
+  UpdateConfigBody,
+  UpdateSessionModelBody,
+  WorkspaceListResponse,
+  WorkspaceResponse,
+  WorkspaceView,
 } from '#/types';
 
 const TOKEN_STORAGE_KEY = 'byf-web-auth-token';
@@ -103,7 +112,19 @@ export const api = {
   getSession: (id: string) => request<SessionStatusResponse>(`/api/sessions/${enc(id)}`, 'GET'),
 
   resumeSession: (id: string) =>
-    request<{ session: SessionSummary }>(`/api/sessions/${enc(id)}/resume`, 'POST'),
+    request<ResumeSessionResponse>(`/api/sessions/${enc(id)}/resume`, 'POST'),
+
+  setSessionModel: (id: string, model: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${enc(id)}/model`, 'PATCH', {
+      model,
+    } satisfies UpdateSessionModelBody),
+
+  getConfig: () => request<ConfigResponse>('/api/config', 'GET'),
+
+  setConfig: (body: UpdateConfigBody) => request<ConfigResponse>('/api/config', 'PATCH', body),
+
+  removeProvider: (providerId: string) =>
+    request<ConfigResponse>(`/api/config/providers/${enc(providerId)}`, 'DELETE'),
 
   closeSession: (id: string) =>
     request<{ sessionId: string; closed: boolean }>(`/api/sessions/${enc(id)}`, 'DELETE'),
@@ -124,6 +145,20 @@ export const api = {
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/permission`, 'PATCH', {
       mode,
     } satisfies SetPermissionBody),
+
+  listWorkspaces: async (): Promise<WorkspaceView[]> => {
+    const r = await request<WorkspaceListResponse>('/api/workspaces', 'GET');
+    return [...r.workspaces];
+  },
+
+  addWorkspace: (path: string) =>
+    request<WorkspaceResponse>('/api/workspaces', 'POST', { path } satisfies CreateWorkspaceBody),
+
+  removeWorkspace: (workDir: string) =>
+    request<{ ok: boolean; removed: boolean }>(`/api/workspaces?workDir=${enc(workDir)}`, 'DELETE'),
+
+  /** 弹服务端原生目录选择器;取消 → null;平台不支持抛错(客户端 fallback)。 */
+  pickWorkspaceDirectory: () => request<PickDirectoryResponse>('/api/workspaces/pick', 'POST'),
 
   resolveApproval: (id: string, requestId: string, body: ApprovalDecisionBody) =>
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/approvals/${enc(requestId)}`, 'POST', body),

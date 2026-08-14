@@ -1,19 +1,28 @@
-import { PanelLeft, Terminal } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { Button } from '#/components/ui/button';
+import { cn } from '#/lib/utils';
 
 import { SessionSidebar } from './SessionSidebar';
-import { ThemeToggle } from './ThemeToggle';
+
+const COLLAPSED_KEY = 'byf.sidebar.collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 /**
- * 应用骨架(R7):顶栏(品牌 + 主题三态)+ 两栏 Grid —— 左常驻会话侧边栏,
- * 右主区。容器查询:容器宽 < @4xl(56rem)时侧边栏折叠为头部按钮唤出的
- * overlay(非模态导航面板:点击链接 / 遮罩 / Esc 关闭;打开时焦点移入面板,
- * 关闭时归还触发按钮)。
+ * 应用骨架(对齐 deepseek harness):无顶栏,两栏 Grid —— 左会话侧边栏
+ * (可折叠为 56px 图标 rail)+ 右主区。容器查询:容器宽 < @4xl(56rem)时
+ * 侧边栏折叠,主区左上角浮动按钮唤出 overlay(非模态导航面板)。
  */
 export function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed());
   const [navOpen, setNavOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -25,6 +34,18 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const closeNav = (): void => {
     setNavOpen(false);
     toggleRef.current?.focus();
+  };
+
+  const toggleCollapsed = (): void => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
+      } catch {
+        // 忽略持久化失败
+      }
+      return next;
+    });
   };
 
   // 打开时把焦点移入面板(非模态:背景仍可达,因此不承诺 aria-modal)
@@ -45,36 +66,31 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
 
   return (
     <div className="@container flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-1 px-4 py-2.5">
-        <Button
-          ref={toggleRef}
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="@4xl:hidden"
-          onClick={openNav}
-          aria-label="Open sessions sidebar"
-          aria-expanded={navOpen}
-        >
-          <PanelLeft aria-hidden />
-        </Button>
-        <Link to="/" className="flex items-center gap-2 font-semibold text-fg">
-          <span
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-on-brand"
-            aria-hidden
-          >
-            <Terminal className="size-3.5" />
-          </span>
-          byf <span className="text-xs font-normal text-fg-muted">web client</span>
-        </Link>
-        <div className="ml-auto">
-          <ThemeToggle />
-        </div>
-      </header>
       <div className="min-h-0 flex-1">
-        <div className="grid h-full min-h-0 grid-cols-1 @4xl:grid-cols-[264px_minmax(0,1fr)]">
-          <SessionSidebar />
-          <main className="min-h-0 min-w-0">{children}</main>
+        <div
+          className={cn(
+            'grid h-full min-h-0 grid-cols-1',
+            collapsed
+              ? '@4xl:grid-cols-[56px_minmax(0,1fr)]'
+              : '@4xl:grid-cols-[264px_minmax(0,1fr)]',
+          )}
+        >
+          <SessionSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+          <main className="relative min-h-0 min-w-0">
+            {children}
+            <Button
+              ref={toggleRef}
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="@4xl:hidden absolute top-3 left-3 z-30"
+              onClick={openNav}
+              aria-label="打开侧边栏"
+              aria-expanded={navOpen}
+            >
+              <PanelLeft aria-hidden />
+            </Button>
+          </main>
         </div>
       </div>
       {navOpen && (
@@ -84,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
             ref={panelRef}
             tabIndex={-1}
             role="dialog"
-            aria-label="Sessions sidebar"
+            aria-label="会话侧边栏"
             className="overlay-in absolute inset-y-0 left-0 w-[264px] outline-none shadow-3"
           >
             <SessionSidebar variant="overlay" onNavigate={closeNav} />

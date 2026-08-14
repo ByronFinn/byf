@@ -1062,7 +1062,9 @@ describe('ReadFileTracker', () => {
     const tracker = new ReadFileTracker(store);
 
     expect(tracker.hasRead('/tmp/a.txt')).toBe(false);
-    expect(() => tracker.markRead('/tmp/a.txt')).not.toThrow();
+    expect(() => {
+      tracker.markRead('/tmp/a.txt');
+    }).not.toThrow();
     expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { Hono } from 'hono';
 
+import { resolveByfHome } from './config';
 import { createApiRouter } from './routes';
 import { SessionNotFoundError, type WebSessionManager } from './session-manager';
 
@@ -108,6 +109,8 @@ export interface CreateAppOptions {
   readonly authToken?: string;
   /** 持有构建后 SPA 资产的目录;省略时自动探测。 */
   readonly publicDir?: string;
+  /** byf home 目录(工作区注册表 / 会话索引所在);默认 `resolveByfHome()`。 */
+  readonly homeDir?: string;
 }
 
 export interface CreateAppResult {
@@ -131,7 +134,7 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
       return c.json({ error: 'unauthorized', code: 'UNAUTHORIZED' }, 401);
     });
   }
-  api.route('/', createApiRouter(options.manager));
+  api.route('/', createApiRouter(options.manager, options.homeDir ?? resolveByfHome()));
   app.route('/api', api);
 
   app.onError((err, c) => {

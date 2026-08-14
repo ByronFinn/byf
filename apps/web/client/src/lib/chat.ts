@@ -1,5 +1,7 @@
 import type {
+  AgentReplayRecord,
   ApprovalRequest,
+  ContentPart,
   Event,
   PermissionMode,
   QuestionRequest,
@@ -91,6 +93,11 @@ export type ChatInput =
   | { type: 'reset' }
   | { type: 'user-message'; text: string }
   | { type: 'status-loaded'; status: SessionStatus }
+  | {
+      type: 'transcript-loaded';
+      entries: Entry[];
+      toolIndex: Map<string, { entry: number; part: number }>;
+    }
   | { type: 'frame'; frame: ServerFrame };
 
 export function chatReducer(state: ChatState, input: ChatInput): ChatState {
@@ -116,9 +123,87 @@ export function chatReducer(state: ChatState, input: ChatInput): ChatState {
       };
       return { ...state, status: { ...state.status, ...status } };
     }
+    case 'transcript-loaded':
+      return { ...state, entries: input.entries, toolIndex: input.toolIndex };
     case 'frame':
       return applyFrame(state, input.frame);
   }
+}
+
+/** 文本 part 提取(工具结果 / 用户消息只展示文本)。 */
+function textOf(parts: readonly ContentPart[]): string {
+  return parts
+    .filter((p): p is Extract<ContentPart, { type: 'text' }> => p.type === 'text')
+    .map((p) => p.text)
+    .join('');
+}
+
+/**
+ * 把 resume 响应中的 `agents.main.replay`(agent-core 从磁盘 wire 重建的历史)
+ * 映射为对话条目,使历史会话恢复转录。映射规则与 live 渲染一致:
+ * - user 消息 → UserEntry(仅文本);
+ * - assistant 消息 → AssistantEntry(text/think part + 每条 toolCall 一个 ToolPart,
+ *   挂起等待对应 tool 结果);
+ * - tool 角色消息 → 按 toolCallId 把 ToolPart 置为 done 并附结果文本;
+ * - system 消息与 config/permission/approval 记录不渲染(live 同样不渲染)。
+ * 返回的 toolIndex 供后续 live 事件继续对账(中断 turn 续流时工具结果落位)。
+ * 合成 turnId 不写入 turnIndex:replay 之后的 live turn 一律新建条目,避免与
+ * 历史条目的 id 空间撞车。
+ */
+export function replayToEntries(replay: readonly AgentReplayRecord[]): {
+  entries: Entry[];
+  toolIndex: Map<string, { entry: number; part: number }>;
+} {
+  const entries: Entry[] = [];
+  const toolIndex = new Map<string, { entry: number; part: number }>();
+  let userSeq = 0;
+  let turnSeq = 0;
+  for (const record of replay) {
+    if (record.type !== 'message') continue;
+    const { message } = record;
+    if (message.role === 'user') {
+      const text = textOf(message.content);
+      if (text.trim().length === 0) continue;
+      entries.push({ kind: 'user', id: `r-u-${userSeq++}`, text });
+    } else if (message.role === 'assistant') {
+      const parts: AssistantPart[] = [];
+      for (const part of message.content) {
+        if (part.type === 'text') parts.push({ kind: 'text', text: part.text });
+        else if (part.type === 'think') parts.push({ kind: 'thinking', text: part.think });
+        // image/audio/video 在 web 客户端不渲染,跳过
+      }
+      for (const call of message.toolCalls) {
+        const loc = { entry: entries.length, part: parts.length };
+        parts.push({
+          kind: 'tool',
+          toolCallId: call.id,
+          name: call.name,
+          status: 'running',
+        });
+        toolIndex.set(call.id, loc);
+      }
+      if (parts.length === 0) continue;
+      entries.push({ kind: 'assistant', id: `r-a-${turnSeq}`, turnId: turnSeq, parts });
+      turnSeq += 1;
+    } else if (message.role === 'tool') {
+      const loc = toolIndex.get(message.toolCallId ?? '');
+      if (loc === undefined) continue;
+      const entry = entries[loc.entry];
+      if (entry === undefined || entry.kind !== 'assistant') continue;
+      const part = entry.parts[loc.part];
+      if (part === undefined || part.kind !== 'tool') continue;
+      const parts = [...entry.parts];
+      parts[loc.part] = {
+        ...part,
+        status: 'done',
+        result: textOf(message.content),
+        isError: message.isError ?? false,
+      };
+      entries[loc.entry] = { ...entry, parts };
+    }
+    // role === 'system'(注入/压缩摘要等)不渲染
+  }
+  return { entries, toolIndex };
 }
 
 function applyFrame(state: ChatState, frame: ServerFrame): ChatState {

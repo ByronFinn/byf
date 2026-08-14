@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import type { ByfConfig, ByfConfigPatch, ResumedSessionSummary } from '@byfriends/sdk';
 import type {
   ApprovalRequest,
   ApprovalResponse,
@@ -11,6 +15,7 @@ import type {
   ServerFrame,
   SessionStatus,
   SessionSummary,
+  WorkspaceView,
 } from '@byfriends/web-shared';
 
 import { createApp } from './app';
@@ -39,6 +44,7 @@ class FakeSession implements SessionLike {
   lastPrompt: string | undefined;
   cancelled = false;
   permission: PermissionMode | undefined;
+  model: string | undefined;
   closed = false;
 
   constructor(id: string, workDir: string) {
@@ -102,6 +108,10 @@ class FakeSession implements SessionLike {
     this.permission = mode;
   }
 
+  async setModel(model: string): Promise<void> {
+    this.model = model;
+  }
+
   async getStatus(): Promise<SessionStatus> {
     return this.status;
   }
@@ -114,6 +124,11 @@ class FakeSession implements SessionLike {
 class FakeHarness implements HarnessLike {
   readonly sessions = new Map<string, FakeSession>();
   closed = false;
+  config: ByfConfig = {
+    providers: {},
+    models: {},
+  };
+  configPath = '/tmp/fake-config.toml';
 
   async createSession(options: {
     readonly workDir: string;
@@ -121,6 +136,7 @@ class FakeHarness implements HarnessLike {
   }): Promise<SessionLike> {
     const id = randomUUID();
     const session = new FakeSession(id, options.workDir);
+    session.model = options.model;
     this.sessions.set(id, session);
     return session;
   }
@@ -137,6 +153,22 @@ class FakeHarness implements HarnessLike {
     return [...this.sessions.values()]
       .filter((s) => s.workDir === options.workDir)
       .map((s) => s.summary);
+  }
+
+  async getConfig(): Promise<ByfConfig> {
+    return this.config;
+  }
+
+  async setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
+    this.config = { ...this.config, ...patch } as ByfConfig;
+    return this.config;
+  }
+
+  async removeProvider(providerId: string): Promise<ByfConfig> {
+    const providers = { ...this.config.providers };
+    delete providers[providerId];
+    this.config = { ...this.config, providers };
+    return this.config;
   }
 
   async close(): Promise<void> {
@@ -500,5 +532,388 @@ describe('HTTP routes', () => {
     // ?token= 查询也放行(EventSource 用)
     const okQuery = await app.request('/api/sessions?workDir=/x&token=s3cr3t');
     expect(okQuery.status).toBe(200);
+  });
+});
+
+// ---- 工作区路由(临时 homeDir:注册表 + 会话索引) ------------------------------
+
+describe('Workspace routes', () => {
+  const dirs: string[] = [];
+  async function setup(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    homeDir: string;
+    /** 真实存在的工作区目录(POST /workspaces 校验目录存在)。 */
+    projDir: string;
+  }> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-ws-test-'));
+    const projDir = await mkdtemp(join(tmpdir(), 'byf-ws-proj-'));
+    dirs.push(homeDir, projDir);
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir });
+    return { app: result.app, harness, homeDir, projDir };
+  }
+
+  afterEach(async () => {
+    while (dirs.length > 0) {
+      await rm(dirs.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  async function createSession(app: Awaited<ReturnType<typeof createApp>>['app'], workDir: string) {
+    const res = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir }),
+    });
+    return ((await res.json()) as { session: SessionSummary }).session;
+  }
+
+  test('POST 添加工作区;GET 枚举注册表工作区及其会话', async () => {
+    const { app, homeDir, projDir } = await setup();
+    await createSession(app, projDir);
+
+    const added = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    expect(added.status).toBe(200);
+    const addedData = (await added.json()) as { workspace: WorkspaceView };
+    expect(addedData.workspace.title).toBe(projDir.split('/').pop() ?? projDir);
+    expect(addedData.workspace.sessions.length).toBe(1);
+
+    const listed = await app.request('/api/workspaces');
+    const listData = (await listed.json()) as { workspaces: WorkspaceView[] };
+    expect(listData.workspaces.map((w) => w.workDir)).toEqual([projDir]);
+
+    // 注册表落盘(新格式:order + hidden)
+    const registryRaw = await Bun.file(join(homeDir, 'workspaces.json')).text();
+    expect(JSON.parse(registryRaw)).toEqual({ order: [projDir], hidden: [] });
+  });
+
+  test('GET 合并会话索引中未注册的 workDir(按最近更新时间倒序)', async () => {
+    const { app, homeDir, harness } = await setup();
+    // 会话索引直接写入(模拟其他来源的会话)
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      '{"sessionId":"s1","sessionDir":"/x/s1","workDir":"/old-dir"}\n' +
+        '{"sessionId":"s2","sessionDir":"/x/s2","workDir":"/recent-dir"}\n',
+      'utf-8',
+    );
+    const recent = await createSession(app, '/recent-dir');
+    const old = await createSession(app, '/old-dir');
+    patchSummary(harness.sessions.get(recent.id)!, { updatedAt: 200 });
+    patchSummary(harness.sessions.get(old.id)!, { updatedAt: 100 });
+
+    const listed = await app.request('/api/workspaces');
+    const listData = (await listed.json()) as { workspaces: WorkspaceView[] };
+    expect(listData.workspaces.map((w) => w.workDir)).toEqual(['/recent-dir', '/old-dir']);
+  });
+
+  test('POST 拒绝相对路径与不存在目录;重复添加幂等', async () => {
+    const { app, projDir } = await setup();
+    const rel = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: 'relative/dir' }),
+    });
+    expect(rel.status).toBe(400);
+
+    const missing = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: '/definitely/not/here' }),
+    });
+    expect(missing.status).toBe(400);
+
+    const first = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    const second = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+
+    const listed = await app.request('/api/workspaces');
+    const listData = (await listed.json()) as { workspaces: WorkspaceView[] };
+    expect(listData.workspaces.map((w) => w.workDir)).toEqual([projDir]);
+  });
+
+  test('DELETE 从注册表移除(会话保留)', async () => {
+    const { app, projDir } = await setup();
+    await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    const del = await app.request(`/api/workspaces?workDir=${encodeURIComponent(projDir)}`, {
+      method: 'DELETE',
+    });
+    expect(del.status).toBe(200);
+    expect(((await del.json()) as { removed: boolean }).removed).toBe(true);
+
+    const listed = await app.request('/api/workspaces');
+    const listData = (await listed.json()) as { workspaces: WorkspaceView[] };
+    expect(listData.workspaces).toEqual([]);
+  });
+
+  test('损坏的注册表视为空表,可恢复写入', async () => {
+    const { app, homeDir, projDir } = await setup();
+    await writeFile(join(homeDir, 'workspaces.json'), '{not json', 'utf-8');
+    const listed = await app.request('/api/workspaces');
+    expect(listed.status).toBe(200);
+    expect(((await listed.json()) as { workspaces: WorkspaceView[] }).workspaces).toEqual([]);
+
+    await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: projDir }),
+    });
+    const registryRaw = await Bun.file(join(homeDir, 'workspaces.json')).text();
+    expect(JSON.parse(registryRaw)).toEqual({ order: [projDir], hidden: [] });
+  });
+
+  test('DELETE 后即使会话索引仍含该目录也不再出现;重新添加恢复原位置', async () => {
+    const { app, homeDir } = await setup();
+    // 两个真实存在的目录(注册校验需要目录存在)
+    const oldDir = await mkdtemp(join(tmpdir(), 'byf-ws-old-'));
+    const recentDir = await mkdtemp(join(tmpdir(), 'byf-ws-recent-'));
+    dirs.push(oldDir, recentDir);
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `{"sessionId":"s1","sessionDir":"/x/s1","workDir":"${oldDir}"}\n` +
+        `{"sessionId":"s2","sessionDir":"/x/s2","workDir":"${recentDir}"}\n`,
+      'utf-8',
+    );
+    await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: oldDir }),
+    });
+    const list = async (): Promise<string[]> => {
+      const res = await app.request('/api/workspaces');
+      return ((await res.json()) as { workspaces: WorkspaceView[] }).workspaces.map(
+        (w) => w.workDir,
+      );
+    };
+    expect(await list()).toEqual([oldDir, recentDir]);
+
+    // 删除后:索引枚举不得把它带回来(曾删除 = 用户意图隐藏)
+    const del = await app.request(`/api/workspaces?workDir=${encodeURIComponent(oldDir)}`, {
+      method: 'DELETE',
+    });
+    expect(((await del.json()) as { removed: boolean }).removed).toBe(true);
+    expect(await list()).toEqual([recentDir]);
+
+    // 重新添加:从 hidden 移除,恢复原顺序位置(仍在 recentDir 前)
+    await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: oldDir }),
+    });
+    expect(await list()).toEqual([oldDir, recentDir]);
+  });
+});
+
+// ---- 配置与模型路由(设置弹层后端) --------------------------------------------
+
+describe('Config routes', () => {
+  const dirs: string[] = [];
+  async function setup(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-cfg-test-'));
+    dirs.push(homeDir);
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir });
+    return { app: result.app, harness };
+  }
+
+  afterEach(async () => {
+    while (dirs.length > 0) {
+      await rm(dirs.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  test('GET /api/config 返回脱敏视图(apiKey 不回线路,仅 hasApiKey)', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: {
+        local: {
+          type: 'openai-completions',
+          apiKey: 'sk-secret',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+        },
+        bare: { type: 'anthropic' },
+      },
+      models: {
+        'local/qwen-3.6': {
+          provider: 'local',
+          model: 'qwen-3.6',
+          maxContextSize: 32768,
+          displayName: 'Qwen 3.6',
+        },
+      },
+      defaultModel: 'local/qwen-3.6',
+      defaultPermissionMode: 'yolo',
+      defaultThinking: true,
+    };
+    const res = await app.request('/api/config');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      configPath: string;
+      defaultModel?: string;
+      defaultPermissionMode?: string;
+      defaultThinking?: boolean;
+      providers: { id: string; type: string; baseUrl?: string; hasApiKey: boolean }[];
+      models: { id: string; provider: string }[];
+    };
+    expect(body.configPath).toBe('/tmp/fake-config.toml');
+    expect(body.defaultModel).toBe('local/qwen-3.6');
+    expect(body.defaultPermissionMode).toBe('yolo');
+    expect(body.defaultThinking).toBe(true);
+    expect(body.providers).toEqual([
+      {
+        id: 'local',
+        type: 'openai-completions',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        hasApiKey: true,
+      },
+      { id: 'bare', type: 'anthropic', baseUrl: undefined, hasApiKey: false },
+    ]);
+    expect(JSON.stringify(body)).not.toContain('sk-secret');
+    expect(body.models[0]?.provider).toBe('local');
+  });
+
+  test('PATCH /api/config 更新默认模型/权限/思考并回读;非法模式与空 body 400', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: {},
+      models: { m1: { provider: 'p', model: 'm', maxContextSize: 1000 } },
+    };
+
+    const ok = await app.request('/api/config', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        defaultModel: 'm1',
+        defaultPermissionMode: 'auto',
+        defaultThinking: false,
+      }),
+    });
+    expect(ok.status).toBe(200);
+    const body = (await ok.json()) as { defaultModel: string; defaultPermissionMode: string };
+    expect(body.defaultModel).toBe('m1');
+    expect(body.defaultPermissionMode).toBe('auto');
+    expect(harness.config.defaultModel).toBe('m1');
+    expect(harness.config.defaultPermissionMode).toBe('auto');
+
+    const bad = await app.request('/api/config', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ defaultPermissionMode: 'bogus' }),
+    });
+    expect(bad.status).toBe(400);
+
+    const empty = await app.request('/api/config', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
+  });
+
+  test('DELETE /api/config/providers/:id 移除 provider', async () => {
+    const { app, harness } = await setup();
+    harness.config = { providers: { a: { type: 'anthropic' }, b: { type: 'anthropic' } } };
+    const res = await app.request('/api/config/providers/a', { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { providers: { id: string }[] };
+    expect(body.providers.map((p) => p.id)).toEqual(['b']);
+    expect(harness.config.providers['a']).toBeUndefined();
+  });
+
+  test('PATCH /api/sessions/:id/model 透传;空 model 400', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+
+    const ok = await app.request(`/api/sessions/${id}/model`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'local/qwen-3.6' }),
+    });
+    expect(ok.status).toBe(200);
+    expect(session.model).toBe('local/qwen-3.6');
+
+    const empty = await app.request(`/api/sessions/${id}/model`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: '  ' }),
+    });
+    expect(empty.status).toBe(400);
+  });
+
+  test('POST /api/sessions/:id/resume 响应携带 agents.main.replay(转录恢复的线路契约)', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+    patchSummary(session, {
+      agents: {
+        main: {
+          type: 'main',
+          config: {},
+          context: { messages: [] },
+          replay: [
+            {
+              type: 'message',
+              message: {
+                role: 'user',
+                content: [{ type: 'text', text: 'hi' }],
+                toolCalls: [],
+              },
+            },
+            {
+              type: 'message',
+              message: {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'hello' }],
+                toolCalls: [],
+              },
+            },
+          ],
+          permission: { mode: 'manual' },
+          usage: {},
+          tools: [],
+        },
+      } as unknown as Partial<SessionSummary>,
+    } as unknown as Partial<SessionSummary>);
+
+    const res = await app.request(`/api/sessions/${id}/resume`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { session: ResumedSessionSummary };
+    expect(body.session.agents?.['main']?.replay).toHaveLength(2);
+    expect(
+      (body.session.agents?.['main']?.replay[0] as { message: { role: string } }).message.role,
+    ).toBe('user');
   });
 });
