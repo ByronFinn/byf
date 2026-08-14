@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { chatReducer, groupParts, initialChatState, replayToEntries } from '../src/lib/chat';
+import {
+  chatReducer,
+  groupParts,
+  initialChatState,
+  replayToEntries,
+  subagentsFromResume,
+} from '../src/lib/chat';
 import type { AgentReplayRecord } from '../src/types';
 
 /** 完整形状的 toolCall(与 ContextMessage 的 ToolCall 对齐)。 */
@@ -277,5 +283,237 @@ describe('tool timing and grouping', () => {
     // span = max(endedAt) - min(startedAt);进行中的工具不计入 endedAt。
     expect(group.spanMs).toBe(1200);
     expect(group.hasRunning).toBe(true);
+  });
+});
+
+// ---- 子 Agent 看板数据(PRD-0034 R-B3) ------------------------------------------
+
+describe('subagent board state', () => {
+  const frame = (event: unknown): { type: 'frame'; frame: { type: string; event: unknown } } => ({
+    type: 'frame',
+    frame: { type: 'agent.event', event },
+  });
+
+  function seeded(): ReturnType<typeof chatReducer> {
+    let state = initialChatState();
+    state = chatReducer(
+      state,
+      frame({
+        type: 'turn.started',
+        turnId: 1,
+        origin: { kind: 'user' },
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 'call_agent_1',
+        name: 'Agent',
+        display: { kind: 'agent_call', prompt: 'do research' },
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    return state;
+  }
+
+  test('subagent.spawned 建立 running 卡片状态(挂在 parentToolCallId)', () => {
+    const state = chatReducer(
+      seeded(),
+      frame({
+        type: 'subagent.spawned',
+        subagentId: 'agent-1',
+        subagentName: 'coder',
+        parentToolCallId: 'call_agent_1',
+        description: 'Investigate the flaky test',
+        runInBackground: false,
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    expect(state.subagents['agent-1']).toMatchObject({
+      id: 'agent-1',
+      name: 'coder',
+      parentToolCallId: 'call_agent_1',
+      description: 'Investigate the flaky test',
+      status: 'running',
+      parts: [],
+    });
+    expect(state.subagents['agent-1']?.startedAt).toBeGreaterThan(0);
+  });
+
+  test('子 agent 事件按 agentId 路由进其 transcript;main 事件不受影响', () => {
+    let state = chatReducer(
+      seeded(),
+      frame({
+        type: 'subagent.spawned',
+        subagentId: 'agent-1',
+        subagentName: 'coder',
+        parentToolCallId: 'call_agent_1',
+        runInBackground: false,
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'assistant.delta',
+        turnId: 0,
+        delta: '子代理输出',
+        agentId: 'agent-1',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'assistant.delta',
+        turnId: 1,
+        delta: '主代理输出',
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    expect(state.subagents['agent-1']?.parts).toEqual([{ kind: 'text', text: '子代理输出' }]);
+    const mainEntry = state.entries[0];
+    if (mainEntry === undefined || mainEntry.kind !== 'assistant')
+      throw new Error('expected assistant');
+    expect(mainEntry.parts.some((p) => p.kind === 'text' && p.text === '主代理输出')).toBe(true);
+  });
+
+  test('子 agent 工具调用进入其 transcript 并带耗时', () => {
+    let state = chatReducer(
+      seeded(),
+      frame({
+        type: 'subagent.spawned',
+        subagentId: 'agent-1',
+        subagentName: 'coder',
+        parentToolCallId: 'call_agent_1',
+        runInBackground: false,
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'tool.call.started',
+        turnId: 0,
+        toolCallId: 'child-tool-1',
+        name: 'Read',
+        display: { kind: 'file_io', operation: 'read', path: '/x' },
+        startedAt: 100,
+        agentId: 'agent-1',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'tool.result',
+        turnId: 0,
+        toolCallId: 'child-tool-1',
+        output: 'data',
+        startedAt: 100,
+        endedAt: 340,
+        agentId: 'agent-1',
+        sessionId: 's',
+      }),
+    );
+    expect(state.subagents['agent-1']?.parts[0]).toMatchObject({
+      kind: 'tool',
+      toolCallId: 'child-tool-1',
+      status: 'done',
+      startedAt: 100,
+      endedAt: 340,
+    });
+  });
+
+  test('subagent.completed/failed 更新卡片状态与摘要', () => {
+    let state = chatReducer(
+      seeded(),
+      frame({
+        type: 'subagent.spawned',
+        subagentId: 'agent-1',
+        subagentName: 'coder',
+        parentToolCallId: 'call_agent_1',
+        runInBackground: false,
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'subagent.completed',
+        subagentId: 'agent-1',
+        parentToolCallId: 'call_agent_1',
+        resultSummary: 'Found the root cause',
+        usage: { inputOther: 10, output: 5, inputCacheRead: 0, inputCacheCreation: 0 },
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    expect(state.subagents['agent-1']).toMatchObject({
+      status: 'completed',
+      resultSummary: 'Found the root cause',
+    });
+    expect(state.subagents['agent-1']?.endedAt).toBeGreaterThan(0);
+
+    state = chatReducer(
+      state,
+      frame({
+        type: 'subagent.spawned',
+        subagentId: 'agent-2',
+        subagentName: 'reviewer',
+        parentToolCallId: 'call_agent_2',
+        runInBackground: false,
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    state = chatReducer(
+      state,
+      frame({
+        type: 'subagent.failed',
+        subagentId: 'agent-2',
+        parentToolCallId: 'call_agent_2',
+        error: 'boom',
+        agentId: 'main',
+        sessionId: 's',
+      }),
+    );
+    expect(state.subagents['agent-2']).toMatchObject({ status: 'failed', error: 'boom' });
+  });
+
+  test('subagentsFromResume 用 agents map 重建已完成卡片(含 parentToolCallId)', () => {
+    const agents = {
+      main: { replay: [] },
+      'agent-1': {
+        parentToolCallId: 'call_agent_1',
+        replay: [
+          {
+            type: 'message',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: '子代理结论' }],
+              toolCalls: [],
+            },
+          },
+        ],
+      },
+    };
+    const subagents = subagentsFromResume(agents);
+    expect(subagents['agent-1']).toMatchObject({
+      id: 'agent-1',
+      parentToolCallId: 'call_agent_1',
+      status: 'completed',
+      parts: [{ kind: 'text', text: '子代理结论' }],
+    });
   });
 });

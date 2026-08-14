@@ -52,6 +52,33 @@ export type RenderPart = AssistantPart | ToolGroupPart;
 
 export type AssistantPart = TextPart | ThinkingPart | ToolPart;
 
+// ---- 子 Agent 看板(PRD-0034 R-B3) --------------------------------------------
+
+export interface SubagentUsage {
+  readonly inputOther: number;
+  readonly output: number;
+  readonly inputCacheRead: number;
+  readonly inputCacheCreation: number;
+}
+
+/** 一个子 agent 的卡片状态 + 其自己的调用轨迹(与主时间轴同构的扁平 parts)。 */
+export interface SubagentState {
+  readonly id: string;
+  readonly parentAgentId: string;
+  readonly parentToolCallId: string;
+  readonly name: string;
+  readonly description: string | undefined;
+  readonly runInBackground: boolean;
+  status: 'running' | 'completed' | 'failed';
+  resultSummary: string | undefined;
+  error: string | undefined;
+  usage: SubagentUsage | undefined;
+  startedAt: number;
+  endedAt: number | undefined;
+  parts: AssistantPart[];
+  toolIndex: Map<string, number>;
+}
+
 // ---- 对话条目 ---------------------------------------------------------------
 
 export interface AssistantEntry {
@@ -94,6 +121,8 @@ export interface ChatState {
   pendingQuestions: Record<string, QuestionRequest>;
   turnIndex: Map<number, number>;
   toolIndex: Map<string, { entry: number; part: number }>;
+  /** 子 agent 看板:subagentId → 卡片状态(R-B3)。 */
+  subagents: Record<string, SubagentState>;
 }
 
 export function initialChatState(): ChatState {
@@ -106,6 +135,7 @@ export function initialChatState(): ChatState {
     pendingQuestions: {},
     turnIndex: new Map(),
     toolIndex: new Map(),
+    subagents: {},
   };
 }
 
@@ -117,6 +147,7 @@ export type ChatInput =
       type: 'transcript-loaded';
       entries: Entry[];
       toolIndex: Map<string, { entry: number; part: number }>;
+      subagents?: Record<string, SubagentState>;
     }
   | { type: 'frame'; frame: ServerFrame };
 
@@ -144,7 +175,12 @@ export function chatReducer(state: ChatState, input: ChatInput): ChatState {
       return { ...state, status: { ...state.status, ...status } };
     }
     case 'transcript-loaded':
-      return { ...state, entries: input.entries, toolIndex: input.toolIndex };
+      return {
+        ...state,
+        entries: input.entries,
+        toolIndex: input.toolIndex,
+        subagents: input.subagents ?? state.subagents,
+      };
     case 'frame':
       return applyFrame(state, input.frame);
   }
@@ -324,10 +360,19 @@ function applyFrame(state: ChatState, frame: ServerFrame): ChatState {
 }
 
 function applyEvent(state: ChatState, event: Event): ChatState {
-  // v1 只处理影响主对话流的事件;其余(turn.step.* / tool.call.delta / tool.progress /
-  // subagent.* / compaction.* / btw.* / background.* / goal.* / mcp.* /
-  // session.meta.* / skill.* / warning 等)忽略。用 if 链而非 switch,显式表达
-  // 「处理子集、其余默认不变」且不触发穷尽性检查。
+  // 子 agent 看板(R-B3):subagent.* 生命周期事件建立/结算卡片;子 agent 自己的
+  // 事件(agentId ≠ main)路由进其 transcript。其余事件照旧只处理主对话流
+  // (turn.step.* / tool.call.delta / tool.progress / compaction.* / btw.* /
+  // background.* / goal.* / mcp.* / session.meta.* / skill.* / warning 等忽略)。
+  if (event.type === 'subagent.spawned') {
+    return spawnSubagent(state, event);
+  }
+  if (event.type === 'subagent.completed' || event.type === 'subagent.failed') {
+    return settleSubagent(state, event);
+  }
+  if (event.agentId !== undefined && event.agentId !== 'main') {
+    return applySubagentEvent(state, event);
+  }
   if (event.type === 'turn.started') {
     return ensureTurn(state, event.turnId, (s) => ({ ...s, busy: true }));
   }
@@ -488,6 +533,150 @@ function finishTool(
   const entries = [...state.entries];
   entries[loc.entry] = { ...entry, parts };
   return { ...state, entries };
+}
+
+// ---- 子 Agent 看板事件处理(R-B3) ----------------------------------------------
+
+function spawnSubagent(
+  state: ChatState,
+  event: Extract<Event, { type: 'subagent.spawned' }>,
+): ChatState {
+  const existing = state.subagents[event.subagentId];
+  if (existing !== undefined) return state;
+  const subagent: SubagentState = {
+    id: event.subagentId,
+    parentAgentId: event.agentId,
+    parentToolCallId: event.parentToolCallId,
+    name: event.subagentName,
+    description: event.description,
+    runInBackground: event.runInBackground,
+    status: 'running',
+    resultSummary: undefined,
+    error: undefined,
+    usage: undefined,
+    startedAt: Date.now(),
+    endedAt: undefined,
+    parts: [],
+    toolIndex: new Map(),
+  };
+  return { ...state, subagents: { ...state.subagents, [event.subagentId]: subagent } };
+}
+
+function settleSubagent(
+  state: ChatState,
+  event: Extract<Event, { type: 'subagent.completed' | 'subagent.failed' }>,
+): ChatState {
+  const existing = state.subagents[event.subagentId];
+  if (existing === undefined || existing.status !== 'running') return state;
+  const settled: SubagentState =
+    event.type === 'subagent.completed'
+      ? {
+          ...existing,
+          status: 'completed',
+          resultSummary: event.resultSummary,
+          usage: event.usage,
+          endedAt: Date.now(),
+        }
+      : {
+          ...existing,
+          status: 'failed',
+          error: event.error,
+          endedAt: Date.now(),
+        };
+  return { ...state, subagents: { ...state.subagents, [event.subagentId]: settled } };
+}
+
+/** 子 agent 自己的事件(agentId ≠ main)→ 其 transcript;未知 agent 忽略。 */
+function applySubagentEvent(state: ChatState, event: Event): ChatState {
+  const sub = state.subagents[event.agentId];
+  if (sub === undefined) return state;
+  let parts = sub.parts;
+  if (event.type === 'assistant.delta' || event.type === 'thinking.delta') {
+    const kind = event.type === 'assistant.delta' ? 'text' : 'thinking';
+    const delta = event.type === 'assistant.delta' ? event.delta : event.delta;
+    const last = parts.at(-1);
+    if (last !== undefined && last.kind === kind) {
+      parts = [...parts.slice(0, -1), { kind: last.kind, text: last.text + delta }];
+    } else {
+      parts = [...parts, kind === 'text' ? { kind, text: delta } : { kind, text: delta }];
+    }
+  } else if (event.type === 'tool.call.started') {
+    parts = [
+      ...parts,
+      {
+        kind: 'tool',
+        toolCallId: event.toolCallId,
+        name: event.name,
+        display: event.display,
+        description: event.description,
+        status: 'running',
+        startedAt: event.startedAt,
+      },
+    ];
+  } else if (event.type === 'tool.result') {
+    const idx = sub.toolIndex.get(event.toolCallId);
+    const target = idx !== undefined ? parts[idx] : undefined;
+    if (target !== undefined && target.kind === 'tool') {
+      parts = parts.map((p, i) =>
+        i === idx && p.kind === 'tool'
+          ? {
+              ...p,
+              status: 'done' as const,
+              result: event.output,
+              isError: event.isError ?? false,
+              startedAt: p.startedAt ?? event.startedAt,
+              endedAt: event.endedAt,
+            }
+          : p,
+      );
+    }
+  } else {
+    return state;
+  }
+  // 重算 toolIndex(parts 数组位置即索引)。
+  const toolIndex = new Map<string, number>();
+  parts.forEach((p, i) => {
+    if (p.kind === 'tool') toolIndex.set(p.toolCallId, i);
+  });
+  return { ...state, subagents: { ...state.subagents, [sub.id]: { ...sub, parts, toolIndex } } };
+}
+
+/**
+ * resume 重建(R-B3):用 resume 响应的 `agents` map(排除 main)重建子 agent
+ * 卡片——历史子 agent 一律视为已完成,轨迹从其各自 replay 映射(与主时间轴
+ * 同构);drawer 可打开任意(含已完成)子 agent。
+ */
+export function subagentsFromResume(
+  agents: NonNullable<
+    Record<string, { replay?: readonly AgentReplayRecord[]; parentToolCallId?: string }>
+  >,
+): Record<string, SubagentState> {
+  const result: Record<string, SubagentState> = {};
+  for (const [id, agent] of Object.entries(agents)) {
+    if (id === 'main' || agent === undefined) continue;
+    const { entries } = replayToEntries(agent.replay ?? []);
+    const parts: AssistantPart[] = [];
+    for (const entry of entries) {
+      if (entry.kind === 'assistant') parts.push(...entry.parts);
+    }
+    result[id] = {
+      id,
+      parentAgentId: 'main',
+      parentToolCallId: agent.parentToolCallId ?? '',
+      name: id,
+      description: undefined,
+      runInBackground: false,
+      status: 'completed',
+      resultSummary: undefined,
+      error: undefined,
+      usage: undefined,
+      startedAt: 0,
+      endedAt: undefined,
+      parts,
+      toolIndex: new Map(),
+    };
+  }
+  return result;
 }
 
 function addSystem(state: ChatState, text: string, level: 'error' | 'info'): ChatState {
