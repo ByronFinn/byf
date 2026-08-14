@@ -18,8 +18,8 @@ Use absolute paths and avoid prefixing commands with `cd <dir> &&` — each Bash
 
 Never run commands that require superuser privileges unless explicitly instructed to do so.
 
-**Sensitive files are hard-blocked:**
-Commands that read or write files matching a sensitive pattern (`.env*`, SSH private keys like `id_rsa`, `credentials`, and their rename variants) are rejected with an error — the same guard the Read / Write / Edit tools apply. This includes paths hidden inside compound commands (`sh -c "cat .env"`, `git add .env`, `echo x > .env`). Do not attempt to bypass this guard (e.g. via `eval`, `python -c`, or variable expansion); if a sensitive file is genuinely required, rename it or move it to a non-sensitive path.
+**Sensitive files — reads go through approval, writes are hard-blocked:**
+Reading files matching a sensitive pattern (`.env*`, SSH private keys like `id_rsa`, `credentials`, and their rename variants) requires explicit user approval — the approval prompt names the file. This includes paths hidden inside compound commands (`sh -c "cat .env"`, `cd ~/.ssh && cat id_rsa`). Writing to sensitive files is hard-blocked with an error (the same guard Read / Write / Edit apply) to protect secrets from exfiltration or tampering. Do not attempt to bypass these guards (e.g. via `eval`, `python -c`, or variable expansion); if a sensitive file is genuinely required, rename it in the user's own terminal to a non-sensitive name, or use Grep to search for the specific value.
 
 **Compound commands are checked per subcommand:**
 Permission rules apply to each subcommand of `; && || |` chains independently — a hidden `rm` inside `echo hi; rm x` is still subject to `rm` rules. A leading `cd <dir> &&` therefore triggers approval just like the equivalent single command.

@@ -925,27 +925,38 @@ describe('BashTool prompt / runtime consistency', () => {
   });
 });
 
-describe('BashTool — PRD-0031 0a 敏感文件硬拒', () => {
-  it('cat .env 经解析被敏感文件层硬拒（PATH_SENSITIVE，与 Read 一致）', async () => {
-    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+describe('BashTool — PRD-0031 敏感文件读写分治（#298）', () => {
+  it('cat .env 工具层不再硬拒（读 = 审批事件，权限层策略门控）', async () => {
+    const proc = processWithOutput({ stdout: 'SECRET=value' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
     const result = await executeTool(tool, context({ command: 'cat .env' }));
-    expect(result.isError).toBe(true);
-    expect(result.output).toMatch(/sensitive-file pattern/);
-    expect(result.output).toMatch(/\.env/);
+    expect(result.isError).toBe(false);
   });
 
-  it('cat ~/.ssh/id_rsa 硬拒', async () => {
-    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+  it('cat ~/.ssh/id_rsa 工具层不再硬拒（读由权限层门控）', async () => {
+    const proc = processWithOutput({ stdout: 'key' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
     const result = await executeTool(tool, context({ command: 'cat ~/.ssh/id_rsa' }));
-    expect(result.isError).toBe(true);
-    expect(result.output).toMatch(/sensitive-file pattern/);
+    expect(result.isError).toBe(false);
   });
 
-  it('sh -c 剥壳后内层 .env 仍被拦截', async () => {
-    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+  it('sh -c 剥壳后内层 .env 读不硬拒（权限层门控）', async () => {
+    const proc = processWithOutput({ stdout: 'x' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
     const result = await executeTool(tool, context({ command: 'sh -c "cat .env"' }));
-    expect(result.isError).toBe(true);
-    expect(result.output).toMatch(/sensitive-file pattern/);
+    expect(result.isError).toBe(false);
   });
 
   it('重定向写入 .env（echo > .env）硬拒', async () => {
@@ -973,11 +984,30 @@ describe('BashTool — PRD-0031 0a 敏感文件硬拒', () => {
     expect(result.isError).toBe(false);
   });
 
-  it('cd 累计 cwd 后敏感路径仍命中（cd ~/.ssh && cat id_rsa）', async () => {
-    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+  it('cd 累计 cwd 后敏感读不硬拒（权限层门控；写仍硬拒见下）', async () => {
+    const proc = processWithOutput({ stdout: 'key' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
     const result = await executeTool(tool, context({ command: 'cd ~/.ssh && cat id_rsa' }));
-    expect(result.isError).toBe(true);
-    expect(result.output).toMatch(/sensitive-file pattern/);
+    expect(result.isError).toBe(false);
+  });
+
+  it('写敏感文件仍硬拒（rm .env / echo > .env / git add .env），含修复指引', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const rm = await executeTool(tool, context({ command: 'rm .env' }));
+    expect(rm.isError).toBe(true);
+    expect(rm.output).toMatch(/sensitive-file pattern/);
+    expect(rm.output).toMatch(/rename it in your own terminal/);
+    expect(rm.output).toMatch(/Grep/);
+    const echo = await executeTool(tool, context({ command: 'echo "x" > .env' }));
+    expect(echo.isError).toBe(true);
+    expect(echo.output).toMatch(/sensitive-file pattern/);
+    const gitAdd = await executeTool(tool, context({ command: 'git add .env' }));
+    expect(gitAdd.isError).toBe(true);
+    expect(gitAdd.output).toMatch(/sensitive-file pattern/);
   });
 
   it('无法静态解析的命令（eval）不做敏感检查（已知绕过面）', async () => {

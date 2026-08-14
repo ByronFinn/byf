@@ -23,6 +23,7 @@
  */
 
 import type { ToolInputDisplay } from '../../tools/display/schemas';
+import { SENSITIVE_READ_ACTION_PREFIX } from './policies/sensitive-file-read-ask';
 
 /** 0b 动作标签前缀：`run command: <命令前缀/精确命令>`。 */
 export const RUN_COMMAND_ACTION_PREFIX = 'run command: ';
@@ -241,6 +242,11 @@ export function describeApprovalAction(
  */
 export function actionToRulePattern(action: string, fallbackToolName: string): string | undefined {
   if (action.startsWith(CRON_CREATE_ACTION_PREFIX)) {
+    return undefined;
+  }
+  // 敏感文件读（PRD-0031 跟进 #298）：payload-scoped——批准一次只放行该路径，
+  // 不生成宽泛 PermissionRule（同路径会话内再次免问由 sessionApprovedActions 处理）
+  if (action.startsWith(SENSITIVE_READ_ACTION_PREFIX)) {
     return undefined;
   }
   if (action.startsWith(RUN_COMMAND_ACTION_PREFIX)) {

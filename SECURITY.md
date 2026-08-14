@@ -59,9 +59,11 @@ Bash 是唯一能绕过所有其他原语（可读写文件、可联网、可跑
 
 ### 权限层提供什么（尽力而为）
 
-- **敏感文件拦截**：经命令解析提取的路径命中 `.env*` / SSH 私钥 / `credentials`
-  等模式时硬拒（`PATH_SENSITIVE`，与 Read/Write/Edit 一致），包括藏在复合命令里的
-  （`sh -c "cat .env"`、`git add .env`、`echo x > .env`）。
+- **敏感文件读 = 审批事件**：读取命中 `.env*` / SSH 私钥 / `credentials` 等模式的
+  路径时强制审批（manual/yolo 均生效，审批面板点名文件；同路径会话内批准后免问），
+  包括藏在复合命令里的（`sh -c "cat .env"`、`cd ~/.ssh && cat id_rsa`）。
+- **敏感文件写硬拒**：写入敏感文件（`rm .env`、`git add .env`、`echo x > .env`）硬拒
+  （`PATH_SENSITIVE`，与 Read/Write/Edit 一致）——写配置/密钥文件是代码执行与外泄载体。
 - **逐子命令权限匹配**：复合命令（`; && || |`）的每个子命令独立过规则，
   `Bash(rm *)` deny 对 `echo hi; rm x` 生效，防整串匹配绕过。
 - **精细会话审批**：approve-for-session 生成 per-prefix 规则

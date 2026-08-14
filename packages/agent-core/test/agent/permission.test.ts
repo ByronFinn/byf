@@ -1383,6 +1383,108 @@ describe('Default git CWD Write/Edit permission', () => {
   });
 });
 
+describe('敏感文件读 = 审批事件（#298）', () => {
+  it('manual：Read .env → ask（action payload-scoped，含路径）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: /workspace/.env' }),
+      expect.anything(),
+    );
+  });
+
+  it('manual：Read 敏感读批准后同路径会话内免问（payload-scoped 缓存）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    // 同路径再次 → sessionApprovedActions 命中，不再问
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    // 不同路径 → 仍问
+    await manager.beforeToolCall(
+      hookContext({ id: 'c3', toolName: 'Read', args: { path: '/workspace/.env.local' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(2);
+    // 不生成宽泛 PermissionRule（payload-scoped）
+    expect(manager.data().rules).toEqual([]);
+  });
+
+  it('manual：Bash cat .env → ask（命令解析出的读路径）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(hookContext({ id: 'c1', args: { command: 'cat .env' } }));
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: .env' }),
+      expect.anything(),
+    );
+  });
+
+  it('manual：豁免与不匹配不触发敏感 ask（Bash/Write 默认 ask 为既有行为）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    // .env.example 豁免（Read auto_allow，策略不拦 → 无任何 ask）
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env.example' } }),
+    );
+    // 普通文件
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', toolName: 'Read', args: { path: '/workspace/foo.txt' } }),
+    );
+    // Bash 非敏感命令 / 无路径命令（有 Bash 默认 ask，但非敏感 action）
+    await manager.beforeToolCall(hookContext({ id: 'c3', args: { command: 'cat foo.txt' } }));
+    await manager.beforeToolCall(hookContext({ id: 'c4', args: { command: 'git status' } }));
+    // Write（写由工具层硬拒，策略不拦——有 Write 默认 ask，但非敏感 action）
+    await manager.beforeToolCall(
+      hookContext({ id: 'c5', toolName: 'Write', args: { path: '/workspace/.env' } }),
+    );
+    const sensitiveCalls = requestApproval.mock.calls.filter((call) =>
+      String((call[0] as { action?: string }).action).startsWith('read sensitive file: '),
+    );
+    expect(sensitiveCalls).toHaveLength(0);
+  });
+
+  it('yolo：敏感读仍强制 ask（kimi-code 先例，yolo 不放行敏感读）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('yolo');
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto（AFK 信任模型）：敏感读不拦', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('auto');
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('actionToRulePattern 对敏感读 action 返回 undefined（不生成宽泛规则）', () => {
+    expect(actionToRulePattern('read sensitive file: /workspace/.env', 'Read')).toBeUndefined();
+  });
+});
+
 describe('Permission rule helpers', () => {
   it('parses permission patterns used by rule matching', () => {
     expect(parsePattern('Write')).toEqual({ toolName: 'Write' });

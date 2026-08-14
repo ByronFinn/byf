@@ -509,9 +509,11 @@ function resolveBashResources(
           { workspaceDir: cwd, additionalDirs: [] },
           {
             operation: path.operation,
-            // Bash 不强制 workspace 边界（那是权限层 yolo 策略的职责），
-            // 这里只做敏感文件检查。
-            policy: { guardMode: 'disabled', checkSensitive: true },
+            // Bash 不强制 workspace 边界（那是权限层 yolo 策略的职责）。
+            // 敏感检查只对 write（写配置/密钥文件是代码执行与外泄载体——
+            // 保持硬拒）；read/search 放开，由权限层策略门控读（#298：
+            // 读敏感文件 = 审批事件，用户批准即放行）。
+            policy: { guardMode: 'disabled', checkSensitive: path.operation === 'write' },
             pathClass: kaos.pathClass(),
             homeDir: kaos.gethome(),
           },
@@ -570,9 +572,11 @@ function canonicalizeCdTarget(target: string, currentCwd: string, kaos: Kaos): s
 function bashSensitiveMessage(rawPath: string, canonicalPath: string): string {
   return (
     `"${rawPath}" (canonical: "${canonicalPath}") matches a sensitive-file pattern ` +
-    `(env / credential / SSH key) and cannot be accessed through Bash — the same hard ` +
-    `block the Read / Write / Edit tools apply. If this file is genuinely required, ` +
-    `rename it or move it to a path that does not match the sensitive pattern.`
+    `(env / credential / SSH key). Writing to sensitive files is hard-blocked to protect ` +
+    `secrets (reading them goes through approval). If this file is genuinely required, ` +
+    `rename it in your own terminal to a name that does not match the sensitive pattern ` +
+    `(byf cannot rename it for you — mv is blocked the same way), or use Grep to search ` +
+    `for the specific value you need.`
   );
 }
 
