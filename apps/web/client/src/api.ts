@@ -90,8 +90,10 @@ async function request<T>(
 const enc = encodeURIComponent;
 
 export const api = {
-  listSessions: async (workDir: string): Promise<SessionSummary[]> => {
-    const r = await request<ListSessionsResponse>(`/api/sessions?workDir=${enc(workDir)}`, 'GET');
+  listSessions: async (workDir: string, q?: string): Promise<SessionSummary[]> => {
+    const params = new URLSearchParams({ workDir });
+    if (q !== undefined && q.trim().length > 0) params.set('q', q.trim());
+    const r = await request<ListSessionsResponse>(`/api/sessions?${params.toString()}`, 'GET');
     return [...r.sessions];
   },
 

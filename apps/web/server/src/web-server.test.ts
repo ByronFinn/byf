@@ -313,6 +313,41 @@ describe('HTTP routes', () => {
     expect(res.status).toBe(400);
   });
 
+  test('GET /api/sessions?q= 按 title/lastPrompt 过滤(不区分大小写)', async () => {
+    const { app, harness } = await setup();
+    const mk = async (): Promise<string> => {
+      const res = await app.request('/api/sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workDir: '/proj' }),
+      });
+      const data = (await res.json()) as { session: SessionSummary };
+      return data.session.id;
+    };
+    const a = await mk();
+    const b = await mk();
+    const c = await mk();
+    harness.sessions.get(a)!.summary.title = 'Refactor Markdown renderer';
+    harness.sessions.get(b)!.summary.lastPrompt = '排查 SSE 重连丢帧';
+    // c 两者皆空,任何 q 都不命中;id 也不参与过滤
+
+    const list = async (q?: string): Promise<string[]> => {
+      const url =
+        q === undefined
+          ? '/api/sessions?workDir=/proj'
+          : `/api/sessions?workDir=/proj&q=${encodeURIComponent(q)}`;
+      const res = await app.request(url);
+      const data = (await res.json()) as { sessions: SessionSummary[] };
+      return data.sessions.map((s) => s.id);
+    };
+
+    expect(await list()).toEqual([a, b, c]);
+    expect(await list('markdown')).toEqual([a]);
+    expect(await list('SSE')).toEqual([b]);
+    expect(await list('refactor')).toEqual([a]);
+    expect(await list(c)).toEqual([]);
+  });
+
   test('GET /api/sessions/:id 返回 status', async () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {

@@ -26,7 +26,17 @@ export function createApiRouter(manager: WebSessionManager): Hono {
   r.get('/sessions', async (c) => {
     const workDir = c.req.query('workDir') ?? '';
     if (workDir.length === 0) return badRequest(c, 'workDir query is required');
-    const sessions = await manager.listSessions(workDir);
+    const all = await manager.listSessions(workDir);
+    // R17:可选 ?q= 在 title / lastPrompt 上做不区分大小写的子串过滤(SessionSummary 不变)。
+    const q = c.req.query('q')?.trim().toLowerCase() ?? '';
+    const sessions =
+      q.length === 0
+        ? all
+        : all.filter(
+            (s) =>
+              (s.title ?? '').toLowerCase().includes(q) ||
+              (s.lastPrompt ?? '').toLowerCase().includes(q),
+          );
     return c.json({ sessions });
   });
 

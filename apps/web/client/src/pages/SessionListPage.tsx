@@ -1,17 +1,18 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { api } from '#/api';
+import { sessionListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
+import { useWorkDir } from '#/hooks/useWorkDir';
 import type { PermissionMode, SessionSummary } from '#/types';
-
-const WORKDIR_KEY = 'byf-web-workdir';
 
 export function SessionListPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const [workDir, setWorkDir] = useState(() => localStorage.getItem(WORKDIR_KEY) ?? '');
-  const [loadedDir, setLoadedDir] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { dir: loadedDir, setDir } = useWorkDir();
+  const [workDir, setWorkDir] = useState(() => loadedDir ?? '');
   const [model, setModel] = useState('');
   const [permission, setPermission] = useState<PermissionMode>('manual');
 
@@ -20,7 +21,7 @@ export function SessionListPage(): React.JSX.Element {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['sessions', loadedDir],
+    queryKey: sessionListKey(loadedDir ?? '', ''),
     queryFn: () => api.listSessions(loadedDir as string),
     enabled: loadedDir !== null,
   });
@@ -33,15 +34,16 @@ export function SessionListPage(): React.JSX.Element {
         permission,
       }),
     onSuccess: (data) => {
+      // 让侧边栏与首页列表立刻出现新会话(默认 staleTime=Infinity)
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] });
       void navigate(`/sessions/${data.session.id}`);
     },
   });
 
   const load = (): void => {
-    const dir = workDir.trim();
-    if (dir.length === 0) return;
-    localStorage.setItem(WORKDIR_KEY, dir);
-    setLoadedDir(dir);
+    const trimmed = workDir.trim();
+    if (trimmed.length === 0) return;
+    setDir(trimmed);
   };
 
   return (
