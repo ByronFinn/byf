@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import type {
   ByfConfig,
@@ -1368,5 +1368,145 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     const data = (await res.json()) as { sessions: SessionSummary[] };
     expect(data.sessions.map((s) => s.id)).toEqual(['ses_a2', 'ses_a1']);
     expect(data.sessions.every((s) => s.archived === true)).toBe(true);
+  });
+});
+
+// ---- 作用域白名单文件端点(PRD-0034 R-C2 / ADR-0036 D2) ------------------------
+
+describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
+  async function setupFs(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    homeDir: string;
+    ws: string;
+    outside: string;
+  }> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-files-home-'));
+    const ws = await mkdtemp(join(tmpdir(), 'byf-files-ws-'));
+    const outside = await mkdtemp(join(tmpdir(), 'byf-files-out-'));
+    await writeFile(join(ws, 'a.ts'), 'const x = 1;\n', 'utf-8');
+    await writeFile(join(outside, 'secret.txt'), 'secret\n', 'utf-8');
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(ws);
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir });
+    return { app: result.app, homeDir, ws, outside };
+  }
+
+  test('白名单内文本文件:200 + kind/language/content + ETag', async () => {
+    const { app, ws } = await setupFs();
+    const res = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { kind: string; language: string; content: string };
+    expect(data.kind).toBe('text');
+    expect(data.language).toBe('ts');
+    expect(data.content).toContain('const x = 1');
+    expect(res.headers.get('etag')).toMatch(/^"?\d+-\d+"?$/);
+  });
+
+  test('白名单外路径 403;缺 path 400;不存在 404;目录 400', async () => {
+    const { app, ws, outside } = await setupFs();
+
+    const outsideRes = await app.request(
+      `/api/files?path=${encodeURIComponent(join(outside, 'secret.txt'))}`,
+    );
+    expect(outsideRes.status).toBe(403);
+
+    const missingParam = await app.request('/api/files');
+    expect(missingParam.status).toBe(400);
+
+    const notFound = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'nope.ts'))}`,
+    );
+    expect(notFound.status).toBe(404);
+
+    const dir = await app.request(`/api/files?path=${encodeURIComponent(ws)}`);
+    expect(dir.status).toBe(400);
+  });
+
+  test('.. 穿越与 symlink 逃逸被拒(403)', async () => {
+    const { app, ws, outside } = await setupFs();
+    const traversal = `/api/files?path=${encodeURIComponent(`${ws}/../${basename(outside)}/secret.txt`)}`;
+    const travRes = await app.request(traversal);
+    expect(travRes.status).toBe(403);
+
+    await symlink(join(outside, 'secret.txt'), join(ws, 'link.txt'));
+    const linkRes = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'link.txt'))}`,
+    );
+    expect(linkRes.status).toBe(403);
+  });
+
+  test('文本超 2MB → 413;媒体超 50MB → 413', async () => {
+    const { app, ws } = await setupFs();
+    await writeFile(join(ws, 'big.txt'), 'a'.repeat(2 * 1024 * 1024 + 1), 'utf-8');
+    const bigText = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'big.txt'))}`);
+    expect(bigText.status).toBe(413);
+
+    await writeFile(join(ws, 'big.png'), Buffer.alloc(50 * 1024 * 1024 + 1));
+    const bigMedia = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'big.png'))}`,
+    );
+    expect(bigMedia.status).toBe(413);
+  });
+
+  test('图片返回二进制 + content-type;视频支持 Range 206', async () => {
+    const { app, ws } = await setupFs();
+    const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4, 5, 6, 7, 8]);
+    await writeFile(join(ws, 'pic.png'), pngBytes);
+    const img = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'pic.png'))}`);
+    expect(img.status).toBe(200);
+    expect(img.headers.get('content-type')).toBe('image/png');
+
+    const mp4 = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+    await writeFile(join(ws, 'clip.mp4'), mp4);
+    const full = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'clip.mp4'))}`);
+    expect(full.status).toBe(200);
+    expect(full.headers.get('accept-ranges')).toBe('bytes');
+
+    const partial = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'clip.mp4'))}`,
+      {
+        headers: { range: 'bytes=0-99' },
+      },
+    );
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get('content-range')).toBe(`bytes 0-99/1000`);
+    const body = Buffer.from(await partial.arrayBuffer());
+    expect(body).toHaveLength(100);
+  });
+
+  test('If-None-Match 命中 ETag → 304', async () => {
+    const { app, ws } = await setupFs();
+    const path = `/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`;
+    const first = await app.request(path);
+    const etag = first.headers.get('etag');
+    expect(etag).not.toBeNull();
+    const second = await app.request(path, { headers: { 'if-none-match': etag! } });
+    expect(second.status).toBe(304);
+  });
+
+  test('media-originals 缓存在白名单内;hidden 工作区被拒', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-files-home2-'));
+    const ws = await mkdtemp(join(tmpdir(), 'byf-files-ws2-'));
+    await writeFile(join(ws, 'a.ts'), 'x', 'utf-8');
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(ws);
+    await registry.remove(ws); // → hidden
+    const mediaDir = join(homeDir, 'sessions', 'wd_x', 'ses-1', 'media-originals');
+    await mkdir(mediaDir, { recursive: true });
+    await writeFile(join(mediaDir, 'abc.png'), Buffer.from([1, 2, 3]));
+
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const { app } = await createApp({ manager, homeDir });
+
+    const media = await app.request(
+      `/api/files?path=${encodeURIComponent(join(mediaDir, 'abc.png'))}`,
+    );
+    expect(media.status).toBe(200);
+
+    const hidden = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`);
+    expect(hidden.status).toBe(403);
   });
 });

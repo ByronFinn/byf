@@ -30,6 +30,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 
 import { AsyncQueue } from './async-queue';
+import { serveScopedFile } from './files';
 import { pickDirectoryNative } from './native-directory-picker';
 import type { WebSessionManager } from './session-manager';
 import {
@@ -334,6 +335,11 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // ---- 配置(设置弹层:默认模型 / 默认权限 / 默认思考) -------------------------
 
   // ---- 目录浏览(@ 引用文件/文件夹;仅允许工作区根内,防任意文件系统暴露) ----
+  // ---- 作用域白名单文件端点(PRD-0034 R-C2 / ADR-0036 D2) ----------------------
+  r.get('/files', async (c) => {
+    return serveScopedFile(c, homeDir, c.req.query('path') ?? '');
+  });
+
   r.get('/fs/list', async (c) => {
     const root = c.req.query('root') ?? '';
     const path = c.req.query('path') ?? '';
