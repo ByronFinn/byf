@@ -81,6 +81,8 @@ export class WebSessionManager {
   private readonly unsubscribers = new Map<string, Unsubscribe>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly pendingQuestions = new Map<string, PendingQuestion>();
+  /** 进行中的 resume(id → promise),并发 resume 去重,防止重复 attach 双份 onEvent。 */
+  private readonly resuming = new Map<string, Promise<SessionLike>>();
 
   constructor(private readonly harness: HarnessLike) {}
 
@@ -98,12 +100,36 @@ export class WebSessionManager {
   }
 
   async resumeSession(id: string): Promise<SessionSummary> {
-    const existing = this.sessions.get(id);
-    if (existing !== undefined) return existing.summary ?? toSummary(existing);
-    const session = await this.harness.resumeSession({ id });
-    this.attach(session);
-    this.sessions.set(session.id, session);
+    const session = await this.resumeSessionOnce(id);
     return session.summary ?? toSummary(session);
+  }
+
+  /**
+   * 并发安全 resume:React StrictMode 等客户端可能对同一 id 同时发两次
+   * resume;若各自走 harness.resumeSession 会 attach 两份 onEvent 监听,
+   * 导致每个 agent 事件广播两次(every delta 翻倍)。同 id 的并发请求共享
+   * 同一个进行中的 promise。
+   */
+  private resumeSessionOnce(id: string): Promise<SessionLike> {
+    const existing = this.sessions.get(id);
+    if (existing !== undefined) return Promise.resolve(existing);
+    const pending = this.resuming.get(id);
+    if (pending !== undefined) return pending;
+    const loading = this.harness
+      .resumeSession({ id })
+      .then((session) => {
+        // 二次防御:并发期间可能已被另一路径 attach
+        const again = this.sessions.get(session.id);
+        if (again !== undefined) return again;
+        this.attach(session);
+        this.sessions.set(session.id, session);
+        return session;
+      })
+      .finally(() => {
+        this.resuming.delete(id);
+      });
+    this.resuming.set(id, loading);
+    return loading;
   }
 
   async listSessions(workDir: string): Promise<readonly SessionSummary[]> {

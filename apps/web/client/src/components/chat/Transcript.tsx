@@ -1,9 +1,10 @@
-import { ArrowDown, Sparkles } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AssistantPart, Entry } from '#/lib/chat';
 
 import { Markdown } from './Markdown';
+import { ThinkingBlock } from './ThinkingBlock';
 import { ToolCallView } from './ToolCallView';
 
 /** 距底小于该值视为「贴底」(bottom-follow 生效阈值)。 */
@@ -93,32 +94,43 @@ function EntryView(props: { entry: Entry; streaming: boolean }): React.JSX.Eleme
   if (entry.parts.length === 0) {
     return null;
   }
+  // 步骤时间轴(R16 / ADR 0035 D4):thinking / tool / text 各成一步,
+  // 左侧竖线 + 圆点,活跃步(流式中的最后一步)辉光。
+  const last = entry.parts.length - 1;
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3">
-        <Sparkles className="size-3.5 text-brand" aria-hidden />
-      </div>
-      <div className="min-w-0 flex-1 space-y-1.5">
-        {entry.parts.map((part, i) => (
-          <PartView key={i} part={part} streaming={streaming} />
-        ))}
-      </div>
+    <div className="relative space-y-2.5 pl-6">
+      <span
+        className="absolute top-3.5 bottom-3 left-[5px] w-0.5 bg-gradient-to-b from-border-strong to-transparent"
+        aria-hidden
+      />
+      {entry.parts.map((part, i) => (
+        <div key={i} className="relative">
+          <span
+            className={`absolute top-1.5 -left-6 size-3 rounded-full border ${
+              streaming && i === last
+                ? 'border-transparent bg-brand ring-4 ring-brand/15'
+                : 'border-border-strong bg-surface-2'
+            }`}
+            aria-hidden
+          />
+          <PartView part={part} active={streaming && i === last} streaming={streaming} />
+        </div>
+      ))}
     </div>
   );
 }
 
-function PartView(props: { part: AssistantPart; streaming: boolean }): React.JSX.Element {
-  const { part, streaming } = props;
+function PartView(props: {
+  part: AssistantPart;
+  active: boolean;
+  streaming: boolean;
+}): React.JSX.Element {
+  const { part, active, streaming } = props;
   if (part.kind === 'text') {
     return <Markdown streaming={streaming}>{part.text}</Markdown>;
   }
   if (part.kind === 'thinking') {
-    return (
-      <details className="text-xs text-fg-muted">
-        <summary className="cursor-pointer select-none">thinking</summary>
-        <div className="mt-1 whitespace-pre-wrap opacity-80">{part.text}</div>
-      </details>
-    );
+    return <ThinkingBlock text={part.text} active={active} />;
   }
   return <ToolCallView part={part} />;
 }

@@ -164,6 +164,37 @@ describe('WebSessionManager', () => {
     expect(frame?.type).toBe('agent.event');
   });
 
+  test('并发 resume 同一 id 去重:harness 只 resume 一次,事件只广播一次', async () => {
+    const harness = new FakeHarness();
+    let resumeCalls = 0;
+    const origResume = harness.resumeSession.bind(harness);
+    harness.resumeSession = async (input: { readonly id: string }) => {
+      resumeCalls += 1;
+      // 让并发窗口真实存在:两次调用都进入 await 后才返回
+      await new Promise((r) => setTimeout(r, 10));
+      return origResume(input);
+    };
+    const manager = new WebSessionManager(harness);
+    const queue = new AsyncQueue<ServerFrame>();
+
+    const id = 'sess-concurrent';
+    const [a, b] = await Promise.all([manager.resumeSession(id), manager.resumeSession(id)]);
+    expect(resumeCalls).toBe(1);
+    expect(a.id).toBe(id);
+    expect(b.id).toBe(id);
+
+    manager.subscribe(id, queue);
+    harness.sessions.get(id)!.emit(assistantDelta(id, 1, 'once'));
+    const frame = await queue.next();
+    expect(frame?.type).toBe('agent.event');
+    // 单次 emit 只应有一帧(等一小段确认无第二帧)
+    const extra = await Promise.race([
+      queue.next(),
+      new Promise<null>((r) => setTimeout(() => r(null), 30)),
+    ]);
+    expect(extra).toBeNull();
+  });
+
   test('审批反向 RPC:请求 → 广播 → resolve → 裁决与 settled 帧', async () => {
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
