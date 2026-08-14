@@ -22,7 +22,7 @@
 
 ## Open Questions
 
-* （无）方向、版本、PRD 与否均已决议。
+- （无）方向、版本、PRD 与否均已决议。
 
 ## Requirements
 
@@ -61,44 +61,45 @@
 
 ## Research References
 
-* （无 `/research` 记录；升级调研结论来自本 PRD 的 have-a-try 原型与 npm 包对比，如需持久化可另走 `/research`）
+- （无 `/research` 记录；升级调研结论来自本 PRD 的 have-a-try 原型与 npm 包对比，如需持久化可另走 `/research`）
 
 ## Feasible Approaches
 
 **Approach A: 一步到位 0.84.1**（已选，用户 2026-08-13 决议）
 
-* How it works: 直接升到最新版；迁移面经 grill /have-a-try 真装 0.84.1 跑 `tsc --build` 实测
-* Pros: 拿到全部上游改进与性能提升；迁移成本实测仅 `byf-tui.ts` 两处机械改动；依赖未变、主题接口零变化
-* Cons: 需完成一次 typecheck + 回归冒烟；0.81+ 运行时行为细节变化无法穷举（由 AC3 手动冒烟覆盖）
+- How it works: 直接升到最新版；迁移面经 grill /have-a-try 真装 0.84.1 跑 `tsc --build` 实测
+- Pros: 拿到全部上游改进与性能提升；迁移成本实测仅 `byf-tui.ts` 两处机械改动；依赖未变、主题接口零变化
+- Cons: 需完成一次 typecheck + 回归冒烟；0.81+ 运行时行为细节变化无法穷举（由 AC3 手动冒烟覆盖）
 
 **Approach B: 先 0.80.10 观察**
 
-* How it works: 先升到零破坏档，观察后再评估 0.84.1
-* Pros: 零风险
-* Cons: 拿不到 0.81+ 的性能与功能改进；二次升级成本叠加
+- How it works: 先升到零破坏档，观察后再评估 0.84.1
+- Pros: 零风险
+- Cons: 拿不到 0.81+ 的性能与功能改进；二次升级成本叠加
 
 ## Decision (ADR-lite)
 
 **Context**: 用户原始问题是 kimi-code 如何在 TUI 渲染图片、可否引入 BYF。调研发现 BYF 已具备同源同能力（粘贴图内联渲染已实现），真正可做的增量是 pi-tui 升级。grill 阶段把 0.84.1 真装进 apps/cli 跑 `tsc --build`：全仓仅 2 个 TS 错误、都在 `byf-tui.ts`、都关于 `TUI`（TS1484 import 须 type-only + TS2693 构造改值）；图片发射序列与 0.80.6 逐字节一致、`TuiMainScreen` 主屏路径完整保留 Kitty 图片 diff 逻辑（`parseKittyImageHeader`/`collectKittyImageIds`/`deleteKittyImage`）、渲染性能全面不劣（最多快 30%）。
 **Decision**:
+
 1. 直接升级 0.84.1（Approach A），本轮不启用新特性。
 2. 钉 **exact `0.84.1`**（非 caret）——pi-tui 在 minor 里发破坏性变更（0.80→0.81 即破 `TUI` 构造），caret 会静默拉入未来破坏性 minor；`apps/cli` 其余依赖虽用 caret，但 pi-tui 作为 TUI 基座不守 semver，例外钉 exact（lockfile 已保证可重现，exact 仅约束 `bun update` 行为）。不另起 ADR。
-**Consequences**: 升级零性能代价、迁移两处机械改动；后续如需 TuiAltScreen 视口或布局原语，可从 0.84.1 直接采用。风险集中在 0.81+ 运行时语义差异（非类型），由 AC3 手动冒烟兜底。
+   **Consequences**: 升级零性能代价、迁移两处机械改动；后续如需 TuiAltScreen 视口或布局原语，可从 0.84.1 直接采用。风险集中在 0.81+ 运行时语义差异（非类型），由 AC3 手动冒烟兜底。
 
 ## Implementation Plan (small PRs)
 
-* PR1: 依赖 bump（exact `0.84.1`）+ lockfile + `byf-tui.ts` 两处机械迁移（import type-only + 构造换 `TuiMainScreen`）+ typecheck + 测试 + 编译冒烟 + changeset（patch）
+- PR1: 依赖 bump（exact `0.84.1`）+ lockfile + `byf-tui.ts` 两处机械迁移（import type-only + 构造换 `TuiMainScreen`）+ typecheck + 测试 + 编译冒烟 + changeset（patch）
 
 ## Technical Notes
 
-* 原型：`/tmp/pi-tui-compare/proto/`（have-a-try，一次性，收尾后删除）——`api-probe.ts`（构造/导出/字节捕获）+ `bench.ts`（5 组工作负载 × 2 版本）
-* **grill 决定性测试**：把 0.84.1 真装进 apps/cli 跑 `tsc --build`（已回退到 0.80.6 干净态），全仓仅 2 个 TS 错误：
+- 原型：`/tmp/pi-tui-compare/proto/`（have-a-try，一次性，收尾后删除）——`api-probe.ts`（构造/导出/字节捕获）+ `bench.ts`（5 组工作负载 × 2 版本）
+- **grill 决定性测试**：把 0.84.1 真装进 apps/cli 跑 `tsc --build`（已回退到 0.80.6 干净态），全仓仅 2 个 TS 错误：
   - `src/tui/byf-tui.ts(34,3): error TS1484: 'TUI' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.`
   - `src/tui/byf-tui.ts(262,18): error TS2693: 'TUI' only refers to a type, but is being used as a value here.`
-* **Kitty 图片 diff 验证**：0.84.1 把 `tui.js` 拆成 `tui.js`+`tui-main-screen.js`+`tui-alt-screen.js`；BYF 走的 `TuiMainScreen`（`tui-main-screen.js`）**完整保留** Kitty 图片 diff 逻辑（`parseKittyImageHeader`/`extractKittyImageIds`/`extractKittyImageRows`/`collectKittyImageIds`/`deleteKittyImage`），`deleteAllKittyImages` 仍从 index 导出——AC4 图片回归有保障。
-* **版本钉法事实**：`apps/cli` 所有第三方依赖用 caret，唯独 pi-tui 钉 exact；pi-tui 在 minor 发破坏性变更（0.80→0.81 破 `TUI` 构造），故延续 exact。
-* 0.84.1 新导出（本轮不用）：`TuiMainScreen`/`TuiAltScreen`/`VStack`/`HStack`/`ScrollView`/`renderLatex`/`Marked`/`isViewportTUI`/`stripTerminalSequences`/`getOsc8LinkAtColumn`/`compositeTuiLine`
-* 参考文件：`apps/cli/package.json:65`、`apps/cli/src/tui/byf-tui.ts:34` 与 `:262`、PRD-0025（0.74.0 → 0.80.6 先例）
+- **Kitty 图片 diff 验证**：0.84.1 把 `tui.js` 拆成 `tui.js`+`tui-main-screen.js`+`tui-alt-screen.js`；BYF 走的 `TuiMainScreen`（`tui-main-screen.js`）**完整保留** Kitty 图片 diff 逻辑（`parseKittyImageHeader`/`extractKittyImageIds`/`extractKittyImageRows`/`collectKittyImageIds`/`deleteKittyImage`），`deleteAllKittyImages` 仍从 index 导出——AC4 图片回归有保障。
+- **版本钉法事实**：`apps/cli` 所有第三方依赖用 caret，唯独 pi-tui 钉 exact；pi-tui 在 minor 发破坏性变更（0.80→0.81 破 `TUI` 构造），故延续 exact。
+- 0.84.1 新导出（本轮不用）：`TuiMainScreen`/`TuiAltScreen`/`VStack`/`HStack`/`ScrollView`/`renderLatex`/`Marked`/`isViewportTUI`/`stripTerminalSequences`/`getOsc8LinkAtColumn`/`compositeTuiLine`
+- 参考文件：`apps/cli/package.json:65`、`apps/cli/src/tui/byf-tui.ts:34` 与 `:262`、PRD-0025（0.74.0 → 0.80.6 先例）
 
 ## Traceability
 

@@ -22,17 +22,17 @@ byf（TS/Bun 编码 agent，macOS+Linux）是否应自建 OS 沙箱？若建，�
 
 ### 1. 四项沙箱对比矩阵
 
-| 维度 | codex | Claude Code | grok-build | opencode |
-|---|---|---|---|---|
-| **有真沙箱?** | ✅ 最完备 | ✅ 真沙箱（核心代码在外部 npm 包） | ✅ 真·内核沙箱（报告定性错） | ❌ **无**（成文政策） |
-| **平台** | macOS+Linux+Windows | macOS+Linux+WSL2 | macOS+Linux | — |
-| **机制** | seatbelt / bwrap+seccomp+Landlock / 受限令牌+WFP | seatbelt / bwrap+seccomp+socat | nono 库：Landlock(Linux)+Seatbelt(macOS) | — |
-| **架构** | **独立 exec-server**（每命令 RPC 进程 + fs 操作在沙箱 helper 内） | **包裹命令字符串**（`wrapWithSandbox(cmd)→string`，`spawn('/bin/sh','-c')`） | **进程内一次 apply**（nono） | — |
-| **FS 模型** | deny-by-default 可写根 | 工作区=可写根 + 额外目录 | 能力集（default_read/RO/RW/deny/write_deny）+ TOML | — |
-| **网络** | **MITM 代理**（TLS 拦截+CA，按域名） | localhost 代理 + 域名 allowlist + 交互式 per-host 询问 | 子进程 seccomp 全封（Linux）/ macOS **空 stub** | — |
-| **Linux seccomp** | ✅ 网络+ptrace+namespace 锁 | ✅ 封 unix socket | ✅ 网络+namespace 逃逸锁 | — |
-| **fail-closed** | 混合（exec-server fail-closed；bwrap 缺失回退捆绑二进制） | **默认 fail-open**，fail-closed opt-in | workspace/strict **fail-closed**（exit 1）；devbox/off fail-open | — |
-| **代码量** | ~80k 行，深耦合 | ~1k adapter（核心在私有包 `@anthropic-ai/sandbox-runtime`） | ~5.3k 行，可分离 crate | 0 |
+| 维度              | codex                                                             | Claude Code                                                                  | grok-build                                                       | opencode              |
+| ----------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
+| **有真沙箱?**     | ✅ 最完备                                                         | ✅ 真沙箱（核心代码在外部 npm 包）                                           | ✅ 真·内核沙箱（报告定性错）                                     | ❌ **无**（成文政策） |
+| **平台**          | macOS+Linux+Windows                                               | macOS+Linux+WSL2                                                             | macOS+Linux                                                      | —                     |
+| **机制**          | seatbelt / bwrap+seccomp+Landlock / 受限令牌+WFP                  | seatbelt / bwrap+seccomp+socat                                               | nono 库：Landlock(Linux)+Seatbelt(macOS)                         | —                     |
+| **架构**          | **独立 exec-server**（每命令 RPC 进程 + fs 操作在沙箱 helper 内） | **包裹命令字符串**（`wrapWithSandbox(cmd)→string`，`spawn('/bin/sh','-c')`） | **进程内一次 apply**（nono）                                     | —                     |
+| **FS 模型**       | deny-by-default 可写根                                            | 工作区=可写根 + 额外目录                                                     | 能力集（default_read/RO/RW/deny/write_deny）+ TOML               | —                     |
+| **网络**          | **MITM 代理**（TLS 拦截+CA，按域名）                              | localhost 代理 + 域名 allowlist + 交互式 per-host 询问                       | 子进程 seccomp 全封（Linux）/ macOS **空 stub**                  | —                     |
+| **Linux seccomp** | ✅ 网络+ptrace+namespace 锁                                       | ✅ 封 unix socket                                                            | ✅ 网络+namespace 逃逸锁                                         | —                     |
+| **fail-closed**   | 混合（exec-server fail-closed；bwrap 缺失回退捆绑二进制）         | **默认 fail-open**，fail-closed opt-in                                       | workspace/strict **fail-closed**（exit 1）；devbox/off fail-open | —                     |
+| **代码量**        | ~80k 行，深耦合                                                   | ~1k adapter（核心在私有包 `@anthropic-ai/sandbox-runtime`）                  | ~5.3k 行，可分离 crate                                           | 0                     |
 
 ### 2. 报告定性校准
 
@@ -41,13 +41,13 @@ byf（TS/Bun 编码 agent，macOS+Linux）是否应自建 OS 沙箱？若建，�
 
 ### 3. 对 byf（TS/Bun）的可移植性裁决
 
-| 组件 | 可移植到 TS/Bun? | 说明 |
-|---|---|---|
-| macOS seatbelt | ✅ 易 | 纯字符串拼装 + `spawn('/usr/bin/sandbox-exec',['-p',profile,...])` |
-| Linux bwrap (FS) | ✅ 基本可 | 同为 CLI 子进程（bind mount 参数） |
-| Linux seccomp/Landlock | ❌ | 需 `seccomp`/`landlock_*` syscall，Bun 无内置绑定，需 native addon 或 helper 二进制 |
-| 网络代理（MITM/域名） | ⚠️ 大 | codex 的 MITM ~17k 行；可降级为 SOCKS5/CONNECT 域名门控但仍重 |
-| Windows | ❌（且不在 byf 平台范围） | 受限令牌+WFP，native only |
+| 组件                   | 可移植到 TS/Bun?          | 说明                                                                                |
+| ---------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| macOS seatbelt         | ✅ 易                     | 纯字符串拼装 + `spawn('/usr/bin/sandbox-exec',['-p',profile,...])`                  |
+| Linux bwrap (FS)       | ✅ 基本可                 | 同为 CLI 子进程（bind mount 参数）                                                  |
+| Linux seccomp/Landlock | ❌                        | 需 `seccomp`/`landlock_*` syscall，Bun 无内置绑定，需 native addon 或 helper 二进制 |
+| 网络代理（MITM/域名）  | ⚠️ 大                     | codex 的 MITM ~17k 行；可降级为 SOCKS5/CONNECT 域名门控但仍重                       |
+| Windows                | ❌（且不在 byf 平台范围） | 受限令牌+WFP，native only                                                           |
 
 **结论**：即便做，可移植的只是 seatbelt+bwrap 两个 CLI 原语（纯 FS 隔离），seccomp/Landlock 硬化全部要 native addon。Claude Code 的 `@anthropic-ai/sandbox-runtime` 可 vendor，但绑定 `experimental` 外部包、不可控。
 
@@ -70,11 +70,13 @@ byf（TS/Bun 编码 agent，macOS+Linux）是否应自建 OS 沙箱？若建，�
 3. **byf 已有自主模式（goal/cron/AFK）**：这些不依赖沙箱也能成立，前提是**诚实文档化**——byf 应像 opencode 一样声明权限层非安全边界，AFK 模式建议在容器内运行。
 
 **对路线图的影响**（见 `docs/roadmap/tool-system-evolution.md` 更新）：
+
 - Tier 0c（OS 沙箱）**删除**。
 - Tier 0 收缩为 0a（Bash 资源解析）+ 0b（approve-for-session 规则化），重新定位为**唯一防线 + 明确其为 UX 尽力而为、非安全边界**。
 - 新增「威胁模型文档化」要求：byf 需要一份 opencode SECURITY.md 式的威胁模型声明。
 
 **可借鉴的非沙箱资产**：
+
 - **codemode 思路**（受限解释器为纯工具编排提供零权限路径）：与沙箱正交，作为 byf 潜在 Tier 2 方向（「减少对 bash 的编排依赖」）记录，不在当前推进范围。
 
 ## Boundary Conditions

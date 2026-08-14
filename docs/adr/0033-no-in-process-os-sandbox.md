@@ -21,11 +21,11 @@ byf 的 Bash 是公理 B（可授权性）的当前破口（见路线图 `docs/r
 
 四项收敛到同一组 OS 原语（macOS `sandbox-exec`/seatbelt、Linux `bwrap`/bubblewrap），但可移植性裁决是决定性的：
 
-| 组件 | 可移植到 TS/Bun? |
-|---|---|
-| macOS seatbelt / Linux bwrap（纯 FS 隔离） | ✅（CLI 子进程） |
-| Linux seccomp / Landlock（syscall 硬化） | ❌（需 native addon / helper 二进制） |
-| 网络代理（MITM / 域名门控） | ⚠️ 重（codex MITM ~17k 行） |
+| 组件                                       | 可移植到 TS/Bun?                      |
+| ------------------------------------------ | ------------------------------------- |
+| macOS seatbelt / Linux bwrap（纯 FS 隔离） | ✅（CLI 子进程）                      |
+| Linux seccomp / Landlock（syscall 硬化）   | ❌（需 native addon / helper 二进制） |
+| 网络代理（MITM / 域名门控）                | ⚠️ 重（codex MITM ~17k 行）           |
 
 且 opencode 用一套**自洽哲学**证明了「不做沙箱」可辩护：承认进程内做不出真边界 → 隔离整个外置给容器 → 权限层只做 UX 尽力而为 → 用受限解释器（codemode）为纯工具编排提供不需要 bash 的路径。
 

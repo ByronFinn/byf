@@ -32,10 +32,10 @@
 
 ### Spikes (verification records, not versioned topics)
 
-| Spike                                        | Verdict                                                                         | File                                                                     |
-| -------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| PRD-0020 compile + koffi/clipboard TUI smoke | **GO** — clipboard `.node` 嵌入；koffi 为 Windows-only 死代码，MVP 两平台无阻塞 | [spike-0020-compile-native-smoke.md](spike-0020-compile-native-smoke.md) |
-| 本地 agent OS 沙箱四项对比（codex/Claude Code/grok-build/opencode） | **不做沙箱** — byf 采纳 opencode 立场（隔离归用户容器）；可移植的仅 seatbelt/bwrap 两 CLI 原语，seccomp/Landlock 需 native addon | [spike-local-agent-os-sandbox.md](spike-local-agent-os-sandbox.md) |
+| Spike                                                               | Verdict                                                                                                                          | File                                                                     |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| PRD-0020 compile + koffi/clipboard TUI smoke                        | **GO** — clipboard `.node` 嵌入；koffi 为 Windows-only 死代码，MVP 两平台无阻塞                                                  | [spike-0020-compile-native-smoke.md](spike-0020-compile-native-smoke.md) |
+| 本地 agent OS 沙箱四项对比（codex/Claude Code/grok-build/opencode） | **不做沙箱** — byf 采纳 opencode 立场（隔离归用户容器）；可移植的仅 seatbelt/bwrap 两 CLI 原语，seccomp/Landlock 需 native addon | [spike-local-agent-os-sandbox.md](spike-local-agent-os-sandbox.md)       |
 
 ## By Topic
 
