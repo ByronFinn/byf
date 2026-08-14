@@ -64,7 +64,7 @@
   --color-neutral-900: oklch(0.17 0.006 255);
   --color-neutral-950: oklch(0.145 0.006 255);
 
-  /* 状态色(浅色主题的 AA 变体用 *-700) */
+  /* 状态色(浅色主题的 AA 变体用 *-700;red-600 例外,浅色下已达标) */
   --color-amber-500: oklch(0.76 0.16 70);
   --color-amber-700: oklch(0.55 0.13 65);
   --color-red-500: oklch(0.62 0.21 25);

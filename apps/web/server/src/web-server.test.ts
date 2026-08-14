@@ -164,6 +164,19 @@ describe('WebSessionManager', () => {
     expect(frame?.type).toBe('agent.event');
   });
 
+  test('resume 失败后可重试:不永久毒化该 id', async () => {
+    const harness = new FakeHarness();
+    let calls = 0;
+    harness.resumeSession = async (): Promise<never> => {
+      calls += 1;
+      throw new Error(`boom ${calls}`);
+    };
+    const manager = new WebSessionManager(harness);
+    await expect(manager.resumeSession('sess-flaky')).rejects.toThrow('boom 1');
+    await expect(manager.resumeSession('sess-flaky')).rejects.toThrow('boom 2');
+    expect(calls).toBe(2); // 失败不缓存:每次都真正重试
+  });
+
   test('并发 resume 同一 id 去重:harness 只 resume 一次,事件只广播一次', async () => {
     const harness = new FakeHarness();
     let resumeCalls = 0;

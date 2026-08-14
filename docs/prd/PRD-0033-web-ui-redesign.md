@@ -1,6 +1,6 @@
 # PRD-0033: byf Web 客户端 UI 重设计（`apps/web/client`）
 
- > **Status**: Implemented | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: Implemented | **PRD**: PRD-0033 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
 
 ## Goal
 

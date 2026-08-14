@@ -30,7 +30,7 @@ export function SessionListPage(): React.JSX.Element {
   } = useQuery({
     queryKey: sessionListKey(loadedDir ?? '', ''),
     queryFn: () => api.listSessions(loadedDir as string),
-    enabled: loadedDir !== null,
+    enabled: loadedDir !== null && loadedDir.length > 0,
   });
 
   const createMutation = useMutation({

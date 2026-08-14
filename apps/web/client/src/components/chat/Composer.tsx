@@ -52,7 +52,8 @@ export function Composer(props: {
               setText(e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // IME 组合态的 Enter(确认候选词)不发送
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 submit();
               }

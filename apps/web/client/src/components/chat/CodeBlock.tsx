@@ -24,6 +24,9 @@ export function CodeBlock(props: {
       .then(({ highlightCode: highlight }) => highlight(code, language))
       .then((result) => {
         if (!cancelled) setHtml(result);
+      })
+      .catch(() => {
+        /* chunk 加载/高亮失败:保持纯文本回退 */
       });
     return () => {
       cancelled = true;

@@ -36,7 +36,7 @@ deepseek 的全自建（CSS Modules + 手写 SVG 图标）精致度更高但**�
 - **语义别名**：`--color-bg` / `--color-surface-1/2/3` / `--color-fg` / `--color-fg-muted` / `--color-border` / `--color-brand` / `--color-state-*`。
 - **组件专用**：`--color-bubble`（用户气泡）/ `--color-sidebar` / `--color-input` 等。
 
-色彩空间用 **OKLCH**（深浅感知均匀，AA 对比易达标，kimi 同款）。命名遵循 Tailwind v4 `@theme` 的 `--color-*` 约定，工具类（`bg-surface-1` / `text-fg` / `border-border`）自动生成，与 shadcn/kimi 一致，**零桥接**——不用品牌前缀 `--byf-*`（会与 Tailwind 工具类约定冲突，需手动桥接）。
+组件专用中的输入框填充实现为 `--color-input-fill`(`--color-input` 让位给 shadcn 语义桥的输入框边框色)。色彩空间用 **OKLCH**（深浅感知均匀，AA 对比易达标，kimi 同款）。命名遵循 Tailwind v4 `@theme` 的 `--color-*` 约定，工具类（`bg-surface-1` / `text-fg` / `border-border`）自动生成，与 shadcn/kimi 一致，**零桥接**——不用品牌前缀 `--byf-*`（会与 Tailwind 工具类约定冲突，需手动桥接）。
 
 ### D3：深浅双主题 + system 三态，深色为基线
 
