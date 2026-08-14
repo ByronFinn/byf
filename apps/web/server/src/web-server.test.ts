@@ -190,7 +190,11 @@ describe('WebSessionManager', () => {
     // 单次 emit 只应有一帧(等一小段确认无第二帧)
     const extra = await Promise.race([
       queue.next(),
-      new Promise<null>((r) => setTimeout(() => r(null), 30)),
+      new Promise<null>((r) => {
+        setTimeout(() => {
+          r(null);
+        }, 30);
+      }),
     ]);
     expect(extra).toBeNull();
   });
