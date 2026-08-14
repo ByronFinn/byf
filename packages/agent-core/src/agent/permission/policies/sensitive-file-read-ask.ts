@@ -23,7 +23,10 @@
  */
 
 import type { ToolInputDisplay } from '../../../tools/display';
-import { parseBashCommand } from '../../../tools/policies/bash-command';
+import {
+  CONTENT_READING_SEARCH_VERBS,
+  parseBashCommand,
+} from '../../../tools/policies/bash-command';
 import { resolvePathAccess } from '../../../tools/policies/path-access';
 import { isSensitiveFile } from '../../../tools/policies/sensitive';
 import type { PermissionPolicy } from '../policy';
@@ -34,7 +37,20 @@ export const SENSITIVE_READ_ACTION_PREFIX = 'read sensitive file: ';
 const READ_TOOLS = new Set(['Read', 'ReadMediaFile']);
 const COMMAND_TOOLS = new Set(['Bash', 'Shell', 'Background']);
 
-function readPathsOf(toolName: string, args: unknown): readonly string[] | undefined {
+/**
+ * 从工具调用提取「会输出文件内容」的路径（敏感读检查的目标）：
+ *   - Read / ReadMediaFile：path（read）
+ *   - Bash/Shell/Background：
+ *     - read 路径（cat/head/...）
+ *     - **内容型 search** 路径（grep/rg/... 的文件操作数）——等价于读，
+ *       会输出敏感内容（不同于 Grep 工具：Grep 工具豁免含结果过滤，
+ *       Bash 的 grep 跑系统二进制无过滤，故必须纳入审批）。
+ *       find/fd（只列名、不读内容）豁免。
+ *
+ * 注意：返回 (rawPath, subcommandVerb) 配对——verb 仅供本函数判定 search 类型，
+ * 不影响调用方（调用方只消费 rawPath）。
+ */
+function readContentPathsOf(toolName: string, args: unknown): readonly string[] | undefined {
   if (args === null || typeof args !== 'object') return undefined;
   const rec = args as Record<string, unknown>;
 
@@ -43,9 +59,17 @@ function readPathsOf(toolName: string, args: unknown): readonly string[] | undef
   }
   if (COMMAND_TOOLS.has(toolName)) {
     if (typeof rec['command'] !== 'string') return undefined;
-    const paths = parseBashCommand(rec['command']).subcommands.flatMap((s) => s.paths);
-    const readPaths = paths.filter((p) => p.operation === 'read').map((p) => p.rawPath);
-    return readPaths.length > 0 ? readPaths : undefined;
+    const paths: string[] = [];
+    for (const sub of parseBashCommand(rec['command']).subcommands) {
+      for (const p of sub.paths) {
+        if (p.operation === 'read') {
+          paths.push(p.rawPath);
+        } else if (p.operation === 'search' && CONTENT_READING_SEARCH_VERBS.has(sub.verb)) {
+          paths.push(p.rawPath);
+        }
+      }
+    }
+    return paths.length > 0 ? paths : undefined;
   }
   return undefined;
 }
@@ -56,7 +80,7 @@ export const SensitiveFileReadAskPolicy: PermissionPolicy = {
     // AFK 信任模型：headless 无法审批（goal/cron 自主任务的合理读取不打断）
     if (mode === 'auto') return undefined;
 
-    const rawPaths = readPathsOf(toolCallContext.toolCall.name, toolCallContext.args);
+    const rawPaths = readContentPathsOf(toolCallContext.toolCall.name, toolCallContext.args);
     if (rawPaths === undefined || rawPaths.length === 0) return undefined;
 
     const kaos = agent.runtime.kaos;

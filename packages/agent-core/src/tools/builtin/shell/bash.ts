@@ -176,9 +176,8 @@ export class BashTool implements BuiltinTool<BashInput> {
       description: args.run_in_background
         ? `Starting background: ${preview}`
         : `Running: ${preview}`,
-      // PRD-0031 0a：解析命令 → 敏感文件硬拒（抛 PathSecurityError，loop 统一
-      // 格式化为结构化错误回传）+ 声明 ToolAccesses（无法静态收窄时保持
-      // 全局互斥——现状语义）。
+      // PRD-0031：解析命令 → 写敏感文件硬拒（PathSecurityError，loop 格式化
+      // 为结构化错误）；读敏感文件由权限层策略门控（审批事件，#298）。
       accesses: resolveBashResources(
         parseBashCommand(args.command).subcommands,
         args.cwd ?? this.cwd,
@@ -573,10 +572,10 @@ function bashSensitiveMessage(rawPath: string, canonicalPath: string): string {
   return (
     `"${rawPath}" (canonical: "${canonicalPath}") matches a sensitive-file pattern ` +
     `(env / credential / SSH key). Writing to sensitive files is hard-blocked to protect ` +
-    `secrets (reading them goes through approval). If this file is genuinely required, ` +
-    `rename it in your own terminal to a name that does not match the sensitive pattern ` +
-    `(byf cannot rename it for you — mv is blocked the same way), or use Grep to search ` +
-    `for the specific value you need.`
+    `secrets (reading them goes through approval; writing does not). If this file is ` +
+    `genuinely required, rename it in your own terminal to a name that does not match the ` +
+    `sensitive pattern (it must not start with ".env." and must not be named credentials / ` +
+    `id_rsa / etc.) — byf cannot rename it for you, since mv is blocked the same way.`
   );
 }
 

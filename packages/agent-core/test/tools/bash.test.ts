@@ -1001,7 +1001,7 @@ describe('BashTool — PRD-0031 敏感文件读写分治（#298）', () => {
     expect(rm.isError).toBe(true);
     expect(rm.output).toMatch(/sensitive-file pattern/);
     expect(rm.output).toMatch(/rename it in your own terminal/);
-    expect(rm.output).toMatch(/Grep/);
+    expect(rm.output).toMatch(/\.env\./);
     const echo = await executeTool(tool, context({ command: 'echo "x" > .env' }));
     expect(echo.isError).toBe(true);
     expect(echo.output).toMatch(/sensitive-file pattern/);

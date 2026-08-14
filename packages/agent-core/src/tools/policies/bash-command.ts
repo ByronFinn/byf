@@ -87,8 +87,13 @@ const FILE_OPERAND_VERBS = new Set([
   'strip',
 ]);
 
-/** pattern 在首个位置参数的搜索动词（find/fd 的首个位置参数是路径）。 */
-const PATTERN_FIRST_VERBS = new Set(['grep', 'egrep', 'fgrep', 'rg', 'ack', 'ag']);
+/**
+ * pattern 在首个位置参数的搜索动词（find/fd 的首个位置参数是路径）。
+ * 这些动词读文件**内容**（与 find/fd 只列名不同）——其文件操作数在权限层
+ * 等价于读（会输出敏感内容），sensitive-file-read-ask 策略据此判定。
+ */
+export const CONTENT_READING_SEARCH_VERBS = new Set(['grep', 'egrep', 'fgrep', 'rg', 'ack', 'ag']);
+const PATTERN_FIRST_VERBS = CONTENT_READING_SEARCH_VERBS;
 
 /** 解释器：`-c`/`-e` 内层代码是已知绕过面 → indirect；`python script.py` 的脚本
  *  本身是读取对象，但脚本内容可能触碰任意文件 → broad。 */

@@ -1480,6 +1480,61 @@ describe('敏感文件读 = 审批事件（#298）', () => {
     expect(requestApproval).not.toHaveBeenCalled();
   });
 
+  it('内容型 search（grep/rg）读敏感文件 → ask（#298 review High-1：不绕过）', async () => {
+    // grep PATTERN .env 等价于读（会输出敏感内容）——必须走敏感读审批，
+    // 不能因 search 操作而绕过（Bash 的 grep 跑系统二进制无结果过滤）
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('yolo');
+    await manager.beforeToolCall(hookContext({ id: 'c1', args: { command: 'grep SECRET .env' } }));
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: .env' }),
+      expect.anything(),
+    );
+    // rg 同理
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', args: { command: 'rg TOKEN ~/.ssh/id_rsa' } }),
+    );
+    expect(
+      requestApproval.mock.calls.filter((c) =>
+        String((c[0] as { action?: string }).action).includes('id_rsa'),
+      ),
+    ).toHaveLength(1);
+    // 列名型 search（find/fd）不读内容 → 不触发敏感读
+    await manager.beforeToolCall(hookContext({ id: 'c3', args: { command: 'find . -name .env' } }));
+    // 普通目录 search 不触发
+    await manager.beforeToolCall(hookContext({ id: 'c4', args: { command: 'grep -r TODO src/' } }));
+    const sensitiveAfterFind = requestApproval.mock.calls.filter((c) =>
+      String((c[0] as { action?: string }).action).startsWith('read sensitive file: '),
+    );
+    expect(sensitiveAfterFind).toHaveLength(2); // 仅 grep .env + rg id_rsa
+  });
+
+  it('cd 累计后敏感读仍触发 ask（#298 review：权限层与工具层行为一致）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', args: { command: 'cd ~/.ssh && cat id_rsa' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: id_rsa' }),
+      expect.anything(),
+    );
+  });
+
+  it('ReadMediaFile 读敏感文件 → ask（工具层已放开，权限层门控）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'ReadMediaFile', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
   it('actionToRulePattern 对敏感读 action 返回 undefined（不生成宽泛规则）', () => {
     expect(actionToRulePattern('read sensitive file: /workspace/.env', 'Read')).toBeUndefined();
   });
