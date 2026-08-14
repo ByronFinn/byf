@@ -131,7 +131,7 @@
         "clsx": "^2.1.1",
         "katex": "0.16",
         "lucide-react": "^1.31.0",
-        "mermaid": "11",
+        "mermaid": "^11.12.2",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
         "react-markdown": "^9.0.1",

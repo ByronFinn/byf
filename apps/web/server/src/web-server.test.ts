@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -1475,11 +1475,14 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
 
   test('文本超 2MB → 413;媒体超 50MB → 413', async () => {
     const { app, ws } = await setupFs();
-    await writeFile(join(ws, 'big.txt'), 'a'.repeat(2 * 1024 * 1024 + 1), 'utf-8');
+    // 稀疏文件:413 在读取前发生,内容无需真实写入(避免大缓冲拖慢并发套件)。
+    await writeFile(join(ws, 'big.txt'), '', 'utf-8');
+    await truncate(join(ws, 'big.txt'), 2 * 1024 * 1024 + 1);
     const bigText = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'big.txt'))}`);
     expect(bigText.status).toBe(413);
 
-    await writeFile(join(ws, 'big.png'), Buffer.alloc(50 * 1024 * 1024 + 1));
+    await writeFile(join(ws, 'big.png'), '');
+    await truncate(join(ws, 'big.png'), 50 * 1024 * 1024 + 1);
     const bigMedia = await app.request(
       `/api/files?path=${encodeURIComponent(join(ws, 'big.png'))}`,
     );
