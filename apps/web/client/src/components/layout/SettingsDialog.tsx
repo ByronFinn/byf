@@ -11,6 +11,7 @@ import {
   THINKING_MODES,
   THINKING_MODE_LABEL,
 } from '#/components/chat/ThinkingChip';
+import { ConfigFileSection } from '#/components/settings/ConfigFileSection';
 import { ProvidersSection } from '#/components/settings/ProvidersSettings';
 import { Button } from '#/components/ui/button';
 import {
@@ -129,7 +130,9 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           ) : section === 'runtime' ? (
             <RuntimeSection />
           ) : section === 'configfile' ? (
-            <ConfigFileSection />
+            <div className="h-full">
+              <ConfigFileSection />
+            </div>
           ) : (
             <ArchivesSection onClose={onClose} />
           )}
@@ -493,20 +496,6 @@ function RuntimeSection(): React.JSX.Element {
         <p className="mt-1 text-sm text-fg-muted">
           Web 工作台的监听地址、鉴权与文件端点配置。启动参数由 `byf web` 命令行控制（-H / --port /
           WEB_AUTH_TOKEN）。
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/** 配置文件（R-C5 导航占位；PRD-0035 Wave E 的 raw 编辑器在 PR5 实现）。 */
-function ConfigFileSection(): React.JSX.Element {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold text-fg">配置文件</h3>
-        <p className="mt-1 text-sm text-fg-muted">
-          config.toml 全文编辑（校验 / revision 乐观锁 / 密钥掩码）即将在此提供。
         </p>
       </div>
     </div>

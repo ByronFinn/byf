@@ -491,6 +491,18 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     return c.json(await manager.validateConfigText(text));
   });
 
+  r.post('/config/reveal', async (c) => {
+    try {
+      await revealInOs(manager.configPath);
+      return c.json({ opened: manager.configPath });
+    } catch (error) {
+      return c.json(
+        { error: `failed to open: ${(error as Error).message}`, code: 'READ_ERROR' },
+        500,
+      );
+    }
+  });
+
   r.put('/config/raw', async (c) => {
     const body = await c.req.json<{ text?: string; expectedRevision?: string | null }>();
     if (typeof body.text !== 'string') return badRequest(c, 'text is required');

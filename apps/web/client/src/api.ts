@@ -1,6 +1,7 @@
 import type {
   ActivateSkillBody,
   AgentTreeResponse,
+  ConfigValidationResult,
   ContextProjection,
   InspectorSessionSummary,
   ListInspectableSessionsResponse,
@@ -90,7 +91,7 @@ function authToken(): string | null {
 
 async function request<T>(
   path: string,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
@@ -145,6 +146,36 @@ export const inspectorApi = {
   },
   deleteSession: async (sessionId: string): Promise<void> => {
     await request(`/api/sessions/${enc(sessionId)}`, 'DELETE');
+  },
+};
+
+// ── ConfigDocument 端点（PRD-0035 Wave E / ADR-0038）────────────────────────
+
+export interface ConfigDocumentWire {
+  readonly path: string;
+  /** 掩码后的文本（api_key 值为占位符）。 */
+  readonly text: string;
+  readonly revision: string | null;
+  readonly parsed: ConfigResponse;
+}
+
+export interface WriteConfigWire {
+  readonly config: ConfigResponse;
+  readonly revision: string;
+}
+
+export const configApi = {
+  getConfigDocument: async (): Promise<ConfigDocumentWire> => {
+    return request<ConfigDocumentWire>('/api/config/raw', 'GET');
+  },
+  validateConfigText: async (text: string): Promise<ConfigValidationResult> => {
+    return request<ConfigValidationResult>('/api/config/validate', 'POST', { text });
+  },
+  writeConfigText: async (
+    text: string,
+    expectedRevision: string | null,
+  ): Promise<WriteConfigWire> => {
+    return request<WriteConfigWire>('/api/config/raw', 'PUT', { text, expectedRevision });
   },
 };
 
