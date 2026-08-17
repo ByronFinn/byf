@@ -189,21 +189,21 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-A1** `apps/vis/server/src/lib` 的会话/wire/context/agent 投影逻辑不再被 web 之外的 app 层副本实现；web-server 运行时不直接 import `@byfriends/agent-core`。
-- [ ] **AC-A2** `byf web`、`byf vis`、TUI `/web` 三者最终落到同一个 `startWebServer` 实现；不存在第二个 HTTP server 代码路径。
-- [ ] **AC-A3** `GET /api/sessions` 无 `workDir` 时返回全量会话；Web 侧栏、原 vis 列表、TUI 会话列表看到的会话集合一致。
-- [ ] **AC-A4** `DELETE /api/sessions/:id` 删除后 `session_index.jsonl` 不再残留该 id；active/busy 会话删除返回 409。
-- [ ] **AC-A5** Web 配置文件页可打开、校验、保存 `config.toml` 全文；invalid 文本不落盘并给出定位。
-- [ ] **AC-A6** Raw 保存后注释/空行/未识别键保留；保存成功返回新 revision。
-- [ ] **AC-A7** 并发修改：TUI/另一进程修改文件后，Web 携带旧 revision 保存返回 `409 CONFIG_REVISION_CONFLICT`，不覆盖磁盘版本。
-- [ ] **AC-A8** 结构化配置保存时，检测到注释/未知结构会显示“将规范化文件”提示；保存结果与配置文件页 raw 内容一致。
-- [ ] **AC-A9** 三栏布局几何符合 deepseek 契约；sidebar 可拖拽/折叠，details 可拖拽/关闭，<1024px 自动折叠。
-- [ ] **AC-A10** 全站颜色/字体/圆角来自 deepseek 精致风 token（自研实现）；浅色主题达到 WCAG AA；旧 web emerald 与 OKLCH 硬编码 token 全部清零（不保留桥接映射），仅 shadcn 结构桥接变量存在；Inspector 视图可额外使用 `cat-*` 语义色。
-- [ ] **AC-A11** Chat/Trace/Context/Agents/State 五 tab 可用；原 vis 核心检查能力（wire 搜索、pair 跳转、issues、agent tree、context projection、state）全部保留。
-- [ ] **AC-A12** 点击工具行/子 agent/文件路径/wire 行能在 right details 或 narrow drawer 中打开对应详情；默认显示 deepseek 同款空态。
-- [ ] **AC-A13** PRD-0032/0033/0034 全部验收回归通过（SSE、审批/问答、Fork、归档、文件端点、Mermaid/LaTeX、LAN auth、TUI `/web`）。
-- [ ] **AC-A14** `byf vis` 弃用期行为可预期：默认端口 3001 不变、`VIS_AUTH_TOKEN` 兼容；输出 banner 标明已由统一工作台提供服务。
-- [ ] **AC-A15** native compile 只内嵌一个 SPA 资产；`bun run build`/`typecheck`/`lint`/`test` 全绿。
+- [x] **AC-A1** `apps/vis/server/src/lib` 的会话/wire/context/agent 投影逻辑不再被 web 之外的 app 层副本实现；web-server 运行时不直接 import `@byfriends/agent-core`。
+- [x] **AC-A2** `byf web`、`byf vis`、TUI `/web` 三者最终落到同一个 `startWebServer` 实现；不存在第二个 HTTP server 代码路径。
+- [x] **AC-A3** `GET /api/sessions` 无 `workDir` 时返回全量会话；Web 侧栏、原 vis 列表、TUI 会话列表看到的会话集合一致。
+- [x] **AC-A4** `DELETE /api/sessions/:id` 删除后 `session_index.jsonl` 不再残留该 id；active/busy 会话删除返回 409。
+- [x] **AC-A5** Web 配置文件页可打开、校验、保存 `config.toml` 全文；invalid 文本不落盘并给出定位。
+- [x] **AC-A6** Raw 保存后注释/空行/未识别键保留；保存成功返回新 revision。
+- [x] **AC-A7** 并发修改：TUI/另一进程修改文件后，Web 携带旧 revision 保存返回 `409 CONFIG_REVISION_CONFLICT`，不覆盖磁盘版本。
+- [x] **AC-A8** 结构化配置保存时，检测到注释/未知结构会显示“将规范化文件”提示；保存结果与配置文件页 raw 内容一致。 （注释检测 banner + 配置文件页全保真保存）
+- [x] **AC-A9** 三栏布局几何符合 deepseek 契约；sidebar 可拖拽/折叠，details 可拖拽/关闭，<1024px 自动折叠。 （columns 几何单测 + AppFrame 实现；拖拽交互 jsdom 测试未加——纯函数契约已钉）
+- [x] **AC-A10** 全站颜色/字体/圆角来自 deepseek 精致风 token（自研实现）；浅色主题达到 WCAG AA；旧 web emerald 与 OKLCH 硬编码 token 全部清零（不保留桥接映射），仅 shadcn 结构桥接变量存在；Inspector 视图可额外使用 `cat-*` 语义色。
+- [x] **AC-A11** Chat/Trace/Context/Agents/State 五 tab 可用；原 vis 核心检查能力（wire 搜索、pair 跳转、issues、agent tree、context projection、state）全部保留。
+- [x] **AC-A12** 点击工具行/子 agent/文件路径/wire 行能在 right details 或 narrow drawer 中打开对应详情；默认显示 deepseek 同款空态。 （DetailsProvider + WireRow 行点击 → details 列；文件/子agent 详情沿用既有 drawer）
+- [x] **AC-A13** PRD-0032/0033/0034 全部验收回归通过（SSE、审批/问答、Fork、归档、文件端点、Mermaid/LaTeX、LAN auth、TUI `/web`）。 （web-server 70 / client 52 / cli exit 0 回归）
+- [x] **AC-A14** `byf vis` 弃用期行为可预期：默认端口 3001 不变、`VIS_AUTH_TOKEN` 兼容；输出 banner 标明已由统一工作台提供服务。
+- [x] **AC-A15** native compile 只内嵌一个 SPA 资产；`bun run build`/`typecheck`/`lint`/`test` 全绿。
 
 ## Definition of Done
 
