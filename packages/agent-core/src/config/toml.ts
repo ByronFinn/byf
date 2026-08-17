@@ -47,6 +47,9 @@ const DEFAULT_CONFIG_FILE_TEXT = `# ~/.byf/config.toml
 # Login will populate managed provider and model entries.
 `;
 
+/** 缺省 config.toml 的模板文本（ConfigDocument 在文件缺失时的初始内容）。 */
+export { DEFAULT_CONFIG_FILE_TEXT };
+
 export async function ensureConfigFile(filePath: string): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   let handle: Awaited<ReturnType<typeof open>> | undefined;

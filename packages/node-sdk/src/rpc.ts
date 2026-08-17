@@ -16,6 +16,18 @@ import {
   type ToolCallResponse,
   type RuntimeConfig,
 } from '@byfriends/agent-core';
+import type {
+  ConfigDocumentResult,
+  ConfigValidationResult,
+  ConfigWriteResult,
+} from '@byfriends/agent-core';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '@byfriends/agent-core/session/inspector';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -189,6 +201,81 @@ export class SDKRpcClient {
   async listSessions(input: ListSessionsOptions): Promise<readonly SessionSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listSessions(input);
+  }
+
+  // ── Inspector（PRD-0035 R-A2）────────────────────────────────────────────
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    const rpc = await this.getRpc();
+    return rpc.listInspectableSessions({});
+  }
+
+  async readSessionInspection(input: { sessionId: string }): Promise<SessionDetail | null> {
+    const rpc = await this.getRpc();
+    return rpc.readSessionInspection({ sessionId: input.sessionId });
+  }
+
+  async readAgentWire(input: { sessionId: string; agentId: string }): Promise<WireResponse> {
+    const rpc = await this.getRpc();
+    return rpc.readAgentWire({ sessionId: input.sessionId, agentId: input.agentId });
+  }
+
+  async readContextProjection(input: {
+    sessionId: string;
+    agentId: string;
+  }): Promise<ContextProjection> {
+    const rpc = await this.getRpc();
+    return rpc.readContextProjection({ sessionId: input.sessionId, agentId: input.agentId });
+  }
+
+  async readAgentTree(input: { sessionId: string }): Promise<AgentTreeResponse> {
+    const rpc = await this.getRpc();
+    return rpc.readAgentTree({ sessionId: input.sessionId });
+  }
+
+  /** 删除会话目录并重建 index；live/busy 抛 SESSION_BUSY。 */
+  async deleteSession(sessionId: string): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.deleteSession({ sessionId });
+  }
+
+  // ── ConfigDocument（PRD-0035 R-A3/A4、ADR-0038）──────────────────────────
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    const rpc = await this.getRpc();
+    return rpc.getConfigDocument({});
+  }
+
+  async validateConfigText(text: string): Promise<ConfigValidationResult> {
+    const rpc = await this.getRpc();
+    return rpc.validateConfigText({ text });
+  }
+
+  async writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    const rpc = await this.getRpc();
+    return rpc.writeConfigText({ text, expectedRevision });
+  }
+
+  // ── WorkspaceRegistry（PRD-0035 R-A6）────────────────────────────────────
+
+  async listWorkspaces(): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.listWorkspaces({});
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.hiddenWorkspaces({});
+  }
+
+  async addWorkspace(workDir: string): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.addWorkspace({ workDir });
+  }
+
+  async removeWorkspace(workDir: string): Promise<boolean> {
+    const rpc = await this.getRpc();
+    return rpc.removeWorkspace({ workDir });
   }
 
   async renameSession(input: RenameSessionInput): Promise<void> {

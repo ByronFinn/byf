@@ -10,9 +10,11 @@
  */
 export const ErrorCodes = {
   CONFIG_INVALID: 'config.invalid',
+  CONFIG_REVISION_CONFLICT: 'config.revision_conflict',
 
   SESSION_NOT_FOUND: 'session.not_found',
   SESSION_ALREADY_EXISTS: 'session.already_exists',
+  SESSION_BUSY: 'session.busy',
   SESSION_ID_INVALID: 'session.id_invalid',
   SESSION_ID_REQUIRED: 'session.id_required',
   SESSION_ID_EMPTY: 'session.id_empty',
@@ -58,6 +60,7 @@ export const ErrorCodes = {
   GOAL_BUDGET_INVALID: 'goal.budget_invalid',
 
   RECORDS_WRITE_FAILED: 'records.write_failed',
+  RECORDS_READ_FAILED: 'records.read_failed',
   COMPACTION_FAILED: 'compaction.failed',
 
   BACKGROUND_TASK_ID_EMPTY: 'background.task_id_empty',
@@ -96,6 +99,12 @@ export const BYF_ERROR_INFO = {
     public: true,
     action: 'Check config.toml and provider/model settings.',
   },
+  'config.revision_conflict': {
+    title: 'Configuration changed on disk',
+    retryable: true,
+    public: true,
+    action: 'Reload the latest config.toml before saving again.',
+  },
 
   'session.not_found': {
     title: 'Session not found',
@@ -108,6 +117,12 @@ export const BYF_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Use a different session id or remove the existing session first.',
+  },
+  'session.busy': {
+    title: 'Session is busy',
+    retryable: false,
+    public: true,
+    action: 'Close the live session and stop running background tasks before deleting it.',
   },
   'session.id_invalid': {
     title: 'Invalid session id',
@@ -348,6 +363,12 @@ export const BYF_ERROR_INFO = {
     retryable: true,
     public: true,
     action: 'Check disk space and permissions on the session directory.',
+  },
+  'records.read_failed': {
+    title: 'Failed to read records',
+    retryable: false,
+    public: true,
+    action: 'The session wire file may be missing, locked, or unreadable.',
   },
   'compaction.failed': {
     title: 'Compaction failed',

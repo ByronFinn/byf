@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 import { localKaos } from '@byfriends/kaos';
 
@@ -28,6 +29,9 @@ import {
   type ByfConfig,
   type ByfServiceConfig,
 } from '../config';
+import * as configDocument from '../config/document';
+import type { ConfigValidationResult } from '../config/document';
+import { WorkspaceRegistry } from '../home/workspace-registry';
 import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig } from '../mcp';
 import { ProviderManager } from '../providers/provider-manager';
@@ -38,6 +42,14 @@ import {
 import type { RuntimeConfig } from '../runtime-types';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
 import { exportSessionDirectory } from '../session/export';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '../session/inspector';
+import * as inspector from '../session/inspector';
 import { SessionAPIImpl } from '../session/rpc';
 import { normalizeWorkDir, SessionStore } from '../session/store';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
@@ -51,11 +63,15 @@ import type {
   CloseSessionPayload,
   AddWorkspaceDirPayload,
   AddWorkspaceDirResult,
+  AddWorkspacePayload,
   CoreAPI,
   CoreInfo,
   CreateGoalPayload,
   CreateSessionPayload,
+  ConfigDocumentResult,
+  ConfigWriteResult,
   DeleteCronTaskPayload,
+  DeleteSessionPayload,
   EmptyPayload,
   ExportSessionPayload,
   ExportSessionResult,
@@ -67,9 +83,12 @@ import type {
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
+  ReadAgentWirePayload,
+  ReadContextProjectionPayload,
   ReconnectMcpServerPayload,
   RemoveByfModelPayload,
   RemoveByfProviderPayload,
+  RemoveWorkspacePayload,
   RenameSessionPayload,
   ResumeSessionPayload,
   RegisterToolPayload,
@@ -87,6 +106,8 @@ import type {
   SessionSummary,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
+  ValidateConfigTextPayload,
+  WriteConfigTextPayload,
 } from './core-api';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
@@ -359,6 +380,112 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       ...options,
       workDir: requiredWorkDir('listSessions', options.workDir),
     });
+  }
+
+  // ── Inspector（PRD-0035 R-A2）────────────────────────────────────────────
+  // 只读投影走 `session/inspector`（core 内部单一实现，web/TUI/headless 经
+  // SDK 复用；web-server 不直接 import core，见 ADR 0006/0037）。
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return inspector.listInspectableSessions(this.homeDir);
+  }
+
+  async readSessionInspection(input: {
+    readonly sessionId: string;
+  }): Promise<SessionDetail | null> {
+    return inspector.readSessionDetail(this.homeDir, input.sessionId);
+  }
+
+  async readAgentWire(input: ReadAgentWirePayload): Promise<WireResponse> {
+    const sessionDir = await this.sessionStore.assertDirectory(input.sessionId);
+    if (!inspector.isSafeAgentId(input.agentId)) {
+      throw new ByfError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${input.agentId}" not found`);
+    }
+    const wirePath = join(sessionDir, 'agents', input.agentId, 'wire.jsonl');
+    let result: Awaited<ReturnType<typeof inspector.readAgentWire>>;
+    try {
+      result = await inspector.readAgentWire(wirePath);
+    } catch (error) {
+      throw new ByfError(
+        ErrorCodes.RECORDS_READ_FAILED,
+        `Cannot read wire for agent "${input.agentId}" in session "${input.sessionId}"`,
+        { cause: error },
+      );
+    }
+    return {
+      sessionId: input.sessionId,
+      agentId: input.agentId,
+      protocolVersion: result.metadata.protocolVersion,
+      metadata: result.metadata,
+      records: result.records,
+      warnings: result.warnings,
+    };
+  }
+
+  async readContextProjection(input: ReadContextProjectionPayload): Promise<ContextProjection> {
+    const wire = await this.readAgentWire(input);
+    return inspector.projectContext(wire.records);
+  }
+
+  async readAgentTree(input: { readonly sessionId: string }): Promise<AgentTreeResponse> {
+    const detail = await inspector.readSessionDetail(this.homeDir, input.sessionId);
+    if (detail === null) {
+      throw new ByfError(
+        ErrorCodes.SESSION_NOT_FOUND,
+        `Session "${input.sessionId}" was not found`,
+      );
+    }
+    return { sessionId: input.sessionId, tree: inspector.buildAgentTree(detail.agents) };
+  }
+
+  async deleteSession(input: DeleteSessionPayload): Promise<void> {
+    // busy 判定（PRD-0035 Q5 /grill 决议）：live Session 实例或（隐含的）
+    // 运行中后台任务——后台任务挂在 Session 实例上，close 会 stopAll，因此
+    // 只需检查实例表。
+    if (this.sessions.has(input.sessionId)) {
+      throw new ByfError(
+        ErrorCodes.SESSION_BUSY,
+        `Session "${input.sessionId}" is live — close it before deleting`,
+      );
+    }
+    await this.sessionStore.delete(input.sessionId);
+  }
+
+  // ── ConfigDocument（PRD-0035 R-A3/A4、ADR-0038）──────────────────────────
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    const doc = await configDocument.readConfigDocument(this.configPath);
+    return { path: doc.path, text: doc.text, revision: doc.revision, parsed: doc.parsed };
+  }
+
+  async validateConfigText(input: ValidateConfigTextPayload): Promise<ConfigValidationResult> {
+    return configDocument.validateConfigText(input.text, this.configPath);
+  }
+
+  async writeConfigText(input: WriteConfigTextPayload): Promise<ConfigWriteResult> {
+    return configDocument.writeConfigDocument(this.configPath, input.text, input.expectedRevision);
+  }
+
+  // ── WorkspaceRegistry（PRD-0035 R-A6 / ADR-0037 D3）──────────────────────
+
+  async listWorkspaces(): Promise<string[]> {
+    return this.workspaceRegistry().list();
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    return this.workspaceRegistry().hidden();
+  }
+
+  async addWorkspace(input: AddWorkspacePayload): Promise<string[]> {
+    return this.workspaceRegistry().add(input.workDir);
+  }
+
+  async removeWorkspace(input: RemoveWorkspacePayload): Promise<boolean> {
+    return this.workspaceRegistry().remove(input.workDir);
+  }
+
+  private workspaceRegistry(): WorkspaceRegistry {
+    return new WorkspaceRegistry(this.homeDir);
   }
 
   async renameSession({ sessionId, ...payload }: RenameSessionRequest): Promise<void> {

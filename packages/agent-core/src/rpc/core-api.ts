@@ -7,8 +7,16 @@ import type { GoalBudgetLimits, GoalSnapshot } from '#/agent/goal';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
+import type { ConfigValidationResult } from '#/config/document';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '#/session/inspector';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
 
 import type { UsageStatus } from './events';
@@ -274,6 +282,53 @@ export interface DeleteCronTaskResult {
   readonly deleted: boolean;
 }
 
+// ── Inspector / ConfigDocument / WorkspaceRegistry payloads（PRD-0035）─────
+
+export interface ReadAgentWirePayload {
+  readonly sessionId: string;
+  readonly agentId: string;
+}
+
+export interface ReadContextProjectionPayload {
+  readonly sessionId: string;
+  readonly agentId: string;
+}
+
+export interface DeleteSessionPayload {
+  readonly sessionId: string;
+}
+
+export interface ConfigDocumentResult {
+  readonly path: string;
+  /** 磁盘原文（未掩码——HTTP 层在响应前自行 mask）。 */
+  readonly text: string;
+  /** sha256(磁盘原文)；文件缺失为 null。 */
+  readonly revision: string | null;
+  /** 解析出的配置（含 raw 结构）；文件缺失时为默认配置。 */
+  readonly parsed: ByfConfig;
+}
+
+export interface ValidateConfigTextPayload {
+  readonly text: string;
+}
+
+export interface WriteConfigTextPayload {
+  readonly text: string;
+  readonly expectedRevision: string | null;
+}
+
+export interface ConfigWriteResult {
+  readonly revision: string;
+}
+
+export interface AddWorkspacePayload {
+  readonly workDir: string;
+}
+
+export interface RemoveWorkspacePayload {
+  readonly workDir: string;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -340,4 +395,18 @@ export interface CoreAPI extends SessionAPIWithId {
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];
   exportSession: (payload: ExportSessionPayload) => ExportSessionResult;
+  // ── Inspector / ConfigDocument / WorkspaceRegistry（PRD-0035 Wave A）──
+  listInspectableSessions: (payload: EmptyPayload) => readonly InspectorSessionSummary[];
+  readSessionInspection: (payload: { readonly sessionId: string }) => SessionDetail | null;
+  readAgentWire: (payload: ReadAgentWirePayload) => WireResponse;
+  readContextProjection: (payload: ReadContextProjectionPayload) => ContextProjection;
+  readAgentTree: (payload: { readonly sessionId: string }) => AgentTreeResponse;
+  deleteSession: (payload: DeleteSessionPayload) => void;
+  getConfigDocument: (payload: EmptyPayload) => ConfigDocumentResult;
+  validateConfigText: (payload: ValidateConfigTextPayload) => ConfigValidationResult;
+  writeConfigText: (payload: WriteConfigTextPayload) => ConfigWriteResult;
+  listWorkspaces: (payload: EmptyPayload) => string[];
+  hiddenWorkspaces: (payload: EmptyPayload) => string[];
+  addWorkspace: (payload: AddWorkspacePayload) => string[];
+  removeWorkspace: (payload: RemoveWorkspacePayload) => boolean;
 }

@@ -7,6 +7,18 @@ import {
   resolveByfHome,
   resolveLoggingConfig,
 } from '@byfriends/agent-core';
+import type {
+  ConfigDocumentResult,
+  ConfigValidationResult,
+  ConfigWriteResult,
+} from '@byfriends/agent-core';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '@byfriends/agent-core/session/inspector';
 
 import { ByfAuthFacade } from '#/auth';
 import { SDKRpcClient } from '#/rpc';
@@ -164,6 +176,65 @@ export class ByfHarness {
 
   async listSessions(options: ListSessionsOptions): Promise<readonly SessionSummary[]> {
     return this.rpc.listSessions(options);
+  }
+
+  // ── Inspector（PRD-0035 R-A2）────────────────────────────────────────────
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return this.rpc.listInspectableSessions();
+  }
+
+  async readSessionInspection(sessionId: string): Promise<SessionDetail | null> {
+    return this.rpc.readSessionInspection({ sessionId });
+  }
+
+  async readAgentWire(sessionId: string, agentId: string): Promise<WireResponse> {
+    return this.rpc.readAgentWire({ sessionId, agentId });
+  }
+
+  async readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection> {
+    return this.rpc.readContextProjection({ sessionId, agentId });
+  }
+
+  async readAgentTree(sessionId: string): Promise<AgentTreeResponse> {
+    return this.rpc.readAgentTree({ sessionId });
+  }
+
+  /** 删除会话目录并重建 index；live/busy 抛 SESSION_BUSY。 */
+  async deleteSession(sessionId: string): Promise<void> {
+    return this.rpc.deleteSession(sessionId);
+  }
+
+  // ── ConfigDocument（PRD-0035 R-A3/A4、ADR-0038）──────────────────────────
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    return this.rpc.getConfigDocument();
+  }
+
+  async validateConfigText(text: string): Promise<ConfigValidationResult> {
+    return this.rpc.validateConfigText(text);
+  }
+
+  async writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    return this.rpc.writeConfigText(text, expectedRevision);
+  }
+
+  // ── WorkspaceRegistry（PRD-0035 R-A6）────────────────────────────────────
+
+  async listWorkspaces(): Promise<string[]> {
+    return this.rpc.listWorkspaces();
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    return this.rpc.hiddenWorkspaces();
+  }
+
+  async addWorkspace(workDir: string): Promise<string[]> {
+    return this.rpc.addWorkspace(workDir);
+  }
+
+  async removeWorkspace(workDir: string): Promise<boolean> {
+    return this.rpc.removeWorkspace(workDir);
   }
 
   async getConfig(options: GetConfigOptions = {}): Promise<ByfConfig> {

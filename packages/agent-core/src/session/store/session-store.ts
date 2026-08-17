@@ -11,7 +11,11 @@ import type {
   SessionSummary,
 } from '#/rpc/core-api';
 import type { SessionIndexEntry } from '#/session/store/session-index';
-import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
+import {
+  appendSessionIndexEntry,
+  readSessionIndex,
+  rewriteSessionIndex,
+} from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
 
 const SessionSummaryStateSchema = z.object({
@@ -217,6 +221,16 @@ export class SessionStore {
 
   async assertDirectory(id: string): Promise<string> {
     return (await this.findExistingSessionEntry(id)).sessionDir;
+  }
+
+  /** 删除会话目录并原子重建 session_index.jsonl（PRD-0035 R-A2；
+   *  原 vis 只 `rm` 目录不重建 index，会残留失效条目）。
+   *  busy 判定（live Session / 运行中后台任务）不属于本类——core 不持有
+   *  进程内实例表，由 SDK harness 在调用前检查（见 node-sdk）。 */
+  async delete(id: string): Promise<void> {
+    const entry = await this.findExistingSessionEntry(id);
+    await rm(entry.sessionDir, { recursive: true, force: true });
+    await rewriteSessionIndex(this.homeDir, this.sessionsDir, (e) => e.sessionId !== id);
   }
 
   private async findSessionEntry(id: string): Promise<SessionIndexEntry | undefined> {
