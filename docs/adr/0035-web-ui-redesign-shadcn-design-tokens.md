@@ -4,7 +4,9 @@
 
 ## 状态
 
-已接受
+已接受（D2 的 OKLCH 色板与 D5 的 emerald 品牌决策被 PRD-0035 / ADR 0037 部分取代：合并后视觉唯一源改为 deepseek 精致风 [have-a-try 2026-08-17 裁决 B]，自研 token 化实现；shadcn 混合路线与三层 token 思想保留）
+
+> **部分取代（ADR 0037）**：D5 emerald 品牌色已移除；D2 原始色板改为 bluish 中性阶 + deepseek 蓝品牌。组件路线（shadcn 混合）与「三层 token」框架继续有效。
 
 ## 背景
 

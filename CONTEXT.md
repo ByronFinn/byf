@@ -12,9 +12,13 @@
 
 BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 monorepo 的 `vis` 脚本（API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。工具链迁移后开发入口以 Bun 为准（见「开发工具链契约」）。
 
+> **已弃用（PRD-0035）**：其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台；`byf vis` 在弃用期内成为 `byf web` 的别名（默认端口仍 3001），此后随 `@byfriends/vis-server` shim 一并移除。
+
 ### vis-server
 
 承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可独立启动服务入口（库入口供程序化导入）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。独立启动的解释器与库运行时契约一致（Bun，不再以 Node 为官方路径）。
+
+> **已弃用（PRD-0035）**：弃用期内保留一个版本 shim（导出 `startWebServer`/类型别名，标注 deprecated），其路由能力与 Inspector 读取逻辑已由 `@byfriends/web-server` + `agent-core` 的 Inspector 取代。
 
 ### 开发工具链契约
 
@@ -348,6 +352,12 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 ### 三层设计 token
 
 byf web 客户端 UI 重设计（PRD-0033 / ADR 0035）的设计 token 分层体系：原始色板（`--color-green-*` / `neutral-*` / 状态色）→ 语义别名（`--color-bg` / `surface-*` / `fg` / `border` / `brand`）→ 组件专用（`--color-bubble` 等）。用 OKLCH 色彩空间 + Tailwind v4 `@theme` 表达。源自 deepseek-harness 三层 token 思想。
+
+> **历史术语（PRD-0035）**：已由「统一设计 token」取代。R-C1 后原始色板与语义别名以 vis token 为唯一源，emerald 品牌色被移除。
+
+### 统一设计 token
+
+PRD-0035 R-C1 确立、合并后的 byf web 工作台的设计 token 体系（三层框架沿用 deepseek-harness 思想；视觉范本经 `/have-a-try` 原型于 2026-08-17 裁决选 deepseek 精致风，自研实现，不照搬 CSS Modules）：**原始色板** = bluish 中性色阶（surface 分层 + fg 阶）+ deepseek 蓝品牌（~#4176e6 系）+ 语义色（success/warning/error）；**语义别名** = `surface*/fg*/brand/accent` 与调试语义色 `cat-*`（8 类事件类别色，供 Inspector 调试视图）；**组件层** = shadcn 桥接变量（`--background`/`--foreground`/`--card`/`--primary`/... 指向新 token）。圆角 8-12px、低透明度柔和边框、分层阴影、深浅双主题、`data-theme` 三态、boot 脚本防闪烁、中文友好字体栈 + mono 代码字体。emerald 品牌色移除。部分取代 ADR-0035 的 OKLCH 色板与 emerald 品牌决策。
 
 ### 步骤时间轴 (Step Timeline)
 
