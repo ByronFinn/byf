@@ -257,6 +257,7 @@ class FakeHarness implements HarnessLike {
     revision: 'rev-1',
     parsed: { providers: {}, models: {} },
   };
+  configDocumentError: Error | undefined;
   configValidation: ConfigValidationResult = { valid: true, diagnostics: [] };
   configValidationTexts: string[] = [];
   configWriteResult: ConfigWriteResult = { revision: 'rev-2' };
@@ -296,6 +297,7 @@ class FakeHarness implements HarnessLike {
   }
 
   async getConfigDocument(): Promise<ConfigDocumentResult> {
+    if (this.configDocumentError !== undefined) throw this.configDocumentError;
     return this.configDocument;
   }
 
@@ -2243,6 +2245,17 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     expect(data.revision).toBe('rev-abc');
     expect(data.text).not.toContain('sk-top-secret');
     expect(data.text).toContain('__BYF_KEEP_SECRET__');
+  });
+
+  it('GET /api/config/raw on corrupt file returns 200 + invalid (无细节泄漏)', async () => {
+    const { app, harness } = await setup();
+    harness.configDocumentError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid configuration');
+    const res = await app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { invalid?: boolean; parsed: unknown; text: string };
+    expect(data.invalid).toBe(true);
+    expect(data.parsed).toBeNull();
+    expect(data.text).toBe('');
   });
 
   it('POST /api/config/validate forwards the text', async () => {

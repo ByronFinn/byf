@@ -412,8 +412,10 @@ export interface ConfigDocumentResponse {
   readonly text: string;
   /** sha256(磁盘原文)；文件缺失为 null。 */
   readonly revision: string | null;
-  /** 脱敏解析视图（apiKey 仅 hasApiKey）。 */
-  readonly parsed: ConfigResponse;
+  /** 脱敏解析视图（apiKey 仅 hasApiKey）；文件缺失或损坏时为 null。 */
+  readonly parsed: ConfigResponse | null;
+  /** 文件损坏（TOML/schema 无效）时为 true；错误细节不回线路（防密钥样文本泄漏）。 */
+  readonly invalid?: boolean;
 }
 
 export interface WriteConfigResponse {

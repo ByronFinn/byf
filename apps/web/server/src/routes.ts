@@ -479,14 +479,29 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // 密钥值服务端掩码后过线（无明文回显）；revision = sha256(磁盘原文)。
 
   r.get('/config/raw', async (c) => {
-    const doc = await manager.getConfigDocument();
-    const cfg = await manager.getConfig();
-    return c.json({
-      path: doc.path,
-      text: maskConfigSecrets(doc.text),
-      revision: doc.revision,
-      parsed: toConfigResponse(cfg, manager.configPath),
-    });
+    try {
+      const doc = await manager.getConfigDocument();
+      const cfg = await manager.getConfig();
+      return c.json({
+        path: doc.path,
+        text: maskConfigSecrets(doc.text),
+        revision: doc.revision,
+        parsed: toConfigResponse(cfg, manager.configPath),
+      });
+    } catch (error) {
+      // 磁盘 config.toml 损坏：不返回 500 也不回显解析细节（zod 片段可能
+      // 含密钥样文本）——200 + invalid 标志，编辑器仍可编辑/校验（M3）。
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({
+          path: manager.configPath,
+          text: '',
+          revision: null,
+          parsed: null,
+          invalid: true,
+        });
+      }
+      throw error;
+    }
   });
 
   r.post('/config/validate', async (c) => {
