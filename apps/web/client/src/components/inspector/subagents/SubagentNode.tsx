@@ -1,8 +1,10 @@
 import { Link, useParams } from 'react-router-dom';
 
+import { useDetailsSetter } from '#/components/layout/details-context';
 import type { AgentNode } from '#/types';
 
 import { Pill, type PillTone } from '../shared/Pill';
+import { AgentTrail } from './AgentTrail';
 
 const TYPE_TONE: Record<AgentNode['type'], PillTone> = {
   main: 'conversation',
@@ -19,11 +21,19 @@ export function SubagentNode({ node, sessionId }: Props) {
   const { agentId: activeAgentId } = useParams<{ agentId?: string }>();
   const selected = activeAgentId === node.agentId;
   const broken = !node.wireExists;
+  const setDetails = useDetailsSetter();
+
+  // 点击节点:导航到深链(高亮+聚焦 Agents tab)并把该 agent 的 wire 轨迹
+  // 推入右侧 details 列(deepseek 式子代理轨迹;不打断当前上下文)。
+  const openAgent = (): void => {
+    setDetails(<AgentTrail sessionId={sessionId} agentId={node.agentId} />);
+  };
 
   return (
     <div className="my-1">
       <Link
         to={`/sessions/${sessionId}/agents/${node.agentId}`}
+        onClick={openAgent}
         className={[
           'relative flex items-start gap-3 border border-border bg-surface-0 px-3 py-2 transition-colors hover:bg-surface-1',
           selected ? 'border-[var(--color-cat-subagent)]' : '',

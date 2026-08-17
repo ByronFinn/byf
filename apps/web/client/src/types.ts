@@ -74,6 +74,7 @@ export type {
   ToolCall,
   AgentNode,
   AgentTreeResponse,
+  BackgroundTaskInfo,
   ConfigSnapshot,
   ConfigValidationResult,
   ContextProjection,

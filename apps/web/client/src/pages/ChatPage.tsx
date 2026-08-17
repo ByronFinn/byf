@@ -15,8 +15,10 @@ import { SubagentDrawer } from '#/components/chat/SubagentCard';
 import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
 import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
+import { BackgroundPanel } from '#/components/inspector/background/BackgroundPanel';
 import { ContextTab } from '#/components/inspector/context/ContextTab';
 import { StateLive } from '#/components/inspector/state/StateLive';
+import { AgentTrail } from '#/components/inspector/subagents/AgentTrail';
 import { SubagentsTab } from '#/components/inspector/subagents/SubagentsTab';
 import { WireTab } from '#/components/inspector/wire/WireTab';
 import { useDetailsSetter } from '#/components/layout/details-context';
@@ -37,7 +39,7 @@ import { chatReducer, initialChatState, replayToEntries, subagentsFromResume } f
 import { userActivatableSkills } from '#/lib/skills';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { PermissionMode, SkillSummary, ThinkingEffort } from '#/types';
+import type { BackgroundTaskInfo, PermissionMode, SkillSummary, ThinkingEffort } from '#/types';
 
 const EXAMPLE_PROMPTS: readonly { icon: typeof BookOpen; label: string; prompt: string }[] = [
   {
@@ -98,9 +100,10 @@ function ChatSessionPage({
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
   // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | State）;
+  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents）;
+  // State 视图由右栏常驻(AC-A12a),Center 不再单列。
   // agent 深链(R-D4)进入时自动聚焦 Agents tab。
-  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'state'>(
+  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents'>(
     agentId !== undefined ? 'agents' : 'chat',
   );
   useEffect(() => {
@@ -116,15 +119,27 @@ function ChatSessionPage({
   const queryClient = useQueryClient();
   const setDetails = useDetailsSetter();
 
+  // 后台任务(deepseek 式面板数据源):初始值来自 resume 的 agents.main.background,
+  // SSE background.task.* 事件实时增减。
+  const [backgroundTasks, setBackgroundTasks] = useState<readonly BackgroundTaskInfo[]>([]);
+  const [backgroundPanelOpen, setBackgroundPanelOpen] = useState(false);
+
   // 右侧 details 默认内容 = 实时 state 投影(用户诉求:右栏常驻 State)。
-  // 任何详情(工具行/wire 行)推入时覆盖;组件重挂(切会话)时恢复默认。
+  // 深链(agentId 路由)进入时默认显示该 agent 轨迹(R-D4);任何详情
+  // (工具行/wire 行/子代理轨迹/后台任务)推入时覆盖;组件重挂(切会话)时恢复默认。
   useEffect(() => {
     if (sessionId.length === 0) return;
-    setDetails(<StateLive sessionId={sessionId} />);
+    setDetails(
+      agentId !== undefined ? (
+        <AgentTrail sessionId={sessionId} agentId={agentId} />
+      ) : (
+        <StateLive sessionId={sessionId} />
+      ),
+    );
     return () => {
       setDetails(null);
     };
-  }, [sessionId, setDetails]);
+  }, [sessionId, agentId, setDetails]);
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
@@ -137,8 +152,31 @@ function ChatSessionPage({
           queryKey: ['session', sessionId, 'inspection'],
         });
       }
+      // 后台任务状态实时同步(deepseek 面板同源)
+      if (e.type === 'background.task.started') {
+        setBackgroundTasks((prev) => [...prev.filter((t) => t.taskId !== e.info.taskId), e.info]);
+      } else if (e.type === 'background.task.updated') {
+        setBackgroundTasks((prev) => prev.map((t) => (t.taskId === e.info.taskId ? e.info : t)));
+      } else if (e.type === 'background.task.terminated') {
+        setBackgroundTasks((prev) => prev.map((t) => (t.taskId === e.info.taskId ? e.info : t)));
+      }
     }
   });
+
+  // 后台任务面板开关(deepseek 式):推入 details 列展示;再次点击回到常驻 State。
+  const toggleBackgroundPanel = (): void => {
+    setBackgroundPanelOpen((v) => {
+      const next = !v;
+      setDetails(
+        next ? (
+          <BackgroundPanel sessionId={sessionId} tasks={backgroundTasks} />
+        ) : (
+          <StateLive sessionId={sessionId} />
+        ),
+      );
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (sessionId.length === 0) return;
@@ -151,6 +189,11 @@ function ChatSessionPage({
         const { session } = await api.resumeSession(sessionId);
         if (!cancelled) {
           setSessionWorkDir(session.workDir);
+          // 后台任务初始快照(deepseek 式面板数据源):resume 的 agents.main.background
+          const initialTasks = session.agents?.['main']?.background;
+          if (initialTasks !== undefined && initialTasks.length > 0) {
+            setBackgroundTasks(initialTasks);
+          }
           const replay = session.agents?.['main']?.replay;
           if (replay !== undefined && replay.length > 0) {
             const { entries, toolIndex } = replayToEntries(replay);
@@ -297,17 +340,26 @@ function ChatSessionPage({
 
   return (
     <div className="flex h-full flex-col">
-      <StatusBar status={state.status} busy={state.busy} connected={state.connected} />
+      <StatusBar
+        status={state.status}
+        busy={state.busy}
+        connected={state.connected}
+        tasksButton={{
+          active: backgroundPanelOpen,
+          count: backgroundTasks.filter(
+            (t) => t.status === 'running' || t.status === 'awaiting_approval',
+          ).length,
+          onToggle: toggleBackgroundPanel,
+        }}
+      />
       <InspectorTabBar tab={tab} onTabChange={setTab} />
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {tab === 'trace' ? (
           <WireTab key={sessionId} sessionId={sessionId} />
         ) : tab === 'context' ? (
           <ContextTab key={sessionId} sessionId={sessionId} />
         ) : tab === 'agents' ? (
           <SubagentsTab key={sessionId} sessionId={sessionId} />
-        ) : tab === 'state' ? (
-          <StateTabFetcher key={sessionId} sessionId={sessionId} />
         ) : state.entries.length === 0 ? (
           <EmptyState onPick={onSend} />
         ) : (
@@ -733,7 +785,6 @@ const INSPECTOR_TABS = [
   { key: 'trace', label: 'Trace' },
   { key: 'context', label: 'Context' },
   { key: 'agents', label: 'Agents' },
-  { key: 'state', label: 'State' },
 ] as const;
 
 function InspectorTabBar(props: {
@@ -758,11 +809,4 @@ function InspectorTabBar(props: {
       ))}
     </div>
   );
-}
-
-/** State tab 数据源：经 inspector API 读磁盘 state.json（PRD-0035 R-B1）。
- *  与右栏 StateLive 共用同一 queryKey(react-query 去重)——Center 与 details
- *  同一份 state 投影,不维护两套状态(R-D6)。 */
-function StateTabFetcher({ sessionId }: { sessionId: string }): React.JSX.Element {
-  return <StateLive sessionId={sessionId} />;
 }
