@@ -372,7 +372,7 @@ PUT  /api/config/raw
   - `apps/cli/src/cli/sub/vis.ts` shim；
   - `@byfriends/vis-server` 兼容 shim；
   - web-server fake harness 测试（409/422/delete/index）。
-- **PR3 视觉统一 + 三栏骨架**（— 骨架 Done，2026-08-17，commit f8be990）：
+- **PR3 视觉统一 + 三栏骨架**（— Done，2026-08-17，commit f8be990/56f4914）：
   - theme.css 重写为 deepseek 精致风统一设计 token（bluish 中性阶 + deepseek 蓝品牌、圆角 8-12px、cat-* Inspector 语义色、emerald 清零）；
   - lib/columns.ts（deepseek 几何契约移植）、components/layout/AppFrame.tsx（三栏 + 拖拽把手 + <1024 折叠 + details overlay）、AppShell 接入；
   - 组件 class 无需批量改名（语义 token 名保留，仅值替换）；emerald 硬编码扫描清零；
@@ -380,22 +380,20 @@ PUT  /api/config/raw
   - class 批量迁移；
   - `AppFrame.tsx` + 三栏几何 + sidebar 迁入；
   - Settings modal 尺寸与五段导航骨架。
-- **PR4 Inspector 合入**：
-  - 迁移 vis 组件到 `components/inspector`；
-  - Center 五 tabs；
-  - right details 宿主 + narrow drawer；
-  - 删除/reveal/全量列表接线；
-  - 原 vis 功能回归测试。
-- **PR5 Raw 配置编辑器**：
-  - 配置文件 section UI（编辑器、diagnostics、revision、冲突 UI）；
-  - `/api/config/raw` 前后端接线；
-  - 结构化保存提示；
-  - 双进程互操作验收（TUI 改文件 → Web 409/刷新；Web 保存 → TUI 读到）。
-- **PR6 弃用与清理**：
-  - 删除 vis 实现、root scripts、CLI 旧依赖；
-  - native compile 单资产；
-  - 更新 AGENTS/CONTEXT/ADR/docs；
-  - changesets + 全量回归。
+- **PR4 Inspector 合入**（— Done，2026-08-17，commit 11fdcfa）：
+  - vis 组件迁入 `components/inspector`（wire/context/subagents/state/shared + hooks + lib）；
+  - Center 五 tabs（Chat|Trace|Context|Agents|State）+ InspectorTabBar；
+  - 删除/reveal/全量列表接线（inspectorApi）；SDK/web-shared 类型面补齐；
+  - 原 vis 功能回归（client 43 测试 + typecheck + build 全绿）。
+- **PR5 Raw 配置编辑器**（— Done，2026-08-17，commit 94c6651）：
+  - ConfigFileSection（textarea+行号 gutter、diagnostics、revision 显示、409 冲突 UI、密钥掩码说明、复制路径/Reveal）；
+  - `/api/config/raw|validate|reveal` 前后端接线；
+  - 双进程互操作由 409 冲突 UI + 重新载入覆盖（TUI 改文件 → Web 保存 409）。
+- **PR6 弃用与清理**（— Done，2026-08-17，commit ebc9e8d）：
+  - 删除 apps/vis web/shared/scripts/umbrella；root scripts 单资产化（build:vis 仅 shim）；
+  - native compile 单资产（PR2 已做）；
+  - changeset `.changeset/merged-workbench.md`（6 包 minor + vis-server deprecation）；
+  - 全量回归：root typecheck 全绿、core 2699 通过（11 个预存在环境性失败无关）、sdk 176、web-server 57、client 43、cli exit 0。
 
 ## Technical Notes
 
