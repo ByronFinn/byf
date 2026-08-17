@@ -91,6 +91,8 @@ export interface UserEntry {
   readonly kind: 'user';
   readonly id: string;
   text: string;
+  /** 待渲染的图片附件 data-URL(粘贴图片;replay 时来自消息的 image part)。 */
+  readonly images?: readonly string[];
 }
 export interface SystemEntry {
   readonly kind: 'system';
@@ -141,7 +143,7 @@ export function initialChatState(): ChatState {
 
 export type ChatInput =
   | { type: 'reset' }
-  | { type: 'user-message'; text: string }
+  | { type: 'user-message'; text: string; images?: readonly string[] }
   | { type: 'status-loaded'; status: SessionStatus }
   | {
       type: 'transcript-loaded';
@@ -160,6 +162,7 @@ export function chatReducer(state: ChatState, input: ChatInput): ChatState {
         kind: 'user',
         id: `u-${state.entries.length}-${Date.now()}`,
         text: input.text,
+        images: input.images,
       };
       return { ...state, entries: [...state.entries, entry] };
     }
@@ -231,7 +234,18 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
     if (message.role === 'user') {
       const text = textOf(message.content);
       if (text.trim().length === 0) continue;
-      entries.push({ kind: 'user', id: `r-u-${userSeq++}`, text });
+      // 历史用户消息里的图片 part(data-URL)一并恢复——TUI 粘贴的图片
+      // 会话在 Web 中打开时同样可见。
+      const images = message.content
+        .filter((p): p is Extract<ContentPart, { type: 'image_url' }> => p.type === 'image_url')
+        .map((p) => p.imageUrl.url)
+        .filter((url) => url.startsWith('data:'));
+      entries.push({
+        kind: 'user',
+        id: `r-u-${userSeq++}`,
+        text,
+        images: images.length > 0 ? images : undefined,
+      });
     } else if (message.role === 'assistant') {
       const parts: AssistantPart[] = [];
       for (const part of message.content) {

@@ -99,10 +99,24 @@ function EntryView(props: {
 }): React.JSX.Element | null {
   const { entry, streaming, subagents, onOpenSubagent, workDir } = props;
   if (entry.kind === 'user') {
-    // 用户气泡(R9):右对齐 + 品牌 token + 22px 圆角(右下小角收尾)
+    // 用户气泡(R9):右对齐 + 品牌 token + 22px 圆角(右下小角收尾);
+    // 粘贴图片以缩略图并列展示在文本上方。
+    const images = entry.images ?? [];
     return (
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-[22px] rounded-br-md bg-bubble px-4 py-2.5 text-base whitespace-pre-wrap break-words text-bubble-fg">
+          {images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {images.map((url, i) => (
+                <img
+                  key={`${entry.id}-img-${i}`}
+                  src={url}
+                  alt="消息图片"
+                  className="max-h-40 rounded-lg object-cover"
+                />
+              ))}
+            </div>
+          )}
           {entry.text}
         </div>
       </div>

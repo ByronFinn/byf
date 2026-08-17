@@ -1,7 +1,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
-import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
+import type { ByfConfig, ByfConfigPatch, PromptInput } from '@byfriends/sdk';
 import { isByfError, maskConfigSecrets, restoreMaskedSecrets } from '@byfriends/sdk';
 import { workspaceTitle } from '@byfriends/sdk';
 import type {
@@ -40,6 +40,7 @@ import { streamSSE } from 'hono/streaming';
 import { AsyncQueue } from './async-queue';
 import { serveScopedFile } from './files';
 import { pickDirectoryNative } from './native-directory-picker';
+import { PromptImageError, promptImagesToParts } from './prompt-images';
 import { revealInOs } from './reveal';
 import type { WebSessionManager } from './session-manager';
 
@@ -347,8 +348,9 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const id = c.req.param('id');
     if (manager.getSession(id) === undefined) return notFound(c, 'session not found');
     const body = await c.req.json<PromptBody>();
-    if ((body.input ?? '').trim().length === 0) return badRequest(c, 'input is required');
-    manager.prompt(id, body.input); // fire-and-forget;事件经 SSE 推送
+    const input = await promptBodyToInput(c, manager, body, 'input is required');
+    if (input instanceof Response) return input;
+    manager.prompt(id, input); // fire-and-forget;事件经 SSE 推送
     return c.json({ ok: true }, 202);
   });
 
@@ -356,8 +358,9 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const id = c.req.param('id');
     if (manager.getSession(id) === undefined) return notFound(c, 'session not found');
     const body = await c.req.json<SteerBody>();
-    if ((body.input ?? '').trim().length === 0) return badRequest(c, 'input is required');
-    manager.steer(id, body.input);
+    const input = await promptBodyToInput(c, manager, body, 'input is required');
+    if (input instanceof Response) return input;
+    manager.steer(id, input);
     return c.json({ ok: true }, 202);
   });
 
@@ -786,6 +789,31 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   });
 
   return r;
+}
+
+/**
+ * 组装 prompt/steer 的 SDK 输入:纯文本走 string(零改动兼容),带图时在
+ * 服务端压缩并展开为 `PromptPart[]`(文本 part 在前,图片 part 按序随后)。
+ * 返回 Response 表示校验失败(直接作为路由响应)。
+ */
+async function promptBodyToInput(
+  c: Context,
+  manager: WebSessionManager,
+  body: PromptBody | SteerBody,
+  emptyError: string,
+): Promise<string | PromptInput | Response> {
+  const text = (body.input ?? '').trim();
+  const images = body.images ?? [];
+  if (text.length === 0 && images.length === 0) return badRequest(c, emptyError);
+  if (images.length === 0) return body.input ?? '';
+  try {
+    const parts = await promptImagesToParts(images, await manager.getConfig());
+    if (text.length > 0) return [{ type: 'text', text: body.input ?? '' }, ...parts];
+    return parts;
+  } catch (error) {
+    if (error instanceof PromptImageError) return badRequest(c, error.message);
+    throw error;
+  }
 }
 
 function badRequest(c: Context, error: string): Response {

@@ -175,12 +175,25 @@ export interface ForkSessionBody {
   readonly upToMessage?: number;
 }
 
+/**
+ * prompt 图片附件(data-URL,base64 载荷)。服务端经与 TUI 粘贴相同的
+ * `compressImageForModel` + `ImageLimits` 管道压缩后展开为 `image_url` part,
+ * 浏览器不做压缩(预算与实现只在服务端保留一份)。
+ */
+export interface PromptImageBody {
+  readonly dataUrl: string;
+}
+
 export interface PromptBody {
   readonly input: string;
+  /** 粘贴的图片附件;文本与图片可同时存在,亦可仅图片。 */
+  readonly images?: readonly PromptImageBody[];
 }
 
 export interface SteerBody {
   readonly input: string;
+  /** 与 PromptBody.images 同构(steer 也允许带图)。 */
+  readonly images?: readonly PromptImageBody[];
 }
 
 export interface SetPermissionBody {

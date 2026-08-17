@@ -9,6 +9,7 @@ import {
   ErrorCodes,
   type ByfConfig,
   type ByfConfigPatch,
+  type PromptInput,
   type ResumedSessionSummary,
   type SkillSummary,
 } from '@byfriends/sdk';
@@ -57,7 +58,7 @@ class FakeSession implements SessionLike {
   private approvalHandler: ((req: ApprovalRequest) => Promise<ApprovalResponse>) | undefined;
   private questionHandler: ((req: QuestionRequest) => Promise<QuestionResult>) | undefined;
 
-  lastPrompt: string | undefined;
+  lastPrompt: string | PromptInput | undefined;
   cancelled = false;
   permission: PermissionMode | undefined;
   model: string | undefined;
@@ -109,11 +110,11 @@ class FakeSession implements SessionLike {
     return this.questionHandler(req);
   }
 
-  async prompt(input: string): Promise<void> {
+  async prompt(input: string | PromptInput): Promise<void> {
     this.lastPrompt = input;
   }
 
-  async steer(input: string): Promise<void> {
+  async steer(input: string | PromptInput): Promise<void> {
     this.lastPrompt = input;
   }
 
@@ -760,6 +761,64 @@ describe('HTTP routes', () => {
     });
     expect(permRes.status).toBe(200);
     expect(session.permission).toBe('yolo');
+  });
+
+  // 1×1 PNG:足够通过 data-URL 校验与 compressImageForModel 的快路径(passthrough)。
+  const TINY_PNG_DATA_URL =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  test('POST prompt 带图:服务端展开为 text + image_url parts', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+
+    const res = await app.request(`/api/sessions/${id}/prompt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input: '看图', images: [{ dataUrl: TINY_PNG_DATA_URL }] }),
+    });
+    expect(res.status).toBe(202);
+
+    const parts = session.lastPrompt as PromptInput;
+    expect(Array.isArray(parts)).toBe(true);
+    expect(parts[0]).toEqual({ type: 'text', text: '看图' });
+    expect(parts[1]?.type).toBe('image_url');
+    expect((parts[1] as { imageUrl: { url: string } }).imageUrl.url).toMatch(
+      /^data:image\/png;base64,/,
+    );
+  });
+
+  test('POST prompt 仅图片(无文本)也接受;非图片 data-URL 返回 400', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+
+    const okRes = await app.request(`/api/sessions/${id}/prompt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input: '', images: [{ dataUrl: TINY_PNG_DATA_URL }] }),
+    });
+    expect(okRes.status).toBe(202);
+    const parts = session.lastPrompt as PromptInput;
+    expect(parts.length).toBe(1);
+    expect(parts[0]?.type).toBe('image_url');
+
+    const badRes = await app.request(`/api/sessions/${id}/prompt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input: 'x', images: [{ dataUrl: 'data:text/plain;base64,aGk=' }] }),
+    });
+    expect(badRes.status).toBe(400);
   });
 
   test('非法 permission mode 返回 400', async () => {

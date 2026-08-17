@@ -13,6 +13,7 @@ import type {
   CreateSessionOptions,
   Event,
   PermissionMode,
+  PromptInput,
   QuestionHandler,
   QuestionRequest,
   QuestionResult,
@@ -45,8 +46,10 @@ export interface SessionLike {
   onEvent(listener: (event: Event) => void): Unsubscribe;
   setApprovalHandler(handler: ApprovalHandler | undefined): void;
   setQuestionHandler(handler: QuestionHandler | undefined): void;
-  prompt(input: string): Promise<void>;
-  steer(input: string): Promise<void>;
+  // SDK 的 Session.prompt/steer 原生接受 `string | PromptInput`;web 端带图
+  // prompt 在路由层组装 parts 后透传,这里不再收窄为纯文本。
+  prompt(input: string | PromptInput): Promise<void>;
+  steer(input: string | PromptInput): Promise<void>;
   cancel(): Promise<void>;
   setPermission(mode: PermissionMode): Promise<void>;
   setModel(model: string): Promise<void>;
@@ -219,11 +222,11 @@ export class WebSessionManager {
    * 触发一个 turn。**fire-and-forget**:不等待 turn 结束——事件经 SSE 流式推送,
    * 错误转为 `sys.error` 帧。调用方应以 `void` 启动。
    */
-  prompt(id: string, input: string): void {
+  prompt(id: string, input: string | PromptInput): void {
     void this.runTurn(id, async (s) => s.prompt(input));
   }
 
-  steer(id: string, input: string): void {
+  steer(id: string, input: string | PromptInput): void {
     void this.runTurn(id, async (s) => s.steer(input));
   }
 

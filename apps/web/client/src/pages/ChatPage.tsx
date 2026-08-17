@@ -6,7 +6,11 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
-import { ComposerCard, type TriggerCommand } from '#/components/chat/ComposerCard';
+import {
+  ComposerCard,
+  type ComposerImage,
+  type TriggerCommand,
+} from '#/components/chat/ComposerCard';
 import { FileDrawer } from '#/components/chat/FileDrawer';
 import { PermissionChip } from '#/components/chat/PermissionChip';
 import { QuestionCard } from '#/components/chat/QuestionCard';
@@ -214,9 +218,13 @@ function ChatSessionPage({
     };
   }, [sessionId, location.state]);
 
-  const onSend = (text: string): void => {
-    dispatch({ type: 'user-message', text });
-    void api.prompt(sessionId, text);
+  const onSend = (text: string, images: readonly ComposerImage[]): void => {
+    dispatch({ type: 'user-message', text, images: images.map((img) => img.dataUrl) });
+    void api.prompt(
+      sessionId,
+      text,
+      images.map((img) => ({ dataUrl: img.dataUrl })),
+    );
   };
 
   // 会话恢复后拉取技能列表(slash 面板 `skill:<name>` 命令数据源;与 TUI 的
@@ -337,7 +345,7 @@ function ChatSessionPage({
         ) : tab === 'tasks' ? (
           <TasksTab key={sessionId} tasks={backgroundTasks} />
         ) : state.entries.length === 0 ? (
-          <EmptyState onPick={onSend} />
+          <EmptyState onPick={(prompt) => onSend(prompt, [])} />
         ) : (
           <Transcript
             entries={state.entries}

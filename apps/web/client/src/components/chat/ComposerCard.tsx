@@ -1,15 +1,25 @@
-import { ArrowUp, File, Folder, Square } from 'lucide-react';
+import { ArrowUp, File, Folder, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '#/api';
 import { Button } from '#/components/ui/button';
 import { Toaster } from '#/components/ui/toaster';
 import { replaceToken, tokenAt } from '#/lib/input-trigger';
+import { toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
 import type { FsEntry } from '#/types';
 
 export const COMPOSER_MIN_HEIGHT_PX = 40;
 export const COMPOSER_MAX_HEIGHT_PX = 192;
+
+/** 客户端粘贴上限(服务端 32MB 解码前预算之前的入口防御)。 */
+export const MAX_PASTE_IMAGE_BYTES = 20 * 1024 * 1024;
+
+/** 输入框附件(chip 预览用;发送时 dataUrl 原样进 wire)。 */
+export interface ComposerImage {
+  readonly id: string;
+  readonly dataUrl: string;
+}
 
 /** slash 命令(不含 / 前缀);`run(args)` 由页面层提供,args 为选中时行内剩余参数。 */
 export interface TriggerCommand {
@@ -66,6 +76,11 @@ export function ComposerCard(props: {
   maxHeightPx?: number;
   /** 输入触发选项(缺省 = 无 / 与 @ 菜单)。 */
   trigger?: ComposerTriggerOptions;
+  /** 待发送图片附件(chip 预览)。 */
+  images?: readonly ComposerImage[];
+  /** 粘贴图片读取为 data-URL 后回调。 */
+  onAddImage?: (dataUrl: string) => void;
+  onRemoveImage?: (id: string) => void;
 }): React.JSX.Element {
   const {
     value,
@@ -81,6 +96,9 @@ export function ComposerCard(props: {
     minHeightPx = COMPOSER_MIN_HEIGHT_PX,
     maxHeightPx = COMPOSER_MAX_HEIGHT_PX,
     trigger,
+    images = [],
+    onAddImage,
+    onRemoveImage,
   } = props;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [triggerState, setTriggerState] = useState<TriggerState>(null);
@@ -217,6 +235,29 @@ export function ComposerCard(props: {
 
   const canSend = value.trim().length > 0 && !busy && !sendDisabled;
 
+  /**
+   * 粘贴图片:读取剪贴板 `image/*` 文件并回调(文本粘贴走默认路径)。
+   * 上限超出的文件跳过并提示;FileReader 逐张读为 data-URL。
+   */
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+      f.type.startsWith('image/'),
+    );
+    if (files.length === 0 || onAddImage === undefined) return;
+    e.preventDefault();
+    for (const file of files) {
+      if (file.size > MAX_PASTE_IMAGE_BYTES) {
+        toast.error(`图片过大(上限 20MB):${file.name}`);
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') onAddImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="relative rounded-2xl border border-border bg-input-fill px-3 pt-2.5 pb-1.5 shadow-1 transition-colors focus-within:border-brand">
       {/* toast 出口:absolute bottom-full 浮在输入框上方(不遮挡输入区) */}
@@ -322,6 +363,7 @@ export function ComposerCard(props: {
             onChange(e.target.value);
             updateTrigger(e.target.value);
           }}
+          onPaste={handlePaste}
           onKeyDown={(e) => {
             // IME 组合态的 Enter(确认候选词)不发送
             if (e.nativeEvent.isComposing) return;
@@ -364,6 +406,27 @@ export function ComposerCard(props: {
           className="block w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-fg-subtle"
           style={{ height: minHeightPx }}
         />
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {images.map((img) => (
+              <div key={img.id} className="group relative">
+                <img
+                  src={img.dataUrl}
+                  alt="待发送图片"
+                  className="h-16 w-16 rounded-lg border border-border object-cover"
+                />
+                <button
+                  type="button"
+                  aria-label="移除图片"
+                  onClick={() => onRemoveImage?.(img.id)}
+                  className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full border border-border bg-surface-2 text-fg-subtle shadow-1 transition-colors hover:bg-surface-1 hover:text-fg"
+                >
+                  <X className="size-3" aria-hidden />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">

@@ -22,6 +22,7 @@ import type {
   PermissionMode,
   PickDirectoryResponse,
   PromptBody,
+  PromptImageBody,
   QuestionAnswerBody,
   ResumeSessionResponse,
   SessionStatusResponse,
@@ -292,14 +293,16 @@ export const api = {
   closeSession: (id: string) =>
     request<{ sessionId: string; closed: boolean }>(`/api/sessions/${enc(id)}/close`, 'POST'),
 
-  prompt: (id: string, input: string) =>
+  prompt: (id: string, input: string, images?: readonly PromptImageBody[]) =>
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/prompt`, 'POST', {
       input,
+      images,
     } satisfies PromptBody),
 
-  steer: (id: string, input: string) =>
+  steer: (id: string, input: string, images?: readonly PromptImageBody[]) =>
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/steer`, 'POST', {
       input,
+      images,
     } satisfies SteerBody),
 
   cancel: (id: string) => request<{ ok: boolean }>(`/api/sessions/${enc(id)}/cancel`, 'POST'),

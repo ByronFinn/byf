@@ -32,6 +32,7 @@ export type {
   PermissionMode,
   PickDirectoryResponse,
   PromptBody,
+  PromptImageBody,
   QuestionAnswerBody,
   QuestionAnswers,
   QuestionItem,
