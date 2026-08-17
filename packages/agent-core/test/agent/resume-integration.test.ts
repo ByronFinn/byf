@@ -6,6 +6,27 @@ import { testAgent } from './harness/agent';
 
 describe('Agent.resume() integration tests', () => {
   describe('完整恢复流程测试', () => {
+    it('live 期对话后 replayBuilder 累积消息（非 restoring 也 push —— PRD-0035 Chat 空回归）', async () => {
+      const ctx = testAgent();
+      ctx.configure();
+
+      // agent 未经过 resume —— wire.phase 为 live(非 restoring)。
+      // 此前 push 的 restoring 守卫会让 live 期全部丢弃,导致常驻进程
+      // (web-server)内 resume 的 replay 恒空、刷新页面 Chat 恢复不到内容。
+      ctx.mockNextResponse({ type: 'text', text: 'hi there' });
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
+      await ctx.untilTurnEnd();
+
+      const replay = ctx.agent.replayBuilder.buildResult();
+      expect(replay.length).toBeGreaterThan(0);
+      expect(replay).toContainEqual(
+        expect.objectContaining({
+          type: 'message',
+          message: expect.objectContaining({ role: 'user' }),
+        }),
+      );
+    });
+
     it('应该成功恢复正常的agent会话', async () => {
       const persistence = new InMemoryAgentRecordPersistence([
         {

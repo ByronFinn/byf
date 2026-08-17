@@ -37,8 +37,8 @@ export interface SessionOptions {
 export class Session {
   readonly id: string;
   readonly workDir: string;
-  readonly summary?: SessionSummary;
-  private readonly resumeState: ResumedSessionState | undefined;
+  summary?: SessionSummary;
+  private resumeState: ResumedSessionState | undefined;
 
   private readonly rpc: SDKRpcClient;
   private readonly onClose?: () => void | Promise<void>;
@@ -51,6 +51,18 @@ export class Session {
     this.resumeState = options.resumeState ?? resumeStateFromSummary(options.summary);
     this.rpc = options.rpc;
     this.onClose = options.onClose;
+  }
+
+  /**
+   * 用一次新鲜的 resume 结果刷新快照。live 会话可能产生新对话,而构造时的
+   * summary 是那一刻的快照(尤其 web-server 常驻进程里 hero 创建后无 replay);
+   * 每次 resume 都应由 core active 路径现场重建 replay 后刷新,避免返回过期快照
+   * (PRD-0035 Chat 空回归)。
+   */
+  refreshSummary(summary: SessionSummary): void {
+    this.ensureOpen();
+    this.summary = summary;
+    this.resumeState = resumeStateFromSummary(summary);
   }
 
   getResumeState(): ResumedSessionState | undefined {

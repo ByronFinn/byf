@@ -43,7 +43,7 @@ import { WebSessionManager, type HarnessLike, type SessionLike } from './session
 class FakeSession implements SessionLike {
   readonly id: string;
   readonly workDir: string;
-  readonly summary: SessionSummary;
+  summary: SessionSummary;
   status: SessionStatus = {
     model: 'fake-model',
     thinkingLevel: 'medium',
@@ -156,6 +156,26 @@ class FakeSession implements SessionLike {
   async close(): Promise<void> {
     this.closed = true;
   }
+
+  /** 会话在进程内产生的对话记录(模拟 core replayBuilder 演进;summary 需经 resume 刷新才可见)。 */
+  private readonly replayRecords: unknown[] = [];
+
+  growReplay(record: unknown): void {
+    this.replayRecords.push(record);
+  }
+
+  /** 模拟真实 harness resume:把演进态合入 summary(真实实现由 core active 路径现场重建)。 */
+  refreshSummaryFromState(): void {
+    const main = (this.summary as Partial<ResumedSessionSummary>).agents?.main ?? {};
+    this.summary = {
+      ...this.summary,
+      agents: {
+        ...(this.summary as Partial<ResumedSessionSummary>).agents,
+        main: { ...main, type: 'main', replay: [...this.replayRecords] },
+      },
+      updatedAt: Date.now(),
+    };
+  }
 }
 
 class FakeHarness implements HarnessLike {
@@ -205,7 +225,11 @@ class FakeHarness implements HarnessLike {
 
   async resumeSession(input: { readonly id: string }): Promise<SessionLike> {
     const existing = this.sessions.get(input.id);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      // 模拟真实 ByfHarness active 分支:返回同一实例但刷新 summary
+      existing.refreshSummaryFromState();
+      return existing;
+    }
     const session = new FakeSession(input.id, '/resumed');
     this.sessions.set(input.id, session);
     return session;
@@ -460,6 +484,40 @@ describe('WebSessionManager', () => {
       }),
     ]);
     expect(extra).toBeNull();
+  });
+
+  test('live 会话 resume 返回最新 summary:对话期间演进 replay 在刷新后可读（PRD-0035 Chat 空回归）', async () => {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    // 会话在本进程内创建(hero 首条消息),summary 为创建时快照(无 replay)
+    const created = await manager.createSession({ workDir: '/proj' });
+    const session = harness.sessions.get(created.id)!;
+    // 之后该 live 会话又产生了对话 → replay 演进(真实 harness 由 core replayBuilder 驱动)
+    session.growReplay({ type: 'message', message: { role: 'user', text: 'hi' } });
+
+    // 刷新页面 → resume:必须咨询 harness 拿到演进后的 summary,而不是返回创建快照
+    const resumed = (await manager.resumeSession(created.id)) as ResumedSessionSummary;
+    const replay = resumed.agents?.main?.replay;
+    expect(replay).toHaveLength(1);
+    expect((replay![0] as { message: { text: string } }).message.text).toBe('hi');
+  });
+
+  test('每次 resume 都刷新 live summary:命中缓存也咨询 harness(不返回过期快照)', async () => {
+    const harness = new FakeHarness();
+    let resumeCalls = 0;
+    const origResume = harness.resumeSession.bind(harness);
+    harness.resumeSession = async (input: { readonly id: string }) => {
+      resumeCalls += 1;
+      return origResume(input);
+    };
+    const manager = new WebSessionManager(harness);
+    const created = await manager.createSession({ workDir: '/proj' });
+
+    const a = await manager.resumeSession(created.id);
+    const b = await manager.resumeSession(created.id);
+    expect(resumeCalls).toBe(2); // 串行两次 resume 各咨询一次(每次刷新);并发去重测试另行守护
+    expect(a.id).toBe(created.id);
+    expect(b.id).toBe(created.id);
   });
 
   test('审批反向 RPC:请求 → 广播 → resolve → 裁决与 settled 帧', async () => {
@@ -1288,30 +1346,30 @@ describe('Config routes', () => {
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
     const session = harness.sessions.get(id)!;
+    // 会话在本进程内继续对话 → core replayBuilder 累积(模拟)
+    session.growReplay({
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hi' }],
+        toolCalls: [],
+      },
+    });
+    session.growReplay({
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hello' }],
+        toolCalls: [],
+      },
+    });
     patchSummary(session, {
       agents: {
         main: {
           type: 'main',
           config: {},
           context: { messages: [] },
-          replay: [
-            {
-              type: 'message',
-              message: {
-                role: 'user',
-                content: [{ type: 'text', text: 'hi' }],
-                toolCalls: [],
-              },
-            },
-            {
-              type: 'message',
-              message: {
-                role: 'assistant',
-                content: [{ type: 'text', text: 'hello' }],
-                toolCalls: [],
-              },
-            },
-          ],
+          replay: [],
           permission: { mode: 'manual' },
           usage: {},
           tools: [],

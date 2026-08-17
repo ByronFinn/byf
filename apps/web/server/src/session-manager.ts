@@ -157,10 +157,14 @@ export class WebSessionManager {
    * resume;若各自走 harness.resumeSession 会 attach 两份 onEvent 监听,
    * 导致每个 agent 事件广播两次(every delta 翻倍)。同 id 的并发请求共享
    * 同一个进行中的 promise。
+   *
+   * 命中缓存的 live 会话同样咨询 harness:ByfHarness 的 active 分支会刷新
+   * summary(创建时快照 → 含最新 replay),否则刷新页面会拿到无 replay 的旧
+   * 快照(PRD-0035 Chat 空回归)。
    */
   private resumeSessionOnce(id: string): Promise<SessionLike> {
     const existing = this.sessions.get(id);
-    if (existing !== undefined) return Promise.resolve(existing);
+    if (existing !== undefined) return this.harness.resumeSession({ id });
     const pending = this.resuming.get(id);
     if (pending !== undefined) return pending;
     const loading = this.harness

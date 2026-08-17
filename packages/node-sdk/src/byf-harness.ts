@@ -111,7 +111,13 @@ export class ByfHarness {
   async resumeSession(input: ResumeSessionInput): Promise<Session> {
     const id = normalizeSessionId(input.id);
     const active = this.activeSessions.get(id);
-    if (active !== undefined) return active;
+    if (active !== undefined) {
+      // live 会话:core active 路径现场重建 replay(config/replayBuilder 均最新),
+      // 刷新快照后返回同一实例——不重复 attach onEvent,也不返回创建时旧快照
+      // (PRD-0035 Chat 空回归)。
+      active.refreshSummary(await this.rpc.resumeSession({ id }));
+      return active;
+    }
 
     const summary = await this.rpc.resumeSession({ id });
     const session = new Session({
