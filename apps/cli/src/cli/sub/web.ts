@@ -76,7 +76,9 @@ export async function handleWeb(
   const authToken = process.env['WEB_AUTH_TOKEN'];
   // R-D1:banner 列出所有非回环网卡的完整访问 URL(含 token);自动打开浏览器
   // 仍用 localhost(绑定 0.0.0.0 等非回环地址时 handle.url 不可直接打开)。
-  const lanIps = (deps.collectLanIps ?? collectLanIps)();
+  // 仅非回环绑定时收集 LAN IP:回环下服务器未监听这些地址,打印 URL 既误导
+  // 又把 token 泄漏进终端回滚缓冲。
+  const lanIps = isLoopbackHost(handle.host) ? [] : (deps.collectLanIps ?? collectLanIps)();
   deps.stdout.write(
     formatWebServerStartupBanner({
       authToken,
@@ -157,6 +159,17 @@ export function registerWebCommand(parent: Command, deps?: Partial<WebDeps>): vo
         });
       },
     );
+}
+
+/** 回环绑定判定(与 web-server config.isLoopbackHost 同义;避免扩公共导出面)。 */
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase().replaceAll('[', '').replaceAll(']', '');
+  return (
+    normalized === 'localhost' ||
+    normalized === '::1' ||
+    normalized === '0:0:0:0:0:0:0:1' ||
+    normalized.startsWith('127.')
+  );
 }
 
 function createDefaultWebDeps(overrides: Partial<WebDeps> = {}): WebDeps {

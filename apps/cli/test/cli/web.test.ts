@@ -62,9 +62,10 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
     }
   });
 
-  test('回环绑定:banner 无 LAN 行与 token', async () => {
+  test('回环绑定:banner 无 LAN 行与 token,且不收集 LAN IP', async () => {
+    const collectLanIps = vi.fn(() => ['192.168.1.5']);
     const deps = makeDeps({
-      collectLanIps: () => [],
+      collectLanIps,
       startServer: vi.fn().mockResolvedValue({
         host: '127.0.0.1',
         port: 4100,
@@ -78,5 +79,25 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
     expect(banner).toContain('listening on http://127.0.0.1:4100');
     expect(banner).not.toContain('?token=');
     expect(banner).not.toContain('] lan ');
+    expect(collectLanIps).not.toHaveBeenCalled();
+  });
+
+  test('回环别名(localhost/IPv6/完整 IPv6/bracket 写法)同样不收集 LAN IP', async () => {
+    for (const host of ['localhost', '::1', '[::1]', '0:0:0:0:0:0:0:1']) {
+      const collectLanIps = vi.fn(() => ['192.168.1.5']);
+      const deps = makeDeps({
+        collectLanIps,
+        startServer: vi.fn().mockResolvedValue({
+          host,
+          port: 4100,
+          staticEnabled: true,
+          url: `http://${host}:4100`,
+          close: () => {},
+        } satisfies WebServerHandle),
+      });
+      await expectExit(handleWeb(deps, undefined, { host, port: 4100, open: false }), 0);
+      expect(deps.stdoutText()).not.toContain('] lan ');
+      expect(collectLanIps).not.toHaveBeenCalled();
+    }
   });
 });

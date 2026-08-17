@@ -374,8 +374,9 @@ export class Agent {
   }
 
   /**
-   * legacy adapter 路由（context / permission / full_compaction 的 restoreRecord）。
-   * 被 wire.legacyRoute（完整 restore）与 restoreRecord（测试 harness）共用。
+   * restore 期间从 loop 事件 wire 记录派生 tool_timing replay 记录(PRD-0034
+   * R-B2):新记录用事件自带 startedAt/endedAt,旧记录回退 wire record `time`
+   * 差值;tool.call 的时刻缓存到 {@link replayToolStart} 以补全 result 记录。
    */
   private pushToolTimingReplayRecord(record: WireRecord): void {
     if (record.type !== 'context.append_loop_event') return;
@@ -403,6 +404,7 @@ export class Agent {
     }
   }
 
+  /** restore 期间的 tool.call 起始时刻缓存;restore 完成后清空(onDidRestore)。 */
   private readonly replayToolStart = new Map<string, number>();
 
   private routeLegacyRecord(record: AgentRecord): void {
