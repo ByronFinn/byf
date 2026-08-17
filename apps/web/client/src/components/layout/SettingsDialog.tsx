@@ -31,7 +31,10 @@ const CONFIG_KEY = ['config'] as const;
 /** 设置弹层(对齐 deepseek 的 SettingsRoot):左侧导航 + 右侧内容,按 byf 能力裁两栏。 */
 export function SettingsDialog(props: { onClose: () => void }): React.JSX.Element {
   const { onClose } = props;
-  const [section, setSection] = useState<'general' | 'models' | 'archives'>('general');
+  // R-C5：五段导航 + 归档管理（对齐 deepseek SettingsRoot 的左侧导航结构）
+  const [section, setSection] = useState<
+    'general' | 'models' | 'permission' | 'runtime' | 'configfile' | 'archives'
+  >('general');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -55,7 +58,7 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
       <div
         role="dialog"
         aria-label="设置"
-        className="relative flex h-[480px] w-[640px] max-w-[92vw] overflow-hidden rounded-xl border border-border bg-popover shadow-3"
+        className="relative flex h-[680px] w-[960px] max-w-[94vw] max-h-[88vh] overflow-hidden rounded-xl border border-border bg-popover shadow-3"
       >
         <nav
           className="w-40 shrink-0 border-r border-border bg-surface-2 p-2"
@@ -68,7 +71,7 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
               setSection('general');
             }}
           >
-            通用设置
+            通用
           </button>
           <button
             type="button"
@@ -77,7 +80,34 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
               setSection('models');
             }}
           >
-            模型
+            模型与 Provider
+          </button>
+          <button
+            type="button"
+            className={navItem(section === 'permission')}
+            onClick={() => {
+              setSection('permission');
+            }}
+          >
+            权限
+          </button>
+          <button
+            type="button"
+            className={navItem(section === 'runtime')}
+            onClick={() => {
+              setSection('runtime');
+            }}
+          >
+            运行与服务
+          </button>
+          <button
+            type="button"
+            className={navItem(section === 'configfile')}
+            onClick={() => {
+              setSection('configfile');
+            }}
+          >
+            配置文件
           </button>
           <button
             type="button"
@@ -94,6 +124,12 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
             <GeneralSection />
           ) : section === 'models' ? (
             <ProvidersSection />
+          ) : section === 'permission' ? (
+            <PermissionSection />
+          ) : section === 'runtime' ? (
+            <RuntimeSection />
+          ) : section === 'configfile' ? (
+            <ConfigFileSection />
           ) : (
             <ArchivesSection onClose={onClose} />
           )}
@@ -426,6 +462,53 @@ function GeneralSection(): React.JSX.Element {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** 权限（R-C5 占位骨架；详细规则编辑走 TUI/CLI 与配置文件页）。 */
+function PermissionSection(): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-fg">权限</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          工具执行的权限门控（manual / yolo / auto 与规则）。权限规则编辑请使用「配置文件」页或
+          CLI（/permission）。
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-surface-2 p-4 text-sm text-fg-muted">
+        权限层是 UX 防护而非安全边界（ADR-0033）；不受信任务的隔离属于用户容器/VM。
+      </div>
+    </div>
+  );
+}
+
+/** 运行与服务（R-C5 占位骨架）。 */
+function RuntimeSection(): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-fg">运行与服务</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          Web 工作台的监听地址、鉴权与文件端点配置。启动参数由 `byf web` 命令行控制（-H / --port /
+          WEB_AUTH_TOKEN）。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** 配置文件（R-C5 导航占位；PRD-0035 Wave E 的 raw 编辑器在 PR5 实现）。 */
+function ConfigFileSection(): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-fg">配置文件</h3>
+        <p className="mt-1 text-sm text-fg-muted">
+          config.toml 全文编辑（校验 / revision 乐观锁 / 密钥掩码）即将在此提供。
+        </p>
+      </div>
     </div>
   );
 }
