@@ -4,11 +4,13 @@ import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type {
-  ByfConfig,
-  ByfConfigPatch,
-  ResumedSessionSummary,
-  SkillSummary,
+import {
+  ByfError,
+  ErrorCodes,
+  type ByfConfig,
+  type ByfConfigPatch,
+  type ResumedSessionSummary,
+  type SkillSummary,
 } from '@byfriends/sdk';
 import type {
   ApprovalRequest,
@@ -1231,6 +1233,22 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     expect(harness.renames).toEqual([{ id: 'ses_rename', title: '新标题 🎯' }]);
   });
 
+  test('PATCH 不存在会话:harness 抛 session.not_found(经 RPC 丢类身份)映射为 404', async () => {
+    const { app, harness } = await setup();
+    harness.renameSession = async () => {
+      throw new ByfError(ErrorCodes.SESSION_NOT_FOUND, 'session not found: ghost');
+    };
+
+    const res = await app.request('/api/sessions/ghost', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Ghost' }),
+    });
+    expect(res.status).toBe(404);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('NOT_FOUND');
+  });
+
   test('PATCH 一次请求同时置顶 + 归档', async () => {
     const { app, harness } = await setup();
     seed(harness, 'ses_pin', '/proj');
@@ -1348,6 +1366,65 @@ describe('Wave A session organization routes (PRD-0034)', () => {
       body: JSON.stringify({}),
     });
     expect(ok.status).toBe(201);
+  });
+
+  test('fork busy 只由主 agent turn 生命周期驱动,子 agent 事件不参与', async () => {
+    const { app, harness } = await setup();
+    const session = seed(harness, 'ses_nested', '/proj');
+    await app.request('/api/sessions/ses_nested/resume', { method: 'POST' });
+
+    const fork = () =>
+      app.request('/api/sessions/ses_nested/fork', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    const childStarted = () => {
+      session.emit({
+        type: 'turn.started',
+        sessionId: 'ses_nested',
+        agentId: 'sub-1',
+        turnId: 4,
+        origin: { kind: 'user' },
+      });
+    };
+    const childEnded = () => {
+      session.emit({
+        type: 'turn.ended',
+        sessionId: 'ses_nested',
+        agentId: 'sub-1',
+        turnId: 4,
+        reason: 'completed',
+      });
+    };
+
+    // 子 agent turn 开始不应把父会话标为 busy。
+    harness.nextForkResult = seed(harness, 'ses_forked_sub', '/proj');
+    childStarted();
+    expect((await fork()).status).toBe(201);
+
+    // 主 agent turn 期间,子 agent 结束不能清除 busy(否则撕裂窗口重新打开)。
+    harness.nextForkResult = seed(harness, 'ses_forked_main', '/proj');
+    session.emit({
+      type: 'turn.started',
+      sessionId: 'ses_nested',
+      agentId: 'main',
+      turnId: 5,
+      origin: { kind: 'user' },
+    });
+    expect((await fork()).status).toBe(409);
+    childEnded();
+    expect((await fork()).status).toBe(409);
+
+    // 主 agent turn 结束后恢复可 fork。
+    session.emit({
+      type: 'turn.ended',
+      sessionId: 'ses_nested',
+      agentId: 'main',
+      turnId: 5,
+      reason: 'completed',
+    });
+    expect((await fork()).status).toBe(201);
   });
 
   test('GET /api/sessions 默认排除归档,?archived=true 仅返回归档', async () => {

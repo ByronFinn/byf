@@ -355,9 +355,17 @@ export class WebSessionManager {
   private attach(session: SessionLike): void {
     const unsub = session.onEvent((event) => {
       // busy 跟踪:fork 拒绝语义(PRD-0034 R-A4)依赖 turn 生命周期事件。
-      if (event.type === 'turn.started') {
+      // 只认主 agent 的 turn:子 agent 的 turn.ended 不能清除父 turn 仍在
+      // 进行中的 busy 标记(否则并发 fork 撕裂窗口被重新打开)。
+      if (
+        event.type === 'turn.started' &&
+        (event.agentId === undefined || event.agentId === 'main')
+      ) {
         this.busySessions.add(session.id);
-      } else if (event.type === 'turn.ended') {
+      } else if (
+        event.type === 'turn.ended' &&
+        (event.agentId === undefined || event.agentId === 'main')
+      ) {
         this.busySessions.delete(session.id);
       }
       this.broadcast(session.id, { type: 'agent.event', event });

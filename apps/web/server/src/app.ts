@@ -138,8 +138,12 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
   app.route('/api', api);
 
   app.onError((err, c) => {
-    if (err instanceof SessionNotFoundError) {
-      return c.json({ error: err.message, code: 'NOT_FOUND' }, 404);
+    // SessionNotFoundError 或携带 session.not_found 错误码的 ByfError(经 RPC
+    // 序列化后丢失类身份,如 PATCH /sessions/:id 与 fork 对不存在会话)→ 404。
+    const code = (err as { code?: unknown }).code;
+    if (err instanceof SessionNotFoundError || code === 'session.not_found') {
+      const message = err instanceof Error ? err.message : 'session not found';
+      return c.json({ error: message, code: 'NOT_FOUND' }, 404);
     }
     const message = err instanceof Error ? err.message : 'internal error';
     return c.json({ error: message, code: 'INTERNAL' }, 500);
