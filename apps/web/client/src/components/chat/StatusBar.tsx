@@ -1,17 +1,16 @@
 import type { StatusView } from '#/lib/chat';
 
 /**
- * 顶部状态栏:会话状态 + 模型 + 上下文占用 + 后台任务面板开关。
- * 权限选择已移入 Composer 底栏(对齐 deepseek 的 PermissionSelect 座位)。
+ * 顶部状态栏:会话状态 + 模型 + 上下文占用。
+ * 权限选择已移入 Composer 底栏(对齐 deepseek 的 PermissionSelect 座位);
+ * 后台任务入口已升级为中心 Tasks tab(PRD-0035 R-D1)。
  */
 export function StatusBar(props: {
   status: StatusView | null;
   busy: boolean;
   connected: boolean;
-  /** 后台任务面板开关(deepseek 式);null = 不显示。 */
-  tasksButton?: { active: boolean; count: number; onToggle: () => void };
 }): React.JSX.Element {
-  const { status, busy, connected, tasksButton } = props;
+  const { status, busy, connected } = props;
   const usagePct =
     status?.contextUsage !== undefined
       ? Math.round(status.contextUsage * 100)
@@ -44,27 +43,6 @@ export function StatusBar(props: {
         <>
           <span className="text-fg-subtle">·</span>
           <span>ctx {usagePct}%</span>
-        </>
-      )}
-      {tasksButton !== undefined && (
-        <>
-          <span className="text-fg-subtle">·</span>
-          <button
-            type="button"
-            onClick={tasksButton.onToggle}
-            title={tasksButton.active ? '关闭后台任务面板' : '查看后台任务'}
-            className={[
-              'flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[11px]',
-              tasksButton.active
-                ? 'bg-brand/15 text-brand'
-                : 'text-fg-muted hover:bg-hover hover:text-fg',
-            ].join(' ')}
-          >
-            <span>tasks</span>
-            {tasksButton.count > 0 ? (
-              <span className="tabular text-fg">{tasksButton.count}</span>
-            ) : null}
-          </button>
         </>
       )}
     </div>

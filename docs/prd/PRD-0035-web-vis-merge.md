@@ -144,12 +144,12 @@
 
 ### Wave D：Inspector 功能并入统一工作台
 
-- **R-D1 Center tabs**：会话视图支持 `Chat | Trace | Context | Agents | State`：
+- **R-D1 Center tabs**：会话视图支持 `Chat | Trace | Context | Agents | Tasks`（2026-08-17 修订：State 不单列——右栏常驻实时 State；后台任务从顶栏按钮升级为 Tasks 页签，点击任务行 → 右侧详情）：
   - Chat = 现有 live chat；
   - Trace = 原 vis `WireTab`（虚拟滚动、搜索、pair 跳转、issues）；
   - Context = 原 vis `ContextTab`；
   - Agents = 原 vis `SubagentsTab`；
-  - State = 原 vis `StateTab`。
+  - Tasks = 后台任务列表（resume 快照 + SSE `background.task.*` 实时；点行推详情，等价 byf `/tasks`）。
 - **R-D2 Right details 面板**：新建统一 details 宿主，替代现有 `FileDrawer`/`SubagentDrawer` 与 vis `WireRowDetail/IssuesDrawer`：
   - 默认 deepseek 同款空态；
   - 工具详情、子 agent 轨迹、文件预览、wire/state JSON 共用同一容器；
@@ -429,4 +429,5 @@ PUT  /api/config/raw
 - **Debugged by**: `/debug`（2026-08-17）— 两个发布前回归：① 静态侧栏遗留旧 `@container` 布局的 `hidden @4xl:flex` 类，AppFrame 重写后无容器祖先 → 永久 `display:none`（移除遗留类）；② hero 首条消息 `initialPrompt` 发送无 `cancelled` 守卫，StrictMode 双挂载双发 `turn.prompt` → `turn.agent_busy` 红字（补守卫）。
 - **Implemented by**: `/implement`（2026-08-17）— 用户实测五问修复：① live 会话 resume 返回最新 replay（三层：web-manager 缓存咨询 harness → SDK active 分支 refreshSummary → core ReplayBuilder live 期也累积；原 restoring 守卫导致常驻进程内 replay 恒空——Chat 空根因）；② 右栏常驻实时 State（StateLive 轮询 + SSE turn.ended/step.completed 事件驱动 invalidate；取代 deepseek 空态，AC-A12 已修订）；③ `/sessions/:id/agents/:agentId` 路由兑现 + catch-all 兜底（原为假验收，点击 main 空白页）；④ WireRowDetail 双形态（details 列去 120px 硬编码缩进）；⑤ Context 锐化（TokenBar 数值图例 + thinking/profile 摘要，与 Trace 事件时间线区分）。回归测试：web-server fake harness 2 用例、core resume-integration live 期 replay 用例；实测证据：live resume replay 5 条、刷新 Chat 恢复、深链/兜底正常。
 - **Debugged by**: `/debug`（2026-08-17，第二轮）— 布局与交互打磨：① Trace 等 tab 展开溢出无滚动条（ChatPage 内容 div 缺 flex 上下文，tab 根 flex-1 无约束，容器被内容撑到 4126px；补 flex flex-col 后容器内滚动）；② Center State tab 隐藏（右栏已常驻，避免重复）；③ deepseek 式子代理/后台任务查看——点 Agents 节点 → details 显示该 agent wire 轨迹（AgentTrail），状态栏 tasks 按钮 → BackgroundPanel（resume 快照 + SSE background.task.* 实时），深链默认即轨迹面板；④ 右栏随中间页签实时切换——details 默认内容由挂载时一次性决定改为 tab 感知（Chat→常驻 State、Trace/Context/Agents→空态等行/节点点击推详情、agent 深链→轨迹面板），tasks 开关关闭时回本 tab 默认而非固定 StateLive。
+- **Debugged by**: `/debug`（2026-08-17，第三轮）— Tasks 页签化：顶栏 `tasks` 按钮移除，后台任务升级为与 Agents 平级的中心页签（R-D1 增列 Tasks；TasksTab 复用 TaskList 分组列表，点任务行把 TaskDetail 推入右栏 details——完整生命周期字段：status/pid/agent/时间/时长/timeout/exit/stopReason/failureReason）；BackgroundPanel 删除（职责并入 TaskList+TaskDetail），StatusBar 精简回纯状态条；空态文案、右栏回落逻辑沿用 round 2 ④ 的 tab 感知机制。实测：本地模型多次调用失败（Bash 被 PreToolUse hook 拦截 → manual 权限；yolo 后模型又长时间卡死），改走持久化链路——伪造 `agents/main/tasks/*.json`（completed + failed 各一），未 resume 过的会话全新 resume 从磁盘恢复，浏览器实测：Tasks 页签显示 done (2) 分组、点击任务行右侧展示完整详情（taskId/pid/started/ended/duration/exit），失败行同样正常；验证后已清理伪造文件并 close 会话。
 - **Baseline**: PRD-0032（web 传输骨架）、PRD-0033（web UI 重设计）、PRD-0034（web 工作台能力升级）均为 Done；ADR-0034/0035/0036 继续有效。

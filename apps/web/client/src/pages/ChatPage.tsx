@@ -15,7 +15,7 @@ import { SubagentDrawer } from '#/components/chat/SubagentCard';
 import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
 import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
-import { BackgroundPanel } from '#/components/inspector/background/BackgroundPanel';
+import { TasksTab } from '#/components/inspector/background/TasksTab';
 import { ContextTab } from '#/components/inspector/context/ContextTab';
 import { StateLive } from '#/components/inspector/state/StateLive';
 import { AgentTrail } from '#/components/inspector/subagents/AgentTrail';
@@ -100,10 +100,10 @@ function ChatSessionPage({
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
   // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents）;
+  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | Tasks）;
   // State 视图由右栏常驻(AC-A12a),Center 不再单列。
   // agent 深链(R-D4)进入时自动聚焦 Agents tab。
-  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents'>(
+  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'tasks'>(
     agentId !== undefined ? 'agents' : 'chat',
   );
   useEffect(() => {
@@ -119,13 +119,12 @@ function ChatSessionPage({
   const queryClient = useQueryClient();
   const setDetails = useDetailsSetter();
 
-  // 后台任务(deepseek 式面板数据源):初始值来自 resume 的 agents.main.background,
+  // 后台任务(Tasks tab 数据源):初始值来自 resume 的 agents.main.background,
   // SSE background.task.* 事件实时增减。
   const [backgroundTasks, setBackgroundTasks] = useState<readonly BackgroundTaskInfo[]>([]);
-  const [backgroundPanelOpen, setBackgroundPanelOpen] = useState(false);
 
   // 右栏默认内容跟随当前 tab(用户诉求:切页签右栏实时刷新):
-  // Chat → 常驻实时 State;Trace/Context/Agents → 空态(由行/节点点击推详情);
+  // Chat → 常驻实时 State;Trace/Context/Agents/Tasks → 空态(由行/节点点击推详情);
   // agent 深链(R-D4) → 该 agent 轨迹。任何详情(工具行/wire 行/子代理轨迹/
   // 后台任务)推入时覆盖;切 tab 或组件重挂时恢复本 tab 默认。
   const defaultDetails = useCallback((): ReactNode => {
@@ -136,7 +135,6 @@ function ChatSessionPage({
   }, [sessionId, agentId, tab]);
 
   useEffect(() => {
-    setBackgroundPanelOpen(false);
     setDetails(defaultDetails());
     return () => {
       setDetails(null);
@@ -164,17 +162,6 @@ function ChatSessionPage({
       }
     }
   });
-
-  // 后台任务面板开关(deepseek 式):推入 details 列展示;再次点击回本 tab 默认。
-  const toggleBackgroundPanel = (): void => {
-    setBackgroundPanelOpen((v) => {
-      const next = !v;
-      setDetails(
-        next ? <BackgroundPanel sessionId={sessionId} tasks={backgroundTasks} /> : defaultDetails(),
-      );
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (sessionId.length === 0) return;
@@ -338,18 +325,7 @@ function ChatSessionPage({
 
   return (
     <div className="flex h-full flex-col">
-      <StatusBar
-        status={state.status}
-        busy={state.busy}
-        connected={state.connected}
-        tasksButton={{
-          active: backgroundPanelOpen,
-          count: backgroundTasks.filter(
-            (t) => t.status === 'running' || t.status === 'awaiting_approval',
-          ).length,
-          onToggle: toggleBackgroundPanel,
-        }}
-      />
+      <StatusBar status={state.status} busy={state.busy} connected={state.connected} />
       <InspectorTabBar tab={tab} onTabChange={setTab} />
       <div className="flex min-h-0 flex-1 flex-col">
         {tab === 'trace' ? (
@@ -358,6 +334,8 @@ function ChatSessionPage({
           <ContextTab key={sessionId} sessionId={sessionId} />
         ) : tab === 'agents' ? (
           <SubagentsTab key={sessionId} sessionId={sessionId} />
+        ) : tab === 'tasks' ? (
+          <TasksTab key={sessionId} tasks={backgroundTasks} />
         ) : state.entries.length === 0 ? (
           <EmptyState onPick={onSend} />
         ) : (
@@ -777,12 +755,13 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX
   );
 }
 
-/** PRD-0035 R-D1：会话视图 tab 栏（Chat | Trace | Context | Agents | State）。 */
+/** PRD-0035 R-D1：会话视图 tab 栏（Chat | Trace | Context | Agents | Tasks）。 */
 const INSPECTOR_TABS = [
   { key: 'chat', label: 'Chat' },
   { key: 'trace', label: 'Trace' },
   { key: 'context', label: 'Context' },
   { key: 'agents', label: 'Agents' },
+  { key: 'tasks', label: 'Tasks' },
 ] as const;
 
 function InspectorTabBar(props: {
