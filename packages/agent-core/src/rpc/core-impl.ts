@@ -68,6 +68,7 @@ import type {
   McpStartupMetrics,
   PromptPayload,
   ReconnectMcpServerPayload,
+  RemoveByfModelPayload,
   RemoveByfProviderPayload,
   RenameSessionPayload,
   ResumeSessionPayload,
@@ -369,6 +370,18 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     await this.sessionStore.rename(sessionId, payload.title);
   }
 
+  async updateSessionMetadata({
+    sessionId,
+    ...payload
+  }: UpdateSessionMetadataRequest): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session !== undefined) {
+      await new SessionAPIImpl(session).updateSessionMetadata(payload);
+      return;
+    }
+    await this.sessionStore.updateMetadata(sessionId, payload.metadata);
+  }
+
   async exportSession(input: ExportSessionPayload): Promise<ExportSessionResult> {
     const summary = await this.sessionStore.get(input.sessionId);
     const active = this.sessions.get(input.sessionId);
@@ -439,6 +452,24 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       config.defaultProvider = undefined;
     }
 
+    await writeConfigFile(this.configPath, config);
+    const updated = readConfigFile(this.configPath);
+    this.providerManager.updateConfig(updated);
+    return updated;
+  }
+
+  /** PRD-0034 R-D3:删除模型别名(deepMerge 无法删键,镜像 removeByfProvider)。 */
+  async removeByfModel(input: RemoveByfModelPayload): Promise<ByfConfig> {
+    const config = readConfigFile(this.configPath);
+    const existingModels = config.models ?? {};
+    if (!(input.modelId in existingModels)) {
+      throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, `Unknown model alias: ${input.modelId}`);
+    }
+    delete existingModels[input.modelId];
+    config.models = existingModels;
+    if (config.defaultModel === input.modelId) {
+      config.defaultModel = undefined;
+    }
     await writeConfigFile(this.configPath, config);
     const updated = readConfigFile(this.configPath);
     this.providerManager.updateConfig(updated);
@@ -581,10 +612,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getBackground({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundPayload>) {
     return this.sessionApi(sessionId).getBackground(payload);
-  }
-
-  updateSessionMetadata({ sessionId, ...payload }: UpdateSessionMetadataRequest): Promise<void> {
-    return this.sessionApi(sessionId).updateSessionMetadata(payload);
   }
 
   getSessionMetadata({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): SessionMeta {

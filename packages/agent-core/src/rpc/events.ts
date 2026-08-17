@@ -190,6 +190,8 @@ export interface ToolCallStartedEvent {
   readonly args: unknown;
   readonly description?: string;
   readonly display?: ToolInputDisplay;
+  /** Epoch ms，工具执行边界（PRD-0034 R-B1）。当前 core 的 live 事件恒携带。 */
+  readonly startedAt?: number;
 }
 
 export interface ToolProgressEvent {
@@ -207,6 +209,10 @@ export interface ToolResultEvent {
   readonly isError?: boolean;
   readonly synthetic?: boolean;
   readonly blockedReason?: 'rejected' | 'cancelled';
+  /** Epoch ms，与 tool.call.started 的 startedAt 同源（PRD-0034 R-B1）。 */
+  readonly startedAt?: number;
+  /** Epoch ms，工具执行完成时刻。单事件自包含耗时：endedAt - startedAt。 */
+  readonly endedAt?: number;
 }
 
 export interface SubagentSpawnedEvent {

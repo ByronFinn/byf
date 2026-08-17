@@ -41,6 +41,7 @@ import type {
   SessionUsage,
   PromptInput,
   RenameSessionInput,
+  UpdateSessionMetadataInput,
   ResumeSessionInput,
   ResumedSessionSummary,
   SessionSummary,
@@ -198,6 +199,14 @@ export class SDKRpcClient {
     });
   }
 
+  async updateSessionMetadata(input: UpdateSessionMetadataInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.updateSessionMetadata({
+      sessionId: input.id,
+      metadata: input.metadata,
+    });
+  }
+
   async exportSession(input: ExportSessionInput): Promise<ExportSessionResult> {
     const rpc = await this.getRpc();
     return rpc.exportSession({
@@ -216,6 +225,11 @@ export class SDKRpcClient {
   async setConfig(input: ByfConfigPatch): Promise<ByfConfig> {
     const rpc = await this.getRpc();
     return rpc.setByfConfig(input);
+  }
+
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    const rpc = await this.getRpc();
+    return rpc.removeByfModel({ modelId });
   }
 
   async removeProvider(providerId: string): Promise<ByfConfig> {

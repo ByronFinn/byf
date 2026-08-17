@@ -145,3 +145,56 @@ describe('reconcileOrder', () => {
     expect(reconcileOrder(['a', 'b'], ['b'])).toEqual(['b', 'a']);
   });
 });
+
+// ---- 置顶排序(PRD-0034 R-A2) -------------------------------------------------
+
+describe('deriveWorkspaceTree pinned ordering', () => {
+  test('组内置顶排最前(updated 序:置顶但更旧的会话仍第一)', () => {
+    const pinnedData = [
+      workspace(WS1, [
+        session(S1, WS1, 100),
+        session(S2, WS1, 200),
+        { ...session(S3, WS1, 50), pinned: true },
+      ]),
+    ];
+    const { groups } = deriveWorkspaceTree(
+      pinnedData,
+      view({ expanded: { [WS1]: true } }),
+      '',
+      undefined,
+    );
+    expect(groups[0]?.sessions.map((n) => n.id)).toEqual([S3, S2, S1]);
+  });
+
+  test('手动序叠加置顶:置顶最前,其余保持存储序', () => {
+    const pinnedData = [
+      workspace(WS1, [
+        { ...session(S1, WS1, 1), pinned: true },
+        session(S2, WS1, 2),
+        { ...session(S3, WS1, 3), pinned: true },
+      ]),
+    ];
+    const { groups } = deriveWorkspaceTree(
+      pinnedData,
+      view({
+        orderBy: 'manual',
+        expanded: { [WS1]: true },
+        sessionOrders: { [WS1]: [S3, S2, S1] },
+      }),
+      '',
+      undefined,
+    );
+    // S3 手动序第一且置顶 → 保持第一;S1 置顶 → 提到第二;S2 随后。
+    expect(groups[0]?.sessions.map((n) => n.id)).toEqual([S3, S1, S2]);
+  });
+
+  test('flat 视图全局置顶排前', () => {
+    const pinnedData = [
+      workspace(WS1, [session(S1, WS1, 100), { ...session(S2, WS1, 90), pinned: true }]),
+      workspace(WS2, [session(S3, WS2, 300), session(S4, WS2, 400)]),
+    ];
+    const { flat } = deriveWorkspaceTree(pinnedData, view({ groupBy: 'flat' }), '', undefined);
+    expect(flat[0]?.id).toBe(S2);
+    expect(flat.slice(1).map((n) => n.id)).toEqual([S4, S3, S1]);
+  });
+});

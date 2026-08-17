@@ -1,6 +1,6 @@
 # PRD-0034: byf Web 工作台能力升级（`apps/web` + 周边）
 
-> **Status**: Grilled | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: Implemented | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
 
 ## Goal
 
@@ -235,6 +235,8 @@
 | settle 后渲染 (render-after-settle)                   | 流式期间保持纯文本、块完结后再做 Mermaid/LaTeX/高亮等重渲染的策略（沿 PRD-0033）                                         | reused |
 
 ## Traceability
+
+- **Implemented by**: /implement + /tdd(2026-08-14,分支 prd-0034-web-workbench-upgrade)
 
 - **Created by**: `/think`（2026-08-14；三轮并行代码探查 → 5 项用户决议：新建 PRD-0034 / 四波全进 / 文件端点白名单 / provider 密钥只写不读 / 耗时进 core）
 - **Prototyped by**: `/have-a-try`（2026-08-14）— 子 Agent 呈现形态三变体（`spike/subagent-board.html`，A 卡片流+drawer / B 时间轴内联展开 / C 常驻 details 栏）；裁决 = **时间轴卡片 + 点击弹 drawer**（用户定夺），原型已处置

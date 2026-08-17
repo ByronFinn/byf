@@ -9,7 +9,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-import { formatWebServerStartupBanner } from '@byfriends/web-server';
+import { collectLanIps, formatWebServerStartupBanner } from '@byfriends/web-server';
 import type { StartWebServerOptions, WebServerHandle } from '@byfriends/web-server';
 import type { Command } from 'commander';
 
@@ -24,6 +24,8 @@ export interface WebDeps {
   readonly stdout: WritableLike;
   readonly stderr: WritableLike;
   readonly exit: (code: number) => never;
+  /** 可注入的 LAN IP 收集(R-D1 banner;默认读 os.networkInterfaces)。 */
+  readonly collectLanIps?: () => string[];
 }
 
 export interface WebOptions {
@@ -71,23 +73,29 @@ export async function handleWeb(
   }
 
   const target = sessionId === undefined ? '/' : `/sessions/${sessionId}`;
-  const url = `${handle.url}${target}`;
   const authToken = process.env['WEB_AUTH_TOKEN'];
+  // R-D1:banner 列出所有非回环网卡的完整访问 URL(含 token);自动打开浏览器
+  // 仍用 localhost(绑定 0.0.0.0 等非回环地址时 handle.url 不可直接打开)。
+  const lanIps = (deps.collectLanIps ?? collectLanIps)();
   deps.stdout.write(
     formatWebServerStartupBanner({
       authToken,
       host: handle.host,
       port: handle.port,
       staticEnabled: handle.staticEnabled,
+      lanIps,
     }),
   );
+  const openUrl = `http://127.0.0.1:${String(handle.port)}${target}`;
 
   if (opts.open) {
     try {
-      await deps.openUrl(url);
+      await deps.openUrl(openUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      deps.stderr.write(`byf web: failed to open browser (${message}); open ${url} manually.\n`);
+      deps.stderr.write(
+        `byf web: failed to open browser (${message}); open ${openUrl} manually.\n`,
+      );
     }
   }
 
@@ -156,6 +164,7 @@ function createDefaultWebDeps(overrides: Partial<WebDeps> = {}): WebDeps {
     startServer: overrides.startServer ?? defaultStartServer,
     openUrl: overrides.openUrl ?? defaultOpenUrl,
     waitForShutdown: overrides.waitForShutdown ?? waitForSignal,
+    collectLanIps: overrides.collectLanIps ?? collectLanIps,
     stdout: overrides.stdout ?? process.stdout,
     stderr: overrides.stderr ?? process.stderr,
     exit: overrides.exit ?? ((code: number) => process.exit(code)),

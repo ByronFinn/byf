@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import type {
   ByfConfig,
@@ -26,6 +26,7 @@ import type {
 import { createApp } from './app';
 import { AsyncQueue } from './async-queue';
 import { WebSessionManager, type HarnessLike, type SessionLike } from './session-manager';
+import { WorkspaceRegistry } from './workspace-registry';
 
 // ---- Fake harness / session (实现 SessionLike / HarnessLike 契约) ------------
 
@@ -155,6 +156,31 @@ class FakeHarness implements HarnessLike {
     models: {},
   };
   configPath = '/tmp/fake-config.toml';
+  renames: Array<{ id: string; title: string }> = [];
+  metadataPatches: Array<{ id: string; metadata: Record<string, unknown> }> = [];
+  forks: Array<{ id: string; upToMessage?: number }> = [];
+  nextForkResult: SessionLike | undefined;
+
+  async renameSession(input: { readonly id: string; readonly title: string }): Promise<void> {
+    this.renames.push({ id: input.id, title: input.title });
+  }
+
+  async updateSessionMetadata(input: {
+    readonly id: string;
+    readonly metadata: Record<string, unknown>;
+  }): Promise<void> {
+    this.metadataPatches.push({ id: input.id, metadata: input.metadata });
+  }
+
+  async forkSession(input: {
+    readonly id: string;
+    readonly upToMessage?: number;
+  }): Promise<SessionLike> {
+    this.forks.push({ id: input.id, upToMessage: input.upToMessage });
+    const result = this.nextForkResult;
+    if (result === undefined) throw new Error('no fork result configured');
+    return result;
+  }
 
   async createSession(options: {
     readonly workDir: string;
@@ -185,8 +211,19 @@ class FakeHarness implements HarnessLike {
     return this.config;
   }
 
+  removedModels: string[] = [];
+
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    this.removedModels.push(modelId);
+    const models = { ...this.config.models };
+    delete models[modelId];
+    this.config = { ...this.config, models };
+    return this.config;
+  }
+
   async setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
-    this.config = { ...this.config, ...patch } as ByfConfig;
+    // 与 agent-core mergeConfigPatch 同语义的浅层深合并(测试镜像)。
+    this.config = fakeDeepMerge(this.config as never, patch as never) as ByfConfig;
     return this.config;
   }
 
@@ -200,6 +237,22 @@ class FakeHarness implements HarnessLike {
   async close(): Promise<void> {
     this.closed = true;
   }
+}
+
+/** 测试镜像:与 mergeConfigPatch 同语义的对象级深合并。 */
+function fakeDeepMerge(target: unknown, source: unknown): unknown {
+  if (!isPlainRecord(target) || !isPlainRecord(source)) return source;
+  const out: Record<string, unknown> = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    out[key] =
+      isPlainRecord(out[key]) && isPlainRecord(value) ? fakeDeepMerge(out[key], value) : value;
+  }
+  return out;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** FakeSession.summary 各字段 readonly;测试内经可变视图打补丁。 */
@@ -859,8 +912,17 @@ describe('Config routes', () => {
         type: 'openai-completions',
         baseUrl: 'http://127.0.0.1:11434/v1',
         hasApiKey: true,
+        keyFromEnv: false,
+        oauth: false,
       },
-      { id: 'bare', type: 'anthropic', baseUrl: undefined, hasApiKey: false },
+      {
+        id: 'bare',
+        type: 'anthropic',
+        baseUrl: undefined,
+        hasApiKey: false,
+        keyFromEnv: false,
+        oauth: false,
+      },
     ]);
     expect(JSON.stringify(body)).not.toContain('sk-secret');
     expect(body.models[0]?.provider).toBe('local');
@@ -1126,5 +1188,583 @@ describe('Static source hint', () => {
       stderrWrite.mockRestore();
       stdoutWrite.mockRestore();
     }
+  });
+});
+
+// ---- Wave A 会话组织路由(PRD-0034) ------------------------------------------
+
+describe('Wave A session organization routes (PRD-0034)', () => {
+  async function setup(homeDir?: string): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    homeDir: string;
+  }> {
+    const dir = homeDir ?? (await mkdtemp(join(tmpdir(), 'byf-wavea-')));
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: dir });
+    return { app: result.app, harness, homeDir: dir };
+  }
+
+  function seed(
+    harness: FakeHarness,
+    id: string,
+    workDir: string,
+    patch: Partial<SessionSummary> = {},
+  ): FakeSession {
+    const session = new FakeSession(id, workDir);
+    patchSummary(session, { id, workDir, ...patch });
+    harness.sessions.set(id, session);
+    return session;
+  }
+
+  test('PATCH /api/sessions/:id 重命名经 harness.renameSession', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_rename', '/proj', { title: 'Old' });
+
+    const res = await app.request('/api/sessions/ses_rename', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '新标题 🎯' }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.renames).toEqual([{ id: 'ses_rename', title: '新标题 🎯' }]);
+  });
+
+  test('PATCH 一次请求同时置顶 + 归档', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_pin', '/proj');
+
+    const res = await app.request('/api/sessions/ses_pin', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pinned: true, archived: true }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.metadataPatches).toEqual([
+      { id: 'ses_pin', metadata: { pinned: true, archived: true } },
+    ]);
+  });
+
+  test('PATCH 校验:title 超 200 字符 / 空白 / 空 body 返回 400', async () => {
+    const { app } = await setup();
+
+    const tooLong = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'a'.repeat(201) }),
+    });
+    expect(tooLong.status).toBe(400);
+
+    const blank = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '   ' }),
+    });
+    expect(blank.status).toBe(400);
+
+    const empty = await app.request('/api/sessions/ses_a', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
+  });
+
+  test('PATCH 取消归档时把 hidden 工作区重新登记', async () => {
+    const { app, harness, homeDir } = await setup();
+    const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
+    seed(harness, 'ses_unarchive', workDir);
+    // registry: add 后 remove = hidden;session_index 记录 sessionId → workDir
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(workDir);
+    await registry.remove(workDir);
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_unarchive', sessionDir: '/tmp/ses_unarchive', workDir })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/sessions/ses_unarchive', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ archived: false }),
+    });
+    expect(res.status).toBe(200);
+
+    const registryAfter = new WorkspaceRegistry(homeDir);
+    expect(await registryAfter.list()).toContain(workDir);
+  });
+
+  test('POST /api/sessions/:id/fork 返回新会话 summary', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_src', '/proj');
+    const forked = seed(harness, 'ses_forked', '/proj', { title: 'Forked' });
+    harness.nextForkResult = forked;
+
+    const res = await app.request('/api/sessions/ses_src/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ upToMessage: 2 }),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { session: SessionSummary };
+    expect(data.session.id).toBe('ses_forked');
+    expect(harness.forks).toEqual([{ id: 'ses_src', upToMessage: 2 }]);
+  });
+
+  test('POST fork 对 busy 会话返回 409,turn 结束后恢复', async () => {
+    const { app, harness } = await setup();
+    const session = seed(harness, 'ses_busy', '/proj');
+    // resume 挂上事件监听(manager 跟踪 busy)
+    await app.request('/api/sessions/ses_busy/resume', { method: 'POST' });
+    session.emit({
+      type: 'turn.started',
+      sessionId: 'ses_busy',
+      agentId: 'main',
+      turnId: 0,
+      origin: { kind: 'user' },
+    });
+
+    const busy = await app.request('/api/sessions/ses_busy/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(busy.status).toBe(409);
+
+    session.emit({
+      type: 'turn.ended',
+      sessionId: 'ses_busy',
+      agentId: 'main',
+      turnId: 0,
+      reason: 'completed',
+    });
+    const forked = seed(harness, 'ses_forked2', '/proj');
+    harness.nextForkResult = forked;
+    const ok = await app.request('/api/sessions/ses_busy/fork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(ok.status).toBe(201);
+  });
+
+  test('GET /api/sessions 默认排除归档,?archived=true 仅返回归档', async () => {
+    const { app, harness } = await setup();
+    seed(harness, 'ses_normal', '/proj', { title: 'Normal', updatedAt: 10 });
+    seed(harness, 'ses_arch', '/proj', { title: 'Archived', updatedAt: 20, archived: true });
+
+    const def = (await (await app.request('/api/sessions?workDir=/proj')).json()) as {
+      sessions: SessionSummary[];
+    };
+    expect(def.sessions.map((s) => s.id)).toEqual(['ses_normal']);
+
+    const arch = (await (
+      await app.request('/api/sessions?workDir=/proj&archived=true')
+    ).json()) as { sessions: SessionSummary[] };
+    expect(arch.sessions.map((s) => s.id)).toEqual(['ses_arch']);
+  });
+
+  test('GET /api/workspaces 的会话列表排除归档', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-ws-'));
+    const { app, harness } = await setup(homeDir);
+    const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
+    seed(harness, 'ses_normal', workDir, { title: 'Normal' });
+    seed(harness, 'ses_arch', workDir, { title: 'Archived', archived: true });
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_normal', sessionDir: '/tmp/ses_normal', workDir })}\n${JSON.stringify({ sessionId: 'ses_arch', sessionDir: '/tmp/ses_arch', workDir })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/workspaces');
+    const data = (await res.json()) as {
+      workspaces: { workDir: string; sessions: SessionSummary[] }[];
+    };
+    const view = data.workspaces.find((w) => w.workDir === workDir);
+    expect(view?.sessions.map((s) => s.id)).toEqual(['ses_normal']);
+  });
+
+  test('GET /api/archived-sessions 聚合所有工作目录(含 hidden)按 updatedAt 倒序', async () => {
+    const { app, harness, homeDir } = await setup();
+    const wd1 = await mkdtemp(join(tmpdir(), 'wd1-'));
+    const wd2 = await mkdtemp(join(tmpdir(), 'wd2-'));
+    seed(harness, 'ses_a1', wd1, { archived: true, updatedAt: 10 });
+    seed(harness, 'ses_a2', wd2, { archived: true, updatedAt: 30 });
+    seed(harness, 'ses_n', wd1, { updatedAt: 99 });
+    await writeFile(
+      join(homeDir, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: 'ses_a1', sessionDir: '/tmp/ses_a1', workDir: wd1 })}\n${JSON.stringify({ sessionId: 'ses_a2', sessionDir: '/tmp/ses_a2', workDir: wd2 })}\n${JSON.stringify({ sessionId: 'ses_n', sessionDir: '/tmp/ses_n', workDir: wd1 })}\n`,
+      'utf-8',
+    );
+
+    const res = await app.request('/api/archived-sessions');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { sessions: SessionSummary[] };
+    expect(data.sessions.map((s) => s.id)).toEqual(['ses_a2', 'ses_a1']);
+    expect(data.sessions.every((s) => s.archived === true)).toBe(true);
+  });
+});
+
+// ---- 作用域白名单文件端点(PRD-0034 R-C2 / ADR-0036 D2) ------------------------
+
+describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
+  async function setupFs(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    homeDir: string;
+    ws: string;
+    outside: string;
+  }> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-files-home-'));
+    const ws = await mkdtemp(join(tmpdir(), 'byf-files-ws-'));
+    const outside = await mkdtemp(join(tmpdir(), 'byf-files-out-'));
+    await writeFile(join(ws, 'a.ts'), 'const x = 1;\n', 'utf-8');
+    await writeFile(join(outside, 'secret.txt'), 'secret\n', 'utf-8');
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(ws);
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir });
+    return { app: result.app, homeDir, ws, outside };
+  }
+
+  test('白名单内文本文件:200 + kind/language/content + ETag', async () => {
+    const { app, ws } = await setupFs();
+    const res = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { kind: string; language: string; content: string };
+    expect(data.kind).toBe('text');
+    expect(data.language).toBe('ts');
+    expect(data.content).toContain('const x = 1');
+    expect(res.headers.get('etag')).toMatch(/^"?\d+-\d+"?$/);
+  });
+
+  test('白名单外路径 403;缺 path 400;不存在 404;目录 400', async () => {
+    const { app, ws, outside } = await setupFs();
+
+    const outsideRes = await app.request(
+      `/api/files?path=${encodeURIComponent(join(outside, 'secret.txt'))}`,
+    );
+    expect(outsideRes.status).toBe(403);
+
+    const missingParam = await app.request('/api/files');
+    expect(missingParam.status).toBe(400);
+
+    const notFound = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'nope.ts'))}`,
+    );
+    expect(notFound.status).toBe(404);
+
+    const dir = await app.request(`/api/files?path=${encodeURIComponent(ws)}`);
+    expect(dir.status).toBe(400);
+  });
+
+  test('.. 穿越与 symlink 逃逸被拒(403)', async () => {
+    const { app, ws, outside } = await setupFs();
+    const traversal = `/api/files?path=${encodeURIComponent(`${ws}/../${basename(outside)}/secret.txt`)}`;
+    const travRes = await app.request(traversal);
+    expect(travRes.status).toBe(403);
+
+    await symlink(join(outside, 'secret.txt'), join(ws, 'link.txt'));
+    const linkRes = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'link.txt'))}`,
+    );
+    expect(linkRes.status).toBe(403);
+  });
+
+  test('文本超 2MB → 413;媒体超 50MB → 413', async () => {
+    const { app, ws } = await setupFs();
+    // 稀疏文件:413 在读取前发生,内容无需真实写入(避免大缓冲拖慢并发套件)。
+    await writeFile(join(ws, 'big.txt'), '', 'utf-8');
+    await truncate(join(ws, 'big.txt'), 2 * 1024 * 1024 + 1);
+    const bigText = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'big.txt'))}`);
+    expect(bigText.status).toBe(413);
+
+    await writeFile(join(ws, 'big.png'), '');
+    await truncate(join(ws, 'big.png'), 50 * 1024 * 1024 + 1);
+    const bigMedia = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'big.png'))}`,
+    );
+    expect(bigMedia.status).toBe(413);
+  });
+
+  test('图片返回二进制 + content-type;视频支持 Range 206', async () => {
+    const { app, ws } = await setupFs();
+    const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4, 5, 6, 7, 8]);
+    await writeFile(join(ws, 'pic.png'), pngBytes);
+    const img = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'pic.png'))}`);
+    expect(img.status).toBe(200);
+    expect(img.headers.get('content-type')).toBe('image/png');
+
+    const mp4 = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+    await writeFile(join(ws, 'clip.mp4'), mp4);
+    const full = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'clip.mp4'))}`);
+    expect(full.status).toBe(200);
+    expect(full.headers.get('accept-ranges')).toBe('bytes');
+
+    const partial = await app.request(
+      `/api/files?path=${encodeURIComponent(join(ws, 'clip.mp4'))}`,
+      {
+        headers: { range: 'bytes=0-99' },
+      },
+    );
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get('content-range')).toBe(`bytes 0-99/1000`);
+    const body = Buffer.from(await partial.arrayBuffer());
+    expect(body).toHaveLength(100);
+  });
+
+  test('If-None-Match 命中 ETag → 304', async () => {
+    const { app, ws } = await setupFs();
+    const path = `/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`;
+    const first = await app.request(path);
+    const etag = first.headers.get('etag');
+    expect(etag).not.toBeNull();
+    const second = await app.request(path, { headers: { 'if-none-match': etag! } });
+    expect(second.status).toBe(304);
+  });
+
+  test('media-originals 缓存在白名单内;hidden 工作区被拒', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-files-home2-'));
+    const ws = await mkdtemp(join(tmpdir(), 'byf-files-ws2-'));
+    await writeFile(join(ws, 'a.ts'), 'x', 'utf-8');
+    const registry = new WorkspaceRegistry(homeDir);
+    await registry.add(ws);
+    await registry.remove(ws); // → hidden
+    const mediaDir = join(homeDir, 'sessions', 'wd_x', 'ses-1', 'media-originals');
+    await mkdir(mediaDir, { recursive: true });
+    await writeFile(join(mediaDir, 'abc.png'), Buffer.from([1, 2, 3]));
+
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const { app } = await createApp({ manager, homeDir });
+
+    const media = await app.request(
+      `/api/files?path=${encodeURIComponent(join(mediaDir, 'abc.png'))}`,
+    );
+    expect(media.status).toBe(200);
+
+    const hidden = await app.request(`/api/files?path=${encodeURIComponent(join(ws, 'a.ts'))}`);
+    expect(hidden.status).toBe(403);
+  });
+});
+
+// ---- LAN banner(PRD-0034 R-D1) -------------------------------------------------
+
+describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
+  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不变', async () => {
+    const { formatWebStartupBanner } = await import('./startup-banner');
+    const loopback = formatWebStartupBanner({
+      host: '127.0.0.1',
+      port: 4100,
+      byfHome: '/home/u/.byf',
+    });
+    expect(loopback).toBe(
+      '[web-server] listening on http://127.0.0.1:4100 (auth=disabled, BYF_HOME=/home/u/.byf)\n',
+    );
+
+    const lan = formatWebStartupBanner({
+      host: '0.0.0.0',
+      port: 4100,
+      byfHome: '/home/u/.byf',
+      authToken: 'tok-123',
+      lanIps: ['192.168.1.5', '10.0.0.3'],
+    });
+    expect(lan).toContain('listening on http://0.0.0.0:4100 (auth=required');
+    expect(lan).toContain('http://192.168.1.5:4100/?token=tok-123');
+    expect(lan).toContain('http://10.0.0.3:4100/?token=tok-123');
+    expect(lan).toContain('轮换');
+  });
+
+  test('collectLanIps 排除回环与内网 IPv6,返回 IPv4 地址', async () => {
+    const { collectLanIps } = await import('./startup-banner');
+    const ips = collectLanIps([
+      { address: '127.0.0.1', family: 'IPv4', internal: true, scopeid: undefined },
+      { address: '192.168.1.5', family: 'IPv4', internal: false, scopeid: undefined },
+      { address: 'fe80::1', family: 'IPv6', internal: false, scopeid: 5 },
+    ]);
+    expect(ips).toEqual(['192.168.1.5']);
+  });
+});
+
+// ---- provider/models 配置管理(PRD-0034 R-D3) -----------------------------------
+
+describe('config management routes (PRD-0034 R-D3)', () => {
+  async function setup(): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }> {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  test('POST /api/config/providers:slug 校验/查重/baseUrl 必填,合法时一次建全', async () => {
+    const { app, harness } = await setup();
+    const badSlug = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'Bad_Slug',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [],
+      }),
+    });
+    expect(badSlug.status).toBe(400);
+
+    const noUrl = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'good', type: 'openai-completions', models: [] }),
+    });
+    expect(noUrl.status).toBe(400);
+
+    const noModels = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'good',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [],
+      }),
+    });
+    expect(noModels.status).toBe(400);
+
+    harness.config = {
+      providers: { existing: { type: 'openai-completions' } },
+      models: {},
+    };
+    const dup = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'existing',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        models: [{ id: 'm', model: 'gpt', maxContextSize: 128000 }],
+      }),
+    });
+    expect(dup.status).toBe(409);
+
+    const ok = await app.request('/api/config/providers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        id: 'myprov',
+        type: 'openai-completions',
+        baseUrl: 'https://x/v1',
+        apiKey: 'sk-draft',
+        models: [{ id: 'fast', model: 'gpt-4o-mini', maxContextSize: 128000 }],
+      }),
+    });
+    expect(ok.status).toBe(201);
+    const merged = harness.config as unknown as {
+      providers: Record<string, unknown>;
+      models: Record<string, unknown>;
+    };
+    expect(merged.providers['myprov']).toMatchObject({
+      type: 'openai-completions',
+      baseUrl: 'https://x/v1',
+      apiKey: 'sk-draft',
+    });
+    expect(merged.models['fast']).toMatchObject({ provider: 'myprov', model: 'gpt-4o-mini' });
+  });
+
+  test('PATCH /api/config/providers/:id:apiKey 留空 = 不变;其余字段深合并', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: {
+        myprov: { type: 'openai-completions', baseUrl: 'https://old/v1', apiKey: 'sk-keep' },
+      },
+      models: {},
+    };
+    const res = await app.request('/api/config/providers/myprov', {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ baseUrl: 'https://new/v1' }),
+    });
+    expect(res.status).toBe(200);
+    const provider = (
+      harness.config as unknown as {
+        providers: Record<string, { baseUrl?: string; apiKey?: string }>;
+      }
+    ).providers['myprov']!;
+    expect(provider.baseUrl).toBe('https://new/v1');
+    expect(provider.apiKey).toBe('sk-keep');
+  });
+
+  test('POST/PATCH/DELETE /api/config/models:别名查重、更新、删除清理 defaultModel', async () => {
+    const { app, harness } = await setup();
+    harness.config = {
+      providers: { p: { type: 'openai-completions' } },
+      models: { existing: { provider: 'p', model: 'm1', maxContextSize: 1000 } },
+      defaultModel: 'existing',
+    };
+
+    const dup = await app.request('/api/config/models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'existing', provider: 'p', model: 'm2', maxContextSize: 1000 }),
+    });
+    expect(dup.status).toBe(409);
+
+    const created = await app.request('/api/config/models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: 'alias2', provider: 'p', model: 'm2', maxContextSize: 2000 }),
+    });
+    expect(created.status).toBe(201);
+
+    const patched = await app.request('/api/config/models/alias2', {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ model: 'm2-new' }),
+    });
+    expect(patched.status).toBe(200);
+    expect(
+      (harness.config as unknown as { models: Record<string, { model?: string }> }).models['alias2']
+        ?.model,
+    ).toBe('m2-new');
+
+    const removed = await app.request('/api/config/models/existing', { method: 'DELETE' });
+    expect(removed.status).toBe(200);
+    expect(harness.removedModels).toEqual(['existing']);
+  });
+
+  test('POST /api/config/discover-models:草稿探测远端 /v1/models,不落盘', async () => {
+    const { app, harness } = await setup();
+    const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: 'model-a' }, { id: 'model-b' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const res = await app.request('/api/config/discover-models', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        type: 'openai-completions',
+        baseUrl: 'https://draft.example/v1',
+        apiKey: 'sk-draft',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { models: { id: string }[] };
+    expect(data.models.map((m) => m.id)).toEqual(['model-a', 'model-b']);
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0]!;
+    expect(String(calledUrl)).toBe('https://draft.example/v1/models');
+    expect((calledInit?.headers as Record<string, string>)['authorization']).toBe(
+      'Bearer sk-draft',
+    );
+    fetchMock.mockRestore();
+    // 不落盘:config 未变
+    expect(harness.metadataPatches).toEqual([]);
+    expect(harness.config.providers).toEqual({});
   });
 });

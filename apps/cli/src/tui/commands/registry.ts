@@ -55,6 +55,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 80,
   },
   {
+    name: 'web',
+    aliases: [],
+    description: 'Start the byf web client in a browser',
+    priority: 75,
+    availability: 'always',
+  },
+  {
     name: 'tasks',
     aliases: ['task'],
     description: 'Browse background tasks',

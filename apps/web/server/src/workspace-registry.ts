@@ -122,6 +122,32 @@ export async function listIndexedWorkDirs(homeDir: string): Promise<string[]> {
   return dirs;
 }
 
+/** 经 session_index 反查一个会话的 workDir(找不到返回 undefined)。 */
+export async function findSessionWorkDir(
+  homeDir: string,
+  sessionId: string,
+): Promise<string | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(join(homeDir, SESSION_INDEX_FILE), 'utf-8');
+  } catch {
+    return undefined;
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    try {
+      const entry = JSON.parse(trimmed) as { sessionId?: unknown; workDir?: unknown };
+      if (entry.sessionId === sessionId && typeof entry.workDir === 'string') {
+        return entry.workDir;
+      }
+    } catch {
+      // 跳过损坏行
+    }
+  }
+  return undefined;
+}
+
 /** 工作区显示名:目录 basename;无 basename 时回退为完整路径。 */
 export function workspaceTitle(workDir: string): string {
   const base = basename(workDir.replace(/[/\\]+$/, ''));

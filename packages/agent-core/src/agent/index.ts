@@ -269,6 +269,7 @@ export class Agent {
         // （Phase 5 拆 port 后的 restore 路径）。
         if (isAgentRecordOfPrefix(record as AgentRecord, 'context')) {
           this.context.handleReplayRecord(record as AgentRecord);
+          this.pushToolTimingReplayRecord(record);
         } else if (isAgentRecordOfPrefix(record as AgentRecord, 'config')) {
           // config 走纯 reducer（update() 不执行），replayBuilder 的 config_updated
           // 在此派生（payload 即 changed 子集，对标旧路径 config/index.ts:43 的 push）。
@@ -376,6 +377,34 @@ export class Agent {
    * legacy adapter 路由（context / permission / full_compaction 的 restoreRecord）。
    * 被 wire.legacyRoute（完整 restore）与 restoreRecord（测试 harness）共用。
    */
+  private pushToolTimingReplayRecord(record: WireRecord): void {
+    if (record.type !== 'context.append_loop_event') return;
+    const event = (record as { event?: { type?: string; toolCallId?: string } }).event;
+    if (event === undefined || event.toolCallId === undefined) return;
+    const time = typeof record['time'] === 'number' ? record['time'] : undefined;
+    if (event.type === 'tool.call') {
+      const startedAt = (record as { event?: { startedAt?: number } }).event?.startedAt ?? time;
+      if (startedAt !== undefined) {
+        this.replayToolStart.set(event.toolCallId, startedAt);
+      }
+      return;
+    }
+    if (event.type === 'tool.result') {
+      const typed = record as { event?: { startedAt?: number; endedAt?: number } };
+      const endedAt = typed.event?.endedAt ?? time;
+      const startedAt = typed.event?.startedAt ?? this.replayToolStart.get(event.toolCallId);
+      if (startedAt === undefined && endedAt === undefined) return;
+      this.replayBuilder.push({
+        type: 'tool_timing',
+        toolCallId: event.toolCallId,
+        startedAt,
+        endedAt,
+      });
+    }
+  }
+
+  private readonly replayToolStart = new Map<string, number>();
+
   private routeLegacyRecord(record: AgentRecord): void {
     if (isAgentRecordOfPrefix(record, 'context')) {
       // context 的 restore 会读 config 私有状态（如 observation masking 读

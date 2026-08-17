@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Copy, KeyRound, Monitor, Moon, Sun, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { api } from '#/api';
 import { PERMISSION_COPY } from '#/components/chat/PermissionChip';
@@ -10,6 +11,7 @@ import {
   THINKING_MODES,
   THINKING_MODE_LABEL,
 } from '#/components/chat/ThinkingChip';
+import { ProvidersSection } from '#/components/settings/ProvidersSettings';
 import { Button } from '#/components/ui/button';
 import {
   DropdownMenu,
@@ -19,16 +21,17 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
 import { useTheme } from '#/hooks/useTheme';
+import { relativeTimeLabel } from '#/lib/relative-time';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { UpdateConfigBody } from '#/types';
+import type { SessionSummary, UpdateConfigBody } from '#/types';
 
 const CONFIG_KEY = ['config'] as const;
 
 /** 设置弹层(对齐 deepseek 的 SettingsRoot):左侧导航 + 右侧内容,按 byf 能力裁两栏。 */
 export function SettingsDialog(props: { onClose: () => void }): React.JSX.Element {
   const { onClose } = props;
-  const [section, setSection] = useState<'general' | 'models'>('general');
+  const [section, setSection] = useState<'general' | 'models' | 'archives'>('general');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -76,12 +79,111 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           >
             模型
           </button>
+          <button
+            type="button"
+            className={navItem(section === 'archives')}
+            onClick={() => {
+              setSection('archives');
+            }}
+          >
+            归档管理
+          </button>
         </nav>
         <div className="min-w-0 flex-1 overflow-y-auto p-4">
-          {section === 'general' ? <GeneralSection /> : <ModelsSection />}
+          {section === 'general' ? (
+            <GeneralSection />
+          ) : section === 'models' ? (
+            <ProvidersSection />
+          ) : (
+            <ArchivesSection onClose={onClose} />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** 归档管理(PRD-0034 R-A3):按工作区分组列出归档会话,支持恢复 / 进入。 */
+function ArchivesSection(props: { onClose: () => void }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ['archived-sessions'],
+    queryFn: () => api.listArchivedSessions(),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => api.patchSession(id, { archived: false }),
+    onSuccess: () => {
+      toast.success('会话已恢复到主列表');
+      void queryClient.invalidateQueries({ queryKey: ['archived-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+    },
+    onError: (error: Error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const byWorkspace = new Map<string, SessionSummary[]>();
+  for (const session of data ?? []) {
+    const list = byWorkspace.get(session.workDir) ?? [];
+    list.push(session);
+    byWorkspace.set(session.workDir, list);
+  }
+
+  return (
+    <section aria-label="归档管理">
+      <h2 className="text-sm font-semibold text-fg">归档管理</h2>
+      <p className="mt-1 text-xs text-fg-subtle">
+        归档会话默认从侧边栏隐藏;恢复后回到主列表(其工作区若被移除会自动重新登记)。
+      </p>
+      {isLoading && <p className="mt-3 text-xs text-fg-subtle">加载中…</p>}
+      {!isLoading && (data ?? []).length === 0 && (
+        <p className="mt-3 text-xs text-fg-subtle">暂无归档会话</p>
+      )}
+      {[...byWorkspace.entries()].map(([workDir, sessions]) => (
+        <div key={workDir} className="mt-4">
+          <h3 className="text-xs font-medium text-fg-muted">{workDir}</h3>
+          <ul className="mt-1.5 space-y-1">
+            {sessions.map((session) => (
+              <li
+                key={session.id}
+                className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-3 py-2"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm text-fg">
+                  {session.title ?? session.lastPrompt ?? session.id}
+                </span>
+                <span className="shrink-0 text-xs text-fg-subtle">
+                  {relativeTimeLabel(session.updatedAt)}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={restoreMutation.isPending}
+                  onClick={() => {
+                    restoreMutation.mutate(session.id);
+                  }}
+                >
+                  恢复
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    props.onClose();
+                    void navigate(`/sessions/${session.id}`);
+                  }}
+                >
+                  进入
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -323,164 +425,6 @@ function GeneralSection(): React.JSX.Element {
             </Button>
           </div>
         )}
-      </section>
-    </div>
-  );
-}
-
-/** 模型:默认模型选择 + 模型/供应商列表 + 移除供应商。 */
-function ModelsSection(): React.JSX.Element {
-  const queryClient = useQueryClient();
-  const { data: config } = useQuery({
-    queryKey: CONFIG_KEY,
-    queryFn: () => api.getConfig(),
-    staleTime: 60_000,
-  });
-  const patch = useMutation({
-    mutationFn: (body: UpdateConfigBody) => api.setConfig(body),
-    onSuccess: (cfg) => {
-      queryClient.setQueryData(CONFIG_KEY, cfg);
-      toast.success('设置已保存');
-    },
-    onError: (error: unknown) => {
-      toast.error(`保存设置失败:${errorMessage(error)}`);
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (providerId: string) => api.removeProvider(providerId),
-    onSuccess: (cfg) => {
-      queryClient.setQueryData(CONFIG_KEY, cfg);
-      toast.success('已移除 provider');
-    },
-    onError: (error: unknown) => {
-      toast.error(`移除 provider 失败:${errorMessage(error)}`);
-    },
-  });
-  // 内联二次确认:providerId → 是否处于确认态
-  const [confirming, setConfirming] = useState<string | null>(null);
-
-  return (
-    <div className="space-y-5">
-      <section>
-        <h2 className="text-sm font-semibold text-fg">模型</h2>
-        <p className="mt-0.5 text-xs text-fg-subtle">
-          当前配置的模型别名;点击「设为默认」后新会话使用它。
-        </p>
-        <ul className="mt-2 space-y-1">
-          {(config?.models ?? []).map((m) => {
-            const isDefault = config?.defaultModel === m.id;
-            return (
-              <li
-                key={m.id}
-                className="flex items-center gap-2 rounded-md border border-border bg-surface-1 px-2.5 py-1.5"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-fg">{m.displayName ?? m.id}</span>
-                  <span className="block truncate font-mono text-xs text-fg-subtle">
-                    {m.provider} / {m.model}
-                  </span>
-                </span>
-                {isDefault ? (
-                  <span className="shrink-0 rounded-full bg-brand/15 px-2 py-0.5 text-xs text-brand">
-                    默认
-                  </span>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={patch.isPending}
-                    onClick={() => {
-                      patch.mutate({ defaultModel: m.id });
-                    }}
-                  >
-                    设为默认
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-          {(config?.models ?? []).length === 0 && (
-            <p className="text-xs text-fg-subtle">
-              暂无模型。请用 CLI 运行 /login 添加 provider 与模型。
-            </p>
-          )}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-fg">Provider</h2>
-        <p className="mt-0.5 text-xs text-fg-subtle">
-          添加 provider 请在 CLI 运行 /login;此处可移除。
-        </p>
-        <ul className="mt-2 space-y-1">
-          {(config?.providers ?? []).map((p) => (
-            <li
-              key={p.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-surface-1 px-2.5 py-1.5"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-fg">{p.id}</span>
-                <span className="block truncate font-mono text-xs text-fg-subtle">
-                  {p.type}
-                  {p.baseUrl !== undefined ? ` · ${p.baseUrl}` : ''}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  'flex shrink-0 items-center gap-1 text-xs',
-                  p.hasApiKey ? 'text-state-success' : 'text-state-warning',
-                )}
-              >
-                <KeyRound className="size-3" aria-hidden />
-                {p.hasApiKey ? '已配置密钥' : '未配置密钥'}
-              </span>
-              {confirming === p.id ? (
-                <span className="flex shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      remove.mutate(p.id);
-                      setConfirming(null);
-                    }}
-                  >
-                    确认移除
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      setConfirming(null);
-                    }}
-                  >
-                    取消
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`移除 ${p.id}`}
-                  className="shrink-0 text-fg-muted hover:text-state-error"
-                  onClick={() => {
-                    setConfirming(p.id);
-                  }}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
-              )}
-            </li>
-          ))}
-          {(config?.providers ?? []).length === 0 && (
-            <p className="text-xs text-fg-subtle">暂无 provider。</p>
-          )}
-        </ul>
       </section>
     </div>
   );

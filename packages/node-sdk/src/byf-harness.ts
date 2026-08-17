@@ -24,6 +24,7 @@ import type {
   RenameSessionInput,
   ResumeSessionInput,
   ShellExecResult,
+  UpdateSessionMetadataInput,
   SessionSummary,
 } from '#/types';
 
@@ -148,6 +149,11 @@ export class ByfHarness {
     this.activeSessions.get(input.id)?.emitMetaUpdated({ title: input.title });
   }
 
+  async updateSessionMetadata(input: UpdateSessionMetadataInput): Promise<void> {
+    await this.rpc.updateSessionMetadata(input);
+    this.activeSessions.get(input.id)?.emitMetaUpdated(input.metadata);
+  }
+
   async exportSession(input: ExportSessionInput): Promise<ExportSessionResult> {
     const result = await this.rpc.exportSession({
       ...input,
@@ -170,6 +176,10 @@ export class ByfHarness {
 
   async setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
     return this.rpc.setConfig(patch);
+  }
+
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    return this.rpc.removeModel(modelId);
   }
 
   async removeProvider(providerId: string): Promise<ByfConfig> {

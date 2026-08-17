@@ -560,6 +560,8 @@ export class ByfTui implements DialogHost {
    * Handlers read live state via getters; the host never holds a ByfTui ref.
    */
   private slashHost!: SlashCommandHost;
+  /** 退出清理钩子(/web 后台 web-server 等;PRD-0034 R-D2)。 */
+  private readonly shutdownHooks: Array<() => void> = [];
 
   private createSlashCommandHost(): SlashCommandHost {
     return {
@@ -635,6 +637,9 @@ export class ByfTui implements DialogHost {
         if (this.cancelInFlight === cancel) this.cancelInFlight = undefined;
       },
       renameSession: (input) => this.harness.renameSession(input),
+      registerShutdownHook: (hook) => {
+        this.shutdownHooks.push(hook);
+      },
       getUserMessageContents: () =>
         this.state.transcriptEntries
           .filter((entry) => entry.kind === 'user')
@@ -890,6 +895,14 @@ export class ByfTui implements DialogHost {
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
+    for (const hook of this.shutdownHooks) {
+      try {
+        hook();
+      } catch {
+        /* 清理钩子失败不阻塞退出 */
+      }
+    }
+    this.shutdownHooks.length = 0;
     await this.closeSession('shutting down');
     await this.harness.close();
     this.stopAllMcpServerStatusSpinners();

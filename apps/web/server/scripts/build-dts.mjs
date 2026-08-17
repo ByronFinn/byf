@@ -42,7 +42,18 @@ export declare function formatWebServerStartupBanner(input: {
   readonly host: string;
   readonly port: number;
   readonly staticEnabled?: boolean;
+  /** Non-loopback IPv4 addresses for LAN URL lines (PRD-0034 R-D1). */
+  readonly lanIps?: readonly string[];
 }): string;
+/**
+ * Collect non-loopback IPv4 addresses for the LAN banner (PRD-0034 R-D1).
+ * No-arg form reads os.networkInterfaces().
+ */
+export declare function collectLanIps(interfaces?: ReadonlyArray<{
+  readonly address: string;
+  readonly family: string;
+  readonly internal: boolean;
+}>): string[];
 `;
 
 await mkdir(distDir, { recursive: true });

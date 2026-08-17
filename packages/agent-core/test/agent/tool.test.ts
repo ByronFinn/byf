@@ -104,6 +104,55 @@ describe('Agent tools', () => {
     });
   });
 
+  it('stamps tool.call.started with startedAt (epoch ms)', async () => {
+    const ctx = testAgent({
+      kaos: createCommandKaos('ok'),
+    });
+    ctx.configure({ tools: ['Bash'] });
+    await ctx.rpc.setPermission({ mode: 'yolo' });
+
+    const before = Date.now();
+    ctx.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    ctx.mockNextResponse({ type: 'text', text: 'Bash returned ok.' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run Bash' }] });
+    await ctx.untilTurnEnd();
+    const after = Date.now();
+
+    const started = ctx.allEvents.find(
+      (event) => event.type === '[rpc]' && event.event === 'tool.call.started',
+    );
+    const startedAt = (started?.args as { startedAt?: unknown } | undefined)?.startedAt;
+    expect(typeof startedAt).toBe('number');
+    expect(startedAt as number).toBeGreaterThanOrEqual(before);
+    expect(startedAt as number).toBeLessThanOrEqual(after);
+  });
+
+  it('stamps tool.result with self-contained startedAt and endedAt', async () => {
+    const ctx = testAgent({
+      kaos: createCommandKaos('ok'),
+    });
+    ctx.configure({ tools: ['Bash'] });
+    await ctx.rpc.setPermission({ mode: 'yolo' });
+
+    ctx.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    ctx.mockNextResponse({ type: 'text', text: 'Bash returned ok.' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run Bash' }] });
+    await ctx.untilTurnEnd();
+
+    const startedArgs = ctx.allEvents.find(
+      (event) => event.type === '[rpc]' && event.event === 'tool.call.started',
+    )?.args as { startedAt?: number } | undefined;
+    const resultArgs = ctx.allEvents.find(
+      (event) => event.type === '[rpc]' && event.event === 'tool.result',
+    )?.args as { startedAt?: number; endedAt?: number } | undefined;
+
+    expect(typeof resultArgs?.startedAt).toBe('number');
+    expect(typeof resultArgs?.endedAt).toBe('number');
+    expect(resultArgs?.endedAt).toBeGreaterThanOrEqual(resultArgs?.startedAt ?? -Infinity);
+    // 自包含：单事件即可计算耗时，无需回看 started 事件。
+    expect(resultArgs?.startedAt).toBe(startedArgs?.startedAt);
+  });
+
   it('continues after a foreground Agent tool returns a max_tokens failure', async () => {
     const subagentHost = {
       spawn: vi.fn().mockResolvedValue({
@@ -297,8 +346,8 @@ describe('Agent tools', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will look it up." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "argumentsPart": "{\\"query\\":\\"moon\\"}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will look it up." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_lookup", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" } }, "time": "<time>" }
-      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" } }
+      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_lookup", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" }, "startedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" }, "startedAt": "<time>" }
       [emit] toolCall                    { "turnId": 0, "toolCallId": "call_lookup", "args": { "query": "moon" } }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
@@ -311,8 +360,8 @@ describe('Agent tools', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'The lookup result is moon-result.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_lookup", "toolCallId": "call_lookup", "result": { "output": "moon-result" } }, "time": "<time>" }
-      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_lookup", "output": "moon-result" }
+      "[wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_lookup", "toolCallId": "call_lookup", "result": { "output": "moon-result" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_lookup", "output": "moon-result", "startedAt": "<time>", "endedAt": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 88, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 88, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 88, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }

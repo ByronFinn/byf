@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { ToolAccesses } from '../../../src/loop/index';
 import type {
   ExecutableTool,
@@ -292,6 +294,34 @@ export class GatedTool implements ExecutableTool<Record<string, unknown>> {
         });
         this.resolveStarted();
         await this.gate;
+        return { output: `${this.name} done` };
+      },
+    };
+  }
+}
+
+/**
+ * Sleeps for a configurable duration per call before resolving, so tests can
+ * assert per-tool timing (e.g. tool.result endedAt reflects each tool's own
+ * completion, not the provider-order dispatch moment).
+ */
+export class DelayedTool implements ExecutableTool<Record<string, unknown>> {
+  readonly name: string;
+  readonly description = 'Resolves after a per-call delay.';
+  readonly parameters = RECORD_PARAMETERS;
+
+  constructor(
+    name: string,
+    private readonly delayMs: (toolCallId: string) => number,
+  ) {
+    this.name = name;
+  }
+
+  resolveExecution(args: Record<string, unknown>): ToolExecution {
+    return {
+      accesses: ToolAccesses.none(),
+      execute: async (ctx): Promise<ExecutableToolResult> => {
+        await delay(this.delayMs(ctx.toolCallId));
         return { output: `${this.name} done` };
       },
     };

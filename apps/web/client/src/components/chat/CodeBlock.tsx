@@ -1,10 +1,62 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+type MermaidState =
+  | { phase: 'idle' }
+  | { phase: 'rendered'; svg: string }
+  | { phase: 'failed'; message: string };
+
+/**
+ * Mermaid 图渲染(PRD-0034 R-C4):settle 后经 dynamic import 懒加载 mermaid
+ * (独立 vendor chunk,对齐 Shiki 懒加载先例);渲染失败降级回代码块并提示。
+ * 主题跟随:读取 html 上的深浅主题类切换 mermaid 主题。
+ */
+function useMermaid(code: string, streaming: boolean): MermaidState {
+  const [state, setState] = useState<MermaidState>({ phase: 'idle' });
+
+  useEffect(() => {
+    if (streaming) {
+      setState({ phase: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setState({ phase: 'idle' });
+    void (async () => {
+      try {
+        const mermaid = (await import('mermaid')).default;
+        const dark = document.documentElement.classList.contains('theme-dark');
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: dark ? 'dark' : 'default',
+        });
+        const { svg } = await mermaid.render(
+          `mmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          code,
+        );
+        if (!cancelled) setState({ phase: 'rendered', svg });
+      } catch (error) {
+        if (!cancelled) {
+          setState({
+            phase: 'failed',
+            message: error instanceof Error ? error.message : 'mermaid render failed',
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [code, streaming]);
+
+  return state;
+}
+
 /**
  * Markdown 代码块(R6):语言 banner + 复制按钮 + Shiki 高亮。
  * 流式期间(streaming)渲染纯文本,turn settle 后一次性上色(R10 / ADR 0035 D4)。
  * highlighter 模块动态导入:整个 Shiki vendor chunk 首次渲染代码块时才加载。
+ * lang=mermaid 的块 settle 后渲染为图表(R-C4),失败降级回代码块。
  */
 export function CodeBlock(props: {
   code: string;
@@ -15,9 +67,11 @@ export function CodeBlock(props: {
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef(0);
+  const isMermaid = language === 'mermaid';
+  const mermaid = useMermaid(isMermaid ? code : '', isMermaid ? streaming : true);
 
   useEffect(() => {
-    if (streaming) return;
+    if (streaming || isMermaid) return;
     let cancelled = false;
     setHtml(null);
     void import('#/lib/highlighter')
@@ -31,7 +85,7 @@ export function CodeBlock(props: {
     return () => {
       cancelled = true;
     };
-  }, [code, language, streaming]);
+  }, [code, language, streaming, isMermaid]);
 
   useEffect(() => {
     return () => {
@@ -71,7 +125,22 @@ export function CodeBlock(props: {
           )}
         </button>
       </div>
-      {html !== null ? (
+      {isMermaid && mermaid.phase === 'rendered' ? (
+        <div
+          className="flex justify-center overflow-x-auto bg-bg p-3 [&>svg]:max-h-[480px]"
+          data-mermaid
+          dangerouslySetInnerHTML={{ __html: mermaid.svg }}
+        />
+      ) : isMermaid && mermaid.phase === 'failed' ? (
+        <div>
+          <p className="border-b border-border bg-state-error/10 px-3 py-1 text-xs text-state-error">
+            Mermaid 渲染失败({mermaid.message}),已降级为源码
+          </p>
+          <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-code-fg">
+            <code>{code}</code>
+          </pre>
+        </div>
+      ) : html !== null ? (
         <div className="codeblock-highlight" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <pre className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-code-fg">

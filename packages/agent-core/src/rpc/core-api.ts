@@ -121,6 +121,7 @@ export interface SessionSummary {
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
 }
@@ -238,6 +239,10 @@ export interface UpdateSessionMetadataPayload {
 
 export type SetByfConfigPayload = ByfConfigPatch;
 
+export interface RemoveByfModelPayload {
+  readonly modelId: string;
+}
+
 export interface RemoveByfProviderPayload {
   readonly providerId: string;
 }
@@ -325,6 +330,7 @@ export interface CoreAPI extends SessionAPIWithId {
   getByfConfig: (payload: EmptyPayload) => ByfConfig;
   setByfConfig: (payload: SetByfConfigPayload) => ByfConfig;
   removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
+  removeByfModel: (payload: RemoveByfModelPayload) => ByfConfig;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;

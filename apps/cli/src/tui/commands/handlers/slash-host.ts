@@ -84,6 +84,9 @@ export interface SlashCommandHost {
 
   renameSession(input: { id: string; title: string }): Promise<void>;
 
+  /** 注册 TUI 退出清理钩子(如 /web 的后台 web-server;PRD-0034 R-D2)。 */
+  registerShutdownHook(hook: () => void): void;
+
   /** User-message bodies from the transcript, in display order (for /fork). */
   getUserMessageContents(): readonly string[];
   performForkRewind(session: Session, upToMessage: number | undefined): Promise<void>;

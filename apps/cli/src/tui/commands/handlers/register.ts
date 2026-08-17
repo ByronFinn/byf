@@ -12,6 +12,7 @@ import { createEditorHandlers } from './editor';
 import { createGoalHandlers } from './goal';
 import { createSessionHandlers } from './session';
 import type { SlashCommandHost } from './slash-host';
+import { createWebHandlers } from './web';
 
 export type { SlashCommandHost } from './slash-host';
 
@@ -32,6 +33,7 @@ export function registerBuiltinSlashHandlers(
     ...createCronHandlers(host),
     ...createConfigHandlers(host),
     ...createAddDirHandlers(host),
+    ...createWebHandlers(host),
   } satisfies Record<BuiltinSlashCommandName, SlashCommandHandler>;
 
   for (const [name, handler] of Object.entries(handlers)) {

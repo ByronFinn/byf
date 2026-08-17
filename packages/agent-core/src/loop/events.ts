@@ -63,6 +63,8 @@ export interface LoopToolCallEvent {
   readonly args: unknown;
   readonly description?: string;
   readonly display?: ToolInputDisplay;
+  /** Epoch ms，工具执行边界（dispatch 时刻）。旧 wire 记录无此字段。 */
+  readonly startedAt?: number;
 }
 
 export interface LoopToolResultEvent {
@@ -70,6 +72,10 @@ export interface LoopToolResultEvent {
   readonly parentUuid: string;
   readonly toolCallId: string;
   readonly result: ExecutableToolResult;
+  /** Epoch ms，与 tool.call 的 startedAt 同源；旧 wire 记录无此字段。 */
+  readonly startedAt?: number;
+  /** Epoch ms，工具执行完成时刻（结果 promise 解析时）。旧 wire 记录无此字段。 */
+  readonly endedAt?: number;
 }
 
 export interface LoopTurnInterruptedEvent {
