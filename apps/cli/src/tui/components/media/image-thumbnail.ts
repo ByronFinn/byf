@@ -19,7 +19,11 @@ const MAX_IMAGE_ROWS = 12;
 const MAX_IMAGE_WIDTH = 40;
 
 export class ImageThumbnail extends Container {
-  constructor(attachment: ImageAttachment, colors: ColorPalette) {
+  constructor(
+    attachment: ImageAttachment,
+    colors: ColorPalette,
+    options: { readonly maxRows?: number; readonly maxWidth?: number } = {},
+  ) {
     super();
 
     const caps = getCapabilities();
@@ -41,8 +45,8 @@ export class ImageThumbnail extends Container {
       attachment.mime,
       theme,
       {
-        maxHeightCells: MAX_IMAGE_ROWS,
-        maxWidthCells: MAX_IMAGE_WIDTH,
+        maxHeightCells: options.maxRows ?? MAX_IMAGE_ROWS,
+        maxWidthCells: options.maxWidth ?? MAX_IMAGE_WIDTH,
         filename: attachment.placeholder,
       },
       { widthPx: attachment.width, heightPx: attachment.height },

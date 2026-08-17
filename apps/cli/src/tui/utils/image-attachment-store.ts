@@ -80,6 +80,11 @@ export class ImageAttachmentStore {
     return this.byId.get(id);
   }
 
+  /** 全部附件(插入序);输入框预览条据此枚举当前引用的附件。 */
+  all(): MediaAttachment[] {
+    return [...this.byId.values()];
+  }
+
   clear(): void {
     this.byId.clear();
     this.nextId = 1;

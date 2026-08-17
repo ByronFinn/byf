@@ -85,6 +85,7 @@ import {
 import { TasksBrowserController, type TasksBrowserEnv } from './components/dialogs/tasks-browser/';
 import { CustomEditor } from './components/editor/custom-editor';
 import { FileMentionProvider } from './components/editor/file-mention-provider';
+import { AttachmentPreviewStrip } from './components/media/attachment-preview';
 import { AgentGroupComponent } from './components/messages/agent-group';
 import { AssistantMessageComponent } from './components/messages/assistant-message';
 import { ReadGroupComponent } from './components/messages/read-group';
@@ -425,6 +426,7 @@ export class ByfTui implements DialogHost {
   private skillCommands: readonly ByfSlashCommand[] = [];
   private readonly skillCommandMap = new Map<string, string>();
   private readonly imageStore = new ImageAttachmentStore();
+  private readonly attachmentPreview: AttachmentPreviewStrip;
   private readonly fdPath: string | null = detectFdPath();
   private readonly gitLsFilesCache: GitLsFilesCache;
   private sessionEventUnsubscribe: (() => void) | undefined;
@@ -480,6 +482,7 @@ export class ByfTui implements DialogHost {
     };
     this.options = tuiOptions;
     this.state = createTUIState(tuiOptions);
+    this.attachmentPreview = new AttachmentPreviewStrip(this.imageStore, this.state.theme.colors);
     this.gitLsFilesCache = createGitLsFilesCache(tuiOptions.initialAppState.workDir);
     this.turnEventHandler = new TurnEventHandler(this.state, this.turnEventCallbacks());
     this.dialogManager = new DialogManager(this.state, this, this.dialogManagerCallbacks());
@@ -751,10 +754,19 @@ export class ByfTui implements DialogHost {
     this.renderWelcome();
     this.setupAutocomplete();
     void this.loadPersistedInputHistory();
+    this.mountEditor();
+    return shouldReplayHistory;
+  }
+
+  /**
+   * 挂载主编辑器与附件预览条(预览条在上,编辑器在下)。对话框替换/恢复
+   * 编辑器时也经此统一重建,保证预览条与编辑器同生共死。
+   */
+  private mountEditor(): void {
     this.state.editorContainer.clear();
+    this.state.editorContainer.addChild(this.attachmentPreview);
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
-    return shouldReplayHistory;
   }
 
   // Starts the pi-tui event loop and installs terminal focus/theme tracking.
@@ -1161,6 +1173,9 @@ export class ByfTui implements DialogHost {
     editor.onChange = (text: string) => {
       if (this.pendingExit) this.clearPendingExit();
       this.updateEditorBorderHighlight(text);
+      if (this.attachmentPreview.sync(text)) {
+        this.state.ui.requestRender();
+      }
     };
 
     editor.onCtrlC = () => {
@@ -1341,7 +1356,9 @@ export class ByfTui implements DialogHost {
     if (media.kind === 'video') {
       const attachment = this.imageStore.addVideo(media.mimeType, media.sourcePath, media.filename);
       this.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
-      this.state.ui.requestRender();
+      if (this.attachmentPreview.sync(this.state.editor.getText())) {
+        this.state.ui.requestRender();
+      }
       this.track('shortcut_paste', { kind: 'video' });
       return true;
     }
@@ -1374,7 +1391,9 @@ export class ByfTui implements DialogHost {
       meta.height,
     );
     this.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
-    this.state.ui.requestRender();
+    if (this.attachmentPreview.sync(this.state.editor.getText())) {
+      this.state.ui.requestRender();
+    }
     this.track('shortcut_paste', { kind: 'image' });
     return true;
   }
@@ -3253,9 +3272,7 @@ export class ByfTui implements DialogHost {
 
   // Restores the main editor after a dialog or selector closes.
   private restoreEditor(): void {
-    this.state.editorContainer.clear();
-    this.state.editorContainer.addChild(this.state.editor);
-    this.state.ui.setFocus(this.state.editor);
+    this.mountEditor();
     this.state.ui.requestRender();
   }
 

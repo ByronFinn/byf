@@ -22,6 +22,12 @@ import type {
 
 const PLACEHOLDER_REGEX = /\[(image|video) #(\d+) (?:(\(\d+×\d+\))|([^\]]+))\]/g;
 
+/**
+ * 共享占位符正则(提交提取与输入框预览条共用,保证两者解析一致)。
+ * 注意带 /g 标志:使用方必须自行重置 `lastIndex`。
+ */
+export const MEDIA_PLACEHOLDER_REGEX = PLACEHOLDER_REGEX;
+
 export interface ExtractionResult {
   /** Flat list of parts in input order; empty array when no media matched. */
   parts: PromptPart[];
