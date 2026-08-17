@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '#/components/ui/button';
 
 import { AppFrame } from './AppFrame';
+import { DetailsProvider, useDetails } from './details-context';
 import { SessionSidebar } from './SessionSidebar';
 
 /**
@@ -43,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   }, [navOpen]);
 
   return (
-    <div className="h-full">
+    <DetailsProvider>
       <AppFrame
         sidebar={<SessionSidebar />}
         center={
@@ -63,16 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
             </Button>
           </main>
         }
-        details={
-          <div className="flex h-full flex-col">
-            <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-7 text-fg-muted">
-              <div>
-                <p className="font-medium text-fg">Click a tool row in the message flow</p>
-                <p>to view its details — 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
-              </div>
-            </div>
-          </div>
-        }
+        details={<DetailsHost />}
         detailsOverlay
       />
       {navOpen && (
@@ -89,6 +81,24 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           </div>
         </div>
       )}
+    </DetailsProvider>
+  );
+}
+
+/** 统一 details 宿主：渲染 context 内容，空时显示 deepseek 同款空态（R-D2）。 */
+function DetailsHost(): React.JSX.Element {
+  const { content } = useDetails();
+  if (content !== null) {
+    return <div className="flex h-full flex-col overflow-y-auto">{content}</div>;
+  }
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-7 text-fg-muted">
+        <div>
+          <p className="font-medium text-fg">Click a tool row in the message flow</p>
+          <p>to view its details — 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
+        </div>
+      </div>
     </div>
   );
 }

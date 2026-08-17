@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useDetailsSetter } from '#/components/layout/details-context';
 import { useSession } from '#/hooks/useSession';
 import { useWire } from '#/hooks/useWire';
 import { computeIssues, topSeverity } from '#/lib/issues';
@@ -8,6 +9,7 @@ import type { AgentRecord, WireEntry } from '#/types';
 
 import { IssuesDrawer } from './IssuesDrawer';
 import { WireRow, type PairHint } from './WireRow';
+import { WireRowDetail } from './WireRowDetail';
 
 interface PairRecord {
   callLineNo: number | null;
@@ -122,14 +124,22 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
     getItemKey: (i) => filtered[i]?.lineNo ?? i,
   });
 
-  const toggle = useCallback((lineNo: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(lineNo)) next.delete(lineNo);
-      else next.add(lineNo);
-      return next;
-    });
-  }, []);
+  const setDetails = useDetailsSetter();
+  const toggle = useCallback(
+    (lineNo: number, entry?: WireEntry) => {
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(lineNo)) next.delete(lineNo);
+        else next.add(lineNo);
+        return next;
+      });
+      // R-D2 / AC-A12：行点击同时把详情推入右侧 details 列。
+      if (entry !== undefined) {
+        setDetails(<WireRowDetail entry={entry} />);
+      }
+    },
+    [setDetails],
+  );
 
   const filteredLineIdx = useMemo(() => {
     const m = new Map<number, number>();
@@ -275,7 +285,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
                       entry={e}
                       expanded={expanded.has(e.lineNo)}
                       onToggle={() => {
-                        toggle(e.lineNo);
+                        toggle(e.lineNo, e);
                       }}
                       onJumpTo={jumpToLine}
                       pair={pair}

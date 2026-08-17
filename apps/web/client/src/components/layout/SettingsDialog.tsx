@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { api } from '#/api';
+import { configApi } from '#/api';
 import { PERMISSION_COPY } from '#/components/chat/PermissionChip';
 import {
   THINKING_EFFORTS,
@@ -36,6 +37,9 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
   const [section, setSection] = useState<
     'general' | 'models' | 'permission' | 'runtime' | 'configfile' | 'archives'
   >('general');
+  // R-E5 / AC-A8：检测 config.toml 是否含注释/未知结构——表单保存会规范化文件。
+  const [hasComments, setHasComments] = useState(false);
+  const [commentsChecked, setCommentsChecked] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -46,6 +50,24 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
       window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+
+  // R-E5：打开时读取 raw 文本，简化检测「含 # 注释行」。
+  useEffect(() => {
+    let cancelled = false;
+    configApi
+      .getConfigDocument()
+      .then((doc) => {
+        if (cancelled) return;
+        setHasComments(doc.text.split('\n').some((l) => l.trimStart().startsWith('#')));
+        setCommentsChecked(true);
+      })
+      .catch(() => {
+        if (!cancelled) setCommentsChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const navItem = (active: boolean): string =>
     cn(
@@ -120,22 +142,30 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
             归档管理
           </button>
         </nav>
-        <div className="min-w-0 flex-1 overflow-y-auto p-4">
-          {section === 'general' ? (
-            <GeneralSection />
-          ) : section === 'models' ? (
-            <ProvidersSection />
-          ) : section === 'permission' ? (
-            <PermissionSection />
-          ) : section === 'runtime' ? (
-            <RuntimeSection />
-          ) : section === 'configfile' ? (
-            <div className="h-full">
-              <ConfigFileSection />
+        <div className="flex min-w-0 flex-1 flex-col">
+          {commentsChecked && hasComments && section !== 'configfile' && (
+            <div className="border-b border-border bg-surface-2 px-4 py-2 text-xs text-fg-muted">
+              ⚠ config.toml 含注释或未知结构：表单保存会<b className="text-fg-1">规范化文件</b>
+              （丢失注释）； 如需保留请使用「配置文件」页保存（raw 全保真）。
             </div>
-          ) : (
-            <ArchivesSection onClose={onClose} />
           )}
+          <div className="min-w-0 flex-1 overflow-y-auto p-4">
+            {section === 'general' ? (
+              <GeneralSection />
+            ) : section === 'models' ? (
+              <ProvidersSection />
+            ) : section === 'permission' ? (
+              <PermissionSection />
+            ) : section === 'runtime' ? (
+              <RuntimeSection />
+            ) : section === 'configfile' ? (
+              <div className="h-full">
+                <ConfigFileSection />
+              </div>
+            ) : (
+              <ArchivesSection onClose={onClose} />
+            )}
+          </div>
         </div>
       </div>
     </div>
