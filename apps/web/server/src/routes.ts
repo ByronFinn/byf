@@ -2,6 +2,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
 import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
+import { isByfError, maskConfigSecrets, restoreMaskedSecrets } from '@byfriends/sdk';
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
@@ -38,6 +39,7 @@ import { streamSSE } from 'hono/streaming';
 import { AsyncQueue } from './async-queue';
 import { serveScopedFile } from './files';
 import { pickDirectoryNative } from './native-directory-picker';
+import { revealInOs } from './reveal';
 import type { WebSessionManager } from './session-manager';
 import {
   WorkspaceRegistry,
@@ -151,7 +153,11 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // ---- 会话集合 ----
   r.get('/sessions', async (c) => {
     const workDir = c.req.query('workDir') ?? '';
-    if (workDir.length === 0) return badRequest(c, 'workDir query is required');
+    // PRD-0035 R-B1：workDir 可选；缺省返回全量会话（原 vis 全量列表语义）。
+    if (workDir.length === 0) {
+      const sessions = await manager.listInspectableSessions();
+      return c.json({ sessions });
+    }
     const all = await manager.listSessions(workDir);
     // R17:可选 ?q= 在 title / lastPrompt 上做不区分大小写的子串过滤(SessionSummary 不变)。
     const q = c.req.query('q')?.trim().toLowerCase() ?? '';
@@ -204,6 +210,75 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const status = await manager.getStatus(id);
     const summary = manager.getSession(id)?.summary ?? null;
     return c.json({ session: summary, status });
+  });
+
+  // ---- Inspector 路由（PRD-0035 R-B1；wire/context/agents/state 走 core 单源）----
+  r.get('/sessions/:id/wire', async (c) => {
+    const id = c.req.param('id');
+    const agentId = c.req.query('agent') ?? 'main';
+    if (!isSafeAgentId(agentId)) return badRequest(c, 'invalid agent id');
+    try {
+      return c.json(await manager.readAgentWire(id, agentId));
+    } catch (error) {
+      return inspectorError(c, error, 'READ_ERROR');
+    }
+  });
+
+  r.get('/sessions/:id/context', async (c) => {
+    const id = c.req.param('id');
+    const agentId = c.req.query('agent') ?? 'main';
+    if (!isSafeAgentId(agentId)) return badRequest(c, 'invalid agent id');
+    try {
+      return c.json(await manager.readContextProjection(id, agentId));
+    } catch (error) {
+      return inspectorError(c, error, 'READ_ERROR');
+    }
+  });
+
+  r.get('/sessions/:id/agents', async (c) => {
+    const id = c.req.param('id');
+    try {
+      return c.json(await manager.readAgentTree(id));
+    } catch (error) {
+      return inspectorError(c, error, 'READ_ERROR');
+    }
+  });
+
+  r.get('/sessions/:id/state', async (c) => {
+    const id = c.req.param('id');
+    const detail = await manager.readSessionInspection(id);
+    if (detail === null) return notFound(c, 'session not found');
+    return c.json(detail);
+  });
+
+  r.delete('/sessions/:id', async (c) => {
+    const id = c.req.param('id');
+    try {
+      await manager.deleteSession(id);
+      return c.json({ sessionId: id, deleted: true });
+    } catch (error) {
+      if ((error as Error & { code?: string }).code === 'SESSION_BUSY') {
+        return c.json({ error: (error as Error).message, code: 'SESSION_BUSY' }, 409);
+      }
+      return inspectorError(c, error, 'DELETE_ERROR');
+    }
+  });
+
+  r.post('/sessions/:id/reveal', async (c) => {
+    const id = c.req.param('id');
+    const session = manager.getSession(id);
+    const sessionDir =
+      session?.summary?.sessionDir ?? (await manager.readSessionInspection(id))?.sessionDir;
+    if (sessionDir === undefined) return notFound(c, 'session not found');
+    try {
+      await revealInOs(sessionDir);
+      return c.json({ sessionId: id, opened: sessionDir });
+    } catch (error) {
+      return c.json(
+        { error: `failed to open: ${(error as Error).message}`, code: 'READ_ERROR' },
+        500,
+      );
+    }
   });
 
   r.post('/sessions/:id/resume', async (c) => {
@@ -394,6 +469,47 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   r.get('/config', async (c) => {
     const cfg = await manager.getConfig();
     return c.json(toConfigResponse(cfg, manager.configPath));
+  });
+
+  // ---- 配置文件 raw（PRD-0035 Wave E / ADR-0038）----------------------------
+  // 密钥值服务端掩码后过线（无明文回显）；revision = sha256(磁盘原文)。
+
+  r.get('/config/raw', async (c) => {
+    const doc = await manager.getConfigDocument();
+    const cfg = await manager.getConfig();
+    return c.json({
+      path: doc.path,
+      text: maskConfigSecrets(doc.text),
+      revision: doc.revision,
+      parsed: toConfigResponse(cfg, manager.configPath),
+    });
+  });
+
+  r.post('/config/validate', async (c) => {
+    const body = await c.req.json<{ text?: string }>();
+    const text = body.text ?? '';
+    return c.json(await manager.validateConfigText(text));
+  });
+
+  r.put('/config/raw', async (c) => {
+    const body = await c.req.json<{ text?: string; expectedRevision?: string | null }>();
+    if (typeof body.text !== 'string') return badRequest(c, 'text is required');
+    try {
+      // 掩码占位符还原为磁盘原值（ADR-0038 D4），再以原文写盘。
+      const disk = await manager.getConfigDocument();
+      const restored = restoreMaskedSecrets(body.text, disk.text);
+      const { revision } = await manager.writeConfigText(restored, body.expectedRevision ?? null);
+      const cfg = await manager.getConfig();
+      return c.json({ config: toConfigResponse(cfg, manager.configPath), revision });
+    } catch (error) {
+      if (isByfError(error) && error.code === 'config.revision_conflict') {
+        return c.json({ error: error.message, code: 'CONFIG_REVISION_CONFLICT' }, 409);
+      }
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
+      }
+      return c.json({ error: (error as Error).message, code: 'CONFIG_ERROR' }, 500);
+    }
   });
 
   r.patch('/config', async (c) => {
@@ -647,6 +763,21 @@ function badRequest(c: Context, error: string): Response {
 
 function notFound(c: Context, error: string): Response {
   return c.json({ error, code: 'NOT_FOUND' }, 404);
+}
+
+const AGENT_ID_RE = /^[A-Za-z0-9._-]+$/;
+
+/** 拒绝可能经路径拼接逃出会话目录的 agent id（与 core Inspector 同规则）。 */
+function isSafeAgentId(id: string): boolean {
+  return AGENT_ID_RE.test(id) && id !== '.' && id !== '..';
+}
+
+/** Inspector 路由错误归一化：SESSION_NOT_FOUND → 404，其余 → 500（code 传参）。 */
+function inspectorError(c: Context, error: unknown, code: string): Response {
+  if (isByfError(error) && error.code === 'session.not_found') {
+    return notFound(c, error.message);
+  }
+  return c.json({ error: (error as Error).message, code }, 500);
 }
 
 /** 工作区最近会话更新时间(无会话 → 0)。 */

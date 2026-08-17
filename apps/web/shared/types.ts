@@ -10,13 +10,17 @@
 
 import type {
   AgentReplayRecord,
+  AgentTreeResponse,
   ApprovalDecision,
   ApprovalRequest,
   ApprovalResponse,
   ApprovalScope,
+  ConfigValidationResult,
   ContentPart,
   ContextMessage,
+  ContextProjection,
   Event,
+  InspectorSessionSummary,
   PermissionMode,
   QuestionAnswerMethod,
   QuestionAnswers,
@@ -26,22 +30,29 @@ import type {
   QuestionResponse,
   QuestionResult,
   ResumedSessionSummary,
+  SessionDetail,
   SessionStatus,
   SessionSummary,
   SkillSummary,
   ToolInputDisplay,
+  WireEntry,
+  WireResponse,
 } from '@byfriends/sdk';
 
 // 公开再导出:消费方(web-client / web-server)从 web-shared 取线路类型。
 export type {
   AgentReplayRecord,
+  AgentTreeResponse,
   ContentPart,
   ContextMessage,
+  ContextProjection,
   Event,
   ApprovalRequest,
   ApprovalResponse,
   ApprovalDecision,
   ApprovalScope,
+  ConfigValidationResult,
+  InspectorSessionSummary,
   ToolInputDisplay,
   QuestionRequest,
   QuestionItem,
@@ -52,9 +63,12 @@ export type {
   QuestionResult,
   PermissionMode,
   ResumedSessionSummary,
-  SessionSummary,
+  SessionDetail,
   SessionStatus,
+  SessionSummary,
   SkillSummary,
+  WireEntry,
+  WireResponse,
 };
 
 // ---- Server → client：SSE 帧 -------------------------------------------------
@@ -349,4 +363,38 @@ export interface ConfigResponse {
 export interface ApiError {
   readonly error: string;
   readonly code?: string;
+}
+
+// ---- Inspector / ConfigDocument（PRD-0035 Wave B/E）-------------------------
+
+/** `GET /api/sessions` 无 workDir 时的全量投影（原 vis 列表语义）。 */
+export interface ListInspectableSessionsResponse {
+  readonly sessions: readonly InspectorSessionSummary[];
+}
+
+/** `GET /api/sessions/:id/wire`——WireResponse 原样（含 warnings）。 */
+export type SessionWireResponse = WireResponse;
+
+/** `GET /api/sessions/:id/context`——ContextProjection 原样。 */
+export type SessionContextResponse = ContextProjection;
+
+/** `GET /api/sessions/:id/agents`——AgentTreeResponse 原样。 */
+export type SessionAgentsResponse = AgentTreeResponse;
+
+/** `GET /api/sessions/:id/state`——SessionDetail 原样（state 为原始 JSON）。 */
+export type SessionStateResponse = SessionDetail;
+
+export interface ConfigDocumentResponse {
+  readonly path: string;
+  /** 磁盘原文，密钥值已服务端掩码（ADI-0038 D4：无明文回显）。 */
+  readonly text: string;
+  /** sha256(磁盘原文)；文件缺失为 null。 */
+  readonly revision: string | null;
+  /** 脱敏解析视图（apiKey 仅 hasApiKey）。 */
+  readonly parsed: ConfigResponse;
+}
+
+export interface WriteConfigResponse {
+  readonly config: ConfigResponse;
+  readonly revision: string;
 }

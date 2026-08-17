@@ -13,6 +13,15 @@ import {
   type SkillSummary,
 } from '@byfriends/sdk';
 import type {
+  ConfigDocumentResult,
+  ConfigValidationResult,
+  ConfigWriteResult,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '@byfriends/sdk';
+import type {
   ApprovalRequest,
   ApprovalResponse,
   Event,
@@ -234,6 +243,91 @@ class FakeHarness implements HarnessLike {
     delete providers[providerId];
     this.config = { ...this.config, providers };
     return this.config;
+  }
+
+  // ---- PRD-0035 Wave A fake 面（Inspector / ConfigDocument / Workspace）----
+  inspectableSessions: InspectorSessionSummary[] = [];
+  sessionDetails = new Map<string, SessionDetail>();
+  wireResponses = new Map<string, WireResponse>();
+  contextProjections = new Map<string, ContextProjection>();
+  agentTrees = new Map<string, AgentTreeResponse>();
+  deletedSessions: string[] = [];
+  configDocument: ConfigDocumentResult = {
+    path: '/tmp/fake-config.toml',
+    text: '# fake config\n',
+    revision: 'rev-1',
+    parsed: { providers: {}, models: {} },
+  };
+  configValidation: ConfigValidationResult = { valid: true, diagnostics: [] };
+  configValidationTexts: string[] = [];
+  configWriteResult: ConfigWriteResult = { revision: 'rev-2' };
+  configWriteCalls: Array<{ text: string; expectedRevision: string | null }> = [];
+  configWriteError: Error | undefined;
+  workspaceList: string[] = [];
+  workspaceHidden: string[] = [];
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return this.inspectableSessions;
+  }
+
+  async readSessionInspection(sessionId: string): Promise<SessionDetail | null> {
+    return this.sessionDetails.get(sessionId) ?? null;
+  }
+
+  async readAgentWire(sessionId: string, agentId: string): Promise<WireResponse> {
+    const wire = this.wireResponses.get(`${sessionId}:${agentId}`);
+    if (wire === undefined) throw new Error('agent wire not found');
+    return wire;
+  }
+
+  async readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection> {
+    const proj = this.contextProjections.get(`${sessionId}:${agentId}`);
+    if (proj === undefined) throw new Error('context projection not found');
+    return proj;
+  }
+
+  async readAgentTree(sessionId: string): Promise<AgentTreeResponse> {
+    const tree = this.agentTrees.get(sessionId);
+    if (tree === undefined) throw new Error('agent tree not found');
+    return tree;
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    this.deletedSessions.push(sessionId);
+  }
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    return this.configDocument;
+  }
+
+  async validateConfigText(text: string): Promise<ConfigValidationResult> {
+    this.configValidationTexts.push(text);
+    return this.configValidation;
+  }
+
+  async writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    if (this.configWriteError !== undefined) throw this.configWriteError;
+    this.configWriteCalls.push({ text, expectedRevision });
+    return this.configWriteResult;
+  }
+
+  async listWorkspaces(): Promise<string[]> {
+    return this.workspaceList;
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    return this.workspaceHidden;
+  }
+
+  async addWorkspace(workDir: string): Promise<string[]> {
+    if (!this.workspaceList.includes(workDir)) this.workspaceList.push(workDir);
+    return this.workspaceList;
+  }
+
+  async removeWorkspace(workDir: string): Promise<boolean> {
+    const before = this.workspaceList.length;
+    this.workspaceList = this.workspaceList.filter((p) => p !== workDir);
+    return this.workspaceList.length !== before;
   }
 
   async close(): Promise<void> {
@@ -507,10 +601,29 @@ describe('HTTP routes', () => {
     expect(listData.sessions.length).toBe(1);
   });
 
-  test('缺 workDir 查询返回 400', async () => {
-    const { app } = await setup();
+  test('无 workDir 时返回全量 inspectable 投影（PRD-0035 R-B1）', async () => {
+    const { app, harness } = await setup();
+    harness.inspectableSessions = [
+      {
+        sessionId: 'session_1',
+        sessionDir: '/tmp/sessions/w/session_1',
+        workDir: '/w',
+        title: 't',
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 1,
+        updatedAt: 2,
+        agentCount: 1,
+        mainAgentExists: true,
+        mainWireRecordCount: 3,
+        wireProtocolVersion: '1.1',
+        health: 'ok',
+      },
+    ];
     const res = await app.request('/api/sessions');
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { sessions: InspectorSessionSummary[] };
+    expect(data.sessions).toHaveLength(1);
   });
 
   test('GET /api/sessions?q= 按 title/lastPrompt 过滤(不区分大小写)', async () => {
@@ -1843,5 +1956,220 @@ describe('config management routes (PRD-0034 R-D3)', () => {
     // 不落盘:config 未变
     expect(harness.metadataPatches).toEqual([]);
     expect(harness.config.providers).toEqual({});
+  });
+});
+
+// ---- PRD-0035 Wave B：Inspector / 删除 / config raw 路由 --------------------
+
+describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(): Promise<Env> {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  it('GET /api/sessions without workDir returns the full inspectable projection', async () => {
+    const { app, harness } = await setup();
+    harness.inspectableSessions = [
+      {
+        sessionId: 'session_1',
+        sessionDir: '/tmp/sessions/w/session_1',
+        workDir: '/w',
+        title: 't',
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 1,
+        updatedAt: 2,
+        agentCount: 1,
+        mainAgentExists: true,
+        mainWireRecordCount: 3,
+        wireProtocolVersion: '1.1',
+        health: 'ok',
+      },
+    ];
+    const res = await app.request('/api/sessions');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { sessions: InspectorSessionSummary[] };
+    expect(data.sessions).toHaveLength(1);
+    expect(data.sessions[0]!.health).toBe('ok');
+  });
+
+  it('DELETE /api/sessions/:id delegates to the harness', async () => {
+    const { app, harness } = await setup();
+    const res = await app.request('/api/sessions/session_x', { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    expect(harness.deletedSessions).toEqual(['session_x']);
+  });
+
+  it('DELETE of a live session returns 409 SESSION_BUSY without touching the harness', async () => {
+    const { app, harness } = await setup();
+    const session = new FakeSession('session_live', '/w');
+    harness.sessions.set('session_live', session);
+    const res = await app.request('/api/sessions/session_live', { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('SESSION_BUSY');
+    expect(harness.deletedSessions).toEqual([]);
+  });
+
+  it('GET /api/sessions/:id/wire returns the wire response with agent query', async () => {
+    const { app, harness } = await setup();
+    harness.wireResponses.set('session_a:main', {
+      sessionId: 'session_a',
+      agentId: 'main',
+      protocolVersion: '1.1',
+      metadata: { protocolVersion: '1.1', createdAt: 1 },
+      records: [
+        {
+          lineNo: 1,
+          data: { type: 'metadata', protocol_version: '1.1', created_at: 1 } as never,
+          raw: {},
+        },
+      ],
+      warnings: ['best-effort'],
+    });
+    const res = await app.request('/api/sessions/session_a/wire?agent=main');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as WireResponse;
+    expect(data.agentId).toBe('main');
+    expect(data.warnings).toEqual(['best-effort']);
+  });
+
+  it('GET /api/sessions/:id/wire rejects unsafe agent ids with 400', async () => {
+    const { app } = await setup();
+    const res = await app.request('/api/sessions/session_a/wire?agent=../etc');
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/sessions/:id/agents returns the agent tree', async () => {
+    const { app, harness } = await setup();
+    harness.agentTrees.set('session_a', {
+      sessionId: 'session_a',
+      tree: [
+        {
+          agentId: 'main',
+          type: 'main',
+          parentAgentId: null,
+          homedir: '/x',
+          wireExists: true,
+          wireRecordCount: 1,
+          wireProtocolVersion: '1.1',
+          children: [],
+        },
+      ],
+    });
+    const res = await app.request('/api/sessions/session_a/agents');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { tree: unknown[] };
+    expect(data.tree).toHaveLength(1);
+  });
+
+  it('GET /api/sessions/:id/state returns 404 when the session is unknown', async () => {
+    const { app } = await setup();
+    const res = await app.request('/api/sessions/session_nope/state');
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(): Promise<Env> {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  it('GET /api/config/raw masks api_key values and returns revision', async () => {
+    const { app, harness } = await setup();
+    harness.configDocument = {
+      path: '/tmp/config.toml',
+      text: '[providers.d]\napi_key = "sk-top-secret"\n',
+      revision: 'rev-abc',
+      parsed: { providers: {}, models: {} },
+    };
+    const res = await app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { text: string; revision: string };
+    expect(data.revision).toBe('rev-abc');
+    expect(data.text).not.toContain('sk-top-secret');
+    expect(data.text).toContain('__BYF_KEEP_SECRET__');
+  });
+
+  it('POST /api/config/validate forwards the text', async () => {
+    const { app, harness } = await setup();
+    const res = await app.request('/api/config/validate', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ text: '# ok\n' }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.configValidationTexts).toEqual(['# ok\n']);
+  });
+
+  it('PUT /api/config/raw restores masked secrets before writing', async () => {
+    const { app, harness } = await setup();
+    harness.configDocument = {
+      path: '/tmp/config.toml',
+      text: '[providers.d]\napi_key = "sk-top-secret"\n',
+      revision: 'rev-abc',
+      parsed: { providers: {}, models: {} },
+    };
+    const maskedText = '[providers.d]\napi_key = "__BYF_KEEP_SECRET__"\n';
+    const res = await app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ text: maskedText, expectedRevision: 'rev-abc' }),
+    });
+    expect(res.status).toBe(200);
+    expect(harness.configWriteCalls).toHaveLength(1);
+    // 占位符被还原为磁盘原值，写盘的是原文（不含占位符）
+    expect(harness.configWriteCalls[0]!.text).toContain('sk-top-secret');
+    expect(harness.configWriteCalls[0]!.text).not.toContain('__BYF_KEEP_SECRET__');
+    expect(harness.configWriteCalls[0]!.expectedRevision).toBe('rev-abc');
+  });
+
+  it('PUT /api/config/raw maps revision conflict to 409', async () => {
+    const { app, harness } = await setup();
+    harness.configWriteError = Object.assign(new Error('Config revision mismatch'), {
+      code: 'config.revision_conflict',
+    });
+    const res = await app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ text: '# new\n', expectedRevision: 'stale' }),
+    });
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('CONFIG_REVISION_CONFLICT');
+  });
+
+  it('PUT /api/config/raw maps invalid config to 422', async () => {
+    const { app, harness } = await setup();
+    harness.configWriteError = Object.assign(new Error('Invalid configuration'), {
+      code: 'config.invalid',
+    });
+    const res = await app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ text: 'default_model = 123', expectedRevision: 'r' }),
+    });
+    expect(res.status).toBe(422);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('CONFIG_INVALID');
   });
 });

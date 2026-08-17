@@ -64,6 +64,35 @@ export { compressImageForModel, ImageLimits } from '@byfriends/agent-core';
 export type { LogContext, LogLevel, LogPayload, Logger } from '@byfriends/agent-core';
 export type { SessionMetadataPatch } from '@byfriends/agent-core';
 
+// Inspector DTO（PRD-0035 R-A1/R-B7）——从 core re-export，web-shared / web-server
+// 经 SDK 消费，避免直引 agent-core 源码。
+export type {
+  AgentInfo,
+  AgentNode,
+  AgentTreeResponse,
+  ConfigSnapshot,
+  ContextProjection,
+  InspectorSessionSummary,
+  ProjectedMessage,
+  SessionDetail,
+  SessionHealth,
+  UsageTotals,
+  WireEntry,
+  WireResponse,
+} from '@byfriends/agent-core/session/inspector';
+// ConfigDocument（PRD-0035 R-A3，ADR-0038）——core 根已导出。
+export type {
+  ConfigDiagnostic,
+  ConfigValidationResult,
+  ConfigDocumentResult,
+  ConfigWriteResult,
+} from '@byfriends/agent-core';
+export {
+  MASKED_SECRET_PLACEHOLDER,
+  maskConfigSecrets,
+  restoreMaskedSecrets,
+} from '@byfriends/agent-core';
+
 export * from '#/events';
 export type * from '#/types';
 

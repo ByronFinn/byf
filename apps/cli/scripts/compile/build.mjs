@@ -48,8 +48,6 @@ import {
   targetTriple,
 } from '../native/paths.mjs';
 
-/** Built SPA assets shipped inside `@byfriends/vis-server`'s `dist/public`. */
-const visServerPublicDir = resolve(appRoot, '../../apps/vis/server/dist/public');
 /** Built SPA assets shipped inside `@byfriends/web-server`'s `dist/public`. */
 const webServerPublicDir = resolve(appRoot, '../../apps/web/server/dist/public');
 
@@ -387,7 +385,6 @@ if (catalogFile !== null) {
 }
 
 const catalogInjectPath = resolve(intermediates, 'catalog-inject.ts');
-const visAssetsEntryPath = resolve(intermediates, 'vis-embedded-assets.ts');
 const webAssetsEntryPath = resolve(intermediates, 'web-embedded-assets.ts');
 
 await mkdir(binDir, { recursive: true });
@@ -395,13 +392,9 @@ await mkdir(intermediates, { recursive: true });
 const staged = await stageClipboardNode(clipboardNodePath, intermediates, target);
 console.log(`==> Clipboard native (staged): ${staged.stagedPath}`);
 await writeCatalogInjectModule(catalogFile, catalogInjectPath);
-// Embed SPA assets so `byf vis` / `byf web` can serve their UI from the native binary.
-const embeddedVisAssets = await writeEmbeddedAssetsEntry(visServerPublicDir, visAssetsEntryPath);
-if (embeddedVisAssets !== null) {
-  console.log(`==> Embedded vis SPA assets from ${visServerPublicDir}`);
-} else {
-  console.log(`==> vis SPA assets not found at ${visServerPublicDir} (byf vis will be API-only)`);
-}
+// Embed the unified web SPA assets so `byf web` / `byf vis` can serve their
+// UI from the native binary. The vis SPA is no longer embedded (PRD-0035
+// R-B6 — single asset set).
 const embeddedWebAssets = await writeEmbeddedAssetsEntry(webServerPublicDir, webAssetsEntryPath);
 if (embeddedWebAssets !== null) {
   console.log(`==> Embedded web SPA assets from ${webServerPublicDir}`);
@@ -412,10 +405,7 @@ await writeCompileEntry({
   clipboardRelativeRequire: staged.relativeRequire,
   mainEntryPath,
   catalogInjectPath,
-  assetSets: [
-    { entryPath: embeddedVisAssets, globalName: '__BYF_VIS_EMBEDDED_ASSETS__' },
-    { entryPath: embeddedWebAssets, globalName: '__BYF_WEB_EMBEDDED_ASSETS__' },
-  ],
+  assetSets: [{ entryPath: embeddedWebAssets, globalName: '__BYF_WEB_EMBEDDED_ASSETS__' }],
   outPath: compileEntryPath,
 });
 await rm(outfile, { force: true });

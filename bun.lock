@@ -71,13 +71,7 @@
       "name": "@byfriends/vis-server",
       "version": "0.4.1",
       "dependencies": {
-        "@byfriends/agent-core": "workspace:^",
-        "@byfriends/vis-shared": "workspace:*",
-        "hono": "^4.7.7",
-      },
-      "devDependencies": {
-        "@byfriends/kosong": "workspace:*",
-        "@byfriends/vis-web": "workspace:*",
+        "@byfriends/web-server": "workspace:^",
       },
     },
     "apps/vis/shared": {

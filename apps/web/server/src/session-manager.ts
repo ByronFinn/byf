@@ -6,6 +6,10 @@ import type {
   ApprovalResponse,
   ByfConfig,
   ByfConfigPatch,
+  ConfigDocumentResult,
+  ConfigValidationResult,
+  ConfigWriteResult,
+  ContextProjection,
   CreateSessionOptions,
   Event,
   PermissionMode,
@@ -13,12 +17,16 @@ import type {
   QuestionRequest,
   QuestionResult,
   ResumedSessionSummary,
+  SessionDetail,
   SessionMetadataPatch,
   SkillSummary,
   Unsubscribe,
+  WireResponse,
 } from '@byfriends/sdk';
 import type {
+  AgentTreeResponse,
   CreateSessionBody,
+  InspectorSessionSummary,
   ServerFrame,
   SessionStatus,
   SessionSummary,
@@ -64,6 +72,21 @@ export interface HarnessLike {
   setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
   removeProvider(providerId: string): Promise<ByfConfig>;
   removeModel(modelId: string): Promise<ByfConfig>;
+  // PRD-0035 Wave A：Inspector / ConfigDocument / WorkspaceRegistry（core 单源，
+  // SDK 透出；web-server 不直引 agent-core）。
+  listInspectableSessions(): Promise<readonly InspectorSessionSummary[]>;
+  readSessionInspection(sessionId: string): Promise<SessionDetail | null>;
+  readAgentWire(sessionId: string, agentId: string): Promise<WireResponse>;
+  readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection>;
+  readAgentTree(sessionId: string): Promise<AgentTreeResponse>;
+  deleteSession(sessionId: string): Promise<void>;
+  getConfigDocument(): Promise<ConfigDocumentResult>;
+  validateConfigText(text: string): Promise<ConfigValidationResult>;
+  writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult>;
+  listWorkspaces(): Promise<string[]>;
+  hiddenWorkspaces(): Promise<string[]>;
+  addWorkspace(workDir: string): Promise<string[]>;
+  removeWorkspace(workDir: string): Promise<boolean>;
   readonly configPath: string;
   close(): Promise<void>;
 }
@@ -258,6 +281,66 @@ export class WebSessionManager {
 
   removeProvider(providerId: string): Promise<ByfConfig> {
     return this.harness.removeProvider(providerId);
+  }
+
+  // ---- Inspector / ConfigDocument / WorkspaceRegistry（PRD-0035 Wave A）-----
+
+  listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return this.harness.listInspectableSessions();
+  }
+
+  readSessionInspection(sessionId: string): Promise<SessionDetail | null> {
+    return this.harness.readSessionInspection(sessionId);
+  }
+
+  readAgentWire(sessionId: string, agentId: string): Promise<WireResponse> {
+    return this.harness.readAgentWire(sessionId, agentId);
+  }
+
+  readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection> {
+    return this.harness.readContextProjection(sessionId, agentId);
+  }
+
+  readAgentTree(sessionId: string): Promise<AgentTreeResponse> {
+    return this.harness.readAgentTree(sessionId);
+  }
+
+  /** 删除会话：本地 live 会话直接 409（SDK 侧 core busy 判定是第二道防线）。 */
+  async deleteSession(sessionId: string): Promise<void> {
+    if (this.sessions.has(sessionId)) {
+      const err = new Error(`Session "${sessionId}" is live — close it before deleting`);
+      (err as Error & { code?: string }).code = 'SESSION_BUSY';
+      throw err;
+    }
+    await this.harness.deleteSession(sessionId);
+  }
+
+  getConfigDocument(): Promise<ConfigDocumentResult> {
+    return this.harness.getConfigDocument();
+  }
+
+  validateConfigText(text: string): Promise<ConfigValidationResult> {
+    return this.harness.validateConfigText(text);
+  }
+
+  writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    return this.harness.writeConfigText(text, expectedRevision);
+  }
+
+  listWorkspaces(): Promise<string[]> {
+    return this.harness.listWorkspaces();
+  }
+
+  hiddenWorkspaces(): Promise<string[]> {
+    return this.harness.hiddenWorkspaces();
+  }
+
+  addWorkspace(workDir: string): Promise<string[]> {
+    return this.harness.addWorkspace(workDir);
+  }
+
+  removeWorkspace(workDir: string): Promise<boolean> {
+    return this.harness.removeWorkspace(workDir);
   }
 
   // ---- 反向 RPC 裁决 ---------------------------------------------------------

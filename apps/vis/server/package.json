@@ -1,13 +1,13 @@
 {
   "name": "@byfriends/vis-server",
   "version": "0.4.1",
-  "description": "HTTP server for BYF session visualization, serving the API and built SPA assets",
+  "description": "DEPRECATED — session visualizer server, replaced by @byfriends/web-server (PRD-0035 unified workbench); kept as a compatibility shim for one minor version",
   "keywords": [
     "byf",
     "debugging",
     "server",
     "vis",
-    "visualization"
+    "deprecated"
   ],
   "homepage": "https://github.com/ByronFinn/byf",
   "bugs": {
@@ -51,17 +51,11 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun ../../../build/bun-lib-build.mjs ./src/server.ts ./src/index.ts --bundle-workspace && bun scripts/build-dts.mjs && bun ../scripts/copy-web-dist.mjs",
+    "build": "bun ../../../build/bun-lib-build.mjs ./src/server.ts ./src/index.ts --bundle-workspace --target bun && bun scripts/build-dts.mjs",
     "test": "bun test"
   },
   "dependencies": {
-    "@byfriends/agent-core": "workspace:^",
-    "@byfriends/vis-shared": "workspace:*",
-    "hono": "^4.7.7"
-  },
-  "devDependencies": {
-    "@byfriends/kosong": "workspace:*",
-    "@byfriends/vis-web": "workspace:*"
+    "@byfriends/web-server": "workspace:^"
   },
   "engines": {
     "bun": ">=1.3.14"
