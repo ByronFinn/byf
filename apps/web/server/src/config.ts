@@ -1,19 +1,13 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { resolveByfHome } from '@byfriends/sdk';
 
 /** web-server 默认端口（与 vis 3001 区分）。 */
 export const DEFAULT_WEB_PORT = 4100;
 /** web-server 默认主机（回环）。 */
 export const DEFAULT_WEB_HOST = '127.0.0.1';
 
-/** 解析 BYF_HOME(env > ~/.byf)。 */
-export function resolveByfHome(): string {
-  const envHome = process.env['BYF_HOME'];
-  if (envHome !== undefined && envHome.length > 0) {
-    return envHome;
-  }
-  return join(homedir(), '.byf');
-}
+// R-A7：路径解析单源——BYF_HOME 解析统一走 SDK（core 实现），此处 re-export
+// 保持既有 import 面（server.ts / app.ts 继续 `import { resolveByfHome } from './config'`）。
+export { resolveByfHome };
 
 /** web-server 的 HTTP 端口（`PORT` > 默认 4100）。 */
 export function resolvePort(): number {
