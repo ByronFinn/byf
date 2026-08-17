@@ -372,7 +372,10 @@ PUT  /api/config/raw
   - `apps/cli/src/cli/sub/vis.ts` shim；
   - `@byfriends/vis-server` 兼容 shim；
   - web-server fake harness 测试（409/422/delete/index）。
-- **PR3 视觉统一 + 三栏骨架**：
+- **PR3 视觉统一 + 三栏骨架**（— 骨架 Done，2026-08-17，commit f8be990）：
+  - theme.css 重写为 deepseek 精致风统一设计 token（bluish 中性阶 + deepseek 蓝品牌、圆角 8-12px、cat-* Inspector 语义色、emerald 清零）；
+  - lib/columns.ts（deepseek 几何契约移植）、components/layout/AppFrame.tsx（三栏 + 拖拽把手 + <1024 折叠 + details overlay）、AppShell 接入；
+  - 组件 class 无需批量改名（语义 token 名保留，仅值替换）；emerald 硬编码扫描清零；
   - 替换 `theme.css` 为 vis token + shadcn 桥接；
   - class 批量迁移；
   - `AppFrame.tsx` + 三栏几何 + sidebar 迁入；
