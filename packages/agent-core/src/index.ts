@@ -3,6 +3,7 @@ export * from './session';
 export * from './rpc';
 export * from './config';
 export * from './session/export';
+export { workspaceTitle } from './home/workspace-registry';
 export * from './errors';
 export { isAbortError } from './loop/errors';
 export {

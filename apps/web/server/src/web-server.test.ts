@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -37,7 +37,6 @@ import type {
 import { createApp } from './app';
 import { AsyncQueue } from './async-queue';
 import { WebSessionManager, type HarnessLike, type SessionLike } from './session-manager';
-import { WorkspaceRegistry } from './workspace-registry';
 
 // ---- Fake harness / session (实现 SessionLike / HarnessLike 契约) ------------
 
@@ -327,6 +326,9 @@ class FakeHarness implements HarnessLike {
   async removeWorkspace(workDir: string): Promise<boolean> {
     const before = this.workspaceList.length;
     this.workspaceList = this.workspaceList.filter((p) => p !== workDir);
+    if (this.workspaceList.length !== before && !this.workspaceHidden.includes(workDir)) {
+      this.workspaceHidden.push(workDir); // 镜像 core 语义：删除 = hidden
+    }
     return this.workspaceList.length !== before;
   }
 
@@ -765,7 +767,7 @@ describe('Workspace routes', () => {
   }
 
   test('POST 添加工作区;GET 枚举注册表工作区及其会话', async () => {
-    const { app, homeDir, projDir } = await setup();
+    const { app, homeDir, harness, projDir } = await setup();
     await createSession(app, projDir);
 
     const added = await app.request('/api/workspaces', {
@@ -782,20 +784,45 @@ describe('Workspace routes', () => {
     const listData = (await listed.json()) as { workspaces: WorkspaceView[] };
     expect(listData.workspaces.map((w) => w.workDir)).toEqual([projDir]);
 
-    // 注册表落盘(新格式:order + hidden)
-    const registryRaw = await Bun.file(join(homeDir, 'workspaces.json')).text();
-    expect(JSON.parse(registryRaw)).toEqual({ order: [projDir], hidden: [] });
+    // PRD-0035 R-A6：注册表由 core 单源（SDK 透出）——fake 记录 add 调用
+    expect(harness.workspaceList).toContain(projDir);
   });
 
   test('GET 合并会话索引中未注册的 workDir(按最近更新时间倒序)', async () => {
-    const { app, homeDir, harness } = await setup();
-    // 会话索引直接写入(模拟其他来源的会话)
-    await writeFile(
-      join(homeDir, 'session_index.jsonl'),
-      '{"sessionId":"s1","sessionDir":"/x/s1","workDir":"/old-dir"}\n' +
-        '{"sessionId":"s2","sessionDir":"/x/s2","workDir":"/recent-dir"}\n',
-      'utf-8',
-    );
+    const { app, harness } = await setup();
+    // 索引枚举 = 全量 inspectable 投影（PRD-0035 R-A3/R-D5）
+    harness.inspectableSessions = [
+      {
+        sessionId: 's1',
+        sessionDir: '/x/s1',
+        workDir: '/old-dir',
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 100,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+      {
+        sessionId: 's2',
+        sessionDir: '/x/s2',
+        workDir: '/recent-dir',
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 200,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+    ];
     const recent = await createSession(app, '/recent-dir');
     const old = await createSession(app, '/old-dir');
     patchSummary(harness.sessions.get(recent.id)!, { updatedAt: 200 });
@@ -858,34 +885,60 @@ describe('Workspace routes', () => {
     expect(listData.workspaces).toEqual([]);
   });
 
-  test('损坏的注册表视为空表,可恢复写入', async () => {
-    const { app, homeDir, projDir } = await setup();
-    await writeFile(join(homeDir, 'workspaces.json'), '{not json', 'utf-8');
+  test('空注册表视为空列表;POST 后可枚举（core 单源）', async () => {
+    const { app, harness, projDir } = await setup();
+    expect(harness.workspaceList).toEqual([]);
     const listed = await app.request('/api/workspaces');
     expect(listed.status).toBe(200);
     expect(((await listed.json()) as { workspaces: WorkspaceView[] }).workspaces).toEqual([]);
 
-    await app.request('/api/workspaces', {
+    const added = await app.request('/api/workspaces', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path: projDir }),
     });
-    const registryRaw = await Bun.file(join(homeDir, 'workspaces.json')).text();
-    expect(JSON.parse(registryRaw)).toEqual({ order: [projDir], hidden: [] });
+    expect(added.status).toBe(200);
+    expect(harness.workspaceList).toEqual([projDir]);
   });
 
   test('DELETE 后即使会话索引仍含该目录也不再出现;重新添加恢复原位置', async () => {
-    const { app, homeDir } = await setup();
+    const { app, harness } = await setup();
     // 两个真实存在的目录(注册校验需要目录存在)
     const oldDir = await mkdtemp(join(tmpdir(), 'byf-ws-old-'));
     const recentDir = await mkdtemp(join(tmpdir(), 'byf-ws-recent-'));
     dirs.push(oldDir, recentDir);
-    await writeFile(
-      join(homeDir, 'session_index.jsonl'),
-      `{"sessionId":"s1","sessionDir":"/x/s1","workDir":"${oldDir}"}\n` +
-        `{"sessionId":"s2","sessionDir":"/x/s2","workDir":"${recentDir}"}\n`,
-      'utf-8',
-    );
+    harness.inspectableSessions = [
+      {
+        sessionId: 's1',
+        sessionDir: '/x/s1',
+        workDir: oldDir,
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 100,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+      {
+        sessionId: 's2',
+        sessionDir: '/x/s2',
+        workDir: recentDir,
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 200,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+    ];
     await app.request('/api/workspaces', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1403,18 +1456,30 @@ describe('Wave A session organization routes (PRD-0034)', () => {
   });
 
   test('PATCH 取消归档时把 hidden 工作区重新登记', async () => {
-    const { app, harness, homeDir } = await setup();
+    const { app, harness } = await setup();
     const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
     seed(harness, 'ses_unarchive', workDir);
-    // registry: add 后 remove = hidden;session_index 记录 sessionId → workDir
-    const registry = new WorkspaceRegistry(homeDir);
-    await registry.add(workDir);
-    await registry.remove(workDir);
-    await writeFile(
-      join(homeDir, 'session_index.jsonl'),
-      `${JSON.stringify({ sessionId: 'ses_unarchive', sessionDir: '/tmp/ses_unarchive', workDir })}\n`,
-      'utf-8',
-    );
+    // PRD-0035 R-A6：workspaces.json 由 core 单源（SDK 透出）——fake 状态模拟
+    // 「add 后 remove = hidden」+ 索引枚举（全量投影含 workDir）。
+    harness.workspaceList = [workDir];
+    harness.workspaceHidden = [workDir];
+    harness.inspectableSessions = [
+      {
+        sessionId: 'ses_unarchive',
+        sessionDir: '/tmp/ses_unarchive',
+        workDir,
+        title: 't',
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 1,
+        updatedAt: 2,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+    ];
 
     const res = await app.request('/api/sessions/ses_unarchive', {
       method: 'PATCH',
@@ -1423,8 +1488,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     });
     expect(res.status).toBe(200);
 
-    const registryAfter = new WorkspaceRegistry(homeDir);
-    expect(await registryAfter.list()).toContain(workDir);
+    expect(harness.workspaceList).toContain(workDir);
   });
 
   test('POST /api/sessions/:id/fork 返回新会话 summary', async () => {
@@ -1562,11 +1626,38 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     const workDir = await mkdtemp(join(tmpdir(), 'wd-'));
     seed(harness, 'ses_normal', workDir, { title: 'Normal' });
     seed(harness, 'ses_arch', workDir, { title: 'Archived', archived: true });
-    await writeFile(
-      join(homeDir, 'session_index.jsonl'),
-      `${JSON.stringify({ sessionId: 'ses_normal', sessionDir: '/tmp/ses_normal', workDir })}\n${JSON.stringify({ sessionId: 'ses_arch', sessionDir: '/tmp/ses_arch', workDir })}\n`,
-      'utf-8',
-    );
+    harness.inspectableSessions = [
+      {
+        sessionId: 'ses_normal',
+        sessionDir: '/tmp/ses_normal',
+        workDir,
+        title: 'Normal',
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 1,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+      {
+        sessionId: 'ses_arch',
+        sessionDir: '/tmp/ses_arch',
+        workDir,
+        title: 'Archived',
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 2,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+    ];
 
     const res = await app.request('/api/workspaces');
     const data = (await res.json()) as {
@@ -1577,17 +1668,59 @@ describe('Wave A session organization routes (PRD-0034)', () => {
   });
 
   test('GET /api/archived-sessions 聚合所有工作目录(含 hidden)按 updatedAt 倒序', async () => {
-    const { app, harness, homeDir } = await setup();
+    const { app, harness } = await setup();
     const wd1 = await mkdtemp(join(tmpdir(), 'wd1-'));
     const wd2 = await mkdtemp(join(tmpdir(), 'wd2-'));
     seed(harness, 'ses_a1', wd1, { archived: true, updatedAt: 10 });
     seed(harness, 'ses_a2', wd2, { archived: true, updatedAt: 30 });
     seed(harness, 'ses_n', wd1, { updatedAt: 99 });
-    await writeFile(
-      join(homeDir, 'session_index.jsonl'),
-      `${JSON.stringify({ sessionId: 'ses_a1', sessionDir: '/tmp/ses_a1', workDir: wd1 })}\n${JSON.stringify({ sessionId: 'ses_a2', sessionDir: '/tmp/ses_a2', workDir: wd2 })}\n${JSON.stringify({ sessionId: 'ses_n', sessionDir: '/tmp/ses_n', workDir: wd1 })}\n`,
-      'utf-8',
-    );
+    harness.inspectableSessions = [
+      {
+        sessionId: 'ses_a1',
+        sessionDir: '/tmp/ses_a1',
+        workDir: wd1,
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 10,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+      {
+        sessionId: 'ses_a2',
+        sessionDir: '/tmp/ses_a2',
+        workDir: wd2,
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 30,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+      {
+        sessionId: 'ses_n',
+        sessionDir: '/tmp/ses_n',
+        workDir: wd1,
+        title: null,
+        lastPrompt: null,
+        isCustomTitle: false,
+        createdAt: 0,
+        updatedAt: 99,
+        agentCount: 0,
+        mainAgentExists: false,
+        mainWireRecordCount: 0,
+        wireProtocolVersion: null,
+        health: 'ok',
+      },
+    ];
 
     const res = await app.request('/api/archived-sessions');
     expect(res.status).toBe(200);
@@ -1611,9 +1744,8 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
     const outside = await mkdtemp(join(tmpdir(), 'byf-files-out-'));
     await writeFile(join(ws, 'a.ts'), 'const x = 1;\n', 'utf-8');
     await writeFile(join(outside, 'secret.txt'), 'secret\n', 'utf-8');
-    const registry = new WorkspaceRegistry(homeDir);
-    await registry.add(ws);
     const harness = new FakeHarness();
+    harness.workspaceList = [ws];
     const manager = new WebSessionManager(harness);
     const result = await createApp({ manager, homeDir });
     return { app: result.app, homeDir, ws, outside };
@@ -1719,9 +1851,6 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'byf-files-home2-'));
     const ws = await mkdtemp(join(tmpdir(), 'byf-files-ws2-'));
     await writeFile(join(ws, 'a.ts'), 'x', 'utf-8');
-    const registry = new WorkspaceRegistry(homeDir);
-    await registry.add(ws);
-    await registry.remove(ws); // → hidden
     const mediaDir = join(homeDir, 'sessions', 'wd_x', 'ses-1', 'media-originals');
     await mkdir(mediaDir, { recursive: true });
     await writeFile(join(mediaDir, 'abc.png'), Buffer.from([1, 2, 3]));
@@ -2011,9 +2140,15 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
 
   it('DELETE of a live session returns 409 SESSION_BUSY without touching the harness', async () => {
     const { app, harness } = await setup();
-    const session = new FakeSession('session_live', '/w');
-    harness.sessions.set('session_live', session);
-    const res = await app.request('/api/sessions/session_live', { method: 'DELETE' });
+    // live 会话须经 manager.createSession 创建（attach 进 manager.sessions 才判 busy）
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ workDir: '/w' }),
+    });
+    expect(created.status).toBe(201);
+    const { session } = (await created.json()) as { session: { id: string } };
+    const res = await app.request(`/api/sessions/${session.id}`, { method: 'DELETE' });
     expect(res.status).toBe(409);
     const data = (await res.json()) as { code: string };
     expect(data.code).toBe('SESSION_BUSY');
@@ -2145,9 +2280,10 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
 
   it('PUT /api/config/raw maps revision conflict to 409', async () => {
     const { app, harness } = await setup();
-    harness.configWriteError = Object.assign(new Error('Config revision mismatch'), {
-      code: 'config.revision_conflict',
-    });
+    harness.configWriteError = new ByfError(
+      ErrorCodes.CONFIG_REVISION_CONFLICT,
+      'Config revision mismatch',
+    );
     const res = await app.request('/api/config/raw', {
       method: 'PUT',
       headers: json,
@@ -2160,9 +2296,7 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
 
   it('PUT /api/config/raw maps invalid config to 422', async () => {
     const { app, harness } = await setup();
-    harness.configWriteError = Object.assign(new Error('Invalid configuration'), {
-      code: 'config.invalid',
-    });
+    harness.configWriteError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid configuration');
     const res = await app.request('/api/config/raw', {
       method: 'PUT',
       headers: json,

@@ -290,7 +290,7 @@ export const api = {
     request<DiscoverModelsResponse>('/api/config/discover-models', 'POST', body),
 
   closeSession: (id: string) =>
-    request<{ sessionId: string; closed: boolean }>(`/api/sessions/${enc(id)}`, 'DELETE'),
+    request<{ sessionId: string; closed: boolean }>(`/api/sessions/${enc(id)}/close`, 'POST'),
 
   prompt: (id: string, input: string) =>
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/prompt`, 'POST', {

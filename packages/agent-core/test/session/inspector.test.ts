@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { vi } from 'vitest';
+
 import {
   buildAgentTree,
   isSafeAgentId,
@@ -13,6 +15,9 @@ import {
 } from '#/session/inspector';
 import { sessionIndexPath } from '#/session/store/session-index';
 import { SessionStore } from '#/session/store/session-store';
+
+import { createRPC, type CoreAPI, type SDKAPI } from '../../src/rpc';
+import { ByfCore } from '../../src/rpc/core-impl';
 
 let home: string;
 let sessionsDir: string;
@@ -174,5 +179,65 @@ describe('SessionStore.delete', () => {
     } catch (error) {
       expect((error as { code: string }).code).toBe('session.not_found');
     }
+  });
+});
+
+// ── ByfCore.deleteSession busy 分支（AC-A4：active/busy 删除返回 409）────────
+
+const BUSY_CONFIG = `
+default_model = "byf/byf-for-coding"
+
+[providers."test-provider"]
+type = "openai-completions"
+api_key = "test-key"
+base_url = "https://api.example/v1"
+
+[models."byf/byf-for-coding"]
+provider = "test-provider"
+model = "byf-for-coding"
+max_context_size = 1000000
+`;
+
+describe('ByfCore.deleteSession busy semantics', () => {
+  let coreHome: string;
+  let coreWorkDir: string;
+  let coreConfigPath: string;
+
+  beforeEach(async () => {
+    coreHome = await mkdtemp(join(tmpdir(), 'byf-core-delete-'));
+    coreWorkDir = join(coreHome, 'work');
+    coreConfigPath = join(coreHome, 'config.toml');
+    await mkdir(coreWorkDir, { recursive: true });
+    await writeFile(coreConfigPath, BUSY_CONFIG, 'utf-8');
+  });
+
+  afterEach(async () => {
+    await rm(coreHome, { recursive: true, force: true });
+  });
+
+  async function createCoreRpc() {
+    const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
+    void new ByfCore(coreRpc, { homeDir: coreHome, configPath: coreConfigPath });
+    return sdkRpc({
+      emitEvent: vi.fn(),
+      requestApproval: vi.fn(async () => ({ decision: 'rejected' as const })),
+      requestQuestion: vi.fn(async () => null),
+      toolCall: vi.fn(async () => ({ output: '' })),
+    });
+  }
+
+  test('live session delete throws SESSION_BUSY; after close it succeeds and rewrites the index', async () => {
+    const rpc = await createCoreRpc();
+    const created = await rpc.createSession({ workDir: coreWorkDir, model: 'byf/byf-for-coding' });
+
+    await expect(rpc.deleteSession({ sessionId: created.id })).rejects.toMatchObject({
+      code: 'session.busy',
+    });
+
+    await rpc.closeSession({ sessionId: created.id });
+    await expect(rpc.deleteSession({ sessionId: created.id })).resolves.toBeUndefined();
+
+    const indexText = await readFile(join(coreHome, 'session_index.jsonl'), 'utf-8');
+    expect(indexText).not.toContain(created.id);
   });
 });

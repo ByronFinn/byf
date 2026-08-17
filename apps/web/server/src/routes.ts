@@ -3,6 +3,7 @@ import { isAbsolute, resolve, sep } from 'node:path';
 
 import type { ByfConfig, ByfConfigPatch } from '@byfriends/sdk';
 import { isByfError, maskConfigSecrets, restoreMaskedSecrets } from '@byfriends/sdk';
+import { workspaceTitle } from '@byfriends/sdk';
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
@@ -41,12 +42,6 @@ import { serveScopedFile } from './files';
 import { pickDirectoryNative } from './native-directory-picker';
 import { revealInOs } from './reveal';
 import type { WebSessionManager } from './session-manager';
-import {
-  WorkspaceRegistry,
-  findSessionWorkDir,
-  listIndexedWorkDirs,
-  workspaceTitle,
-} from './workspace-registry';
 
 const VALID_DECISIONS: ReadonlySet<string> = new Set(['approved', 'rejected', 'cancelled']);
 const VALID_PERMISSIONS: ReadonlySet<string> = new Set(['yolo', 'manual', 'auto']);
@@ -82,11 +77,14 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
 
   // ---- 工作区(侧边栏分组/添加;workDir 即工作区) ----
   r.get('/workspaces', async (c) => {
-    const registry = new WorkspaceRegistry(homeDir);
-    const registered = await registry.list();
-    // 用户删除过的工作区从索引枚举中同样排除,否则会"删除后复活"
-    const hidden = new Set(await registry.hidden());
-    const indexed = (await listIndexedWorkDirs(homeDir)).filter((dir) => !hidden.has(dir));
+    // PRD-0035 R-A6 / ADR-0037 D3：workspaces.json 由 core 单源管理
+    // （SDK 透出）；索引枚举从全量 inspectable 投影推导，不再本地读文件。
+    const registered = await manager.listWorkspaces();
+    const hidden = new Set(await manager.hiddenWorkspaces());
+    const indexedWorkDirs = new Set(
+      (await manager.listInspectableSessions()).map((s) => s.workDir),
+    );
+    const indexed = [...indexedWorkDirs].filter((dir) => !hidden.has(dir));
     const ordered = [...registered, ...indexed.filter((dir) => !registered.includes(dir))];
 
     const views = new Map<string, WorkspaceView>();
@@ -125,8 +123,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     }
     if (!isDir) return badRequest(c, `not a directory: ${resolved}`);
 
-    const registry = new WorkspaceRegistry(homeDir);
-    await registry.add(resolved);
+    await manager.addWorkspace(resolved);
     const sessions = await manager.listSessions(resolved);
     return c.json({ workspace: { workDir: resolved, title: workspaceTitle(resolved), sessions } });
   });
@@ -134,8 +131,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   r.delete('/workspaces', async (c) => {
     const workDir = c.req.query('workDir') ?? '';
     if (workDir.length === 0) return badRequest(c, 'workDir query is required');
-    const registry = new WorkspaceRegistry(homeDir);
-    const removed = await registry.remove(resolve(workDir));
+    const removed = await manager.removeWorkspace(resolve(workDir));
     return c.json({ ok: true, removed });
   });
 
@@ -180,8 +176,10 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // ---- 归档管理(PRD-0034 R-A3):session_index 聚合,不依赖工作区注册表,hidden
   // 工作区的归档会话也可见 ------------------------------------------------------
   r.get('/archived-sessions', async (c) => {
-    const registry = new WorkspaceRegistry(homeDir);
-    const workDirs = new Set([...(await registry.list()), ...(await listIndexedWorkDirs(homeDir))]);
+    const workDirs = new Set([
+      ...(await manager.listWorkspaces()),
+      ...(await manager.listInspectableSessions()).map((s) => s.workDir),
+    ]);
     const lists = await Promise.all([...workDirs].map((workDir) => manager.listSessions(workDir)));
     const sessions = lists
       .flat()
@@ -316,12 +314,10 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
 
     // 恢复归档时,若其工作区被隐藏(删除过),自动重新登记,使其回到侧栏。
     if (body.archived === false) {
-      const workDir = await findSessionWorkDir(homeDir, id);
-      if (workDir !== undefined) {
-        const registry = new WorkspaceRegistry(homeDir);
-        if ((await registry.hidden()).includes(workDir)) {
-          await registry.add(workDir);
-        }
+      const sessions = await manager.listInspectableSessions();
+      const workDir = sessions.find((s) => s.sessionId === id)?.workDir;
+      if (workDir !== undefined && (await manager.hiddenWorkspaces()).includes(workDir)) {
+        await manager.addWorkspace(workDir);
       }
     }
     return c.json({ ok: true });
@@ -338,7 +334,9 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     return c.json(response, 201);
   });
 
-  r.delete('/sessions/:id', async (c) => {
+  // 关闭会话（PRD-0034）。注意：不用 DELETE——DELETE /sessions/:id 已是
+  // PRD-0035 的删除会话路由（Hono 同路径同方法二次注册会被静默遮蔽）。
+  r.post('/sessions/:id/close', async (c) => {
     const id = c.req.param('id');
     const closed = await manager.closeSession(id);
     if (!closed) return notFound(c, 'session not found');
@@ -426,16 +424,22 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // ---- 目录浏览(@ 引用文件/文件夹;仅允许工作区根内,防任意文件系统暴露) ----
   // ---- 作用域白名单文件端点(PRD-0034 R-C2 / ADR-0036 D2) ----------------------
   r.get('/files', async (c) => {
-    return serveScopedFile(c, homeDir, c.req.query('path') ?? '');
+    const roots = [
+      ...(await manager.listWorkspaces()),
+      ...(await manager.listInspectableSessions()).map((s) => s.workDir),
+    ];
+    return serveScopedFile(c, homeDir, c.req.query('path') ?? '', roots);
   });
 
   r.get('/fs/list', async (c) => {
     const root = c.req.query('root') ?? '';
     const path = c.req.query('path') ?? '';
     if (root.length === 0) return badRequest(c, 'root query is required');
-    const registry = new WorkspaceRegistry(homeDir);
     const allowed = new Set(
-      [...(await registry.list()), ...(await listIndexedWorkDirs(homeDir))].map((d) => resolve(d)),
+      [
+        ...(await manager.listWorkspaces()),
+        ...(await manager.listInspectableSessions()).map((s) => s.workDir),
+      ].map((d) => resolve(d)),
     );
     if (!allowed.has(resolve(root))) return badRequest(c, 'root must be a registered workspace');
     const base = resolve(root);

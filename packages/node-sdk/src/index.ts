@@ -101,6 +101,7 @@ export {
   maskConfigSecrets,
   restoreMaskedSecrets,
 } from '@byfriends/agent-core';
+export { workspaceTitle } from '@byfriends/agent-core';
 
 export * from '#/events';
 export type * from '#/types';

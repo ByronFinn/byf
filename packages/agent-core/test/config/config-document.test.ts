@@ -132,9 +132,32 @@ describe('maskConfigSecrets / restoreMaskedSecrets', () => {
     expect(restored).toBe(SAMPLE);
   });
 
+  test('edge cases: comment lines and non-secret strings are not touched; single quotes masked', () => {
+    const t = `[providers.a]
+api_key = "secret-1"
+# api_key = "commented-out"
+note = "api_key = \\"not-a-secret\\""
+[providers.b]
+api_key = 'secret-2'
+`;
+    const masked = maskConfigSecrets(t);
+    expect(masked).not.toContain('secret-1');
+    expect(masked).not.toContain('secret-2');
+    expect(masked).toContain('commented-out'); // 注释行不动
+    expect(masked).toContain('not-a-secret'); // 非 api_key 行不动
+    expect(restoreMaskedSecrets(masked, t)).toBe(t);
+  });
+
+  test('camelCase apiKey values are masked too (R-E6: api_key/apiKey 均不跨线)', () => {
+    const t = '[providers.d]\napiKey = "camel-secret"\n';
+    const masked = maskConfigSecrets(t);
+    expect(masked).not.toContain('camel-secret');
+    expect(restoreMaskedSecrets(masked, t)).toBe(t);
+  });
+
   test('user replacement value is kept; deleted masked line deletes the key', () => {
     const masked = maskConfigSecrets(SAMPLE);
-    const edited = masked.replace(`"${MASKED_SECRET_PLACEHOLDER}"`, '"new-secret"');
+    const edited = masked.replaceAll(/"__BYF_KEEP_SECRET__(?:_\d+)?"/g, '"new-secret"');
     const restored = restoreMaskedSecrets(edited, SAMPLE);
     expect(restored).toContain('new-secret');
     expect(restored).not.toContain('sk-secret-123');
@@ -146,5 +169,67 @@ describe('maskConfigSecrets / restoreMaskedSecrets', () => {
     const restoredDeleted = restoreMaskedSecrets(deleted, SAMPLE);
     expect(restoredDeleted).not.toContain('sk-secret-123');
     expect(restoredDeleted).not.toContain('api_key');
+    expect(restoredDeleted).not.toContain('api_key');
+  });
+});
+
+describe('mask/restore 多 key 与数组（review 回归：错位与泄漏修复）', () => {
+  const MULTI = `[providers.a]
+api_key = "sk-a"
+[providers.b]
+api_key = "sk-b"
+[providers.c]
+api_key = "sk-c"
+`;
+
+  test('deleting the first masked key does not remap later keys (序号占位符)', () => {
+    const masked = maskConfigSecrets(MULTI);
+    // 用户删除第一行 api_key（保留 b/c 的占位符）
+    const edited = masked
+      .split('\n')
+      .filter((l) => !l.includes('api_key = "__BYF_KEEP_SECRET___1"'))
+      .join('\n');
+    const restored = restoreMaskedSecrets(edited, MULTI);
+    expect(restored).toContain('sk-b');
+    expect(restored).toContain('sk-c');
+    expect(restored).not.toContain('sk-a');
+    expect(restored).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  test('reordering rows keeps each placeholder anchored to its disk value', () => {
+    const masked = maskConfigSecrets(MULTI);
+    // 交换 b/c 两行（值仍带序号）
+    const lines = masked.split('\n');
+    const idxB = lines.findIndex((l) => l.includes('__BYF_KEEP_SECRET___2'));
+    const idxC = lines.findIndex((l) => l.includes('__BYF_KEEP_SECRET___3'));
+    [lines[idxB], lines[idxC]] = [lines[idxC]!, lines[idxB]!];
+    const restored = restoreMaskedSecrets(lines.join('\n'), MULTI);
+    // 序号锚定：值跟随占位符行（交换后 b 区那行是原 c 的占位符 3 → sk-c）。
+    const rows = restored.split('\n');
+    const bVal = rows[rows.findIndex((l) => l.includes('[providers.b]')) + 1]!;
+    const cVal = rows[rows.findIndex((l) => l.includes('[providers.c]')) + 1]!;
+    expect(bVal).toContain('sk-c');
+    expect(cVal).toContain('sk-b');
+    expect(restored).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  test('api_keys array values are masked and restored (web search 密钥数组)', () => {
+    const t = `[services.web_search.providers.brave]
+api_keys = ["sk-arr-1", "sk-arr-2"]
+`;
+    const masked = maskConfigSecrets(t);
+    expect(masked).not.toContain('sk-arr-1');
+    expect(masked).not.toContain('sk-arr-2');
+    expect(restoreMaskedSecrets(masked, t)).toBe(t);
+  });
+
+  test('trailing comments survive masking (AC-A6 全保真)', () => {
+    const t = `[providers.a]
+api_key = "sk-c" # production key
+`;
+    const masked = maskConfigSecrets(t);
+    expect(masked).toContain('# production key');
+    expect(masked).not.toContain('sk-c');
+    expect(restoreMaskedSecrets(masked, t)).toBe(t);
   });
 });

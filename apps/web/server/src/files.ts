@@ -14,8 +14,6 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 import type { Context } from 'hono';
 
-import { WorkspaceRegistry, listIndexedWorkDirs } from './workspace-registry';
-
 export const TEXT_LIMIT_BYTES = 2 * 1024 * 1024;
 export const MEDIA_LIMIT_BYTES = 50 * 1024 * 1024;
 
@@ -101,17 +99,6 @@ const MEDIA_TYPES: Record<string, string> = {
   pdf: 'application/pdf',
 };
 
-/** 与 GET /api/workspaces 相同的动态白名单集合(不含 hidden 工作区)。 */
-export async function collectFileScopeRoots(homeDir: string): Promise<string[]> {
-  const registry = new WorkspaceRegistry(homeDir);
-  const registered = await registry.list();
-  const hidden = new Set(await registry.hidden());
-  const indexed = (await listIndexedWorkDirs(homeDir)).filter((dir) => !hidden.has(dir));
-  const roots = new Set<string>();
-  for (const dir of [...registered, ...indexed]) roots.add(resolve(dir));
-  return [...roots];
-}
-
 async function isInsideMediaOriginals(resolvedPath: string, homeDir: string): Promise<boolean> {
   const sessionsRoot = await realpath(join(homeDir, 'sessions')).catch(() => undefined);
   if (sessionsRoot === undefined) return false;
@@ -120,8 +107,11 @@ async function isInsideMediaOriginals(resolvedPath: string, homeDir: string): Pr
   return rel.split(sep).includes('media-originals');
 }
 
-async function isPathInScope(resolvedPath: string, homeDir: string): Promise<boolean> {
-  const roots = await collectFileScopeRoots(homeDir);
+async function isPathInScope(
+  resolvedPath: string,
+  roots: readonly string[],
+  homeDir: string,
+): Promise<boolean> {
   for (const root of roots) {
     const realRoot = await realpath(root).catch(() => undefined);
     if (realRoot === undefined) continue;
@@ -177,6 +167,8 @@ export async function serveScopedFile(
   c: Context,
   homeDir: string,
   rawPath: string,
+  /** 动态白名单根(不含 hidden 工作区)——由路由层经 SDK 计算（PRD-0035 R-A6）。 */
+  roots: readonly string[],
 ): Promise<Response> {
   if (rawPath.length === 0) {
     return c.json({ error: 'path query is required', code: 'BAD_REQUEST' }, 400);
@@ -188,7 +180,7 @@ export async function serveScopedFile(
     const parent = await realpath(dirname(rawPath)).catch(() => resolve(dirname(rawPath)));
     return join(parent, basename(rawPath));
   });
-  if (!(await isPathInScope(resolved, homeDir))) {
+  if (!(await isPathInScope(resolved, roots, homeDir))) {
     return c.json({ error: 'path is outside the allowed scope', code: 'FORBIDDEN' }, 403);
   }
 

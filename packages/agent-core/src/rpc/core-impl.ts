@@ -288,7 +288,14 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     const session = this.sessions.get(sessionId);
     if (session) {
       await session.close();
-      this.sessions.delete(sessionId);
+      // keepAliveOnExit 语义：已关闭会话的后台任务可能仍在跑——保留 map
+      // 条目，使 deleteSession 的 busy 判定仍能拦截（C3）。
+      const hasRunning = Array.from(session.agents.values()).some(
+        (agent) => agent.background.list(true).length > 0,
+      );
+      if (!hasRunning) {
+        this.sessions.delete(sessionId);
+      }
     }
   }
 
@@ -439,13 +446,21 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
   }
 
   async deleteSession(input: DeleteSessionPayload): Promise<void> {
-    // busy 判定（PRD-0035 Q5 /grill 决议）：live Session 实例或（隐含的）
-    // 运行中后台任务——后台任务挂在 Session 实例上，close 会 stopAll，因此
-    // 只需检查实例表。
+    // busy 判定（PRD-0035 Q5 /grill 决议）：live Session 实例或运行中后台任务
+    // 都拒删。后台任务挂在 Session 实例上；close 会 stopAll，但
+    // keepAliveOnExit 语义下已关闭会话的任务可能仍在跑——必须显式检查。
+    // map 条目 = live（未 close）或已 close 但仍跑后台任务（closeSession
+    // 保留）——两者都拒删（Q5 /grill 决议：live Session 实例或运行中后台任务）。
     if (this.sessions.has(input.sessionId)) {
+      const session = this.sessions.get(input.sessionId)!;
+      const hasRunning = Array.from(session.agents.values()).some(
+        (agent) => agent.background.list(true).length > 0,
+      );
       throw new ByfError(
         ErrorCodes.SESSION_BUSY,
-        `Session "${input.sessionId}" is live — close it before deleting`,
+        hasRunning
+          ? `Session "${input.sessionId}" has running background tasks — stop them before deleting`
+          : `Session "${input.sessionId}" is live (resumed) — close it before deleting`,
       );
     }
     await this.sessionStore.delete(input.sessionId);
