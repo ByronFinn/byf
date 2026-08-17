@@ -3,7 +3,7 @@ import { BookOpen, ChevronDown, Folder, FolderSearch, ListChecks, Sparkles } fro
 import { useEffect, useReducer, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { api } from '#/api';
+import { api, inspectorApi } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
 import { ComposerCard, type TriggerCommand } from '#/components/chat/ComposerCard';
@@ -15,6 +15,10 @@ import { SubagentDrawer } from '#/components/chat/SubagentCard';
 import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
 import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
+import { ContextTab } from '#/components/inspector/context/ContextTab';
+import { StateTab } from '#/components/inspector/state/StateTab';
+import { SubagentsTab } from '#/components/inspector/subagents/SubagentsTab';
+import { WireTab } from '#/components/inspector/wire/WireTab';
 import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
 import {
@@ -87,6 +91,8 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
   // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
+  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | State）
+  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'state'>('chat');
   useEffect(() => {
     const open = (e: Event): void => {
       setOpenFilePath((e as CustomEvent<string>).detail);
@@ -258,8 +264,17 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   return (
     <div className="flex h-full flex-col">
       <StatusBar status={state.status} busy={state.busy} connected={state.connected} />
+      <InspectorTabBar tab={tab} onTabChange={setTab} />
       <div className="min-h-0 flex-1">
-        {state.entries.length === 0 ? (
+        {tab === 'trace' ? (
+          <WireTab key={sessionId} sessionId={sessionId} />
+        ) : tab === 'context' ? (
+          <ContextTab key={sessionId} sessionId={sessionId} />
+        ) : tab === 'agents' ? (
+          <SubagentsTab key={sessionId} sessionId={sessionId} />
+        ) : tab === 'state' ? (
+          <StateTabFetcher key={sessionId} sessionId={sessionId} />
+        ) : state.entries.length === 0 ? (
           <EmptyState onPick={onSend} />
         ) : (
           <Transcript
@@ -676,4 +691,49 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX
       </div>
     </div>
   );
+}
+
+/** PRD-0035 R-D1：会话视图 tab 栏（Chat | Trace | Context | Agents | State）。 */
+const INSPECTOR_TABS = [
+  { key: 'chat', label: 'Chat' },
+  { key: 'trace', label: 'Trace' },
+  { key: 'context', label: 'Context' },
+  { key: 'agents', label: 'Agents' },
+  { key: 'state', label: 'State' },
+] as const;
+
+function InspectorTabBar(props: {
+  tab: (typeof INSPECTOR_TABS)[number]['key'];
+  onTabChange: (tab: (typeof INSPECTOR_TABS)[number]['key']) => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg px-4">
+      {INSPECTOR_TABS.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => props.onTabChange(t.key)}
+          className={
+            props.tab === t.key
+              ? 'border-b-2 border-brand px-3 py-2 text-sm font-medium text-fg'
+              : 'border-b-2 border-transparent px-3 py-2 text-sm text-fg-muted hover:text-fg'
+          }
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** State tab 数据源：经 inspector API 读磁盘 state.json（PRD-0035 R-B1）。 */
+function StateTabFetcher({ sessionId }: { sessionId: string }): React.JSX.Element {
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ['session', sessionId, 'inspection'] as const,
+    queryFn: () => inspectorApi.getSessionDetail(sessionId),
+  });
+  if (isLoading) {
+    return <div className="p-4 font-mono text-xs text-fg-subtle">loading state…</div>;
+  }
+  return <StateTab state={detail?.state ?? null} />;
 }

@@ -1,5 +1,11 @@
 import type {
   ActivateSkillBody,
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  ListInspectableSessionsResponse,
+  SessionDetail,
+  WireResponse,
   ApprovalDecisionBody,
   ArchivedSessionsResponse,
   ConfigResponse,
@@ -111,6 +117,36 @@ async function request<T>(
 }
 
 const enc = encodeURIComponent;
+
+// ── Inspector 端点（PRD-0035 R-B1；与 vis 端点同构）─────────────────────────
+
+export const inspectorApi = {
+  listInspectableSessions: async (): Promise<InspectorSessionSummary[]> => {
+    const r = await request<ListInspectableSessionsResponse>('/api/sessions', 'GET');
+    return [...r.sessions];
+  },
+  getSessionDetail: async (sessionId: string): Promise<SessionDetail | null> => {
+    return request<SessionDetail | null>(`/api/sessions/${enc(sessionId)}/state`, 'GET');
+  },
+  getWire: async (sessionId: string, agentId: string): Promise<WireResponse> => {
+    return request<WireResponse>(
+      `/api/sessions/${enc(sessionId)}/wire?agent=${enc(agentId)}`,
+      'GET',
+    );
+  },
+  getContext: async (sessionId: string, agentId: string): Promise<ContextProjection> => {
+    return request<ContextProjection>(
+      `/api/sessions/${enc(sessionId)}/context?agent=${enc(agentId)}`,
+      'GET',
+    );
+  },
+  getAgentTree: async (sessionId: string): Promise<AgentTreeResponse> => {
+    return request<AgentTreeResponse>(`/api/sessions/${enc(sessionId)}/agents`, 'GET');
+  },
+  deleteSession: async (sessionId: string): Promise<void> => {
+    await request(`/api/sessions/${enc(sessionId)}`, 'DELETE');
+  },
+};
 
 /** 原始 fetch 包装(R-C3 文件端点):不解析 JSON,保留 headers 供内容类型探测。 */
 async function requestRaw(path: string, method: 'GET' | 'HEAD'): Promise<Response> {

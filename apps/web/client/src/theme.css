@@ -69,6 +69,15 @@
   --color-neutral-900: oklch(0.17 0.006 255);
   --color-neutral-950: oklch(0.145 0.006 255);
 
+  /* Inspector 调试视图兼容别名(自 vis 主题迁入,PRD-0035 R-C1/R-B7):
+     surface-0 = 最深底 / fg-0..3 = 文字四级,映射到统一 token 体系,
+     使迁移的 vis 组件 class(bg-surface-0/text-fg-1 等)原样可用。 */
+  --color-surface-0: var(--bg);
+  --color-fg-0: var(--fg);
+  --color-fg-1: var(--fg-muted);
+  --color-fg-2: var(--fg-subtle);
+  --color-fg-3: color-mix(in oklab, var(--fg-subtle) 60%, transparent);
+
   /* 状态色(浅色主题的 AA 变体用 *-700;red-600 例外,浅色下已达标) */
   --color-amber-500: oklch(0.76 0.16 70);
   --color-amber-700: oklch(0.55 0.13 65);
