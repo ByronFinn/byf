@@ -2,27 +2,17 @@ import { PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '#/components/ui/button';
-import { cn } from '#/lib/utils';
 
+import { AppFrame } from './AppFrame';
 import { SessionSidebar } from './SessionSidebar';
 
-const COLLAPSED_KEY = 'byf.sidebar.collapsed';
-
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 /**
- * 应用骨架(对齐 deepseek harness):无顶栏,两栏 Grid —— 左会话侧边栏
- * (可折叠为 56px 图标 rail)+ 右主区。容器查询:容器宽 < @4xl(56rem)时
- * 侧边栏折叠,主区左上角浮动按钮唤出 overlay(非模态导航面板)。
+ * 应用骨架(PRD-0035 R-C3):deepseek 式三栏 AppFrame —— sidebar(会话侧边栏)
+ * | center(会话视图)| details(详情宿主)。列宽拖拽/折叠由 AppFrame 管理
+ * (localStorage 持久化);窄屏下 sidebar 自动折叠,左上浮动按钮唤出 overlay
+ * 导航面板;details 放不下时自动关闭,窄屏为 overlay drawer(detailsOverlay)。
  */
 export function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed());
   const [navOpen, setNavOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -34,18 +24,6 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const closeNav = (): void => {
     setNavOpen(false);
     toggleRef.current?.focus();
-  };
-
-  const toggleCollapsed = (): void => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
-      } catch {
-        // 忽略持久化失败
-      }
-      return next;
-    });
   };
 
   // 打开时把焦点移入面板(非模态:背景仍可达,因此不承诺 aria-modal)
@@ -65,25 +43,18 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   }, [navOpen]);
 
   return (
-    <div className="@container flex h-full flex-col">
-      <div className="min-h-0 flex-1">
-        <div
-          className={cn(
-            'grid h-full min-h-0 grid-cols-1',
-            collapsed
-              ? '@4xl:grid-cols-[56px_minmax(0,1fr)]'
-              : '@4xl:grid-cols-[264px_minmax(0,1fr)]',
-          )}
-        >
-          <SessionSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-          <main className="relative min-h-0 min-w-0">
+    <div className="h-full">
+      <AppFrame
+        sidebar={<SessionSidebar />}
+        center={
+          <main className="relative h-full min-w-0">
             {children}
             <Button
               ref={toggleRef}
               type="button"
               variant="outline"
               size="icon-sm"
-              className="@4xl:hidden absolute top-3 left-3 z-30"
+              className="absolute top-3 left-3 z-30 md:hidden"
               onClick={openNav}
               aria-label="打开侧边栏"
               aria-expanded={navOpen}
@@ -91,10 +62,21 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
               <PanelLeft aria-hidden />
             </Button>
           </main>
-        </div>
-      </div>
+        }
+        details={
+          <div className="flex h-full flex-col">
+            <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-7 text-fg-muted">
+              <div>
+                <p className="font-medium text-fg">Click a tool row in the message flow</p>
+                <p>to view its details — 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
+              </div>
+            </div>
+          </div>
+        }
+        detailsOverlay
+      />
       {navOpen && (
-        <div className="@4xl:hidden fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-scrim" onClick={closeNav} aria-hidden />
           <div
             ref={panelRef}

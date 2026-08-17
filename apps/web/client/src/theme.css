@@ -1,13 +1,14 @@
 @import 'tailwindcss';
 
 /*
-  byf web 客户端设计 token(PRD-0033 / ADR 0035 D2)。
-  三层结构,OKLCH 色彩空间:
-    Layer 1 原始色板 —— @theme 静态注册(brand green / 蓝调 neutral / 状态色);
+  byf web 工作台设计 token —— 统一设计 token（PRD-0035 R-C1 / ADR-0037 D6）。
+  视觉范本：deepseek-harness 精致风（have-a-try 2026-08-17 裁决选 B），自研
+  token 化实现（不照搬 CSS Modules）。三层结构沿用：
+    Layer 1 原始色板 —— @theme 静态注册（deepseek 蓝品牌 / bluish 中性阶 / 状态色）;
     Layer 2 语义别名 —— 深色为基线(:root),浅色 AA 覆盖(:root.theme-light);
     Layer 3 组件专用 —— bubble / sidebar / input 等组件级组合。
-  语义层经 @theme inline 生成 Tailwind 工具类(bg-bg / bg-surface-1 / text-fg /
-  border-border / text-state-error …),运行时随 <html class="theme-*"> 切换。
+  emerald 品牌色已移除（/grill 决议）;cat-* 事件类别色供 Inspector 调试视图
+  （Trace/Context/Agents/State）使用,不作主品牌。
   boot 脚本(index.html)保证 theme-dark / theme-light 恒有一个;shadcn 的
   `dark:` 变体以 .theme-dark 类为准。
 */
@@ -33,23 +34,24 @@
   --text-xl: 1.125rem;
   --text-xl--line-height: 1.45;
 
-  /* 圆角派生:--radius → sm/md/lg/xl */
-  --radius: 0.625rem;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* 圆角派生:deepseek 精致风 8-12px(--radius → sm/md/lg/xl) */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 
   /* 动效曲线(三档时长见 :root --duration-*) */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* 品牌 green(byf emerald) */
-  --color-green-300: oklch(0.82 0.14 162);
-  --color-green-400: oklch(0.76 0.16 162);
-  --color-green-500: oklch(0.66 0.17 162);
-  --color-green-600: oklch(0.58 0.16 162);
-  --color-green-700: oklch(0.5 0.14 162);
-  --color-green-800: oklch(0.44 0.12 162);
+  /* 品牌 deepseek 蓝(替代 byf emerald;ADR-0037 D6) */
+  --color-blue-300: oklch(0.78 0.11 250);
+  --color-blue-400: oklch(0.68 0.14 255);
+  --color-blue-450: oklch(0.6 0.16 258);
+  --color-blue-500: oklch(0.55 0.17 258);
+  --color-blue-600: oklch(0.48 0.16 258);
+  --color-blue-700: oklch(0.42 0.14 258);
+  --color-blue-800: oklch(0.36 0.12 258);
 
   /* 中性(轻微蓝调,对标 deepseek neutral-bluish) */
   --color-neutral-0: oklch(1 0 0);
@@ -57,9 +59,12 @@
   --color-neutral-100: oklch(0.97 0.003 255);
   --color-neutral-200: oklch(0.92 0.004 255);
   --color-neutral-300: oklch(0.86 0.005 255);
+  --color-neutral-400: oklch(0.7 0.007 255);
   --color-neutral-500: oklch(0.55 0.008 255);
+  --color-neutral-600: oklch(0.42 0.008 255);
   --color-neutral-700: oklch(0.32 0.008 255);
-  --color-neutral-800: oklch(0.24 0.007 255);
+  --color-neutral-750: oklch(0.28 0.007 255);
+  --color-neutral-800: oklch(0.24 0.006 255);
   --color-neutral-850: oklch(0.2 0.006 255);
   --color-neutral-900: oklch(0.17 0.006 255);
   --color-neutral-950: oklch(0.145 0.006 255);
@@ -72,6 +77,22 @@
   --color-red-700: oklch(0.48 0.19 27);
   --color-sky-500: oklch(0.68 0.14 230);
   --color-sky-700: oklch(0.52 0.12 235);
+
+  /* Inspector 事件类别色(cat-*;PRD-0035 R-C1,调试视图语义色,非主品牌) */
+  --color-cat-conversation: oklch(0.78 0.12 210);
+  --color-cat-config: oklch(0.7 0.17 290);
+  --color-cat-lifecycle: oklch(0.72 0.01 255);
+  --color-cat-subagent: oklch(0.68 0.2 290);
+  --color-cat-approval: oklch(0.75 0.17 45);
+  --color-cat-ephemeral: oklch(0.85 0.15 95);
+  --color-cat-meta: oklch(0.65 0.19 270);
+  --color-cat-tools: oklch(0.78 0.16 75);
+  /* 会话流子族(Inspector wire 时间线) */
+  --color-user: oklch(0.68 0.14 240);
+  --color-assistant: oklch(0.78 0.12 210);
+  --color-tool: oklch(0.78 0.16 75);
+  --color-compaction: oklch(0.72 0.17 40);
+  --color-turn: oklch(0.72 0.14 185);
 }
 
 /* ═══════════════ Layer 2 · 语义别名(深色基线) ═══════════════
@@ -94,19 +115,20 @@
   --hover: oklch(0.55 0.01 255 / 0.12);
   --active: oklch(0.55 0.01 255 / 0.2);
 
-  --brand: var(--color-green-400);
-  --brand-strong: var(--color-green-300);
+  /* 品牌 = deepseek 蓝(替代 emerald;ADR-0037 D6) */
+  --brand: var(--color-blue-450);
+  --brand-strong: var(--color-blue-400);
   --on-brand: var(--color-neutral-950);
 
-  --state-success: var(--color-green-400);
+  --state-success: oklch(0.72 0.15 155);
   --state-warning: var(--color-amber-500);
   --state-error: var(--color-red-500);
   --state-info: var(--color-sky-500);
 
-  /* elevation 3 级 */
-  --elev-1: 0 1px 2px oklch(0 0 0 / 0.3);
-  --elev-2: 0 4px 16px oklch(0 0 0 / 0.35);
-  --elev-3: 0 12px 40px oklch(0 0 0 / 0.45);
+  /* elevation 3 级(deepseek 分层阴影:柔和、低透明度) */
+  --elev-1: 0 1px 2px oklch(0 0 0 / 0.25);
+  --elev-2: 0 2px 8px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.2);
+  --elev-3: 0 8px 28px oklch(0 0 0 / 0.4), 0 2px 8px oklch(0 0 0 / 0.24);
 
   /* 代码块(浅色下仍用深底,故文字也不随主题翻转) */
   --code-bg: oklch(0.16 0.006 255);
@@ -140,11 +162,11 @@
   --hover: oklch(0.55 0.01 255 / 0.06);
   --active: oklch(0.55 0.01 255 / 0.1);
 
-  --brand: var(--color-green-700);
-  --brand-strong: var(--color-green-800);
+  --brand: var(--color-blue-600);
+  --brand-strong: var(--color-blue-700);
   --on-brand: var(--color-neutral-0);
 
-  --state-success: var(--color-green-700);
+  --state-success: oklch(0.5 0.13 155);
   --state-warning: var(--color-amber-700);
   --state-error: var(--color-red-600);
   --state-info: var(--color-sky-700);
@@ -152,18 +174,33 @@
   --elev-1: 0 1px 2px oklch(0.2 0.02 255 / 0.06);
   --elev-2: 0 2px 8px oklch(0.2 0.02 255 / 0.08), 0 1px 3px oklch(0.2 0.02 255 / 0.06);
   --elev-3: 0 8px 28px oklch(0.2 0.02 255 / 0.1);
+
+  /* Inspector cat-* 浅色 AA 变体 */
+  --color-cat-conversation: oklch(0.5 0.13 235);
+  --color-cat-config: oklch(0.5 0.16 290);
+  --color-cat-lifecycle: oklch(0.48 0.02 255);
+  --color-cat-subagent: oklch(0.5 0.2 290);
+  --color-cat-approval: oklch(0.55 0.17 40);
+  --color-cat-ephemeral: oklch(0.6 0.15 95);
+  --color-cat-meta: oklch(0.48 0.18 270);
+  --color-cat-tools: oklch(0.55 0.16 70);
+  --color-user: oklch(0.42 0.13 240);
+  --color-assistant: oklch(0.5 0.13 235);
+  --color-tool: oklch(0.55 0.16 70);
+  --color-compaction: oklch(0.55 0.17 40);
+  --color-turn: oklch(0.48 0.13 185);
 }
 
 /* ═══════════════ Layer 3 · 组件专用 ═══════════════ */
 :root {
-  --bubble: var(--color-green-500);
+  --bubble: var(--color-blue-500);
   --bubble-fg: var(--color-neutral-950);
   --sidebar-fill: var(--surface-1);
   --input-fill: var(--surface-2);
 }
 
 :root.theme-light {
-  --bubble: var(--color-green-700);
+  --bubble: var(--color-blue-600);
   --bubble-fg: var(--color-neutral-0);
 }
 
@@ -221,6 +258,8 @@
   --shadow-1: var(--elev-1);
   --shadow-2: var(--elev-2);
   --shadow-3: var(--elev-3);
+  /* cat-* 事件类别色已在 @theme 静态注册(:root 输出),浅色覆盖见
+     :root.theme-light——工具类(bg-cat-tools 等)经 var() 引用随主题切换。 */
   /* shadcn 语义名 → 工具类(bg-background / text-foreground / ring-ring …) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
