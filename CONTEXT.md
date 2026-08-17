@@ -343,7 +343,7 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 
 ### web 客户端 / web-client（`apps/web`）
 
-浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层。
+浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
 
 ### 三层设计 token
 

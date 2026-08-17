@@ -1,7 +1,8 @@
 # PRD-0032: byf Web 客户端（`byf web`）
 
-- **Status**: Draft
+- **Status**: Done
 - **Date**: 2026-08-13
+- **Last updated**: 2026-08-17（状态对齐：PRD-0033/0034 已在其传输骨架上实现并合入 dev）
 - **Owner**: fan.bai
 - **Complexity**: Large
 - **Related**: ADR-0034、ADR-0006、ADR-0021

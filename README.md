@@ -171,9 +171,10 @@ BYF is a [Bun monorepo](https://bun.com/docs/install/workspaces) (see [ADR 0028]
 byf/
 ├── apps/
 │   ├── cli/               # CLI / TUI application
-│   └── vis/               # Session visualization & replay tool
-│       ├── server/        #   Hono API server
-│       └── web/           #   React/Vite SPA
+│   ├── vis/               # Session visualization & replay tool
+│   │   ├── server/        #   Hono API server
+│   │   └── web/           #   React/Vite SPA
+│   └── web/               # Browser web client (live agent over Hono/SSE + React SPA)
 ├── packages/
 │   ├── agent-core/        # Unified agent engine
 │   ├── node-sdk/          # Public TypeScript SDK (@byfriends/sdk)

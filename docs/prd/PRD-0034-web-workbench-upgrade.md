@@ -1,6 +1,6 @@
 # PRD-0034: byf Web 工作台能力升级（`apps/web` + 周边）
 
-> **Status**: Implemented | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-14
+> **Status**: Done | **PRD**: PRD-0034 | **Created**: 2026-08-14 | **Last updated**: 2026-08-17（状态对齐：实现并合入 dev，验收清单全部转绿；review 修复经 PR #309 合入）
 
 ## Goal
 
@@ -108,24 +108,24 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-A1** 重命名（含 Emoji）持久化：改名后刷新页面/resume/CLI `sessions` 列表标题一致，且不再被自动标题覆盖。
-- [ ] **AC-A2** 置顶会话在组内恒排最前，置顶/取消即时生效。
-- [ ] **AC-A3** 归档会话从主列表消失，设置页归档管理可见并可恢复；恢复后回到主列表。
-- [ ] **AC-A4** fork 产生的新会话 replay 出完整历史（含子 agent 与媒体），原会话不受影响；busy 会话 fork 返回 409。
-- [ ] **AC-B1** `tool.call.started`/`tool.result` 事件含 `startedAt`/`endedAt`（agent-core 单测覆盖；旧消费者不受影响）。
-- [ ] **AC-B2** 连续同类工具调用折叠为「类型 + 数量 + 总耗时」摘要行，展开可见逐条调用与单次耗时；replay 恢复的历史同样有耗时。
-- [ ] **AC-B3** 派生子 agent 时主时间轴出现其信息卡片（分工/状态/耗时/usage/摘要），点击卡片在 drawer 中展示该子 agent 完整调用轨迹（与主时间轴同构，含工具归组行）；SSE 断连重连后卡片经 resume 重建。
-- [ ] **AC-C1** 工具结果中的图片在对话流内直接显示（live 与 replay 一致）。
-- [ ] **AC-C2** 文件端点安全用例全过：白名单外路径 403、`..`/symlink 穿越被拒、超限 413、目录 400、视频 Range 206。
-- [ ] **AC-C3** 从工具卡片/文档路径打开侧栏 drawer 正确显示文本（高亮）/图片/视频。
-- [ ] **AC-C4** Mermaid 图 settle 后渲染为图表，语法错误时降级为代码块。
-- [ ] **AC-C5** LaTeX 行内与块级公式渲染正确，流式期间不抖动（settle 后渲染）。
-- [ ] **AC-C6** 超宽表格出现横向滚动条，不破坏对话列布局。
-- [ ] **AC-D1** 非回环启动时 banner 列出各 LAN IP 的完整 URL（含 token）；回环行为不变。
-- [ ] **AC-D2** TUI 内 `/web` 启动服务并可浏览器访问，TUI 退出后服务关闭，端口占用时自动换端口。
-- [ ] **AC-D3** 配置管理（蓝本对齐）：新增/编辑 provider 后 GET 恒不回显密钥（placeholder 表状态）；编辑留空不改 key；`env`/oauth 来源的 key 输入禁用；models 别名 CRUD 落盘 `config.toml`（保留未识别键与注释）且别名可被会话模型选择器引用；discover-models 能用**未保存的**草稿 base_url + key 列出远端模型并勾选采纳；删除有二次确认且区分是否连带删 key；CLI 侧正常可用。
-- [ ] **AC-R** PRD-0033 全部验收回归通过（主题三态/智能滚动/审批问答/发布链路内嵌）。
-- [ ] **AC-CI** lint / fmt / sherif / typecheck / test / build 全绿。
+- [x] **AC-A1** 重命名（含 Emoji）持久化：改名后刷新页面/resume/CLI `sessions` 列表标题一致，且不再被自动标题覆盖。
+- [x] **AC-A2** 置顶会话在组内恒排最前，置顶/取消即时生效。
+- [x] **AC-A3** 归档会话从主列表消失，设置页归档管理可见并可恢复；恢复后回到主列表。
+- [x] **AC-A4** fork 产生的新会话 replay 出完整历史（含子 agent 与媒体），原会话不受影响；busy 会话 fork 返回 409。
+- [x] **AC-B1** `tool.call.started`/`tool.result` 事件含 `startedAt`/`endedAt`（agent-core 单测覆盖；旧消费者不受影响）。
+- [x] **AC-B2** 连续同类工具调用折叠为「类型 + 数量 + 总耗时」摘要行，展开可见逐条调用与单次耗时；replay 恢复的历史同样有耗时。
+- [x] **AC-B3** 派生子 agent 时主时间轴出现其信息卡片（分工/状态/耗时/usage/摘要），点击卡片在 drawer 中展示该子 agent 完整调用轨迹（与主时间轴同构，含工具归组行）；SSE 断连重连后卡片经 resume 重建。
+- [x] **AC-C1** 工具结果中的图片在对话流内直接显示（live 与 replay 一致）。
+- [x] **AC-C2** 文件端点安全用例全过：白名单外路径 403、`..`/symlink 穿越被拒、超限 413、目录 400、视频 Range 206。
+- [x] **AC-C3** 从工具卡片/文档路径打开侧栏 drawer 正确显示文本（高亮）/图片/视频。
+- [x] **AC-C4** Mermaid 图 settle 后渲染为图表，语法错误时降级为代码块。
+- [x] **AC-C5** LaTeX 行内与块级公式渲染正确，流式期间不抖动（settle 后渲染）。
+- [x] **AC-C6** 超宽表格出现横向滚动条，不破坏对话列布局。
+- [x] **AC-D1** 非回环启动时 banner 列出各 LAN IP 的完整 URL（含 token）；回环行为不变。
+- [x] **AC-D2** TUI 内 `/web` 启动服务并可浏览器访问，TUI 退出后服务关闭，端口占用时自动换端口。
+- [x] **AC-D3** 配置管理（蓝本对齐）：新增/编辑 provider 后 GET 恒不回显密钥（placeholder 表状态）；编辑留空不改 key；`env`/oauth 来源的 key 输入禁用；models 别名 CRUD 落盘 `config.toml`（保留未识别键与注释）且别名可被会话模型选择器引用；discover-models 能用**未保存的**草稿 base_url + key 列出远端模型并勾选采纳；删除有二次确认且区分是否连带删 key；CLI 侧正常可用。
+- [x] **AC-R** PRD-0033 全部验收回归通过（主题三态/智能滚动/审批问答/发布链路内嵌）。
+- [x] **AC-CI** lint / fmt / sherif / typecheck / test / build 全绿。
 
 ## Definition of Done
 
@@ -237,6 +237,7 @@
 ## Traceability
 
 - **Implemented by**: /implement + /tdd(2026-08-14,分支 prd-0034-web-workbench-upgrade)
+- **Reviewed by**: /review(2026-08-17) — 合入 dev 后复查，修复回环 LAN banner、RPC session.not_found 404、fork busy 子 Agent 生命周期；经 PR #309 合入 dev
 
 - **Created by**: `/think`（2026-08-14；三轮并行代码探查 → 5 项用户决议：新建 PRD-0034 / 四波全进 / 文件端点白名单 / provider 密钥只写不读 / 耗时进 core）
 - **Prototyped by**: `/have-a-try`（2026-08-14）— 子 Agent 呈现形态三变体（`spike/subagent-board.html`，A 卡片流+drawer / B 时间轴内联展开 / C 常驻 details 栏）；裁决 = **时间轴卡片 + 点击弹 drawer**（用户定夺），原型已处置
