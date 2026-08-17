@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, ChevronDown, Folder, FolderSearch, ListChecks, Sparkles } from 'lucide-react';
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '#/api';
@@ -124,22 +124,24 @@ function ChatSessionPage({
   const [backgroundTasks, setBackgroundTasks] = useState<readonly BackgroundTaskInfo[]>([]);
   const [backgroundPanelOpen, setBackgroundPanelOpen] = useState(false);
 
-  // 右侧 details 默认内容 = 实时 state 投影(用户诉求:右栏常驻 State)。
-  // 深链(agentId 路由)进入时默认显示该 agent 轨迹(R-D4);任何详情
-  // (工具行/wire 行/子代理轨迹/后台任务)推入时覆盖;组件重挂(切会话)时恢复默认。
+  // 右栏默认内容跟随当前 tab(用户诉求:切页签右栏实时刷新):
+  // Chat → 常驻实时 State;Trace/Context/Agents → 空态(由行/节点点击推详情);
+  // agent 深链(R-D4) → 该 agent 轨迹。任何详情(工具行/wire 行/子代理轨迹/
+  // 后台任务)推入时覆盖;切 tab 或组件重挂时恢复本 tab 默认。
+  const defaultDetails = useCallback((): ReactNode => {
+    if (sessionId.length === 0) return null;
+    if (agentId !== undefined) return <AgentTrail sessionId={sessionId} agentId={agentId} />;
+    if (tab === 'chat') return <StateLive sessionId={sessionId} />;
+    return null;
+  }, [sessionId, agentId, tab]);
+
   useEffect(() => {
-    if (sessionId.length === 0) return;
-    setDetails(
-      agentId !== undefined ? (
-        <AgentTrail sessionId={sessionId} agentId={agentId} />
-      ) : (
-        <StateLive sessionId={sessionId} />
-      ),
-    );
+    setBackgroundPanelOpen(false);
+    setDetails(defaultDetails());
     return () => {
       setDetails(null);
     };
-  }, [sessionId, agentId, setDetails]);
+  }, [defaultDetails, setDetails]);
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
@@ -163,16 +165,12 @@ function ChatSessionPage({
     }
   });
 
-  // 后台任务面板开关(deepseek 式):推入 details 列展示;再次点击回到常驻 State。
+  // 后台任务面板开关(deepseek 式):推入 details 列展示;再次点击回本 tab 默认。
   const toggleBackgroundPanel = (): void => {
     setBackgroundPanelOpen((v) => {
       const next = !v;
       setDetails(
-        next ? (
-          <BackgroundPanel sessionId={sessionId} tasks={backgroundTasks} />
-        ) : (
-          <StateLive sessionId={sessionId} />
-        ),
+        next ? <BackgroundPanel sessionId={sessionId} tasks={backgroundTasks} /> : defaultDetails(),
       );
       return next;
     });
