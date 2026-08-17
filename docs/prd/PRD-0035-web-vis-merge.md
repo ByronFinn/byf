@@ -361,7 +361,12 @@ PUT  /api/config/raw
   - `readConfigText/validateConfigText/writeConfigText` + revision（config/document.ts，含无损密钥掩码）— **Done**
   - `WorkspaceRegistry` 上移（src/home/workspace-registry.ts，弃旧格式）— **Done**
   - core/node-sdk 单测（28 新用例全绿；core 2699 通过，11 个既有环境性失败与本次无关；SDK 176 全绿）。
-- **PR2 server 合并**：
+- **PR2 server 合并**（— Done，2026-08-17，commit 61e2f92）：
+  - web-server：/api/sessions 无 workDir 全量、DELETE /sessions/:id（409 busy）、wire/context/agents/state、reveal（reveal.ts 迁移）、config raw/validate（掩码+restore+409/422）；
+  - web-shared 吸收 inspector DTO；HarnessLike/WebSessionManager 透传 13 个新能力；
+  - CLI vis.ts 改调 handleWeb（VIS_AUTH_TOKEN 兼容转发）；vis-server 包改为 re-export shim（deprecated）；
+  - build.mjs 移除 __BYF_VIS_EMBEDDED_ASSETS__ 单资产；
+  - 测试：web-server 57 全绿（含 12 个新用例）、CLI 全量 exit 0、vis 测试 9 绿。
   - web-server 增加全量 sessions、delete/reveal、inspector、config raw 路由；
   - web-shared 合并 vis DTO；
   - `apps/cli/src/cli/sub/vis.ts` shim；
