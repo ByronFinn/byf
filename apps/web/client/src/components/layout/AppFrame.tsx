@@ -187,6 +187,9 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
       className="relative grid h-full overflow-hidden"
       style={{
         gridTemplateColumns: `${s}px minmax(0, 1fr) ${detailsClosed ? 0 : d}px`,
+        // 行高钉死为视口高度:缺省 auto 会让列被内容撑开(会话多时侧栏
+        // 高度 > 视口),底部设置被 overflow-hidden 裁剪、nav 滚动失效。
+        gridTemplateRows: 'minmax(0, 1fr)',
         transition: dragging ? 'none' : 'grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
