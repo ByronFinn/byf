@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
               type="button"
               variant="outline"
               size="icon-sm"
-              className="absolute top-3 left-3 z-30 md:hidden"
+              className="absolute top-3 left-3 z-30 lg:hidden"
               onClick={openNav}
               aria-label="打开侧边栏"
               aria-expanded={navOpen}

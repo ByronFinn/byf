@@ -3,7 +3,7 @@ import { BookOpen, ChevronDown, Folder, FolderSearch, ListChecks, Sparkles } fro
 import { useEffect, useReducer, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { api, inspectorApi } from '#/api';
+import { api } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
 import { ComposerCard, type TriggerCommand } from '#/components/chat/ComposerCard';
@@ -16,9 +16,10 @@ import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/Thinking
 import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
 import { ContextTab } from '#/components/inspector/context/ContextTab';
-import { StateTab } from '#/components/inspector/state/StateTab';
+import { StateLive } from '#/components/inspector/state/StateLive';
 import { SubagentsTab } from '#/components/inspector/subagents/SubagentsTab';
 import { WireTab } from '#/components/inspector/wire/WireTab';
+import { useDetailsSetter } from '#/components/layout/details-context';
 import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
 import {
@@ -62,13 +63,13 @@ function dirTitle(workDir: string): string {
   return parts.at(-1) ?? workDir;
 }
 
-export function ChatPage(): React.JSX.Element {
+export function ChatPage(props: { agentId?: string } = {}): React.JSX.Element {
   const params = useParams();
   const sessionId = params['sessionId'];
   if (sessionId === undefined || sessionId.length === 0) {
     return <NewSessionHero />;
   }
-  return <ChatSessionPage sessionId={sessionId} />;
+  return <ChatSessionPage sessionId={sessionId} agentId={props.agentId} />;
 }
 
 /**
@@ -78,7 +79,13 @@ export function ChatPage(): React.JSX.Element {
  *   EventSource 遇 404 不会自动重连,先订阅会永久丢失事件流;
  * - 首条消息经导航 state `initialPrompt` 传入(hero 创建会话后携带)。
  */
-function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Element {
+function ChatSessionPage({
+  sessionId,
+  agentId,
+}: {
+  sessionId: string;
+  agentId?: string;
+}): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(chatReducer, undefined, initialChatState);
@@ -91,8 +98,11 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
   // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | State）
-  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'state'>('chat');
+  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | State）;
+  // agent 深链(R-D4)进入时自动聚焦 Agents tab。
+  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'state'>(
+    agentId !== undefined ? 'agents' : 'chat',
+  );
   useEffect(() => {
     const open = (e: Event): void => {
       setOpenFilePath((e as CustomEvent<string>).detail);
@@ -103,9 +113,31 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     };
   }, []);
   const { choice, set } = useTheme();
+  const queryClient = useQueryClient();
+  const setDetails = useDetailsSetter();
+
+  // 右侧 details 默认内容 = 实时 state 投影(用户诉求:右栏常驻 State)。
+  // 任何详情(工具行/wire 行)推入时覆盖;组件重挂(切会话)时恢复默认。
+  useEffect(() => {
+    if (sessionId.length === 0) return;
+    setDetails(<StateLive sessionId={sessionId} />);
+    return () => {
+      setDetails(null);
+    };
+  }, [sessionId, setDetails]);
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
+    // 事件驱动刷新右栏 State(PRD-0035):turn 结束/step 完成即失效查询,
+    // 与轮询互补——活跃对话结束时 state 立即更新,无需等下一个轮询 tick。
+    if (frame.type === 'agent.event') {
+      const e = frame.event;
+      if (e.type === 'turn.ended' || e.type === 'turn.step.completed') {
+        void queryClient.invalidateQueries({
+          queryKey: ['session', sessionId, 'inspection'],
+        });
+      }
+    }
   });
 
   useEffect(() => {
@@ -132,7 +164,9 @@ function ChatSessionPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         }
         const { status } = await api.getSession(sessionId);
         if (!cancelled) dispatch({ type: 'status-loaded', status });
-        if (initialPrompt !== null) {
+        // cancelled 守卫覆盖 StrictMode 双挂载:cleanup 先于任何 await 完成,
+        // 第一条链会跳过发送,只有存活的链发一次(此前双链各发一次 → turn.agent_busy)。
+        if (!cancelled && initialPrompt !== null) {
           void api.prompt(sessionId, initialPrompt);
         }
       } catch (error) {
@@ -726,14 +760,9 @@ function InspectorTabBar(props: {
   );
 }
 
-/** State tab 数据源：经 inspector API 读磁盘 state.json（PRD-0035 R-B1）。 */
+/** State tab 数据源：经 inspector API 读磁盘 state.json（PRD-0035 R-B1）。
+ *  与右栏 StateLive 共用同一 queryKey(react-query 去重)——Center 与 details
+ *  同一份 state 投影,不维护两套状态(R-D6)。 */
 function StateTabFetcher({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const { data: detail, isLoading } = useQuery({
-    queryKey: ['session', sessionId, 'inspection'] as const,
-    queryFn: () => inspectorApi.getSessionDetail(sessionId),
-  });
-  if (isLoading) {
-    return <div className="p-4 font-mono text-xs text-fg-subtle">loading state…</div>;
-  }
-  return <StateTab state={detail?.state ?? null} />;
+  return <StateLive sessionId={sessionId} />;
 }

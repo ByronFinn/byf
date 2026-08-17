@@ -18,11 +18,16 @@ interface WireRowDetailProps {
   entry: WireEntry;
   /** Scroll to + expand a given line. */
   onJumpTo?: (lineNo: number) => void;
+  /**
+   * inline = 行内展开(保留 120px gutter 对齐缩进);details = 推入右侧详情列
+   * (PRD-0035 R-D2),用正常边距,避免内容被挤到右侧。
+   */
+  variant?: 'inline' | 'details';
 }
 
 type JsonView = 'none' | 'raw' | 'projected';
 
-export function WireRowDetail({ entry }: WireRowDetailProps) {
+export function WireRowDetail({ entry, variant = 'inline' }: WireRowDetailProps) {
   const [view, setView] = useState<JsonView>('none');
   // Only offer the dual view when migration actually changed something.
   // For records on the current protocol, `raw` and `data` are identical
@@ -30,7 +35,13 @@ export function WireRowDetail({ entry }: WireRowDetailProps) {
   const migrated = !sameJson(entry.raw, entry.data);
 
   return (
-    <div className="pl-[120px] pr-2 py-1 font-mono text-[12px]">
+    <div
+      className={
+        variant === 'details'
+          ? 'px-3 py-2 font-mono text-[12px]'
+          : 'pl-[120px] pr-2 py-1 font-mono text-[12px]'
+      }
+    >
       {renderFriendly(entry.data)}
       <div className="mt-2 flex items-center justify-end gap-3">
         <CopyButton value={JSON.stringify(entry.raw, null, 2)} label="copy raw" />

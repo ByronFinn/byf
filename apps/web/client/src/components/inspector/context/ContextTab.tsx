@@ -63,6 +63,18 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
             <span className="text-fg-0">{config.modelAlias}</span>
           </span>
         ) : null}
+        {config.thinkingLevel ? (
+          <span className="font-mono text-[11px] text-fg-2">
+            <span className="text-fg-3">thinking</span>{' '}
+            <span className="text-fg-0">{config.thinkingLevel}</span>
+          </span>
+        ) : null}
+        {config.profileName ? (
+          <span className="font-mono text-[11px] text-fg-2">
+            <span className="text-fg-3">profile</span>{' '}
+            <span className="text-fg-0">{config.profileName}</span>
+          </span>
+        ) : null}
         <div className="ml-auto flex items-center gap-2">
           {permissionMode ? (
             <Pill tone="approval" variant="outline">
@@ -72,8 +84,8 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
         </div>
       </div>
 
-      {/* 4-segment token bar pulled from byScope.session */}
-      <TokenBar usage={session} />
+      {/* 4-segment token bar + 数值图例(上下文仪表盘;与 Trace 的事件时间线区分) */}
+      <TokenBar usage={session} showLegend />
 
       {/* Message stream */}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -126,45 +138,63 @@ const SEG_COLORS = {
   inputCacheCreation: 'var(--color-sev-warning)',
 } as const;
 
-function TokenBar({ usage }: { usage: TokenUsage }) {
+function TokenBar({ usage, showLegend = false }: { usage: TokenUsage; showLegend?: boolean }) {
   const total = usage.inputOther + usage.output + usage.inputCacheRead + usage.inputCacheCreation;
   if (total === 0) {
     return <div className="h-[2px] shrink-0 bg-border" />;
   }
   const seg = (n: number) => (n / total) * 100;
+  const segs: Array<{ key: keyof TokenUsage; label: string }> = [
+    { key: 'inputCacheRead', label: 'cache_read' },
+    { key: 'inputOther', label: 'input' },
+    { key: 'output', label: 'output' },
+    { key: 'inputCacheCreation', label: 'cache_create' },
+  ];
+  const fmt = (n: number) => n.toLocaleString();
   return (
-    <div
-      className="flex h-[3px] w-full shrink-0"
-      title={
-        `cache_read ${usage.inputCacheRead.toLocaleString()} · ` +
-        `input ${usage.inputOther.toLocaleString()} · ` +
-        `output ${usage.output.toLocaleString()} · ` +
-        `cache_create ${usage.inputCacheCreation.toLocaleString()}`
-      }
-    >
-      {usage.inputCacheRead > 0 ? (
-        <div
-          style={{
-            width: `${seg(usage.inputCacheRead)}%`,
-            backgroundColor: SEG_COLORS.inputCacheRead,
-          }}
-        />
-      ) : null}
-      {usage.inputOther > 0 ? (
-        <div
-          style={{ width: `${seg(usage.inputOther)}%`, backgroundColor: SEG_COLORS.inputOther }}
-        />
-      ) : null}
-      {usage.output > 0 ? (
-        <div style={{ width: `${seg(usage.output)}%`, backgroundColor: SEG_COLORS.output }} />
-      ) : null}
-      {usage.inputCacheCreation > 0 ? (
-        <div
-          style={{
-            width: `${seg(usage.inputCacheCreation)}%`,
-            backgroundColor: SEG_COLORS.inputCacheCreation,
-          }}
-        />
+    <div className="shrink-0">
+      <div
+        className="flex h-[3px] w-full"
+        title={
+          `cache_read ${fmt(usage.inputCacheRead)} · ` +
+          `input ${fmt(usage.inputOther)} · ` +
+          `output ${fmt(usage.output)} · ` +
+          `cache_create ${fmt(usage.inputCacheCreation)}`
+        }
+      >
+        {segs
+          .filter((s) => usage[s.key] > 0)
+          .map((s) => (
+            <div
+              key={s.key}
+              style={{
+                width: `${seg(usage[s.key])}%`,
+                backgroundColor: SEG_COLORS[s.key],
+              }}
+            />
+          ))}
+      </div>
+      {showLegend ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 border-b border-border bg-surface-1 px-3 py-1.5">
+          {segs.map((s) => (
+            <span
+              key={s.key}
+              className="flex items-center gap-1.5 font-mono text-[10.5px] text-fg-2"
+            >
+              <span
+                aria-hidden
+                className="inline-block h-2 w-2 rounded-[2px]"
+                style={{ backgroundColor: SEG_COLORS[s.key] }}
+              />
+              <span className="text-fg-3">{s.label}</span>
+              <span className="tabular text-fg-0">{fmt(usage[s.key])}</span>
+            </span>
+          ))}
+          <span className="ml-auto font-mono text-[10.5px] text-fg-2">
+            <span className="text-fg-3">total</span>{' '}
+            <span className="tabular text-fg-0">{fmt(total)}</span>
+          </span>
+        </div>
       ) : null}
     </div>
   );

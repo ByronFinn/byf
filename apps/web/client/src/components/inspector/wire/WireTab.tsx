@@ -135,7 +135,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
       });
       // R-D2 / AC-A12：行点击同时把详情推入右侧 details 列。
       if (entry !== undefined) {
-        setDetails(<WireRowDetail entry={entry} />);
+        setDetails(<WireRowDetail entry={entry} variant="details" />);
       }
     },
     [setDetails],

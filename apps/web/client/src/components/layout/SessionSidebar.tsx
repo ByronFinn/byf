@@ -357,7 +357,7 @@ export function SessionSidebar(props: {
   if (collapsed && variant === 'static') {
     return (
       <aside
-        className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-2 @4xl:flex"
+        className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-2"
         aria-label="Sidebar rail"
       >
         <SidebarIconButton label="展开侧边栏" onClick={onToggleCollapsed} active>
@@ -398,12 +398,7 @@ export function SessionSidebar(props: {
   }
 
   return (
-    <aside
-      className={cn(
-        'flex min-h-0 flex-col border-r border-border bg-sidebar',
-        variant === 'static' && 'hidden @4xl:flex',
-      )}
-    >
+    <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar">
       {/* 品牌行:wordmark 点击 = 新建会话;收起按钮(仅 static) */}
       <div className="flex items-center gap-1 px-2 pt-2 pb-1">
         <Button
