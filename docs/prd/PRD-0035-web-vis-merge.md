@@ -155,9 +155,9 @@
   - 工具详情、子 agent 轨迹、文件预览、wire/state JSON 共用同一容器；
   - narrow 自动降级为 drawer。
 - **R-D3 会话删除/reveal 走统一 API**：删除前二次确认，busy 显示 409 原因；删除后 index、workspace 视图、当前路由一致刷新。
-- **R-D4 原 vis 路由兼容**：`/sessions/:id/agents/:agentId` 保留；缺省打开 Inspector tab 的深链参数继续可用。
+- **R-D4 原 vis 路由兼容**：`/sessions/:id/agents/:agentId` 保留（2026-08-17 兑现：App.tsx 新增该路由 + 未知路径兜底，进入自动聚焦 Agents tab 并高亮节点）；缺省打开 Inspector tab 的深链参数继续可用。
 - **R-D5 全量会话列表**：sidebar 的数据来自统一 `/api/sessions`（全量投影），组内视图、健康标记、wire 计数与 TUI 会话列表同源。
-- **R-D6 客户端单一投影**：活跃会话的 Chat 与 Trace 不得维护两套互不相通的 reducer；Chat 使用 SSE/replay 投影，Trace 使用同一会话的持久化 wire 读取接口，两侧共享 `sessionId/agentId/工具归组/子 agent` 语义，不允许 vis 旧逻辑复制出新状态源。
+- **R-D6 客户端单一投影**：活跃会话的 Chat 与 Trace 不得维护两套互不相通的 reducer；Chat 使用 SSE/replay 投影，Trace 使用同一会话的持久化 wire 读取接口，两侧共享 `sessionId/agentId/工具归组/子 agent` 语义，不允许 vis 旧逻辑复制出新状态源。 （2026-08-17 修复：live resume 返回最新 replay、ReplayBuilder live 期也累积、Center 与 details 的 state 共用同一 queryKey）
 - **R-D7 deepseek 功能对齐**（/grill h3 决议）：
   - **Trajectory 视图**：Chat 之外提供 Trace 表格视图（turn 分组表头、timeline、搜索/过滤工具栏、pair 跳转），与 vis 的 WireTab 语义合并（原 vis 定位基础上按 deepseek Trajectory 骨架组织）。
   - **右侧 Details 栏**：deepseek 形态（空态同款文案、工具详情/子 agent 轨迹/文件预览/上下文 meter/todo 面板共用容器），R-D2 按此实现。
@@ -200,7 +200,8 @@
 - [x] **AC-A9** 三栏布局几何符合 deepseek 契约；sidebar 可拖拽/折叠，details 可拖拽/关闭，<1024px 自动折叠。 （columns 几何单测 + AppFrame 实现；拖拽交互 jsdom 测试未加——纯函数契约已钉）
 - [x] **AC-A10** 全站颜色/字体/圆角来自 deepseek 精致风 token（自研实现）；浅色主题达到 WCAG AA；旧 web emerald 与 OKLCH 硬编码 token 全部清零（不保留桥接映射），仅 shadcn 结构桥接变量存在；Inspector 视图可额外使用 `cat-*` 语义色。
 - [x] **AC-A11** Chat/Trace/Context/Agents/State 五 tab 可用；原 vis 核心检查能力（wire 搜索、pair 跳转、issues、agent tree、context projection、state）全部保留。
-- [x] **AC-A12** 点击工具行/子 agent/文件路径/wire 行能在 right details 或 narrow drawer 中打开对应详情；默认显示 deepseek 同款空态。 （DetailsProvider + WireRow 行点击 → details 列；文件/子agent 详情沿用既有 drawer）
+- [x] **AC-A12** 点击工具行/子 agent/文件路径/wire 行能在 right details 或 narrow drawer 中打开对应详情；默认内容为**实时 state 投影**（StateLive，SSE 事件驱动刷新；替代 deepseek 同款空态——用户 2026-08-17 决策右栏常驻 State）。 （DetailsProvider + WireRow 行点击 → details 列；文件/子agent 详情沿用既有 drawer）
+- [x] **AC-A12a**（用户追加，2026-08-17）右栏默认常驻 State，turn/step 结束经 SSE invalidate 即时刷新；Chat 与 details 的 state 共用同一 queryKey（R-D6 单一投影）。 （StateLive + ChatPage SSE 接线 + 浏览器实测）
 - [x] **AC-A13** PRD-0032/0033/0034 全部验收回归通过（SSE、审批/问答、Fork、归档、文件端点、Mermaid/LaTeX、LAN auth、TUI `/web`）。 （web-server 70 / client 52 / cli exit 0 回归）
 - [x] **AC-A14** `byf vis` 弃用期行为可预期：默认端口 3001 不变、`VIS_AUTH_TOKEN` 兼容；输出 banner 标明已由统一工作台提供服务。
 - [x] **AC-A15** native compile 只内嵌一个 SPA 资产；`bun run build`/`typecheck`/`lint`/`test` 全绿。
@@ -425,4 +426,6 @@ PUT  /api/config/raw
 - **Created by**: `/think`（2026-08-17，基于 deepseek-harness 与 byf `apps/web`/`apps/vis` 源码探查）。
 - **Prototyped by**: `/have-a-try`（2026-08-17）— 视觉变体对比原型（`apps/web/client/proto.html`，A=vis 工业风 / B=deepseek 精致风），**裁决：选 B（deepseek 精致风）**。
 - **Grilled by**: `/grill`（2026-08-17）— 全部 Open Questions Q1-Q7 决议；1:1 复刻范围（h1 视觉=deepseek 精致风经 have-a-try 裁决 B、h2 自研实现、h3 功能对齐清单）；新增决议：busy 判定含后台任务、workspaces.json 弃旧格式、密钥无损掩码（ADR-0038）、缺失文件 200+null、表单带 revision、Out of Scope 逐项确认；术语：统一设计 token（新增）、三层设计 token（历史化）、vis/vis-server（弃用标注）；ADR-0037/0038 创建，ADR-0035/0036 加部分取代注记。
+- **Debugged by**: `/debug`（2026-08-17）— 两个发布前回归：① 静态侧栏遗留旧 `@container` 布局的 `hidden @4xl:flex` 类，AppFrame 重写后无容器祖先 → 永久 `display:none`（移除遗留类）；② hero 首条消息 `initialPrompt` 发送无 `cancelled` 守卫，StrictMode 双挂载双发 `turn.prompt` → `turn.agent_busy` 红字（补守卫）。
+- **Implemented by**: `/implement`（2026-08-17）— 用户实测五问修复：① live 会话 resume 返回最新 replay（三层：web-manager 缓存咨询 harness → SDK active 分支 refreshSummary → core ReplayBuilder live 期也累积；原 restoring 守卫导致常驻进程内 replay 恒空——Chat 空根因）；② 右栏常驻实时 State（StateLive 轮询 + SSE turn.ended/step.completed 事件驱动 invalidate；取代 deepseek 空态，AC-A12 已修订）；③ `/sessions/:id/agents/:agentId` 路由兑现 + catch-all 兜底（原为假验收，点击 main 空白页）；④ WireRowDetail 双形态（details 列去 120px 硬编码缩进）；⑤ Context 锐化（TokenBar 数值图例 + thinking/profile 摘要，与 Trace 事件时间线区分）。回归测试：web-server fake harness 2 用例、core resume-integration live 期 replay 用例；实测证据：live resume replay 5 条、刷新 Chat 恢复、深链/兜底正常。
 - **Baseline**: PRD-0032（web 传输骨架）、PRD-0033（web UI 重设计）、PRD-0034（web 工作台能力升级）均为 Done；ADR-0034/0035/0036 继续有效。
