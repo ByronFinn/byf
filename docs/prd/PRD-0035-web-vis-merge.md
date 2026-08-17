@@ -1,6 +1,6 @@
 # PRD-0035: byf Web × Vis 合并：单源工作台（Single-Source Workbench）
 
-> **Status**: Grilled | **PRD**: PRD-0035 | **Created**: 2026-08-17 | **Last updated**: 2026-08-17
+> **Status**: In Progress | **PRD**: PRD-0035 | **Created**: 2026-08-17 | **Last updated**: 2026-08-17
 
 ## Goal
 
@@ -356,11 +356,11 @@ PUT  /api/config/raw
 ## Implementation Plan (small PRs)
 
 - **PR1 core 单源**（先行、独立可测）：
-  - `packages/agent-core/src/session/inspector/`；
-  - SDK inspector API + `deleteSession`；
-  - `readConfigText/validateConfigText/writeConfigText` + revision；
-  - `WorkspaceRegistry` 上移；
-  - core/node-sdk 单测。
+  - `packages/agent-core/src/session/inspector/`（session-files / wire-reader / context-projector / agent-tree / types）— **Done（2026-08-17，commit 45188c0）**
+  - SDK inspector API + `deleteSession`（busy 判定）— **Done**
+  - `readConfigText/validateConfigText/writeConfigText` + revision（config/document.ts，含无损密钥掩码）— **Done**
+  - `WorkspaceRegistry` 上移（src/home/workspace-registry.ts，弃旧格式）— **Done**
+  - core/node-sdk 单测（28 新用例全绿；core 2699 通过，11 个既有环境性失败与本次无关；SDK 176 全绿）。
 - **PR2 server 合并**：
   - web-server 增加全量 sessions、delete/reveal、inspector、config raw 路由；
   - web-shared 合并 vis DTO；
