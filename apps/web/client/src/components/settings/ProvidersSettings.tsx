@@ -27,23 +27,19 @@ const PROVIDER_TYPES = [
 
 const CAPABILITIES = ['tool_use', 'image_in', 'video_in'] as const;
 
-/** 容量输入:支持 256K / 1M 后缀(R-D3)。 */
+/**
+ * 容量输入:支持 256K / 1M 后缀(R-D3)。K/M 为十进制(128K = 128000),与
+ * token 惯例及代码默认 128_000 一致;TUI 侧同字段为纯数字 token 数。
+ */
 export function parseContextSize(raw: string): number | null {
   const trimmed = raw.trim().toUpperCase();
   const match = /^(\d+(?:\.\d+)?)([KM]?)$/.exec(trimmed);
   if (match === null) return null;
   const value = Number.parseFloat(match[1]!);
   const unit = match[2];
-  const scaled = unit === 'M' ? value * 1024 * 1024 : unit === 'K' ? value * 1024 : value;
+  const scaled = unit === 'M' ? value * 1_000_000 : unit === 'K' ? value * 1_000 : value;
   const rounded = Math.round(scaled);
   return Number.isSafeInteger(rounded) && rounded > 0 ? rounded : null;
-}
-
-function formatContextSize(size: number | undefined): string {
-  if (size === undefined) return '';
-  if (size % (1024 * 1024) === 0) return `${size / (1024 * 1024)}M`;
-  if (size % 1024 === 0) return `${size / 1024}K`;
-  return String(size);
 }
 
 /**
@@ -372,7 +368,7 @@ function AddProviderCard(props: {
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState<DraftModelRow[]>([
-    { alias: '', modelId: '', context: '128K' },
+    { alias: '', modelId: '', context: '128000' },
   ]);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered] = useState<{ id: string; checked: boolean }[] | null>(null);
@@ -437,7 +433,7 @@ function AddProviderCard(props: {
       next.push({
         alias: candidate.id.split('/').pop() ?? candidate.id,
         modelId: candidate.id,
-        context: '128K',
+        context: '128000',
       });
     }
     if (next.length > 0) setModels(next);
@@ -531,7 +527,7 @@ function AddProviderCard(props: {
               variant="outline"
               size="sm"
               onClick={() => {
-                setModels((rows) => [...rows, { alias: '', modelId: '', context: '128K' }]);
+                setModels((rows) => [...rows, { alias: '', modelId: '', context: '128000' }]);
               }}
             >
               <Plus className="size-3.5" aria-hidden />
@@ -695,7 +691,10 @@ function ModelRow(props: {
 }): React.JSX.Element {
   const { model, expanded, onToggle, onChanged } = props;
   const [modelId, setModelId] = useState(model.model);
-  const [context, setContext] = useState(formatContextSize(model.maxContextSize));
+  // Context 回显完整 token 数(不做 K/M 缩写;后缀仅作为输入便利)。
+  const [context, setContext] = useState(
+    model.maxContextSize !== undefined ? String(model.maxContextSize) : '',
+  );
   const [capabilities, setCapabilities] = useState<Set<string>>(
     new Set(model.capabilities ?? ['tool_use']),
   );

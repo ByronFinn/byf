@@ -12,6 +12,7 @@ import {
   type TriggerCommand,
 } from '#/components/chat/ComposerCard';
 import { FileDrawer } from '#/components/chat/FileDrawer';
+import { ModelChip } from '#/components/chat/ModelChip';
 import { PermissionChip } from '#/components/chat/PermissionChip';
 import { QuestionCard } from '#/components/chat/QuestionCard';
 import { StatusBar } from '#/components/chat/StatusBar';
@@ -263,6 +264,15 @@ function ChatSessionPage({
       }),
     );
 
+  // 模型切换:模型持久化在会话配置(每个会话独立);setModel 不发
+  // agent.status.updated,settle 后回读 status 确认(同权限/思考)。
+  const onModelChange = (model: string): Promise<void> =>
+    api.setSessionModel(sessionId, model).then(() =>
+      api.getSession(sessionId).then(({ status }) => {
+        dispatch({ type: 'status-loaded', status });
+      }),
+    );
+
   // slash 命令集:web 能力的 TUI 命令投影 + 会话可用技能(skills 端点)。
   // 注意不含 init:TUI 的 /init 是 CLI 内置的 init turn 机(分析代码库生成
   // AGENTS.md),不是 skill;web 无该能力,不投影。用户自定义同名 skill 会
@@ -403,6 +413,7 @@ function ChatSessionPage({
         commands={commands}
         onPermissionChange={onPermissionChange}
         onThinkingChange={onThinkingChange}
+        onModelChange={onModelChange}
         onSend={onSend}
         onCancel={onCancel}
       />
@@ -435,6 +446,8 @@ function NewSessionHero(): React.JSX.Element {
   });
   const [permission, setPermission] = useState<PermissionMode | null>(null);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingEffort | 'off' | null>(null);
+  // 本次新建会话的模型覆盖(不动全局默认;与权限/思考的本地暂存同模式)。
+  const [model, setModel] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -470,6 +483,7 @@ function NewSessionHero(): React.JSX.Element {
     staleTime: 60_000,
   });
   const currentPermission = permission ?? config?.defaultPermissionMode ?? 'manual';
+  const currentModel = model ?? config?.defaultModel;
   const defaultThinkingLevel: ThinkingEffort | 'off' | undefined =
     config?.thinking?.mode === 'on'
       ? config.thinking.effort
@@ -520,7 +534,7 @@ function NewSessionHero(): React.JSX.Element {
       .createSession({
         workDir: dir,
         permission: currentPermission,
-        model: config?.defaultModel,
+        model: currentModel,
         thinking: currentThinkingLevel,
       })
       .then(({ session }) => {
@@ -634,7 +648,7 @@ function NewSessionHero(): React.JSX.Element {
             onSend={send}
             sendDisabled={dir === null || sending}
             error={error}
-            model={config?.defaultModel}
+            modelChip={<ModelChip model={currentModel} onChange={setModel} />}
             leading={
               <>
                 <PermissionChip mode={currentPermission} onChange={setPermission} />

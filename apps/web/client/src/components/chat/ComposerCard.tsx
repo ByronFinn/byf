@@ -67,8 +67,8 @@ export function ComposerCard(props: {
   onCancel?: () => void;
   /** 底栏左侧 chips 区(权限 chip 等)。 */
   leading?: React.ReactNode;
-  /** 底栏右侧模型 chip。 */
-  model?: string;
+  /** 底栏右侧模型 chip(会话内/hero 的模型切换下拉,由页面层提供)。 */
+  modelChip?: React.ReactNode;
   /** 附加禁用发送条件(如 hero 未选工作区)。 */
   sendDisabled?: boolean;
   error?: string | null;
@@ -90,7 +90,7 @@ export function ComposerCard(props: {
     busy = false,
     onCancel,
     leading,
-    model,
+    modelChip,
     sendDisabled = false,
     error,
     minHeightPx = COMPOSER_MIN_HEIGHT_PX,
@@ -436,14 +436,7 @@ export function ComposerCard(props: {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {model !== undefined && (
-            <span
-              className="flex h-7 max-w-40 items-center truncate rounded-full px-2 font-mono text-xs text-fg-muted"
-              title={`model: ${model}`}
-            >
-              {model}
-            </span>
-          )}
+          {modelChip}
           {busy ? (
             <Button
               type="button"
