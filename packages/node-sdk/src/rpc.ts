@@ -15,6 +15,7 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
   type RuntimeConfig,
+  type ResolvedModelCapabilities,
 } from '@byfriends/agent-core';
 import type {
   ConfigDocumentResult,
@@ -322,6 +323,11 @@ export class SDKRpcClient {
   async removeProvider(providerId: string): Promise<ByfConfig> {
     const rpc = await this.getRpc();
     return rpc.removeByfProvider({ providerId });
+  }
+
+  async resolveModelCapabilities(model: string): Promise<ResolvedModelCapabilities> {
+    const rpc = await this.getRpc();
+    return rpc.resolveModelCapabilities({ model });
   }
 
   async prompt(input: SessionPromptRpcInput): Promise<void> {

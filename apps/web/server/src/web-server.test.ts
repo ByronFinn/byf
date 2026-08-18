@@ -29,6 +29,7 @@ import type {
   PermissionMode,
   QuestionRequest,
   QuestionResult,
+  ResolvedCapabilities,
   ServerFrame,
   SessionStatus,
   SessionSummary,
@@ -267,6 +268,25 @@ class FakeHarness implements HarnessLike {
     delete providers[providerId];
     this.config = { ...this.config, providers };
     return this.config;
+  }
+
+  async resolveModelCapabilities(model: string): Promise<ResolvedCapabilities> {
+    const modelAlias = this.config.models?.[model];
+    if (modelAlias === undefined) {
+      throw new Error(`Unknown model alias: ${model}`);
+    }
+    // 测试镜像:能力 = 别名手写标签(无注册表)。布尔面与 WebSessionManager 同构。
+    const tags = new Set(modelAlias.capabilities ?? ['tool_use']);
+    return {
+      image_in: tags.has('image_in'),
+      video_in: tags.has('video_in'),
+      audio_in: tags.has('audio_in'),
+      tool_use: tags.has('tool_use'),
+      thinking: tags.has('thinking') || tags.has('always_thinking'),
+      thinking_effort: tags.has('thinking_effort'),
+      thinking_xhigh: tags.has('thinking_xhigh'),
+      thinking_max: tags.has('thinking_max'),
+    };
   }
 
   // ---- PRD-0035 Wave A fake 面（Inspector / ConfigDocument / Workspace）----

@@ -46,6 +46,7 @@ export type {
   ProviderConfig,
   ProviderType,
   ResumedAgentState,
+  ResolvedModelCapabilities,
   ServicesConfig,
   ShellExecPayload,
   ShellExecResult,

@@ -35,6 +35,7 @@ import type {
   ListSessionsOptions,
   RenameSessionInput,
   ResumeSessionInput,
+  ResolvedModelCapabilities,
   ShellExecResult,
   UpdateSessionMetadataInput,
   SessionSummary,
@@ -261,6 +262,11 @@ export class ByfHarness {
 
   async removeProvider(providerId: string): Promise<ByfConfig> {
     return this.rpc.removeProvider(providerId);
+  }
+
+  /** 按模型别名解析合并能力(别名标签 ∪ 注册表),供 Web 编辑器预填。 */
+  async resolveModelCapabilities(model: string): Promise<ResolvedModelCapabilities> {
+    return this.rpc.resolveModelCapabilities(model);
   }
 
   async shellExec(

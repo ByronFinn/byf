@@ -28,6 +28,7 @@ import type {
   AgentTreeResponse,
   CreateSessionBody,
   InspectorSessionSummary,
+  ResolvedCapabilities,
   ServerFrame,
   SessionStatus,
   SessionSummary,
@@ -75,6 +76,8 @@ export interface HarnessLike {
   setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
   removeProvider(providerId: string): Promise<ByfConfig>;
   removeModel(modelId: string): Promise<ByfConfig>;
+  /** 按模型别名解析合并能力(别名标签 ∪ 注册表);无法解析时抛错,调用方兜底。 */
+  resolveModelCapabilities(model: string): Promise<ResolvedCapabilities>;
   // PRD-0035 Wave A：Inspector / ConfigDocument / WorkspaceRegistry（core 单源，
   // SDK 透出；web-server 不直引 agent-core）。
   listInspectableSessions(): Promise<readonly InspectorSessionSummary[]>;
@@ -288,6 +291,10 @@ export class WebSessionManager {
 
   removeProvider(providerId: string): Promise<ByfConfig> {
     return this.harness.removeProvider(providerId);
+  }
+
+  resolveModelCapabilities(model: string): Promise<ResolvedCapabilities> {
+    return this.harness.resolveModelCapabilities(model);
   }
 
   // ---- Inspector / ConfigDocument / WorkspaceRegistry（PRD-0035 Wave A）-----

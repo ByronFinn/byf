@@ -73,6 +73,44 @@ describe('HarnessAPI session model aliases', () => {
     );
   });
 
+  it('resolves merged capability per alias (tags ∪ registry) for editor prefill', async () => {
+    const rpc = await createTestRpc();
+    // 未声明标签且注册表不认识的模型:合并能力为空面(编辑表单无预填)。
+    await expect(rpc.resolveModelCapabilities({ model: 'byf/byf-for-coding' })).resolves.toEqual({
+      image_in: false,
+      video_in: false,
+      audio_in: false,
+      tool_use: false,
+      thinking: false,
+      thinking_effort: false,
+      thinking_xhigh: false,
+      thinking_max: false,
+    });
+
+    // 手写标签会合并进能力面(供 Web 编辑器预填);thinking_effort 与 thinking
+    // 是独立归组,不互相打开。
+    await rpc.setByfConfig({
+      models: {
+        'prefill-alias': {
+          provider: 'test-provider',
+          model: 'my-third-party-model',
+          maxContextSize: 200000,
+          capabilities: ['thinking_effort', 'image_in', 'thinking_xhigh'],
+        },
+      },
+    });
+    await expect(rpc.resolveModelCapabilities({ model: 'prefill-alias' })).resolves.toEqual({
+      image_in: true,
+      video_in: false,
+      audio_in: false,
+      tool_use: false,
+      thinking: false,
+      thinking_effort: true,
+      thinking_xhigh: true,
+      thinking_max: false,
+    });
+  });
+
   it('re-bootstraps profile and model when resuming a session whose wire has no config.update', async () => {
     // A migrated session ships a wire.jsonl with only `metadata` and message
     // records — none of the `config.update` / `tools.set_active_tools`

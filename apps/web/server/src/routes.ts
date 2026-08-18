@@ -19,6 +19,7 @@ import type {
   FsListResponse,
   PromptBody,
   QuestionAnswerBody,
+  ResolvedCapabilities,
   ServerFrame,
   SetPermissionBody,
   SteerBody,
@@ -475,7 +476,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
 
   r.get('/config', async (c) => {
     const cfg = await manager.getConfig();
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   // ---- 配置文件 raw（PRD-0035 Wave E / ADR-0038）----------------------------
@@ -489,7 +490,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         path: doc.path,
         text: maskConfigSecrets(doc.text),
         revision: doc.revision,
-        parsed: toConfigResponse(cfg, manager.configPath),
+        parsed: await toConfigResponse(cfg, manager.configPath, manager),
       });
     } catch (error) {
       // 磁盘 config.toml 损坏：不返回 500 也不回显解析细节（zod 片段可能
@@ -534,7 +535,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       const restored = restoreMaskedSecrets(body.text, disk.text);
       const { revision } = await manager.writeConfigText(restored, body.expectedRevision ?? null);
       const cfg = await manager.getConfig();
-      return c.json({ config: toConfigResponse(cfg, manager.configPath), revision });
+      return c.json({ config: await toConfigResponse(cfg, manager.configPath, manager), revision });
     } catch (error) {
       if (isByfError(error) && error.code === 'config.revision_conflict') {
         return c.json({ error: error.message, code: 'CONFIG_REVISION_CONFLICT' }, 409);
@@ -575,14 +576,14 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     }
     if (Object.keys(patch).length === 0) return badRequest(c, 'no updatable fields provided');
     const cfg = await manager.setConfig(patch);
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   r.delete('/config/providers/:id', async (c) => {
     const id = c.req.param('id');
     if (id.length === 0) return badRequest(c, 'provider id is required');
     const cfg = await manager.removeProvider(id);
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   // ---- provider / models 增改(PRD-0034 R-D3;apiKey 只写不读) ----------------
@@ -629,7 +630,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       },
       models,
     });
-    return c.json(toConfigResponse(cfg, manager.configPath), 201);
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager), 201);
   });
 
   r.patch('/config/providers/:id', async (c) => {
@@ -650,7 +651,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     if (body.extraBody !== undefined) provider['extraBody'] = body.extraBody;
     if (Object.keys(provider).length === 0) return badRequest(c, 'no updatable fields provided');
     const cfg = await manager.setConfig({ providers: { [id]: provider } });
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   r.post('/config/models', async (c) => {
@@ -662,7 +663,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const cfg = await manager.setConfig({
       models: { [body.id]: modelAliasFromUpsert(body.provider, body) },
     });
-    return c.json(toConfigResponse(cfg, manager.configPath), 201);
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager), 201);
   });
 
   r.patch('/config/models/:id', async (c) => {
@@ -683,13 +684,13 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         }),
       },
     });
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   r.delete('/config/models/:id', async (c) => {
     const id = c.req.param('id');
     const cfg = await manager.removeModel(id);
-    return c.json(toConfigResponse(cfg, manager.configPath));
+    return c.json(await toConfigResponse(cfg, manager.configPath, manager));
   });
 
   // fetch available models(R-D3 端点发现):用表单草稿探测远端 /v1/models,
@@ -880,21 +881,39 @@ function modelAliasFromUpsert(
 }
 
 /** 把 ByfConfig 映射为脱敏线路视图(apiKey 不回线路,仅标记是否已配置)。 */
-function toConfigResponse(cfg: ByfConfig, configPath: string): ConfigResponse {
+async function toConfigResponse(
+  cfg: ByfConfig,
+  configPath: string,
+  manager: WebSessionManager,
+): Promise<ConfigResponse> {
+  const models = await Promise.all(
+    Object.entries(cfg.models ?? {}).map(async ([id, m]) => {
+      // 别名无法解析(如 provider 缺失/别名悬空)时保留原有编辑视图,仅不提供
+      // 合并能力预填——配置编辑不应被能力解析失败阻塞。
+      let resolvedCapabilities: ResolvedCapabilities | undefined;
+      try {
+        resolvedCapabilities = await manager.resolveModelCapabilities(id);
+      } catch {
+        resolvedCapabilities = undefined;
+      }
+      return {
+        id,
+        provider: m.provider,
+        model: m.model,
+        displayName: m.displayName,
+        maxContextSize: m.maxContextSize,
+        capabilities: m.capabilities !== undefined ? [...m.capabilities] : undefined,
+        resolvedCapabilities,
+      };
+    }),
+  );
   return {
     configPath,
     defaultModel: cfg.defaultModel,
     defaultPermissionMode: cfg.defaultPermissionMode,
     defaultThinking: cfg.defaultThinking,
     thinking: cfg.thinking === undefined ? undefined : { ...cfg.thinking },
-    models: Object.entries(cfg.models ?? {}).map(([id, m]) => ({
-      id,
-      provider: m.provider,
-      model: m.model,
-      displayName: m.displayName,
-      maxContextSize: m.maxContextSize,
-      capabilities: m.capabilities !== undefined ? [...m.capabilities] : undefined,
-    })),
+    models,
     providers: Object.entries(cfg.providers ?? {}).map(([id, p]) => ({
       id,
       type: p.type,

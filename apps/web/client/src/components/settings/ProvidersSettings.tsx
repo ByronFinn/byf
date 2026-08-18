@@ -13,7 +13,7 @@ import {
 } from '#/components/ui/dropdown-menu';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { ConfigResponse, ProviderCreateBody } from '#/types';
+import type { ConfigModelView, ConfigResponse, ProviderCreateBody } from '#/types';
 
 const CONFIG_KEY = ['config'] as const;
 
@@ -25,7 +25,67 @@ const PROVIDER_TYPES = [
   'vertexai',
 ] as const;
 
-const CAPABILITIES = ['tool_use', 'image_in', 'video_in'] as const;
+/** 工具 / 媒体能力标签(与 config/schema.ts 的 capabilities 字段一致)。 */
+const MEDIA_CAPABILITIES: readonly { tag: string; label: string }[] = [
+  { tag: 'tool_use', label: '工具调用' },
+  { tag: 'image_in', label: '图片' },
+  { tag: 'video_in', label: '视频' },
+  { tag: 'audio_in', label: '音频' },
+];
+
+/**
+ * 推理能力:与 CLI model-selector 的 thinkingAvailability 语义对齐
+ * (always_thinking > thinking_effort > thinking > 不支持)。
+ */
+type ThinkingKind = 'unsupported' | 'toggle' | 'effort' | 'always-on';
+
+const THINKING_KINDS: readonly {
+  kind: ThinkingKind;
+  label: string;
+  tags: readonly string[];
+}[] = [
+  { kind: 'unsupported', label: '不支持', tags: [] },
+  { kind: 'toggle', label: '支持开关', tags: ['thinking'] },
+  { kind: 'effort', label: '支持强度调节', tags: ['thinking_effort'] },
+  { kind: 'always-on', label: '总是思考', tags: ['always_thinking'] },
+];
+
+const THINKING_TAGS = ['thinking', 'thinking_effort', 'always_thinking'] as const;
+
+function thinkingKindOf(capabilities: ReadonlySet<string>): ThinkingKind {
+  if (capabilities.has('always_thinking')) return 'always-on';
+  if (capabilities.has('thinking_effort')) return 'effort';
+  if (capabilities.has('thinking')) return 'toggle';
+  return 'unsupported';
+}
+
+/**
+ * 用合并能力(注册表 ∪ 别名标签)初始化编辑器勾选。注册表未覆盖(或别名无法
+ * 解析,resolvedCapabilities 为 undefined)时退回裸标签。总是思考只能由显式
+ * 标签表达(合并面不携带该区分);thinking_xhigh / thinking_max 是高档位勾选。
+ */
+function seedModelCapabilities(model: ConfigModelView): Set<string> {
+  const raw = model.capabilities ?? [];
+  const resolved = model.resolvedCapabilities;
+  if (resolved === undefined) {
+    return new Set(raw.length > 0 ? raw : ['tool_use']);
+  }
+  const seed = new Set<string>();
+  if (resolved.tool_use) seed.add('tool_use');
+  if (resolved.image_in) seed.add('image_in');
+  if (resolved.video_in) seed.add('video_in');
+  if (resolved.audio_in) seed.add('audio_in');
+  if (raw.includes('always_thinking')) {
+    seed.add('always_thinking');
+  } else if (resolved.thinking_effort) {
+    seed.add('thinking_effort');
+  } else if (resolved.thinking) {
+    seed.add('thinking');
+  }
+  if (resolved.thinking_xhigh) seed.add('thinking_xhigh');
+  if (resolved.thinking_max) seed.add('thinking_max');
+  return seed;
+}
 
 /**
  * 容量输入:支持 256K / 1M 后缀(R-D3)。K/M 为十进制(128K = 128000),与
@@ -44,6 +104,7 @@ export function parseContextSize(raw: string): number | null {
 
 /**
  * 模型与 Provider 管理(PRD-0034 R-D3,交互蓝本 = deepseek-harness settings):
+ * Provider 为父、模型别名嵌套其下(展开即见所属模型,可就地增删改);
  * 行卡 + 展开行内编辑(单卡互斥)、apiKey 只写不读(placeholder 表状态,env/oauth
  * 输入禁用)、折叠高级区、fetch available models(草稿探测 + 勾选采纳)、删除
  * 二次确认(区分连带删 key)。不抄清单:revision 乐观锁/热重载/onboarding/开关/
@@ -63,6 +124,7 @@ export function ProvidersSection(): React.JSX.Element {
 
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [addingProvider, setAddingProvider] = useState(false);
+  const [editingUnlinked, setEditingUnlinked] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{
     id: string;
     hasApiKey: boolean;
@@ -81,13 +143,12 @@ export function ProvidersSection(): React.JSX.Element {
     },
   });
 
+  const models = config?.models ?? [];
+  const providerIds = new Set(config?.providers.map((provider) => provider.id) ?? []);
+  const unlinkedModels = models.filter((model) => !providerIds.has(model.provider));
+
   return (
     <section aria-label="模型与 Provider" className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-fg">模型别名</h2>
-        <ModelsTable config={config} onChanged={invalidate} />
-      </div>
-
       <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-fg">Provider</h2>
@@ -109,6 +170,7 @@ export function ProvidersSection(): React.JSX.Element {
             <ProviderCard
               key={provider.id}
               provider={provider}
+              models={models.filter((model) => model.provider === provider.id)}
               expanded={expandedProvider === provider.id}
               onToggle={() => {
                 setExpandedProvider(expandedProvider === provider.id ? null : provider.id);
@@ -116,7 +178,10 @@ export function ProvidersSection(): React.JSX.Element {
               }}
               onChanged={invalidate}
               onDelete={() => {
-                setConfirmDelete({ id: provider.id, hasApiKey: provider.hasApiKey });
+                setConfirmDelete({
+                  id: provider.id,
+                  hasApiKey: provider.hasApiKey,
+                });
               }}
             />
           ))}
@@ -133,6 +198,29 @@ export function ProvidersSection(): React.JSX.Element {
           )}
         </div>
       </div>
+
+      {config !== undefined && unlinkedModels.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-fg">未挂靠 Provider 的模型</h2>
+          <p className="mt-0.5 text-xs text-fg-subtle">
+            这些别名引用的 Provider 不存在(多为手改 config.toml 所致),可删除或修正。
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {unlinkedModels.map((model) => (
+              <ModelRow
+                key={model.id}
+                model={model}
+                showProvider
+                expanded={editingUnlinked === model.id}
+                onToggle={() => {
+                  setEditingUnlinked(editingUnlinked === model.id ? null : model.id);
+                }}
+                onChanged={invalidate}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {confirmDelete !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -189,16 +277,19 @@ export function ProvidersSection(): React.JSX.Element {
 
 function ProviderCard(props: {
   provider: ConfigResponse['providers'][number];
+  models: readonly ConfigModelView[];
   expanded: boolean;
   onToggle: () => void;
   onChanged: () => void;
   onDelete: () => void;
 }): React.JSX.Element {
-  const { provider, expanded, onToggle, onChanged, onDelete } = props;
+  const { provider, models, expanded, onToggle, onChanged, onDelete } = props;
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? '');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [type, setType] = useState<string>(provider.type);
+  const [editingModel, setEditingModel] = useState<string | null>(null);
+  const [addingModel, setAddingModel] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -243,6 +334,7 @@ function ProviderCard(props: {
         />
         <span className="shrink-0 font-mono text-sm text-fg">{provider.id}</span>
         <span className="shrink-0 text-xs text-fg-subtle">{provider.type}</span>
+        <span className="shrink-0 text-xs text-fg-subtle">· {models.length} 模型</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted">
           {provider.baseUrl ?? ''}
         </span>
@@ -256,93 +348,141 @@ function ProviderCard(props: {
       </button>
       {expanded && (
         <div className="space-y-3 border-t border-border px-3 py-3">
-          <label className="block">
-            <span className="text-xs text-fg-muted">API Key(留空 = 不变)</span>
-            <input
-              type="password"
-              value={apiKey}
-              disabled={inputDisabled}
-              placeholder={placeholder}
-              onChange={(e) => {
-                setApiKey(e.target.value);
-              }}
-              className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 font-mono text-sm outline-none focus:border-brand disabled:opacity-60"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              setAdvancedOpen((v) => !v);
-            }}
-            className="text-xs text-fg-muted transition-colors hover:text-fg"
-          >
-            {advancedOpen ? '收起' : '展开'}高级设置
-          </button>
-          {advancedOpen && (
-            <div className="space-y-2 rounded-md border border-border bg-surface-2 p-2.5">
-              <label className="block">
-                <span className="text-xs text-fg-muted">Base URL</span>
-                <input
-                  type="text"
-                  value={baseUrl}
-                  onChange={(e) => {
-                    setBaseUrl(e.target.value);
-                  }}
-                  placeholder="https://api.example.com/v1"
-                  className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 font-mono text-xs outline-none focus:border-brand"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs text-fg-muted">类型</span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 text-left text-xs text-fg"
-                    >
-                      {type}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {PROVIDER_TYPES.map((t) => (
-                      <DropdownMenuItem
-                        key={t}
-                        onSelect={() => {
-                          setType(t);
-                        }}
-                      >
-                        {t}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </label>
-              <p className="text-xs text-fg-subtle">
-                customHeaders / extraBody 等高级字段请直接编辑 config.toml(路径见通用设置)。
-              </p>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-fg-muted">模型别名({models.length})</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAddingModel((v) => !v);
+                  setEditingModel(null);
+                }}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                新增模型
+              </Button>
             </div>
-          )}
-          <div className="flex items-center justify-between">
-            <Button
+            {models.length === 0 && !addingModel && (
+              <p className="text-xs text-fg-subtle">暂无模型别名。</p>
+            )}
+            {models.map((model) => (
+              <ModelRow
+                key={model.id}
+                model={model}
+                nested
+                expanded={editingModel === model.id}
+                onToggle={() => {
+                  setEditingModel(editingModel === model.id ? null : model.id);
+                  setAddingModel(false);
+                }}
+                onChanged={onChanged}
+              />
+            ))}
+            {addingModel && (
+              <AddModelRow
+                providerId={provider.id}
+                onCancel={() => {
+                  setAddingModel(false);
+                }}
+                onCreated={() => {
+                  setAddingModel(false);
+                  onChanged();
+                }}
+              />
+            )}
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <label className="block">
+              <span className="text-xs text-fg-muted">API Key(留空 = 不变)</span>
+              <input
+                type="password"
+                value={apiKey}
+                disabled={inputDisabled}
+                placeholder={placeholder}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                }}
+                className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 font-mono text-sm outline-none focus:border-brand disabled:opacity-60"
+              />
+            </label>
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              className="text-state-error hover:bg-state-error/10"
-            >
-              <Trash2 className="size-3.5" aria-hidden />
-              删除
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={saveMutation.isPending}
               onClick={() => {
-                saveMutation.mutate();
+                setAdvancedOpen((v) => !v);
               }}
+              className="text-xs text-fg-muted transition-colors hover:text-fg"
             >
-              {saveMutation.isPending ? '保存中…' : '保存'}
-            </Button>
+              {advancedOpen ? '收起' : '展开'}高级设置
+            </button>
+            {advancedOpen && (
+              <div className="space-y-2 rounded-md border border-border bg-surface-2 p-2.5">
+                <label className="block">
+                  <span className="text-xs text-fg-muted">Base URL</span>
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => {
+                      setBaseUrl(e.target.value);
+                    }}
+                    placeholder="https://api.example.com/v1"
+                    className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 font-mono text-xs outline-none focus:border-brand"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-fg-muted">类型</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-3 py-1.5 text-left text-xs text-fg"
+                      >
+                        {type}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {PROVIDER_TYPES.map((t) => (
+                        <DropdownMenuItem
+                          key={t}
+                          onSelect={() => {
+                            setType(t);
+                          }}
+                        >
+                          {t}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+                <p className="text-xs text-fg-subtle">
+                  customHeaders / extraBody 等高级字段请直接编辑 config.toml(路径见通用设置)。
+                </p>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-state-error hover:bg-state-error/10"
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+                删除
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={saveMutation.isPending}
+                onClick={() => {
+                  saveMutation.mutate();
+                }}
+              >
+                {saveMutation.isPending ? '保存中…' : '保存'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -648,56 +788,113 @@ function AddProviderCard(props: {
   );
 }
 
-// ---- models 别名表 CRUD --------------------------------------------------------
+// ---- Provider 卡内新增模型别名 ---------------------------------------------------
 
-function ModelsTable(props: {
-  config: ConfigResponse | undefined;
-  onChanged: () => void;
+function AddModelRow(props: {
+  providerId: string;
+  onCancel: () => void;
+  onCreated: () => void;
 }): React.JSX.Element {
-  const { config, onChanged } = props;
-  const [editing, setEditing] = useState<string | null>(null);
+  const { providerId, onCancel, onCreated } = props;
+  const [alias, setAlias] = useState('');
+  const [modelId, setModelId] = useState('');
+  const [context, setContext] = useState('128000');
+  const [error, setError] = useState<string | null>(null);
 
-  if (config === undefined) {
-    return <p className="mt-2 text-xs text-fg-subtle">加载中…</p>;
-  }
-  if (config.models.length === 0) {
-    return (
-      <p className="mt-2 text-xs text-fg-subtle">暂无模型别名,在下方新增 Provider 时一起创建。</p>
-    );
-  }
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createModel({
+        id: alias.trim(),
+        provider: providerId,
+        model: modelId.trim(),
+        maxContextSize: parseContextSize(context) ?? 128_000,
+      }),
+    onSuccess: () => {
+      toast.success('模型别名已创建');
+      onCreated();
+    },
+    onError: (e: Error) => {
+      setError(e.message);
+    },
+  });
 
   return (
-    <div className="mt-2 space-y-1.5">
-      {config.models.map((model) => (
-        <ModelRow
-          key={model.id}
-          model={model}
-          expanded={editing === model.id}
-          onToggle={() => {
-            setEditing(editing === model.id ? null : model.id);
+    <div className="space-y-2 rounded-md border border-border-strong bg-surface-2 p-2.5">
+      <div className="grid grid-cols-[1fr_1.4fr_80px] items-center gap-1.5">
+        <input
+          type="text"
+          value={alias}
+          placeholder="别名"
+          onChange={(e) => {
+            setAlias(e.target.value);
           }}
-          onChanged={onChanged}
+          className="w-full rounded-md border border-border-strong bg-input-fill px-2 py-1 font-mono text-xs outline-none focus:border-brand"
         />
-      ))}
+        <input
+          type="text"
+          value={modelId}
+          placeholder="Model ID"
+          onChange={(e) => {
+            setModelId(e.target.value);
+          }}
+          className="w-full rounded-md border border-border-strong bg-input-fill px-2 py-1 font-mono text-xs outline-none focus:border-brand"
+        />
+        <input
+          type="text"
+          value={context}
+          placeholder="256K"
+          onChange={(e) => {
+            setContext(e.target.value);
+          }}
+          className="w-full rounded-md border border-border-strong bg-input-fill px-2 py-1 font-mono text-xs outline-none focus:border-brand"
+        />
+      </div>
+      {error !== null && <p className="text-xs text-state-error">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          取消
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => {
+            setError(null);
+            if (alias.trim().length === 0 || modelId.trim().length === 0) {
+              setError('别名与 Model ID 必填');
+              return;
+            }
+            if (parseContextSize(context) === null) {
+              setError(`Context 输入无法解析:${context}(支持 256K / 1M / 纯数字)`);
+              return;
+            }
+            createMutation.mutate();
+          }}
+        >
+          {createMutation.isPending ? '创建中…' : '创建'}
+        </Button>
+      </div>
     </div>
   );
 }
 
 function ModelRow(props: {
   model: ConfigResponse['models'][number];
+  /** 嵌在 Provider 卡内:次级底色 + 圆角缩小。 */
+  nested?: boolean;
+  /** 顶层展示时在行尾标出 provider 引用(未挂靠分组用)。 */
+  showProvider?: boolean;
   expanded: boolean;
   onToggle: () => void;
   onChanged: () => void;
 }): React.JSX.Element {
-  const { model, expanded, onToggle, onChanged } = props;
+  const { model, nested, showProvider, expanded, onToggle, onChanged } = props;
   const [modelId, setModelId] = useState(model.model);
   // Context 回显完整 token 数(不做 K/M 缩写;后缀仅作为输入便利)。
   const [context, setContext] = useState(
     model.maxContextSize !== undefined ? String(model.maxContextSize) : '',
   );
-  const [capabilities, setCapabilities] = useState<Set<string>>(
-    new Set(model.capabilities ?? ['tool_use']),
-  );
+  const [capabilities, setCapabilities] = useState<Set<string>>(() => seedModelCapabilities(model));
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -717,6 +914,26 @@ function ModelRow(props: {
     },
   });
 
+  const toggleCapability = (tag: string, enabled: boolean): void => {
+    setCapabilities((prev) => {
+      const next = new Set(prev);
+      if (enabled) next.add(tag);
+      else next.delete(tag);
+      return next;
+    });
+  };
+
+  const setThinkingKind = (kind: ThinkingKind): void => {
+    setCapabilities((prev) => {
+      const next = new Set(prev);
+      for (const tag of THINKING_TAGS) next.delete(tag);
+      for (const tag of THINKING_KINDS.find((o) => o.kind === kind)?.tags ?? []) {
+        next.add(tag);
+      }
+      return next;
+    });
+  };
+
   const removeMutation = useMutation({
     mutationFn: () => api.removeModel(model.id),
     onSuccess: () => {
@@ -729,7 +946,12 @@ function ModelRow(props: {
   });
 
   return (
-    <div className="rounded-lg border border-border bg-surface-1">
+    <div
+      className={cn(
+        'border border-border',
+        nested ? 'rounded-md bg-surface-2' : 'rounded-lg bg-surface-1',
+      )}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -740,7 +962,7 @@ function ModelRow(props: {
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted">
           {model.model}
         </span>
-        <span className="shrink-0 text-xs text-fg-subtle">{model.provider}</span>
+        {showProvider && <span className="shrink-0 text-xs text-fg-subtle">{model.provider}</span>}
         <ChevronDown
           className={cn(
             'size-3.5 shrink-0 text-fg-subtle transition-transform',
@@ -776,23 +998,73 @@ function ModelRow(props: {
               />
             </label>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {CAPABILITIES.map((cap) => (
-              <label key={cap} className="flex items-center gap-1.5 text-xs text-fg-muted">
-                <Checkbox
-                  checked={capabilities.has(cap)}
-                  onCheckedChange={(checked) => {
-                    setCapabilities((prev) => {
-                      const next = new Set(prev);
-                      if (checked === true) next.add(cap);
-                      else next.delete(cap);
-                      return next;
-                    });
-                  }}
-                />
-                {cap}
-              </label>
-            ))}
+          <div className="space-y-2">
+            <div>
+              <span className="text-xs text-fg-muted">能力(工具 / 媒体)</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {MEDIA_CAPABILITIES.map(({ tag, label }) => (
+                  <label key={tag} className="flex items-center gap-1.5 text-xs text-fg-muted">
+                    <Checkbox
+                      checked={capabilities.has(tag)}
+                      onCheckedChange={(checked) => {
+                        toggleCapability(tag, checked === true);
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-xs text-fg-muted">推理能力</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+                  思考能力
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded-md border border-border-strong bg-input-fill px-2 py-0.5 text-left text-xs text-fg"
+                      >
+                        {THINKING_KINDS.find((o) => o.kind === thinkingKindOf(capabilities))?.label}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {THINKING_KINDS.map(({ kind, label }) => (
+                        <DropdownMenuItem key={kind} onSelect={() => setThinkingKind(kind)}>
+                          {label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+                {thinkingKindOf(capabilities) !== 'unsupported' && (
+                  <>
+                    <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+                      <Checkbox
+                        checked={capabilities.has('thinking_xhigh')}
+                        onCheckedChange={(checked) => {
+                          toggleCapability('thinking_xhigh', checked === true);
+                        }}
+                      />
+                      超高(xhigh)
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+                      <Checkbox
+                        checked={capabilities.has('thinking_max')}
+                        onCheckedChange={(checked) => {
+                          toggleCapability('thinking_max', checked === true);
+                        }}
+                      />
+                      最高(max)
+                    </label>
+                  </>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-fg-subtle">
+                已用注册表自动识别预填(与手写标签取并集,只能加不能减);多数模型保存前无需改动。
+              </p>
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <Button

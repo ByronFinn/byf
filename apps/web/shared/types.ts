@@ -370,6 +370,24 @@ export interface ConfigModelView {
   /** R-D3:编辑表单回显。 */
   readonly maxContextSize?: number;
   readonly capabilities?: readonly string[];
+  /**
+   * 服务端按别名合并的能力(别名标签 ∪ provider 注册表),用于编辑器预填;
+   * 别名无法解析(如 provider 缺失)时为 undefined。加注释:与注册表取并集,
+   * 只能加不能减。
+   */
+  readonly resolvedCapabilities?: ResolvedCapabilities;
+}
+
+/** 合并后的能力布尔面(与 @byfriends/agent-core 的 ResolvedModelCapabilities 同构)。 */
+export interface ResolvedCapabilities {
+  readonly image_in: boolean;
+  readonly video_in: boolean;
+  readonly audio_in: boolean;
+  readonly tool_use: boolean;
+  readonly thinking: boolean;
+  readonly thinking_effort: boolean;
+  readonly thinking_xhigh: boolean;
+  readonly thinking_max: boolean;
 }
 
 /** provider 摘要(不携带密钥本身,仅是否已配置)。 */

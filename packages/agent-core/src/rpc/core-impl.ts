@@ -90,6 +90,8 @@ import type {
   RemoveByfProviderPayload,
   RemoveWorkspacePayload,
   RenameSessionPayload,
+  ResolveModelCapabilitiesPayload,
+  ResolvedModelCapabilities,
   ResumeSessionPayload,
   RegisterToolPayload,
   ShellExecPayload,
@@ -616,6 +618,31 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     const updated = readConfigFile(this.configPath);
     this.providerManager.updateConfig(updated);
     return updated;
+  }
+
+  /**
+   * 按模型别名解析合并能力(别名 capabilities ∪ provider 注册表),供 Web
+   * 模型编辑器预填勾选。validateCredentials=false:只看能力面,不要求凭据。
+   */
+  async resolveModelCapabilities(
+    input: ResolveModelCapabilitiesPayload,
+  ): Promise<ResolvedModelCapabilities> {
+    this.reloadProviderManager();
+    const resolved = this.providerManager.resolveProviderConfigForModel(input.model);
+    if (resolved === undefined) {
+      throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, `Unknown model alias: ${input.model}`);
+    }
+    const caps = resolved.modelCapabilities;
+    return {
+      image_in: caps.image_in,
+      video_in: caps.video_in,
+      audio_in: caps.audio_in,
+      tool_use: caps.tool_use,
+      thinking: caps.thinking,
+      thinking_effort: caps.thinking_effort,
+      thinking_xhigh: caps.thinking_xhigh,
+      thinking_max: caps.thinking_max,
+    };
   }
 
   prompt({ sessionId, ...payload }: SessionAgentPayload<PromptPayload>) {

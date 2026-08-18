@@ -255,6 +255,23 @@ export interface RemoveByfProviderPayload {
   readonly providerId: string;
 }
 
+/** 按模型别名解析合并能力(别名标签 ∪ provider 注册表),供 UI 预填能力编辑器。 */
+export interface ResolveModelCapabilitiesPayload {
+  readonly model: string;
+}
+
+/** 合并后的能力布尔面,可 JSON 序列化跨 RPC。 */
+export interface ResolvedModelCapabilities {
+  readonly image_in: boolean;
+  readonly video_in: boolean;
+  readonly audio_in: boolean;
+  readonly tool_use: boolean;
+  readonly thinking: boolean;
+  readonly thinking_effort: boolean;
+  readonly thinking_xhigh: boolean;
+  readonly thinking_max: boolean;
+}
+
 export interface ShellExecPayload {
   readonly sessionId: string;
   readonly command: string;
@@ -386,6 +403,7 @@ export interface CoreAPI extends SessionAPIWithId {
   setByfConfig: (payload: SetByfConfigPayload) => ByfConfig;
   removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
   removeByfModel: (payload: RemoveByfModelPayload) => ByfConfig;
+  resolveModelCapabilities: (payload: ResolveModelCapabilitiesPayload) => ResolvedModelCapabilities;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;
