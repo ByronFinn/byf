@@ -16,6 +16,7 @@ import {
   type PromptInput,
   type ResumedSessionSummary,
   type SkillSummary,
+  type CreateSkillResult,
   type WorkspaceSkillListing,
 } from '@byfriends/sdk';
 import type {
@@ -449,10 +450,43 @@ class FakeHarness implements HarnessLike {
 
   skillListing: WorkspaceSkillListing | undefined;
   skillListCalls: string[] = [];
+  skillCreateCalls: Array<{
+    workDir: string;
+    scope: string;
+    name: string;
+    description: string;
+  }> = [];
+  skillRemoveCalls: Array<{ workDir: string; skillPath: string }> = [];
+  skillWriteError: ByfError | undefined;
 
   async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
     this.skillListCalls.push(workDir);
     return this.skillListing ?? { userHomeDir: '/home/u', projectRoot: '/work/ws', groups: [] };
+  }
+
+  async createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult> {
+    if (this.skillWriteError !== undefined) throw this.skillWriteError;
+    this.skillCreateCalls.push(input);
+    return {
+      skill: {
+        name: input.name,
+        description: input.description,
+        path: `/work/ws/.byf/skills/${input.name}/SKILL.md`,
+        dir: `/work/ws/.byf/skills/${input.name}`,
+        source: input.scope,
+        writable: true,
+      },
+    };
+  }
+
+  async removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void> {
+    if (this.skillWriteError !== undefined) throw this.skillWriteError;
+    this.skillRemoveCalls.push({ workDir, skillPath });
   }
 
   async close(): Promise<void> {
@@ -2840,5 +2874,100 @@ describe('Skill listing route (PRD-0036 #314)', () => {
     expect(noDir.status).toBe(400);
     const badDir = await app.request(`/api/skills?workDir=${encodeURIComponent('/etc')}`);
     expect(badDir.status).toBe(400);
+  });
+});
+
+describe('Skill write routes (PRD-0036 #315)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(workDir = '/work/ws'): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = [workDir];
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  it('POST /api/skills creates and returns 201 with the template result', async () => {
+    const { app, harness } = await setup();
+    const res = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        scope: 'project',
+        name: 'deploy-helper',
+        description: 'Deploy the app',
+      }),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { skill: { name: string } };
+    expect(data.skill.name).toBe('deploy-helper');
+    expect(harness.skillCreateCalls).toHaveLength(1);
+  });
+
+  it('POST /api/skills maps same-scope duplicate to 409', async () => {
+    const { app, harness } = await setup();
+    harness.skillWriteError = new ByfError(
+      ErrorCodes.SKILL_ALREADY_EXISTS,
+      'Skill "x" already exists',
+    );
+    const res = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'user', name: 'x', description: 'd' }),
+    });
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('CONFLICT');
+  });
+
+  it('POST /api/skills validates scope/name/description', async () => {
+    const { app } = await setup();
+    const badScope = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'global', name: 'x', description: 'd' }),
+    });
+    expect(badScope.status).toBe(400);
+    const noName = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'user', description: 'd' }),
+    });
+    expect(noName.status).toBe(400);
+  });
+
+  it('DELETE /api/skills removes by path; outside-root paths map to 403 (R-C5)', async () => {
+    const { app, harness } = await setup();
+    const ok = await app.request(
+      `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/work/ws/.byf/skills/gone/SKILL.md')}`,
+      { method: 'DELETE' },
+    );
+    expect(ok.status).toBe(200);
+    expect(harness.skillRemoveCalls).toEqual([
+      { workDir: '/work/ws', skillPath: '/work/ws/.byf/skills/gone/SKILL.md' },
+    ]);
+
+    harness.skillWriteError = new ByfError(
+      ErrorCodes.REQUEST_INVALID,
+      'Refusing to delete skill outside .byf/skills roots',
+    );
+    const forbidden = await app.request(
+      `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/etc/hosts')}`,
+      { method: 'DELETE' },
+    );
+    expect(forbidden.status).toBe(403);
+
+    harness.skillWriteError = new ByfError(ErrorCodes.SKILL_NOT_FOUND, 'Skill path not found');
+    const missing = await app.request(
+      `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/work/ws/.byf/skills/nope/SKILL.md')}`,
+      { method: 'DELETE' },
+    );
+    expect(missing.status).toBe(404);
   });
 });

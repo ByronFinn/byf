@@ -50,6 +50,7 @@ export const ErrorCodes = {
   SKILL_NOT_FOUND: 'skill.not_found',
   SKILL_TYPE_UNSUPPORTED: 'skill.type_unsupported',
   SKILL_NAME_EMPTY: 'skill.name_empty',
+  SKILL_ALREADY_EXISTS: 'skill.already_exists',
 
   GOAL_NOT_FOUND: 'goal.not_found',
   GOAL_ALREADY_EXISTS: 'goal.already_exists',
@@ -313,6 +314,12 @@ export const BYF_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Provide a non-empty skill name.',
+  },
+  'skill.already_exists': {
+    title: 'Skill already exists',
+    retryable: false,
+    public: true,
+    action: 'Pick a different skill name in this scope, or delete the existing one first.',
   },
 
   'goal.not_found': {

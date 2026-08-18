@@ -40,6 +40,7 @@ import type {
   TokenUsage,
   ToolCall,
   UsageTotals,
+  CreateSkillResult,
   SkillGroupScope,
   WorkspaceSkillEntry,
   WorkspaceSkillGroup,
@@ -95,6 +96,7 @@ export type {
   ToolCall,
   ToolInputDisplay,
   UsageTotals,
+  CreateSkillResult,
   SkillGroupScope,
   WorkspaceSkillEntry,
   WorkspaceSkillGroup,
@@ -500,4 +502,19 @@ export interface McpRawWriteBody {
 
 // ---- Skill 配置页签(PRD-0036)-----------------------------------------------
 // `GET /api/skills?workDir=` 响应体即 WorkspaceSkillListing(自 web-shared
-// 再导出);写路径端点见 #315。
+// 再导出)。
+
+/** `POST /api/skills?workDir=` —— 模板新建 SKILL.md bundle(R-S2)。 */
+export interface CreateSkillBody {
+  readonly scope: 'user' | 'project';
+  readonly name: string;
+  readonly description: string;
+}
+
+/** `POST /api/skills` 成功响应(core CreateSkillResult;warning 为跨 scope 遮蔽提示)。 */
+export type CreateSkillResponse = CreateSkillResult;
+
+/** `DELETE /api/skills?workDir=&path=` —— 删除(服务端 realpath 前缀校验)。 */
+export interface DeleteSkillResponse {
+  readonly ok: boolean;
+}

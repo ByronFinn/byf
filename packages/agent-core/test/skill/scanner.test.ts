@@ -1279,3 +1279,147 @@ describe('listWorkspaceSkills', () => {
     expect(shadowed?.shadowed).toBe(true);
   });
 });
+
+// ---- workspace skill store write side(PRD-0036 #315)------------------------
+
+import { readFile } from 'node:fs/promises';
+
+import { parseSkillFromFile } from '../../src/skill/parser';
+import { createSkill, removeSkill } from '../../src/skill/store';
+
+describe('createSkill', () => {
+  it('writes a template SKILL.md bundle into the project scope .byf/skills and parses back', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    const result = await createSkill({
+      workDir,
+      userHomeDir: homeDir,
+      scope: 'project',
+      name: 'deploy-helper',
+      description: 'Deploy the app',
+    });
+    const skillMd = path.join(repoDir, '.byf', 'skills', 'deploy-helper', 'SKILL.md');
+    expect(result.skill.path).toBe(skillMd);
+    const text = await readFile(skillMd, 'utf-8');
+    expect(text).toContain('name: deploy-helper');
+    expect(text).toContain('description: Deploy the app');
+    const parsed = await parseSkillFromFile({
+      skillMdPath: skillMd,
+      skillDirName: 'deploy-helper',
+      source: 'project',
+    });
+    expect(parsed.name).toBe('deploy-helper');
+    expect(parsed.description).toBe('Deploy the app');
+  });
+
+  it('writes into the user scope ~/.byf/skills', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    const result = await createSkill({
+      workDir,
+      userHomeDir: homeDir,
+      scope: 'user',
+      name: 'personal',
+      description: 'Mine',
+    });
+    expect(result.skill.dir).toBe(path.join(homeDir, '.byf', 'skills', 'personal'));
+  });
+
+  it('rejects same-scope duplicates (case-insensitive) and flat-file collisions', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(homeDir, '.byf', 'skills', 'Deploy'), { recursive: true });
+    await writeFile(
+      path.join(homeDir, '.byf', 'skills', 'Deploy', 'SKILL.md'),
+      '---\nname: Deploy\ndescription: x\n---\n',
+      'utf-8',
+    );
+    await expect(
+      createSkill({
+        workDir,
+        userHomeDir: homeDir,
+        scope: 'user',
+        name: 'deploy',
+        description: 'y',
+      }),
+    ).rejects.toThrow(/already exists/);
+
+    // 单文件形态同名也冲突。
+    await writeFile(path.join(homeDir, '.byf', 'skills', 'flat.md'), '# flat\n', 'utf-8');
+    await expect(
+      createSkill({ workDir, userHomeDir: homeDir, scope: 'user', name: 'flat', description: 'y' }),
+    ).rejects.toThrow(/already exists/);
+  });
+
+  it('allows cross-scope duplicates and returns a shadow warning (R-S2)', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(homeDir, '.byf', 'skills', 'shared'), { recursive: true });
+    await writeFile(
+      path.join(homeDir, '.byf', 'skills', 'shared', 'SKILL.md'),
+      '---\nname: shared\ndescription: global\n---\n',
+      'utf-8',
+    );
+    const result = await createSkill({
+      workDir,
+      userHomeDir: homeDir,
+      scope: 'project',
+      name: 'shared',
+      description: 'local',
+    });
+    expect(result.skill.dir).toBe(path.join(repoDir, '.byf', 'skills', 'shared'));
+    expect(result.warning).toBeDefined();
+    expect(result.warning).toContain('遮蔽');
+  });
+
+  it('rejects unsafe names (path traversal / separators)', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    for (const bad of ['../evil', 'a/b', '.hidden', '..']) {
+      await expect(
+        createSkill({ workDir, userHomeDir: homeDir, scope: 'user', name: bad, description: 'd' }),
+      ).rejects.toThrow();
+    }
+  });
+});
+
+describe('removeSkill', () => {
+  it('deletes a directory bundle inside .byf/skills', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    const dir = path.join(homeDir, '.byf', 'skills', 'gone');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'SKILL.md'), '---\nname: gone\ndescription: x\n---\n', 'utf-8');
+    await removeSkill({ workDir, userHomeDir: homeDir, skillPath: path.join(dir, 'SKILL.md') });
+    await expect(realpath(dir)).rejects.toThrow();
+  });
+
+  it('deletes a root-level single-file skill', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    const file = path.join(homeDir, '.byf', 'skills', 'flat.md');
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, '# flat\n', 'utf-8');
+    await removeSkill({ workDir, userHomeDir: homeDir, skillPath: file });
+    await expect(realpath(file)).rejects.toThrow();
+  });
+
+  it('refuses paths outside the allowed roots (.agents / arbitrary dirs, R-C5)', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    const agents = path.join(repoDir, '.agents', 'skills', 'cross-tool', 'SKILL.md');
+    await mkdir(path.dirname(agents), { recursive: true });
+    await writeFile(agents, '---\nname: cross-tool\ndescription: x\n---\n', 'utf-8');
+    await expect(removeSkill({ workDir, userHomeDir: homeDir, skillPath: agents })).rejects.toThrow(
+      /Refusing/,
+    );
+
+    await expect(
+      removeSkill({ workDir, userHomeDir: homeDir, skillPath: '/etc/hosts' }),
+    ).rejects.toThrow();
+  });
+
+  it('refuses the skills root itself (prefix must be strict)', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
+    await expect(
+      removeSkill({
+        workDir,
+        userHomeDir: homeDir,
+        skillPath: path.join(homeDir, '.byf', 'skills'),
+      }),
+    ).rejects.toThrow();
+  });
+});

@@ -23,7 +23,7 @@ import type {
   SessionDetail,
   WireResponse,
 } from '#/session/inspector';
-import type { WorkspaceSkillListing } from '#/skill/store';
+import type { CreateSkillResult, WorkspaceSkillListing } from '#/skill/store';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
 
 import type { UsageStatus } from './events';
@@ -364,6 +364,7 @@ export type {
 } from '#/mcp/config-store';
 
 export type {
+  CreateSkillResult,
   SkillGroupScope,
   WorkspaceSkillEntry,
   WorkspaceSkillGroup,
@@ -373,6 +374,19 @@ export type {
 
 export interface ListWorkspaceSkillsPayload {
   readonly workDir: string;
+}
+
+export interface CreateWorkspaceSkillPayload {
+  readonly workDir: string;
+  readonly scope: 'user' | 'project';
+  readonly name: string;
+  readonly description: string;
+}
+
+export interface RemoveWorkspaceSkillPayload {
+  readonly workDir: string;
+  /** 待删 skill 的 SKILL.md 或单文件路径(来自列表条目)。 */
+  readonly skillPath: string;
 }
 
 export interface ListMcpServerConfigsPayload {
@@ -493,4 +507,6 @@ export interface CoreAPI extends SessionAPIWithId {
   removeMcpServerConfig: (payload: RemoveMcpServerConfigPayload) => McpScopeState;
   writeMcpConfigRaw: (payload: WriteMcpRawPayload) => McpRawDocument;
   listWorkspaceSkills: (payload: ListWorkspaceSkillsPayload) => WorkspaceSkillListing;
+  createWorkspaceSkill: (payload: CreateWorkspaceSkillPayload) => CreateSkillResult;
+  removeWorkspaceSkill: (payload: RemoveWorkspaceSkillPayload) => void;
 }

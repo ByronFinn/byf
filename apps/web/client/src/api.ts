@@ -25,6 +25,9 @@ import type {
   McpRawWriteBody,
   McpScopeState,
   McpServerUpsertBody,
+  CreateSkillBody,
+  CreateSkillResponse,
+  DeleteSkillResponse,
   WorkspaceSkillListing,
   PermissionMode,
   PickDirectoryResponse,
@@ -234,6 +237,19 @@ export const skillApi = {
     request<WorkspaceSkillListing>(
       `/api/skills?${new URLSearchParams({ workDir }).toString()}`,
       'GET',
+    ),
+  /** 模板新建;同 scope 同名 409,跨 scope 同名成功并返回遮蔽 warning。 */
+  create: (workDir: string, body: CreateSkillBody): Promise<CreateSkillResponse> =>
+    request<CreateSkillResponse>(
+      `/api/skills?${new URLSearchParams({ workDir }).toString()}`,
+      'POST',
+      body,
+    ),
+  /** 删除(服务端校验来源与 realpath 前缀;`.agents`/builtin/extra 拒绝)。 */
+  remove: (workDir: string, skillPath: string): Promise<DeleteSkillResponse> =>
+    request<DeleteSkillResponse>(
+      `/api/skills?${new URLSearchParams({ workDir, path: skillPath }).toString()}`,
+      'DELETE',
     ),
 };
 

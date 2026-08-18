@@ -112,6 +112,7 @@ export type {
 } from '@byfriends/agent-core';
 // Workspace skills(PRD-0036)——core 根已导出。
 export type {
+  CreateSkillResult,
   SkillGroupScope,
   WorkspaceSkillEntry,
   WorkspaceSkillGroup,

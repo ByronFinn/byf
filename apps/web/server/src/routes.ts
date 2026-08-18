@@ -17,6 +17,7 @@ import type {
   ForkSessionResponse,
   FsEntry,
   FsListResponse,
+  CreateSkillBody,
   McpRawWriteBody,
   McpServerUpsertBody,
   PromptBody,
@@ -809,6 +810,58 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const workDir = await requireRegisteredWorkDir(c, manager);
     if (workDir instanceof Response) return workDir;
     return c.json(await manager.listWorkspaceSkills(workDir));
+  });
+
+  r.post('/skills', async (c) => {
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const body = await c.req.json<CreateSkillBody>();
+    if (body.scope !== 'user' && body.scope !== 'project') {
+      return badRequest(c, 'scope must be one of: user, project');
+    }
+    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+      return badRequest(c, 'name is required');
+    }
+    if (typeof body.description !== 'string' || body.description.trim().length === 0) {
+      return badRequest(c, 'description is required');
+    }
+    try {
+      const result = await manager.createWorkspaceSkill({
+        workDir,
+        scope: body.scope,
+        name: body.name,
+        description: body.description,
+      });
+      return c.json(result, 201);
+    } catch (error) {
+      if (isByfError(error) && error.code === 'skill.already_exists') {
+        return c.json({ error: error.message, code: 'CONFLICT' }, 409);
+      }
+      if (isByfError(error) && error.code === 'request.invalid') {
+        return c.json({ error: error.message, code: 'BAD_REQUEST' }, 400);
+      }
+      throw error;
+    }
+  });
+
+  r.delete('/skills', async (c) => {
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const skillPath = c.req.query('path') ?? '';
+    if (skillPath.length === 0) return badRequest(c, 'path query is required');
+    try {
+      await manager.removeWorkspaceSkill(workDir, skillPath);
+      return c.json({ ok: true });
+    } catch (error) {
+      if (isByfError(error) && error.code === 'skill.not_found') {
+        return c.json({ error: error.message, code: 'NOT_FOUND' }, 404);
+      }
+      if (isByfError(error) && error.code === 'request.invalid') {
+        // 允许根之外(realpath 前缀校验失败)→ 403,防路径穿越被静默忽略。
+        return c.json({ error: error.message, code: 'FORBIDDEN' }, 403);
+      }
+      throw error;
+    }
   });
 
   r.put('/mcp/raw/:scope', async (c) => {

@@ -15,6 +15,7 @@ import type {
   McpConfigScope,
   McpRawDocument,
   McpScopeState,
+  CreateSkillResult,
   WorkspaceSkillListing,
 } from '@byfriends/agent-core';
 import type {
@@ -288,6 +289,19 @@ export class ByfHarness {
 
   async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
     return this.rpc.listWorkspaceSkills(workDir);
+  }
+
+  async createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult> {
+    return this.rpc.createWorkspaceSkill(input);
+  }
+
+  async removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void> {
+    return this.rpc.removeWorkspaceSkill(workDir, skillPath);
   }
 
   async getConfig(options: GetConfigOptions = {}): Promise<ByfConfig> {

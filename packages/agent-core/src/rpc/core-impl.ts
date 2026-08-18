@@ -81,9 +81,12 @@ import type {
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  CreateSkillResult,
+  CreateWorkspaceSkillPayload,
   ListMcpServerConfigsPayload,
   ListSessionsPayload,
   ListWorkspaceSkillsPayload,
+  RemoveWorkspaceSkillPayload,
   McpConfigListing,
   McpRawDocument,
   McpScopeState,
@@ -574,6 +577,26 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       userHomeDir: this.userHomeDir,
       extraDirs: config.extraSkillDirs,
       mergeAllAvailableSkills: config.mergeAllAvailableSkills,
+    });
+  }
+
+  async createWorkspaceSkill(input: CreateWorkspaceSkillPayload): Promise<CreateSkillResult> {
+    const workDir = requiredWorkDir('createWorkspaceSkill', input.workDir);
+    return skillStore.createSkill({
+      workDir,
+      userHomeDir: this.userHomeDir,
+      scope: input.scope,
+      name: input.name,
+      description: input.description,
+    });
+  }
+
+  async removeWorkspaceSkill(input: RemoveWorkspaceSkillPayload): Promise<void> {
+    const workDir = requiredWorkDir('removeWorkspaceSkill', input.workDir);
+    return skillStore.removeSkill({
+      workDir,
+      userHomeDir: this.userHomeDir,
+      skillPath: input.skillPath,
     });
   }
 

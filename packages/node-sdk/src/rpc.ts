@@ -25,6 +25,7 @@ import type {
   McpConfigScope,
   McpRawDocument,
   McpScopeState,
+  CreateSkillResult,
   WorkspaceSkillListing,
 } from '@byfriends/agent-core';
 import type {
@@ -329,6 +330,21 @@ export class SDKRpcClient {
   async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
     const rpc = await this.getRpc();
     return rpc.listWorkspaceSkills({ workDir });
+  }
+
+  async createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult> {
+    const rpc = await this.getRpc();
+    return rpc.createWorkspaceSkill(input);
+  }
+
+  async removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.removeWorkspaceSkill({ workDir, skillPath });
   }
 
   async renameSession(input: RenameSessionInput): Promise<void> {

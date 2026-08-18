@@ -9,8 +9,13 @@
  *   byf 只写 `.byf/skills`。
  * - skill 的本地根 = 最近 `.git` 祖先(可能与 MCP 页签的工作区目录不同,
  *   R-N4);新建/删除影响下次会话加载(R-N3)。
+ * - 新建(R-S2,#315):scope 选择(全局/本地)+ 名称/描述,模板生成
+ *   SKILL.md bundle;同 scope 同名报错,跨 scope 同名提示遮蔽方向。
+ * - 删除(R-S3):二次确认;仅 user/project 的 `.byf/skills` 条目可删
+ *   (服务端 realpath 前缀校验,builtin/extra/`.agents` 一律拒绝)。
  */
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { skillApi } from '#/api';
 import {
@@ -18,7 +23,10 @@ import {
   WorkspaceScopeBar,
   type ScopeTabProps,
 } from '#/components/settings/scope-workspace';
-import type { WorkspaceSkillGroup, WorkspaceSkillRoot } from '#/types';
+import { Button } from '#/components/ui/button';
+import { ConfirmDialog } from '#/components/ui/confirm-dialog';
+import { errorMessage, toast } from '#/lib/toast';
+import type { WorkspaceSkillEntry, WorkspaceSkillGroup, WorkspaceSkillRoot } from '#/types';
 
 const GROUP_META: Record<string, { title: string; hint: string }> = {
   project: { title: '本地(工作区)', hint: '项目 `.byf/skills` 与 `.agents/skills`。' },
@@ -30,21 +38,54 @@ const GROUP_META: Record<string, { title: string; hint: string }> = {
 export function SkillSettingsSection(props: ScopeTabProps): React.JSX.Element {
   const { scopeWorkDir } = props;
   const enabled = scopeWorkDir !== undefined;
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['workspace-skills', scopeWorkDir],
     queryFn: () => skillApi.list(scopeWorkDir!),
     enabled,
   });
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<WorkspaceSkillEntry | null>(null);
+
+  const invalidate = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['workspace-skills', scopeWorkDir] });
+  };
+
+  const removeMutation = useMutation({
+    mutationFn: (skill: WorkspaceSkillEntry) => skillApi.remove(scopeWorkDir!, skill.path),
+    onSuccess: () => {
+      setDeleting(null);
+      toast.success('已删除 skill(影响下次会话加载)');
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast.error(`删除失败:${errorMessage(error)}`);
+    },
+  });
 
   return (
     <section aria-label="Skill 配置" className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-fg">Skill 配置</h2>
-        <p className="mt-1 text-xs text-fg-subtle">
-          按作用域列出各 skill root 发现的 skill;同名时靠前的 root 遮蔽后者。新建 / 删除影响
-          <b className="text-fg-1">下次会话</b>加载。byf 只写 `.byf/skills`; `.agents/skills`
-          是跨工具共享目录,只读。
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-fg">Skill 配置</h2>
+          <p className="mt-1 text-xs text-fg-subtle">
+            按作用域列出各 skill root 发现的 skill;同名时靠前的 root 遮蔽后者。新建 / 删除影响
+            <b className="text-fg-1">下次会话</b>加载。byf 只写 `.byf/skills`; `.agents/skills`
+            是跨工具共享目录,只读。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-6 shrink-0 px-2 text-[11px]"
+          disabled={!enabled}
+          onClick={() => {
+            setCreating(true);
+          }}
+        >
+          新建 skill
+        </Button>
       </div>
 
       {props.workspaces.length === 0 && <NoWorkspaceHint />}
@@ -62,7 +103,13 @@ export function SkillSettingsSection(props: ScopeTabProps): React.JSX.Element {
           {data !== undefined && (
             <div className="space-y-3">
               {data.groups.map((group) => (
-                <SkillGroupView key={group.scope} group={group} />
+                <SkillGroupView
+                  key={group.scope}
+                  group={group}
+                  onDelete={(skill) => {
+                    setDeleting(skill);
+                  }}
+                />
               ))}
               {data.groups.length === 0 && (
                 <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-fg-subtle">
@@ -73,11 +120,47 @@ export function SkillSettingsSection(props: ScopeTabProps): React.JSX.Element {
           )}
         </>
       )}
+
+      {creating && (
+        <CreateSkillDialog
+          workDir={scopeWorkDir!}
+          onCancel={() => {
+            setCreating(false);
+          }}
+          onCreated={(warning) => {
+            setCreating(false);
+            invalidate();
+            if (warning !== undefined) toast.info(warning);
+          }}
+        />
+      )}
+
+      {deleting !== null && (
+        <ConfirmDialog
+          title="删除 skill"
+          message={`确定删除「${deleting.name}」?${
+            deleting.path.endsWith('SKILL.md') ? '整个 skill 目录' : '该 skill 文件'
+          }将被移除,影响下次会话加载。`}
+          confirmLabel="删除"
+          busy={removeMutation.isPending}
+          error={null}
+          onCancel={() => {
+            setDeleting(null);
+          }}
+          onConfirm={() => {
+            removeMutation.mutate(deleting);
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function SkillGroupView({ group }: { readonly group: WorkspaceSkillGroup }): React.JSX.Element {
+function SkillGroupView(props: {
+  readonly group: WorkspaceSkillGroup;
+  readonly onDelete: (skill: WorkspaceSkillEntry) => void;
+}): React.JSX.Element {
+  const { group, onDelete } = props;
   const meta = GROUP_META[group.scope] ?? { title: group.scope, hint: '' };
   return (
     <div className="space-y-1.5">
@@ -121,6 +204,19 @@ function SkillGroupView({ group }: { readonly group: WorkspaceSkillGroup }): Rea
                   {skill.dir}
                 </span>
               </span>
+              {skill.writable && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 shrink-0 px-2 text-[11px] text-state-error"
+                  onClick={() => {
+                    onDelete(skill);
+                  }}
+                >
+                  删除
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -140,6 +236,120 @@ function RootLine({ root }: { readonly root: WorkspaceSkillRoot }): React.JSX.El
           {root.path.includes('.agents') ? '跨工具共享目录,byf 只读' : '非 byf 自有目录,只读'}
         </span>
       )}
+    </div>
+  );
+}
+
+const INPUT_CLS =
+  'w-full rounded-md border border-border-strong bg-input-fill px-2.5 py-1.5 text-sm outline-none focus:border-brand';
+
+/** 新建 skill 对话框:scope 选择 + 名称/描述,模板生成 SKILL.md bundle。 */
+function CreateSkillDialog(props: {
+  readonly workDir: string;
+  readonly onCancel: () => void;
+  readonly onCreated: (warning?: string) => void;
+}): React.JSX.Element {
+  const [scope, setScope] = useState<'user' | 'project'>('project');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (): Promise<void> => {
+    if (name.trim().length === 0 || description.trim().length === 0) {
+      toast.error('名称与描述均不能为空');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await skillApi.create(props.workDir, {
+        scope,
+        name: name.trim(),
+        description: description.trim(),
+      });
+      toast.success('已创建 skill(下次会话加载生效)');
+      props.onCreated(result.warning);
+    } catch (error) {
+      toast.error(`创建失败:${errorMessage(error)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-scrim" onClick={props.onCancel} aria-hidden />
+      <div
+        role="dialog"
+        aria-label="新建 skill"
+        className="relative w-[440px] rounded-xl border border-border bg-popover p-4 shadow-3"
+      >
+        <h2 className="text-sm font-semibold text-fg">新建 skill</h2>
+        <p className="mt-1 text-[11px] text-fg-subtle">
+          以模板生成 SKILL.md(frontmatter name/description + 正文骨架);编辑正文请用
+          文件端点或外部编辑器。同 scope 同名不允许;跨 scope 同名会遮蔽全局。
+        </p>
+        <div className="mt-3 space-y-3">
+          <div>
+            <span className="text-xs text-fg-muted">作用域</span>
+            <div className="mt-1 flex gap-2">
+              {(
+                [
+                  { value: 'project', label: '本地(项目 .byf/skills)' },
+                  { value: 'user', label: '全局(~/.byf/skills)' },
+                ] as const
+              ).map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={scope === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setScope(option.value);
+                  }}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <label className="block">
+            <span className="text-xs text-fg-muted">名称(即目录名)</span>
+            <input
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
+              className={`mt-1 ${INPUT_CLS} font-mono`}
+              placeholder="例如 deploy-helper"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-fg-muted">描述</span>
+            <input
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+              }}
+              className={`mt-1 ${INPUT_CLS}`}
+              placeholder="一句话说明该 skill 做什么"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={props.onCancel}
+            disabled={saving}
+          >
+            取消
+          </Button>
+          <Button type="button" size="sm" onClick={() => void submit()} disabled={saving}>
+            {saving ? '创建中…' : '创建'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
