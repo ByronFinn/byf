@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-import { api } from '#/api';
-import { configApi } from '#/api';
+import { api, configApi, inspectorApi } from '#/api';
 import { PERMISSION_COPY } from '#/components/chat/PermissionChip';
 import {
   THINKING_EFFORTS,
@@ -13,6 +12,7 @@ import {
   THINKING_MODE_LABEL,
 } from '#/components/chat/ThinkingChip';
 import { ConfigFileSection } from '#/components/settings/ConfigFileSection';
+import { McpSettingsSection } from '#/components/settings/McpSettingsSection';
 import { ProvidersSection } from '#/components/settings/ProvidersSettings';
 import { Button } from '#/components/ui/button';
 import {
@@ -26,20 +26,34 @@ import { useTheme } from '#/hooks/useTheme';
 import { relativeTimeLabel } from '#/lib/relative-time';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
-import type { SessionSummary, UpdateConfigBody } from '#/types';
+import type { SessionSummary, UpdateConfigBody, WorkspaceView } from '#/types';
 
 const CONFIG_KEY = ['config'] as const;
+/** 工作区列表 query key(与侧边栏 workspaceListKey 同键,共享缓存)。 */
+const WORKSPACES_KEY = ['workspaces'] as const;
 
 /** 设置弹层(对齐 deepseek 的 SettingsRoot):左侧导航 + 右侧内容,按 byf 能力裁两栏。 */
 export function SettingsDialog(props: { onClose: () => void }): React.JSX.Element {
   const { onClose } = props;
-  // R-C5：五段导航 + 归档管理（对齐 deepseek SettingsRoot 的左侧导航结构）
+  // R-C5:导航分区 + 归档管理(对齐 deepseek SettingsRoot 的左侧导航结构);
+  // 「MCP 配置」在「运行与服务」之后、「配置文件」之前(PRD-0036 R-N1)。
   const [section, setSection] = useState<
-    'general' | 'models' | 'permission' | 'runtime' | 'configfile' | 'archives'
+    'general' | 'models' | 'permission' | 'runtime' | 'mcp' | 'configfile' | 'archives'
   >('general');
   // R-E5 / AC-A8：检测 config.toml 是否含注释/未知结构——表单保存会规范化文件。
   const [hasComments, setHasComments] = useState(false);
   const [commentsChecked, setCommentsChecked] = useState(false);
+
+  // PRD-0036 R-N2:本地 scope 工作区选择(MCP / Skill 两页签共享)。默认取
+  // 当前活跃会话的 workDir,无活跃会话回退第一个已注册工作区;用户切换后保持。
+  const [scopeWorkDir, setScopeWorkDir] = useState<string | undefined>(undefined);
+  const { data: workspacesData } = useQuery({
+    queryKey: WORKSPACES_KEY,
+    queryFn: () => api.listWorkspaces(),
+  });
+  const workspaces: readonly WorkspaceView[] = workspacesData ?? [];
+  const activeWorkDir = useActiveSessionWorkDir();
+  const effectiveScopeWorkDir = scopeWorkDir ?? activeWorkDir ?? workspaces[0]?.workDir;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -125,6 +139,15 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           </button>
           <button
             type="button"
+            className={navItem(section === 'mcp')}
+            onClick={() => {
+              setSection('mcp');
+            }}
+          >
+            MCP 配置
+          </button>
+          <button
+            type="button"
             className={navItem(section === 'configfile')}
             onClick={() => {
               setSection('configfile');
@@ -158,6 +181,12 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
               <PermissionSection />
             ) : section === 'runtime' ? (
               <RuntimeSection />
+            ) : section === 'mcp' ? (
+              <McpSettingsSection
+                workspaces={workspaces}
+                scopeWorkDir={effectiveScopeWorkDir}
+                onScopeWorkDirChange={setScopeWorkDir}
+              />
             ) : section === 'configfile' ? (
               <div className="h-full">
                 <ConfigFileSection />
@@ -170,6 +199,33 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
       </div>
     </div>
   );
+}
+
+/**
+ * R-N2:当前活跃会话的 workDir(URL 含 /sessions/:id 时即该会话;否则
+ * undefined,本地 scope 回退第一个已注册工作区)。
+ */
+function useActiveSessionWorkDir(): string | undefined {
+  const location = useLocation();
+  const sessionId = /\/sessions\/([^/]+)/.exec(location.pathname)?.[1];
+  const [workDir, setWorkDir] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    setWorkDir(undefined);
+    if (sessionId === undefined) return;
+    inspectorApi
+      .getSessionDetail(sessionId)
+      .then((detail) => {
+        if (!cancelled) setWorkDir(detail?.workDir);
+      })
+      .catch(() => {
+        /* 会话详情读失败 → 回退工作区列表首项 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+  return workDir;
 }
 
 /** 归档管理(PRD-0034 R-A3):按工作区分组列出归档会话,支持恢复 / 进入。 */

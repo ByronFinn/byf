@@ -101,6 +101,15 @@ export {
   maskConfigSecrets,
   restoreMaskedSecrets,
 } from '@byfriends/agent-core';
+// MCP config store(PRD-0036 / ADR-0039)——core 根已导出。
+export type {
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+  McpServerConfig,
+  McpServerEntry,
+} from '@byfriends/agent-core';
 export { workspaceTitle } from '@byfriends/agent-core';
 
 export * from '#/events';

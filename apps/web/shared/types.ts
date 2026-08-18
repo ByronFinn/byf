@@ -27,6 +27,12 @@ import type {
   Event,
   InspectorSessionSummary,
   LoopRecordedEvent,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+  McpServerConfig,
+  McpServerEntry,
   Message,
   PermissionMode,
   ProjectedMessage,
@@ -71,6 +77,12 @@ export type {
   ConfigValidationResult,
   InspectorSessionSummary,
   LoopRecordedEvent,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+  McpServerConfig,
+  McpServerEntry,
   Message,
   ProjectedMessage,
   SessionHealth,
@@ -454,4 +466,24 @@ export interface ConfigDocumentResponse {
 export interface WriteConfigResponse {
   readonly config: ConfigResponse;
   readonly revision: string;
+}
+
+// ---- MCP 配置页签(PRD-0036 / ADR-0039)--------------------------------------
+
+/**
+ * `GET /api/mcp/servers?workDir=` —— 按 scope 分组的 server 列表(env/headers
+ * 值已掩码);user 条目在 project 同名时带 `overridden`。响应体即
+ * `McpConfigListing`(自 web-shared 再导出)。
+ */
+
+/** `PUT /api/mcp/servers/:scope?workDir=` —— upsert(字段级合并 + 占位符还原)。 */
+export interface McpServerUpsertBody {
+  readonly name: string;
+  /** 常用字段;env/headers 值可为占位符(不动 = 保留磁盘原值)。 */
+  readonly config: Record<string, unknown>;
+}
+
+/** `PUT /api/mcp/raw/:scope?workDir=` —— RAW 兜底写盘(校验失败 422)。 */
+export interface McpRawWriteBody {
+  readonly text: string;
 }

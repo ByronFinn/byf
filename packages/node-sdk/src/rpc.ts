@@ -21,6 +21,9 @@ import type {
   ConfigDocumentResult,
   ConfigValidationResult,
   ConfigWriteResult,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -277,6 +280,18 @@ export class SDKRpcClient {
   async removeWorkspace(workDir: string): Promise<boolean> {
     const rpc = await this.getRpc();
     return rpc.removeWorkspace({ workDir });
+  }
+
+  // ── MCP config store(PRD-0036 / ADR-0039)─────────────────────────────────
+
+  async listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    const rpc = await this.getRpc();
+    return rpc.listMcpServerConfigs({ workDir });
+  }
+
+  async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    const rpc = await this.getRpc();
+    return rpc.readMcpConfigRaw({ workDir, scope });
   }
 
   async renameSession(input: RenameSessionInput): Promise<void> {

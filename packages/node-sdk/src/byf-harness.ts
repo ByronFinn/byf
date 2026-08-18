@@ -11,6 +11,9 @@ import type {
   ConfigDocumentResult,
   ConfigValidationResult,
   ConfigWriteResult,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -242,6 +245,16 @@ export class ByfHarness {
 
   async removeWorkspace(workDir: string): Promise<boolean> {
     return this.rpc.removeWorkspace(workDir);
+  }
+
+  // ── MCP config store(PRD-0036 / ADR-0039)────────────────────────────────
+
+  async listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    return this.rpc.listMcpServerConfigs(workDir);
+  }
+
+  async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    return this.rpc.readMcpConfigRaw(workDir, scope);
   }
 
   async getConfig(options: GetConfigOptions = {}): Promise<ByfConfig> {

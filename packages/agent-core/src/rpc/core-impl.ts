@@ -34,6 +34,7 @@ import type { ConfigValidationResult } from '../config/document';
 import { WorkspaceRegistry } from '../home/workspace-registry';
 import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig } from '../mcp';
+import * as mcpConfigStore from '../mcp/config-store';
 import { ProviderManager } from '../providers/provider-manager';
 import {
   type BearerTokenProvider,
@@ -79,12 +80,16 @@ import type {
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  ListMcpServerConfigsPayload,
   ListSessionsPayload,
+  McpConfigListing,
+  McpRawDocument,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
   ReadAgentWirePayload,
   ReadContextProjectionPayload,
+  ReadMcpRawPayload,
   ReconnectMcpServerPayload,
   RemoveByfModelPayload,
   RemoveByfProviderPayload,
@@ -499,6 +504,23 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   async removeWorkspace(input: RemoveWorkspacePayload): Promise<boolean> {
     return this.workspaceRegistry().remove(input.workDir);
+  }
+
+  // ── MCP config store(PRD-0036 / ADR-0039)────────────────────────────────
+
+  async listMcpServerConfigs(input: ListMcpServerConfigsPayload): Promise<McpConfigListing> {
+    const workDir = requiredWorkDir('listMcpServerConfigs', input.workDir);
+    return mcpConfigStore.listMcpConfigs({ cwd: workDir, homeDir: this.homeDir });
+  }
+
+  async readMcpConfigRaw(input: ReadMcpRawPayload): Promise<McpRawDocument> {
+    const workDir = requiredWorkDir('readMcpConfigRaw', input.workDir);
+    mcpConfigStore.assertMcpConfigScope(input.scope);
+    return mcpConfigStore.readMcpRaw({
+      cwd: workDir,
+      homeDir: this.homeDir,
+      scope: input.scope,
+    });
   }
 
   private workspaceRegistry(): WorkspaceRegistry {

@@ -165,3 +165,189 @@ describe('loadMcpServers', () => {
     }
   });
 });
+
+// ---- config-store(PRD-0036 / ADR-0039)--------------------------------------
+
+import {
+  assertMcpConfigScope,
+  isMcpMaskedPlaceholder,
+  listMcpConfigs,
+  maskMcpJsonText,
+  maskServerConfig,
+  readMcpRaw,
+  restoreMaskedTree,
+} from '../../src/mcp/config-store';
+
+describe('config-store listMcpConfigs', () => {
+  it('returns empty scopes when no files exist', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    expect(listing.user.servers).toEqual([]);
+    expect(listing.project.servers).toEqual([]);
+    expect(listing.user.invalid).toBeUndefined();
+    expect(listing.project.path).toBe(join(cwd, '.byf', 'mcp.json'));
+  });
+
+  it('treats empty files as empty scopes', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(join(home, 'mcp.json'), '\n  \n');
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    expect(listing.user.servers).toEqual([]);
+    expect(listing.user.invalid).toBeUndefined();
+  });
+
+  it('marks user entries overridden when project defines the same name (R-M4)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        shared: { transport: 'stdio', command: 'user-side' },
+        onlyUser: { transport: 'stdio', command: 'u' },
+      },
+    });
+    await writeJson(join(cwd, '.byf', 'mcp.json'), {
+      mcpServers: { shared: { transport: 'http', url: 'http://localhost/mcp' } },
+    });
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    const shared = listing.user.servers.find((s) => s.name === 'shared');
+    const onlyUser = listing.user.servers.find((s) => s.name === 'onlyUser');
+    expect(shared?.overridden).toBe(true);
+    expect(onlyUser?.overridden).toBeUndefined();
+    expect(listing.project.servers.find((s) => s.name === 'shared')?.overridden).toBeUndefined();
+  });
+
+  it('masks env/headers values in entries; plaintext never leaves (D1)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        gh: {
+          transport: 'stdio',
+          command: 'gh-mcp',
+          env: { GITHUB_TOKEN: 'ghp-plain-secret' },
+        },
+        api: {
+          transport: 'http',
+          url: 'http://localhost/mcp',
+          headers: { Authorization: 'Bearer sk-live' },
+        },
+      },
+    });
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    const text = JSON.stringify(listing);
+    expect(text).not.toContain('ghp-plain-secret');
+    expect(text).not.toContain('sk-live');
+    expect(text).toContain('__MCP_MASKED_');
+    const gh = listing.user.servers.find((s) => s.name === 'gh');
+    expect(
+      isMcpMaskedPlaceholder(
+        String((gh?.config as { env: Record<string, string> }).env['GITHUB_TOKEN']),
+      ),
+    ).toBe(true);
+  });
+
+  it('reports invalid state with message for corrupt JSON', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(join(home, 'mcp.json'), '{ "mcpServers": ');
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    expect(listing.user.servers).toEqual([]);
+    expect(listing.user.invalid?.message).toBeDefined();
+    // 损坏只影响该 scope;另一 scope 正常。
+    expect(listing.project.invalid).toBeUndefined();
+  });
+
+  it('reports invalid state for schema-invalid server entries', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: { bad: { transport: 'stdio' } },
+    });
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    expect(listing.user.invalid?.message).toBeDefined();
+  });
+});
+
+describe('config-store readMcpRaw', () => {
+  it('returns empty text for missing file', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const doc = await readMcpRaw({ cwd, homeDir: home, scope: 'user' });
+    expect(doc.text).toBe('');
+    expect(doc.invalid).toBeUndefined();
+  });
+
+  it('returns masked normalized text for valid file (D4)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(
+      join(home, 'mcp.json'),
+      '{"mcpServers":{"gh":{"transport":"stdio","command":"gh","env":{"TOKEN":"sk-secret"}}}}',
+    );
+    const doc = await readMcpRaw({ cwd, homeDir: home, scope: 'user' });
+    expect(doc.text).not.toContain('sk-secret');
+    expect(doc.text).toContain('__MCP_MASKED_1__');
+    // 规范化:2 空格缩进 + 尾换行。
+    expect(doc.text).toContain('\n  "mcpServers"');
+    expect(doc.text.endsWith('\n')).toBe(true);
+  });
+
+  it('returns disk original text for corrupt file (D3)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const original = '{ "mcpServers": {"a": ';
+    await writeFile(join(home, 'mcp.json'), original);
+    const doc = await readMcpRaw({ cwd, homeDir: home, scope: 'user' });
+    expect(doc.text).toBe(original);
+    expect(doc.invalid?.message).toBeDefined();
+  });
+});
+
+describe('config-store mask/restore round-trip', () => {
+  it('mask + restore against unchanged disk restores the original tree', () => {
+    const disk = {
+      mcpServers: {
+        gh: {
+          transport: 'stdio',
+          command: 'gh',
+          env: { A: 'secret-a', B: 'secret-b' },
+          args: ['--x'],
+        },
+        api: { transport: 'http', url: 'http://x', headers: { Authorization: 'Bearer t' } },
+      },
+    };
+    const masked = JSON.parse(maskMcpJsonText(JSON.stringify(disk)));
+    const restored = restoreMaskedTree(masked, disk);
+    expect(restored).toEqual(disk);
+  });
+
+  it('keeps new values and blanks placeholders without a disk counterpart (D2)', () => {
+    const disk = { env: { A: 'old' } };
+    const masked = { env: { A: '__MCP_MASKED_1__', B: '__MCP_MASKED_2__' } };
+    const restored = restoreMaskedTree(masked, disk) as { env: Record<string, string> };
+    expect(restored.env['A']).toBe('old');
+    expect(restored.env['B']).toBe('');
+  });
+
+  it('maskServerConfig leaves non-secret fields untouched', () => {
+    const masked = maskServerConfig({
+      transport: 'stdio',
+      command: 'run',
+      args: ['--flag'],
+      env: { K: 'v' },
+      enabledTools: ['t'],
+    });
+    expect(masked.command).toBe('run');
+    expect(masked.args).toEqual(['--flag']);
+    expect(masked.enabledTools).toEqual(['t']);
+    expect(masked.env?.['K']).toBe('__MCP_MASKED_1__');
+  });
+
+  it('assertMcpConfigScope rejects unknown scopes', () => {
+    expect(() => assertMcpConfigScope('global')).toThrow();
+    assertMcpConfigScope('user');
+    assertMcpConfigScope('project');
+  });
+});

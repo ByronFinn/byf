@@ -733,6 +733,25 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     return c.json(response);
   });
 
+  // ---- MCP 配置页签(PRD-0036 / ADR-0039)-------------------------------------
+  // workDir 硬约束(R-C5):必须 ∈ 已注册工作区(与 /files、/fs/list 同一动态
+  // 集合:注册表 ∪ session_index 出现过的 workDir);env/headers 值已在 core
+  // 掩码,明文不跨线。
+
+  r.get('/mcp/servers', async (c) => {
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    return c.json(await manager.listMcpServerConfigs(workDir));
+  });
+
+  r.get('/mcp/raw/:scope', async (c) => {
+    const scope = mcpScopeParam(c);
+    if (scope === null) return badRequest(c, 'scope must be one of: user, project');
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    return c.json(await manager.readMcpConfigRaw(workDir, scope));
+  });
+
   // ---- 反向 RPC 裁决 ----
   r.post('/sessions/:id/approvals/:requestId', async (c) => {
     const requestId = c.req.param('requestId');
@@ -819,6 +838,36 @@ async function promptBodyToInput(
 
 function badRequest(c: Context, error: string): Response {
   return c.json({ error, code: 'BAD_REQUEST' }, 400);
+}
+
+/**
+ * R-C5:提取并校验 workDir 查询参数——必须 ∈ 已注册工作区(注册表 ∪
+ * session_index 出现过的 workDir,与 /files、/fs/list 同一动态集合),防
+ * 任意路径访问。返回 Response 表示校验失败(直接作为路由响应)。
+ */
+async function requireRegisteredWorkDir(
+  c: Context,
+  manager: WebSessionManager,
+): Promise<string | Response> {
+  const workDir = c.req.query('workDir') ?? '';
+  if (workDir.length === 0) return badRequest(c, 'workDir query is required');
+  const resolved = resolve(workDir);
+  const allowed = new Set(
+    [
+      ...(await manager.listWorkspaces()),
+      ...(await manager.listInspectableSessions()).map((s) => s.workDir),
+    ].map((dir) => resolve(dir)),
+  );
+  if (!allowed.has(resolved)) {
+    return badRequest(c, 'workDir must be a registered workspace');
+  }
+  return resolved;
+}
+
+/** MCP scope 路径参数(user=全局 / project=本地);非法返回 null。 */
+function mcpScopeParam(c: Context): 'user' | 'project' | null {
+  const scope = c.req.param('scope');
+  return scope === 'user' || scope === 'project' ? scope : null;
 }
 
 function notFound(c: Context, error: string): Response {

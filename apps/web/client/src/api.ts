@@ -19,6 +19,9 @@ import type {
   FsEntry,
   FsListResponse,
   ListSessionsResponse,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
   PermissionMode,
   PickDirectoryResponse,
   PromptBody,
@@ -178,6 +181,22 @@ export const configApi = {
   ): Promise<WriteConfigWire> => {
     return request<WriteConfigWire>('/api/config/raw', 'PUT', { text, expectedRevision });
   },
+};
+
+// ── MCP 配置页签端点(PRD-0036 / ADR-0039)───────────────────────────────────
+// env/headers 值服务端已掩码(`__MCP_MASKED_n__`);保存时占位符 = 保留原值。
+
+export const mcpApi = {
+  listServers: (workDir: string): Promise<McpConfigListing> =>
+    request<McpConfigListing>(
+      `/api/mcp/servers?${new URLSearchParams({ workDir }).toString()}`,
+      'GET',
+    ),
+  readRaw: (workDir: string, scope: McpConfigScope): Promise<McpRawDocument> =>
+    request<McpRawDocument>(
+      `/api/mcp/raw/${enc(scope)}?${new URLSearchParams({ workDir }).toString()}`,
+      'GET',
+    ),
 };
 
 /** 原始 fetch 包装(R-C3 文件端点):不解析 JSON,保留 headers 供内容类型探测。 */

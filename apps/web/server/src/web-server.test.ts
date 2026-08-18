@@ -9,6 +9,9 @@ import {
   ErrorCodes,
   type ByfConfig,
   type ByfConfigPatch,
+  type McpConfigListing,
+  type McpConfigScope,
+  type McpRawDocument,
   type PromptInput,
   type ResumedSessionSummary,
   type SkillSummary,
@@ -377,6 +380,28 @@ class FakeHarness implements HarnessLike {
       this.workspaceHidden.push(workDir); // 镜像 core 语义：删除 = hidden
     }
     return this.workspaceList.length !== before;
+  }
+
+  // ---- MCP config store(PRD-0036 / ADR-0039)----
+
+  mcpListing: McpConfigListing | undefined;
+  mcpRawDocs = new Map<McpConfigScope, McpRawDocument>();
+  mcpListCalls: string[] = [];
+  mcpRawCalls: Array<{ workDir: string; scope: McpConfigScope }> = [];
+
+  async listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    this.mcpListCalls.push(workDir);
+    return (
+      this.mcpListing ?? {
+        user: { path: '/home/u/.byf/mcp.json', servers: [] },
+        project: { path: '/work/w/.byf/mcp.json', servers: [] },
+      }
+    );
+  }
+
+  async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    this.mcpRawCalls.push({ workDir, scope });
+    return this.mcpRawDocs.get(scope) ?? { path: `/work/w/.byf/mcp.json`, text: '' };
   }
 
   async close(): Promise<void> {
@@ -2455,5 +2480,110 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     expect(res.status).toBe(422);
     const data = (await res.json()) as { code: string };
     expect(data.code).toBe('CONFIG_INVALID');
+  });
+});
+
+describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(workDir = '/work/ws'): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = [workDir];
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  it('GET /api/mcp/servers requires workDir', async () => {
+    const { app } = await setup();
+    const res = await app.request('/api/mcp/servers');
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/mcp/servers rejects unregistered workDir (R-C5)', async () => {
+    const { app } = await setup('/work/ws');
+    const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/etc')}`);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('BAD_REQUEST');
+  });
+
+  it('GET /api/mcp/servers returns per-scope listing with overridden flags', async () => {
+    const { app, harness } = await setup();
+    harness.mcpListing = {
+      user: {
+        path: '/home/u/.byf/mcp.json',
+        servers: [
+          {
+            name: 'shared',
+            config: { transport: 'http', url: 'http://example.test/mcp' },
+            overridden: true,
+          },
+        ],
+      },
+      project: {
+        path: '/work/ws/.byf/mcp.json',
+        servers: [{ name: 'shared', config: { transport: 'stdio', command: 'run' } }],
+      },
+    };
+    const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/work/ws')}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as McpConfigListing;
+    expect(data.user.servers[0]!.overridden).toBe(true);
+    expect(data.project.servers[0]!.name).toBe('shared');
+    expect(harness.mcpListCalls).toEqual(['/work/ws']);
+  });
+
+  it('GET /api/mcp/servers masks env values in entries (D1)', async () => {
+    const { app, harness } = await setup();
+    harness.mcpListing = {
+      user: {
+        path: '/home/u/.byf/mcp.json',
+        servers: [
+          {
+            name: 'gh',
+            config: {
+              transport: 'stdio',
+              command: 'gh-mcp',
+              env: { GITHUB_TOKEN: '__MCP_MASKED_1__' },
+            },
+          },
+        ],
+      },
+      project: { path: '/work/ws/.byf/mcp.json', servers: [] },
+    };
+    const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/work/ws')}`);
+    const data = (await res.json()) as McpConfigListing;
+    const text = JSON.stringify(data);
+    expect(text).not.toContain('ghp-secret');
+    expect(text).toContain('__MCP_MASKED_1__');
+  });
+
+  it('GET /api/mcp/raw/:scope validates scope and forwards workDir', async () => {
+    const { app, harness } = await setup();
+    const res = await app.request(`/api/mcp/raw/user?workDir=${encodeURIComponent('/work/ws')}`);
+    expect(res.status).toBe(200);
+    expect(harness.mcpRawCalls).toEqual([{ workDir: '/work/ws', scope: 'user' }]);
+
+    const badScope = await app.request(
+      `/api/mcp/raw/other?workDir=${encodeURIComponent('/work/ws')}`,
+    );
+    expect(badScope.status).toBe(400);
+  });
+
+  it('GET /api/mcp/raw/:scope returns disk original text for corrupt file (D3)', async () => {
+    const { app, harness } = await setup();
+    harness.mcpRawDocs.set('project', {
+      path: '/work/ws/.byf/mcp.json',
+      text: '{ "mcpServers": ',
+      invalid: { message: 'Unexpected end of JSON input' },
+    });
+    const res = await app.request(`/api/mcp/raw/project?workDir=${encodeURIComponent('/work/ws')}`);
+    const data = (await res.json()) as McpRawDocument;
+    expect(data.text).toBe('{ "mcpServers": ');
+    expect(data.invalid?.message).toContain('JSON');
   });
 });

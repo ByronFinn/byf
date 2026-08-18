@@ -8,6 +8,7 @@ import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ConfigValidationResult } from '#/config/document';
+import type { McpConfigListing, McpConfigScope, McpRawDocument } from '#/mcp/config-store';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type {
@@ -346,6 +347,25 @@ export interface RemoveWorkspacePayload {
   readonly workDir: string;
 }
 
+// ── MCP config store / workspace skills(PRD-0036 / ADR-0039)───────────────
+
+export type {
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+  McpServerEntry,
+} from '#/mcp/config-store';
+
+export interface ListMcpServerConfigsPayload {
+  readonly workDir: string;
+}
+
+export interface ReadMcpRawPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -427,4 +447,8 @@ export interface CoreAPI extends SessionAPIWithId {
   hiddenWorkspaces: (payload: EmptyPayload) => string[];
   addWorkspace: (payload: AddWorkspacePayload) => string[];
   removeWorkspace: (payload: RemoveWorkspacePayload) => boolean;
+  // ── MCP config store(PRD-0036 / ADR-0039;workDir 需为已注册工作区,由
+  //    web-server 端点层校验,core 信任调用方)──
+  listMcpServerConfigs: (payload: ListMcpServerConfigsPayload) => McpConfigListing;
+  readMcpConfigRaw: (payload: ReadMcpRawPayload) => McpRawDocument;
 }

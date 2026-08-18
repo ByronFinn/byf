@@ -28,6 +28,9 @@ import type {
   AgentTreeResponse,
   CreateSessionBody,
   InspectorSessionSummary,
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
   ResolvedCapabilities,
   ServerFrame,
   SessionStatus,
@@ -93,6 +96,9 @@ export interface HarnessLike {
   hiddenWorkspaces(): Promise<string[]>;
   addWorkspace(workDir: string): Promise<string[]>;
   removeWorkspace(workDir: string): Promise<boolean>;
+  // PRD-0036 / ADR-0039：MCP mcp.json per-scope 读写(core 单源，SDK 透出)。
+  listMcpServerConfigs(workDir: string): Promise<McpConfigListing>;
+  readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument>;
   readonly configPath: string;
   close(): Promise<void>;
 }
@@ -355,6 +361,16 @@ export class WebSessionManager {
 
   removeWorkspace(workDir: string): Promise<boolean> {
     return this.harness.removeWorkspace(workDir);
+  }
+
+  // ---- MCP config store(PRD-0036 / ADR-0039)-------------------------------
+
+  listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    return this.harness.listMcpServerConfigs(workDir);
+  }
+
+  readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    return this.harness.readMcpConfigRaw(workDir, scope);
   }
 
   // ---- 反向 RPC 裁决 ---------------------------------------------------------

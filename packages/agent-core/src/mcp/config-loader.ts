@@ -7,7 +7,8 @@ import { resolveByfHome } from '#/config/path';
 import { McpServerConfigSchema, type McpServerConfig } from '#/config/schema';
 import { ErrorCodes, ByfError } from '#/errors';
 
-const McpJsonFileSchema = z.object({
+/** mcp.json 文件级 schema;config-store 写入前复用做整文件校验。 */
+export const McpJsonFileSchema = z.object({
   mcpServers: z.record(z.string(), McpServerConfigSchema).default({}),
 });
 
