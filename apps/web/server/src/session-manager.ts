@@ -33,6 +33,7 @@ import type {
   McpRawDocument,
   McpScopeState,
   ResolvedCapabilities,
+  WorkspaceSkillListing,
   ServerFrame,
   SessionStatus,
   SessionSummary,
@@ -112,6 +113,8 @@ export interface HarnessLike {
     name: string,
   ): Promise<McpScopeState>;
   writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument>;
+  // PRD-0036：工作区级 skill 枚举 / 创建 / 删除(core 单源，SDK 透出)。
+  listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing>;
   readonly configPath: string;
   close(): Promise<void>;
 }
@@ -405,6 +408,12 @@ export class WebSessionManager {
 
   writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument> {
     return this.harness.writeMcpConfigRaw(workDir, scope, text);
+  }
+
+  // ---- Workspace skills(PRD-0036)-------------------------------------------
+
+  listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
+    return this.harness.listWorkspaceSkills(workDir);
   }
 
   // ---- 反向 RPC 裁决 ---------------------------------------------------------

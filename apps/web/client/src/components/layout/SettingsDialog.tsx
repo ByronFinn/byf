@@ -14,6 +14,7 @@ import {
 import { ConfigFileSection } from '#/components/settings/ConfigFileSection';
 import { McpSettingsSection } from '#/components/settings/McpSettingsSection';
 import { ProvidersSection } from '#/components/settings/ProvidersSettings';
+import { SkillSettingsSection } from '#/components/settings/SkillSettingsSection';
 import { Button } from '#/components/ui/button';
 import {
   DropdownMenu,
@@ -38,7 +39,7 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
   // R-C5:导航分区 + 归档管理(对齐 deepseek SettingsRoot 的左侧导航结构);
   // 「MCP 配置」在「运行与服务」之后、「配置文件」之前(PRD-0036 R-N1)。
   const [section, setSection] = useState<
-    'general' | 'models' | 'permission' | 'runtime' | 'mcp' | 'configfile' | 'archives'
+    'general' | 'models' | 'permission' | 'runtime' | 'mcp' | 'skills' | 'configfile' | 'archives'
   >('general');
   // R-E5 / AC-A8：检测 config.toml 是否含注释/未知结构——表单保存会规范化文件。
   const [hasComments, setHasComments] = useState(false);
@@ -148,6 +149,15 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
           </button>
           <button
             type="button"
+            className={navItem(section === 'skills')}
+            onClick={() => {
+              setSection('skills');
+            }}
+          >
+            Skill 配置
+          </button>
+          <button
+            type="button"
             className={navItem(section === 'configfile')}
             onClick={() => {
               setSection('configfile');
@@ -183,6 +193,12 @@ export function SettingsDialog(props: { onClose: () => void }): React.JSX.Elemen
               <RuntimeSection />
             ) : section === 'mcp' ? (
               <McpSettingsSection
+                workspaces={workspaces}
+                scopeWorkDir={effectiveScopeWorkDir}
+                onScopeWorkDirChange={setScopeWorkDir}
+              />
+            ) : section === 'skills' ? (
+              <SkillSettingsSection
                 workspaces={workspaces}
                 scopeWorkDir={effectiveScopeWorkDir}
                 onScopeWorkDirChange={setScopeWorkDir}

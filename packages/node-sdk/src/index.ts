@@ -110,6 +110,14 @@ export type {
   McpServerConfig,
   McpServerEntry,
 } from '@byfriends/agent-core';
+// Workspace skills(PRD-0036)——core 根已导出。
+export type {
+  SkillGroupScope,
+  WorkspaceSkillEntry,
+  WorkspaceSkillGroup,
+  WorkspaceSkillListing,
+  WorkspaceSkillRoot,
+} from '@byfriends/agent-core';
 export { workspaceTitle } from '@byfriends/agent-core';
 
 export * from '#/events';

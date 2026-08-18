@@ -16,6 +16,7 @@ import {
   type PromptInput,
   type ResumedSessionSummary,
   type SkillSummary,
+  type WorkspaceSkillListing,
 } from '@byfriends/sdk';
 import type {
   ConfigDocumentResult,
@@ -444,6 +445,14 @@ class FakeHarness implements HarnessLike {
     if (this.mcpWriteError !== undefined) throw this.mcpWriteError;
     this.mcpRawWriteCalls.push({ workDir, scope, text });
     return { path: `/work/w/.byf/mcp.json`, text };
+  }
+
+  skillListing: WorkspaceSkillListing | undefined;
+  skillListCalls: string[] = [];
+
+  async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
+    this.skillListCalls.push(workDir);
+    return this.skillListing ?? { userHomeDir: '/home/u', projectRoot: '/work/ws', groups: [] };
   }
 
   async close(): Promise<void> {
@@ -2759,5 +2768,77 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       },
     );
     expect(bad.status).toBe(422);
+  });
+});
+
+describe('Skill listing route (PRD-0036 #314)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(workDir = '/work/ws'): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = [workDir];
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  it('GET /api/skills returns the grouped listing for a registered workDir', async () => {
+    const { app, harness } = await setup();
+    harness.skillListing = {
+      userHomeDir: '/home/u',
+      projectRoot: '/work/ws',
+      groups: [
+        {
+          scope: 'project',
+          roots: [{ path: '/work/ws/.byf/skills', source: 'project', writable: true }],
+          skills: [
+            {
+              name: 'deploy',
+              description: 'deploy it',
+              path: '/work/ws/.byf/skills/deploy/SKILL.md',
+              dir: '/work/ws/.byf/skills/deploy',
+              source: 'project',
+              writable: true,
+            },
+          ],
+        },
+        {
+          scope: 'user',
+          roots: [
+            { path: '/home/u/.byf/skills', source: 'user', writable: true },
+            { path: '/home/u/.agents/skills', source: 'user', writable: false },
+          ],
+          skills: [
+            {
+              name: 'deploy',
+              description: 'shadowed global',
+              path: '/home/u/.byf/skills/deploy/SKILL.md',
+              dir: '/home/u/.byf/skills/deploy',
+              source: 'user',
+              shadowed: true,
+              writable: true,
+            },
+          ],
+        },
+      ],
+    };
+    const res = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as WorkspaceSkillListing;
+    expect(data.groups).toHaveLength(2);
+    expect(data.groups[0]!.skills[0]!.name).toBe('deploy');
+    expect(data.groups[1]!.skills[0]!.shadowed).toBe(true);
+    expect(harness.skillListCalls).toEqual(['/work/ws']);
+  });
+
+  it('GET /api/skills requires a registered workDir (R-C5)', async () => {
+    const { app } = await setup('/work/ws');
+    const noDir = await app.request('/api/skills');
+    expect(noDir.status).toBe(400);
+    const badDir = await app.request(`/api/skills?workDir=${encodeURIComponent('/etc')}`);
+    expect(badDir.status).toBe(400);
   });
 });

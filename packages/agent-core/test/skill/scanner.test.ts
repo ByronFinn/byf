@@ -1177,3 +1177,105 @@ async function writeSkill(
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, lines.join('\n'));
 }
+
+// ---- workspace skill store(PRD-0036 #314)-----------------------------------
+
+import { listWorkspaceSkills } from '../../src/skill/store';
+
+describe('listWorkspaceSkills', () => {
+  it('groups skills per root with source and shadow info; .byf roots writable, .agents readonly', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(repoDir, '.byf', 'skills', 'deploy'), { recursive: true });
+    await writeFile(
+      path.join(repoDir, '.byf', 'skills', 'deploy', 'SKILL.md'),
+      '---\nname: deploy\ndescription: deploy the app\n---\nbody',
+      'utf-8',
+    );
+    await mkdir(path.join(repoDir, '.agents', 'skills', 'shared'), { recursive: true });
+    await writeFile(
+      path.join(repoDir, '.agents', 'skills', 'shared', 'SKILL.md'),
+      '---\nname: shared\ndescription: cross-tool skill\n---\nbody',
+      'utf-8',
+    );
+    await mkdir(path.join(homeDir, '.byf', 'skills', 'personal'), { recursive: true });
+    await writeFile(
+      path.join(homeDir, '.byf', 'skills', 'personal', 'SKILL.md'),
+      '---\nname: personal\ndescription: my skill\n---\nbody',
+      'utf-8',
+    );
+
+    const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
+    expect(listing.projectRoot).toBe(repoDir);
+
+    const byScope = new Map(listing.groups.map((g) => [g.scope, g]));
+    const project = byScope.get('project')!;
+    const user = byScope.get('user')!;
+
+    expect(project.skills.map((s) => s.name)).toEqual(['deploy', 'shared']);
+    expect(user.skills.map((s) => s.name)).toEqual(['personal']);
+
+    const deploy = project.skills.find((s) => s.name === 'deploy')!;
+    expect(deploy.writable).toBe(true);
+    expect(deploy.dir).toBe(await realpath(path.join(repoDir, '.byf', 'skills', 'deploy')));
+
+    const shared = project.skills.find((s) => s.name === 'shared')!;
+    expect(shared.writable).toBe(false);
+    expect(user.skills[0]!.writable).toBe(true);
+
+    const projectRoots = project.roots.map((r) => r.writable);
+    expect(projectRoots).toEqual([true, false]);
+  });
+
+  it('marks later same-name definitions as shadowed across roots (project shadows user)', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    for (const base of [
+      path.join(repoDir, '.byf', 'skills'),
+      path.join(homeDir, '.byf', 'skills'),
+    ]) {
+      await mkdir(path.join(base, 'deploy'), { recursive: true });
+      await writeFile(
+        path.join(base, 'deploy', 'SKILL.md'),
+        '---\nname: deploy\ndescription: dupe\n---\nbody',
+        'utf-8',
+      );
+    }
+    const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
+    const userGroup = listing.groups.find((g) => g.scope === 'user')!;
+    expect(userGroup.skills[0]!.shadowed).toBe(true);
+    const projectGroup = listing.groups.find((g) => g.scope === 'project')!;
+    expect(projectGroup.skills[0]!.shadowed).toBeUndefined();
+  });
+
+  it('supports root-level single-file skills in the listing', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(homeDir, '.byf', 'skills'), { recursive: true });
+    await writeFile(
+      path.join(homeDir, '.byf', 'skills', 'quick.md'),
+      '# quick\nA flat skill body.',
+      'utf-8',
+    );
+    const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
+    const userGroup = listing.groups.find((g) => g.scope === 'user')!;
+    expect(userGroup.skills.map((s) => s.name)).toEqual(['quick']);
+    expect(userGroup.skills[0]!.path.endsWith('quick.md')).toBe(true);
+  });
+
+  it('marks .agents shadowed by .byf within the same scope', async () => {
+    const { homeDir, repoDir, workDir } = await makeWorkspace();
+    for (const base of [
+      path.join(repoDir, '.byf', 'skills'),
+      path.join(repoDir, '.agents', 'skills'),
+    ]) {
+      await mkdir(path.join(base, 'tool'), { recursive: true });
+      await writeFile(
+        path.join(base, 'tool', 'SKILL.md'),
+        '---\nname: tool\ndescription: dupe\n---\nbody',
+        'utf-8',
+      );
+    }
+    const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
+    const projectGroup = listing.groups.find((g) => g.scope === 'project')!;
+    const shadowed = projectGroup.skills.find((s) => s.dir.includes('.agents'));
+    expect(shadowed?.shadowed).toBe(true);
+  });
+});

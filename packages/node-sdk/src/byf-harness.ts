@@ -15,6 +15,7 @@ import type {
   McpConfigScope,
   McpRawDocument,
   McpScopeState,
+  WorkspaceSkillListing,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -281,6 +282,12 @@ export class ByfHarness {
     text: string,
   ): Promise<McpRawDocument> {
     return this.rpc.writeMcpConfigRaw(workDir, scope, text);
+  }
+
+  // ── Workspace skills(PRD-0036)────────────────────────────────────────────
+
+  async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
+    return this.rpc.listWorkspaceSkills(workDir);
   }
 
   async getConfig(options: GetConfigOptions = {}): Promise<ByfConfig> {

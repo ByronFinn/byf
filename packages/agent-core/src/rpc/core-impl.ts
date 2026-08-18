@@ -53,6 +53,7 @@ import type {
 import * as inspector from '../session/inspector';
 import { SessionAPIImpl } from '../session/rpc';
 import { normalizeWorkDir, SessionStore } from '../session/store';
+import * as skillStore from '../skill/store';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { CoreRPCClient } from './client';
 import type {
@@ -82,6 +83,7 @@ import type {
   GetBackgroundPayload,
   ListMcpServerConfigsPayload,
   ListSessionsPayload,
+  ListWorkspaceSkillsPayload,
   McpConfigListing,
   McpRawDocument,
   McpScopeState,
@@ -117,6 +119,7 @@ import type {
   UpdateSessionMetadataPayload,
   UpsertMcpServerConfigPayload,
   ValidateConfigTextPayload,
+  WorkspaceSkillListing,
   WriteConfigTextPayload,
   WriteMcpRawPayload,
 } from './core-api';
@@ -558,6 +561,19 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       homeDir: this.homeDir,
       scope: input.scope,
       text: input.text,
+    });
+  }
+
+  // ── Workspace skills(PRD-0036)────────────────────────────────────────────
+
+  async listWorkspaceSkills(input: ListWorkspaceSkillsPayload): Promise<WorkspaceSkillListing> {
+    const workDir = requiredWorkDir('listWorkspaceSkills', input.workDir);
+    const config = this.reloadProviderManager();
+    return skillStore.listWorkspaceSkills({
+      workDir,
+      userHomeDir: this.userHomeDir,
+      extraDirs: config.extraSkillDirs,
+      mergeAllAvailableSkills: config.mergeAllAvailableSkills,
     });
   }
 

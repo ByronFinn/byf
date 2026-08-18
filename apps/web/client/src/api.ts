@@ -25,6 +25,7 @@ import type {
   McpRawWriteBody,
   McpScopeState,
   McpServerUpsertBody,
+  WorkspaceSkillListing,
   PermissionMode,
   PickDirectoryResponse,
   PromptBody,
@@ -222,6 +223,17 @@ export const mcpApi = {
       `/api/mcp/raw/${enc(scope)}?${new URLSearchParams({ workDir }).toString()}`,
       'PUT',
       { text } satisfies McpRawWriteBody,
+    ),
+};
+
+// ── Skill 配置页签端点(PRD-0036)────────────────────────────────────────────
+
+export const skillApi = {
+  /** 工作区级 skill 枚举(分组 + 遮蔽信息;含只读来源标注)。 */
+  list: (workDir: string): Promise<WorkspaceSkillListing> =>
+    request<WorkspaceSkillListing>(
+      `/api/skills?${new URLSearchParams({ workDir }).toString()}`,
+      'GET',
     ),
 };
 

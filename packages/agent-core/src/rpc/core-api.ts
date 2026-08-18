@@ -23,6 +23,7 @@ import type {
   SessionDetail,
   WireResponse,
 } from '#/session/inspector';
+import type { WorkspaceSkillListing } from '#/skill/store';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
 
 import type { UsageStatus } from './events';
@@ -362,6 +363,18 @@ export type {
   McpServerEntry,
 } from '#/mcp/config-store';
 
+export type {
+  SkillGroupScope,
+  WorkspaceSkillEntry,
+  WorkspaceSkillGroup,
+  WorkspaceSkillListing,
+  WorkspaceSkillRoot,
+} from '#/skill/store';
+
+export interface ListWorkspaceSkillsPayload {
+  readonly workDir: string;
+}
+
 export interface ListMcpServerConfigsPayload {
   readonly workDir: string;
 }
@@ -479,4 +492,5 @@ export interface CoreAPI extends SessionAPIWithId {
   upsertMcpServerConfig: (payload: UpsertMcpServerConfigPayload) => McpScopeState;
   removeMcpServerConfig: (payload: RemoveMcpServerConfigPayload) => McpScopeState;
   writeMcpConfigRaw: (payload: WriteMcpRawPayload) => McpRawDocument;
+  listWorkspaceSkills: (payload: ListWorkspaceSkillsPayload) => WorkspaceSkillListing;
 }

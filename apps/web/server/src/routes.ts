@@ -803,6 +803,14 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     }
   });
 
+  // ---- Skill 配置页签(PRD-0036)----------------------------------------------
+
+  r.get('/skills', async (c) => {
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    return c.json(await manager.listWorkspaceSkills(workDir));
+  });
+
   r.put('/mcp/raw/:scope', async (c) => {
     const scope = mcpScopeParam(c);
     if (scope === null) return badRequest(c, 'scope must be one of: user, project');

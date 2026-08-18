@@ -40,6 +40,11 @@ import type {
   TokenUsage,
   ToolCall,
   UsageTotals,
+  SkillGroupScope,
+  WorkspaceSkillEntry,
+  WorkspaceSkillGroup,
+  WorkspaceSkillListing,
+  WorkspaceSkillRoot,
   QuestionAnswerMethod,
   QuestionAnswers,
   QuestionItem,
@@ -90,6 +95,11 @@ export type {
   ToolCall,
   ToolInputDisplay,
   UsageTotals,
+  SkillGroupScope,
+  WorkspaceSkillEntry,
+  WorkspaceSkillGroup,
+  WorkspaceSkillListing,
+  WorkspaceSkillRoot,
   QuestionRequest,
   QuestionItem,
   QuestionOption,
@@ -487,3 +497,7 @@ export interface McpServerUpsertBody {
 export interface McpRawWriteBody {
   readonly text: string;
 }
+
+// ---- Skill 配置页签(PRD-0036)-----------------------------------------------
+// `GET /api/skills?workDir=` 响应体即 WorkspaceSkillListing(自 web-shared
+// 再导出);写路径端点见 #315。
