@@ -31,6 +31,8 @@ export type {
   ListSessionsResponse,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestBody,
+  McpConnectionTestResult,
   McpRawDocument,
   McpRawWriteBody,
   McpScopeState,

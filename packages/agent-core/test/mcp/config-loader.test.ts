@@ -15,6 +15,7 @@ import {
   maskServerConfig,
   readMcpRaw,
   removeMcpServer,
+  resolveServerConfigForProbe,
   restoreMaskedTree,
   upsertMcpServer,
   writeMcpRaw,
@@ -576,6 +577,54 @@ describe('config-store removeMcpServer', () => {
     await expect(
       removeMcpServer({ cwd, homeDir: home, scope: 'user', name: 'nope' }),
     ).rejects.toThrow(/not found/);
+  });
+});
+
+describe('config-store resolveServerConfigForProbe', () => {
+  it('restores placeholder env against disk values without writing (D2)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        gh: {
+          transport: 'stdio',
+          command: 'gh',
+          env: { GITHUB_TOKEN: 'disk-secret', KEEP: 'keep-me' },
+          enabledTools: ['gh'],
+        },
+      },
+    });
+    const config = await resolveServerConfigForProbe({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      name: 'gh',
+      config: {
+        transport: 'stdio',
+        command: 'gh',
+        env: { GITHUB_TOKEN: '__MCP_MASKED_1__', NEW: 'plain' },
+      },
+    });
+    expect(config.env).toEqual({ GITHUB_TOKEN: 'disk-secret', NEW: 'plain' });
+    // 高级公共字段按 R-M3a 从磁盘保留,便于用真实完整配置做探测。
+    expect(config.enabledTools).toEqual(['gh']);
+    // 探测只读,不落盘。
+    const disk = await readJsonFile(join(home, 'mcp.json'));
+    expect(JSON.stringify(disk)).not.toContain('__MCP_MASKED_');
+  });
+
+  it('throws CONFIG_INVALID when the scope file is corrupt (D3 guard)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(join(home, 'mcp.json'), '{ "mcpServers": ', 'utf-8');
+    await expect(
+      resolveServerConfigForProbe({
+        cwd,
+        homeDir: home,
+        scope: 'user',
+        config: { transport: 'stdio', command: 'gh' },
+      }),
+    ).rejects.toMatchObject({ code: ErrorCodes.CONFIG_INVALID });
   });
 });
 

@@ -23,6 +23,7 @@ import type {
   ConfigWriteResult,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestResult,
   McpRawDocument,
   McpScopeState,
   CreateSkillResult,
@@ -323,6 +324,16 @@ export class SDKRpcClient {
   ): Promise<McpRawDocument> {
     const rpc = await this.getRpc();
     return rpc.writeMcpConfigRaw({ workDir, scope, text });
+  }
+
+  async testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult> {
+    const rpc = await this.getRpc();
+    return rpc.testMcpConnection(input);
   }
 
   // ── Workspace skills(PRD-0036)────────────────────────────────────────────

@@ -66,7 +66,9 @@ function SelectItem({
       )}
       {...props}
     >
-      <span className="truncate">{children}</span>
+      <SelectPrimitive.ItemText>
+        <span className="truncate">{children}</span>
+      </SelectPrimitive.ItemText>
       <span className="absolute right-2 flex items-center">
         <SelectPrimitive.ItemIndicator>
           <Check className="size-4 text-brand" aria-hidden />

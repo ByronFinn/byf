@@ -14,6 +14,7 @@ import type {
   McpRawDocument,
   McpScopeState,
 } from '#/mcp/config-store';
+import type { McpConnectionTestResult } from '#/mcp/mcp-probe';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type {
@@ -362,6 +363,7 @@ export type {
   McpScopeState,
   McpServerEntry,
 } from '#/mcp/config-store';
+export type { McpConnectionTestResult } from '#/mcp/mcp-probe';
 
 export type {
   CreateSkillResult,
@@ -416,6 +418,14 @@ export interface WriteMcpRawPayload {
   readonly workDir: string;
   readonly scope: McpConfigScope;
   readonly text: string;
+}
+
+export interface TestMcpConnectionPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  /** 编辑既有条目时传入,使掩码占位符能按磁盘原值还原(与 upsert 同路径)。 */
+  readonly name?: string;
+  readonly config: Record<string, unknown>;
 }
 
 export interface AgentAPI {
@@ -506,6 +516,7 @@ export interface CoreAPI extends SessionAPIWithId {
   upsertMcpServerConfig: (payload: UpsertMcpServerConfigPayload) => McpScopeState;
   removeMcpServerConfig: (payload: RemoveMcpServerConfigPayload) => McpScopeState;
   writeMcpConfigRaw: (payload: WriteMcpRawPayload) => McpRawDocument;
+  testMcpConnection: (payload: TestMcpConnectionPayload) => McpConnectionTestResult;
   listWorkspaceSkills: (payload: ListWorkspaceSkillsPayload) => WorkspaceSkillListing;
   createWorkspaceSkill: (payload: CreateWorkspaceSkillPayload) => CreateSkillResult;
   removeWorkspaceSkill: (payload: RemoveWorkspaceSkillPayload) => void;

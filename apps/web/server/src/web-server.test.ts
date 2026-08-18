@@ -11,6 +11,7 @@ import {
   type ByfConfigPatch,
   type McpConfigListing,
   type McpConfigScope,
+  type McpConnectionTestResult,
   type McpRawDocument,
   type McpScopeState,
   type PromptInput,
@@ -446,6 +447,26 @@ class FakeHarness implements HarnessLike {
     if (this.mcpWriteError !== undefined) throw this.mcpWriteError;
     this.mcpRawWriteCalls.push({ workDir, scope, text });
     return { path: `/work/w/.byf/mcp.json`, text };
+  }
+
+  mcpTestCalls: Array<{
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }> = [];
+  mcpTestResult: McpConnectionTestResult = { ok: true, toolCount: 2 };
+  mcpTestError: ByfError | undefined;
+
+  async testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult> {
+    if (this.mcpTestError !== undefined) throw this.mcpTestError;
+    this.mcpTestCalls.push(input);
+    return this.mcpTestResult;
   }
 
   skillListing: WorkspaceSkillListing | undefined;
@@ -2802,6 +2823,69 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       },
     );
     expect(bad.status).toBe(422);
+  });
+
+  it('POST /api/mcp/test probes a server without persisting', async () => {
+    const { app, harness } = await setup();
+    harness.mcpTestResult = { ok: false, toolCount: 0, error: 'spawn npx ENOENT' };
+    const res = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        scope: 'project',
+        name: 'github',
+        config: { transport: 'stdio', command: 'gh', enabled: true },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as McpConnectionTestResult;
+    expect(data).toEqual({ ok: false, toolCount: 0, error: 'spawn npx ENOENT' });
+    expect(harness.mcpTestCalls).toEqual([
+      {
+        workDir: '/work/ws',
+        scope: 'project',
+        name: 'github',
+        config: { transport: 'stdio', command: 'gh', enabled: true },
+      },
+    ]);
+    expect(harness.mcpUpsertCalls).toEqual([]);
+  });
+
+  it('POST /api/mcp/test rejects bad scope / config / unregistered workDir', async () => {
+    const { app } = await setup();
+    const badScope = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'global', config: {} }),
+    });
+    expect(badScope.status).toBe(400);
+
+    const noConfig = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'user' }),
+    });
+    expect(noConfig.status).toBe(400);
+
+    const badDir = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/etc')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'user', config: { transport: 'stdio' } }),
+    });
+    expect(badDir.status).toBe(400);
+  });
+
+  it('POST /api/mcp/test maps config.invalid to 422', async () => {
+    const { app, harness } = await setup();
+    harness.mcpTestError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid MCP config');
+    const res = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ scope: 'user', config: { transport: 'stdio' } }),
+    });
+    expect(res.status).toBe(422);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('CONFIG_INVALID');
   });
 });
 

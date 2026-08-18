@@ -29,6 +29,7 @@ import type {
   LoopRecordedEvent,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestResult,
   McpRawDocument,
   McpScopeState,
   McpServerConfig,
@@ -85,6 +86,7 @@ export type {
   LoopRecordedEvent,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestResult,
   McpRawDocument,
   McpScopeState,
   McpServerConfig,
@@ -498,6 +500,14 @@ export interface McpServerUpsertBody {
 /** `PUT /api/mcp/raw/:scope?workDir=` —— RAW 兜底写盘(校验失败 422)。 */
 export interface McpRawWriteBody {
   readonly text: string;
+}
+
+/** `POST /api/mcp/test?workDir=` —— 表单「测试连接」:临时拉起目标 server。 */
+export interface McpConnectionTestBody {
+  readonly scope: 'user' | 'project';
+  /** 编辑既有条目时传入,使掩码占位符能按磁盘原值还原(与 upsert 同路径)。 */
+  readonly name?: string;
+  readonly config: Record<string, unknown>;
 }
 
 // ---- Skill 配置页签(PRD-0036)-----------------------------------------------

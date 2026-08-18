@@ -18,6 +18,7 @@ import type {
   FsEntry,
   FsListResponse,
   CreateSkillBody,
+  McpConnectionTestBody,
   McpRawWriteBody,
   McpServerUpsertBody,
   PromptBody,
@@ -745,6 +746,38 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const workDir = await requireRegisteredWorkDir(c, manager);
     if (workDir instanceof Response) return workDir;
     return c.json(await manager.listMcpServerConfigs(workDir));
+  });
+
+  r.post('/mcp/test', async (c) => {
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const body = await c.req.json<McpConnectionTestBody>();
+    if (body.scope !== 'user' && body.scope !== 'project') {
+      return badRequest(c, 'scope must be one of: user, project');
+    }
+    if (typeof body.config !== 'object' || body.config === null || Array.isArray(body.config)) {
+      return badRequest(c, 'config must be an object');
+    }
+    if (
+      body.name !== undefined &&
+      (typeof body.name !== 'string' || body.name.trim().length === 0)
+    ) {
+      return badRequest(c, 'name must be a non-empty string');
+    }
+    try {
+      const result = await manager.testMcpConnection({
+        workDir,
+        scope: body.scope,
+        name: body.name?.trim(),
+        config: body.config,
+      });
+      return c.json(result);
+    } catch (error) {
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
+      }
+      throw error;
+    }
   });
 
   r.get('/mcp/raw/:scope', async (c) => {

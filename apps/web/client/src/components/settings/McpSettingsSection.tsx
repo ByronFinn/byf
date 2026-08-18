@@ -32,7 +32,13 @@ import {
   SelectValue,
 } from '#/components/ui/select';
 import { errorMessage, toast } from '#/lib/toast';
-import type { McpConfigScope, McpScopeState, McpServerConfig, McpServerEntry } from '#/types';
+import type {
+  McpConfigScope,
+  McpConnectionTestResult,
+  McpScopeState,
+  McpServerConfig,
+  McpServerEntry,
+} from '#/types';
 
 const INPUT_CLS =
   'w-full rounded-md border border-border-strong bg-input-fill px-2.5 py-1.5 text-sm outline-none focus:border-brand disabled:opacity-60';
@@ -430,8 +436,8 @@ function McpServerFormDialog(props: {
     existing?.transport ?? 'stdio',
   );
   const [command, setCommand] = useState(existing?.transport === 'stdio' ? existing.command : '');
-  const [argsText, setArgsText] = useState(
-    existing?.transport === 'stdio' ? (existing.args ?? []).join('\n') : '',
+  const [args, setArgs] = useState(
+    existing?.transport === 'stdio' ? [...(existing.args ?? [])] : [],
   );
   const [env, setEnv] = useState<KeyValueRow[]>(
     existing?.transport === 'stdio' ? toRows(existing.env) : [],
@@ -444,38 +450,84 @@ function McpServerFormDialog(props: {
   );
   const [serverEnabled, setServerEnabled] = useState(existing?.enabled !== false);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<McpConnectionTestResult | null>(null);
 
-  const submit = async (): Promise<void> => {
-    if (name.trim().length === 0) {
-      toast.error('server 名称不能为空');
-      return;
+  const invalidateTestResult = (): void => {
+    setTestResult(null);
+  };
+
+  /** 表单必填校验;返回错误文案,无错误返回 null。 */
+  const validate = (): string | null => {
+    if (name.trim().length === 0) return 'server 名称不能为空';
+    if (transport === 'stdio' && command.trim().length === 0) {
+      return 'stdio transport 需要 command';
     }
+    if (transport !== 'stdio' && url.trim().length === 0) {
+      return `${transport} transport 需要 url`;
+    }
+    return null;
+  };
+
+  const buildConfig = (): Record<string, unknown> => {
     const config: Record<string, unknown> = { transport, enabled: serverEnabled };
     if (transport === 'stdio') {
-      if (command.trim().length === 0) {
-        toast.error('stdio transport 需要 command');
-        return;
-      }
       config['command'] = command.trim();
-      const args = argsText
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-      if (args.length > 0) config['args'] = args;
+      const cleanArgs = args.map((line) => line.trim()).filter((line) => line.length > 0);
+      if (cleanArgs.length > 0) config['args'] = cleanArgs;
       const envRecord = fromRows(env);
       if (envRecord !== undefined) config['env'] = envRecord;
     } else {
-      if (url.trim().length === 0) {
-        toast.error(`${transport} transport 需要 url`);
-        return;
-      }
       config['url'] = url.trim();
       const headerRecord = fromRows(headers);
       if (headerRecord !== undefined) config['headers'] = headerRecord;
     }
+    return config;
+  };
+
+  const runTest = async (): Promise<void> => {
+    const validationError = validate();
+    if (validationError !== null) {
+      toast.error(validationError);
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await mcpApi.testConnection(props.workDir, {
+        scope: props.scope,
+        name: entry?.name,
+        config: buildConfig(),
+      });
+      setTestResult(result);
+      if (result.ok) {
+        toast.success(`连接成功,发现 ${result.toolCount} 个工具`);
+      } else {
+        toast.error(`连接失败:${result.error ?? '未知错误'}`);
+      }
+    } catch (error) {
+      toast.error(`测试失败:${errorMessage(error)}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const submit = async (): Promise<void> => {
+    const validationError = validate();
+    if (validationError !== null) {
+      toast.error(validationError);
+      return;
+    }
+    if (entry === undefined && testResult?.ok !== true) {
+      toast.error('测试通过后才能添加');
+      return;
+    }
     setSaving(true);
     try {
-      await mcpApi.upsertServer(props.workDir, props.scope, { name: name.trim(), config });
+      await mcpApi.upsertServer(props.workDir, props.scope, {
+        name: name.trim(),
+        config: buildConfig(),
+      });
       toast.success('已保存(对新会话生效)');
       props.onSaved();
     } catch (error) {
@@ -522,6 +574,7 @@ function McpServerFormDialog(props: {
               value={transport}
               onValueChange={(next) => {
                 setTransport(next as 'stdio' | 'http' | 'sse');
+                invalidateTestResult();
               }}
             >
               <SelectTrigger className="mt-1">
@@ -542,23 +595,20 @@ function McpServerFormDialog(props: {
                   value={command}
                   onChange={(e) => {
                     setCommand(e.target.value);
+                    invalidateTestResult();
                   }}
                   className={`mt-1 ${INPUT_CLS} font-mono`}
                   placeholder="例如 npx"
                 />
               </label>
-              <label className="block">
-                <span className="text-xs text-fg-muted">参数(args,每行一个)</span>
-                <textarea
-                  value={argsText}
-                  onChange={(e) => {
-                    setArgsText(e.target.value);
-                  }}
-                  rows={3}
-                  className={`mt-1 ${INPUT_CLS} font-mono`}
-                  placeholder={'-y\n@modelcontextprotocol/server-github'}
-                />
-              </label>
+              <ArgListEditor
+                label="参数(args,每行一个)"
+                values={args}
+                onChange={(next) => {
+                  setArgs(next);
+                  invalidateTestResult();
+                }}
+              />
               <KeyValueEditor
                 label="环境变量(env)"
                 hint="值以占位符回显——不动 = 保留原值,输入新值 = 覆盖"
@@ -574,6 +624,7 @@ function McpServerFormDialog(props: {
                   value={url}
                   onChange={(e) => {
                     setUrl(e.target.value);
+                    invalidateTestResult();
                   }}
                   className={`mt-1 ${INPUT_CLS} font-mono`}
                   placeholder="https://example.com/mcp"
@@ -583,7 +634,10 @@ function McpServerFormDialog(props: {
                 label="请求头(headers)"
                 hint="值以占位符回显——不动 = 保留原值,输入新值 = 覆盖"
                 rows={headers}
-                onChange={setHeaders}
+                onChange={(next) => {
+                  setHeaders(next);
+                  invalidateTestResult();
+                }}
               />
             </>
           )}
@@ -600,20 +654,51 @@ function McpServerFormDialog(props: {
             高级字段(enabledTools / 超时等)请用列表页的「RAW 编辑」;保存时这些字段保留磁盘原值。
           </p>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex items-center justify-end gap-2">
+          {entry === undefined && (
+            <p className="mr-auto text-[11px] text-fg-subtle">测试通过后才能添加</p>
+          )}
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={props.onCancel}
-            disabled={saving}
+            disabled={testing || saving}
           >
             取消
           </Button>
-          <Button type="button" size="sm" onClick={() => void submit()} disabled={saving}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void runTest()}
+            disabled={testing || saving}
+          >
+            {testing ? '测试中…' : '测试连接'}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void submit()}
+            disabled={saving || testing}
+          >
             {saving ? '保存中…' : '保存'}
           </Button>
         </div>
+        {testResult !== null && (
+          <p
+            className={
+              testResult.ok
+                ? 'mt-2 text-[11px] text-state-success'
+                : 'mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap text-[11px] text-state-error'
+            }
+            role={testResult.ok ? 'status' : 'alert'}
+          >
+            {testResult.ok
+              ? `✓ 连接成功,发现 ${testResult.toolCount} 个工具`
+              : `✕ 连接失败:${testResult.error ?? '未知错误'}`}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -632,6 +717,58 @@ function fromRows(rows: readonly KeyValueRow[]): Record<string, string> | undefi
   const entries = rows.filter((row) => row.key.trim().length > 0);
   if (entries.length === 0) return undefined;
   return Object.fromEntries(entries.map((row) => [row.key.trim(), row.value]));
+}
+
+/** 参数列表编辑器:一行一个输入框,免去手动换行。 */
+function ArgListEditor(props: {
+  readonly label: string;
+  readonly values: readonly string[];
+  readonly onChange: (values: string[]) => void;
+}): React.JSX.Element {
+  return (
+    <div className="block">
+      <span className="text-xs text-fg-muted">{props.label}</span>
+      <div className="mt-1 space-y-1.5">
+        {props.values.map((value, index) => (
+          <div key={index} className="flex items-center gap-1.5">
+            <input
+              value={value}
+              onChange={(e) => {
+                const next = [...props.values];
+                next[index] = e.target.value;
+                props.onChange(next);
+              }}
+              className={`${INPUT_CLS} flex-1 font-mono`}
+              placeholder="一个参数,如 --config"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-state-error"
+              onClick={() => {
+                props.onChange(props.values.filter((_, i) => i !== index));
+              }}
+              aria-label="删除该参数"
+            >
+              ✕
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => {
+            props.onChange([...props.values, '']);
+          }}
+        >
+          + 添加
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function KeyValueEditor(props: {

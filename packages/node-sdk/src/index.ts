@@ -105,6 +105,7 @@ export {
 export type {
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestResult,
   McpRawDocument,
   McpScopeState,
   McpServerConfig,

@@ -33,7 +33,7 @@ import * as configDocument from '../config/document';
 import type { ConfigValidationResult } from '../config/document';
 import { WorkspaceRegistry } from '../home/workspace-registry';
 import type { Logger } from '../logging/types';
-import { resolveSessionMcpConfig } from '../mcp';
+import { probeMcpConnection, resolveSessionMcpConfig } from '../mcp';
 import * as mcpConfigStore from '../mcp/config-store';
 import { ProviderManager } from '../providers/provider-manager';
 import {
@@ -118,6 +118,8 @@ import type {
   SteerPayload,
   StopBackgroundPayload,
   SessionSummary,
+  TestMcpConnectionPayload,
+  McpConnectionTestResult,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
   UpsertMcpServerConfigPayload,
@@ -565,6 +567,19 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       scope: input.scope,
       text: input.text,
     });
+  }
+
+  async testMcpConnection(input: TestMcpConnectionPayload): Promise<McpConnectionTestResult> {
+    const workDir = requiredWorkDir('testMcpConnection', input.workDir);
+    mcpConfigStore.assertMcpConfigScope(input.scope);
+    const config = await mcpConfigStore.resolveServerConfigForProbe({
+      cwd: workDir,
+      homeDir: this.homeDir,
+      scope: input.scope,
+      name: input.name,
+      config: input.config,
+    });
+    return probeMcpConnection(config);
   }
 
   // ── Workspace skills(PRD-0036)────────────────────────────────────────────

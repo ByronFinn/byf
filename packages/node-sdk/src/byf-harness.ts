@@ -13,6 +13,7 @@ import type {
   ConfigWriteResult,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestResult,
   McpRawDocument,
   McpScopeState,
   CreateSkillResult,
@@ -283,6 +284,15 @@ export class ByfHarness {
     text: string,
   ): Promise<McpRawDocument> {
     return this.rpc.writeMcpConfigRaw(workDir, scope, text);
+  }
+
+  async testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult> {
+    return this.rpc.testMcpConnection(input);
   }
 
   // ── Workspace skills(PRD-0036)────────────────────────────────────────────

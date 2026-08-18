@@ -300,6 +300,37 @@ export interface RemoveMcpServerInput extends ScopedMcpStoreInput {
   readonly name: string;
 }
 
+/**
+ * 测试连接用的配置解析:与 upsert 同路径做占位符还原(D2)+ 字段级合并
+ * (R-M3a),再做整 schema 校验后返回。不落盘。
+ */
+export async function resolveServerConfigForProbe(input: {
+  readonly cwd: string;
+  readonly homeDir?: string;
+  readonly scope: McpConfigScope;
+  /** 编辑既有条目时传入,使占位符能按磁盘原值还原。 */
+  readonly name?: string;
+  readonly config: Record<string, unknown>;
+}): Promise<McpServerConfig> {
+  const path = mcpScopePath(input);
+  const file = await readScopeFile(path);
+  if (file.invalid !== undefined) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Cannot test connection while mcp.json is invalid (${path}); fix the file via RAW editing first`,
+    );
+  }
+  const existing = input.name !== undefined ? file.servers[input.name] : undefined;
+  const restored = restoreMaskedTree(input.config, existing) as Record<string, unknown>;
+  const merged = mergeServerFields(restored, existing);
+  const parsed = McpJsonFileSchema.parse({ mcpServers: { probe: merged } });
+  const probe = parsed.mcpServers['probe'];
+  if (probe === undefined) {
+    throw new ByfError(ErrorCodes.REQUEST_INVALID, 'MCP server config is empty');
+  }
+  return probe;
+}
+
 export async function removeMcpServer(input: RemoveMcpServerInput): Promise<McpScopeState> {
   const name = input.name.trim();
   const path = mcpScopePath(input);

@@ -21,6 +21,8 @@ import type {
   ListSessionsResponse,
   McpConfigListing,
   McpConfigScope,
+  McpConnectionTestBody,
+  McpConnectionTestResult,
   McpRawDocument,
   McpRawWriteBody,
   McpScopeState,
@@ -219,6 +221,16 @@ export const mcpApi = {
     request<McpScopeState>(
       `/api/mcp/servers/${enc(scope)}/${enc(name)}?${new URLSearchParams({ workDir }).toString()}`,
       'DELETE',
+    ),
+  /** 表单「测试连接」:服务端临时拉起目标 server,不落盘。 */
+  testConnection: (
+    workDir: string,
+    body: McpConnectionTestBody,
+  ): Promise<McpConnectionTestResult> =>
+    request<McpConnectionTestResult>(
+      `/api/mcp/test?${new URLSearchParams({ workDir }).toString()}`,
+      'POST',
+      body,
     ),
   /** RAW 兜底写盘(校验失败 422);返回写入后的掩码 RAW 文档。 */
   writeRaw: (workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument> =>
