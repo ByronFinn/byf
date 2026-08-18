@@ -24,6 +24,11 @@ export const TASK_STATUS_LABEL: Record<BackgroundTaskInfo['status'], string> = {
 
 interface TaskListProps {
   tasks: readonly BackgroundTaskInfo[];
+  /**
+   * 初始快照尚未就绪(resume 进行中)。区分「加载中」与「确实没有任务」,
+   * 避免用户在 resume 窗口期看到 no background tasks 误判为空。
+   */
+  loading?: boolean;
   /** 点击任务行:由宿主决定去向(中心 Tasks tab → 右侧详情)。 */
   onSelect: (task: BackgroundTaskInfo) => void;
 }
@@ -32,7 +37,7 @@ interface TaskListProps {
  * 后台任务列表(deepseek 式):按 active/done 分组展示任务状态。
  * 行可点击,宿主注入 onSelect(如推入 details 列)。
  */
-export function TaskList({ tasks, onSelect }: TaskListProps) {
+export function TaskList({ tasks, loading = false, onSelect }: TaskListProps) {
   const byStatus = useMemo(() => {
     const out = { active: [] as BackgroundTaskInfo[], done: [] as BackgroundTaskInfo[] };
     for (const t of tasks) {
@@ -43,7 +48,11 @@ export function TaskList({ tasks, onSelect }: TaskListProps) {
   }, [tasks]);
 
   if (tasks.length === 0) {
-    return <div className="p-4 font-mono text-[12px] text-fg-3">no background tasks</div>;
+    return (
+      <div className="p-4 font-mono text-[12px] text-fg-3">
+        {loading ? 'loading background tasks…' : 'no background tasks'}
+      </div>
+    );
   }
 
   return (

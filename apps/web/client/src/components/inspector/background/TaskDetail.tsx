@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+
+import { api } from '#/api';
 import { formatDuration } from '#/components/chat/ToolCallView';
 import { relativeTimeLabel } from '#/lib/relative-time';
 import type { BackgroundTaskInfo } from '#/types';
@@ -5,17 +8,22 @@ import type { BackgroundTaskInfo } from '#/types';
 import { Pill } from '../shared/Pill';
 import { TASK_STATUS_LABEL, TASK_STATUS_TONE } from './TaskList';
 
+/** 输出预览上限:与 CLI TaskOutput 的 32 KiB 对齐,超出只取尾部。 */
+const OUTPUT_PREVIEW_CHARS = 32 * 1024;
+
 interface TaskDetailProps {
+  sessionId: string;
   task: BackgroundTaskInfo;
 }
 
 /**
  * 单条后台任务详情(deepseek 式):点击 Tasks tab 中的任务行后,在右侧
- * details 列展示完整生命周期字段 —— 不打断当前上下文。
+ * details 列展示完整生命周期字段与命令输出 —— 不打断当前上下文。
  */
-export function TaskDetail({ task }: TaskDetailProps) {
+export function TaskDetail({ sessionId, task }: TaskDetailProps) {
   const duration =
     task.endedAt !== null ? task.endedAt - task.startedAt : Date.now() - task.startedAt;
+  const { output, loading, error, truncated } = useTaskOutput(sessionId, task.taskId);
 
   return (
     <div className="flex h-full flex-col">
@@ -63,9 +71,63 @@ export function TaskDetail({ task }: TaskDetailProps) {
           ) : null}
           {task.timedOut === true ? <MetaRow label="timeout" value="timed out" /> : null}
         </dl>
+
+        <div className="mt-3 border-t border-border pt-2">
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-3">
+            output
+          </div>
+          {loading ? (
+            <div className="font-mono text-[11px] text-fg-3">loading output…</div>
+          ) : error !== null ? (
+            <div className="font-mono text-[11px] text-fg-3">failed to load output: {error}</div>
+          ) : output.length > 0 ? (
+            <>
+              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-surface-1 p-2 font-mono text-[11px] leading-relaxed text-fg-2">
+                {output}
+              </pre>
+              {truncated ? (
+                <div className="mt-1 font-mono text-[10.5px] text-[var(--color-sev-warning)]">
+                  …output 过长,仅显示末尾 {OUTPUT_PREVIEW_CHARS} 字符
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="font-mono text-[11px] text-fg-3">no output available</div>
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+function useTaskOutput(sessionId: string, taskId: string) {
+  const [output, setOutput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setOutput('');
+    void api
+      .backgroundTaskOutput(sessionId, taskId, OUTPUT_PREVIEW_CHARS)
+      .then(({ output: text }) => {
+        if (cancelled) return;
+        setOutput(text);
+        setLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setError(error instanceof Error ? error.message : String(error));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, taskId]);
+
+  return { output, loading, error, truncated: output.length === OUTPUT_PREVIEW_CHARS };
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {

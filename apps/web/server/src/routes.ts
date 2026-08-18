@@ -427,6 +427,21 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     return c.json({ ok: true });
   });
 
+  // 后台任务捕获输出(Tasks tab 右侧详情数据源)。tail 限制返回尾字符数,
+  // 缺省返回完整输出;未知任务返回空串。会话不存在由全局 onError 映射 404。
+  r.get('/sessions/:id/background/tasks/:taskId/output', async (c) => {
+    const id = c.req.param('id');
+    const taskId = c.req.param('taskId');
+    const rawTail = c.req.query('tail');
+    const tail = rawTail !== undefined ? Number.parseInt(rawTail, 10) : Number.NaN;
+    const output = await manager.backgroundTaskOutput(
+      id,
+      taskId,
+      Number.isFinite(tail) && tail > 0 ? tail : undefined,
+    );
+    return c.json({ taskId, output });
+  });
+
   // ---- 配置(设置弹层:默认模型 / 默认权限 / 默认思考) -------------------------
 
   // ---- 目录浏览(@ 引用文件/文件夹;仅允许工作区根内,防任意文件系统暴露) ----

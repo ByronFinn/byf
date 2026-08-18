@@ -158,6 +158,17 @@ class FakeSession implements SessionLike {
     this.compacted = true;
   }
 
+  backgroundOutput: string | undefined = undefined;
+  lastOutputTaskId: string | undefined = undefined;
+
+  async getBackgroundTaskOutput(
+    taskId: string,
+    _options?: { readonly tail?: number },
+  ): Promise<string> {
+    this.lastOutputTaskId = taskId;
+    return this.backgroundOutput ?? '';
+  }
+
   async getStatus(): Promise<SessionStatus> {
     return this.status;
   }
@@ -1544,6 +1555,28 @@ describe('Config routes', () => {
     expect(body.skills[0]?.description).toBe('调研技术主题');
 
     const missing = await app.request('/api/sessions/nope/skills');
+    expect(missing.status).toBe(404);
+  });
+
+  test('GET ?tail 传递后台任务输出;未知会话 404', async () => {
+    const { app, harness } = await setup();
+    const created = await app.request('/api/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    const id = ((await created.json()) as { session: SessionSummary }).session.id;
+    const session = harness.sessions.get(id)!;
+    session.backgroundOutput = 'stdout 行一\nstderr 行二\n';
+
+    const res = await app.request(`/api/sessions/${id}/background/tasks/bash-demo0001/output`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { taskId: string; output: string };
+    expect(body.taskId).toBe('bash-demo0001');
+    expect(body.output).toBe('stdout 行一\nstderr 行二\n');
+    expect(session.lastOutputTaskId).toBe('bash-demo0001');
+
+    const missing = await app.request(`/api/sessions/nope/background/tasks/bash-demo0001/output`);
     expect(missing.status).toBe(404);
   });
 

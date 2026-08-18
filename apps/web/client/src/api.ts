@@ -344,6 +344,15 @@ export const api = {
   compactSession: (id: string) =>
     request<{ ok: boolean }>(`/api/sessions/${enc(id)}/compact`, 'POST'),
 
+  /** 后台任务捕获输出(Tasks tab 详情数据源;tail 限制返回尾字符数)。 */
+  backgroundTaskOutput: (sessionId: string, taskId: string, tail?: number) =>
+    request<{ taskId: string; output: string }>(
+      `/api/sessions/${enc(sessionId)}/background/tasks/${enc(taskId)}/output${
+        tail !== undefined ? `?tail=${tail}` : ''
+      }`,
+      'GET',
+    ),
+
   /** 列工作区目录(@ 引用);root 必须是已注册工作区,path 相对 root。 */
   listFs: async (root: string, path: string): Promise<FsEntry[]> => {
     const params = new URLSearchParams({ root, path });

@@ -65,6 +65,8 @@ export interface SessionLike {
   activateSkill(name: string, args?: string): Promise<void>;
   listSkills(): Promise<readonly SkillSummary[]>;
   compact(): Promise<void>;
+  /** 读取后台任务的捕获输出(ring buffer 或磁盘 output.log;tail 限制尾字符数)。 */
+  getBackgroundTaskOutput(taskId: string, options?: { readonly tail?: number }): Promise<string>;
   getStatus(): Promise<SessionStatus>;
   close(): Promise<void>;
 }
@@ -306,6 +308,10 @@ export class WebSessionManager {
 
   async compact(id: string): Promise<void> {
     await this.requireSession(id).compact();
+  }
+
+  async backgroundTaskOutput(id: string, taskId: string, tail?: number): Promise<string> {
+    return this.requireSession(id).getBackgroundTaskOutput(taskId, { tail });
   }
 
   // ---- 配置(直通 harness;设置页读写 byf 配置) --------------------------------

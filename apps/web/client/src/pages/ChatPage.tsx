@@ -354,7 +354,12 @@ function ChatSessionPage({
         ) : tab === 'agents' ? (
           <SubagentsTab key={sessionId} sessionId={sessionId} />
         ) : tab === 'tasks' ? (
-          <TasksTab key={sessionId} tasks={backgroundTasks} />
+          <TasksTab
+            key={sessionId}
+            sessionId={sessionId}
+            tasks={backgroundTasks}
+            loading={!resumed}
+          />
         ) : state.entries.length === 0 ? (
           <EmptyState onPick={(prompt) => onSend(prompt, [])} />
         ) : (
