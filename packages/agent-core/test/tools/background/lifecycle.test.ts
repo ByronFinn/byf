@@ -10,7 +10,7 @@
  * with the current `BackgroundTaskInfo` snapshot.
  */
 
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -220,7 +220,7 @@ describe('BackgroundProcessManager — onLifecycle', () => {
         task_id: 'bash-deadbeef',
         command: 'sleep 9999',
         description: 'ghost task',
-        pid: 99999,
+        pid: 99_999_999,
         started_at: Date.now() - 60_000,
         ended_at: null,
         exit_code: null,
@@ -253,5 +253,28 @@ describe('BackgroundProcessManager — onLifecycle', () => {
       throw new Error('boom');
     });
     expect(() => manager.register(pendingProcess(), 'sleep', 'x')).not.toThrow();
+  });
+
+  it('persists the registering process pid as owner_pid', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bpm-owner-pid-'));
+    try {
+      const writer = new BackgroundProcessManager({ sessionDir: dir });
+      const taskId = writer.register(pendingProcess(), 'sleep 9999', 'owner pids');
+
+      // Drain the persist write queue so the record lands on disk.
+      const entry = (
+        writer as unknown as {
+          processes: Map<string, { persistWriteQueue: Promise<unknown> }>;
+        }
+      ).processes.get(taskId);
+      await entry?.persistWriteQueue;
+
+      const onDisk = JSON.parse(readFileSync(join(dir, 'tasks', `${taskId}.json`), 'utf-8')) as {
+        owner_pid?: number;
+      };
+      expect(onDisk.owner_pid).toBe(process.pid);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

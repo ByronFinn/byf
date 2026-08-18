@@ -13,6 +13,13 @@ import { writeTask, listTasks } from '../../../src/tools/background/persist';
 
 let sessionDir: string;
 
+/**
+ * Deterministic dead pid: exceeds pid_max on macOS (99999) and typical
+ * Linux (4194304), so a signal-0 probe always returns ESRCH. Seeds use it
+ * for non-terminal records whose previous owner must look dead.
+ */
+const DEAD_PID = 99_999_999;
+
 beforeEach(async () => {
   sessionDir = join(
     tmpdir(),
@@ -38,7 +45,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-orphan00',
       command: 'npm install',
       description: 'install',
-      pid: 99999,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -85,7 +92,6 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
     await mgr.loadFromDisk();
     const result = await mgr.reconcile();
     expect([...result.lost].toSorted()).toEqual(['bash-running0']);
-
     const all = await listTasks(sessionDir);
     const byId = new Map(all.map((t) => [t.task_id, t]));
     expect(byId.get('bash-done0000')?.status).toBe('completed');
@@ -97,8 +103,8 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-lost0000',
       command: 'x',
       description: 'd',
-      pid: 1,
-      started_at: 0,
+      pid: DEAD_PID,
+      started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
       status: 'running',
@@ -118,7 +124,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-ghost000',
       command: 'x',
       description: 'd',
-      pid: 1,
+      pid: DEAD_PID,
       started_at: 0,
       ended_at: null,
       exit_code: null,
@@ -137,7 +143,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-forget00',
       command: 'x',
       description: 'd',
-      pid: 1,
+      pid: DEAD_PID,
       started_at: 0,
       ended_at: null,
       exit_code: null,
@@ -166,7 +172,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-publish0',
       command: 'sleep 9999',
       description: 'publish lost',
-      pid: 42,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -194,7 +200,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-corrupt0',
       command: 'do_approval',
       description: 'corrupted approval',
-      pid: 7777,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -216,7 +222,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-nodup000',
       command: 'sleep 9999',
       description: 'dedupe check',
-      pid: 42,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -244,7 +250,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-stale001',
       command: 'sleep 10',
       description: 'stale task',
-      pid: 111,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -271,7 +277,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-publish1',
       command: 'sleep 10',
       description: 'publish lost',
-      pid: 333,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -295,7 +301,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: 'bash-once0001',
       command: 'echo done',
       description: 'one-shot',
-      pid: 42,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: 1_700_000_010,
       exit_code: 0,
@@ -322,7 +328,7 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
       task_id: ghostTaskId,
       command: 'old command',
       description: 'ghost from disk',
-      pid: 11111,
+      pid: DEAD_PID,
       started_at: 1_700_000_000,
       ended_at: null,
       exit_code: null,
@@ -405,5 +411,97 @@ describe('BackgroundProcessManager — loadFromDisk + reconcile', () => {
     const soloCount = allAfter.filter((t) => t.taskId === 'bash-solo0000').length;
     expect(overlapCount).toBe(1);
     expect(soloCount).toBe(1);
+  });
+
+  // Owner-pid liveness probe: a non-terminal record whose owner process is
+  // still alive belongs to another live process holding this session open
+  // (e.g. the CLI TUI while the web server resumes the same session). It
+  // must NOT be reclassified as lost, overwritten on disk, or fire terminal
+  // events — the owner settles it.
+  it('reconcile leaves a running task alone when its owner pid is alive', async () => {
+    await writeTask(sessionDir, {
+      task_id: 'bash-foreign0',
+      command: 'sleep 60',
+      description: 'owned by another live process',
+      pid: 12345,
+      owner_pid: process.pid,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'running',
+    });
+
+    const mgr = new BackgroundProcessManager();
+    const fired: string[] = [];
+    mgr.onTerminal((info) => {
+      fired.push(info.taskId);
+    });
+    mgr.attachSessionDir(sessionDir);
+    await mgr.loadFromDisk();
+    const result = await mgr.reconcile();
+
+    expect(result.lost).toEqual([]);
+    expect(mgr.getTask('bash-foreign0')?.status).toBe('running');
+    expect(fired).toEqual([]);
+    // Disk record untouched — the owner still owns it.
+    const onDisk = await listTasks(sessionDir);
+    expect(onDisk[0]?.status).toBe('running');
+    expect(onDisk[0]?.owner_pid).toBe(process.pid);
+  });
+
+  it('reconcile marks a running task lost when its owner pid is dead', async () => {
+    await writeTask(sessionDir, {
+      task_id: 'bash-deadownr',
+      command: 'sleep 60',
+      description: 'owner process died',
+      pid: 12345,
+      owner_pid: DEAD_PID,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'running',
+    });
+
+    const mgr = new BackgroundProcessManager();
+    mgr.attachSessionDir(sessionDir);
+    await mgr.loadFromDisk();
+    const result = await mgr.reconcile();
+
+    expect(result.lost).toEqual(['bash-deadownr']);
+    expect(mgr.getTask('bash-deadownr')?.status).toBe('lost');
+  });
+
+  it('legacy record without owner_pid probes the task pid', async () => {
+    // Legacy records (no owner_pid) fall back to probing the task's own
+    // pid: alive → left alone, dead → lost.
+    await writeTask(sessionDir, {
+      task_id: 'bash-legacyal',
+      command: 'sleep 60',
+      description: 'legacy, task pid alive',
+      pid: process.pid,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'running',
+    });
+    await writeTask(sessionDir, {
+      task_id: 'bash-legacydd',
+      command: 'sleep 60',
+      description: 'legacy, task pid dead',
+      pid: DEAD_PID,
+      started_at: 1_700_000_000,
+      ended_at: null,
+      exit_code: null,
+      status: 'running',
+    });
+
+    const mgr = new BackgroundProcessManager();
+    mgr.attachSessionDir(sessionDir);
+    await mgr.loadFromDisk();
+    const result = await mgr.reconcile();
+
+    expect([...result.lost].toSorted()).toEqual(['bash-legacydd']);
+    expect(mgr.getTask('bash-legacyal')?.status).toBe('running');
+    expect(mgr.getTask('bash-legacydd')?.status).toBe('lost');
   });
 });

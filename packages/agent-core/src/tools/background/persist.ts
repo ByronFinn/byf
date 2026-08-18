@@ -50,6 +50,14 @@ export interface PersistedTask {
   /** Reason recorded when a task is explicitly stopped. */
   readonly stop_reason?: string;
   /**
+   * Pid of the process whose BackgroundProcessManager registered the task.
+   * Reconcile probes it to tell "owner still alive (task running under
+   * another live process, e.g. the CLI while the web server resumes the
+   * same session)" from "previous owner died without settling". Absent on
+   * legacy records; then the task's own `pid` is probed as a fallback.
+   */
+  readonly owner_pid?: number;
+  /**
    * Shell origin metadata (name / path / cwd) captured when
    * `BackgroundProcessManager.register` attached a `shellInfo` option.
    * Persisted so restart can reconstruct the spawn environment.
