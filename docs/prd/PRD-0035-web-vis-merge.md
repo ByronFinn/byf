@@ -18,17 +18,17 @@
 
 ### 现状：两套 Web 界面，两套数据路径
 
-| 维度 | `apps/web` | `apps/vis` |
-|---|---|---|
-| 定位 | 实时驱动 agent | 只读 session 回放/调试 |
-| 默认端口 | 4100 | 3001 |
-| server 依赖 | `@byfriends/sdk`（遵守 host 分层约束） | 直接依赖 `@byfriends/agent-core` |
-| 会话读取 | `ByfHarness.listSessions` → core `SessionStore` | 自己扫 `~/.byf/sessions/**`、自己读 `state.json`/wire |
-| 视觉 | shadcn + OKLCH emerald + 较大圆角 | Tailwind v4 + surface/fg/cat token + 方形 mono 工业风 |
-| 配置 | `GET/PATCH /api/config` + provider/model CRUD（脱敏） | 无配置能力 |
-| 会话删除 | 无 | `rm -rf` 会话目录，**不清理 `session_index.jsonl`** |
-| SPA 内嵌全局 | `__BYF_WEB_EMBEDDED_ASSETS__` | `__BYF_VIS_EMBEDDED_ASSETS__` |
-| CLI 入口 | `byf web` / TUI `/web` | `byf vis` |
+| 维度         | `apps/web`                                            | `apps/vis`                                            |
+| ------------ | ----------------------------------------------------- | ----------------------------------------------------- |
+| 定位         | 实时驱动 agent                                        | 只读 session 回放/调试                                |
+| 默认端口     | 4100                                                  | 3001                                                  |
+| server 依赖  | `@byfriends/sdk`（遵守 host 分层约束）                | 直接依赖 `@byfriends/agent-core`                      |
+| 会话读取     | `ByfHarness.listSessions` → core `SessionStore`       | 自己扫 `~/.byf/sessions/**`、自己读 `state.json`/wire |
+| 视觉         | shadcn + OKLCH emerald + 较大圆角                     | Tailwind v4 + surface/fg/cat token + 方形 mono 工业风 |
+| 配置         | `GET/PATCH /api/config` + provider/model CRUD（脱敏） | 无配置能力                                            |
+| 会话删除     | 无                                                    | `rm -rf` 会话目录，**不清理 `session_index.jsonl`**   |
+| SPA 内嵌全局 | `__BYF_WEB_EMBEDDED_ASSETS__`                         | `__BYF_VIS_EMBEDDED_ASSETS__`                         |
+| CLI 入口     | `byf web` / TUI `/web`                                | `byf vis`                                             |
 
 关键重复点：
 
@@ -366,7 +366,7 @@ PUT  /api/config/raw
   - web-server：/api/sessions 无 workDir 全量、DELETE /sessions/:id（409 busy）、wire/context/agents/state、reveal（reveal.ts 迁移）、config raw/validate（掩码+restore+409/422）；
   - web-shared 吸收 inspector DTO；HarnessLike/WebSessionManager 透传 13 个新能力；
   - CLI vis.ts 改调 handleWeb（VIS_AUTH_TOKEN 兼容转发）；vis-server 包改为 re-export shim（deprecated）；
-  - build.mjs 移除 __BYF_VIS_EMBEDDED_ASSETS__ 单资产；
+  - build.mjs 移除 **BYF_VIS_EMBEDDED_ASSETS** 单资产；
   - 测试：web-server 57 全绿（含 12 个新用例）、CLI 全量 exit 0、vis 测试 9 绿。
   - web-server 增加全量 sessions、delete/reveal、inspector、config raw 路由；
   - web-shared 合并 vis DTO；
@@ -374,7 +374,7 @@ PUT  /api/config/raw
   - `@byfriends/vis-server` 兼容 shim；
   - web-server fake harness 测试（409/422/delete/index）。
 - **PR3 视觉统一 + 三栏骨架**（— Done，2026-08-17，commit f8be990/56f4914）：
-  - theme.css 重写为 deepseek 精致风统一设计 token（bluish 中性阶 + deepseek 蓝品牌、圆角 8-12px、cat-* Inspector 语义色、emerald 清零）；
+  - theme.css 重写为 deepseek 精致风统一设计 token（bluish 中性阶 + deepseek 蓝品牌、圆角 8-12px、cat-\* Inspector 语义色、emerald 清零）；
   - lib/columns.ts（deepseek 几何契约移植）、components/layout/AppFrame.tsx（三栏 + 拖拽把手 + <1024 折叠 + details overlay）、AppShell 接入；
   - 组件 class 无需批量改名（语义 token 名保留，仅值替换）；emerald 硬编码扫描清零；
   - 替换 `theme.css` 为 vis token + shadcn 桥接；
@@ -409,16 +409,16 @@ PUT  /api/config/raw
 
 ## Domain Terms（draft — for /grill to refine）
 
-| Term | Working Definition | Status |
-|---|---|---|
-| 单源工作台 | 一个 Web SPA + 一个 Web server + core 文件 owner，Web/TUI/headless 共享同一事实源 | new |
-| 统一设计 token | PRD-0035 R-C1 后的 web 设计 token 体系：deepseek 精致风为范本（自研实现）——bluish 中性色阶 + deepseek 蓝品牌、圆角、柔和边框/阴影；语义别名（surface/fg/brand/accent）+ 组件层（shadcn 桥接变量）+ 调试语义色（cat-*）；取代「三层设计 token」 | new |
-| Inspector | 对 `sessions/**` 的只读检查/投影层，归 agent-core 所有 | new |
-| ConfigDocument | `config.toml` 的 raw 文本 + revision + 校验/原子写的唯一服务面 | new |
-| revision | `sha256(config.toml raw text)`，用于配置乐观锁冲突检测 | new |
-| Full-fidelity writer | 保存时原样写回 raw 文本，保留注释/空行/未识别键的写路径 | new |
-| 结构化投影 | 由 `ByfConfig` schema 驱动的表单，底层仍读写同一 `config.toml` | new |
-| Right details | deepseek 式第三栏，承载工具/子 agent/文件/wire/state 详情 | new |
+| Term                 | Working Definition                                                                                                                                                                                                                              | Status |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 单源工作台           | 一个 Web SPA + 一个 Web server + core 文件 owner，Web/TUI/headless 共享同一事实源                                                                                                                                                               | new    |
+| 统一设计 token       | PRD-0035 R-C1 后的 web 设计 token 体系：deepseek 精致风为范本（自研实现）——bluish 中性色阶 + deepseek 蓝品牌、圆角、柔和边框/阴影；语义别名（surface/fg/brand/accent）+ 组件层（shadcn 桥接变量）+ 调试语义色（cat-\*）；取代「三层设计 token」 | new    |
+| Inspector            | 对 `sessions/**` 的只读检查/投影层，归 agent-core 所有                                                                                                                                                                                          | new    |
+| ConfigDocument       | `config.toml` 的 raw 文本 + revision + 校验/原子写的唯一服务面                                                                                                                                                                                  | new    |
+| revision             | `sha256(config.toml raw text)`，用于配置乐观锁冲突检测                                                                                                                                                                                          | new    |
+| Full-fidelity writer | 保存时原样写回 raw 文本，保留注释/空行/未识别键的写路径                                                                                                                                                                                         | new    |
+| 结构化投影           | 由 `ByfConfig` schema 驱动的表单，底层仍读写同一 `config.toml`                                                                                                                                                                                  | new    |
+| Right details        | deepseek 式第三栏，承载工具/子 agent/文件/wire/state 详情                                                                                                                                                                                       | new    |
 
 ## Traceability
 
@@ -428,6 +428,6 @@ PUT  /api/config/raw
 - **Grilled by**: `/grill`（2026-08-17）— 全部 Open Questions Q1-Q7 决议；1:1 复刻范围（h1 视觉=deepseek 精致风经 have-a-try 裁决 B、h2 自研实现、h3 功能对齐清单）；新增决议：busy 判定含后台任务、workspaces.json 弃旧格式、密钥无损掩码（ADR-0038）、缺失文件 200+null、表单带 revision、Out of Scope 逐项确认；术语：统一设计 token（新增）、三层设计 token（历史化）、vis/vis-server（弃用标注）；ADR-0037/0038 创建，ADR-0035/0036 加部分取代注记。
 - **Debugged by**: `/debug`（2026-08-17）— 两个发布前回归：① 静态侧栏遗留旧 `@container` 布局的 `hidden @4xl:flex` 类，AppFrame 重写后无容器祖先 → 永久 `display:none`（移除遗留类）；② hero 首条消息 `initialPrompt` 发送无 `cancelled` 守卫，StrictMode 双挂载双发 `turn.prompt` → `turn.agent_busy` 红字（补守卫）。
 - **Implemented by**: `/implement`（2026-08-17）— 用户实测五问修复：① live 会话 resume 返回最新 replay（三层：web-manager 缓存咨询 harness → SDK active 分支 refreshSummary → core ReplayBuilder live 期也累积；原 restoring 守卫导致常驻进程内 replay 恒空——Chat 空根因）；② 右栏常驻实时 State（StateLive 轮询 + SSE turn.ended/step.completed 事件驱动 invalidate；取代 deepseek 空态，AC-A12 已修订）；③ `/sessions/:id/agents/:agentId` 路由兑现 + catch-all 兜底（原为假验收，点击 main 空白页）；④ WireRowDetail 双形态（details 列去 120px 硬编码缩进）；⑤ Context 锐化（TokenBar 数值图例 + thinking/profile 摘要，与 Trace 事件时间线区分）。回归测试：web-server fake harness 2 用例、core resume-integration live 期 replay 用例；实测证据：live resume replay 5 条、刷新 Chat 恢复、深链/兜底正常。
-- **Debugged by**: `/debug`（2026-08-17，第二轮）— 布局与交互打磨：① Trace 等 tab 展开溢出无滚动条（ChatPage 内容 div 缺 flex 上下文，tab 根 flex-1 无约束，容器被内容撑到 4126px；补 flex flex-col 后容器内滚动）；② Center State tab 隐藏（右栏已常驻，避免重复）；③ deepseek 式子代理/后台任务查看——点 Agents 节点 → details 显示该 agent wire 轨迹（AgentTrail），状态栏 tasks 按钮 → BackgroundPanel（resume 快照 + SSE background.task.* 实时），深链默认即轨迹面板；④ 右栏随中间页签实时切换——details 默认内容由挂载时一次性决定改为 tab 感知（Chat→常驻 State、Trace/Context/Agents→空态等行/节点点击推详情、agent 深链→轨迹面板），tasks 开关关闭时回本 tab 默认而非固定 StateLive。
+- **Debugged by**: `/debug`（2026-08-17，第二轮）— 布局与交互打磨：① Trace 等 tab 展开溢出无滚动条（ChatPage 内容 div 缺 flex 上下文，tab 根 flex-1 无约束，容器被内容撑到 4126px；补 flex flex-col 后容器内滚动）；② Center State tab 隐藏（右栏已常驻，避免重复）；③ deepseek 式子代理/后台任务查看——点 Agents 节点 → details 显示该 agent wire 轨迹（AgentTrail），状态栏 tasks 按钮 → BackgroundPanel（resume 快照 + SSE background.task.\* 实时），深链默认即轨迹面板；④ 右栏随中间页签实时切换——details 默认内容由挂载时一次性决定改为 tab 感知（Chat→常驻 State、Trace/Context/Agents→空态等行/节点点击推详情、agent 深链→轨迹面板），tasks 开关关闭时回本 tab 默认而非固定 StateLive。
 - **Debugged by**: `/debug`（2026-08-17，第三轮）— Tasks 页签化：顶栏 `tasks` 按钮移除，后台任务升级为与 Agents 平级的中心页签（R-D1 增列 Tasks；TasksTab 复用 TaskList 分组列表，点任务行把 TaskDetail 推入右栏 details——完整生命周期字段：status/pid/agent/时间/时长/timeout/exit/stopReason/failureReason）；BackgroundPanel 删除（职责并入 TaskList+TaskDetail），StatusBar 精简回纯状态条；空态文案、右栏回落逻辑沿用 round 2 ④ 的 tab 感知机制。实测：本地模型多次调用失败（Bash 被 PreToolUse hook 拦截 → manual 权限；yolo 后模型又长时间卡死），改走持久化链路——伪造 `agents/main/tasks/*.json`（completed + failed 各一），未 resume 过的会话全新 resume 从磁盘恢复，浏览器实测：Tasks 页签显示 done (2) 分组、点击任务行右侧展示完整详情（taskId/pid/started/ended/duration/exit），失败行同样正常；验证后已清理伪造文件并 close 会话。
 - **Baseline**: PRD-0032（web 传输骨架）、PRD-0033（web UI 重设计）、PRD-0034（web 工作台能力升级）均为 Done；ADR-0034/0035/0036 继续有效。

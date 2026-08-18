@@ -5,9 +5,9 @@
   "keywords": [
     "byf",
     "debugging",
+    "deprecated",
     "server",
-    "vis",
-    "deprecated"
+    "vis"
   ],
   "homepage": "https://github.com/ByronFinn/byf",
   "bugs": {
