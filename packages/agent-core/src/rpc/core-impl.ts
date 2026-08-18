@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 
 import { localKaos } from '@byfriends/kaos';
 
@@ -18,23 +17,18 @@ import { getCoreVersion } from '#/version';
 
 import {
   ensureByfHome,
-  mergeConfigPatch,
   normalizeAdditionalDirs,
   readConfigFile,
   readWorkspaceAdditionalDirs,
   resolveConfigPath,
   resolveByfHome,
   resolveWorkspaceAdditionalDirs,
-  writeConfigFile,
   type ByfConfig,
   type ByfServiceConfig,
 } from '../config';
-import * as configDocument from '../config/document';
 import type { ConfigValidationResult } from '../config/document';
-import { WorkspaceRegistry } from '../home/workspace-registry';
 import type { Logger } from '../logging/types';
-import { probeMcpConnection, resolveSessionMcpConfig } from '../mcp';
-import * as mcpConfigStore from '../mcp/config-store';
+import { resolveSessionMcpConfig } from '../mcp';
 import { ProviderManager } from '../providers/provider-manager';
 import {
   type BearerTokenProvider,
@@ -50,10 +44,8 @@ import type {
   SessionDetail,
   WireResponse,
 } from '../session/inspector';
-import * as inspector from '../session/inspector';
 import { SessionAPIImpl } from '../session/rpc';
 import { normalizeWorkDir, SessionStore } from '../session/store';
-import * as skillStore from '../skill/store';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { CoreRPCClient } from './client';
 import type {
@@ -128,6 +120,7 @@ import type {
   WriteConfigTextPayload,
   WriteMcpRawPayload,
 } from './core-api';
+import { createHostRPC, type HostRPC } from './host-rpc';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { proxyWithExtraPayload } from './types';
@@ -198,6 +191,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
   private readonly skillDirs: readonly string[];
   private readonly providerManager: ProviderManager;
   private readonly sessionStore: SessionStore;
+  private readonly hostRpc: HostRPC;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
@@ -221,6 +215,13 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
     });
     this.sessionStore = new SessionStore(this.homeDir);
+    this.hostRpc = createHostRPC({
+      homeDir: this.homeDir,
+      configPath: this.configPath,
+      userHomeDir: this.userHomeDir,
+      providerManager: this.providerManager,
+      sessionStore: this.sessionStore,
+    });
 
     this.sdk = rpcClient(this);
   }
@@ -413,55 +414,25 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
   // SDK 复用；web-server 不直接 import core，见 ADR 0006/0037）。
 
   async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
-    return inspector.listInspectableSessions(this.homeDir);
+    return this.hostRpc.listInspectableSessions();
   }
 
   async readSessionInspection(input: {
     readonly sessionId: string;
   }): Promise<SessionDetail | null> {
-    return inspector.readSessionDetail(this.homeDir, input.sessionId);
+    return this.hostRpc.readSessionInspection(input);
   }
 
   async readAgentWire(input: ReadAgentWirePayload): Promise<WireResponse> {
-    const sessionDir = await this.sessionStore.assertDirectory(input.sessionId);
-    if (!inspector.isSafeAgentId(input.agentId)) {
-      throw new ByfError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${input.agentId}" not found`);
-    }
-    const wirePath = join(sessionDir, 'agents', input.agentId, 'wire.jsonl');
-    let result: Awaited<ReturnType<typeof inspector.readAgentWire>>;
-    try {
-      result = await inspector.readAgentWire(wirePath);
-    } catch (error) {
-      throw new ByfError(
-        ErrorCodes.RECORDS_READ_FAILED,
-        `Cannot read wire for agent "${input.agentId}" in session "${input.sessionId}"`,
-        { cause: error },
-      );
-    }
-    return {
-      sessionId: input.sessionId,
-      agentId: input.agentId,
-      protocolVersion: result.metadata.protocolVersion,
-      metadata: result.metadata,
-      records: result.records,
-      warnings: result.warnings,
-    };
+    return this.hostRpc.readAgentWire(input);
   }
 
   async readContextProjection(input: ReadContextProjectionPayload): Promise<ContextProjection> {
-    const wire = await this.readAgentWire(input);
-    return inspector.projectContext(wire.records);
+    return this.hostRpc.readContextProjection(input);
   }
 
   async readAgentTree(input: { readonly sessionId: string }): Promise<AgentTreeResponse> {
-    const detail = await inspector.readSessionDetail(this.homeDir, input.sessionId);
-    if (detail === null) {
-      throw new ByfError(
-        ErrorCodes.SESSION_NOT_FOUND,
-        `Session "${input.sessionId}" was not found`,
-      );
-    }
-    return { sessionId: input.sessionId, tree: inspector.buildAgentTree(detail.agents) };
+    return this.hostRpc.readAgentTree(input);
   }
 
   async deleteSession(input: DeleteSessionPayload): Promise<void> {
@@ -485,138 +456,68 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     await this.sessionStore.delete(input.sessionId);
   }
 
-  // ── ConfigDocument（PRD-0035 R-A3/A4、ADR-0038）──────────────────────────
-
   async getConfigDocument(): Promise<ConfigDocumentResult> {
-    const doc = await configDocument.readConfigDocument(this.configPath);
-    return { path: doc.path, text: doc.text, revision: doc.revision, parsed: doc.parsed };
+    return this.hostRpc.getConfigDocument();
   }
 
   async validateConfigText(input: ValidateConfigTextPayload): Promise<ConfigValidationResult> {
-    return configDocument.validateConfigText(input.text, this.configPath);
+    return this.hostRpc.validateConfigText(input);
   }
 
   async writeConfigText(input: WriteConfigTextPayload): Promise<ConfigWriteResult> {
-    return configDocument.writeConfigDocument(this.configPath, input.text, input.expectedRevision);
+    return this.hostRpc.writeConfigText(input);
   }
 
-  // ── WorkspaceRegistry（PRD-0035 R-A6 / ADR-0037 D3）──────────────────────
-
   async listWorkspaces(): Promise<string[]> {
-    return this.workspaceRegistry().list();
+    return this.hostRpc.listWorkspaces();
   }
 
   async hiddenWorkspaces(): Promise<string[]> {
-    return this.workspaceRegistry().hidden();
+    return this.hostRpc.hiddenWorkspaces();
   }
 
   async addWorkspace(input: AddWorkspacePayload): Promise<string[]> {
-    return this.workspaceRegistry().add(input.workDir);
+    return this.hostRpc.addWorkspace(input);
   }
 
   async removeWorkspace(input: RemoveWorkspacePayload): Promise<boolean> {
-    return this.workspaceRegistry().remove(input.workDir);
+    return this.hostRpc.removeWorkspace(input);
   }
 
-  // ── MCP config store(PRD-0036 / ADR-0039)────────────────────────────────
-
   async listMcpServerConfigs(input: ListMcpServerConfigsPayload): Promise<McpConfigListing> {
-    const workDir = requiredWorkDir('listMcpServerConfigs', input.workDir);
-    return mcpConfigStore.listMcpConfigs({ cwd: workDir, homeDir: this.homeDir });
+    return this.hostRpc.listMcpServerConfigs(input);
   }
 
   async readMcpConfigRaw(input: ReadMcpRawPayload): Promise<McpRawDocument> {
-    const workDir = requiredWorkDir('readMcpConfigRaw', input.workDir);
-    mcpConfigStore.assertMcpConfigScope(input.scope);
-    return mcpConfigStore.readMcpRaw({
-      cwd: workDir,
-      homeDir: this.homeDir,
-      scope: input.scope,
-    });
+    return this.hostRpc.readMcpConfigRaw(input);
   }
 
   async upsertMcpServerConfig(input: UpsertMcpServerConfigPayload): Promise<McpScopeState> {
-    const workDir = requiredWorkDir('upsertMcpServerConfig', input.workDir);
-    mcpConfigStore.assertMcpConfigScope(input.scope);
-    return mcpConfigStore.upsertMcpServer({
-      cwd: workDir,
-      homeDir: this.homeDir,
-      scope: input.scope,
-      name: input.name,
-      config: input.config,
-    });
+    return this.hostRpc.upsertMcpServerConfig(input);
   }
 
   async removeMcpServerConfig(input: RemoveMcpServerConfigPayload): Promise<McpScopeState> {
-    const workDir = requiredWorkDir('removeMcpServerConfig', input.workDir);
-    mcpConfigStore.assertMcpConfigScope(input.scope);
-    return mcpConfigStore.removeMcpServer({
-      cwd: workDir,
-      homeDir: this.homeDir,
-      scope: input.scope,
-      name: input.name,
-    });
+    return this.hostRpc.removeMcpServerConfig(input);
   }
 
   async writeMcpConfigRaw(input: WriteMcpRawPayload): Promise<McpRawDocument> {
-    const workDir = requiredWorkDir('writeMcpConfigRaw', input.workDir);
-    mcpConfigStore.assertMcpConfigScope(input.scope);
-    return mcpConfigStore.writeMcpRaw({
-      cwd: workDir,
-      homeDir: this.homeDir,
-      scope: input.scope,
-      text: input.text,
-    });
+    return this.hostRpc.writeMcpConfigRaw(input);
   }
 
   async testMcpConnection(input: TestMcpConnectionPayload): Promise<McpConnectionTestResult> {
-    const workDir = requiredWorkDir('testMcpConnection', input.workDir);
-    mcpConfigStore.assertMcpConfigScope(input.scope);
-    const config = await mcpConfigStore.resolveServerConfigForProbe({
-      cwd: workDir,
-      homeDir: this.homeDir,
-      scope: input.scope,
-      name: input.name,
-      config: input.config,
-    });
-    return probeMcpConnection(config);
+    return this.hostRpc.testMcpConnection(input);
   }
 
-  // ── Workspace skills(PRD-0036)────────────────────────────────────────────
-
   async listWorkspaceSkills(input: ListWorkspaceSkillsPayload): Promise<WorkspaceSkillListing> {
-    const workDir = requiredWorkDir('listWorkspaceSkills', input.workDir);
-    const config = this.reloadProviderManager();
-    return skillStore.listWorkspaceSkills({
-      workDir,
-      userHomeDir: this.userHomeDir,
-      extraDirs: config.extraSkillDirs,
-      mergeAllAvailableSkills: config.mergeAllAvailableSkills,
-    });
+    return this.hostRpc.listWorkspaceSkills(input);
   }
 
   async createWorkspaceSkill(input: CreateWorkspaceSkillPayload): Promise<CreateSkillResult> {
-    const workDir = requiredWorkDir('createWorkspaceSkill', input.workDir);
-    return skillStore.createSkill({
-      workDir,
-      userHomeDir: this.userHomeDir,
-      scope: input.scope,
-      name: input.name,
-      description: input.description,
-    });
+    return this.hostRpc.createWorkspaceSkill(input);
   }
 
   async removeWorkspaceSkill(input: RemoveWorkspaceSkillPayload): Promise<void> {
-    const workDir = requiredWorkDir('removeWorkspaceSkill', input.workDir);
-    return skillStore.removeSkill({
-      workDir,
-      userHomeDir: this.userHomeDir,
-      skillPath: input.skillPath,
-    });
-  }
-
-  private workspaceRegistry(): WorkspaceRegistry {
-    return new WorkspaceRegistry(this.homeDir);
+    return this.hostRpc.removeWorkspaceSkill(input);
   }
 
   async renameSession({ sessionId, ...payload }: RenameSessionRequest): Promise<void> {
@@ -672,91 +573,25 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   async getByfConfig(input: EmptyPayload = {}): Promise<ByfConfig> {
     void input;
-    return readConfigFile(this.configPath);
+    return this.hostRpc.getByfConfig();
   }
 
   async setByfConfig(input: SetByfConfigPayload): Promise<ByfConfig> {
-    const config = mergeConfigPatch(readConfigFile(this.configPath), input);
-    await writeConfigFile(this.configPath, config);
-    const updated = readConfigFile(this.configPath);
-    this.providerManager.updateConfig(updated);
-    return updated;
+    return this.hostRpc.setByfConfig(input);
   }
 
   async removeByfProvider(input: RemoveByfProviderPayload): Promise<ByfConfig> {
-    const config = readConfigFile(this.configPath);
-    delete config.providers[input.providerId];
-
-    let removedDefault = false;
-    const existingModels = config.models ?? {};
-    for (const [key, model] of Object.entries(existingModels)) {
-      if (
-        typeof model === 'object' &&
-        model !== null &&
-        !Array.isArray(model) &&
-        model['provider'] === input.providerId
-      ) {
-        delete existingModels[key];
-        if (config.defaultModel === key) removedDefault = true;
-      }
-    }
-    config.models = existingModels;
-
-    if (removedDefault) {
-      config.defaultModel = undefined;
-    }
-
-    if (config.defaultProvider === input.providerId) {
-      config.defaultProvider = undefined;
-    }
-
-    await writeConfigFile(this.configPath, config);
-    const updated = readConfigFile(this.configPath);
-    this.providerManager.updateConfig(updated);
-    return updated;
+    return this.hostRpc.removeByfProvider(input);
   }
 
-  /** PRD-0034 R-D3:删除模型别名(deepMerge 无法删键,镜像 removeByfProvider)。 */
   async removeByfModel(input: RemoveByfModelPayload): Promise<ByfConfig> {
-    const config = readConfigFile(this.configPath);
-    const existingModels = config.models ?? {};
-    if (!(input.modelId in existingModels)) {
-      throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, `Unknown model alias: ${input.modelId}`);
-    }
-    delete existingModels[input.modelId];
-    config.models = existingModels;
-    if (config.defaultModel === input.modelId) {
-      config.defaultModel = undefined;
-    }
-    await writeConfigFile(this.configPath, config);
-    const updated = readConfigFile(this.configPath);
-    this.providerManager.updateConfig(updated);
-    return updated;
+    return this.hostRpc.removeByfModel(input);
   }
 
-  /**
-   * 按模型别名解析合并能力(别名 capabilities ∪ provider 注册表),供 Web
-   * 模型编辑器预填勾选。validateCredentials=false:只看能力面,不要求凭据。
-   */
   async resolveModelCapabilities(
     input: ResolveModelCapabilitiesPayload,
   ): Promise<ResolvedModelCapabilities> {
-    this.reloadProviderManager();
-    const resolved = this.providerManager.resolveProviderConfigForModel(input.model);
-    if (resolved === undefined) {
-      throw new ByfError(ErrorCodes.MODEL_CONFIG_INVALID, `Unknown model alias: ${input.model}`);
-    }
-    const caps = resolved.modelCapabilities;
-    return {
-      image_in: caps.image_in,
-      video_in: caps.video_in,
-      audio_in: caps.audio_in,
-      tool_use: caps.tool_use,
-      thinking: caps.thinking,
-      thinking_effort: caps.thinking_effort,
-      thinking_xhigh: caps.thinking_xhigh,
-      thinking_max: caps.thinking_max,
-    };
+    return this.hostRpc.resolveModelCapabilities(input);
   }
 
   prompt({ sessionId, ...payload }: SessionAgentPayload<PromptPayload>) {

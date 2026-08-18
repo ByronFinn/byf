@@ -5,29 +5,28 @@ import {
   makeErrorPayload,
   type ApprovalRequest,
   type ApprovalResponse,
+  type ConfigDocumentResult,
+  type ConfigValidationResult,
+  type ConfigWriteResult,
   type CoreAPI,
+  type CreateSkillResult,
   type Event,
+  type McpConfigListing,
+  type McpConfigScope,
+  type McpConnectionTestResult,
+  type McpRawDocument,
+  type McpScopeState,
   type PromisableMethods,
   type QuestionRequest,
   type QuestionResult,
+  type ResolvedModelCapabilities,
+  type RuntimeConfig,
   type SDKAPI,
   type SDKRPCClient,
+  type SetModelResult,
   type ToolCallRequest,
   type ToolCallResponse,
-  type RuntimeConfig,
-  type ResolvedModelCapabilities,
-} from '@byfriends/agent-core';
-import type {
-  ConfigDocumentResult,
-  ConfigValidationResult,
-  ConfigWriteResult,
-  McpConfigListing,
-  McpConfigScope,
-  McpConnectionTestResult,
-  McpRawDocument,
-  McpScopeState,
-  CreateSkillResult,
-  WorkspaceSkillListing,
+  type WorkspaceSkillListing,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -91,10 +90,11 @@ export interface SetSessionModelRpcInput extends SessionIdRpcInput {
   readonly model: string;
 }
 
-export interface SetSessionModelRpcResult {
-  readonly model: string;
-  readonly providerName?: string;
-}
+/**
+ * `setModel` 的结果直接透传 core RPC 的 `SetModelResult`(agent-core 单源),
+ * 避免在 SDK 层重建同构类型。
+ */
+export type SetSessionModelRpcResult = SetModelResult;
 
 export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
   readonly level: string;

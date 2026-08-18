@@ -5,6 +5,16 @@
 > **校验日期**: 2026-08-13
 > **状态**: 活跃文档，作为后续每个子项 PRD 的战略依据。不取代任何单项 PRD 的验收标准。
 
+> **落地状态（2026-08-18 代码核实更新）**：Tier 0 与 Tier 2 的资源感知部分**已在代码落地并有测试**，本文档的「下一步从 0a 立项」指引已过时。核对证据：
+> - **0a（Bash 命令资源解析）**：`tools/policies/bash-command.ts`（tokenizer / 操作符切分 / 动词分类 / 路径提取 / cd 跟踪 / 敏感文件硬拒）；`tools/builtin/shell/bash.ts` `resolveExecution` 的 `accesses` 已消费；权限层 `agent/permission/check-rules.ts` 已做**逐子命令匹配**（修掉整串匹配绕过，`bash-command.test.ts` + `permission.test.ts` 覆盖）。commit `451766b`「0a-parse」。
+> - **0b（approve-for-session 规则化）**：`agent/permission/action-label.ts` `describeBashCommandAction`/`bashCommandRulePattern` 生成 per-prefix/精确规则（`Bash(git push*)`）而非裸 `Bash`（commit `451766b`，测试覆盖端到端）。
+> - **0c（威胁模型文档化）**：`SECURITY.md` 已含「权限层非安全边界」威胁模型（ADR-0033），与本文 §4 立场一致。
+> - **2a（资源感知权限模型）**：`agent/permission/matches-rule.ts` 已实现 `Resource(op:glob)` 资源规则命名空间与调度层共享 `(operation, path)` 抽象（`RESOURCE_RULE_NAMESPACE`）；`permission.test.ts` 覆盖。
+> - **2c（工具输出 schema 运行时校验）**：commit `f1f7950`「2c-output-schema」。
+> - **敏感文件读审批（#298）**：commit `b645d20`/`f0f127c`，读 = 审批事件、写 = 硬拒。
+>
+> 因此本 roadmap 的 Tier 0 全部与 2a/2c 视为**已实现**；剩余未实现项为 Tier 1（1a 去重 force-stop / 1b 契约测试 / 1c MCP 渐进披露）与 Tier 2 的 2b（完成语义泛化）。后续若为这些剩余项立项，仍沿用「独立 PRD」流程。
+
 ---
 
 ## 0. 目的

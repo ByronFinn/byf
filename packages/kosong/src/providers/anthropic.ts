@@ -7,13 +7,11 @@ import Anthropic, {
 import type {
   Tool as AnthropicTool,
   ContentBlockParam,
+  ImageBlockParam,
   MessageCreateParams,
   MessageCreateParamsStreaming,
   MessageParam,
   MessageStreamEvent,
-  RawContentBlockDeltaEvent,
-  RawContentBlockStartEvent,
-  RawMessageStartEvent,
   TextBlockParam,
   ThinkingBlockParam,
   ToolResultBlockParam,
@@ -337,15 +335,19 @@ function isToolResultOnly(message: MessageParam): boolean {
   if (!Array.isArray(content) || content.length === 0) return false;
   return content.every((block) => block.type === 'tool_result');
 }
-interface AnthropicImageBlock {
-  type: 'image';
-  source: { type: 'base64'; data: string; media_type: string } | { type: 'url'; url: string };
-  cache_control?: { type: 'ephemeral' };
-}
+type AnthropicImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
 
-const SUPPORTED_B64_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const SUPPORTED_B64_MEDIA_TYPES = new Set<AnthropicImageMediaType>([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
 
-function imageUrlPartToAnthropic(url: string): AnthropicImageBlock {
+// Anthropic's `ImageBlockParam` (a `ContentBlockParam` member) matches this
+// shape; declaring the return type as `ImageBlockParam` lets callers push it
+// directly without a type escape.
+function imageUrlPartToAnthropic(url: string): ImageBlockParam {
   if (url.startsWith('data:')) {
     const withoutScheme = url.slice(5);
     const parts = withoutScheme.split(';base64,', 2);
@@ -354,14 +356,14 @@ function imageUrlPartToAnthropic(url: string): AnthropicImageBlock {
     }
     const mediaType = parts[0];
     const data = parts[1];
-    if (!SUPPORTED_B64_MEDIA_TYPES.has(mediaType)) {
+    if (!SUPPORTED_B64_MEDIA_TYPES.has(mediaType as AnthropicImageMediaType)) {
       throw new ChatProviderError(
         `Unsupported media type for base64 image: ${mediaType}, url: ${url}`,
       );
     }
     return {
       type: 'image',
-      source: { type: 'base64', data, media_type: mediaType },
+      source: { type: 'base64', data, media_type: mediaType as AnthropicImageMediaType },
     };
   }
   return {
@@ -381,7 +383,7 @@ function convertTool(tool: Tool): AnthropicToolParam {
   };
 }
 function toolResultToBlock(toolCallId: string, content: ContentPart[]): ToolResultBlockParam {
-  const blocks: Array<TextBlockParam | AnthropicImageBlock> = [];
+  const blocks: Array<TextBlockParam | ImageBlockParam> = [];
   for (const part of content) {
     if (part.type === 'text') {
       if (part.text) {
@@ -396,7 +398,7 @@ function toolResultToBlock(toolCallId: string, content: ContentPart[]): ToolResu
     type: 'tool_result',
     tool_use_id: toolCallId,
     content: blocks,
-  } as ToolResultBlockParam;
+  };
 }
 function convertMessage(message: Message): MessageParam {
   const role = message.role;
@@ -432,7 +434,7 @@ function convertMessage(message: Message): MessageParam {
     if (part.type === 'text') {
       blocks.push({ type: 'text', text: part.text } satisfies TextBlockParam);
     } else if (part.type === 'image_url') {
-      blocks.push(imageUrlPartToAnthropic(part.imageUrl.url) as unknown as ContentBlockParam);
+      blocks.push(imageUrlPartToAnthropic(part.imageUrl.url));
     } else if (part.type === 'think') {
       // ThinkPart with encrypted -> ThinkingBlockParam; no encrypted -> skip
       if (part.encrypted === undefined) {
@@ -554,10 +556,10 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
   }
 
   private _extractUsage(usage: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    cache_creation_input_tokens?: number;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
   }): void {
     const inputTokens = usage.input_tokens ?? 0;
     const cacheRead = usage.cache_read_input_tokens ?? 0;
@@ -630,109 +632,103 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
 
     try {
       for await (const event of response) {
-        const evt = event as unknown as Record<string, unknown>;
-        const eventType = evt['type'] as string;
-
-        if (eventType === 'message_start') {
-          const startEvt = evt as unknown as RawMessageStartEvent;
-          this._id = startEvt.message.id;
-          this._extractUsage(
-            startEvt.message.usage as {
-              input_tokens?: number;
-              output_tokens?: number;
-              cache_read_input_tokens?: number;
-              cache_creation_input_tokens?: number;
-            },
-          );
-        } else if (eventType === 'content_block_start') {
-          const blockEvt = evt as unknown as RawContentBlockStartEvent;
-          const block = blockEvt.content_block;
-          const blockIndex = blockEvt.index;
-          // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic block types is handled
-          switch (block.type) {
-            case 'text':
-              yield { type: 'text', text: block.text };
-              break;
-            case 'thinking':
-              yield { type: 'think', think: block.thinking };
-              break;
-            case 'redacted_thinking':
-              yield {
-                type: 'think',
-                think: '',
-                encrypted: (block as unknown as { data: string }).data,
-              };
-              break;
-            case 'tool_use':
-              toolUseBlockIndexes.add(blockIndex);
-              yield {
-                type: 'function',
-                id: block.id,
-                name: block.name,
-                arguments: '',
-                // Carry the Anthropic block index so parallel tool_use
-                // blocks' interleaved input_json_delta chunks can be routed
-                // to the correct ToolCall by the generate loop.
-                _streamIndex: blockIndex,
-              } satisfies ToolCall;
-              break;
+        switch (event.type) {
+          case 'message_start': {
+            this._id = event.message.id;
+            this._extractUsage(event.message.usage);
+            break;
           }
-        } else if (eventType === 'content_block_delta') {
-          const deltaEvt = evt as unknown as RawContentBlockDeltaEvent;
-          const delta = deltaEvt.delta;
-          const blockIndex = deltaEvt.index;
-          // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic delta types is handled
-          switch (delta.type) {
-            case 'text_delta':
-              yield { type: 'text', text: delta.text };
-              break;
-            case 'thinking_delta':
-              yield { type: 'think', think: delta.thinking };
-              break;
-            case 'input_json_delta':
-              yield {
-                type: 'tool_call_part',
-                argumentsPart: delta.partial_json,
-                // Carry the Anthropic block index so this delta is routed
-                // to the matching ToolCall (parallel tool_use support).
-                index: blockIndex,
-              };
-              break;
-            case 'signature_delta':
-              yield {
-                type: 'think',
-                think: '',
-                encrypted: delta.signature,
-              };
-              break;
+          case 'content_block_start': {
+            const block = event.content_block;
+            const blockIndex = event.index;
+            // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic block types is handled
+            switch (block.type) {
+              case 'text':
+                yield { type: 'text', text: block.text };
+                break;
+              case 'thinking':
+                yield { type: 'think', think: block.thinking };
+                break;
+              case 'redacted_thinking':
+                yield {
+                  type: 'think',
+                  think: '',
+                  encrypted: block.data,
+                };
+                break;
+              case 'tool_use':
+                toolUseBlockIndexes.add(blockIndex);
+                yield {
+                  type: 'function',
+                  id: block.id,
+                  name: block.name,
+                  arguments: '',
+                  // Carry the Anthropic block index so parallel tool_use
+                  // blocks' interleaved input_json_delta chunks can be routed
+                  // to the correct ToolCall by the generate loop.
+                  _streamIndex: blockIndex,
+                } satisfies ToolCall;
+                break;
+            }
+            break;
           }
-        } else if (eventType === 'content_block_stop') {
-          // No-op: the generate loop infers tool-call completion from the
-          // next non-merging part (typically the next content_block_start)
-          // or from stream end. Anthropic's block boundary is therefore
-          // absorbed inside the adapter rather than surfaced upstream.
-        } else if (eventType === 'message_delta') {
-          // Update usage from delta
-          const deltaUsage = (evt as { usage?: Record<string, unknown> }).usage;
-          if (deltaUsage !== undefined) {
-            if (typeof deltaUsage['output_tokens'] === 'number') {
-              this._usage!.output = deltaUsage['output_tokens'];
+          case 'content_block_delta': {
+            const delta = event.delta;
+            const blockIndex = event.index;
+            // oxlint-disable-next-line typescript(switch-exhaustiveness-check) -- only a subset of Anthropic delta types is handled
+            switch (delta.type) {
+              case 'text_delta':
+                yield { type: 'text', text: delta.text };
+                break;
+              case 'thinking_delta':
+                yield { type: 'think', think: delta.thinking };
+                break;
+              case 'input_json_delta':
+                yield {
+                  type: 'tool_call_part',
+                  argumentsPart: delta.partial_json,
+                  // Carry the Anthropic block index so this delta is routed
+                  // to the matching ToolCall (parallel tool_use support).
+                  index: blockIndex,
+                };
+                break;
+              case 'signature_delta':
+                yield {
+                  type: 'think',
+                  think: '',
+                  encrypted: delta.signature,
+                };
+                break;
+            }
+            break;
+          }
+          case 'content_block_stop':
+            // No-op: the generate loop infers tool-call completion from the
+            // next non-merging part (typically the next content_block_start)
+            // or from stream end. Anthropic's block boundary is therefore
+            // absorbed inside the adapter rather than surfaced upstream.
+            break;
+          case 'message_delta': {
+            // Update usage from delta
+            const deltaUsage = event.usage;
+            if (typeof deltaUsage.output_tokens === 'number') {
+              this._usage!.output = deltaUsage.output_tokens;
             }
             // Capture current total before updating cache values
             const prevInputOther = this._usage!.inputOther;
             const prevCacheRead = this._usage!.inputCacheRead;
             const prevCacheCreation = this._usage!.inputCacheCreation;
 
-            if (typeof deltaUsage['cache_read_input_tokens'] === 'number') {
-              this._usage!.inputCacheRead = deltaUsage['cache_read_input_tokens'];
+            if (typeof deltaUsage.cache_read_input_tokens === 'number') {
+              this._usage!.inputCacheRead = deltaUsage.cache_read_input_tokens;
             }
-            if (typeof deltaUsage['cache_creation_input_tokens'] === 'number') {
-              this._usage!.inputCacheCreation = deltaUsage['cache_creation_input_tokens'];
+            if (typeof deltaUsage.cache_creation_input_tokens === 'number') {
+              this._usage!.inputCacheCreation = deltaUsage.cache_creation_input_tokens;
             }
-            if (typeof deltaUsage['input_tokens'] === 'number') {
+            if (typeof deltaUsage.input_tokens === 'number') {
               this._usage!.inputOther = Math.max(
                 0,
-                deltaUsage['input_tokens'] -
+                deltaUsage.input_tokens -
                   this._usage!.inputCacheRead -
                   this._usage!.inputCacheCreation,
               );
@@ -744,22 +740,22 @@ class AnthropicStreamedMessage extends BaseStreamedMessage {
                 totalInput - this._usage!.inputCacheRead - this._usage!.inputCacheCreation,
               );
             }
+            // The terminal `stop_reason` lives on `delta.stop_reason` of the
+            // last `message_delta` event for this response. Capture it here.
+            //
+            // Accept `null` explicitly: if the key is present we forward the
+            // value (including null) to `_captureStopReason`, which maps it to
+            // `{null, null}`. Only a missing key skips the capture. This avoids
+            // a stale prior capture persisting after an explicit null reset.
+            if (event.delta.stop_reason !== undefined) {
+              this._captureStopReason(event.delta.stop_reason as string | null | undefined);
+            }
+            break;
           }
-          // The terminal `stop_reason` lives on `delta.stop_reason` of the
-          // last `message_delta` event for this response. Capture it here.
-          //
-          // Accept `null` explicitly: if the key is present we forward the
-          // value (including null) to `_captureStopReason`, which maps it to
-          // `{null, null}`. Only a missing key skips the capture. This avoids
-          // a stale prior capture persisting after an explicit null reset.
-          const messageDeltaPayload = (evt as { delta?: Record<string, unknown> }).delta;
-          if (messageDeltaPayload !== undefined && 'stop_reason' in messageDeltaPayload) {
-            this._captureStopReason(
-              messageDeltaPayload['stop_reason'] as string | null | undefined,
-            );
-          }
+          // message_stop: nothing to do
+          case 'message_stop':
+            break;
         }
-        // message_stop: nothing to do
       }
     } catch (error: unknown) {
       throw convertAnthropicError(error);
@@ -899,7 +895,13 @@ export class AnthropicChatProvider extends BaseChatProvider<AnthropicGenerationK
       }
     }
 
-    // Build the create params
+    // Build the create params. `Record<string, unknown>` (not
+    // `MessageCreateParams`) because `kwargs` carries generation fields that
+    // the SDK's `MessageCreateParams` discriminant requires (e.g.
+    // `max_tokens`, `stream`) before assigning the object literal; the
+    // `stream` discriminant is added per-call below. The two call sites use
+    // an explicit cast to the SDK's streaming/non-streaming params because
+    // the dynamic spread cannot be statically proven to match either member.
     const createParams: Record<string, unknown> = {
       model: this._model,
       messages,
