@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { replaceToken, tokenAt } from '../src/lib/input-trigger';
+import {
+  listboxScrollTop,
+  mentionInsertText,
+  replaceToken,
+  resolveSlashSubmit,
+  tokenAt,
+} from '../src/lib/input-trigger';
 
 describe('tokenAt', () => {
   test('行首 / 与 @ 触发;无参数时 args 为空', () => {
@@ -53,5 +59,59 @@ describe('replaceToken', () => {
 
   test('无触发时原样返回', () => {
     expect(replaceToken('hello', 5, '')).toEqual({ value: 'hello', caret: 5 });
+  });
+});
+
+describe('listboxScrollTop', () => {
+  // 弹窗可视高 256(max-h-64)、行高 32:约 8 行可见
+  test('↓ 越过可视区底部:滚到恰好露出该项底', () => {
+    expect(
+      listboxScrollTop({ itemTop: 300, itemHeight: 32, listScrollTop: 0, listClientHeight: 256 }),
+    ).toBe(300 + 32 - 256);
+  });
+
+  test('↑ 越过可视区顶部:scrollTop 对齐到该项顶', () => {
+    expect(
+      listboxScrollTop({ itemTop: 40, itemHeight: 32, listScrollTop: 120, listClientHeight: 256 }),
+    ).toBe(40);
+  });
+
+  test('仍在可视区内:保持原 scrollTop 不动', () => {
+    expect(
+      listboxScrollTop({ itemTop: 100, itemHeight: 32, listScrollTop: 64, listClientHeight: 256 }),
+    ).toBe(64);
+  });
+});
+
+describe('mentionInsertText', () => {
+  test('文件:@path + 尾空格结束 token', () => {
+    expect(mentionInsertText('src/a.ts', false)).toBe('@src/a.ts ');
+  });
+
+  test('文件夹:尾斜杠标记目录(TUI @dir/ 同约定)', () => {
+    expect(mentionInsertText('src', true)).toBe('@src/ ');
+    expect(mentionInsertText('apps/web/client', true)).toBe('@apps/web/client/ ');
+  });
+});
+
+describe('resolveSlashSubmit(submit 统一解析)', () => {
+  const known = new Set(['debug', 'theme']);
+
+  test('行首命中已知名:返回命令与参数(含多行参数)', () => {
+    expect(resolveSlashSubmit('/debug 排查 报错', known)).toEqual({
+      name: 'debug',
+      args: '排查 报错',
+    });
+    expect(resolveSlashSubmit('/theme', known)).toEqual({ name: 'theme', args: '' });
+    expect(resolveSlashSubmit('/debug 第一行\n第二行', known)).toEqual({
+      name: 'debug',
+      args: '第一行\n第二行',
+    });
+  });
+
+  test('未知命令与非 / 开头:null(按普通消息发送)', () => {
+    expect(resolveSlashSubmit('/etc/hosts 里有什么', known)).toBeNull();
+    expect(resolveSlashSubmit('x /theme', known)).toBeNull();
+    expect(resolveSlashSubmit('普通消息', known)).toBeNull();
   });
 });

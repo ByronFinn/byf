@@ -325,6 +325,7 @@ function ChatSessionPage({
     .map((s) => ({
       name: s.name,
       description: s.description.length > 0 ? s.description : `激活技能 ${s.name}`,
+      kind: 'skill' as const,
       run: (args: string) => {
         void api.activateSkill(sessionId, s.name, args).then(
           () => {

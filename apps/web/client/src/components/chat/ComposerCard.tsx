@@ -1,10 +1,16 @@
-import { ArrowUp, File, Folder, Square, X } from 'lucide-react';
+import { ArrowUp, File, Folder, Square, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '#/api';
 import { Button } from '#/components/ui/button';
 import { Toaster } from '#/components/ui/toaster';
-import { replaceToken, tokenAt } from '#/lib/input-trigger';
+import {
+  listboxScrollTop,
+  mentionInsertText,
+  replaceToken,
+  resolveSlashSubmit,
+  tokenAt,
+} from '#/lib/input-trigger';
 import { toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
 import type { FsEntry } from '#/types';
@@ -21,10 +27,15 @@ export interface ComposerImage {
   readonly dataUrl: string;
 }
 
-/** slash 命令(不含 / 前缀);`run(args)` 由页面层提供,args 为选中时行内剩余参数。 */
+/**
+ * slash 命令(不含 / 前缀);`run(args)` 由页面层提供,args 为选中时行内剩余参数。
+ * `kind` 区分两类:`command` 选中即执行(默认);`skill` 无参选中时只补全
+ * `/name ` 并关闭弹窗,用户补充内容后 Enter(submit 解析)才激活。
+ */
 export interface TriggerCommand {
   readonly name: string;
   readonly description: string;
+  readonly kind?: 'command' | 'skill';
   readonly run: (args: string) => void | Promise<void>;
 }
 
@@ -54,8 +65,8 @@ type TriggerState =
  *
  * 输入触发(deepseek InputTrigger 的 combobox 模式):行首或空格后的 `/`
  * 弹出命令面板(过滤匹配、↑↓ 选择、Enter 执行、Esc 关闭);`@` 弹出工作区
- * 目录浏览(文件夹进入、文件插入 `@path ` 文本——与 TUI mention 同一约定,
- * agent 侧把路径文本当作引用)。
+ * 目录浏览(文件夹 Enter/点击进入、Tab 或行尾「引用」插入 `@dir/ `,文件
+ * 插入 `@path `——与 TUI mention 同一约定,agent 侧把路径文本当作引用)。
  */
 export function ComposerCard(props: {
   value: string;
@@ -101,7 +112,10 @@ export function ComposerCard(props: {
     onRemoveImage,
   } = props;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [triggerState, setTriggerState] = useState<TriggerState>(null);
+  // 补全过的技能/命令名:该 token 未变化前不再重开弹窗(token 变化即恢复)
+  const [suppressToken, setSuppressToken] = useState<string | null>(null);
   const commands = trigger?.commands ?? [];
   const workDir = trigger?.workDir ?? null;
 
@@ -126,6 +140,12 @@ export function ComposerCard(props: {
     const token = tokenAt(nextValue, caret);
     if (token !== null && token.token.startsWith('/')) {
       const query = token.token.slice(1);
+      // 刚补全的 token:保持弹窗关闭,用户安静补参;token 变化即恢复触发
+      if (suppressToken !== null && query === suppressToken) {
+        setTriggerState(null);
+        return;
+      }
+      setSuppressToken(null);
       setTriggerState((prev) =>
         prev?.type === 'slash' && prev.query === query
           ? prev
@@ -177,6 +197,21 @@ export function ComposerCard(props: {
     };
   }, [triggerState?.type === 'mention' ? triggerState.path : null, trigger?.workDir]);
 
+  // 键盘导航/过滤刷新后,把高亮行滚回弹窗可视区(弹窗 max-h-64 overflow-y-auto,
+  // 高亮越过可视区即"跳出"弹窗)。只动弹窗自身 scrollTop,不惊动页面滚动。
+  useEffect(() => {
+    const list = listRef.current;
+    if (list === null) return;
+    const highlighted = list.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (highlighted === null) return;
+    list.scrollTop = listboxScrollTop({
+      itemTop: highlighted.offsetTop,
+      itemHeight: highlighted.offsetHeight,
+      listScrollTop: list.scrollTop,
+      listClientHeight: list.clientHeight,
+    });
+  }, [triggerState]);
+
   const slashItems =
     triggerState?.type === 'slash'
       ? commands.filter(
@@ -184,6 +219,9 @@ export function ComposerCard(props: {
             c.name.startsWith(triggerState.query) || c.description.includes(triggerState.query),
         )
       : [];
+  // 弹窗分组:命令在前、技能在后(与传入顺序一致,highlight 下标不因分组变化)
+  const slashCommands = slashItems.filter((c) => c.kind !== 'skill');
+  const slashSkills = slashItems.filter((c) => c.kind === 'skill');
   const mentionItems =
     triggerState?.type === 'mention'
       ? triggerState.entries.filter(
@@ -194,8 +232,22 @@ export function ComposerCard(props: {
       : [];
   const activeItems = triggerState?.type === 'slash' ? slashItems : mentionItems;
 
-  /** 执行下标 index 的 slash 命令或 mention 选择;成功后清除 token 与菜单。 */
-  const pick = (index: number): void => {
+  /** 补全:把光标前 token 替换为 `/name ` 并关闭弹窗(后续 Enter 走 submit 解析)。 */
+  const completeSlash = (item: TriggerCommand): void => {
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? value.length;
+    const next = replaceToken(value, caret, `/${item.name} `);
+    onChange(next.value);
+    setTriggerState(null);
+    setSuppressToken(item.name);
+  };
+
+  /**
+   * 执行下标 index 的 slash 命令或 mention 选择;成功后清除 token 与菜单。
+   * mention 的 mode:`open`(Enter/点击行——文件夹进入、文件插入)与
+   * `select`(Tab/行尾「引用」——文件夹同样插入 `@dir/ `)。
+   */
+  const pick = (index: number, mode: 'open' | 'select' = 'open'): void => {
     if (triggerState === null) return;
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? value.length;
@@ -206,21 +258,27 @@ export function ComposerCard(props: {
       // token 连同参数一起清出输入框(参数已作为命令参数消费,TUI 同语义)。
       const token = tokenAt(value, caret);
       const args = (token?.args ?? '').trim();
+      // 技能无参选中:只补全并关窗,让用户继续输入;已有参数则立即带参激活
+      if (item.kind === 'skill' && args.length === 0) {
+        completeSlash(item);
+        return;
+      }
       const next = replaceToken(value, caret, '');
       onChange(next.value);
       setTriggerState(null);
+      setSuppressToken(null);
       void item.run(args);
     } else {
       const item = mentionItems[index];
       if (item === undefined) return;
-      if (item.isDir) {
+      if (item.isDir && mode === 'open') {
         setTriggerState((prev) =>
           prev?.type === 'mention'
             ? { ...prev, path: item.path, query: '', highlight: 0, entries: [], loading: true }
             : prev,
         );
       } else {
-        const next = replaceToken(value, caret, `@${item.path} `);
+        const next = replaceToken(value, caret, mentionInsertText(item.path, item.isDir));
         onChange(next.value);
         setTriggerState(null);
       }
@@ -230,6 +288,20 @@ export function ComposerCard(props: {
   const submit = (): void => {
     const text = value.trim();
     if (text.length === 0 || busy || sendDisabled) return;
+    // submit 路径统一解析(对齐 TUI):行首 `/name` 命中命令/技能 → 执行而非
+    // 发送。弹窗关闭(Esc)后的 Enter 也走这里,补全后的技能由此带参激活。
+    const resolved = resolveSlashSubmit(value, new Set(commands.map((c) => c.name)));
+    if (resolved !== null) {
+      const item = commands.find((c) => c.name === resolved.name);
+      if (item !== undefined) {
+        const next = replaceToken(value, value.length, '');
+        onChange(next.value);
+        setTriggerState(null);
+        setSuppressToken(null);
+        void item.run(resolved.args);
+        return;
+      }
+    }
     onSend(text);
   };
 
@@ -265,8 +337,9 @@ export function ComposerCard(props: {
       <div className="relative">
         {triggerState !== null && (
           <div
+            ref={listRef}
             role="listbox"
-            aria-label={triggerState.type === 'slash' ? '命令' : '引用文件'}
+            aria-label={triggerState.type === 'slash' ? '命令' : '引用文件或文件夹'}
             className="absolute right-0 bottom-full left-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover py-1 shadow-3"
           >
             {triggerState.type === 'slash' ? (
@@ -275,27 +348,65 @@ export function ComposerCard(props: {
                   无匹配命令(TUI 命令如 /login /goal 需在终端使用)
                 </p>
               ) : (
-                slashItems.map((c, i) => (
-                  <button
-                    key={c.name}
-                    type="button"
-                    role="option"
-                    aria-selected={i === triggerState.highlight}
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // 保持 textarea 焦点(combobox 模式)
-                      pick(i);
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                      i === triggerState.highlight ? 'bg-active text-fg' : 'text-fg-muted',
-                    )}
-                  >
-                    <span className="font-medium text-fg">/{c.name}</span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-fg-subtle">
-                      {c.description}
-                    </span>
-                  </button>
-                ))
+                <>
+                  {slashCommands.length > 0 && (
+                    <>
+                      <p className="px-3 py-1 text-xs font-medium text-fg-subtle">命令</p>
+                      {slashCommands.map((c, i) => (
+                        <button
+                          key={c.name}
+                          type="button"
+                          role="option"
+                          aria-selected={i === triggerState.highlight}
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // 保持 textarea 焦点(combobox 模式)
+                            pick(i);
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                            i === triggerState.highlight ? 'bg-active text-fg' : 'text-fg-muted',
+                          )}
+                        >
+                          <span className="font-medium text-fg">/{c.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-fg-subtle">
+                            {c.description}
+                          </span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {slashSkills.length > 0 && (
+                    <>
+                      <p className="mt-1 border-t border-border px-3 pt-1.5 pb-1 text-xs font-medium text-fg-subtle">
+                        技能 · 选中后可输入补充内容
+                      </p>
+                      {slashSkills.map((c, i) => (
+                        <button
+                          key={c.name}
+                          type="button"
+                          role="option"
+                          aria-selected={slashCommands.length + i === triggerState.highlight}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            pick(slashCommands.length + i);
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                            slashCommands.length + i === triggerState.highlight
+                              ? 'bg-active text-fg'
+                              : 'text-fg-muted',
+                          )}
+                        >
+                          <Zap className="size-4 shrink-0 text-fg-muted" aria-hidden />
+                          <span className="font-medium text-fg">/{c.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-fg-subtle">
+                            {c.description}
+                          </span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </>
               )
             ) : (
               <>
@@ -328,13 +439,13 @@ export function ComposerCard(props: {
                   <p className="px-3 py-1.5 text-xs text-fg-subtle">空目录</p>
                 ) : (
                   mentionItems.map((e, i) => (
-                    <button
+                    // 行用 div 而非 button:文件夹行尾嵌「引用」按钮,button 不能嵌套 button
+                    <div
                       key={e.path}
-                      type="button"
                       role="option"
                       aria-selected={i === triggerState.highlight}
                       onMouseDown={(ev) => {
-                        ev.preventDefault();
+                        ev.preventDefault(); // 保持 textarea 焦点(combobox 模式)
                         pick(i);
                       }}
                       className={cn(
@@ -348,9 +459,27 @@ export function ComposerCard(props: {
                         <File className="size-4 shrink-0 text-fg-muted" aria-hidden />
                       )}
                       <span className="truncate">{e.name}</span>
-                      {e.isDir && <span className="ml-auto text-xs text-fg-subtle">文件夹</span>}
-                    </button>
+                      {e.isDir && (
+                        <button
+                          type="button"
+                          aria-label={`引用文件夹 ${e.name}`}
+                          onMouseDown={(ev) => {
+                            ev.stopPropagation(); // 不触发行的「进入」
+                            ev.preventDefault();
+                            pick(i, 'select');
+                          }}
+                          className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs text-fg-subtle transition-colors hover:bg-surface-1 hover:text-fg"
+                        >
+                          引用
+                        </button>
+                      )}
+                    </div>
                   ))
+                )}
+                {mentionItems.some((e) => e.isDir) && !triggerState.loading && (
+                  <p className="border-t border-border px-3 py-1 text-xs text-fg-subtle">
+                    ↑↓ 选择 · Enter 进入文件夹 · Tab 引用选中项
+                  </p>
                 )}
               </>
             )}
@@ -368,7 +497,18 @@ export function ComposerCard(props: {
             // IME 组合态的 Enter(确认候选词)不发送
             if (e.nativeEvent.isComposing) return;
             if (triggerState !== null) {
-              if (e.key === 'ArrowDown') {
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                // Tab = 引用高亮项(TUI applyCompletion 同语义):slash 插入
+                // `/name ` 并关窗;mention 插入 `@path `/`@dir/ `(文件夹
+                // Tab 引用、Enter 进入)
+                if (triggerState.type === 'slash') {
+                  const item = slashItems[triggerState.highlight];
+                  if (item !== undefined) completeSlash(item);
+                } else {
+                  pick(triggerState.highlight, 'select');
+                }
+              } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setTriggerState((prev) =>
                   prev === null
