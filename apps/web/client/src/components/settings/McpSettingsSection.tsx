@@ -654,7 +654,7 @@ function KeyValueEditor(props: {
                 next[index] = { ...row, key: e.target.value };
                 props.onChange(next);
               }}
-              className={`${INPUT_CLS} w-36 shrink-0 font-mono`}
+              className={`${KV_FIELD_CLS} w-36 shrink-0 font-mono`}
               placeholder="KEY"
             />
             <input
@@ -664,7 +664,7 @@ function KeyValueEditor(props: {
                 next[index] = { ...row, value: e.target.value };
                 props.onChange(next);
               }}
-              className={`${INPUT_CLS} flex-1 font-mono`}
+              className={`${KV_FIELD_CLS} min-w-0 flex-1 font-mono`}
               placeholder="值(占位符 = 保留原值)"
             />
             <Button
@@ -696,3 +696,12 @@ function KeyValueEditor(props: {
     </div>
   );
 }
+
+/**
+ * KeyValueEditor 行的输入框基础类:与 INPUT_CLS 同源但**不含 `w-full`**——
+ * 该行由 KEY 固定列宽 + value flex 分配,若带上 w-full 会覆盖 KEY 的
+ * `w-36`(Tailwind width 类同层排序,w-full 后定义胜出),导致 KEY 撑满
+ * 整行、value 被挤压成竖条。
+ */
+const KV_FIELD_CLS =
+  'rounded-md border border-border-strong bg-input-fill px-2.5 py-1.5 text-sm outline-none focus:border-brand disabled:opacity-60';
