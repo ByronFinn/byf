@@ -176,6 +176,15 @@ export class BashTool implements BuiltinTool<BashInput> {
       description: args.run_in_background
         ? `Starting background: ${preview}`
         : `Running: ${preview}`,
+      // wire 展示元数据：无此字段时 UI（Web 归组/图标/摘要）只能落到 generic 桶，
+      // bash 调用会退化为「状态灯 + 数量」的纯成功/失败行。
+      display: {
+        kind: 'command',
+        command: args.command,
+        cwd: args.cwd,
+        description: args.description,
+        language: 'bash',
+      },
       // PRD-0031：解析命令 → 写敏感文件硬拒（PathSecurityError，loop 格式化
       // 为结构化错误）；读敏感文件由权限层策略门控（审批事件，#298）。
       accesses: resolveBashResources(

@@ -24,9 +24,12 @@ export class ShellExecutionComponent extends Container {
     super();
 
     if (options.showCommand === true) {
+      // 展开态显示完整命令；折叠态按 previewLines 截断，与输出预览一致。
       this.addCommandPreview(
         options.command ?? '',
-        options.commandPreviewLines ?? COMMAND_PREVIEW_LINES,
+        options.expanded === true
+          ? Number.POSITIVE_INFINITY
+          : (options.commandPreviewLines ?? COMMAND_PREVIEW_LINES),
       );
     }
 
@@ -84,5 +87,6 @@ export const shellExecutionResultRenderer: ResultRenderer = (
     result,
     colors: ctx.colors,
     expanded: ctx.expanded,
+    showCommand: true,
   }),
 ];

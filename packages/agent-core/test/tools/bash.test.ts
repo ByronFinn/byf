@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
 import { type BashInput, BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';
+import { ToolInputDisplaySchema } from '../../src/tools/display';
 import type { Environment } from '../../src/utils/environment';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos } from './fixtures/fake-kaos';
@@ -1088,5 +1089,35 @@ describe('BashTool — PRD-0031 0a ToolAccesses 声明', () => {
       { kind: 'file', operation: 'read', path: '/workspace/src/a.ts' },
       { kind: 'file', operation: 'write', path: '/workspace/dest/b.ts', recursive: true },
     ]);
+  });
+});
+
+describe('BashTool — wire 展示元数据（display）', () => {
+  it('resolveExecution 产出 kind:command 的 display 且通过 wire schema 校验', () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({
+      command: 'git diff main..dev -- packages/agent-core',
+      cwd: '/repo',
+    });
+    if (execution.isError === true) throw new TypeError('unexpected error result');
+
+    expect(execution.display).toEqual({
+      kind: 'command',
+      command: 'git diff main..dev -- packages/agent-core',
+      cwd: '/repo',
+      language: 'bash',
+    });
+    // wire-record 层按 ToolInputDisplaySchema 校验 input_display；这里守住
+    // 「生产者产出的一定能落盘」——历史上 display 从未被产出过，缺失时
+    // Web 的归组/图标/摘要全部退化为 generic 桶。
+    expect(ToolInputDisplaySchema.safeParse(execution.display).success).toBe(true);
+  });
+
+  it('未显式指定 cwd/description 时不携带这两个可选字段', () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({ command: 'ls' });
+    if (execution.isError === true) throw new TypeError('unexpected error result');
+
+    expect(execution.display).toEqual({ kind: 'command', command: 'ls', language: 'bash' });
   });
 });
