@@ -22,6 +22,9 @@ import type {
   McpConfigListing,
   McpConfigScope,
   McpRawDocument,
+  McpRawWriteBody,
+  McpScopeState,
+  McpServerUpsertBody,
   PermissionMode,
   PickDirectoryResponse,
   PromptBody,
@@ -196,6 +199,29 @@ export const mcpApi = {
     request<McpRawDocument>(
       `/api/mcp/raw/${enc(scope)}?${new URLSearchParams({ workDir }).toString()}`,
       'GET',
+    ),
+  /** upsert(字段级合并;env/headers 占位符 = 保留磁盘原值)。返回该 scope 最新状态。 */
+  upsertServer: (
+    workDir: string,
+    scope: McpConfigScope,
+    body: McpServerUpsertBody,
+  ): Promise<McpScopeState> =>
+    request<McpScopeState>(
+      `/api/mcp/servers/${enc(scope)}?${new URLSearchParams({ workDir }).toString()}`,
+      'PUT',
+      body,
+    ),
+  removeServer: (workDir: string, scope: McpConfigScope, name: string): Promise<McpScopeState> =>
+    request<McpScopeState>(
+      `/api/mcp/servers/${enc(scope)}/${enc(name)}?${new URLSearchParams({ workDir }).toString()}`,
+      'DELETE',
+    ),
+  /** RAW 兜底写盘(校验失败 422);返回写入后的掩码 RAW 文档。 */
+  writeRaw: (workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument> =>
+    request<McpRawDocument>(
+      `/api/mcp/raw/${enc(scope)}?${new URLSearchParams({ workDir }).toString()}`,
+      'PUT',
+      { text } satisfies McpRawWriteBody,
     ),
 };
 

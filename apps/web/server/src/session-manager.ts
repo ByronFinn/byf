@@ -31,6 +31,7 @@ import type {
   McpConfigListing,
   McpConfigScope,
   McpRawDocument,
+  McpScopeState,
   ResolvedCapabilities,
   ServerFrame,
   SessionStatus,
@@ -99,6 +100,18 @@ export interface HarnessLike {
   // PRD-0036 / ADR-0039：MCP mcp.json per-scope 读写(core 单源，SDK 透出)。
   listMcpServerConfigs(workDir: string): Promise<McpConfigListing>;
   readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument>;
+  upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState>;
+  removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState>;
+  writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument>;
   readonly configPath: string;
   close(): Promise<void>;
 }
@@ -371,6 +384,27 @@ export class WebSessionManager {
 
   readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
     return this.harness.readMcpConfigRaw(workDir, scope);
+  }
+
+  upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    return this.harness.upsertMcpServerConfig(workDir, scope, name, config);
+  }
+
+  removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    return this.harness.removeMcpServerConfig(workDir, scope, name);
+  }
+
+  writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument> {
+    return this.harness.writeMcpConfigRaw(workDir, scope, text);
   }
 
   // ---- 反向 RPC 裁决 ---------------------------------------------------------

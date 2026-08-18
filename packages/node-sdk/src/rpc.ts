@@ -24,6 +24,7 @@ import type {
   McpConfigListing,
   McpConfigScope,
   McpRawDocument,
+  McpScopeState,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -292,6 +293,34 @@ export class SDKRpcClient {
   async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
     const rpc = await this.getRpc();
     return rpc.readMcpConfigRaw({ workDir, scope });
+  }
+
+  async upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    const rpc = await this.getRpc();
+    return rpc.upsertMcpServerConfig({ workDir, scope, name, config });
+  }
+
+  async removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    const rpc = await this.getRpc();
+    return rpc.removeMcpServerConfig({ workDir, scope, name });
+  }
+
+  async writeMcpConfigRaw(
+    workDir: string,
+    scope: McpConfigScope,
+    text: string,
+  ): Promise<McpRawDocument> {
+    const rpc = await this.getRpc();
+    return rpc.writeMcpConfigRaw({ workDir, scope, text });
   }
 
   async renameSession(input: RenameSessionInput): Promise<void> {

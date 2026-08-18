@@ -9,10 +9,12 @@
  *   `__MCP_MASKED_n__` 占位符;合法文件的 RAW 文本是 parse → mask →
  *   规范化 serialize 的产物。损坏文件无法掩码,RAW 显示磁盘原文(D3 例外)。
  */
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import type { McpServerConfig } from '#/config/schema';
 import { ErrorCodes, ByfError } from '#/errors';
+import { atomicWrite } from '#/utils/fs';
 
 import { McpJsonFileSchema, resolveMcpJsonPaths } from './config-loader';
 
@@ -241,4 +243,188 @@ export function restoreMaskedTree(masked: unknown, disk: unknown): unknown {
 /** 供测试与调用方识别占位符形态。 */
 export function isMcpMaskedPlaceholder(value: string): boolean {
   return MCP_MASKED_PLACEHOLDER_RE.test(value);
+}
+
+// ── 写入(upsert / remove / raw write;tmp+rename 原子写)───────────────────
+
+/** 表单不覆盖的高级公共字段:upsert 时从磁盘原值保留(R-M3a)。 */
+const ADVANCED_COMMON_FIELDS = [
+  'enabledTools',
+  'disabledTools',
+  'startupTimeoutMs',
+  'toolTimeoutMs',
+] as const;
+
+/** transport 切换后应丢弃的旧 transport 专属字段(R-M3a)。 */
+const TRANSPORT_SWITCH_DROP_FIELDS: Record<string, readonly string[]> = {
+  stdio: ['url', 'headers', 'bearerTokenEnvVar'],
+  http: ['command', 'args', 'env', 'cwd', 'executor'],
+  sse: ['command', 'args', 'env', 'cwd', 'executor'],
+};
+
+export interface UpsertMcpServerInput extends ScopedMcpStoreInput {
+  readonly name: string;
+  /** 表单提交的常用字段;env/headers 值可能是占位符(不动 = 保留原值)。 */
+  readonly config: Record<string, unknown>;
+}
+
+/**
+ * upsert 单个 server:占位符还原(D2)→ 字段级合并(高级字段保留磁盘
+ * 原值;transport 切换丢弃旧 transport 专属字段,R-M3a)→ 整文件 schema
+ * 校验 → tmp+rename 原子写;返回该 scope 写入后的掩码状态。
+ */
+export async function upsertMcpServer(input: UpsertMcpServerInput): Promise<McpScopeState> {
+  const name = input.name.trim();
+  if (name.length === 0) {
+    throw new ByfError(ErrorCodes.REQUEST_INVALID, 'MCP server name is required');
+  }
+  const path = mcpScopePath(input);
+  const file = await readScopeFile(path);
+  if (file.invalid !== undefined) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Cannot upsert into invalid mcp.json (${path}); fix the file via RAW editing first`,
+    );
+  }
+
+  const existing = file.servers[name];
+  const restored = restoreMaskedTree(input.config, existing) as Record<string, unknown>;
+  const merged = mergeServerFields(restored, existing);
+  const servers = { ...file.servers, [name]: merged };
+
+  await writeScopeFile(path, servers);
+  return scopeStateFromDisk(path);
+}
+
+export interface RemoveMcpServerInput extends ScopedMcpStoreInput {
+  readonly name: string;
+}
+
+export async function removeMcpServer(input: RemoveMcpServerInput): Promise<McpScopeState> {
+  const name = input.name.trim();
+  const path = mcpScopePath(input);
+  const file = await readScopeFile(path);
+  if (file.invalid !== undefined) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Cannot remove from invalid mcp.json (${path}); fix the file via RAW editing first`,
+    );
+  }
+  if (!(name in file.servers)) {
+    throw new ByfError(
+      ErrorCodes.MCP_SERVER_NOT_FOUND,
+      `MCP server "${name}" not found in ${path}`,
+    );
+  }
+  const servers = { ...file.servers };
+  delete servers[name];
+
+  await writeScopeFile(path, servers);
+  return scopeStateFromDisk(path);
+}
+
+export interface WriteMcpRawInput extends ScopedMcpStoreInput {
+  readonly text: string;
+}
+
+/**
+ * RAW 兜底写盘:对磁盘上仍是合法 JSON 的原文做占位符还原(D2);schema
+ * 校验通过才 tmp+rename 原子写,失败抛 CONFIG_INVALID(不落盘)。空文本
+ * 归一为空骨架。返回写入后的 RAW 文档(掩码态)。
+ */
+export async function writeMcpRaw(input: WriteMcpRawInput): Promise<McpRawDocument> {
+  const path = mcpScopePath(input);
+  const text = input.text.trim().length === 0 ? '{\n  "mcpServers": {}\n}\n' : input.text;
+
+  const diskFile = await readScopeFile(path);
+  let diskJson: unknown;
+  if (diskFile.invalid === undefined && diskFile.exists) {
+    try {
+      diskJson = JSON.parse(await readFile(path, 'utf-8'));
+    } catch {
+      diskJson = undefined;
+    }
+  }
+  // 磁盘原文可用则按路径还原;不可用(损坏/缺失)时也防御性清空占位符。
+  const toWrite = serializeMcpJson(restoreMaskedTree(parseJsonOrThrow(text, path), diskJson));
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(toWrite);
+  } catch (error) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid JSON in ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const servers = validateServersShape(parsedJson, path);
+  await writeScopeFile(path, servers);
+  return readMcpRaw(input);
+}
+
+function parseJsonOrThrow(text: string, path: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid JSON in ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function validateServersShape(parsed: unknown, path: string): Record<string, McpServerConfig> {
+  try {
+    return McpJsonFileSchema.parse(parsed).mcpServers;
+  } catch (error) {
+    throw new ByfError(
+      ErrorCodes.CONFIG_INVALID,
+      `Invalid MCP server config in ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function writeScopeFile(path: string, servers: Record<string, unknown>): Promise<void> {
+  const validated = validateServersShape({ mcpServers: servers }, path);
+  await mkdir(dirname(path), { recursive: true });
+  await atomicWrite(path, serializeMcpJson({ mcpServers: validated }));
+}
+
+/**
+ * 字段级合并(R-M3a):表单 payload 只含常用字段;transport 未变时高级
+ * 字段(公共 + transport 专属)从磁盘原值补回,transport 切换时丢弃旧
+ * transport 专属字段(公共高级字段仍保留)。
+ */
+function mergeServerFields(
+  payload: Record<string, unknown>,
+  existing: McpServerConfig | undefined,
+): Record<string, unknown> {
+  if (existing === undefined) return payload;
+  const merged: Record<string, unknown> = { ...payload };
+  for (const field of ADVANCED_COMMON_FIELDS) {
+    if (merged[field] === undefined && existing[field] !== undefined) {
+      merged[field] = existing[field];
+    }
+  }
+  const nextTransport = typeof merged['transport'] === 'string' ? merged['transport'] : undefined;
+  if (nextTransport !== undefined && nextTransport !== existing.transport) {
+    for (const field of TRANSPORT_SWITCH_DROP_FIELDS[nextTransport] ?? []) {
+      delete merged[field];
+    }
+  }
+  return merged;
+}
+
+/** 写入后重读该 scope(与 listMcpConfigs 同掩码规则),供 UI 即时刷新。 */
+async function scopeStateFromDisk(path: string): Promise<McpScopeState> {
+  const file = await readScopeFile(path);
+  const servers = Object.entries(file.servers).map(([name, config]) => ({
+    name,
+    config: maskServerConfig(config),
+  }));
+  return {
+    path,
+    servers,
+    ...(file.invalid !== undefined ? { invalid: file.invalid } : {}),
+  };
 }

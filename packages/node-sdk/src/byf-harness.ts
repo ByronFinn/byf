@@ -14,6 +14,7 @@ import type {
   McpConfigListing,
   McpConfigScope,
   McpRawDocument,
+  McpScopeState,
 } from '@byfriends/agent-core';
 import type {
   AgentTreeResponse,
@@ -255,6 +256,31 @@ export class ByfHarness {
 
   async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
     return this.rpc.readMcpConfigRaw(workDir, scope);
+  }
+
+  async upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    return this.rpc.upsertMcpServerConfig(workDir, scope, name, config);
+  }
+
+  async removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    return this.rpc.removeMcpServerConfig(workDir, scope, name);
+  }
+
+  async writeMcpConfigRaw(
+    workDir: string,
+    scope: McpConfigScope,
+    text: string,
+  ): Promise<McpRawDocument> {
+    return this.rpc.writeMcpConfigRaw(workDir, scope, text);
   }
 
   async getConfig(options: GetConfigOptions = {}): Promise<ByfConfig> {

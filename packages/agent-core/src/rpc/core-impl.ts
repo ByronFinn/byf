@@ -84,6 +84,7 @@ import type {
   ListSessionsPayload,
   McpConfigListing,
   McpRawDocument,
+  McpScopeState,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
@@ -93,6 +94,7 @@ import type {
   ReconnectMcpServerPayload,
   RemoveByfModelPayload,
   RemoveByfProviderPayload,
+  RemoveMcpServerConfigPayload,
   RemoveWorkspacePayload,
   RenameSessionPayload,
   ResolveModelCapabilitiesPayload,
@@ -113,8 +115,10 @@ import type {
   SessionSummary,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
+  UpsertMcpServerConfigPayload,
   ValidateConfigTextPayload,
   WriteConfigTextPayload,
+  WriteMcpRawPayload,
 } from './core-api';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
@@ -520,6 +524,40 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       cwd: workDir,
       homeDir: this.homeDir,
       scope: input.scope,
+    });
+  }
+
+  async upsertMcpServerConfig(input: UpsertMcpServerConfigPayload): Promise<McpScopeState> {
+    const workDir = requiredWorkDir('upsertMcpServerConfig', input.workDir);
+    mcpConfigStore.assertMcpConfigScope(input.scope);
+    return mcpConfigStore.upsertMcpServer({
+      cwd: workDir,
+      homeDir: this.homeDir,
+      scope: input.scope,
+      name: input.name,
+      config: input.config,
+    });
+  }
+
+  async removeMcpServerConfig(input: RemoveMcpServerConfigPayload): Promise<McpScopeState> {
+    const workDir = requiredWorkDir('removeMcpServerConfig', input.workDir);
+    mcpConfigStore.assertMcpConfigScope(input.scope);
+    return mcpConfigStore.removeMcpServer({
+      cwd: workDir,
+      homeDir: this.homeDir,
+      scope: input.scope,
+      name: input.name,
+    });
+  }
+
+  async writeMcpConfigRaw(input: WriteMcpRawPayload): Promise<McpRawDocument> {
+    const workDir = requiredWorkDir('writeMcpConfigRaw', input.workDir);
+    mcpConfigStore.assertMcpConfigScope(input.scope);
+    return mcpConfigStore.writeMcpRaw({
+      cwd: workDir,
+      homeDir: this.homeDir,
+      scope: input.scope,
+      text: input.text,
     });
   }
 

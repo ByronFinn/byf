@@ -17,6 +17,8 @@ import type {
   ForkSessionResponse,
   FsEntry,
   FsListResponse,
+  McpRawWriteBody,
+  McpServerUpsertBody,
   PromptBody,
   QuestionAnswerBody,
   ResolvedCapabilities,
@@ -750,6 +752,72 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
     const workDir = await requireRegisteredWorkDir(c, manager);
     if (workDir instanceof Response) return workDir;
     return c.json(await manager.readMcpConfigRaw(workDir, scope));
+  });
+
+  r.put('/mcp/servers/:scope', async (c) => {
+    const scope = mcpScopeParam(c);
+    if (scope === null) return badRequest(c, 'scope must be one of: user, project');
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const body = await c.req.json<McpServerUpsertBody>();
+    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+      return badRequest(c, 'name is required');
+    }
+    if (typeof body.config !== 'object' || body.config === null || Array.isArray(body.config)) {
+      return badRequest(c, 'config must be an object');
+    }
+    try {
+      const state = await manager.upsertMcpServerConfig(
+        workDir,
+        scope,
+        body.name.trim(),
+        body.config,
+      );
+      return c.json(state);
+    } catch (error) {
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
+      }
+      throw error;
+    }
+  });
+
+  r.delete('/mcp/servers/:scope/:name', async (c) => {
+    const scope = mcpScopeParam(c);
+    if (scope === null) return badRequest(c, 'scope must be one of: user, project');
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const name = c.req.param('name');
+    if (name.length === 0) return badRequest(c, 'name is required');
+    try {
+      const state = await manager.removeMcpServerConfig(workDir, scope, name);
+      return c.json(state);
+    } catch (error) {
+      if (isByfError(error) && error.code === 'mcp.server_not_found') {
+        return c.json({ error: error.message, code: 'NOT_FOUND' }, 404);
+      }
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
+      }
+      throw error;
+    }
+  });
+
+  r.put('/mcp/raw/:scope', async (c) => {
+    const scope = mcpScopeParam(c);
+    if (scope === null) return badRequest(c, 'scope must be one of: user, project');
+    const workDir = await requireRegisteredWorkDir(c, manager);
+    if (workDir instanceof Response) return workDir;
+    const body = await c.req.json<McpRawWriteBody>();
+    if (typeof body.text !== 'string') return badRequest(c, 'text is required');
+    try {
+      return c.json(await manager.writeMcpConfigRaw(workDir, scope, body.text));
+    } catch (error) {
+      if (isByfError(error) && error.code === 'config.invalid') {
+        return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
+      }
+      throw error;
+    }
   });
 
   // ---- 反向 RPC 裁决 ----

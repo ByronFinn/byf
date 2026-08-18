@@ -8,7 +8,12 @@ import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
 import type { ConfigValidationResult } from '#/config/document';
-import type { McpConfigListing, McpConfigScope, McpRawDocument } from '#/mcp/config-store';
+import type {
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+} from '#/mcp/config-store';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type {
@@ -366,6 +371,26 @@ export interface ReadMcpRawPayload {
   readonly scope: McpConfigScope;
 }
 
+export interface UpsertMcpServerConfigPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly name: string;
+  /** 常用字段;env/headers 值可为占位符(不动 = 保留磁盘原值)。 */
+  readonly config: Record<string, unknown>;
+}
+
+export interface RemoveMcpServerConfigPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly name: string;
+}
+
+export interface WriteMcpRawPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly text: string;
+}
+
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;
   steer: (payload: SteerPayload) => void;
@@ -451,4 +476,7 @@ export interface CoreAPI extends SessionAPIWithId {
   //    web-server 端点层校验,core 信任调用方)──
   listMcpServerConfigs: (payload: ListMcpServerConfigsPayload) => McpConfigListing;
   readMcpConfigRaw: (payload: ReadMcpRawPayload) => McpRawDocument;
+  upsertMcpServerConfig: (payload: UpsertMcpServerConfigPayload) => McpScopeState;
+  removeMcpServerConfig: (payload: RemoveMcpServerConfigPayload) => McpScopeState;
+  writeMcpConfigRaw: (payload: WriteMcpRawPayload) => McpRawDocument;
 }

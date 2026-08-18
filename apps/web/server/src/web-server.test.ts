@@ -12,6 +12,7 @@ import {
   type McpConfigListing,
   type McpConfigScope,
   type McpRawDocument,
+  type McpScopeState,
   type PromptInput,
   type ResumedSessionSummary,
   type SkillSummary,
@@ -402,6 +403,47 @@ class FakeHarness implements HarnessLike {
   async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
     this.mcpRawCalls.push({ workDir, scope });
     return this.mcpRawDocs.get(scope) ?? { path: `/work/w/.byf/mcp.json`, text: '' };
+  }
+
+  mcpUpsertCalls: Array<{
+    workDir: string;
+    scope: McpConfigScope;
+    name: string;
+    config: Record<string, unknown>;
+  }> = [];
+  mcpRemoveCalls: Array<{ workDir: string; scope: McpConfigScope; name: string }> = [];
+  mcpRawWriteCalls: Array<{ workDir: string; scope: McpConfigScope; text: string }> = [];
+  mcpWriteError: ByfError | undefined;
+
+  async upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    if (this.mcpWriteError !== undefined) throw this.mcpWriteError;
+    this.mcpUpsertCalls.push({ workDir, scope, name, config });
+    return { path: `/work/w/.byf/mcp.json`, servers: [] };
+  }
+
+  async removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    if (this.mcpWriteError !== undefined) throw this.mcpWriteError;
+    this.mcpRemoveCalls.push({ workDir, scope, name });
+    return { path: `/work/w/.byf/mcp.json`, servers: [] };
+  }
+
+  async writeMcpConfigRaw(
+    workDir: string,
+    scope: McpConfigScope,
+    text: string,
+  ): Promise<McpRawDocument> {
+    if (this.mcpWriteError !== undefined) throw this.mcpWriteError;
+    this.mcpRawWriteCalls.push({ workDir, scope, text });
+    return { path: `/work/w/.byf/mcp.json`, text };
   }
 
   async close(): Promise<void> {
@@ -2585,5 +2627,137 @@ describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
     const data = (await res.json()) as McpRawDocument;
     expect(data.text).toBe('{ "mcpServers": ');
     expect(data.invalid?.message).toContain('JSON');
+  });
+});
+
+describe('MCP config write routes (PRD-0036 #313)', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+  }
+
+  async function setup(workDir = '/work/ws'): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = [workDir];
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir: '/tmp' });
+    return { app: result.app, harness };
+  }
+
+  const json = { 'content-type': 'application/json' };
+
+  it('PUT /api/mcp/servers/:scope upserts with name + config', async () => {
+    const { app, harness } = await setup();
+    const res = await app.request(
+      `/api/mcp/servers/project?workDir=${encodeURIComponent('/work/ws')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({
+          name: 'github',
+          config: { transport: 'stdio', command: 'gh', enabled: true },
+        }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(harness.mcpUpsertCalls).toEqual([
+      {
+        workDir: '/work/ws',
+        scope: 'project',
+        name: 'github',
+        config: { transport: 'stdio', command: 'gh', enabled: true },
+      },
+    ]);
+  });
+
+  it('PUT /api/mcp/servers/:scope rejects bad scope / missing name / unregistered workDir', async () => {
+    const { app } = await setup();
+    const badScope = await app.request(
+      `/api/mcp/servers/global?workDir=${encodeURIComponent('/work/ws')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ name: 'a', config: {} }),
+      },
+    );
+    expect(badScope.status).toBe(400);
+
+    const noName = await app.request(
+      `/api/mcp/servers/user?workDir=${encodeURIComponent('/work/ws')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ config: {} }),
+      },
+    );
+    expect(noName.status).toBe(400);
+
+    const badDir = await app.request(
+      `/api/mcp/servers/user?workDir=${encodeURIComponent('/etc')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ name: 'a', config: {} }),
+      },
+    );
+    expect(badDir.status).toBe(400);
+  });
+
+  it('PUT /api/mcp/servers/:scope maps config.invalid to 422', async () => {
+    const { app, harness } = await setup();
+    harness.mcpWriteError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid MCP config');
+    const res = await app.request(
+      `/api/mcp/servers/user?workDir=${encodeURIComponent('/work/ws')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ name: 'a', config: { transport: 'stdio' } }),
+      },
+    );
+    expect(res.status).toBe(422);
+    const data = (await res.json()) as { code: string };
+    expect(data.code).toBe('CONFIG_INVALID');
+  });
+
+  it('DELETE /api/mcp/servers/:scope/:name removes and maps not-found to 404', async () => {
+    const { app, harness } = await setup();
+    const ok = await app.request(
+      `/api/mcp/servers/user/old?workDir=${encodeURIComponent('/work/ws')}`,
+      { method: 'DELETE' },
+    );
+    expect(ok.status).toBe(200);
+    expect(harness.mcpRemoveCalls).toEqual([{ workDir: '/work/ws', scope: 'user', name: 'old' }]);
+
+    harness.mcpWriteError = new ByfError(
+      ErrorCodes.MCP_SERVER_NOT_FOUND,
+      'MCP server "old" not found',
+    );
+    const missing = await app.request(
+      `/api/mcp/servers/user/old?workDir=${encodeURIComponent('/work/ws')}`,
+      { method: 'DELETE' },
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it('PUT /api/mcp/raw/:scope writes raw text; invalid maps to 422', async () => {
+    const { app, harness } = await setup();
+    const ok = await app.request(`/api/mcp/raw/project?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ text: '{\n  "mcpServers": {}\n}\n' }),
+    });
+    expect(ok.status).toBe(200);
+    expect(harness.mcpRawWriteCalls).toHaveLength(1);
+
+    harness.mcpWriteError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid JSON');
+    const bad = await app.request(
+      `/api/mcp/raw/project?workDir=${encodeURIComponent('/work/ws')}`,
+      {
+        method: 'PUT',
+        headers: json,
+        body: JSON.stringify({ text: '{ broken' }),
+      },
+    );
+    expect(bad.status).toBe(422);
   });
 });

@@ -1,5 +1,5 @@
 import { mkdtempSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,6 +7,18 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import { loadMcpServers, resolveMcpJsonPaths } from '../../src/mcp/config-loader';
+import {
+  assertMcpConfigScope,
+  isMcpMaskedPlaceholder,
+  listMcpConfigs,
+  maskMcpJsonText,
+  maskServerConfig,
+  readMcpRaw,
+  removeMcpServer,
+  restoreMaskedTree,
+  upsertMcpServer,
+  writeMcpRaw,
+} from '../../src/mcp/config-store';
 
 const tempDirs: string[] = [];
 
@@ -167,16 +179,6 @@ describe('loadMcpServers', () => {
 });
 
 // ---- config-store(PRD-0036 / ADR-0039)--------------------------------------
-
-import {
-  assertMcpConfigScope,
-  isMcpMaskedPlaceholder,
-  listMcpConfigs,
-  maskMcpJsonText,
-  maskServerConfig,
-  readMcpRaw,
-  restoreMaskedTree,
-} from '../../src/mcp/config-store';
 
 describe('config-store listMcpConfigs', () => {
   it('returns empty scopes when no files exist', async () => {
@@ -349,5 +351,291 @@ describe('config-store mask/restore round-trip', () => {
     expect(() => assertMcpConfigScope('global')).toThrow();
     assertMcpConfigScope('user');
     assertMcpConfigScope('project');
+  });
+});
+
+// ---- config-store write side(PRD-0036 #313 / ADR-0039 D2)-------------------
+
+async function readJsonFile(path: string): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(path, 'utf-8')) as Record<string, unknown>;
+}
+
+describe('config-store upsertMcpServer', () => {
+  it('creates the project file (atomic, schema-valid) when missing', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const state = await upsertMcpServer({
+      cwd,
+      homeDir: home,
+      scope: 'project',
+      name: 'gh',
+      config: { transport: 'stdio', command: 'gh', args: ['--x'], enabled: true },
+    });
+    expect(state.servers.map((s) => s.name)).toEqual(['gh']);
+    const path = join(cwd, '.byf', 'mcp.json');
+    const disk = await readJsonFile(path);
+    expect(disk).toEqual({
+      mcpServers: { gh: { transport: 'stdio', command: 'gh', args: ['--x'], enabled: true } },
+    });
+    // 写入对 loadMcpServers 可见(新会话生效语义)。
+    const merged = await loadMcpServers({ cwd, homeDir: home });
+    expect(merged['gh']).toBeDefined();
+    // tmp+rename 原子写:目录里不残留 .tmp 文件。
+    const files = await readdir(join(cwd, '.byf'));
+    expect(files.filter((f) => f.includes('.tmp.'))).toEqual([]);
+  });
+
+  it('restores placeholders against disk values; new values overwrite (R-M2a/D2)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        gh: {
+          transport: 'stdio',
+          command: 'gh',
+          env: { TOKEN: 'disk-secret', OTHER: 'keep-me' },
+        },
+      },
+    });
+    const state = await upsertMcpServer({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      name: 'gh',
+      config: {
+        transport: 'stdio',
+        command: 'gh2',
+        // 占位符 = 保留磁盘原值;新值 = 覆盖。
+        env: { TOKEN: '__MCP_MASKED_1__', OTHER: 'brand-new' },
+      },
+    });
+    expect(state.servers).toHaveLength(1);
+    const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
+      mcpServers: Record<string, { env: Record<string, string> }>;
+    };
+    expect(disk.mcpServers['gh']!.env).toEqual({ TOKEN: 'disk-secret', OTHER: 'brand-new' });
+    const text = JSON.stringify(disk);
+    expect(text).not.toContain('__MCP_MASKED_');
+  });
+
+  it('enabled one-tick toggle path keeps disk env values (D2)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        gh: { transport: 'stdio', command: 'gh', env: { TOKEN: 'disk-secret' }, enabled: true },
+      },
+    });
+    // 一键切换:携带掩码 config + enabled 翻转。
+    await upsertMcpServer({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      name: 'gh',
+      config: {
+        transport: 'stdio',
+        command: 'gh',
+        env: { TOKEN: '__MCP_MASKED_1__' },
+        enabled: false,
+      },
+    });
+    const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
+      mcpServers: Record<string, { env: Record<string, string>; enabled: boolean }>;
+    };
+    expect(disk.mcpServers['gh']!.enabled).toBe(false);
+    expect(disk.mcpServers['gh']!.env).toEqual({ TOKEN: 'disk-secret' });
+  });
+
+  it('preserves advanced fields from disk; transport switch drops old transport fields (R-M3a)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        api: {
+          transport: 'stdio',
+          command: 'old',
+          args: ['--a'],
+          env: { A: 'x' },
+          cwd: '/old',
+          enabledTools: ['t1'],
+          startupTimeoutMs: 5000,
+        },
+      },
+    });
+    await upsertMcpServer({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      name: 'api',
+      config: { transport: 'http', url: 'http://localhost/mcp', enabled: true },
+    });
+    const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+    };
+    const api = disk.mcpServers['api']!;
+    expect(api['transport']).toBe('http');
+    expect(api['url']).toBe('http://localhost/mcp');
+    // 旧 transport 专属字段被丢弃。
+    expect(api['command']).toBeUndefined();
+    expect(api['args']).toBeUndefined();
+    expect(api['env']).toBeUndefined();
+    expect(api['cwd']).toBeUndefined();
+    // 公共高级字段保留。
+    expect(api['enabledTools']).toEqual(['t1']);
+    expect(api['startupTimeoutMs']).toBe(5000);
+  });
+
+  it('keeps advanced fields when transport unchanged', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        api: {
+          transport: 'stdio',
+          command: 'old',
+          enabledTools: ['t1'],
+          disabledTools: ['t2'],
+          toolTimeoutMs: 9000,
+        },
+      },
+    });
+    await upsertMcpServer({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      name: 'api',
+      config: { transport: 'stdio', command: 'new', enabled: true },
+    });
+    const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+    };
+    const api = disk.mcpServers['api']!;
+    expect(api['command']).toBe('new');
+    expect(api['enabledTools']).toEqual(['t1']);
+    expect(api['disabledTools']).toEqual(['t2']);
+    expect(api['toolTimeoutMs']).toBe(9000);
+  });
+
+  it('rejects upsert into an invalid file without touching it', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const path = join(home, 'mcp.json');
+    await writeFile(path, '{ broken');
+    await expect(
+      upsertMcpServer({
+        cwd,
+        homeDir: home,
+        scope: 'user',
+        name: 'x',
+        config: { transport: 'stdio', command: 'c' },
+      }),
+    ).rejects.toThrow();
+    expect(await readFile(path, 'utf-8')).toBe('{ broken');
+  });
+
+  it('rejects schema-invalid config without writing', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const path = join(home, 'mcp.json');
+    await expect(
+      upsertMcpServer({
+        cwd,
+        homeDir: home,
+        scope: 'user',
+        name: 'x',
+        config: { transport: 'stdio' },
+      }),
+    ).rejects.toThrow();
+    // 校验失败 → 不落盘(文件仍不存在)。
+    await expect(readFile(path, 'utf-8')).rejects.toThrow();
+  });
+});
+
+describe('config-store removeMcpServer', () => {
+  it('removes the named server and keeps siblings', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), {
+      mcpServers: {
+        a: { transport: 'stdio', command: 'a' },
+        b: { transport: 'stdio', command: 'b' },
+      },
+    });
+    const state = await removeMcpServer({ cwd, homeDir: home, scope: 'user', name: 'a' });
+    expect(state.servers.map((s) => s.name)).toEqual(['b']);
+    const disk = await readJsonFile(join(home, 'mcp.json'));
+    expect(Object.keys((disk as { mcpServers: Record<string, unknown> }).mcpServers)).toEqual([
+      'b',
+    ]);
+  });
+
+  it('throws MCP_SERVER_NOT_FOUND for unknown names', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeJson(join(home, 'mcp.json'), { mcpServers: {} });
+    await expect(
+      removeMcpServer({ cwd, homeDir: home, scope: 'user', name: 'nope' }),
+    ).rejects.toThrow(/not found/);
+  });
+});
+
+describe('config-store writeMcpRaw', () => {
+  it('restores placeholders against valid disk text before writing', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(
+      join(home, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: { gh: { transport: 'stdio', command: 'gh', env: { TOKEN: 'disk-secret' } } },
+      }),
+    );
+    const doc = await writeMcpRaw({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      text: JSON.stringify({
+        mcpServers: {
+          gh: { transport: 'stdio', command: 'gh', env: { TOKEN: '__MCP_MASKED_1__' } },
+        },
+      }),
+    });
+    expect(doc.invalid).toBeUndefined();
+    expect(doc.text).toContain('__MCP_MASKED_1__');
+    const disk = await readFile(join(home, 'mcp.json'), 'utf-8');
+    expect(disk).toContain('disk-secret');
+    expect(disk).not.toContain('__MCP_MASKED_');
+  });
+
+  it('repairs a corrupt file when the new text is valid (R-M5)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    await writeFile(join(home, 'mcp.json'), '{ "mcpServers": ');
+    const doc = await writeMcpRaw({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      text: '{\n  "mcpServers": { "a": { "transport": "stdio", "command": "c" } }\n}\n',
+    });
+    expect(doc.invalid).toBeUndefined();
+    const disk = await readJsonFile(join(home, 'mcp.json'));
+    expect(disk).toBeDefined();
+  });
+
+  it('rejects invalid JSON with 422-style CONFIG_INVALID and keeps the corrupt file', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const path = join(home, 'mcp.json');
+    await writeFile(path, '{ "mcpServers": ');
+    await expect(
+      writeMcpRaw({ cwd, homeDir: home, scope: 'user', text: '{ still broken' }),
+    ).rejects.toThrow();
+    expect(await readFile(path, 'utf-8')).toBe('{ "mcpServers": ');
+  });
+
+  it('normalizes empty text to an empty skeleton', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    const doc = await writeMcpRaw({ cwd, homeDir: home, scope: 'user', text: '' });
+    expect(doc.text).toBe('{\n  "mcpServers": {}\n}\n');
   });
 });
