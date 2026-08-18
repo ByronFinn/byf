@@ -6,6 +6,7 @@
 > **状态**: 活跃文档，作为后续每个子项 PRD 的战略依据。不取代任何单项 PRD 的验收标准。
 
 > **落地状态（2026-08-18 代码核实更新）**：Tier 0 与 Tier 2 的资源感知部分**已在代码落地并有测试**，本文档的「下一步从 0a 立项」指引已过时。核对证据：
+>
 > - **0a（Bash 命令资源解析）**：`tools/policies/bash-command.ts`（tokenizer / 操作符切分 / 动词分类 / 路径提取 / cd 跟踪 / 敏感文件硬拒）；`tools/builtin/shell/bash.ts` `resolveExecution` 的 `accesses` 已消费；权限层 `agent/permission/check-rules.ts` 已做**逐子命令匹配**（修掉整串匹配绕过，`bash-command.test.ts` + `permission.test.ts` 覆盖）。commit `451766b`「0a-parse」。
 > - **0b（approve-for-session 规则化）**：`agent/permission/action-label.ts` `describeBashCommandAction`/`bashCommandRulePattern` 生成 per-prefix/精确规则（`Bash(git push*)`）而非裸 `Bash`（commit `451766b`，测试覆盖端到端）。
 > - **0c（威胁模型文档化）**：`SECURITY.md` 已含「权限层非安全边界」威胁模型（ADR-0033），与本文 §4 立场一致。
