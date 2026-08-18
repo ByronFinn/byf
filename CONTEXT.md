@@ -345,6 +345,14 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 
 位于项目根下的工作区本地配置文件，与用户级 `~/.byf/config.toml` 分离。当前用途：`workspace.additional_dir` 数组（`/add-dir` 记住的额外根）。可按团队需要加入 `.gitignore`。
 
+### 配置作用域（全局 / 项目）
+
+byf 配置文件的两层模型：**全局**（用户级，`~/.byf/` 下）与**项目**（工作区本地，`<项目根>/.byf/` 下）。适用于 `mcp.json`（全局 `~/.byf/mcp.json`，项目 `<工作区>/.byf/mcp.json`）与 skills（全局 `~/.byf/skills`，项目 `<项目根>/.byf/skills`）。注意两处的「项目根」取法不同：MCP 直接用工作区目录，skills 用最近含 `.git` 的祖先目录。Web UI 文案称「全局 / 本地」。
+
+### 遮蔽/覆盖（shadow / override）
+
+同名条目在全局与项目两层配置并存时的冲突语义。MCP 为 **override**：加载时浅合并，项目定义覆盖全局定义（`loadMcpServers`）。skills 为 **shadow**：发现顺序 first-wins，先发现者（项目在前）生效，被遮蔽者的定义完全不加载（`discoverSkills`）。两者都保留磁盘上的两份原始定义。
+
 ### web 客户端 / web-client（`apps/web`）
 
 浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
