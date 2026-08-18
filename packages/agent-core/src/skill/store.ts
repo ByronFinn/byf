@@ -192,7 +192,8 @@ export async function createSkill(input: CreateSkillInput): Promise<CreateSkillR
   const skillDir = path.join(root, name);
   const key = normalizeSkillName(name);
 
-  // 同 scope 同名:bundle 目录或顶层单文件任一存在即冲突。
+  // 同 scope 同名(精确路径):bundle 目录或顶层单文件任一存在即冲突——
+  // 也保护无法解析的既有 SKILL.md 不被覆盖。
   const bundleMd = path.join(skillDir, 'SKILL.md');
   const flatMd = path.join(root, `${name}.md`);
   for (const candidate of [bundleMd, flatMd]) {
@@ -209,6 +210,17 @@ export async function createSkill(input: CreateSkillInput): Promise<CreateSkillR
         `Skill "${name}" already exists in ${root}`,
       );
     }
+  }
+  // 同 scope 同名(normalizeSkillName,R-S2):大小写变体在大小写敏感文件
+  // 系统上路径不撞但语义同名,须按发现结果比对,不能只查精确路径。
+  const sameScopeSkills = await discoverSkills({
+    roots: [{ path: root, source: input.scope }],
+  });
+  if (sameScopeSkills.some((skill) => normalizeSkillName(skill.name) === key)) {
+    throw new ByfError(
+      ErrorCodes.SKILL_ALREADY_EXISTS,
+      `Skill "${name}" already exists in ${root}`,
+    );
   }
 
   await fs.mkdir(skillDir, { recursive: true });

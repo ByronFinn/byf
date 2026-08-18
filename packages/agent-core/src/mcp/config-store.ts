@@ -336,16 +336,17 @@ export async function writeMcpRaw(input: WriteMcpRawInput): Promise<McpRawDocume
   const path = mcpScopePath(input);
   const text = input.text.trim().length === 0 ? '{\n  "mcpServers": {}\n}\n' : input.text;
 
-  const diskFile = await readScopeFile(path);
+  // 还原基底只看「磁盘 JSON 是否可解析」——与 readMcpRaw 的掩码条件对齐。
+  // 不依赖 schema 校验结果:JSON 合法但 schema 非法的文件同样以掩码文本展示
+  // (listMcpConfigs 报 invalid、UI 走 RAW 兜底),若跳过还原会把占位符清空、
+  // 密钥原值丢失(ADR-0039 D2)。
   let diskJson: unknown;
-  if (diskFile.invalid === undefined && diskFile.exists) {
-    try {
-      diskJson = JSON.parse(await readFile(path, 'utf-8'));
-    } catch {
-      diskJson = undefined;
-    }
+  try {
+    diskJson = JSON.parse(await readFile(path, 'utf-8'));
+  } catch {
+    diskJson = undefined;
   }
-  // 磁盘原文可用则按路径还原;不可用(损坏/缺失)时也防御性清空占位符。
+  // 磁盘原文可解析则按路径还原;不可用(损坏/缺失)时也防御性清空占位符。
   const toWrite = serializeMcpJson(restoreMaskedTree(parseJsonOrThrow(text, path), diskJson));
 
   let parsedJson: unknown;

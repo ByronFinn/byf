@@ -1368,6 +1368,25 @@ describe('createSkill', () => {
     expect(result.warning).toContain('遮蔽');
   });
 
+  it('rejects names colliding by frontmatter name even when paths differ (normalizeSkillName)', async () => {
+    const { homeDir, workDir } = await makeWorkspace();
+    await mkdir(path.join(homeDir, '.byf', 'skills', 'other-dir'), { recursive: true });
+    await writeFile(
+      path.join(homeDir, '.byf', 'skills', 'other-dir', 'SKILL.md'),
+      '---\nname: Deploy\ndescription: x\n---\n',
+      'utf-8',
+    );
+    await expect(
+      createSkill({
+        workDir,
+        userHomeDir: homeDir,
+        scope: 'user',
+        name: 'deploy',
+        description: 'y',
+      }),
+    ).rejects.toThrow(/already exists/);
+  });
+
   it('rejects unsafe names (path traversal / separators)', async () => {
     const { homeDir, workDir } = await makeWorkspace();
     for (const bad of ['../evil', 'a/b', '.hidden', '..']) {

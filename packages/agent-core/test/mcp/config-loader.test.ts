@@ -632,6 +632,39 @@ describe('config-store writeMcpRaw', () => {
     expect(await readFile(path, 'utf-8')).toBe('{ "mcpServers": ');
   });
 
+  it('restores placeholders against schema-invalid but JSON-parseable disk (D2 regression)', async () => {
+    const home = makeTempDir();
+    const cwd = makeTempDir();
+    // JSON 合法但 schema 非法(stdio 缺 command):列表报 invalid、UI 走 RAW
+    // 兜底;掩码 RAW 以「JSON 可解析」为准展示,还原基底不得依赖 schema 结果。
+    await writeFile(
+      join(home, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: { gh: { transport: 'stdio', env: { TOKEN: 'keep-me' } } },
+      }),
+    );
+    const listing = await listMcpConfigs({ cwd, homeDir: home });
+    expect(listing.user.invalid).toBeDefined();
+    const raw = await readMcpRaw({ cwd, homeDir: home, scope: 'user' });
+    expect(raw.text).toContain('__MCP_MASKED_1__');
+    expect(raw.invalid).toBeUndefined();
+    // 用户只修复 schema 问题、不动占位符 → 保存后磁盘保留原值。
+    const doc = await writeMcpRaw({
+      cwd,
+      homeDir: home,
+      scope: 'user',
+      text: JSON.stringify({
+        mcpServers: {
+          gh: { transport: 'stdio', command: 'gh', env: { TOKEN: '__MCP_MASKED_1__' } },
+        },
+      }),
+    });
+    expect(doc.invalid).toBeUndefined();
+    const disk = await readFile(join(home, 'mcp.json'), 'utf-8');
+    expect(disk).toContain('keep-me');
+    expect(disk).not.toContain('__MCP_MASKED_');
+  });
+
   it('normalizes empty text to an empty skeleton', async () => {
     const home = makeTempDir();
     const cwd = makeTempDir();
