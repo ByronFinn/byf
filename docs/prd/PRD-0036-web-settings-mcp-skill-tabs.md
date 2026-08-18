@@ -1,6 +1,6 @@
 # Web 设置页新增 MCP 配置与 Skill 配置页签(全局/本地双 scope)
 
-> **Status**: Sliced | **PRD**: PRD-0036 | **Created**: 2026-08-18 | **Last updated**: 2026-08-18(story)
+> **Status**: Done | **PRD**: PRD-0036 | **Created**: 2026-08-18 | **Last updated**: 2026-08-18(implement + review)
 
 ## Goal
 
@@ -85,15 +85,15 @@ Web 工作台设置弹层(`SettingsDialog`)左侧导航新增「MCP 配置」与
 
 ## Acceptance Criteria
 
-- [ ] 设置弹层出现「MCP 配置」「Skill 配置」导航项;两页签均按 全局/本地 分组渲染,本地组可用工作区下拉切换
-- [ ] 本地组新增一个 stdio server 后,`<工作区>/.byf/mcp.json` 被原子写入且 schema 合法;新建会话后 `listMcpServers` 可见该 server
-- [ ] 全局与本地存在同名 server 时,全局条目显示「被本地覆盖」标记
-- [ ] enabled 开关切换后立即落盘(重新拉取列表可见新状态)
-- [ ] env/headers 值在列表、RAW、结构化响应中始终以占位符回显;带占位符保存(含 enabled 一键切换)后磁盘保留原值,占位符字符串永不落盘;输入新值则覆盖
-- [ ] 手动写入非法 JSON 到某 scope 的 mcp.json 后,该组进入错误态 + RAW 兜底编辑(显示磁盘原文);修复保存后恢复表单视图
-- [ ] Skill 页签:新建 skill 写入所选 scope 的 `.byf/skills` 并出现在列表;删除有二次确认;builtin/extra 来源无删除入口;跨 scope 同名显示遮蔽提示
-- [ ] agent-core 单测覆盖:mcp.json 按 scope 读写(空文件/缺失文件/同名冲突/损坏 JSON/原子写)、skill 创建与删除的路径选择与来源限制
-- [ ] `bun test`、typecheck 全绿;按 gen-changesets 规则生成 changeset
+- [x] 设置弹层出现「MCP 配置」「Skill 配置」导航项;两页签均按 全局/本地 分组渲染,本地组可用工作区下拉切换
+- [x] 本地组新增一个 stdio server 后,`<工作区>/.byf/mcp.json` 被原子写入且 schema 合法;新建会话后 `listMcpServers` 可见该 server
+- [x] 全局与本地存在同名 server 时,全局条目显示「被本地覆盖」标记
+- [x] enabled 开关切换后立即落盘(重新拉取列表可见新状态)
+- [x] env/headers 值在列表、RAW、结构化响应中始终以占位符回显;带占位符保存(含 enabled 一键切换)后磁盘保留原值,占位符字符串永不落盘;输入新值则覆盖
+- [x] 手动写入非法 JSON 到某 scope 的 mcp.json 后,该组进入错误态 + RAW 兜底编辑(显示磁盘原文);修复保存后恢复表单视图
+- [x] Skill 页签:新建 skill 写入所选 scope 的 `.byf/skills` 并出现在列表;删除有二次确认;builtin/extra 来源无删除入口;跨 scope 同名显示遮蔽提示
+- [x] agent-core 单测覆盖:mcp.json 按 scope 读写(空文件/缺失文件/同名冲突/损坏 JSON/原子写)、skill 创建与删除的路径选择与来源限制
+- [x] `bun test`、typecheck 全绿;按 gen-changesets 规则生成 changeset
 
 ## Definition of Done
 
@@ -188,10 +188,10 @@ Web 工作台设置弹层(`SettingsDialog`)左侧导航新增「MCP 配置」与
 - **Grilled by**: `/grill` (2026-08-18) — 代码自答修正 6 项(单文件 skill 形态、本地目录不对称、路径校验先例、RPC 进程内形态、表单合并语义、无会话回退),用户裁决 3 项(密钥掩码 round-trip、`.agents/skills` 只读、ADR 升格)
 - **Sliced by**: `/story` (2026-08-18) → Child Issues below
 - **Sliced into**:
-  - #312 — [PRD-0036] MCP 配置读取链路 — per-scope 列表 + 冲突标记 + 损坏错误态 (AFK)
-  - #313 — [PRD-0036] MCP 配置写路径 — 表单增删改 + enabled 落盘 + RAW 兜底 (AFK, blocked by #312)
-  - #314 — [PRD-0036] Skill 配置列表链路 — 工作区级枚举 + 遮蔽标记 (AFK, blocked by #312)
-  - #315 — [PRD-0036] Skill 新建与删除 — 模板创建 + 路径校验 + 二次确认 (AFK, blocked by #314)
+  - #312 — [PRD-0036] MCP 配置读取链路 — per-scope 列表 + 冲突标记 + 损坏错误态 — Done
+  - #313 — [PRD-0036] MCP 配置写路径 — 表单增删改 + enabled 落盘 + RAW 兜底 — Done
+  - #314 — [PRD-0036] Skill 配置列表链路 — 工作区级枚举 + 遮蔽标记 — Done
+  - #315 — [PRD-0036] Skill 新建与删除 — 模板创建 + 路径校验 + 二次确认 — Done
 - **New terms**: 配置作用域(全局/项目)、遮蔽/覆盖(shadow/override)→ 已入 CONTEXT.md
 - **New decisions**: ADR-0039(mcp.json 密钥掩码 round-trip)→ docs/adr/0039-mcp-json-secret-masking.md
 
