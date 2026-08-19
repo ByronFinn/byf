@@ -123,7 +123,7 @@ describe('Agent config', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will run Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf original-result\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }"
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf original-result", "timeout": 60 } } }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
       "system: <system-prompt>
@@ -142,16 +142,16 @@ describe('Agent config', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'Still using the original turn config.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
       [wire] config.update                       { "modelAlias": "changed-model", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
       [wire] config.update                       { "systemPrompt": "Changed system prompt.", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
       [wire] tools.set_active_tools              { "names": [], "time": "<time>" }
-      [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf original-result", "timeout": 60 }, "description": "Running: printf original-result" }, "time": "<time>" }
-      [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf original-result", "timeout": 60 }, "description": "Running: printf original-result" }
-      [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "original-result" } }, "time": "<time>" }
-      [emit] tool.result                         { "turnId": 0, "toolCallId": "call_bash", "output": "original-result" }
+      [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf original-result", "timeout": 60 }, "description": "Running: printf original-result", "display": { "kind": "command", "command": "printf original-result", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf original-result", "timeout": 60 }, "description": "Running: printf original-result", "display": { "kind": "command", "command": "printf original-result", "language": "bash" }, "startedAt": "<time>" }
+      [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "original-result" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.result                         { "turnId": 0, "toolCallId": "call_bash", "output": "original-result", "startedAt": "<time>", "endedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 9, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed                 { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 9, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 9, "output": 23, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
@@ -182,12 +182,14 @@ describe('Agent config', () => {
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Start a fresh turn" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-5>", "turnId": "1", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 1, "step": 1, "stepId": "<uuid-5>" }
+      [wire] context.cache_churn         { "blockName": "base", "cacheScope": "none", "beforeHash": "ec9c34379c88babbc468ef2f3e0e08cd2f422c8c4a910664fb8bb394d703a575", "afterHash": "7617cb8b42659214c397a1d7505fce204b673b078a10de8bcccc697d88dcda56", "time": "<time>" }
+      [wire] context.cache_churn         { "blockName": "tools", "cacheScope": "global", "beforeHash": "cf5d959a0ec0d599e664844a2b38ae0f3018614a824c99dabe2cabc6abc58162", "afterHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945", "time": "<time>" }
       [emit] assistant.delta             { "turnId": 1, "delta": "Now the changed config is active." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-6>", "turnId": "1", "step": 1, "stepUuid": "<uuid-5>", "part": { "type": "text", "text": "Now the changed config is active." } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-5>", "turnId": "1", "step": 1, "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-5>", "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn" }
       [wire] usage.record                { "model": "changed-model", "usage": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "changed-model", "contextTokens": 68, "maxContextTokens": 1000000, "contextUsage": 0.000068, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "changed-model": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 102, "output": 48, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 } }
+      [emit] agent.status.updated        { "model": "changed-model", "contextTokens": 68, "maxContextTokens": 1000000, "contextUsage": 0.000068, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 46, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "changed-model": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 102, "output": 48, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 56, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "lastCacheChurn": { "blockName": "tools", "cacheScope": "global", "turnsAgo": 0 }, "cacheChurnCount": 2 } }
       [emit] turn.ended                  { "turnId": 1, "reason": "completed" }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`

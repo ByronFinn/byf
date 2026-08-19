@@ -978,6 +978,94 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('was not run');
   });
 
+  it('keeps the command visible for a rejected Bash call so it can be read and copied', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_rejected_cmd',
+        name: 'Bash',
+        args: { command: 'bun test packages/agent-core' },
+      },
+      {
+        tool_call_id: 'call_bash_rejected_cmd',
+        output: 'Tool "Bash" was not run because the user rejected the tool call.',
+        is_error: true,
+        blockedReason: 'rejected',
+      },
+      darkColors,
+    );
+
+    const collapsed = strip(component.render(100).join('\n'));
+    expect(collapsed).toContain('$ bun test packages/agent-core');
+    // The LLM-facing rejection message stays suppressed.
+    expect(collapsed).not.toContain('was not run');
+
+    component.setExpanded(true);
+    const expanded = strip(component.render(100).join('\n'));
+    expect(expanded).toContain('$ bun test packages/agent-core');
+    expect(expanded).not.toContain('was not run');
+  });
+
+  it('keeps the command visible for a cancelled Bash call', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_cancelled_cmd',
+        name: 'Bash',
+        args: { command: 'make build' },
+      },
+      {
+        tool_call_id: 'call_bash_cancelled_cmd',
+        output: 'Tool "Bash" was not run because the operation was cancelled.',
+        is_error: true,
+        blockedReason: 'cancelled',
+      },
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('$ make build');
+    expect(out).not.toContain('was not run');
+  });
+
+  it('shows the Bash command preview while the call is pending (finalized args, no result)', () => {
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_pending',
+        name: 'Bash',
+        args: { command: 'rg -n pattern src/' },
+      },
+      undefined,
+      darkColors,
+    );
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Using Bash');
+    expect(out).toContain('$ rg -n pattern src/');
+  });
+
+  it('caps a long pending Bash command preview and expands it on demand', () => {
+    const lines: string[] = [];
+    for (let i = 1; i <= 20; i++) lines.push(`echo line${String(i)}`);
+    const command = lines.join('\n');
+    const component = new ToolCallComponent(
+      {
+        id: 'call_bash_pending_long',
+        name: 'Bash',
+        args: { command },
+      },
+      undefined,
+      darkColors,
+    );
+
+    const collapsed = strip(component.render(100).join('\n'));
+    expect(collapsed).toContain('$ echo line1');
+    expect(collapsed).not.toContain('echo line11');
+
+    component.setExpanded(true);
+    const expanded = strip(component.render(100).join('\n'));
+    expect(expanded).toContain('echo line11');
+    expect(expanded).toContain('echo line20');
+  });
+
   it('still says Used when blockedReason is undefined even if is_error is true', () => {
     const component = new ToolCallComponent(
       {

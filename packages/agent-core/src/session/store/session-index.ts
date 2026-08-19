@@ -1,6 +1,8 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
+import { atomicWrite } from '#/utils/fs';
+
 export interface SessionIndexEntry {
   readonly sessionId: string;
   readonly sessionDir: string;
@@ -18,6 +20,22 @@ export async function appendSessionIndexEntry(
   const indexPath = sessionIndexPath(homeDir);
   await mkdir(dirname(indexPath), { recursive: true, mode: 0o700 });
   await appendFile(indexPath, `${JSON.stringify(entry)}\n`, 'utf-8');
+}
+
+/** 原子重建 session_index.jsonl：保留满足 predicate 的条目（PRD-0035
+ *  R-A2，会话删除后不再残留该 id）。空结果写出空文件而非删除文件——
+ *  index 的存在性对既有读路径是稳定的。 */
+export async function rewriteSessionIndex(
+  homeDir: string,
+  sessionsDir: string,
+  predicate: (entry: SessionIndexEntry) => boolean,
+): Promise<void> {
+  const indexPath = sessionIndexPath(homeDir);
+  const index = await readSessionIndex(homeDir, sessionsDir);
+  const kept = [...index.values()].filter(predicate);
+  const content = kept.map((entry) => JSON.stringify(entry)).join('\n');
+  await mkdir(dirname(indexPath), { recursive: true, mode: 0o700 });
+  await atomicWrite(indexPath, content.length > 0 ? `${content}\n` : '');
 }
 
 export async function readSessionIndex(

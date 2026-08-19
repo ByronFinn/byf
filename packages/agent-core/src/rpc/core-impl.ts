@@ -17,17 +17,16 @@ import { getCoreVersion } from '#/version';
 
 import {
   ensureByfHome,
-  mergeConfigPatch,
   normalizeAdditionalDirs,
   readConfigFile,
   readWorkspaceAdditionalDirs,
   resolveConfigPath,
   resolveByfHome,
   resolveWorkspaceAdditionalDirs,
-  writeConfigFile,
   type ByfConfig,
   type ByfServiceConfig,
 } from '../config';
+import type { ConfigValidationResult } from '../config/document';
 import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig } from '../mcp';
 import { ProviderManager } from '../providers/provider-manager';
@@ -38,6 +37,13 @@ import {
 import type { RuntimeConfig } from '../runtime-types';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
 import { exportSessionDirectory } from '../session/export';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '../session/inspector';
 import { SessionAPIImpl } from '../session/rpc';
 import { normalizeWorkDir, SessionStore } from '../session/store';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
@@ -51,11 +57,15 @@ import type {
   CloseSessionPayload,
   AddWorkspaceDirPayload,
   AddWorkspaceDirResult,
+  AddWorkspacePayload,
   CoreAPI,
   CoreInfo,
   CreateGoalPayload,
   CreateSessionPayload,
+  ConfigDocumentResult,
+  ConfigWriteResult,
   DeleteCronTaskPayload,
+  DeleteSessionPayload,
   EmptyPayload,
   ExportSessionPayload,
   ExportSessionResult,
@@ -63,13 +73,29 @@ import type {
   GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
+  CreateSkillResult,
+  CreateWorkspaceSkillPayload,
+  ListMcpServerConfigsPayload,
   ListSessionsPayload,
+  ListWorkspaceSkillsPayload,
+  RemoveWorkspaceSkillPayload,
+  McpConfigListing,
+  McpRawDocument,
+  McpScopeState,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
+  ReadAgentWirePayload,
+  ReadContextProjectionPayload,
+  ReadMcpRawPayload,
   ReconnectMcpServerPayload,
+  RemoveByfModelPayload,
   RemoveByfProviderPayload,
+  RemoveMcpServerConfigPayload,
+  RemoveWorkspacePayload,
   RenameSessionPayload,
+  ResolveModelCapabilitiesPayload,
+  ResolvedModelCapabilities,
   ResumeSessionPayload,
   RegisterToolPayload,
   ShellExecPayload,
@@ -84,9 +110,17 @@ import type {
   SteerPayload,
   StopBackgroundPayload,
   SessionSummary,
+  TestMcpConnectionPayload,
+  McpConnectionTestResult,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
+  UpsertMcpServerConfigPayload,
+  ValidateConfigTextPayload,
+  WorkspaceSkillListing,
+  WriteConfigTextPayload,
+  WriteMcpRawPayload,
 } from './core-api';
+import { createHostRPC, type HostRPC } from './host-rpc';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import { proxyWithExtraPayload } from './types';
@@ -114,29 +148,26 @@ export interface ByfCoreOptions {
 }
 
 /**
- * Narrow handle returned by {@link createByfCore}.
+ * {@link createByfCore} 返回的窄句柄。
  *
- * SDK consumers only need the RPC channel (a `PromisableMethods<CoreAPI>`
- * that can be fed to `createRPC`) plus the two resolved paths. Exposing the
- * full `ByfCore` concrete class would leak the engine's 40+ internal members
- * (sessions map, sdk Promise, providerManager, sessionStore, telemetry, …)
- * through the SDK type surface and break the ADR 0006 isolation seam.
- * See ADR 0006 (Monorepo Layered Architecture).
+ * SDK 消费者只需要 RPC 通道(一个可喂给 `createRPC` 的
+ * `PromisableMethods<CoreAPI>`)加两个解析后的路径。暴露完整的 `ByfCore`
+ * 具体类会把引擎的 40+ 内部成员(sessions 映射、sdk Promise、
+ * providerManager、sessionStore、telemetry …)泄漏进 SDK 类型表面,
+ * 破坏 ADR 0006 的隔离接缝。见 ADR 0006(Monorepo 分层架构)。
  */
 export interface CoreEngineHandle {
-  /** CoreRPC-ready core: pass to the first slot of `createRPC<CoreAPI, SDKAPI>()`. */
+  /** CoreRPC 就绪的 core:传给 `createRPC<CoreAPI, SDKAPI>()` 的第一个槽位。 */
   readonly core: PromisableMethods<CoreAPI>;
   readonly homeDir: string;
   readonly configPath: string;
 }
 
 /**
- * Construct a {@link ByfCore} engine and return a narrow {@link CoreEngineHandle}.
+ * 构造 {@link ByfCore} 引擎,返回窄 {@link CoreEngineHandle}。
  *
- * This is the supported way for the SDK layer to bootstrap the engine. The
- * concrete `ByfCore` class is intentionally not re-exported from the package
- * public surface (see `rpc/index.ts`); callers program against the
- * {@link CoreAPI} contract via this factory.
+ * 这是 SDK 层引导引擎的受支持方式。具体 `ByfCore` 类刻意不重导出到包公开
+ * 面(见 `rpc/index.ts`);调用方经本工厂面向 {@link CoreAPI} 契约编程。
  */
 export function createByfCore(
   rpcClient: CoreRPCClient,
@@ -160,6 +191,7 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
   private readonly skillDirs: readonly string[];
   private readonly providerManager: ProviderManager;
   private readonly sessionStore: SessionStore;
+  private readonly hostRpc: HostRPC;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
@@ -183,6 +215,13 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
     });
     this.sessionStore = new SessionStore(this.homeDir);
+    this.hostRpc = createHostRPC({
+      homeDir: this.homeDir,
+      configPath: this.configPath,
+      userHomeDir: this.userHomeDir,
+      providerManager: this.providerManager,
+      sessionStore: this.sessionStore,
+    });
 
     this.sdk = rpcClient(this);
   }
@@ -269,7 +308,14 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     const session = this.sessions.get(sessionId);
     if (session) {
       await session.close();
-      this.sessions.delete(sessionId);
+      // keepAliveOnExit 语义：已关闭会话的后台任务可能仍在跑——保留 map
+      // 条目，使 deleteSession 的 busy 判定仍能拦截（C3）。
+      const hasRunning = Array.from(session.agents.values()).some(
+        (agent) => agent.background.list(true).length > 0,
+      );
+      if (!hasRunning) {
+        this.sessions.delete(sessionId);
+      }
     }
   }
 
@@ -363,6 +409,117 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
     });
   }
 
+  // ── Inspector（PRD-0035 R-A2）────────────────────────────────────────────
+  // 只读投影走 `session/inspector`（core 内部单一实现，web/TUI/headless 经
+  // SDK 复用；web-server 不直接 import core，见 ADR 0006/0037）。
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return this.hostRpc.listInspectableSessions();
+  }
+
+  async readSessionInspection(input: {
+    readonly sessionId: string;
+  }): Promise<SessionDetail | null> {
+    return this.hostRpc.readSessionInspection(input);
+  }
+
+  async readAgentWire(input: ReadAgentWirePayload): Promise<WireResponse> {
+    return this.hostRpc.readAgentWire(input);
+  }
+
+  async readContextProjection(input: ReadContextProjectionPayload): Promise<ContextProjection> {
+    return this.hostRpc.readContextProjection(input);
+  }
+
+  async readAgentTree(input: { readonly sessionId: string }): Promise<AgentTreeResponse> {
+    return this.hostRpc.readAgentTree(input);
+  }
+
+  async deleteSession(input: DeleteSessionPayload): Promise<void> {
+    // busy 判定（PRD-0035 Q5 /grill 决议）：live Session 实例或运行中后台任务
+    // 都拒删。后台任务挂在 Session 实例上；close 会 stopAll，但
+    // keepAliveOnExit 语义下已关闭会话的任务可能仍在跑——必须显式检查。
+    // map 条目 = live（未 close）或已 close 但仍跑后台任务（closeSession
+    // 保留）——两者都拒删（Q5 /grill 决议：live Session 实例或运行中后台任务）。
+    if (this.sessions.has(input.sessionId)) {
+      const session = this.sessions.get(input.sessionId)!;
+      const hasRunning = Array.from(session.agents.values()).some(
+        (agent) => agent.background.list(true).length > 0,
+      );
+      throw new ByfError(
+        ErrorCodes.SESSION_BUSY,
+        hasRunning
+          ? `Session "${input.sessionId}" has running background tasks — stop them before deleting`
+          : `Session "${input.sessionId}" is live (resumed) — close it before deleting`,
+      );
+    }
+    await this.sessionStore.delete(input.sessionId);
+  }
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    return this.hostRpc.getConfigDocument();
+  }
+
+  async validateConfigText(input: ValidateConfigTextPayload): Promise<ConfigValidationResult> {
+    return this.hostRpc.validateConfigText(input);
+  }
+
+  async writeConfigText(input: WriteConfigTextPayload): Promise<ConfigWriteResult> {
+    return this.hostRpc.writeConfigText(input);
+  }
+
+  async listWorkspaces(): Promise<string[]> {
+    return this.hostRpc.listWorkspaces();
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    return this.hostRpc.hiddenWorkspaces();
+  }
+
+  async addWorkspace(input: AddWorkspacePayload): Promise<string[]> {
+    return this.hostRpc.addWorkspace(input);
+  }
+
+  async removeWorkspace(input: RemoveWorkspacePayload): Promise<boolean> {
+    return this.hostRpc.removeWorkspace(input);
+  }
+
+  async listMcpServerConfigs(input: ListMcpServerConfigsPayload): Promise<McpConfigListing> {
+    return this.hostRpc.listMcpServerConfigs(input);
+  }
+
+  async readMcpConfigRaw(input: ReadMcpRawPayload): Promise<McpRawDocument> {
+    return this.hostRpc.readMcpConfigRaw(input);
+  }
+
+  async upsertMcpServerConfig(input: UpsertMcpServerConfigPayload): Promise<McpScopeState> {
+    return this.hostRpc.upsertMcpServerConfig(input);
+  }
+
+  async removeMcpServerConfig(input: RemoveMcpServerConfigPayload): Promise<McpScopeState> {
+    return this.hostRpc.removeMcpServerConfig(input);
+  }
+
+  async writeMcpConfigRaw(input: WriteMcpRawPayload): Promise<McpRawDocument> {
+    return this.hostRpc.writeMcpConfigRaw(input);
+  }
+
+  async testMcpConnection(input: TestMcpConnectionPayload): Promise<McpConnectionTestResult> {
+    return this.hostRpc.testMcpConnection(input);
+  }
+
+  async listWorkspaceSkills(input: ListWorkspaceSkillsPayload): Promise<WorkspaceSkillListing> {
+    return this.hostRpc.listWorkspaceSkills(input);
+  }
+
+  async createWorkspaceSkill(input: CreateWorkspaceSkillPayload): Promise<CreateSkillResult> {
+    return this.hostRpc.createWorkspaceSkill(input);
+  }
+
+  async removeWorkspaceSkill(input: RemoveWorkspaceSkillPayload): Promise<void> {
+    return this.hostRpc.removeWorkspaceSkill(input);
+  }
+
   async renameSession({ sessionId, ...payload }: RenameSessionRequest): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session !== undefined) {
@@ -370,6 +527,18 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
       return;
     }
     await this.sessionStore.rename(sessionId, payload.title);
+  }
+
+  async updateSessionMetadata({
+    sessionId,
+    ...payload
+  }: UpdateSessionMetadataRequest): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session !== undefined) {
+      await new SessionAPIImpl(session).updateSessionMetadata(payload);
+      return;
+    }
+    await this.sessionStore.updateMetadata(sessionId, payload.metadata);
   }
 
   async exportSession(input: ExportSessionPayload): Promise<ExportSessionResult> {
@@ -404,48 +573,25 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   async getByfConfig(input: EmptyPayload = {}): Promise<ByfConfig> {
     void input;
-    return readConfigFile(this.configPath);
+    return this.hostRpc.getByfConfig();
   }
 
   async setByfConfig(input: SetByfConfigPayload): Promise<ByfConfig> {
-    const config = mergeConfigPatch(readConfigFile(this.configPath), input);
-    await writeConfigFile(this.configPath, config);
-    const updated = readConfigFile(this.configPath);
-    this.providerManager.updateConfig(updated);
-    return updated;
+    return this.hostRpc.setByfConfig(input);
   }
 
   async removeByfProvider(input: RemoveByfProviderPayload): Promise<ByfConfig> {
-    const config = readConfigFile(this.configPath);
-    delete config.providers[input.providerId];
+    return this.hostRpc.removeByfProvider(input);
+  }
 
-    let removedDefault = false;
-    const existingModels = config.models ?? {};
-    for (const [key, model] of Object.entries(existingModels)) {
-      if (
-        typeof model === 'object' &&
-        model !== null &&
-        !Array.isArray(model) &&
-        model['provider'] === input.providerId
-      ) {
-        delete existingModels[key];
-        if (config.defaultModel === key) removedDefault = true;
-      }
-    }
-    config.models = existingModels;
+  async removeByfModel(input: RemoveByfModelPayload): Promise<ByfConfig> {
+    return this.hostRpc.removeByfModel(input);
+  }
 
-    if (removedDefault) {
-      config.defaultModel = undefined;
-    }
-
-    if (config.defaultProvider === input.providerId) {
-      config.defaultProvider = undefined;
-    }
-
-    await writeConfigFile(this.configPath, config);
-    const updated = readConfigFile(this.configPath);
-    this.providerManager.updateConfig(updated);
-    return updated;
+  async resolveModelCapabilities(
+    input: ResolveModelCapabilitiesPayload,
+  ): Promise<ResolvedModelCapabilities> {
+    return this.hostRpc.resolveModelCapabilities(input);
   }
 
   prompt({ sessionId, ...payload }: SessionAgentPayload<PromptPayload>) {
@@ -584,10 +730,6 @@ export class ByfCore implements PromisableMethods<CoreAPI> {
 
   getBackground({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundPayload>) {
     return this.sessionApi(sessionId).getBackground(payload);
-  }
-
-  updateSessionMetadata({ sessionId, ...payload }: UpdateSessionMetadataRequest): Promise<void> {
-    return this.sessionApi(sessionId).updateSessionMetadata(payload);
   }
 
   getSessionMetadata({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): SessionMeta {

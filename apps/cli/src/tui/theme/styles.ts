@@ -1,8 +1,7 @@
 /**
- * Theme-aware style helpers built on chalk. Components hold a reference
- * to a `ThemeStyles` instance via `state.theme.styles` and never reach into
- * raw chalk color names — that keeps theme switches consistent and lets
- * every visual token route through `ColorPalette`.
+ * 构建于 chalk 之上的主题感知样式辅助。组件经 `state.theme.styles` 持有
+ * `ThemeStyles` 实例的引用,绝不直接触碰原始 chalk 颜色名——这使主题切换
+ * 保持一致,并让每个视觉 token 都经 `ColorPalette` 路由。
  */
 
 import chalk from 'chalk';

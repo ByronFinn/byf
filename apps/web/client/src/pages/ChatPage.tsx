@@ -1,0 +1,916 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  BookOpen,
+  ChevronDown,
+  Folder,
+  FolderSearch,
+  ListChecks,
+  PanelRight,
+  Sparkles,
+} from 'lucide-react';
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+
+import { api, inspectorApi } from '#/api';
+import { ApprovalCard } from '#/components/chat/ApprovalCard';
+import { Composer } from '#/components/chat/Composer';
+import {
+  ComposerCard,
+  type ComposerImage,
+  type TriggerCommand,
+} from '#/components/chat/ComposerCard';
+import { FileDetail } from '#/components/chat/FileDrawer';
+import { ModelChip } from '#/components/chat/ModelChip';
+import { PermissionChip } from '#/components/chat/PermissionChip';
+import { QuestionCard } from '#/components/chat/QuestionCard';
+import { StatusBar } from '#/components/chat/StatusBar';
+import { SubagentDetail } from '#/components/chat/SubagentCard';
+import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
+import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
+import { Transcript } from '#/components/chat/Transcript';
+import { TasksTab } from '#/components/inspector/background/TasksTab';
+import { InspectTab } from '#/components/inspector/InspectTab';
+import { StateLive } from '#/components/inspector/state/StateLive';
+import { useDetails, useDetailsSetter } from '#/components/layout/details-context';
+import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
+import { Button } from '#/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu';
+import { useEventStream } from '#/hooks/useEventStream';
+import { useTheme } from '#/hooks/useTheme';
+import { chatReducer, initialChatState, replayToEntries, subagentsFromResume } from '#/lib/chat';
+import { INVALIDATE } from '#/lib/query-keys';
+import { userActivatableSkills } from '#/lib/skills';
+import { errorMessage, toast } from '#/lib/toast';
+import { cn } from '#/lib/utils';
+import type { BackgroundTaskInfo, PermissionMode, SkillSummary, ThinkingEffort } from '#/types';
+
+const EXAMPLE_PROMPTS: readonly { icon: typeof BookOpen; label: string; prompt: string }[] = [
+  {
+    icon: BookOpen,
+    label: '总结这个仓库',
+    prompt: '读取仓库根目录的 README，用 5 条要点总结这个项目是做什么的。',
+  },
+  {
+    icon: FolderSearch,
+    label: '查找 TODO',
+    prompt: '搜索 src 目录中的 TODO 注释，按文件分组列出。',
+  },
+  {
+    icon: ListChecks,
+    label: '讲解项目结构',
+    prompt: '逐层讲解这个项目的顶层目录结构，并说明每一部分的作用。',
+  },
+];
+
+/** 目录路径的显示名(basename)。 */
+function dirTitle(workDir: string): string {
+  const parts = workDir.replace(/[/\\]+$/, '').split(/[/\\]/);
+  return parts.at(-1) ?? workDir;
+}
+
+export function ChatPage(props: { agentId?: string } = {}): React.JSX.Element {
+  const params = useParams();
+  const sessionId = params['sessionId'];
+  if (sessionId === undefined || sessionId.length === 0) {
+    return <NewSessionHero />;
+  }
+  return <ChatSessionPage sessionId={sessionId} agentId={props.agentId} />;
+}
+
+/**
+ * 会话聊天页:StatusBar + Transcript + 审批/问答卡片 + Composer。
+ * - 转录恢复:resume 响应的 `agents.main.replay` 映射为历史条目;
+ * - SSE 在 resume 完成(会话已加载)后才订阅——端点对未加载会话 404,
+ *   EventSource 遇 404 不会自动重连,先订阅会永久丢失事件流;
+ * - 首条消息经导航 state `initialPrompt` 传入(hero 创建会话后携带)。
+ */
+function ChatSessionPage({
+  sessionId,
+  agentId,
+}: {
+  sessionId: string;
+  agentId?: string;
+}): React.JSX.Element {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [state, dispatch] = useReducer(chatReducer, undefined, initialChatState);
+  const [resumed, setResumed] = useState(false);
+  // @ 引用的工作区根(来自 resume 的 session summary)
+  const [sessionWorkDir, setSessionWorkDir] = useState<string | null>(null);
+  // 会话可激活技能(slash 面板 skill 命令的数据源;与 TUI 同一数据链路)
+  const [skills, setSkills] = useState<readonly SkillSummary[]>([]);
+  // 子 Agent 深度查看(R-B3):当前打开的 subagentId——详情经 effect 推入抽屉,
+  // 流式更新(usage/parts)时随 state.subagents 重推保持实时;重复点击同卡
+  // 由 handler 直接推入(reveal),不依赖 state 变化。
+  const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
+  // IA 合并（2026-08-19）：Center 两 tab（Chat | Inspect 检视）;检视 = 原
+  // 轨迹+上下文+代理三 tab 的合并（作用域 + 双视图），State 由抽屉常驻
+  // （AC-A12a）。agent 深链(R-D4)进入时自动聚焦检视 tab。
+  const [tab, setTab] = useState<'chat' | 'inspect'>(agentId !== undefined ? 'inspect' : 'chat');
+  const { choice, set } = useTheme();
+  const queryClient = useQueryClient();
+  const setDetails = useDetailsSetter();
+
+  useEffect(() => {
+    // 文件查看(R-C3):工具卡片「查看」/文档路径点击 → 推入详情抽屉并唤出。
+    const open = (e: Event): void => {
+      const path = (e as CustomEvent<string>).detail;
+      setDetails(<FileDetail path={path} />, { reveal: true, title: `文件 · ${path}` });
+    };
+    window.addEventListener(OPEN_FILE_EVENT, open);
+    return () => {
+      window.removeEventListener(OPEN_FILE_EVENT, open);
+    };
+  }, [setDetails]);
+
+  // 后台任务(Tasks tab 数据源):初始值来自 resume 的 agents.main.background,
+  // SSE background.task.* 事件实时增减。
+  const [backgroundTasks, setBackgroundTasks] = useState<readonly BackgroundTaskInfo[]>([]);
+
+  // 抽屉默认内容跟随当前 tab(用户诉求:切页签抽屉内容实时刷新,但静默
+  // 更新、不自动弹出):
+  // Chat → 常驻实时 State;Inspect → 空态(由行点击/作用域下拉推详情)。
+  // 任何详情(工具行/wire 行/子代理/后台任务/文件)推入时覆盖;切 tab 或
+  // 组件重挂时恢复本 tab 默认。
+  const defaultDetails = useCallback((): ReactNode => {
+    if (sessionId.length === 0) return null;
+    if (tab === 'chat') return <StateLive sessionId={sessionId} />;
+    return null;
+  }, [sessionId, tab]);
+
+  useEffect(() => {
+    setDetails(defaultDetails(), {
+      title: tab === 'chat' ? '实时状态' : undefined,
+    });
+    return () => {
+      setDetails(null);
+    };
+  }, [defaultDetails, setDetails, tab]);
+
+  // 子代理详情实时重推:openSubagentId 选中期间,流式 parts/usage 更新随
+  // state.subagents 对象变化重挂内容(保持 drawer 内时间轴实时)。不带
+  // reveal —— reveal 语义是「用户显式查看」(由 openSubagentView 承担),
+  // 流式重推只静默更新,不得重开用户已关闭的抽屉。
+  const openSubagent = openSubagentId !== null ? state.subagents[openSubagentId] : undefined;
+  useEffect(() => {
+    if (openSubagent === undefined) return;
+    setDetails(<SubagentDetail subagent={openSubagent} />, {
+      title: `子代理 · ${openSubagent.name}`,
+    });
+  }, [openSubagent, setDetails]);
+
+  // 会话流卡片点击:设置 id(供上面的流式重推)+ 立即推入抽屉——同卡重复
+  // 点击(关掉抽屉后再点)不依赖 state 变化也能唤出。
+  const openSubagentView = useCallback(
+    (id: string): void => {
+      setOpenSubagentId(id);
+      const sub = state.subagents[id];
+      if (sub !== undefined) {
+        setDetails(<SubagentDetail subagent={sub} />, {
+          reveal: true,
+          title: `子代理 · ${sub.name}`,
+        });
+      }
+    },
+    [state.subagents, setDetails],
+  );
+
+  useEventStream(resumed ? sessionId : undefined, (frame) => {
+    dispatch({ type: 'frame', frame });
+    // 事件驱动刷新右栏 State(PRD-0035):turn 结束/step 完成即失效查询,
+    // 与轮询互补——活跃对话结束时 state 立即更新,无需等下一个轮询 tick。
+    if (frame.type === 'agent.event') {
+      const e = frame.event;
+      if (e.type === 'turn.ended' || e.type === 'turn.step.completed') {
+        // 事件驱动刷新检视数据:session 前缀一次失效 wire/agents/state(前缀
+        // 匹配),context 独立 key;key 形状集中在 lib/query-keys 并被测试钉住。
+        void queryClient.invalidateQueries({ queryKey: INVALIDATE.session(sessionId) });
+        void queryClient.invalidateQueries({ queryKey: INVALIDATE.context(sessionId) });
+      }
+      // 后台任务状态实时同步(deepseek 面板同源)
+      if (e.type === 'background.task.started') {
+        setBackgroundTasks((prev) => [...prev.filter((t) => t.taskId !== e.info.taskId), e.info]);
+      } else if (e.type === 'background.task.updated') {
+        setBackgroundTasks((prev) => prev.map((t) => (t.taskId === e.info.taskId ? e.info : t)));
+      } else if (e.type === 'background.task.terminated') {
+        setBackgroundTasks((prev) => prev.map((t) => (t.taskId === e.info.taskId ? e.info : t)));
+      }
+    }
+  });
+
+  // hero 交接(mount effect):首次挂载读到的 initialPrompt 留在 ref 里,使
+  // StrictMode 二次 setup 即便因 replaceState 清掉了导航 state 也能拿到原值;
+  // heroPromptRendered 保证乐观渲染只落一次。pruneTimer 是被放弃的空会话的
+  // 延迟清理调度(cleanup 排定,真实 setup 取消)。
+  const heroPromptRef = useRef<string | null>(null);
+  const heroPromptRendered = useRef(false);
+  const pruneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (sessionId.length === 0) return;
+    // 上轮 cleanup(StrictMode 模拟卸载/切走又回来)排定的清理先取消:真正的
+    // setup 在首个 promise 继续前重入,若不清掉,刚建好的会话会被误当「放弃」。
+    if (pruneTimer.current !== undefined) {
+      clearTimeout(pruneTimer.current);
+      pruneTimer.current = undefined;
+    }
+    // 会话切换由 App 层 key 重挂组件(reducer 重建),此处只需加载新会话状态
+    let cancelled = false;
+    // 同步清除导航 state,避免 StrictMode 双跑重复发送首条消息
+    const initialPrompt = readInitialPrompt(location.state);
+    if (initialPrompt !== null) heroPromptRef.current = initialPrompt;
+    const heroPrompt = heroPromptRef.current;
+    const heroCreated = heroPrompt !== null;
+    // 首个 prompt 是否已实际发出:发出后会话正式拥有首条内容,放弃清理不再适用。
+    let promptAttempted = false;
+    // hero 交接的首条用户消息必须立即乐观渲染:SSE 事件流只推 assistant/tool
+    // 事件,turn.started 不带 input 字段——不主动落一条用户条目,新建会话的转录
+    // 里就永远看不到用户自己的第一条消息(ref 防 StrictMode 双跑重复落)。
+    if (heroPrompt !== null && !heroPromptRendered.current) {
+      heroPromptRendered.current = true;
+      dispatch({ type: 'user-message', text: heroPrompt });
+    }
+    void (async () => {
+      try {
+        const { session } = await api.resumeSession(sessionId);
+        if (!cancelled) {
+          setSessionWorkDir(session.workDir);
+          // 后台任务初始快照(deepseek 式面板数据源):resume 的 agents.main.background
+          const initialTasks = session.agents?.['main']?.background;
+          if (initialTasks !== undefined && initialTasks.length > 0) {
+            setBackgroundTasks(initialTasks);
+          }
+          const replay = session.agents?.['main']?.replay;
+          if (replay !== undefined && replay.length > 0) {
+            const { entries, toolIndex } = replayToEntries(replay);
+            // 子 Agent 卡片经 agents map 重建(R-B3),drawer 可打开任意已完成子 agent。
+            const subagents = subagentsFromResume(session.agents ?? {});
+            if (entries.length > 0 || Object.keys(subagents).length > 0) {
+              dispatch({ type: 'transcript-loaded', entries, toolIndex, subagents });
+            }
+          }
+          setResumed(true);
+        }
+        const { status } = await api.getSession(sessionId);
+        if (!cancelled) dispatch({ type: 'status-loaded', status });
+        // cancelled 守卫覆盖 StrictMode 双挂载:cleanup 先于任何 await 完成,
+        // 第一条链会跳过发送,只有存活的链发一次(此前双链各发一次 → turn.agent_busy)。
+        if (!cancelled && heroPrompt !== null) {
+          promptAttempted = true;
+          void api.prompt(sessionId, heroPrompt);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          dispatch({
+            type: 'frame',
+            frame: {
+              type: 'sys.error',
+              message: error instanceof Error ? error.message : 'failed to load session',
+            },
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      // hero 新建会话在首个 prompt 未发出前就被放弃:createSession 已在磁盘落下
+      // 目录却没有任何内容,不该留在侧栏。延迟一个宏任务再清理——StrictMode 的
+      // 模拟卸载与第二次 setup 在同一同步帧,setup 会 clearTimeout;只有真实卸载
+      // (导航离开且没走到发送)才触发 close + delete。
+      if (shouldPruneHeroSession(heroCreated, promptAttempted)) {
+        pruneTimer.current = setTimeout(() => {
+          pruneTimer.current = undefined;
+          void api
+            .closeSession(sessionId)
+            .catch(() => {})
+            .then(() => inspectorApi.deleteSession(sessionId))
+            .then(() => {
+              // 让侧栏立即移走这条空会话
+              void queryClient.invalidateQueries({ queryKey: workspaceListKey() });
+            })
+            .catch(() => {});
+        }, 0);
+      }
+    };
+  }, [sessionId, location.state]);
+
+  const onSend = (text: string, images: readonly ComposerImage[]): void => {
+    dispatch({ type: 'user-message', text, images: images.map((img) => img.dataUrl) });
+    void api.prompt(
+      sessionId,
+      text,
+      images.map((img) => ({ dataUrl: img.dataUrl })),
+    );
+  };
+
+  // 会话恢复后拉取技能列表(slash 面板 `skill:<name>` 命令数据源;与 TUI 的
+  // refreshSkillCommands 同链路)。失败不阻塞会话——面板仅显示内置命令。
+  useEffect(() => {
+    if (!resumed) return;
+    let cancelled = false;
+    void api
+      .listSkills(sessionId)
+      .then((list) => {
+        if (!cancelled) setSkills(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [resumed, sessionId]);
+
+  const onCancel = (): void => {
+    void api.cancel(sessionId);
+  };
+
+  // 权限切换:乐观值由 PermissionChip 内部持有,settle 后回读服务端状态确认。
+  const onPermissionChange = (mode: PermissionMode): Promise<void> =>
+    api.setPermission(sessionId, mode).then(() =>
+      api.getSession(sessionId).then(({ status }) => {
+        dispatch({ type: 'status-loaded', status });
+      }),
+    );
+
+  // 推理强度切换:同上(ThinkingChip 内部乐观,settle 后回读确认)。
+  const onThinkingChange = (level: ThinkingEffort | 'off'): Promise<void> =>
+    api.setSessionThinking(sessionId, level).then(() =>
+      api.getSession(sessionId).then(({ status }) => {
+        dispatch({ type: 'status-loaded', status });
+      }),
+    );
+
+  // 模型切换:模型持久化在会话配置(每个会话独立);setModel 不发
+  // agent.status.updated,settle 后回读 status 确认(同权限/思考)。
+  const onModelChange = (model: string): Promise<void> =>
+    api.setSessionModel(sessionId, model).then(() =>
+      api.getSession(sessionId).then(({ status }) => {
+        dispatch({ type: 'status-loaded', status });
+      }),
+    );
+
+  // slash 命令集:web 能力的 TUI 命令投影 + 会话可用技能(skills 端点)。
+  // 注意不含 init:TUI 的 /init 是 CLI 内置的 init turn 机(分析代码库生成
+  // AGENTS.md),不是 skill;web 无该能力,不投影。用户自定义同名 skill 会
+  // 经下方技能列表自然出现。
+  const PERMISSION_CYCLE: readonly PermissionMode[] = ['manual', 'auto', 'yolo'];
+  const THEME_CYCLE = ['light', 'dark', 'system'] as const;
+  const builtinCommands: readonly TriggerCommand[] = [
+    {
+      name: 'permission',
+      description: '切换权限模式',
+      run: () => {
+        const current = state.status?.permission ?? 'manual';
+        const next =
+          PERMISSION_CYCLE[(PERMISSION_CYCLE.indexOf(current) + 1) % PERMISSION_CYCLE.length]!;
+        void onPermissionChange(next);
+      },
+    },
+    { name: 'model', description: '打开设置选择默认模型', run: openSettingsDialog },
+    { name: 'settings', description: '打开设置', run: openSettingsDialog },
+    {
+      name: 'compact',
+      description: '压缩会话上下文',
+      run: () => {
+        void api.compactSession(sessionId).then(
+          () => {
+            toast.info('已开始压缩会话上下文');
+          },
+          (error: unknown) => {
+            toast.error(`压缩会话失败:${errorMessage(error)}`);
+          },
+        );
+      },
+    },
+    { name: 'new', description: '开始新会话', run: () => navigate('/') },
+    {
+      name: 'theme',
+      description: '切换主题',
+      run: () => {
+        const idx = THEME_CYCLE.indexOf(choice);
+        set(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]!);
+      },
+    },
+    { name: 'login', description: '添加模型 provider(或 CLI /login)', run: openSettingsDialog },
+  ];
+  // 技能命令:与内置命令重名时内置优先(如权限/主题);执行即 activateSkill,
+  // 与 TUI 的 `/skill:<name> args` 同一语义。
+  const builtinNames = new Set(builtinCommands.map((c) => c.name));
+  const skillCommands: readonly TriggerCommand[] = userActivatableSkills(skills)
+    .filter((s) => !builtinNames.has(s.name))
+    .map((s) => ({
+      name: s.name,
+      description: s.description.length > 0 ? s.description : `激活技能 ${s.name}`,
+      kind: 'skill' as const,
+      run: (args: string) => {
+        void api.activateSkill(sessionId, s.name, args).then(
+          () => {
+            toast.success(`已激活技能「${s.name}」`);
+          },
+          (error: unknown) => {
+            toast.error(`技能「${s.name}」激活失败:${errorMessage(error)}`);
+          },
+        );
+      },
+    }));
+  const commands: readonly TriggerCommand[] = [...builtinCommands, ...skillCommands];
+
+  const approvalIds = Object.keys(state.pendingApprovals);
+  const questionIds = Object.keys(state.pendingQuestions);
+
+  // 状态栏任务徽标 → 抽屉任务列表（IA 合并:任务不再占 Center tab）。
+  const openTasks = useCallback((): void => {
+    setDetails(<TasksTab sessionId={sessionId} tasks={backgroundTasks} loading={!resumed} />, {
+      reveal: true,
+      title: '后台任务',
+    });
+  }, [sessionId, backgroundTasks, resumed, setDetails]);
+  const activeTaskCount = backgroundTasks.filter(
+    (t) => t.status === 'running' || t.status === 'awaiting_approval',
+  ).length;
+
+  return (
+    <div className="flex h-full flex-col">
+      <StatusBar
+        status={state.status}
+        busy={state.busy}
+        connected={state.connected}
+        taskCount={activeTaskCount}
+        onOpenTasks={openTasks}
+      />
+      <InspectorTabBar tab={tab} onTabChange={setTab} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {tab === 'inspect' ? (
+          <InspectTab key={sessionId} sessionId={sessionId} initialAgentId={agentId ?? 'main'} />
+        ) : state.entries.length === 0 ? (
+          <EmptyState
+            onPick={(prompt) => {
+              onSend(prompt, []);
+            }}
+          />
+        ) : (
+          <Transcript
+            entries={state.entries}
+            busy={state.busy}
+            subagents={state.subagents}
+            onOpenSubagent={openSubagentView}
+            workDir={sessionWorkDir ?? undefined}
+          />
+        )}
+      </div>
+      {(approvalIds.length > 0 || questionIds.length > 0) && (
+        <div className="max-h-64 overflow-y-auto border-t border-border bg-surface-2 px-4 py-3">
+          <div className="mx-auto max-w-3xl space-y-3">
+            {approvalIds.map((id) => (
+              <ApprovalCard
+                key={id}
+                sessionId={sessionId}
+                requestId={id}
+                request={state.pendingApprovals[id]!}
+              />
+            ))}
+            {questionIds.map((id) => (
+              <QuestionCard
+                key={id}
+                sessionId={sessionId}
+                requestId={id}
+                request={state.pendingQuestions[id]!}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      <Composer
+        disabled={state.busy}
+        model={state.status?.model}
+        permission={state.status?.permission}
+        thinkingLevel={normalizeThinkingLevel(state.status?.thinkingLevel)}
+        workDir={sessionWorkDir}
+        commands={commands}
+        onPermissionChange={onPermissionChange}
+        onThinkingChange={onThinkingChange}
+        onModelChange={onModelChange}
+        onSend={onSend}
+        onCancel={onCancel}
+      />
+    </div>
+  );
+}
+
+/** 读取并清除导航 state 中的 initialPrompt。 */
+function readInitialPrompt(state: unknown): string | null {
+  const prompt = (state as { initialPrompt?: string } | null)?.initialPrompt;
+  if (typeof prompt !== 'string' || prompt.length === 0) return null;
+  window.history.replaceState({}, '', window.location.pathname);
+  return prompt;
+}
+
+/**
+ * 放弃清理规则:hero 新建的会话,若首个 prompt 从未实际发出就卸载,磁盘上只剩
+ * 一个空目录,应关闭并删除以免残留在侧栏(用户规则:没有输入的新会话应被关闭)。
+ * 是否「hero 新建」与「是否已发出」由调用方(mount effect)提供。
+ */
+export function shouldPruneHeroSession(heroCreated: boolean, promptAttempted: boolean): boolean {
+  return heroCreated && !promptAttempted;
+}
+
+/**
+ * 新会话 hero(对齐 deepseek harness):大标题 + 工作区 chip 行(卡片外上方)
+ * + 输入卡片(权限 chip 于底栏左侧)。选择工作区仅暂存,发送首条消息时
+ * 才创建会话并进入。
+ */
+function NewSessionHero(): React.JSX.Element {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  // 工作区是"本次新建会话"的选择:初始为空,仅接受侧边栏导航 state 的一次性
+  // 预选;不读 localStorage(旧持久化值会让 hero 默认带上上次的工作区)。
+  const [dir, setDir] = useState<string | null>(() => {
+    const fromState = (location.state as { workDir?: unknown } | null)?.workDir;
+    return typeof fromState === 'string' && fromState.length > 0 ? fromState : null;
+  });
+  const [permission, setPermission] = useState<PermissionMode | null>(null);
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingEffort | 'off' | null>(null);
+  // 本次新建会话的模型覆盖(不动全局默认;与权限/思考的本地暂存同模式)。
+  const [model, setModel] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [addDialog, setAddDialog] = useState<{
+    open: boolean;
+    path: string;
+    error: string | null;
+    busy: boolean;
+  }>({ open: false, path: '', error: null, busy: false });
+
+  // 消费导航预选(侧边栏「新建会话」带工作区):useState 初始化只覆盖首次挂载;
+  // 已在 / 页时靠本 effect 响应 state 变化应用并清除(与 initialPrompt 同模式)。
+  useEffect(() => {
+    const fromState = (location.state as { workDir?: unknown } | null)?.workDir;
+    if (typeof fromState === 'string' && fromState.length > 0) {
+      setDir(fromState);
+    }
+    if (location.state !== null) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [location.state]);
+
+  const { data: workspaces } = useQuery({
+    queryKey: workspaceListKey(),
+    queryFn: () => api.listWorkspaces(),
+    staleTime: 30_000,
+  });
+
+  // 配置(默认模型 / 默认权限 / 思考档位):用户主动选择前跟随配置
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => api.getConfig(),
+    staleTime: 60_000,
+  });
+  const currentPermission = permission ?? config?.defaultPermissionMode ?? 'manual';
+  const currentModel = model ?? config?.defaultModel;
+  const defaultThinkingLevel: ThinkingEffort | 'off' | undefined =
+    config?.thinking?.mode === 'on'
+      ? config.thinking.effort
+      : config?.thinking?.mode === 'off'
+        ? 'off'
+        : undefined; // auto / 未配置:跟随模型,不传 thinking
+  const currentThinkingLevel = thinkingLevel ?? defaultThinkingLevel;
+
+  const startAddFlow = async (): Promise<void> => {
+    try {
+      const { path } = await api.pickWorkspaceDirectory();
+      if (path === null) return; // 用户取消
+      const { workspace } = await api.addWorkspace(path);
+      void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      setDir(workspace.workDir);
+    } catch {
+      // 平台不支持或选择器失败 → 路径输入弹窗
+      setAddDialog({ open: true, path: '', error: null, busy: false });
+    }
+  };
+
+  const submitAddPath = (): void => {
+    const path = addDialog.path.trim();
+    if (path.length === 0) return;
+    setAddDialog((prev) => ({ ...prev, busy: true, error: null }));
+    void api
+      .addWorkspace(path)
+      .then(({ workspace }) => {
+        void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+        setDir(workspace.workDir);
+        setAddDialog({ open: false, path: '', error: null, busy: false });
+      })
+      .catch((error: unknown) => {
+        setAddDialog((prev) => ({
+          ...prev,
+          busy: false,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      });
+  };
+
+  const send = (): void => {
+    const value = text.trim();
+    if (dir === null || value.length === 0 || sending) return;
+    setSending(true);
+    setError(null);
+    void api
+      .createSession({
+        workDir: dir,
+        permission: currentPermission,
+        model: currentModel,
+        thinking: currentThinkingLevel,
+      })
+      .then(({ session }) => {
+        void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+        void navigate(`/sessions/${session.id}`, { state: { initialPrompt: value } });
+      })
+      .catch((error: unknown) => {
+        setSending(false);
+        setError(error instanceof Error ? error.message : String(error));
+      });
+  };
+
+  const selectedWorkspace = workspaces?.find((w) => w.workDir === dir);
+
+  // slash 命令集(hero 无会话:不含 init/compact/model)
+  const { choice: themeChoice, set: setTheme } = useTheme();
+  const HERO_PERMISSION_CYCLE: readonly PermissionMode[] = ['manual', 'auto', 'yolo'];
+  const HERO_THEME_CYCLE = ['light', 'dark', 'system'] as const;
+  const heroCommands: readonly TriggerCommand[] = [
+    {
+      name: 'permission',
+      description: '切换权限模式',
+      run: () => {
+        const idx = HERO_PERMISSION_CYCLE.indexOf(currentPermission);
+        setPermission(HERO_PERMISSION_CYCLE[(idx + 1) % HERO_PERMISSION_CYCLE.length]!);
+      },
+    },
+    { name: 'settings', description: '打开设置', run: openSettingsDialog },
+    {
+      name: 'theme',
+      description: '切换主题',
+      run: () => {
+        const idx = HERO_THEME_CYCLE.indexOf(themeChoice);
+        setTheme(HERO_THEME_CYCLE[(idx + 1) % HERO_THEME_CYCLE.length]!);
+      },
+    },
+    { name: 'login', description: '添加模型 provider(或 CLI /login)', run: openSettingsDialog },
+  ];
+
+  return (
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-16 pb-8">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-on-brand shadow-2"
+            aria-hidden
+          >
+            <Sparkles className="size-5" />
+          </span>
+          <h1 className="text-xl font-semibold text-fg">你好，我是 byf</h1>
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs text-fg-subtle">
+            网页版
+          </span>
+        </div>
+        <p className="mt-2 max-w-md text-center text-sm text-fg-muted">
+          选择一个工作区，agent 将在其中执行任务。
+        </p>
+      </div>
+
+      <div className="px-4 py-3">
+        <div className="mx-auto max-w-3xl">
+          {/* 工作区 chip 行:卡片外上方(对齐 deepseek heroWorkspaceRow) */}
+          <div className="mb-2 flex min-h-7 items-center gap-2">
+            {workspaces !== undefined && workspaces.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SeatChip label={dir === null ? '选择工作区' : dirTitle(dir)}>
+                    <Folder className="size-4 text-fg-muted" aria-hidden />
+                  </SeatChip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>工作区</DropdownMenuLabel>
+                  {workspaces.map((w) => (
+                    <DropdownMenuCheckboxItem
+                      key={w.workDir}
+                      checked={w.workDir === dir}
+                      onSelect={() => {
+                        setDir(w.workDir);
+                      }}
+                    >
+                      <Folder className="size-4" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{w.title}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => void startAddFlow()}>
+                    <Folder className="size-4" aria-hidden />
+                    添加工作区
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <SeatChip
+                label={dir === null ? '选择工作区' : dirTitle(dir)}
+                onClick={() => void startAddFlow()}
+              >
+                <Folder className="size-4 text-fg-muted" aria-hidden />
+              </SeatChip>
+            )}
+            {dir !== null && selectedWorkspace === undefined && workspaces !== undefined && (
+              <span className="min-w-0 truncate text-xs text-fg-subtle">
+                工作区「{dirTitle(dir)}」尚未登记,发送消息时仍会在此目录创建会话。
+              </span>
+            )}
+          </div>
+
+          <ComposerCard
+            value={text}
+            onChange={setText}
+            placeholder={dir === null ? '选择一个工作区开始' : '输入消息,Enter 发送'}
+            onSend={send}
+            sendDisabled={dir === null || sending}
+            error={error}
+            modelChip={<ModelChip model={currentModel} onChange={setModel} />}
+            leading={
+              <>
+                <PermissionChip mode={currentPermission} onChange={setPermission} />
+                <ThinkingChip level={currentThinkingLevel} onChange={setThinkingLevel} />
+              </>
+            }
+            trigger={{ commands: heroCommands, workDir: dir }}
+          />
+        </div>
+      </div>
+
+      {addDialog.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-scrim"
+            aria-hidden
+            onClick={() => {
+              setAddDialog((prev) => ({ ...prev, open: false }));
+            }}
+          />
+          <div
+            role="dialog"
+            aria-label="添加工作区"
+            className="relative w-96 rounded-lg border border-border bg-popover p-4 shadow-3"
+          >
+            <h2 className="text-sm font-semibold text-fg">添加工作区</h2>
+            <p className="mt-1.5 text-sm text-fg-muted">输入一个绝对路径作为工作区目录:</p>
+            <input
+              type="text"
+              autoFocus
+              placeholder="/absolute/path/to/project"
+              onChange={(e) => {
+                setAddDialog((prev) => ({ ...prev, path: e.target.value }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitAddPath();
+              }}
+              className="mt-2 w-full rounded-md border border-border-strong bg-input-fill px-3 py-2 font-mono text-sm outline-none focus:border-brand"
+            />
+            {addDialog.error !== null && (
+              <p className="mt-2 text-sm text-state-error">{addDialog.error}</p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={addDialog.busy}
+                onClick={() => {
+                  setAddDialog({ open: false, path: '', error: null, busy: false });
+                }}
+              >
+                取消
+              </Button>
+              <Button type="button" size="sm" disabled={addDialog.busy} onClick={submitAddPath}>
+                {addDialog.busy ? '添加中…' : '添加'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** seat chip(对齐 deepseek 的 ghost 视觉):无边框,悬停才出浅底。 */
+function SeatChip(
+  props: React.ComponentProps<'button'> & {
+    label: string;
+    children: React.ReactNode;
+  },
+): React.JSX.Element {
+  const { label, className, children, ...rest } = props;
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex h-7 max-w-56 items-center gap-1.5 rounded-full px-2 text-sm text-fg transition-colors',
+        'hover:bg-hover',
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+      <span className="truncate">{label}</span>
+      <ChevronDown className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
+    </button>
+  );
+}
+
+/** 空状态 hero(R13):欢迎屏 + 示例 prompt(会话内首条消息前)。 */
+function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX.Element {
+  return (
+    <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-10">
+      <div className="flex items-center gap-3">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-on-brand shadow-2"
+          aria-hidden
+        >
+          <Sparkles className="size-5" />
+        </span>
+        <h1 className="text-xl font-semibold text-fg">你好，我是 byf</h1>
+      </div>
+      <p className="mt-2 max-w-md text-center text-sm text-fg-muted">
+        你的浏览器版 agent —— 发送一条消息，或从下面选择一个开始：
+      </p>
+      <div className="mt-6 grid w-full max-w-lg gap-2">
+        {EXAMPLE_PROMPTS.map(({ icon: Icon, label, prompt }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              onPick(prompt);
+            }}
+            className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-3.5 py-2.5 text-left text-sm text-fg-muted shadow-1 transition-colors hover:border-brand/50 hover:bg-surface-2 hover:text-fg"
+          >
+            <Icon className="size-4 shrink-0 text-brand" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block text-fg">{label}</span>
+              <span className="block truncate text-xs text-fg-subtle">{prompt}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** IA 合并（2026-08-19）：会话视图 tab 栏（对话 | 检视）。 */
+const INSPECTOR_TABS = [
+  { key: 'chat', label: '对话' },
+  { key: 'inspect', label: '检视' },
+] as const;
+
+function InspectorTabBar(props: {
+  tab: (typeof INSPECTOR_TABS)[number]['key'];
+  onTabChange: (tab: (typeof INSPECTOR_TABS)[number]['key']) => void;
+}): React.JSX.Element {
+  const { open, toggle } = useDetails();
+  return (
+    <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg pr-2 pl-4">
+      {INSPECTOR_TABS.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => {
+            props.onTabChange(t.key);
+          }}
+          className={
+            props.tab === t.key
+              ? 'border-b-2 border-brand px-3 py-2 text-sm font-medium text-fg'
+              : 'border-b-2 border-transparent px-3 py-2 text-sm text-fg-muted hover:text-fg'
+          }
+        >
+          {t.label}
+        </button>
+      ))}
+      <span className="flex-1" aria-hidden />
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={open ? '收起详情面板' : '展开详情面板'}
+        aria-expanded={open}
+        title={open ? '收起详情面板' : '展开详情面板'}
+        className={`rounded-md p-1.5 transition-colors hover:bg-hover hover:text-fg ${
+          open ? 'text-fg-muted' : 'text-fg-subtle'
+        }`}
+      >
+        <PanelRight className="size-4" aria-hidden />
+      </button>
+    </div>
+  );
+}

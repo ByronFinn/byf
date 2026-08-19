@@ -1,7 +1,7 @@
 /**
- * ApprovalPanel — pi-tui version of the approval request UI.
+ * ApprovalPanel — 审批请求 UI 的 pi-tui 版本。
  *
- * Container-based component with keyboard navigation.
+ * 基于容器的组件,支持键盘导航。
  */
 
 import {
@@ -184,8 +184,8 @@ function headerFor(toolName: string): string {
 }
 
 /**
- * Converts a `DiffDisplayBlock` or `FileContentDisplayBlock` into a pre-rendered
- * `FileViewerSection` suitable for the fullscreen `FileViewerComponent`.
+ * 把 `DiffDisplayBlock` 或 `FileContentDisplayBlock` 转换为适合全屏
+ * `FileViewerComponent` 的预渲染 `FileViewerSection`。
  */
 export function resolveSection(
   block: DiffDisplayBlock | FileContentDisplayBlock,

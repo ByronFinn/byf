@@ -1,349 +1,132 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { AgentRecords, InMemoryAgentRecordPersistence } from '../../../src/agent/records';
-import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
+import { InMemoryAgentRecordPersistence, type AgentRecord } from '../../../src/agent/records';
+import {
+  OP_REGISTRY,
+  WireService,
+  createWireMetadataRecord,
+  wireRecordToPayload,
+  type WirePersistence,
+  type WireRecord,
+} from '../../../src/agent/wire';
+import { turnModel, turnPrompt } from '../../../src/agent/wire/ops/turn';
+// import 触发全部业务 Op 注册（context.* 在 Phase 5 起已注册，仅 observation_masking 遗留）。
 import { testAgent } from '../harness/agent';
 
-describe('AgentRecords.restore() unit tests', () => {
-  describe('路由逻辑测试', () => {
-    it('应该将context.*记录路由到context处理器', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
+class InMemoryWirePersistence implements WirePersistence {
+  readonly records: WireRecord[] = [];
+  constructor(records: readonly WireRecord[] = []) {
+    this.records.push(...records);
+  }
+  async *read(): AsyncIterable<WireRecord> {
+    for (const record of this.records) yield record;
+  }
+  append(record: WireRecord): void {
+    this.records.push(record);
+  }
+  rewrite(records: readonly WireRecord[]): void {
+    this.records.splice(0, this.records.length, ...records);
+  }
+  async flush(): Promise<void> {}
+  async close(): Promise<void> {}
+}
 
-      let receivedRecord: AgentRecord | undefined;
-      const mockContextHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('context.')) {
-            receivedRecord = record;
-          }
-        },
-      };
+const USER_MESSAGE = {
+  role: 'user',
+  content: [{ type: 'text', text: 'test' }],
+  toolCalls: [],
+};
 
-      records.registerHandlers({ context: mockContextHandler });
+const MASKING_RECORD: WireRecord = {
+  type: 'context.observation_masking',
+  maskedCount: 2,
+  tokensBefore: 1000,
+  tokensAfter: 800,
+  time: 1,
+};
 
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
+describe('WireService logRecord 路由（Phase 6：AgentRecords facade 已删，行为归 wire 引擎）', () => {
+  it('routes registered-op records through dispatch (persist + apply + metadata envelope)', () => {
+    const persistence = new InMemoryAgentRecordPersistence();
+    const { agent } = testAgent({ persistence });
 
-      records.restore(testRecord);
+    agent.wire.dispatch(
+      turnPrompt({ input: [{ type: 'text', text: 'hello' }], origin: { kind: 'user' } }),
+    );
 
-      expect(receivedRecord).toEqual(testRecord);
-    });
-
-    it('应该将config.*记录路由到config处理器', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let receivedRecord: AgentRecord | undefined;
-      const mockConfigHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('config.')) {
-            receivedRecord = record;
-          }
-        },
-      };
-
-      records.registerHandlers({ config: mockConfigHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'config.update',
-        modelAlias: 'test-model',
-      };
-
-      records.restore(testRecord);
-
-      expect(receivedRecord).toEqual(testRecord);
-    });
-
-    it('应该将full_compaction.*记录路由到fullCompaction处理器', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let receivedRecord: AgentRecord | undefined;
-      const mockFullCompactionHandler: RecordRestoreHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          if (record.type.startsWith('full_compaction.')) {
-            receivedRecord = record;
-          }
-        },
-      };
-
-      records.registerHandlers({ fullCompaction: mockFullCompactionHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'full_compaction.begin',
-        turnId: 1,
-        source: 'manual',
-      } as unknown as AgentRecord;
-
-      records.restore(testRecord);
-
-      expect(receivedRecord).toEqual(testRecord);
-    });
+    // 持久化 + metadata 信封（逐字节兼容）。
+    expect(persistence.records.map((record) => record.type)).toEqual(['metadata', 'turn.prompt']);
+    // apply 更新了 model 状态（turnId 0）。
+    expect(agent.wire.getModel(turnModel).turnId).toBe(0);
   });
 
-  describe('静默跳过测试', () => {
-    it('应该静默跳过未注册的记录类型', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
+  it('routes context records through dispatch (Phase 5：context.* 已注册 Op)', () => {
+    const persistence = new InMemoryAgentRecordPersistence();
+    const { agent } = testAgent({ persistence });
 
-      let handlerCalled = false;
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          handlerCalled = true;
-        },
-      };
+    agent.wire.dispatch({
+      type: 'context.append_message',
+      payload: { message: USER_MESSAGE },
+      descriptor: OP_REGISTRY.get('context.append_message')!,
+    } as never);
 
-      records.registerHandlers({ context: mockHandler });
-
-      // 未注册的记录类型
-      const unregisteredRecord: AgentRecord = {
-        type: 'unregistered.type',
-        data: 'test',
-      } as unknown as AgentRecord;
-
-      expect(() => {
-        records.restore(unregisteredRecord);
-      }).not.toThrow();
-
-      expect(handlerCalled).toBe(false);
-    });
-
-    it('应该静默跳过metadata记录', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let handlerCalled = false;
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          handlerCalled = true;
-        },
-      };
-
-      records.registerHandlers({ context: mockHandler });
-
-      const metadataRecord: AgentRecord = {
-        type: 'metadata',
-        protocol_version: '1.1',
-        created_at: Date.now(),
-      };
-
-      expect(() => {
-        records.restore(metadataRecord);
-      }).not.toThrow();
-
-      expect(handlerCalled).toBe(false);
-    });
-
-    it('应该静默跳过background.stop记录', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let handlerCalled = false;
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          handlerCalled = true;
-        },
-      };
-
-      records.registerHandlers({ context: mockHandler });
-
-      const backgroundRecord: AgentRecord = {
-        type: 'background.stop',
-        taskId: 'test-task',
-      } as unknown as AgentRecord;
-
-      expect(() => {
-        records.restore(backgroundRecord);
-      }).not.toThrow();
-
-      expect(handlerCalled).toBe(false);
-    });
+    // 持久化 + metadata 信封。
+    expect(persistence.records.map((record) => record.type)).toEqual([
+      'metadata',
+      'context.append_message',
+    ]);
+    // apply 更新了共享 model 状态（history 折叠进 context model）。
+    expect(agent.context.history).toHaveLength(1);
   });
 
-  describe('错误处理测试', () => {
-    it('应该让处理器错误传播到Agent.resume()处理', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      const mockError = new Error('Test restoration error');
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          throw mockError;
-        },
-      };
-
-      records.registerHandlers({ context: mockHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      // restore()会传播错误，错误在Agent.resume()中被捕获
-      expect(() => {
-        records.restore(testRecord);
-      }).toThrow('Test restoration error');
+  it('persistRaw 落盘未注册记录（context.observation_masking），restore 由 legacyRoute 兜底', async () => {
+    const routed: string[] = [];
+    const persistence = new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]);
+    const wire = new WireService({
+      persistence,
+      legacyRoute: (record) => routed.push(record.type),
     });
 
-    it('应该在第一个错误时停止处理', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
+    await wire.restore();
 
-      let callCount = 0;
-      const erroringHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          callCount++;
-          throw new Error('Handler error');
-        },
-      };
-
-      records.registerHandlers({ context: erroringHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      expect(() => {
-        records.restore(testRecord);
-      }).toThrow('Handler error');
-
-      expect(callCount).toBe(1); // 只调用了一次处理器
-    });
+    expect(routed).toEqual(['context.observation_masking']);
+    expect(wire.phase).toBe('ready');
   });
 
-  describe('restoring标志测试', () => {
-    it('应该在恢复期间设置restoring标志', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let restoringFlagDuringCall = false;
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          restoringFlagDuringCall = records.restoring;
-        },
-      };
-
-      records.registerHandlers({ context: mockHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      records.restore(testRecord);
-
-      expect(restoringFlagDuringCall).toBe(true);
+  it('propagates legacyRoute errors through restore (Agent.resume catches)', async () => {
+    const wire = new WireService({
+      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
+      legacyRoute: () => {
+        throw new Error('Test restoration error');
+      },
     });
 
-    it('应该在恢复后清除restoring标志', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {},
-      };
-
-      records.registerHandlers({ context: mockHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      expect(records.restoring).toBe(false);
-
-      records.restore(testRecord);
-
-      expect(records.restoring).toBe(false);
-    });
+    await expect(wire.restore()).rejects.toThrow('Test restoration error');
   });
 
-  describe('命名不一致处理测试', () => {
-    it('应该正确处理full_compaction到fullCompaction的映射', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let handlerKey: string | undefined;
-      const mockHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          // 这个测试验证映射逻辑
-          handlerKey = 'fullCompaction';
-        },
-      };
-
-      records.registerHandlers({ fullCompaction: mockHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'full_compaction.begin',
-        turnId: 1,
-      } as unknown as AgentRecord;
-
-      records.restore(testRecord);
-
-      expect(handlerKey).toBe('fullCompaction');
+  it('restoring 相位：replay 期间 phase=restoring，之后 ready（replayBuilder 的收集窗口）', async () => {
+    let wire: WireService;
+    const observed: boolean[] = [];
+    wire = new WireService({
+      persistence: new InMemoryWirePersistence([createWireMetadataRecord(1), MASKING_RECORD]),
+      legacyRoute: () => {
+        observed.push(wire.phase === 'restoring');
+      },
     });
+
+    expect(wire.phase).toBe('new');
+    await wire.restore();
+    expect(observed).toEqual([true]);
+    expect(wire.phase).toBe('ready');
   });
 
-  describe('处理器覆盖测试', () => {
-    it('应该允许覆盖已注册的处理器', () => {
-      const { agent } = testAgent();
-      const records = agent.records;
-
-      let firstHandlerCalled = false;
-      let secondHandlerCalled = false;
-
-      const firstHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          firstHandlerCalled = true;
-        },
-      };
-
-      const secondHandler: RecordRestoreHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          secondHandlerCalled = true;
-        },
-      };
-
-      records.registerHandlers({ context: firstHandler });
-      records.registerHandlers({ context: secondHandler });
-
-      const testRecord: AgentRecord = {
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: 'test' }],
-          toolCalls: [],
-        },
-      };
-
-      records.restore(testRecord);
-
-      expect(firstHandlerCalled).toBe(false);
-      expect(secondHandlerCalled).toBe(true);
-    });
+  it('wireRecordToPayload 提取 payload（dispatch 用）', () => {
+    const payload = wireRecordToPayload({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'x' }],
+      origin: { kind: 'user' },
+      time: 123,
+    } as unknown as WireRecord);
+    expect(payload).toEqual({ input: [{ type: 'text', text: 'x' }], origin: { kind: 'user' } });
   });
 });

@@ -1,9 +1,8 @@
 /**
- * Reverse RPC view-layer types.
+ * Reverse RPC 视图层类型。
  *
- * These types are the contract between the UI layer and reverse RPC
- * controllers, not SDK event payloads. Approval and question adapters convert
- * core payloads into these shapes for panel components.
+ * 这些类型是 UI 层与 reverse RPC 控制器之间的契约,而非 SDK 事件负载。
+ * 审批与问题适配器把核心负载转换为这些形态供面板组件使用。
  */
 
 import type { QuestionAnswerMethod } from '@byfriends/sdk';
@@ -41,7 +40,7 @@ export interface FileOpDisplayBlock {
   detail?: string;
 }
 
-/** Full file content preview for Write — a code block, not a diff. */
+/** Write 的完整文件内容预览——代码块,而非 diff。 */
 export interface FileContentDisplayBlock {
   type: 'file_content';
   path: string;

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
 import { type BashInput, BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';
+import { ToolInputDisplaySchema } from '../../src/tools/display';
 import type { Environment } from '../../src/utils/environment';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos } from './fixtures/fake-kaos';
@@ -922,5 +923,201 @@ describe('BashTool prompt / runtime consistency', () => {
     // The implementation reports failures as plain text inside the output
     // (`Command failed with exit code: N`), never via a system tag.
     expect(tool.description).not.toMatch(/exit code will be provided in a system tag/);
+  });
+});
+
+describe('BashTool — PRD-0031 敏感文件读写分治（#298）', () => {
+  it('cat .env 工具层不再硬拒（读 = 审批事件，权限层策略门控）', async () => {
+    const proc = processWithOutput({ stdout: 'SECRET=value' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'cat .env' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('cat ~/.ssh/id_rsa 工具层不再硬拒（读由权限层门控）', async () => {
+    const proc = processWithOutput({ stdout: 'key' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'cat ~/.ssh/id_rsa' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('sh -c 剥壳后内层 .env 读不硬拒（权限层门控）', async () => {
+    const proc = processWithOutput({ stdout: 'x' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'sh -c "cat .env"' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('重定向写入 .env（echo > .env）硬拒', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'echo "x" > .env' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('git add .env 硬拒（git 的路径参数同样过敏感检查）', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const result = await executeTool(tool, context({ command: 'git add .env' }));
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('非敏感命令不受影响（正常执行）', async () => {
+    const proc = processWithOutput({ stdout: 'ok' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'printf ok' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('cd 累计 cwd 后敏感读不硬拒（权限层门控；写仍硬拒见下）', async () => {
+    const proc = processWithOutput({ stdout: 'key' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'cd ~/.ssh && cat id_rsa' }));
+    expect(result.isError).toBe(false);
+  });
+
+  it('写敏感文件仍硬拒（rm .env / echo > .env / git add .env），含修复指引', async () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const rm = await executeTool(tool, context({ command: 'rm .env' }));
+    expect(rm.isError).toBe(true);
+    expect(rm.output).toMatch(/sensitive-file pattern/);
+    expect(rm.output).toMatch(/rename it in your own terminal/);
+    expect(rm.output).toMatch(/\.env\./);
+    const echo = await executeTool(tool, context({ command: 'echo "x" > .env' }));
+    expect(echo.isError).toBe(true);
+    expect(echo.output).toMatch(/sensitive-file pattern/);
+    const gitAdd = await executeTool(tool, context({ command: 'git add .env' }));
+    expect(gitAdd.isError).toBe(true);
+    expect(gitAdd.output).toMatch(/sensitive-file pattern/);
+  });
+
+  it('无法静态解析的命令（eval）不做敏感检查（已知绕过面）', async () => {
+    const proc = processWithOutput({ stdout: 'ok' });
+    const tool = new BashTool(
+      createFakeKaos({ execWithEnv: vi.fn().mockResolvedValue(proc) }),
+      '/workspace',
+      posixEnv,
+    );
+    const result = await executeTool(tool, context({ command: 'eval "$CMD"' }));
+    // eval 转 indirect → 不抛敏感错误，正常进入执行
+    expect(result.isError).toBe(false);
+  });
+});
+
+describe('BashTool — PRD-0031 0a ToolAccesses 声明', () => {
+  function accessesOf(command: string) {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({ command });
+    if (execution.isError === true) {
+      throw new TypeError(`unexpected error result: ${JSON.stringify(execution.output)}`);
+    }
+    return execution.accesses;
+  }
+
+  it('cat 收窄为 read 文件访问（canonical 绝对路径）', () => {
+    expect(accessesOf('cat a.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/a.txt' },
+    ]);
+  });
+
+  it('cd 累计 cwd：cd src && cat foo.txt → /workspace/src/foo.txt', () => {
+    expect(accessesOf('cd src && cat foo.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/src/foo.txt' },
+    ]);
+  });
+
+  it('echo hi; cat a.txt：no-access 子命令不贡献访问', () => {
+    expect(accessesOf('echo hi; cat a.txt')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/a.txt' },
+    ]);
+  });
+
+  it('纯 no-access 命令（echo hi / pwd）→ none()', () => {
+    expect(accessesOf('echo hi')).toEqual([]);
+    expect(accessesOf('pwd')).toEqual([]);
+  });
+
+  it('git / build-test / 网络 → 全局互斥 all()（执行期触碰不可预测文件）', () => {
+    expect(accessesOf('git status')).toEqual([{ kind: 'all' }]);
+    expect(accessesOf('bun test')).toEqual([{ kind: 'all' }]);
+    expect(accessesOf('curl https://example.com')).toEqual([{ kind: 'all' }]);
+    // build 动词带文件参数仍收窄失败（会加载任意依赖）
+    expect(accessesOf('bun test test/foo.test.ts')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('glob 路径无法静态展开 → all()', () => {
+    expect(accessesOf('rm *.tmp')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('indirect（eval）→ all()', () => {
+    expect(accessesOf('eval "$CMD"')).toEqual([{ kind: 'all' }]);
+  });
+
+  it('搜索动词声明 search + recursive', () => {
+    expect(accessesOf('grep -r TODO src/')).toEqual([
+      { kind: 'file', operation: 'search', path: '/workspace/src', recursive: true },
+    ]);
+  });
+
+  it('写操作一律 recursive（rm/mv/cp 等目录语义动词的保守超集声明）', () => {
+    // rm -rf dist/ 可能触及嵌套路径 → recursive 声明与嵌套文件写串行
+    expect(accessesOf('rm -rf dist/')).toEqual([
+      { kind: 'file', operation: 'write', path: '/workspace/dist', recursive: true },
+    ]);
+    // cp 的目标写同样 recursive（cp -r src 复制整树）
+    expect(accessesOf('cp src/a.ts dest/b.ts')).toEqual([
+      { kind: 'file', operation: 'read', path: '/workspace/src/a.ts' },
+      { kind: 'file', operation: 'write', path: '/workspace/dest/b.ts', recursive: true },
+    ]);
+  });
+});
+
+describe('BashTool — wire 展示元数据（display）', () => {
+  it('resolveExecution 产出 kind:command 的 display 且通过 wire schema 校验', () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({
+      command: 'git diff main..dev -- packages/agent-core',
+      cwd: '/repo',
+    });
+    if (execution.isError === true) throw new TypeError('unexpected error result');
+
+    expect(execution.display).toEqual({
+      kind: 'command',
+      command: 'git diff main..dev -- packages/agent-core',
+      cwd: '/repo',
+      language: 'bash',
+    });
+    // wire-record 层按 ToolInputDisplaySchema 校验 input_display；这里守住
+    // 「生产者产出的一定能落盘」——历史上 display 从未被产出过，缺失时
+    // Web 的归组/图标/摘要全部退化为 generic 桶。
+    expect(ToolInputDisplaySchema.safeParse(execution.display).success).toBe(true);
+  });
+
+  it('未显式指定 cwd/description 时不携带这两个可选字段', () => {
+    const tool = new BashTool(createFakeKaos(), '/workspace', posixEnv);
+    const execution = tool.resolveExecution({ command: 'ls' });
+    if (execution.isError === true) throw new TypeError('unexpected error result');
+
+    expect(execution.display).toEqual({ kind: 'command', command: 'ls', language: 'bash' });
   });
 });

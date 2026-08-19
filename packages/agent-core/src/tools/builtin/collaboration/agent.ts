@@ -11,9 +11,9 @@
  *   - **Background**: returns the agent id immediately; the result is delivered
  *     via a notification.
  *
- * `ToolResult.content` is textual; the structured output exposed by
- * `AgentToolOutputSchema` is only used for drift-guard and is not consumed at
- * runtime.
+ * `ToolResult.content` is textual; `AgentToolOutputSchema` is the structured
+ * output contract (PRD-0031 2c): validated at runtime when the tool returns
+ * structured object output (strings stay on the legacy text channel).
  */
 
 import { z } from 'zod';
@@ -113,6 +113,8 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
   readonly name: string = 'Agent';
   readonly description: string;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(AgentToolInputSchema);
+  /** PRD-0031 2c：结构化输出契约（运行时校验；取代 drift-guard 注释）。 */
+  readonly outputSchema = AgentToolOutputSchema;
   private readonly allowBackground: boolean;
 
   constructor(

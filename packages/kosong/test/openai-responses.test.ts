@@ -363,6 +363,94 @@ describe('OpenAIResponsesChatProvider', () => {
       expect(reasoningItems[1]).toMatchObject({ encrypted_content: 'enc_2' });
     });
 
+    it('ThinkPart without encrypted (DeepSeek plaintext reasoning) echoes as native content[reasoning_text], not summary', async () => {
+      // Best practice: when the source reasoning carried no `encrypted` blob
+      // (DeepSeek Responses emits plaintext reasoning_text, no encrypted_content),
+      // echo it back in the provider's native `content` form rather than OpenAI's
+      // `summary` form. See docs/research/deepseek-api-format-4.md.
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'plaintext thought' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(1);
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        content: [{ type: 'reasoning_text', text: 'plaintext thought' }],
+      });
+    });
+
+    it('consecutive plaintext ThinkParts aggregate into one reasoning item with multiple content entries', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'first' },
+            { type: 'think', think: 'second' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(1);
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        content: [
+          { type: 'reasoning_text', text: 'first' },
+          { type: 'reasoning_text', text: 'second' },
+        ],
+      });
+    });
+
+    it('mixed encrypted and plaintext ThinkParts produce separate reasoning items in their native forms', async () => {
+      const provider = createProvider();
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Q' }], toolCalls: [] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'think', think: 'enc reasoning', encrypted: 'enc_blob' },
+            { type: 'think', think: 'plain reasoning' },
+            { type: 'text', text: 'answer' },
+          ],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      const input = body['input'] as Array<Record<string, unknown>>;
+      const reasoningItems = input.filter((item) => item['type'] === 'reasoning');
+      expect(reasoningItems).toHaveLength(2);
+      // Encrypted form: OpenAI summary + encrypted_content.
+      expect(reasoningItems[0]).toEqual({
+        type: 'reasoning',
+        summary: [{ type: 'summary_text', text: 'enc reasoning' }],
+        encrypted_content: 'enc_blob',
+      });
+      // Plaintext form: native content[reasoning_text].
+      expect(reasoningItems[1]).toEqual({
+        type: 'reasoning',
+        content: [{ type: 'reasoning_text', text: 'plain reasoning' }],
+      });
+    });
+
     it('toolMessageConversion=extract_text flattens tool result content to a plain string', async () => {
       const provider = new OpenAIResponsesChatProvider({
         model: 'gpt-4.1',
@@ -1081,6 +1169,90 @@ describe('OpenAIResponsesChatProvider', () => {
 
       expect(parts).toEqual([{ type: 'think', think: 'Thinking...' }]);
     });
+
+    it('non-stream reasoning with text in content (reasoning_text) and empty summary yields ThinkPart (DeepSeek shape)', async () => {
+      // DeepSeek Responses puts reasoning text in `output[].content[]` as
+      // `{type:"reasoning_text", text}` and leaves `summary` empty. The parser
+      // must fall back to content so reasoning is not lost.
+      const provider = createProvider();
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockResolvedValue({
+          id: 'resp_deepseek',
+          output: [
+            {
+              type: 'reasoning',
+              summary: [],
+              content: [
+                { type: 'reasoning_text', text: 'I should call get_weather for Shanghai.' },
+              ],
+            },
+            {
+              type: 'function_call',
+              id: 'fc_1',
+              call_id: 'call_1',
+              name: 'get_weather',
+              arguments: '{"city":"Shanghai"}',
+            },
+          ],
+          usage: {
+            input_tokens: 377,
+            input_tokens_details: { cached_tokens: 256 },
+            output_tokens: 68,
+            output_tokens_details: { reasoning_tokens: 22 },
+            total_tokens: 445,
+          },
+        });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'weather?' }], toolCalls: [] }],
+      );
+      const parts: StreamedMessagePart[] = [];
+      for await (const p of stream) parts.push(p);
+
+      expect(parts).toEqual([
+        { type: 'think', think: 'I should call get_weather for Shanghai.' },
+        {
+          type: 'function',
+          id: 'call_1',
+          name: 'get_weather',
+          arguments: '{"city":"Shanghai"}',
+        },
+      ]);
+    });
+
+    it('non-stream reasoning prefers summary when both summary and content are present (no duplication)', async () => {
+      // OpenAI shape: summary carries the text. content may also carry reasoning
+      // items (e.g. encrypted_content); summary must win to avoid duplicates.
+      const provider = createProvider();
+      (provider as any)._stream = false;
+      ((provider as any)._client.responses as unknown as Record<string, unknown>)['create'] = vi
+        .fn()
+        .mockResolvedValue({
+          id: 'resp_both',
+          output: [
+            {
+              type: 'reasoning',
+              summary: [{ type: 'summary_text', text: 'summary wins' }],
+              content: [{ type: 'reasoning_text', text: 'content fallback should NOT be used' }],
+            },
+          ],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        });
+
+      const stream = await provider.generate(
+        '',
+        [],
+        [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      );
+      const parts: StreamedMessagePart[] = [];
+      for await (const p of stream) parts.push(p);
+
+      expect(parts).toEqual([{ type: 'think', think: 'summary wins' }]);
+    });
   });
 
   describe('provider property accessors', () => {
@@ -1410,6 +1582,79 @@ describe('OpenAIResponsesChatProvider', () => {
         { type: 'think', think: '', encrypted: 'enc_xyz' },
         { type: 'text', text: '42' },
       ]);
+    });
+
+    it('streams reasoning text from response.reasoning_text.delta (DeepSeek shape)', async () => {
+      // DeepSeek Responses streams reasoning via `response.reasoning_text.delta`
+      // (text in `delta`), NOT `response.reasoning_summary_text.delta`. The
+      // output_item.done reasoning item carries the accumulated full text in
+      // `content` (which must NOT be re-emitted — it would duplicate the
+      // already-streamed deltas; the done marker stays an empty think).
+      const events = [
+        {
+          type: 'response.output_item.added',
+          item: { id: 'rs_1', type: 'reasoning' },
+          output_index: 0,
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          item_id: 'rs_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Thinking about ',
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          item_id: 'rs_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'the weather...',
+        },
+        {
+          type: 'response.output_item.done',
+          item: {
+            id: 'rs_1',
+            type: 'reasoning',
+            summary: [],
+            content: [{ type: 'reasoning_text', text: 'Thinking about the weather...' }],
+          },
+          output_index: 0,
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is 42.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_ds_stream',
+            usage: {
+              input_tokens: 377,
+              input_tokens_details: { cached_tokens: 256 },
+              output_tokens: 68,
+              output_tokens_details: { reasoning_tokens: 22 },
+              total_tokens: 445,
+            },
+          },
+        },
+      ];
+
+      const stream = new OpenAIResponsesStreamedMessage(makeAsyncIterable(events), true);
+
+      const parts: StreamedMessagePart[] = [];
+      for await (const part of stream) {
+        parts.push(part);
+      }
+
+      expect(parts).toEqual([
+        { type: 'think', think: 'Thinking about ' },
+        { type: 'think', think: 'the weather...' },
+        { type: 'think', think: '' },
+        { type: 'text', text: 'The answer is 42.' },
+      ]);
+      expect(stream.usage).toEqual({
+        inputOther: 121,
+        output: 68,
+        inputCacheRead: 256,
+        inputCacheCreation: 0,
+      });
     });
 
     it('stream.id is response.id, not output item id (tool call)', async () => {

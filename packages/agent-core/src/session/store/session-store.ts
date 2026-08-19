@@ -4,9 +4,18 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { z } from 'zod';
 
 import { ErrorCodes, ByfError } from '#/errors';
-import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
+import type {
+  JsonObject,
+  ListSessionsPayload,
+  SessionMetadataPatch,
+  SessionSummary,
+} from '#/rpc/core-api';
 import type { SessionIndexEntry } from '#/session/store/session-index';
-import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
+import {
+  appendSessionIndexEntry,
+  readSessionIndex,
+  rewriteSessionIndex,
+} from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
 
 const SessionSummaryStateSchema = z.object({
@@ -14,6 +23,8 @@ const SessionSummaryStateSchema = z.object({
   isCustomTitle: z.boolean().optional(),
   lastPrompt: z.string().optional(),
   title: z.string().optional(),
+  pinned: z.boolean().optional(),
+  archived: z.boolean().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -159,6 +170,33 @@ export class SessionStore {
     await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
   }
 
+  /**
+   * Merge a metadata patch into state.json for a persisted (possibly inactive)
+   * session. Mirrors `rename`：保留未识别键，仅覆盖 patch 中出现的顶层字段。
+   */
+  async updateMetadata(id: string, patch: SessionMetadataPatch): Promise<void> {
+    const entry = await this.findExistingSessionEntry(id);
+    const statePath = join(entry.sessionDir, 'state.json');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
+    } catch (error) {
+      throw new ByfError(
+        ErrorCodes.SESSION_STATE_NOT_FOUND,
+        `Session "${id}" state.json was not found`,
+        { cause: error },
+      );
+    }
+    if (!isRecord(parsed)) {
+      throw new ByfError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
+    }
+    const next: Record<string, unknown> = {
+      ...parsed,
+      ...(patch as Record<string, unknown>),
+    };
+    await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
+  }
+
   async list(options: ListSessionsPayload): Promise<readonly SessionSummary[]> {
     const workDir = normalizeWorkDir(options.workDir);
     const bucketDir = join(this.sessionsDir, encodeWorkDirKey(workDir));
@@ -183,6 +221,16 @@ export class SessionStore {
 
   async assertDirectory(id: string): Promise<string> {
     return (await this.findExistingSessionEntry(id)).sessionDir;
+  }
+
+  /** 删除会话目录并原子重建 session_index.jsonl（PRD-0035 R-A2；
+   *  原 vis 只 `rm` 目录不重建 index，会残留失效条目）。
+   *  busy 判定（live Session / 运行中后台任务）不属于本类——core 不持有
+   *  进程内实例表，由 SDK harness 在调用前检查（见 node-sdk）。 */
+  async delete(id: string): Promise<void> {
+    const entry = await this.findExistingSessionEntry(id);
+    await rm(entry.sessionDir, { recursive: true, force: true });
+    await rewriteSessionIndex(this.homeDir, this.sessionsDir, (e) => e.sessionId !== id);
   }
 
   private async findSessionEntry(id: string): Promise<SessionIndexEntry | undefined> {
@@ -237,6 +285,9 @@ export class SessionStore {
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: Object.assign({}, isRecord(parsed['custom']) ? parsed['custom'] : {}, input.metadata),
     };
+    // fork 是新会话：不继承源会话的置顶/归档标记（否则分叉归档会话会立即不可见）。
+    delete next['pinned'];
+    delete next['archived'];
     await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
   }
 
@@ -265,6 +316,8 @@ export class SessionStore {
       ),
       title: titleFromState(state),
       lastPrompt: state?.lastPrompt,
+      pinned: state?.pinned,
+      archived: state?.archived,
       metadata: metadataFromState(state),
     };
   }

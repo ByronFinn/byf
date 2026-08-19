@@ -1,0 +1,78 @@
+import { useState } from 'react';
+
+import { CopyButton } from './CopyButton';
+
+interface ImagePreviewProps {
+  url: string;
+  /** Optional label rendered as the header chip (e.g. `image_url`). */
+  label?: string;
+}
+
+/** 图片 ContentPart URL 的内联预览。
+ *  对 `data:image/*` 与 `http(s)://` URL 渲染真实 `<img>`;
+ *  任何其他 scheme 回退为原始 URL。
+ *  点击「expand」把高度上限提升到 80vh;点击「open in tab」
+ *  在新浏览器标签页查看完整资产。 */
+export function ImagePreview({ url, label = 'image_url' }: ImagePreviewProps) {
+  const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const supported = url.startsWith('data:image/') || /^https?:\/\//.test(url);
+  const sizeLabel = url.startsWith('data:image/')
+    ? `${url.length.toLocaleString()} chars`
+    : new URL(url, window.location.href).hostname;
+
+  if (!supported) {
+    return (
+      <div className="border border-border bg-surface-0 p-2">
+        <div className="mb-1 font-mono text-[10px] text-fg-3">{label} (unsupported scheme)</div>
+        <span className="break-all font-mono text-[12px] text-fg-1">{url}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border bg-surface-0 p-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] text-fg-3">
+          {label}
+          <span className="ml-2 text-fg-3">· {sizeLabel}</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <CopyButton value={url} label="copy url" />
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[10px] text-fg-3 hover:text-fg-1"
+          >
+            open in tab ↗
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen((v) => !v);
+            }}
+            className="font-mono text-[10px] text-fg-3 hover:text-fg-1"
+          >
+            {open ? 'shrink' : 'expand'}
+          </button>
+        </span>
+      </div>
+      {failed ? (
+        <div className="font-mono text-[11px] text-[var(--color-sev-error)]">
+          failed to load image
+        </div>
+      ) : (
+        <img
+          src={url}
+          alt="content image"
+          loading="lazy"
+          onError={() => {
+            setFailed(true);
+          }}
+          className={'block max-w-full object-contain ' + (open ? 'max-h-[80vh]' : 'max-h-[220px]')}
+        />
+      )}
+    </div>
+  );
+}

@@ -224,4 +224,4 @@ metadata       → 特殊处理（直接返回）
 
 ### 相关 ADR
 
-- [ADR 0010: AgentRecords 恢复机制重构](/docs/adr/0010-agent-records-restoration-refactoring.md)
+- [ADR 0010: AgentRecords 恢复机制重构](../adr/0010-agent-records-restoration-refactoring.md)

@@ -1,0 +1,69 @@
+import type { AgentRecord } from '#/types';
+
+import type { PillTone } from '../shared/Pill';
+
+type RecordType = AgentRecord['type'];
+
+/** 每种记录类型的视觉色调。 */
+export const TYPE_TONE: Record<RecordType, PillTone> = {
+  metadata: 'meta',
+  'config.update': 'config',
+  'turn.prompt': 'turn',
+  'turn.steer': 'turn',
+  'turn.cancel': 'warning',
+  'context.append_message': 'assistant',
+  'context.append_loop_event': 'meta',
+  'context.cache_churn': 'meta',
+  'context.mark_last_user_prompt_blocked': 'warning',
+  'context.observation_masking': 'warning',
+  'context.output_offloaded': 'meta',
+  'context.pruning': 'warning',
+  'context.clear': 'warning',
+  'context.apply_compaction': 'compaction',
+  'tools.register_user_tool': 'tools',
+  'tools.unregister_user_tool': 'tools',
+  'tools.set_active_tools': 'tools',
+  'tools.update_store': 'meta',
+  'permission.set_mode': 'approval',
+  'permission.record_approval_result': 'approval',
+  'usage.record': 'meta',
+  'full_compaction.begin': 'compaction',
+  'full_compaction.cancel': 'warning',
+  'full_compaction.complete': 'success',
+  'background.stop': 'warning',
+  'goal.create': 'success',
+  'goal.update': 'meta',
+  'goal.clear': 'warning',
+};
+
+/** 每种记录类型的紧凑人类标签(用于类型徽章)。 */
+export const TYPE_LABEL: Record<RecordType, string> = {
+  metadata: 'meta',
+  'config.update': 'config',
+  'turn.prompt': 'prompt',
+  'turn.steer': 'steer',
+  'turn.cancel': 'cancel',
+  'context.append_message': 'message',
+  'context.append_loop_event': 'loop',
+  'context.cache_churn': 'churn',
+  'context.mark_last_user_prompt_blocked': 'blocked',
+  'context.observation_masking': 'mask',
+  'context.output_offloaded': 'offload',
+  'context.pruning': 'pruned',
+  'context.clear': 'clear',
+  'context.apply_compaction': 'compacted',
+  'tools.register_user_tool': 'tool+',
+  'tools.unregister_user_tool': 'tool-',
+  'tools.set_active_tools': 'tools',
+  'tools.update_store': 'store',
+  'permission.set_mode': 'perm',
+  'permission.record_approval_result': 'approval',
+  'usage.record': 'usage',
+  'full_compaction.begin': 'compact↻',
+  'full_compaction.cancel': 'compact×',
+  'full_compaction.complete': 'compact✓',
+  'background.stop': 'bg-stop',
+  'goal.create': 'goal+',
+  'goal.update': 'goal',
+  'goal.clear': 'goal-',
+};

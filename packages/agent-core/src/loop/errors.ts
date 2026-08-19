@@ -1,5 +1,5 @@
 /**
- * Loop-local error helpers.
+ * Loop 局部的错误辅助工具。
  */
 
 import { isAbortError } from '@byfriends/kosong';

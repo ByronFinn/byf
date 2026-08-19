@@ -1,20 +1,19 @@
 /**
- * ReadGroupComponent renders 2+ Read tool calls from the same step as one group.
+ * ReadGroupComponent 把同一步骤中的 2+ 个 Read 工具调用渲染为一组。
  *
- * It follows the same structure as `AgentGroupComponent`, with a smaller
- * surface:
- * - one summary header and a tree body listing each file path and status;
- * - permanently grouped, while the body remains visible;
- * - 200ms throttling, matching AgentGroup;
- * - state stays in each `ToolCallComponent`; the group only reads snapshots.
+ * 它遵循 `AgentGroupComponent` 的相同结构,表面更小:
+ * - 一个摘要头 + 列出各文件路径与状态的树形主体;
+ * - 永久分组,主体保持可见;
+ * - 200ms 节流,与 AgentGroup 一致;
+ * - 状态留在各 `ToolCallComponent`;组只读取快照。
  *
- * Header forms:
+ * 头部形式:
  *   pending > 0: Reading {N} files
  *   all done:    Read {N} files · {L} lines
  *   some failed: append · {F} failed
  *   all failed:  Read {N} files · failed
  *
- * Body lines follow AgentGroup's branch style:
+ * 主体行遵循 AgentGroup 的分支样式:
  *   src/main.ts · 51 lines
  *   src/cli.ts · reading
  *   src/missing.ts · failed

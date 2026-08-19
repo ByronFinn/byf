@@ -1,8 +1,8 @@
 /**
- * Diff preview rendering as plain ANSI strings.
+ * 以纯 ANSI 字符串渲染 diff 预览。
  *
- * Reuses the diff algorithm from approval/DiffPreview.tsx, but outputs
- * formatted text lines instead of React elements.
+ * 复用 approval/DiffPreview.tsx 的 diff 算法,但输出格式化文本行
+ * 而非 React 元素。
  */
 
 import chalk from 'chalk';
@@ -222,13 +222,12 @@ function formatDiffRow(line: DiffLine, s: DiffStyles): string {
 }
 
 /**
- * Render a diff with surrounding context, eliding unchanged middle
- * regions between change clusters with a `… N unchanged lines …`
- * separator. When `maxLines` is set, the body is capped at a cluster
- * boundary and a `ctrl+o to expand` footer is appended.
+ * 渲染带周围上下文的 diff,用 `… N unchanged lines …` 分隔符省略变更簇
+ * 之间未变的中间区域。设置 `maxLines` 时,主体在簇边界处封顶,
+ * 并追加 `ctrl+o to expand` 页脚。
  *
- * Used by Edit's call preview where we want to show *what changed*
- * with enough context to read the change, but not the whole file.
+ * 用于 Edit 的调用预览——我们希望展示*变更了什么*,并带足够上下文
+ * 读懂变更,但不需要整个文件。
  */
 export function renderDiffLinesClustered(
   oldText: string,

@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('ContextMemory restore handler', () => {
-  describe('restoreRecord method', () => {
+  describe('restore path (Phase 5：context.* 已注册 Op，单条 restore = dispatch apply + handleReplayRecord 副作用)', () => {
     it('should restore context.append_message records', () => {
-      const { agent } = testAgent();
-
-      // Ensure context implements RecordRestoreHandler
-      const context = agent.context as unknown as RecordRestoreHandler;
+      const ctx = testAgent();
 
       const testRecord: AgentRecord = {
         type: 'context.append_message',
@@ -23,11 +19,11 @@ describe('ContextMemory restore handler', () => {
       };
 
       expect(() => {
-        context.restoreRecord(testRecord);
+        ctx.dispatch(testRecord);
       }).not.toThrow();
 
       // Verify the message was restored
-      const history = agent.context.history;
+      const history = ctx.agent.context.history;
       expect(history).toHaveLength(1);
       expect(history[0]).toMatchObject({
         role: 'user',
@@ -36,44 +32,40 @@ describe('ContextMemory restore handler', () => {
     });
 
     it('should restore context.clear records', () => {
-      const { agent } = testAgent();
+      const ctx = testAgent();
 
       // Add some initial context
-      agent.context.appendMessage({
+      ctx.agent.context.appendMessage({
         role: 'user',
         content: [{ type: 'text', text: 'initial message' }],
         toolCalls: [],
       });
 
-      expect(agent.context.history).toHaveLength(1);
-
-      const context = agent.context as unknown as RecordRestoreHandler;
+      expect(ctx.agent.context.history).toHaveLength(1);
 
       const clearRecord: AgentRecord = {
         type: 'context.clear',
       };
 
-      context.restoreRecord(clearRecord);
+      ctx.dispatch(clearRecord);
 
       // Verify the context was cleared
-      expect(agent.context.history).toHaveLength(0);
+      expect(ctx.agent.context.history).toHaveLength(0);
     });
 
     it('should restore context.apply_compaction records', () => {
-      const { agent } = testAgent();
+      const ctx = testAgent();
 
       // Add some initial context
       for (let i = 0; i < 5; i++) {
-        agent.context.appendMessage({
+        ctx.agent.context.appendMessage({
           role: 'user',
           content: [{ type: 'text', text: `message ${i}` }],
           toolCalls: [],
         });
       }
 
-      expect(agent.context.history).toHaveLength(5);
-
-      const context = agent.context as unknown as RecordRestoreHandler;
+      expect(ctx.agent.context.history).toHaveLength(5);
 
       const compactionRecord: AgentRecord = {
         type: 'context.apply_compaction',
@@ -83,38 +75,37 @@ describe('ContextMemory restore handler', () => {
         tokensAfter: 100,
       };
 
-      context.restoreRecord(compactionRecord);
+      ctx.dispatch(compactionRecord);
 
       // Verify compaction was applied - should have summary + remaining messages
-      expect(agent.context.history.length).toBeGreaterThanOrEqual(1);
-      expect(agent.context.history[0]).toMatchObject({
+      expect(ctx.agent.context.history.length).toBeGreaterThanOrEqual(1);
+      expect(ctx.agent.context.history[0]).toMatchObject({
         role: 'assistant',
         content: [{ type: 'text', text: 'Compacted summary' }],
       });
+      expect(ctx.agent.context.history).toHaveLength(3);
     });
 
     it('should restore context.mark_last_user_prompt_blocked records', () => {
-      const { agent } = testAgent();
+      const ctx = testAgent();
 
       // Add a user message
-      agent.context.appendMessage({
+      ctx.agent.context.appendMessage({
         role: 'user',
         content: [{ type: 'text', text: 'user message' }],
         toolCalls: [],
         origin: { kind: 'user' },
       });
 
-      const context = agent.context as unknown as RecordRestoreHandler;
-
       const blockedRecord: AgentRecord = {
         type: 'context.mark_last_user_prompt_blocked',
         hookEvent: 'test-hook',
       };
 
-      context.restoreRecord(blockedRecord);
+      ctx.dispatch(blockedRecord);
 
       // Verify the last user prompt was marked as blocked
-      const history = agent.context.history;
+      const history = ctx.agent.context.history;
       expect(history.at(-1)).toMatchObject({
         role: 'user',
         origin: {
@@ -124,10 +115,8 @@ describe('ContextMemory restore handler', () => {
       });
     });
 
-    it('should restore context.observation_masking records', () => {
-      const { agent } = testAgent();
-
-      const context = agent.context as unknown as RecordRestoreHandler;
+    it('should restore context.observation_masking records (legacyRoute)', () => {
+      const ctx = testAgent();
 
       const maskingRecord: AgentRecord = {
         type: 'context.observation_masking',
@@ -137,7 +126,7 @@ describe('ContextMemory restore handler', () => {
       };
 
       expect(() => {
-        context.restoreRecord(maskingRecord);
+        ctx.dispatch(maskingRecord);
       }).not.toThrow();
     });
   });

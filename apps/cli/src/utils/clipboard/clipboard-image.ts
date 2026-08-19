@@ -1,11 +1,10 @@
 /**
- * Read media from the system clipboard with graceful platform fallbacks.
+ * 从系统剪贴板读取媒体,带优雅的平台回退。
  *
- * byf-core's LLM pipeline only accepts PNG/JPEG/GIF/WebP, and the
- * clipboard sources we query already emit those formats on supported
- * platforms — so we deliberately do not include a BMP→PNG converter.
+ * byf-core 的 LLM 管线只接受 PNG/JPEG/GIF/WebP,而我们查询的剪贴板源
+ * 在受支持平台上已输出这些格式——因此刻意不包含 BMP→PNG 转换器。
  *
- * Lookup order:
+ * 查找顺序:
  *   macOS file clipboard       -> osascript/AppKit file URLs
  *   macOS / Windows            -> native `@mariozechner/clipboard`
  *   Linux Wayland              -> wl-paste

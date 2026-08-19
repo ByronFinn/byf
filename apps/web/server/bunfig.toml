@@ -1,0 +1,9 @@
+# Bun configuration for @byfriends/web-server dev/test runs.
+# Bun reads bunfig.toml only from the exact cwd (no parent lookup), so the
+# raw-text loader is declared here. See ../../bunfig.toml for the rationale.
+[loader]
+".md" = "text"
+".yaml" = "text"
+
+[test]
+preload = ["../../../build/test-preload.ts"]

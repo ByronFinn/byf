@@ -1,0 +1,534 @@
+@import 'tailwindcss';
+
+/*
+  byf web 工作台设计 token —— 统一设计 token（PRD-0035 R-C1 / ADR-0037 D6）。
+  视觉范本：deepseek-harness 精致风（have-a-try 2026-08-17 裁决选 B），自研
+  token 化实现（不照搬 CSS Modules）。三层结构沿用：
+    Layer 1 原始色板 —— @theme 静态注册（deepseek 蓝品牌 / bluish 中性阶 / 状态色）;
+    Layer 2 语义别名 —— 深色为基线(:root),浅色 AA 覆盖(:root.theme-light);
+    Layer 3 组件专用 —— bubble / sidebar / input 等组件级组合。
+  emerald 品牌色已移除（/grill 决议）;cat-* 事件类别色供 Inspector 调试视图
+  （Trace/Context/Agents/State）使用,不作主品牌。
+  boot 脚本(index.html)保证 theme-dark / theme-light 恒有一个;shadcn 的
+  `dark:` 变体以 .theme-dark 类为准。
+*/
+@custom-variant dark (&:is(.theme-dark, .theme-dark *));
+
+/* ═══════════════ Layer 1 · 原始色板(与语义无关) ═══════════════ */
+@theme {
+  /* 中文友好字体栈 */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, Menlo, monospace;
+
+  /* 字号 token(xs..xl,聊天 UI 密度——更舒展的正文/次级) */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.65;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.6;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.45;
+
+  /* 圆角派生:deepseek 精致风 8-12px(--radius → sm/md/lg/xl) */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* 动效曲线(三档时长见 :root --duration-*) */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 品牌 deepseek 蓝(替代 byf emerald;ADR-0037 D6)。向 deepseek 签名色
+     #4D6BFE 校准(≈oklch(0.58 0.2 273)):提高饱和、色相偏紫,更贴合精致蓝。 */
+  --color-blue-300: oklch(0.78 0.14 270);
+  --color-blue-400: oklch(0.68 0.17 272);
+  --color-blue-450: oklch(0.6 0.2 273);
+  --color-blue-500: oklch(0.55 0.21 273);
+  --color-blue-600: oklch(0.48 0.2 273);
+  --color-blue-700: oklch(0.42 0.18 273);
+  --color-blue-800: oklch(0.36 0.15 273);
+
+  /* 中性(轻微蓝调,对标 deepseek neutral-bluish) */
+  --color-neutral-0: oklch(1 0 0);
+  --color-neutral-50: oklch(0.985 0.002 255);
+  --color-neutral-100: oklch(0.97 0.003 255);
+  --color-neutral-200: oklch(0.92 0.004 255);
+  --color-neutral-300: oklch(0.86 0.005 255);
+  --color-neutral-400: oklch(0.7 0.007 255);
+  --color-neutral-500: oklch(0.55 0.008 255);
+  --color-neutral-600: oklch(0.42 0.008 255);
+  --color-neutral-700: oklch(0.32 0.008 255);
+  --color-neutral-750: oklch(0.28 0.007 255);
+  --color-neutral-800: oklch(0.24 0.006 255);
+  --color-neutral-850: oklch(0.2 0.006 255);
+  --color-neutral-900: oklch(0.17 0.006 255);
+  --color-neutral-950: oklch(0.145 0.006 255);
+
+  /* Inspector 调试视图兼容别名(自 vis 主题迁入,PRD-0035 R-C1/R-B7):
+     surface-0 = 最深底 / fg-0..3 = 文字四级,映射到统一 token 体系,
+     使迁移的 vis 组件 class(bg-surface-0/text-fg-1 等)原样可用。 */
+  --color-surface-0: var(--bg);
+  --color-fg-0: var(--fg);
+  --color-fg-1: var(--fg-muted);
+  --color-fg-2: var(--fg-subtle);
+  --color-fg-3: color-mix(in oklab, var(--fg-subtle) 60%, transparent);
+
+  /* 状态色(浅色主题的 AA 变体用 *-700;red-600 例外,浅色下已达标) */
+  --color-amber-500: oklch(0.76 0.16 70);
+  --color-amber-700: oklch(0.55 0.13 65);
+  --color-red-500: oklch(0.62 0.21 25);
+  --color-red-600: oklch(0.55 0.2 27);
+  --color-red-700: oklch(0.48 0.19 27);
+  --color-sky-500: oklch(0.68 0.14 230);
+  --color-sky-700: oklch(0.52 0.12 235);
+
+  /* Inspector 事件类别色(cat-*;PRD-0035 R-C1,调试视图语义色,非主品牌) */
+  --color-cat-conversation: oklch(0.78 0.12 210);
+  --color-cat-config: oklch(0.7 0.17 290);
+  --color-cat-lifecycle: oklch(0.72 0.01 255);
+  --color-cat-subagent: oklch(0.68 0.2 290);
+  --color-cat-approval: oklch(0.75 0.17 45);
+  --color-cat-ephemeral: oklch(0.85 0.15 95);
+  --color-cat-meta: oklch(0.65 0.19 270);
+  --color-cat-tools: oklch(0.78 0.16 75);
+  /* 会话流子族(Inspector wire 时间线) */
+  --color-user: oklch(0.68 0.14 240);
+  --color-assistant: oklch(0.78 0.12 210);
+  --color-tool: oklch(0.78 0.16 75);
+  --color-compaction: oklch(0.72 0.17 40);
+  --color-turn: oklch(0.72 0.14 185);
+}
+
+/* ═══════════════ Layer 2 · 语义别名(深色基线) ═══════════════
+   文字 token 均按 WCAG AA 验证(fg 15.1:1 / muted 6.3:1 / subtle 4.1↑)。 */
+:root {
+  color-scheme: dark;
+
+  --bg: var(--color-neutral-950);
+  --surface-1: var(--color-neutral-900);
+  --surface-2: var(--color-neutral-850);
+  --surface-3: var(--color-neutral-800);
+
+  --fg: var(--color-neutral-200);
+  --fg-muted: oklch(0.68 0.008 255);
+  --fg-subtle: oklch(0.62 0.008 255);
+
+  --border: oklch(0.3 0.008 255 / 0.45);
+  --border-strong: oklch(0.3 0.008 255 / 0.8);
+
+  --hover: oklch(0.55 0.01 255 / 0.12);
+  --active: oklch(0.55 0.01 255 / 0.2);
+
+  /* 品牌 = deepseek 蓝(替代 emerald;ADR-0037 D6) */
+  --brand: var(--color-blue-450);
+  --brand-strong: var(--color-blue-400);
+  --on-brand: var(--color-neutral-950);
+
+  --state-success: oklch(0.72 0.15 155);
+  --state-warning: var(--color-amber-500);
+  --state-error: var(--color-red-500);
+  --state-info: var(--color-sky-500);
+
+  /* solid 色块上的文字色(Pill solid 等):深色主题底色(cat-* 多为浅色调)用
+     深字,浅色主题覆盖为白字。对比度经 WCAG 数值验证(have-a-try 2026-08-19:
+     深色 5.9–12.6:1 / 浅色 ≥4.5:1)。 */
+  --color-on-accent: var(--color-neutral-950);
+  /* severity 语义色别名:Inspector 组件经 var(--color-sev-*) 引用(自 vis 迁移
+     的遗留命名)。映射到 state-*;var 引用按主题动态解析,:root 一层即可。 */
+  --color-sev-error: var(--state-error);
+  --color-sev-warning: var(--state-warning);
+  --color-sev-success: var(--state-success);
+  --color-sev-info: var(--state-info);
+
+  /* elevation 3 级(deepseek 分层阴影:柔和、低透明度) */
+  --elev-1: 0 1px 2px oklch(0 0 0 / 0.25);
+  --elev-2: 0 2px 8px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.2);
+  --elev-3: 0 8px 28px oklch(0 0 0 / 0.4), 0 2px 8px oklch(0 0 0 / 0.24);
+
+  /* 代码块(随主题切换:浅色用浅底深字,token 色经 shiki 双主题变量切换) */
+  --code-bg: oklch(0.16 0.006 255);
+  --code-fg: oklch(0.68 0.008 255);
+
+  /* 动效三档时长 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* 窄屏导航 overlay 的遮罩(深浅主题同值) */
+  --scrim: oklch(0 0 0 / 0.5);
+}
+
+/* 浅色覆盖:每个语义 token 给 AA 对比变体。 */
+:root.theme-light {
+  color-scheme: light;
+
+  --bg: var(--color-neutral-50);
+  --surface-1: var(--color-neutral-0);
+  --surface-2: var(--color-neutral-100);
+  --surface-3: var(--color-neutral-200);
+
+  --fg: oklch(0.18 0.006 255);
+  --fg-muted: oklch(0.45 0.01 255);
+  --fg-subtle: oklch(0.5 0.01 255);
+
+  --border: oklch(0.85 0.006 255);
+  --border-strong: oklch(0.75 0.006 255);
+
+  --hover: oklch(0.55 0.01 255 / 0.06);
+  --active: oklch(0.55 0.01 255 / 0.1);
+
+  --brand: var(--color-blue-600);
+  --brand-strong: var(--color-blue-700);
+  --on-brand: var(--color-neutral-0);
+
+  --state-success: oklch(0.5 0.13 155);
+  --state-warning: var(--color-amber-700);
+  --state-error: var(--color-red-600);
+  --state-info: var(--color-sky-700);
+
+  /* solid 色块文字色:浅色主题底色(cat-* 为深色调)用白字 */
+  --color-on-accent: var(--color-neutral-0);
+
+  --elev-1: 0 1px 2px oklch(0.2 0.02 255 / 0.06);
+  --elev-2: 0 2px 8px oklch(0.2 0.02 255 / 0.08), 0 1px 3px oklch(0.2 0.02 255 / 0.06);
+  --elev-3: 0 8px 28px oklch(0.2 0.02 255 / 0.1);
+
+  /* 代码块浅色变体:浅底(neutral-100,近 GitHub light #f6f8fa)+ 深字 */
+  --code-bg: var(--color-neutral-100);
+  --code-fg: var(--color-neutral-700);
+
+  /* Inspector cat-* 浅色 AA 变体(ephemeral 0.6→0.55:白字 3.9→5.1:1) */
+  --color-cat-conversation: oklch(0.5 0.13 235);
+  --color-cat-config: oklch(0.5 0.16 290);
+  --color-cat-lifecycle: oklch(0.48 0.02 255);
+  --color-cat-subagent: oklch(0.5 0.2 290);
+  --color-cat-approval: oklch(0.55 0.17 40);
+  --color-cat-ephemeral: oklch(0.55 0.15 95);
+  --color-cat-meta: oklch(0.48 0.18 270);
+  --color-cat-tools: oklch(0.55 0.16 70);
+  --color-user: oklch(0.42 0.13 240);
+  --color-assistant: oklch(0.5 0.13 235);
+  --color-tool: oklch(0.55 0.16 70);
+  --color-compaction: oklch(0.55 0.17 40);
+  --color-turn: oklch(0.48 0.13 185);
+}
+
+/* ═══════════════ Layer 3 · 组件专用 ═══════════════ */
+:root {
+  --bubble: var(--color-blue-500);
+  --bubble-fg: var(--color-neutral-950);
+  --sidebar-fill: var(--surface-1);
+  --input-fill: var(--surface-2);
+}
+
+:root.theme-light {
+  --bubble: var(--color-blue-600);
+  --bubble-fg: var(--color-neutral-0);
+}
+
+/* Pill 基类:所有「色块」标签的底座(have-a-try 2026-08-19 裁决:圆角胶囊)。
+   底色/文字色由组件 inline style 按 tone 提供,这里只管形状与排版;
+   此前基类缺失导致色块无内边距无圆角。 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ═══ shadcn 语义 token 桥(ADR 0035 D1:在 token 层抹平 shadcn zinc 底)═══
+   shadcn 组件引用 --background / --primary 等语义名,这里全部映射到我们的
+   Layer 2,随主题自动切换,不引入 shadcn 默认调色板。 */
+:root {
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface-1);
+  --card-foreground: var(--fg);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: var(--on-brand);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--fg);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--hover);
+  --accent-foreground: var(--fg);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--color-neutral-0);
+  --input: var(--border-strong);
+  --ring: var(--brand);
+}
+
+/* 语义 token → Tailwind 工具类(bg-bg / text-fg-muted / shadow-2 …)。 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-on-brand: var(--on-brand);
+  --color-state-success: var(--state-success);
+  --color-state-warning: var(--state-warning);
+  --color-state-error: var(--state-error);
+  --color-state-info: var(--state-info);
+  --color-bubble: var(--bubble);
+  --color-bubble-fg: var(--bubble-fg);
+  --color-sidebar: var(--sidebar-fill);
+  --color-input-fill: var(--input-fill);
+  --color-code: var(--code-bg);
+  --color-code-fg: var(--code-fg);
+  --color-scrim: var(--scrim);
+  --shadow-1: var(--elev-1);
+  --shadow-2: var(--elev-2);
+  --shadow-3: var(--elev-3);
+  /* cat-* 事件类别色已在 @theme 静态注册(:root 输出),浅色覆盖见
+     :root.theme-light——工具类(bg-cat-tools 等)经 var() 引用随主题切换。 */
+  /* shadcn 语义名 → 工具类(bg-background / text-foreground / ring-ring …) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* 窄屏 overlay 侧边栏滑入(prefers-reduced-motion 时退化为无动画) */
+@media (prefers-reduced-motion: no-preference) {
+  .overlay-in {
+    animation: overlay-in var(--duration-slow) var(--ease-smooth);
+  }
+  @keyframes overlay-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+}
+
+/* 详情侧滑抽屉(DetailsDrawer,agent-0/shadcn Sheet 形态):贴边满高、
+   border-l + shadow-3 分层(无遮罩,主窗口保持可操作)。入场减速
+   (--ease-smooth)、退场加速离开且更快(duration-base);收起态
+   pointer-events:none 保证退场/隐藏期间绝不挡主窗口。
+   prefers-reduced-motion 时退化为直接显隐。 */
+.drawer-panel {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.drawer-panel[data-open='true'] {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-panel[data-open='true'] {
+    transition:
+      transform var(--duration-slow) var(--ease-smooth),
+      opacity var(--duration-base) var(--ease-smooth);
+  }
+  .drawer-panel[data-open='false'] {
+    transition:
+      transform var(--duration-base) cubic-bezier(0.55, 0, 0.85, 0.6),
+      opacity var(--duration-fast) linear;
+  }
+}
+
+/* ═══════════════ base ═══════════════ */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition:
+      background-color var(--duration-base) var(--ease-smooth),
+      color var(--duration-base) var(--ease-smooth);
+  }
+}
+
+/* Scrollbar(thin,token 着色) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--fg-subtle);
+  background-clip: padding-box;
+}
+
+::selection {
+  background-color: color-mix(in oklab, var(--brand) 30%, transparent);
+  color: var(--fg);
+}
+
+:where(input:not([type='checkbox']):not([type='radio']), textarea, select):focus {
+  /* 文本类表单控件自身已用 focus:border-brand + 品牌 caret 标注焦点(对齐
+     deepseek:harnes 的 input/textarea)。不再叠加全局 focus-visible 描边,
+     否则输入/搜索时会出现「双线」。checkbox/radio/button/link 仍走下方描边。 */
+  outline: none;
+}
+:where(
+  a,
+  button,
+  [role='button'],
+  [tabindex]:not(input):not(textarea):not(select),
+  input[type='checkbox'],
+  input[type='radio']
+):focus-visible {
+  outline: 1px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* 控件重置放进 base 层,让工具类(px-* 等)在 cascade 中胜出。 */
+@layer base {
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* ═══════════════ Markdown 渲染 ═══════════════ */
+
+/* Shiki 输出的 pre 带 inline 背景,用我们的 --code-bg token 覆盖。 */
+.codeblock-highlight pre.shiki {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  background-color: var(--code-bg) !important;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+.codeblock-highlight pre.shiki code {
+  font-family: var(--font-mono);
+}
+/* 双主题 token:highlighter 以 CSS 变量输出两侧颜色(不内联),这里按
+   <html> 主题类取用——深色是基线,浅色经 :root.theme-light 覆盖。
+   切换主题只走 CSS,无需重新高亮。 */
+.codeblock-highlight pre.shiki span {
+  color: var(--shiki-dark);
+}
+:root.theme-light .codeblock-highlight pre.shiki span {
+  color: var(--shiki-light);
+}
+
+.md {
+  font-size: var(--text-base);
+  line-height: 1.7;
+}
+.md > :not(:last-child) {
+  margin-bottom: 0.75rem;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 600;
+  margin-top: 0.4rem;
+  line-height: 1.3;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.md pre {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background-color: var(--code-bg);
+  padding: 0.75rem;
+  font-size: var(--text-sm);
+}
+.md code {
+  font-family: var(--font-mono);
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md code:not(pre code) {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface-3);
+  color: var(--brand-strong);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+.md blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 0.75rem;
+  color: var(--fg-muted);
+}
+.md table {
+  border-collapse: collapse;
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}

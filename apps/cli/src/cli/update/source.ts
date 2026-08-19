@@ -8,9 +8,9 @@ import { isNativePackagedBinary } from '#/native/standalone';
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 
 /**
- * True when running as a packaged native binary.
- * Primary: Bun `bun build --compile` (Bun.main under `/$bunfs/`).
- * Also recognizes legacy Node SEA binaries if `node:sea` reports isSea().
+ * 以打包原生二进制运行时为 true。
+ * 主路径:Bun `bun build --compile`(Bun.main 位于 `/$bunfs/` 下)。
+ * 若 `node:sea` 报告 isSea(),也识别遗留 Node SEA 二进制。
  */
 export function detectNativeInstall(): boolean {
   return isNativePackagedBinary();
@@ -27,9 +27,8 @@ function normalizeForHeuristic(filePath: string): string {
 }
 
 /**
- * Heuristic classification by package root path segments. Returns the
- * matching `InstallSource` or `null` if no heuristic matches (caller should
- * fall through to npm-prefix comparison).
+ * 按包根路径段做启发式分类。返回匹配的 `InstallSource`;无启发式匹配时
+ * 返回 `null`(调用方应回退到 npm 前缀比较)。
  */
 export function classifyByPathHeuristic(packageRoot: string): InstallSource | null {
   const normalized = normalizeForHeuristic(packageRoot);
@@ -42,8 +41,8 @@ export function classifyByPathHeuristic(packageRoot: string): InstallSource | nu
 }
 
 /**
- * True when the binary/path lives under a package-manager `node_modules` tree
- * for `@byfriends/cli` (main package or platform optionalDep package).
+ * 二进制 / 路径位于 `@byfriends/cli` 的包管理器 `node_modules` 树
+ * (主包或平台 optionalDep 包)下时为 true。
  */
 export function isUnderCliNodeModules(filePath: string): boolean {
   return normalizeForHeuristic(filePath).includes(NODE_MODULES_CLI_SEGMENT);
@@ -62,8 +61,8 @@ function binFieldLooksLikeLegacyJs(bin: string | Record<string, string> | undefi
 }
 
 /**
- * Legacy npm-global JS layout: bin still points at the Node-interpreted
- * `dist/main.mjs` entry (pre-optionalDep packaging).
+ * 遗留 npm-global JS 布局:bin 仍指向 Node 解释执行的 `dist/main.mjs`
+ * 入口(optionalDep 打包之前)。
  */
 export function isLegacyJsGlobalLayout(packageRoot: string): boolean {
   const mainEntry = join(packageRoot, 'dist', 'main.mjs');
@@ -153,9 +152,9 @@ export function classifyInstallSource(
 }
 
 /**
- * When the process is a compile/SEA binary, decide whether it was launched
- * from an npm optionalDep layout (node_modules tree or launcher env) vs a
- * true GitHub Release / install.sh install.
+ * 当进程是 compile/SEA 二进制时,判定它来自 npm optionalDep 布局
+ * (node_modules 树或启动器 env)还是真正的 GitHub Release / install.sh
+ * 安装。
  */
 export function classifyNativeInstallSource(
   execPath: string,

@@ -45,10 +45,10 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "Running without asking." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf permission-output\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "Running without asking." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output" }, "time": "<time>" }
-      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output" }
-      [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "auto-output" } }, "time": "<time>" }
-      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "auto-output" }
+      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }
+      [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "auto-output" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "auto-output", "startedAt": "<time>", "endedAt": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 91, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 91, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 91, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
@@ -101,10 +101,10 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "Running in yolo mode." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf permission-output\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "Running in yolo mode." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output" }, "time": "<time>" }
-      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output" }
-      [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "yolo-output" } }, "time": "<time>" }
-      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "yolo-output" }
+      [wire] context.append_loop_event   { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.call.started           { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }
+      [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "yolo-output" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.result                 { "turnId": 0, "toolCallId": "call_bash", "output": "yolo-output", "startedAt": "<time>", "endedAt": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 7, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 7, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 7, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
@@ -204,7 +204,7 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will try Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will try Bash." } }, "time": "<time>" }
-      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }"
+      [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "display": { "kind": "generic", "summary": "Approve Bash", "detail": { "command": "printf should-not-run", "timeout": 60 } } }"
     `);
     expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
       "system: <system-prompt>
@@ -215,11 +215,11 @@ describe('Agent permission', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'I will not run the command.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
-      [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }, "time": "<time>" }
-      [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 } }
-      [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true } }, "time": "<time>" }
-      [emit] tool.result                         { "turnId": 0, "toolCallId": "call_bash", "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
+      [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "startedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "startedAt": "<time>" }
+      [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
+      [emit] tool.result                         { "turnId": 0, "toolCallId": "call_bash", "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true, "startedAt": "<time>", "endedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 5, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }, "time": "<time>" }
       [emit] turn.step.completed                 { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 5, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use" }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 5, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
@@ -703,23 +703,36 @@ describe('Agent-local approve for session', () => {
     });
     expect(record).toHaveBeenCalledWith({
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_1',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
-        scope: 'session',
-        selectedLabel: 'Approve for this session',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_1',
+        toolName: 'Bash',
+        action: 'run command: printf first',
+        result: {
+          decision: 'approved',
+          scope: 'session',
+          selectedLabel: 'Approve for this session',
+        },
       },
+      descriptor: expect.anything(),
     });
+    // 0b（PRD-0031）：规则为精确命令模式，非裸 Bash
     expect(manager.data().rules).toContainEqual({
       decision: 'allow',
       scope: 'session-runtime',
-      pattern: 'Bash',
-      reason: 'approve_for_session: run command',
+      pattern: 'Bash(printf first)',
+      reason: 'approve_for_session: run command: printf first',
     });
 
+    // 同命令经精确规则放行
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_1b', args: { command: 'printf first', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+
+    // 不同命令不再被裸 Bash 放行（0b：精确规则不匹配 → 仍需审批）
     await expect(
       manager.beforeToolCall(
         hookContext({
@@ -729,7 +742,7 @@ describe('Agent-local approve for session', () => {
       ),
     ).resolves.toBeUndefined();
 
-    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledTimes(2);
     expect(telemetryTrack).toHaveBeenNthCalledWith(2, 'tool_approved', {
       tool_name: 'Bash',
       approval_mode: 'auto_session',
@@ -749,23 +762,29 @@ describe('Agent-local approve for session', () => {
     expect(record).toHaveBeenCalledTimes(2);
     expect(record).toHaveBeenNthCalledWith(1, {
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_1',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_1',
+        toolName: 'Bash',
+        action: 'run command: printf first',
+        result: {
+          decision: 'approved',
+        },
       },
+      descriptor: expect.anything(),
     });
     expect(record).toHaveBeenNthCalledWith(2, {
       type: 'permission.record_approval_result',
-      turnId: 0,
-      toolCallId: 'call_2',
-      toolName: 'Bash',
-      action: 'run command',
-      result: {
-        decision: 'approved',
+      payload: {
+        turnId: 0,
+        toolCallId: 'call_2',
+        toolName: 'Bash',
+        action: 'run command: printf first',
+        result: {
+          decision: 'approved',
+        },
       },
+      descriptor: expect.anything(),
     });
     expect(manager.data().rules).toEqual([]);
   });
@@ -822,7 +841,8 @@ describe('Agent-local approve for session', () => {
 
   it('replays one-shot approval wire events without adding session rules', () => {
     const ctx = testAgent();
-    const record = {
+    const event = {
+      type: 'permission.record_approval_result',
       turnId: 0,
       toolCallId: 'call_replay',
       toolName: 'Bash',
@@ -833,18 +853,12 @@ describe('Agent-local approve for session', () => {
       },
     } as const;
 
-    const event = {
-      type: 'permission.record_approval_result',
-      ...record,
-    } as const;
-
     ctx.dispatch(event);
 
-    expect(ctx.agent.replayBuilder.buildResult()).toContainEqual({
-      type: 'approval_result',
-      record: event,
-    });
+    // Phase 3：permission 走纯 reducer，approval_result 不再推 replayBuilder（TUI
+    // 视为 no-op）；断言状态语义 —— one-shot 审批不进 sessionApproved、不加规则。
     expect(ctx.agent.permission.data().rules).toEqual([]);
+    expect(ctx.agent.permission.data().mode).toBe('manual');
   });
 });
 
@@ -954,7 +968,7 @@ describe('Default git CWD Write/Edit permission', () => {
     expect(requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'Bash',
-        action: 'run command',
+        action: 'run command: printf first',
       }),
       expect.any(Object),
     );
@@ -1369,6 +1383,163 @@ describe('Default git CWD Write/Edit permission', () => {
   });
 });
 
+describe('敏感文件读 = 审批事件（#298）', () => {
+  it('manual：Read .env → ask（action payload-scoped，含路径）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: /workspace/.env' }),
+      expect.anything(),
+    );
+  });
+
+  it('manual：Read 敏感读批准后同路径会话内免问（payload-scoped 缓存）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    // 同路径再次 → sessionApprovedActions 命中，不再问
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    // 不同路径 → 仍问
+    await manager.beforeToolCall(
+      hookContext({ id: 'c3', toolName: 'Read', args: { path: '/workspace/.env.local' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(2);
+    // 不生成宽泛 PermissionRule（payload-scoped）
+    expect(manager.data().rules).toEqual([]);
+  });
+
+  it('manual：Bash cat .env → ask（命令解析出的读路径）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(hookContext({ id: 'c1', args: { command: 'cat .env' } }));
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: .env' }),
+      expect.anything(),
+    );
+  });
+
+  it('manual：豁免与不匹配不触发敏感 ask（Bash/Write 默认 ask 为既有行为）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    // .env.example 豁免（Read auto_allow，策略不拦 → 无任何 ask）
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env.example' } }),
+    );
+    // 普通文件
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', toolName: 'Read', args: { path: '/workspace/foo.txt' } }),
+    );
+    // Bash 非敏感命令 / 无路径命令（有 Bash 默认 ask，但非敏感 action）
+    await manager.beforeToolCall(hookContext({ id: 'c3', args: { command: 'cat foo.txt' } }));
+    await manager.beforeToolCall(hookContext({ id: 'c4', args: { command: 'git status' } }));
+    // Write（写由工具层硬拒，策略不拦——有 Write 默认 ask，但非敏感 action）
+    await manager.beforeToolCall(
+      hookContext({ id: 'c5', toolName: 'Write', args: { path: '/workspace/.env' } }),
+    );
+    const sensitiveCalls = requestApproval.mock.calls.filter((call) =>
+      String((call[0] as { action?: string }).action).startsWith('read sensitive file: '),
+    );
+    expect(sensitiveCalls).toHaveLength(0);
+  });
+
+  it('yolo：敏感读仍强制 ask（kimi-code 先例，yolo 不放行敏感读）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('yolo');
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto（AFK 信任模型）：敏感读不拦', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('auto');
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'Read', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('内容型 search（grep/rg）读敏感文件 → ask（#298 review High-1：不绕过）', async () => {
+    // grep PATTERN .env 等价于读（会输出敏感内容）——必须走敏感读审批，
+    // 不能因 search 操作而绕过（Bash 的 grep 跑系统二进制无结果过滤）
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    manager.setMode('yolo');
+    await manager.beforeToolCall(hookContext({ id: 'c1', args: { command: 'grep SECRET .env' } }));
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: .env' }),
+      expect.anything(),
+    );
+    // rg 同理
+    await manager.beforeToolCall(
+      hookContext({ id: 'c2', args: { command: 'rg TOKEN ~/.ssh/id_rsa' } }),
+    );
+    expect(
+      requestApproval.mock.calls.filter((c) =>
+        String((c[0] as { action?: string }).action).includes('id_rsa'),
+      ),
+    ).toHaveLength(1);
+    // 列名型 search（find/fd）不读内容 → 不触发敏感读
+    await manager.beforeToolCall(hookContext({ id: 'c3', args: { command: 'find . -name .env' } }));
+    // 普通目录 search 不触发
+    await manager.beforeToolCall(hookContext({ id: 'c4', args: { command: 'grep -r TODO src/' } }));
+    const sensitiveAfterFind = requestApproval.mock.calls.filter((c) =>
+      String((c[0] as { action?: string }).action).startsWith('read sensitive file: '),
+    );
+    expect(sensitiveAfterFind).toHaveLength(2); // 仅 grep .env + rg id_rsa
+  });
+
+  it('cd 累计后敏感读仍触发 ask（#298 review：权限层与工具层行为一致）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', args: { command: 'cd ~/.ssh && cat id_rsa' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'read sensitive file: id_rsa' }),
+      expect.anything(),
+    );
+  });
+
+  it('ReadMediaFile 读敏感文件 → ask（工具层已放开，权限层门控）', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+    }));
+    await manager.beforeToolCall(
+      hookContext({ id: 'c1', toolName: 'ReadMediaFile', args: { path: '/workspace/.env' } }),
+    );
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('actionToRulePattern 对敏感读 action 返回 undefined（不生成宽泛规则）', () => {
+    expect(actionToRulePattern('read sensitive file: /workspace/.env', 'Read')).toBeUndefined();
+  });
+});
+
 describe('Permission rule helpers', () => {
   it('parses permission patterns used by rule matching', () => {
     expect(parsePattern('Write')).toEqual({ toolName: 'Write' });
@@ -1408,6 +1579,224 @@ describe('Permission rule helpers', () => {
     );
     expect(matchesRule(permissionRule('Bash(git *)'), 'Bash', { command: 42 })).toBe(false);
     expect(matchesRule(permissionRule('Bad(unclosed'), 'Bad', {})).toBe(false);
+  });
+
+  it('2a（PRD-0031）：Resource(op:glob) 规则与调度层共享 (operation, path) 抽象', () => {
+    // Bash 经命令解析提取资源（cat .env → read:.env）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 复合命令同样命中（逐子命令解析）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'echo hi; cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 文件工具共享同一抽象：Write 的 path 就是资源
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:**/.env*)', 'deny')],
+        'Write',
+        { path: '.env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:**/*.env)', 'deny')],
+        'Edit',
+        { path: 'src/x.env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 路径 glob（** 跨目录）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/credentials*)', 'deny')],
+        'Read',
+        { path: '/x/credentials.json' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 搜索资源
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(search:**/src/**)', 'deny')],
+        'Grep',
+        { pattern: 'src/foo.ts' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('2a（PRD-0031）：Resource 规则不匹配时行为不变；无资源可提取时不生效', () => {
+    // 不匹配的路径 → 无规则命中 → 默认表
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Read',
+        { path: 'foo.txt' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 点文件 glob 语义：`*.env` 不匹配 `.env`（与 shell 一致）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*.env)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // broad（bun test 无具体路径）与 indirect（eval）无资源可提取 → 规则不生效
+    // （已知局限：无法静态解析时资源规则无法匹配）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*)', 'deny')],
+        'Bash',
+        { command: 'bun test' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:*)', 'deny')],
+        'Bash',
+        { command: 'eval "$CMD"' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 裸 Resource 无语义 → 不匹配
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    // 畸形 op/glob → 不匹配（规则保持 total）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(write:)', 'deny')],
+        'Write',
+        { path: '.env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('2a（PRD-0031）：Resource 规则遵循 deny 优先与模式覆盖', () => {
+    // yolo 模式下 deny 仍生效（deny wins in every mode）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // yolo 下 allow 被模式覆盖（非 deny → allow）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:**/.env*)', 'allow')],
+        'Bash',
+        { command: 'cat .env' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    // allow + deny 并存：deny 优先
+    expect(
+      checkMatchingRules(
+        [
+          permissionRule('Resource(read:**/.env*)', 'allow'),
+          permissionRule('Resource(read:**/.env*)', 'deny'),
+        ],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('2a（PRD-0031）：Resource 规则 ! 否定——无资源命中时生效', () => {
+    // `!` 否定：无资源命中 `read:*.env` 才生效
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(!read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(!read:**/.env*)', 'deny')],
+        'Bash',
+        { command: 'cat .env' },
+        'manual',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('2a review 修复：Resource 规则跟踪 cd 累计 cwd（目录作用域不可被 cd 绕过）', () => {
+    const pathOptions = { cwd: '/workspace', pathClass: 'posix' as const };
+    // cd src && cat foo.txt → 读的是 /workspace/src/foo.txt
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cd src && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 无 cd 时 foo.txt 是 /workspace/foo.txt → 不命中
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toBeUndefined();
+    // cd src/.. 回到 /workspace：foo.txt 解析为 /workspace/foo.txt（`..` 归一化）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/foo.txt)', 'deny')],
+        'Bash',
+        { command: 'cd src/.. && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'deny' });
+    // 规则为 /workspace/src/** 时不命中（文件在 /workspace 下）→ 默认 ask，非 deny
+    expect(
+      checkMatchingRules(
+        [permissionRule('Resource(read:/workspace/src/**)', 'deny')],
+        'Bash',
+        { command: 'cd src/.. && cat foo.txt' },
+        'manual',
+        pathOptions,
+      ),
+    ).toMatchObject({ decision: 'ask' });
   });
 
   it('matches path rules against lexical variants of the same absolute file', () => {
@@ -1512,10 +1901,140 @@ describe('Permission rule helpers', () => {
     });
   });
 
+  it('Bash 逐子命令匹配（PRD-0031 grill Q1）：复合命令中的 deny 不再被整串匹配绕过', () => {
+    // 旧行为：`Bash(rm *)` deny 对 `echo hi; rm x` 整串不匹配 → rm 逃逸。
+    // 新行为：`rm x` 是独立子命令 → 命中 deny → 整条 deny。
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：任一子命令 ask（无 deny）→ 整条 ask', () => {
+    // `git status` 命中 allow，`echo hi` 无规则命中 → manual 默认 ask
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; echo hi' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'ask' });
+  });
+
+  it('Bash 逐子命令匹配：全部子命令命中 allow → allow', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; git log' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
+  it('Bash 逐子命令匹配：! 否定语义从整串不匹配变为无子命令匹配', () => {
+    // `Bash(!rm *)` allow（放行非 rm 命令）：`echo hi; rm x` 含 rm 子命令 →
+    // 不再整串放行（修掉绕过：旧行为整串不匹配 `rm *` → 取反 → 整条放行）
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(!rm *)', 'allow')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'ask' });
+    // 纯非 rm 命令仍放行
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(!rm *)', 'allow')],
+        'Bash',
+        { command: 'echo hi' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
+  it('Bash 逐子命令匹配：单子命令命令与旧行为一致（零回归）', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'npm test' },
+        'manual',
+      ),
+    ).toBeUndefined();
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'rm x' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：yolo 模式覆盖仍有效', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'git status; echo hi' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(rm *)', 'deny')],
+        'Bash',
+        { command: 'echo hi; rm x' },
+        'yolo',
+      ),
+    ).toMatchObject({ decision: 'deny' });
+  });
+
+  it('Bash 逐子命令匹配：bash -c 剥壳后按内层叶节点匹配', () => {
+    expect(
+      checkMatchingRules(
+        [permissionRule('Bash(git *)', 'allow')],
+        'Bash',
+        { command: 'bash -c "git status && git log"' },
+        'manual',
+      ),
+    ).toMatchObject({ decision: 'allow' });
+  });
+
   it('derives approval action labels from display semantics and MCP names', () => {
+    // 0b（PRD-0031）：Bash 命令标签携带命令信息（构建类→前缀，其余→精确）
     expect(describeApprovalAction('Bash', {}, { kind: 'command', command: 'git status' })).toBe(
-      'run command',
+      'run command: git status',
     );
+    expect(
+      describeApprovalAction(
+        'Bash',
+        { command: 'git push origin main' },
+        { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      ),
+    ).toBe('run command: git push');
+    expect(
+      describeApprovalAction(
+        'Bash',
+        { command: 'curl https://x.com' },
+        { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      ),
+    ).toBe('run command: curl https://x.com');
     expect(
       describeApprovalAction('Write', {}, { kind: 'file_io', operation: 'write', path: 'x' }),
     ).toBe('write file');
@@ -1534,6 +2053,105 @@ describe('Permission rule helpers', () => {
     );
     expect(actionToRulePattern('edit file outside of working directory', 'Edit')).toBe('Write');
     expect(actionToRulePattern('call CustomTool', 'CustomTool')).toBe('CustomTool');
+  });
+
+  it('0b（PRD-0031 grill Q3）：approve-for-session 生成 per-prefix/精确规则而非裸 Bash', () => {
+    // 构建类动词 → 前 2 token 前缀规则
+    expect(actionToRulePattern('run command: git push', 'Bash')).toBe('Bash(git push*)');
+    expect(actionToRulePattern('run command: git status', 'Bash')).toBe('Bash(git status*)');
+    expect(actionToRulePattern('run command: bun test', 'Bash')).toBe('Bash(bun test*)');
+    expect(actionToRulePattern('run command: make', 'Bash')).toBe('Bash(make*)');
+    // 网络/破坏/解释器/未知 → 精确匹配（payload-scoped）
+    expect(actionToRulePattern('run command: curl https://x.com', 'Bash')).toBe(
+      'Bash(curl https://x.com)',
+    );
+    expect(actionToRulePattern('run command: rm -rf dist', 'Bash')).toBe('Bash(rm -rf dist)');
+    expect(actionToRulePattern('run command: python -c "print(1)"', 'Bash')).toBe(
+      'Bash(python -c "print(1)")',
+    );
+    // 空命令回退工具名
+    expect(actionToRulePattern('run command: ', 'Bash')).toBe('Bash');
+    // CronCreate 负载作用域不变
+    expect(actionToRulePattern('call CronCreate {}', 'CronCreate')).toBeUndefined();
+  });
+
+  it('0b 会话批准端到端：git status 放行 git status --short，git log 仍需审批', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    manager.recordApprovalResult({
+      turnId: 0,
+      toolCallId: 'call_1',
+      toolName: 'Bash',
+      action: 'run command: git status',
+      result: { decision: 'approved', scope: 'session' },
+    });
+
+    // 规则为 per-prefix，非裸 Bash
+    expect(manager.data().rules).toContainEqual({
+      decision: 'allow',
+      scope: 'session-runtime',
+      pattern: 'Bash(git status*)',
+      reason: 'approve_for_session: run command: git status',
+    });
+    // git status --short 经规则放行（无审批请求）
+    await expect(
+      manager.beforeToolCall(
+        hookContext({
+          id: 'call_status_short',
+          args: { command: 'git status --short', timeout: 60 },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).not.toHaveBeenCalled();
+    // git log 不匹配规则 → 仍需审批
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_log', args: { command: 'git log', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'run command: git log' }),
+      expect.anything(),
+    );
+  });
+
+  it('0b 会话批准端到端：curl 精确规则——其他 URL 仍需审批', async () => {
+    const { manager, requestApproval } = makePermissionManager(async () => ({
+      decision: 'approved',
+      scope: 'session',
+    }));
+    manager.recordApprovalResult({
+      turnId: 0,
+      toolCallId: 'call_1',
+      toolName: 'Bash',
+      action: 'run command: curl https://x.com',
+      result: { decision: 'approved', scope: 'session' },
+    });
+    expect(manager.data().rules).toContainEqual({
+      decision: 'allow',
+      scope: 'session-runtime',
+      pattern: 'Bash(curl https://x.com)',
+      reason: 'approve_for_session: run command: curl https://x.com',
+    });
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_same', args: { command: 'curl https://x.com', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    // 其他 URL 不匹配精确规则 → 仍需审批
+    await expect(
+      manager.beforeToolCall(
+        hookContext({ id: 'call_other', args: { command: 'curl https://y.com', timeout: 60 } }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'run command: curl https://y.com' }),
+      expect.anything(),
+    );
   });
 
   it('scopes CronCreate session approval to the full create payload (PRD-0023 #244)', () => {
@@ -1672,7 +2290,7 @@ function makePermissionManager(
     config: { cwd: options.cwd ?? '/workspace' },
     runtime: { kaos: options.kaos ?? createFakeKaos() },
     emitStatusUpdated: vi.fn(),
-    records: { logRecord: record },
+    wire: { dispatch: record },
     replayBuilder: { push: vi.fn() },
     rpc: { requestApproval },
     telemetry: { track: telemetryTrack },

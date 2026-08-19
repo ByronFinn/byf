@@ -61,6 +61,121 @@ export interface JsonObject extends Record<string, JsonType> {}
 
 export type ToolArgsValidator = ValidateFunction<JsonType>;
 
+// ── Schema-aware argument coercion ─────────────────────────────────────────
+
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
+
+/**
+ * Coerce model-provided tool arguments to match declared schema types before
+ * AJV validation.
+ *
+ * LLMs occasionally emit integers as strings (`"5"` instead of `5`) or pass
+ * `null` for optional fields they mean to omit. Both are harmless serialization
+ * differences, not semantic errors — this pass normalizes them so the validator
+ * sees the intended value:
+ *
+ * - String values for `type: "integer"` / `type: "number"` properties are
+ *   parsed; if the result matches the expected type, the value is replaced.
+ *   Non-numeric strings and type-mismatched values (e.g. `"5.5"` for an integer
+ *   field) are left untouched so AJV rejects them.
+ * - `null` on optional properties (not listed in `required`) is removed,
+ *   equivalent to omitting the key.
+ * - Boolean and string properties are never modified.
+ *
+ * The function is schema-driven: only properties whose JSON Schema declares a
+ * numeric type are touched. Boolean coercion is deliberately excluded because
+ * AJV's boolean coercion has surprising semantics (`0` → `false`, `1` → `true`)
+ * that could mask genuinely malformed calls.
+ */
+export function coerceToolArgs(schema: Record<string, unknown>, args: JsonType): JsonType {
+  if (!isJsonObject(args)) return args;
+  return coerceObjectProperties(schema, args);
+}
+
+function coerceObjectProperties(schema: Record<string, unknown>, args: JsonObject): JsonObject {
+  const properties = schema['properties'];
+  if (!isRecord(properties)) return args;
+
+  const required = collectRequiredPropertyNames(schema);
+  const result: JsonObject = {};
+
+  for (const [key, value] of Object.entries(args)) {
+    const propSchema = properties[key];
+    if (!isRecord(propSchema)) {
+      result[key] = value;
+      continue;
+    }
+
+    // Drop null on optional fields — equivalent to omitting the key.
+    if (value === null && !required.has(key)) {
+      continue;
+    }
+
+    const type = propSchema['type'];
+
+    // Coerce string-encoded numbers for integer/number fields.
+    if ((type === 'integer' || type === 'number') && typeof value === 'string') {
+      const parsed = tryParseCoercibleNumber(value, type);
+      result[key] = parsed ?? value;
+      continue;
+    }
+
+    // Recurse into nested objects.
+    if (type === 'object' && isJsonObject(value)) {
+      result[key] = coerceObjectProperties(propSchema, value);
+      continue;
+    }
+
+    // Recurse into arrays of objects.
+    if (type === 'array' && Array.isArray(value)) {
+      result[key] = coerceArrayItems(propSchema, value);
+      continue;
+    }
+
+    result[key] = value;
+  }
+  return result;
+}
+
+function coerceArrayItems(schema: Record<string, unknown>, items: JsonArray): JsonArray {
+  const itemSchema = schema['items'];
+  if (!isRecord(itemSchema) || itemSchema['type'] !== 'object') return items;
+  return items.map((item) =>
+    isJsonObject(item) ? coerceObjectProperties(itemSchema, item) : item,
+  );
+}
+
+function collectRequiredPropertyNames(schema: Record<string, unknown>): ReadonlySet<string> {
+  const required = schema['required'];
+  if (!Array.isArray(required)) return EMPTY_STRING_SET;
+  const names = new Set<string>();
+  for (const name of required) {
+    if (typeof name === 'string') names.add(name);
+  }
+  return names;
+}
+
+/**
+ * Parse a string into a number suitable for the declared schema type.
+ * Returns `undefined` when the string does not cleanly represent the expected
+ * type, so the caller can leave the original value for AJV to reject.
+ */
+function tryParseCoercibleNumber(value: string, expectedType: string): number | undefined {
+  if (value.trim() === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (expectedType === 'integer' && !Number.isInteger(parsed)) return undefined;
+  return parsed;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function formatValidationError(error: ErrorObject): string {
   if (error.keyword === 'required' && 'missingProperty' in error.params) {
     return `must have required property '${String(error.params['missingProperty'])}'`;

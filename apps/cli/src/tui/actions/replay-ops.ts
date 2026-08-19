@@ -1,9 +1,8 @@
 /**
- * Session replay hydration.
+ * 会话 replay 水合。
  *
- * Core owns durable history as raw session records. The TUI projects those
- * records into the same transcript entries/components used by live events,
- * without mutating core session state or responding to replayed data.
+ * 核心以原始会话记录持有持久历史。TUI 把那些记录投影为 live 事件使用的
+ * 同一批 transcript 条目 / 组件,不修改核心会话状态,也不响应重放数据。
  */
 
 import type {
@@ -238,16 +237,14 @@ export function projectReplayRecords(
 }
 
 /**
- * Distills each non-main agent's resumed state into a `SubagentReplayBlockData`
- * keyed by its `parentToolCallId`. The child's own replay is projected to
- * recover its assistant text and its tool calls (paired with their results),
- * and its `profileName` and total usage are attached. The resulting map lets
- * `projectReplayRecords` attach child activity onto the matching main-agent
- * `Agent` tool-call card so a resumed `/agent` view shows the child's work.
+ * 把每个非主 agent 的恢复状态提炼为按 `parentToolCallId` 键控的
+ * `SubagentReplayBlockData`。子级的自身 replay 被投影,以恢复其 assistant
+ * 文本与工具调用(与结果配对),并附上 `profileName` 与总用量。所得映射使
+ * `projectReplayRecords` 能把子活动挂到匹配的主 agent `Agent` 工具调用
+ * 卡片上,使恢复后的 `/agent` 视图显示子级的工作。
  *
- * Children without a `parentToolCallId` (main agent, or sessions persisted
- * before the field existed) are skipped — their cards degrade to the existing
- * result-derived rendering.
+ * 无 `parentToolCallId` 的子级(主 agent,或字段存在前持久化的会话)被跳过
+ * ——其卡片退化为既有基于结果的渲染。
  */
 export function distillSubagents(
   agents: Readonly<Record<string, ResumedAgentState>>,
@@ -333,6 +330,9 @@ function projectReplayRecord(state: ProjectionState, record: AgentReplayRecord):
     case 'approval_result':
       return;
     case 'config_updated':
+      return;
+    case 'tool_timing':
+      // 工具耗时仅用于性能诊断,不投影到 TUI 会话状态。
       return;
   }
 }
@@ -686,13 +686,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Inject projected flat entries into live state. Adjacent Agent tool_call
- * entries sharing `(turnId, step)` are grouped into an AgentGroupComponent so
- * replay matches live behavior. Other entries use the original append path.
+ * 把投影后的扁平条目注入 live 状态。共享 `(turnId, step)` 的相邻 Agent
+ * tool_call 条目被分组进 AgentGroupComponent,使 replay 匹配 live 行为。
+ * 其他条目使用原始追加路径。
  *
- * Unlike `tryAttachAgentToolCall`, this does not write
- * `state.pendingAgentGroup`; after replay, live events must take over from a
- * clean pending group state.
+ * 与 `tryAttachAgentToolCall` 不同,此函数不写 `state.pendingAgentGroup`;
+ * replay 之后,live 事件必须从干净的待决组状态接管。
  */
 export function hydrateProjectedEntries(
   state: TUIState,

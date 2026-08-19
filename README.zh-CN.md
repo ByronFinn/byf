@@ -171,9 +171,10 @@ BYF 是一个 [Bun monorepo](https://bun.com/docs/install/workspaces)（见 [ADR
 byf/
 ├── apps/
 │   ├── cli/               # CLI / TUI 应用程序
-│   └── vis/               # 会话可视化与回放工具
-│       ├── server/        #   Hono API 服务
-│       └── web/           #   React/Vite SPA
+│   ├── vis/               # 会话可视化与回放工具
+│   │   ├── server/        #   Hono API 服务
+│   │   └── web/           #   React/Vite SPA
+│   └── web/               # 浏览器 Web 客户端（Hono/SSE 驱动 live agent + React SPA）
 ├── packages/
 │   ├── agent-core/        # 统一 Agent 引擎
 │   ├── node-sdk/          # 公开的 TypeScript SDK (@byfriends/sdk)

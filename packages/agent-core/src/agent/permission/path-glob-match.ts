@@ -18,8 +18,8 @@ interface PathMatchSemantics {
 }
 
 /**
- * Match ordinary string fields, like command text or search patterns.
- * `*` and `**` work as wildcards, but the value is not treated as a file path.
+ * 匹配普通字符串字段,如命令文本或搜索模式。
+ * `*` 与 `**` 可作通配符,但值不会被当作文件路径处理。
  */
 export function globMatch(value: string, pattern: string, options?: { nocase?: boolean }): boolean {
   if (picomatch.isMatch(value, pattern, options)) return true;
@@ -35,9 +35,9 @@ function stripLeadingDotSlash(value: string): string {
 }
 
 /**
- * Match file path fields, like Read/Write/Edit `path`.
- * Also compares normalized forms, so `./a`, `dir/../a`, and Windows
- * separator or case variants can match the same rule.
+ * 匹配文件路径字段,如 Read/Write/Edit 的 `path`。
+ * 同时比较归一化形式,使 `./a`、`dir/../a` 以及 Windows 分隔符或
+ * 大小写变体能匹配同一条规则。
  */
 export function pathGlobMatch(
   value: string,

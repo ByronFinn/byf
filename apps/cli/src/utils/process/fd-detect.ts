@@ -1,14 +1,13 @@
 /**
- * Probe for the `fd` binary so the pi-tui `CombinedAutocompleteProvider`
- * can enable its cross-directory fuzzy file search.
+ * 探测 `fd` 二进制,使 pi-tui 的 `CombinedAutocompleteProvider` 能启用
+ * 跨目录模糊文件搜索。
  *
- * Naming differs across distros:
- *   - Homebrew / Arch / most Linuxes: `fd`
- *   - Debian / Ubuntu:                `fdfind`
+ * 各发行版命名不同:
+ *   - Homebrew / Arch / 多数 Linux:`fd`
+ *   - Debian / Ubuntu:`fdfind`
  *
- * We use `spawnSync(..., { stdio: 'ignore' })` rather than shelling out
- * to `which` so the check doesn't depend on the parent shell's PATH
- * resolution semantics and stays cheap (~ms) on startup.
+ * 我们用 `spawnSync(..., { stdio: 'ignore' })` 而非 shell 出去调 `which`,
+ * 使检查不依赖父 shell 的 PATH 解析语义,并在启动时保持廉价(~毫秒)。
  */
 
 import { spawnSync } from 'node:child_process';

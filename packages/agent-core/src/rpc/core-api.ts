@@ -7,8 +7,24 @@ import type { GoalBudgetLimits, GoalSnapshot } from '#/agent/goal';
 import type { PermissionData, PermissionMode } from '#/agent/permission';
 import type { ToolInfo } from '#/agent/tool';
 import type { ByfConfig, ByfConfigPatch } from '#/config';
+import type { ConfigValidationResult } from '#/config/document';
+import type {
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+} from '#/mcp/config-store';
+import type { McpConnectionTestResult } from '#/mcp/mcp-probe';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '#/session/inspector';
+import type { CreateSkillResult, WorkspaceSkillListing } from '#/skill/store';
 import type { BackgroundTaskInfo } from '#/tools/builtin';
 
 import type { UsageStatus } from './events';
@@ -72,12 +88,12 @@ export interface ExportSessionPayload {
   readonly sessionId: string;
   readonly outputPath?: string;
   /**
-   * When true, the active global diagnostic log (`$BYF_HOME/logs/byf.log`)
-   * is copied into the zip at `logs/global/byf.log`. Off by default to
-   * avoid bundling events from concurrent sessions / other projects.
+   * 为 true 时,活跃的全局诊断日志(`$BYF_HOME/logs/byf.log`)会被复制进
+   * zip 的 `logs/global/byf.log`。默认关闭,避免打包并发会话 / 其他项目
+   * 的事件。
    */
   readonly includeGlobalLog?: boolean;
-  /** Host version to record in the export manifest. */
+  /** 记录到导出 manifest 的宿主版本。 */
   readonly version: string;
 }
 
@@ -92,9 +108,9 @@ export interface ExportSessionManifest {
   readonly sessionLastActivity?: string;
   readonly title?: string;
   readonly workspaceDir?: string;
-  /** zip-relative path to the session diagnostic log when present. */
+  /** 会话诊断日志存在时的 zip 相对路径。 */
   readonly sessionLogPath?: string;
-  /** zip-relative path to the bundled global diagnostic log (only when --include-global-log). */
+  /** 打包的全局诊断日志的 zip 相对路径(仅当 --include-global-log 时)。 */
   readonly globalLogPath?: string;
 }
 
@@ -121,6 +137,7 @@ export interface SessionSummary {
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
 }
@@ -179,7 +196,7 @@ export interface SetActiveToolsPayload {
 }
 export interface StopBackgroundPayload {
   readonly taskId: string;
-  /** Free-form human-readable reason persisted with the task record. */
+  /** 随任务记录持久化的自由格式人类可读原因。 */
   readonly reason?: string;
 }
 export interface GetBackgroundOutputPayload {
@@ -191,12 +208,11 @@ export interface GetBackgroundOutputPathPayload {
 }
 export interface GetBackgroundPayload {
   /**
-   * When omitted, returns all tasks (including terminal/lost). Pass
-   * `true` to filter down to active-only — useful for model-facing
-   * surfaces. UI/TUI consumers should leave it undefined.
+   * 省略时返回所有任务(含 terminal/lost)。传 `true` 过滤为仅活跃任务——
+   * 对面向模型的表面有用。UI/TUI 消费者应保持 undefined。
    */
   readonly activeOnly?: boolean;
-  /** Caps the number of tasks returned. When omitted, returns all matching tasks. */
+  /** 限制返回的任务数。省略时返回全部匹配任务。 */
   readonly limit?: number;
 }
 export interface SkillSummary {
@@ -239,8 +255,29 @@ export interface UpdateSessionMetadataPayload {
 
 export type SetByfConfigPayload = ByfConfigPatch;
 
+export interface RemoveByfModelPayload {
+  readonly modelId: string;
+}
+
 export interface RemoveByfProviderPayload {
   readonly providerId: string;
+}
+
+/** 按模型别名解析合并能力(别名标签 ∪ provider 注册表),供 UI 预填能力编辑器。 */
+export interface ResolveModelCapabilitiesPayload {
+  readonly model: string;
+}
+
+/** 合并后的能力布尔面,可 JSON 序列化跨 RPC。 */
+export interface ResolvedModelCapabilities {
+  readonly image_in: boolean;
+  readonly video_in: boolean;
+  readonly audio_in: boolean;
+  readonly tool_use: boolean;
+  readonly thinking: boolean;
+  readonly thinking_effort: boolean;
+  readonly thinking_xhigh: boolean;
+  readonly thinking_max: boolean;
 }
 
 export interface ShellExecPayload {
@@ -261,13 +298,134 @@ export interface GetCronTasksResult {
   readonly tasks: readonly CronTaskSnapshot[];
 }
 
-/** Host-path cron delete (PRD-0024 / ADR-0030). Not a tool permission surface. */
+/** 宿主路径 cron 删除(PRD-0024 / ADR-0030)。不是工具权限表面。 */
 export interface DeleteCronTaskPayload {
   readonly id: string;
 }
 
 export interface DeleteCronTaskResult {
   readonly deleted: boolean;
+}
+
+// ── Inspector / ConfigDocument / WorkspaceRegistry payloads（PRD-0035）─────
+
+export interface ReadAgentWirePayload {
+  readonly sessionId: string;
+  readonly agentId: string;
+}
+
+export interface ReadContextProjectionPayload {
+  readonly sessionId: string;
+  readonly agentId: string;
+}
+
+export interface DeleteSessionPayload {
+  readonly sessionId: string;
+}
+
+export interface ConfigDocumentResult {
+  readonly path: string;
+  /** 磁盘原文（未掩码——HTTP 层在响应前自行 mask）。 */
+  readonly text: string;
+  /** sha256(磁盘原文)；文件缺失为 null。 */
+  readonly revision: string | null;
+  /** 解析出的配置（含 raw 结构）；文件缺失时为默认配置。 */
+  readonly parsed: ByfConfig;
+}
+
+export interface ValidateConfigTextPayload {
+  readonly text: string;
+}
+
+export interface WriteConfigTextPayload {
+  readonly text: string;
+  readonly expectedRevision: string | null;
+}
+
+export interface ConfigWriteResult {
+  readonly revision: string;
+}
+
+export interface AddWorkspacePayload {
+  readonly workDir: string;
+}
+
+export interface RemoveWorkspacePayload {
+  readonly workDir: string;
+}
+
+// ── MCP config store / workspace skills(PRD-0036 / ADR-0039)───────────────
+
+export type {
+  McpConfigListing,
+  McpConfigScope,
+  McpRawDocument,
+  McpScopeState,
+  McpServerEntry,
+} from '#/mcp/config-store';
+export type { McpConnectionTestResult } from '#/mcp/mcp-probe';
+
+export type {
+  CreateSkillResult,
+  SkillGroupScope,
+  WorkspaceSkillEntry,
+  WorkspaceSkillGroup,
+  WorkspaceSkillListing,
+  WorkspaceSkillRoot,
+} from '#/skill/store';
+
+export interface ListWorkspaceSkillsPayload {
+  readonly workDir: string;
+}
+
+export interface CreateWorkspaceSkillPayload {
+  readonly workDir: string;
+  readonly scope: 'user' | 'project';
+  readonly name: string;
+  readonly description: string;
+}
+
+export interface RemoveWorkspaceSkillPayload {
+  readonly workDir: string;
+  /** 待删 skill 的 SKILL.md 或单文件路径(来自列表条目)。 */
+  readonly skillPath: string;
+}
+
+export interface ListMcpServerConfigsPayload {
+  readonly workDir: string;
+}
+
+export interface ReadMcpRawPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+}
+
+export interface UpsertMcpServerConfigPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly name: string;
+  /** 常用字段;env/headers 值可为占位符(不动 = 保留磁盘原值)。 */
+  readonly config: Record<string, unknown>;
+}
+
+export interface RemoveMcpServerConfigPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly name: string;
+}
+
+export interface WriteMcpRawPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  readonly text: string;
+}
+
+export interface TestMcpConnectionPayload {
+  readonly workDir: string;
+  readonly scope: McpConfigScope;
+  /** 编辑既有条目时传入,使掩码占位符能按磁盘原值还原(与 upsert 同路径)。 */
+  readonly name?: string;
+  readonly config: Record<string, unknown>;
 }
 
 export interface AgentAPI {
@@ -326,6 +484,8 @@ export interface CoreAPI extends SessionAPIWithId {
   getByfConfig: (payload: EmptyPayload) => ByfConfig;
   setByfConfig: (payload: SetByfConfigPayload) => ByfConfig;
   removeByfProvider: (payload: RemoveByfProviderPayload) => ByfConfig;
+  removeByfModel: (payload: RemoveByfModelPayload) => ByfConfig;
+  resolveModelCapabilities: (payload: ResolveModelCapabilitiesPayload) => ResolvedModelCapabilities;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   waitForBackgroundTasksOnPrint: (payload: CloseSessionPayload) => void;
@@ -335,4 +495,29 @@ export interface CoreAPI extends SessionAPIWithId {
   forkSession: (payload: ForkSessionPayload) => ResumeSessionResult;
   listSessions: (payload: ListSessionsPayload) => readonly SessionSummary[];
   exportSession: (payload: ExportSessionPayload) => ExportSessionResult;
+  // ── Inspector / ConfigDocument / WorkspaceRegistry（PRD-0035 Wave A）──
+  listInspectableSessions: (payload: EmptyPayload) => readonly InspectorSessionSummary[];
+  readSessionInspection: (payload: { readonly sessionId: string }) => SessionDetail | null;
+  readAgentWire: (payload: ReadAgentWirePayload) => WireResponse;
+  readContextProjection: (payload: ReadContextProjectionPayload) => ContextProjection;
+  readAgentTree: (payload: { readonly sessionId: string }) => AgentTreeResponse;
+  deleteSession: (payload: DeleteSessionPayload) => void;
+  getConfigDocument: (payload: EmptyPayload) => ConfigDocumentResult;
+  validateConfigText: (payload: ValidateConfigTextPayload) => ConfigValidationResult;
+  writeConfigText: (payload: WriteConfigTextPayload) => ConfigWriteResult;
+  listWorkspaces: (payload: EmptyPayload) => string[];
+  hiddenWorkspaces: (payload: EmptyPayload) => string[];
+  addWorkspace: (payload: AddWorkspacePayload) => string[];
+  removeWorkspace: (payload: RemoveWorkspacePayload) => boolean;
+  // ── MCP config store(PRD-0036 / ADR-0039;workDir 需为已注册工作区,由
+  //    web-server 端点层校验,core 信任调用方)──
+  listMcpServerConfigs: (payload: ListMcpServerConfigsPayload) => McpConfigListing;
+  readMcpConfigRaw: (payload: ReadMcpRawPayload) => McpRawDocument;
+  upsertMcpServerConfig: (payload: UpsertMcpServerConfigPayload) => McpScopeState;
+  removeMcpServerConfig: (payload: RemoveMcpServerConfigPayload) => McpScopeState;
+  writeMcpConfigRaw: (payload: WriteMcpRawPayload) => McpRawDocument;
+  testMcpConnection: (payload: TestMcpConnectionPayload) => McpConnectionTestResult;
+  listWorkspaceSkills: (payload: ListWorkspaceSkillsPayload) => WorkspaceSkillListing;
+  createWorkspaceSkill: (payload: CreateWorkspaceSkillPayload) => CreateSkillResult;
+  removeWorkspaceSkill: (payload: RemoveWorkspaceSkillPayload) => void;
 }

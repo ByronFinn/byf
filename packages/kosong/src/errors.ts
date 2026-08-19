@@ -1,5 +1,5 @@
 /**
- * Base error for all chat provider errors.
+ * 所有 chat provider 错误的基类。
  */
 export class ChatProviderError extends Error {
   constructor(message: string) {
@@ -9,7 +9,7 @@ export class ChatProviderError extends Error {
 }
 
 /**
- * Network-level connection failure.
+ * 网络层连接失败。
  */
 export class APIConnectionError extends ChatProviderError {
   constructor(message: string) {
@@ -19,7 +19,7 @@ export class APIConnectionError extends ChatProviderError {
 }
 
 /**
- * Request timed out.
+ * 请求超时。
  */
 export class APITimeoutError extends ChatProviderError {
   constructor(message: string) {
@@ -29,7 +29,7 @@ export class APITimeoutError extends ChatProviderError {
 }
 
 /**
- * HTTP status error from the API.
+ * API 的 HTTP 状态错误。
  */
 export class APIStatusError extends ChatProviderError {
   readonly statusCode: number;
@@ -44,8 +44,7 @@ export class APIStatusError extends ChatProviderError {
 }
 
 /**
- * HTTP status error that specifically means the request exceeded the model
- * context window.
+ * 特指请求超出模型上下文窗口的 HTTP 状态错误。
  */
 export class APIContextOverflowError extends APIStatusError {
   constructor(statusCode: number, message: string, requestId?: string | null) {
@@ -55,10 +54,9 @@ export class APIContextOverflowError extends APIStatusError {
 }
 
 /**
- * HTTP 413 that specifically means the serialized request body exceeded the
- * provider's byte ceiling (e.g. accumulated base64 images), as opposed to a
- * token-count overflow. Token overflow is recoverable by compaction; a body
- * size rejection is not — it needs media to be dropped or shrunk.
+ * 特指序列化请求体超出 provider 字节上限的 HTTP 413(如累积的 base64
+ * 图片),而非 token 数溢出。token 溢出可通过压缩恢复;请求体大小被拒
+ * 则不能——它需要丢弃或缩小媒体。
  */
 export class APIRequestTooLargeError extends APIStatusError {
   constructor(statusCode: number, message: string, requestId?: string | null) {
@@ -68,8 +66,8 @@ export class APIRequestTooLargeError extends APIStatusError {
 }
 
 /**
- * HTTP 429 rate-limit error from the API. Carries a parsed `retryAfterMs`
- * (from the `Retry-After` response header) when available.
+ * API 的 HTTP 429 限流错误。可用时携带解析后的 `retryAfterMs`
+ * (来自 `Retry-After` 响应头)。
  */
 export class APIProviderRateLimitError extends APIStatusError {
   readonly retryAfterMs: number | null;
@@ -87,7 +85,7 @@ export class APIProviderRateLimitError extends APIStatusError {
 }
 
 /**
- * The API returned an empty response (no content, no tool calls).
+ * API 返回空响应(无内容、无工具调用)。
  */
 export class APIEmptyResponseError extends ChatProviderError {
   constructor(message: string) {
@@ -97,11 +95,11 @@ export class APIEmptyResponseError extends ChatProviderError {
 }
 
 /**
- * Check whether an unknown value is a standard `AbortError`.
+ * 检查未知值是否为标准 `AbortError`。
  *
- * Returns `true` when `err` is an `Error` instance whose `.name` property is
- * exactly `'AbortError'`. This is the canonical check used by kosong, agent-core,
- * and the CLI — all layers converge on this single function.
+ * `err` 是 `.name` 属性恰为 `'AbortError'` 的 `Error` 实例时返回 `true`。
+ * 这是 kosong、agent-core 与 CLI 使用的规范检查——所有层都汇聚于
+ * 这一单一函数。
  */
 export function isAbortError(err: unknown): boolean {
   if (err instanceof Error) {
@@ -141,11 +139,10 @@ export function normalizeAPIStatusError(
 }
 
 /**
- * Parse an HTTP `Retry-After` header value into milliseconds.
+ * 把 HTTP `Retry-After` 头值解析为毫秒。
  *
- * Accepts only integer seconds (the common form, e.g. "30"). HTTP-date form
- * and any non-parseable value return `null`. Negative/zero is allowed and
- * returned as-is (caller decides whether to clamp).
+ * 只接受整数秒(常见形式,如 "30")。HTTP-date 形式与任何不可解析的值
+ * 返回 `null`。负数 / 零被允许并原样返回(调用方决定是否钳制)。
  */
 export function parseRetryAfterMs(value: string | null | undefined): number | null {
   if (value === null || value === undefined) return null;
@@ -222,14 +219,12 @@ const IMAGE_FORMAT_STATUS_MESSAGE_PATTERNS = [
 const MEDIA_TYPE_FIELD_PATTERN = /(?:media|mime)_?type/;
 
 /**
- * Whether the provider rejected an IMAGE in the request because of its
- * FORMAT or DATA — an unsupported media type or undecodable image bytes.
- * The rejection is deterministic for a given history (the same image is
- * re-sent on every request), and the only recovery is to resend once with
- * all media stripped. Body-size (413), context overflow, image count/size
- * limits, image-input-disabled rejections, and non-image (audio/video) media
- * rejections are excluded — the first two have their own recoveries, and the
- * rest are not fixed by stripping media.
+ * provider 是否因图片的**格式**或**数据**拒绝了请求中的 IMAGE——
+ * 不支持的媒体类型或无法解码的图片字节。对给定历史,该拒绝是确定性的
+ * (同一图片每次请求都会重发),唯一恢复方式是剥离全部媒体后重发一次。
+ * 请求体大小(413)、上下文溢出、图片数量 / 大小限制、禁用图片输入的
+ * 拒绝,以及非图片(audio/video)媒体拒绝被排除——前两者有自己的恢复
+ * 路径,其余不会因剥离媒体而解决。
  */
 export function isImageFormatError(error: unknown): boolean {
   if (error instanceof APIStatusError) {
@@ -250,11 +245,10 @@ export function isImageFormatError(error: unknown): boolean {
 }
 
 /**
- * Whether an error is retryable by resending the identical request.
- * Context-overflow, request-too-large, and image-format errors are
- * deliberately excluded: they are deterministic for a given history and have
- * their own recovery paths (compaction / media-degraded / media-stripped),
- * so retrying the identical request first would only burn the retry budget.
+ * 错误是否可通过重发相同请求重试。上下文溢出、请求过大与图片格式错误
+ * 被刻意排除:它们对给定历史是确定性的,且有各自恢复路径
+ * (压缩 / media-degraded / media-stripped),先重试相同请求只会烧掉
+ * 重试预算。
  */
 export function isRetryableGenerateError(error: unknown): boolean {
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {

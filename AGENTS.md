@@ -16,6 +16,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 
 - `apps/cli`: the CLI / TUI application. It consumes core capabilities through `@byfriends/sdk` and must not depend directly on `@byfriends/agent-core`.
 - `apps/vis`: visual debugging tools for sessions and replays, including `apps/vis/server` and `apps/vis/web`.
+- `apps/web`: the browser web client that drives a live agent over HTTP/SSE, including `apps/web/server` (`@byfriends/web-server`, Hono + `ByfHarness`), `apps/web/client` (React 19 SPA), and `apps/web/shared` (wire DTO). See PRD-0032 / ADR-0034.
 - `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, and other core capabilities.
 - `packages/node-sdk`: the public TypeScript SDK and harness.
 - `packages/kosong`: the LLM / provider abstraction layer.
@@ -37,7 +38,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
   - NO: `interface Options { user?: User | undefined }`
 - Internal methods with only a single parameter should not be turned into options objects just for stylistic uniformity.
 - Except for a package's `index.ts`, other `index.ts` files should prefer `export * from './module';`.
-- The `Agent` class in `packages/agent-core/src/agent` must be usable on its own. The constructor must not force the caller to create a `Session` instance, nor require an `agentId` or `session`. It may accept an optional `sessionId` as a request-config hint — for example mapped to the provider's `prompt_cache_key` — but the instance must not hold `sessionId`, and must not depend on the Session lifecycle, metadata, or parent/child relationship logic.
+- The `Agent` class in `packages/agent-core/src/agent` must be usable on its own. The constructor must not force the caller to create a `Session` instance, nor require an `agentId` or `session`. It may accept an optional `sessionId` as a request-config hint (threaded toward provider cache-key routing; on the OpenAI Chat Completions path a PromptPlan content-hash takes precedence, so `sessionId` is a hint, not a guarantee of the on-wire key), but the instance must not hold `sessionId`, and must not depend on the Session lifecycle, metadata, or parent/child relationship logic.
 - Do not add too many new test files. Prefer adding tests to the existing test file of the corresponding component or module.
 - When a test fails because of a user modification, default to fixing the test first; do not change the implementation to satisfy an old test unless the implementation truly has a bug.
 - Do not sacrifice code quality for external compatibility unless the user explicitly asks for it. Breaking changes go through changesets and a `major` bump, gated by the rule below.
@@ -60,6 +61,10 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 - Prefer importing via `import ... from '#/...'`, which serves the same purpose as `import ... from '@/...'`.
 
 ## Agent skills
+
+### Security stance
+
+BYF's permission layer is a best-effort UX guard, **not a security boundary** — no in-process OS sandbox (ADR-0033). Never describe permission checks as "sandbox protection". See `SECURITY.md` (Threat Model) before making security-adjacent changes; untrusted-task isolation belongs to user containers/VMs.
 
 ### Issue tracker
 

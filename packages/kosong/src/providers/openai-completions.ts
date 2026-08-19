@@ -130,6 +130,11 @@ function isEffectivelyEmptyContent(parts: ContentPart[]): boolean {
  * nothing is cacheable: when the helper returns `undefined` (no plan, no
  * blocks, or no global-scope blocks), fall back to the SHA256 of the empty
  * string. This keeps a dummy key on the wire for backward compatibility.
+ *
+ * Because this never returns `undefined`, the `if (cacheKey)` guard at the
+ * call site is always truthy; the key it produces overrides any
+ * `prompt_cache_key` a caller set via generationKwargs (see the call-site
+ * comment for why this content-addressed override is intentional).
  */
 function completionsCacheKey(promptPlan: PromptPlan | undefined): string {
   return deriveCacheKeyFromPromptPlan(promptPlan) ?? createHash('sha256').digest('hex');
@@ -525,7 +530,15 @@ export class OpenAICompletionsChatProvider extends BaseChatProvider<GenerationKw
       createParams['stream_options'] = { include_usage: true };
     }
 
-    // Inject prompt_cache_key from PromptPlan if provided
+    // Inject prompt_cache_key from PromptPlan if provided.
+    // completionsCacheKey never returns undefined (it falls back to the SHA256
+    // of the empty string), so the guard is effectively always truthy when a
+    // plan is present. Writing this AFTER the requestKwargs/extraBody spread is
+    // intentional: the content-addressed hash (stable across turns for the same
+    // plan) takes precedence over any `prompt_cache_key` a caller threaded via
+    // generationKwargs (e.g. the sessionId hint from
+    // Agent → providerManager.withPromptCacheKey). The completions cache key is
+    // therefore content-addressed, not session-bound.
     if (options?.promptPlan) {
       const cacheKey = completionsCacheKey(options.promptPlan);
       if (cacheKey) {

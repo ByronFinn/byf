@@ -1,11 +1,10 @@
 /**
- * ChoicePicker — modal single-select list for slash commands that ask
- * the user to pick from a small set of preset values.
+ * ChoicePicker — 供请求用户从少量预设值中选择的斜杠命令使用的
+ * 模态单选列表。
  *
- * Mirrors SessionPickerComponent's container-replacement pattern: host
- * calls `showChoicePicker(...)` which clears the editor container,
- * addChild(picker), setFocus(picker); the picker invokes `onSelect` or
- * `onCancel`, and the host tears it down.
+ * 镜像 SessionPickerComponent 的容器替换模式:宿主调用
+ * `showChoicePicker(...)`,它清空编辑器容器、addChild(picker)、
+ * setFocus(picker);选择器调用 `onSelect` 或 `onCancel`,宿主将其拆除。
  */
 
 import {

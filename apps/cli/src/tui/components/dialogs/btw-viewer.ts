@@ -1,11 +1,10 @@
 /**
- * BtwViewer — full-screen overlay for a `/btw` side query.
+ * BtwViewer — `/btw` 侧查询的全屏浮层。
  *
- * Shows the user's question (static) and the streamed answer side-by-side,
- * following the same Container + Focusable skeleton as TaskOutputViewer /
- * SubagentLiveViewer. The answer arrives incrementally via `setProps`
- * (driven by `btw.delta` events); closing the overlay aborts the in-flight
- * side query. The exchange never touches the main transcript.
+ * 并排显示用户问题(静态)与流式答案,遵循与 TaskOutputViewer /
+ * SubagentLiveViewer 相同的 Container + Focusable 骨架。答案经 `setProps`
+ * 增量到达(由 `btw.delta` 事件驱动);关闭浮层中止进行中的侧查询。
+ * 该交流永不触碰主 transcript。
  */
 
 import {

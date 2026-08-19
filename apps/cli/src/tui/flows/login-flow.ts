@@ -2,8 +2,6 @@ import {
   applyProviderConfig,
   enrichWithCatalog,
   findCatalogModel,
-  fetchCatalog,
-  loadBuiltInCatalog,
   DEFAULT_CATALOG_URL,
   type ByfConfig,
   type ByfConfigPatch,
@@ -23,21 +21,19 @@ import {
 } from '#/tui/flows/dialog-prompts';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { DialogHost, ThinkingEffortLevel } from '#/tui/types';
+import { fetchCatalogWithFallback, type SpinnerHandle } from '#/tui/utils/catalog-fetch';
 
 export interface ModelSelection {
   alias: string;
   thinkingEffort: ThinkingEffortLevel;
 }
 
-export interface SpinnerHandle {
-  stop(opts: { ok: boolean; label: string }): void;
-}
+export type { SpinnerHandle } from '#/tui/utils/catalog-fetch';
 
 /**
- * Interface types offered by `/login`. Each entry maps to its native
- * model-listing fetcher and its official default base URL (used when the user
- * leaves the base-URL input empty). `google-genai` / `vertexai` are deferred —
- * their runtime does not consume a user-supplied baseUrl (ADR 0016).
+ * `/login` 提供的接口类型。每个条目映射到其原生模型列表获取器与官方默认
+ * base URL(用户留空 base-URL 输入时使用)。`google-genai` / `vertexai`
+ * 被推迟——其运行时不消费用户提供的 baseUrl(ADR 0016)。
  */
 
 export interface LoginFlowDeps {
@@ -51,8 +47,11 @@ export interface LoginFlowDeps {
   showStatus(message: string, color?: string): void;
   showError(message: string): void;
   showLoginProgressSpinner(label: string): SpinnerHandle;
+  setCancelInFlight(cancel: (() => void) | undefined): void;
+  clearCancelInFlight(cancel: () => void): void;
   track(event: string, properties?: Record<string, string | number | boolean | null>): void;
   builtInCatalogJson: string | undefined;
+  catalogFetchTimeoutMs?: number;
 }
 
 export class LoginFlow {
@@ -120,7 +119,27 @@ export class LoginFlow {
       return this.handleManualModelEntry(type, name, baseUrl, apiKey);
     }
 
-    const catalog = await this.fetchCatalogWithFallback();
+    const result = await fetchCatalogWithFallback({
+      url: DEFAULT_CATALOG_URL,
+      allowBuiltInFallback: true,
+      builtInCatalogJson: this.deps.builtInCatalogJson,
+      timeoutMs: this.deps.catalogFetchTimeoutMs,
+      reportUnavailable: false, // catalog enrichment is best-effort (ADR 0012); /login proceeds degraded
+      showSpinner: (label) => {
+        return this.deps.showLoginProgressSpinner(label);
+      },
+      setCancelInFlight: (cancel) => {
+        this.deps.setCancelInFlight(cancel);
+      },
+      clearCancelInFlight: (cancel) => {
+        this.deps.clearCancelInFlight(cancel);
+      },
+      showError: (msg) => {
+        this.deps.showError(msg);
+      },
+    });
+    if (result.kind === 'canceled') return; // user aborted the whole login
+    const catalog = result.kind === 'catalog' ? result.catalog : undefined;
     const enriched: Record<string, Partial<ModelAlias>> = {};
 
     const modelDict: Record<string, ModelAlias> = {};
@@ -233,12 +252,13 @@ export class LoginFlow {
       thinking,
     });
     // Apply catalog enrichment overrides that were computed at fetch time.
+    // Every enriched key is `${name}/${model.id}` for a model in `models`
+    // above, and applyProviderConfig always materializes an alias for each of
+    // those models — so `existing` is guaranteed to be present.
     if (enriched !== undefined) {
       for (const [key, patch] of Object.entries(enriched)) {
         const existing = config.models?.[key];
-        if (existing !== undefined) {
-          config.models![key] = { ...existing, ...patch };
-        }
+        config.models![key] = { ...existing, ...patch } as ModelAlias;
       }
     }
     await this.deps.setConfig({
@@ -248,16 +268,6 @@ export class LoginFlow {
       defaultThinking: config.defaultThinking,
     });
     await this.deps.refreshConfigAfterLogin();
-  }
-
-  private async fetchCatalogWithFallback(): Promise<Catalog | undefined> {
-    try {
-      const catalog = await fetchCatalog(DEFAULT_CATALOG_URL);
-      return catalog;
-    } catch {
-      const fallback = loadBuiltInCatalog(this.deps.builtInCatalogJson);
-      return fallback;
-    }
   }
 
   private enrichModelFromCatalog(

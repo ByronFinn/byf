@@ -1,4 +1,4 @@
-import type { ContentPart, TokenUsage } from '@byfriends/kosong';
+import type { CacheScope, ContentPart, TokenUsage } from '@byfriends/kosong';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { ToolStoreUpdate } from '../../tools/store';
@@ -61,6 +61,16 @@ export interface AgentRecordEvents {
   'context.append_loop_event': { event: LoopRecordedEvent };
   'context.clear': {};
   'context.apply_compaction': CompactionResult;
+  'context.cache_churn': {
+    /** 变化的块名：PromptPlan 块名，或桩2 的固定标识 'tools'。 */
+    blockName: string;
+    /** 块的 cacheScope（tools 桩用 'global'）。 */
+    cacheScope: CacheScope;
+    /** 可选：新增块无 beforeHash。 */
+    beforeHash?: string;
+    /** 可选：删除块无 afterHash（当前比对仅报当前存在的块，故通常存在）。 */
+    afterHash?: string;
+  };
   'context.observation_masking': {
     maskedCount: number;
     tokensBefore: number;
@@ -69,9 +79,13 @@ export interface AgentRecordEvents {
   'context.output_offloaded': {
     toolCallId: string;
     filePath?: string;
+    /** 替换进历史 tool message 的预览文本（Phase 5 transient op 载荷；旧记录无此字段）。 */
+    preview?: string;
   };
   'context.pruning': {
     prunedCount: number;
+    /** 本次实际修剪的 message 索引（Phase 5 transient op 载荷；旧记录无此字段）。 */
+    maskedIndices?: number[];
   };
 
   'tools.update_store': ToolStoreUpdate;
@@ -103,16 +117,16 @@ export type AgentRecordOf<K extends keyof AgentRecordEvents> = Extract<
 >;
 
 /**
- * Records whose `type` is `Prefix.*` (e.g. `context`, `turn`).
- * Used by subsystem `restoreRecord` handlers so their switches can be
- * exhaustively checked over the routed subset only.
+ * `type` 为 `Prefix.*`(如 `context`、`turn`)的记录。
+ * 子系统 `restoreRecord` 处理器使用它,使其 switch 只需对被路由的子集
+ * 做穷尽检查。
  */
 export type AgentRecordsOfPrefix<Prefix extends string> = Extract<
   AgentRecord,
   { readonly type: `${Prefix}.${string}` }
 >;
 
-/** Type guard: narrow `AgentRecord` to the prefix subset routed to one handler. */
+/** 类型守卫:把 `AgentRecord` 收窄为路由到某一处理器的前缀子集。 */
 export function isAgentRecordOfPrefix<Prefix extends string>(
   record: AgentRecord,
   prefix: Prefix,

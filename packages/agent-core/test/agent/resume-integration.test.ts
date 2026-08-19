@@ -6,6 +6,27 @@ import { testAgent } from './harness/agent';
 
 describe('Agent.resume() integration tests', () => {
   describe('完整恢复流程测试', () => {
+    it('live 期对话后 replayBuilder 累积消息（非 restoring 也 push —— PRD-0035 Chat 空回归）', async () => {
+      const ctx = testAgent();
+      ctx.configure();
+
+      // agent 未经过 resume —— wire.phase 为 live(非 restoring)。
+      // 此前 push 的 restoring 守卫会让 live 期全部丢弃,导致常驻进程
+      // (web-server)内 resume 的 replay 恒空、刷新页面 Chat 恢复不到内容。
+      ctx.mockNextResponse({ type: 'text', text: 'hi there' });
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hello' }] });
+      await ctx.untilTurnEnd();
+
+      const replay = ctx.agent.replayBuilder.buildResult();
+      expect(replay.length).toBeGreaterThan(0);
+      expect(replay).toContainEqual(
+        expect.objectContaining({
+          type: 'message',
+          message: expect.objectContaining({ role: 'user' }),
+        }),
+      );
+    });
+
     it('应该成功恢复正常的agent会话', async () => {
       const persistence = new InMemoryAgentRecordPersistence([
         {
@@ -44,6 +65,100 @@ describe('Agent.resume() integration tests', () => {
       expect(agent.context.history[0]).toMatchObject({
         role: 'user',
         content: [{ type: 'text', text: 'Hello' }],
+      });
+    });
+
+    it('resume 后 replayBuilder 派生 permission_updated（纯 reducer 不跑 setMode()）', async () => {
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'permission.set_mode',
+          mode: 'yolo',
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      expect(agent.permission.mode).toBe('yolo');
+      expect(agent.replayBuilder.buildResult()).toContainEqual({
+        type: 'permission_updated',
+        mode: 'yolo',
+      });
+    });
+
+    it('config.update 显式清除 modelAlias 后 resume 不残留 stale 值', async () => {
+      // M2 回归：syncFromWire 必须无条件赋值（hasOwn 语义的显式 undefined 即清除），
+      // `!== undefined` 守卫会跳过清除导致残留旧值。
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'config.update',
+          modelAlias: 'm1',
+        },
+        {
+          type: 'config.update',
+          modelAlias: undefined,
+        },
+        {
+          type: 'context.append_message',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Hello' }],
+            toolCalls: [],
+            origin: { kind: 'user' },
+          },
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      expect(agent.config.modelAlias).toBeUndefined();
+    });
+
+    it('resume 后 replayBuilder 派生 config_updated（纯 reducer 不跑 update()）', async () => {
+      const persistence = new InMemoryAgentRecordPersistence([
+        {
+          type: 'metadata',
+          protocol_version: '1.1',
+          created_at: 1,
+        },
+        {
+          type: 'config.update',
+          modelAlias: 'm1',
+          systemPrompt: 'p1',
+        },
+        {
+          type: 'context.append_message',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Hello' }],
+            toolCalls: [],
+            origin: { kind: 'user' },
+          },
+        },
+      ]);
+
+      const { agent } = testAgent({ persistence });
+
+      await agent.resume();
+
+      // config 走纯 reducer：update() 不执行，config_updated 由 onReplayRecord 派生
+      // （payload = changed 子集）。
+      expect(agent.replayBuilder.buildResult()).toContainEqual({
+        type: 'config_updated',
+        config: expect.objectContaining({ modelAlias: 'm1', systemPrompt: 'p1' }),
       });
     });
 
@@ -99,14 +214,14 @@ describe('Agent.resume() integration tests', () => {
   });
 
   describe('错误恢复测试', () => {
-    it('应该捕获恢复过程中的错误并返回', async () => {
-      // 创建一个会触发错误的记录
+    it('应该捕获恢复过程中的错误并返回（损坏的 metadata 信封）', async () => {
+      // metadata 缺失 created_at —— isWireMetadataRecord 失败，restore 抛错，
+      // resume 捕获并返回 {error}（新路径：wire.restore 是唯一 restore 路径）。
       const persistence = new InMemoryAgentRecordPersistence([
         {
           type: 'metadata',
           protocol_version: '1.1',
-          created_at: 1,
-        },
+        } as unknown as AgentRecord,
         {
           type: 'config.update',
           modelAlias: 'test-model',
@@ -115,55 +230,10 @@ describe('Agent.resume() integration tests', () => {
 
       const { agent } = testAgent({ persistence });
 
-      // 注入一个会出错的handler
-      const mockHandler = {
-        restoreRecord: (_record: AgentRecord) => {
-          throw new Error('Simulated restoration error');
-        },
-      };
-
-      agent.records.registerHandlers({ config: mockHandler });
-
       const result = await agent.resume();
 
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toContain('Simulated restoration error');
-    });
-
-    it('应该在恢复错误时保持agent状态一致', async () => {
-      const originalRecords: readonly AgentRecord[] = [
-        {
-          type: 'metadata',
-          protocol_version: '1.1',
-          created_at: 1,
-        },
-        {
-          type: 'config.update',
-          modelAlias: 'test-model',
-        },
-      ];
-
-      const persistence = new InMemoryAgentRecordPersistence(originalRecords);
-
-      const { agent } = testAgent({ persistence });
-
-      // 添加一个会失败的handler
-      const callCount = { value: 0 };
-      const conditionalHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          callCount.value++;
-          if (record.type === 'config.update') {
-            throw new Error('Config restoration failed');
-          }
-        },
-      };
-
-      agent.records.registerHandlers({ config: conditionalHandler });
-
-      const result = await agent.resume();
-
-      expect(result.error).toBeDefined();
-      expect(callCount.value).toBe(1); // 尝试了恢复
+      expect(result.error?.message).toContain('metadata');
     });
   });
 
@@ -240,15 +310,10 @@ describe('Agent.resume() integration tests', () => {
   });
 
   describe('恢复顺序测试', () => {
-    it('应该按正确顺序恢复记录', async () => {
-      const executionOrder: string[] = [];
-
-      const trackingHandler = {
-        restoreRecord: (record: AgentRecord) => {
-          executionOrder.push(record.type);
-        },
-      };
-
+    it('应该按记录顺序重建子系统状态（Facade：wire.restore 逐条重放）', async () => {
+      // 旧版用 registerHandlers 注入跟踪 handler 验证顺序；Facade 下 restore 走
+      // wire.restore()（OP_REGISTRY 纯 reducer + legacyRoute），顺序由最终状态反映：
+      // usage 按顺序累加、context 消息按序、config 取最终值。
       const records: AgentRecord[] = [
         { type: 'metadata', protocol_version: '1.1', created_at: 1 },
         { type: 'config.update', modelAlias: 'model1' },
@@ -271,27 +336,27 @@ describe('Agent.resume() integration tests', () => {
           usage: { inputCacheCreation: 100, inputCacheRead: 0, inputOther: 200, output: 150 },
           usageScope: 'session',
         },
+        {
+          type: 'usage.record',
+          model: 'model1',
+          usage: { inputCacheCreation: 10, inputCacheRead: 0, inputOther: 20, output: 30 },
+          usageScope: 'session',
+        },
       ];
 
       const persistence = new InMemoryAgentRecordPersistence(records);
       const { agent } = testAgent({ persistence });
 
-      // 注册跟踪handler
-      agent.records.registerHandlers({
-        config: trackingHandler,
-        context: trackingHandler,
-        usage: trackingHandler,
-      });
-
       await agent.resume();
 
-      // 验证恢复顺序
-      expect(executionOrder).toEqual([
-        'config.update',
-        'context.append_message',
-        'context.append_message',
-        'usage.record',
-      ]);
+      expect(agent.context.history.map((m) => m.content[0]?.text ?? '')).toEqual(['Msg1', 'Resp1']);
+      // usage 两条按顺序累加。
+      expect(agent.usage.data().total).toMatchObject({
+        inputCacheCreation: 110,
+        inputCacheRead: 0,
+        inputOther: 220,
+        output: 180,
+      });
     });
   });
 });

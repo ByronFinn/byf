@@ -184,6 +184,8 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       kaos: this.kaos,
       workspace: this.workspace,
       operation: 'read',
+      // 敏感文件读由权限层策略门控（审批事件，#298）
+      policy: { guardMode: 'absolute-outside-allowed', checkSensitive: false },
     });
     return {
       accesses: ToolAccesses.readFile(path),

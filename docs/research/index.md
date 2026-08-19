@@ -1,0 +1,53 @@
+# Research Index
+
+> Entry point for every research record. Query here first; reuse the TL;DR on a hit, start new research only on a miss.
+> Status values: verified (validated) | stale (current project major is higher; suggest re-research) | deprecated (abandoned).
+
+## By Stack
+
+### bun
+
+| Topic                              | Major | Version | Verdict                                                    | File                                                                                       | Status   |
+| ---------------------------------- | ----- | ------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------- |
+| package-manager                    | 1     | unknown | 速度领先 npm，isolated 默认，pnpm 可自动迁移               | [bun-package-manager-1.md](bun-package-manager-1.md)                                       | verified |
+| test-runner                        | 1     | unknown | Jest 兼容 API，单进程，零配置 TS，启动极快                 | [bun-test-runner-1.md](bun-test-runner-1.md)                                               | verified |
+| bundler                            | 1     | unknown | esbuild 兼容，快约 1.75x，无语法降级，插件子集             | [bun-bundler-1.md](bun-bundler-1.md)                                                       | verified |
+| runtime                            | 1     | unknown | JSC 引擎，原生 TS/JSX，Node 兼容持续改进                   | [bun-runtime-1.md](bun-runtime-1.md)                                                       | verified |
+| monorepo-workspaces-catalog        | 1     | unknown | workspaces+catalog 一等；isolated 默认；可从 pnpm 迁移     | [bun-monorepo-workspaces-catalog-1.md](bun-monorepo-workspaces-catalog-1.md)               | verified |
+| publish-workspace-protocol-rewrite | 1     | unknown | pack/publish 内置改写 workspace:/catalog:；pubcheck 仍必做 | [bun-publish-workspace-protocol-rewrite-1.md](bun-publish-workspace-protocol-rewrite-1.md) | verified |
+| compile-native-addons              | 1     | unknown | --compile 可嵌 N-API；koffi/clipboard 必须 spike           | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           | verified |
+| test-migration-from-vitest         | 1     | unknown | 唯一 runner 可行；vi 兼容+单进程清障，勿长期双跑           | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 | verified |
+
+### typescript
+
+| Topic               | Major | Version | Verdict                                                                            | File                                                                       | Status   |
+| ------------------- | ----- | ------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------- |
+| weakmap-memoization | 6     | 6.0.2   | 对象键用 WeakMap(身份键控、GC 自动失效);原始值键用 Map(纯函数恒正确、需管生命周期) | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md) | verified |
+
+### deepseek
+
+| Topic      | Major | Version | Verdict                                                                                                                                                                                                | File                                                 | Status   |
+| ---------- | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | -------- |
+| api-format | 4     | 4       | 两条 API 各遵循对应 OpenAI 标准(reasoning/cache 字段不同);byf 两路径均兼容;非流式/流式 reasoning 文本缺口均已修复;出站回传已按最佳实践修正(encrypted→encrypted_content / 明文→content[reasoning_text]) | [deepseek-api-format-4.md](deepseek-api-format-4.md) | verified |
+
+### Spikes (verification records, not versioned topics)
+
+| Spike                                                               | Verdict                                                                                                                          | File                                                                     |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| PRD-0020 compile + koffi/clipboard TUI smoke                        | **GO** — clipboard `.node` 嵌入；koffi 为 Windows-only 死代码，MVP 两平台无阻塞                                                  | [spike-0020-compile-native-smoke.md](spike-0020-compile-native-smoke.md) |
+| 本地 agent OS 沙箱四项对比（codex/Claude Code/grok-build/opencode） | **不做沙箱** — byf 采纳 opencode 立场（隔离归用户容器）；可移植的仅 seatbelt/bwrap 两 CLI 原语，seccomp/Landlock 需 native addon | [spike-local-agent-os-sandbox.md](spike-local-agent-os-sandbox.md)       |
+
+## By Topic
+
+| Topic                              | Stacks       | See                                                                                        |
+| ---------------------------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| package-manager                    | bun@1        | [bun-package-manager-1.md](bun-package-manager-1.md)                                       |
+| test-runner                        | bun@1        | [bun-test-runner-1.md](bun-test-runner-1.md)                                               |
+| bundler                            | bun@1        | [bun-bundler-1.md](bun-bundler-1.md)                                                       |
+| runtime                            | bun@1        | [bun-runtime-1.md](bun-runtime-1.md)                                                       |
+| monorepo-workspaces-catalog        | bun@1        | [bun-monorepo-workspaces-catalog-1.md](bun-monorepo-workspaces-catalog-1.md)               |
+| publish-workspace-protocol-rewrite | bun@1        | [bun-publish-workspace-protocol-rewrite-1.md](bun-publish-workspace-protocol-rewrite-1.md) |
+| compile-native-addons              | bun@1        | [bun-compile-native-addons-1.md](bun-compile-native-addons-1.md)                           |
+| test-migration-from-vitest         | bun@1        | [bun-test-migration-from-vitest-1.md](bun-test-migration-from-vitest-1.md)                 |
+| weakmap-memoization                | typescript@6 | [typescript-weakmap-memoization-6.md](typescript-weakmap-memoization-6.md)                 |
+| api-format                         | deepseek@4   | [deepseek-api-format-4.md](deepseek-api-format-4.md)                                       |

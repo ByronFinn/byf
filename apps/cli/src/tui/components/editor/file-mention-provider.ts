@@ -1,13 +1,12 @@
 /**
- * `@file` autocomplete provider for the input box.
+ * 输入框的 `@file` 自动补全提供者。
  *
- * pi-tui's `CombinedAutocompleteProvider` handles the mechanical parts
- * (extract `@…` prefix, insert completion with the right quoting). This
- * wrapper adds byf-specific ranking + filtering so the default "empty
- * `@`" list surfaces files the user actually wants, not alphabetical
- * noise from `.agents/skills/*` et al.
+ * pi-tui 的 `CombinedAutocompleteProvider` 处理机制部分(提取 `@…` 前缀、
+ * 以正确引号插入补全)。本包装添加 byf 特定的排序 + 过滤,使默认的
+ * 「空 `@`」列表浮现用户真正想要的文件,而非来自 `.agents/skills/*`
+ * 等的字母序噪声。
  *
- * Sort order — empty query:
+ * 排序顺序——空查询:
  *   1. recently edited (from `git log --name-only`)
  *   2. recent fs mtime
  *   3. basename alphabetical

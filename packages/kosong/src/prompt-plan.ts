@@ -1,88 +1,78 @@
 /**
- * Cache scope for a {@link PromptBlock} in a {@link PromptPlan}.
+ * {@link PromptPlan} 中 {@link PromptBlock} 的缓存作用域。
  *
- * Scopes determine the lifetime and sharing boundaries of cached prompt
- * content, allowing providers to apply cache-breaking policies appropriately.
+ * 作用域决定缓存提示内容的生命周期与共享边界,使 provider 能恰当地应用
+ * 缓存破坏策略。
  *
- * - `'global'`: Content is cacheable across all projects/sessions. Useful for
- *   stable system prompts that rarely change.
- * - `'project'`: Content is cacheable within a single project. Typical for
- *   project-specific instructions, domain knowledge, or coding standards.
- * - `'session'`: Content is cacheable only within the current session.
- *   Appropriate for conversation context that persists across turns but not
- *   across sessions.
- * - `'none'`: Content is not cacheable. Use for ephemeral or highly dynamic
- *   content (user input, temporary context, rapidly changing data).
+ * - `'global'`:内容可跨所有项目 / 会话缓存。适用于很少变化的稳定系统提示。
+ * - `'project'`:内容可在单个项目内缓存。典型用于项目特定指令、领域知识
+ *   或编码规范。
+ * - `'session'`:内容仅在当前会话内可缓存。适用于跨 turn 持续但不跨会话
+ *   的对话上下文。
+ * - `'none'`:内容不可缓存。用于瞬时或高度动态的内容(用户输入、临时
+ *   上下文、快速变化的数据)。
  */
 export type CacheScope = 'global' | 'project' | 'session' | 'none';
 
 /**
- * Cache strategy supported by a provider.
+ * provider 支持的缓存策略。
  *
- * Each provider advertises which caching mechanism it implements via
- * {@link ProviderCacheCapability.strategy}. Consumers must respect this
- * when constructing {@link PromptPlan}s to avoid sending unsupported
- * cache directives.
+ * 每个 provider 经 {@link ProviderCacheCapability.strategy} 声明其实现的
+ * 缓存机制。消费者构造 {@link PromptPlan} 时必须尊重它,避免发送不支持的
+ * 缓存指令。
  *
- * - `'explicit-block'`: Provider supports explicit cache control at the
- *   block level (e.g., Anthropic's `cache_control` headers). Each
- *   {@link PromptBlock} can be independently marked as cacheable.
- * - `'prompt-cache-key'`: Provider supports a cache key that spans the
- *   entire prompt (OpenAI's `prompt_cache_key` approach).
- * - `'prefix-match'`: Provider caches by matching prompt prefixes
- *   (OpenAI's automatic prefix caching for repeated prefixes).
- *   Reserved for future use — no provider currently declares this strategy.
- * - `'none'`: Provider does not support prompt caching.
+ * - `'explicit-block'`:provider 支持块级显式缓存控制(如 Anthropic 的
+ *   `cache_control` 头)。每个 {@link PromptBlock} 可独立标记为可缓存。
+ * - `'prompt-cache-key'`:provider 支持横跨整个提示词的缓存键
+ *   (OpenAI 的 `prompt_cache_key` 方式)。
+ * - `'prefix-match'`:provider 通过匹配提示前缀缓存(OpenAI 对重复前缀的
+ *   自动前缀缓存)。保留供未来使用——目前没有 provider 声明此策略。
+ * - `'none'`:provider 不支持提示缓存。
  */
 export type CacheStrategy = 'explicit-block' | 'prompt-cache-key' | 'prefix-match' | 'none';
 
 /**
- * A single named block of text with an associated cache scope.
+ * 单个带名称的文本块及关联缓存作用域。
  *
- * {@link PromptPlan}s are composed of multiple blocks, each with its own
- * caching semantics. This structure allows providers to apply different
- * cache policies to different parts of the system prompt (e.g., global
- * instructions vs. session-specific context).
+ * {@link PromptPlan} 由多个块组成,每块有自己的缓存语义。该结构使
+ * provider 能对系统提示词的不同部分应用不同缓存策略(如全局指令 vs
+ * 会话特定上下文)。
  *
  * @readonly
  */
 export interface PromptBlock {
   /**
-   * Identifier for this block.
+   * 此块的标识符。
    *
-   * Used for debugging, logging, and potentially for cache key generation.
-   * Should be stable and descriptive (e.g., `'system-instructions'`,
-   * `'project-context'`).
+   * 用于调试、日志,并可能用于缓存键生成。应稳定且具描述性
+   * (如 `'system-instructions'`、`'project-context'`)。
    */
   readonly name: string;
 
   /**
-   * Text content of this block.
+   * 此块的文本内容。
    *
-   * The actual prompt text that will be sent to the LLM. Blocks are
-   * typically concatenated in order when constructing the full system
-   * prompt.
+   * 将发送给 LLM 的实际提示文本。构造完整系统提示词时,块通常按顺序
+   * 拼接。
    */
   readonly text: string;
 
   /**
-   * Cache scope for this block.
+   * 此块的缓存作用域。
    *
-   * Determines how providers may cache this content. See {@link CacheScope}
-   * for details on each scope's semantics.
+   * 决定 provider 可如何缓存此内容。各作用域语义见 {@link CacheScope}。
    */
   readonly cacheScope: CacheScope;
 }
 
 /**
- * A structured prompt plan that defines cacheable blocks.
+ * 定义可缓存块的结构化提示计划。
  *
- * PromptPlans allow consumers to provide explicit caching hints alongside
- * their prompt content. When passed via {@link GenerateOptions.promptPlan},
- * providers that support caching can translate the plan into their native
- * cache control format.
+ * PromptPlan 使消费者能在提示内容旁提供显式缓存提示。经
+ * {@link GenerateOptions.promptPlan} 传入时,支持缓存的 provider 可把
+ * 计划转换为原生缓存控制格式。
  *
- * Example usage:
+ * 用法示例:
  * ```ts
  * const plan: PromptPlan = {
  *   blocks: [
@@ -98,11 +88,10 @@ export interface PromptBlock {
  */
 export interface PromptPlan {
   /**
-   * Ordered list of blocks that compose this prompt plan.
+   * 组成此提示计划的有序块列表。
    *
-   * Blocks are typically concatenated in order when constructing the full
-   * system prompt. Each block's `cacheScope` determines its caching
-   * semantics.
+   * 构造完整系统提示词时,块通常按顺序拼接。每块的 `cacheScope` 决定
+   * 其缓存语义。
    */
   readonly blocks: readonly PromptBlock[];
 }

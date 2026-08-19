@@ -5,6 +5,7 @@ import { CLI_COMMAND_NAME } from '#/constant/app';
 import type { CLIOptions } from './options';
 import { registerExportCommand } from './sub/export';
 import { registerVisCommand } from './sub/vis';
+import { registerWebCommand } from './sub/web';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 
@@ -71,6 +72,7 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
 
   registerExportCommand(program);
   registerVisCommand(program);
+  registerWebCommand(program);
 
   program.action(() => {
     // When the user types a positional arg that is not a known subcommand

@@ -134,9 +134,31 @@ describe('btw side query — Agent.askSide', () => {
       tools: []
       messages:
         user: text "fix the bug in foo.ts"
-        system: text <btw-readonly-instruction>
+        user: text <btw-readonly-instruction>
         user: text "where is it?""
     `);
+  });
+
+  it('keeps a single leading system message — the directive is user-role (strict templates)', async () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.context.appendUserMessage([{ type: 'text', text: 'fix the bug in foo.ts' }]);
+
+    ctx.mockNextResponse({ type: 'text', text: 'answer' });
+    await ctx.agent.askSide('where is it?');
+
+    const { systemPrompt, history } = ctx.lastLlmInput().input;
+    // Strict chat templates (e.g. qwen-3.6) reject a request whose system
+    // message is not the first one. The read-only directive must therefore
+    // ride as a user-role message (like ephemeral injections) between the
+    // snapshot and the question, leaving exactly one system message on top.
+    expect(systemPrompt).not.toContain('read-only side question');
+    expect(history.some((m) => m.role === 'system')).toBe(false);
+    const directive = history.at(-2);
+    const question = history.at(-1);
+    expect(directive?.role).toBe('user');
+    expect((directive?.content[0] as { text: string }).text).toMatch(/no tools/i);
+    expect(question?.role).toBe('user');
   });
 
   it('injects a read-only directive between the snapshot and the question', async () => {
@@ -148,11 +170,13 @@ describe('btw side query — Agent.askSide', () => {
     await ctx.agent.askSide('what needs a web search?');
 
     const history = ctx.lastLlmInput().input.history;
-    // The directive sits between the snapshot and the user question.
+    // The directive sits between the snapshot and the user question. It is a
+    // user-role message: strict chat templates (qwen-3.6) require the single
+    // system message to be the first one in the list.
     const directive = history.at(-2);
     const question = history.at(-1);
 
-    expect(directive?.role).toBe('system');
+    expect(directive?.role).toBe('user');
     expect(directive?.content[0]).toMatchObject({ type: 'text' });
     const directiveText = (directive?.content[0] as { text: string }).text;
     // Forbids tool-call-like output — the core fix for the <tool_call> leak.

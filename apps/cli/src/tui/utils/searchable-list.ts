@@ -1,11 +1,10 @@
 /**
- * Cursor + fuzzy-search + paging state machine shared by list pickers
- * (ChoicePicker, ModelSelector). Pure logic, no rendering.
+ * 列表选择器(ChoicePicker、ModelSelector)共享的光标 + 模糊搜索 + 分页
+ * 状态机。纯逻辑,不渲染。
  *
- * The component owns presentation and the keys that carry component-specific
- * meaning — Enter (submit), Esc (cancel), and ←/→ (paging in one picker, a
- * thinking toggle in another). This unit owns the keys that behave identically
- * everywhere: ↑/↓, PgUp/PgDn, and search editing.
+ * 组件拥有呈现与携带组件特定含义的按键——Enter(提交)、Esc(取消)、
+ * ←/→(一个选择器里是分页,另一个里是思考切换)。本单元拥有各处行为
+ * 一致的按键:↑/↓、PgUp/PgDn 与搜索编辑。
  */
 
 import { fuzzyFilter, Key, matchesKey } from '@earendil-works/pi-tui';

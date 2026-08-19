@@ -16,8 +16,8 @@ import {
   foldApplyCompaction,
   foldLoopEvent,
   toolResultOutputForModel,
-  type WireFoldHandlers,
 } from '../../src/agent/context/wire-fold';
+import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { LoopRecordedEvent } from '../../src/loop';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
 import type { TestAgentContext } from './harness/agent';
@@ -897,6 +897,9 @@ it('offloads non-Agent tool results when they exceed the threshold', async () =>
   expect(lastMessage.role).toBe('tool');
   expect(textOf(lastMessage)).toContain('[Tool output offloaded to scratch file');
 
+  // Phase 5 transient：output_offloaded 只改内存（preview 替换），不落盘。
+  expect(ctx.getRecords().map((record) => record.type)).not.toContain('context.output_offloaded');
+
   // Cleanup
   try {
     const { rmSync } = await import('node:fs');
@@ -1020,15 +1023,10 @@ describe('degradeOlderMediaParts', () => {
 
 // PRD-0025: pure wire-fold vs ContextMemory (kernel) parity + live-only restore.
 describe('wire-fold pure API (PRD-0025)', () => {
-  const pureHandlers = (): WireFoldHandlers => ({
-    onMessage: () => {},
-  });
-
   async function pureFoldLoop(events: readonly LoopRecordedEvent[]): Promise<ContextMessage[]> {
     const state = createWireFoldState();
-    const handlers = pureHandlers();
     for (const event of events) {
-      await foldLoopEvent(state, event, handlers);
+      foldLoopEvent(state, event);
     }
     return [...state.history];
   }
@@ -1107,39 +1105,26 @@ describe('wire-fold pure API (PRD-0025)', () => {
 
     const kernelHistory = structuredClone(ctx.agent.context.history) as ContextMessage[];
 
-    // Pure fold path: rebuild from the same logical operations (no offload port).
+    // Pure fold path: rebuild from the same logical operations (no effect ports).
     const pure = createWireFoldState();
-    const handlers = pureHandlers();
-    foldAppendMessage(
-      pure,
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'old 1' }],
-        toolCalls: [],
-        origin: { kind: 'user' },
-      },
-      handlers,
-    );
-    foldAppendMessage(
-      pure,
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'old 2' }],
-        toolCalls: [],
-        origin: { kind: 'user' },
-      },
-      handlers,
-    );
-    foldAppendMessage(
-      pure,
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'remaining tail' }],
-        toolCalls: [],
-        origin: { kind: 'user' },
-      },
-      handlers,
-    );
+    foldAppendMessage(pure, {
+      role: 'user',
+      content: [{ type: 'text', text: 'old 1' }],
+      toolCalls: [],
+      origin: { kind: 'user' },
+    });
+    foldAppendMessage(pure, {
+      role: 'user',
+      content: [{ type: 'text', text: 'old 2' }],
+      toolCalls: [],
+      origin: { kind: 'user' },
+    });
+    foldAppendMessage(pure, {
+      role: 'user',
+      content: [{ type: 'text', text: 'remaining tail' }],
+      toolCalls: [],
+      origin: { kind: 'user' },
+    });
     for (const event of [
       { type: 'step.begin' as const, uuid: 's1', turnId: 't1', step: 0 },
       {
@@ -1176,9 +1161,9 @@ describe('wire-fold pure API (PRD-0025)', () => {
       },
       { type: 'step.end' as const, uuid: 's1', turnId: 't1', step: 0 },
     ] satisfies LoopRecordedEvent[]) {
-      await foldLoopEvent(pure, event, handlers);
+      foldLoopEvent(pure, event);
     }
-    foldApplyCompaction(pure, { summary: 'compacted old 1+2', compactedCount: 2 }, handlers);
+    foldApplyCompaction(pure, { summary: 'compacted old 1+2', compactedCount: 2 });
 
     expect(pure.history).toEqual(kernelHistory);
 
@@ -1222,6 +1207,108 @@ describe('wire-fold pure API (PRD-0025)', () => {
     });
 
     expect(ctx.agent.context.history).toEqual(before);
+  });
+
+  it('output_offloaded transient op 替换历史预览但不落盘，resume 后为全量输出', async () => {
+    const homedir = `/tmp/byf-test-transient-${Date.now()}`;
+    const ctx = testAgent({ homedir, sessionId: 'test-session' });
+    ctx.configure();
+
+    const stepUuid = 'step-t';
+    const toolCallId = 'call_t';
+    const largeOutput = 'x'.repeat(40_000);
+
+    await ctx.agent.context.appendLoopEvent({
+      type: 'step.begin',
+      uuid: stepUuid,
+      turnId: '',
+      step: 1,
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.call',
+      uuid: toolCallId,
+      turnId: '',
+      step: 1,
+      stepUuid,
+      toolCallId,
+      name: 'Bash',
+      args: { command: 'cat' },
+    });
+    await ctx.agent.context.appendLoopEvent({
+      type: 'tool.result',
+      parentUuid: stepUuid,
+      toolCallId,
+      result: { output: largeOutput },
+    });
+
+    // live：历史为预览（transient op 的 apply 替换），journal 无 output_offloaded。
+    expect(textOf(ctx.agent.context.history.at(-1)!)).toContain(
+      '[Tool output offloaded to scratch file',
+    );
+    expect(ctx.getRecords().map((r) => r.type)).not.toContain('context.output_offloaded');
+
+    // resume：restore 重放 append_loop_event（全量输出），preview 不持久化。
+    const resumed = testAgent({
+      homedir,
+      sessionId: 'test-session',
+      persistence: new InMemoryAgentRecordPersistence(
+        ctx.getRecords().map((record) => structuredClone(record)),
+      ),
+    });
+    await resumed.agent.resume();
+    expect(resumed.agent.context.history.at(-1)?.role).toBe('tool');
+    expect(textOf(resumed.agent.context.history.at(-1)!)).toBe(largeOutput);
+
+    try {
+      const { rmSync } = await import('node:fs');
+      rmSync(homedir, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  });
+
+  it("pruning 经 transient op 只改内存：live 替换 '[pruned]'，不落盘", () => {
+    const ctx = testAgent();
+    ctx.configure();
+
+    // 构造被 masking 遮蔽的 tool 消息（content 以 `[ToolName:` 开头，toolCallInfo 已填）。
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: { type: 'step.begin', uuid: 's1', turnId: '', step: 1 },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.call',
+        uuid: 'c1',
+        turnId: '',
+        step: 1,
+        stepUuid: 's1',
+        toolCallId: 'c1',
+        name: 'Bash',
+        args: {},
+      },
+    });
+    ctx.dispatch({
+      type: 'context.append_loop_event',
+      event: {
+        type: 'tool.result',
+        parentUuid: 'c1',
+        toolCallId: 'c1',
+        result: { output: '[Bash: masked by observation masking]' },
+      },
+    });
+
+    ctx.dispatch({
+      type: 'context.pruning',
+      prunedCount: 1,
+      maskedIndices: [1], // history = [assistant(0), tool(1)]
+    });
+
+    const pruned = ctx.agent.context.history.at(-1)!;
+    expect(textOf(pruned)).toBe('[pruned]');
+    // transient：不落盘。
+    expect(ctx.getRecords().map((r) => r.type)).not.toContain('context.pruning');
   });
 
   it('pure fold without offload port still normalises empty tool output', async () => {

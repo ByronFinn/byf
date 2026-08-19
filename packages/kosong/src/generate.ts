@@ -16,27 +16,26 @@ import type { TokenUsage } from './usage';
 type StoredToolCall = Omit<ToolCall, '_streamIndex'>;
 
 /**
- * The result of a single {@link generate} call.
+ * 单次 {@link generate} 调用的结果。
  *
- * Contains the fully-assembled assistant {@link message}, an optional
- * provider-assigned {@link id}, and token {@link usage} statistics.
+ * 包含完整组装的 assistant {@link message}、可选 provider 分配的
+ * {@link id} 与 token {@link usage} 统计。
  */
 export interface GenerateResult {
-  /** Provider-assigned response identifier, or `null` if unavailable. */
+  /** provider 分配的响应标识符;不可用时为 `null`。 */
   readonly id: string | null;
-  /** The fully-assembled assistant message with merged content parts and tool calls. */
+  /** 含合并内容 part 与工具调用的完整组装 assistant 消息。 */
   readonly message: Message;
-  /** Token usage for this generation, or `null` if not reported. */
+  /** 本次生成的 token 用量;未报告时为 `null`。 */
   readonly usage: TokenUsage | null;
   /**
-   * Normalized finish reason reported by the provider, or `null` if no
-   * finish_reason was emitted (for example, the stream was interrupted
-   * before the final event).
+   * provider 报告的归一化 finish reason;未发出 finish_reason 时为 `null`
+   * (例如流在最终事件前被中断)。
    */
   readonly finishReason: FinishReason | null;
   /**
-   * Raw provider-specific finish_reason string preserved verbatim.
-   * `null` if the provider did not emit one.
+   * 逐字保留的原始 provider 特定 finish_reason 字符串。
+   * provider 未发出时为 `null`。
    */
   readonly rawFinishReason: string | null;
   /**
@@ -68,28 +67,26 @@ export interface GenerateCallbacks {
 }
 
 /**
- * Generate one assistant message by streaming from the given provider.
+ * 从给定 provider 流式生成一条 assistant 消息。
  *
- * Parts of the message are streamed and merged: consecutive compatible parts
- * (e.g. TextPart + TextPart, ToolCall + ToolCallPart) are merged in-place so
- * the returned message always contains fully-assembled parts.
+ * 消息的 part 被流式接收并合并:连续兼容的 part(如 TextPart + TextPart、
+ * ToolCall + ToolCallPart)原地合并,使返回的消息总是含完整组装的 part。
  *
- * **Tool call completion** is inferred from merge boundaries (a non-merging
- * next part flushes the pending tool call into `message.toolCalls`) and from
- * stream end. Provider adapters translate native "done" signals into this
- * unified form; the generate loop never sees a separate done event.
+ * **工具调用完成**从合并边界(下一个不可合并的 part 把待决工具调用刷进
+ * `message.toolCalls`)与流结束推断。provider 适配器把原生「完成」信号
+ * 翻译为这一统一形态;generate 循环永不见独立完成事件。
  *
- * @param provider - The chat provider to generate from.
- * @param systemPrompt - System-level instruction prepended to the request.
- * @param tools - Tool definitions the model may invoke.
- * @param history - The conversation history sent as context.
- * @param callbacks - Optional streaming callbacks.
- * @param options - Optional per-call settings (e.g. an {@link AbortSignal}).
+ * @param provider - 要从中生成的 chat provider。
+ * @param systemPrompt - 前置到请求的系统级指令。
+ * @param tools - 模型可调用的工具定义。
+ * @param history - 作为上下文发送的会话历史。
+ * @param callbacks - 可选的流式回调。
+ * @param options - 可选每次调用设置(如 {@link AbortSignal})。
  *
- * @throws {DOMException} with name `"AbortError"` when `options.signal` is
- *   aborted before or during streaming.
- * @throws {APIEmptyResponseError} when the response contains no content and
- *   no tool calls, or only thinking content without any text or tool calls.
+ * @throws {DOMException} 名 `"AbortError"`——`options.signal` 在流式前或
+ *   流式期间被中止时。
+ * @throws {APIEmptyResponseError}——响应无内容且无工具调用,或只有思考
+ *   内容而无任何文本或工具调用时。
  */
 export async function generate(
   provider: ChatProvider,

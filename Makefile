@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help prepare build packages typecheck lint fix fmt fmt-check sherif pubcheck test watch cover clean changeset version publish release dev docs vis
+.PHONY: help prepare build packages typecheck lint fix fmt fmt-check sherif pubcheck test watch cover clean changeset version publish release dev docs vis web
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
@@ -80,3 +80,6 @@ docs: ## Run the docs site in dev mode
 
 vis: ## Run the visualizer in dev mode
 	bun run vis
+
+web: ## Run the web client in dev mode
+	bun run web

@@ -1,13 +1,13 @@
 /**
- * Color palette definitions for dark and light themes.
+ * 暗色与亮色主题的调色板定义。
  *
- * Two layers:
- *  - private `dark` / `light` raw palettes — unsemantic constants reused
- *    across multiple semantic tokens to avoid hex literal duplication.
- *  - exported `darkColors` / `lightColors` — the semantic `ColorPalette`
- *    consumed by every UI component via chalk.hex(...).
+ * 两层:
+ *  - 私有 `dark` / `light` 原始调色板——跨多个语义 token 复用的无语义常量,
+ *    避免十六进制字面量重复。
+ *  - 导出的 `darkColors` / `lightColors`——每个 UI 组件经 chalk.hex(...)
+ *    消费的语义 `ColorPalette`。
  *
- * Light palette values are tuned for ≥ 4.5:1 contrast against #FFFFFF
+ * 亮色调色板值针对与 #FFFFFF 的 ≥ 4.5:1 对比度调校
  * for text tokens and ≥ 3:1 for chrome (border / large text), matching
  * WCAG AA.
  */

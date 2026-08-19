@@ -4,7 +4,11 @@ import type { TelemetryPropertyValue } from '../../telemetry';
 import type { ToolInputDisplay } from '../../tools/display';
 import { isDefaultAutoAllowTool } from '../../tools/policies/default-permissions';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
+import {
+  permissionModel,
+  permissionRecordApprovalResult,
+  permissionSetMode,
+} from '../wire/ops/permission';
 import { actionToRulePattern, describeApprovalAction } from './action-label';
 import { checkMatchingRules, type CheckRulesResult } from './check-rules';
 import type { PermissionPathMatchOptions } from './path-glob-match';
@@ -27,11 +31,11 @@ export interface PermissionManagerOptions {
   readonly parent?: PermissionManager;
 }
 
-export class PermissionManager implements RecordRestoreHandler {
+export class PermissionManager {
   rules: PermissionRule[] = [];
-  private modeOverride: PermissionMode | undefined;
+  private _modeOverride: PermissionMode | undefined;
   private readonly parent: PermissionManager | undefined;
-  private readonly sessionApprovedActions = new Set<string>();
+  private sessionApprovedActions = new Set<string>();
   private readonly policies: readonly PermissionPolicy[];
 
   constructor(
@@ -44,11 +48,11 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   get mode(): PermissionMode {
-    return this.modeOverride ?? this.parent?.mode ?? 'manual';
+    return this._modeOverride ?? this.parent?.mode ?? 'manual';
   }
 
   set mode(mode: PermissionMode) {
-    this.modeOverride = mode;
+    this._modeOverride = mode;
   }
 
   data(): PermissionData {
@@ -59,23 +63,17 @@ export class PermissionManager implements RecordRestoreHandler {
   }
 
   setMode(mode: PermissionMode): void {
-    this.agent.records.logRecord({
-      type: 'permission.set_mode',
-      mode,
-    });
+    this.agent.wire.dispatch(permissionSetMode({ mode }));
     this.agent.replayBuilder.push({
       type: 'permission_updated',
       mode,
     });
-    this.modeOverride = mode;
+    this._modeOverride = mode;
     this.agent.emitStatusUpdated();
   }
 
   recordApprovalResult(record: PermissionApprovalResultRecord): void {
-    this.agent.records.logRecord({
-      type: 'permission.record_approval_result',
-      ...record,
-    });
+    this.agent.wire.dispatch(permissionRecordApprovalResult(record));
     this.agent.replayBuilder.push({
       type: 'approval_result',
       record,
@@ -349,17 +347,41 @@ export class PermissionManager implements RecordRestoreHandler {
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'permission')) return;
+    // Test-only entry point (restore-handler unit tests). Production restore
+    // uses the pure wire reducer (wire.restore → apply → syncFromWire).
     switch (record.type) {
       case 'permission.set_mode':
-        // Call the normal setMode method but it should not log
-        // because the restoring flag prevents logging
         this.setMode(record.mode);
         break;
       case 'permission.record_approval_result':
-        // Call the normal recordApprovalResult method but it should not log
-        // because the restoring flag prevents logging
         this.recordApprovalResult(record);
         break;
+    }
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 3）。
+   * modeOverride 由 set_mode 的纯 apply 重建；sessionApproved（action→toolName）
+   * 重建 sessionApprovedActions 与 session-runtime rules（actionToRulePattern +
+   * hasRule 去重，对标旧 restoreRecord → recordApprovalResult 的 rules 追加）。
+   * parent / policies 是构造注入，不动。
+   */
+  syncFromWire(): void {
+    const model = this.agent.wire.getModel(permissionModel);
+    this._modeOverride = model.modeOverride;
+    this.sessionApprovedActions = new Set(model.sessionApproved.keys());
+    for (const [action, toolName] of model.sessionApproved) {
+      const pattern = actionToRulePattern(action, toolName);
+      if (pattern === undefined) continue;
+      const rule: PermissionRule = {
+        decision: 'allow',
+        scope: 'session-runtime',
+        pattern,
+        reason: `approve_for_session: ${action}`,
+      };
+      if (!this.hasRule(rule)) {
+        this.rules.push(rule);
+      }
     }
   }
 }

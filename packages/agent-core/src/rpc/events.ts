@@ -1,4 +1,4 @@
-import type { CacheHitRate, FinishReason, TokenUsage } from '@byfriends/kosong';
+import type { CacheHitRate, CacheScope, FinishReason, TokenUsage } from '@byfriends/kosong';
 
 import type { PromptOrigin } from '../agent/context';
 import type { GoalChange, GoalSnapshot } from '../agent/goal/types';
@@ -16,14 +16,26 @@ export interface UsageStatus {
   readonly byModel?: Record<string, TokenUsage>;
   readonly currentTurn?: TokenUsage;
   readonly total?: TokenUsage;
-  /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
+  /** 全部已记录用量的缓存命中率(0–1);无数据时为 undefined。 */
   readonly cacheHitRate?: CacheHitRate;
   /**
-   * Estimated input-token distribution across six categories, computed on
-   * demand by the Agent (it owns config/tools/context). `undefined` when the
-   * caller has not requested it. See {@link InputTokenBreakdown}.
+   * 六个类别的估算输入 token 分布,由 Agent 按需计算(它拥有
+   * config/tools/context)。调用方未请求时为 `undefined`。
+   * 见 {@link InputTokenBreakdown}。
    */
   readonly inputBreakdown?: InputTokenBreakdown;
+  /**
+   * 破坏侧归因(PRD-0029 R3):本会话检测到的最远一次静态前缀变化。
+   * 未发生 churn 时为 `undefined`。从 journal 重放的 churn 其 `turnsAgo`
+   * 为 `undefined`(turn id 未持久化)。
+   */
+  readonly lastCacheChurn?: {
+    readonly blockName: string;
+    readonly cacheScope: CacheScope;
+    readonly turnsAgo?: number;
+  };
+  /** 本会话 `context.cache_churn` 事件总数(PRD-0029 R3)。为零时为 `undefined`。 */
+  readonly cacheChurnCount?: number;
 }
 
 export interface ToolUpdate {
@@ -178,6 +190,8 @@ export interface ToolCallStartedEvent {
   readonly args: unknown;
   readonly description?: string;
   readonly display?: ToolInputDisplay;
+  /** Epoch ms，工具执行边界（PRD-0034 R-B1）。当前 core 的 live 事件恒携带。 */
+  readonly startedAt?: number;
 }
 
 export interface ToolProgressEvent {
@@ -195,6 +209,10 @@ export interface ToolResultEvent {
   readonly isError?: boolean;
   readonly synthetic?: boolean;
   readonly blockedReason?: 'rejected' | 'cancelled';
+  /** Epoch ms，与 tool.call.started 的 startedAt 同源（PRD-0034 R-B1）。 */
+  readonly startedAt?: number;
+  /** Epoch ms，工具执行完成时刻。单事件自包含耗时：endedAt - startedAt。 */
+  readonly endedAt?: number;
 }
 
 export interface SubagentSpawnedEvent {
@@ -307,7 +325,7 @@ export interface GoalUpdatedEvent {
   readonly change?: GoalChange;
 }
 
-/** Fired when a session-scoped cron task delivers its prompt (PRD-0023 R3.3). */
+/** 会话内 cron 任务投递其提示词时触发(PRD-0023 R3.3)。 */
 export interface CronFiredEvent {
   readonly type: 'cron.fired';
   readonly origin: {

@@ -145,7 +145,7 @@
 ## Research References
 
 - 通用工具链（已有）：[bun-package-manager-1](../research/bun-package-manager-1.md)、[bun-runtime-1](../research/bun-runtime-1.md)、[bun-test-runner-1](../research/bun-test-runner-1.md)、[bun-bundler-1](../research/bun-bundler-1.md)
-- 迁移专题（2026-07-09 `/research` 补齐，见 [INDEX](../research/INDEX.md)）：
+- 迁移专题（2026-07-09 `/research` 补齐，见 [INDEX](../research/)）：
   - [bun-monorepo-workspaces-catalog-1](../research/bun-monorepo-workspaces-catalog-1.md) — workspaces + catalog + pnpm 迁移
   - [bun-publish-workspace-protocol-rewrite-1](../research/bun-publish-workspace-protocol-rewrite-1.md) — 支撑 Q5：`bun publish`/`pm pack` 内置改写；pubcheck 仍必做；显式 rewrite 仅补洞
   - [bun-compile-native-addons-1](../research/bun-compile-native-addons-1.md) — **阻塞级**：`--compile` 可嵌 N-API；koffi/clipboard 必须 PR1 spike

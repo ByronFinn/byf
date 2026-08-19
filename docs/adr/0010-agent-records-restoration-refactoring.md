@@ -1,10 +1,10 @@
 # ADR 0010: AgentRecords 恢复机制重构
 
-## Status
+## 状态
 
-Accepted
+已接受
 
-## Context
+## 背景
 
 当前 AgentRecords 的恢复机制存在架构不对称问题：
 
@@ -18,7 +18,7 @@ Accepted
 3. **维护负担**：所有恢复逻辑集中在 `records/index.ts` 中的 76 行函数
 4. **架构脆弱**：switch 语句是维护瓶颈
 
-## Decision
+## 决策
 
 采用 **延迟注册的分布式恢复模式**：
 
@@ -204,7 +204,7 @@ class Session {
 }
 ```
 
-## Consequences
+## 结果
 
 ### 正面影响
 

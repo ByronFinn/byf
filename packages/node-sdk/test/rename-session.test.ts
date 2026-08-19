@@ -226,3 +226,131 @@ describe('ByfHarness.renameSession', () => {
     }
   });
 });
+
+describe('session metadata pinned/archived (PRD-0034)', () => {
+  it('SessionStore.updateMetadata persists pinned and projects it onto the summary', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const summary = await store.create({ id: 'ses_meta_pin', workDir });
+    await writeSessionState(summary.sessionDir, {
+      session_id: 'ses_meta_pin',
+      title: 'Original Title',
+      updated_at: 1_000,
+      nested: { enabled: true },
+    });
+
+    await store.updateMetadata('ses_meta_pin', { pinned: true });
+
+    const state = await readSessionState(summary.sessionDir);
+    expect(state).toMatchObject({
+      title: 'Original Title',
+      pinned: true,
+      nested: { enabled: true },
+    });
+
+    const updated = await store.get('ses_meta_pin');
+    expect(updated.pinned).toBe(true);
+    expect(updated.archived).toBeUndefined();
+  });
+
+  it('SessionStore.updateMetadata archives and unarchives', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const summary = await store.create({ id: 'ses_meta_archive', workDir });
+    await writeSessionState(summary.sessionDir, { session_id: 'ses_meta_archive', title: 'A' });
+
+    await store.updateMetadata('ses_meta_archive', { archived: true });
+    expect((await store.get('ses_meta_archive')).archived).toBe(true);
+
+    await store.updateMetadata('ses_meta_archive', { archived: false });
+    expect((await store.get('ses_meta_archive')).archived).toBe(false);
+  });
+
+  it('ByfHarness.updateSessionMetadata pins persisted sessions without resuming them', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+    const summary = await store.create({ id: 'ses_harness_pin', workDir });
+    await writeSessionState(summary.sessionDir, {
+      session_id: 'ses_harness_pin',
+      title: 'Inactive Base',
+    });
+
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
+    try {
+      await harness.updateSessionMetadata({ id: 'ses_harness_pin', metadata: { pinned: true } });
+
+      const sessions = await harness.listSessions({ workDir });
+      expect(sessions.find((item) => item.id === 'ses_harness_pin')?.pinned).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('ByfHarness.updateSessionMetadata emits session.meta.updated for active sessions', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const harness = new ByfHarness({ identity: TEST_IDENTITY, homeDir });
+
+    try {
+      const session = await harness.createSession({ id: 'ses_harness_meta_live', workDir });
+      const summary = (await harness.listSessions({ workDir })).find(
+        (item) => item.id === session.id,
+      )!;
+      await writeSessionState(summary.sessionDir, {
+        session_id: session.id,
+        title: 'Base Title',
+      });
+      const events: Event[] = [];
+      const unsubscribe = session.onEvent((event) => {
+        events.push(event);
+      });
+
+      await harness.updateSessionMetadata({
+        id: session.id,
+        metadata: { pinned: true, archived: false },
+      });
+      unsubscribe();
+
+      const metaEvent = events.find((item) => item.type === 'session.meta.updated');
+      expect(metaEvent).toMatchObject({
+        type: 'session.meta.updated',
+        sessionId: session.id,
+        agentId: 'main',
+      });
+
+      const state = await readSessionState(summary.sessionDir);
+      expect(state['pinned']).toBe(true);
+
+      const sessions = await harness.listSessions({ workDir });
+      expect(sessions.find((item) => item.id === session.id)?.pinned).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('fork does not inherit pinned or archived flags', async () => {
+    const homeDir = await makeTempDir();
+    const workDir = await makeTempDir();
+    const store = new SessionStore(homeDir);
+
+    const summary = await store.create({ id: 'ses_fork_flags', workDir });
+    await writeSessionState(summary.sessionDir, {
+      session_id: 'ses_fork_flags',
+      title: 'Source',
+      pinned: true,
+      archived: true,
+    });
+
+    const forked = await store.fork({
+      sourceId: 'ses_fork_flags',
+      targetId: 'ses_fork_flags_copy',
+    });
+    expect(forked.pinned).toBeUndefined();
+    expect(forked.archived).toBeUndefined();
+  });
+});

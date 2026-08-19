@@ -1,105 +1,30 @@
-import { createApp } from './app';
-import { resolveByfHome, resolveHost, resolvePort, resolveVisAuthToken } from './config';
-import { formatStartupBanner } from './startup-banner';
-
-/** Options for starting a vis HTTP server programmatically. */
-export interface StartVisServerOptions {
-  /** Bind host. Defaults to `resolveHost()` (loopback). */
-  readonly host?: string;
-  /** Bind port. Defaults to `resolvePort()` (3001). */
-  readonly port?: number;
-  /** Auth token. Defaults to `resolveVisAuthToken(host)` (required outside loopback). */
-  readonly authToken?: string;
-  /**
-   * Directory holding the built SPA assets to serve. When omitted, the
-   * `public/` directory next to the compiled server bundle is used (if any);
-   * in dev mode this resolves to `null` and only the API is served.
-   */
-  readonly publicDir?: string;
-}
-
-/** A handle to a running vis server. */
-export interface VisServerHandle {
-  /** The host the server is bound to. */
-  readonly host: string;
-  /** The port the server is bound to. */
-  readonly port: number;
-  /** Whether the SPA bundle is being served. False means API-only. */
-  readonly staticEnabled: boolean;
-  /** Base URL (`http://<host>:<port>`), with IPv6 hosts bracketed. */
-  readonly url: string;
-  /** Stop the server. Subsequent connections are refused. */
-  close(): void;
-}
-
-function hostForUrl(host: string): string {
-  if (host.includes(':') && !host.startsWith('[')) return `[${host}]`;
-  return host;
-}
-
 /**
- * Start the vis HTTP server programmatically. Resolves once the server is
- * listening. Used by the CLI `byf vis` subcommand (in-process) and by the
- * standalone `index.ts` entry.
+ * @byfriends/vis-server —— 弃用 shim（PRD-0035 R-B5 / ADR-0037 D1）。
  *
- * Binds via `Bun.serve` (library runtime contract is Bun-only). Bind failures
- * such as `EADDRINUSE` throw synchronously so callers can catch them.
+ * 自 0.5.0 起本包不再承载独立实现：全部能力（Inspector 读取、SPA 托管、
+ * 鉴权）已由 `@byfriends/web-server` 的统一工作台取代。本 shim 仅为兼容
+ * 已发布消费者（`byf vis` 弃用期）而 re-export web-server 的实现：
+ * - `startVisServer` = `startWebServer`（方法兼容；返回类型即 WebServerHandle）；
+ * - 默认端口语义由调用方（CLI）保持 3001，本包不再声明端口默认值。
+ *
+ * 注意：历史 `StartVisServerOptions.publicDir` 等语义与 web-server 一致
+ * （host/port/authToken/publicDir/harness）；`VIS_AUTH_TOKEN` 兼容读取由
+ * CLI 层转发（R-B3），本包不再读取该环境变量。
+ *
+ * @deprecated 统一工作台（PRD-0035）取代本包；一个 minor 版本后从
+ * workspace 删除。新代码请直接使用 `@byfriends/web-server`。
  */
-export async function startVisServer(
-  options: StartVisServerOptions = {},
-): Promise<VisServerHandle> {
-  const host = options.host ?? resolveHost();
-  const port = options.port ?? resolvePort();
-  const authToken = options.authToken ?? resolveVisAuthToken(host);
-  const { app, staticEnabled } = await createApp({ authToken, publicDir: options.publicDir });
 
-  // Bun.serve binds before returning. Port-in-use and other listen failures
-  // throw (with `code: 'EADDRINUSE'` when applicable) rather than emitting an
-  // async 'error' event as Node's http.Server did via @hono/node-server.
-  const server = Bun.serve({
-    hostname: host,
-    port,
-    fetch: app.fetch,
-  });
+import { collectLanIps, formatWebServerStartupBanner, startWebServer } from '@byfriends/web-server';
+import type { StartWebServerOptions, WebServerHandle } from '@byfriends/web-server';
 
-  // Bun.serve().port is typed optional; after a successful bind it is always set.
-  const actualPort = server.port ?? port;
-  return {
-    host,
-    port: actualPort,
-    staticEnabled,
-    url: `http://${hostForUrl(host)}:${actualPort}`,
-    close: () => {
-      // stop(true) drops keep-alive / in-flight sockets so the event loop can
-      // empty and the process can exit promptly after close().
-      void server.stop(true);
-    },
-  };
-}
+/** @deprecated 统一工作台取代 vis-server——等价于 web-server 的启动选项。 */
+export type StartVisServerOptions = StartWebServerOptions;
 
-/**
- * Resolve the BYF_HOME the server reads session records from. Exposed for the
- * standalone entry's startup banner. CLI consumers rely on the same env var.
- */
-export function resolveVisByfHome(): string {
-  return resolveByfHome();
-}
+/** @deprecated 统一工作台取代 vis-server——等价于 web-server 的句柄。 */
+export type VisServerHandle = WebServerHandle;
 
-/**
- * Format the startup banner text. Exposed so the CLI can reuse the exact same
- * wording without depending on startup-banner internals.
- */
-export function formatVisStartupBanner(input: {
-  readonly authToken?: string;
-  readonly host: string;
-  readonly port: number;
-  readonly staticEnabled?: boolean;
-}): string {
-  return formatStartupBanner({
-    authToken: input.authToken,
-    host: input.host,
-    byfCodeHome: resolveByfHome(),
-    port: input.port,
-    staticEnabled: input.staticEnabled,
-  });
-}
+/** @deprecated 由 `startWebServer`（@byfriends/web-server）取代。 */
+export const startVisServer = startWebServer;
+
+export { collectLanIps, formatWebServerStartupBanner };

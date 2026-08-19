@@ -1,6 +1,6 @@
 /**
- * Renders a tool call entry in the transcript.
- * Supports expand/collapse via Ctrl+O.
+ * 在 transcript 中渲染一条工具调用条目。
+ * 支持通过 Ctrl+O 展开 / 折叠。
  */
 
 import { Container, Text, Spacer, visibleWidth } from '@earendil-works/pi-tui';
@@ -36,10 +36,10 @@ const STREAMING_PROGRESS_INTERVAL_MS = 1000;
 const PROGRESS_URL_RE = /https?:\/\/\S+/g;
 
 /**
- * Immutable Read tool state snapshot. `ReadGroupComponent` reads one-time
- * views via `ToolCallComponent.getReadSnapshot()` and sums lines for the group
- * header. `lines` is 0 while pending or failed, and the non-empty result line
- * count when done, matching the single-card chip.
+ * 不可变 Read 工具状态快照。`ReadGroupComponent` 经
+ * `ToolCallComponent.getReadSnapshot()` 读取一次性视图,并为组头汇总行数。
+ * pending 或 failed 时 `lines` 为 0,完成时为非空结果行数,
+ * 与单卡片 chip 一致。
  */
 export interface ToolCallReadSnapshot {
   readonly toolCallId: string;
@@ -901,6 +901,21 @@ export class ToolCallComponent extends Container {
       for (const line of lines) {
         this.addChild(new Text(line, 2, 0));
       }
+    } else if (name === 'Bash' && this.result === undefined) {
+      // Pending Bash (args finalized, awaiting approval or running): show the
+      // command so it can be reviewed before/without execution. Once the result
+      // lands the result renderer takes over (command + output).
+      const command = str(this.toolCall.args['command']);
+      if (command.length > 0) {
+        this.addChild(
+          new ShellExecutionComponent({
+            command,
+            colors: this.colors,
+            expanded: this.expanded,
+            showCommand: true,
+          }),
+        );
+      }
     }
   }
 
@@ -973,8 +988,22 @@ export class ToolCallComponent extends Container {
     if (result === undefined || !result.output) return;
 
     // Blocked tools: the body is the LLM-facing rejection message, which is
-    // not useful for the user who made the decision.
-    if (result.blockedReason !== undefined) return;
+    // not useful for the user who made the decision. The command itself stays
+    // visible (collapsed preview / full on expand) so it can still be read
+    // and copied after the call was rejected or cancelled.
+    if (result.blockedReason !== undefined) {
+      if (this.toolCall.name === 'Bash') {
+        this.addChild(
+          new ShellExecutionComponent({
+            command: str(this.toolCall.args['command']),
+            colors: this.colors,
+            expanded: this.expanded,
+            showCommand: true,
+          }),
+        );
+      }
+      return;
+    }
 
     if (this.isSingleSubagentView()) {
       return;

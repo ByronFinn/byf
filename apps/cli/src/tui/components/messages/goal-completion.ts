@@ -1,11 +1,11 @@
 /**
- * Completion card for a finished goal (PRD-0019 R14).
+ * 已完成 goal 的完成卡片(PRD-0019 R14)。
  *
- * Rendered only when the model calls `UpdateGoal('complete')`. `cancel` does
- * NOT produce this card — it renders a low-presence lifecycle marker instead.
+ * 仅当模型调用 `UpdateGoal('complete')` 时渲染。`cancel` 不产生此卡片——
+ * 它改为渲染低存在感的生命周期标记。
  *
- * The card text is produced by a pure function from the `goal.updated` event
- * snapshot, so live and replay paths render identically.
+ * 卡片文本由 `goal.updated` 事件快照的纯函数生成,因此 live 与 replay
+ * 路径渲染一致。
  */
 
 import type { Component } from '@earendil-works/pi-tui';
@@ -17,7 +17,7 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { GoalCompletionData } from '#/tui/types';
 
-/** Format the usage line shared by the completion card and markers. */
+/** 格式化完成卡片与标记共享的用量行。 */
 export function formatGoalUsageLine(data: {
   turns: number;
   tokens: number;

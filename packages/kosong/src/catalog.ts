@@ -3,9 +3,8 @@ import type { ProviderType } from './providers';
 import { resolveCapabilityFromRegistry } from './providers/capability-registry';
 
 /**
- * models.dev-style catalog: a public map of provider/model metadata. Callers
- * consume a snapshot of this shape to populate provider + model configuration
- * without hand-writing context windows or capabilities.
+ * models.dev 风格目录:provider / 模型元数据的公共映射。调用方消费此形态
+ * 的快照来填充 provider + 模型配置,而无需手写上下文窗口或能力。
  */
 export interface CatalogModelEntry {
   readonly id?: string;
@@ -24,9 +23,9 @@ export interface CatalogModelEntry {
 export interface CatalogProviderEntry {
   readonly id?: string;
   readonly name?: string;
-  /** Base URL for the provider; may be empty (some SDKs hardcode it). */
+  /** provider 的 base URL;可能为空(部分 SDK 硬编码它)。 */
   readonly api?: string;
-  /** Env var names carrying credentials — surfaced as a hint by callers. */
+  /** 携带凭据的环境变量名——作为提示呈现给调用方。 */
   readonly env?: readonly string[];
   /** models.dev SDK package id; used to infer the wire type when `type` is absent. */
   readonly npm?: string;
@@ -35,10 +34,10 @@ export interface CatalogProviderEntry {
   readonly models?: Record<string, CatalogModelEntry>;
 }
 
-/** Top-level catalog: `{ [providerId]: ProviderEntry }` (e.g. models.dev/api.json). */
+/** 顶层目录:`{ [providerId]: ProviderEntry }`(如 models.dev/api.json)。 */
 export type Catalog = Record<string, CatalogProviderEntry>;
 
-/** A normalized catalog model: identity plus its {@link ModelCapability}. */
+/** 归一化目录模型:身份加其 {@link ModelCapability}。 */
 export interface CatalogModel {
   readonly id: string;
   readonly name?: string;
@@ -76,9 +75,9 @@ function isUsableChatModel(model: CatalogModelEntry): boolean {
 }
 
 /**
- * Resolves a catalog provider entry to a supported wire type. Honors an
- * explicit `type`, otherwise infers from `npm`/`id`. Unknown providers return
- * `undefined` so callers can omit them instead of writing an invalid config.
+ * 把目录 provider 条目解析为受支持的 wire type。尊重显式 `type`,
+ * 否则从 `npm`/`id` 推断。未知 provider 返回 `undefined`,
+ * 使调用方可省略它们,而非写入无效配置。
  */
 export function inferWireType(entry: CatalogProviderEntry): ProviderType | undefined {
   if (isWireType(entry.type)) return entry.type;
@@ -96,15 +95,15 @@ export function inferWireType(entry: CatalogProviderEntry): ProviderType | undef
 }
 
 /**
- * Resolves the base URL to store for a catalog provider, adapting the catalog's
- * `api` to the wire's SDK convention.
+ * 解析要存储的目录 provider base URL,把目录的 `api` 适配到 wire 的 SDK
+ * 约定。
  *
- * models.dev `api` URLs are written for the SDK named in `npm` (e.g.
- * `@ai-sdk/anthropic`), whose base already includes the `/v1` version segment.
- * We route the `anthropic` wire through the official `@anthropic-ai/sdk`, which
- * appends `/v1/messages` itself — so a catalog `api` ending in `/v1` would POST
- * to `/v1/v1/messages` (404). Strip the trailing `/v1` for anthropic. OpenAI
- * family SDKs append `/chat/completions` to a `/v1` base, so those pass through.
+ * models.dev 的 `api` URL 是为 `npm` 中命名的 SDK(如 `@ai-sdk/anthropic`)
+ * 编写的,其 base 已含 `/v1` 版本段。我们把 `anthropic` wire 路由到官方
+ * `@anthropic-ai/sdk`——它自身会追加 `/v1/messages`,因此以 `/v1` 结尾的
+ * 目录 `api` 会 POST 到 `/v1/v1/messages`(404)。对 anthropic 剥离尾部
+ * `/v1`。OpenAI 家族 SDK 向 `/v1` base 追加 `/chat/completions`,
+ * 因此那些原样透传。
  */
 export function catalogBaseUrl(
   entry: CatalogProviderEntry,
@@ -116,7 +115,7 @@ export function catalogBaseUrl(
   return api;
 }
 
-/** Normalizes one catalog model entry into a {@link CatalogModel}; skips invalid entries. */
+/** 把一条目录模型条目归一化为 {@link CatalogModel};跳过无效条目。 */
 export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel | undefined {
   if (typeof model.id !== 'string' || model.id.length === 0) return undefined;
   const context = model.limit?.context;
@@ -157,7 +156,7 @@ function catalogReasoningKey(interleaved: CatalogModelEntry['interleaved']): str
   return field !== undefined && field.length > 0 ? field : undefined;
 }
 
-/** Extracts the valid, normalized models from a catalog provider entry. */
+/** 从目录 provider 条目提取有效、归一化的模型。 */
 export function catalogProviderModels(entry: CatalogProviderEntry): CatalogModel[] {
   const models = entry.models ?? {};
   return Object.values(models)

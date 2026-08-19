@@ -1,17 +1,17 @@
 import type { ByfErrorCode } from './codes';
 
 export interface ByfErrorOptions {
-  /** JSON-serializable structured details. */
+  /** 可 JSON 序列化的结构化细节。 */
   readonly details?: Record<string, unknown>;
-  /** Original error or value. Local-only; never serialized to the wire. */
+  /** 原始错误或值。仅本地;绝不序列化到 wire 上。 */
   readonly cause?: unknown;
 }
 
 /**
- * The single Byf error class.
+ * 唯一的 Byf 错误类。
  *
- * Discrimination is always by `code`. Cross-process consumers receive
- * `ByfErrorPayload` and must branch on `code` rather than class identity.
+ * 判别始终依据 `code`。跨进程消费者收到 `ByfErrorPayload`,
+ * 必须按 `code` 分支而非类身份。
  */
 export class ByfError extends Error {
   readonly code: ByfErrorCode;

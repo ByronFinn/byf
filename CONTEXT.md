@@ -12,9 +12,13 @@
 
 BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 monorepo 的 `vis` 脚本（API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。工具链迁移后开发入口以 Bun 为准（见「开发工具链契约」）。
 
+> **已弃用（PRD-0035）**：其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台；`byf vis` 在弃用期内成为 `byf web` 的别名（默认端口仍 3001），此后随 `@byfriends/vis-server` shim 一并移除。
+
 ### vis-server
 
 承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可独立启动服务入口（库入口供程序化导入）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。独立启动的解释器与库运行时契约一致（Bun，不再以 Node 为官方路径）。
+
+> **已弃用（PRD-0035）**：弃用期内保留一个版本 shim（导出 `startWebServer`/类型别名，标注 deprecated），其路由能力与 Inspector 读取逻辑已由 `@byfriends/web-server` + `agent-core` 的 Inspector 取代。
 
 ### 开发工具链契约
 
@@ -108,19 +112,38 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### Wire Records
 
-事件溯源持久化层（`AgentRecords`）。将所有状态变更操作以 JSONL 格式记录到 `wire.jsonl`。支持协议版本迁移。用于会话恢复（回放记录以重建内存状态）和 vis 调试。
+事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。
 
-**两类 record**：(1) 可恢复 record——restore 时由各子系统的 `RecordRestoreHandler.restoreRecord` 重建状态；(2) live-only 调试 record——仅记录 live 时发生的瞬时优化（如 `context.output_offloaded`/`context.pruning`），restore **显式 no-op**（case 列出但不改状态），仅供 vis wire 视图展示调试徽章。后者**不是**遗漏，见 ADR-0031。
-
-各子系统 `restoreRecord` 经 `isAgentRecordOfPrefix` 收窄到本前缀子集后做穷尽 switch；未知 type 仍在 `routeToHandler` 层静默 skip。
+**两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
 
 ### wire 折叠 (wire fold) / 投影函数 (projection function)
 
-把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的 effect-port 折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory` 与 `apps/vis` 的 `projectContext` 共用。折叠核心在 effect port 惰性时是纯的；可选 `offloadToolOutput` / `onMessage` / `onStepEnd` 是调用方副作用端口（live 写 scratch + 落盘、vis 挂 display 元数据）。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
+把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 `apps/vis` 的 `projectContext` 共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
+
+### wire reducer（Op / Model）
+
+PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-core-v2` 实际落地子集，非移植）。取代现有 `AgentRecords`/`RecordRestoreHandler` 的命令式 restore。核心原语：
+
+- **Op**：操作即数据。`defineOp` 注册后既是可调用 factory（`createGoal({...})`）又携带 `.type`/`.apply`/`.schema` 元信息。Op type 复用现有 wire record 名（如 `goal.create`），产出的 JSONL 形状不变。
+- **Model**：声明式状态容器（`ModelDef<S>`，name + initial）。状态实例归 `WireService` 所有，`DeepReadonly` + `Object.freeze` 保证不可变。
+- **apply（纯归约）**：`(state, payload) => S`，状态变更的唯一途径——无副作用、无 async、无 handlers 参数。
+- **dispatch**：声明式写入入口。`dispatch(...ops)` 在单方法内顺序完成 apply + persist + toEvent，一致性由结构保证。
+- **restore（静默重放）**：读 journal → 逐条 silent fold（无 persist、无 toEvent）→ 跑 `onDidRestore` hooks。
+- **toEvent**：Op 的可选 live 事件派生。dispatch 时用 post-apply state 派发；restore 时不派发。
+- **onDidRestore hook**：restore 完成后的一次性副作用钩子（如工具重建、goal active→paused 降级）。
+- **transient op**：`persist:false` 的 Op，只改内存不落盘（如 `context.output_offloaded`）；变体为纯事件车辆 op（identity apply，只为派生事件而存在，如 `goal.updated`，对标 kimi `skill.activate`）。
+- **cross-reducer**：Model 声明对其他域 Op 的归约，一个 Op dispatch 时触发多个 Model 的 fold，无需持久化额外记录。
+- **子系统（service）**：byf 里 `ContextMemory`/`GoalMode` 等类既是 Model 定义者、又是 dispatch 调用者、又是 post-dispatch effect 处理者，三者合一（区别于 kimi v2 把 Service 与 Model 分成两类）。
+
+参见 PRD-0027、ADR-0032。
 
 ### ChatProvider
 
 `kosong` 中的 LLM provider 接口。定义 `generate()` 返回 `StreamedMessage`（`TextPart`、`ThinkPart`、`ToolCall`、`ToolCallPart` 的异步迭代器）。适配器：`openai-completions`、`openai_responses`、`anthropic`、`google-genai`、`vertexai`。通过 `createProvider(config)` 工厂创建。
+
+### 回放 Provider (Replay Provider)
+
+性能负载与可重复测试中使用的注入式生成器：在 `AgentConfig.generate` 注入点回放预录/脚本化的 `StreamedMessagePart`，经 `callbacks.onMessagePart` 回调推送 part、返回组装好的 `GenerateResult`，完全忽略 provider 参数，零 API 成本、完全可重复。区别于真实 `ChatProvider`——回放 Provider 不实现 `ChatProvider` 接口，provider 对象仍由 `createProvider(dummyConfig)` 构造（保证 `name/modelName/thinkingEffort/getCapability/withThinking` 真实存在），只替换 `generate`。官方先例：`packages/kosong/test/fixtures/echo-provider.ts` 的 `ScriptedEchoChatProvider`（provider 层 DSL）与 `AgentConfig.generate` 函数层注入。参见 PRD-0026。
 
 ### Kaos
 
@@ -149,6 +172,14 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 ### 审批 (Approval)
 
 工具执行前的权限门控。代理向用户展示工具调用（包含命令、diff 或文件操作详情），用户选择批准、拒绝或取消。审批结果作为 `blockedReason`（`'rejected'` | `'cancelled'`）流入工具结果，表示工具未执行。通过审批的工具正常执行。
+
+### 资源感知权限模型 (Resource-Aware Permission Model)
+
+byf 工具系统的演进目标（PRD-0031，Tier 2）：权限规则与调度声明共享同一份 `(资源类型, 操作, 路径)` 资源抽象——Bash 命令被解析成资源访问序列后，与 `ToolAccesses` 调度元数据消费同一资源模型，实现「调度图与权限图统一」。**当前权限层仍是命令字符串匹配（调度图与权限图不对称，见 `docs/roadmap/tool-system-evolution.md` §1.2）；此模型是目标态，非现状。**
+
+### shell-decompose
+
+PRD-0031 0a 采用的 Bash 命令解析方案：按 `; && || |` 分解复合命令、剥离 `bash -c`/`sh -c` 包装、提取文件路径参数、检测间接执行（`eval`/`source`/`xargs`/`env`/`sudo` 等）。解析输出 `(path, op)` 序列，供敏感文件层（`resolvePathAccess`）与**逐子命令权限匹配**消费。非语法级解析（tree-sitter 为后续强化候选）；无法静态解析的命令转强制审批。
 
 ### 子代理活动追踪 (Sub-agent Activity Trace)
 
@@ -238,6 +269,22 @@ BYF 使用的特定观察掩码变体。工具结果按优先级分类：高持�
 
 按来源类别拆分的输入 token 估算占比，用于回答"上下文被什么占满"。六个互斥类别：System prompt（核心规则块）、Meta context（项目指令 + 工作环境块）、Skills（技能列表块）、MCP tools / System tools（按工具名前缀拆分的工具 schema）、Messages（历史消息）。**估算值**（char 启发式，provider 不返回按类别的精确 token）。百分比分母为模型 `max_context_tokens`（即 `/usage` 面板 "Context window" 行的 max 值，同口径），每项 = 该类估算 token / `max_context_tokens`，一位小数；六项之和 = 估算 input 占窗口比例，通常远小于 100%。无 model 配置（`max_context_tokens` 缺失或为 0）时百分比全为 `undefined`，面板仅显示估算绝对值。仅在 `/usage` 面板按需展示。
 
+### 缓存桩 (Cache Stake)
+
+ADR-0011 的 3+1 模型——请求中放置缓存断点的 4 个位置：**桩1**=系统提示末尾（PromptPlan 块）、**桩2**=工具数组末尾、**桩3**=上一轮最后一条助手消息（`isLastTurnEnd`）、**桩4**=当前轮最大内容块（`isSuddenLargeContext`，条件性，即「动态上下文锚点」）。桩1+桩2 是**静态前缀**（PromptPlan + tools），桩3+桩4 是**每请求动态消息锚点**（`cacheHint`）。CacheStakingStrategy 产生桩3/桩4 的逻辑标签，provider 适配器翻译为各自的缓存控制格式。
+
+### 前缀指纹 (Prefix Fingerprint)
+
+对缓存前缀内容（PromptPlan 各块 + tools 数组）计算的**逐块 SHA256 哈希**，用于 turn 间比对以检测前缀是否变化。区别于 `prompt_cache_key`（仅 global 块、拼成单串、作 OpenAI 路由提示）——前缀指纹覆盖各 cacheScope 的块、逐块、作**归因观测**而非路由。
+
+### 破坏侧归因 (Break-side Attribution) / 缓存抖动 (Cache Churn)
+
+当缓存前缀被打破时，定位到具体变化来源（哪个 system 块 / tools）的能力，与**读侧缓存命中率**（事后看到命中下降）互补：读侧回答「缓存工作吗」，破坏侧回答「谁打破了前缀」。**churn 事件** = 静态前缀块指纹跨 turn 变化时产出的归因信号（`context.cache_churn`）。压缩是预期内、且应当改写历史前缀的事件，不报为 churn。
+
+### 真实探针 (Real Probe)
+
+env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（不进常规 CI）。区别于回放 Provider / FakeLLM 的 mock 测试——mock 测的是「我们对 provider 行为的假设」，真实探针校准「provider 实际行为」。通常发布前人工运行，弥补 mock 与现实的断层。
+
 ### 结构化摘要 (Structured Summary)
 
 掩码工具结果使用的紧凑表示。示例：`[Bash: 'npm test', exit=0, 127 lines, stderr: none]`。保留工具调用元数据和小段头/尾片段，以便代理判断是否需要重新读取完整输出。
@@ -297,3 +344,49 @@ print 模式下等待后台任务结束的最长秒数（配置语义 `printWait
 ### 项目本地配置（`.byf/local.toml`）
 
 位于项目根下的工作区本地配置文件，与用户级 `~/.byf/config.toml` 分离。当前用途：`workspace.additional_dir` 数组（`/add-dir` 记住的额外根）。可按团队需要加入 `.gitignore`。
+
+### 配置作用域（全局 / 项目）
+
+byf 配置文件的两层模型：**全局**（用户级，`~/.byf/` 下）与**项目**（工作区本地，`<项目根>/.byf/` 下）。适用于 `mcp.json`（全局 `~/.byf/mcp.json`，项目 `<工作区>/.byf/mcp.json`）与 skills（全局 `~/.byf/skills`，项目 `<项目根>/.byf/skills`）。注意两处的「项目根」取法不同：MCP 直接用工作区目录，skills 用最近含 `.git` 的祖先目录。Web UI 文案称「全局 / 本地」。
+
+### 遮蔽/覆盖（shadow / override）
+
+同名条目在全局与项目两层配置并存时的冲突语义。MCP 为 **override**：加载时浅合并，项目定义覆盖全局定义（`loadMcpServers`）。skills 为 **shadow**：发现顺序 first-wins，先发现者（项目在前）生效，被遮蔽者的定义完全不加载（`discoverSkills`）。两者都保留磁盘上的两份原始定义。
+
+### web 客户端 / web-client（`apps/web`）
+
+浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
+
+### 三层设计 token
+
+byf web 客户端 UI 重设计（PRD-0033 / ADR 0035）的设计 token 分层体系：原始色板（`--color-green-*` / `neutral-*` / 状态色）→ 语义别名（`--color-bg` / `surface-*` / `fg` / `border` / `brand`）→ 组件专用（`--color-bubble` 等）。用 OKLCH 色彩空间 + Tailwind v4 `@theme` 表达。源自 deepseek-harness 三层 token 思想。
+
+> **历史术语（PRD-0035）**：已由「统一设计 token」取代。R-C1 后原始色板与语义别名以 vis token 为唯一源，emerald 品牌色被移除。
+
+### 统一设计 token
+
+PRD-0035 R-C1 确立、合并后的 byf web 工作台的设计 token 体系（三层框架沿用 deepseek-harness 思想；视觉范本经 `/have-a-try` 原型于 2026-08-17 裁决选 deepseek 精致风，自研实现，不照搬 CSS Modules）：**原始色板** = bluish 中性色阶（surface 分层 + fg 阶）+ deepseek 蓝品牌（~#4176e6 系）+ 语义色（success/warning/error）；**语义别名** = `surface*/fg*/brand/accent` 与调试语义色 `cat-*`（8 类事件类别色，供 Inspector 调试视图）；**组件层** = shadcn 桥接变量（`--background`/`--foreground`/`--card`/`--primary`/... 指向新 token）。圆角 8-12px、低透明度柔和边框、分层阴影、深浅双主题、`data-theme` 三态、boot 脚本防闪烁、中文友好字体栈 + mono 代码字体。emerald 品牌色移除。部分取代 ADR-0035 的 OKLCH 色板与 emerald 品牌决策。
+
+### 步骤时间轴 (Step Timeline)
+
+byf web 客户端 assistant 消息的渲染结构：把 thinking / tool / text 组织成 step，左侧竖线 + 圆点（活跃项辉光），可视化 agent 执行流。源自 kimi-code。是 PRD-0033 视觉风格（deepseek 精致骨架 + kimi 时间轴融合）的一部分。
+
+### 工具调用归组 (tool call grouping)
+
+web 客户端把同一 turn 内时间上相邻、同类型（`ToolInputDisplay.kind`）的连续工具调用折叠为「类型 + 数量 + 总耗时」摘要行的纯客户端投影；中间被 text/thinking step 打断则各自成组。归组不改事件契约。
+
+### 子 Agent 时间轴卡片 + drawer (subagent timeline card)
+
+web 客户端中子 agent 在主步骤时间轴内的信息卡片（分工、状态、耗时、usage、结果摘要）；点击卡片经右侧 overlay drawer 深度查看该子 agent 的完整调用轨迹（与主时间轴同构）。区别于内联展开与常驻 details 栏（have-a-try 三变体裁决的形态）。
+
+### 作用域白名单文件端点 (scoped file endpoint)
+
+web-server 的只读文件 HTTP 端点：realpath 规范化后仅允许已注册工作区根与 `media-originals` 缓存两类前缀，带大小/类型上限与 Range 支持。是 web 唯一的文件读取通道（ADR 0036）。
+
+### 只写不读密钥 (write-only secret)
+
+apiKey 的管理语义：仅接受写入、任何读取路径恒脱敏（仅报「是否已配置」）、编辑留空即不变、`env`/oauth 来源输入禁用。见 ADR 0036。
+
+### settle 后渲染 (render-after-settle)
+
+web 客户端流式渲染策略：流式期间保持纯文本，块完结（settle）后再做语法高亮、Mermaid 图表、LaTeX 公式等重渲染，避免每帧重排抖动（沿 PRD-0033 高亮决策推广到图表与公式）。

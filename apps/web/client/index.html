@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>byf — web client</title>
+    <script>
+      // 防闪烁主题 boot(ADR 0035 D3):React 加载前读 byf.theme + prefers-color-scheme,
+      // 前置设 <html class> + color-scheme。与 src/hooks/useTheme.ts 的 applyTheme 保持同步。
+      (() => {
+        const root = document.documentElement;
+        let pref = null;
+        try {
+          pref = localStorage.getItem('byf.theme');
+        } catch {
+          /* localStorage 不可用时按 system */
+        }
+        const dark =
+          pref === 'dark' ||
+          (pref !== 'light' &&
+            typeof matchMedia !== 'undefined' &&
+            matchMedia('(prefers-color-scheme: dark)').matches);
+        root.classList.add(dark ? 'theme-dark' : 'theme-light');
+        root.style.colorScheme = dark ? 'dark' : 'light';
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

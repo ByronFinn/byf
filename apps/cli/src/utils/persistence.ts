@@ -1,9 +1,8 @@
 /**
- * Small persistence helpers for CLI-owned data files.
+ * CLI 自有数据文件的小型持久化辅助。
  *
- * This module is intentionally for non-config files only. User-facing
- * configuration is owned by core/SDK; do not route `config.toml` through
- * these helpers.
+ * 本模块刻意只用于非配置文件。用户可见配置由 core/SDK 拥有;
+ * 不要把 `config.toml` 路由经这些辅助。
  */
 
 import { appendFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';

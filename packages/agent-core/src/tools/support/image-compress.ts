@@ -1,20 +1,16 @@
 /**
- * image-compress — downscale + re-encode large images so they fit the
- * model's token / context budget.
+ * image-compress — 缩小 + 重编码大图,使其适配模型的 token / 上下文预算。
  *
- * ReadMediaFileTool sends images as base64 data URLs. A full-resolution
- * screenshot easily blows the context budget, so before base64-encoding we
- * run this pipeline: cap the longest edge, then walk a JPEG quality ladder
- * until the result fits a byte budget.
+ * ReadMediaFileTool 以 base64 data URL 发送图片。全分辨率截图很容易撑爆
+ * 上下文预算,因此在 base64 编码前运行本管线:限制最长边,然后沿 JPEG
+ * 质量阶梯下降,直到结果落入字节预算。
  *
- * Scope (see ADR / issue #233): Jimp's default plugins decode PNG/JPEG/GIF/
- * BMP/TIFF but NOT WebP, and re-encoding GIF drops animation. WebP and GIF
- * therefore pass through unchanged (they are already small / efficient).
- * BMP is rejected by the format gate (not in MODEL_ACCEPTED_IMAGE_MIMES)
- * before compression runs, so it is intentionally not in the compressible
- * set. Effective compression targets PNG and JPEG. This is the BYF-
- * appropriate subset — no area-average resizing, no full-format-policy
- * machinery.
+ * 范围(见 ADR / issue #233):Jimp 默认插件可解码 PNG/JPEG/GIF/BMP/TIFF,
+ * 但**不**支持 WebP,且重编码 GIF 会丢失动画。因此 WebP 与 GIF 原样透传
+ * (它们本就小 / 高效)。BMP 在压缩运行前就被格式闸门拒绝(不在
+ * MODEL_ACCEPTED_IMAGE_MIMES 中),因此刻意不在可压缩集合内。实际压缩目标
+ * 是 PNG 与 JPEG。这是 BYF 适当的子集——无面积平均缩放,无完整格式策略
+ * 机制。
  */
 
 import { Jimp } from 'jimp';
@@ -26,27 +22,25 @@ type DecodedImage = Awaited<ReturnType<typeof Jimp.read>>;
 
 // ── Tunables ─────────────────────────────────────────────────────────
 
-/** Longest edge a decoded image is allowed to keep, in pixels. */
+/** 解码后图像允许保留的最长边,单位像素。 */
 export const MAX_IMAGE_EDGE_PX = 2000;
-/** Soft byte budget; images already under this (and within the edge) pass through. */
+/** 软字节预算;已低于此值(且在边限内)的图像直接透传。 */
 export const IMAGE_BYTE_BUDGET = Math.floor(3.75 * 1024 * 1024);
-/** Guard against decompression bombs: refuse to decode above this many pixels. */
+/** 防解压炸弹:像素数超过此值则拒绝解码。 */
 export const MAX_DECODE_PIXELS = 100_000_000;
-/** Guard against decompression bombs: refuse to even attempt decode above this many bytes. */
+/** 防解压炸弹:字节数超过此值则拒绝尝试解码。 */
 export const MAX_DECODE_BYTES = 64 * 1024 * 1024;
 
 /**
- * Byte budget for the ReadMediaFile entry point — the raw file size above
- * which reading is refused before any decode/compress attempt. Kept smaller
- * than {@link IMAGE_BYTE_BUDGET} (the post-compress target) so a single
- * huge file does not consume memory.
+ * ReadMediaFile 入口的字节预算——原始文件大小超过此值,在任何解码 / 压缩
+ * 尝试前即拒绝读取。保持小于 {@link IMAGE_BYTE_BUDGET}(压缩后目标),
+ * 使单个超大文件不会消耗内存。
  */
 export const READ_IMAGE_BYTE_BUDGET = 100 * 1024 * 1024;
 
 /**
- * Parse a positive integer from an environment variable. Returns `undefined`
- * when the variable is absent, empty, or not a positive integer — the caller
- * falls back to config or built-in defaults.
+ * 从环境变量解析正整数。变量缺失、为空或不是正整数时返回 `undefined`——
+ * 调用方回退到配置或内置默认值。
  */
 export function positiveIntFromEnv(
   env: Readonly<Record<string, string | undefined>>,
@@ -60,8 +54,8 @@ export function positiveIntFromEnv(
 }
 
 /**
- * Read the max image edge override from `BYF_IMAGE_MAX_EDGE_PX`.
- * Operator-level (process-wide); per-owner config is layered underneath.
+ * 从 `BYF_IMAGE_MAX_EDGE_PX` 读取最大图像边限覆盖。
+ * 操作员级(进程范围);按 owner 的配置叠加在其下。
  */
 export function maxImageEdgeFromEnv(
   env: Readonly<Record<string, string | undefined>>,
@@ -70,7 +64,7 @@ export function maxImageEdgeFromEnv(
 }
 
 /**
- * Read the read-entry byte budget override from `BYF_IMAGE_READ_BYTE_BUDGET`.
+ * 从 `BYF_IMAGE_READ_BYTE_BUDGET` 读取读入口字节预算覆盖。
  */
 export function readImageByteBudgetFromEnv(
   env: Readonly<Record<string, string | undefined>>,
@@ -85,11 +79,11 @@ const JPEG_QUALITY_LADDER: readonly number[] = [80, 60, 40, 20];
 
 export interface CompressInput {
   readonly data: Buffer;
-  /** The sniffed/accepted MIME from detectFileType. */
+  /** detectFileType 嗅探 / 接受的 MIME。 */
   readonly mimeType: string;
-  /** Default {@link MAX_IMAGE_EDGE_PX}. */
+  /** 默认 {@link MAX_IMAGE_EDGE_PX}。 */
   readonly maxEdgePx?: number;
-  /** Default {@link IMAGE_BYTE_BUDGET}; images already under this pass through fast. */
+  /** 默认 {@link IMAGE_BYTE_BUDGET};已低于此值的图像快速透传。 */
   readonly byteBudget?: number;
 }
 
@@ -180,15 +174,14 @@ async function reencode(
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Compress an image for model consumption.
+ * 为模型消费压缩图像。
  *
- * - WebP / GIF / unsupported MIME → passthrough (returns the original data).
- * - Already within edge + byte budget → passthrough.
- * - Otherwise: decode (with bomb guards), downscale to `maxEdgePx`, re-encode
- *   walking a JPEG quality ladder.
+ * - WebP / GIF / 不支持的 MIME → 透传(返回原始数据)。
+ * - 已在边限 + 字节预算内 → 透传。
+ * - 否则:解码(带防炸弹守卫),缩小到 `maxEdgePx`,沿 JPEG 质量阶梯重编码。
  *
- * Never throws: on any decode/encode error returns outcome `error` with the
- * original data, so the caller can fall back to sending the original.
+ * 绝不抛出:任何解码 / 编码错误都返回携带原始数据的 `error` 结果,
+ * 使调用方可回退为发送原图。
  */
 export async function compressImageForModel(input: CompressInput): Promise<CompressResult> {
   const { data, mimeType } = input;

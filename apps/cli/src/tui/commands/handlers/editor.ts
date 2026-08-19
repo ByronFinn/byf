@@ -1,4 +1,4 @@
-// Editor / theme / model slash commands.
+// 编辑器 / 主题 / 模型斜杠命令。
 
 import { isTheme } from '#/tui/theme';
 

@@ -57,7 +57,7 @@ export interface TurnResult {
   usage: TokenUsage;
 }
 
-export type ExecutableToolOutput = string | ContentPart[];
+export type ExecutableToolOutput = string | ContentPart[] | Record<string, unknown>;
 
 export interface ExecutableToolSuccessResult {
   readonly output: ExecutableToolOutput;
@@ -126,6 +126,12 @@ export type ToolExecution = RunnableToolExecution | ExecutableToolErrorResult;
 
 export interface ExecutableTool<Input = unknown> extends Tool {
   resolveExecution(input: Input): ToolExecution;
+  /**
+   * PRD-0031 2c：可选的结构化输出契约。工具返回**结构化对象输出**时，
+   * loop 在 coerce 边界按该 schema 运行时校验，畸形输出转为结构化错误
+   * （含校验失败原因，公理 A）。字符串/文本内容数组是文本通道，豁免。
+   */
+  readonly outputSchema?: import('zod').ZodType<unknown>;
 }
 
 /**

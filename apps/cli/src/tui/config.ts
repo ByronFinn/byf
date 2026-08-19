@@ -1,8 +1,8 @@
 /**
- * TUI-owned configuration.
+ * TUI 自有的配置。
  *
- * Agent/runtime settings live in core's `config.toml`; this file owns only
- * terminal UI preferences for the BYF client.
+ * agent / 运行时设置位于核心的 `config.toml`;本文件只拥有 BYF 客户端的
+ * 终端 UI 偏好。
  */
 
 import { existsSync } from 'node:fs';
@@ -62,10 +62,9 @@ export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
 });
 
 /**
- * Thrown by `loadTuiConfig` when the on-disk TOML cannot be parsed.
- * Carries `fallback` so the caller can recover without re-running the
- * I/O, and use `message` (== `INVALID_TUI_CONFIG_MESSAGE`) as a
- * user-facing notice.
+ * `loadTuiConfig` 在磁盘 TOML 无法解析时抛出。携带 `fallback`,
+ * 使调用方无需重跑 I/O 即可恢复,并使用 `message`
+ * (== `INVALID_TUI_CONFIG_MESSAGE`)作为用户可见提示。
  */
 export class TuiConfigParseError extends Error {
   override readonly name = 'TuiConfigParseError';

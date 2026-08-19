@@ -39,7 +39,7 @@ import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
+import { turnCancel, turnModel, turnPrompt, turnSteer } from '../wire/ops/turn';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { KosongLLM } from './kosong-llm';
 import { ToolCallDeduplicator } from './tool-dedup';
@@ -61,7 +61,7 @@ export interface TurnEndResult {
 
 const LLM_NOT_SET_MESSAGE = 'LLM not set, send "/login" to login';
 
-export class TurnFlow implements RecordRestoreHandler {
+export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private _previousTurnMessageCount = 0;
@@ -85,22 +85,14 @@ export class TurnFlow implements RecordRestoreHandler {
 
   // Returns the new turnId, or null if the turn was marked as resuming.
   prompt(input: readonly ContentPart[], origin: PromptOrigin = USER_PROMPT_ORIGIN): number | null {
-    this.agent.records.logRecord({
-      type: 'turn.prompt',
-      input,
-      origin,
-    });
+    this.agent.wire.dispatch(turnPrompt({ input, origin }));
     return this.launch(input, origin);
   }
 
   // Returns the new turnId, or null if the input was buffered as a steer
   // message or the turn was marked as resuming.
   steer(input: readonly ContentPart[], origin: PromptOrigin = USER_PROMPT_ORIGIN): number | null {
-    this.agent.records.logRecord({
-      type: 'turn.steer',
-      input,
-      origin,
-    });
+    this.agent.wire.dispatch(turnSteer({ input, origin }));
     if (this.activeTurn) {
       this.steerBuffer.push({ input, origin });
       return null;
@@ -162,7 +154,7 @@ export class TurnFlow implements RecordRestoreHandler {
   }
 
   cancel(turnId?: number): void {
-    this.agent.records.logRecord({ type: 'turn.cancel', turnId });
+    this.agent.wire.dispatch(turnCancel({ turnId }));
     if (turnId !== undefined && turnId !== this.currentId) {
       return; // Ignore cancel for non-active turn
     }
@@ -610,7 +602,13 @@ export class TurnFlow implements RecordRestoreHandler {
             },
             prepareToolExecution: async (ctx) => {
               const cached = deduper.checkSameStep(ctx.toolCall.id, ctx.toolCall.name, ctx.args);
-              if (cached !== null) return { syntheticResult: cached, skip: true };
+              if (cached !== null) {
+                // 同 step 去重占位符（非错误）→ skip（结果由原调用 finalize 补入）；
+                // force-stop 结构化错误（isError）→ 不 skip——错误必须回传模型
+                // （公理 A：可区分「被强制停止」与「执行失败」，否则模型只会
+                // 静默重试烧 token）。
+                return { syntheticResult: cached, skip: cached.isError !== true };
+              }
               const hookResult = await this.agent.hooks?.triggerBlock('PreToolUse', {
                 matcherValue: ctx.toolCall.name,
                 signal: ctx.signal,
@@ -835,6 +833,15 @@ export class TurnFlow implements RecordRestoreHandler {
         break;
     }
   }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * turnId 由 turn.prompt/steer 的纯 apply 重建；activeTurn / steerBuffer 是运行态，
+   * 由 finishResume 收尾（restore 期不进入 'resuming'）。
+   */
+  syncFromWire(): void {
+    this.turnId = this.agent.wire.getModel(turnModel).turnId;
+  }
 }
 
 function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined {
@@ -888,6 +895,7 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         args: event.args,
         description: event.description,
         display: event.display,
+        startedAt: event.startedAt,
       };
     case 'tool.result': {
       const blockedReason = event.result.isError === true ? event.result.blockedReason : undefined;
@@ -898,6 +906,8 @@ function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined 
         output: event.result.output,
         isError: event.result.isError,
         blockedReason,
+        startedAt: event.startedAt,
+        endedAt: event.endedAt,
       };
     }
     case 'turn.interrupted':
@@ -959,6 +969,7 @@ function toolInputRecord(args: unknown): Record<string, unknown> {
 
 function toolOutputText(output: ExecutableToolResult['output']): string {
   if (typeof output === 'string') return output;
+  if (!Array.isArray(output)) return JSON.stringify(output);
   return output
     .filter((part): part is Extract<(typeof output)[number], { type: 'text' }> => {
       return typeof part === 'object' && part !== null && part.type === 'text';

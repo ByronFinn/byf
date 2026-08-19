@@ -1,18 +1,20 @@
 /**
- * Error codes for Byf Core's public error protocol.
+ * Byf Core 公共错误协议的错误码。
  *
- * `ErrorCodes` is the source of truth for every code Byf Core may emit.
- * Downstream consumers (SDK, RPC clients, telemetry, agent-facing docs)
- * should depend on these string values rather than on class identity.
+ * `ErrorCodes` 是 Byf Core 可能发出的每个码的唯一事实源。下游消费者
+ * (SDK、RPC 客户端、遥测、面向 agent 的文档)应依赖这些字符串值,
+ * 而非类身份。
  *
- * Codes follow `domain.reason`. Adding a code is a minor change; renaming
- * or removing one is a major change.
+ * 码遵循 `domain.reason` 形式。新增一个码是 minor 变更;重命名或移除
+ * 一个是 major 变更。
  */
 export const ErrorCodes = {
   CONFIG_INVALID: 'config.invalid',
+  CONFIG_REVISION_CONFLICT: 'config.revision_conflict',
 
   SESSION_NOT_FOUND: 'session.not_found',
   SESSION_ALREADY_EXISTS: 'session.already_exists',
+  SESSION_BUSY: 'session.busy',
   SESSION_ID_INVALID: 'session.id_invalid',
   SESSION_ID_REQUIRED: 'session.id_required',
   SESSION_ID_EMPTY: 'session.id_empty',
@@ -48,6 +50,7 @@ export const ErrorCodes = {
   SKILL_NOT_FOUND: 'skill.not_found',
   SKILL_TYPE_UNSUPPORTED: 'skill.type_unsupported',
   SKILL_NAME_EMPTY: 'skill.name_empty',
+  SKILL_ALREADY_EXISTS: 'skill.already_exists',
 
   GOAL_NOT_FOUND: 'goal.not_found',
   GOAL_ALREADY_EXISTS: 'goal.already_exists',
@@ -58,6 +61,7 @@ export const ErrorCodes = {
   GOAL_BUDGET_INVALID: 'goal.budget_invalid',
 
   RECORDS_WRITE_FAILED: 'records.write_failed',
+  RECORDS_READ_FAILED: 'records.read_failed',
   COMPACTION_FAILED: 'compaction.failed',
 
   BACKGROUND_TASK_ID_EMPTY: 'background.task_id_empty',
@@ -96,6 +100,12 @@ export const BYF_ERROR_INFO = {
     public: true,
     action: 'Check config.toml and provider/model settings.',
   },
+  'config.revision_conflict': {
+    title: 'Configuration changed on disk',
+    retryable: true,
+    public: true,
+    action: 'Reload the latest config.toml before saving again.',
+  },
 
   'session.not_found': {
     title: 'Session not found',
@@ -108,6 +118,12 @@ export const BYF_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Use a different session id or remove the existing session first.',
+  },
+  'session.busy': {
+    title: 'Session is busy',
+    retryable: false,
+    public: true,
+    action: 'Close the live session and stop running background tasks before deleting it.',
   },
   'session.id_invalid': {
     title: 'Invalid session id',
@@ -299,6 +315,12 @@ export const BYF_ERROR_INFO = {
     public: true,
     action: 'Provide a non-empty skill name.',
   },
+  'skill.already_exists': {
+    title: 'Skill already exists',
+    retryable: false,
+    public: true,
+    action: 'Pick a different skill name in this scope, or delete the existing one first.',
+  },
 
   'goal.not_found': {
     title: 'Goal not found',
@@ -348,6 +370,12 @@ export const BYF_ERROR_INFO = {
     retryable: true,
     public: true,
     action: 'Check disk space and permissions on the session directory.',
+  },
+  'records.read_failed': {
+    title: 'Failed to read records',
+    retryable: false,
+    public: true,
+    action: 'The session wire file may be missing, locked, or unreadable.',
   },
   'compaction.failed': {
     title: 'Compaction failed',

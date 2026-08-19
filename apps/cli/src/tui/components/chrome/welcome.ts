@@ -1,6 +1,6 @@
 /**
- * Welcome panel shown at the top of the TUI.
- * Renders a round-bordered box with the logo, session, model, and version.
+ * TUI 顶部显示的欢迎面板。
+ * 渲染圆角边框盒,内含 logo、会话、模型与版本。
  */
 
 import type { Component } from '@earendil-works/pi-tui';

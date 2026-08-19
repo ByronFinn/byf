@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { ToolCallDeduplicator, __testing } from '../../../src/agent/turn/tool-dedup';
+import {
+  FORCE_STOP_STREAK,
+  ToolCallDeduplicator,
+  __testing,
+} from '../../../src/agent/turn/tool-dedup';
 import type { ExecutableToolResult } from '../../../src/loop/types';
+import { testAgent } from '../harness/agent';
+import { formatHarnessSnapshot } from '../harness/snapshots';
 
 const { REMINDER_TEXT_1, makeReminderText2 } = __testing;
 
@@ -355,4 +361,139 @@ describe('ToolCallDeduplicator', () => {
       expect(finalDup).toEqual(dupCached);
     });
   });
+});
+
+describe('PRD-0031 1a force-stop', () => {
+  it('force-stops at FORCE_STOP_STREAK consecutive repeats (no execution, distinguishable error)', async () => {
+    const dedup = new ToolCallDeduplicator();
+    let last: ExecutableToolResult | undefined;
+    for (let i = 0; i < FORCE_STOP_STREAK; i += 1) {
+      dedup.beginStep();
+      const cached = dedup.checkSameStep(`c${String(i)}`, 'Bash', { command: 'rm x' });
+      // 第 12 次：prepare 阶段即返回 force-stop 错误（不执行）
+      if (i === FORCE_STOP_STREAK - 1) {
+        expect(cached).not.toBeNull();
+        expect(cached!.isError).toBe(true);
+        expect(cached!.output as string).toContain('force-stopped');
+        expect(cached!.output as string).toContain('were not executed');
+        expect(cached!.output as string).not.toContain('Command failed with exit code');
+        // finalize 原样保留该错误（不 resolve 其他结果）
+        const finalized = await dedup.finalizeResult(
+          `c${String(i)}`,
+          'Bash',
+          { command: 'rm x' },
+          cached!,
+        );
+        expect(finalized).toEqual(cached);
+      } else {
+        expect(cached).toBeNull();
+        await dedup.finalizeResult(`c${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      }
+      dedup.endStep();
+    }
+  });
+
+  it('continues force-stopping on further repeats beyond the threshold', async () => {
+    const dedup = new ToolCallDeduplicator();
+    for (let i = 0; i < FORCE_STOP_STREAK + 1; i += 1) {
+      dedup.beginStep();
+      const cached = dedup.checkSameStep(`c${String(i)}`, 'Bash', { command: 'rm x' });
+      if (i >= FORCE_STOP_STREAK - 1) {
+        expect(cached).not.toBeNull();
+        expect(cached!.output as string).toContain('force-stopped');
+      } else {
+        expect(cached).toBeNull();
+      }
+      if (cached === null)
+        await dedup.finalizeResult(`c${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+  });
+
+  it('does not force-stop when a different call breaks the streak', async () => {
+    const dedup = new ToolCallDeduplicator();
+    // 11 次 rm x 后插入一次不同调用，然后 rm x 再来——streak 重置，不触发
+    for (let i = 0; i < FORCE_STOP_STREAK - 1; i += 1) {
+      dedup.beginStep();
+      expect(dedup.checkSameStep(`rm${String(i)}`, 'Bash', { command: 'rm x' })).toBeNull();
+      await dedup.finalizeResult(`rm${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+    dedup.beginStep();
+    expect(dedup.checkSameStep('other', 'Bash', { command: 'echo hi' })).toBeNull();
+    await dedup.finalizeResult('other', 'Bash', { command: 'echo hi' }, okResult('R'));
+    dedup.endStep();
+    dedup.beginStep();
+    const cached = dedup.checkSameStep('rm_again', 'Bash', { command: 'rm x' });
+    expect(cached).toBeNull(); // streak 被 echo hi 打断，重新计数
+    await dedup.finalizeResult('rm_again', 'Bash', { command: 'rm x' }, okResult('R'));
+    dedup.endStep();
+  });
+
+  it('same-step dups count toward the streak (goal-mode runaway guard)', async () => {
+    const dedup = new ToolCallDeduplicator();
+    // 10 个 step 的 rm x + 同 step 内第 1 次调用（streak 11）+ 重复（streak 12）→ force-stop
+    for (let i = 0; i < FORCE_STOP_STREAK - 2; i += 1) {
+      dedup.beginStep();
+      expect(dedup.checkSameStep(`rm${String(i)}`, 'Bash', { command: 'rm x' })).toBeNull();
+      await dedup.finalizeResult(`rm${String(i)}`, 'Bash', { command: 'rm x' }, okResult('R'));
+      dedup.endStep();
+    }
+    dedup.beginStep();
+    expect(dedup.checkSameStep('first', 'Bash', { command: 'rm x' })).toBeNull();
+    const cached = dedup.checkSameStep('dup', 'Bash', { command: 'rm x' });
+    expect(cached).not.toBeNull();
+    expect(cached!.output as string).toContain('force-stopped');
+  });
+
+  it('advisory reminders (3/5/8) still apply below the force-stop threshold', async () => {
+    const dedup = new ToolCallDeduplicator();
+    let last: ExecutableToolResult | undefined;
+    for (let i = 0; i < 8; i += 1) {
+      dedup.beginStep();
+      last = await runOriginal(dedup, `c${String(i)}`, 'Read', { p: 1 }, okResult('R'));
+      dedup.endStep();
+    }
+    expect(last!.output as string).toContain('<system-reminder>');
+    expect(last!.output as string).not.toContain('force-stopped');
+  });
+});
+
+describe('PRD-0031 1a force-stop 集成（loop 级）', () => {
+  it('12 次重复调用后模型收到 force-stopped 结构化错误（不静默丢弃）', async () => {
+    const ctx = testAgent();
+    ctx.configure({ tools: ['Bash'] });
+    // auto 模式：Bash 免审批直跑（force-stop 与模式无关）
+    await ctx.rpc.setPermission({ mode: 'auto' });
+    // 前 11 步各调用一次相同 Bash 命令（streak 1..11）
+    for (let i = 0; i < FORCE_STOP_STREAK - 1; i += 1) {
+      ctx.mockNextResponse(
+        { type: 'text', text: `call ${String(i)}` },
+        {
+          type: 'function',
+          id: `call_${String(i)}`,
+          name: 'Bash',
+          arguments: '{"command":"printf x"}',
+        },
+      );
+    }
+    // 第 12 次调用：触发 force-stop（不执行），错误回传模型
+    ctx.mockNextResponse(
+      { type: 'text', text: 'call 11' },
+      {
+        type: 'function',
+        id: 'call_11',
+        name: 'Bash',
+        arguments: '{"command":"printf x"}',
+      },
+    );
+    // 模型收到 force-stop 错误后给出最终文本
+    ctx.mockNextResponse({ type: 'text', text: 'Stopping now.' });
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Run the loop' }] });
+    const snapshot = formatHarnessSnapshot(await ctx.untilTurnEnd());
+    // 模型必须看到 force-stopped 错误（公理 A：可区分被强制停止与执行失败）
+    expect(snapshot).toContain('force-stopped');
+    expect(snapshot).toContain('were not executed');
+    // 12 步完整 turn 的重型集成:并发套件(10 路)下放宽超时,避免资源竞争误报。
+  }, 15_000);
 });

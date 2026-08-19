@@ -1,8 +1,7 @@
 /**
- * Status report line builder for `/status`.
+ * `/status` 的状态报告行构建器。
  *
- * It mirrors `/usage` visual language but keeps runtime status formatting
- * separate from the TUI orchestration layer.
+ * 它镜像 `/usage` 的视觉语言,但把运行时状态格式化与 TUI 编排层分离。
  */
 
 import type { ModelAlias, PermissionMode, SessionStatus } from '@byfriends/sdk';
@@ -132,6 +131,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   // Cache section
   const total = options.status?.usage?.total;
+  const lastChurn = options.status?.usage?.lastCacheChurn;
   if (total !== undefined) {
     const hitRate = computeCacheHitRate(
       safeNumber(total.inputOther),
@@ -155,6 +155,18 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
       lines.push('');
       lines.push('  ' + cacheLabel + '  ' + cacheValue);
     }
+  }
+
+  // Break-side attribution (PRD-0029 R3): which block last broke the static prefix.
+  if (lastChurn !== undefined) {
+    const labelWidth = Math.max(10, ...rows.map((r) => r.label.length));
+    const churnLabel = muted('Prefix'.padEnd(labelWidth));
+    const ago =
+      lastChurn.turnsAgo !== undefined
+        ? `, ${String(lastChurn.turnsAgo)} turn${lastChurn.turnsAgo === 1 ? '' : 's'} ago`
+        : '';
+    const churnValue = muted(`Last change: ${lastChurn.blockName} (${lastChurn.cacheScope}${ago})`);
+    lines.push('  ' + churnLabel + '  ' + churnValue);
   }
 
   const managedSection = buildManagedUsageReportLines({

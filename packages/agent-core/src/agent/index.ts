@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import {
   generate,
+  type CacheScope,
   type CacheStrategy,
   type ChatProvider,
   type ContentPart,
@@ -41,23 +42,35 @@ import {
 } from '../utils/tokens';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager } from './background';
+import {
+  computeToolsHash,
+  diffStaticPrefix,
+  extractCacheBlockHashes,
+  type StaticPrefixSnapshot,
+} from './cache-churn';
 import { FullCompaction, type CompactionStrategy } from './compaction';
-import { ConfigState } from './config';
+import { ConfigState, type AgentConfigUpdateData } from './config';
 import { ContextMemory } from './context';
 import { CronManager } from './cron';
 import { GoalMode } from './goal';
 import { HookEngine } from './hooks';
 import { InjectionManager } from './injection/manager';
-import { PermissionManager, type PermissionManagerOptions } from './permission';
 import {
-  AgentRecords,
+  PermissionManager,
+  type PermissionManagerOptions,
+  type PermissionMode,
+} from './permission';
+import {
   FileSystemAgentRecordPersistence,
+  isAgentRecordOfPrefix,
   type AgentRecord,
   type AgentRecordPersistence,
 } from './records';
 import { ReplayBuilder } from './replay';
 import { SkillManager } from './skill';
 import { ToolManager } from './tool/index';
+// import 即注册全部业务 Op（纯 reducer 子系统；legacy 前缀走 legacyRoute）。
+import './wire/ops';
 import { TurnFlow } from './turn';
 import {
   GENERATE_REQUEST_LOG_CONTEXT,
@@ -65,6 +78,8 @@ import {
   type GenerateOptionsWithRequestLog,
 } from './turn/kosong-llm';
 import { UsageRecorder } from './usage';
+import { WireService, wireRecordToPayload, type WirePersistence, type WireRecord } from './wire';
+import { contextCacheChurn } from './wire/ops/context';
 
 export type { AgentRecord, AgentRecordPersistence } from './records';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
@@ -91,9 +106,11 @@ export type AgentType = 'main' | 'sub' | 'independent';
  * via a tool, falls back to emitting tool-call syntax as plain text
  * (e.g. `<tool_call><function=WebSearch>…`). This directive closes that
  * gap by making the read-only, text-only contract explicit and forbidding
- * any tool-call-like output. It is injected as a `system` message
- * *between* the stable snapshot and the user's question, so the main
- * system prompt (and its cache prefix) is untouched.
+ * any tool-call-like output. It is injected as a `user` message *between*
+ * the stable snapshot and the user's question, so the main system prompt
+ * (and its cache prefix) is untouched and the wire request keeps exactly
+ * one leading `system` message — strict chat templates (e.g. qwen-3.6)
+ * reject a request whose system message is not the first one.
  */
 const BTW_READONLY_INSTRUCTION = [
   'You are answering a read-only side question ("by the way").',
@@ -104,7 +121,7 @@ const BTW_READONLY_INSTRUCTION = [
 ].join(' ');
 
 const BTW_READONLY_INSTRUCTION_MESSAGE: Message = {
-  role: 'system',
+  role: 'user',
   content: [{ type: 'text', text: BTW_READONLY_INSTRUCTION }],
   toolCalls: [],
 };
@@ -132,6 +149,24 @@ export interface AgentConfig {
   readonly telemetry?: TelemetryClient;
 }
 
+/**
+ * 无 homedir / 无注入 persistence 时的 no-op journal（记录丢弃、restore 空转）。
+ * 等价无 persistence 语义（dispatch 丢记录）；replay 由旧「抛错」
+ * 放宽为「空 journal no-op」（无调用点依赖旧抛错，session 层恒有 homedir）。
+ */
+const NOOP_WIRE_PERSISTENCE: WirePersistence = {
+  read: async function* () {},
+  append: () => {},
+  rewrite: () => {},
+  flush: async () => {},
+  close: async () => {},
+};
+
+/** Phase 1 legacy adapter 前缀：restore 走 restoreRecord（非纯 reducer）。 */
+function isLegacyRestorePrefix(record: AgentRecord): boolean {
+  return isAgentRecordOfPrefix(record, 'context');
+}
+
 export class Agent {
   readonly runtime: RuntimeConfig;
   readonly homedir?: string;
@@ -152,7 +187,8 @@ export class Agent {
   readonly hooks: HookEngine | undefined;
 
   readonly type: AgentType;
-  readonly records: AgentRecords;
+  /** wire reducer 引擎：独占 wire.jsonl（PRD-0027 Phase 1）。 */
+  readonly wire: WireService;
   readonly fullCompaction: FullCompaction;
   readonly context: ContextMemory;
   readonly config: ConfigState;
@@ -173,6 +209,19 @@ export class Agent {
   readonly log: Logger;
 
   private lastLlmConfigLogSignature?: string;
+  /**
+   * 上一 turn 的静态前缀快照（桩1 逐块哈希 + 桩2 toolsHash），用于破坏侧归因比对
+   * （PRD-0029 R2/R3）。restore 后为 undefined——首个 live turn 建立基线、不报 churn。
+   * 不持久化本身（restore 时从当前 system prompt 重算）。
+   */
+  private previousStaticPrefix?: StaticPrefixSnapshot;
+  /**
+   * 最近一次静态前缀变化的归因备忘（PRD-0029 R3），用于 /status「Last prefix change」。
+   * `turnId` 仅 live 已知；restore 重放来的 churn 无 turnId（turnsAgo 随之为 undefined）。
+   */
+  private lastCacheChurnMemento?: { blockName: string; cacheScope: CacheScope; turnId?: number };
+  /** 本会话累计 churn 次数（PRD-0029 R3），含 restore 重放的记录。 */
+  private cacheChurnCount = 0;
   private btwQueryCounter = 0;
   private readonly btwQueries = new Map<string, AbortController>();
 
@@ -198,17 +247,53 @@ export class Agent {
 
     this.rpc = config.rpc;
     this.telemetry = config.telemetry ?? noopTelemetryClient;
-    this.records = new AgentRecords(
-      this,
-      config.persistence ??
+    this.wire = new WireService({
+      persistence:
+        config.persistence ??
         (config.homedir
           ? new FileSystemAgentRecordPersistence(join(config.homedir, 'wire.jsonl'), {
               onError: (error) => {
                 this.emitRecordsWriteError(error);
               },
             })
-          : undefined),
-    );
+          : NOOP_WIRE_PERSISTENCE),
+      publishEvent: (event) => {
+        this.emitEvent(event as AgentEvent);
+      },
+      legacyRoute: (record: WireRecord) => {
+        this.routeLegacyRecord(record as AgentRecord);
+      },
+      onReplayRecord: (record: WireRecord) => {
+        // context 走纯 reducer（appendMessage/appendLoopEvent 不执行），committed
+        // 副作用（background 投递 / replayBuilder / token 快照）在此逐条执行
+        // （Phase 5 拆 port 后的 restore 路径）。
+        if (isAgentRecordOfPrefix(record as AgentRecord, 'context')) {
+          this.context.handleReplayRecord(record as AgentRecord);
+          this.pushToolTimingReplayRecord(record);
+        } else if (isAgentRecordOfPrefix(record as AgentRecord, 'config')) {
+          // config 走纯 reducer（update() 不执行），replayBuilder 的 config_updated
+          // 在此派生（payload 即 changed 子集，对标旧路径 config/index.ts:43 的 push）。
+          this.replayBuilder.push({
+            type: 'config_updated',
+            config: wireRecordToPayload(record) as AgentConfigUpdateData,
+          });
+        } else if (record.type === 'permission.set_mode') {
+          // permission 走纯 reducer（setMode() 不执行），permission_updated 在此派生。
+          // approval_result 是 TUI no-op（projectReplayRecord 直接 return），不派生。
+          const payload = wireRecordToPayload(record) as { mode?: PermissionMode };
+          if (payload.mode !== undefined) {
+            this.replayBuilder.push({ type: 'permission_updated', mode: payload.mode });
+          }
+        } else if (record.type === 'full_compaction.complete') {
+          // full_compaction 走纯 reducer（complete() 不执行），_compactedHistory 文本
+          // 快照在此生成（context 已按序恢复到该点，与 legacy 路径时点等价）。
+          this.fullCompaction.pushCompactedHistory();
+        }
+      },
+      onSkippedRecord: (error) => {
+        this.log.error('wire record skipped during restore', { error });
+      },
+    });
     this.fullCompaction = new FullCompaction(this, config.compactionStrategy);
     this.context = new ContextMemory(this, config.sessionId);
     this.config = new ConfigState(this);
@@ -227,17 +312,110 @@ export class Agent {
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.replayBuilder = new ReplayBuilder(this);
 
-    // Register restore handlers after all subsystems are initialized
-    this.records.registerHandlers({
-      context: this.context,
-      config: this.config,
-      usage: this.usage,
-      turn: this.turn,
-      permission: this.permission,
-      tools: this.tools,
-      fullCompaction: this.fullCompaction,
-      goal: this.goal,
+    // restore 后的 model → 私有状态同步 + 归一化副作用（kimi 式分布式 hook）。
+    // 顺序即注册顺序（goal/turn/config 各自先 sync 再归一化；其余只 sync）。
+    // 注意：hook 在 wire.restore() 内、phase='ready' 后同步跑完 —— restore 返回前
+    // 子系统状态已就绪（Agent.resume 的下轮 turn 依赖）。
+    this.wire.hooks.onDidRestore.register('sync', () => {
+      this.syncFromWire();
     });
+    this.wire.hooks.onDidRestore.register('goal', () => {
+      this.goal.normalizeAfterReplay();
+    });
+    this.wire.hooks.onDidRestore.register('turn', () => {
+      this.turn.finishResume();
+    });
+    this.wire.hooks.onDidRestore.register('config', () => {
+      // 坑点外提（PRD Phase 3）：initializeBuiltinTools 从「replay 期间副作用」
+      // 移到 onDidRestore（restore 返回前完成，下轮 turn 需要工具实例）。幂等。
+      if (this.config.hasProvider) {
+        this.tools.initializeBuiltinTools();
+      }
+    });
+  }
+
+  /**
+   * 7 个纯 reducer 子系统 model → 私有状态同步（onDidRestore 'sync' hook 与
+   * 测试 harness 的单条 restore 都用）。context 是 legacy（restoreRecord 直接改
+   * 私有状态），不在此列。
+   */
+  syncFromWire(): void {
+    this.goal.syncFromWire();
+    this.usage.syncFromWire();
+    this.tools.syncFromWire();
+    this.turn.syncFromWire();
+    this.permission.syncFromWire();
+    this.config.syncFromWire();
+    this.fullCompaction.syncFromWire();
+  }
+
+  /**
+   * 单条 record 的 restore 语义（测试 harness 的 dispatch 用）。
+   * - 已注册 Op（context 的 append_message / append_loop_event / clear /
+   *   apply_compaction / mark_last_user_prompt_blocked 等）：logRecord 的 dispatch
+   *   已 apply 到共享状态，此处补 restore 语义的 service 层副作用
+   *   （context.handleReplayRecord —— token 快照 / committed 投递）。
+   * - legacy 残留（context.observation_masking）：restoreRecord 在 restoring 相位
+   *   下执行（调 live 方法，靠 restoring 抑制其 logRecord/emit）。
+   * 生产路径不使用（restore 走 wire.restore() 全量 + onDidRestore hooks）。
+   */
+  restoreRecord(record: AgentRecord): void {
+    if (isLegacyRestorePrefix(record)) {
+      this.wire.withRestoringPhase(() => {
+        if (record.type === 'context.observation_masking') {
+          this.routeLegacyRecord(record);
+        } else {
+          this.context.handleReplayRecord(record);
+        }
+      });
+    } else {
+      this.syncFromWire();
+    }
+  }
+
+  /**
+   * restore 期间从 loop 事件 wire 记录派生 tool_timing replay 记录(PRD-0034
+   * R-B2):新记录用事件自带 startedAt/endedAt,旧记录回退 wire record `time`
+   * 差值;tool.call 的时刻缓存到 {@link replayToolStart} 以补全 result 记录。
+   */
+  private pushToolTimingReplayRecord(record: WireRecord): void {
+    if (record.type !== 'context.append_loop_event') return;
+    const event = (record as { event?: { type?: string; toolCallId?: string } }).event;
+    if (event === undefined || event.toolCallId === undefined) return;
+    const time = typeof record['time'] === 'number' ? record['time'] : undefined;
+    if (event.type === 'tool.call') {
+      const startedAt = (record as { event?: { startedAt?: number } }).event?.startedAt ?? time;
+      if (startedAt !== undefined) {
+        this.replayToolStart.set(event.toolCallId, startedAt);
+      }
+      return;
+    }
+    if (event.type === 'tool.result') {
+      const typed = record as { event?: { startedAt?: number; endedAt?: number } };
+      const endedAt = typed.event?.endedAt ?? time;
+      const startedAt = typed.event?.startedAt ?? this.replayToolStart.get(event.toolCallId);
+      if (startedAt === undefined && endedAt === undefined) return;
+      this.replayBuilder.push({
+        type: 'tool_timing',
+        toolCallId: event.toolCallId,
+        startedAt,
+        endedAt,
+      });
+    }
+  }
+
+  /** restore 期间的 tool.call 起始时刻缓存;restore 完成后清空(onDidRestore)。 */
+  private readonly replayToolStart = new Map<string, number>();
+
+  private routeLegacyRecord(record: AgentRecord): void {
+    if (isAgentRecordOfPrefix(record, 'context')) {
+      // context 的 restore 会读 config 私有状态（如 observation masking 读
+      // modelCapabilities 判定遮蔽压力）。config 私有字段在 restore 结束的
+      // onDidRestore 'sync' hook 才同步，此处先同步，使 mid-replay 读取到该时间点
+      // 的最新配置（对标旧路径 config.restoreRecord 立即更新私有状态的语义）。
+      this.config.syncFromWire();
+      this.context.restoreRecord(record);
+    }
   }
 
   get generate(): typeof generate {
@@ -402,6 +580,85 @@ export class Agent {
       ...context,
       ...buildLlmRequestMetadata(systemPrompt, tools, history),
     });
+    this.detectCacheChurn(options?.promptPlan, tools, context);
+  }
+
+  /**
+   * 破坏侧归因（PRD-0029 R2/R3）：比对当前 turn 与上一 turn 的静态前缀指纹（桩1
+   * PromptPlan 块 + 桩2 tools），检测到变化时 dispatch 持久化 `context.cache_churn`。
+   *
+   * 仅在主对话 turn 运行（`context.turnId` 存在）；`/btw` 等侧查询（askSide）以
+   * `tools=[]` + 一次性 promptPlan 脱离主对话运行，且其契约要求**不写 wire 记录**
+   * （resume/fork 看不到）——故侧查询既不参与比对、也不 dispatch churn。
+   *
+   * restore 重放时不调用（logLlmRequest 只在 live generate 路径触发）；restore 后
+   * `previousStaticPrefix` 为 undefined，首个 live turn 建立基线、不报 churn，此后正
+   * 常比对。压缩只改历史消息、不改静态前缀，故天然不触发 churn。
+   */
+  private detectCacheChurn(
+    promptPlan: PromptPlan | undefined,
+    tools: readonly Tool[],
+    context: LlmRequestContextFields,
+  ): void {
+    if (this.wire.phase === 'restoring') return;
+    if (context.turnId === undefined) return;
+    if (promptPlan === undefined || promptPlan.blocks.length === 0) {
+      this.previousStaticPrefix = undefined;
+      return;
+    }
+    const currentBlockHashes = extractCacheBlockHashes(promptPlan);
+    const currentToolsHash = computeToolsHash(tools);
+    const changes = diffStaticPrefix(
+      this.previousStaticPrefix,
+      promptPlan,
+      currentBlockHashes,
+      currentToolsHash,
+    );
+    for (const change of changes) {
+      this.wire.dispatch(contextCacheChurn(change));
+      this.lastCacheChurnMemento = {
+        blockName: change.blockName,
+        cacheScope: change.cacheScope,
+        turnId: this.turn.currentId,
+      };
+      this.cacheChurnCount += 1;
+    }
+    this.previousStaticPrefix = { blocks: currentBlockHashes, toolsHash: currentToolsHash };
+  }
+
+  /**
+   * restore 重放 `context.cache_churn` 记录时由 ContextMemory 调用：补登归因备忘与计数，
+   * 使 resume 后 /status 与 /usage 反映历史 churn（PRD-0029 R3）。turnId 未持久化，故
+   * `turnsAgo` 不可推导（显示时省略）。
+   */
+  recordReplayedCacheChurn(blockName: string, cacheScope: CacheScope): void {
+    this.lastCacheChurnMemento = { blockName, cacheScope };
+    this.cacheChurnCount += 1;
+  }
+
+  /**
+   * 构造 usage 载荷里的 churn 归因片段（PRD-0029 R3）。无 churn 时返回空对象（调用方
+   * 用 spread 自然静默）。
+   */
+  private cacheChurnStatus(): {
+    lastCacheChurn?: { blockName: string; cacheScope: CacheScope; turnsAgo?: number };
+    cacheChurnCount?: number;
+  } {
+    const memento = this.lastCacheChurnMemento;
+    const lastCacheChurn =
+      memento === undefined
+        ? undefined
+        : {
+            blockName: memento.blockName,
+            cacheScope: memento.cacheScope,
+            ...(memento.turnId !== undefined
+              ? { turnsAgo: Math.max(0, this.turn.currentId - memento.turnId) }
+              : {}),
+          };
+    return {
+      ...(lastCacheChurn !== undefined ? { lastCacheChurn } : {}),
+      ...(this.cacheChurnCount > 0 ? { cacheChurnCount: this.cacheChurnCount } : {}),
+    };
   }
 
   private logLlmConfigIfChanged(
@@ -433,13 +690,13 @@ export class Agent {
 
   async resume(): Promise<{ warning?: string; error?: Error }> {
     try {
-      const result = await this.records.replay();
-      // goal 在 replay 后修正状态（active→paused 降级、清零 wall-clock 锚点）。
-      this.goal.normalizeAfterReplay();
+      // wire.restore() 内部：重放（7 纯 reducer + context legacy）→ onDidRestore
+      // hooks（goal.normalizeAfterReplay / turn.finishResume / config.initializeBuiltinTools
+      // 已随各子系统 hook 在 restore 返回前完成）。
+      const result = await this.wire.restore();
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();
-      this.turn.finishResume();
       return result;
     } catch (error) {
       // Return error instead of throwing
@@ -586,7 +843,7 @@ export class Agent {
           messages: this.context.getMessages(),
           maxContextTokens: this.config.modelCapabilities.max_context_tokens,
         });
-        return { ...usageData, inputBreakdown };
+        return { ...usageData, inputBreakdown, ...this.cacheChurnStatus() };
       },
       getTools: () => this.tools.data(),
       getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
@@ -594,12 +851,12 @@ export class Agent {
   }
 
   emitEvent(event: AgentEvent): void {
-    if (this.records.restoring) return;
+    if (this.wire.phase === 'restoring') return;
     void this.rpc.emitEvent(event);
   }
 
   emitStatusUpdated(): void {
-    if (this.records.restoring) return;
+    if (this.wire.phase === 'restoring') return;
     if (!this.config.hasModel) return;
 
     const contextTokens = this.context.tokenCount;
@@ -610,6 +867,13 @@ export class Agent {
         : undefined;
     const usage: UsageStatus | undefined = this.usage.status();
     const model = this.config.model;
+    const churn = this.cacheChurnStatus();
+    const usageWithChurn: UsageStatus | undefined =
+      usage === undefined &&
+      churn.lastCacheChurn === undefined &&
+      churn.cacheChurnCount === undefined
+        ? undefined
+        : { ...usage, ...churn };
 
     this.emitEvent({
       type: 'agent.status.updated',
@@ -619,7 +883,7 @@ export class Agent {
       contextUsage,
 
       permission: this.permission.mode,
-      usage,
+      usage: usageWithChurn,
     });
   }
 
@@ -796,33 +1060,15 @@ function getProviderCacheStrategy(provider: ChatProvider): CacheStrategy | undef
   return capability?.cache?.strategy;
 }
 
-/**
- * Extract cache block hashes from a PromptPlan.
- *
- * Returns a Record mapping block names to their SHA256 hashes.
- */
-function extractCacheBlockHashes(promptPlan: PromptPlan): Record<string, string> {
-  const hashes: Record<string, string> = {};
-  for (const block of promptPlan.blocks) {
-    hashes[block.name] = fingerprint(block.text);
-  }
-  return hashes;
-}
-
 function buildLlmConfigSignature(
   metadata: LlmConfigMetadata,
   systemPrompt: string,
   tools: readonly Tool[],
 ): string {
-  const toolsForSignature = tools.map(({ name, description, parameters }) => ({
-    name,
-    description,
-    parameters,
-  }));
   return JSON.stringify({
     ...metadata,
     systemPromptHash: fingerprint(systemPrompt),
-    toolsHash: fingerprint(JSON.stringify(toolsForSignature)),
+    toolsHash: computeToolsHash(tools),
   });
 }
 

@@ -48,7 +48,7 @@ export interface HookResultOrigin {
   readonly blocked?: boolean;
 }
 
-/** Origin for a session-cron fire injected via steer (PRD-0023 R3). */
+/** 经 steer 注入的会话内 cron 触发来源(PRD-0023 R3)。 */
 export interface CronJobOrigin {
   readonly kind: 'cron_job';
   readonly jobId: string;
@@ -58,7 +58,7 @@ export interface CronJobOrigin {
   readonly stale: boolean;
 }
 
-/** Origin for an explicit missed-cron banner (reserved; coalesce covers most cases). */
+/** 显式错过-cron 横幅的来源(保留;coalesce 覆盖大多数情况)。 */
 export interface CronMissedOrigin {
   readonly kind: 'cron_missed';
   readonly count: number;

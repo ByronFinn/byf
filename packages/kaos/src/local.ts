@@ -137,12 +137,11 @@ class LocalProcess implements KaosProcess {
 }
 
 /**
- * A KAOS implementation that directly interacts with the local filesystem.
+ * 直接与本地文件系统交互的 KAOS 实现。
  *
- * Note: LocalKaos maintains its own per-instance working directory (`_cwd`)
- * rather than mutating `process.cwd()`. This lets multiple LocalKaos instances
- * coexist with independent cwds (e.g. when switching contexts via
- * `runWithKaos`) without cross-polluting each other's relative-path resolution.
+ * 注意:LocalKaos 维护自己的每实例工作目录(`_cwd`),而非变更
+ * `process.cwd()`。这使多个 LocalKaos 实例能以独立 cwd 共存
+ * (如经 `runWithKaos` 切换上下文时),互不污染对方的相对路径解析。
  */
 export class LocalKaos implements Kaos {
   readonly name: string = 'local';
@@ -556,5 +555,5 @@ function waitForSpawn(child: ChildProcess): Promise<void> {
   });
 }
 
-/** The default local KAOS instance. */
+/** 默认本地 KAOS 实例。 */
 export const localKaos: LocalKaos = new LocalKaos();

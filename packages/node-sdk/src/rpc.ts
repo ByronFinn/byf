@@ -5,17 +5,36 @@ import {
   makeErrorPayload,
   type ApprovalRequest,
   type ApprovalResponse,
+  type ConfigDocumentResult,
+  type ConfigValidationResult,
+  type ConfigWriteResult,
   type CoreAPI,
+  type CreateSkillResult,
   type Event,
+  type McpConfigListing,
+  type McpConfigScope,
+  type McpConnectionTestResult,
+  type McpRawDocument,
+  type McpScopeState,
   type PromisableMethods,
   type QuestionRequest,
   type QuestionResult,
+  type ResolvedModelCapabilities,
+  type RuntimeConfig,
   type SDKAPI,
   type SDKRPCClient,
+  type SetModelResult,
   type ToolCallRequest,
   type ToolCallResponse,
-  type RuntimeConfig,
+  type WorkspaceSkillListing,
 } from '@byfriends/agent-core';
+import type {
+  AgentTreeResponse,
+  ContextProjection,
+  InspectorSessionSummary,
+  SessionDetail,
+  WireResponse,
+} from '@byfriends/agent-core/session/inspector';
 
 import type { ApprovalHandler, QuestionHandler } from '#/events';
 import type {
@@ -41,6 +60,7 @@ import type {
   SessionUsage,
   PromptInput,
   RenameSessionInput,
+  UpdateSessionMetadataInput,
   ResumeSessionInput,
   ResumedSessionSummary,
   SessionSummary,
@@ -70,10 +90,11 @@ export interface SetSessionModelRpcInput extends SessionIdRpcInput {
   readonly model: string;
 }
 
-export interface SetSessionModelRpcResult {
-  readonly model: string;
-  readonly providerName?: string;
-}
+/**
+ * `setModel` 的结果直接透传 core RPC 的 `SetModelResult`(agent-core 单源),
+ * 避免在 SDK 层重建同构类型。
+ */
+export type SetSessionModelRpcResult = SetModelResult;
 
 export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
   readonly level: string;
@@ -190,11 +211,166 @@ export class SDKRpcClient {
     return rpc.listSessions(input);
   }
 
+  // ── Inspector（PRD-0035 R-A2）────────────────────────────────────────────
+
+  async listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    const rpc = await this.getRpc();
+    return rpc.listInspectableSessions({});
+  }
+
+  async readSessionInspection(input: { sessionId: string }): Promise<SessionDetail | null> {
+    const rpc = await this.getRpc();
+    return rpc.readSessionInspection({ sessionId: input.sessionId });
+  }
+
+  async readAgentWire(input: { sessionId: string; agentId: string }): Promise<WireResponse> {
+    const rpc = await this.getRpc();
+    return rpc.readAgentWire({ sessionId: input.sessionId, agentId: input.agentId });
+  }
+
+  async readContextProjection(input: {
+    sessionId: string;
+    agentId: string;
+  }): Promise<ContextProjection> {
+    const rpc = await this.getRpc();
+    return rpc.readContextProjection({ sessionId: input.sessionId, agentId: input.agentId });
+  }
+
+  async readAgentTree(input: { sessionId: string }): Promise<AgentTreeResponse> {
+    const rpc = await this.getRpc();
+    return rpc.readAgentTree({ sessionId: input.sessionId });
+  }
+
+  /** 删除会话目录并重建 index；live/busy 抛 SESSION_BUSY。 */
+  async deleteSession(sessionId: string): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.deleteSession({ sessionId });
+  }
+
+  // ── ConfigDocument（PRD-0035 R-A3/A4、ADR-0038）──────────────────────────
+
+  async getConfigDocument(): Promise<ConfigDocumentResult> {
+    const rpc = await this.getRpc();
+    return rpc.getConfigDocument({});
+  }
+
+  async validateConfigText(text: string): Promise<ConfigValidationResult> {
+    const rpc = await this.getRpc();
+    return rpc.validateConfigText({ text });
+  }
+
+  async writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    const rpc = await this.getRpc();
+    return rpc.writeConfigText({ text, expectedRevision });
+  }
+
+  // ── WorkspaceRegistry（PRD-0035 R-A6）────────────────────────────────────
+
+  async listWorkspaces(): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.listWorkspaces({});
+  }
+
+  async hiddenWorkspaces(): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.hiddenWorkspaces({});
+  }
+
+  async addWorkspace(workDir: string): Promise<string[]> {
+    const rpc = await this.getRpc();
+    return rpc.addWorkspace({ workDir });
+  }
+
+  async removeWorkspace(workDir: string): Promise<boolean> {
+    const rpc = await this.getRpc();
+    return rpc.removeWorkspace({ workDir });
+  }
+
+  // ── MCP config store(PRD-0036 / ADR-0039)─────────────────────────────────
+
+  async listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    const rpc = await this.getRpc();
+    return rpc.listMcpServerConfigs({ workDir });
+  }
+
+  async readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    const rpc = await this.getRpc();
+    return rpc.readMcpConfigRaw({ workDir, scope });
+  }
+
+  async upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    const rpc = await this.getRpc();
+    return rpc.upsertMcpServerConfig({ workDir, scope, name, config });
+  }
+
+  async removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    const rpc = await this.getRpc();
+    return rpc.removeMcpServerConfig({ workDir, scope, name });
+  }
+
+  async writeMcpConfigRaw(
+    workDir: string,
+    scope: McpConfigScope,
+    text: string,
+  ): Promise<McpRawDocument> {
+    const rpc = await this.getRpc();
+    return rpc.writeMcpConfigRaw({ workDir, scope, text });
+  }
+
+  async testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult> {
+    const rpc = await this.getRpc();
+    return rpc.testMcpConnection(input);
+  }
+
+  // ── Workspace skills(PRD-0036)────────────────────────────────────────────
+
+  async listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
+    const rpc = await this.getRpc();
+    return rpc.listWorkspaceSkills({ workDir });
+  }
+
+  async createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult> {
+    const rpc = await this.getRpc();
+    return rpc.createWorkspaceSkill(input);
+  }
+
+  async removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.removeWorkspaceSkill({ workDir, skillPath });
+  }
+
   async renameSession(input: RenameSessionInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.renameSession({
       sessionId: input.id,
       title: input.title,
+    });
+  }
+
+  async updateSessionMetadata(input: UpdateSessionMetadataInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.updateSessionMetadata({
+      sessionId: input.id,
+      metadata: input.metadata,
     });
   }
 
@@ -218,9 +394,19 @@ export class SDKRpcClient {
     return rpc.setByfConfig(input);
   }
 
+  async removeModel(modelId: string): Promise<ByfConfig> {
+    const rpc = await this.getRpc();
+    return rpc.removeByfModel({ modelId });
+  }
+
   async removeProvider(providerId: string): Promise<ByfConfig> {
     const rpc = await this.getRpc();
     return rpc.removeByfProvider({ providerId });
+  }
+
+  async resolveModelCapabilities(model: string): Promise<ResolvedModelCapabilities> {
+    const rpc = await this.getRpc();
+    return rpc.resolveModelCapabilities({ model });
   }
 
   async prompt(input: SessionPromptRpcInput): Promise<void> {

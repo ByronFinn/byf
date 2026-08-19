@@ -3,14 +3,31 @@ import type { ContentPart, Message, PromptPlan, Tool } from '@byfriends/kosong';
 import { isMcpToolName } from '../mcp/tool-naming';
 
 /**
+ * Cached results of {@link estimateTokens} keyed by input text.
+ *
+ * The function is pure (same input → same output), so the cache never
+ * needs invalidation. A module-level singleton is shared across agents
+ * and steps — the dominant cost was re-scanning the *same* stable
+ * history text every step from every call site; once the cache is warm,
+ * every hit is a single `Map.get` instead of a per-character loop.
+ * Bounded by the session's unique text; `clearTokenEstimateCache` trims
+ * it at compaction / context-clear boundaries.
+ */
+const tokenEstimateCache = new Map<string, number>();
+
+/**
  * Estimate token count from text using a character-based heuristic.
  *   - ASCII (~4 chars per token)
  *   - CJK and other non-ASCII (~1 char per token)
  * The estimate is transient — the next LLM call returns the real count
  * and supersedes this value. Used to keep `tokenCountWithPending`
  * monotonic between LLM round-trips without paying for a tokenizer.
+ *
+ * Pure function: results are cached by input text.
  */
 export function estimateTokens(text: string): number {
+  const cached = tokenEstimateCache.get(text);
+  if (cached !== undefined) return cached;
   let asciiCount = 0;
   let nonAsciiCount = 0;
   for (const char of text) {
@@ -20,7 +37,14 @@ export function estimateTokens(text: string): number {
       nonAsciiCount++;
     }
   }
-  return Math.ceil(asciiCount / 4) + nonAsciiCount;
+  const result = Math.ceil(asciiCount / 4) + nonAsciiCount;
+  tokenEstimateCache.set(text, result);
+  return result;
+}
+
+/** Drop all cached token estimates — call at compaction / context-clear boundaries. */
+export function clearTokenEstimateCache(): void {
+  tokenEstimateCache.clear();
 }
 
 export function estimateTokensForMessages(messages: readonly Message[]): number {

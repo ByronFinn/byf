@@ -333,7 +333,8 @@ async function defaultIsFile(p: string): Promise<boolean> {
   }
 }
 
-async function findProjectRoot(workDir: string): Promise<string> {
+/** 最近含 `.git` 的祖先目录;无 `.git` 时回退 workDir 本身(skill 的「本地根」)。 */
+export async function findProjectRoot(workDir: string): Promise<string> {
   const start = path.resolve(workDir);
   let current = start;
   while (true) {

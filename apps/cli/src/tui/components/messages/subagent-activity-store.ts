@@ -1,16 +1,13 @@
 /**
- * SubagentActivityStore — standalone state container for a foreground sub-agent's
- * activity trail.
+ * SubagentActivityStore — 前台子 agent 活动轨迹的独立状态容器。
  *
- * Holds all subagent lifecycle state (spawning → running → done/failed),
- * sub-tool call tracking (ongoing + finished), accumulated text/thinking text,
- * timer management, and snapshot listener notification.
+ * 持有全部子 agent 生命周期状态(spawning → running → done/failed)、
+ * 子工具调用跟踪(进行中 + 已完成)、累积的文本 / 思考文本、定时器管理,
+ * 以及快照监听器通知。
  *
- * `ToolCallComponent` composes this store and delegates subagent mutations to
- * it, while retaining rendering (header, body, chip formatting) as its own
- * responsibility. External consumers (`AgentGroupComponent`, `ReadGroupComponent`,
- * `SubagentLiveViewer`) subscribe to snapshot change notifications through the
- * store.
+ * `ToolCallComponent` 组合此 store,把子 agent 变更委托给它,同时保留渲染
+ * (头部、主体、chip 格式化)为己任。外部消费者(`AgentGroupComponent`、
+ * `ReadGroupComponent`、`SubagentLiveViewer`)经此 store 订阅快照变更通知。
  */
 
 import { isAbsolute, relative, sep } from 'node:path';
@@ -55,14 +52,14 @@ export interface SubToolActivity {
 // ── Exported snapshot types ────────────────────────────────────────────
 
 /**
- * Immutable subagent state snapshot. `AgentGroupComponent` reads one-time
- * views via `ToolCallComponent.getSubagentSnapshot()`; `onSnapshotChange`
- * notifies it when state changes.
+ * 不可变子 agent 状态快照。`AgentGroupComponent` 经
+ * `ToolCallComponent.getSubagentSnapshot()` 读取一次性视图;
+ * `onSnapshotChange` 在状态变化时通知它。
  *
- * `latestActivity` priority, used only while running:
- *   1. latest ongoing sub-tool (`Using {name} ({keyArg})`)
- *   2. latest finished sub-tool (`Used {name} ({keyArg})`)
- *   3. last non-empty line from accumulated subagent text
+ * `latestActivity` 优先级,仅运行期间使用:
+ *   1. 最新的进行中子工具(`Using {name} ({keyArg})`)
+ *   2. 最新的已完成子工具(`Used {name} ({keyArg})`)
+ *   3. 累积子 agent 文本的最后一个非空行
  */
 export interface ToolCallSubagentSnapshot {
   readonly toolCallId: string;
@@ -79,9 +76,8 @@ export interface ToolCallSubagentSnapshot {
 }
 
 /**
- * Full subagent activity detail for the live viewer.
- * Contains the complete tool-call sequence (not truncated), all text output,
- * and thinking text.
+ * 供实时查看器使用的完整子 agent 活动详情。
+ * 包含完整工具调用序列(不截断)、全部文本输出与思考文本。
  */
 export interface SubagentActivityLine {
   readonly orderSeq: number;

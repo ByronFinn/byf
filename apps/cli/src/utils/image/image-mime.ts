@@ -1,11 +1,10 @@
 /**
- * Detect image MIME type + dimensions from raw bytes.
+ * 从原始字节检测图片 MIME 类型 + 尺寸。
  *
- * Uses magic-byte sniffing for MIME and minimal format-specific parsing
- * for dimensions. Only formats that the byf-core multimodal pipeline
- * accepts are supported: PNG / JPEG / GIF / WebP.
+ * MIME 用 magic-byte 嗅探,尺寸用最小的格式特定解析。只支持 byf-core
+ * 多模态管线接受的格式:PNG / JPEG / GIF / WebP。
  *
- * Unsupported or truncated inputs return `null` so the caller can
+ * 不支持或截断的输入返回 `null`,使调用方可
  * decline the paste cleanly.
  */
 

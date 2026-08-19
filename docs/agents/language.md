@@ -11,6 +11,7 @@ All prose produced by skills — PRDs (`docs/prd/`), ADRs (`docs/adr/`), `CONTEX
 ## Scope
 
 - **In scope**: human-facing prose in documents and issues.
+- **Code comments**: public-API JSDoc and module/file-top doc comments are human-facing reference, so they are written in this language. Inline implementation comments inside function bodies follow code conventions (English) and are out of scope.
 - **Out of scope**: code, identifiers, file names, CLI commands, and configuration values. These follow code conventions, never this setting.
 
 ## When a skill says "write the output"

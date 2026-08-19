@@ -18,6 +18,12 @@ Use absolute paths and avoid prefixing commands with `cd <dir> &&` — each Bash
 
 Never run commands that require superuser privileges unless explicitly instructed to do so.
 
+**Sensitive files — reads go through approval, writes are hard-blocked:**
+Reading files matching a sensitive pattern (`.env*`, SSH private keys like `id_rsa`, `credentials`, and their rename variants) requires explicit user approval — the approval prompt names the file. This includes paths hidden inside compound commands (`sh -c "cat .env"`, `cd ~/.ssh && cat id_rsa`). Writing to sensitive files is hard-blocked with an error (the same guard Read / Write / Edit apply) to protect secrets from exfiltration or tampering. Do not attempt to bypass these guards (e.g. via `eval`, `python -c`, or variable expansion); if a sensitive file is genuinely required, rename it in the user's own terminal to a name that does not match the sensitive pattern (not starting with `.env.`, not named `credentials`/`id_rsa`/etc.).
+
+**Compound commands are checked per subcommand:**
+Permission rules apply to each subcommand of `; && || |` chains independently — a hidden `rm` inside `echo hi; rm x` is still subject to `rm` rules. A leading `cd <dir> &&` therefore triggers approval just like the equivalent single command.
+
 - Prefer `run_in_background=true` for long-running builds, tests, watchers, servers, batch scripts, or any command that should not block the conversation.
 - Never use `&`, `nohup`, or `disown` to detach a process so it outlives this tool call — such processes are invisible to `/tasks`, cannot be inspected or stopped, and have no completion notification. (`&&` and `||` chaining, and `cmd1 & cmd2` as a shell list separator that completes within the call, are fine.)
 

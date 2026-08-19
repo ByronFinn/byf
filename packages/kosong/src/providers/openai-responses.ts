@@ -83,6 +83,12 @@ type ResponseOutputItemView =
       type: 'reasoning';
       encryptedContent?: string;
       summary: RawObject[];
+      /**
+       * Reasoning content items. OpenAI 标准把 reasoning 明文摘要放 {@link summary};
+       * 部分兼容端(如 DeepSeek Responses)把 reasoning 文本放在 content 的
+       * `reasoning_text` 项、summary 为空。解析时 summary 优先,content 作 fallback。
+       */
+      content?: RawObject[];
     }
   | {
       type: 'other';
@@ -174,6 +180,7 @@ function readResponseOutputItem(value: unknown, context: string): ResponseOutput
       type,
       encryptedContent: readStringField(item, 'encrypted_content'),
       summary: readObjectArrayField(item, 'summary') ?? [],
+      content: readObjectArrayField(item, 'content'),
     };
   }
 
@@ -416,23 +423,38 @@ function convertMessage(
       if (part.type === 'think') {
         // Flush accumulated non-reasoning parts first
         flushPendingParts();
-        // Aggregate consecutive ThinkParts with the same `encrypted` value
+        // Aggregate consecutive ThinkParts with the same `encrypted` value.
         const encryptedValue = part.encrypted;
-        const summaries: unknown[] = [{ type: 'summary_text', text: part.think || '' }];
+        const texts: string[] = [part.think || ''];
         i += 1;
         while (i < n) {
           const nextPart = message.content[i];
           if (nextPart === undefined) break;
           if (nextPart.type !== 'think') break;
           if (nextPart.encrypted !== encryptedValue) break;
-          summaries.push({ type: 'summary_text', text: nextPart.think || '' });
+          texts.push(nextPart.think || '');
           i += 1;
         }
-        result.push({
-          summary: summaries,
-          type: 'reasoning',
-          encrypted_content: encryptedValue,
-        });
+        // Echo reasoning back in the form the provider emits on output, so the
+        // round-trip stays native on each wire:
+        //  - encrypted present (OpenAI, black-box): the model reads
+        //    `encrypted_content` for multi-turn continuity; `summary` is the
+        //    human-readable digest the API returns alongside it.
+        //  - encrypted absent (DeepSeek Responses, white-box plaintext): the
+        //    provider emits reasoning as `content[].reasoning_text`; echo it
+        //    back in that same `content` form rather than OpenAI's `summary`.
+        if (encryptedValue !== undefined) {
+          result.push({
+            summary: texts.map((text) => ({ type: 'summary_text', text })),
+            type: 'reasoning',
+            encrypted_content: encryptedValue,
+          });
+        } else {
+          result.push({
+            content: texts.map((text) => ({ type: 'reasoning_text', text })),
+            type: 'reasoning',
+          });
+        }
       } else {
         pendingParts.push(part);
         i += 1;
@@ -532,9 +554,23 @@ export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
           arguments: outputItem.arguments ?? null,
         } satisfies ToolCall;
       } else if (outputItem.type === 'reasoning') {
+        // OpenAI 标准:reasoning 明文摘要走 summary(summary_text)。部分兼容端
+        // (如 DeepSeek Responses)把 reasoning 文本放在 content 的 reasoning_text 项、
+        // summary 为空 → summary 无文本时 fallback 到 content,避免漏读。
+        const thinkTexts: string[] = [];
         for (const summary of outputItem.summary) {
           const text = readStringField(summary, 'text');
-          if (text === undefined) continue;
+          if (text !== undefined) thinkTexts.push(text);
+        }
+        if (thinkTexts.length === 0 && outputItem.content !== undefined) {
+          for (const contentItem of outputItem.content) {
+            if (readStringField(contentItem, 'type') === 'reasoning_text') {
+              const text = readStringField(contentItem, 'text');
+              if (text !== undefined) thinkTexts.push(text);
+            }
+          }
+        }
+        for (const text of thinkTexts) {
           const thinkPart: StreamedMessagePart = {
             type: 'think',
             think: text,
@@ -726,6 +762,13 @@ export class OpenAIResponsesStreamedMessage extends BaseStreamedMessage {
             yield { type: 'think', think: '' };
             break;
           case 'response.reasoning_summary_text.delta':
+          case 'response.reasoning_text.delta':
+            // 两者都是 Responses API 标准流式事件(OpenAI OpenAPI spec 均定义):
+            // summary_text.delta 是 OpenAI 摘要形态,reasoning_text.delta 是明文
+            // reasoning 形态(DeepSeek 用后者)。文本都在 `delta` 字段;同一 reasoning
+            // item 若两事件并发,think 流会同时含摘要与全文(内容变多,不崩溃)。
+            // output_item.done 的 reasoning item 里 content 是累计全文,delta 已流式
+            // 传输过,故不重复读(见 streaming 测试)。
             yield { type: 'think', think: requireStringField(chunk, 'delta', type) };
             break;
           case 'response.completed':

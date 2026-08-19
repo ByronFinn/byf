@@ -1,12 +1,12 @@
 /**
- * SubagentsListApp — full-screen list of foreground sub-agents.
+ * SubagentsListApp — 前台子 agent 的全屏列表。
  *
- * Three-pane layout (matching /tasks):
- *   Left: scrollable sub-agent list
- *   Right top: selected sub-agent detail
- *   Right bottom: selected sub-agent output preview
+ * 三栏布局(与 /tasks 一致):
+ *   左:可滚动的子 agent 列表
+ *   右上:选中子 agent 的详情
+ *   右下:选中子 agent 的输出预览
  *
- * Falls back to single-pane list on narrow terminals (< 80 cols).
+ * 窄终端(< 80 列)回退为单栏列表。
  */
 
 import { Container, Key, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';

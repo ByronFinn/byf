@@ -1,11 +1,10 @@
 /**
- * HelpPanel — modal `/help` display. Lists keyboard shortcuts, slash
- * commands (with aliases + descriptions) in colour-coded sections.
+ * HelpPanel — 模态 `/help` 显示。以配色区段列出键盘快捷键与斜杠命令
+ * (含别名与描述)。
  *
- * Mirrors the container-replacement pattern used by SessionPicker /
- * ApprovalPanel: host mounts the panel into `editorContainer`, picks
- * it as the focused component, and tears it down on the `onClose`
- * callback (fired on Esc / Enter / q).
+ * 镜像 SessionPicker / ApprovalPanel 使用的容器替换模式:宿主把面板挂载进
+ * `editorContainer`,选它为焦点组件,并在 `onClose` 回调(Esc / Enter / q
+ * 触发)时将其拆除。
  */
 
 import {
@@ -31,7 +30,7 @@ export interface HelpPanelCommand {
   readonly description: string;
 }
 
-/** Static list — keep in sync with the global editor bindings. */
+/** 静态列表——与全局编辑器绑定保持同步。 */
 export const DEFAULT_KEYBOARD_SHORTCUTS: readonly KeyboardShortcut[] = [
   // { keys: 'Ctrl-G', description: 'Edit in external editor ($VISUAL / $EDITOR)' },
   { keys: 'Ctrl-O', description: 'Toggle tool output expansion' },

@@ -588,3 +588,100 @@ function findRpcEvent(
 ) {
   return ctxEvents.find((entry) => entry.type === '[rpc]' && entry.event === event);
 }
+
+describe('Agent resume tool timing (PRD-0034 R-B2)', () => {
+  it('derives tool_timing replay records from loop events (event timestamps, falling back to record time)', async () => {
+    const loopEvent = (event: Record<string, unknown>, time?: number): AgentRecord =>
+      ({ type: 'context.append_loop_event', event, time }) as unknown as AgentRecord;
+    const persistence = new RecordingAgentPersistence([
+      {
+        type: 'config.update',
+        cwd: process.cwd(),
+        modelAlias: MOCK_PROVIDER.model,
+        systemPrompt: DEFAULT_TEST_SYSTEM_PROMPT,
+        thinkingLevel: 'off',
+      },
+      { type: 'tools.set_active_tools', names: ['Bash'] },
+      { type: 'permission.set_mode', mode: 'yolo' },
+      {
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: 'Historical prompt' }],
+        origin: { kind: 'user' },
+      },
+      {
+        type: 'context.append_message',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Historical prompt' }],
+          toolCalls: [],
+          origin: { kind: 'user' },
+        },
+      },
+      // fold 要求 tool.call 之前有 open 的 step_begin。
+      loopEvent({ type: 'step.begin', uuid: 's1', turnId: '0', step: 1 }, 900),
+      // 新格式:loop 事件自带 startedAt/endedAt(PRD-0034 R-B1 之后写入)。
+      loopEvent(
+        {
+          type: 'tool.call',
+          uuid: 'call-new',
+          turnId: '0',
+          step: 1,
+          stepUuid: 's1',
+          toolCallId: 'tc-new',
+          name: 'Bash',
+          args: {},
+          startedAt: 1000,
+        },
+        999,
+      ),
+      loopEvent(
+        {
+          type: 'tool.result',
+          parentUuid: 'call-new',
+          toolCallId: 'tc-new',
+          result: { output: 'ok' },
+          startedAt: 1000,
+          endedAt: 1800,
+        },
+        1801,
+      ),
+      // 旧格式:事件无时间戳 → 回退用 wire record time 差值。
+      loopEvent(
+        {
+          type: 'tool.call',
+          uuid: 'call-old',
+          turnId: '0',
+          step: 1,
+          stepUuid: 's1',
+          toolCallId: 'tc-old',
+          name: 'Bash',
+          args: {},
+        },
+        2000,
+      ),
+      loopEvent(
+        {
+          type: 'tool.result',
+          parentUuid: 'call-old',
+          toolCallId: 'tc-old',
+          result: { output: 'ok' },
+        },
+        3500,
+      ),
+    ]);
+    const ctx = testAgent({
+      kaos: createFakeKaos({ execWithEnv: vi.fn().mockRejectedValue(new Error('no exec')) }),
+      persistence,
+    });
+
+    await ctx.agent.resume();
+
+    const timings = ctx.agent.replayBuilder
+      .buildResult()
+      .filter((record) => record.type === 'tool_timing');
+    expect(timings).toEqual([
+      { type: 'tool_timing', toolCallId: 'tc-new', startedAt: 1000, endedAt: 1800 },
+      { type: 'tool_timing', toolCallId: 'tc-old', startedAt: 2000, endedAt: 3500 },
+    ]);
+  });
+});

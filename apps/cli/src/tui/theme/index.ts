@@ -1,5 +1,5 @@
 /**
- * Theme system public API.
+ * 主题系统公开 API。
  */
 
 import type { ResolvedTheme } from './colors';
@@ -13,11 +13,9 @@ export { createMarkdownTheme, createEditorTheme } from './pi-tui-theme';
 export { detectTerminalTheme } from './detect';
 
 /**
- * User-facing theme preference. `'auto'` defers to terminal background
- * detection at startup; `'dark'` / `'light'` are explicit overrides that
- * never trigger detection. The persisted value in `tui.toml` is always
- * one of these three; the detected `ResolvedTheme` is computed at
- * startup and held only in memory.
+ * 用户可见的主题偏好。`'auto'` 在启动时交给终端背景检测;`'dark'` /
+ * `'light'` 是永不触发检测的显式覆盖。`tui.toml` 中持久化的值始终是
+ * 三者之一;检测出的 `ResolvedTheme` 在启动时计算,仅存于内存。
  */
 export type Theme = 'dark' | 'light' | 'auto';
 
@@ -26,9 +24,8 @@ export function isTheme(value: string): value is Theme {
 }
 
 /**
- * Resolve a user preference to a concrete palette key. `'auto'` triggers
- * terminal background detection (OSC 11 with COLORFGBG / dark fallback);
- * explicit choices pass through.
+ * 把用户偏好解析为具体调色板键。`'auto'` 触发终端背景检测
+ * (OSC 11,COLORFGBG / 暗色回退);显式选择直接透传。
  */
 export async function resolveTheme(theme: Theme): Promise<ResolvedTheme> {
   if (theme === 'auto') return detectTerminalTheme();
@@ -36,9 +33,8 @@ export async function resolveTheme(theme: Theme): Promise<ResolvedTheme> {
 }
 
 /**
- * Synchronous fallback used by paths that cannot wait on terminal probes
- * (initial state construction, in-TUI theme switches). `'auto'` collapses
- * to `'dark'`; explicit choices pass through.
+ * 无法等待终端探测的路径使用的同步回退(初始状态构建、TUI 内主题切换)。
+ * `'auto'` 归并为 `'dark'`;显式选择直接透传。
  */
 export function resolveThemeSync(theme: Theme): ResolvedTheme {
   if (theme === 'auto') return 'dark';

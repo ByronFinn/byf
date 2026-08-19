@@ -1,15 +1,14 @@
 /**
- * Pure formatting helpers used across TUI components.
+ * TUI 组件共用的纯格式化辅助。
  *
- * Kept ANSI-free (no chalk) so they're trivial to unit-test; colouring
- * is the caller's responsibility.
+ * 保持无 ANSI(不用 chalk),使单元测试简单;着色是调用方的责任。
  */
 
 /**
- * Format a byte count into a human-readable string (B / KB / MB).
- * Uses consistent `.toFixed(1)` for KB/MB.
+ * 把字节数格式化为人类可读字符串(B / KB / MB)。
+ * KB/MB 统一使用 `.toFixed(1)`。
  *
- * CANONICAL definition.  `apps/vis/web/src/components/shared/SizePreview.tsx`
+ * 规范定义。`apps/vis/web/src/components/shared/SizePreview.tsx`
  * duplicates this — keep both in sync.  There is intentionally no shared
  * utility package between the two apps.
  */
@@ -20,8 +19,8 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Format elapsed seconds into a human-readable string (s / m s).
- * Example: `30s`, `2m 15s`.
+ * 把已用秒数格式化为人类可读字符串(s / m s)。
+ * 示例:`30s`、`2m 15s`。
  */
 export function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${String(seconds)}s`;

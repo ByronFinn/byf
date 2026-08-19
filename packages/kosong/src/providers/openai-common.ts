@@ -26,8 +26,8 @@ export interface OpenAIContentPart {
 }
 
 /**
- * Convert a kosong `ContentPart` to OpenAI-compatible content part.
- * Returns `null` for think parts (handled separately as reasoning_content).
+ * 把 kosong `ContentPart` 转换为 OpenAI 兼容内容 part。
+ * think part 返回 `null`(作为 reasoning_content 单独处理)。
  */
 export function convertContentPart(part: ContentPart): OpenAIContentPart | null {
   switch (part.type) {
@@ -74,7 +74,7 @@ export interface OpenAIToolParam {
 }
 
 /**
- * Convert a kosong `Tool` to OpenAI tool format.
+ * 把 kosong `Tool` 转换为 OpenAI 工具格式。
  */
 export function toolToOpenAI(tool: Tool): OpenAIToolParam {
   return {
@@ -87,13 +87,12 @@ export function toolToOpenAI(tool: Tool): OpenAIToolParam {
   };
 }
 /**
- * Convert an OpenAI SDK error (or raw Error) to a kosong `ChatProviderError`.
+ * 把 OpenAI SDK 错误(或原始 Error)转换为 kosong `ChatProviderError`。
  *
- * Unwraps SDK-specific classes (`APIConnectionTimeoutError`,
- * `APIConnectionError`, `APIError`) into `(message, status?, requestId?)`
- * then delegates to the shared {@link convertProviderError} classification
- * ladder. The base-`APIError` heuristic (no status, no body) still falls back
- * to message-based classification.
+ * 把 SDK 特定类(`APIConnectionTimeoutError`、`APIConnectionError`、
+ * `APIError`)解包为 `(message, status?, requestId?)`,然后委托给共享的
+ * {@link convertProviderError} 分类阶梯。基础 `APIError` 启发式
+ * (无状态、无 body)仍回退到基于消息的分类。
  */
 export function convertOpenAIError(error: unknown): ChatProviderError {
   // v6: APIConnectionTimeoutError extends APIConnectionError, check timeout first
@@ -125,7 +124,7 @@ export function convertOpenAIError(error: unknown): ChatProviderError {
   }
   return convertProviderError(error);
 }
-/** Shape of a function-type tool call (subset used by the guard). */
+/** 函数型工具调用的形态(守卫使用的子集)。 */
 export interface FunctionToolCallShape {
   type: 'function';
   id: string;
@@ -133,9 +132,9 @@ export interface FunctionToolCallShape {
 }
 
 /**
- * Type guard: narrow a tool call union to the function-type variant.
- * Works with OpenAI SDK's `ChatCompletionMessageToolCall` as well as
- * any object carrying `{ type: string }`.
+ * 类型守卫:把工具调用联合收窄为函数型变体。
+ * 兼容 OpenAI SDK 的 `ChatCompletionMessageToolCall` 及任何携带
+ * `{ type: string }` 的对象。
  */
 export function isFunctionToolCall<T extends { type: string }>(
   tc: T,
@@ -155,12 +154,11 @@ function supportsXhighReasoningEffort(model: string): boolean {
 }
 
 /**
- * Map kosong `ThinkingEffort` to OpenAI `reasoning_effort` string.
+ * 把 kosong `ThinkingEffort` 映射为 OpenAI `reasoning_effort` 字符串。
  *
- * When `model` is provided, `xhigh` / `max` are clamped to `'high'` with a
- * `console.warn` if the model is not known to support the `xhigh` effort
- * level.  When `model` is omitted the mapping is pass-through (backward
- * compatible).
+ * 提供 `model` 时,若模型未知支持 `xhigh` 努力级别,`xhigh` / `max`
+ * 会被钳制为 `'high'` 并 `console.warn`。省略 `model` 时映射为透传
+ * (向后兼容)。
  */
 export function thinkingEffortToReasoningEffort(
   effort: ThinkingEffort,
@@ -191,7 +189,7 @@ export function thinkingEffortToReasoningEffort(
 }
 
 /**
- * Map OpenAI `reasoning_effort` string back to kosong `ThinkingEffort`.
+ * 把 OpenAI `reasoning_effort` 字符串映射回 kosong `ThinkingEffort`。
  */
 export function reasoningEffortToThinkingEffort(
   reasoning: string | undefined,
@@ -217,7 +215,7 @@ export function reasoningEffortToThinkingEffort(
   }
 }
 /**
- * Extract `TokenUsage` from an OpenAI-compatible usage object.
+ * 从 OpenAI 兼容的 usage 对象提取 `TokenUsage`。
  */
 export function extractUsage(usage: unknown): TokenUsage | null {
   if (usage === null || usage === undefined || typeof usage !== 'object') {
@@ -228,8 +226,16 @@ export function extractUsage(usage: unknown): TokenUsage | null {
   const completionTokens = typeof u['completion_tokens'] === 'number' ? u['completion_tokens'] : 0;
 
   let cached = 0;
-  // Byf proprietary: top-level cached_tokens
-  if (typeof u['cached_tokens'] === 'number') {
+  // Field-presence based, capability-driven (no provider-name branching):
+  // 1. DeepSeek (OpenAI-compatible): top-level prompt_cache_hit_tokens.
+  //    DeepSeek caching is fully automatic (no prompt_cache_key) and reported
+  //    via top-level hit/miss fields; miss ≈ hit × 50–120 in V4 pricing.
+  // 2. Byf proprietary: top-level cached_tokens.
+  // 3. OpenAI standard: nested prompt_tokens_details.cached_tokens.
+  if (typeof u['prompt_cache_hit_tokens'] === 'number') {
+    cached = u['prompt_cache_hit_tokens'];
+  } else if (typeof u['cached_tokens'] === 'number') {
+    // Byf proprietary: top-level cached_tokens
     cached = u['cached_tokens'];
   } else if (
     typeof u['prompt_tokens_details'] === 'object' &&
@@ -252,34 +258,34 @@ const OPENAI_FINISH_REASON_MAP: Readonly<Record<string, FinishReason>> = {
 };
 
 /**
- * Normalize an OpenAI Chat Completions–style `finish_reason` string to the
- * unified {@link FinishReason} enum.
+ * 把 OpenAI Chat Completions 风格的 `finish_reason` 字符串归一化为统一
+ * {@link FinishReason} 枚举。
  *
- * Used by both the Byf and OpenAI Legacy adapters because they share the
- * Chat Completions wire format. Returns `{ finishReason: null,
- * rawFinishReason: null }` when the upstream value is missing or `null` so
- * callers can treat "no signal" uniformly.
+ * Byf 与 OpenAI Legacy 适配器都使用它,因为它们共享 Chat Completions
+ * wire 格式。上游值缺失或为 `null` 时返回
+ * `{ finishReason: null, rawFinishReason: null }`,使调用方可统一处理
+ * 「无信号」。
  *
- * Mapping:
+ * 映射:
  * - `'stop'` → `'completed'`
  * - `'tool_calls'` → `'tool_calls'`
- * - `'function_call'` → `'tool_calls'` (legacy alias)
+ * - `'function_call'` → `'tool_calls'`(遗留别名)
  * - `'length'` → `'truncated'`
  * - `'content_filter'` → `'filtered'`
- * - any other non-null string → `'other'`
+ * - 任何其他非 null 字符串 → `'other'`
  */
 export const normalizeOpenAIFinishReason = makeFinishReasonNormalizer(OPENAI_FINISH_REASON_MAP);
 /**
- * Strategy for converting tool-role message content.
+ * 转换工具角色消息内容的策略。
  *
- * - `'extract_text'`: flatten all content parts into a single text string
- *   (some providers require tool results as plain text).
- * - `null`: convert content parts to the standard OpenAI content-part array.
+ * - `'extract_text'`:把所有内容 part 展平为单个文本字符串
+ *   (部分 provider 要求工具结果为纯文本)。
+ * - `null`:把内容 part 转换为标准 OpenAI 内容 part 数组。
  */
 export type ToolMessageConversion = 'extract_text' | null;
 
 /**
- * Convert tool-role message content according to the chosen strategy.
+ * 按所选策略转换工具角色消息内容。
  */
 export function convertToolMessageContent(
   message: Message,

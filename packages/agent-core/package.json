@@ -42,6 +42,14 @@
     "./session/store": {
       "types": "./src/session/store/index.ts",
       "default": "./src/session/store/index.ts"
+    },
+    "./session/inspector": {
+      "types": "./src/session/inspector/index.ts",
+      "default": "./src/session/inspector/index.ts"
+    },
+    "./home": {
+      "types": "./src/home/workspace-registry.ts",
+      "default": "./src/home/workspace-registry.ts"
     }
   },
   "publishConfig": {
@@ -60,13 +68,23 @@
         "types": "./dist/session/store/index.d.mts",
         "import": "./dist/session/store/index.mjs",
         "default": "./dist/session/store/index.mjs"
+      },
+      "./session/inspector": {
+        "types": "./dist/session/inspector/index.d.mts",
+        "import": "./dist/session/inspector/index.mjs",
+        "default": "./dist/session/inspector/index.mjs"
+      },
+      "./home": {
+        "types": "./dist/home/workspace-registry.d.mts",
+        "import": "./dist/home/workspace-registry.mjs",
+        "default": "./dist/home/workspace-registry.mjs"
       }
     },
     "access": "public",
     "provenance": false
   },
   "scripts": {
-    "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
+    "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts ./src/session/inspector/index.ts ./src/home/workspace-registry.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
     "test": "bun test",
     "test:baseline": "bun test",
     "typecheck": "tsc --build",

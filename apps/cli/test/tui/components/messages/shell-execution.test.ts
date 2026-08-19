@@ -52,4 +52,39 @@ describe('ShellExecutionComponent', () => {
     expect(expandedOutput).toContain('line5');
     expect(expandedOutput).not.toContain('ctrl+o to expand');
   });
+
+  it('renders the command above a finished result and caps it while collapsed', () => {
+    const multiline = ['echo a', 'echo b', 'echo c'].join('\n');
+    const collapsed = new ShellExecutionComponent({
+      command: multiline,
+      commandPreviewLines: 2,
+      showCommand: true,
+      result: { tool_call_id: 'call_shell', output: 'a\nb\nc', is_error: false },
+      colors: darkColors,
+    });
+
+    const collapsedOutput = collapsed.render(100).map(strip).join('\n');
+    expect(collapsedOutput).toContain('$ echo a');
+    expect(collapsedOutput).toContain('echo b');
+    // 超出 commandPreviewLines 的命令行在折叠态被截断
+    expect(collapsedOutput).not.toContain('echo c');
+    // 结果预览照常渲染
+    expect(collapsedOutput).toContain('a');
+  });
+
+  it('shows the full multi-line command when expanded', () => {
+    const multiline = ['echo a', 'echo b', 'echo c'].join('\n');
+    const expanded = new ShellExecutionComponent({
+      command: multiline,
+      commandPreviewLines: 2,
+      expanded: true,
+      showCommand: true,
+      result: { tool_call_id: 'call_shell', output: 'a\nb\nc', is_error: false },
+      colors: darkColors,
+    });
+
+    const expandedOutput = expanded.render(100).map(strip).join('\n');
+    expect(expandedOutput).toContain('$ echo a');
+    expect(expandedOutput).toContain('echo c');
+  });
 });

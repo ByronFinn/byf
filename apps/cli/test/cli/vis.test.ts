@@ -134,7 +134,7 @@ describe('byf vis', () => {
     const { deps, stderr, exitCodes, openedUrls } = makeDeps({
       startServer: async () => {
         throw new Error(
-          'VIS_AUTH_TOKEN is required when binding vis-server outside loopback (host=0.0.0.0)',
+          'WEB_AUTH_TOKEN is required when binding web-server outside loopback (host=0.0.0.0)',
         );
       },
     });
@@ -143,7 +143,8 @@ describe('byf vis', () => {
 
     expect(exitCodes).toContain(1);
     const msg = stderr.join('');
-    expect(msg).toContain('VIS_AUTH_TOKEN');
+    // 弃用期 shim（PRD-0035 R-B3）：鉴权单源 = WEB_AUTH_TOKEN；VIS_AUTH_TOKEN 由 CLI 层兼容转发。
+    expect(msg).toContain('WEB_AUTH_TOKEN');
     expect(msg).toContain('openssl rand -hex 16');
     expect(openedUrls).toEqual([]);
   });

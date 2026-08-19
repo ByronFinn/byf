@@ -13,11 +13,10 @@ export interface ResolveLoggingInput {
 }
 
 /**
- * Build the runtime `LoggingConfig` from env vars + defaults.
+ * 由环境变量 + 默认值构建运行时 `LoggingConfig`。
  *
- * v1 deliberately does not read `config.toml [logging]` — the schema is in
- * flux and reading it adds a startup-time failure surface. Users who need to
- * override the defaults set env vars:
+ * v1 刻意不读取 `config.toml [logging]`——schema 仍在变动,读取它会增加
+ * 启动期失败面。需要覆盖默认值的用户设置环境变量:
  *
  *   BYF_LOG_LEVEL=debug
  *   BYF_LOG_GLOBAL_MAX_BYTES=... BYF_LOG_GLOBAL_FILES=...

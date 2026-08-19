@@ -1,13 +1,12 @@
-// Continuation indent for transcript rows that use a two-cell leading marker.
+// 使用两单元前导标记的 transcript 行的续行缩进。
 export const MESSAGE_INDENT = '  ';
 
-// Outer left/right padding applied to the transcript, panels, and the
-// statusline so the chrome's left edge lines up with the input box's
-// interior (the `>` prompt). The editor itself stays at column 0 — its
-// vertical borders are the visual anchor everything else aligns against.
+// 应用于 transcript、面板与状态行的外侧左 / 右内边距,使 chrome 左缘与
+// 输入框内部(「>」提示符)对齐。编辑器本身保持在列 0——其垂直边框是
+// 一切对齐所参照的视觉锚点。
 export const CHROME_GUTTER = 1;
 
-// Shared preview caps used by thinking, tool results, and shell snippets.
+// thinking、工具结果与 shell 片段共享的预览上限。
 export const RESULT_PREVIEW_LINES = 3;
 export const COMMAND_PREVIEW_LINES = 10;
 

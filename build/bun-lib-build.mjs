@@ -154,6 +154,10 @@ const workspacePackages = [
   '@byfriends/vis-server',
   '@byfriends/vis-web',
   '@byfriends/cli',
+  '@byfriends/web-server',
+  '@byfriends/web-client',
+  '@byfriends/web-shared',
+  '@byfriends/web',
 ];
 
 function shouldAlwaysBundle(name) {

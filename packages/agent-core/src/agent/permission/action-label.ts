@@ -1,26 +1,68 @@
 /**
- * describeApprovalAction — coarse action label for approve_for_session.
+ * describeApprovalAction — approve_for_session 的粗粒度动作标签。
  *
- * The label is the key used by `auto_approve_actions` set (session-level
- * approve-for-session cache). It must be **coarse** enough that the user
- * pressing "approve for session" on one request also unlocks *semantically
- * equivalent* future requests — otherwise approve-for-session degrades
- * into approve-once.
+ * 该标签是 `auto_approve_actions` 集合(会话级 approve-for-session 缓存)
+ * 使用的键。它必须**足够粗**,使用户在一次请求上按「批准本会话」也能解锁
+ * *语义等价*的未来请求——否则 approve-for-session 会退化为 approve-once。
  *
- * Derivation priority:
- *   1. `ApprovalDisplay.kind` mapping (the display already carries the
- *      semantic classification the UI renders):
- *        command    → "run command"
+ * 推导优先级:
+ *   1. `ApprovalDisplay.kind` 映射(display 已携带 UI 渲染的语义分类):
+ *        command    → "run command"（Bash/Shell 走 0b 命令粒度标签，见下）
  *        diff       → "edit file"
  *        file_write → "write file"
  *        task_stop  → "stop background task"
- *        generic    → tool-name fallback
- *   2. Hard-coded toolName → action map for tools that emit `generic`
- *      display.
- *   3. Last resort: `call <toolName>`.
+ *        generic    → 工具名回退（Bash/Shell 有 command 参数时同样走 0b 标签）
+ *   2. 硬编码 toolName → 动作映射,服务于发出 `generic` display 的工具。
+ *   3. 最后手段:`call <toolName>`。
+ *
+ * PRD-0031 0b（grill Q3）：Bash/Shell 的动作标签携带命令前缀——「批准本会话」
+ * 生成 per-prefix 有界规则（`Bash(git push*)`）而非裸 `Bash`，使 `git status`
+ * 的会话批准不误放行 `git log`。动词分类：构建类（git/npm/bun/...）→ 前缀规则
+ * （前 2 token）；其余（网络/破坏/解释器/未知）→ 精确匹配（payload-scoped，
+ * CronCreate 先例）。
  */
 
 import type { ToolInputDisplay } from '../../tools/display/schemas';
+import { SENSITIVE_READ_ACTION_PREFIX } from './policies/sensitive-file-read-ask';
+
+/** 0b 动作标签前缀：`run command: <命令前缀/精确命令>`。 */
+export const RUN_COMMAND_ACTION_PREFIX = 'run command: ';
+
+/** 构建类动词 → 前缀规则（前 2 token）。其余动词（网络/破坏/解释器/未知）默认精确。 */
+const BASH_PREFIX_VERBS = new Set([
+  'git',
+  'npm',
+  'pnpm',
+  'yarn',
+  'bun',
+  'cargo',
+  'make',
+  'npx',
+  'go',
+  'uv',
+  'cmake',
+  'gradle',
+  'mvn',
+  'pip',
+  'poetry',
+  'tsc',
+  'eslint',
+  'prettier',
+  'jest',
+  'vitest',
+  'webpack',
+  'vite',
+  'rollup',
+  'turbo',
+  'nx',
+  'rake',
+  'docker',
+  'kubectl',
+  'helm',
+  'terraform',
+  'aws',
+  'gcloud',
+]);
 
 /**
  * Hard-coded toolName → action label map. Consulted as a fallback so
@@ -49,16 +91,14 @@ const ACTION_TO_PATTERN: Readonly<Record<string, string | null>> = {
 };
 
 /**
- * Prefix for CronCreate action labels that embed the full create payload.
- * Session approval must be payload-scoped: approving one schedule must not
- * unlock arbitrary later CronCreate calls (PRD-0023 #244).
+ * CronCreate 动作标签的前缀,标签内嵌完整 create 负载。会话批准必须是
+ * 负载作用域的:批准一个调度不得解锁日后任意的 CronCreate 调用(PRD-0023 #244)。
  */
 export const CRON_CREATE_ACTION_PREFIX = 'call CronCreate ';
 
 /**
- * Stable action label for CronCreate that includes cron/prompt/recurring.
- * Same payload → same label (so re-approve-for-session keeps working);
- * different payload → different label.
+ * CronCreate 的稳定动作标签,包含 cron/prompt/recurring。
+ * 相同负载 → 相同标签(重新批准本会话继续有效);不同负载 → 不同标签。
  */
 export function describeCronCreateApprovalAction(args: unknown): string {
   return `${CRON_CREATE_ACTION_PREFIX}${serializeCronCreatePayload(args)}`;
@@ -70,6 +110,28 @@ function serializeCronCreatePayload(args: unknown): string {
   const prompt = typeof rec['prompt'] === 'string' ? rec['prompt'] : '';
   const recurring = rec['recurring'] !== false;
   return JSON.stringify({ cron, prompt, recurring });
+}
+
+/**
+ * 0b：Bash/Shell 命令的粒度动作标签（grill Q3）。
+ *   - 构建类动词 → `run command: <前 2 token>`（`git push`、`bun test`）
+ *   - 其余 → `run command: <完整命令>`（精确匹配，payload-scoped）
+ * 相同标签 = 会话缓存内语义等价（`git status` 与 `git status --short` 同标签）。
+ */
+function describeBashCommandAction(command: string): string {
+  const tokens = command.split(/\s+/).filter((t) => t.length > 0);
+  const verb = tokens[0] ?? '';
+  if (verb.length > 0 && BASH_PREFIX_VERBS.has(verb)) {
+    return `${RUN_COMMAND_ACTION_PREFIX}${tokens.slice(0, 2).join(' ')}`;
+  }
+  return `${RUN_COMMAND_ACTION_PREFIX}${command}`;
+}
+
+function readCommandField(source: unknown): string | undefined {
+  if (source === null || typeof source !== 'object') return undefined;
+  const rec = source as Record<string, unknown>;
+  const command = rec['command'];
+  return typeof command === 'string' ? command : undefined;
 }
 
 export function describeApprovalAction(
@@ -88,6 +150,15 @@ export function describeApprovalAction(
   // single "approve for session" cannot authorize every future schedule.
   if (toolName === 'CronCreate') {
     return describeCronCreateApprovalAction(args);
+  }
+
+  // PRD-0031 0b：Bash/Shell 的命令标签携带命令信息（generic display 的
+  // detail 也带 args.command——真实审批流即此路径）。
+  if (toolName === 'Bash' || toolName === 'Shell') {
+    const command = readCommandField(args) ?? readCommandField(display);
+    if (command !== undefined && command.length > 0) {
+      return describeBashCommandAction(command);
+    }
   }
 
   // Display-driven derivation: the display kind already captures the
@@ -155,22 +226,45 @@ export function describeApprovalAction(
 }
 
 /**
- * Inverse mapping from an approve_for_session action label to the
- * permission-rule pattern that should gate future same-action calls.
+ * approve_for_session 动作标签到权限规则模式的逆向映射,该规则将门控未来的
+ * 同类动作调用。
  *
- * When no entry matches, fall back to the concrete tool name. A `null`
- * table entry means the action should be cached by action label only,
- * without creating a broad PermissionRule.
+ * 无条目匹配时回退到具体工具名。`null` 表项表示该动作只按动作标签缓存,
+ * 不创建宽泛的 PermissionRule。
  *
- * Payload-scoped CronCreate actions also skip creating a rule: a bare
- * `CronCreate` pattern would match every future create (matchesRule name-only).
- * Same-payload re-approval is handled by `sessionApprovedActions` alone.
+ * 负载作用域的 CronCreate 动作同样跳过规则创建:裸的 `CronCreate` 模式会匹配
+ * 每次未来的 create(matchesRule 仅按名称匹配)。同负载的重新批准仅由
+ * `sessionApprovedActions` 处理。
+ *
+ * PRD-0031 0b：`run command: <命令>` 标签逆转为 per-prefix/精确规则
+ * （构建类 → `Bash(git push*)`；其余 → `Bash(<精确命令>)`），取代旧裸 `Bash`
+ * 规则（grill Q3/Q7：旧规则不迁移，随会话失效）。
  */
 export function actionToRulePattern(action: string, fallbackToolName: string): string | undefined {
   if (action.startsWith(CRON_CREATE_ACTION_PREFIX)) {
     return undefined;
   }
+  // 敏感文件读（PRD-0031 跟进 #298）：payload-scoped——批准一次只放行该路径，
+  // 不生成宽泛 PermissionRule（同路径会话内再次免问由 sessionApprovedActions 处理）
+  if (action.startsWith(SENSITIVE_READ_ACTION_PREFIX)) {
+    return undefined;
+  }
+  if (action.startsWith(RUN_COMMAND_ACTION_PREFIX)) {
+    const command = action.slice(RUN_COMMAND_ACTION_PREFIX.length);
+    if (command.length > 0) return bashCommandRulePattern(command);
+    return fallbackToolName;
+  }
   const mapped = ACTION_TO_PATTERN[action];
   if (mapped !== undefined) return mapped ?? undefined;
   return fallbackToolName;
+}
+
+/** 0b：命令 → 权限规则模式。构建类动词 → 前 2 token 前缀规则；其余 → 精确。 */
+function bashCommandRulePattern(command: string): string {
+  const tokens = command.split(/\s+/).filter((t) => t.length > 0);
+  const verb = tokens[0] ?? '';
+  if (verb.length > 0 && BASH_PREFIX_VERBS.has(verb)) {
+    return `Bash(${tokens.slice(0, 2).join(' ')}*)`;
+  }
+  return `Bash(${command})`;
 }

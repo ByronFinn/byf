@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentRecord } from '../../../src/agent/records/types';
-import type { RecordRestoreHandler } from '../../../src/agent/restore-handler';
 import { testAgent } from '../harness/agent';
 
 describe('ConfigState restore handler', () => {
@@ -9,8 +8,7 @@ describe('ConfigState restore handler', () => {
     it('should restore config.update records', () => {
       const { agent } = testAgent();
 
-      // Ensure config implements RecordRestoreHandler
-      const config = agent.config as unknown as RecordRestoreHandler;
+      const config = agent.config;
 
       const testRecord: AgentRecord = {
         type: 'config.update',
@@ -34,7 +32,7 @@ describe('ConfigState restore handler', () => {
     it('should restore config with partial data', () => {
       const { agent } = testAgent();
 
-      const config = agent.config as unknown as RecordRestoreHandler;
+      const config = agent.config;
 
       const partialRecord: AgentRecord = {
         type: 'config.update',

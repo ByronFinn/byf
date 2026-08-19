@@ -30,10 +30,13 @@ import type { Kaos, KaosProcess } from '@byfriends/kaos';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses, type ToolResourceAccess } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { Environment } from '../../../utils/environment';
 import { renderPrompt } from '../../../utils/render-prompt';
 import type { BackgroundProcessManager } from '../../background/manager';
+import { hasGlobChars, parseBashCommand, type BashSubcommand } from '../../policies/bash-command';
+import { PathSecurityError, resolvePathAccess } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolResultBuilder } from '../../support/result-builder';
 import bashDescriptionTemplate from './bash.md';
@@ -145,6 +148,8 @@ export class BashTool implements BuiltinTool<BashInput> {
   readonly name = 'Bash' as const;
   readonly description: string;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(BashInputSchema);
+  /** PRD-0031 2c：结构化输出契约（运行时校验；字符串输出为文本通道豁免）。 */
+  readonly outputSchema = BashOutputSchema;
 
   private readonly isWindowsBash: boolean;
 
@@ -171,6 +176,22 @@ export class BashTool implements BuiltinTool<BashInput> {
       description: args.run_in_background
         ? `Starting background: ${preview}`
         : `Running: ${preview}`,
+      // wire 展示元数据：无此字段时 UI（Web 归组/图标/摘要）只能落到 generic 桶，
+      // bash 调用会退化为「状态灯 + 数量」的纯成功/失败行。
+      display: {
+        kind: 'command',
+        command: args.command,
+        cwd: args.cwd,
+        description: args.description,
+        language: 'bash',
+      },
+      // PRD-0031：解析命令 → 写敏感文件硬拒（PathSecurityError，loop 格式化
+      // 为结构化错误）；读敏感文件由权限层策略门控（审批事件，#298）。
+      accesses: resolveBashResources(
+        parseBashCommand(args.command).subcommands,
+        args.cwd ?? this.cwd,
+        this.kaos,
+      ),
       execute: ({ signal }) => this.execution(args, signal),
     };
   }
@@ -451,6 +472,120 @@ async function readStreamIntoBuilder(stream: Readable, builder: ToolResultBuilde
     builder.write(decoder.write(buf));
   }
   builder.write(decoder.end());
+}
+
+/**
+ * PRD-0031 0a：把解析出的子命令序列映射为 `ToolAccesses`，并在路径命中
+ * 敏感文件模式时抛 `PATH_SENSITIVE`（grill Q2，与 Read/Write/Edit 行为一致；
+ * loop 把 `PathSecurityError` 统一格式化为结构化错误回传）。
+ *
+ * 收窄纪律（保守优先——accesses 是并发调度的超集声明，低估会造成竞态）：
+ *   - `broad`（build/test/网络/git/脚本）与 `indirect`（eval/解释器 -c 等）
+ *     子命令 → 保持 `kind:'all'` 全局互斥（现状语义）；
+ *   - `cd` 后的相对路径按串行累计的 cwd 解析，`cd -`/裸 `cd` 后无法静态
+ *     确定 cwd → 全局互斥；
+ *   - glob 路径无法静态展开、无法规范化的路径 → 全局互斥；
+ *   - `no-access` 子命令（`echo hi` 等）不触碰文件 → 不贡献访问；
+ *   - 全部可收窄且无路径 → `none()`（如 `echo hi`、`pwd`）。
+ */
+function resolveBashResources(
+  subcommands: readonly BashSubcommand[],
+  cwd: string,
+  kaos: Kaos,
+): ToolAccesses {
+  let currentCwd: string | undefined = cwd;
+  const accesses: ToolResourceAccess[] = [];
+  for (const sub of subcommands) {
+    if (sub.verb === 'cd') {
+      currentCwd =
+        currentCwd !== undefined && sub.cdTarget !== undefined
+          ? canonicalizeCdTarget(sub.cdTarget, currentCwd, kaos)
+          : undefined;
+      continue;
+    }
+    if (currentCwd === undefined) return ToolAccesses.all();
+    // 敏感检查覆盖所有提取出的路径（broad 子命令同样拦截：`git add .env`、
+    // `python setup.py` 的路径参数都过敏感检查）；accesses 则仅 narrow 收窄。
+    const resolved: ToolResourceAccess[] = [];
+    for (const path of sub.paths) {
+      if (hasGlobChars(path.rawPath)) return ToolAccesses.all();
+      let canonical: string;
+      try {
+        canonical = resolvePathAccess(
+          path.rawPath,
+          currentCwd,
+          { workspaceDir: cwd, additionalDirs: [] },
+          {
+            operation: path.operation,
+            // Bash 不强制 workspace 边界（那是权限层 yolo 策略的职责）。
+            // 敏感检查只对 write（写配置/密钥文件是代码执行与外泄载体——
+            // 保持硬拒）；read/search 放开，由权限层策略门控读（#298：
+            // 读敏感文件 = 审批事件，用户批准即放行）。
+            policy: { guardMode: 'disabled', checkSensitive: path.operation === 'write' },
+            pathClass: kaos.pathClass(),
+            homeDir: kaos.gethome(),
+          },
+        ).path;
+      } catch (error) {
+        if (error instanceof PathSecurityError && error.code === 'PATH_SENSITIVE') {
+          throw new PathSecurityError(
+            'PATH_SENSITIVE',
+            error.rawPath,
+            error.canonicalPath,
+            bashSensitiveMessage(error.rawPath, error.canonicalPath),
+          );
+        }
+        // PATH_INVALID（畸形路径等）：无法规范化 → 保守全局互斥
+        return ToolAccesses.all();
+      }
+      resolved.push({
+        kind: 'file',
+        operation: path.operation,
+        path: canonical,
+        // search 递归读、write 一律 recursive（rm/mv/cp 等目录语义动词可能
+        // 触及子路径——保守超集声明，避免与嵌套路径的并发写竞态）
+        recursive: path.operation === 'search' || path.operation === 'write' ? true : undefined,
+      });
+    }
+    if (sub.kind === 'no-access') continue;
+    if (sub.kind !== 'narrow') {
+      // broad（build/test/网络/git/脚本）与 indirect → 保持全局互斥（现状语义）
+      return ToolAccesses.all();
+    }
+    accesses.push(...resolved);
+  }
+  return accesses.length > 0 ? accesses : ToolAccesses.none();
+}
+
+/** `cd <target>` 的静态规范化（纯词法，`~` 经 kaos homeDir 展开）；失败返回 undefined
+ *  → 调用方进入 cwd 未知状态（后续相对路径无法静态解析）。 */
+function canonicalizeCdTarget(target: string, currentCwd: string, kaos: Kaos): string | undefined {
+  try {
+    return resolvePathAccess(
+      target,
+      currentCwd,
+      { workspaceDir: currentCwd, additionalDirs: [] },
+      {
+        operation: 'search',
+        policy: { guardMode: 'disabled', checkSensitive: false },
+        pathClass: kaos.pathClass(),
+        homeDir: kaos.gethome(),
+      },
+    ).path;
+  } catch {
+    return undefined;
+  }
+}
+
+function bashSensitiveMessage(rawPath: string, canonicalPath: string): string {
+  return (
+    `"${rawPath}" (canonical: "${canonicalPath}") matches a sensitive-file pattern ` +
+    `(env / credential / SSH key). Writing to sensitive files is hard-blocked to protect ` +
+    `secrets (reading them goes through approval; writing does not). If this file is ` +
+    `genuinely required, rename it in your own terminal to a name that does not match the ` +
+    `sensitive pattern (it must not start with ".env." and must not be named credentials / ` +
+    `id_rsa / etc.) — byf cannot rename it for you, since mv is blocked the same way.`
+  );
 }
 
 function shellQuote(s: string): string {

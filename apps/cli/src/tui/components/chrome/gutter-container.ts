@@ -1,12 +1,10 @@
 /**
- * Container that reserves left/right gutter columns around its children,
- * so the chrome (statusline, transcript, panels) lines up with the input
- * box's inner content area instead of butting up against the terminal edge.
+ * 在子元素周围保留左 / 右沟槽列的 Container,使 chrome(状态行、transcript、
+ * 面板)与输入框的内部内容区对齐,而不是紧贴终端边缘。
  *
- * Children are rendered at `width - left - right` and each emitted line is
- * prefixed with `left` plain spaces. Right padding is logical only — we
- * never emit trailing spaces, since terminals already paint background to
- * the edge and adding them would just churn the diff renderer.
+ * 子元素以 `width - left - right` 渲染,每行发出时前缀 `left` 个普通空格。
+ * 右内边距仅是逻辑上的——我们绝不发出尾随空格,因为终端已把背景绘制到
+ * 边缘,追加它们只会徒增 diff 渲染器的变动。
  */
 
 import { Container } from '@earendil-works/pi-tui';

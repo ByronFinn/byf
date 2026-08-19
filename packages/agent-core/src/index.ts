@@ -3,6 +3,7 @@ export * from './session';
 export * from './rpc';
 export * from './config';
 export * from './session/export';
+export { workspaceTitle } from './home/workspace-registry';
 export * from './errors';
 export { isAbortError } from './loop/errors';
 export {
@@ -32,9 +33,12 @@ export type {
   PromptOrigin,
   UserPromptOrigin,
 } from './agent/context';
-// Pure wire-fold logic + output-offload helpers — shared with external
-// readers (apps/vis) so they reconstruct the conversation timeline the same
-// way the live agent does. See PRD-0025 / wire-fold.ts.
+// Pure wire-fold logic + output-offload helpers — shared with the in-monorepo
+// vis projector (apps/vis) so it reconstructs the conversation timeline the
+// same way the live agent does. These are monorepo-internal helpers, not a
+// published npm API contract (@byfriends/agent-core is not registry-published);
+// apps/vis is the only consumer and is updated in lockstep, so signature
+// changes are not a public breaking change. See PRD-0025 / wire-fold.ts.
 export {
   createWireFoldState,
   foldAppendMessage,
@@ -47,12 +51,7 @@ export {
   shouldOffload,
   DEFAULT_OFFLOADING_CONFIG,
 } from './agent/context';
-export type {
-  WireFoldState,
-  WireFoldHandlers,
-  OffloadingConfig,
-  OffloadResult,
-} from './agent/context';
+export type { WireFoldState, OffloadingConfig, OffloadResult } from './agent/context';
 // Goal lifecycle rendering helpers (PRD-0019). Pure functions shared with the
 // CLI so live and replay produce identical output (PRD R14).
 export {

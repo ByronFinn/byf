@@ -89,6 +89,10 @@ export interface SessionMeta {
   isCustomTitle: boolean;
   lastPrompt?: string;
   forkedFrom?: string;
+  /** 会话置顶（PRD-0034 R-A2）：列表排序第一优先级。 */
+  pinned?: boolean;
+  /** 会话归档（PRD-0034 R-A3）：纯列表标记，默认从主列表隐藏。 */
+  archived?: boolean;
   agents: Record<string, AgentMeta>;
   custom: Record<string, unknown>;
 }
@@ -443,7 +447,7 @@ export class Session {
         kind: 'injection',
         variant: 'init',
       });
-      await mainAgent.records.flush();
+      await mainAgent.wire.flush();
     } catch (error) {
       throw new ByfError(
         ErrorCodes.SESSION_INIT_FAILED,
@@ -483,7 +487,7 @@ export class Session {
   async flushMetadata() {
     await this.skillsReady;
     await this.writeMetadataPromise;
-    await Promise.all(Array.from(this.agents.values()).map((agent) => agent.records.flush()));
+    await Promise.all(Array.from(this.agents.values()).map((agent) => agent.wire.flush()));
   }
 
   async listSkills(): Promise<readonly SkillSummary[]> {

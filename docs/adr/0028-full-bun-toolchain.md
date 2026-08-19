@@ -79,5 +79,5 @@ PRD-0020 与 `/grill` 收敛了「全量迁 Bun」的边界与三条对外契约
 
 - PRD-0020：`docs/prd/PRD-0020-full-bun-migration.md`
 - 父 Issue：#209
-- Research：`docs/research/INDEX.md`（bun@1 系列，含 compile-native、publish-rewrite、workspaces-catalog、test-migration 等）
+- Research：`docs/research/index.md`（bun@1 系列，含 compile-native、publish-rewrite、workspaces-catalog、test-migration 等）
 - ADR 0006：Monorepo 分层架构（本决策不改变分层）

@@ -1,8 +1,7 @@
 /**
- * Pure formatter for session-cron `cron.fired` TUI notice cards (PRD-0023 #244).
+ * 会话内 cron `cron.fired` TUI 通知卡片的纯格式化器(PRD-0023 #244)。
  *
- * Kept out of ByfTui so the title/detail rules are unit-testable without
- * spinning up the full interactive host.
+ * 留在 ByfTui 之外,使标题 / 详情规则无需启动完整交互宿主即可单元测试。
  */
 
 export interface CronFiredNoticeOrigin {
@@ -19,8 +18,8 @@ export interface CronFiredNotice {
 const DETAIL_MAX = 200;
 
 /**
- * Build the notice title + detail for a `cron.fired` wire event.
- * Detail is truncated at 200 characters with an ellipsis when longer.
+ * 为 `cron.fired` wire 事件构建通知标题 + 详情。
+ * 详情超过 200 字符时以省略号截断。
  */
 export function formatCronFiredNotice(
   origin: CronFiredNoticeOrigin,

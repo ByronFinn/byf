@@ -6,7 +6,7 @@
  * subscribers can react in real time without polling.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -29,7 +29,7 @@ interface FakeAgent {
     steer: (...args: unknown[]) => number | null;
   };
   context: { appendUserMessage: (...args: unknown[]) => void };
-  records: { restoring: boolean; logRecord: (record: unknown) => void };
+  wire: { phase: 'new' | 'restoring' | 'ready' | 'failed'; dispatch: (op: unknown) => void };
   telemetry: { track: ReturnType<typeof vi.fn> };
   background: BackgroundManager;
 }
@@ -48,7 +48,7 @@ function makeAgent(options: { hooks?: FakeAgent['hooks'] } = {}): FakeAgent {
       steer: vi.fn(() => 1),
     },
     context: { appendUserMessage: vi.fn() },
-    records: { restoring: false, logRecord: vi.fn() },
+    wire: { phase: 'new', dispatch: vi.fn() },
     telemetry: { track: vi.fn() },
   } as unknown as FakeAgent;
   const manager = new BackgroundManager(agent as never);
@@ -221,7 +221,7 @@ describe('BackgroundManager — RPC event emission', () => {
         task_id: 'bash-orphan00',
         command: 'sleep 60',
         description: 'orphan task',
-        pid: 99999,
+        pid: 99_999_999,
         started_at: 1_700_000_000,
         ended_at: null,
         exit_code: null,
@@ -236,6 +236,43 @@ describe('BackgroundManager — RPC event emission', () => {
       expect(terminated.length).toBe(1);
       expect(terminated[0].info.taskId).toBe('bash-orphan00');
       expect(terminated[0].info.status).toBe('lost');
+    } finally {
+      await rm(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not mark a restored running task as lost when its owner process is alive', async () => {
+    // A foreign-owned session (e.g. CLI TUI open) written with owner_pid
+    // of a still-alive process must not be downgraded on resume — no
+    // terminated event, no false task.lost notification, disk untouched.
+    const sessionDir = await mkdtemp(join(tmpdir(), 'byf-bg-agent-owner-alive-'));
+    try {
+      agent.background.attachSessionDir(sessionDir);
+      await writeTask(sessionDir, {
+        task_id: 'bash-foreign0',
+        command: 'sleep 60',
+        description: 'foreign-owned task',
+        pid: 9999,
+        owner_pid: process.pid,
+        started_at: 1_700_000_000,
+        ended_at: null,
+        exit_code: null,
+        status: 'running',
+      });
+      agent.emittedEvents.length = 0;
+
+      await agent.background.loadFromDisk();
+      await agent.background.reconcile();
+
+      const terminated = agent.emittedEvents.filter((e) => e.type === 'background.task.terminated');
+      expect(terminated).toEqual([]);
+      expect(agent.turn.steer).not.toHaveBeenCalled();
+      expect(agent.context.appendUserMessage).not.toHaveBeenCalled();
+
+      const onDisk = JSON.parse(
+        await readFile(join(sessionDir, 'tasks', 'bash-foreign0.json'), 'utf-8'),
+      ) as { status: string };
+      expect(onDisk.status).toBe('running');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }
@@ -612,7 +649,7 @@ describe('BackgroundManager — RPC event emission', () => {
     );
   });
 
-  // Note: the `records.restoring` guard is enforced inside `Agent.emitEvent`
+  // Note: the `wire.phase === 'restoring'` guard is enforced inside `Agent.emitEvent`
   // (see agent/index.ts). BackgroundManager unconditionally forwards
   // lifecycle events to the agent; suppression is the agent's job.
 });

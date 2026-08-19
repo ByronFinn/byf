@@ -1,8 +1,8 @@
 /**
- * QuestionDialog — pi-tui version of the structured question prompt.
+ * QuestionDialog — 结构化问题提示的 pi-tui 版本。
  *
- * Each question collects an answer locally, and a final Submit tab
- * reviews everything before the answers are emitted upstream.
+ * 每个问题在本地收集答案,最后的 Submit 标签页在答案向上游发出前
+ * 复核全部内容。
  */
 
 import {

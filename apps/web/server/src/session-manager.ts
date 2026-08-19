@@ -1,0 +1,653 @@
+import { randomUUID } from 'node:crypto';
+
+import type {
+  ApprovalHandler,
+  ApprovalRequest,
+  ApprovalResponse,
+  ByfConfig,
+  ByfConfigPatch,
+  ConfigDocumentResult,
+  ConfigValidationResult,
+  ConfigWriteResult,
+  ContextProjection,
+  CreateSessionOptions,
+  Event,
+  PermissionMode,
+  PromptInput,
+  QuestionHandler,
+  QuestionRequest,
+  QuestionResult,
+  ResumedSessionSummary,
+  SessionDetail,
+  SessionMetadataPatch,
+  SkillSummary,
+  Unsubscribe,
+  WireResponse,
+} from '@byfriends/sdk';
+import type {
+  AgentTreeResponse,
+  CreateSessionBody,
+  InspectorSessionSummary,
+  McpConfigListing,
+  McpConfigScope,
+  McpConnectionTestResult,
+  McpRawDocument,
+  McpScopeState,
+  ResolvedCapabilities,
+  CreateSkillResult,
+  WorkspaceSkillListing,
+  ServerFrame,
+  SessionStatus,
+  SessionSummary,
+} from '@byfriends/web-shared';
+
+import type { AsyncQueue } from './async-queue';
+
+// ---- 注入契约 ---------------------------------------------------------------
+// SessionLike / HarnessLike 是 ByfHarness / Session 的最小结构化投影,使测试可
+// 注入 fake。真实的 ByfHarness / Session 满足这些契约(方法简写式双变)。
+
+export interface SessionLike {
+  readonly id: string;
+  readonly workDir: string;
+  readonly summary?: SessionSummary;
+  onEvent(listener: (event: Event) => void): Unsubscribe;
+  setApprovalHandler(handler: ApprovalHandler | undefined): void;
+  setQuestionHandler(handler: QuestionHandler | undefined): void;
+  // SDK 的 Session.prompt/steer 原生接受 `string | PromptInput`;web 端带图
+  // prompt 在路由层组装 parts 后透传,这里不再收窄为纯文本。
+  prompt(input: string | PromptInput): Promise<void>;
+  steer(input: string | PromptInput): Promise<void>;
+  cancel(): Promise<void>;
+  setPermission(mode: PermissionMode): Promise<void>;
+  setModel(model: string): Promise<void>;
+  setThinking(level: string): Promise<void>;
+  activateSkill(name: string, args?: string): Promise<void>;
+  listSkills(): Promise<readonly SkillSummary[]>;
+  compact(): Promise<void>;
+  /** 读取后台任务的捕获输出(ring buffer 或磁盘 output.log;tail 限制尾字符数)。 */
+  getBackgroundTaskOutput(taskId: string, options?: { readonly tail?: number }): Promise<string>;
+  getStatus(): Promise<SessionStatus>;
+  close(): Promise<void>;
+}
+
+export interface HarnessLike {
+  createSession(options: CreateSessionOptions): Promise<SessionLike>;
+  resumeSession(input: { readonly id: string }): Promise<SessionLike>;
+  listSessions(options: { readonly workDir: string }): Promise<readonly SessionSummary[]>;
+  renameSession(input: { readonly id: string; readonly title: string }): Promise<void>;
+  updateSessionMetadata(input: {
+    readonly id: string;
+    readonly metadata: SessionMetadataPatch;
+  }): Promise<void>;
+  forkSession(input: { readonly id: string; readonly upToMessage?: number }): Promise<SessionLike>;
+  getConfig(): Promise<ByfConfig>;
+  setConfig(patch: ByfConfigPatch): Promise<ByfConfig>;
+  removeProvider(providerId: string): Promise<ByfConfig>;
+  removeModel(modelId: string): Promise<ByfConfig>;
+  /** 按模型别名解析合并能力(别名标签 ∪ 注册表);无法解析时抛错,调用方兜底。 */
+  resolveModelCapabilities(model: string): Promise<ResolvedCapabilities>;
+  // PRD-0035 Wave A：Inspector / ConfigDocument / WorkspaceRegistry（core 单源，
+  // SDK 透出；web-server 不直引 agent-core）。
+  listInspectableSessions(): Promise<readonly InspectorSessionSummary[]>;
+  readSessionInspection(sessionId: string): Promise<SessionDetail | null>;
+  readAgentWire(sessionId: string, agentId: string): Promise<WireResponse>;
+  readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection>;
+  readAgentTree(sessionId: string): Promise<AgentTreeResponse>;
+  deleteSession(sessionId: string): Promise<void>;
+  getConfigDocument(): Promise<ConfigDocumentResult>;
+  validateConfigText(text: string): Promise<ConfigValidationResult>;
+  writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult>;
+  listWorkspaces(): Promise<string[]>;
+  hiddenWorkspaces(): Promise<string[]>;
+  addWorkspace(workDir: string): Promise<string[]>;
+  removeWorkspace(workDir: string): Promise<boolean>;
+  // PRD-0036 / ADR-0039：MCP mcp.json per-scope 读写(core 单源，SDK 透出)。
+  listMcpServerConfigs(workDir: string): Promise<McpConfigListing>;
+  readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument>;
+  upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState>;
+  removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState>;
+  writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument>;
+  testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult>;
+  // PRD-0036：工作区级 skill 枚举 / 创建 / 删除(core 单源，SDK 透出)。
+  listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing>;
+  createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult>;
+  removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void>;
+  readonly configPath: string;
+  close(): Promise<void>;
+}
+
+/** SSE 订阅者:每帧推入其私有队列,由 SSE 路由单消费者写出。 */
+export interface Subscriber {
+  readonly sessionId: string;
+  readonly queue: AsyncQueue<ServerFrame>;
+}
+
+interface PendingApproval {
+  readonly session: SessionLike;
+  readonly request: ApprovalRequest;
+  readonly resolve: (response: ApprovalResponse) => void;
+  readonly reject: (error: Error) => void;
+}
+
+interface PendingQuestion {
+  readonly session: SessionLike;
+  readonly request: QuestionRequest;
+  readonly resolve: (result: QuestionResult) => void;
+  readonly reject: (error: Error) => void;
+}
+
+/**
+ * WebSessionManager —— web-server 的会话与事件中枢。
+ *
+ * - 持有一个注入的 {@link HarnessLike}(生产为 ByfHarness,测试为 fake)。
+ * - 创建/恢复会话时挂 `onEvent`(广播 agent 事件)与审批/问答 handler(发起反向 RPC)。
+ * - 维护每会话订阅者集合与待裁决反向 RPC 表;SSE 重连时重放 pending,使刷新页面
+ *   能恢复一个被阻塞的 turn。
+ */
+export class WebSessionManager {
+  private readonly sessions = new Map<string, SessionLike>();
+  private readonly subscribers = new Map<string, Set<Subscriber>>();
+  private readonly unsubscribers = new Map<string, Unsubscribe>();
+  private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly pendingQuestions = new Map<string, PendingQuestion>();
+  /** 正在跑 turn 的会话(fork 拒绝;PRD-0034 R-A4)。 */
+  private readonly busySessions = new Set<string>();
+  /** 进行中的 resume(id → promise),并发 resume 去重,防止重复 attach 双份 onEvent。 */
+  private readonly resuming = new Map<string, Promise<SessionLike>>();
+
+  constructor(private readonly harness: HarnessLike) {}
+
+  async createSession(body: CreateSessionBody): Promise<SessionSummary> {
+    const options: CreateSessionOptions = {
+      workDir: body.workDir,
+      model: body.model,
+      thinking: body.thinking,
+      permission: body.permission,
+    };
+    const session = await this.harness.createSession(options);
+    this.attach(session);
+    this.sessions.set(session.id, session);
+    return session.summary ?? toSummary(session);
+  }
+
+  async resumeSession(id: string): Promise<ResumedSessionSummary> {
+    const session = await this.resumeSessionOnce(id);
+    // 真实 harness 的 Session.summary 即完整 ResumeSessionResult(含
+    // agents.main.replay);fake 无 resume 状态时退化为普通摘要。
+    return (session.summary ?? toSummary(session)) as ResumedSessionSummary;
+  }
+
+  /**
+   * 并发安全 resume:React StrictMode 等客户端可能对同一 id 同时发两次
+   * resume;若各自走 harness.resumeSession 会 attach 两份 onEvent 监听,
+   * 导致每个 agent 事件广播两次(every delta 翻倍)。同 id 的并发请求共享
+   * 同一个进行中的 promise。
+   *
+   * 命中缓存的 live 会话同样咨询 harness:ByfHarness 的 active 分支会刷新
+   * summary(创建时快照 → 含最新 replay),否则刷新页面会拿到无 replay 的旧
+   * 快照(PRD-0035 Chat 空回归)。
+   */
+  private resumeSessionOnce(id: string): Promise<SessionLike> {
+    const existing = this.sessions.get(id);
+    if (existing !== undefined) return this.harness.resumeSession({ id });
+    const pending = this.resuming.get(id);
+    if (pending !== undefined) return pending;
+    const loading = this.harness
+      .resumeSession({ id })
+      .then((session) => {
+        // 二次防御:并发期间可能已被另一路径 attach
+        const again = this.sessions.get(session.id);
+        if (again !== undefined) return again;
+        this.attach(session);
+        this.sessions.set(session.id, session);
+        return session;
+      })
+      .finally(() => {
+        this.resuming.delete(id);
+      });
+    this.resuming.set(id, loading);
+    return loading;
+  }
+
+  async listSessions(workDir: string): Promise<readonly SessionSummary[]> {
+    return this.harness.listSessions({ workDir });
+  }
+
+  // ---- 会话组织(PRD-0034 Wave A) -------------------------------------------
+
+  async renameSession(id: string, title: string): Promise<void> {
+    await this.harness.renameSession({ id, title });
+  }
+
+  async updateSessionMetadata(id: string, metadata: SessionMetadataPatch): Promise<void> {
+    await this.harness.updateSessionMetadata({ id, metadata });
+  }
+
+  isSessionBusy(id: string): boolean {
+    return this.busySessions.has(id);
+  }
+
+  async forkSession(id: string, upToMessage?: number): Promise<SessionSummary> {
+    const forked = await this.harness.forkSession({ id, upToMessage });
+    return forked.summary ?? toSummary(forked);
+  }
+
+  getSession(id: string): SessionLike | undefined {
+    return this.sessions.get(id);
+  }
+
+  async getStatus(id: string): Promise<SessionStatus> {
+    return this.requireSession(id).getStatus();
+  }
+
+  /**
+   * 触发一个 turn。**fire-and-forget**:不等待 turn 结束——事件经 SSE 流式推送,
+   * 错误转为 `sys.error` 帧。调用方应以 `void` 启动。
+   */
+  prompt(id: string, input: string | PromptInput): void {
+    void this.runTurn(id, async (s) => s.prompt(input));
+  }
+
+  steer(id: string, input: string | PromptInput): void {
+    void this.runTurn(id, async (s) => s.steer(input));
+  }
+
+  private async runTurn(id: string, fn: (session: SessionLike) => Promise<void>): Promise<void> {
+    const session = this.sessions.get(id);
+    if (session === undefined) return;
+    try {
+      await fn(session);
+    } catch (error) {
+      this.broadcast(id, { type: 'sys.error', message: errMsg(error) });
+    }
+  }
+
+  async cancel(id: string): Promise<void> {
+    await this.requireSession(id).cancel();
+  }
+
+  async setPermission(id: string, mode: PermissionMode): Promise<void> {
+    await this.requireSession(id).setPermission(mode);
+  }
+
+  async setModel(id: string, model: string): Promise<void> {
+    await this.requireSession(id).setModel(model);
+  }
+
+  async setThinking(id: string, level: string): Promise<void> {
+    await this.requireSession(id).setThinking(level);
+  }
+
+  async activateSkill(id: string, name: string, args?: string): Promise<void> {
+    await this.requireSession(id).activateSkill(name, args);
+  }
+
+  async listSkills(id: string): Promise<readonly SkillSummary[]> {
+    return this.requireSession(id).listSkills();
+  }
+
+  async compact(id: string): Promise<void> {
+    await this.requireSession(id).compact();
+  }
+
+  async backgroundTaskOutput(id: string, taskId: string, tail?: number): Promise<string> {
+    return this.requireSession(id).getBackgroundTaskOutput(taskId, { tail });
+  }
+
+  // ---- 配置(直通 harness;设置页读写 byf 配置) --------------------------------
+
+  get configPath(): string {
+    return this.harness.configPath;
+  }
+
+  getConfig(): Promise<ByfConfig> {
+    return this.harness.getConfig();
+  }
+
+  setConfig(patch: ByfConfigPatch): Promise<ByfConfig> {
+    return this.harness.setConfig(patch);
+  }
+
+  removeModel(modelId: string): Promise<ByfConfig> {
+    return this.harness.removeModel(modelId);
+  }
+
+  removeProvider(providerId: string): Promise<ByfConfig> {
+    return this.harness.removeProvider(providerId);
+  }
+
+  resolveModelCapabilities(model: string): Promise<ResolvedCapabilities> {
+    return this.harness.resolveModelCapabilities(model);
+  }
+
+  // ---- Inspector / ConfigDocument / WorkspaceRegistry（PRD-0035 Wave A）-----
+
+  listInspectableSessions(): Promise<readonly InspectorSessionSummary[]> {
+    return this.harness.listInspectableSessions();
+  }
+
+  readSessionInspection(sessionId: string): Promise<SessionDetail | null> {
+    return this.harness.readSessionInspection(sessionId);
+  }
+
+  readAgentWire(sessionId: string, agentId: string): Promise<WireResponse> {
+    return this.harness.readAgentWire(sessionId, agentId);
+  }
+
+  readContextProjection(sessionId: string, agentId: string): Promise<ContextProjection> {
+    return this.harness.readContextProjection(sessionId, agentId);
+  }
+
+  readAgentTree(sessionId: string): Promise<AgentTreeResponse> {
+    return this.harness.readAgentTree(sessionId);
+  }
+
+  /** 删除会话：本地 live 会话直接 409（SDK 侧 core busy 判定是第二道防线）。 */
+  async deleteSession(sessionId: string): Promise<void> {
+    if (this.sessions.has(sessionId)) {
+      const err = new Error(`Session "${sessionId}" is live — close it before deleting`);
+      (err as Error & { code?: string }).code = 'SESSION_BUSY';
+      throw err;
+    }
+    await this.harness.deleteSession(sessionId);
+  }
+
+  getConfigDocument(): Promise<ConfigDocumentResult> {
+    return this.harness.getConfigDocument();
+  }
+
+  validateConfigText(text: string): Promise<ConfigValidationResult> {
+    return this.harness.validateConfigText(text);
+  }
+
+  writeConfigText(text: string, expectedRevision: string | null): Promise<ConfigWriteResult> {
+    return this.harness.writeConfigText(text, expectedRevision);
+  }
+
+  listWorkspaces(): Promise<string[]> {
+    return this.harness.listWorkspaces();
+  }
+
+  hiddenWorkspaces(): Promise<string[]> {
+    return this.harness.hiddenWorkspaces();
+  }
+
+  addWorkspace(workDir: string): Promise<string[]> {
+    return this.harness.addWorkspace(workDir);
+  }
+
+  removeWorkspace(workDir: string): Promise<boolean> {
+    return this.harness.removeWorkspace(workDir);
+  }
+
+  // ---- MCP config store(PRD-0036 / ADR-0039)-------------------------------
+
+  listMcpServerConfigs(workDir: string): Promise<McpConfigListing> {
+    return this.harness.listMcpServerConfigs(workDir);
+  }
+
+  readMcpConfigRaw(workDir: string, scope: McpConfigScope): Promise<McpRawDocument> {
+    return this.harness.readMcpConfigRaw(workDir, scope);
+  }
+
+  upsertMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+    config: Record<string, unknown>,
+  ): Promise<McpScopeState> {
+    return this.harness.upsertMcpServerConfig(workDir, scope, name, config);
+  }
+
+  removeMcpServerConfig(
+    workDir: string,
+    scope: McpConfigScope,
+    name: string,
+  ): Promise<McpScopeState> {
+    return this.harness.removeMcpServerConfig(workDir, scope, name);
+  }
+
+  writeMcpConfigRaw(workDir: string, scope: McpConfigScope, text: string): Promise<McpRawDocument> {
+    return this.harness.writeMcpConfigRaw(workDir, scope, text);
+  }
+
+  testMcpConnection(input: {
+    workDir: string;
+    scope: McpConfigScope;
+    name?: string;
+    config: Record<string, unknown>;
+  }): Promise<McpConnectionTestResult> {
+    return this.harness.testMcpConnection(input);
+  }
+
+  // ---- Workspace skills(PRD-0036)-------------------------------------------
+
+  listWorkspaceSkills(workDir: string): Promise<WorkspaceSkillListing> {
+    return this.harness.listWorkspaceSkills(workDir);
+  }
+
+  async createWorkspaceSkill(input: {
+    workDir: string;
+    scope: 'user' | 'project';
+    name: string;
+    description: string;
+  }): Promise<CreateSkillResult> {
+    return this.harness.createWorkspaceSkill(input);
+  }
+
+  removeWorkspaceSkill(workDir: string, skillPath: string): Promise<void> {
+    return this.harness.removeWorkspaceSkill(workDir, skillPath);
+  }
+
+  // ---- 反向 RPC 裁决 ---------------------------------------------------------
+
+  resolveApproval(requestId: string, response: ApprovalResponse): boolean {
+    const pending = this.pendingApprovals.get(requestId);
+    if (pending === undefined) return false;
+    this.pendingApprovals.delete(requestId);
+    pending.resolve(response);
+    this.broadcast(pending.session.id, {
+      type: 'approval.settled',
+      requestId,
+      decision: response.decision,
+    });
+    return true;
+  }
+
+  resolveQuestion(requestId: string, result: QuestionResult): boolean {
+    const pending = this.pendingQuestions.get(requestId);
+    if (pending === undefined) return false;
+    this.pendingQuestions.delete(requestId);
+    pending.resolve(result);
+    this.broadcast(pending.session.id, { type: 'question.settled', requestId });
+    return true;
+  }
+
+  // ---- SSE 订阅 --------------------------------------------------------------
+
+  subscribe(sessionId: string, queue: AsyncQueue<ServerFrame>): Subscriber {
+    const subscriber: Subscriber = { sessionId, queue };
+    let set = this.subscribers.get(sessionId);
+    if (set === undefined) {
+      set = new Set();
+      this.subscribers.set(sessionId, set);
+    }
+    set.add(subscriber);
+    return subscriber;
+  }
+
+  /** 重放当前待裁决的审批/问答(使 SSE 重连恢复被阻塞的 turn)。 */
+  replayPending(subscriber: Subscriber): void {
+    for (const [requestId, pending] of this.pendingApprovals) {
+      if (pending.session.id === subscriber.sessionId) {
+        subscriber.queue.push({ type: 'approval.requested', requestId, request: pending.request });
+      }
+    }
+    for (const [requestId, pending] of this.pendingQuestions) {
+      if (pending.session.id === subscriber.sessionId) {
+        subscriber.queue.push({ type: 'question.requested', requestId, request: pending.request });
+      }
+    }
+  }
+
+  unsubscribe(subscriber: Subscriber): void {
+    const set = this.subscribers.get(subscriber.sessionId);
+    if (set === undefined) return;
+    set.delete(subscriber);
+    subscriber.queue.close();
+    if (set.size === 0) this.subscribers.delete(subscriber.sessionId);
+  }
+
+  // ---- 生命周期 --------------------------------------------------------------
+
+  async closeSession(id: string): Promise<boolean> {
+    // 该 id 的 resume 仍在进行时先等它落地:否则 resume 会在 close 之后完成
+    // attach,把已请求关闭的会话留在内存里(需二次 DELETE 才能真正关闭)。
+    const pending = this.resuming.get(id);
+    if (pending !== undefined) {
+      try {
+        await pending;
+      } catch {
+        /* resume 失败则无会话可关,走下面的 not found 路径 */
+      }
+    }
+    const session = this.sessions.get(id);
+    if (session === undefined) return false;
+    this.detach(id);
+    this.rejectPendingForSession(id, new Error('session closed'));
+    this.sessions.delete(id);
+    this.busySessions.delete(id);
+    await session.close();
+    return true;
+  }
+
+  async dispose(): Promise<void> {
+    // 快照键集合:closeSession 会在迭代中删除条目。
+    for (const id of Array.from(this.sessions.keys())) {
+      await this.closeSession(id);
+    }
+    await this.harness.close();
+  }
+
+  // ---- 内部 ------------------------------------------------------------------
+
+  private attach(session: SessionLike): void {
+    const unsub = session.onEvent((event) => {
+      // busy 跟踪:fork 拒绝语义(PRD-0034 R-A4)依赖 turn 生命周期事件。
+      // 只认主 agent 的 turn:子 agent 的 turn.ended 不能清除父 turn 仍在
+      // 进行中的 busy 标记(否则并发 fork 撕裂窗口被重新打开)。
+      if (
+        event.type === 'turn.started' &&
+        (event.agentId === undefined || event.agentId === 'main')
+      ) {
+        this.busySessions.add(session.id);
+      } else if (
+        event.type === 'turn.ended' &&
+        (event.agentId === undefined || event.agentId === 'main')
+      ) {
+        this.busySessions.delete(session.id);
+      }
+      this.broadcast(session.id, { type: 'agent.event', event });
+    });
+    this.unsubscribers.set(session.id, unsub);
+    session.setApprovalHandler((request) => this.requestApproval(session, request));
+    session.setQuestionHandler((request) => this.requestQuestion(session, request));
+  }
+
+  private detach(id: string): void {
+    this.unsubscribers.get(id)?.();
+    this.unsubscribers.delete(id);
+  }
+
+  private requestApproval(
+    session: SessionLike,
+    request: ApprovalRequest,
+  ): Promise<ApprovalResponse> {
+    const requestId = randomUUID();
+    return new Promise<ApprovalResponse>((resolve, reject) => {
+      this.pendingApprovals.set(requestId, { session, request, resolve, reject });
+      this.broadcast(session.id, { type: 'approval.requested', requestId, request });
+    });
+  }
+
+  private requestQuestion(session: SessionLike, request: QuestionRequest): Promise<QuestionResult> {
+    const requestId = randomUUID();
+    return new Promise<QuestionResult>((resolve, reject) => {
+      this.pendingQuestions.set(requestId, { session, request, resolve, reject });
+      this.broadcast(session.id, { type: 'question.requested', requestId, request });
+    });
+  }
+
+  private rejectPendingForSession(id: string, error: Error): void {
+    for (const [requestId, pending] of this.pendingApprovals) {
+      if (pending.session.id === id) {
+        this.pendingApprovals.delete(requestId);
+        pending.reject(error);
+      }
+    }
+    for (const [requestId, pending] of this.pendingQuestions) {
+      if (pending.session.id === id) {
+        this.pendingQuestions.delete(requestId);
+        pending.reject(error);
+      }
+    }
+  }
+
+  private requireSession(id: string): SessionLike {
+    const session = this.sessions.get(id);
+    if (session === undefined) {
+      throw new SessionNotFoundError(`session not found: ${id}`);
+    }
+    return session;
+  }
+
+  private broadcast(sessionId: string, frame: ServerFrame): void {
+    const set = this.subscribers.get(sessionId);
+    if (set === undefined) return;
+    for (const subscriber of set) {
+      subscriber.queue.push(frame);
+    }
+  }
+}
+
+/** 找不到会话(路由映射为 404)。 */
+export class SessionNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
+function toSummary(session: SessionLike): SessionSummary {
+  return {
+    id: session.id,
+    workDir: session.workDir,
+    sessionDir: '',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+function errMsg(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

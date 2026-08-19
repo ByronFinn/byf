@@ -1,25 +1,19 @@
 /**
- * Wire-fold logic, extracted from `ContextMemory.appendLoopEvent`.
+ * Wire-fold 逻辑,自 `ContextMemory.appendLoopEvent` 抽取。
  *
- * This module folds a stream of `LoopRecordedEvent`s and explicit
- * `context.append_message` records into a `ContextMessage[]` timeline. It is
- * the single source of truth for how wire records reconstruct the
- * conversation history — consumed by both the live agent (via
- * `ContextMemory`) and external readers (e.g. apps/vis), eliminating the
- * duplicate fold logic that previously drifted between them.
+ * 本模块把一串 `LoopRecordedEvent` 与显式 `context.append_message` 记录折叠为
+ * `ContextMessage[]` 时间线。它是 wire 记录如何重建会话历史的唯一事实源——
+ * 同时被 live agent(经 `ContextMemory`)与外部读者(如 apps/vis)消费,
+ * 消除了此前在两者间漂移的重复 fold 逻辑。
  *
- * Effect-port contract (core fold is pure when ports are inert):
- * - No disk I/O, record logging, event emission, or injection hooks inside
- *   this module itself.
- * - Optional `offloadToolOutput` is an **effect port**: when supplied, the
- *   fold may await it (live agent writes scratch files + logs
- *   `context.output_offloaded`). Callers that only need history (or that
- *   synthesise a preview without writing files) pass a pure stub or omit it.
- * - `onMessage` / `onStepEnd` are also ports for caller-owned side effects
- *   (background notifications, replay builder, display metadata).
+ * 纯函数契约(PRD-0027 Phase 5):本模块内无磁盘 I/O、记录日志、事件发出、
+ * 注入钩子或调用方提供的 effect 端口。每个 fold 函数原地变更 `state`,
+ * 并**返回提交到时间线的消息**(含工具交换关闭时刷出的延迟消息)——调用方在
+ * service 层针对返回的消息运行自己的副作用(后台投递、replay builder、
+ * token 快照、输出 offload)。
  */
 
-import { createToolMessage, type ContentPart, type TokenUsage } from '@byfriends/kosong';
+import { createToolMessage, type ContentPart } from '@byfriends/kosong';
 
 import type { ExecutableToolResult, LoopRecordedEvent } from '../../loop';
 import type { ContextMessage } from './types';
@@ -31,13 +25,11 @@ const TOOL_EMPTY_ERROR_STATUS =
 const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
 
 /**
- * Apply agent-core's output-normalisation to a tool result before it enters
- * the history: empty/error outputs get an explicit `<system>` marker so the
- * model can distinguish "tool ran, produced nothing" from "tool failed".
+ * 在工具结果进入历史前应用 agent-core 的输出归一化:空 / 错误输出会被加上
+ * 显式 `<system>` 标记,使模型能区分「工具运行了但没有产出」与「工具失败」。
  *
- * Exported so vis (and any external reader) can replicate the exact same
- * transformation the live agent applies — previously vis showed the raw
- * output and silently diverged on empty / error tool results.
+ * 导出供 vis(及任何外部读者)复现 live agent 施加的完全相同变换——
+ * 此前 vis 显示原始输出,在空 / 错误工具结果上会静默偏离。
  */
 export function toolResultOutputForModel(result: ExecutableToolResult): string | ContentPart[] {
   const output = result.output;
@@ -50,6 +42,16 @@ export function toolResultOutputForModel(result: ExecutableToolResult): string |
     return isEmptyOutputText(output) ? TOOL_EMPTY_STATUS : output;
   }
 
+  // 结构化对象输出（PRD-0031 2c）：序列化为 JSON 文本供模型阅读
+  if (!Array.isArray(output)) {
+    const text = JSON.stringify(output, null, 2);
+    return [
+      {
+        type: 'text',
+        text: result.isError === true ? `${TOOL_ERROR_STATUS}\n${text}` : text,
+      },
+    ];
+  }
   if (output.length === 0) {
     return [
       {
@@ -69,23 +71,23 @@ function isEmptyOutputText(output: string): boolean {
 }
 
 /**
- * Mutable fold state. The live `ContextMemory` and vis each hold one instance
- * and feed records through {@link foldLoopEvent} / {@link foldAppendMessage}.
+ * 可变 fold 状态。live `ContextMemory` 与 vis 各持一个实例,经
+ * {@link foldLoopEvent} / {@link foldAppendMessage} 喂入记录。live agent 将其
+ * 实例与 `context` wire model 共享(`WireService.mountModel`),因此 fold 函数
+ * 同时充当 model 的 `apply` 实现。
  */
 export interface WireFoldState {
   history: ContextMessage[];
-  /** step.uuid → the assistant ContextMessage currently being filled in. */
+  /** step.uuid → 正在填充中的 assistant ContextMessage。 */
   openSteps: Map<string, ContextMessage>;
-  /** tool-call ids whose result hasn't arrived yet. Non-empty means we're
-   *  inside a tool exchange and explicit `appendMessage`s must be deferred
-   *  until the exchange closes (otherwise user/background messages would be
-   *  interleaved into the assistant's tool-call run, confusing the model). */
+  /** 结果尚未到达的 tool-call id。非空表示正处于工具交换中,显式
+   *  `appendMessage` 必须延迟到交换关闭(否则 user / background 消息会插入
+   *  assistant 的工具调用运行中,使模型困惑)。 */
   pendingToolResultIds: Set<string>;
-  /** tool-call id → {name, args}; consulted to decide offloading (Agent-tool
-   *  subagent summaries are never offloaded) and by observation masking. */
+  /** tool-call id → {name, args};observation masking / pruning 及 service 层的
+   *  输出 offload 决策会查阅(Agent 工具的子 agent 摘要永不 offload)。 */
   toolCallInfo: Map<string, { name: string; args: unknown }>;
-  /** Messages queued during an open tool exchange; flushed when the last
-   *  pending tool result lands and the exchange closes. */
+  /** 工具交换打开期间排队的消息;最后一个待决工具结果落地、交换关闭时刷出。 */
   deferredMessages: ContextMessage[];
 }
 
@@ -100,66 +102,24 @@ export function createWireFoldState(): WireFoldState {
 }
 
 /**
- * Caller-supplied seams. Both are optional: vis passes only `onMessage`
- * (and optionally `offloadToolOutput` for preview parity); the live agent
- * passes both.
+ * 把消息推入 state,遵循工具交换延迟规则:若交换打开(仍有工具调用等待结果),
+ * 则排队消息;交换关闭时刷出。返回提交到历史的消息(延迟时为空)。
  */
-export interface WireFoldHandlers {
-  /** Receive each message as it is committed to the timeline. May carry
-   *  side-effects (background delivery, replay builder) or attach display
-   *  metadata. Must not mutate the message in a way that breaks fold state. */
-  onMessage: (message: ContextMessage) => void;
-  /**
-   * Called after a `step.end` is folded, with the index of the step's
-   *  assistant message in `state.history` (or -1 if the step was unknown)
-   *  and the usage delta if the event carried one. The live agent uses this
-   *  to refresh its token-count snapshot; external readers can ignore it.
-   */
-  onStepEnd?: (stepUuid: string, openStepIndex: number, usage?: TokenUsage) => void;
-  /**
-   * Optionally offload a large tool output to a scratch store and return the
-   * replacement output string. Returning `undefined` means "do not offload".
-   * May return synchronously or via Promise — when the decision is
-   * synchronous (e.g. the live agent during restore, which skips offload), no
-   * `await` happens and the fold stays synchronous, preserving the contract
-   * that `restoreRecord` feeds messages into history before the caller reads
-   * it.
-   *
-   * The live agent writes the full output to a scratch file and returns a
-   * preview + file reference. vis returns a preview with a placeholder path
-   * (so its rendered timeline matches what the model actually saw) without
-   * writing any file.
-   */
-  offloadToolOutput?: (
-    toolCallId: string,
-    toolName: string,
-    result: ExecutableToolResult,
-  ) => { output: string } | undefined | Promise<{ output: string } | undefined>;
+export function foldAppendMessage(state: WireFoldState, message: ContextMessage): ContextMessage[] {
+  if (state.pendingToolResultIds.size > 0) {
+    state.deferredMessages.push(message);
+    return [];
+  }
+  commitMessage(state, message);
+  return [message];
 }
 
 /**
- * Push a message into state, honouring the tool-exchange deferral rule:
- * if a tool exchange is open (some tool call still awaiting its result),
- * queue the message; it flushes when the exchange closes.
+ * 把一个 loop 事件折叠进 state。纯且同步:无副作用、无 async(工具输出完整进入
+ * 时间线;输出 offload 是 dispatch 之后的 service 层 effect,见 PRD-0027 R3)。
+ * 返回提交到历史的消息(可能包含工具交换关闭时刷出的延迟消息)。
  */
-export function foldAppendMessage(
-  state: WireFoldState,
-  message: ContextMessage,
-  handlers: WireFoldHandlers,
-): void {
-  if (state.pendingToolResultIds.size > 0) {
-    state.deferredMessages.push(message);
-    return;
-  }
-  commitMessage(state, message, handlers);
-}
-
-/** Fold one loop event into state. Async because offloading may be async. */
-export async function foldLoopEvent(
-  state: WireFoldState,
-  event: LoopRecordedEvent,
-  handlers: WireFoldHandlers,
-): Promise<void> {
+export function foldLoopEvent(state: WireFoldState, event: LoopRecordedEvent): ContextMessage[] {
   switch (event.type) {
     case 'step.begin': {
       const message: ContextMessage = {
@@ -167,19 +127,13 @@ export async function foldLoopEvent(
         content: [],
         toolCalls: [],
       };
-      commitMessage(state, message, handlers);
+      commitMessage(state, message);
       state.openSteps.set(event.uuid, message);
-      return;
+      return [message];
     }
     case 'step.end': {
-      const openStep = state.openSteps.get(event.uuid);
       state.openSteps.delete(event.uuid);
-      if (handlers.onStepEnd !== undefined) {
-        const openStepIndex = openStep === undefined ? -1 : state.history.indexOf(openStep);
-        handlers.onStepEnd(event.uuid, openStepIndex, event.usage);
-      }
-      flushDeferredIfToolExchangeClosed(state, handlers);
-      return;
+      return flushDeferredIfToolExchangeClosed(state);
     }
     case 'content.part': {
       const openStep = state.openSteps.get(event.stepUuid);
@@ -189,7 +143,7 @@ export async function foldLoopEvent(
         );
       }
       openStep.content.push(event.part);
-      return;
+      return [];
     }
     case 'tool.call': {
       const openStep = state.openSteps.get(event.stepUuid);
@@ -206,47 +160,26 @@ export async function foldLoopEvent(
       });
       state.pendingToolResultIds.add(event.toolCallId);
       state.toolCallInfo.set(event.toolCallId, { name: event.name, args: event.args });
-      return;
+      return [];
     }
     case 'tool.result': {
-      let result = event.result;
-
-      // Agent-tool subagent summaries are never offloaded — they are already
-      // distilled by another LLM (see output-offloading design). The live
-      // agent skips offload during restore (the scratch file is ephemeral);
-      // external readers skip it when no handler is supplied.
-      const toolName = state.toolCallInfo.get(event.toolCallId)?.name ?? 'unknown';
-      if (toolName !== 'Agent' && handlers.offloadToolOutput !== undefined) {
-        const maybeOffloaded = handlers.offloadToolOutput(event.toolCallId, toolName, result);
-        const offloaded = isPromise(maybeOffloaded) ? await maybeOffloaded : maybeOffloaded;
-        if (offloaded !== undefined) {
-          result = { ...result, output: offloaded.output };
-        }
-      }
-
-      const message = createToolMessage(event.toolCallId, toolResultOutputForModel(result));
-      commitMessage(
-        state,
-        {
-          ...message,
-          role: 'tool',
-          isError: result.isError,
-        },
-        handlers,
-      );
+      const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
+      const toolMessage: ContextMessage = {
+        ...message,
+        role: 'tool',
+        isError: event.result.isError,
+      };
+      commitMessage(state, toolMessage);
       state.pendingToolResultIds.delete(event.toolCallId);
-      flushDeferredIfToolExchangeClosed(state, handlers);
-      return;
+      return [toolMessage, ...flushDeferredIfToolExchangeClosed(state)];
     }
   }
 }
 
 /**
- * Reset fold state to empty in place (e.g. on `context.clear`). Mutates the
- * existing arrays/maps rather than replacing them, so callers whose state is
- * a view onto their own fields (like `ContextMemory.foldState()`) see the
- * reset. Callers that hold display metadata should clear their own
- * structures in parallel.
+ * 原地把 fold 状态重置为空(例如 `context.clear` 时)。变更既有数组 / 映射而非
+ * 替换它们,使 state 是其自身字段视图的调用方(如 `ContextMemory.foldState()`)
+ * 能看到重置。持有展示元数据的调用方应并行清空自己的结构。
  */
 export function resetWireFoldState(state: WireFoldState): void {
   state.history.length = 0;
@@ -257,19 +190,16 @@ export function resetWireFoldState(state: WireFoldState): void {
 }
 
 /**
- * Apply a compaction summary in place: replace the first `compactedCount`
- * messages with a single summary assistant message and keep the uncompacted
- * tail (`history.slice(compactedCount)`). Clears open steps and flushes any
- * deferred messages once the tool-exchange gate allows.
+ * 原地应用压缩摘要:把前 `compactedCount` 条消息替换为一条 summary assistant
+ * 消息,保留未压缩的尾部(`history.slice(compactedCount)`)。清空打开的 step,
+ * 并在工具交换闸门允许时刷出任何延迟消息。
  *
- * Shared by `ContextMemory` and external readers (vis) so partial-compaction
- * tails cannot drift again.
+ * 由 `ContextMemory` 与外部读者(vis)共享,使部分压缩尾部不再漂移。
  */
 export function foldApplyCompaction(
   state: WireFoldState,
   input: { summary: string; compactedCount: number },
-  handlers: WireFoldHandlers,
-): ContextMessage {
+): { summary: ContextMessage; committed: ContextMessage[] } {
   const summaryMessage: ContextMessage = {
     role: 'assistant',
     content: [{ type: 'text', text: input.summary }],
@@ -282,42 +212,56 @@ export function foldApplyCompaction(
   state.history.length = 0;
   state.history.push(summaryMessage, ...tail);
   state.openSteps.clear();
-  flushDeferredIfToolExchangeClosed(state, handlers);
-  return summaryMessage;
+  return { summary: summaryMessage, committed: flushDeferredIfToolExchangeClosed(state) };
 }
 
-function commitMessage(
-  state: WireFoldState,
-  message: ContextMessage,
-  handlers: WireFoldHandlers,
-): void {
+function commitMessage(state: WireFoldState, message: ContextMessage): void {
   state.history.push(message);
-  handlers.onMessage(message);
-}
-
-function isPromise<T>(value: T | Promise<T>): value is Promise<T> {
-  return (
-    typeof value === 'object' && value !== null && typeof (value as Promise<T>).then === 'function'
-  );
 }
 
 /**
- * Flush any deferred messages when no tool exchange is open. Public so that
- * out-of-band state changes (e.g. `applyCompaction` rebuilding the history)
- * can re-check the deferral rule without going through `foldLoopEvent`.
+ * 在无工具交换打开时刷出任何延迟消息。公开使带外状态变更(例如 `applyCompaction`
+ * 重建历史)无需经过 `foldLoopEvent` 即可重新检查延迟规则。
  */
-export function flushDeferred(state: WireFoldState, handlers: WireFoldHandlers): void {
-  flushDeferredIfToolExchangeClosed(state, handlers);
+export function flushDeferred(state: WireFoldState): ContextMessage[] {
+  return flushDeferredIfToolExchangeClosed(state);
 }
 
-function flushDeferredIfToolExchangeClosed(state: WireFoldState, handlers: WireFoldHandlers): void {
+function flushDeferredIfToolExchangeClosed(state: WireFoldState): ContextMessage[] {
   if (state.pendingToolResultIds.size > 0 || state.deferredMessages.length === 0) {
-    return;
+    return [];
   }
   // Drain in place so a state view (e.g. ContextMemory's field references)
   // sees the clear — reassigning the field would break the view.
   const deferred = state.deferredMessages.splice(0);
   for (const message of deferred) {
-    commitMessage(state, message, handlers);
+    commitMessage(state, message);
   }
+  return deferred;
+}
+
+/**
+ * 查找内容以 `[ToolName:` 掩码前缀开头的工具消息的历史索引(observation
+ * masking 会留下此签名)。纯辅助函数,由 `context.pruning` 的 apply 与 service
+ * 层的修剪计数共享(PRD-0027 Phase 5)。
+ */
+export function findMaskedToolResultIndices(state: WireFoldState): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < state.history.length; i++) {
+    const message = state.history[i];
+    if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+    const info = state.toolCallInfo.get(message.toolCallId);
+    if (info === undefined) continue;
+    const text =
+      typeof message.content === 'string'
+        ? message.content
+        : message.content
+            .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+            .map((part) => part.text)
+            .join('');
+    if (text.startsWith(`[${info.name}:`)) {
+      indices.push(i);
+    }
+  }
+  return indices;
 }

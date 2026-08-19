@@ -171,9 +171,10 @@ BYF is a [Bun monorepo](https://bun.com/docs/install/workspaces) (see [ADR 0028]
 byf/
 ├── apps/
 │   ├── cli/               # CLI / TUI application
-│   └── vis/               # Session visualization & replay tool
-│       ├── server/        #   Hono API server
-│       └── web/           #   React/Vite SPA
+│   ├── vis/               # Session visualization & replay tool
+│   │   ├── server/        #   Hono API server
+│   │   └── web/           #   React/Vite SPA
+│   └── web/               # Browser web client (live agent over Hono/SSE + React SPA)
 ├── packages/
 │   ├── agent-core/        # Unified agent engine
 │   ├── node-sdk/          # Public TypeScript SDK (@byfriends/sdk)
@@ -200,6 +201,14 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Pull request guidelines
 
 Before submitting a feature or significant change, please open an issue first to align with the project roadmap.
+
+---
+
+## 🔒 Security
+
+BYF's permission layer is a best-effort UX guard, **not a security boundary** — BYF does not
+sandbox the agent (ADR-0033). When working with untrusted code or prompts, run BYF inside a
+container or VM. See the full [threat model](SECURITY.md).
 
 ---
 

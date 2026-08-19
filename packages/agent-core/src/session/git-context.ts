@@ -1,11 +1,9 @@
 /**
- * Git repository context for explore subagents.
+ * 供 explore subagent 使用的 Git 仓库上下文。
  *
- * `collectGitContext` produces a `<git-context>` block that is prepended to a
- * fresh explore subagent's prompt so it can orient itself in the repository
- * before searching. Every git command is individually guarded — a single
- * failure never aborts the whole collection — and remote URLs are sanitized
- * so internal infrastructure is not surfaced to the model.
+ * `collectGitContext` 生成一个 `<git-context>` 块,前置到全新 explore subagent
+ * 的提示词中,使其在搜索前能在仓库中定位自己。每条 git 命令都单独防护——
+ * 单次失败不会中止整个收集——远程 URL 会被清洗,内部基础设施不会暴露给模型。
  */
 
 import type { Readable } from 'node:stream';
@@ -28,10 +26,10 @@ const ALLOWED_HOSTS = [
 ] as const;
 
 /**
- * Collect git context for the explore agent.
+ * 为 explore agent 收集 git 上下文。
  *
- * Returns a formatted `<git-context>` block, or an empty string if the
- * directory is not a git repository or no useful information was collected.
+ * 返回格式化后的 `<git-context>` 块;目录不是 git 仓库或未收集到有用信息时
+ * 返回空字符串。
  */
 export async function collectGitContext(kaos: Kaos, cwd: string): Promise<string> {
   // Quick check: is this a git repo?
@@ -91,8 +89,8 @@ export async function collectGitContext(kaos: Kaos, cwd: string): Promise<string
 }
 
 /**
- * Return the remote URL if it points to a well-known public host, stripping
- * credentials from HTTPS URLs. Returns `null` for unrecognized hosts.
+ * 若远程 URL 指向知名公共主机则返回之,并从 HTTPS URL 中剥离凭据。
+ * 无法识别的主机返回 `null`。
  */
 export function sanitizeRemoteUrl(remoteUrl: string): string | null {
   // SSH format: git@host:owner/repo.git — no credentials possible.
@@ -116,9 +114,9 @@ export function sanitizeRemoteUrl(remoteUrl: string): string | null {
 }
 
 /**
- * Extract the project path from a git remote URL — `owner/repo`, or the full
- * `group/subgroup/repo` for nested namespaces (e.g. GitLab subgroups).
- * Supports scp-like SSH (`git@host:path`) and URL forms (`https://`, `ssh://`).
+ * 从 git 远程 URL 提取项目路径——`owner/repo`,嵌套命名空间(如 GitLab 子组)
+ * 则为完整的 `group/subgroup/repo`。支持 scp 风格 SSH(`git@host:path`)
+ * 与 URL 形式(`https://`、`ssh://`)。
  */
 export function parseProjectName(remoteUrl: string): string | null {
   // scp-like SSH (`git@host:owner/.../repo.git`) is not a valid URL — match it

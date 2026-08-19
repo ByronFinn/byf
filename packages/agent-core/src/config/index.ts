@@ -5,3 +5,4 @@ export * from './resolve';
 export * from './schema';
 export * from './toml';
 export * from './workspace-local';
+export * from './document';

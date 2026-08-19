@@ -1,7 +1,7 @@
 import type { Agent } from '..';
 import { ByfError, ErrorCodes } from '../../errors';
 import { isAgentRecordOfPrefix, type AgentRecord } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
+import { goalClear, goalCreate, goalModel, goalUpdate, goalUpdated } from '../wire/ops/goal';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from './constants';
 import type {
   GoalBudgetLimits,
@@ -20,15 +20,15 @@ export * from './types';
  * goal 模式的持久化状态机子系统（PRD-0019）。
  *
  * 持有 active/paused/blocked 持久化状态 + complete 瞬态。每个变更操作：
- * - logRecord 一条 wire record（replay 时 AgentRecords._restoring 抑制写入）。
- * - emit `goal.updated` 事件（replay 时 Agent.emitEvent 自带 _restoring 抑制）。
+ * - dispatch 一条 wire record（restore 时 silent apply，不写盘）。
+ * - emit `goal.updated` 事件（replay 时 Agent.emitEvent 靠 wire.phase 抑制）。
  *
  * complete 是瞬态：markComplete 只置瞬态 + emit completion change；
  * clear 由 driver 在 turn 边界调 clearInternal 完成（关键技术发现 #7 / ADR-0024）。
  *
  * 本类只管状态；续跑驱动（#201）、工具（#202）、注入（#201）在别处。
  */
-export class GoalMode implements RecordRestoreHandler {
+export class GoalMode {
   /** 当前持久化快照；absent 时为 null。complete 瞬态另存。 */
   private snapshot: GoalSnapshot | null = null;
   /** complete 瞬态（markComplete 后、clearInternal 前）。否则 undefined。 */
@@ -107,12 +107,9 @@ export class GoalMode implements RecordRestoreHandler {
     this.wallClockResumedAt = now;
     // goal.create 含 objective + budget + createdAt（见 restoreRecord 重建），
     // 不再额外发 goal.update——初始 snapshot 由 goal.create 携带。
-    this.agent.records.logRecord({
-      type: 'goal.create',
-      objective: trimmed,
-      budget: options.budget,
-      createdAt: now,
-    });
+    this.agent.wire.dispatch(
+      goalCreate({ objective: trimmed, budget: options.budget, createdAt: now }),
+    );
     this.emitGoalUpdated(next);
   }
 
@@ -153,7 +150,7 @@ export class GoalMode implements RecordRestoreHandler {
     // 离开 active 折叠 wall-clock，落盘反映真实累积。
     const usage = this.foldWallClockIfLeavingActive(current);
     this.snapshot = { ...current, usage };
-    this.agent.records.logRecord({ type: 'goal.update', snapshot: this.snapshot });
+    this.agent.wire.dispatch(goalUpdate({ snapshot: this.snapshot }));
     // emit completion change，status 反映 complete 瞬态档。
     this.emitGoalUpdated(this.getSnapshot(), { kind: 'completion', reason });
   }
@@ -190,7 +187,7 @@ export class GoalMode implements RecordRestoreHandler {
     };
     const next: GoalSnapshot = { ...current, budget: merged };
     this.snapshot = next;
-    this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+    this.agent.wire.dispatch(goalUpdate({ snapshot: next }));
     this.emitGoalUpdated(next);
   }
 
@@ -204,7 +201,7 @@ export class GoalMode implements RecordRestoreHandler {
     };
     this.snapshot = next;
     // PRD N3：计步 silent（不 emit 事件），但仍写 record 保证 replay 一致。
-    this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+    this.agent.wire.dispatch(goalUpdate({ snapshot: next }));
   }
 
   addTokenUsage(turn: GoalTurnTokens): void {
@@ -216,7 +213,7 @@ export class GoalMode implements RecordRestoreHandler {
     };
     this.snapshot = next;
     // PRD N3：计步 silent（不 emit 事件），但仍写 record 保证 replay 一致。
-    this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+    this.agent.wire.dispatch(goalUpdate({ snapshot: next }));
   }
 
   /**
@@ -288,6 +285,16 @@ export class GoalMode implements RecordRestoreHandler {
 
   // —— replay ——
 
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 1 Facade）。
+   * snapshot 由 goal.create/update/clear 的纯 apply 重建；completeReason 是瞬态，
+   * 归零；wallClockResumedAt 锚点由 normalizeAfterReplay 清零。
+   */
+  syncFromWire(): void {
+    this.snapshot = this.agent.wire.getModel(goalModel).snapshot;
+    this.completeReason = undefined;
+  }
+
   restoreRecord(record: AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'goal')) return;
     switch (record.type) {
@@ -320,8 +327,8 @@ export class GoalMode implements RecordRestoreHandler {
    * - active → paused（reason `Paused after agent resume`）：进程中断后无法
    *   确认是否真的在推进，保守降级，等用户显式 resume。
    *
-   * 注意：此方法在 `records.replay()` 返回后调用（见 Agent.resume），此时
-   * `AgentRecords._restoring` 已为 false，故降级 record 会真正写 wire——
+   * 注意：此方法在 `wire.restore()` 返回后调用（见 Agent.resume），此时
+   * restore 已结束（phase='ready'），故降级 record 会真正写 wire——
    * 这是预期行为，保证后续 fork/replay 看到一致的 paused 状态。
    * - complete → 清空（瞬态本就该 clear，进程重启时兜底）。
    * - paused/blocked 保留。
@@ -344,7 +351,7 @@ export class GoalMode implements RecordRestoreHandler {
       };
       this.snapshot = next;
       // 落盘降级 record，使 wire 与内存一致（resume 后的后续 fork/replay 据此）。
-      this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+      this.agent.wire.dispatch(goalUpdate({ snapshot: next }));
     }
   }
 
@@ -369,7 +376,7 @@ export class GoalMode implements RecordRestoreHandler {
     if (status === 'active') {
       this.wallClockResumedAt = Date.now();
     }
-    this.agent.records.logRecord({ type: 'goal.update', snapshot: next });
+    this.agent.wire.dispatch(goalUpdate({ snapshot: next }));
     this.emitGoalUpdated(next, change);
   }
 
@@ -381,7 +388,7 @@ export class GoalMode implements RecordRestoreHandler {
     }
     this.wallClockResumedAt = undefined;
     this.snapshot = null;
-    this.agent.records.logRecord({ type: 'goal.clear' });
+    this.agent.wire.dispatch(goalClear({}));
     this.emitGoalUpdated(null);
   }
 
@@ -403,8 +410,13 @@ export class GoalMode implements RecordRestoreHandler {
     return { ...current.usage, wallClockMs: current.usage.wallClockMs + elapsed };
   }
 
+  /**
+   * 统一走 wire.dispatch（transient 车辆 op，PRD-0027 Phase 6 待办）：事件内容由
+   * 调用方在 payload 里给出 live snapshot（complete 瞬态 overlay / 实时 wallClock），
+   * 由 toEvent 透传派生。restore 静默（silent execute 不派发 toEvent），无需 phase 守卫。
+   */
   protected emitGoalUpdated(snapshot: GoalSnapshot | null, change?: GoalChange): void {
-    this.agent.emitEvent({ type: 'goal.updated', snapshot, change });
+    this.agent.wire.dispatch(goalUpdated({ snapshot, change }));
   }
 }
 

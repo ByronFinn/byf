@@ -1,10 +1,9 @@
 /**
- * /goal command action handler (PRD-0019 #204).
+ * /goal 命令动作处理器(PRD-0019 #204)。
  *
- * Pure dispatch from a parsed `GoalCommand` onto a Session. UI rendering
- * (footer badge / completion card / transcript marker) lives in #205 — this
- * module only mutates session state and emits the user-facing status line
- * that the transcript shares with the UI layer.
+ * 把解析后的 `GoalCommand` 纯分发到 Session。UI 渲染(页脚徽章 / 完成
+ * 卡片 / transcript 标记)位于 #205——本模块只变更会话状态,并发出
+ * transcript 与 UI 层共享的用户可见状态行。
  */
 
 import type { GoalSnapshot, Session } from '@byfriends/sdk';
@@ -34,10 +33,9 @@ export interface GoalActionCallbacks {
 }
 
 /**
- * Execute a parsed /goal command against the session. Returns a short status
- * string suitable for a transient toast; transcript persistence is the
- * caller's responsibility (via `appendTranscriptLine` for the `status` sub-
- * command, which writes a one-line snapshot per PRD R13).
+ * 对会话执行解析后的 /goal 命令。返回适合瞬时 toast 的短状态字符串;
+ * transcript 持久化是调用方的责任(经 `appendTranscriptLine` 处理
+ * `status` 子命令,按 PRD R13 写入单行快照)。
  */
 export async function handleGoalCommand(
   session: GoalSession,
@@ -99,7 +97,7 @@ export async function handleGoalCommand(
   }
 }
 
-/** Render a one-line summary of a snapshot for UI surfaces (footer badge). */
+/** 为 UI 表面(页脚徽章)渲染快照的单行摘要。 */
 export function summarizeGoalSnapshot(snapshot: GoalSnapshot | null): string | null {
   if (snapshot === null) return null;
   return renderStatusLine(snapshot);

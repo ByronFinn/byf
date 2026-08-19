@@ -30,6 +30,7 @@ import {
 import { runTurn } from './fixtures/helpers';
 import {
   ContentBlocksTool,
+  DelayedTool,
   EchoTool,
   FailingTool,
   GatedTool,
@@ -866,5 +867,57 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBeUndefined();
+  });
+
+  it('stamps tool.call.started with startedAt and tool.result with self-contained timing', async () => {
+    const echo = new EchoTool();
+    const { sink } = await runTurn({
+      tools: [echo],
+      responses: [
+        makeToolUseResponse([makeToolCall('echo', { text: 'hi' }, 'tc-1')]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const call = sink.byType('tool.call')[0] as { startedAt?: number };
+    const result = sink.byType('tool.result')[0] as {
+      startedAt?: number;
+      endedAt?: number;
+    };
+    expect(typeof call.startedAt).toBe('number');
+    expect(typeof result.startedAt).toBe('number');
+    expect(typeof result.endedAt).toBe('number');
+    expect(result.endedAt).toBeGreaterThanOrEqual(result.startedAt ?? -Infinity);
+    expect(result.startedAt).toBe(call.startedAt);
+  });
+
+  it('records each parallel tool.result endedAt at its own completion, not dispatch order', async () => {
+    const slow = new DelayedTool('slow', () => 120);
+    const fast = new DelayedTool('fast', () => 0);
+    const { sink } = await runTurn({
+      tools: [slow, fast],
+      responses: [
+        // Provider order: slow first, fast second. Terminal events are
+        // dispatched in provider order, but endedAt must reflect each tool's
+        // own completion moment.
+        makeToolUseResponse([
+          makeToolCall('slow', {}, 'tc-slow'),
+          makeToolCall('fast', {}, 'tc-fast'),
+        ]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    const byId = new Map(
+      sink.byType('tool.result').map((event) => {
+        const typed = event as { toolCallId: string; endedAt?: number };
+        return [typed.toolCallId, typed.endedAt];
+      }),
+    );
+    const slowEndedAt = byId.get('tc-slow');
+    const fastEndedAt = byId.get('tc-fast');
+    expect(typeof slowEndedAt).toBe('number');
+    expect(typeof fastEndedAt).toBe('number');
+    expect((fastEndedAt as number) + 60).toBeLessThan(slowEndedAt as number);
   });
 });

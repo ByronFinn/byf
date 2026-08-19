@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_URL } from '@byfriends/sdk';
 import type { Component, Focusable } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -184,6 +185,9 @@ describe('ConnectFlow', () => {
 
     let activeCancel: (() => void) | undefined;
     const deps = makeDeps({
+      // Both cancels settle well before 100ms; a small bound keeps the
+      // AbortSignal.timeout timers from holding the test suite (8s default).
+      catalogFetchTimeoutMs: 100,
       setCancelInFlight: vi.fn((cancel) => {
         activeCancel = cancel;
       }),
@@ -371,5 +375,151 @@ describe('ConnectFlow', () => {
     pressEscape(host);
 
     await flowPromise;
+  });
+
+  // ── Catalog fetch bounding (bug: hanging catalog fetch froze /connect) ──
+
+  /** Global fetch that never settles until its signal aborts — models a
+   * network that TCP-connects but never responds. */
+  function hangingFetch(
+    _url: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ): Promise<Response> {
+    return new Promise<Response>((_resolve, reject) => {
+      if (init?.signal?.aborted) {
+        reject(new Error('aborted'));
+        return;
+      }
+      init?.signal?.addEventListener(
+        'abort',
+        () => {
+          reject(new Error('aborted'));
+        },
+        { once: true },
+      );
+    });
+  }
+
+  it('falls back to the built-in catalog when a hanging fetch times out', async () => {
+    vi.stubGlobal('fetch', vi.fn(hangingFetch));
+
+    const deps = makeDeps({
+      builtInCatalogJson: CATALOG_JSON,
+      catalogFetchTimeoutMs: 50,
+    });
+    const host = getHost(deps);
+
+    // 'refresh' forces the network fetch (preferBuiltIn=false) while still
+    // allowing the built-in fallback.
+    const flowPromise = new ConnectFlow(deps).run('refresh');
+
+    // Provider picker must appear after the timeout triggers the fallback.
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
+    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+      ok: true,
+      label: 'Using built-in catalog (offline mode).',
+    });
+
+    // Complete the flow via the fallback catalog.
+    activePanel(host).handleInput('\r'); // provider: openai
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r'); // model: gpt-4o
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    await flowPromise;
+
+    expect(deps.setConfig).toHaveBeenCalled();
+    expect(deps.showStatus).toHaveBeenCalledWith('Connected: OpenAI · gpt-4o');
+  });
+
+  it('shows an error and ends when a hanging fetch times out with no built-in catalog', async () => {
+    vi.stubGlobal('fetch', vi.fn(hangingFetch));
+
+    const deps = makeDeps({
+      catalogFetchTimeoutMs: 50,
+    });
+    const host = getHost(deps);
+
+    const flowPromise = new ConnectFlow(deps).run('refresh');
+
+    await vi.waitFor(() => {
+      expect(deps.showError).toHaveBeenCalled();
+    });
+
+    await flowPromise;
+
+    expect(host.panel).toBeNull();
+    expect(deps.setConfig).not.toHaveBeenCalled();
+    expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
+    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+      ok: false,
+      label: 'Failed to load catalog.',
+    });
+    // The timeout path reports its cause distinctly from a network error.
+    expect(deps.showError).toHaveBeenCalledWith(expect.stringContaining('timed out'));
+  });
+
+  // ── Catalog regression guards ──
+
+  it('reports an error and ends when the catalog fetch fails with no built-in catalog', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network down');
+      }),
+    );
+
+    const deps = makeDeps();
+    const host = getHost(deps);
+
+    await new ConnectFlow(deps).run('refresh');
+
+    expect(deps.showError).toHaveBeenCalled();
+    expect(host.panel).toBeNull();
+    expect(deps.setConfig).not.toHaveBeenCalled();
+  });
+
+  it('proceeds through the flow when the catalog fetch succeeds (happy path)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(CATALOG_JSON, { status: 200 })),
+    );
+
+    const deps = makeDeps();
+    const host = getHost(deps);
+
+    const flowPromise = new ConnectFlow(deps).run('refresh');
+
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
+    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+      ok: true,
+      label: 'Catalog loaded.',
+    });
+
+    activePanel(host).handleInput('\r'); // provider: openai
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    activePanel(host).handleInput('\r'); // model: gpt-4o
+    await vi.waitFor(() => {
+      expect(host.panel).not.toBeNull();
+    });
+    await typeAndEnter(host, 'sk-test-key');
+
+    await flowPromise;
+
+    expect(deps.setConfig).toHaveBeenCalled();
+    expect(deps.showStatus).toHaveBeenCalledWith('Connected: OpenAI · gpt-4o');
   });
 });

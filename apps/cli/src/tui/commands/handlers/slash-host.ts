@@ -1,13 +1,13 @@
-// Narrow capability surface for slash command modules (PRD-0021 H1-a).
+// 斜杠命令模块的窄能力表面(PRD-0021 H1-a)。
 //
-// Handlers never hold a ByfTui reference. The host exposes:
-// - shared UI/session primitives used by ≥2 handlers
-// - dialogManager / dialogHost accessors
-// - controller entry points not yet extracted to DialogManager
-// - a few root-coupled seams (init turn machine, fork rewrite, theme/editor
-//   persistence) as single capability methods — not one handle* per command.
+// 处理器绝不持有 ByfTui 引用。宿主暴露:
+// - 至少 2 个处理器共享的 UI / 会话原语
+// - dialogManager / dialogHost 访问器
+// - 尚未抽取到 DialogManager 的控制器入口
+// - 少数根耦合接缝(init turn 机、fork 重写、主题 / 编辑器持久化)——
+//   以单一能力方法呈现,而非每命令一个 handle*。
 //
-// Per-command control flow lives in commands/handlers/<group>.ts.
+// 每命令的控制流位于 commands/handlers/<group>.ts。
 
 import type {
   ByfConfig,
@@ -23,7 +23,7 @@ import type { Theme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { DialogHost } from '#/tui/types';
 
-/** App-state fields slash handlers read/write. */
+/** 斜杠处理器读写的应用状态字段。 */
 export interface SlashHostAppState {
   readonly availableModels: Readonly<Record<string, ModelAlias>>;
   readonly sessionTitle: string | null;
@@ -83,6 +83,9 @@ export interface SlashCommandHost {
   clearCancelInFlight(cancel: () => void): void;
 
   renameSession(input: { id: string; title: string }): Promise<void>;
+
+  /** 注册 TUI 退出清理钩子(如 /web 的后台 web-server;PRD-0034 R-D2)。 */
+  registerShutdownHook(hook: () => void): void;
 
   /** User-message bodies from the transcript, in display order (for /fork). */
   getUserMessageContents(): readonly string[];

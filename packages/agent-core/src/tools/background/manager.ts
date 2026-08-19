@@ -34,8 +34,10 @@ export type { BackgroundTaskOutputSnapshot };
 
 /**
  * `'lost'` is a reconcile-only terminal state. Tasks loaded from disk
- * that were marked `running` at startup but have no live KaosProcess
- * (the previous CLI process died) are reclassified as lost.
+ * that were marked `running` at startup but whose owner process is no
+ * longer alive (the previous CLI process died) are reclassified as lost.
+ * A non-terminal record whose owner (or, for legacy records, task) pid
+ * still responds belongs to another live process and is left as-is.
  *
  * `'awaiting_approval'` is a non-terminal state entered when a background
  * agent task is paused waiting for tool-call approval from the root
@@ -77,6 +79,14 @@ export interface BackgroundTaskInfo {
   readonly description: string;
   readonly status: BackgroundTaskStatus;
   readonly pid: number | null;
+  /**
+   * Pid of the process whose BPM registered/owns the task. Reconcile
+   * probes it to distinguish "owner process still alive (task running
+   * under another live process)" from "previous owner died without
+   * settling". `undefined` on records persisted before this field
+   * existed.
+   */
+  readonly ownerPid?: number;
   readonly exitCode: number | null;
   readonly startedAt: number;
   readonly endedAt: number | null;
@@ -108,6 +118,7 @@ interface TaskCommon {
   readonly command: string;
   readonly description: string;
   status: BackgroundTaskStatus;
+  readonly ownerPid: number;
   exitCode: number | null;
   readonly startedAt: number;
   endedAt: number | null;
@@ -408,6 +419,7 @@ export class BackgroundProcessManager {
       description,
       proc,
       status: 'running',
+      ownerPid: process.pid,
       exitCode: null,
       startedAt: Date.now(),
       endedAt: null,
@@ -761,6 +773,7 @@ export class BackgroundProcessManager {
       agentId: opts.agentId ?? taskId,
       subagentType: opts.subagentType ?? 'agent',
       status: 'running',
+      ownerPid: process.pid,
       exitCode: null,
       startedAt: Date.now(),
       endedAt: null,
@@ -944,10 +957,19 @@ export class BackgroundProcessManager {
   }
 
   /**
-   * Reconcile loaded ghost tasks. Any ghost with status `running` is
-   * reclassified as `lost` (its previous CLI process died without
-   * writing a terminal state). Updates the on-disk record and returns
-   * the lost task ids so the caller can emit user-facing notifications.
+   * Reconcile loaded ghost tasks. Any ghost with a non-terminal status
+   * whose owner process is gone is reclassified as `lost` (the previous
+   * CLI process died without writing a terminal state). Updates the
+   * on-disk record and returns the lost task ids so the caller can emit
+   * user-facing notifications.
+   *
+   * A non-terminal record whose owner pid still responds is skipped: the
+   * task is running under another live process that holds this session
+   * open (e.g. the CLI TUI while the web server resumes the same session
+   * from disk). Reclassifying it here would overwrite the owner's record
+   * and inject a false `task.lost` notification into the session. Legacy
+   * records without `owner_pid` fall back to probing the task's own pid
+   * (process tasks only; agent tasks persist pid 0).
    */
   protected async markLoadedTasksLost(): Promise<ReconcileResult> {
     const lost: string[] = [];
@@ -957,6 +979,8 @@ export class BackgroundProcessManager {
       // (the approval context died with the previous process so it
       // cannot be resumed).
       if (TERMINAL_STATUSES.has(info.status)) continue;
+      const probePid = info.ownerPid ?? (info.pid !== null && info.pid > 0 ? info.pid : undefined);
+      if (probePid !== undefined && isPidAlive(probePid)) continue;
       const updated: BackgroundTaskInfo = {
         ...info,
         status: 'lost',
@@ -1007,6 +1031,7 @@ export class BackgroundProcessManager {
       command: entry.command,
       description: entry.description,
       pid: entry.kind === 'process' ? entry.proc.pid : 0,
+      owner_pid: entry.ownerPid,
       started_at: entry.startedAt,
       ended_at: entry.endedAt,
       exit_code: entry.exitCode,
@@ -1057,6 +1082,7 @@ export class BackgroundProcessManager {
       description: entry.description,
       status: entry.status,
       pid: entry.kind === 'process' ? entry.proc.pid : null,
+      ownerPid: entry.ownerPid,
       exitCode: entry.exitCode,
       startedAt: entry.startedAt,
       endedAt: entry.endedAt,
@@ -1105,6 +1131,7 @@ function persistedToInfo(t: PersistedTask): BackgroundTaskInfo {
     description: t.description,
     status: t.status,
     pid: t.pid,
+    ownerPid: t.owner_pid,
     exitCode: t.exit_code,
     startedAt: t.started_at,
     endedAt: t.ended_at,
@@ -1114,12 +1141,30 @@ function persistedToInfo(t: PersistedTask): BackgroundTaskInfo {
   };
 }
 
+/**
+ * Signal-0 liveness probe. EPERM means the process exists but is owned
+ * by another user — still alive. ESRCH (or any other error) means the
+ * pid is gone. Pid reuse can rarely produce a false "alive" for a dead
+ * task; the cost is a stale running ghost until the next resume probes
+ * again, which is safer than a false `lost`.
+ */
+function isPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 function infoToPersisted(info: BackgroundTaskInfo): PersistedTask {
   return {
     task_id: info.taskId,
     command: info.command,
     description: info.description,
     pid: info.pid ?? 0,
+    owner_pid: info.ownerPid ?? 0,
     started_at: info.startedAt,
     ended_at: info.endedAt,
     exit_code: info.exitCode,

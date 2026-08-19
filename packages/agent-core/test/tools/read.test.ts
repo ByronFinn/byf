@@ -348,18 +348,25 @@ describe('ReadTool', () => {
     expect(readLines).toHaveBeenCalledWith('/home/test/notes/today.txt', { errors: 'strict' });
   });
 
-  it('blocks sensitive files independently from workspace access', async () => {
-    const readText = vi.fn().mockResolvedValue('SECRET=value');
-    const tool = new ReadTool(createFakeKaos({ readText }), {
-      workspaceDir: '/workspace',
-      additionalDirs: [],
-    });
+  it('reads sensitive files at the tool layer (approval gates them in the permission layer, #298)', async () => {
+    const tool = new ReadTool(
+      createFakeKaos({
+        stat: vi.fn<Kaos['stat']>().mockResolvedValue(REGULAR_FILE_STAT),
+        readBytes: vi.fn<Kaos['readBytes']>().mockResolvedValue(Buffer.from('SECRET=value\n')),
+        readLines: readLinesFromContent('SECRET=value'),
+      }),
+      {
+        workspaceDir: '/workspace',
+        additionalDirs: [],
+      },
+    );
 
     const result = await executeTool(tool, context({ path: '/workspace/.env' }));
+    const output = typeof result.output === 'string' ? result.output : '';
 
-    expect(result).toMatchObject({ isError: true });
-    expect(result.output).toContain('sensitive-file pattern');
-    expect(readText).not.toHaveBeenCalled();
+    // 工具层不再硬拒敏感读——读 = 审批事件，由权限层敏感策略门控
+    expect(result.isError).toBeFalsy();
+    expect(output).toContain('SECRET=value');
   });
 
   it('rejects image files before text decoding and points to ReadMediaFile', async () => {
@@ -1043,7 +1050,9 @@ describe('ReadFileTracker', () => {
     const restored = new ReadFileTracker(store);
     expect(restored.hasRead('/tmp/a.txt')).toBe(true);
     expect(restored.hasRead('/tmp/b.txt')).toBe(true);
-    expect(() => restored.markRead('/tmp/c.txt')).not.toThrow();
+    expect(() => {
+      restored.markRead('/tmp/c.txt');
+    }).not.toThrow();
     expect(restored.hasRead('/tmp/c.txt')).toBe(true);
   });
 
@@ -1055,7 +1064,9 @@ describe('ReadFileTracker', () => {
     const tracker = new ReadFileTracker(store);
 
     expect(tracker.hasRead('/tmp/a.txt')).toBe(false);
-    expect(() => tracker.markRead('/tmp/a.txt')).not.toThrow();
+    expect(() => {
+      tracker.markRead('/tmp/a.txt');
+    }).not.toThrow();
     expect(tracker.hasRead('/tmp/a.txt')).toBe(true);
   });
 });

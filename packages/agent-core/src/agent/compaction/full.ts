@@ -28,7 +28,12 @@ import {
 import { sliceCompleteMessages } from '../context/complete-slice';
 import { project } from '../context/projector';
 import { isAgentRecordOfPrefix } from '../records/types';
-import type { RecordRestoreHandler } from '../restore-handler';
+import {
+  fullCompactionBegin,
+  fullCompactionCancel,
+  fullCompactionComplete,
+  fullCompactionModel,
+} from '../wire/ops/full-compaction';
 import compactionInstructionTemplate from './compaction-instruction.md';
 import { DEFAULT_COMPACTION_CONFIG, type CompactionConfig } from './config';
 import { renderMessagesToText } from './render-messages';
@@ -137,7 +142,7 @@ export interface CompactedHistory {
 
 type CompactionTelemetryTrigger = CompactionBeginData['source'] | 'manual-with-prompt' | 'unknown';
 
-export class FullCompaction implements RecordRestoreHandler {
+export class FullCompaction {
   protected compactionCountInTurn = 0;
   protected compacting: {
     abortController: AbortController;
@@ -167,10 +172,7 @@ export class FullCompaction implements RecordRestoreHandler {
   }
 
   begin(data: Readonly<CompactionBeginData>): void {
-    this.agent.records.logRecord({
-      type: 'full_compaction.begin',
-      ...data,
-    });
+    this.agent.wire.dispatch(fullCompactionBegin(data));
     if (this.compacting) return;
     if (data.source === 'manual') {
       this.compactionCountInTurn = 0;
@@ -178,9 +180,9 @@ export class FullCompaction implements RecordRestoreHandler {
       this.compactionCountInTurn += 1;
     }
     if (this.compactionCountInTurn > this.strategy.maxCompactionPerTurn) return;
-    if (!this.agent.records.restoring) {
-      this.startCompactionWorker(data);
-    }
+    // Phase 4：restore 走纯 reducer（不调 begin()），此处只在 live 被调，
+    // restoring 门控不再需要。
+    this.startCompactionWorker(data);
   }
 
   private startCompactionWorker(data: Readonly<CompactionBeginData>): void {
@@ -206,25 +208,17 @@ export class FullCompaction implements RecordRestoreHandler {
 
   private markCanceled(): void {
     if (!this.compacting) return;
-    this.agent.records.logRecord({
-      type: 'full_compaction.cancel',
-    });
+    this.agent.wire.dispatch(fullCompactionCancel({}));
     this.compacting.abortController.abort();
     this.compacting = null;
     this.agent.emitEvent({ type: 'compaction.cancelled' });
   }
 
   complete(result: CompactionResult, llmUsage?: TokenUsage, retryCount: number = 0): void {
-    this.agent.records.logRecord({
-      type: 'full_compaction.complete',
-      ...result,
-    });
+    this.agent.wire.dispatch(fullCompactionComplete(result));
     const active = this.compacting;
     this.compacting = null;
-    const history = this.agent.context.history;
-    this._compactedHistory.push({
-      text: renderMessagesToText(history),
-    });
+    this.pushCompactedHistory();
     this.agent.emitEvent({ type: 'compaction.completed', result });
     if (active !== null) {
       const properties: Record<string, TelemetryPropertyValue> = {
@@ -602,23 +596,43 @@ export class FullCompaction implements RecordRestoreHandler {
 
   restoreRecord(record: import('../records/types').AgentRecord): void {
     if (!isAgentRecordOfPrefix(record, 'full_compaction')) return;
+    // Test-only entry point (restore-handler unit tests). Production restore
+    // uses the pure wire reducer (wire.restore → apply → syncFromWire); begin is
+    // never called during restore (no worker starts), so no restoring gate is
+    // needed (see the live-only guard at the worker-start call site).
     switch (record.type) {
       case 'full_compaction.begin':
-        // During restore, we call begin but it should not start the worker
-        // because the restoring flag prevents starting async operations
         this.begin(record);
         break;
       case 'full_compaction.cancel':
-        // During restore, cancel is a no-op since there's no active compaction
-        // The compacting state check will handle this
+        // cancel is a no-op when there is no active compaction.
         this.cancel();
         break;
       case 'full_compaction.complete':
-        // During restore, we call complete but it should not trigger side effects
-        // because the restoring flag prevents logging and events
         this.complete(record);
         break;
     }
+  }
+
+  /**
+   * 用当前 context 历史生成压缩历史文本快照（live complete() 与 restore 期
+   * Agent.onReplayRecord 共用）。restore 时 context 已按序恢复到 complete 记录
+   * 之前的消息 —— 与 live 时点的文本一致。
+   */
+  pushCompactedHistory(): void {
+    this._compactedHistory.push({
+      text: renderMessagesToText(this.agent.context.history),
+    });
+  }
+
+  /**
+   * restore 后从 wire reducer model 同步持久化状态（PRD-0027 Phase 4）。
+   * compactionCountInTurn 由 begin 的纯 apply 重建；_compactedHistory 文本由
+   * onReplayRecord 在 complete 记录重放后生成（pushCompactedHistory）。
+   */
+  syncFromWire(): void {
+    this.compactionCountInTurn =
+      this.agent.wire.getModel(fullCompactionModel).compactionCountInTurn;
   }
 }
 

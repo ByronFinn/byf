@@ -1,14 +1,13 @@
 import type { Readable, Writable } from 'node:stream';
 
 /**
- * A running process spawned by a {@link Kaos} environment.
+ * {@link Kaos} 环境拉起的运行中进程。
  *
- * Provides access to standard I/O streams, the process ID, and lifecycle
- * management (wait / kill). The interface is intentionally minimal so it
- * can be backed by local child processes, SSH sessions, or container runtimes.
+ * 提供对标准 I/O 流、进程 ID 与生命周期管理(wait / kill)的访问。
+ * 接口刻意保持最小,使它能由本地子进程、SSH 会话或容器运行时支撑。
  */
 export interface KaosProcess {
-  /** Writable stream connected to the process's standard input. */
+  /** 连接到进程标准输入的 Writable 流。 */
   readonly stdin: Writable;
   /** Readable stream for the process's standard output. */
   readonly stdout: Readable;

@@ -3,8 +3,9 @@ import type {
   InputTokenBreakdown,
   ResumeSessionResult,
   RuntimeConfig,
+  SessionMetadataPatch,
 } from '@byfriends/agent-core';
-import type { ContentPart } from '@byfriends/kosong';
+import type { CacheScope, ContentPart } from '@byfriends/kosong';
 
 export interface HostIdentity {
   readonly userAgentProduct: string;
@@ -45,6 +46,7 @@ export type {
   ProviderConfig,
   ProviderType,
   ResumedAgentState,
+  ResolvedModelCapabilities,
   ServicesConfig,
   ShellExecPayload,
   ShellExecResult,
@@ -85,6 +87,11 @@ export interface CreateSessionOptions {
 export interface RenameSessionInput {
   readonly id: string;
   readonly title: string;
+}
+
+export interface UpdateSessionMetadataInput {
+  readonly id: string;
+  readonly metadata: SessionMetadataPatch;
 }
 
 export interface ResumeSessionInput {
@@ -139,6 +146,14 @@ export interface SessionUsage {
   /** Cache hit rate across all recorded usage (0–1), undefined when no data. */
   readonly cacheHitRate?: number;
   readonly inputBreakdown?: InputTokenBreakdown;
+  /** Break-side attribution (PRD-0029 R3): most recent static-prefix change. */
+  readonly lastCacheChurn?: {
+    readonly blockName: string;
+    readonly cacheScope: CacheScope;
+    readonly turnsAgo?: number;
+  };
+  /** Total `context.cache_churn` events this session (PRD-0029 R3). */
+  readonly cacheChurnCount?: number;
 }
 
 export interface SessionStatus {
@@ -159,6 +174,7 @@ export interface SessionSummary {
   readonly sessionDir: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
 }

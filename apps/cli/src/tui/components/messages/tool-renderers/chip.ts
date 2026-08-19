@@ -1,11 +1,9 @@
 /**
- * Header chip providers — produce a short "stat" suffix appended to the
- * tool call header once a result has arrived. Chips own the *numeric*
- * summary (line counts, exit codes, byte sizes), so summary renderers
- * below don't repeat them.
+ * 头部 chip 提供者——结果到达后,生成追加到工具调用头部的短「统计」后缀。
+ * chip 拥有*数值*摘要(行数、退出码、字节大小),因此下面的摘要渲染器
+ * 不再重复它们。
  *
- * A chip returning `''` is suppressed; tools without an entry in the
- * registry get no chip at all.
+ * 返回 `''` 的 chip 被抑制;注册表中无条目的工具完全没有 chip。
  */
 
 import { computeDiffLines } from '#/tui/components/media/diff-preview';

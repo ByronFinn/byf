@@ -51,6 +51,13 @@
 
 这些项有价值，但单独排期的性价比低。绑到下次因别的原因改动同一模块时顺手做。
 
+> **触发规则（2026-08-18 新增，治理债滞留）**：历史教训是「顺手做」缺乏强制力会导致债滞留（H3/M1/M6/M8 五项 5 周未动）。为避免重蹈：
+>
+> 1. **凡触碰某模块的 PR**，必须在该 PR 内**顺带清掉**下表对应模块的待办项；无法顺带时，在 PR 描述标明「未清偿项 + 剩余工作量」。
+> 2. 触碰但**未清偿**的待办项，按「上一触碰后 N 次未清」强转为单独排期（默认 3 次触碰或 4 周，取先到者）。
+> 3. 归档后重新触碰且又触发新待办，同样先清再走。
+>    该规则是「结构性约束」的补充（后者限 `byf-tui.ts`，本规则覆盖全部档 2/档 3 模块）。
+
 #### H3：provider helper 局部抽取
 
 - **前提**：`provider-common.ts`（139 行）+ `openai-common.ts`（292 行）已抽走了大部分共享逻辑。H4（PRD-0008）达成的是"不再复制样板"，不是"adapter 变小"。
@@ -59,6 +66,9 @@
 - **明确不抽**：
   - StreamedMessage 流循环骨架——4 家全有但事件 switch 协议特定，只能抽"壳"不能抽"肉"，收益有限。
   - `convertXxxError` 的 SDK-class 解包——anthropic 与 openai 结构同构但 SDK 继承链不同（OpenAI v6 的 `APIConnectionTimeoutError extends APIConnectionError`），泛型工厂的复杂度可能抵消收益。
+
+> **复核确认（2026-08-18，improve-architecture 对「抽流式解析共享壳降行数」的评估）**：维持「明确不抽」结论。四家 `_convertStreamResponse` 的事件模型的差异是实质性的：`openai-completions`（~50 行，ChatCompletionChunk 单 choice）、`openai-responses`（~200 行，Responses RawObject 的事件类型 + function_call 按 item_id 归并 + reasoning 处理）、`google-genai`（SDK 事件 + usageMetadata）、`anthropic`（MessageStreamEvent 的 message_start/content_block 事件）。可共享的只有 `BaseStreamedMessage` 基类（`_id`/`_usage`/`_finishReason`，已抽取）、`provider-common` 归一化函数（已抽取）与目标类型 `StreamedMessagePart`——「事件 switch 壳」抽出来只剩空架子，各家 case 体完全不同，强行抽象会增间接层并冒行为改变风险。adapter 体积大头（anthropic 1006 / responses 978 / genai 882 行）除流式解析外主要是协议消息转换与 schema/错误归一化，不属于可共享重复。**结论：不值得抽**，此评估至此归档，不再重复考察。
+
 - **触发时机**：下次改某个 adapter 时顺手。
 
 #### M1：GoalDriver 外移
@@ -116,11 +126,13 @@
 - **方案**：下次改某工具展示时，把该工具的 preview/result 分支沉到 `tool-renderers/`，不整文件大拆。
 - **工作量**：低–中（单工具迁移）；高（一次性全拆，不推荐）。
 
-#### M9：`ByfCore` / `core-impl.ts` 监控
+#### M9：`ByfCore` / `core-impl.ts` 拆分（2026-08-18 已落地）
 
-- **位置**：`packages/agent-core/src/rpc/core-impl.ts`（**801 行**，4 周 14 次改动）
-- **信号**：RPC 门面方法集中，高 churn，但多为薄转发，未到拆分阈值。
-- **方案**：**只监控**。若单文件继续涨过 ~1000 行或出现非转发逻辑，再按域（session lifecycle / agent ops / config）分组。
+- **位置**：`packages/agent-core/src/rpc/core-impl.ts`（原 **801 → 1167 行**，- 增长至触发阈值后拆分）
+- **信号**：RPC 门面方法集中到 115 个，超过 M9 的 ~1000 行触发阈值，且出现非转发逻辑。
+- **方案（已执行，2026-08-18）**：抽 `src/rpc/host-rpc.ts`（**441 行**）承载主机级 RPC 域（config / configDocument / workspace / mcp / skills / inspector），注入 `{ homeDir, configPath, userHomeDir, providerManager, sessionStore }`；`core-impl.ts` 降至 **1002 行**，只留组合 + 会话级代理转发。`ByfCore implements PromisableMethods<CoreAPI>`，方法名保留在原型（RPC 经 `bindAllFunctions` 反射），行为零变化（risk range：host-rpc 显式 `HostRPC` 接口标注 Promise 返回）。
+- **验证**：typecheck + `test/harness/runtime.test.ts`/`test/session/inspector.test.ts`/`test/rpc/create-rpc.test.ts`/`test/harness/model-alias-session.test.ts`/`test/harness/skill-session.test.ts` 全绿（42 测试）。
+- **后续**：若 host-rpc 或 new core-impl 再超 ~1000 行，按域继续分组（config / mcp / skills 已是独立函数组）。
 
 #### M10：PRD / 治理文档卫生
 
@@ -192,13 +204,14 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 
 ## E. 执行顺序建议
 
-| 顺序   | 项                                                                       | 类型       | 状态                               |
-| ------ | ------------------------------------------------------------------------ | ---------- | ---------------------------------- |
-| —      | 档 1（M3/M5/M2/H1-a）                                                    | PRD-0021   | **Done**                           |
-| 可选   | M10 PRD Status 批量对齐                                                  | 纯文档     | 低，可随时做                       |
-| 顺势   | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰     | 不单独排期                         |
-| 谨慎   | H2 BackgroundManager 拆 OutputStore                                      | 需先补测试 | **OutputStore 已拆（2026-07-12）** |
-| 待确认 | M4 node→bun 脚本入口 / M7 host-local fs                                  | 外部确认   | 不排期                             |
+| 顺序   | 项                                                                       | 类型       | 状态                                 |
+| ------ | ------------------------------------------------------------------------ | ---------- | ------------------------------------ |
+| —      | 档 1（M3/M5/M2/H1-a）                                                    | PRD-0021   | **Done**                             |
+| 可选   | M10 PRD Status 批量对齐                                                  | 纯文档     | 低，可随时做                         |
+| 顺势   | H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-renderer 迁移 | 绑触碰     | 不单独排期（**触发规则生效后强转**） |
+| 顺势   | **M9 core-impl 按域拆分（host-rpc 441 行）**                             | 已触发     | **已拆分（2026-08-18）**             |
+| 谨慎   | H2 BackgroundManager 拆 OutputStore                                      | 需先补测试 | **OutputStore 已拆（2026-07-12）**   |
+| 待确认 | M4 node→bun 脚本入口 / M7 host-local fs                                  | 外部确认   | 不排期                               |
 
 ---
 
@@ -211,3 +224,4 @@ ByfTui 是组合根，不是功能堆放场。约束的落点不是"文件不得
 | 2026-07-10 | Sliced。档 1 拆成 4 个 issue（M3 已完成不拆）：#225（M5 ADR-0006）、#226（M2 vis DTO）、#227（H1-a PR1 基建）、#228（H1-a PR2 迁移，blocked-by #227）。归入 PRD-0021。                                                                                                                                                                                                                                                                                                                                                                                      |
 | 2026-07-11 | `improve-architecture` 复查（档 1 全部落地后）。**0 阻塞**；持续 High：H1 ByfTui **3819** 行（4178→3819，约 −9%）、H2 BackgroundManager 1242 行未动。H3 `deriveCacheKeyFromPromptPlan` 双源仍在（空 plan 行为差异依旧）。**新增 Medium**：M8 `tool-call.ts` 1062 行、M9 `core-impl` 801 行监控、M10 PRD/路线图文档卫生。**M4 校准**：`native/package.mjs` 是 zip 打包 helper，非 SEA。ADR 抽样合规（0006 分层 / 0014 TaskEntry / 0017 DI / 0022 ephemeral / 0028 Bun）。同步：路线图档 1 标 Done；`apps/cli/AGENTS.md` baseline→3819、H1-a 改为已交付措辞。 |
 | 2026-07-12 | H2 OutputStore 拆分落地（commit `19f5612` 补 characterization 测试 + `2c57ab3` 抽 OutputStore）。先补 4 个 output 边界直接测试锁行为，再抽 `tools/background/output-store.ts`（239 行）从 `TaskCommon` 分离 output 状态，顺手修 `appendOutput` O(n²)→O(1)。manager 1242→1131 行；行为零变化（383 文件全绿）。核实 kimi 未拆 OutputStore，故为 BYF 自有诉求。`finalizeTerminal`/`persistLive`/`TaskEntryRegistry` 保留。                                                                                                                                     |
+| 2026-08-18 | `improve-architecture` 复查。**M9 拆分落地**：抽 `rpc/host-rpc.ts`（441 行）承载主机级 RPC 域，`core-impl.ts` 1167→1002 行（typecheck + 42 核心测试全绿）。**新增「顺势做触发规则」**：触碰模块 PR 须顺带清待办，否则 3 次触碰/4 周强转排期。H3 deriveCacheKey / M1 GoalDriver / M6 rg-runner / M8 tool-call 仍滞留，纳入触发规则管辖。另核实时序：PRD-0031 的 0a/0b/2a/2c + 敏感文件读审批在 2026-08-13 后已由代码落地（`451766b`/`b645d20`/`f1f7950`/`f0f127c`，roadmap `tool-system-evolution.md` 状态已同步）。                                         |

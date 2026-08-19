@@ -152,12 +152,10 @@ async function fetchOpenAICompatModels(
 }
 
 /**
- * Lists models from a provider using its native wire-type endpoint. Dispatches
- * per `type` so each protocol gets its correct auth header and response shape.
- * `openai-completions` and `openai_responses` share the OpenAI-compatible
- * `/models` endpoint; `anthropic` uses its native `x-api-key` endpoint with
- * pagination. Other types have dedicated native fetchers (added in
- * later slices).
+ * 用 provider 的原生 wire-type 端点列出模型。按 `type` 分发,使每个协议
+ * 获得正确的认证头与响应形态。`openai-completions` 与 `openai_responses`
+ * 共享 OpenAI 兼容的 `/models` 端点;`anthropic` 使用带分页的原生
+ * `x-api-key` 端点。其他类型有专用原生获取器(后续切片添加)。
  */
 export async function fetchModelsByType(
   type: string,

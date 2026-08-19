@@ -18,6 +18,7 @@ import type { ContentPart } from '@byfriends/kosong';
 import type { Logger } from '#/logging/types';
 
 import {
+  coerceToolArgs,
   compileToolArgsValidator,
   validateToolArgs,
   type JsonType,
@@ -98,10 +99,14 @@ interface PendingToolResult {
   readonly args: unknown;
   readonly result: ExecutableToolResult;
   readonly stopTurn?: boolean;
+  /** PRD-0031 2c：工具声明的结构化输出契约（coerce 边界校验用）。 */
+  readonly outputSchema?: import('zod').ZodType<unknown>;
 }
 
 interface PreparedToolCallTask {
   readonly task: ToolCallTask<PendingToolResult>;
+  /** dispatchToolCall 打戳的时刻，与 tool.call 事件同源。 */
+  readonly startedAt: number;
   readonly stopBatchAfterThis?: boolean;
   /**
    * When true, the tool call was deduplicated (same-step dedup) and was never
@@ -124,7 +129,10 @@ export async function runToolCallBatch(
   if (response.toolCalls.length === 0) return { stopTurn: false };
   const calls = response.toolCalls.map((toolCall) => preflightToolCall(step.tools, toolCall));
   const scheduler = new ToolScheduler<PendingToolResult>();
-  const pendingResults: Array<Promise<PendingToolResult>> = [];
+  /** 每个工具的结算信息：结果 + 自身的起止时间戳（endedAt 在 promise 解析时捕获）。 */
+  const pendingResults: Array<
+    Promise<{ pending: PendingToolResult; startedAt: number; endedAt: number }>
+  > = [];
   let stopTurn = false;
 
   try {
@@ -132,13 +140,13 @@ export async function runToolCallBatch(
       const call = calls[index]!;
       const prepared = await prepareToolCall(step, call);
       if (prepared.skip === true) continue;
-      pendingResults.push(scheduler.add(prepared.task));
+      pendingResults.push(settleWithTiming(scheduler.add(prepared.task), prepared.startedAt));
 
       if (prepared.stopBatchAfterThis === true) {
         stopTurn = true;
         for (const skippedCall of calls.slice(index + 1)) {
-          const skippedTask = await prepareSkippedToolCall(step, skippedCall);
-          pendingResults.push(scheduler.add(skippedTask));
+          const skipped = await prepareSkippedToolCall(step, skippedCall);
+          pendingResults.push(settleWithTiming(scheduler.add(skipped.task), skipped.startedAt));
         }
         break;
       }
@@ -148,13 +156,16 @@ export async function runToolCallBatch(
     // provider order. Await all tasks so each recorded `tool.call` gets a
     // paired `tool.result`; the caller checks abort before writing `step.end`.
     for (const pendingResult of pendingResults) {
-      const result = await finalizePendingToolResult(step, await pendingResult);
+      const settled = await pendingResult;
+      const result = await finalizePendingToolResult(step, settled.pending);
       if (result.stopTurn === true) stopTurn = true;
       await step.dispatchEvent({
         type: 'tool.result',
         parentUuid: result.toolCall.id,
         toolCallId: result.toolCall.id,
         result: result.result,
+        startedAt: settled.startedAt,
+        endedAt: settled.endedAt,
       });
     }
   } finally {
@@ -164,6 +175,17 @@ export async function runToolCallBatch(
     await Promise.allSettled(pendingResults);
   }
   return { stopTurn };
+}
+
+/**
+ * endedAt 必须在各工具自己的 promise 解析时捕获，而不是 provider 序派发时刻——
+ * 并行工具的完成顺序与派发顺序无关（PRD-0034 R-B1）。
+ */
+function settleWithTiming(
+  promise: Promise<PendingToolResult>,
+  startedAt: number,
+): Promise<{ pending: PendingToolResult; startedAt: number; endedAt: number }> {
+  return promise.then((pending) => ({ pending, startedAt, endedAt: Date.now() }));
 }
 
 /**
@@ -196,17 +218,19 @@ function preflightToolCall(
       output: `Invalid args for tool "${toolName}": malformed JSON in arguments: ${parsedArgs.error}`,
     };
   }
-  const validationError = validateExecutableToolArgs(tool, parsedArgs.data);
+  // Coerce model-provided args before validation (e.g. "5" → 5 for integer fields).
+  const coercedArgs = coerceToolArgs(tool.parameters, parsedArgs.data as JsonType);
+  const validationError = validateExecutableToolArgs(tool, coercedArgs);
   if (validationError !== null) {
     return {
       kind: 'rejected',
       toolCall,
       toolName,
-      args: parsedArgs.data,
+      args: coercedArgs,
       output: `Invalid args for tool "${toolName}": ${validationError}`,
     };
   }
-  return { kind: 'runnable', toolCall, toolName, tool, args: parsedArgs.data };
+  return { kind: 'runnable', toolCall, toolName, tool, args: coercedArgs };
 }
 
 function parseToolCallArguments(
@@ -242,14 +266,18 @@ async function prepareToolCall(
   call: PreflightedToolCall,
 ): Promise<PreparedToolCallTask> {
   if (call.kind === 'rejected') {
-    await dispatchToolCall(step, call, call.args);
-    return { task: makeResolvedToolCallTask(makeErrorToolResult(call, call.args, call.output)) };
+    const startedAt = await dispatchToolCall(step, call, call.args);
+    return {
+      startedAt,
+      task: makeResolvedToolCallTask(makeErrorToolResult(call, call.args, call.output)),
+    };
   }
 
   const decision = await runPrepareToolExecutionHook(step, call);
   if (decision.kind === 'blocked') {
-    await dispatchToolCall(step, call, decision.args);
+    const startedAt = await dispatchToolCall(step, call, decision.args);
     return {
+      startedAt,
       task: makeResolvedToolCallTask(
         makeErrorToolResult(call, decision.args, decision.output, decision.blockedReason),
       ),
@@ -257,32 +285,40 @@ async function prepareToolCall(
   }
 
   if (decision.kind === 'hookFailed') {
-    await dispatchToolCall(step, call, decision.args);
+    const startedAt = await dispatchToolCall(step, call, decision.args);
     return {
+      startedAt,
       task: makeResolvedToolCallTask(makeErrorToolResult(call, decision.args, decision.output)),
     };
   }
 
   if (decision.kind === 'synthetic') {
     const coerced = coerceToolResult(decision.result, call.toolName);
+    let startedAt = Date.now();
     if (decision.skip !== true) {
-      await dispatchToolCall(step, call, decision.args);
+      startedAt = await dispatchToolCall(step, call, decision.args);
     }
     return {
+      startedAt,
       task: makeResolvedToolCallTask(makeToolResult(call, decision.args, coerced)),
       stopBatchAfterThis: toolResultStopsTurn(coerced),
       skip: decision.skip === true,
     };
   }
 
-  const validationError = validateExecutableToolArgs(call.tool, decision.args);
+  // Re-coerce in case the hook returned modified args with string-encoded numbers.
+  const coercedHookArgs = coerceToolArgs(call.tool.parameters, decision.args as JsonType);
+  const validationError = validateExecutableToolArgs(call.tool, coercedHookArgs);
   if (validationError !== null) {
-    await dispatchToolCall(step, call, decision.args);
+    const startedAt = await dispatchToolCall(step, call, coercedHookArgs);
     const output = `Invalid args for tool "${call.toolName}" after prepareToolExecution hook: ${validationError}`;
-    return { task: makeResolvedToolCallTask(makeErrorToolResult(call, decision.args, output)) };
+    return {
+      startedAt,
+      task: makeResolvedToolCallTask(makeErrorToolResult(call, coercedHookArgs, output)),
+    };
   }
 
-  const effectiveArgs = decision.args;
+  const effectiveArgs = coercedHookArgs;
   let execution: ToolExecution;
   try {
     execution = call.tool.resolveExecution(effectiveArgs);
@@ -298,17 +334,19 @@ async function prepareToolCall(
       error instanceof PathSecurityError
         ? error.message
         : `Tool "${call.toolName}" failed to resolve execution: ${errorMessage(error)}`;
-    await dispatchToolCall(step, call, effectiveArgs);
+    const startedAt = await dispatchToolCall(step, call, effectiveArgs);
     return {
+      startedAt,
       task: makeResolvedToolCallTask(makeErrorToolResult(call, effectiveArgs, output)),
     };
   }
 
   const displayFields = toolCallDisplayFieldsFromExecution(execution);
-  await dispatchToolCall(step, call, effectiveArgs, displayFields);
+  const startedAt = await dispatchToolCall(step, call, effectiveArgs, displayFields);
 
   if (step.signal.aborted) {
     return {
+      startedAt,
       task: makeResolvedToolCallTask(
         makeErrorToolResult(call, effectiveArgs, `Tool "${call.toolName}" was aborted`),
       ),
@@ -318,12 +356,14 @@ async function prepareToolCall(
   if (execution.isError === true) {
     const coerced = coerceToolResult(execution, call.toolName);
     return {
+      startedAt,
       task: makeResolvedToolCallTask(makeToolResult(call, effectiveArgs, coerced)),
       stopBatchAfterThis: toolResultStopsTurn(coerced),
     };
   }
 
   return {
+    startedAt,
     task: {
       accesses: execution.accesses ?? ToolAccesses.all(),
       start: async () => ({
@@ -336,10 +376,13 @@ async function prepareToolCall(
 async function prepareSkippedToolCall(
   step: ToolCallStepContext,
   call: PreflightedToolCall,
-): Promise<ToolCallTask<PendingToolResult>> {
+): Promise<{ task: ToolCallTask<PendingToolResult>; startedAt: number }> {
   const output = 'Tool skipped because a previous tool call stopped the turn.';
-  await dispatchToolCall(step, call, call.args);
-  return makeResolvedToolCallTask(makeErrorToolResult(call, call.args, output));
+  const startedAt = await dispatchToolCall(step, call, call.args);
+  return {
+    task: makeResolvedToolCallTask(makeErrorToolResult(call, call.args, output)),
+    startedAt,
+  };
 }
 
 function makeResolvedToolCallTask(result: PendingToolResult): ToolCallTask<PendingToolResult> {
@@ -468,7 +511,16 @@ async function finalizePendingToolResult(
 ): Promise<PendingToolResult> {
   const { hooks, signal, turnId, currentStep, llm } = step;
   if (hooks?.finalizeToolResult === undefined) {
-    return { ...pendingResult, result: normalizeToolResult(pendingResult.result) };
+    return {
+      ...pendingResult,
+      result: normalizeToolResult(
+        validateStructuredOutput(
+          pendingResult.result,
+          pendingResult.outputSchema,
+          pendingResult.toolName,
+        ),
+      ),
+    };
   }
 
   try {
@@ -481,8 +533,9 @@ async function finalizePendingToolResult(
       signal,
       llm,
     });
-    const effectiveResult = coerceToolResult(
-      finalizedResult ?? pendingResult.result,
+    const effectiveResult = validateStructuredOutput(
+      coerceToolResult(finalizedResult ?? pendingResult.result, pendingResult.toolName),
+      pendingResult.outputSchema,
       pendingResult.toolName,
     );
     return {
@@ -592,7 +645,7 @@ function isMediaContentPart(part: ContentPart): boolean {
  * emit a paired `tool.result` event. This is the trust boundary between
  * arbitrary tool implementations and the rest of the loop.
  */
-function coerceToolResult(value: unknown, toolName: string): ExecutableToolResult {
+export function coerceToolResult(value: unknown, toolName: string): ExecutableToolResult {
   if (value === null || value === undefined) {
     return { output: `Tool "${toolName}" returned no result.`, isError: true };
   }
@@ -603,7 +656,12 @@ function coerceToolResult(value: unknown, toolName: string): ExecutableToolResul
     };
   }
   const candidate = value as { output?: unknown };
-  if (typeof candidate.output !== 'string' && !Array.isArray(candidate.output)) {
+  const output = candidate.output;
+  if (
+    typeof output !== 'string' &&
+    !Array.isArray(output) &&
+    (output === null || typeof output !== 'object')
+  ) {
     return {
       output: `Tool "${toolName}" returned a result with a missing or malformed "output" field.`,
       isError: true,
@@ -612,12 +670,45 @@ function coerceToolResult(value: unknown, toolName: string): ExecutableToolResul
   return value as ExecutableToolResult;
 }
 
+/**
+ * PRD-0031 2c：工具输出 schema 运行时校验（coerceToolResult 前置）。
+ *
+ * 工具声明 `outputSchema` 且返回**结构化对象输出**时，按该 schema 校验；
+ * 畸形输出转为结构化错误（含校验失败原因，公理 A：模型可区分「执行失败」
+ * 与「畸形输出」）。字符串/文本内容数组是文本通道（legacy），豁免——
+ * 合法输出零回归。错误结果跳过校验。
+ */
+export function validateStructuredOutput(
+  result: ExecutableToolResult,
+  outputSchema: import('zod').ZodType<unknown> | undefined,
+  toolName: string,
+): ExecutableToolResult {
+  if (outputSchema === undefined) return result;
+  if (result.isError === true) return result;
+  if (typeof result.output === 'string' || Array.isArray(result.output)) return result;
+
+  const parsed = outputSchema.safeParse(result.output);
+  if (parsed.success) return result;
+  const issues = parsed.error.issues
+    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('; ');
+  return {
+    isError: true,
+    output:
+      `Tool "${toolName}" returned output that violates its declared output schema: ${issues}. ` +
+      `This is a tool implementation bug — do not retry the call; report the malformed output instead.`,
+  };
+}
+
 function normalizeToolResult(r: ExecutableToolResult): ExecutableToolResult {
   let output: ExecutableToolResult['output'];
   if (typeof r.output === 'string') {
     output = r.output.length > 0 ? r.output : TOOL_OUTPUT_EMPTY;
-  } else if (r.output.length === 0) {
+  } else if (Array.isArray(r.output) && r.output.length === 0) {
     output = TOOL_OUTPUT_EMPTY;
+  } else if (!Array.isArray(r.output)) {
+    // 结构化对象输出（PRD-0031 2c）：透传（schema 校验在 coerce 边界完成）
+    output = r.output;
   } else {
     const hasMediaBlock = r.output.some(isMediaContentPart);
     if (hasMediaBlock) {
@@ -654,6 +745,7 @@ function makeToolResult(
     args,
     result,
     stopTurn: toolResultStopsTurn(result),
+    outputSchema: call.kind === 'runnable' ? call.tool.outputSchema : undefined,
   };
 }
 
@@ -672,15 +764,18 @@ function makeErrorToolResult(
 
 /**
  * Record `tool.call` in provider order. Reusing the provider/API tool-call id
- * keeps transcript linkage on one canonical identity.
+ * keeps transcript linkage on one canonical identity. Returns the `startedAt`
+ * timestamp stamped on the event so the paired `tool.result` can carry the
+ * same value (self-contained duration, PRD-0034 R-B1).
  */
 async function dispatchToolCall(
   step: ToolCallStepContext,
   call: PreflightedToolCall,
   args: unknown,
   displayFields?: ToolCallDisplayFields,
-): Promise<void> {
+): Promise<number> {
   const { toolCall, toolName } = call;
+  const startedAt = Date.now();
   await step.dispatchEvent({
     type: 'tool.call',
     uuid: toolCall.id,
@@ -692,5 +787,7 @@ async function dispatchToolCall(
     args,
     description: displayFields?.description,
     display: displayFields?.display,
+    startedAt,
   });
+  return startedAt;
 }

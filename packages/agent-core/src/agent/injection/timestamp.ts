@@ -1,12 +1,11 @@
 import { DynamicInjector } from './injector';
 
 /**
- * Ephemeral injector that provides the current timestamp at request time.
+ * 在请求时提供当前时间戳的 ephemeral 注入器。
  *
- * The timestamp is rendered fresh on every step (not frozen) and placed
- * at the `'before_user'` position so it never breaks the cached prefix.
- * This aligns with the prompt-cache best practice of keeping per-request
- * dynamic content out of the cacheable system-prompt blocks.
+ * 时间戳在每一步都重新渲染(不冻结),置于 `'before_user'` 位置,
+ * 因此永不破坏缓存前缀。这符合提示缓存的最佳实践:把每请求的动态内容
+ * 移出可缓存的 system-prompt 块。
  */
 export class TimestampInjector extends DynamicInjector {
   protected override readonly injectionVariant = 'timestamp';
