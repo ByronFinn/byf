@@ -1,3 +1,4 @@
+import { PanelRightOpen } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { BackgroundTaskInfo } from '#/types';
@@ -29,13 +30,13 @@ interface TaskListProps {
    * 避免用户在 resume 窗口期看到 no background tasks 误判为空。
    */
   loading?: boolean;
-  /** 点击任务行:由宿主决定去向(中心 Tasks tab → 右侧详情)。 */
+  /** 点击任务行:由宿主决定去向(抽屉任务列表 → TaskDetail)。 */
   onSelect: (task: BackgroundTaskInfo) => void;
 }
 
 /**
- * 后台任务列表(deepseek 式):按 active/done 分组展示任务状态。
- * 行可点击,宿主注入 onSelect(如推入 details 列)。
+ * 后台任务列表:按 active/done 分组展示任务状态。
+ * 行可点击,宿主注入 onSelect(推入详情抽屉)。
  */
 export function TaskList({ tasks, loading = false, onSelect }: TaskListProps) {
   const byStatus = useMemo(() => {
@@ -90,6 +91,8 @@ function TaskRow({
       onClick={() => {
         onSelect(task);
       }}
+      aria-label={`在详情面板查看任务 ${task.command}`}
+      title="在详情面板查看"
       className="block w-full border-b border-border/60 px-3 py-2 text-left hover:bg-surface-1"
     >
       <span className="flex items-center gap-2">
@@ -99,6 +102,7 @@ function TaskRow({
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg-0">
           {task.command}
         </span>
+        <PanelRightOpen className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
       </span>
       {task.description.length > 0 ? (
         <span

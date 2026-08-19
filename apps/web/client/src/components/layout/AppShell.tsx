@@ -5,13 +5,14 @@ import { Button } from '#/components/ui/button';
 
 import { AppFrame } from './AppFrame';
 import { DetailsProvider, useDetails } from './details-context';
+import { DetailsDrawer } from './DetailsDrawer';
 import { SessionSidebar } from './SessionSidebar';
 
 /**
- * 应用骨架(PRD-0035 R-C3):deepseek 式三栏 AppFrame —— sidebar(会话侧边栏)
- * | center(会话视图)| details(详情宿主)。列宽拖拽/折叠由 AppFrame 管理
- * (localStorage 持久化);窄屏下 sidebar 自动折叠,左上浮动按钮唤出 overlay
- * 导航面板;details 放不下时自动关闭,窄屏为 overlay drawer(detailsOverlay)。
+ * 应用骨架(前身为 PRD-0035 R-C3 三栏):两栏 AppFrame —— sidebar(会话侧边栏)
+ * | center(会话视图),详情宿主改为非模态浮动抽屉 DetailsDrawer(弹出期间主
+ * 窗口仍可操作)。列宽拖拽/折叠由 AppFrame 管理(localStorage 持久化);窄屏下
+ * sidebar 自动折叠,左上浮动按钮唤出 overlay 导航面板。
  */
 export function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [navOpen, setNavOpen] = useState(false);
@@ -64,9 +65,10 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
             </Button>
           </main>
         }
-        details={<DetailsHost />}
-        detailsOverlay
       />
+      <DetailsDrawer>
+        <DetailsHost />
+      </DetailsDrawer>
       {navOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-scrim" onClick={closeNav} aria-hidden />
@@ -85,18 +87,18 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   );
 }
 
-/** 统一 details 宿主：渲染 context 内容，空时显示 deepseek 同款空态（R-D2）。 */
+/** 统一 details 宿主：渲染 context 内容，空时显示空态（滚动由抽屉体负责）。 */
 function DetailsHost(): React.JSX.Element {
   const { content } = useDetails();
   if (content !== null) {
-    return <div className="flex h-full flex-col overflow-y-auto">{content}</div>;
+    return <div className="flex h-full flex-col">{content}</div>;
   }
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-7 text-fg-muted">
         <div>
-          <p className="font-medium text-fg">点击消息流中的某一工具行</p>
-          <p>查看其详情 —— 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
+          <p className="font-medium text-fg">点击行尾带「打开面板」图标的条目</p>
+          <p>在详情面板查看 —— 轨迹记录、子代理轨迹、文件预览、后台任务</p>
         </div>
       </div>
     </div>

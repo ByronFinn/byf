@@ -13,8 +13,8 @@ interface TasksTabProps {
 }
 
 /**
- * 中心 Tasks tab(与 Agents 平级,deepseek 式):列出后台任务,
- * 点击任务行把该任务详情推入右侧 details 列。
+ * 后台任务列表(任务 tab 降级后由状态栏徽标唤出的抽屉承载):点击任务行
+ * 把该任务详情推入抽屉并唤出(不打断当前上下文)。
  */
 export function TasksTab({ sessionId, tasks, loading = false }: TasksTabProps) {
   const setDetails = useDetailsSetter();
@@ -25,7 +25,10 @@ export function TasksTab({ sessionId, tasks, loading = false }: TasksTabProps) {
         tasks={tasks}
         loading={loading}
         onSelect={(task) => {
-          setDetails(<TaskDetail sessionId={sessionId} task={task} />);
+          setDetails(<TaskDetail sessionId={sessionId} task={task} />, {
+            reveal: true,
+            title: `任务 · ${task.command}`,
+          });
         }}
       />
     </div>

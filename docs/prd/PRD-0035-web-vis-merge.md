@@ -126,13 +126,13 @@
   - **emerald 品牌色完全移除**（have-a-try 2026-08-17 裁决 + /grill 决议）：现有 emerald token 清零，不做桥接映射。
   - `cat-*` 事件类别色保留为 Inspector 调试视图（Trace/Context/Agents/State）的语义色，属于 token 集扩展，不作主品牌。
 - **R-C2 批量样式迁移**：现有 web 组件从 `bg-bg/text-fg/...` 等旧语义名迁到 vis 命名；允许一个过渡版本同时注册旧别名，但主题文件只认 vis 为源。
-- **R-C3 三栏 AppFrame**：新增 `components/layout/AppFrame.tsx`，采用 deepseek 几何契约：
+- **R-C3 三栏 AppFrame**：新增 `components/layout/AppFrame.tsx`，采用 deepseek 几何契约（**2026-08-19 修订：几何降为两栏**——sidebar | center，第三栏 details 改为非模态浮动抽屉 `DetailsDrawer`〔见 R-D2〕，不再参与网格；sidebar 几何契约不变）：
   - Sidebar 默认 280 / min 264 / max 420，折叠 56；
   - Center min 640；
-  - Details 默认 360 / min 300 / max 520；
+  - ~~Details 默认 360 / min 300 / max 520~~（随第三栏移除；抽屉宽度契约 360/576/768 归 DetailsDrawer）；
   - viewport < 1024 自动折叠 sidebar；
-  - details 放不下自动关闭、恢复窗口后按偏好回来；
-  - narrow 下 details 为 overlay drawer。
+  - ~~details 放不下自动关闭、恢复窗口后按偏好回来~~（抽屉为 overlay，无放不下问题）；
+  - ~~narrow 下 details 为 overlay drawer~~（恒为 overlay 抽屉）。
 - **R-C4 侧栏迁移**：现有 `SessionSidebar` 的工作区/搜索/置顶/归档/Fork/排序逻辑原样迁入 AppFrame sidebar，视觉改 vis token。
 - **R-C5 Settings 弹层扩展**：从 640×480 提升到 960×680 / 1080×700 基准，左侧导航为：
   1. 通用
@@ -144,18 +144,18 @@
 
 ### Wave D：Inspector 功能并入统一工作台
 
-- **R-D1 Center tabs**：会话视图支持 `Chat | Trace | Context | Agents | Tasks`（2026-08-17 修订：State 不单列——右栏常驻实时 State；后台任务从顶栏按钮升级为 Tasks 页签，点击任务行 → 右侧详情）：
-  - Chat = 现有 live chat；
-  - Trace = 原 vis `WireTab`（虚拟滚动、搜索、pair 跳转、issues）；
-  - Context = 原 vis `ContextTab`；
-  - Agents = 原 vis `SubagentsTab`；
-  - Tasks = 后台任务列表（resume 快照 + SSE `background.task.*` 实时；点行推详情，等价 byf `/tasks`）。
-- **R-D2 Right details 面板**：新建统一 details 宿主，替代现有 `FileDrawer`/`SubagentDrawer` 与 vis `WireRowDetail/IssuesDrawer`：
-  - 默认 deepseek 同款空态；
-  - 工具详情、子 agent 轨迹、文件预览、wire/state JSON 共用同一容器；
-  - narrow 自动降级为 drawer。
+- **R-D1 Center tabs**：会话视图支持 `Chat | Inspect` 两 tab（2026-08-17 修订：State 不单列——右栏常驻实时 State；后台任务从顶栏按钮升级为 Tasks 页签；**2026-08-19 IA 合并修订**：Trace/Context/Agents 三 tab 合并为 Inspect 检视 tab，Tasks 页签降为状态栏任务徽标入口——监控是次级任务，运行中计数常驻可见，点击弹抽屉任务列表。详见 `InspectorTabBar`/`InspectTab`/`StatusBar`）：
+  - Chat = 现有 live chat（resume replay + SSE），抽屉默认常驻实时 State；
+  - Inspect = 原 Trace/Context/Agents 三 tab 合并：
+    - 作用域 = 层级面包屑选择器（`ScopeSelector`：当前值示 `main → agent-0`，下拉为 agent 树 + 记录数 + no-wire 警告；wire/context 端点 agent 缺省即 main，作用域恒为具体 agent）；
+    - 双视图切换「轨迹 | 上下文投影」：轨迹 = `WireTab`（保留虚拟滚动、搜索、pair 跳转、issues），上下文投影 = `ContextTab`（TokenBar + system prompt + messages + 压缩丝带；去掉与 Composer/StatusBar 重复的 model/thinking/权限 pill）；
+    - 原 `SubagentsTab`/`AgentTrail` 删除：agent 树能力并入作用域下拉，「按 agent 看 wire 记录」（原 AgentTrail）由「检视轨迹 = 该 agent 作用域」天然覆盖。
+- **R-D2 Right details 面板**：统一非模态浮动抽屉（`DetailsDrawer`，agent-0/shadcn Sheet 形态：满高贴边、无遮罩、主窗口可操作），替代原 details 列、`FileDrawer`/`SubagentDrawer` 与 vis `WireRowDetail/IssuesDrawer`：
+  - 默认 deepseek 同款空态（改文案：「点击行尾带『打开面板』图标的条目」）；
+  - 工具详情、子 agent 轨迹、文件预览、wire/state JSON、后台任务共用同一容器并带标题；
+  - 2026-08-19 修订：由第三栏改为非模态浮动抽屉（滑入滑出、Esc 关闭、左缘拖宽、开合与宽度持久化），`SubagentDrawer`/`FileDrawer` 外壳并入，`AgentTrail` 移除；折叠 vs 查看的 affordance 契约见 `details-context.tsx`。
 - **R-D3 会话删除/reveal 走统一 API**：删除前二次确认，busy 显示 409 原因；删除后 index、workspace 视图、当前路由一致刷新。
-- **R-D4 原 vis 路由兼容**：`/sessions/:id/agents/:agentId` 保留（2026-08-17 兑现：App.tsx 新增该路由 + 未知路径兜底，进入自动聚焦 Agents tab 并高亮节点）；缺省打开 Inspector tab 的深链参数继续可用。
+- **R-D4 原 vis 路由兼容**：`/sessions/:id/agents/:agentId` 保留（2026-08-17 兑现：App.tsx 新增该路由 + 未知路径兜底，进入自动聚焦 Agents tab 并高亮节点；2026-08-19 修订：进入自动聚焦**检视 tab** 并设定该 agent 为作用域——高亮体现在 `ScopeSelector` 面包屑路径与下拉选中项）；缺省打开 Inspector tab 的深链参数继续可用。
 - **R-D5 全量会话列表**：sidebar 的数据来自统一 `/api/sessions`（全量投影），组内视图、健康标记、wire 计数与 TUI 会话列表同源。
 - **R-D6 客户端单一投影**：活跃会话的 Chat 与 Trace 不得维护两套互不相通的 reducer；Chat 使用 SSE/replay 投影，Trace 使用同一会话的持久化 wire 读取接口，两侧共享 `sessionId/agentId/工具归组/子 agent` 语义，不允许 vis 旧逻辑复制出新状态源。 （2026-08-17 修复：live resume 返回最新 replay、ReplayBuilder live 期也累积、Center 与 details 的 state 共用同一 queryKey）
 - **R-D7 deepseek 功能对齐**（/grill h3 决议）：
@@ -197,11 +197,11 @@
 - [x] **AC-A6** Raw 保存后注释/空行/未识别键保留；保存成功返回新 revision。
 - [x] **AC-A7** 并发修改：TUI/另一进程修改文件后，Web 携带旧 revision 保存返回 `409 CONFIG_REVISION_CONFLICT`，不覆盖磁盘版本。
 - [x] **AC-A8** 结构化配置保存时，检测到注释/未知结构会显示“将规范化文件”提示；保存结果与配置文件页 raw 内容一致。 （注释检测 banner + 配置文件页全保真保存）
-- [x] **AC-A9** 三栏布局几何符合 deepseek 契约；sidebar 可拖拽/折叠，details 可拖拽/关闭，<1024px 自动折叠。 （columns 几何单测 + AppFrame 实现；拖拽交互 jsdom 测试未加——纯函数契约已钉）
+- [x] **AC-A9** 布局几何符合契约；sidebar 可拖拽/折叠，<1024px 自动折叠（2026-08-19 修订：两栏网格 + 非模态浮动抽屉；抽屉可拖宽 360–768/Esc/按钮关闭；columns 几何单测已随两栏签名更新）。
 - [x] **AC-A10** 全站颜色/字体/圆角来自 deepseek 精致风 token（自研实现）；浅色主题达到 WCAG AA；旧 web emerald 与 OKLCH 硬编码 token 全部清零（不保留桥接映射），仅 shadcn 结构桥接变量存在；Inspector 视图可额外使用 `cat-*` 语义色。
-- [x] **AC-A11** Chat/Trace/Context/Agents/State 五 tab 可用；原 vis 核心检查能力（wire 搜索、pair 跳转、issues、agent tree、context projection、state）全部保留。
-- [x] **AC-A12** 点击工具行/子 agent/文件路径/wire 行能在 right details 或 narrow drawer 中打开对应详情；默认内容为**实时 state 投影**（StateLive，SSE 事件驱动刷新；替代 deepseek 同款空态——用户 2026-08-17 决策右栏常驻 State）。 （DetailsProvider + WireRow 行点击 → details 列；文件/子agent 详情沿用既有 drawer）
-- [x] **AC-A12a**（用户追加，2026-08-17）右栏默认常驻 State，turn/step 结束经 SSE invalidate 即时刷新；Chat 与 details 的 state 共用同一 queryKey（R-D6 单一投影）。 （StateLive + ChatPage SSE 接线 + 浏览器实测）
+- [x] **AC-A11** Chat/Inspect 两 tab 可用（2026-08-19 IA 合并）；原 vis 核心检查能力全部保留且入口不劣化：wire 搜索/pair 跳转/issues → 检视-轨迹；agent tree → 检视作用域下拉；context projection → 检视-上下文投影；state → 抽屉常驻。
+- [x] **AC-A12** 点击行尾查看图标/子 agent 卡片/文件路径/wire 行能在详情抽屉打开对应详情（非模态，主窗口可操作）；对话框默认内容为**实时 state 投影**（StateLive，SSE 事件驱动刷新；2026-08-19 修订：常驻由「第三栏」改为「对话 tab 抽屉默认内容」，抽屉默认收起不占地——revert 用户 2026-08-17「右栏常驻 State」实为第三栏常驻，现为可伸缩）。 （DetailsProvider + reveal 语义 + WireRow 查看按钮；文件/子agent 详情统一外壳）
+- [x] **AC-A12a**（用户追加，2026-08-17）State 随 turn/step 结束经 SSE invalidate 即时刷新；2026-08-19 修订：SSE 失效按 `['session', id]` 前缀一次覆盖 wire/agents/state，`['context', id]` 单独覆盖上下文（R-D6 单一投影扩展）。 （ChatPage SSE 接线 + 浏览器实测）
 - [x] **AC-A13** PRD-0032/0033/0034 全部验收回归通过（SSE、审批/问答、Fork、归档、文件端点、Mermaid/LaTeX、LAN auth、TUI `/web`）。 （web-server 70 / client 52 / cli exit 0 回归）
 - [x] **AC-A14** `byf vis` 弃用期行为可预期：默认端口 3001 不变、`VIS_AUTH_TOKEN` 兼容；输出 banner 标明已由统一工作台提供服务。
 - [x] **AC-A15** native compile 只内嵌一个 SPA 资产；`bun run build`/`typecheck`/`lint`/`test` 全绿。
@@ -383,7 +383,7 @@ PUT  /api/config/raw
   - Settings modal 尺寸与五段导航骨架。
 - **PR4 Inspector 合入**（— Done，2026-08-17，commit 11fdcfa）：
   - vis 组件迁入 `components/inspector`（wire/context/subagents/state/shared + hooks + lib）；
-  - Center 五 tabs（Chat|Trace|Context|Agents|State）+ InspectorTabBar；
+  - Center 两 tabs（Chat|Inspect，2026-08-19 IA 合并）+ InspectorTabBar；
   - 删除/reveal/全量列表接线（inspectorApi）；SDK/web-shared 类型面补齐；
   - 原 vis 功能回归（client 43 测试 + typecheck + build 全绿）。
 - **PR5 Raw 配置编辑器**（— Done，2026-08-17，commit 94c6651）：
@@ -430,4 +430,5 @@ PUT  /api/config/raw
 - **Implemented by**: `/implement`（2026-08-17）— 用户实测五问修复：① live 会话 resume 返回最新 replay（三层：web-manager 缓存咨询 harness → SDK active 分支 refreshSummary → core ReplayBuilder live 期也累积；原 restoring 守卫导致常驻进程内 replay 恒空——Chat 空根因）；② 右栏常驻实时 State（StateLive 轮询 + SSE turn.ended/step.completed 事件驱动 invalidate；取代 deepseek 空态，AC-A12 已修订）；③ `/sessions/:id/agents/:agentId` 路由兑现 + catch-all 兜底（原为假验收，点击 main 空白页）；④ WireRowDetail 双形态（details 列去 120px 硬编码缩进）；⑤ Context 锐化（TokenBar 数值图例 + thinking/profile 摘要，与 Trace 事件时间线区分）。回归测试：web-server fake harness 2 用例、core resume-integration live 期 replay 用例；实测证据：live resume replay 5 条、刷新 Chat 恢复、深链/兜底正常。
 - **Debugged by**: `/debug`（2026-08-17，第二轮）— 布局与交互打磨：① Trace 等 tab 展开溢出无滚动条（ChatPage 内容 div 缺 flex 上下文，tab 根 flex-1 无约束，容器被内容撑到 4126px；补 flex flex-col 后容器内滚动）；② Center State tab 隐藏（右栏已常驻，避免重复）；③ deepseek 式子代理/后台任务查看——点 Agents 节点 → details 显示该 agent wire 轨迹（AgentTrail），状态栏 tasks 按钮 → BackgroundPanel（resume 快照 + SSE background.task.\* 实时），深链默认即轨迹面板；④ 右栏随中间页签实时切换——details 默认内容由挂载时一次性决定改为 tab 感知（Chat→常驻 State、Trace/Context/Agents→空态等行/节点点击推详情、agent 深链→轨迹面板），tasks 开关关闭时回本 tab 默认而非固定 StateLive。
 - **Debugged by**: `/debug`（2026-08-17，第三轮）— Tasks 页签化：顶栏 `tasks` 按钮移除，后台任务升级为与 Agents 平级的中心页签（R-D1 增列 Tasks；TasksTab 复用 TaskList 分组列表，点任务行把 TaskDetail 推入右栏 details——完整生命周期字段：status/pid/agent/时间/时长/timeout/exit/stopReason/failureReason）；BackgroundPanel 删除（职责并入 TaskList+TaskDetail），StatusBar 精简回纯状态条；空态文案、右栏回落逻辑沿用 round 2 ④ 的 tab 感知机制。实测：本地模型多次调用失败（Bash 被 PreToolUse hook 拦截 → manual 权限；yolo 后模型又长时间卡死），改走持久化链路——伪造 `agents/main/tasks/*.json`（completed + failed 各一），未 resume 过的会话全新 resume 从磁盘恢复，浏览器实测：Tasks 页签显示 done (2) 分组、点击任务行右侧展示完整详情（taskId/pid/started/ended/duration/exit），失败行同样正常；验证后已清理伪造文件并 close 会话。
+- **Redesigned**: `/have-a-try`+IA 分析（2026-08-19）— 五 tab 为 vis 迁移映射产物而非信息架构设计；经三变体原型决策：两 tab「对话|检视」+ 任务状态栏徽标 + 检视内面包屑作用域（无跨视图联动）。`/implement` 落地：InspectTab/ScopeSelector 新建，WireTab/ContextTab 受控化，StatusBar 徽标，AgentTrail/Subagents\* 删除，SSE 失效前缀合并（wire/agents/state 共用 `['session', id]`），PRD R-D1/R-D2/R-D4/AC-A11 同步修订。
 - **Baseline**: PRD-0032（web 传输骨架）、PRD-0033（web UI 重设计）、PRD-0034（web 工作台能力升级）均为 Done；ADR-0034/0035/0036 继续有效。

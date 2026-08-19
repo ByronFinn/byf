@@ -1,8 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useDetailsSetter } from '#/components/layout/details-context';
-import { useSession } from '#/hooks/useSession';
 import { useWire } from '#/hooks/useWire';
 import { computeIssues, topSeverity } from '#/lib/issues';
 import type { AgentRecord, WireEntry } from '#/types';
@@ -56,21 +55,11 @@ function pairInfoFor(record: AgentRecord, map: Map<string, PairRecord>): PairHin
 
 interface WireTabProps {
   sessionId: string;
-  /** Override starting agentId; defaults to 'main'. */
-  initialAgentId?: string;
+  /** 作用域由 InspectTab 的 ScopeSelector 统一控制（受控 prop）。 */
+  agentId: string;
 }
 
-export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
-  const [agentId, setAgentId] = useState(initialAgentId);
-  // Re-sync when the route changes either the session or the agent id
-  // while this component stays mounted. Without `sessionId` in the deps,
-  // navigating /sessions/A → /sessions/B (with default initialAgentId)
-  // would preserve a subagent selection from the previous session and
-  // 404 on the new one.
-  useEffect(() => {
-    setAgentId(initialAgentId);
-  }, [sessionId, initialAgentId]);
-  const { data: detail } = useSession(sessionId);
+export function WireTab({ sessionId, agentId }: WireTabProps) {
   const { data: wire, isLoading, error } = useWire(sessionId, agentId);
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -125,18 +114,22 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
   });
 
   const setDetails = useDetailsSetter();
-  const toggle = useCallback(
-    (lineNo: number, entry?: WireEntry) => {
-      setExpanded((prev) => {
-        const next = new Set(prev);
-        if (next.has(lineNo)) next.delete(lineNo);
-        else next.add(lineNo);
-        return next;
+  // 折叠与查看分离（交互契约见 details-context）：行点击只做行内披露，
+  // 行尾「查看」图标才把记录推入抽屉（R-D2 / AC-A12）。
+  const toggle = useCallback((lineNo: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineNo)) next.delete(lineNo);
+      else next.add(lineNo);
+      return next;
+    });
+  }, []);
+  const inspect = useCallback(
+    (entry: WireEntry) => {
+      setDetails(<WireRowDetail entry={entry} variant="details" />, {
+        reveal: true,
+        title: `轨迹 · 第 ${entry.lineNo} 行`,
       });
-      // R-D2 / AC-A12：行点击同时把详情推入右侧 details 列。
-      if (entry !== undefined) {
-        setDetails(<WireRowDetail entry={entry} variant="details" />);
-      }
     },
     [setDetails],
   );
@@ -167,30 +160,10 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
     setExpanded(new Set());
   };
 
-  const agents = detail?.agents ?? [];
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* Toolbar */}
+      {/* Toolbar（agent 作用域已在 InspectTab 的 ScopeSelector 统一控制） */}
       <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-3 py-2">
-        <label className="flex items-center gap-2 font-mono text-[11px] text-fg-2">
-          <span className="text-fg-3">agent</span>
-          <select
-            value={agentId}
-            onChange={(e) => {
-              setAgentId(e.target.value);
-            }}
-            className="border border-border bg-surface-0 px-2 py-1 font-mono text-[12px] text-fg-0 focus:border-border-strong focus:outline-none"
-          >
-            {agents.length === 0 ? <option value={agentId}>{agentId}</option> : null}
-            {agents.map((a) => (
-              <option key={a.agentId} value={a.agentId}>
-                {a.agentId} ({a.type}
-                {a.parentAgentId ? ` ← ${a.parentAgentId}` : ''})
-              </option>
-            ))}
-          </select>
-        </label>
         <input
           type="text"
           placeholder="search records (substring)"
@@ -284,9 +257,8 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
                     <WireRow
                       entry={e}
                       expanded={expanded.has(e.lineNo)}
-                      onToggle={() => {
-                        toggle(e.lineNo, e);
-                      }}
+                      onToggle={toggle}
+                      onInspect={inspect}
                       onJumpTo={jumpToLine}
                       pair={pair}
                       highlighted={highlighted}

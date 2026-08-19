@@ -1,3 +1,4 @@
+import { PanelRightOpen } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import { formatWallClock } from '#/lib/vis-time';
@@ -20,7 +21,10 @@ export interface PairHint {
 interface WireRowProps {
   entry: WireEntry;
   expanded: boolean;
-  onToggle: () => void;
+  /** 折叠开关（行内披露）。签名带 lineNum 以便父级传稳定引用、保 memo。 */
+  onToggle: (lineNo: number) => void;
+  /** 在详情面板查看该记录（查看 affordance，与折叠 onToggle 分离）。 */
+  onInspect?: (entry: WireEntry) => void;
   /** Scroll to a line and expand it — wired by the Wire tab via the virtualizer. */
   onJumpTo?: (lineNo: number) => void;
   /** Set when this entry is a tool.call/tool.result; carries the matching counterpart's line. */
@@ -35,6 +39,7 @@ export const WireRow = memo(function WireRow({
   entry,
   expanded,
   onToggle,
+  onInspect,
   onJumpTo,
   pair,
   highlighted,
@@ -69,29 +74,49 @@ export const WireRow = memo(function WireRow({
       ].join(' ')}
     >
       <div className="min-w-0 flex-1">
-        <button
-          onClick={onToggle}
-          className="flex w-full items-center gap-3 px-2 py-[5px] text-left min-h-[28px]"
-        >
-          <span className="font-mono text-[11px] text-fg-3 tabular w-[52px] shrink-0 text-right">
-            {entry.lineNo}
-          </span>
-          <span
-            className="font-mono text-[11px] text-fg-3 tabular w-[68px] shrink-0"
-            title={timeTitle}
+        <div className="flex items-stretch">
+          <button
+            type="button"
+            onClick={() => {
+              onToggle(entry.lineNo);
+            }}
+            aria-expanded={expanded}
+            className="flex min-w-0 flex-1 items-center gap-3 px-2 py-[5px] text-left min-h-[28px]"
           >
-            {record.time !== undefined ? formatWallClock(record.time) : '--:--:--'}
-          </span>
-          <span className="shrink-0">
-            <TypeBadge type={record.type} />
-          </span>
-          <span className="flex-1 min-w-0 flex items-center gap-2">{h.main}</span>
-          <span className="flex items-center gap-2 shrink-0">
-            {h.right}
-            {pair !== undefined ? <PairIndicator pair={pair} onJumpTo={onJumpTo} /> : null}
-            <Chevron open={expanded} />
-          </span>
-        </button>
+            <span className="font-mono text-[11px] text-fg-3 tabular w-[52px] shrink-0 text-right">
+              {entry.lineNo}
+            </span>
+            <span
+              className="font-mono text-[11px] text-fg-3 tabular w-[68px] shrink-0"
+              title={timeTitle}
+            >
+              {record.time !== undefined ? formatWallClock(record.time) : '--:--:--'}
+            </span>
+            <span className="shrink-0">
+              <TypeBadge type={record.type} />
+            </span>
+            <span className="flex-1 min-w-0 flex items-center gap-2">{h.main}</span>
+            <span className="flex items-center gap-2 shrink-0">
+              {h.right}
+              {pair !== undefined ? <PairIndicator pair={pair} onJumpTo={onJumpTo} /> : null}
+              <Chevron open={expanded} />
+            </span>
+          </button>
+          {onInspect !== undefined && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(entry);
+              }}
+              aria-label={`在详情面板查看第 ${entry.lineNo} 行`}
+              title="在详情面板查看"
+              className="flex w-7 shrink-0 items-center justify-center text-fg-subtle transition-colors hover:bg-hover hover:text-fg"
+            >
+              <PanelRightOpen className="size-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
         {expanded ? (
           <div className="border-t border-border bg-surface-1 px-2 pb-2 pt-1">
             <WireRowDetail entry={entry} onJumpTo={onJumpTo} />

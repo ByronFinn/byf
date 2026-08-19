@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { inspectorApi as api } from '#/api';
+import { QK } from '#/lib/query-keys';
 
 /**
  * 获取会话中给定 agent 的投影上下文。
@@ -11,7 +12,7 @@ import { inspectorApi as api } from '#/api';
  */
 export function useContext(sessionId: string, agentId: string) {
   return useQuery({
-    queryKey: ['context', sessionId, agentId] as const,
+    queryKey: QK.context(sessionId, agentId),
     queryFn: () => api.getContext(sessionId, agentId),
     enabled: sessionId.length > 0 && agentId.length > 0,
   });

@@ -307,6 +307,34 @@
   }
 }
 
+/* 详情侧滑抽屉(DetailsDrawer,agent-0/shadcn Sheet 形态):贴边满高、
+   border-l + shadow-3 分层(无遮罩,主窗口保持可操作)。入场减速
+   (--ease-smooth)、退场加速离开且更快(duration-base);收起态
+   pointer-events:none 保证退场/隐藏期间绝不挡主窗口。
+   prefers-reduced-motion 时退化为直接显隐。 */
+.drawer-panel {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.drawer-panel[data-open='true'] {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-panel[data-open='true'] {
+    transition:
+      transform var(--duration-slow) var(--ease-smooth),
+      opacity var(--duration-base) var(--ease-smooth);
+  }
+  .drawer-panel[data-open='false'] {
+    transition:
+      transform var(--duration-base) cubic-bezier(0.55, 0, 0.85, 0.6),
+      opacity var(--duration-fast) linear;
+  }
+}
+
 /* ═══════════════ base ═══════════════ */
 
 html,
@@ -364,13 +392,13 @@ body {
   outline: none;
 }
 :where(
-    a,
-    button,
-    [role='button'],
-    [tabindex]:not(input):not(textarea):not(select),
-    input[type='checkbox'],
-    input[type='radio']
-  ):focus-visible {
+  a,
+  button,
+  [role='button'],
+  [tabindex]:not(input):not(textarea):not(select),
+  input[type='checkbox'],
+  input[type='radio']
+):focus-visible {
   outline: 1px solid var(--brand);
   outline-offset: 1px;
 }

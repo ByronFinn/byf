@@ -1,4 +1,4 @@
-import { CircleAlert, FileText, X } from 'lucide-react';
+import { CircleAlert, FileText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { api } from '#/api';
@@ -24,22 +24,13 @@ function isVideoType(contentType: string): boolean {
 }
 
 /**
- * 文件查看 drawer(PRD-0034 R-C3/R-C7):从工具卡片「查看」或文档路径打开;
- * 文本经 Shiki 高亮(懒加载),图片/视频走作用域文件端点(视频 Range 播放)。
+ * 文件查看内容(PRD-0034 R-C3/R-C7):工具卡片「查看」或文档路径点击后推入
+ * 详情抽屉;文本经 Shiki 高亮(懒加载),图片/视频走作用域文件端点(视频
+ * Range 播放)。外壳(滑入/关闭/Esc)由 DetailsDrawer 统一提供。
  */
-export function FileDrawer(props: { path: string; onClose: () => void }): React.JSX.Element {
-  const { path, onClose } = props;
+export function FileDetail(props: { path: string }): React.JSX.Element {
+  const { path } = props;
   const [state, setState] = useState<DrawerState>({ phase: 'loading' });
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,73 +68,58 @@ export function FileDrawer(props: { path: string; onClose: () => void }): React.
   }, [path]);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-scrim" onClick={onClose} aria-hidden />
-      <aside
-        role="dialog"
-        aria-label={`查看文件 ${path}`}
-        className="relative flex h-full w-full max-w-3xl flex-col border-l border-border bg-popover shadow-3"
-      >
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <FileText className="size-4 shrink-0 text-fg-subtle" aria-hidden />
-          <p className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={path}>
-            {path}
+    <div className="flex min-h-full flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-1 px-4 py-2">
+        <FileText className="size-4 shrink-0 text-fg-subtle" aria-hidden />
+        <p className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={path}>
+          {path}
+        </p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {state.phase === 'loading' && <p className="p-4 text-sm text-fg-subtle">加载中…</p>}
+        {state.phase === 'error' && (
+          <p className="flex items-center gap-2 p-4 text-sm text-state-error">
+            <CircleAlert className="size-4" aria-hidden />
+            {state.message}
           </p>
-          <button
-            type="button"
-            aria-label="关闭"
-            onClick={onClose}
-            className="rounded p-1 text-fg-subtle transition-colors hover:bg-hover hover:text-fg"
-          >
-            <X className="size-4" aria-hidden />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto">
-          {state.phase === 'loading' && <p className="p-4 text-sm text-fg-subtle">加载中…</p>}
-          {state.phase === 'error' && (
-            <p className="flex items-center gap-2 p-4 text-sm text-state-error">
-              <CircleAlert className="size-4" aria-hidden />
-              {state.message}
-            </p>
-          )}
-          {state.phase === 'media' && isImageType(state.contentType) && (
-            <div className="flex min-h-full items-center justify-center p-4">
-              <img
-                src={api.fileUrl(props.path)}
-                alt={path}
-                className="max-h-full max-w-full rounded-md border border-border"
-              />
+        )}
+        {state.phase === 'media' && isImageType(state.contentType) && (
+          <div className="flex min-h-full items-center justify-center p-4">
+            <img
+              src={api.fileUrl(props.path)}
+              alt={path}
+              className="max-h-full max-w-full rounded-md border border-border"
+            />
+          </div>
+        )}
+        {state.phase === 'media' && isVideoType(state.contentType) && (
+          <div className="flex min-h-full items-center justify-center p-4">
+            <video
+              src={api.fileUrl(props.path)}
+              controls
+              className="max-h-full max-w-full rounded-md border border-border"
+            />
+          </div>
+        )}
+        {state.phase === 'media' &&
+          !isImageType(state.contentType) &&
+          !isVideoType(state.contentType) && (
+            <div className="p-4 text-sm text-fg-muted">
+              该文件类型({state.contentType})暂不支持预览。
             </div>
           )}
-          {state.phase === 'media' && isVideoType(state.contentType) && (
-            <div className="flex min-h-full items-center justify-center p-4">
-              <video
-                src={api.fileUrl(props.path)}
-                controls
-                className="max-h-full max-w-full rounded-md border border-border"
-              />
-            </div>
-          )}
-          {state.phase === 'media' &&
-            !isImageType(state.contentType) &&
-            !isVideoType(state.contentType) && (
-              <div className="p-4 text-sm text-fg-muted">
-                该文件类型({state.contentType})暂不支持预览。
-              </div>
-            )}
-          {state.phase === 'text' &&
-            (state.html !== null ? (
-              <div
-                className="codeblock-highlight p-4 text-sm"
-                dangerouslySetInnerHTML={{ __html: state.html }}
-              />
-            ) : (
-              <pre className="p-4 font-mono text-xs whitespace-pre-wrap text-fg">
-                {state.payload.content}
-              </pre>
-            ))}
-        </div>
-      </aside>
+        {state.phase === 'text' &&
+          (state.html !== null ? (
+            <div
+              className="codeblock-highlight p-4 text-sm"
+              dangerouslySetInnerHTML={{ __html: state.html }}
+            />
+          ) : (
+            <pre className="p-4 font-mono text-xs whitespace-pre-wrap text-fg">
+              {state.payload.content}
+            </pre>
+          ))}
+      </div>
     </div>
   );
 }

@@ -10,7 +10,8 @@ export function App(): React.JSX.Element {
         {/* "/" = 新会话 hero(无 sessionId);带 id 走 ChatRoute */}
         <Route path="/" element={<ChatPage />} />
         <Route path="/sessions/:sessionId" element={<ChatRoute />} />
-        {/* 原 vis 深链路由(PRD-0035 R-D4):/sessions/:id/agents/:agentId 保留 */}
+        {/* 深链路由(PRD-0035 R-D4 演化):/sessions/:id/agents/:agentId 保留,
+            进入自动聚焦检视 tab 并设定该 agent 作用域 */}
         <Route path="/sessions/:sessionId/agents/:agentId" element={<AgentRoute />} />
         {/* 未知路径兜底:避免空匹配渲染空白页 */}
         <Route path="*" element={<Navigate to="/" replace />} />

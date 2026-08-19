@@ -1,21 +1,18 @@
 /**
- * AppFrame —— deepseek 式三栏工作台骨架（PRD-0035 R-C3 / ADR-0037 D5）。
+ * AppFrame —— 两栏工作台骨架（前身为 deepseek 式三栏 PRD-0035 R-C3；details
+ * 列已改为非模态浮动抽屉 DetailsDrawer，不再参与网格布局）。
  *
- * 几何契约见 `lib/columns.ts`（computeColumns 纯函数）：sidebar | center |
- * details 三列，拖拽把手（pointer capture + rAF 节流）、<1024 自动折叠
- * sidebar、details 放不下自动关闭（派生零宽——恢复窗口后按偏好回来）。
+ * 几何契约见 `lib/columns.ts`（computeColumns 纯函数）：sidebar | center
+ * 两列，拖拽把手（pointer capture + rAF 节流）、<1024 自动折叠 sidebar。
  * 列宽偏好持久化到 localStorage（R-C6：UI 偏好不入 config.toml）。
  *
- * 本组件只负责骨架：三栏内容（sidebar 树、center 会话视图、details 宿主）
- * 由调用方以 children 注入，PR4 接入 Inspector 与详情面板。
+ * 本组件只负责骨架：两栏内容（sidebar 树、center 会话视图）由调用方以
+ * children 注入。
  */
 import { ChevronRight, Menu } from 'lucide-react';
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
-  DETAILS_DEFAULT,
-  DETAILS_MAX,
-  DETAILS_MIN,
   SIDEBAR_AUTO_COLLAPSE,
   SIDEBAR_COLLAPSED,
   SIDEBAR_DEFAULT,
@@ -26,14 +23,10 @@ import {
 } from '#/lib/columns';
 
 const LS_SIDEBAR = 'byf.layout.sidebar';
-const LS_DETAILS = 'byf.layout.details';
 
 interface AppFrameProps {
   readonly sidebar: ReactNode;
   readonly center: ReactNode;
-  readonly details: ReactNode;
-  /** 窄屏（details 自动关闭）时把 details 内容渲染为 fixed overlay drawer。 */
-  readonly detailsOverlay?: boolean;
 }
 
 function readPref(key: string, fallback: number): number {
@@ -56,7 +49,6 @@ function writePref(key: string, value: number): void {
 /** 一个拖拽把手：pointer capture + rAF 节流的 dx 上报（对标 deepseek
  *  AppFrame DragHandle）。 */
 function DragHandle(props: {
-  readonly side: 'sidebar' | 'details';
   readonly left: number;
   readonly onStart: () => void;
   readonly onDrag: (dx: number) => void;
@@ -111,12 +103,11 @@ function DragHandle(props: {
   );
 }
 
-export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameProps) {
+export function AppFrame({ sidebar, center }: AppFrameProps) {
   const [sidebarPref, setSidebarPref] = useState(() => readPref(LS_SIDEBAR, SIDEBAR_DEFAULT));
-  const [detailsPref, setDetailsPref] = useState(() => readPref(LS_DETAILS, DETAILS_DEFAULT));
   const [viewport, setViewport] = useState(() => window.innerWidth);
   const [dragging, setDragging] = useState(false);
-  const dragRef = useRef<{ side: 'sidebar' | 'details'; start: number; pref: number } | null>(null);
+  const dragRef = useRef<{ start: number; pref: number } | null>(null);
   const [narrowExpanded, setNarrowExpanded] = useState(false);
 
   useLayoutEffect(() => {
@@ -128,38 +119,20 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
   const isNarrow = viewport < SIDEBAR_AUTO_COLLAPSE;
   // 窄屏自动折叠 sidebar（手动展开覆盖，narrowExpanded）
   const effectiveSidebar = isNarrow && !narrowExpanded ? 0 : sidebarPref;
-  const {
-    sidebar: s,
-    center: c,
-    details: d,
-  } = computeColumns(viewport, effectiveSidebar, detailsPref);
-  const detailsClosed = d === 0;
+  const { sidebar: s } = computeColumns(viewport, effectiveSidebar);
 
-  const beginDrag = useCallback(
-    (side: 'sidebar' | 'details') => {
-      dragRef.current = {
-        side,
-        start: viewport,
-        pref: side === 'sidebar' ? effectiveSidebar : detailsPref,
-      };
-      setDragging(true);
-    },
-    [viewport, effectiveSidebar, detailsPref],
-  );
+  const beginDrag = useCallback(() => {
+    dragRef.current = { start: viewport, pref: effectiveSidebar };
+    setDragging(true);
+  }, [viewport, effectiveSidebar]);
 
   const onDrag = useCallback((dx: number) => {
     const drag = dragRef.current;
     if (drag === null) return;
-    if (drag.side === 'sidebar') {
-      const next = clampWidth(drag.pref + dx, SIDEBAR_MIN, SIDEBAR_MAX);
-      setSidebarPref(next);
-      writePref(LS_SIDEBAR, next);
-      setNarrowExpanded(true);
-    } else {
-      const next = clampWidth(drag.pref - dx, DETAILS_MIN, DETAILS_MAX);
-      setDetailsPref(next);
-      writePref(LS_DETAILS, next);
-    }
+    const next = clampWidth(drag.pref + dx, SIDEBAR_MIN, SIDEBAR_MAX);
+    setSidebarPref(next);
+    writePref(LS_SIDEBAR, next);
+    setNarrowExpanded(true);
   }, []);
 
   const endDrag = useCallback(() => {
@@ -177,17 +150,11 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
     }
   }, [isNarrow, sidebarPref]);
 
-  const toggleDetails = useCallback(() => {
-    const next = detailsPref === 0 ? readPref(LS_DETAILS, DETAILS_DEFAULT) : 0;
-    setDetailsPref(next);
-    writePref(LS_DETAILS, next === 0 ? 0 : next);
-  }, [detailsPref]);
-
   return (
     <div
       className="relative grid h-full overflow-hidden"
       style={{
-        gridTemplateColumns: `${s}px minmax(0, 1fr) ${detailsClosed ? 0 : d}px`,
+        gridTemplateColumns: `${s}px minmax(0, 1fr)`,
         // 行高钉死为视口高度:缺省 auto 会让列被内容撑开(会话多时侧栏
         // 高度 > 视口),底部设置被 overflow-hidden 裁剪、nav 滚动失效。
         gridTemplateRows: 'minmax(0, 1fr)',
@@ -230,42 +197,7 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
         {center}
       </div>
 
-      {/* Details 列：零宽时保持挂载（不卸载子树），border 隐藏防 1px 缝 */}
-      <div
-        className={`min-w-0 overflow-hidden ${detailsClosed ? '' : 'border-l border-border'}`}
-        style={{ width: detailsClosed ? 0 : d }}
-      >
-        <div className="h-full" style={{ width: d }}>
-          {details}
-        </div>
-      </div>
-
-      {!detailsClosed && (
-        <DragHandle
-          side="details"
-          left={s + c}
-          onStart={() => beginDrag('details')}
-          onDrag={onDrag}
-          onEnd={endDrag}
-        />
-      )}
-      <DragHandle
-        side="sidebar"
-        left={s}
-        onStart={() => beginDrag('sidebar')}
-        onDrag={onDrag}
-        onEnd={endDrag}
-      />
-
-      {/* 窄屏 details overlay drawer（R-C3：narrow 下 details 为 overlay drawer） */}
-      {detailsOverlay && isNarrow && detailsPref !== 0 && (
-        <div className="fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-scrim/50" onClick={toggleDetails} />
-          <div className="absolute inset-y-0 right-0 w-[min(360px,92vw)] overflow-hidden border-l border-border bg-bg shadow-3">
-            {details}
-          </div>
-        </div>
-      )}
+      <DragHandle left={s} onStart={beginDrag} onDrag={onDrag} onEnd={endDrag} />
     </div>
   );
 }

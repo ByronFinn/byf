@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { useContext } from '#/hooks/useContext';
-import { useSession } from '#/hooks/useSession';
 import type { TokenUsage } from '#/types';
 
 import { Pill } from '../shared/Pill';
@@ -11,79 +10,19 @@ import { MessageBubble } from './MessageBubble';
 
 interface ContextTabProps {
   sessionId: string;
-  /** Override starting agentId; defaults to 'main'. */
-  initialAgentId?: string;
+  /** 作用域由 InspectTab 的 ScopeSelector 统一控制（受控 prop）。 */
+  agentId: string;
 }
 
-export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabProps) {
-  const [agentId, setAgentId] = useState(initialAgentId);
-  // Re-sync on session OR agent id change — see WireTab for the same
-  // rationale (session navigation must reset a stale subagent pick).
-  useEffect(() => {
-    setAgentId(initialAgentId);
-  }, [sessionId, initialAgentId]);
-  const { data: detail } = useSession(sessionId);
+export function ContextTab({ sessionId, agentId }: ContextTabProps) {
   const { data: ctx, isLoading, error } = useContext(sessionId, agentId);
 
-  const agents = detail?.agents ?? [];
   const messages = ctx?.messages ?? [];
   const session = ctx?.usage.byScope.session ?? EMPTY_USAGE;
   const config = ctx?.config ?? {};
-  const permissionMode = ctx?.permission.mode ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Toolbar — agent selector + status pills */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-3 py-2">
-        <label className="flex items-center gap-2 font-mono text-[11px] text-fg-2">
-          <span className="text-fg-3">agent</span>
-          <select
-            value={agentId}
-            onChange={(e) => {
-              setAgentId(e.target.value);
-            }}
-            className="border border-border bg-surface-0 px-2 py-1 font-mono text-[12px] text-fg-0 focus:border-border-strong focus:outline-none"
-          >
-            {agents.length === 0 ? <option value={agentId}>{agentId}</option> : null}
-            {agents.map((a) => (
-              <option key={a.agentId} value={a.agentId}>
-                {a.agentId} ({a.type}
-                {a.parentAgentId ? ` ← ${a.parentAgentId}` : ''})
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="font-mono text-[11px] text-fg-2">
-          <span className="tabular text-fg-0">{messages.length}</span>
-          <span className="ml-1 text-fg-3">messages</span>
-        </span>
-        {config.modelAlias ? (
-          <span className="font-mono text-[11px] text-fg-2">
-            <span className="text-fg-3">model</span>{' '}
-            <span className="text-fg-0">{config.modelAlias}</span>
-          </span>
-        ) : null}
-        {config.thinkingLevel ? (
-          <span className="font-mono text-[11px] text-fg-2">
-            <span className="text-fg-3">thinking</span>{' '}
-            <span className="text-fg-0">{config.thinkingLevel}</span>
-          </span>
-        ) : null}
-        {config.profileName ? (
-          <span className="font-mono text-[11px] text-fg-2">
-            <span className="text-fg-3">profile</span>{' '}
-            <span className="text-fg-0">{config.profileName}</span>
-          </span>
-        ) : null}
-        <div className="ml-auto flex items-center gap-2">
-          {permissionMode ? (
-            <Pill tone="approval" variant="outline">
-              permission: {permissionMode}
-            </Pill>
-          ) : null}
-        </div>
-      </div>
-
       {/* 4-segment token bar + 数值图例(上下文仪表盘;与 Trace 的事件时间线区分) */}
       <TokenBar usage={session} showLegend />
 

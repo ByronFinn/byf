@@ -1,5 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, ChevronDown, Folder, FolderSearch, ListChecks, Sparkles } from 'lucide-react';
+import {
+  BookOpen,
+  ChevronDown,
+  Folder,
+  FolderSearch,
+  ListChecks,
+  PanelRight,
+  Sparkles,
+} from 'lucide-react';
 import { useCallback, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -11,22 +19,19 @@ import {
   type ComposerImage,
   type TriggerCommand,
 } from '#/components/chat/ComposerCard';
-import { FileDrawer } from '#/components/chat/FileDrawer';
+import { FileDetail } from '#/components/chat/FileDrawer';
 import { ModelChip } from '#/components/chat/ModelChip';
 import { PermissionChip } from '#/components/chat/PermissionChip';
 import { QuestionCard } from '#/components/chat/QuestionCard';
 import { StatusBar } from '#/components/chat/StatusBar';
-import { SubagentDrawer } from '#/components/chat/SubagentCard';
+import { SubagentDetail } from '#/components/chat/SubagentCard';
 import { normalizeThinkingLevel, ThinkingChip } from '#/components/chat/ThinkingChip';
 import { OPEN_FILE_EVENT } from '#/components/chat/ToolCallView';
 import { Transcript } from '#/components/chat/Transcript';
 import { TasksTab } from '#/components/inspector/background/TasksTab';
-import { ContextTab } from '#/components/inspector/context/ContextTab';
+import { InspectTab } from '#/components/inspector/InspectTab';
 import { StateLive } from '#/components/inspector/state/StateLive';
-import { AgentTrail } from '#/components/inspector/subagents/AgentTrail';
-import { SubagentsTab } from '#/components/inspector/subagents/SubagentsTab';
-import { WireTab } from '#/components/inspector/wire/WireTab';
-import { useDetailsSetter } from '#/components/layout/details-context';
+import { useDetails, useDetailsSetter } from '#/components/layout/details-context';
 import { openSettingsDialog, workspaceListKey } from '#/components/layout/SessionSidebar';
 import { Button } from '#/components/ui/button';
 import {
@@ -41,6 +46,7 @@ import {
 import { useEventStream } from '#/hooks/useEventStream';
 import { useTheme } from '#/hooks/useTheme';
 import { chatReducer, initialChatState, replayToEntries, subagentsFromResume } from '#/lib/chat';
+import { INVALIDATE } from '#/lib/query-keys';
 import { userActivatableSkills } from '#/lib/skills';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
@@ -101,54 +107,81 @@ function ChatSessionPage({
   const [sessionWorkDir, setSessionWorkDir] = useState<string | null>(null);
   // 会话可激活技能(slash 面板 skill 命令的数据源;与 TUI 同一数据链路)
   const [skills, setSkills] = useState<readonly SkillSummary[]>([]);
-  // 子 Agent 深度查看 drawer(R-B3):当前打开的 subagentId
+  // 子 Agent 深度查看(R-B3):当前打开的 subagentId——详情经 effect 推入抽屉,
+  // 流式更新(usage/parts)时随 state.subagents 重推保持实时;重复点击同卡
+  // 由 handler 直接推入(reveal),不依赖 state 变化。
   const [openSubagentId, setOpenSubagentId] = useState<string | null>(null);
-  // 文件查看 drawer(R-C3):工具卡片「查看」/ 文档路径点击打开
-  const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-  // PRD-0035 R-D1：Center tabs（Chat | Trace | Context | Agents | Tasks）;
-  // State 视图由右栏常驻(AC-A12a),Center 不再单列。
-  // agent 深链(R-D4)进入时自动聚焦 Agents tab。
-  const [tab, setTab] = useState<'chat' | 'trace' | 'context' | 'agents' | 'tasks'>(
-    agentId !== undefined ? 'agents' : 'chat',
-  );
+  // IA 合并（2026-08-19）：Center 两 tab（Chat | Inspect 检视）;检视 = 原
+  // 轨迹+上下文+代理三 tab 的合并（作用域 + 双视图），State 由抽屉常驻
+  // （AC-A12a）。agent 深链(R-D4)进入时自动聚焦检视 tab。
+  const [tab, setTab] = useState<'chat' | 'inspect'>(agentId !== undefined ? 'inspect' : 'chat');
+  const { choice, set } = useTheme();
+  const queryClient = useQueryClient();
+  const setDetails = useDetailsSetter();
+
   useEffect(() => {
+    // 文件查看(R-C3):工具卡片「查看」/文档路径点击 → 推入详情抽屉并唤出。
     const open = (e: Event): void => {
-      setOpenFilePath((e as CustomEvent<string>).detail);
+      const path = (e as CustomEvent<string>).detail;
+      setDetails(<FileDetail path={path} />, { reveal: true, title: `文件 · ${path}` });
     };
     window.addEventListener(OPEN_FILE_EVENT, open);
     return () => {
       window.removeEventListener(OPEN_FILE_EVENT, open);
     };
-  }, []);
-  const { choice, set } = useTheme();
-  const queryClient = useQueryClient();
-  const setDetails = useDetailsSetter();
+  }, [setDetails]);
 
   // 后台任务(Tasks tab 数据源):初始值来自 resume 的 agents.main.background,
   // SSE background.task.* 事件实时增减。
   const [backgroundTasks, setBackgroundTasks] = useState<readonly BackgroundTaskInfo[]>([]);
 
-  // 右栏默认内容跟随当前 tab(用户诉求:切页签右栏实时刷新):
-  // Chat → 常驻实时 State;Trace/Context/Agents/Tasks → 空态(由行/节点点击推详情);
-  // agent 深链(R-D4) → 在 Agents tab 展示该 agent 轨迹。任何详情(工具行/wire 行/
-  // 子代理轨迹/后台任务)推入时覆盖;切 tab 或组件重挂时恢复本 tab 默认。
-  // 注:tab 判定优先于 agentId —— 深链进入后切到其它 tab 也会刷新为各自默认,
-  // 否则右栏会被深链的 AgentTrail 钉死,切 tab 不刷新。
+  // 抽屉默认内容跟随当前 tab(用户诉求:切页签抽屉内容实时刷新,但静默
+  // 更新、不自动弹出):
+  // Chat → 常驻实时 State;Inspect → 空态(由行点击/作用域下拉推详情)。
+  // 任何详情(工具行/wire 行/子代理/后台任务/文件)推入时覆盖;切 tab 或
+  // 组件重挂时恢复本 tab 默认。
   const defaultDetails = useCallback((): ReactNode => {
     if (sessionId.length === 0) return null;
     if (tab === 'chat') return <StateLive sessionId={sessionId} />;
-    if (tab === 'agents' && agentId !== undefined) {
-      return <AgentTrail sessionId={sessionId} agentId={agentId} />;
-    }
     return null;
-  }, [sessionId, agentId, tab]);
+  }, [sessionId, tab]);
 
   useEffect(() => {
-    setDetails(defaultDetails());
+    setDetails(defaultDetails(), {
+      title: tab === 'chat' ? '实时状态' : undefined,
+    });
     return () => {
       setDetails(null);
     };
-  }, [defaultDetails, setDetails]);
+  }, [defaultDetails, setDetails, tab]);
+
+  // 子代理详情实时重推:openSubagentId 选中期间,流式 parts/usage 更新随
+  // state.subagents 对象变化重挂内容(保持 drawer 内时间轴实时)。不带
+  // reveal —— reveal 语义是「用户显式查看」(由 openSubagentView 承担),
+  // 流式重推只静默更新,不得重开用户已关闭的抽屉。
+  const openSubagent = openSubagentId !== null ? state.subagents[openSubagentId] : undefined;
+  useEffect(() => {
+    if (openSubagent === undefined) return;
+    setDetails(<SubagentDetail subagent={openSubagent} />, {
+      title: `子代理 · ${openSubagent.name}`,
+    });
+  }, [openSubagent, setDetails]);
+
+  // 会话流卡片点击:设置 id(供上面的流式重推)+ 立即推入抽屉——同卡重复
+  // 点击(关掉抽屉后再点)不依赖 state 变化也能唤出。
+  const openSubagentView = useCallback(
+    (id: string): void => {
+      setOpenSubagentId(id);
+      const sub = state.subagents[id];
+      if (sub !== undefined) {
+        setDetails(<SubagentDetail subagent={sub} />, {
+          reveal: true,
+          title: `子代理 · ${sub.name}`,
+        });
+      }
+    },
+    [state.subagents, setDetails],
+  );
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
@@ -157,9 +190,10 @@ function ChatSessionPage({
     if (frame.type === 'agent.event') {
       const e = frame.event;
       if (e.type === 'turn.ended' || e.type === 'turn.step.completed') {
-        void queryClient.invalidateQueries({
-          queryKey: ['session', sessionId, 'inspection'],
-        });
+        // 事件驱动刷新检视数据:session 前缀一次失效 wire/agents/state(前缀
+        // 匹配),context 独立 key;key 形状集中在 lib/query-keys 并被测试钉住。
+        void queryClient.invalidateQueries({ queryKey: INVALIDATE.session(sessionId) });
+        void queryClient.invalidateQueries({ queryKey: INVALIDATE.context(sessionId) });
       }
       // 后台任务状态实时同步(deepseek 面板同源)
       if (e.type === 'background.task.started') {
@@ -346,24 +380,30 @@ function ChatSessionPage({
   const approvalIds = Object.keys(state.pendingApprovals);
   const questionIds = Object.keys(state.pendingQuestions);
 
+  // 状态栏任务徽标 → 抽屉任务列表（IA 合并:任务不再占 Center tab）。
+  const openTasks = useCallback((): void => {
+    setDetails(<TasksTab sessionId={sessionId} tasks={backgroundTasks} loading={!resumed} />, {
+      reveal: true,
+      title: '后台任务',
+    });
+  }, [sessionId, backgroundTasks, resumed, setDetails]);
+  const activeTaskCount = backgroundTasks.filter(
+    (t) => t.status === 'running' || t.status === 'awaiting_approval',
+  ).length;
+
   return (
     <div className="flex h-full flex-col">
-      <StatusBar status={state.status} busy={state.busy} connected={state.connected} />
+      <StatusBar
+        status={state.status}
+        busy={state.busy}
+        connected={state.connected}
+        taskCount={activeTaskCount}
+        onOpenTasks={openTasks}
+      />
       <InspectorTabBar tab={tab} onTabChange={setTab} />
       <div className="flex min-h-0 flex-1 flex-col">
-        {tab === 'trace' ? (
-          <WireTab key={sessionId} sessionId={sessionId} />
-        ) : tab === 'context' ? (
-          <ContextTab key={sessionId} sessionId={sessionId} />
-        ) : tab === 'agents' ? (
-          <SubagentsTab key={sessionId} sessionId={sessionId} />
-        ) : tab === 'tasks' ? (
-          <TasksTab
-            key={sessionId}
-            sessionId={sessionId}
-            tasks={backgroundTasks}
-            loading={!resumed}
-          />
+        {tab === 'inspect' ? (
+          <InspectTab key={sessionId} sessionId={sessionId} initialAgentId={agentId ?? 'main'} />
         ) : state.entries.length === 0 ? (
           <EmptyState onPick={(prompt) => onSend(prompt, [])} />
         ) : (
@@ -371,27 +411,11 @@ function ChatSessionPage({
             entries={state.entries}
             busy={state.busy}
             subagents={state.subagents}
-            onOpenSubagent={setOpenSubagentId}
+            onOpenSubagent={openSubagentView}
             workDir={sessionWorkDir ?? undefined}
           />
         )}
       </div>
-      {openFilePath !== null && (
-        <FileDrawer
-          path={openFilePath}
-          onClose={() => {
-            setOpenFilePath(null);
-          }}
-        />
-      )}
-      {openSubagentId !== null && state.subagents[openSubagentId] !== undefined && (
-        <SubagentDrawer
-          subagent={state.subagents[openSubagentId]!}
-          onClose={() => {
-            setOpenSubagentId(null);
-          }}
-        />
-      )}
       {(approvalIds.length > 0 || questionIds.length > 0) && (
         <div className="max-h-64 overflow-y-auto border-t border-border bg-surface-2 px-4 py-3">
           <div className="mx-auto max-w-3xl space-y-3">
@@ -787,21 +811,19 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX
   );
 }
 
-/** PRD-0035 R-D1：会话视图 tab 栏（对话 | 轨迹 | 上下文 | 代理 | 任务）。 */
+/** IA 合并（2026-08-19）：会话视图 tab 栏（对话 | 检视）。 */
 const INSPECTOR_TABS = [
   { key: 'chat', label: '对话' },
-  { key: 'trace', label: '轨迹' },
-  { key: 'context', label: '上下文' },
-  { key: 'agents', label: '代理' },
-  { key: 'tasks', label: '任务' },
+  { key: 'inspect', label: '检视' },
 ] as const;
 
 function InspectorTabBar(props: {
   tab: (typeof INSPECTOR_TABS)[number]['key'];
   onTabChange: (tab: (typeof INSPECTOR_TABS)[number]['key']) => void;
 }): React.JSX.Element {
+  const { open, toggle } = useDetails();
   return (
-    <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg px-4">
+    <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg pr-2 pl-4">
       {INSPECTOR_TABS.map((t) => (
         <button
           key={t.key}
@@ -816,6 +838,19 @@ function InspectorTabBar(props: {
           {t.label}
         </button>
       ))}
+      <span className="flex-1" aria-hidden />
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={open ? '收起详情面板' : '展开详情面板'}
+        aria-expanded={open}
+        title={open ? '收起详情面板' : '展开详情面板'}
+        className={`rounded-md p-1.5 transition-colors hover:bg-hover hover:text-fg ${
+          open ? 'text-fg-muted' : 'text-fg-subtle'
+        }`}
+      >
+        <PanelRight className="size-4" aria-hidden />
+      </button>
     </div>
   );
 }

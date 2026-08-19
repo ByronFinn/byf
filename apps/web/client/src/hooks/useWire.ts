@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { inspectorApi as api } from '#/api';
+import { QK } from '#/lib/query-keys';
 
 export function useWire(
   sessionId: string | undefined,
@@ -8,7 +9,7 @@ export function useWire(
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ['session', sessionId, 'wire', agentId] as const,
+    queryKey: QK.sessionWire(sessionId, agentId),
     queryFn: () => api.getWire(sessionId!, agentId!),
     enabled: !!sessionId && !!agentId && enabled,
   });
