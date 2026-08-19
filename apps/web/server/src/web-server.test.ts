@@ -9,6 +9,12 @@ import {
   ErrorCodes,
   type ByfConfig,
   type ByfConfigPatch,
+  type ConfigDocumentResult,
+  type ConfigValidationResult,
+  type ConfigWriteResult,
+  type ContextProjection,
+  type CreateSkillResult,
+  type InspectorSessionSummary,
   type McpConfigListing,
   type McpConfigScope,
   type McpConnectionTestResult,
@@ -16,18 +22,10 @@ import {
   type McpScopeState,
   type PromptInput,
   type ResumedSessionSummary,
+  type SessionDetail,
   type SkillSummary,
-  type CreateSkillResult,
+  type WireResponse,
   type WorkspaceSkillListing,
-} from '@byfriends/sdk';
-import type {
-  ConfigDocumentResult,
-  ConfigValidationResult,
-  ConfigWriteResult,
-  ContextProjection,
-  InspectorSessionSummary,
-  SessionDetail,
-  WireResponse,
 } from '@byfriends/sdk';
 import type {
   ApprovalRequest,
@@ -659,10 +657,10 @@ describe('WebSessionManager', () => {
     session.growReplay({ type: 'message', message: { role: 'user', text: 'hi' } });
 
     // 刷新页面 → resume:必须咨询 harness 拿到演进后的 summary,而不是返回创建快照
-    const resumed = (await manager.resumeSession(created.id)) as ResumedSessionSummary;
+    const resumed = await manager.resumeSession(created.id);
     const replay = resumed.agents?.main?.replay;
     expect(replay).toHaveLength(1);
-    expect((replay![0] as { message: { text: string } }).message.text).toBe('hi');
+    expect((replay[0] as { message: { text: string } }).message.text).toBe('hi');
   });
 
   test('每次 resume 都刷新 live summary:命中缓存也咨询 harness(不返回过期快照)', async () => {
@@ -2316,7 +2314,7 @@ describe('config management routes (PRD-0034 R-D3)', () => {
       harness.config as unknown as {
         providers: Record<string, { baseUrl?: string; apiKey?: string }>;
       }
-    ).providers['myprov']!;
+    ).providers['myprov'];
     expect(provider.baseUrl).toBe('https://new/v1');
     expect(provider.apiKey).toBe('sk-keep');
   });
@@ -2431,7 +2429,7 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { sessions: InspectorSessionSummary[] };
     expect(data.sessions).toHaveLength(1);
-    expect(data.sessions[0]!.health).toBe('ok');
+    expect(data.sessions[0].health).toBe('ok');
   });
 
   it('DELETE /api/sessions/:id delegates to the harness', async () => {
@@ -2587,9 +2585,9 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     expect(res.status).toBe(200);
     expect(harness.configWriteCalls).toHaveLength(1);
     // 占位符被还原为磁盘原值，写盘的是原文（不含占位符）
-    expect(harness.configWriteCalls[0]!.text).toContain('sk-top-secret');
-    expect(harness.configWriteCalls[0]!.text).not.toContain('__BYF_KEEP_SECRET__');
-    expect(harness.configWriteCalls[0]!.expectedRevision).toBe('rev-abc');
+    expect(harness.configWriteCalls[0].text).toContain('sk-top-secret');
+    expect(harness.configWriteCalls[0].text).not.toContain('__BYF_KEEP_SECRET__');
+    expect(harness.configWriteCalls[0].expectedRevision).toBe('rev-abc');
   });
 
   it('PUT /api/config/raw maps revision conflict to 409', async () => {
@@ -2671,8 +2669,8 @@ describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
     const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/work/ws')}`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as McpConfigListing;
-    expect(data.user.servers[0]!.overridden).toBe(true);
-    expect(data.project.servers[0]!.name).toBe('shared');
+    expect(data.user.servers[0].overridden).toBe(true);
+    expect(data.project.servers[0].name).toBe('shared');
     expect(harness.mcpListCalls).toEqual(['/work/ws']);
   });
 
@@ -2980,8 +2978,8 @@ describe('Skill listing route (PRD-0036 #314)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as WorkspaceSkillListing;
     expect(data.groups).toHaveLength(2);
-    expect(data.groups[0]!.skills[0]!.name).toBe('deploy');
-    expect(data.groups[1]!.skills[0]!.shadowed).toBe(true);
+    expect(data.groups[0].skills[0].name).toBe('deploy');
+    expect(data.groups[1].skills[0].shadowed).toBe(true);
     expect(harness.skillListCalls).toEqual(['/work/ws']);
   });
 

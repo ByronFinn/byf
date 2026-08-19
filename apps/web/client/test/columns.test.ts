@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  CENTER_PUSH_FLOOR,
   CENTER_MIN,
   SIDEBAR_AUTO_COLLAPSE,
   SIDEBAR_COLLAPSED,
@@ -9,11 +10,13 @@ import {
   SIDEBAR_MIN,
   clampWidth,
   computeColumns,
+  resolveDrawerPush,
 } from '../src/lib/columns';
 
 /**
  * 两栏几何契约回归（前身为三栏 PRD-0035 R-C3 / AC-A9；details 列已改为
- * 非模态浮动抽屉，不参与网格）。sidebar 永不让步；center 吸收剩余缺口。
+ * 非模态浮动抽屉，不参与网格，仅展开时经 resolveDrawerPush 让位）。sidebar
+ * 永不让步；center 吸收剩余缺口。
  */
 describe('computeColumns', () => {
   test('wide viewport: preferred sidebar, center absorbs the rest', () => {
@@ -49,6 +52,32 @@ describe('computeColumns', () => {
   });
 });
 
+describe('resolveDrawerPush', () => {
+  test('spacious viewport: center concedes the full drawer width', () => {
+    expect(resolveDrawerPush(1600, SIDEBAR_DEFAULT, 576)).toBe(576);
+  });
+
+  test('drawer wider than remaining room is clamped to the room', () => {
+    // 1440 - 280 - 800 后 center=360 仍 ≥ floor:按抽屉宽度让位(800)。
+    expect(resolveDrawerPush(1440, SIDEBAR_DEFAULT, 800)).toBe(800);
+  });
+
+  test('too tight for center floor: falls back to overlay (reserve 0)', () => {
+    // CLOVER: sidebar+drawer 吃掉后 center < floor → 0。
+    expect(resolveDrawerPush(900, SIDEBAR_DEFAULT, 576)).toBe(0);
+  });
+
+  test('exactly at the floor boundary still pushes', () => {
+    const viewport = SIDEBAR_DEFAULT + 576 + CENTER_PUSH_FLOOR;
+    expect(resolveDrawerPush(viewport, SIDEBAR_DEFAULT, 576)).toBe(576);
+  });
+
+  test('just under the floor boundary falls back to overlay', () => {
+    const viewport = SIDEBAR_DEFAULT + 576 + CENTER_PUSH_FLOOR - 1;
+    expect(resolveDrawerPush(viewport, SIDEBAR_DEFAULT, 576)).toBe(0);
+  });
+});
+
 describe('clampWidth', () => {
   test('clamps into range and rounds', () => {
     expect(clampWidth(100, 264, 420)).toBe(264);
@@ -65,5 +94,6 @@ describe('geometry constants (contract frozen)', () => {
     expect(SIDEBAR_COLLAPSED).toBe(56);
     expect(CENTER_MIN).toBe(640);
     expect(SIDEBAR_AUTO_COLLAPSE).toBe(1024);
+    expect(CENTER_PUSH_FLOOR).toBe(360);
   });
 });

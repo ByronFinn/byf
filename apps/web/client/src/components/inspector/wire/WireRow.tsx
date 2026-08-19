@@ -34,6 +34,8 @@ interface WireRowProps {
   highlighted: boolean;
   /** Notify the parent that this row's pair group is being hovered. */
   onHoverPair?: (toolCallId: string | null) => void;
+  /** 时间轴聚焦区间激活且本行在区间外：整行变暗（deepseek ledger 契约）。 */
+  timelineDimmed?: boolean;
 }
 
 export const WireRow = memo(function WireRow({
@@ -45,6 +47,7 @@ export const WireRow = memo(function WireRow({
   pair,
   highlighted,
   onHoverPair,
+  timelineDimmed = false,
 }: WireRowProps) {
   const record = entry.data;
   const h = renderHeadline(record);
@@ -73,6 +76,7 @@ export const WireRow = memo(function WireRow({
             ? 'bg-surface-1'
             : 'bg-surface-0 hover:bg-surface-1',
       ].join(' ')}
+      style={timelineDimmed ? { opacity: 0.3 } : undefined}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-stretch">

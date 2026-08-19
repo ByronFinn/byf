@@ -36,7 +36,7 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
     __resetWebServerForTest();
     const host = createMockHost();
     const handlers = createWebHandlers(host as never);
-    await handlers['web']!('');
+    await handlers['web']('');
     expect(startWebServerMock).toHaveBeenCalledWith(expect.objectContaining({ host: '127.0.0.1' }));
     expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('http://127.0.0.1:4100'));
     expect(openMock).toHaveBeenCalledWith('http://127.0.0.1:4100', expect.anything());
@@ -50,8 +50,8 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
     __resetWebServerForTest();
     const host = createMockHost();
     const handlers = createWebHandlers(host as never);
-    await handlers['web']!('');
-    await handlers['web']!('');
+    await handlers['web']('');
+    await handlers['web']('');
     expect(startWebServerMock).toHaveBeenCalledTimes(1);
 
     const hook = (host.registerShutdownHook as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -61,7 +61,7 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
     hook?.();
     expect(handle.close).toHaveBeenCalled();
     // 关闭后可再次启动
-    await handlers['web']!('');
+    await handlers['web']('');
     expect(startWebServerMock).toHaveBeenCalledTimes(2);
   });
 
@@ -80,7 +80,7 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
     __resetWebServerForTest();
     const host = createMockHost();
     const handlers = createWebHandlers(host as never);
-    await handlers['web']!('');
+    await handlers['web']('');
     expect(startWebServerMock).toHaveBeenCalledTimes(3);
     expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('4102'));
   });

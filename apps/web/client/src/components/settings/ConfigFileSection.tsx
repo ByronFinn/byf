@@ -112,7 +112,9 @@ export function ConfigFileSection({ onLoaded }: ConfigFileSectionProps): React.J
     try {
       await navigator.clipboard.writeText(path);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
     } catch {
       toast.error('复制失败');
     }

@@ -245,9 +245,7 @@ describe('config-store listMcpConfigs', () => {
     expect(text).toContain('__MCP_MASKED_');
     const gh = listing.user.servers.find((s) => s.name === 'gh');
     expect(
-      isMcpMaskedPlaceholder(
-        String((gh?.config as { env: Record<string, string> }).env['GITHUB_TOKEN']),
-      ),
+      isMcpMaskedPlaceholder((gh?.config as { env: Record<string, string> }).env['GITHUB_TOKEN']),
     ).toBe(true);
   });
 
@@ -349,7 +347,9 @@ describe('config-store mask/restore round-trip', () => {
   });
 
   it('assertMcpConfigScope rejects unknown scopes', () => {
-    expect(() => assertMcpConfigScope('global')).toThrow();
+    expect(() => {
+      assertMcpConfigScope('global');
+    }).toThrow();
     assertMcpConfigScope('user');
     assertMcpConfigScope('project');
   });
@@ -414,7 +414,7 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, { env: Record<string, string> }>;
     };
-    expect(disk.mcpServers['gh']!.env).toEqual({ TOKEN: 'disk-secret', OTHER: 'brand-new' });
+    expect(disk.mcpServers['gh'].env).toEqual({ TOKEN: 'disk-secret', OTHER: 'brand-new' });
     const text = JSON.stringify(disk);
     expect(text).not.toContain('__MCP_MASKED_');
   });
@@ -443,8 +443,8 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, { env: Record<string, string>; enabled: boolean }>;
     };
-    expect(disk.mcpServers['gh']!.enabled).toBe(false);
-    expect(disk.mcpServers['gh']!.env).toEqual({ TOKEN: 'disk-secret' });
+    expect(disk.mcpServers['gh'].enabled).toBe(false);
+    expect(disk.mcpServers['gh'].env).toEqual({ TOKEN: 'disk-secret' });
   });
 
   it('preserves advanced fields from disk; transport switch drops old transport fields (R-M3a)', async () => {
@@ -473,7 +473,7 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, Record<string, unknown>>;
     };
-    const api = disk.mcpServers['api']!;
+    const api = disk.mcpServers['api'];
     expect(api['transport']).toBe('http');
     expect(api['url']).toBe('http://localhost/mcp');
     // 旧 transport 专属字段被丢弃。
@@ -510,7 +510,7 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, Record<string, unknown>>;
     };
-    const api = disk.mcpServers['api']!;
+    const api = disk.mcpServers['api'];
     expect(api['command']).toBe('new');
     expect(api['enabledTools']).toEqual(['t1']);
     expect(api['disabledTools']).toEqual(['t2']);

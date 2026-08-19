@@ -287,7 +287,7 @@ function ProviderCard(props: {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? '');
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [type, setType] = useState<string>(provider.type);
+  const [type, setType] = useState(provider.type);
   const [editingModel, setEditingModel] = useState<string | null>(null);
   const [addingModel, setAddingModel] = useState(false);
 
@@ -504,12 +504,10 @@ function AddProviderCard(props: {
 }): React.JSX.Element {
   const { onCancel, onCreated } = props;
   const [id, setId] = useState('');
-  const [type, setType] = useState<string>('openai-completions');
+  const [type, setType] = useState('openai-completions');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [models, setModels] = useState<DraftModelRow[]>([
-    { alias: '', modelId: '', context: '128000' },
-  ]);
+  const [models, setModels] = useState([{ alias: '', modelId: '', context: '128000' }]);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered] = useState<{ id: string; checked: boolean }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -736,7 +734,14 @@ function AddProviderCard(props: {
             </label>
           ))}
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" size="sm" onClick={() => setDiscovered(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDiscovered(null);
+              }}
+            >
               取消
             </Button>
             <Button type="button" size="sm" onClick={adoptDiscovered}>
@@ -1031,7 +1036,12 @@ function ModelRow(props: {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                       {THINKING_KINDS.map(({ kind, label }) => (
-                        <DropdownMenuItem key={kind} onSelect={() => setThinkingKind(kind)}>
+                        <DropdownMenuItem
+                          key={kind}
+                          onSelect={() => {
+                            setThinkingKind(kind);
+                          }}
+                        >
                           {label}
                         </DropdownMenuItem>
                       ))}

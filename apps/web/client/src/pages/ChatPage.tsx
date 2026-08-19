@@ -8,10 +8,10 @@ import {
   PanelRight,
   Sparkles,
 } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { api } from '#/api';
+import { api, inspectorApi } from '#/api';
 import { ApprovalCard } from '#/components/chat/ApprovalCard';
 import { Composer } from '#/components/chat/Composer';
 import {
@@ -206,12 +206,38 @@ function ChatSessionPage({
     }
   });
 
+  // hero 交接(mount effect):首次挂载读到的 initialPrompt 留在 ref 里,使
+  // StrictMode 二次 setup 即便因 replaceState 清掉了导航 state 也能拿到原值;
+  // heroPromptRendered 保证乐观渲染只落一次。pruneTimer 是被放弃的空会话的
+  // 延迟清理调度(cleanup 排定,真实 setup 取消)。
+  const heroPromptRef = useRef<string | null>(null);
+  const heroPromptRendered = useRef(false);
+  const pruneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   useEffect(() => {
     if (sessionId.length === 0) return;
+    // 上轮 cleanup(StrictMode 模拟卸载/切走又回来)排定的清理先取消:真正的
+    // setup 在首个 promise 继续前重入,若不清掉,刚建好的会话会被误当「放弃」。
+    if (pruneTimer.current !== undefined) {
+      clearTimeout(pruneTimer.current);
+      pruneTimer.current = undefined;
+    }
     // 会话切换由 App 层 key 重挂组件(reducer 重建),此处只需加载新会话状态
     let cancelled = false;
     // 同步清除导航 state,避免 StrictMode 双跑重复发送首条消息
     const initialPrompt = readInitialPrompt(location.state);
+    if (initialPrompt !== null) heroPromptRef.current = initialPrompt;
+    const heroPrompt = heroPromptRef.current;
+    const heroCreated = heroPrompt !== null;
+    // 首个 prompt 是否已实际发出:发出后会话正式拥有首条内容,放弃清理不再适用。
+    let promptAttempted = false;
+    // hero 交接的首条用户消息必须立即乐观渲染:SSE 事件流只推 assistant/tool
+    // 事件,turn.started 不带 input 字段——不主动落一条用户条目,新建会话的转录
+    // 里就永远看不到用户自己的第一条消息(ref 防 StrictMode 双跑重复落)。
+    if (heroPrompt !== null && !heroPromptRendered.current) {
+      heroPromptRendered.current = true;
+      dispatch({ type: 'user-message', text: heroPrompt });
+    }
     void (async () => {
       try {
         const { session } = await api.resumeSession(sessionId);
@@ -237,8 +263,9 @@ function ChatSessionPage({
         if (!cancelled) dispatch({ type: 'status-loaded', status });
         // cancelled 守卫覆盖 StrictMode 双挂载:cleanup 先于任何 await 完成,
         // 第一条链会跳过发送,只有存活的链发一次(此前双链各发一次 → turn.agent_busy)。
-        if (!cancelled && initialPrompt !== null) {
-          void api.prompt(sessionId, initialPrompt);
+        if (!cancelled && heroPrompt !== null) {
+          promptAttempted = true;
+          void api.prompt(sessionId, heroPrompt);
         }
       } catch (error) {
         if (!cancelled) {
@@ -254,6 +281,24 @@ function ChatSessionPage({
     })();
     return () => {
       cancelled = true;
+      // hero 新建会话在首个 prompt 未发出前就被放弃:createSession 已在磁盘落下
+      // 目录却没有任何内容,不该留在侧栏。延迟一个宏任务再清理——StrictMode 的
+      // 模拟卸载与第二次 setup 在同一同步帧,setup 会 clearTimeout;只有真实卸载
+      // (导航离开且没走到发送)才触发 close + delete。
+      if (shouldPruneHeroSession(heroCreated, promptAttempted)) {
+        pruneTimer.current = setTimeout(() => {
+          pruneTimer.current = undefined;
+          void api
+            .closeSession(sessionId)
+            .catch(() => {})
+            .then(() => inspectorApi.deleteSession(sessionId))
+            .then(() => {
+              // 让侧栏立即移走这条空会话
+              void queryClient.invalidateQueries({ queryKey: workspaceListKey() });
+            })
+            .catch(() => {});
+        }, 0);
+      }
     };
   }, [sessionId, location.state]);
 
@@ -405,7 +450,11 @@ function ChatSessionPage({
         {tab === 'inspect' ? (
           <InspectTab key={sessionId} sessionId={sessionId} initialAgentId={agentId ?? 'main'} />
         ) : state.entries.length === 0 ? (
-          <EmptyState onPick={(prompt) => onSend(prompt, [])} />
+          <EmptyState
+            onPick={(prompt) => {
+              onSend(prompt, []);
+            }}
+          />
         ) : (
           <Transcript
             entries={state.entries}
@@ -461,6 +510,15 @@ function readInitialPrompt(state: unknown): string | null {
   if (typeof prompt !== 'string' || prompt.length === 0) return null;
   window.history.replaceState({}, '', window.location.pathname);
   return prompt;
+}
+
+/**
+ * 放弃清理规则:hero 新建的会话,若首个 prompt 从未实际发出就卸载,磁盘上只剩
+ * 一个空目录,应关闭并删除以免残留在侧栏(用户规则:没有输入的新会话应被关闭)。
+ * 是否「hero 新建」与「是否已发出」由调用方(mount effect)提供。
+ */
+export function shouldPruneHeroSession(heroCreated: boolean, promptAttempted: boolean): boolean {
+  return heroCreated && !promptAttempted;
 }
 
 /**
@@ -828,7 +886,9 @@ function InspectorTabBar(props: {
         <button
           key={t.key}
           type="button"
-          onClick={() => props.onTabChange(t.key)}
+          onClick={() => {
+            props.onTabChange(t.key);
+          }}
           className={
             props.tab === t.key
               ? 'border-b-2 border-brand px-3 py-2 text-sm font-medium text-fg'

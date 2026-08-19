@@ -331,6 +331,9 @@ function projectReplayRecord(state: ProjectionState, record: AgentReplayRecord):
       return;
     case 'config_updated':
       return;
+    case 'tool_timing':
+      // 工具耗时仅用于性能诊断,不投影到 TUI 会话状态。
+      return;
   }
 }
 

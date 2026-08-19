@@ -353,7 +353,7 @@ export function groupParts(parts: readonly AssistantPart[]): RenderPart[] {
     if (part.kind === 'tool') {
       const kind = toolDisplayKind(part);
       if (group !== null && group.toolKind !== kind) flush();
-      if (group === null) group = { toolKind: kind, tools: [] };
+      group ??= { toolKind: kind, tools: [] };
       group.tools.push(part);
     } else {
       flush();

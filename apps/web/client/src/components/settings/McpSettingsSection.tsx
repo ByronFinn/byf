@@ -439,13 +439,11 @@ function McpServerFormDialog(props: {
   const [args, setArgs] = useState(
     existing?.transport === 'stdio' ? [...(existing.args ?? [])] : [],
   );
-  const [env, setEnv] = useState<KeyValueRow[]>(
-    existing?.transport === 'stdio' ? toRows(existing.env) : [],
-  );
+  const [env, setEnv] = useState(existing?.transport === 'stdio' ? toRows(existing.env) : []);
   const [url, setUrl] = useState(
     existing !== undefined && existing.transport !== 'stdio' ? existing.url : '',
   );
-  const [headers, setHeaders] = useState<KeyValueRow[]>(
+  const [headers, setHeaders] = useState(
     existing !== undefined && existing.transport !== 'stdio' ? toRows(existing.headers) : [],
   );
   const [serverEnabled, setServerEnabled] = useState(existing?.enabled !== false);

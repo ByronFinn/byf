@@ -189,7 +189,7 @@ describe('Agent churn dispatch (integration via harness)', () => {
 
     const churn = ctx.getRecords().filter((r) => r.type === 'context.cache_churn');
     expect(churn.length).toBe(1);
-    const change = churn[0]!;
+    const change = churn[0];
     // Short prompts without boundary headers fall back to a single 'base' block.
     expect(change.blockName).toBe('base');
     expect(change.beforeHash).toMatch(/^[0-9a-f]{64}$/);
@@ -312,7 +312,7 @@ describe('prefix stability regression guard (PRD-0029 R4)', () => {
       .filter((p): p is PromptPlan => p !== undefined);
     expect(plans.length).toBe(5);
     const blockHashesPerTurn = plans.map((p) => JSON.stringify(extractCacheBlockHashes(p)));
-    const firstTurnHashes = blockHashesPerTurn[0]!;
+    const firstTurnHashes = blockHashesPerTurn[0];
     expect(blockHashesPerTurn.every((h) => h === firstTurnHashes)).toBe(true);
   });
 

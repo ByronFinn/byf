@@ -202,12 +202,12 @@ api_key = "sk-c"
     const lines = masked.split('\n');
     const idxB = lines.findIndex((l) => l.includes('__BYF_KEEP_SECRET___2'));
     const idxC = lines.findIndex((l) => l.includes('__BYF_KEEP_SECRET___3'));
-    [lines[idxB], lines[idxC]] = [lines[idxC]!, lines[idxB]!];
+    [lines[idxB], lines[idxC]] = [lines[idxC], lines[idxB]];
     const restored = restoreMaskedSecrets(lines.join('\n'), MULTI);
     // 序号锚定：值跟随占位符行（交换后 b 区那行是原 c 的占位符 3 → sk-c）。
     const rows = restored.split('\n');
-    const bVal = rows[rows.findIndex((l) => l.includes('[providers.b]')) + 1]!;
-    const cVal = rows[rows.findIndex((l) => l.includes('[providers.c]')) + 1]!;
+    const bVal = rows[rows.findIndex((l) => l.includes('[providers.b]')) + 1];
+    const cVal = rows[rows.findIndex((l) => l.includes('[providers.c]')) + 1];
     expect(bVal).toContain('sk-c');
     expect(cVal).toContain('sk-b');
     expect(restored).not.toContain('__BYF_KEEP_SECRET__');

@@ -29,6 +29,9 @@ import {
 import { readDetailsOpenPref, resolveDetailsTitle, shouldRevealOnPush } from '#/lib/details-state';
 
 const LS_OPEN = 'byf.layout.drawer.open';
+const LS_WIDTH = 'byf.layout.drawer.width';
+/** 新建/重置抽屉的默认宽度（对齐原 DetailsDrawer 的 DRAWER_DEFAULT）。 */
+export const DRAWER_DEFAULT_WIDTH = 576;
 
 interface DetailsPushOptions {
   /** true = 推入内容的同时唤出抽屉（用户显式查看动作）。 */
@@ -47,6 +50,12 @@ interface DetailsContextValue {
   readonly open: boolean;
   readonly toggle: () => void;
   readonly close: () => void;
+  /** 抽屉宽度偏好（px，跨会话持久化）；由 DetailsDrawer 拖拽更新。 */
+  readonly width: number;
+  readonly setWidth: (px: number) => void;
+  /** 抽屉宽度拖拽进行中：AppFrame 借此关闭列过渡，保持 center 与抽屉左缘同步。 */
+  readonly resizing: boolean;
+  readonly setResizing: (v: boolean) => void;
 }
 
 const DetailsContext = createContext<DetailsContextValue | null>(null);
@@ -63,10 +72,29 @@ function writeOpenPref(open: boolean): void {
   }
 }
 
+function readWidthPref(): number {
+  try {
+    const raw = Number(localStorage.getItem(LS_WIDTH));
+    return Number.isFinite(raw) && raw > 0 ? raw : DRAWER_DEFAULT_WIDTH;
+  } catch {
+    return DRAWER_DEFAULT_WIDTH;
+  }
+}
+
+function writeWidthPref(px: number): void {
+  try {
+    localStorage.setItem(LS_WIDTH, String(px));
+  } catch {
+    // localStorage 不可用时宽度偏好仅会话内有效
+  }
+}
+
 export function DetailsProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [content, setContentState] = useState<ReactNode>(null);
   const [title, setTitle] = useState<string | null>(null);
   const [open, setOpen] = useState(readOpenPref);
+  const [width, setWidthState] = useState(readWidthPref);
+  const [resizing, setResizingState] = useState(false);
 
   const setContent = useCallback((node: ReactNode | null, opts?: DetailsPushOptions): void => {
     setContentState(node);
@@ -82,15 +110,38 @@ export function DetailsProvider({ children }: { children: ReactNode }): React.JS
     setOpen(false);
   }, []);
 
+  const setWidth = useCallback((px: number): void => {
+    setWidthState(px);
+  }, []);
+
+  const setResizing = useCallback((v: boolean): void => {
+    setResizingState(v);
+  }, []);
+
   // 开合持久化集中在此(reveal 打开 / toggle / close 三路对称),不在
   // state updater 内做副作用(StrictMode 双调 updater 的反模式)。
   useEffect(() => {
     writeOpenPref(open);
   }, [open]);
 
+  useEffect(() => {
+    writeWidthPref(width);
+  }, [width]);
+
   const value = useMemo<DetailsContextValue>(
-    () => ({ content, setContent, title, open, toggle, close }),
-    [content, setContent, title, open, toggle, close],
+    () => ({
+      content,
+      setContent,
+      title,
+      open,
+      toggle,
+      close,
+      width,
+      setWidth,
+      resizing,
+      setResizing,
+    }),
+    [content, setContent, title, open, toggle, close, width, setWidth, resizing, setResizing],
   );
   return <DetailsContext.Provider value={value}>{children}</DetailsContext.Provider>;
 }

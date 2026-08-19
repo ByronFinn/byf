@@ -1,6 +1,7 @@
 /**
- * 两栏 AppFrame 的纯几何求解器（前身为三栏 PRD-0035 R-C3；details 列已
- * 改为非模态浮动抽屉 `DetailsDrawer`，不再参与网格布局）。
+ * AppFrame 的纯几何求解器（前身为三栏 PRD-0035 R-C3；details 列已改为非模态
+ * 浮动抽屉 `DetailsDrawer`，不参与网格渲染，展开时经 `resolveDrawerPush` 从
+ * center 预留宽度让位）。
  *
  * 折叠链契约：sidebar 永不让步——渲染宽度总是拖拽偏好（或折叠 rail），
  * center 作为最后手段吸收剩余缺口（可低于 CENTER_MIN）。输入是布局 store
@@ -34,6 +35,21 @@ export const SIDEBAR_AUTO_COLLAPSE = 1024;
 /** 把面板宽度钳制进其契约范围。 */
 export function clampWidth(px: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(px)));
+}
+
+/**
+ * 抽屉推挤契约（2026-08-19 之后）：DetailsDrawer 为「非模态浮动抽屉」，但
+ * 展开时 center 需要让位回流（否则浮层盖住内容、页面不协调）。本函数求解
+ * 「画出抽屉渲染宽度后，center 是否仍保得住下限」：够用则返回应预留的宽度
+ * （center 让出该宽度），否则返回 0（抽屉退回纯浮层覆盖、center 不回退）。
+ * 输入 `drawerWidth` 应为抽屉的实际渲染宽度（`min(偏好, 92vw)`）。
+ */
+export const CENTER_PUSH_FLOOR = 360;
+
+export function resolveDrawerPush(viewport: number, sidebar: number, drawerWidth: number): number {
+  const roomAfterSidebar = viewport - sidebar;
+  if (roomAfterSidebar - drawerWidth < CENTER_PUSH_FLOOR) return 0;
+  return Math.min(drawerWidth, roomAfterSidebar);
 }
 
 /** 求解一次 frame 的两栏宽度。纯函数：无迟滞——输出只是 (viewport,

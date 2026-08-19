@@ -17,7 +17,7 @@ export function collectLanIps(): string[];
 export function collectLanIps(interfaces?: readonly NetworkInterfaceInfo[]): string[] {
   const list = interfaces ?? Object.values(networkInterfaces()).flatMap((entries) => entries ?? []);
   return list
-    .filter((iface) => iface.family === 'IPv4' && iface.internal !== true)
+    .filter((iface) => iface.family === 'IPv4' && !iface.internal)
     .map((iface) => iface.address);
 }
 

@@ -22,34 +22,13 @@ import { clampWidth } from '#/lib/columns';
 
 import { useDetails } from './details-context';
 
-const LS_WIDTH = 'byf.layout.drawer.width';
-/** 抽屉拖拽钳制范围（上限对齐原 FileDrawer 的 max-w-3xl）。 */
 const DRAWER_MIN = 360;
 const DRAWER_MAX = 768;
-const DRAWER_DEFAULT = 576;
 /** 退场动画时长 + 余量；超过后卸载内容。 */
 const EXIT_MS = 240;
 
-function readWidthPref(): number {
-  try {
-    const raw = Number(localStorage.getItem(LS_WIDTH));
-    return Number.isFinite(raw) && raw > 0 ? raw : DRAWER_DEFAULT;
-  } catch {
-    return DRAWER_DEFAULT;
-  }
-}
-
-function writeWidthPref(px: number): void {
-  try {
-    localStorage.setItem(LS_WIDTH, String(px));
-  } catch {
-    // localStorage 不可用时宽度偏好仅会话内有效
-  }
-}
-
 export function DetailsDrawer({ children }: { children: ReactNode }): React.JSX.Element | null {
-  const { open, close, title } = useDetails();
-  const [width, setWidth] = useState(readWidthPref);
+  const { open, close, title, width, setWidth, setResizing } = useDetails();
   // 挂载状态机：open=true 先挂载再下一帧置 shown（入场过渡）；
   // open=false 先收起、EXIT_MS 后卸载（退场过渡跑完）。
   const [mounted, setMounted] = useState(open);
@@ -91,6 +70,8 @@ export function DetailsDrawer({ children }: { children: ReactNode }): React.JSX.
   }, [open, close]);
 
   // 左缘拖宽：pointer capture + rAF 节流（把手在左缘，dx 为负 = 变宽）。
+  // 拖宽期间置 resizing=true：AppFrame 关闭列宽过渡，让 center 与抽屉左缘
+  // 逐帧同步（松开后恢复 320ms 过渡）。
   const origin = useRef(0);
   const base = useRef(0);
   const latest = useRef(0);
@@ -103,35 +84,42 @@ export function DetailsDrawer({ children }: { children: ReactNode }): React.JSX.
       origin.current = e.clientX;
       base.current = width;
       latest.current = e.clientX;
+      setResizing(true);
     },
-    [width],
+    [width, setResizing],
   );
 
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-    latest.current = e.clientX;
-    if (frame.current !== null) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = null;
-      const next = clampWidth(
-        base.current - (latest.current - origin.current),
-        DRAWER_MIN,
-        DRAWER_MAX,
-      );
-      setWidth(next);
-      writeWidthPref(next);
-    });
-  }, []);
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      latest.current = e.clientX;
+      if (frame.current !== null) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        const next = clampWidth(
+          base.current - (latest.current - origin.current),
+          DRAWER_MIN,
+          DRAWER_MAX,
+        );
+        setWidth(next);
+      });
+    },
+    [setWidth],
+  );
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (frame.current !== null) {
-      cancelAnimationFrame(frame.current);
-      frame.current = null;
-    }
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }, []);
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
+      }
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+      setResizing(false);
+    },
+    [setResizing],
+  );
 
   if (!mounted) return null;
 

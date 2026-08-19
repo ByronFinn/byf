@@ -27,7 +27,6 @@ import type {
   ServerFrame,
   SetPermissionBody,
   SteerBody,
-  ThinkingEffort,
   UpdateConfigBody,
   ModelUpdateBody,
   ModelUpsertBody,
@@ -589,7 +588,7 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         if (!VALID_THINKING_EFFORTS.has(body.thinking.effort)) {
           return badRequest(c, 'thinking.effort must be one of: low, medium, high, xhigh, max');
         }
-        thinking.effort = body.thinking.effort as ThinkingEffort;
+        thinking.effort = body.thinking.effort;
       }
       if (Object.keys(thinking).length > 0) patch.thinking = thinking;
     }

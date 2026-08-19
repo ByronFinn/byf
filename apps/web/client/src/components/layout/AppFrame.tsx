@@ -1,10 +1,13 @@
 /**
  * AppFrame —— 两栏工作台骨架（前身为 deepseek 式三栏 PRD-0035 R-C3；details
- * 列已改为非模态浮动抽屉 DetailsDrawer，不再参与网格布局）。
+ * 列已改为非模态浮动抽屉 DetailsDrawer，抽屉本身不参与网格渲染，仅在其展开
+ * 时从网格预留宽度，让 center 动态让位回流）。
  *
- * 几何契约见 `lib/columns.ts`（computeColumns 纯函数）：sidebar | center
- * 两列，拖拽把手（pointer capture + rAF 节流）、<1024 自动折叠 sidebar。
- * 列宽偏好持久化到 localStorage（R-C6：UI 偏好不入 config.toml）。
+ * 几何契约见 `lib/columns.ts`（computeColumns / resolveDrawerPush 纯函数）：
+ * sidebar | center 两列，拖拽把手（pointer capture + rAF 节流）、<1024 自动
+ * 折叠 sidebar；抽屉展开预留宽度（center 让位）、窄屏放不下 center 下限时
+ * 退回浮层覆盖。列宽/抽屉宽度偏好持久化到 localStorage（R-C6：UI 偏好不入
+ * config.toml）。
  *
  * 本组件只负责骨架：两栏内容（sidebar 树、center 会话视图）由调用方以
  * children 注入。
@@ -20,7 +23,10 @@ import {
   SIDEBAR_MIN,
   clampWidth,
   computeColumns,
+  resolveDrawerPush,
 } from '#/lib/columns';
+
+import { useDetails } from './details-context';
 
 const LS_SIDEBAR = 'byf.layout.sidebar';
 
@@ -109,17 +115,28 @@ export function AppFrame({ sidebar, center }: AppFrameProps) {
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ start: number; pref: number } | null>(null);
   const [narrowExpanded, setNarrowExpanded] = useState(false);
+  // 抽屉展开时让 center 回流（fixed 抽屉本身仍由 DetailsDrawer 渲染，这里
+  // 只从网格预留宽度）；拖宽抽屉时关闭过渡以便逐帧同步。
+  const { open, width, resizing } = useDetails();
 
   useLayoutEffect(() => {
-    const onResize = (): void => setViewport(window.innerWidth);
+    const onResize = (): void => {
+      setViewport(window.innerWidth);
+    };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   const isNarrow = viewport < SIDEBAR_AUTO_COLLAPSE;
   // 窄屏自动折叠 sidebar（手动展开覆盖，narrowExpanded）
   const effectiveSidebar = isNarrow && !narrowExpanded ? 0 : sidebarPref;
   const { sidebar: s } = computeColumns(viewport, effectiveSidebar);
+  // 抽屉实际渲染宽度 = min(宽度偏好, 92vw)（与 DetailsDrawer 样式一致）；
+  // 放不下 center 下限时退回浮层覆盖（reserve 0）。
+  const renderedDrawer = Math.min(width, Math.round(viewport * 0.92));
+  const push = open ? resolveDrawerPush(viewport, s, renderedDrawer) : 0;
 
   const beginDrag = useCallback(() => {
     dragRef.current = { start: viewport, pref: effectiveSidebar };
@@ -154,11 +171,16 @@ export function AppFrame({ sidebar, center }: AppFrameProps) {
     <div
       className="relative grid h-full overflow-hidden"
       style={{
-        gridTemplateColumns: `${s}px minmax(0, 1fr)`,
+        // 抽屉展开时第三列预留 push 宽度（空列，fixed 抽屉悬浮其上）：center
+        // 用 minmax(0,1fr) 自动吸收剩余缺口 → 中间栏让位回流。
+        gridTemplateColumns: `${s}px minmax(0, 1fr)${push > 0 ? ` ${push}px` : ''}`,
         // 行高钉死为视口高度:缺省 auto 会让列被内容撑开(会话多时侧栏
         // 高度 > 视口),底部设置被 overflow-hidden 裁剪、nav 滚动失效。
         gridTemplateRows: 'minmax(0, 1fr)',
-        transition: dragging ? 'none' : 'grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1)',
+        transition:
+          dragging || resizing
+            ? 'none'
+            : 'grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Sidebar 列 */}
