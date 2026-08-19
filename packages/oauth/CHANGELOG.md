@@ -1,5 +1,11 @@
 # @byfriends/oauth
 
+## 0.4.2
+
+### Patch Changes
+
+- 修复被取消发布的 0.4.1 版本号冲突：bump 到 0.5.0 以恢复 npm 发布（无行为变更）。
+
 ## 0.4.1
 
 ### Patch Changes
