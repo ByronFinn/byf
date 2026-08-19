@@ -80,8 +80,27 @@ for (const file of await findFiles(outAbs, (name) => name.endsWith('.d.mts'))) {
   }
 }
 
+// 4b. Repair dangling `.mjs` re-exports. Code splitting may inline a module
+// (e.g. `session-index`) into the entry chunk instead of emitting a standalone
+// `.mjs`, while tsc's declaration emit still re-exports it as `./xxx.mjs`.
+// Node16 resolution then fails because `./xxx.mjs` does not exist on disk. When
+// the target `.mjs` is absent but its `.d.mts` exists (the module was inlined),
+// point the re-export at the local entry chunk `./index.mjs`, which carries the
+// inlined exports. The JS side already resolves through the entry chunk, so
+// this only aligns the declarations with the runtime layout.
+let repairedDangling = 0;
+for (const file of await findFiles(outAbs, (name) => name.endsWith('.d.mts'))) {
+  const dir = path.dirname(file);
+  const text = await readFile(file, 'utf8');
+  const updated = rewriteDanglingMjs(text, dir);
+  if (updated.text !== text) {
+    await writeFile(file, updated.text, 'utf8');
+    repairedDangling += updated.count;
+  }
+}
+
 console.log(
-  `bun-lib-dts: renamed ${renamed} declaration file(s), rewrote ${rewrittenHash} #/ import(s), ${rewrittenRelative} relative specifier(s)`,
+  `bun-lib-dts: renamed ${renamed} declaration file(s), rewrote ${rewrittenHash} #/ import(s), ${rewrittenRelative} relative specifier(s), repaired ${repairedDangling} dangling re-export(s)`,
 );
 
 /**
@@ -133,6 +152,27 @@ function rewriteRelativeSpecifiers(text, fromFile) {
 
 function hasRuntimeExtension(spec) {
   return /\.(mjs|cjs|js|json|node|d\.mts|d\.ts)$/.test(spec);
+}
+
+/**
+ * Rewrite `from "./xxx.mjs"` specifiers whose target `.mjs` does not exist on
+ * disk but whose `.d.mts` does (the module was inlined into the entry chunk by
+ * code splitting). Those re-exports must point at the local entry `./index.mjs`
+ * so Node16 can resolve the declarations.
+ */
+function rewriteDanglingMjs(text, dir) {
+  let count = 0;
+  const next = text.replaceAll(/(?<=\bfrom\s*)(["'])(\.\/[^"']+\.mjs)\1/g, (match, quote, spec) => {
+    const base = path.resolve(dir, spec);
+    if (existsSync(base)) return match; // standalone .mjs exists — fine
+    const dts = base.replace(/\.mjs$/, '.d.mts');
+    if (!existsSync(dts)) return match; // neither .mjs nor .d.mts — leave as-is
+    const entry = path.join(dir, 'index.mjs');
+    if (!existsSync(entry)) return match; // no entry chunk to fall back to
+    count += 1;
+    return `${quote}./index.mjs${quote}`;
+  });
+  return { text: next, count };
 }
 
 function resolveHashSubpath(distRoot, subpath) {
