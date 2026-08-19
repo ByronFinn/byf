@@ -1,5 +1,31 @@
 # @byfriends/vis-server
 
+## 0.5.0
+
+### Minor Changes
+
+- 3434e64: 新增缓存前缀变化的归因能力:多轮对话中系统提示或工具集发生变化时,在状态面板标注最近一次变化的来源与范围,用量面板累计变化次数,可视化界面用色带标记变化位置。同时修复直连 DeepSeek 时缓存命中率恒显示为 0 的解析问题。
+- ebc9e8d: Web 工作台与会话可视化工具合并为单源工作台：会话检查（wire / 上下文 / 子代理 / 状态）、config.toml 全文编辑（服务端校验、revision 乐观锁、密钥掩码显示）、会话删除与 reveal、deepseek 风格三栏界面。运行 byf web 打开统一工作台，或运行 byf vis 查看会话检查视图。
+
+  `@byfriends/vis-server` 自本版本起弃用：仅保留为兼容 shim（转发至统一工作台），一个 minor 版本后从 workspace 移除。
+
+### Patch Changes
+
+- d6d0e88: wire 记录层重构为声明式 reducer（dispatch/restore 双路径、纯函数 apply），会话历史重建与事件派生统一走同一引擎，输出卸载与遮蔽记录改为只改内存不落盘，为后续 checkpoint/undo 等能力预留框架支持；既有会话恢复行为保持等价。
+- Updated dependencies [bed368f]
+- Updated dependencies [ebc9e8d]
+- Updated dependencies [faf255c]
+- Updated dependencies [0604d86]
+- Updated dependencies [0604d86]
+- Updated dependencies [131a7a5]
+- Updated dependencies [6b6c173]
+- Updated dependencies [c989843]
+- Updated dependencies [306614f]
+- Updated dependencies [306614f]
+- Updated dependencies [cfcbe83]
+- Updated dependencies [131fb16]
+  - @byfriends/web-server@0.2.0
+
 ## 0.4.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/vis-server",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "DEPRECATED — session visualizer server, replaced by @byfriends/web-server (PRD-0035 unified workbench); kept as a compatibility shim for one minor version",
   "keywords": [
     "byf",

@@ -1,5 +1,59 @@
 # @byfriends/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- 3434e64: 新增缓存前缀变化的归因能力:多轮对话中系统提示或工具集发生变化时,在状态面板标注最近一次变化的来源与范围,用量面板累计变化次数,可视化界面用色带标记变化位置。同时修复直连 DeepSeek 时缓存命中率恒显示为 0 的解析问题。
+- ebc9e8d: Web 工作台与会话可视化工具合并为单源工作台：会话检查（wire / 上下文 / 子代理 / 状态）、config.toml 全文编辑（服务端校验、revision 乐观锁、密钥掩码显示）、会话删除与 reveal、deepseek 风格三栏界面。运行 byf web 打开统一工作台，或运行 byf vis 查看会话检查视图。
+
+  `@byfriends/vis-server` 自本版本起弃用：仅保留为兼容 shim（转发至统一工作台），一个 minor 版本后从 workspace 移除。
+
+- 77c82a0: 权限层升级为资源感知：读取敏感文件（.env、SSH 私钥、credentials）改为审批事件（manual/yolo 点名文件审批，写保持硬拒）；会话审批生成 per-prefix 规则（批准 git push 后 git log 仍需审批）；复合命令按子命令逐条过权限规则。新增 CompleteTask 工具声明任务完成（调用 CompleteTask 结束当前回合）；重复调用同一工具 12 次后强制停止；MCP 工具超过 20 个时改为按需加载（用 McpTools 列出和加载）。
+- 131a7a5: byf web 非回环绑定时 banner 列出局域网访问地址(含 token,附轮换提示);新增 TUI /web 斜杠命令在后台启动网页界面。运行 /web 启动。
+- 6b6c173: Web 工作台 Tasks 页签新增后台任务的命令输出展示:点击任务行后,右侧详情直接显示该任务的捕获输出。运行 byf web,打开 Tasks 页签并点击任意后台任务即可查看。
+- c989843: 新增 byf web 子命令,在浏览器中打开网页聊天界面实时驱动 agent(发消息、流式渲染、审批与问答)。运行 byf web 启动。
+- f90f442: 检视-轨迹视图新增 deepseek 同款轨迹时间轴总览（Chrome-Network 式）：Input/Model/Tools 三条水平泳道，span 按等宽或真实时长排布，模型 span 以渐变区分首字延迟与解码耗时；支持拖选聚焦区间（账本区间外变暗）、点击定位到对应记录、滚轮缩放、右键平移、悬停显示时长/墙钟。在会话页「检视 → 轨迹」视图顶部查看，工具栏可切换等宽/真实时长。
+
+### Patch Changes
+
+- 670f6bb: 恢复会话时,对仍在另一个进程运行中的后台任务不再误判为“丢失”,也不再注入虚假的“任务丢失”通知(例如 CLI 与 web 同时打开同一会话时)。
+- 8e8e017: 修复被拒绝或未执行的 Bash 调用不显示命令的问题:TUI 中展开(ctrl+o)可查看完整命令,Web 端展开工具卡片可查看并复制命令。
+- 118927e: Bash 工具调用事件现在携带命令展示元数据，网页端工具调用可正确归组并展示每条命令。TUI 中已完成的 Bash 调用会显示具体命令，展开可查看完整命令与输出。
+- a1bfada: 修复 /btw 侧问在 qwen-3.6 等要求 system 消息置于最前的模型上报 Jinja/500 的问题。
+- 359d6f0: 修复 Web 工作台代码块与 Bash 命令不随亮暗主题切换、浅色下仍显示深底黑字的问题;切换主题即时生效,无需重新加载会话。
+- 60371ea: 修复 DeepSeek Responses 路径下 reasoning 文本被漏读:reasoning 解析在 summary 为空时回退到 content 的 reasoning_text 项(不影响 OpenAI 形态)。
+- 0f81e3c: 修复 DeepSeek Responses 流式路径下 reasoning 文本丢失:补 `response.reasoning_text.delta` 事件处理(此前落在默认分支被静默忽略),流式 reasoning 文本现可正常到达。
+- 9d8d408: 修复 Esc 在 /login、/connect 等待目录响应期间无效的问题，按 Esc 现在与 Ctrl-C 一样可中止进行中的操作。
+- bffae78: 长会话中上下文用量估算会缓存已计算过的文本,不再每步重复扫描整份历史,CPU 占用大幅下降。
+- 8a215ed: 修复 /login 获取模型列表后因目录元数据请求无响应而永久卡住的问题，目录获取现在最多等待 8 秒，超时或失败时回退到内置目录，并支持按 Ctrl-C 取消。
+- 9f201e8: 粘贴图片后在输入框上方实时显示预览,删除占位符文本预览同步消失。
+- 27a4156: 升级终端界面渲染框架,转录、编辑器与弹层的渲染速度更快。
+- faf255c: `byf web` 网页客户端全新改版:基于 shadcn/ui 与三层设计 token 的深浅双主题界面,新增常驻会话侧边栏(搜索/切换)、代码语法高亮、agent 执行步骤时间轴与智能滚动。运行 `byf web` 体验。
+  另修复网页端数处流式稳定性问题:空闲事件流连接被服务端提前断开、偶发的会话事件重复广播、关闭会话与恢复会话的并发竞态。
+- 0dece0a: 修复 byf web 在回环绑定时会误打局域网地址行的问题。
+- a01bb65: DeepSeek Responses 思考模型多轮回传时,改用接口原生的思考内容形态(此前统一回传 OpenAI 摘要形态),与各家接口输出形态保持一致。
+- 6b6c173: Web 工作台 Tasks 页签在会话加载期间显示“加载中”而非“无后台任务”,避免把加载窗口误判为没有任务。
+- 386ae6d: 修复部分模型将工具参数中的整数序列化为字符串（如 `"5"`）时，Read 等工具因校验失败而无法执行的问题。现在会在校验前自动将声明为整数的字段从字符串安全地转换回数字，对可选字段传入的 `null` 视同未传处理。
+- 9ab48f9: Web 工作台信息架构重构：中心由五个 tab 收敛为「对话 | 检视」两个——检视合并原轨迹/上下文/代理三视图，用层级面包屑选择器（`main → agent-0`，下拉为 agent 树）做单一作用域与「轨迹 | 上下文投影」双视图切换，移除原代理 tab 与子代理轨迹弹窗（agent 树能力并入作用域下拉，按 agent 看记录由检视轨迹覆盖）；后台任务改为状态栏徽标入口（运行中计数常驻，点击弹抽屉列表）。同时：详情改为统一的非模态侧滑抽屉（满高贴边、无遮罩、主窗口可操作），详情列、子代理深看、文件预览共用并带标题，支持 Esc 收起与左缘拖宽；折叠与查看两类交互明确区分（行内折叠用旋转箭头，「在详情面板查看」用打开面板图标），轨迹行点击只折叠、行尾图标才唤出抽屉；点亮/结束事件驱动 wire/上下文/代理数据即时刷新。
+- 5695810: 修复 Web 工作台彩色标签文字与底色相近难以辨认、检视图错误/警告色不显示的问题；工具卡片、子代理详情、检视行详情与上下文投影统一为「元数据常驻头部 + 输入/输出分区」的圆角折叠样式。
+- f90f442: 详情面板展开时网页工作台中间栏自动让位回流，不再被浮层覆盖导致页面不协调；窗口或面板宽度不足时会退回浮层模式。
+- f90f442: 修复网页版新建会话后首条用户消息不显示的问题;无任何内容的新会话被放弃时自动关闭并清理,不再残留空会话。
+- 131fb16: `byf web` 网页端对齐 deepseek 交互:侧边栏工作区分组/排序/添加(原生目录选择器,删除的工作区不再被索引复活),新会话先选工作区与权限再发送。本轮补齐:历史会话转录恢复(消费 resume 的 replay,SSE 改为 resume 后订阅)、折叠语义对齐(收起=0 行,展开=前 5 条+溢出按钮)、权限选择移入输入卡片底栏(修乐观更新自毁)、输入卡片重构为单一浮动胶囊、设置弹层(默认模型/权限/思考模式与推理强度/模型与 provider 管理,`GET/PATCH /api/config`、`DELETE /api/config/providers/:id`、`PATCH /api/sessions/:id/model`)、推理强度设置(hero 与会话内思考 chip,`PATCH /api/sessions/:id/thinking`)、新会话默认工作区为空(侧边栏「新建会话」经导航 state 一次性预选)、工作区行菜单锚点稳定(打开期间按钮保持可见)、输入触发(`/` 命令面板与 `@` 工作区文件引用——combobox 模式,`POST /api/sessions/:id/activate-skill`、`POST /api/sessions/:id/compact`、`GET /api/fs/list` 受限目录浏览)、slash 技能命令(会话内 `/` 面板合并用户可激活技能,支持带参执行如 `/research 主题`,`GET /api/sessions/:id/skills`)、操作反馈 toast(权限/思考/技能激活/压缩上下文/设置保存,成功与失败均有提示)。运行 `byf web` 体验。
+- Updated dependencies [bed368f]
+- Updated dependencies [ebc9e8d]
+- Updated dependencies [faf255c]
+- Updated dependencies [0604d86]
+- Updated dependencies [0604d86]
+- Updated dependencies [131a7a5]
+- Updated dependencies [6b6c173]
+- Updated dependencies [c989843]
+- Updated dependencies [306614f]
+- Updated dependencies [306614f]
+- Updated dependencies [cfcbe83]
+- Updated dependencies [131fb16]
+  - @byfriends/web-server@0.2.0
+
 ## 0.5.0
 
 ### Minor Changes
@@ -253,6 +307,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -554,6 +609,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -564,6 +620,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -572,6 +629,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -584,6 +642,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -606,6 +665,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -618,6 +678,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

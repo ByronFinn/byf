@@ -1,5 +1,17 @@
 # @byfriends/kosong
 
+## 0.5.0
+
+### Minor Changes
+
+- 3434e64: 新增缓存前缀变化的归因能力:多轮对话中系统提示或工具集发生变化时,在状态面板标注最近一次变化的来源与范围,用量面板累计变化次数,可视化界面用色带标记变化位置。同时修复直连 DeepSeek 时缓存命中率恒显示为 0 的解析问题。
+
+### Patch Changes
+
+- 60371ea: 修复 DeepSeek Responses 路径下 reasoning 文本被漏读:reasoning 解析在 summary 为空时回退到 content 的 reasoning_text 项(不影响 OpenAI 形态)。
+- 0f81e3c: 修复 DeepSeek Responses 流式路径下 reasoning 文本丢失:补 `response.reasoning_text.delta` 事件处理(此前落在默认分支被静默忽略),流式 reasoning 文本现可正常到达。
+- a01bb65: DeepSeek Responses 思考模型多轮回传时,改用接口原生的思考内容形态(此前统一回传 OpenAI 摘要形态),与各家接口输出形态保持一致。
+
 ## 0.4.1
 
 ### Patch Changes

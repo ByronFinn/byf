@@ -1,5 +1,35 @@
 # @byfriends/agent-core
 
+## 0.6.0
+
+### Minor Changes
+
+- 3434e64: 新增缓存前缀变化的归因能力:多轮对话中系统提示或工具集发生变化时,在状态面板标注最近一次变化的来源与范围,用量面板累计变化次数,可视化界面用色带标记变化位置。同时修复直连 DeepSeek 时缓存命中率恒显示为 0 的解析问题。
+- bed368f: Web 设置 MCP 页签新增「测试连接」:新增 server 前可临时拉起验证,测试通过后才能保存;transport 选中项现可正确回显,参数改为一行一个输入框。运行 byf web,打开设置 → MCP 配置 → 新增 server → 测试连接。
+- ebc9e8d: Web 工作台与会话可视化工具合并为单源工作台：会话检查（wire / 上下文 / 子代理 / 状态）、config.toml 全文编辑（服务端校验、revision 乐观锁、密钥掩码显示）、会话删除与 reveal、deepseek 风格三栏界面。运行 byf web 打开统一工作台，或运行 byf vis 查看会话检查视图。
+
+  `@byfriends/vis-server` 自本版本起弃用：仅保留为兼容 shim（转发至统一工作台），一个 minor 版本后从 workspace 移除。
+
+- 77c82a0: 权限层升级为资源感知：读取敏感文件（.env、SSH 私钥、credentials）改为审批事件（manual/yolo 点名文件审批，写保持硬拒）；会话审批生成 per-prefix 规则（批准 git push 后 git log 仍需审批）；复合命令按子命令逐条过权限规则。新增 CompleteTask 工具声明任务完成（调用 CompleteTask 结束当前回合）；重复调用同一工具 12 次后强制停止；MCP 工具超过 20 个时改为按需加载（用 McpTools 列出和加载）。
+- 131a7a5: 工具事件新增执行起止时间戳,会话元数据新增置顶/归档标记,新增删除模型别名与更新会话元数据的接口;均为向后兼容加法。
+- cfcbe83: Web 设置新增「MCP 配置」与「Skill 配置」页签:按全局/本地双作用域管理 MCP server(增删改、enabled 开关、RAW 兜底编辑、密钥占位符回显)与 skill(模板新建、删除、遮蔽标记)。运行 byf web,打开设置 → MCP 配置 / Skill 配置。
+- d6d0e88: wire 记录层重构为声明式 reducer（dispatch/restore 双路径、纯函数 apply），会话历史重建与事件派生统一走同一引擎，输出卸载与遮蔽记录改为只改内存不落盘，为后续 checkpoint/undo 等能力预留框架支持；既有会话恢复行为保持等价。
+
+### Patch Changes
+
+- 670f6bb: 恢复会话时,对仍在另一个进程运行中的后台任务不再误判为“丢失”,也不再注入虚假的“任务丢失”通知(例如 CLI 与 web 同时打开同一会话时)。
+- 118927e: Bash 工具调用事件现在携带命令展示元数据，网页端工具调用可正确归组并展示每条命令。TUI 中已完成的 Bash 调用会显示具体命令，展开可查看完整命令与输出。
+- a1bfada: 修复 /btw 侧问在 qwen-3.6 等要求 system 消息置于最前的模型上报 Jinja/500 的问题。
+- bffae78: 长会话中上下文用量估算会缓存已计算过的文本,不再每步重复扫描整份历史,CPU 占用大幅下降。
+- 33989fe: goal 生命周期事件（goal.updated）改经 wire 的 transient 事件通道统一派发，事件内容与触发时机保持不变。
+- 386ae6d: 修复部分模型将工具参数中的整数序列化为字符串（如 `"5"`）时，Read 等工具因校验失败而无法执行的问题。现在会在校验前自动将声明为整数的字段从字符串安全地转换回数字，对可选字段传入的 `null` 视同未传处理。
+- 306614f: Web 设置「模型与 Provider」的模型别名支持编辑能力:新增音频能力勾选,思考能力可设为开关/强度调节/总是思考并叠加超高、最高档位;能力按模型名自动识别预填勾选,保存即写入配置。打开设置 → 模型与 Provider 展开 Provider、选中模型别名查看。
+- Updated dependencies [3434e64]
+- Updated dependencies [60371ea]
+- Updated dependencies [0f81e3c]
+- Updated dependencies [a01bb65]
+  - @byfriends/kosong@0.5.0
+
 ## 0.5.0
 
 ### Minor Changes
@@ -234,6 +264,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -253,11 +284,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -346,6 +377,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -364,6 +396,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
+
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)

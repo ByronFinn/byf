@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/agent-core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Unified agent engine for BYF",
   "keywords": [
     "agent",

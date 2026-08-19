@@ -1,5 +1,22 @@
 # @byfriends/sdk
 
+## 0.6.0
+
+### Minor Changes
+
+- 3434e64: 新增缓存前缀变化的归因能力:多轮对话中系统提示或工具集发生变化时,在状态面板标注最近一次变化的来源与范围,用量面板累计变化次数,可视化界面用色带标记变化位置。同时修复直连 DeepSeek 时缓存命中率恒显示为 0 的解析问题。
+- bed368f: Web 设置 MCP 页签新增「测试连接」:新增 server 前可临时拉起验证,测试通过后才能保存;transport 选中项现可正确回显,参数改为一行一个输入框。运行 byf web,打开设置 → MCP 配置 → 新增 server → 测试连接。
+- ebc9e8d: Web 工作台与会话可视化工具合并为单源工作台：会话检查（wire / 上下文 / 子代理 / 状态）、config.toml 全文编辑（服务端校验、revision 乐观锁、密钥掩码显示）、会话删除与 reveal、deepseek 风格三栏界面。运行 byf web 打开统一工作台，或运行 byf vis 查看会话检查视图。
+
+  `@byfriends/vis-server` 自本版本起弃用：仅保留为兼容 shim（转发至统一工作台），一个 minor 版本后从 workspace 移除。
+
+- 131a7a5: 工具事件新增执行起止时间戳,会话元数据新增置顶/归档标记,新增删除模型别名与更新会话元数据的接口;均为向后兼容加法。
+- cfcbe83: Web 设置新增「MCP 配置」与「Skill 配置」页签:按全局/本地双作用域管理 MCP server(增删改、enabled 开关、RAW 兜底编辑、密钥占位符回显)与 skill(模板新建、删除、遮蔽标记)。运行 byf web,打开设置 → MCP 配置 / Skill 配置。
+
+### Patch Changes
+
+- 306614f: Web 设置「模型与 Provider」的模型别名支持编辑能力:新增音频能力勾选,思考能力可设为开关/强度调节/总是思考并叠加超高、最高档位;能力按模型名自动识别预填勾选,保存即写入配置。打开设置 → 模型与 Provider 展开 Provider、选中模型别名查看。
+
 ## 0.5.0
 
 ### Minor Changes
@@ -86,6 +103,7 @@
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -105,11 +123,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -175,6 +193,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -340,6 +359,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -350,6 +370,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -358,6 +379,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
