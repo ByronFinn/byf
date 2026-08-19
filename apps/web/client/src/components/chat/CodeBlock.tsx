@@ -7,11 +7,29 @@ type MermaidState =
   | { phase: 'failed'; message: string };
 
 /**
+ * 监听 <html> 主题类切换(useTheme / boot 脚本翻转 theme-dark / theme-light),
+ * 返回递增序号。mermaid 的主题在渲染时读取当前类,切换后必须重渲染才能换色。
+ */
+function useThemeClassVersion(): number {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setVersion((v) => v + 1);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  return version;
+}
+
+/**
  * Mermaid 图渲染(PRD-0034 R-C4):settle 后经 dynamic import 懒加载 mermaid
  * (独立 vendor chunk,对齐 Shiki 懒加载先例);渲染失败降级回代码块并提示。
- * 主题跟随:读取 html 上的深浅主题类切换 mermaid 主题。
+ * 主题跟随:读取 html 上的深浅主题类切换 mermaid 主题,主题类变化时重渲染。
  */
-function useMermaid(code: string, streaming: boolean): MermaidState {
+function useMermaid(code: string, streaming: boolean, themeVersion: number): MermaidState {
   const [state, setState] = useState<MermaidState>({ phase: 'idle' });
 
   useEffect(() => {
@@ -47,7 +65,7 @@ function useMermaid(code: string, streaming: boolean): MermaidState {
     return () => {
       cancelled = true;
     };
-  }, [code, streaming]);
+  }, [code, streaming, themeVersion]);
 
   return state;
 }
@@ -68,7 +86,8 @@ export function CodeBlock(props: {
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef(0);
   const isMermaid = language === 'mermaid';
-  const mermaid = useMermaid(isMermaid ? code : '', isMermaid ? streaming : true);
+  const themeVersion = useThemeClassVersion();
+  const mermaid = useMermaid(isMermaid ? code : '', isMermaid ? streaming : true, themeVersion);
 
   useEffect(() => {
     if (streaming || isMermaid) return;

@@ -2,6 +2,7 @@ import bash from '@shikijs/langs/bash';
 import json from '@shikijs/langs/json';
 import typescript from '@shikijs/langs/typescript';
 import githubDark from '@shikijs/themes/github-dark';
+import githubLight from '@shikijs/themes/github-light';
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
@@ -14,7 +15,12 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
  * 本模块经 CodeBlock 动态导入,首次渲染代码块时才加载(独立 vendor chunk)。
  */
 
-const THEME = 'github-dark';
+/**
+ * 双主题高亮:token 颜色以 --shiki-light / --shiki-dark CSS 变量输出
+ * (defaultColor: false,不内联单侧颜色),由 theme.css 按 <html> 的
+ * theme-light / theme-dark 类切换——切换主题无需重新高亮。
+ */
+const THEMES = { light: 'github-light', dark: 'github-dark' } as const;
 
 type LangLoader = () => Promise<{ default: Parameters<HighlighterCore['loadLanguage']>[0] }>;
 
@@ -79,7 +85,7 @@ const loadedLangs = new Set<string>(['typescript', 'json', 'bash']);
 
 function createHighlighter(): Promise<HighlighterCore> {
   return createHighlighterCore({
-    themes: [githubDark],
+    themes: [githubLight, githubDark],
     langs: [typescript, json, bash],
     engine: createJavaScriptRegexEngine({ forgiving: true }),
   });
@@ -112,7 +118,7 @@ export async function highlightCode(code: string, lang: string): Promise<string 
   try {
     if (!(await ensureLanguage(alias))) return null;
     const highlighter = await getHighlighter();
-    return highlighter.codeToHtml(code, { lang: alias, theme: THEME });
+    return highlighter.codeToHtml(code, { lang: alias, themes: THEMES, defaultColor: false });
   } catch {
     return null;
   }

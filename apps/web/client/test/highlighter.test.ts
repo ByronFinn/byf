@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { normalizeLang } from '../src/lib/highlighter';
+import { highlightCode, normalizeLang } from '../src/lib/highlighter';
 
 /**
  * 别名映射守护(R6):normalizeLang 的输出必须落在 boot 语法(typescript/json/bash)
@@ -62,5 +62,21 @@ describe('normalizeLang', () => {
     for (const input of ['sh', 'shell', 'zsh', 'bash']) {
       expect(normalizeLang(input)).toBe('bash');
     }
+  });
+});
+
+/**
+ * 双主题守护:高亮 HTML 必须同时携带 --shiki-light / --shiki-dark CSS 变量且
+ * 不内联单侧颜色(defaultColor: false)——theme.css 按主题类取用变量实现
+ * 亮暗切换。退回单主题(内联 color)会让代码块在某主题下不可读。
+ */
+describe('highlightCode dual theme', () => {
+  test('输出双主题 CSS 变量,不内联颜色', async () => {
+    const html = await highlightCode('echo hi', 'bash');
+    expect(html).not.toBeNull();
+    expect(html).toContain('--shiki-light');
+    expect(html).toContain('--shiki-dark');
+    // shiki 内联颜色恒为十六进制(color:#… / background-color:#…),双主题输出不应存在
+    expect(html).not.toContain('color:#');
   });
 });

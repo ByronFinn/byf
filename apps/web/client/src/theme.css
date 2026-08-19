@@ -140,7 +140,7 @@
   --elev-2: 0 2px 8px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.2);
   --elev-3: 0 8px 28px oklch(0 0 0 / 0.4), 0 2px 8px oklch(0 0 0 / 0.24);
 
-  /* 代码块(浅色下仍用深底,故文字也不随主题翻转) */
+  /* 代码块(随主题切换:浅色用浅底深字,token 色经 shiki 双主题变量切换) */
   --code-bg: oklch(0.16 0.006 255);
   --code-fg: oklch(0.68 0.008 255);
 
@@ -184,6 +184,10 @@
   --elev-1: 0 1px 2px oklch(0.2 0.02 255 / 0.06);
   --elev-2: 0 2px 8px oklch(0.2 0.02 255 / 0.08), 0 1px 3px oklch(0.2 0.02 255 / 0.06);
   --elev-3: 0 8px 28px oklch(0.2 0.02 255 / 0.1);
+
+  /* 代码块浅色变体:浅底(neutral-100,近 GitHub light #f6f8fa)+ 深字 */
+  --code-bg: var(--color-neutral-100);
+  --code-fg: var(--color-neutral-700);
 
   /* Inspector cat-* 浅色 AA 变体 */
   --color-cat-conversation: oklch(0.5 0.13 235);
@@ -402,6 +406,15 @@ body {
 }
 .codeblock-highlight pre.shiki code {
   font-family: var(--font-mono);
+}
+/* 双主题 token:highlighter 以 CSS 变量输出两侧颜色(不内联),这里按
+   <html> 主题类取用——深色是基线,浅色经 :root.theme-light 覆盖。
+   切换主题只走 CSS,无需重新高亮。 */
+.codeblock-highlight pre.shiki span {
+  color: var(--shiki-dark);
+}
+:root.theme-light .codeblock-highlight pre.shiki span {
+  color: var(--shiki-light);
 }
 
 .md {
