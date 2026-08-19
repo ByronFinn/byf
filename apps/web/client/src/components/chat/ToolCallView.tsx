@@ -1,5 +1,4 @@
 import {
-  Bot,
   ChevronRight,
   ClipboardCheck,
   FileDiff,
@@ -12,12 +11,21 @@ import {
   Terminal,
   Wrench,
   Zap,
+  Bot,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
+import {
+  DisclosureSection,
+  ErrorBanner,
+  MetaChips,
+  type MetaItem,
+} from '#/components/shared/disclosure';
 import type { ToolGroupPart, ToolPart } from '#/lib/chat';
 import { displayCommand, summarizeDisplay } from '#/lib/tool-display';
+import { cn } from '#/lib/utils';
+import { formatWallClock } from '#/lib/vis-time';
 
 import { CodeBlock } from './CodeBlock';
 
@@ -139,65 +147,87 @@ function mediaParts(result: unknown): {
   return { images, text: texts.join('') };
 }
 
-/** diff 结果按 +/- 行着色的轻量渲染器;其余类型纯文本;图片内联。 */
-function ResultBody(props: { part: ToolPart }): React.JSX.Element | null {
-  const { part } = props;
-  if (part.result === undefined) return null;
-  const media = mediaParts(part.result);
-  if (media.images.length > 0) {
-    return (
-      <div className="space-y-2 border-t border-border bg-bg px-3 py-2">
-        {media.images.map((src, i) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={i}
-            src={src}
-            alt={`工具结果图片 ${i + 1}`}
-            className="max-h-96 max-w-full rounded-md border border-border"
-          />
-        ))}
-        {media.text.length > 0 && (
-          <pre className="overflow-auto font-mono text-xs text-fg">
-            {truncate(media.text, 4000)}
-          </pre>
-        )}
-      </div>
-    );
+/** 头部元数据 chips:耗时/起止/call id/状态(have-a-try D:元数据常驻头部)。 */
+function toolMeta(part: ToolPart): MetaItem[] {
+  const items: MetaItem[] = [];
+  if (part.startedAt !== undefined && part.endedAt !== undefined) {
+    items.push({ label: '耗时', value: formatDuration(part.endedAt - part.startedAt) });
   }
+  if (part.startedAt !== undefined) {
+    items.push({ label: '开始', value: formatWallClock(part.startedAt) });
+  }
+  if (part.endedAt !== undefined) {
+    items.push({ label: '结束', value: formatWallClock(part.endedAt) });
+  }
+  items.push({ label: 'call', value: `#${part.toolCallId.slice(0, 10)}` });
+  items.push({
+    label: '状态',
+    value: part.status === 'running' ? '进行中' : part.isError ? '失败' : '成功',
+    tone: part.status === 'running' ? undefined : part.isError ? 'err' : 'ok',
+  });
+  return items;
+}
+
+/** 输出区:error 横幅置顶,其后是结果文本(diff +/- 着色)或内联图片。 */
+function ToolOutputBody({ part }: { part: ToolPart }): React.JSX.Element {
+  const media = mediaParts(part.result);
   const resultText =
     typeof part.result === 'string' ? part.result : JSON.stringify(part.result, null, 2);
-  const text = truncate(resultText, 4000);
-  if (!isDiffDisplay(part.display)) {
-    return (
-      <pre className="max-h-80 overflow-auto border-t border-border bg-bg px-3 py-2 font-mono text-xs text-fg">
-        {text}
-      </pre>
-    );
-  }
   return (
-    <pre className="max-h-80 overflow-auto border-t border-border bg-bg px-3 py-2 font-mono text-xs">
-      {text.split('\n').map((line, i) => (
-        <span
-          key={i}
-          className={
-            line.startsWith('+')
-              ? 'text-state-success'
-              : line.startsWith('-')
-                ? 'text-state-error'
-                : 'text-fg-muted'
-          }
-        >
-          {line}
-          {'\n'}
-        </span>
-      ))}
-    </pre>
+    <div className="space-y-1.5">
+      {part.isError === true && <ErrorBanner text="工具执行失败" />}
+      {media.images.length > 0 ? (
+        <>
+          <div className="space-y-2">
+            {media.images.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={src}
+                alt={`工具结果图片 ${i + 1}`}
+                className="max-h-96 max-w-full rounded-md border border-border"
+              />
+            ))}
+          </div>
+          {media.text.length > 0 && (
+            <pre className="overflow-auto rounded-md bg-code px-2.5 py-2 font-mono text-xs leading-relaxed text-code-fg">
+              {truncate(media.text, 4000)}
+            </pre>
+          )}
+        </>
+      ) : isDiffDisplay(part.display) ? (
+        <pre className="max-h-80 overflow-auto rounded-md bg-code px-2.5 py-2 font-mono text-xs leading-relaxed">
+          {truncate(resultText, 4000)
+            .split('\n')
+            .map((line, i) => (
+              <span
+                key={i}
+                className={
+                  line.startsWith('+')
+                    ? 'text-state-success'
+                    : line.startsWith('-')
+                      ? 'text-state-error'
+                      : 'text-code-fg'
+                }
+              >
+                {line}
+                {'\n'}
+              </span>
+            ))}
+        </pre>
+      ) : (
+        <pre className="max-h-80 overflow-auto rounded-md bg-code px-2.5 py-2 font-mono text-xs leading-relaxed text-code-fg">
+          {truncate(resultText, 4000)}
+        </pre>
+      )}
+    </div>
   );
 }
 
 /**
- * 工具卡片(R11):状态灯(pending 脉冲 / success 绿 / error 红)+ 按类型分发的
- * 工具图标 + 摘要 + 可折叠结果(diff 结果 +/- 着色)。
+ * 工具卡片(R11 / have-a-try D 形态):头部两行——状态灯 + 图标 + 摘要 +
+ * 常驻元数据 chips;展开体为 输入(命令)/ 输出(结果,diff 着色、error 置顶)
+ * 分区卡片上下排布。被拒绝/取消的调用没有结果输出,命令是唯一可查看的内容。
  */
 export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -206,63 +236,72 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
   const Icon = toolIcon(part.display);
   const viewablePath = displayFilePath(part.display);
   const command = displayCommand(part.display);
-  const duration =
-    part.startedAt !== undefined && part.endedAt !== undefined
-      ? formatDuration(part.endedAt - part.startedAt)
-      : null;
+  const hasBody = command !== null || part.result !== undefined;
 
   return (
-    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-1 text-sm shadow-1">
+    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-1 text-sm shadow-1 transition-shadow hover:shadow-2">
       <button
         type="button"
         onClick={() => {
           setOpen((v) => !v);
         }}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-hover"
+        className="w-full px-3 pb-1.5 pt-1.5 text-left transition-colors hover:bg-hover"
       >
-        <span
-          className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-            done
-              ? part.isError
-                ? 'bg-state-error'
-                : 'bg-state-success'
-              : 'animate-pulse bg-state-warning'
-          }`}
-          aria-hidden
-        />
-        <Icon className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
-        <span className="shrink-0 font-mono text-fg">{part.name}</span>
-        {summary !== null && (
-          <span className="min-w-0 truncate font-mono text-xs text-fg-muted">{summary}</span>
-        )}
-        {duration !== null && (
-          <span className="ml-auto shrink-0 font-mono text-xs text-fg-subtle">{duration}</span>
-        )}
-        <ChevronRight
-          className={`${duration === null ? 'ml-auto' : ''} size-3.5 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
-          aria-hidden
-        />
+        <span className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ring-2 ring-surface-1 ${
+              done
+                ? part.isError
+                  ? 'bg-state-error'
+                  : 'bg-state-success'
+                : 'animate-pulse bg-state-warning'
+            }`}
+            aria-hidden
+          />
+          <Icon className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
+          <span className="shrink-0 font-mono text-fg">{part.name}</span>
+          {summary !== null && (
+            <span className="min-w-0 truncate text-xs text-fg-muted">{summary}</span>
+          )}
+          <ChevronRight
+            className={cn(
+              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+              open && 'rotate-90',
+            )}
+            aria-hidden
+          />
+        </span>
+        <MetaChips items={toolMeta(part)} />
       </button>
-      {open &&
-        command !== null && (
-          // 展开体首段:完整命令(可复制)。被拒绝/取消的调用没有结果输出,
-          // 命令是唯一可查看的内容,不能只活在折叠头部的截断摘要里。
-          <div className="border-t border-border px-3 py-2 [&>div]:my-0">
-            <CodeBlock code={command} language="bash" streaming={false} />
-          </div>
-        )}
-      {open && <ResultBody part={part} />}
+      {open && hasBody && (
+        <div className="space-y-2 border-t border-border bg-bg/30 px-2.5 py-2.5">
+          {command !== null && (
+            <DisclosureSection tint="in" label="输入" note="bash">
+              <div className="[&>div]:my-0">
+                <CodeBlock code={command} language="bash" streaming={false} />
+              </div>
+            </DisclosureSection>
+          )}
+          {part.result !== undefined && (
+            <DisclosureSection tint="out" label="输出" note="stdout">
+              <ToolOutputBody part={part} />
+            </DisclosureSection>
+          )}
+        </div>
+      )}
       {open && viewablePath !== null && (
-        <button
-          type="button"
-          onClick={() => {
-            openFileDrawer(viewablePath);
-          }}
-          className="border-t border-border px-3 py-1.5 text-left text-xs text-brand transition-colors hover:bg-hover"
-        >
-          查看文件
-        </button>
+        <div className="border-t border-border">
+          <button
+            type="button"
+            onClick={() => {
+              openFileDrawer(viewablePath);
+            }}
+            className="w-full rounded-b-lg px-3 py-1.5 text-left text-xs text-brand transition-colors hover:bg-hover"
+          >
+            查看文件 {viewablePath}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -270,48 +309,54 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
 
 /**
  * 工具归组摘要行(PRD-0034 R-B2):相邻同 kind 工具折叠为「类型 + 数量 + 总耗时」,
- * 展开可见逐条调用与单次耗时;流式期间未完结组实时更新。
+ * 展开可见逐条调用与单次耗时;流式期间未完结组实时更新。头部同 ToolCallView
+ * 的两行契约(元数据 chips 常驻)。
  */
 export function ToolGroupView({ group }: { group: ToolGroupPart }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const Icon = toolIcon(group.tools[0]?.display);
   const label = TOOL_KIND_LABELS[group.toolKind] ?? '工具调用';
   const errorCount = group.tools.filter((t) => t.isError).length;
+  const meta: MetaItem[] = [
+    { label: '数量', value: String(group.tools.length) },
+    ...(errorCount > 0 ? [{ label: '失败', value: String(errorCount), tone: 'err' as const }] : []),
+    ...(group.spanMs !== undefined
+      ? [{ label: '总耗时', value: formatDuration(group.spanMs) }]
+      : []),
+  ];
 
   return (
-    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-1 text-sm shadow-1">
+    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-1 text-sm shadow-1 transition-shadow hover:shadow-2">
       <button
         type="button"
         onClick={() => {
           setOpen((v) => !v);
         }}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-hover"
+        className="w-full px-3 pb-1.5 pt-1.5 text-left transition-colors hover:bg-hover"
       >
-        <span
-          className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-            group.hasRunning ? 'animate-pulse bg-state-warning' : 'bg-state-success'
-          }`}
-          aria-hidden
-        />
-        <Icon className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
-        <span className="shrink-0 text-fg">{label}</span>
-        <span className="shrink-0 text-fg-muted">× {group.tools.length}</span>
-        {errorCount > 0 && (
-          <span className="shrink-0 text-xs text-state-error">{errorCount} 失败</span>
-        )}
-        {group.spanMs !== undefined && (
-          <span className="ml-auto shrink-0 font-mono text-xs text-fg-subtle">
-            {formatDuration(group.spanMs)}
-          </span>
-        )}
-        <ChevronRight
-          className={`${group.spanMs === undefined ? 'ml-auto' : ''} size-3.5 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
-          aria-hidden
-        />
+        <span className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ring-2 ring-surface-1 ${
+              group.hasRunning ? 'animate-pulse bg-state-warning' : 'bg-state-success'
+            }`}
+            aria-hidden
+          />
+          <Icon className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
+          <span className="shrink-0 text-fg">{label}</span>
+          <span className="shrink-0 text-fg-muted">× {group.tools.length}</span>
+          <ChevronRight
+            className={cn(
+              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+              open && 'rotate-90',
+            )}
+            aria-hidden
+          />
+        </span>
+        <MetaChips items={meta} />
       </button>
       {open && (
-        <div className="space-y-1 border-t border-border bg-surface-2/40 px-2 py-2">
+        <div className="space-y-1 border-t border-border bg-bg/30 px-2 py-2">
           {group.tools.map((tool) => (
             <ToolCallView key={tool.toolCallId} part={tool} />
           ))}

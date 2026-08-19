@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
 import { useContext } from '#/hooks/useContext';
@@ -143,7 +144,7 @@ function SystemPromptBubble({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
     <article
-      className="relative flex max-w-full min-w-0 flex-col border-l-[3px] bg-surface-1"
+      className="relative flex max-w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border border-l-[3px] bg-surface-1 shadow-1"
       style={{ borderLeftColor: 'var(--color-cat-config)' }}
     >
       <button
@@ -151,24 +152,27 @@ function SystemPromptBubble({ text }: { text: string }) {
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-2"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-hover"
       >
-        <span className="flex items-center gap-2">
-          <Pill tone="config" variant="solid">
-            system
-          </Pill>
-          <span className="font-mono text-[10px] text-fg-3 tabular">
-            {text.length.toLocaleString()} chars
-          </span>
+        <ChevronRight
+          className={`size-3.5 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+          aria-hidden
+        />
+        <Pill tone="config" variant="solid">
+          system
+        </Pill>
+        <span className="font-mono text-[10px] text-fg-3 tabular">
+          {text.length.toLocaleString()} chars
         </span>
-        <span className="font-mono text-[11px] text-fg-1">
-          {open ? '▾ collapse' : '▸ show full'}
+        <span className="ml-auto font-mono text-[11px] text-fg-2">
+          {open ? '收起' : '展开全文'}
         </span>
       </button>
-      <div className="relative min-w-0 px-3 pb-2">
+      <div className="relative min-w-0 px-3 pb-2.5">
         <pre
           className={[
-            'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-[12.5px] text-fg-0',
+            'min-w-0 font-mono text-[12.5px] break-words [overflow-wrap:anywhere] text-fg-0',
             open ? '' : 'max-h-[9em] overflow-hidden',
           ].join(' ')}
         >

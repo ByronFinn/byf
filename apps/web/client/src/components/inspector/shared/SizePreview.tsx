@@ -1,4 +1,7 @@
+import { ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+
+import { cn } from '#/lib/utils';
 
 interface SizePreviewProps {
   label?: string;
@@ -22,16 +25,21 @@ export function SizePreview({
   const [open, setOpen] = useState(defaultOpen);
   const size = formatBytes(sizeBytes);
   return (
-    <div className="my-1 border border-border bg-surface-0">
+    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-0">
       <button
+        type="button"
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="flex w-full items-center justify-between gap-2 px-2 py-1 font-mono text-[11px] text-fg-2 hover:bg-surface-2 hover:text-fg-1"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-2 py-1 font-mono text-[11px] text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg-1"
       >
         <span className="flex items-center gap-2">
-          <span className="text-fg-3">{open ? '▾' : '▸'}</span>
-          <span className="uppercase tracking-[0.08em]">{label}</span>
+          <ChevronRight
+            className={cn('size-3 shrink-0 transition-transform duration-150', open && 'rotate-90')}
+            aria-hidden
+          />
+          <span className="tracking-[0.08em]">{label}</span>
           <span className="text-fg-3 tabular">{size}</span>
         </span>
         {!open && preview ? (

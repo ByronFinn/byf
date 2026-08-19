@@ -1,4 +1,7 @@
+import { ChevronRight } from 'lucide-react';
 import { useState, memo } from 'react';
+
+import { cn } from '#/lib/utils';
 
 import { CopyButton } from './CopyButton';
 
@@ -8,9 +11,22 @@ interface JsonViewerProps {
   defaultOpenDepth?: number;
 }
 
-/** Strings longer than this get an inline expand affordance instead of a
+/** String longer than this get an inline expand affordance instead of a
  *  truncated preview-only display. */
 const LONG_STRING_THRESHOLD = 200;
+
+/** 统一折叠 affordance(have-a-try D):ChevronRight 旋转,弃用 ▸/▾ 文本箭头。 */
+function Caret({ open }: { open: boolean }) {
+  return (
+    <ChevronRight
+      className={cn(
+        'inline-block size-3 shrink-0 text-fg-3 transition-transform duration-150',
+        open && 'rotate-90',
+      )}
+      aria-hidden
+    />
+  );
+}
 
 export function JsonViewer({ value, defaultOpenDepth = 2 }: JsonViewerProps) {
   return (
@@ -78,9 +94,9 @@ const Node = memo(function Node({
           onClick={() => {
             setOpen((v) => !v);
           }}
-          className="flex items-baseline gap-1 text-left hover:text-fg-0"
+          className="flex items-center gap-1 text-left hover:text-fg-0"
         >
-          <span className="text-fg-3 w-3 shrink-0 inline-block">{open ? '▾' : '▸'}</span>
+          <Caret open={open} />
           {keyLabel !== undefined ? (
             <>
               <span className="text-fg-1">{keyLabel}</span>
@@ -119,9 +135,9 @@ const Node = memo(function Node({
           onClick={() => {
             setOpen((v) => !v);
           }}
-          className="flex items-baseline gap-1 text-left hover:text-fg-0"
+          className="flex items-center gap-1 text-left hover:text-fg-0"
         >
-          <span className="text-fg-3 w-3 shrink-0 inline-block">{open ? '▾' : '▸'}</span>
+          <Caret open={open} />
           {keyLabel !== undefined ? <span className="text-fg-1">{keyLabel}</span> : null}
           {keyLabel !== undefined ? <span className="text-fg-3">:</span> : null}
           <span className="text-fg-3">[{value.length}]</span>
@@ -154,9 +170,9 @@ const Node = memo(function Node({
           onClick={() => {
             setOpen((v) => !v);
           }}
-          className="flex items-baseline gap-1 text-left hover:text-fg-0"
+          className="flex items-center gap-1 text-left hover:text-fg-0"
         >
-          <span className="text-fg-3 w-3 shrink-0 inline-block">{open ? '▾' : '▸'}</span>
+          <Caret open={open} />
           {keyLabel !== undefined ? <span className="text-fg-1">{keyLabel}</span> : null}
           {keyLabel !== undefined ? <span className="text-fg-3">:</span> : null}
           <span className="text-fg-3">

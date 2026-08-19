@@ -1,5 +1,8 @@
+import { ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
+import { DisclosureSection } from '#/components/shared/disclosure';
+import { cn } from '#/lib/utils';
 import type { ContentPart, ProjectedMessage, ToolCall } from '#/types';
 
 import { ImagePreview } from '../shared/ImagePreview';
@@ -7,6 +10,19 @@ import { Pill } from '../shared/Pill';
 
 interface MessageBubbleProps {
   message: ProjectedMessage;
+}
+
+/** 统一折叠 affordance(have-a-try D):ChevronRight 旋转,弃用 ▸/▾ 文本箭头。 */
+function Chevron({ open }: { open: boolean }): React.JSX.Element {
+  return (
+    <ChevronRight
+      className={cn(
+        'size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+        open && 'rotate-90',
+      )}
+      aria-hidden
+    />
+  );
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
@@ -18,7 +34,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 }
 
 function baseClass(): string {
-  return 'relative flex max-w-full min-w-0 flex-col border-l-[3px] bg-surface-1 px-3 py-2';
+  return 'relative flex max-w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border border-l-[3px] bg-surface-1 shadow-1';
 }
 
 function UserBubble({ m }: { m: ProjectedMessage }) {
@@ -28,7 +44,7 @@ function UserBubble({ m }: { m: ProjectedMessage }) {
     originKind === 'system_trigger' || originKind === 'injection' || originKind === 'hook_result';
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-user)' }}>
-      <header className="mb-1 flex items-center gap-2">
+      <header className="mb-1 flex items-center gap-2 px-3 pt-2">
         <Pill tone="user" variant="solid">
           user
         </Pill>
@@ -44,7 +60,9 @@ function UserBubble({ m }: { m: ProjectedMessage }) {
           </Pill>
         ) : null}
       </header>
-      <MessageContent parts={m.message.content} />
+      <div className="px-3 pb-2.5">
+        <MessageContent parts={m.message.content} />
+      </div>
     </article>
   );
 }
@@ -56,7 +74,7 @@ function AssistantBubble({ m }: { m: ProjectedMessage }) {
   const toolCalls = m.message.toolCalls;
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-assistant)' }}>
-      <header className="mb-1 flex items-center gap-2">
+      <header className="mb-1 flex items-center gap-2 px-3 pt-2">
         <Pill tone="assistant" variant="solid">
           assistant
         </Pill>
@@ -77,13 +95,23 @@ function AssistantBubble({ m }: { m: ProjectedMessage }) {
           </Pill>
         ) : null}
       </header>
-      {think ? <ThinkBlock text={think} /> : null}
-      <MessageContent parts={visibleParts} />
+      {think ? (
+        <div className="px-3">
+          <ThinkBlock text={think} />
+        </div>
+      ) : null}
+      <div className="px-3 pb-2.5">
+        <MessageContent parts={visibleParts} />
+      </div>
       {toolCalls.length > 0 ? (
-        <div className="mt-2 space-y-1">
-          {toolCalls.map((tc) => (
-            <ToolCallCard key={tc.id} call={tc} />
-          ))}
+        <div className="border-t border-border bg-bg/30 px-2.5 py-2.5">
+          <DisclosureSection tint="in" label="工具请求" note={`${toolCalls.length} calls`}>
+            <div className="space-y-1.5">
+              {toolCalls.map((tc) => (
+                <ToolCallCard key={tc.id} call={tc} />
+              ))}
+            </div>
+          </DisclosureSection>
         </div>
       ) : null}
     </article>
@@ -107,9 +135,10 @@ function ToolBubble({ m }: { m: ProjectedMessage }) {
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="flex w-full items-center gap-2 text-left"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-hover"
       >
-        <span className="text-fg-3">{open ? '▾' : '▸'}</span>
+        <Chevron open={open} />
         <Pill tone="tool" variant="solid">
           tool
         </Pill>
@@ -132,8 +161,10 @@ function ToolBubble({ m }: { m: ProjectedMessage }) {
         ) : null}
       </button>
       {open ? (
-        <div className="mt-2 max-h-[60vh] overflow-auto">
-          <MessageContent parts={m.message.content} />
+        <div className="border-t border-border bg-bg/30 px-2.5 py-2.5">
+          <DisclosureSection tint="out" label="输出" note={`${totalChars.toLocaleString()} chars`}>
+            <MessageContent parts={m.message.content} />
+          </DisclosureSection>
         </div>
       ) : null}
     </article>
@@ -143,13 +174,15 @@ function ToolBubble({ m }: { m: ProjectedMessage }) {
 function SystemBubble({ m }: { m: ProjectedMessage }) {
   return (
     <article className={baseClass()} style={{ borderLeftColor: 'var(--color-cat-config)' }}>
-      <header className="mb-1 flex items-center gap-2">
+      <header className="mb-1 flex items-center gap-2 px-3 pt-2">
         <Pill tone="config" variant="solid">
           system
         </Pill>
         <span className="font-mono text-[10px] text-fg-3 tabular">line {m.lineNo}</span>
       </header>
-      <MessageContent parts={m.message.content} />
+      <div className="px-3 pb-2.5">
+        <MessageContent parts={m.message.content} />
+      </div>
     </article>
   );
 }
@@ -157,19 +190,21 @@ function SystemBubble({ m }: { m: ProjectedMessage }) {
 function ThinkBlock({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mb-2 border border-border bg-surface-0">
+    <div className="my-1 overflow-hidden rounded-lg border border-border bg-surface-2/40">
       <button
+        type="button"
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="flex w-full items-center gap-2 px-2 py-1 text-left font-mono text-[11px] text-fg-2 hover:text-fg-1"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-2.5 py-1 text-left font-mono text-[11px] text-fg-2 transition-colors hover:bg-hover hover:text-fg-1"
       >
-        <span className="text-fg-3">{open ? '▾' : '▸'}</span>
-        <span className="uppercase tracking-[0.08em]">思考</span>
-        <span className="text-fg-3 tabular">{text.length}ch</span>
+        <Chevron open={open} />
+        <span className="tracking-[0.08em]">思考</span>
+        <span className="ml-auto text-fg-3 tabular">{text.length}ch</span>
       </button>
       {open ? (
-        <pre className="border-t border-border px-2 py-1 whitespace-pre-wrap break-words font-mono text-[12px] text-fg-1">
+        <pre className="border-t border-border px-2.5 py-1.5 font-mono text-[12px] break-words whitespace-pre-wrap text-fg-1">
           {text}
         </pre>
       ) : null}
@@ -181,23 +216,27 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   const [open, setOpen] = useState(false);
   const argsStr = call.arguments ?? '';
   return (
-    <div className="border border-border bg-surface-0">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
       <button
+        type="button"
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className="flex w-full items-center gap-2 px-2 py-1 text-left font-mono text-[11px] hover:bg-surface-2"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-2.5 py-1 text-left font-mono text-[11px] transition-colors hover:bg-hover"
       >
-        <span className="text-fg-3">{open ? '▾' : '▸'}</span>
+        <Chevron open={open} />
         <Pill tone="tools" variant="soft">
           call
         </Pill>
         <span className="text-fg-0">{call.name}</span>
-        <span className="truncate text-fg-3">{truncate(argsStr, 80)}</span>
-        <span className="ml-auto text-fg-3 tabular text-[10px]">{call.id.slice(0, 10)}</span>
+        <span className="min-w-0 flex-1 truncate text-fg-3">{truncate(argsStr, 80)}</span>
+        <span className="ml-auto shrink-0 text-fg-3 text-[10px] tabular">
+          #{call.id.slice(0, 10)}
+        </span>
       </button>
       {open ? (
-        <pre className="border-t border-border px-2 py-1 whitespace-pre-wrap break-words font-mono text-[12px] text-fg-1">
+        <pre className="border-t border-border bg-bg/30 px-2.5 py-1.5 font-mono text-[12px] break-words whitespace-pre-wrap text-fg-1">
           {prettyJson(argsStr)}
         </pre>
       ) : null}
@@ -213,7 +252,7 @@ function MessageContent({ parts }: { parts: readonly ContentPart[] }): ReactNode
           return (
             <pre
               key={i}
-              className="whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.55] text-fg-0"
+              className="font-mono text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap text-fg-0"
             >
               {p.text}
             </pre>

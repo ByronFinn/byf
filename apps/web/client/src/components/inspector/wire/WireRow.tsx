@@ -1,6 +1,7 @@
-import { PanelRightOpen } from 'lucide-react';
+import { ChevronRight, PanelRightOpen } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
+import { cn } from '#/lib/utils';
 import { formatWallClock } from '#/lib/vis-time';
 import type { WireEntry } from '#/types';
 
@@ -189,14 +190,12 @@ function formatTimeTitle(epochMs: number | undefined): string {
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      className={`text-fg-3 transition-transform ${open ? 'rotate-90' : ''}`}
-      aria-hidden="true"
-    >
-      <path d="M3 2 L7 5 L3 8" stroke="currentColor" strokeWidth="1" fill="none" />
-    </svg>
+    <ChevronRight
+      className={cn(
+        'size-3 shrink-0 text-fg-3 transition-transform duration-150',
+        open && 'rotate-90',
+      )}
+      aria-hidden
+    />
   );
 }

@@ -135,6 +135,17 @@
   --state-error: var(--color-red-500);
   --state-info: var(--color-sky-500);
 
+  /* solid 色块上的文字色(Pill solid 等):深色主题底色(cat-* 多为浅色调)用
+     深字,浅色主题覆盖为白字。对比度经 WCAG 数值验证(have-a-try 2026-08-19:
+     深色 5.9–12.6:1 / 浅色 ≥4.5:1)。 */
+  --color-on-accent: var(--color-neutral-950);
+  /* severity 语义色别名:Inspector 组件经 var(--color-sev-*) 引用(自 vis 迁移
+     的遗留命名)。映射到 state-*;var 引用按主题动态解析,:root 一层即可。 */
+  --color-sev-error: var(--state-error);
+  --color-sev-warning: var(--state-warning);
+  --color-sev-success: var(--state-success);
+  --color-sev-info: var(--state-info);
+
   /* elevation 3 级(deepseek 分层阴影:柔和、低透明度) */
   --elev-1: 0 1px 2px oklch(0 0 0 / 0.25);
   --elev-2: 0 2px 8px oklch(0 0 0 / 0.3), 0 1px 3px oklch(0 0 0 / 0.2);
@@ -181,6 +192,9 @@
   --state-error: var(--color-red-600);
   --state-info: var(--color-sky-700);
 
+  /* solid 色块文字色:浅色主题底色(cat-* 为深色调)用白字 */
+  --color-on-accent: var(--color-neutral-0);
+
   --elev-1: 0 1px 2px oklch(0.2 0.02 255 / 0.06);
   --elev-2: 0 2px 8px oklch(0.2 0.02 255 / 0.08), 0 1px 3px oklch(0.2 0.02 255 / 0.06);
   --elev-3: 0 8px 28px oklch(0.2 0.02 255 / 0.1);
@@ -189,13 +203,13 @@
   --code-bg: var(--color-neutral-100);
   --code-fg: var(--color-neutral-700);
 
-  /* Inspector cat-* 浅色 AA 变体 */
+  /* Inspector cat-* 浅色 AA 变体(ephemeral 0.6→0.55:白字 3.9→5.1:1) */
   --color-cat-conversation: oklch(0.5 0.13 235);
   --color-cat-config: oklch(0.5 0.16 290);
   --color-cat-lifecycle: oklch(0.48 0.02 255);
   --color-cat-subagent: oklch(0.5 0.2 290);
   --color-cat-approval: oklch(0.55 0.17 40);
-  --color-cat-ephemeral: oklch(0.6 0.15 95);
+  --color-cat-ephemeral: oklch(0.55 0.15 95);
   --color-cat-meta: oklch(0.48 0.18 270);
   --color-cat-tools: oklch(0.55 0.16 70);
   --color-user: oklch(0.42 0.13 240);
@@ -216,6 +230,21 @@
 :root.theme-light {
   --bubble: var(--color-blue-600);
   --bubble-fg: var(--color-neutral-0);
+}
+
+/* Pill 基类:所有「色块」标签的底座(have-a-try 2026-08-19 裁决:圆角胶囊)。
+   底色/文字色由组件 inline style 按 tone 提供,这里只管形状与排版;
+   此前基类缺失导致色块无内边距无圆角。 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 /* ═══ shadcn 语义 token 桥(ADR 0035 D1:在 token 层抹平 shadcn zinc 底)═══
