@@ -49,18 +49,18 @@ import type { BackgroundTaskInfo, PermissionMode, SkillSummary, ThinkingEffort }
 const EXAMPLE_PROMPTS: readonly { icon: typeof BookOpen; label: string; prompt: string }[] = [
   {
     icon: BookOpen,
-    label: 'Summarize this repo',
-    prompt: 'Read the README at the repo root and summarize what this project does in 5 bullets.',
+    label: '总结这个仓库',
+    prompt: '读取仓库根目录的 README，用 5 条要点总结这个项目是做什么的。',
   },
   {
     icon: FolderSearch,
-    label: 'Find TODOs',
-    prompt: 'Search the src directory for TODO comments and list them grouped by file.',
+    label: '查找 TODO',
+    prompt: '搜索 src 目录中的 TODO 注释，按文件分组列出。',
   },
   {
     icon: ListChecks,
-    label: 'Explain the structure',
-    prompt: 'Walk through the top-level directory structure of this project and explain each part.',
+    label: '讲解项目结构',
+    prompt: '逐层讲解这个项目的顶层目录结构，并说明每一部分的作用。',
   },
 ];
 
@@ -130,12 +130,16 @@ function ChatSessionPage({
 
   // 右栏默认内容跟随当前 tab(用户诉求:切页签右栏实时刷新):
   // Chat → 常驻实时 State;Trace/Context/Agents/Tasks → 空态(由行/节点点击推详情);
-  // agent 深链(R-D4) → 该 agent 轨迹。任何详情(工具行/wire 行/子代理轨迹/
-  // 后台任务)推入时覆盖;切 tab 或组件重挂时恢复本 tab 默认。
+  // agent 深链(R-D4) → 在 Agents tab 展示该 agent 轨迹。任何详情(工具行/wire 行/
+  // 子代理轨迹/后台任务)推入时覆盖;切 tab 或组件重挂时恢复本 tab 默认。
+  // 注:tab 判定优先于 agentId —— 深链进入后切到其它 tab 也会刷新为各自默认,
+  // 否则右栏会被深链的 AgentTrail 钉死,切 tab 不刷新。
   const defaultDetails = useCallback((): ReactNode => {
     if (sessionId.length === 0) return null;
-    if (agentId !== undefined) return <AgentTrail sessionId={sessionId} agentId={agentId} />;
     if (tab === 'chat') return <StateLive sessionId={sessionId} />;
+    if (tab === 'agents' && agentId !== undefined) {
+      return <AgentTrail sessionId={sessionId} agentId={agentId} />;
+    }
     return null;
   }, [sessionId, agentId, tab]);
 
@@ -590,13 +594,13 @@ function NewSessionHero(): React.JSX.Element {
           >
             <Sparkles className="size-5" />
           </span>
-          <h1 className="text-xl font-semibold text-fg">Hi, I'm byf</h1>
+          <h1 className="text-xl font-semibold text-fg">你好，我是 byf</h1>
           <span className="rounded-full border border-border px-2 py-0.5 text-xs text-fg-subtle">
-            web client
+            网页版
           </span>
         </div>
         <p className="mt-2 max-w-md text-center text-sm text-fg-muted">
-          选择一个工作区,agent 将在其中执行任务。
+          选择一个工作区，agent 将在其中执行任务。
         </p>
       </div>
 
@@ -756,10 +760,10 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX
         >
           <Sparkles className="size-5" />
         </span>
-        <h1 className="text-xl font-semibold text-fg">Hi, I'm byf</h1>
+        <h1 className="text-xl font-semibold text-fg">你好，我是 byf</h1>
       </div>
       <p className="mt-2 max-w-md text-center text-sm text-fg-muted">
-        Your agent in the browser — send a message, or start with one of these:
+        你的浏览器版 agent —— 发送一条消息，或从下面选择一个开始：
       </p>
       <div className="mt-6 grid w-full max-w-lg gap-2">
         {EXAMPLE_PROMPTS.map(({ icon: Icon, label, prompt }) => (
@@ -783,13 +787,13 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }): React.JSX
   );
 }
 
-/** PRD-0035 R-D1：会话视图 tab 栏（Chat | Trace | Context | Agents | Tasks）。 */
+/** PRD-0035 R-D1：会话视图 tab 栏（对话 | 轨迹 | 上下文 | 代理 | 任务）。 */
 const INSPECTOR_TABS = [
-  { key: 'chat', label: 'Chat' },
-  { key: 'trace', label: 'Trace' },
-  { key: 'context', label: 'Context' },
-  { key: 'agents', label: 'Agents' },
-  { key: 'tasks', label: 'Tasks' },
+  { key: 'chat', label: '对话' },
+  { key: 'trace', label: '轨迹' },
+  { key: 'context', label: '上下文' },
+  { key: 'agents', label: '代理' },
+  { key: 'tasks', label: '任务' },
 ] as const;
 
 function InspectorTabBar(props: {

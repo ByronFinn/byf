@@ -9,6 +9,7 @@
  * 本组件只负责骨架：三栏内容（sidebar 树、center 会话视图、details 宿主）
  * 由调用方以 children 注入，PR4 接入 Inspector 与详情面板。
  */
+import { ChevronRight, Menu } from 'lucide-react';
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
@@ -206,7 +207,7 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
               aria-label="展开侧边栏"
               title="展开侧边栏"
             >
-              ▸
+              <ChevronRight className="size-4" aria-hidden />
             </button>
           </div>
         )}
@@ -223,7 +224,7 @@ export function AppFrame({ sidebar, center, details, detailsOverlay }: AppFrameP
             aria-label="展开侧边栏"
             title="展开侧边栏"
           >
-            ☰
+            <Menu className="size-4" aria-hidden />
           </button>
         )}
         {center}

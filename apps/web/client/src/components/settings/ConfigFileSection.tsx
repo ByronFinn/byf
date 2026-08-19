@@ -131,7 +131,7 @@ export function ConfigFileSection({ onLoaded }: ConfigFileSectionProps): React.J
   };
 
   if (loading && doc === null) {
-    return <div className="p-4 font-mono text-xs text-fg-subtle">loading config.toml…</div>;
+    return <div className="p-4 font-mono text-xs text-fg-subtle">config.toml 加载中…</div>;
   }
 
   return (

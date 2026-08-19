@@ -38,13 +38,13 @@ export function AgentTrail({ sessionId, agentId }: AgentTrailProps) {
         </div>
       ) : null}
       {isLoading ? (
-        <div className="p-4 font-mono text-[12px] text-fg-3">loading wire…</div>
+        <div className="p-4 font-mono text-[12px] text-fg-3">wire 记录加载中…</div>
       ) : error ? (
         <div className="p-4 font-mono text-[12px] text-[var(--color-sev-error)]">
           {error.message}
         </div>
       ) : entries.length === 0 ? (
-        <div className="p-4 font-mono text-[12px] text-fg-3">no wire records for this agent</div>
+        <div className="p-4 font-mono text-[12px] text-fg-3">该 agent 暂无 wire 记录</div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {entries.map((e) => (

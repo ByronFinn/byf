@@ -92,7 +92,7 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
         <div className="flex flex-col gap-3 px-3 py-4">
           {config.systemPrompt ? <SystemPromptBubble text={config.systemPrompt} /> : null}
           {isLoading ? (
-            <div className="px-3 py-2 font-mono text-[12px] text-fg-3">loading context…</div>
+            <div className="px-3 py-2 font-mono text-[12px] text-fg-3">上下文加载中…</div>
           ) : error ? (
             <div className="px-3 py-2 font-mono text-[12px] text-[var(--color-sev-error)]">
               {error.message}

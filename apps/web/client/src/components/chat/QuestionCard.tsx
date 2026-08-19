@@ -210,7 +210,7 @@ function OtherRow(props: {
             onChange={(e) => {
               onOtherText(e.target.value);
             }}
-            placeholder="Type a custom answer…"
+            placeholder="输入自定义答案…"
             className="mt-1 w-full rounded-md border border-border-strong bg-input-fill px-2 py-1 text-sm outline-none focus:border-state-info"
           />
         )}

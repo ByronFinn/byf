@@ -57,8 +57,8 @@ export function Composer(props: {
           onChange={setText}
           placeholder={
             disabled
-              ? 'Agent is working… (Stop to interrupt)'
-              : 'Message byf…  (Enter to send, Shift+Enter for newline)'
+              ? 'Agent 正在工作…（可点停止打断）'
+              : '给 byf 发消息…（Enter 发送，Shift+Enter 换行）'
           }
           onSend={(value) => {
             onSend(value, images);

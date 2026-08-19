@@ -245,7 +245,7 @@ export function WireTab({ sessionId, initialAgentId = 'main' }: WireTabProps) {
       ) : null}
 
       {isLoading ? (
-        <div className="p-6 font-mono text-[12px] text-fg-3">loading wire…</div>
+        <div className="p-6 font-mono text-[12px] text-fg-3">wire 加载中…</div>
       ) : error ? (
         <div className="p-6 font-mono text-[12px] text-[var(--color-sev-error)]">
           {error.message}

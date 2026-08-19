@@ -25,7 +25,7 @@ export function StateLive({ sessionId, refetchIntervalMs = 3000 }: StateLiveProp
     refetchInterval: refetchIntervalMs,
   });
   if (isLoading) {
-    return <div className="p-4 font-mono text-xs text-fg-subtle">loading state…</div>;
+    return <div className="p-4 font-mono text-xs text-fg-subtle">状态加载中…</div>;
   }
   return <StateTab state={detail?.state ?? null} />;
 }

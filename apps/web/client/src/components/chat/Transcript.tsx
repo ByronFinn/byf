@@ -61,7 +61,7 @@ export function Transcript(props: {
   return (
     <div className="relative h-full">
       <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-4 px-4 py-4">
+        <div className="mx-auto max-w-3xl space-y-5 px-4 py-5">
           {entries.map((entry) => (
             <EntryView
               key={entry.id}
@@ -80,7 +80,7 @@ export function Transcript(props: {
           onClick={() => {
             scrollToBottom(true);
           }}
-          aria-label="Scroll to bottom"
+          aria-label="滚动到底部"
           className="absolute right-4 bottom-4 flex items-center justify-center rounded-full border border-border bg-surface-2 p-2 text-fg-muted shadow-2 transition-colors hover:text-fg"
         >
           <ArrowDown className="size-4" aria-hidden />
@@ -104,7 +104,7 @@ function EntryView(props: {
     const images = entry.images ?? [];
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-[22px] rounded-br-md bg-bubble px-4 py-2.5 text-base whitespace-pre-wrap break-words text-bubble-fg">
+        <div className="max-w-[80%] rounded-xl rounded-br-md bg-bubble px-4 py-3 text-base whitespace-pre-wrap break-words text-bubble-fg">
           {images.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {images.map((url, i) => (

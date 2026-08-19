@@ -68,7 +68,7 @@ export function IssuesDrawer({ issues, onClose, onJumpTo, isLineVisible }: Issue
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {issues.length === 0 ? (
-            <div className="p-6 font-mono text-[12px] text-fg-3">no issues detected</div>
+            <div className="p-6 font-mono text-[12px] text-fg-3">未检测到问题</div>
           ) : (
             <ul className="divide-y divide-border">
               {issues.map((iss, i) => (

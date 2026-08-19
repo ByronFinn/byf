@@ -114,7 +114,7 @@ function TaskRow({
         {task.agentId !== undefined ? <span>agent {task.agentId}</span> : null}
         {task.exitCode !== null ? <span>exit {task.exitCode}</span> : null}
         {task.timedOut === true ? (
-          <span className="text-[var(--color-sev-warning)]">timed out</span>
+          <span className="text-[var(--color-sev-warning)]">超时</span>
         ) : null}
       </span>
     </button>

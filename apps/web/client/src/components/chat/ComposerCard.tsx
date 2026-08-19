@@ -331,7 +331,7 @@ export function ComposerCard(props: {
   };
 
   return (
-    <div className="relative rounded-2xl border border-border bg-input-fill px-3 pt-2.5 pb-1.5 shadow-1 transition-colors focus-within:border-brand">
+    <div className="relative rounded-2xl border border-border bg-input-fill px-3 pt-3 pb-2 shadow-1 transition-colors focus-within:border-brand">
       {/* toast 出口:absolute bottom-full 浮在输入框上方(不遮挡输入区) */}
       <Toaster />
       <div className="relative">
@@ -541,9 +541,9 @@ export function ComposerCard(props: {
             }
           }}
           rows={1}
-          aria-label="Message"
+          aria-label="消息"
           placeholder={placeholder}
-          className="block w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-fg-subtle"
+          className="block w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none caret-brand placeholder:text-fg-subtle"
           style={{ height: minHeightPx }}
         />
         {images.length > 0 && (
@@ -586,7 +586,7 @@ export function ComposerCard(props: {
               className="gap-1.5 text-state-error"
             >
               <Square aria-hidden />
-              Stop
+              停止
             </Button>
           ) : (
             <Button

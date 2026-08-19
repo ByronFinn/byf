@@ -36,7 +36,7 @@ export function ThinkingBlock(props: { text: string; active: boolean }): React.J
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-fg-muted transition-colors hover:bg-hover hover:text-fg"
       >
         <Brain className={`size-3.5 shrink-0 ${active ? 'text-brand' : ''}`} aria-hidden />
-        <span className="min-w-0 flex-1 truncate">{open ? 'Thinking' : summary || 'Thinking'}</span>
+        <span className="min-w-0 flex-1 truncate">{open ? '思考' : summary || '思考'}</span>
         <ChevronRight
           className={`size-3.5 shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
           aria-hidden

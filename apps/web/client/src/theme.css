@@ -22,14 +22,14 @@
     'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, Menlo, monospace;
 
-  /* 字号 token(xs..xl,聊天 UI 密度) */
+  /* 字号 token(xs..xl,聊天 UI 密度——更舒展的正文/次级) */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.35;
-  --text-sm: 0.8125rem;
-  --text-sm--line-height: 1.45;
-  --text-base: 0.875rem;
-  --text-base--line-height: 1.6;
-  --text-lg: 0.9375rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.65;
+  --text-lg: 1rem;
   --text-lg--line-height: 1.6;
   --text-xl: 1.125rem;
   --text-xl--line-height: 1.45;
@@ -44,14 +44,15 @@
   /* 动效曲线(三档时长见 :root --duration-*) */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* 品牌 deepseek 蓝(替代 byf emerald;ADR-0037 D6) */
-  --color-blue-300: oklch(0.78 0.11 250);
-  --color-blue-400: oklch(0.68 0.14 255);
-  --color-blue-450: oklch(0.6 0.16 258);
-  --color-blue-500: oklch(0.55 0.17 258);
-  --color-blue-600: oklch(0.48 0.16 258);
-  --color-blue-700: oklch(0.42 0.14 258);
-  --color-blue-800: oklch(0.36 0.12 258);
+  /* 品牌 deepseek 蓝(替代 byf emerald;ADR-0037 D6)。向 deepseek 签名色
+     #4D6BFE 校准(≈oklch(0.58 0.2 273)):提高饱和、色相偏紫,更贴合精致蓝。 */
+  --color-blue-300: oklch(0.78 0.14 270);
+  --color-blue-400: oklch(0.68 0.17 272);
+  --color-blue-450: oklch(0.6 0.2 273);
+  --color-blue-500: oklch(0.55 0.21 273);
+  --color-blue-600: oklch(0.48 0.2 273);
+  --color-blue-700: oklch(0.42 0.18 273);
+  --color-blue-800: oklch(0.36 0.15 273);
 
   /* 中性(轻微蓝调,对标 deepseek neutral-bluish) */
   --color-neutral-0: oklch(1 0 0);
@@ -352,7 +353,20 @@ body {
   color: var(--fg);
 }
 
-*:focus-visible {
+:where(input:not([type='checkbox']):not([type='radio']), textarea, select):focus {
+  /* 文本类表单控件自身已用 focus:border-brand + 品牌 caret 标注焦点(对齐
+     deepseek:harnes 的 input/textarea)。不再叠加全局 focus-visible 描边,
+     否则输入/搜索时会出现「双线」。checkbox/radio/button/link 仍走下方描边。 */
+  outline: none;
+}
+:where(
+    a,
+    button,
+    [role='button'],
+    [tabindex]:not(input):not(textarea):not(select),
+    input[type='checkbox'],
+    input[type='radio']
+  ):focus-visible {
   outline: 1px solid var(--brand);
   outline-offset: 1px;
 }
@@ -392,10 +406,10 @@ body {
 
 .md {
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: 1.7;
 }
 .md > :not(:last-child) {
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 .md h1,
 .md h2,

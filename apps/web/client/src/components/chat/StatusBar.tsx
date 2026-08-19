@@ -1,9 +1,11 @@
 import type { StatusView } from '#/lib/chat';
 
 /**
- * 顶部状态栏:会话状态 + 模型 + 上下文占用。
- * 权限选择已移入 Composer 底栏(对齐 deepseek 的 PermissionSelect 座位);
- * 后台任务入口已升级为中心 Tasks tab(PRD-0035 R-D1)。
+ * 顶部状态栏：会话状态 + 模型 + 上下文占用。
+ * 权限选择已移入 Composer 底栏（对齐 deepseek 的 PermissionSelect 座位）；
+ * 后台任务入口已升级为中心 Tasks tab（PRD-0035 R-D1）。
+ * 信息分层：左侧「状态指示点 + 状态词」，右侧「模型 / 上下文」，用分组间距
+ * 取代碎 `·` 分隔符，提升扫读层级。
  */
 export function StatusBar(props: {
   status: StatusView | null;
@@ -19,31 +21,25 @@ export function StatusBar(props: {
         : undefined;
 
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-1.5 text-xs text-fg-muted">
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-2 px-4 py-1.5 text-xs text-fg-muted">
+      <div className="flex min-w-0 items-center gap-2">
         <span
           className={`inline-block h-2 w-2 rounded-full ${
             busy ? 'animate-pulse bg-state-warning' : 'bg-state-success'
           }`}
           aria-hidden
         />
-        <span>{busy ? 'working' : 'idle'}</span>
+        <span className="font-medium text-fg">{busy ? '工作中' : '空闲'}</span>
+        <span className={connected ? 'mx-1 text-fg-subtle' : 'mx-1 text-state-warning'}>
+          {connected ? '实时' : '连接中…'}
+        </span>
+        <span className="h-3 w-px shrink-0 bg-border" aria-hidden />
+        {status?.model !== undefined && (
+          <span className="min-w-0 truncate font-mono text-fg">{status.model}</span>
+        )}
       </div>
-      <span className="text-fg-subtle">·</span>
-      <span className={connected ? 'text-state-success' : 'text-fg-subtle'}>
-        {connected ? 'live' : 'connecting…'}
-      </span>
-      {status?.model !== undefined && (
-        <>
-          <span className="text-fg-subtle">·</span>
-          <span className="font-mono text-fg">{status.model}</span>
-        </>
-      )}
       {usagePct !== undefined && (
-        <>
-          <span className="text-fg-subtle">·</span>
-          <span>ctx {usagePct}%</span>
-        </>
+        <span className="shrink-0 text-fg-subtle">上下文 {usagePct}%</span>
       )}
     </div>
   );

@@ -115,7 +115,7 @@ export function CodeBlock(props: {
         <button
           type="button"
           onClick={() => void copy()}
-          aria-label="Copy code"
+          aria-label="复制代码"
           className="flex items-center rounded-sm p-1 text-fg-subtle transition-colors hover:bg-hover hover:text-fg"
         >
           {copied ? (

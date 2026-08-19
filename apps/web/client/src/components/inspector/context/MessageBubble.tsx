@@ -165,7 +165,7 @@ function ThinkBlock({ text }: { text: string }) {
         className="flex w-full items-center gap-2 px-2 py-1 text-left font-mono text-[11px] text-fg-2 hover:text-fg-1"
       >
         <span className="text-fg-3">{open ? '▾' : '▸'}</span>
-        <span className="uppercase tracking-[0.08em]">thinking</span>
+        <span className="uppercase tracking-[0.08em]">思考</span>
         <span className="text-fg-3 tabular">{text.length}ch</span>
       </button>
       {open ? (

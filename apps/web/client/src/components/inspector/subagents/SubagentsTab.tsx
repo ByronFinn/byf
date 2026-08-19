@@ -10,7 +10,7 @@ export function SubagentsTab({ sessionId }: SubagentsTabProps) {
   const { data, isLoading, error } = useAgentTree(sessionId);
 
   if (isLoading) {
-    return <div className="p-6 font-mono text-[12px] text-fg-3">loading agents…</div>;
+    return <div className="p-6 font-mono text-[12px] text-fg-3">agent 加载中…</div>;
   }
   if (error) {
     return (

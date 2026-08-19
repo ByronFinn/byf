@@ -95,8 +95,8 @@ function DetailsHost(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-7 text-fg-muted">
         <div>
-          <p className="font-medium text-fg">Click a tool row in the message flow</p>
-          <p>to view its details — 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
+          <p className="font-medium text-fg">点击消息流中的某一工具行</p>
+          <p>查看其详情 —— 工具详情、子 Agent 轨迹、文件预览、wire/state JSON</p>
         </div>
       </div>
     </div>

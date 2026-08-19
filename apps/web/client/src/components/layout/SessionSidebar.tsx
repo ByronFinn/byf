@@ -511,7 +511,7 @@ export function SessionSidebar(props: {
             }}
             placeholder="搜索会话"
             aria-label="搜索会话"
-            className="w-full rounded-md border border-border bg-input-fill py-1.5 pr-2 pl-7 text-sm outline-none placeholder:text-fg-subtle focus:border-brand"
+            className="w-full rounded-md border border-border bg-input-fill py-1.5 pr-2 pl-7 text-sm outline-none focus:border-brand caret-brand placeholder:text-fg-subtle"
           />
         </div>
       </div>

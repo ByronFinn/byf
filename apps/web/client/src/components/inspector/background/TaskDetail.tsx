@@ -77,7 +77,7 @@ export function TaskDetail({ sessionId, task }: TaskDetailProps) {
             output
           </div>
           {loading ? (
-            <div className="font-mono text-[11px] text-fg-3">loading output…</div>
+            <div className="font-mono text-[11px] text-fg-3">输出加载中…</div>
           ) : error !== null ? (
             <div className="font-mono text-[11px] text-fg-3">failed to load output: {error}</div>
           ) : output.length > 0 ? (
@@ -92,7 +92,7 @@ export function TaskDetail({ sessionId, task }: TaskDetailProps) {
               ) : null}
             </>
           ) : (
-            <div className="font-mono text-[11px] text-fg-3">no output available</div>
+            <div className="font-mono text-[11px] text-fg-3">暂无可用输出</div>
           )}
         </div>
       </div>
