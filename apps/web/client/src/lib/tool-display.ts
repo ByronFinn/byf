@@ -8,6 +8,17 @@ function joinNonEmpty(parts: readonly string[]): string {
   return parts.filter((p) => p.length > 0).join(' — ');
 }
 
+/**
+ * command 类 display 的完整命令文本(展开体「查看/复制命令」用;非 command 类或
+ * 无命令时返回 null)。被拒绝/取消的调用没有结果输出,命令只能从这里取。
+ */
+export function displayCommand(display: unknown): string | null {
+  if (display === null || typeof display !== 'object') return null;
+  const d = display as Record<string, unknown>;
+  if (d['kind'] !== 'command') return null;
+  return typeof d['command'] === 'string' && d['command'].length > 0 ? d['command'] : null;
+}
+
 export function summarizeDisplay(display: unknown): string | null {
   if (display === null || typeof display !== 'object') return null;
   const d = display as Record<string, unknown>;

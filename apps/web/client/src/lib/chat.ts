@@ -7,6 +7,7 @@ import type {
   QuestionRequest,
   ServerFrame,
   SessionStatus,
+  ToolCall,
 } from '#/types';
 
 // ---- 单条消息的内部部件 -----------------------------------------------------
@@ -209,6 +210,23 @@ function textOf(parts: readonly ContentPart[]): string {
  * 合成 turnId 不写入 turnIndex:replay 之后的 live turn 一律新建条目,避免与
  * 历史条目的 id 空间撞车。
  */
+/**
+ * replay 记录里的 ToolCall 只有 provider 形状(arguments 为 JSON 字符串),
+ * 不带 live 事件携带的 ToolInputDisplay。为 Bash 合成最小 command display,
+ * 让展开体的「查看/复制命令」在回放会话中同样可用(被拒绝的调用没有结果
+ * 输出,命令是唯一可查看的内容)。
+ */
+function replayToolDisplay(call: ToolCall): unknown {
+  if (call.name !== 'Bash' || call.arguments === null) return undefined;
+  try {
+    const args = JSON.parse(call.arguments) as { command?: unknown };
+    if (typeof args.command !== 'string' || args.command.length === 0) return undefined;
+    return { kind: 'command', command: args.command, language: 'bash' };
+  } catch {
+    return undefined;
+  }
+}
+
 export function replayToEntries(replay: readonly AgentReplayRecord[]): {
   entries: Entry[];
   toolIndex: Map<string, { entry: number; part: number }>;
@@ -260,6 +278,7 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
           kind: 'tool',
           toolCallId: call.id,
           name: call.name,
+          display: replayToolDisplay(call),
           status: 'running',
           startedAt: t?.startedAt,
           endedAt: t?.endedAt,

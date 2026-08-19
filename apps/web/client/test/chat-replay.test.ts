@@ -217,6 +217,57 @@ describe('tool timing and grouping', () => {
     expect(entry.parts[0]).toMatchObject({ kind: 'tool', startedAt: 100, endedAt: 400 });
   });
 
+  test('replay 为 Bash 从 arguments 合成 command display(展开体可查看/复制命令)', () => {
+    // replay 的 ToolCall 不带 live 事件的 ToolInputDisplay;被拒绝的调用没有
+    // 结果输出,命令是展开体唯一可查看的内容,必须在回放中同样可见。
+    const bashCall = {
+      type: 'function' as const,
+      id: 'tb1',
+      name: 'Bash',
+      arguments: JSON.stringify({ command: 'bun test apps/cli', description: 'run tests' }),
+    };
+    const { entries } = replayToEntries([
+      {
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [],
+          toolCalls: [bashCall],
+        },
+      },
+      toolResultMessage('tb1', 'Tool "Bash" was not run because the user rejected it.', true),
+    ]);
+    const entry = entries[0];
+    if (entry === undefined || entry.kind !== 'assistant') throw new Error('expected assistant');
+    expect(entry.parts[0]).toMatchObject({
+      kind: 'tool',
+      name: 'Bash',
+      display: { kind: 'command', command: 'bun test apps/cli', language: 'bash' },
+    });
+  });
+
+  test('replay 非 Bash 或 arguments 不可解析时不合成 display', () => {
+    const { entries } = replayToEntries([
+      {
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [],
+          toolCalls: [
+            toolCall('tr1', 'Read'),
+            { type: 'function' as const, id: 'tb2', name: 'Bash', arguments: 'not json' },
+            { type: 'function' as const, id: 'tb3', name: 'Bash', arguments: null },
+          ],
+        },
+      },
+    ]);
+    const entry = entries[0];
+    if (entry === undefined || entry.kind !== 'assistant') throw new Error('expected assistant');
+    expect((entry.parts[0] as { display?: unknown }).display).toBeUndefined();
+    expect((entry.parts[1] as { display?: unknown }).display).toBeUndefined();
+    expect((entry.parts[2] as { display?: unknown }).display).toBeUndefined();
+  });
+
   test('groupParts:相邻同 kind 折叠为一组,text 打断分组,单个不组', () => {
     const tool = (id: string, kind: string, status: 'running' | 'done' = 'done'): unknown => ({
       kind: 'tool',

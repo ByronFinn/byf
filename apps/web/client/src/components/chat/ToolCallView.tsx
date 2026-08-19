@@ -17,7 +17,9 @@ import {
 import { useState } from 'react';
 
 import type { ToolGroupPart, ToolPart } from '#/lib/chat';
-import { summarizeDisplay } from '#/lib/tool-display';
+import { displayCommand, summarizeDisplay } from '#/lib/tool-display';
+
+import { CodeBlock } from './CodeBlock';
 
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}…` : s;
@@ -203,6 +205,7 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
   const done = part.status === 'done';
   const Icon = toolIcon(part.display);
   const viewablePath = displayFilePath(part.display);
+  const command = displayCommand(part.display);
   const duration =
     part.startedAt !== undefined && part.endedAt !== undefined
       ? formatDuration(part.endedAt - part.startedAt)
@@ -241,6 +244,14 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
           aria-hidden
         />
       </button>
+      {open &&
+        command !== null && (
+          // 展开体首段:完整命令(可复制)。被拒绝/取消的调用没有结果输出,
+          // 命令是唯一可查看的内容,不能只活在折叠头部的截断摘要里。
+          <div className="border-t border-border px-3 py-2 [&>div]:my-0">
+            <CodeBlock code={command} language="bash" streaming={false} />
+          </div>
+        )}
       {open && <ResultBody part={part} />}
       {open && viewablePath !== null && (
         <button

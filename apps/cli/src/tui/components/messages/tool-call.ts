@@ -901,6 +901,21 @@ export class ToolCallComponent extends Container {
       for (const line of lines) {
         this.addChild(new Text(line, 2, 0));
       }
+    } else if (name === 'Bash' && this.result === undefined) {
+      // Pending Bash (args finalized, awaiting approval or running): show the
+      // command so it can be reviewed before/without execution. Once the result
+      // lands the result renderer takes over (command + output).
+      const command = str(this.toolCall.args['command']);
+      if (command.length > 0) {
+        this.addChild(
+          new ShellExecutionComponent({
+            command,
+            colors: this.colors,
+            expanded: this.expanded,
+            showCommand: true,
+          }),
+        );
+      }
     }
   }
 
@@ -973,8 +988,22 @@ export class ToolCallComponent extends Container {
     if (result === undefined || !result.output) return;
 
     // Blocked tools: the body is the LLM-facing rejection message, which is
-    // not useful for the user who made the decision.
-    if (result.blockedReason !== undefined) return;
+    // not useful for the user who made the decision. The command itself stays
+    // visible (collapsed preview / full on expand) so it can still be read
+    // and copied after the call was rejected or cancelled.
+    if (result.blockedReason !== undefined) {
+      if (this.toolCall.name === 'Bash') {
+        this.addChild(
+          new ShellExecutionComponent({
+            command: str(this.toolCall.args['command']),
+            colors: this.colors,
+            expanded: this.expanded,
+            showCommand: true,
+          }),
+        );
+      }
+      return;
+    }
 
     if (this.isSingleSubagentView()) {
       return;
