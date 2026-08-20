@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/cli-linux",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Linux x64 binary for @byfriends/cli (bun build --compile)",
   "homepage": "https://github.com/ByronFinn/byf",
