@@ -33,7 +33,7 @@ pnpm add -g @byfriends/cli
 bun add -g @byfriends/cli
 ```
 
-The published main package ships a thin `bin/byf.cjs` launcher. npm resolves the matching platform package (`@byfriends/cli-darwin-arm64` or `@byfriends/cli-linux-x64`) via **optionalDependencies**; that package contains the same compile binary as GitHub Releases.
+The published main package ships a thin `bin/byf.cjs` launcher. npm resolves the matching platform package (`@byfriends/cli-darwin-arm64` or `@byfriends/cli-linux`) via **optionalDependencies**; that package contains the same compile binary as GitHub Releases.
 
 **MVP platforms:** `darwin-arm64`, `linux-x64`. Other OS/arch combos are deferred.
 

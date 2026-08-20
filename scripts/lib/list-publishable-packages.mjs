@@ -6,10 +6,7 @@ import { fileURLToPath } from 'node:url';
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** CLI platform optionalDep packages (PRD-0020 / #220). */
-const CLI_PLATFORM_PACKAGE_NAMES = new Set([
-  '@byfriends/cli-darwin-arm64',
-  '@byfriends/cli-linux-x64',
-]);
+const CLI_PLATFORM_PACKAGE_NAMES = new Set(['@byfriends/cli-darwin-arm64', '@byfriends/cli-linux']);
 
 /**
  * Return all workspace packages that will be published to a registry.

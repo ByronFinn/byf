@@ -80,7 +80,7 @@
   },
   "optionalDependencies": {
     "@byfriends/cli-darwin-arm64": "workspace:*",
-    "@byfriends/cli-linux-x64": "workspace:*"
+    "@byfriends/cli-linux": "workspace:*"
   },
   "engines": {
     "bun": ">=1.3.14"

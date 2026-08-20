@@ -210,7 +210,7 @@ Node SEA 管线**不是**官方分发路径（由 `bun build --compile` 取代�
 | npm 包名                      | 目标         | 目录                         |
 | ----------------------------- | ------------ | ---------------------------- |
 | `@byfriends/cli-darwin-arm64` | darwin-arm64 | `apps/cli/npm/darwin-arm64/` |
-| `@byfriends/cli-linux-x64`    | linux-x64    | `apps/cli/npm/linux-x64/`    |
+| `@byfriends/cli-linux`        | linux-x64    | `apps/cli/npm/linux-x64/`    |
 
 - 与 `@byfriends/cli` **版本对齐**（`.changeset/config.json` 的 `fixed` 组）。
 - monorepo 内标记 `private: true`，避免 `changeset publish` 在二进制尚未就绪时发出空包。

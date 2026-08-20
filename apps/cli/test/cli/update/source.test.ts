@@ -177,7 +177,7 @@ describe('classifyNativeInstallSource', () => {
   it('infers npm-global from node_modules path without env', () => {
     expect(
       classifyNativeInstallSource(
-        '/usr/local/lib/node_modules/@byfriends/cli-linux-x64/bin/byf',
+        '/usr/local/lib/node_modules/@byfriends/cli-linux/bin/byf',
         undefined,
         '/usr/local/lib/node_modules/@byfriends/cli',
       ),

@@ -53,7 +53,7 @@ irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
 npm install -g @byfriends/cli
 ```
 
-`npm i -g` installs a thin launcher plus the matching platform package (`@byfriends/cli-darwin-arm64` or `@byfriends/cli-linux-x64`). The real CLI is the same compile binary as GitHub Releases. Official binary matrix is currently **darwin-arm64** and **linux-x64**; other platforms are deferred.
+`npm i -g` installs a thin launcher plus the matching platform package (`@byfriends/cli-darwin-arm64` or `@byfriends/cli-linux`). The real CLI is the same compile binary as GitHub Releases. Official binary matrix is currently **darwin-arm64** and **linux-x64**; other platforms are deferred.
 
 Other package managers work the same way if they honor optionalDependencies:
 

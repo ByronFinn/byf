@@ -53,7 +53,7 @@ irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex
 npm install -g @byfriends/cli
 ```
 
-`npm i -g` 会安装薄 launcher，并解析当前平台的 optionalDependency 子包（`@byfriends/cli-darwin-arm64` 或 `@byfriends/cli-linux-x64`）。真正运行的是与 GitHub Release **同源** 的 compile 二进制。官方二进制矩阵目前为 **darwin-arm64** 与 **linux-x64**；其它平台 deferred。
+`npm i -g` 会安装薄 launcher，并解析当前平台的 optionalDependency 子包（`@byfriends/cli-darwin-arm64` 或 `@byfriends/cli-linux`）。真正运行的是与 GitHub Release **同源** 的 compile 二进制。官方二进制矩阵目前为 **darwin-arm64** 与 **linux-x64**；其它平台 deferred。
 
 其它包管理器在支持 optionalDependencies 时同样可用：
 

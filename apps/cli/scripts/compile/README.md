@@ -72,7 +72,7 @@ bun run package:npm-platforms
 | npm package                   | dir                         |
 | ----------------------------- | --------------------------- |
 | `@byfriends/cli-darwin-arm64` | `apps/cli/npm/darwin-arm64` |
-| `@byfriends/cli-linux-x64`    | `apps/cli/npm/linux-x64`    |
+| `@byfriends/cli-linux`        | `apps/cli/npm/linux-x64`    |
 
 Main package `@byfriends/cli` ships `bin/byf.cjs` (launcher) and lists both as `optionalDependencies`. Versions stay aligned via changesets `fixed` group. Platform packages are `private: true` in the monorepo; `release.yml` clears `private` and publishes after staging the binary.
 

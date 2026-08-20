@@ -13,9 +13,13 @@ describe('PLATFORM_PACKAGES (MVP matrix)', () => {
     expect(PLATFORM_PACKAGES.map((p) => p.target).sort()).toEqual(['darwin-arm64', 'linux-x64']);
   });
 
-  it('uses @byfriends/cli-<target> package names', () => {
+  it('uses @byfriends/cli-<platform> package names', () => {
+    // 平台包名 = 平台缩写（linux 曾为 -linux-x64，因 npm unpublish 烧毁改短）。
+    expect(PLATFORM_PACKAGES.map((p) => p.packageName).sort()).toEqual([
+      '@byfriends/cli-darwin-arm64',
+      '@byfriends/cli-linux',
+    ]);
     for (const pkg of PLATFORM_PACKAGES) {
-      expect(pkg.packageName).toBe(`@byfriends/cli-${pkg.target}`);
       expect(pkg.subpath).toBe('bin/byf');
     }
   });
@@ -30,7 +34,7 @@ describe('platformPackageForHost', () => {
 
   it('resolves linux x64', () => {
     expect(platformPackageForHost({ platform: 'linux', arch: 'x64' })?.packageName).toBe(
-      '@byfriends/cli-linux-x64',
+      '@byfriends/cli-linux',
     );
   });
 

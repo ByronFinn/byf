@@ -1,4 +1,4 @@
-# @byfriends/cli-linux-x64
+# @byfriends/cli-linux
 
 Platform binary package for [`@byfriends/cli`](https://www.npmjs.com/package/@byfriends/cli) on **linux-x64**.
 

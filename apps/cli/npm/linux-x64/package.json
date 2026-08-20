@@ -1,5 +1,5 @@
 {
-  "name": "@byfriends/cli-linux-x64",
+  "name": "@byfriends/cli-linux",
   "version": "0.6.0",
   "private": true,
   "description": "Linux x64 binary for @byfriends/cli (bun build --compile)",

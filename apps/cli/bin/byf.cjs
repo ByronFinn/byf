@@ -27,7 +27,7 @@ const PLATFORM_PACKAGES = Object.freeze([
     subpath: 'bin/byf',
   },
   {
-    packageName: '@byfriends/cli-linux-x64',
+    packageName: '@byfriends/cli-linux',
     target: 'linux-x64',
     os: 'linux',
     cpu: 'x64',
