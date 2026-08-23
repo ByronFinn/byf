@@ -171,7 +171,9 @@ export class WebSessionManager {
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly pendingQuestions = new Map<string, PendingQuestion>();
   /** 正在跑 turn 的会话(fork 拒绝;PRD-0034 R-A4)。 */
-  private readonly busySessions = new Set<string>();
+  /** busy 深度计数（PRD-0037 #340 修 D2）：任意 agent 的 turn 均计入——
+   * 子代理/压缩/导航等操作进行中不再误判空闲；深度归零才算空闲。 */
+  private readonly busyDepths = new Map<string, number>();
   /** 进行中的 resume(id → promise),并发 resume 去重,防止重复 attach 双份 onEvent。 */
   private readonly resuming = new Map<string, Promise<SessionLike>>();
 
@@ -244,7 +246,7 @@ export class WebSessionManager {
   }
 
   isSessionBusy(id: string): boolean {
-    return this.busySessions.has(id);
+    return (this.busyDepths.get(id) ?? 0) > 0;
   }
 
   async forkSession(id: string, upToMessage?: number): Promise<SessionSummary> {
@@ -536,7 +538,7 @@ export class WebSessionManager {
     this.detach(id);
     this.rejectPendingForSession(id, new Error('session closed'));
     this.sessions.delete(id);
-    this.busySessions.delete(id);
+    this.busyDepths.delete(id);
     await session.close();
     return true;
   }
@@ -553,19 +555,15 @@ export class WebSessionManager {
 
   private attach(session: SessionLike): void {
     const unsub = session.onEvent((event) => {
-      // busy 跟踪:fork 拒绝语义(PRD-0034 R-A4)依赖 turn 生命周期事件。
-      // 只认主 agent 的 turn:子 agent 的 turn.ended 不能清除父 turn 仍在
-      // 进行中的 busy 标记(否则并发 fork 撕裂窗口被重新打开)。
-      if (
-        event.type === 'turn.started' &&
-        (event.agentId === undefined || event.agentId === 'main')
-      ) {
-        this.busySessions.add(session.id);
-      } else if (
-        event.type === 'turn.ended' &&
-        (event.agentId === undefined || event.agentId === 'main')
-      ) {
-        this.busySessions.delete(session.id);
+      // busy 跟踪（PRD-0037 #340 修 D2）：任意 agent 的 turn.started 计深、
+      // turn.ended 递减——子代理 turn 不再漏计（误判空闲），父 turn 也不会
+      // 被子 turn.ended 误清（深度语义天然正确）。
+      if (event.type === 'turn.started') {
+        this.busyDepths.set(session.id, (this.busyDepths.get(session.id) ?? 0) + 1);
+      } else if (event.type === 'turn.ended') {
+        const depth = Math.max(0, (this.busyDepths.get(session.id) ?? 0) - 1);
+        if (depth === 0) this.busyDepths.delete(session.id);
+        else this.busyDepths.set(session.id, depth);
       }
       this.broadcast(session.id, { type: 'agent.event', event });
     });

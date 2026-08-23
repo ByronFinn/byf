@@ -57,6 +57,11 @@ interface LoadedState {
 export interface JsonlStorageOptions {
   /** 每次追加后 fsync（#324 的接受边界分级在此之上分层）。 */
   readonly fsync?: boolean;
+  /**
+   * 只读打开（检视路径）：撕裂尾行仅在内存视图丢弃，不物理截断——
+   * 避免与 live 写者的并发追加竞态。
+   */
+  readonly readonly?: boolean;
 }
 
 export class JsonlSessionStorage implements SessionStorage {
@@ -118,7 +123,7 @@ export class JsonlSessionStorage implements SessionStorage {
       throw error;
     }
     const { state, sessionId, truncateTo } = parseJournal(text, path);
-    if (truncateTo !== null && truncateTo < text.length) {
+    if (truncateTo !== null && truncateTo < text.length && options?.readonly !== true) {
       // 撕裂尾行物理截断：按未确认追加丢弃
       const tmp = `${path}.trunc`;
       await writeFile(tmp, text.slice(0, truncateTo));

@@ -1876,12 +1876,13 @@ describe('Wave A session organization routes (PRD-0034)', () => {
       });
     };
 
-    // 子 agent turn 开始不应把父会话标为 busy。
+    // PRD-0037 #340（修 D2）：子 agent turn 进行中同样计为 busy——
+    // 任意 lane 的任意操作（含子代理）不再误判空闲。
     harness.nextForkResult = seed(harness, 'ses_forked_sub', '/proj');
     childStarted();
-    expect((await fork()).status).toBe(201);
+    expect((await fork()).status).toBe(409);
 
-    // 主 agent turn 期间,子 agent 结束不能清除 busy(否则撕裂窗口重新打开)。
+    // 主 agent turn 期间,子 agent 结束不能清除 busy(深度计数天然正确)。
     harness.nextForkResult = seed(harness, 'ses_forked_main', '/proj');
     session.emit({
       type: 'turn.started',
