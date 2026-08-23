@@ -50,6 +50,10 @@
     "./home": {
       "types": "./src/home/workspace-registry.ts",
       "default": "./src/home/workspace-registry.ts"
+    },
+    "./harness/storage-contract": {
+      "types": "./src/harness/storage-contract.ts",
+      "default": "./src/harness/storage-contract.ts"
     }
   },
   "publishConfig": {
@@ -78,6 +82,11 @@
         "types": "./dist/home/workspace-registry.d.mts",
         "import": "./dist/home/workspace-registry.mjs",
         "default": "./dist/home/workspace-registry.mjs"
+      },
+      "./harness/storage-contract": {
+        "types": "./dist/harness/storage-contract.d.mts",
+        "import": "./dist/harness/storage-contract.mjs",
+        "default": "./dist/harness/storage-contract.mjs"
       }
     },
     "access": "public",
