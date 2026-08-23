@@ -5,3 +5,5 @@ export type { AgentHarnessConfig, HarnessLiveEvent, OperationOutcome } from './a
 export * from './records';
 export * from './lane-state';
 export { TranscriptBridge, projectEntryMessage, toolResultMessage } from './transcript';
+export { acquireSessionLock, SessionLockError } from './lock';
+export type { SessionLockHandle, SessionLockOptions } from './lock';

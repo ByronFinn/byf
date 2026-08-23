@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { dirname } from 'node:path';
 
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
 
@@ -9,14 +10,17 @@ import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
 import { LaneStateReducer } from './lane-state';
 import type { LaneState } from './lane-state';
+import { acquireSessionLock } from './lock';
+import type { SessionLockHandle } from './lock';
 import {
   asOperationStarted,
   asWriteDeferred,
   operationRecordId,
   toolStartedRecordId,
 } from './records';
-import type { OperationStartedPayload, ToolReplaySafety } from './records';
+import type { OperationStartedPayload, ToolStartedPayload, ToolReplaySafety } from './records';
 import { WireSession } from './session/session';
+import { JsonlSessionStorage } from './storage/jsonl';
 import { InMemorySessionStorage } from './storage/memory';
 import type { SessionStorage } from './storage/storage';
 import type { LaneId, StoredPromptOrigin } from './storage/types';
@@ -99,22 +103,34 @@ export class AgentHarness {
   private readonly runtimes = new Map<LaneId, LaneRuntime>();
   /** 仅关闭自建的存储（注入的存储归调用方所有）。 */
   private readonly ownsStorage: boolean;
+  private readonly lock: SessionLockHandle | undefined;
   private closed = false;
 
-  private constructor(session: WireSession, config: AgentHarnessConfig, ownsStorage: boolean) {
+  private constructor(
+    session: WireSession,
+    config: AgentHarnessConfig,
+    ownsStorage: boolean,
+    lock: SessionLockHandle | undefined,
+  ) {
     this.session = session;
     this.config = config;
     this.ownsStorage = ownsStorage;
+    this.lock = lock;
   }
 
   /** 打开（或新建）会话并恢复全部 lane。 */
   static async create(config: AgentHarnessConfig = {}): Promise<AgentHarness> {
     const ownsStorage = config.storage === undefined;
     const storage = config.storage ?? new InMemorySessionStorage(randomUUID());
+    // 会话级单写者（R10，修 D1）：磁盘后端自动上锁；第二进程打开同会话被拒绝
+    const lock =
+      storage instanceof JsonlSessionStorage
+        ? await acquireSessionLock(dirname(storage.path))
+        : undefined;
     const lanes = await storage.getLanes();
     const session =
       lanes.length > 0 ? await WireSession.open(storage) : await WireSession.create(storage);
-    const harness = new AgentHarness(session, config, ownsStorage);
+    const harness = new AgentHarness(session, config, ownsStorage, lock);
     // restore 归约：全部 records 重放 + finishRestore（running → suspended）
     const records = await storage.getRecords();
     for (const record of records) harness.reducer.apply(record);
@@ -146,6 +162,7 @@ export class AgentHarness {
     if (this.ownsStorage) {
       await this.session.close();
     }
+    await this.lock?.release();
   }
 
   // ===== 三队列（R3：接受即持久、消费点才写树） =====
@@ -342,6 +359,10 @@ export class AgentHarness {
 
     const started = await this.findOperationStarted(laneId, open.opId);
     if (!started) throw new Error(`operation_started record missing for ${open.opId}`);
+    // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
+    // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
+    // provider 拒绝无结果的 toolCalls。
+    await this.reconcileDanglingTools(laneId, open.danglingTools);
     const controller = new AbortController();
     this.runtimes.set(laneId, { controller, opId: open.opId });
     return this.runOperation(laneId, started, controller, attempt);
@@ -487,21 +508,91 @@ export class AgentHarness {
   private async reconcileAbortedOperation(laneId: LaneId, opId: string): Promise<OperationOutcome> {
     const state = this.reducer.snapshot(laneId);
     const dangling = state.openOperation?.danglingTools ?? [];
-    for (const tool of dangling) {
-      if (this.session.getEntry(tool.resultEntryId)) continue; // 已有真实结果
-      await this.session.append({
-        laneId,
-        kind: 'message',
-        id: tool.resultEntryId,
-        message: {
-          role: 'tool',
-          toolCallId: tool.toolCallId,
-          content: [{ type: 'text', text: '[interrupted]' }],
-          isError: true,
-        },
-      });
-    }
+    await this.reconcileDanglingToolsAsInterrupted(laneId, dangling);
     return this.finishAbortedOperation(laneId, opId, 0);
+  }
+
+  /**
+   * 悬空工具批分类处置（AC5，#326）：重跑（resume）前清空悬空 toolCalls。
+   * - replay 'never'：合成 interrupted 结果（副作用工具不可重放）；
+   * - replay 'safe'：用真实工具安全重放一次并写真实结果。
+   */
+  private async reconcileDanglingTools(
+    laneId: LaneId,
+    dangling: readonly ToolStartedPayload[],
+  ): Promise<void> {
+    for (const tool of dangling) {
+      if (this.session.getEntry(tool.resultEntryId)) continue; // 已有结果
+      if (tool.replay === 'safe') {
+        const replayed = await this.safeReplayTool(laneId, tool);
+        if (replayed) continue;
+      }
+      await this.appendSyntheticInterrupted(laneId, tool);
+    }
+  }
+
+  /** abort 路径：悬空工具一律合成 interrupted（abort 语义下不重放）。 */
+  private async reconcileDanglingToolsAsInterrupted(
+    laneId: LaneId,
+    dangling: readonly ToolStartedPayload[],
+  ): Promise<void> {
+    for (const tool of dangling) {
+      if (this.session.getEntry(tool.resultEntryId)) continue;
+      await this.appendSyntheticInterrupted(laneId, tool);
+    }
+  }
+
+  private async appendSyntheticInterrupted(
+    laneId: LaneId,
+    tool: ToolStartedPayload,
+  ): Promise<void> {
+    await this.session.append({
+      laneId,
+      kind: 'message',
+      id: tool.resultEntryId,
+      message: {
+        role: 'tool',
+        toolCallId: tool.toolCallId,
+        content: [{ type: 'text', text: '[interrupted]' }],
+        isError: true,
+      },
+    });
+  }
+
+  /** 安全重放：工具在注册表中且 replay=safe 时执行一次并写真实结果。 */
+  private async safeReplayTool(laneId: LaneId, tool: ToolStartedPayload): Promise<boolean> {
+    const executable = this.config.tools?.find((candidate) => candidate.name === tool.name);
+    if (!executable) return false;
+    try {
+      const execution = executable.resolveExecution(tool.args as never);
+      if ('execute' in execution) {
+        const result = await execution.execute({
+          turnId: tool.opId,
+          toolCallId: tool.toolCallId,
+          signal: new AbortController().signal,
+        });
+        await this.session.append({
+          laneId,
+          kind: 'message',
+          id: tool.resultEntryId,
+          message: {
+            role: 'tool',
+            toolCallId: tool.toolCallId,
+            content:
+              typeof result.output === 'string'
+                ? [{ type: 'text', text: result.output }]
+                : Array.isArray(result.output)
+                  ? (result.output as ContentPart[])
+                  : [{ type: 'text', text: JSON.stringify(result.output) }],
+            isError: result.isError === true || undefined,
+          },
+        });
+        return true;
+      }
+      return false;
+    } catch {
+      return false; // 重放失败降级为合成 interrupted
+    }
   }
 
   /** abort 收尾：收尾 assistant 消息 + deferred writes 应用 + finished aborted。 */
