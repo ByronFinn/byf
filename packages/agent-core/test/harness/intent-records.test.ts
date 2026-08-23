@@ -70,6 +70,11 @@ async function openSuspendedSession(
   }
 }
 
+function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; message: string }): T {
+  if (!r.ok) throw new Error('unexpected lane error: ' + r.code + ' ' + r.message);
+  return r.value;
+}
+
 describe('tool_started records (PRD-0037 #324)', () => {
   it('links assistant entry, tool result entry, and replay safety', async () => {
     const storage = new InMemorySessionStorage('t1');
@@ -79,7 +84,7 @@ describe('tool_started records (PRD-0037 #324)', () => {
       maxSteps: 1,
       toolReplaySafety: (name) => (name === 'echo' ? 'safe' : 'never'),
     });
-    await harness.lane().prompt([text('run echo')]);
+    unwrap(await harness.lane().prompt([text('run echo')]));
 
     const records = await storage.getRecords({ kinds: ['tool_started'] });
     expect(records.length).toBe(1);
@@ -118,7 +123,7 @@ describe('tool_started records (PRD-0037 #324)', () => {
       },
     };
     const harness = await AgentHarness.create({ storage, llm, maxSteps: 1 });
-    await harness.lane().prompt([text('parallel')]);
+    unwrap(await harness.lane().prompt([text('parallel')]));
 
     const toolRecords = (await storage.getRecords({ kinds: ['tool_started'] })).map((r) =>
       asToolStarted(r.payload),
@@ -148,7 +153,7 @@ describe('task_attempt persistent counting (AC3)', () => {
       maxResumeAttempts: 3,
     });
     expect(harness.laneState().openOperation?.attempts).toBe(1);
-    const second = await harness.lane().resume();
+    const second = unwrap(await harness.lane().resume());
     expect(second.outcome).toBe('failed');
     const attempts = await storage.getRecords({ kinds: ['task_attempt'] });
     expect(attempts.map((r) => (r.payload as { attempt: number }).attempt)).toEqual([1, 2]);
@@ -172,7 +177,7 @@ describe('task_attempt persistent counting (AC3)', () => {
     const state = harness.laneState();
     expect(state.status).toBe('suspended');
     expect(state.openOperation?.attempts).toBe(3);
-    const outcome = await harness.lane().resume();
+    const outcome = unwrap(await harness.lane().resume());
     expect(outcome.outcome).toBe('failed');
     expect(outcome.errorMessage).toContain('耗尽');
     // 错误 assistant 消息已落盘

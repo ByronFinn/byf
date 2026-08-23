@@ -164,16 +164,21 @@ function dirnameOf(path: string): string {
   return idx === -1 ? '.' : path.slice(0, idx);
 }
 
+function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; message: string }): T {
+  if (!r.ok) throw new Error('unexpected lane error: ' + r.code + ' ' + r.message);
+  return r.value;
+}
+
 describe('crash matrix (PRD-0037 #326, AC1/AC2/AC5)', () => {
   it('simple run trace survives any line-boundary crash', async () => {
     await assertCrashMatrix('simple', async (harness) => {
-      await harness.lane().prompt([text('hello')]);
+      unwrap(await harness.lane().prompt([text('hello')]));
     });
   }, 30_000);
 
   it('tool run trace (with tool_started) survives any line-boundary crash', async () => {
     await assertCrashMatrix('tool', async (harness) => {
-      await harness.lane().prompt([text('use the tool')]);
+      unwrap(await harness.lane().prompt([text('use the tool')]));
     });
   }, 30_000);
 
@@ -232,10 +237,10 @@ describe('crash matrix (PRD-0037 #326, AC1/AC2/AC5)', () => {
 
   it('compaction + navigation trace survives any line-boundary crash', async () => {
     await assertCrashMatrix('compact-nav', async (harness) => {
-      await harness.lane().prompt([text('first')]);
+      unwrap(await harness.lane().prompt([text('first')]));
       await harness.session.append({ laneId: 'main', kind: 'compaction', summary: 'sum' });
       await harness.session.navigate('main', (await harness.session.leaf('main'))!.parentId!);
-      await harness.lane().prompt([text('after navigate')]);
+      unwrap(await harness.lane().prompt([text('after navigate')]));
     });
   }, 30_000);
 });
@@ -307,7 +312,7 @@ describe('dangling tool classification on resume (AC5)', () => {
       toolReplaySafety: (n) => (n === 'echo' ? 'safe' : 'never'),
     });
     expect(harness.laneState().status).toBe('suspended');
-    const outcome = await harness.lane().resume();
+    const outcome = unwrap(await harness.lane().resume());
     expect(outcome.outcome).toBe('completed');
     // safe 工具重放出真实结果
     const safeResult = await storage.getEntry(`entry:${opId}:a1:1:r0`);

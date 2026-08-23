@@ -41,6 +41,11 @@ const scriptedLLM: LLM = {
   },
 };
 
+function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; message: string }): T {
+  if (!r.ok) throw new Error('unexpected lane error: ' + r.code + ' ' + r.message);
+  return r.value;
+}
+
 describe('config engine field (PRD-0037 #327)', () => {
   it('defaults to legacy when absent', () => {
     expect(resolveSessionEngine({})).toBe('legacy');
@@ -106,7 +111,7 @@ describe('v2 engine dogfood entry (PRD-0037 #327)', () => {
         storage,
         llm: scriptedLLM,
       });
-      const outcome = await harness.lane().prompt([text('hello v2')]);
+      const outcome = unwrap(await harness.lane().prompt([text('hello v2')]));
       expect(outcome.outcome).toBe('completed');
       expect(outcome.stopReason).toBe('end_turn');
       // 磁盘上是 2.0 header 的会话级单文件

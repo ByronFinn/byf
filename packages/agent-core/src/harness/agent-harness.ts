@@ -8,6 +8,8 @@ import type { LoopEvent } from '../loop/events';
 import type { LLM } from '../loop/llm';
 import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
+import { err, ok } from './lane-result';
+import type { LaneError, LaneResult } from './lane-result';
 import { LaneStateReducer } from './lane-state';
 import type { LaneState } from './lane-state';
 import { acquireSessionLock } from './lock';
@@ -50,6 +52,13 @@ export interface AgentHarnessConfig {
   readonly storage?: SessionStorage;
   /** LLM 驱动（loop 层契约）。 */
   readonly llm?: LLM;
+  /**
+   * per-lane 模型解析（#328）：按 lane 路径点查询到的 modelAlias 构造 LLM；
+   * 缺省回退 config.llm。两 lane 可各跑不同模型互不感知。
+   */
+  readonly resolveLLM?: (modelAlias: string | undefined) => Promise<LLM>;
+  /** 各 lane 共享的系统提示（per-lane systemPrompt 由 #332 transform_context 承接）。 */
+  readonly systemPrompt?: string;
   readonly tools?: readonly ExecutableTool[];
   readonly maxSteps?: number;
   readonly maxRetryAttempts?: number;
@@ -165,6 +174,157 @@ export class AgentHarness {
     await this.lock?.release();
   }
 
+  // ===== lane CRUD（#328：lane() 按名查找永不创建） =====
+
+  /** lane 是否存在（操作面守卫用）。 */
+  async laneExists(laneId: LaneId): Promise<boolean> {
+    return (await this.session.lanes()).some((lane) => lane.laneId === laneId);
+  }
+
+  async createLane(
+    laneId: LaneId,
+    options?: { readonly name?: string; readonly fromEntryId?: string },
+  ): Promise<LaneResult<LaneId>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    try {
+      await this.session.createLane({
+        laneId,
+        name: options?.name,
+        fromEntryId: options?.fromEntryId,
+      });
+      this.reducer.snapshot(laneId); // 确保归约器知道该 lane
+      return ok(laneId);
+    } catch (error) {
+      return err('INVALID_INPUT', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** 删除 lane（墓碑）。main 不可删；操作活跃或 suspended 时拒绝。 */
+  async deleteLane(laneId: LaneId): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    if (laneId === MAIN_LANE_ID) {
+      return err('LANE_MAIN_UNDELETABLE', 'main lane cannot be deleted');
+    }
+    const state = this.reducer.snapshot(laneId);
+    if (state.status !== 'idle') {
+      return err('NOT_IDLE', `lane ${laneId} is ${state.status}; delete requires idle`);
+    }
+    if (!(await this.laneExists(laneId))) {
+      return err('LANE_NOT_FOUND', `lane ${laneId} not found`);
+    }
+    await this.session.deleteLane(laneId);
+    return ok(undefined);
+  }
+
+  /** 等待 lane 回到 idle（busy 操作的同步原语）。 */
+  async waitForIdle(
+    laneId: LaneId,
+    options?: { readonly timeoutMs?: number; readonly pollMs?: number },
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    const timeoutMs = options?.timeoutMs ?? 120_000;
+    const pollMs = options?.pollMs ?? 10;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (this.laneState(laneId).status === 'idle') return ok(undefined);
+      if (Date.now() >= deadline) {
+        return err('LANE_BUSY', `lane ${laneId} still busy after ${timeoutMs}ms`);
+      }
+      await sleep(pollMs);
+    }
+  }
+
+  /** 原子 check-and-run：lane idle 时立即以 fn 发起操作，否则 busy。 */
+  async runWhenIdle<T>(laneId: LaneId, fn: () => Promise<LaneResult<T>>): Promise<LaneResult<T>> {
+    const guard = this.guardPrompt(laneId);
+    if (guard) return guard;
+    return fn();
+  }
+
+  // ===== per-lane 配置（点查询：lane 路径上最新 config entry，#328） =====
+
+  /** lane 路径上某类 config entry 的最新值（点查询还原）。 */
+  private async latestConfigEntry<T>(
+    laneId: LaneId,
+    kind: 'model_change' | 'thinking_level_change' | 'active_tools_change',
+  ): Promise<T | undefined> {
+    const branch = await this.session.branchOf(laneId, {
+      direction: 'newestFirst',
+      types: [kind],
+      limit: 1,
+    });
+    const entry = branch.entries[0];
+    if (!entry) return undefined;
+    if (entry.kind === 'model_change') return entry.modelAlias as T;
+    if (entry.kind === 'thinking_level_change') return entry.thinkingLevel as T;
+    if (entry.kind === 'active_tools_change') return [...entry.activeTools] as T;
+    return undefined;
+  }
+
+  async getModel(laneId: LaneId): Promise<string | undefined> {
+    return this.latestConfigEntry<string>(laneId, 'model_change');
+  }
+
+  async getThinkingLevel(laneId: LaneId): Promise<string | undefined> {
+    return this.latestConfigEntry<string>(laneId, 'thinking_level_change');
+  }
+
+  async getActiveTools(laneId: LaneId): Promise<readonly string[] | undefined> {
+    return this.latestConfigEntry<readonly string[]>(laneId, 'active_tools_change');
+  }
+
+  /** 写配置 entry（要求 idle：mid-run 改配置破坏 run 语义）。 */
+  async setModel(laneId: LaneId, modelAlias: string): Promise<LaneResult<void>> {
+    return this.appendConfigEntry(laneId, 'model_change', modelAlias);
+  }
+
+  async setThinkingLevel(laneId: LaneId, level: string): Promise<LaneResult<void>> {
+    return this.appendConfigEntry(laneId, 'thinking_level_change', level);
+  }
+
+  async setActiveTools(laneId: LaneId, tools: readonly string[]): Promise<LaneResult<void>> {
+    return this.appendConfigEntry(laneId, 'active_tools_change', tools);
+  }
+
+  private async appendConfigEntry(
+    laneId: LaneId,
+    kind: 'model_change' | 'thinking_level_change' | 'active_tools_change',
+    value: string | readonly string[],
+  ): Promise<LaneResult<void>> {
+    const guard = this.guardPrompt(laneId);
+    if (guard) return guard;
+    try {
+      if (kind === 'model_change') {
+        await this.session.append({ laneId, kind, modelAlias: value as string });
+      } else if (kind === 'thinking_level_change') {
+        await this.session.append({ laneId, kind, thinkingLevel: value as string });
+      } else {
+        await this.session.append({ laneId, kind, activeTools: value as readonly string[] });
+      }
+      return ok(undefined);
+    } catch (error) {
+      return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** run 用 LLM 解析：per-lane 模型优先（resolveLLM），回退全局 llm。 */
+  private async resolveLLMFor(laneId: LaneId): Promise<LLM> {
+    if (this.config.resolveLLM) {
+      return this.config.resolveLLM(await this.getModel(laneId));
+    }
+    if (this.config.llm) return this.config.llm;
+    throw new Error('AgentHarness requires an llm (config.llm or resolveLLM)');
+  }
+
+  /** run 用工具集：per-lane activeTools 过滤全局注册表。 */
+  private async resolveToolsFor(laneId: LaneId): Promise<readonly ExecutableTool[] | undefined> {
+    if (!this.config.tools) return undefined;
+    const active = await this.getActiveTools(laneId);
+    if (active === undefined) return this.config.tools;
+    const activeSet = new Set(active);
+    return this.config.tools.filter((tool) => activeSet.has(tool.name));
+  }
+
   // ===== 三队列（R3：接受即持久、消费点才写树） =====
 
   /** 运行中转向：消费点在 checkpoint（下一 step 前写入树）。 */
@@ -172,13 +332,14 @@ export class AgentHarness {
     laneId: LaneId,
     input: readonly ContentPart[],
     options?: { readonly origin?: StoredPromptOrigin },
-  ): Promise<void> {
-    this.assertOpen();
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     const status = this.laneState(laneId).status; // 含接受窗口的同步占位
     if (status !== 'running' && status !== 'aborting') {
-      throw new Error(`lane ${laneId} is ${status}; steer requires a running operation`);
+      return err('NOT_RUNNING', `lane ${laneId} is ${status}; steer requires a running operation`);
     }
     await this.enqueueQueueItem(laneId, 'steer', input, options?.origin);
+    return ok(undefined);
   }
 
   /** 下一个 run 的输入：当前操作结束后消费；abort 时死亡并归还 payload。 */
@@ -186,9 +347,10 @@ export class AgentHarness {
     laneId: LaneId,
     input: readonly ContentPart[],
     options?: { readonly origin?: StoredPromptOrigin },
-  ): Promise<void> {
-    this.assertOpen();
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     await this.enqueueQueueItem(laneId, 'followUp', input, options?.origin);
+    return ok(undefined);
   }
 
   /** 跨操作存活的输入队列：abort 后仍存活，lane idle 时消费。 */
@@ -196,9 +358,10 @@ export class AgentHarness {
     laneId: LaneId,
     input: readonly ContentPart[],
     options?: { readonly origin?: StoredPromptOrigin },
-  ): Promise<void> {
-    this.assertOpen();
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     await this.enqueueQueueItem(laneId, 'nextRun', input, options?.origin);
+    return ok(undefined);
   }
 
   private async enqueueQueueItem(
@@ -226,13 +389,14 @@ export class AgentHarness {
   async deferWrite(
     laneId: LaneId,
     append: { readonly customType: string; readonly data: unknown },
-  ): Promise<void> {
-    this.assertOpen();
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     const itemId = randomUUID();
     await this.appendRecordTracked(laneId, 'write_deferred', `dw:${itemId}`, {
       append: { kind: 'custom', ...append, id: `entry:${itemId}:deferred` },
       deferredAt: Date.now(),
     });
+    return ok(undefined);
   }
 
   /** 应用尚未落树的 deferred writes（checkpoint 与 abort 路径共用；abort 存活）。 */
@@ -291,89 +455,113 @@ export class AgentHarness {
     laneId: LaneId,
     input: readonly ContentPart[],
     options?: { readonly origin?: StoredPromptOrigin; readonly inputEntryId?: string },
-  ): Promise<OperationOutcome> {
-    this.assertOpen();
-    this.requireIdle(laneId);
-    if (!this.config.llm) throw new Error('AgentHarness requires an llm to run operations');
-
+  ): Promise<LaneResult<OperationOutcome>> {
+    const guard = this.guardPrompt(laneId);
+    if (guard) return guard;
     const opId = randomUUID();
     // 同步占位运行时：接受即视为 busy（任何 await 之前的竞态窗口关闭）
     const controller = new AbortController();
     this.runtimes.set(laneId, { controller, opId });
-    const payload: OperationStartedPayload = {
-      opId,
-      kind: 'prompt',
-      input,
-      origin: options?.origin ?? { kind: 'user' },
-      // 队列消费路径传入队列项的预分配 entryId（消费点写树）
-      inputEntryId: options?.inputEntryId ?? `entry:${opId}:input`,
-      startedAt: Date.now(),
-    };
-    // 意图先行：接受边界记录先于任何效果（含预分配 id 的输入消息）
-    await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
-    return this.runOperation(laneId, payload, controller, 1);
+    try {
+      const payload: OperationStartedPayload = {
+        opId,
+        kind: 'prompt',
+        input,
+        origin: options?.origin ?? { kind: 'user' },
+        // 队列消费路径传入队列项的预分配 entryId（消费点写树）
+        inputEntryId: options?.inputEntryId ?? `entry:${opId}:input`,
+        startedAt: Date.now(),
+      };
+      // 意图先行：接受边界记录先于任何效果（含预分配 id 的输入消息）
+      await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
+      return ok(await this.runOperation(laneId, payload, controller, 1));
+    } catch (error) {
+      this.runtimes.delete(laneId);
+      return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    }
   }
 
-  async resume(laneId: LaneId = MAIN_LANE_ID): Promise<OperationOutcome> {
-    this.assertOpen();
+  /** prompt 的同步守卫（results-not-exceptions：拒绝以错误码返回，AC11）。 */
+  private guardPrompt(laneId: LaneId): LaneError | undefined {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    if (this.runtimes.has(laneId)) {
+      return err('LANE_BUSY', `lane ${laneId} has an in-flight operation`);
+    }
+    const state = this.reducer.snapshot(laneId);
+    if (state.status !== 'idle') {
+      return err('NOT_IDLE', `lane ${laneId} is ${state.status}; prompt requires idle`);
+    }
+    return undefined;
+  }
+
+  async resume(laneId: LaneId = MAIN_LANE_ID): Promise<LaneResult<OperationOutcome>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    if (this.runtimes.has(laneId))
+      return err('LANE_BUSY', `lane ${laneId} has an in-flight operation`);
     const state = this.reducer.snapshot(laneId);
     if (state.status !== 'suspended' && state.status !== 'aborting') {
-      throw new Error(`lane ${laneId} is ${state.status}, nothing to resume`);
+      return err('NOT_SUSPENDED', `lane ${laneId} is ${state.status}, nothing to resume`);
     }
     const open = state.openOperation;
-    if (!open) throw new Error(`lane ${laneId} has no open operation to resume`);
+    if (!open) return err('NOT_SUSPENDED', `lane ${laneId} has no open operation to resume`);
+    try {
+      if (open.abortRequested) {
+        return ok(await this.reconcileAbortedOperation(laneId, open.opId));
+      }
 
-    if (open.abortRequested) {
-      return this.reconcileAbortedOperation(laneId, open.opId);
-    }
-
-    // task_attempt：1-based 持久 run-attempt 计数（AC3：跨崩溃-重启不可重置）
-    const maxAttempts = this.config.maxResumeAttempts ?? DEFAULT_MAX_RESUME_ATTEMPTS;
-    if (open.maxAttempts > 0 && open.attempts >= open.maxAttempts) {
-      // 耗尽：落错误 assistant 消息 + operation_finished failed（AC3）
-      const errorMessage = `操作重试次数已耗尽（${open.attempts}/${open.maxAttempts}）`;
-      await this.session.append({
-        laneId,
-        kind: 'message',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: errorMessage }],
-          isError: true,
-        },
-      });
-      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+      // task_attempt：1-based 持久 run-attempt 计数（AC3：跨崩溃-重启不可重置）
+      const maxAttempts = this.config.maxResumeAttempts ?? DEFAULT_MAX_RESUME_ATTEMPTS;
+      if (open.maxAttempts > 0 && open.attempts >= open.maxAttempts) {
+        // 耗尽：落错误 assistant 消息 + operation_finished failed（AC3）
+        const errorMessage = `操作重试次数已耗尽（${open.attempts}/${open.maxAttempts}）`;
+        await this.session.append({
+          laneId,
+          kind: 'message',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: errorMessage }],
+            isError: true,
+          },
+        });
+        await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+          opId: open.opId,
+          outcome: 'failed',
+          errorMessage,
+          finishedAt: Date.now(),
+        });
+        return ok({ opId: open.opId, outcome: 'failed', errorMessage, steps: 0 });
+      }
+      const attempt = open.attempts + 1;
+      await this.appendRecordTracked(laneId, 'task_attempt', `attempt:${open.opId}:${attempt}`, {
         opId: open.opId,
-        outcome: 'failed',
-        errorMessage,
-        finishedAt: Date.now(),
+        attempt,
+        maxAttempts,
+        at: Date.now(),
       });
-      return { opId: open.opId, outcome: 'failed', errorMessage, steps: 0 };
-    }
-    const attempt = open.attempts + 1;
-    await this.appendRecordTracked(laneId, 'task_attempt', `attempt:${open.opId}:${attempt}`, {
-      opId: open.opId,
-      attempt,
-      maxAttempts,
-      at: Date.now(),
-    });
 
-    const started = await this.findOperationStarted(laneId, open.opId);
-    if (!started) throw new Error(`operation_started record missing for ${open.opId}`);
-    // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
-    // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
-    // provider 拒绝无结果的 toolCalls。
-    await this.reconcileDanglingTools(laneId, open.danglingTools);
-    const controller = new AbortController();
-    this.runtimes.set(laneId, { controller, opId: open.opId });
-    return this.runOperation(laneId, started, controller, attempt);
+      const started = await this.findOperationStarted(laneId, open.opId);
+      if (!started) {
+        return err('INTERNAL', `operation_started record missing for ${open.opId}`);
+      }
+      // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
+      // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
+      // provider 拒绝无结果的 toolCalls。
+      await this.reconcileDanglingTools(laneId, open.danglingTools);
+      const controller = new AbortController();
+      this.runtimes.set(laneId, { controller, opId: open.opId });
+      return ok(await this.runOperation(laneId, started, controller, attempt));
+    } catch (error) {
+      this.runtimes.delete(laneId);
+      return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    }
   }
 
-  async abort(laneId: LaneId = MAIN_LANE_ID): Promise<void> {
-    this.assertOpen();
+  async abort(laneId: LaneId = MAIN_LANE_ID): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     const runtime = this.runtimes.get(laneId);
     if (runtime) {
       runtime.controller.abort();
-      return;
+      return ok(undefined);
     }
     // 无 live 运行时的 abort：持久化意图，resume 时 reconcile（#325 完整化）
     const state = this.reducer.snapshot(laneId);
@@ -383,6 +571,7 @@ export class AgentHarness {
         requestedAt: Date.now(),
       });
     }
+    return ok(undefined);
   }
 
   // ===== runProcedure：live 与 resume 同码 =====
@@ -446,10 +635,10 @@ export class AgentHarness {
         const result = await runTurn({
           turnId: op.opId, // 持久 runId（B8：turnId 不稳定问题的终局解）
           signal: controller.signal,
-          llm: this.requireLLM(),
+          llm: await this.resolveLLMFor(laneId), // per-lane 模型（#328 AC）
           buildMessages,
           dispatchEvent,
-          tools: this.config.tools,
+          tools: await this.resolveToolsFor(laneId), // per-lane activeTools 过滤
           maxSteps: this.config.maxSteps,
           maxRetryAttempts: this.config.maxRetryAttempts,
           // checkpoint（#325）：beforeStep 先于 buildMessages——deferred writes
@@ -700,7 +889,13 @@ export class AgentHarness {
   }
 }
 
-/** 按名绑定的 lane 操作门面（无状态：全部状态在 harness）。 */
+/**
+ * 按名绑定的 lane 操作门面（无状态：全部状态在 harness）。
+ *
+ * 完整操作面（#328）：prompt/resume/abort + 三队列 + waitForIdle/runWhenIdle +
+ * 配置 getter/setter，全部 async、results-not-exceptions（判别联合返回，
+ * 永不 throw，rejection 即 bug）。
+ */
 export class AgentLane {
   constructor(
     private readonly harness: AgentHarness,
@@ -711,52 +906,109 @@ export class AgentLane {
     return this.harness.laneState(this.laneId);
   }
 
-  prompt(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+  exists(): Promise<boolean> {
+    return this.harness.laneExists(this.laneId);
+  }
+
+  prompt(
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<LaneResult<OperationOutcome>> {
     return this.harness.prompt(this.laneId, input, options);
   }
 
-  resume(): Promise<OperationOutcome> {
+  resume(): Promise<LaneResult<OperationOutcome>> {
     return this.harness.resume(this.laneId);
   }
 
-  abort(): Promise<void> {
+  abort(): Promise<LaneResult<void>> {
     return this.harness.abort(this.laneId);
   }
 
-  steer(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+  steer(
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<LaneResult<void>> {
     return this.harness.steer(this.laneId, input, options);
   }
 
-  followUp(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+  followUp(
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<LaneResult<void>> {
     return this.harness.followUp(this.laneId, input, options);
   }
 
-  nextRun(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+  nextRun(
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<LaneResult<void>> {
     return this.harness.nextRun(this.laneId, input, options);
   }
 
-  deferWrite(input: { readonly customType: string; readonly data: unknown }) {
+  deferWrite(input: {
+    readonly customType: string;
+    readonly data: unknown;
+  }): Promise<LaneResult<void>> {
     return this.harness.deferWrite(this.laneId, input);
+  }
+
+  waitForIdle(options?: { readonly timeoutMs?: number }): Promise<LaneResult<void>> {
+    return this.harness.waitForIdle(this.laneId, options);
+  }
+
+  runWhenIdle<T>(fn: () => Promise<LaneResult<T>>): Promise<LaneResult<T>> {
+    return this.harness.runWhenIdle(this.laneId, fn);
+  }
+
+  // ===== per-lane 配置视图（点查询还原） =====
+
+  getModel(): Promise<string | undefined> {
+    return this.harness.getModel(this.laneId);
+  }
+
+  getThinkingLevel(): Promise<string | undefined> {
+    return this.harness.getThinkingLevel(this.laneId);
+  }
+
+  getActiveTools(): Promise<readonly string[] | undefined> {
+    return this.harness.getActiveTools(this.laneId);
+  }
+
+  setModel(modelAlias: string): Promise<LaneResult<void>> {
+    return this.harness.setModel(this.laneId, modelAlias);
+  }
+
+  setThinkingLevel(level: string): Promise<LaneResult<void>> {
+    return this.harness.setThinkingLevel(this.laneId, level);
+  }
+
+  setActiveTools(tools: readonly string[]): Promise<LaneResult<void>> {
+    return this.harness.setActiveTools(this.laneId, tools);
   }
 
   /**
    * 消费 followUp/nextRun 队列驱动后续操作（driverLoop 的 drain 段）：
    * followUp 优先；每项以预分配 entryId 写树后发起操作，直至队列空。
    */
-  async drain(): Promise<readonly OperationOutcome[]> {
+  async drain(): Promise<LaneResult<readonly OperationOutcome[]>> {
     const outcomes: OperationOutcome[] = [];
     for (;;) {
       const next = await this.harness.consumeNextQueuedInput(this.laneId);
       if (!next) break;
-      outcomes.push(
-        await this.harness.prompt(this.laneId, next.input, {
-          origin: next.origin,
-          inputEntryId: next.entryId,
-        }),
-      );
+      const result = await this.harness.prompt(this.laneId, next.input, {
+        origin: next.origin,
+        inputEntryId: next.entryId,
+      });
+      if (!result.ok) return result;
+      outcomes.push(result.value);
     }
-    return outcomes;
+    return ok(outcomes);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function usageToRecord(usage: TokenUsage): Record<string, number> {

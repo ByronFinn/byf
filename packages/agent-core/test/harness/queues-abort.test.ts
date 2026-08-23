@@ -55,6 +55,11 @@ function neverLLM(): LLM {
   };
 }
 
+function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; message: string }): T {
+  if (!r.ok) throw new Error('unexpected lane error: ' + r.code + ' ' + r.message);
+  return r.value;
+}
+
 describe('queues and checkpoint (PRD-0037 #325)', () => {
   it('steer is persisted on accept and written to tree at checkpoint (before next step build)', async () => {
     const storage = new InMemorySessionStorage('q1');
@@ -82,7 +87,7 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
     expect(enqueued.length).toBe(1);
     expect((enqueued[0]!.payload as { queue: string }).queue).toBe('steer');
     releaseStep?.();
-    const outcome = await running;
+    const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('completed');
     // 消费点写树：steer 内容出现在对话树（第二 step 的上下文包含它）
     const branch = await harness.session.branch({ direction: 'oldestFirst' });
@@ -97,13 +102,9 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
 
   it('steer requires a running operation', async () => {
     const harness = await AgentHarness.create({ llm: new GatedLLM(1) });
-    let rejected = false;
-    try {
-      await harness.lane().steer([text('x')]);
-    } catch {
-      rejected = true;
-    }
-    expect(rejected).toBe(true);
+    const result = await harness.lane().steer([text('x')]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('NOT_RUNNING');
     await harness.close();
   });
 
@@ -130,7 +131,7 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
     const lane = harness.lane();
     const running = lane.prompt([text('go')]);
     await lane.deferWrite({ customType: 'fact.note', data: 'deferred-fact' });
-    const outcome = await running;
+    const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('completed');
     // checkpoint 后 deferred write 已应用（custom entry 在树里）
     const branch = await harness.session.branch({});
@@ -144,9 +145,9 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
     const storage = new InMemorySessionStorage('q3');
     const harness = await AgentHarness.create({ storage, llm: new GatedLLM(1) });
     const lane = harness.lane();
-    await lane.prompt([text('first')]);
+    unwrap(await lane.prompt([text('first')]));
     await lane.followUp([text('second round')]);
-    const outcomes = await lane.drain();
+    const outcomes = unwrap(await lane.drain());
     expect(outcomes.length).toBe(1);
     // followUp 输入成为第二操作的用户消息
     const branch = await harness.session.branch({ direction: 'oldestFirst' });
@@ -159,7 +160,7 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
       );
     expect(userTexts).toContain('second round');
     // 再次 drain：队列已空
-    expect((await lane.drain()).length).toBe(0);
+    expect(unwrap(await lane.drain()).length).toBe(0);
     await harness.close();
   });
 
@@ -184,7 +185,7 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
     await lane.nextRun([text('after crash')]);
     await lane.abort();
     release?.();
-    const outcome = await running;
+    const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('aborted');
     // nextRun 存活
     const state = lane.state();
@@ -192,7 +193,7 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
     // steer/followUp 已死（归还路径见 abort 测试）
     expect(state.queues.steer.length).toBe(0);
     // drain 消费 nextRun
-    const drained = await lane.drain();
+    const drained = unwrap(await lane.drain());
     expect(drained.length).toBe(1);
     expect(drained[0]!.outcome).toBe('completed');
     await harness.close();
@@ -261,7 +262,7 @@ describe('abort reconcile (PRD-0037 #325)', () => {
 
     const harness = await AgentHarness.create({ storage, llm: neverLLM() });
     expect(harness.laneState().status).toBe('aborting');
-    const outcome = await harness.lane().resume();
+    const outcome = unwrap(await harness.lane().resume());
     expect(outcome.outcome).toBe('aborted');
     // 无悬空 tool.call：合成 interrupted 结果已写树
     const result = await storage.getEntry(`entry:${opId}:a1:1:r0`);
@@ -300,7 +301,7 @@ describe('abort reconcile (PRD-0037 #325)', () => {
     await lane.followUp([text('planned next')]);
     await lane.abort();
     release?.();
-    const outcome = await running;
+    const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('aborted');
     // payload 归还调用方
     const dead = outcome.deadQueuePayloads ?? [];
@@ -309,7 +310,7 @@ describe('abort reconcile (PRD-0037 #325)', () => {
       dead.some((p) => p.input.some((c) => c.type === 'text' && c.text === 'late steer')),
     ).toBe(true);
     // 队列已清空：后续 drain 无事可做（nextRun 未入队）
-    expect((await lane.drain()).length).toBe(0);
+    expect(unwrap(await lane.drain()).length).toBe(0);
     expect(lane.state().queues.steer.length).toBe(0);
     await harness.close();
   });

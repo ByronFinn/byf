@@ -69,6 +69,11 @@ function echoTool(): ExecutableTool<{ text: string }> {
 
 const text = (t: string): ContentPart => ({ type: 'text', text: t });
 
+function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; message: string }): T {
+  if (!r.ok) throw new Error('unexpected lane error: ' + r.code + ' ' + r.message);
+  return r.value;
+}
+
 describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
   it('prompt → tool use → continuation → operation_finished completed', async () => {
     const storage = new InMemorySessionStorage('e2e-1');
@@ -81,7 +86,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     ]);
     const harness = await AgentHarness.create({ storage, llm, tools: [echoTool()] });
 
-    const outcome = await harness.lane().prompt([text('please echo hi')]);
+    const outcome = unwrap(await harness.lane().prompt([text('please echo hi')]));
     expect(outcome.outcome).toBe('completed');
     expect(outcome.stopReason).toBe('end_turn');
     expect(outcome.steps).toBe(2);
@@ -143,7 +148,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     expect(state.openOperation?.opId).toBe('op-crashed');
 
     // resume：同一 runProcedure 路径，物化输入消息并完成操作
-    const outcome = await harness.lane().resume();
+    const outcome = unwrap(await harness.lane().resume());
     expect(outcome.outcome).toBe('completed');
     expect(outcome.opId).toBe('op-crashed');
     expect(harness.laneState().status).toBe('idle');
@@ -183,7 +188,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
 
     const harness = await AgentHarness.create({ storage, llm: new ScriptedLLM([]) });
     expect(harness.laneState().status).toBe('aborting');
-    const outcome = await harness.lane().resume();
+    const outcome = unwrap(await harness.lane().resume());
     expect(outcome.outcome).toBe('aborted');
     expect(harness.laneState().status).toBe('idle');
     await harness.close();
@@ -193,7 +198,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     const harness = await AgentHarness.create({
       llm: new ScriptedLLM([{ textParts: ['standalone ok'] }]),
     });
-    const outcome = await harness.lane().prompt([text('hello')]);
+    const outcome = unwrap(await harness.lane().prompt([text('hello')]));
     expect(outcome.outcome).toBe('completed');
     expect(harness.session.sessionId).toMatch(/.+/); // 自动生成
     await harness.close();
@@ -208,7 +213,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
       },
     };
     const harness = await AgentHarness.create({ llm: failingLLM });
-    const outcome = await harness.lane().prompt([text('boom')]);
+    const outcome = unwrap(await harness.lane().prompt([text('boom')]));
     expect(outcome.outcome).toBe('failed');
     expect(outcome.errorMessage).toContain('provider exploded');
     expect(harness.laneState().status).toBe('idle');
@@ -235,9 +240,11 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     const harness = await AgentHarness.create({ llm: gatedLLM });
     const running = harness.lane().prompt([text('slow')]);
     expect(harness.laneState().status).toBe('running');
-    await expect(harness.lane().prompt([text('too soon')])).rejects.toThrow(/in-flight|running/);
+    const busy = await harness.lane().prompt([text('too soon')]);
+    expect(busy.ok).toBe(false);
+    if (!busy.ok) expect(busy.code).toBe('LANE_BUSY');
     releaseChat?.();
-    const outcome = await running;
+    const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('completed');
     expect(harness.laneState().status).toBe('idle');
     await harness.close();
