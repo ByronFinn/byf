@@ -90,31 +90,45 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 `agent-core` 中的核心类。持有子系统引用（ContextMemory、ConfigState、ToolManager、PermissionManager、FullCompaction、BackgroundManager、AgentRecords、TurnFlow、InjectionManager、UsageRecorder、SkillManager、HookEngine、ReplayBuilder）。必须可独立使用——构造函数不能强制调用者创建 Session 实例，也不能要求 `agentId` 或 `session`。
 
+> **目标态（PRD-0037 / ADR-0041）**：将被并行新建的 `AgentHarness` 取代（lane 操作面、唯一 records 写者、恢复归约）；旧 Agent 冻结只修 bug，Phase 4 默认切换后删除。切换前本条款继续有效。
+
 ### Session
 
 `agent-core` 中的外层生命周期容器。拥有 `SkillRegistry`、`McpConnectionManager` 和 `Agent` 实例映射（主代理 + 子代理）。创建代理、加载技能和 MCP 服务器、管理元数据、触发 hooks。
+
+> **目标态（PRD-0037）**：降为可注入的存储对象（entries 树 + lanes + records + facts，实现 SessionTree），内存后端即可独立运行；现生命周期容器职责（agents 注册表/RPC/subagent-host）随切换解体。
 
 ### Turn
 
 单个对话周期：用户提示 → LLM 循环 → 工具调用 → 响应。由 `TurnFlow` 编排，驱动无状态的 `loop/runTurn()`。一个会话包含多个 turns。每个 turn 的开始通过 `turn.prompt`（或 `turn.steer`）记录锚定在 wire records 中；turnId 本身是内存计数器（不持久化到 wire），在 fork 时重置，因此 wire 锚点是定位 turn 的唯一稳定方式。参见 ADR-0020。
 
+> **目标态（PRD-0037）**：由 **Run（操作）** 取代——被接受的 prompt 是持久操作（operation_started 配对 operation_finished），runId 持久稳定；自动续跑（工具链、steering、follow-up、goal 续跑、自动压缩）全部发生在同一个 run 内。ADR-0020 的 wire 锚点机制随树导航落地后作废。
+
 ### Fork（会话 Fork）
 
 从现有会话创建新会话，原会话不变。实现为完整目录复制 + `state.json` 重写，可选择在用户选定的消息处截断（`upToMessage`）。与 git 分支不同——操作的是会话记录，而非工作树文件。
+
+> **目标态（PRD-0037）**：改为 **entries-only 复制**——只复制对话树条目（无 records、无队列，fork 天生 idle），子会话 id 由 `f(parentSessionId, toolCallId)` 确定性派生；运行中会话可 fork（读 committed prefix）。目录复制 + 截断机制随之废弃。
 
 ### upToMessage
 
 可选的 fork 参数：用户消息的从 1 开始的序号（`origin.kind === 'user'` 的 `turn.prompt`/`turn.steer` 记录）。设置后，fork 后的会话的 `wire.jsonl` 会在该记录之前截断——选定的消息及其之后的内容全部丢弃，新会话从该消息之前的位置继续，用户可以重新输入。省略则完整复制（向后兼容）。
 
+> **目标态（PRD-0037）**：随截断式 fork 一并废弃；编辑消息语义由树上任意 message entry 的 branch fork + 导航承载。
+
 ### Fork Rewind
 
 `/fork` 命令的可选回退能力：从用户选定的历史消息处分叉新会话，丢弃该消息及之后所有内容（包括它产生的子代理）。编辑消息语义（类似 Claude Code 的编辑消息 fork），而非检查点语义。选定的消息通过序号识别，而非 turnId（turnId 在 fork 后不稳定）。
+
+> **目标态（PRD-0037）**：语义保留，实现换为 tree fork（在选定 message entry 处分叉），不再依赖序号锚点。
 
 ### Wire Records
 
 事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。
 
 **两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
+
+> **目标态（PRD-0037 / ADR-0040）**：由 wire 协议 2.0 取代——entries（对话树）与 records（lane 操作日志）分离存储，单调 seq 贯穿；会话级单文件（lane 为信封字段）。旧 1.1 会话不保证可打开（列表隐藏）。归约哲学（状态=记录的归约）延续。
 
 ### wire 折叠 (wire fold) / 投影函数 (projection function)
 
@@ -303,9 +317,13 @@ env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（�
 
 用户给出的、有可验证终态的自主任务目标。通过 `/goal <objective>` 启动。每个 agent 至多持有一个 current goal，作为 agent 的持久化结构状态（由 `GoalMode` 子系统拥有，从 wire records 重建），而非对话中的文本约定。状态机：`active`（推进中）/ `paused`（用户或中断暂停，可 resume）/ `blocked`（系统判定无法推进，可 resume）/ `complete`（瞬态，宣告即清空）。终态决策权三权分立：模型经 `UpdateGoal` 工具判定完成/阻塞，用户经 slash 命令暂停/取消，runtime 经预算/中断判定停止。
 
+> **目标态（PRD-0037）**：goal 状态存为 lane 路径上的 custom entries（点查询还原）；goal 续跑由 `before_run_end` hook 返回 followUp 驱动（同一 run 内继续）；域语义（状态机、三权分立、预算）不变。fork 清空 goal 自动满足（fork 点之前的 goal entry 不被复制）。
+
 ### Goal Mode（目标模式）
 
 agent 自主多轮推进一个 active goal 的运行模式。`driveGoal` 在 turn 边界读 goal 状态决定续跑或停止——把"用户敲 continue"自动化。每个 continuation turn 是 goal driver 自动发起的 turn，origin 为 `{kind:'system_trigger', name:'goal_continuation'}`。goal reminder 走 ephemeral injection（ADR-0022），不进 wire。fork 总是清空 goal（ADR-0023）。终态停止靠 driver 边界读状态，不改 loop 层（ADR-0024）。`complete`（模型经 `UpdateGoal` 声明）是成功终态，渲染 completion 卡片；`cancel`（用户经 slash 主动丢弃）不是成功终态，只渲染低存在感 lifecycle marker，不渲染 completion 卡片。参见 PRD-0019。
+
+> **目标态（PRD-0037）**：driveGoal 的续跑判定并入 harness 的收尾边界（before_run_end → followUp）；goal reminder 的 ephemeral 注入机制不变。
 
 ### Goal Reminder（目标提醒）
 
@@ -390,3 +408,79 @@ apiKey 的管理语义：仅接受写入、任何读取路径恒脱敏（仅报�
 ### settle 后渲染 (render-after-settle)
 
 web 客户端流式渲染策略：流式期间保持纯文本，块完结（settle）后再做语法高亮、Mermaid 图表、LaTeX 公式等重渲染，避免每帧重排抖动（沿 PRD-0033 高亮决策推广到图表与公式）。
+
+## 术语表（PRD-0037 目标态）
+
+以下术语描述 Durable Agent Harness 架构（PRD-0037）的目标态概念，实施随五期计划落地；落地前词条标注的旧机制仍是现状事实源。
+
+### AgentHarness（目标态）
+
+`packages/agent-core/src/harness` 中的执行引擎（并行新建，取代 Agent 类的编排职责）。lane 操作面的宿主：prompt/steer/followUp/nextRun/compact/navigateTree/resume/abort；唯一的 records 写者；负责恢复归约与 abort reconcile。必须可独立构造——Session 是可注入的存储对象，内存后端即可运行。见 ADR-0041。
+
+### AgentLane（目标态）
+
+单个 lane 的操作接口。一个 lane 是对话树上的命名位置加上该位置上串行化的工作——至多一个开放操作，第二个操作被拒。lane 句柄是按名绑定的无状态门面（身份是名字，不是对象）。每个会话恒有 `main` lane。
+
+### Lane / Leaf（目标态）
+
+lane = 树上命名位置 + 该位置的串行工作（类比 git branch + 独立 worktree：可前可后移动、从不重复检出）。leaf = lane 当前指向的 entry，新 entry 链到它并推进它，导航使其跳转。lanes 并行运行，汇合点仅在存储追加路径（单写者保持）。
+
+### Entries 树（目标态）
+
+会话的对话内容：带 `parentId` 链的只增树（message / model_change / thinking_level_change / active_tools_change / compaction / branch_summary / custom 七类）。共享、被动、属于任何 lane 也不属于任何 lane；条目永不修改或删除。分支共享前缀，从不复制。
+
+### Records（lane 操作日志）（目标态）
+
+执行事实的持久化载体（operation_started / abort_requested / operation_finished / task_attempt / tool_started / queue_enqueued / write_deferred）。描述执行而非对话：永不进入模型上下文、transcript、分支查询或 fork。不变量："删掉全部 records，剩下的仍是完整合法的对话"。区别于旧术语 Wire Records（1.1 混装格式，见其目标态标注）。
+
+### 预分配 id（provisioned id）（目标态）
+
+意图记录携带的、尚不存在但已被预订的 entry id。"意图是否已兑现"退化为点查询：该 id 的 entry 存在与否。兑现内容与预订不符即判定为损坏。
+
+### 意图先行（intent-before-effect）（目标态）
+
+持久化核心规则：效果发生前先写命名将发生什么、将产生哪些 id 的意图记录；效果发生后以完全相同的 id 追加结果条目。崩溃落在任意两点之间，恢复按意图类型机械判定：补完、重试、或以合成结果关闭。不需要多记录原子性。
+
+### Restore 归约（reduction）（目标态）
+
+"状态 = 记录的归约"：lane 的运行状态由其 records 与自身 entries 的两次有界读取归约得出；live 执行在写入时更新内存状态，restore 从存储重算——两者共用同一套归约规则，因此状态与记录不可能不一致。
+
+### Suspended / Resume（目标态）
+
+suspended = 存在开放操作但不执行任何东西（崩溃恢复后，或 deferred handle 落盘后主动挂起；两者在存储中不可区分）。`resume()` 续跑开放操作，与 live 执行同码。中断的操作不会恢复为静默 idle——要么续跑、要么显式 abort（reconcile：合成 interrupted 工具结果 + 收尾 assistant 消息）。
+
+### Checkpoint（目标态）
+
+步骤之间的边界，依次：应用 pending deferred writes → 消费 steering → 按需压缩。checkpoint 应用即尾部追加，由此保证跨请求的 provider 上下文只在尾部增长（KV 缓存不变量）。
+
+### 三队列（steer / followUp / nextRun）（目标态）
+
+lane 的输入通道，接受即持久（queue_enqueued 带完整 payload），消费点才写树。abort 语义：steer/followUp 死亡并把 payload 归还调用方；nextRun 存活到下一个 run。
+
+### Deferred write（目标态）
+
+步骤飞行中请求的写入：先落 write_deferred 记录，checkpoint 才追加到树尾。防止在 provider 已缓存的尾部之前插入消息（毁 KV 缓存 + 谎称模型见过它没见过的内容）。
+
+### Run（操作）（目标态）
+
+被接受的 prompt 构成的持久操作：从接受到"无可待办"（工具链、steering、follow-up、goal 续跑、自动压缩全部耗尽）的全部自动续跑。四种结局：completed / failed / aborted / declined。取代旧术语 Turn（见其目标态标注）。
+
+### watch 订阅（目标态）
+
+UI 获取"当前状态 + 之后全部变化且无缺口"的订阅模型：`watch()` 原子捕获快照并开始缓冲，`start()` 依序冲刷缓冲后转直播。无序列号、无注册竞态、事件不重放；重连 = 新快照。
+
+### 结果式 API（results-not-exceptions）（目标态）
+
+操作与队列方法的返回契约：永不 throw，一律返回判别联合（`ok: true` 载荷 / `ok: false` 载 outcome 与错误信息）。promise 被 reject 即 bug，不是结果。
+
+### Parity 套件（目标态）
+
+同一份契约测试套件对全部存储后端（内存参考实现 / JSONL / SQLite）运行；内存实现是参考语义，先于其他后端全绿。由 agent-core 导出，`packages/storage` 消费。
+
+### Deferred handle / Park（目标态）
+
+provider 延迟请求的凭证：请求立即返回 handle（stopReason `deferred`）而非内容，handle 随 assistant 消息持久化；lane 挂起（Park 信号 unwind），稍后（可跨进程）`fetchDeferred` 兑换真实结果。兑换是无副作用读取，崩溃不欠账。
+
+### 引擎切换（engine v2）（目标态）
+
+新旧引擎的共存与切换安排（ADR-0041）：AgentHarness 并行新建，旧 Agent 冻结；config `engine = "v2"` 实验开关允许提前 dogfood（新会话即 2.0 格式，旧引擎不可打开）；默认引擎 Phase 4 一次性切换并删除旧路径。
