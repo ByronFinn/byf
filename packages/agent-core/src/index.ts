@@ -3,10 +3,9 @@ export * from './session';
 export * from './rpc';
 export * from './config';
 export * from './session/export';
-// wire 2.0 存储地基（PRD-0037）：类型全集 + SessionStorage 契约 + 内存参考实现。
+// wire 2.0 harness（PRD-0037）：存储地基 + WireSession + AgentHarness。
 // 契约测试套件经 ./harness/storage-contract 子路径导出（依赖 bun:test）。
-export * from './harness/storage';
-export * from './harness/session';
+export * from './harness';
 export { workspaceTitle } from './home/workspace-registry';
 export * from './errors';
 export { isAbortError } from './loop/errors';

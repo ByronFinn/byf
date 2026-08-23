@@ -214,9 +214,13 @@ export class JsonlSessionStorage implements SessionStorage {
   async appendEntry(input: AppendEntryInput): Promise<WireEntry> {
     this.assertOpen();
     const lane = this.requireLane(input.laneId);
+    if (input.id !== undefined) {
+      const existing = this.state.entries.get(input.id);
+      if (existing) return existing; // appendIfMissing：预分配 id 已存在即幂等返回
+    }
     const createdAt = Date.now();
     return this.enqueue((seq) => {
-      const id = `e${seq}`;
+      const id = input.id ?? `e${seq}`;
       const parentId = lane.leafEntryId;
       const entry = materializeEntry(id, parentId, seq, createdAt, entryPayloadOf(input));
       return {

@@ -137,9 +137,13 @@ export class InMemorySessionStorage implements SessionStorage {
   async appendEntry(input: AppendEntryInput): Promise<WireEntry> {
     this.assertOpen();
     const lane = this.requireLane(input.laneId);
+    if (input.id !== undefined) {
+      const existing = this.state.entries.get(input.id);
+      if (existing) return existing; // appendIfMissing：预分配 id 已存在即幂等返回
+    }
     const seq = this.allocSeq();
     const entry: WireEntry = withEntryBase(input, {
-      id: `e${seq}`,
+      id: input.id ?? `e${seq}`,
       parentId: lane.leafEntryId,
       seq,
       createdAt: Date.now(),

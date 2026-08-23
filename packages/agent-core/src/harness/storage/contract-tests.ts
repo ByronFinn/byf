@@ -315,6 +315,32 @@ export function runSessionStorageContractTests(setup: StorageContractSetup): voi
       await cleanup(storage);
     });
 
+    it('appendEntry with a provisioned id is idempotent (appendIfMissing)', async () => {
+      const storage = await makeStorage();
+      const first = await storage.appendEntry({
+        laneId: 'main',
+        kind: 'message',
+        message: msg('a'),
+        id: 'preallocated-1',
+      });
+      expect(first.id).toBe('preallocated-1');
+      const replay = await storage.appendEntry({
+        laneId: 'main',
+        kind: 'message',
+        message: msg('a'),
+        id: 'preallocated-1',
+      });
+      expect(replay.seq).toBe(first.seq); // 恢复可重入：已存在即跳过
+      expect((await storage.getEntries()).length).toBe(1);
+      const next = await storage.appendEntry({
+        laneId: 'main',
+        kind: 'message',
+        message: msg('b'),
+      });
+      expect(next.parentId).toBe(first.id);
+      await cleanup(storage);
+    });
+
     it('entries on different lanes sharing a fork point stay independent', async () => {
       const storage = await makeStorage();
       const root = await storage.appendEntry({

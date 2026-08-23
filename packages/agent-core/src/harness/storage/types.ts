@@ -263,7 +263,15 @@ export type JournalLine =
 
 // ===== append 输入 =====
 
-export type AppendEntryInput =
+/**
+ * 预分配 entry id（PRD-0037 意图先行）：appendEntry 携带且已存在时幂等返回
+ * 既有 entry（appendIfMissing，恢复可重入）；缺省由存储生成。
+ */
+export interface ProvisionedEntryId {
+  readonly id?: string;
+}
+
+type AppendEntryInputVariant =
   | { readonly laneId: LaneId; readonly kind: 'message'; readonly message: StoredMessage }
   | { readonly laneId: LaneId; readonly kind: 'model_change'; readonly modelAlias: string }
   | {
@@ -290,6 +298,8 @@ export type AppendEntryInput =
       readonly customType: string;
       readonly data: unknown;
     };
+
+export type AppendEntryInput = AppendEntryInputVariant & ProvisionedEntryId;
 
 export interface AppendRecordInput {
   readonly laneId: LaneId;
