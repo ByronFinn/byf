@@ -42,6 +42,7 @@ import { InMemorySessionStorage } from './storage/memory';
 import type { SessionStorage } from './storage/storage';
 import type { LaneId, StoredPromptOrigin } from './storage/types';
 import { MAIN_LANE_ID } from './storage/types';
+import { SpanTree } from './telemetry';
 import { TranscriptBridge, projectEntryMessage } from './transcript';
 import { synthesizeOrphanToolResults } from './transcript';
 
@@ -135,6 +136,9 @@ export class AgentHarness {
   private readonly lock: SessionLockHandle | undefined;
   private closed = false;
 
+  /** telemetry span 树（#338：第三通道；订阅者转 OTel/日志）。 */
+  readonly spans = new SpanTree();
+
   private constructor(
     session: WireSession,
     config: AgentHarnessConfig,
@@ -145,6 +149,15 @@ export class AgentHarness {
     this.config = config;
     this.ownsStorage = ownsStorage;
     this.lock = lock;
+    // hook 抛错 → handler_error 事件（除 before_tool fail-closed 外的隔离通道）
+    this.hooks.onHandlerError = (error) => {
+      this.events.emit(error.laneId, (base) => ({
+        type: 'handler_error',
+        hookPoint: error.hookPoint,
+        message: error.message,
+        ...base,
+      }));
+    };
   }
 
   /** 打开（或新建）会话并恢复全部 lane。 */
@@ -156,15 +169,20 @@ export class AgentHarness {
       storage instanceof JsonlSessionStorage
         ? await acquireSessionLock(dirname(storage.path))
         : undefined;
-    const lanes = await storage.getLanes();
-    const session =
-      lanes.length > 0 ? await WireSession.open(storage) : await WireSession.create(storage);
-    const harness = new AgentHarness(session, config, ownsStorage, lock);
-    // restore 归约：全部 records 重放 + finishRestore（running → suspended）
-    const records = await storage.getRecords();
-    for (const record of records) harness.reducer.apply(record);
-    harness.reducer.finishRestore();
-    return harness;
+    try {
+      const lanes = await storage.getLanes();
+      const session =
+        lanes.length > 0 ? await WireSession.open(storage) : await WireSession.create(storage);
+      const harness = new AgentHarness(session, config, ownsStorage, lock);
+      // restore 归约：全部 records 重放 + finishRestore（running → suspended）
+      const records = await storage.getRecords();
+      for (const record of records) harness.reducer.apply(record);
+      harness.reducer.finishRestore();
+      return harness;
+    } catch (error) {
+      await lock?.release(); // 获取锁后失败回滚（修锁泄漏）
+      throw error;
+    }
   }
 
   /** 按名绑定的无状态 lane 门面（main 为缺省）。 */
@@ -491,11 +509,11 @@ export class AgentHarness {
     this.runtimes.set(laneId, { controller, opId });
     try {
       await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
-      const outcome = await this.applyCompaction(laneId, payload, controller.signal);
-      return ok(outcome);
+      return ok(await this.applyCompaction(laneId, payload, controller.signal));
     } catch (error) {
-      this.runtimes.delete(laneId);
       return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    } finally {
+      this.runtimes.delete(laneId); // 成功路径同样清理（修 runtime 泄漏锁死 lane）
     }
   }
 
@@ -507,6 +525,21 @@ export class AgentHarness {
   ): Promise<OperationOutcome> {
     try {
       signal.throwIfAborted();
+      // before_compaction（#332）：declined → 跳过压缩直接收尾（结局齐全）
+      const compactionHook = (await this.hooks.run('before_compaction', {
+        laneId,
+        hookPoint: 'before_compaction',
+      })) as { decline?: boolean; reason?: string } | undefined;
+      if (compactionHook?.decline === true) {
+        await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+          opId: op.opId,
+          outcome: 'completed',
+          stopReason: 'declined',
+          ...(compactionHook.reason !== undefined ? { errorMessage: compactionHook.reason } : {}),
+          finishedAt: Date.now(),
+        });
+        return { opId: op.opId, outcome: 'completed', stopReason: 'declined', steps: 0 };
+      }
       if (op.compactionEntryId !== undefined && !this.session.getEntry(op.compactionEntryId)) {
         const window = await this.session.branchOf(laneId, {
           direction: 'oldestFirst',
@@ -599,6 +632,11 @@ export class AgentHarness {
       entryId: `entry:${itemId}:queued`,
       enqueuedAt: Date.now(),
     });
+    this.events.emit(laneId, (base) => ({
+      type: 'queue_change',
+      detail: queue,
+      ...base,
+    }));
   }
 
   // ===== deferred writes（R4：mid-step 写入延迟到 checkpoint 尾部追加） =====
@@ -710,7 +748,9 @@ export class AgentHarness {
         ...(beforeRun?.persisted !== undefined ? { hookPersisted: beforeRun.persisted } : {}),
       });
       this.events.emit(laneId, (base) => ({ type: 'run_start', opId, ...base }));
+      const span = this.spans.start('pi.harness.run', laneId, undefined, { runId: opId });
       const outcome = await this.runOperation(laneId, payload, controller, 1);
+      span.end({ runId: opId, outcome: outcome.outcome, steps: outcome.steps });
       this.events.emit(laneId, (base) => ({
         type: 'run_end',
         opId,
@@ -852,12 +892,45 @@ export class AgentHarness {
       const transcript = new TranscriptBridge(
         {
           appendMessage: async (message, provisionedId) => {
-            await this.session.append({
+            const entry = await this.session.append({
               laneId,
               kind: 'message',
               ...(provisionedId !== undefined ? { id: provisionedId } : {}),
               message,
             });
+            // 事件在提交后触发（宣告的事实已可查询）
+            this.events.emit(laneId, (base) => ({
+              type: 'message',
+              role: message.role,
+              entryId: entry.id,
+              preview:
+                message.content
+                  .find((part): part is { type: 'text'; text: string } => part.type === 'text')
+                  ?.text.slice(0, 80) ?? '',
+              ...base,
+            }));
+            this.events.emit(laneId, (base) => ({
+              type: 'tree_change',
+              detail: 'message',
+              ...base,
+            }));
+            // tool 结果 → after_tool hook（补丁语义；抛错跳过并报 handler_error）
+            if (message.role === 'tool' && message.toolCallId !== undefined) {
+              await this.hooks.run('after_tool', {
+                laneId,
+                hookPoint: 'after_tool',
+                toolCallId: message.toolCallId,
+                name: message.name ?? '',
+                isError: message.isError === true,
+              });
+              this.events.emit(laneId, (base) => ({
+                type: 'tool_end',
+                toolCallId: message.toolCallId ?? '',
+                name: message.name ?? '',
+                isError: message.isError === true || undefined,
+                ...base,
+              }));
+            }
           },
           appendToolStarted: async (payload) => {
             await this.appendRecordTracked(
@@ -866,6 +939,12 @@ export class AgentHarness {
               toolStartedRecordId(payload.assistantEntryId, payload.toolIndex),
               payload,
             );
+            this.events.emit(laneId, (base) => ({
+              type: 'tool_start',
+              toolCallId: payload.toolCallId,
+              name: payload.name,
+              ...base,
+            }));
           },
         },
         { opId: op.opId, attempt },
@@ -947,6 +1026,27 @@ export class AgentHarness {
           if (result.stopReason === 'aborted') {
             // live abort 收尾（reconcile 的 live 侧）：合成收尾消息 + 队列处置
             return await this.finishAbortedOperation(laneId, op.opId, accumulatedSteps);
+          }
+          // before_run_end（#332/#333）：hook 可返回 followUp 续跑一轮
+          //（shell Stop block 桥的续跑语义）；goal 状态是另一个续跑来源。
+          const runEndHook = (await this.hooks.run('before_run_end', {
+            laneId,
+            hookPoint: 'before_run_end',
+            outcome: 'completed',
+          })) as { followUp?: boolean } | undefined;
+          if (runEndHook?.followUp === true && round < MAX_GOAL_ROUNDS) {
+            await this.session.append({
+              laneId,
+              kind: 'message',
+              message: {
+                role: 'user',
+                content: [
+                  { type: 'text', text: '(run continuation requested by before_run_end hook)' },
+                ],
+                origin: { kind: 'hook_result', event: 'Stop' },
+              },
+            });
+            continue;
           }
           // before_run_end：goal 状态决定是否返回 followUp（继续本 run）
           const goal = await readGoal(this.session, laneId);
@@ -1096,6 +1196,10 @@ export class AgentHarness {
 
   /**
    * 悬空工具批分类处置（AC5，#326）：重跑（resume）前清空悬空 toolCalls。
+   * - 先保证 assistant entry 存在：工具执行窗口崩溃时 assistant 消息可能
+   *   尚未落盘（只在首个 tool.result/step.end 刷出）——从 tool_started 载荷
+   *   合成 partial assistant 消息（预分配 id 幂等），否则 provider 会面对
+   *   无主的 tool 结果（400 拒绝，会话砖化——review C2）；
    * - replay 'never'：合成 interrupted 结果（副作用工具不可重放）；
    * - replay 'safe'：用真实工具安全重放一次并写真实结果。
    */
@@ -1103,6 +1207,7 @@ export class AgentHarness {
     laneId: LaneId,
     dangling: readonly ToolStartedPayload[],
   ): Promise<void> {
+    await this.ensureAssistantEntriesForDangling(laneId, dangling);
     for (const tool of dangling) {
       if (this.session.getEntry(tool.resultEntryId)) continue; // 已有结果
       if (tool.replay === 'safe') {
@@ -1118,9 +1223,50 @@ export class AgentHarness {
     laneId: LaneId,
     dangling: readonly ToolStartedPayload[],
   ): Promise<void> {
+    await this.ensureAssistantEntriesForDangling(laneId, dangling);
     for (const tool of dangling) {
       if (this.session.getEntry(tool.resultEntryId)) continue;
       await this.appendSyntheticInterrupted(laneId, tool);
+    }
+  }
+
+  /**
+   * 为悬空工具批补齐缺失的 assistant entry（含全部 toolCalls，partial 标记）。
+   * 幂等：预分配 assistantEntryId（tool_started 载荷携带）。
+   */
+  private async ensureAssistantEntriesForDangling(
+    laneId: LaneId,
+    dangling: readonly ToolStartedPayload[],
+  ): Promise<void> {
+    const byAssistant = new Map<string, ToolStartedPayload[]>();
+    for (const tool of dangling) {
+      if (this.session.getEntry(tool.assistantEntryId)) continue; // assistant 已落盘
+      const list = byAssistant.get(tool.assistantEntryId) ?? [];
+      list.push(tool);
+      byAssistant.set(tool.assistantEntryId, list);
+    }
+    for (const [assistantEntryId, tools] of byAssistant) {
+      // 移动到该批 assistant 的父点再追加，保证链正确（该批的 parent =
+      // 批前 leaf——无法从记录恢复时挂到当前 leaf，恢复场景中批前内容
+      // 通常就是 leaf 链的前缀）
+      await this.session.append({
+        laneId,
+        kind: 'message',
+        id: assistantEntryId,
+        message: {
+          role: 'assistant',
+          content: [],
+          partial: true,
+          toolCalls: tools
+            .toSorted((a, b) => a.toolIndex - b.toolIndex)
+            .map((tool) => ({
+              type: 'function' as const,
+              id: tool.toolCallId,
+              name: tool.name,
+              arguments: JSON.stringify(tool.args ?? {}),
+            })),
+        },
+      });
     }
   }
 
@@ -1183,9 +1329,13 @@ export class AgentHarness {
     opId: string,
     steps: number,
   ): Promise<OperationOutcome> {
-    // 归还 steer/followUp payload（queue 死亡；读取于 finished 记录之前）
+    // 归还 steer/followUp payload（queue 死亡；读取于 finished 记录之前）。
+    // 已消费项（entry 已写树，内容已进上下文）不归还——否则调用方重新投递
+    // 会重复注入（review M1）。
     const before = this.reducer.snapshot(laneId);
-    const deadPayloads = [...before.queues.steer, ...before.queues.followUp];
+    const deadPayloads = [...before.queues.steer, ...before.queues.followUp].filter(
+      (item) => !this.session.getEntry(item.entryId),
+    );
     await this.session.append({
       laneId,
       kind: 'message',

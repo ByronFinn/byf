@@ -1,4 +1,4 @@
-import { open, readFile, unlink, writeFile } from 'node:fs/promises';
+import { open, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
@@ -69,19 +69,38 @@ export async function acquireSessionLock(
   const path = lockFilePath(sessionDir);
 
   await ensureDirOf(sessionDir);
-  const existing = await readLock(path);
-  if (existing && !canTakeOver(existing, pid, staleMs, now)) {
-    throw new SessionLockError(
-      'SESSION_LOCKED',
-      `会话正被进程 ${existing.pid} 使用（心跳 ${Math.round((now() - existing.heartbeatAt) / 1000)}s 前）；` +
-        '请关闭该进程或等待其退出后再试。',
-      existing,
-    );
+  // 原子获取：'wx' 独占创建（修 TOCTOU——两进程同判可接管时只有一个能创建）
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const handle = await open(path, 'wx');
+      try {
+        await handle.write(
+          `${JSON.stringify({ pid, heartbeatAt: now() } satisfies LockFileContent)}\n`,
+        );
+      } finally {
+        await handle.close();
+      }
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const existing = await readLock(path);
+      if (existing && !canTakeOver(existing, pid, staleMs, now)) {
+        throw new SessionLockError(
+          'SESSION_LOCKED',
+          `会话正被进程 ${existing.pid} 使用（心跳 ${Math.round((now() - existing.heartbeatAt) / 1000)}s 前）；` +
+            '请关闭该进程或等待其退出后再试。',
+          existing,
+        );
+      }
+      if (attempt >= 3) throw new Error('session lock contention: takeover retry exhausted', { cause: error });
+      // 可接管但创建冲突：删除陈旧锁后重试（竞态窗口收敛到 wx 原子性）
+      try {
+        await unlink(path);
+      } catch {
+        // 已被他人接管/删除：直接重试创建
+      }
+    }
   }
-  await writeFile(
-    path,
-    `${JSON.stringify({ pid, heartbeatAt: now() } satisfies LockFileContent)}\n`,
-  );
 
   const timer = setInterval(() => {
     void heartbeatOf(path, pid, now);

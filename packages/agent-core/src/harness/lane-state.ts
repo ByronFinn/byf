@@ -118,10 +118,13 @@ export class LaneStateReducer {
         lane.open = undefined;
         lane.status = 'idle';
         lane.suspendedReason = undefined;
-        // 队列处置（R3）：abort 与正常结束都使 steer/followUp 死亡；
-        // nextRun 存活（跨操作、跨 abort）。
+        // 队列处置（R3 修正）：steer 随操作结束死亡（消费点在 checkpoint，
+        // 结束时仍未消费的 steer 已无意义）；followUp 仅 abort 时死亡并归还
+        // （正常结束后由 drain 消费为下一操作）；nextRun 始终存活。
         lane.queues.steer = [];
-        lane.queues.followUp = [];
+        if (payload.outcome === 'aborted') {
+          lane.queues.followUp = [];
+        }
         break;
       }
       case 'tool_started': {

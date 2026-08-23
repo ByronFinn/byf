@@ -20,10 +20,11 @@ export {
   synthesizeOrphanToolResults,
 } from './fork';
 export type { ForkResult, ForkSessionOptions } from './fork';
+export type { LaneSnapshot } from './storage/types';
 export { V2HookRegistry } from './hooks';
 export type { HookHandlerErrorEvent, V2HookInput, V2HookPoint, V2HookResult } from './hooks';
 export { V2EventBus, watch, watchSession } from './events';
-export type { LaneSnapshot, SessionSnapshot, V2Event, V2EventType, WatchHandle } from './events';
+export type { LaneView, SessionSnapshot, V2Event, V2EventType, WatchHandle } from './events';
 export {
   bridgeShellHooks,
   fireNotification,

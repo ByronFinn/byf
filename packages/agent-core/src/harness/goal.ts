@@ -56,7 +56,6 @@ export async function readGoal(session: WireSession, laneId: LaneId): Promise<Go
   const branch = await session.branchOf(laneId, {
     direction: 'newestFirst',
     types: ['custom'],
-    limit: 50,
   });
   for (const entry of branch.entries) {
     if (entry.kind !== 'custom' || entry.customType !== GOAL_CUSTOM_TYPE) continue;

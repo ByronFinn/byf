@@ -110,29 +110,54 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
 
   it('deferred write applies at checkpoint, not at defer time (R4 append-only context)', async () => {
     const storage = new InMemorySessionStorage('q2');
+    // 多步 run（step 1 工具调用 → step 2 终态）：defer 发生在 step 1 进行中，
+    // 钉住 R4 不变量——step 1 上下文绝不含 deferred 内容（review M7 修复：
+    // 原测试的检查逻辑是死代码）。
+    const stepContexts: string[][] = [];
     const llm: LLM = {
       systemPrompt: 't',
       modelName: 'm',
       async chat(params) {
-        // 第一步时 defer 一个写；此刻它绝不能出现在上下文里
-        const deferredInContext = params.messages.some((m) =>
-          m.content.some((p) => p.type === 'text' && p.text.includes('deferred-fact')),
+        stepContexts.push(
+          params.messages
+            .flatMap((m) => m.content)
+            .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+            .map((p) => p.text),
         );
-        if (!deferredInContext) {
-          // 仅在第一步触发一次 defer
-          if (!this.triggered) this.triggered = true;
-        }
         await params.onTextPart?.({ type: 'text', text: 'ok' });
-        return { toolCalls: [], providerFinishReason: 'completed', usage: usage() };
+        return {
+          toolCalls:
+            stepContexts.length === 1 ? [{ id: 'tc-d1', name: 'noop', arguments: '{}' }] : [],
+          providerFinishReason: stepContexts.length === 1 ? 'tool_calls' : 'completed',
+          usage: usage(),
+        };
       },
-      triggered: false,
     };
-    const harness = await AgentHarness.create({ storage, llm });
+    const harness = await AgentHarness.create({
+      storage,
+      llm,
+      tools: [
+        {
+          name: 'noop',
+          description: 'n',
+          parameters: { type: 'object', properties: {} },
+          resolveExecution: () => ({
+            accesses: { kind: 'none' },
+            display: { kind: 'plain', summary: 'n' },
+            description: 'n',
+            execute: async () => ({ output: 'done' }),
+          }),
+        },
+      ],
+    });
     const lane = harness.lane();
     const running = lane.prompt([text('go')]);
     await lane.deferWrite({ customType: 'fact.note', data: 'deferred-fact' });
     const outcome = unwrap(await running);
     expect(outcome.outcome).toBe('completed');
+    expect(stepContexts.length).toBe(2); // 工具续跑产生第二个 step
+    // defer 发生时所在的 step 1 上下文不含 deferred 内容（R4：只在尾部增长）
+    expect(stepContexts[0]!.some((s) => s.includes('deferred-fact'))).toBe(false);
     // checkpoint 后 deferred write 已应用（custom entry 在树里）
     const branch = await harness.session.branch({});
     const customs = branch.entries.filter((e) => e.kind === 'custom');
@@ -286,10 +311,18 @@ describe('abort reconcile (PRD-0037 #325)', () => {
     const gate = new Promise<void>((r) => {
       release = r;
     });
+    // chat 已进入才放行 steer 入队——确保 steer 落在 checkpoint 之后（未被
+    // 消费），abort 时按 R3 死亡归还；若在首 checkpoint 前入队则会被正常
+    // 消费进上下文（不归还——M1 修复的过滤语义）。
+    let chatStarted: (() => void) | undefined;
+    const started = new Promise<void>((r) => {
+      chatStarted = r;
+    });
     const llm: LLM = {
       systemPrompt: 't',
       modelName: 'm',
       async chat() {
+        chatStarted?.();
         await gate;
         return { toolCalls: [], providerFinishReason: 'completed', usage: usage() };
       },
@@ -297,6 +330,7 @@ describe('abort reconcile (PRD-0037 #325)', () => {
     const harness = await AgentHarness.create({ storage, llm });
     const lane = harness.lane();
     const running = lane.prompt([text('main')]);
+    await started; // 首个 checkpoint 已过
     await lane.steer([text('late steer')]);
     await lane.followUp([text('planned next')]);
     await lane.abort();

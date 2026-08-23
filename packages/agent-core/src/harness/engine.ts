@@ -12,8 +12,11 @@ import type { SessionStorage } from './storage/storage';
  * v2 引擎装配工厂（PRD-0037 #327，ADR-0041 实验开关的 dogfood 入口）。
  *
  * 把 ProviderManager 解析出的 provider/model 桥接为 loop LLM 契约
- * （KosongLLM），构造 AgentHarness。node-sdk 装配层在 engine = 'v2' 时为新
- * 会话调用本工厂；legacy 路径零变化。
+ * （KosongLLM），构造 AgentHarness。装配层（node-sdk/core-impl）在
+ * engine = 'v2' 时为新会话调用本工厂；legacy 路径零变化。
+ * 现状（#339 停损）：config.engine 已解析但装配层尚未接线——设置
+ * engine = 'v2' 暂不会改变默认路径，待 host 面（MCP/skills/cron/后台/审批）
+ * 移植进 v2 装配后生效。
  */
 
 export type SessionEngine = 'legacy' | 'v2';

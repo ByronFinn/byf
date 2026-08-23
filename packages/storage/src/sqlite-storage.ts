@@ -49,6 +49,7 @@ export class SqliteSessionStorage implements SessionStorage {
   private readonly db: Database;
   private readonly leaseStaleMs: number;
   private readonly owner: string;
+  private leaseTimer: ReturnType<typeof setInterval> | undefined;
   private closed = false;
 
   /** 打开（或创建）数据库并获取会话 lease。 */
@@ -69,31 +70,41 @@ export class SqliteSessionStorage implements SessionStorage {
     this.owner = options?.owner ?? `pid-${process.pid}`;
     this.migrate();
     this.acquireLease();
+    this.initSeqCounter();
   }
 
   // ===== lease（单写者，接管锁文件职责） =====
 
   private acquireLease(): void {
     const now = Date.now();
-    const existing = this.db
-      .query('SELECT owner, heartbeat_at AS heartbeatAt FROM leases WHERE session_id = ?')
-      .get(this.sessionId) as { owner: string; heartbeatAt: number } | null;
-    if (
-      existing &&
-      existing.owner !== this.owner &&
-      now - existing.heartbeatAt < this.leaseStaleMs
-    ) {
-      throw new StorageLeaseError(
-        existing.owner,
-        `会话 ${this.sessionId} 正被 ${existing.owner} 使用（lease 心跳新鲜）；跨进程第二写入者被拒。`,
-      );
-    }
-    this.db
+    // 原子条件写（修 check-then-act 竞态）：仅当本人持有或心跳超时才更新；
+    // 行数 0 → 尝试插入（无持有者），插入冲突 → 新鲜持有者拒绝。
+    const update = this.db
       .query(
-        'INSERT INTO leases (session_id, owner, heartbeat_at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(session_id) DO UPDATE SET owner = excluded.owner, heartbeat_at = excluded.heartbeat_at',
+        'UPDATE leases SET owner = ?, heartbeat_at = ? WHERE session_id = ? AND (owner = ? OR heartbeat_at <= ?)',
       )
-      .run(this.sessionId, this.owner, now);
+      .run(this.owner, now, this.sessionId, this.owner, now - this.leaseStaleMs);
+    if (update.changes === 0) {
+      try {
+        this.db
+          .query('INSERT INTO leases (session_id, owner, heartbeat_at) VALUES (?, ?, ?)')
+          .run(this.sessionId, this.owner, now);
+      } catch {
+        const existing = this.db
+          .query('SELECT owner FROM leases WHERE session_id = ?')
+          .get(this.sessionId) as { owner: string } | null;
+        throw new StorageLeaseError(
+          existing?.owner ?? 'unknown',
+          `会话 ${this.sessionId} lease 心跳新鲜（持有者 ${existing?.owner ?? 'unknown'}）；跨进程第二写入者被拒。`,
+        );
+      }
+    }
+    // 自动心跳（unref）：持有期间持续续期——否则 lease 过期后单写者保证蒸发
+    this.leaseTimer = setInterval(
+      () => this.heartbeat(),
+      Math.max(1, Math.min(20_000, Math.floor(this.leaseStaleMs / 3))),
+    );
+    this.leaseTimer.unref?.();
   }
 
   /** 刷新 lease 心跳（持有者周期调用）。 */
@@ -131,15 +142,7 @@ export class SqliteSessionStorage implements SessionStorage {
             'ON CONFLICT(session_id, lane_id) DO UPDATE SET deleted = 0, name = excluded.name, leaf_entry_id = excluded.leaf_entry_id, created_at = excluded.created_at',
         )
         .run(this.sessionId, laneId, name, input.fromEntryId ?? null, createdAt);
-      // branch cache：create 无 from = 空 tip；有 from 复制祖先链
-      if (input.fromEntryId !== undefined) {
-        for (const entry of this.chainOf(input.fromEntryId)) {
-          this.db
-            .query('INSERT OR IGNORE INTO branch_entries (tip_entry_id, entry_id) VALUES (?, ?)')
-            .run(input.fromEntryId, entry);
-        }
-        this.upsertTip(laneId, input.fromEntryId);
-      }
+      void laneId;
     });
     tx();
     this.cacheInvalidate();
@@ -160,12 +163,6 @@ export class SqliteSessionStorage implements SessionStorage {
       this.db
         .query('UPDATE lanes SET leaf_entry_id = ? WHERE session_id = ? AND lane_id = ?')
         .run(toEntryId, this.sessionId, laneId);
-      // tip 移动：复制目标祖先链为新 tip（不变量：每 entry 至少属一分支）
-      for (const entry of this.chainOf(toEntryId)) {
-        this.db
-          .query('INSERT OR IGNORE INTO branch_entries (tip_entry_id, entry_id) VALUES (?, ?)')
-          .run(toEntryId, entry);
-      }
     });
     tx();
     void lane;
@@ -224,13 +221,6 @@ export class SqliteSessionStorage implements SessionStorage {
           createdAt,
           input.laneId,
         );
-      // plain append：tip 点查命中 → 延伸一行 branch_entries + tip 前移
-      this.db
-        .query('INSERT OR IGNORE INTO branch_entries (tip_entry_id, entry_id) VALUES (?, ?)')
-        .run(id, id);
-      this.db
-        .query('UPDATE branch_tips SET tip_entry_id = ? WHERE session_id = ? AND lane_id = ?')
-        .run(id, this.sessionId, input.laneId);
       this.db
         .query('UPDATE lanes SET leaf_entry_id = ? WHERE session_id = ? AND lane_id = ?')
         .run(id, this.sessionId, input.laneId);
@@ -291,17 +281,27 @@ export class SqliteSessionStorage implements SessionStorage {
 
   async getRecords(filter?: RecordFilter): Promise<readonly WireRecord[]> {
     this.assertOpen();
-    const rows = (
-      this.db
-        .query('SELECT * FROM records WHERE session_id = ? ORDER BY seq')
-        .all(this.sessionId) as unknown[]
-    ).map((row) => this.decodeRecord(row as RecordRow));
-    return rows.filter((record) => {
-      if (filter?.laneId !== undefined && record.laneId !== filter.laneId) return false;
-      if (filter?.fromSeq !== undefined && record.seq < filter.fromSeq) return false;
-      if (filter?.kinds && !filter.kinds.includes(record.kind)) return false;
-      return true;
-    });
+    // 过滤下推 SQL（review M8）：checkpoint 热路径每步调用，避免全表扫描
+    const conditions = ['session_id = ?'];
+    const params: (string | number)[] = [this.sessionId];
+    if (filter?.laneId !== undefined) {
+      conditions.push('lane_id = ?');
+      params.push(filter.laneId);
+    }
+    if (filter?.fromSeq !== undefined) {
+      conditions.push('seq >= ?');
+      params.push(filter.fromSeq);
+    }
+    let kinds = filter?.kinds;
+    if (kinds !== undefined && kinds.length === 0) kinds = ['__none__'];
+    if (kinds !== undefined) {
+      conditions.push(`kind IN (${kinds.map(() => '?').join(', ')})`);
+      params.push(...kinds);
+    }
+    const rows = this.db
+      .query(`SELECT * FROM records WHERE ${conditions.join(' AND ')} ORDER BY seq`)
+      .all(...params) as RecordRow[];
+    return rows.map((row) => this.decodeRecord(row));
   }
 
   // ===== facts =====
@@ -404,6 +404,7 @@ export class SqliteSessionStorage implements SessionStorage {
   }
 
   async close(): Promise<void> {
+    if (this.leaseTimer !== undefined) clearInterval(this.leaseTimer);
     // 释放 lease（只删自己的）
     this.db
       .query('DELETE FROM leases WHERE session_id = ? AND owner = ?')
@@ -469,17 +470,6 @@ export class SqliteSessionStorage implements SessionStorage {
         deleted INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (session_id, lane_id)
       );
-      CREATE TABLE IF NOT EXISTS branch_entries (
-        tip_entry_id TEXT NOT NULL,
-        entry_id TEXT NOT NULL,
-        PRIMARY KEY (tip_entry_id, entry_id)
-      );
-      CREATE TABLE IF NOT EXISTS branch_tips (
-        session_id TEXT NOT NULL,
-        lane_id TEXT NOT NULL,
-        tip_entry_id TEXT,
-        PRIMARY KEY (session_id, lane_id)
-      );
       CREATE TABLE IF NOT EXISTS leases (
         session_id TEXT PRIMARY KEY,
         owner TEXT NOT NULL,
@@ -488,28 +478,27 @@ export class SqliteSessionStorage implements SessionStorage {
     `);
   }
 
+  /** 进程内 seq 计数器（lease 单写者独占；构造时四表 MAX 初始化一次——
+   * 消除每次追加 4 次 MAX 查询的热路径开销，review M8）。 */
+  private seqCounter = 0;
+
+  private initSeqCounter(): void {
+    const maxOf = (table: string): number =>
+      (
+        this.db
+          .query(`SELECT MAX(seq) AS m FROM ${table} WHERE session_id = ?`)
+          .get(this.sessionId) as { m: number | null }
+      ).m ?? 0;
+    this.seqCounter = Math.max(
+      maxOf('entries'),
+      maxOf('records'),
+      maxOf('facts'),
+      maxOf('lane_moves'),
+    );
+  }
+
   private allocSeq(): Seq {
-    const maxEntry = (
-      this.db
-        .query('SELECT MAX(seq) AS m FROM entries WHERE session_id = ?')
-        .get(this.sessionId) as { m: number | null }
-    ).m;
-    const maxRecord = (
-      this.db
-        .query('SELECT MAX(seq) AS m FROM records WHERE session_id = ?')
-        .get(this.sessionId) as { m: number | null }
-    ).m;
-    const maxFact = (
-      this.db.query('SELECT MAX(seq) AS m FROM facts WHERE session_id = ?').get(this.sessionId) as {
-        m: number | null;
-      }
-    ).m;
-    const maxMove = (
-      this.db
-        .query('SELECT MAX(seq) AS m FROM lane_moves WHERE session_id = ?')
-        .get(this.sessionId) as { m: number | null }
-    ).m;
-    return Math.max(maxEntry ?? 0, maxRecord ?? 0, maxFact ?? 0, maxMove ?? 0) + 1;
+    return ++this.seqCounter;
   }
 
   private entryRow(id: string): EntryRow | null {
@@ -530,15 +519,6 @@ export class SqliteSessionStorage implements SessionStorage {
     return this.db
       .query('SELECT * FROM lanes WHERE session_id = ? AND lane_id = ?')
       .get(this.sessionId, laneId) as LaneRow | null;
-  }
-
-  private upsertTip(laneId: LaneId, tipEntryId: string | null): void {
-    this.db
-      .query(
-        'INSERT INTO branch_tips (session_id, lane_id, tip_entry_id) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(session_id, lane_id) DO UPDATE SET tip_entry_id = excluded.tip_entry_id',
-      )
-      .run(this.sessionId, laneId, tipEntryId);
   }
 
   /** 祖先链（root → target）。 */

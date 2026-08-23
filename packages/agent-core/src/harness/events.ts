@@ -97,7 +97,7 @@ export interface LaneOperationSnapshot {
   readonly runningTools: readonly { readonly toolCallId: string; readonly name: string }[];
 }
 
-export interface LaneSnapshot {
+export interface LaneView {
   readonly laneId: LaneId;
   readonly status: string;
   readonly operation: LaneOperationSnapshot | undefined;
@@ -113,7 +113,7 @@ export interface LaneSnapshot {
 
 export interface SessionSnapshot {
   readonly sessionId: string;
-  readonly lanes: readonly LaneSnapshot[];
+  readonly lanes: readonly LaneView[];
   /** 捕获快照时的事件序号（start() 冲刷从此之后开始）。 */
   readonly eventSeq: number;
   readonly capturedAt: number;
@@ -181,8 +181,27 @@ export interface WatchHandle {
  */
 export async function watch(harness: AgentHarness): Promise<WatchHandle> {
   const bus = harness.events;
+  // 先订阅缓冲、后取快照（review M7）：快照读取（逐 lane await）期间的事件
+  // 落入缓冲；start() 以 snapshot.eventSeq 之后过滤冲刷——快照读到的在快照里，
+  // 读后的在缓冲里，无丢无重。
+  const earlyBuffer: V2Event[] = [];
+  const earlyUnsub = bus.subscribe((event) => earlyBuffer.push(event));
+  try {
+    return await captureSnapshot(harness, bus, earlyBuffer, earlyUnsub);
+  } catch (error) {
+    earlyUnsub();
+    throw error;
+  }
+}
+
+async function captureSnapshot(
+  harness: AgentHarness,
+  bus: V2EventBus,
+  earlyBuffer: V2Event[],
+  earlyUnsub: () => void,
+): Promise<WatchHandle> {
   const laneIds = await harness.lanes();
-  const lanes: LaneSnapshot[] = [];
+  const lanes: LaneView[] = [];
   for (const laneId of laneIds) {
     const state = harness.laneState(laneId);
     const branch = await harness.session.branchOf(laneId, { direction: 'oldestFirst' });
@@ -221,12 +240,11 @@ export async function watch(harness: AgentHarness): Promise<WatchHandle> {
       pendingWrites: 0,
     });
   }
-  // 快照 seq 与缓冲注册在同一同步段完成——JS 单线程保证无 onEvent 交错
+  // 快照读取完成后捕获 seq：earlyBuffer 保留全部期间事件，冲刷时按
+  // seq > eventSeq 过滤（快照内已包含的不再重发）
   const eventSeq = bus.currentSeq();
-  const buffer: V2Event[] = [];
-  const unsubscribeBuffer = bus.subscribe((event) => {
-    if (event.seq > eventSeq) buffer.push(event);
-  });
+  const buffer = earlyBuffer;
+  const unsubscribeBuffer = earlyUnsub;
   let started = false;
   return {
     snapshot: { sessionId: harness.session.sessionId, lanes, eventSeq, capturedAt: Date.now() },
@@ -235,7 +253,7 @@ export async function watch(harness: AgentHarness): Promise<WatchHandle> {
       started = true;
       unsubscribeBuffer();
       // 依序冲刷缓冲（快照之后、直播之前），再转直播——恰一次有序
-      for (const event of buffer.splice(0)) {
+      for (const event of buffer.splice(0).filter((e) => e.seq > eventSeq)) {
         try {
           listener(event);
         } catch {

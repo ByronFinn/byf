@@ -201,7 +201,20 @@ describe('per-lane config point queries (#328)', () => {
     const harness = await AgentHarness.create({
       resolveLLM: async (modelAlias) => {
         seenModels.push(modelAlias);
-        return llmWithLog([], modelAlias ?? 'default');
+        return {
+          systemPrompt: 't',
+          modelName: modelAlias ?? 'default',
+          async chat(params: {
+            tools: { name: string }[];
+            messages: { content: ContentPart[] }[];
+            onTextPart?: (p: ContentPart) => Promise<void>;
+          }) {
+            // 记录 run 实际提供的工具集（review M7：钉住 activeTools 过滤）
+            seenToolSets.push(params.tools.map((tool) => tool.name));
+            await params.onTextPart?.({ type: 'text', text: 'ok' });
+            return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
+          },
+        };
       },
       tools: [
         {
@@ -231,6 +244,8 @@ describe('per-lane config point queries (#328)', () => {
     unwrap(await harness.lane().setActiveTools(['write']));
     unwrap(await harness.lane().prompt([text('go')]));
     expect(seenModels.length).toBe(1); // per-lane 模型解析（undefined = 未设置）
+    // activeTools 过滤真实生效：run 只看到 write，read 被滤除
+    expect(seenToolSets).toEqual([['write']]);
     await harness.close();
   });
 });

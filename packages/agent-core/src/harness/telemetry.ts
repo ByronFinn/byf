@@ -70,7 +70,8 @@ export class SpanTree {
     attributes: SpanAttributes = {},
   ): SpanHandle {
     const spanId = `sp-${++spanCounter}`;
-    this.emit({ name, spanId, parentSpanId, laneId, startedAt: Date.now(), attributes });
+    const startedAt = Date.now();
+    this.emit({ name, spanId, parentSpanId, laneId, startedAt, attributes });
     return {
       spanId,
       end: (endAttributes: SpanAttributes = {}) => {
@@ -80,7 +81,7 @@ export class SpanTree {
           parentSpanId: spanId,
           laneId,
           startedAt: Date.now(),
-          attributes: { ...attributes, ...endAttributes, durationMs: Date.now() - 0 },
+          attributes: { ...attributes, ...endAttributes, durationMs: Date.now() - startedAt },
         });
       },
     };

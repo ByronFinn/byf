@@ -7,6 +7,6 @@
     "outDir": "dist-types",
     "lib": ["ESNext", "DOM"]
   },
-  "include": ["src"],
+  "include": ["src", "../agent-core/src/prompt-modules.d.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

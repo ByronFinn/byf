@@ -94,6 +94,7 @@ export class HarnessSubagentSpawner {
       ...(this.createTargetStorage ? { createTargetStorage: this.createTargetStorage } : {}),
     });
     const child = await AgentHarness.create({ ...this.config, storage: forked.session.storageRef });
+    void forked;
     try {
       const result = await child.lane().prompt(prompt, {
         origin: { kind: 'system_trigger', name: 'subagent' },
