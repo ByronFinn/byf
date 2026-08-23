@@ -92,7 +92,8 @@ export async function acquireSessionLock(
           existing,
         );
       }
-      if (attempt >= 3) throw new Error('session lock contention: takeover retry exhausted', { cause: error });
+      if (attempt >= 3)
+        throw new Error('session lock contention: takeover retry exhausted', { cause: error });
       // 可接管但创建冲突：删除陈旧锁后重试（竞态窗口收敛到 wx 原子性）
       try {
         await unlink(path);
