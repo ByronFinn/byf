@@ -9,7 +9,12 @@ import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
 import { LaneStateReducer } from './lane-state';
 import type { LaneState } from './lane-state';
-import { asOperationStarted, operationRecordId, toolStartedRecordId } from './records';
+import {
+  asOperationStarted,
+  asWriteDeferred,
+  operationRecordId,
+  toolStartedRecordId,
+} from './records';
 import type { OperationStartedPayload, ToolReplaySafety } from './records';
 import { WireSession } from './session/session';
 import { InMemorySessionStorage } from './storage/memory';
@@ -65,6 +70,11 @@ export interface OperationOutcome {
   readonly errorMessage?: string;
   readonly usage?: TokenUsage;
   readonly steps: number;
+  /** abort 时死亡的 steer/followUp payload（归还调用方，R3）。 */
+  readonly deadQueuePayloads?: readonly {
+    readonly queue: string;
+    readonly input: readonly ContentPart[];
+  }[];
 }
 
 interface LaneRuntime {
@@ -138,12 +148,132 @@ export class AgentHarness {
     }
   }
 
+  // ===== 三队列（R3：接受即持久、消费点才写树） =====
+
+  /** 运行中转向：消费点在 checkpoint（下一 step 前写入树）。 */
+  async steer(
+    laneId: LaneId,
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<void> {
+    this.assertOpen();
+    const status = this.laneState(laneId).status; // 含接受窗口的同步占位
+    if (status !== 'running' && status !== 'aborting') {
+      throw new Error(`lane ${laneId} is ${status}; steer requires a running operation`);
+    }
+    await this.enqueueQueueItem(laneId, 'steer', input, options?.origin);
+  }
+
+  /** 下一个 run 的输入：当前操作结束后消费；abort 时死亡并归还 payload。 */
+  async followUp(
+    laneId: LaneId,
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<void> {
+    this.assertOpen();
+    await this.enqueueQueueItem(laneId, 'followUp', input, options?.origin);
+  }
+
+  /** 跨操作存活的输入队列：abort 后仍存活，lane idle 时消费。 */
+  async nextRun(
+    laneId: LaneId,
+    input: readonly ContentPart[],
+    options?: { readonly origin?: StoredPromptOrigin },
+  ): Promise<void> {
+    this.assertOpen();
+    await this.enqueueQueueItem(laneId, 'nextRun', input, options?.origin);
+  }
+
+  private async enqueueQueueItem(
+    laneId: LaneId,
+    queue: 'steer' | 'followUp' | 'nextRun',
+    input: readonly ContentPart[],
+    origin: StoredPromptOrigin | undefined,
+  ): Promise<void> {
+    const itemId = randomUUID();
+    await this.appendRecordTracked(laneId, 'queue_enqueued', `q:${itemId}`, {
+      queue,
+      input,
+      origin,
+      entryId: `entry:${itemId}:queued`,
+      enqueuedAt: Date.now(),
+    });
+  }
+
+  // ===== deferred writes（R4：mid-step 写入延迟到 checkpoint 尾部追加） =====
+
+  /**
+   * 延迟写：意图（write_deferred，含完整追加载荷与预分配 entry id）先落盘，
+   * 实际 entry 在 checkpoint 应用——保护 KV 缓存"上下文只在尾部增长"不变量。
+   */
+  async deferWrite(
+    laneId: LaneId,
+    append: { readonly customType: string; readonly data: unknown },
+  ): Promise<void> {
+    this.assertOpen();
+    const itemId = randomUUID();
+    await this.appendRecordTracked(laneId, 'write_deferred', `dw:${itemId}`, {
+      append: { kind: 'custom', ...append, id: `entry:${itemId}:deferred` },
+      deferredAt: Date.now(),
+    });
+  }
+
+  /** 应用尚未落树的 deferred writes（checkpoint 与 abort 路径共用；abort 存活）。 */
+  private async applyDeferredWrites(laneId: LaneId): Promise<number> {
+    const records = await this.session.storageRef.getRecords({ laneId, kinds: ['write_deferred'] });
+    let applied = 0;
+    for (const record of records) {
+      const payload = asWriteDeferred(record.payload);
+      if (!payload) continue;
+      const append = payload.append as {
+        kind: 'custom';
+        customType: string;
+        data: unknown;
+        id?: string;
+      };
+      if (!append?.id) continue;
+      if (this.session.getEntry(append.id)) continue; // 幂等：已应用
+      await this.session.append({
+        laneId,
+        kind: 'custom',
+        customType: append.customType,
+        data: append.data,
+        id: append.id,
+      });
+      applied += 1;
+    }
+    return applied;
+  }
+
+  /**
+   * checkpoint（步骤边界）：应用 pending deferred writes → 消费 steering
+   * （写树）→ 压缩占位（#329）。挂在 loop 的 beforeStep 钩子——先于
+   * buildMessages，被消费的 steer 立即进入本 step 上下文。
+   */
+  private async checkpoint(laneId: LaneId): Promise<void> {
+    await this.applyDeferredWrites(laneId);
+    const state = this.reducer.snapshot(laneId);
+    for (const item of state.queues.steer) {
+      if (this.session.getEntry(item.entryId)) continue; // 已消费
+      await this.session.append({
+        laneId,
+        kind: 'message',
+        id: item.entryId,
+        message: {
+          role: 'user',
+          content: item.input,
+          origin: item.origin ?? { kind: 'injection', variant: 'steer' },
+        },
+      });
+    }
+  }
+
   // ===== 操作面（AgentLane 委托到此） =====
 
   async prompt(
     laneId: LaneId,
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: StoredPromptOrigin; readonly inputEntryId?: string },
   ): Promise<OperationOutcome> {
     this.assertOpen();
     this.requireIdle(laneId);
@@ -158,7 +288,8 @@ export class AgentHarness {
       kind: 'prompt',
       input,
       origin: options?.origin ?? { kind: 'user' },
-      inputEntryId: `entry:${opId}:input`,
+      // 队列消费路径传入队列项的预分配 entryId（消费点写树）
+      inputEntryId: options?.inputEntryId ?? `entry:${opId}:input`,
       startedAt: Date.now(),
     };
     // 意图先行：接受边界记录先于任何效果（含预分配 id 的输入消息）
@@ -176,15 +307,7 @@ export class AgentHarness {
     if (!open) throw new Error(`lane ${laneId} has no open operation to resume`);
 
     if (open.abortRequested) {
-      // abort_requested 已持久化但 reconcile 未完成：直接以 aborted 收尾
-      //（#325 完整化合成工具结果与收尾消息）
-      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
-        opId: open.opId,
-        outcome: 'aborted',
-        stopReason: 'aborted',
-        finishedAt: Date.now(),
-      });
-      return { opId: open.opId, outcome: 'aborted', stopReason: 'aborted', steps: 0 };
+      return this.reconcileAbortedOperation(laneId, open.opId);
     }
 
     // task_attempt：1-based 持久 run-attempt 计数（AC3：跨崩溃-重启不可重置）
@@ -308,19 +431,30 @@ export class AgentHarness {
           tools: this.config.tools,
           maxSteps: this.config.maxSteps,
           maxRetryAttempts: this.config.maxRetryAttempts,
+          // checkpoint（#325）：beforeStep 先于 buildMessages——deferred writes
+          // 应用 + steering 消费写树，被消费内容立即进入本 step 上下文。
+          hooks: {
+            beforeStep: async () => {
+              await this.checkpoint(laneId);
+              return undefined;
+            },
+          },
         });
         await transcript.flushAll();
-        const outcome = result.stopReason === 'aborted' ? 'aborted' : 'completed';
+        if (result.stopReason === 'aborted') {
+          // live abort 收尾（reconcile 的 live 侧）：合成收尾消息 + 队列处置
+          return await this.finishAbortedOperation(laneId, op.opId, result.steps);
+        }
         await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
           opId: op.opId,
-          outcome,
+          outcome: 'completed',
           stopReason: result.stopReason,
           usage: usageToRecord(result.usage),
           finishedAt: Date.now(),
         });
         return {
           opId: op.opId,
-          outcome,
+          outcome: 'completed',
           stopReason: result.stopReason,
           usage: result.usage,
           steps: result.steps,
@@ -339,6 +473,69 @@ export class AgentHarness {
     } finally {
       this.runtimes.delete(laneId);
     }
+  }
+
+  /**
+   * abort reconcile（#325 R2，v2 abort 语义）：
+   * 1. 悬空工具调用（tool_started 无结果 entry）补合成 interrupted 结果；
+   * 2. 收尾 assistant 消息（stop reason aborted）；
+   * 3. pending deferred writes 在 abort 路径仍应用（事实存活）；
+   * 4. operation_finished aborted——steer/followUp 死亡（payload 归还调用方）、
+   *    nextRun 存活（归约侧由 finished 处置）。
+   * restore 路径（resume of aborting）与 live 收尾共用。
+   */
+  private async reconcileAbortedOperation(laneId: LaneId, opId: string): Promise<OperationOutcome> {
+    const state = this.reducer.snapshot(laneId);
+    const dangling = state.openOperation?.danglingTools ?? [];
+    for (const tool of dangling) {
+      if (this.session.getEntry(tool.resultEntryId)) continue; // 已有真实结果
+      await this.session.append({
+        laneId,
+        kind: 'message',
+        id: tool.resultEntryId,
+        message: {
+          role: 'tool',
+          toolCallId: tool.toolCallId,
+          content: [{ type: 'text', text: '[interrupted]' }],
+          isError: true,
+        },
+      });
+    }
+    return this.finishAbortedOperation(laneId, opId, 0);
+  }
+
+  /** abort 收尾：收尾 assistant 消息 + deferred writes 应用 + finished aborted。 */
+  private async finishAbortedOperation(
+    laneId: LaneId,
+    opId: string,
+    steps: number,
+  ): Promise<OperationOutcome> {
+    // 归还 steer/followUp payload（queue 死亡；读取于 finished 记录之前）
+    const before = this.reducer.snapshot(laneId);
+    const deadPayloads = [...before.queues.steer, ...before.queues.followUp];
+    await this.session.append({
+      laneId,
+      kind: 'message',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: '(aborted)' }],
+        partial: true,
+      },
+    });
+    await this.applyDeferredWrites(laneId); // deferred writes 在 abort 中存活
+    await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+      opId,
+      outcome: 'aborted',
+      stopReason: 'aborted',
+      finishedAt: Date.now(),
+    });
+    return {
+      opId,
+      outcome: 'aborted',
+      stopReason: 'aborted',
+      steps,
+      deadQueuePayloads: deadPayloads,
+    };
   }
 
   // ===== 内部 =====
@@ -386,6 +583,27 @@ export class AgentHarness {
     return this.config.llm;
   }
 
+  /**
+   * 消费下一项 followUp/nextRun 输入（消费点写树：预分配 entryId 落为
+   * 该操作的输入消息）。followUp 优先于 nextRun；无待办返回 undefined。
+   */
+  async consumeNextQueuedInput(laneId: LaneId): Promise<
+    | {
+        input: readonly ContentPart[];
+        origin: StoredPromptOrigin | undefined;
+        entryId: string;
+      }
+    | undefined
+  > {
+    const state = this.reducer.snapshot(laneId);
+    if (state.status !== 'idle') return undefined;
+    for (const item of [...state.queues.followUp, ...state.queues.nextRun]) {
+      if (this.session.getEntry(item.entryId)) continue; // 已消费
+      return { input: item.input, origin: item.origin, entryId: item.entryId };
+    }
+    return undefined;
+  }
+
   private assertOpen(): void {
     if (this.closed) throw new Error('AgentHarness is closed');
   }
@@ -412,6 +630,41 @@ export class AgentLane {
 
   abort(): Promise<void> {
     return this.harness.abort(this.laneId);
+  }
+
+  steer(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+    return this.harness.steer(this.laneId, input, options);
+  }
+
+  followUp(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+    return this.harness.followUp(this.laneId, input, options);
+  }
+
+  nextRun(input: readonly ContentPart[], options?: { readonly origin?: StoredPromptOrigin }) {
+    return this.harness.nextRun(this.laneId, input, options);
+  }
+
+  deferWrite(input: { readonly customType: string; readonly data: unknown }) {
+    return this.harness.deferWrite(this.laneId, input);
+  }
+
+  /**
+   * 消费 followUp/nextRun 队列驱动后续操作（driverLoop 的 drain 段）：
+   * followUp 优先；每项以预分配 entryId 写树后发起操作，直至队列空。
+   */
+  async drain(): Promise<readonly OperationOutcome[]> {
+    const outcomes: OperationOutcome[] = [];
+    for (;;) {
+      const next = await this.harness.consumeNextQueuedInput(this.laneId);
+      if (!next) break;
+      outcomes.push(
+        await this.harness.prompt(this.laneId, next.input, {
+          origin: next.origin,
+          inputEntryId: next.entryId,
+        }),
+      );
+    }
+    return outcomes;
   }
 }
 

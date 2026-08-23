@@ -83,6 +83,8 @@ export interface QueueEnqueuedPayload {
   /** 完整 payload（abort 时 steer/followUp 死亡并归还调用方）。 */
   readonly input: readonly ContentPart[];
   readonly origin?: StoredPromptOrigin;
+  /** 预分配消费 entry id：消费点写树用；entry 存在 = 已消费（恢复判定）。 */
+  readonly entryId: string;
   readonly enqueuedAt: number;
 }
 

@@ -10,10 +10,15 @@ import type { OperationKind, QueueEnqueuedPayload, ToolStartedPayload } from './
 import type { LaneId, WireRecord } from './storage/types';
 
 /**
- * lane 状态归约（PRD-0037 #323，v2 恢复归约）。
+ * lane 状态归约（PRD-0037 #323/#325，v2 恢复归约）。
  *
  * 「状态 = 记录的归约」：live 执行与 restore 走同一 apply 函数——live 每追加
  * 一条记录推进一次，restore 重放全部记录重建。两侧永不漂移。
+ *
+ * 队列（#325 R3）挂在 lane 上而非开放操作上：
+ * - operation_finished 使 steer/followUp 死亡（payload 由 live 进程归还调用方）；
+ * - nextRun 与 deferred writes 存活（跨操作、跨 abort）；
+ * - 消费判定 = 预分配 entryId 对应 entry 已写入树（消费点才写树）。
  */
 
 export type LaneStatus = 'idle' | 'running' | 'suspended' | 'aborting' | 'deferred';
@@ -32,10 +37,12 @@ export interface OpenOperation {
   readonly maxAttempts: number;
   /** 悬空工具批（tool_started 无配对结果 entry）。 */
   readonly danglingTools: readonly ToolStartedPayload[];
-  /** 各队列待办（queue_enqueued 未消费）。 */
-  readonly pendingQueues: Readonly<
-    Record<'steer' | 'followUp' | 'nextRun', QueueEnqueuedPayload[]>
-  >;
+}
+
+export interface LaneQueues {
+  readonly steer: readonly QueueEnqueuedPayload[];
+  readonly followUp: readonly QueueEnqueuedPayload[];
+  readonly nextRun: readonly QueueEnqueuedPayload[];
 }
 
 export interface LaneState {
@@ -43,6 +50,14 @@ export interface LaneState {
   readonly status: LaneStatus;
   readonly suspendedReason?: SuspendedReason;
   readonly openOperation?: OpenOperation;
+  /** 未消费队列快照（消费判定需结合 entry 存在性，见 harness）。 */
+  readonly queues: LaneQueues;
+}
+
+interface MutableQueues {
+  steer: QueueEnqueuedPayload[];
+  followUp: QueueEnqueuedPayload[];
+  nextRun: QueueEnqueuedPayload[];
 }
 
 interface MutableLaneState {
@@ -57,12 +72,8 @@ interface MutableLaneState {
     attempts: number;
     maxAttempts: number;
     danglingTools: ToolStartedPayload[];
-    pendingQueues: {
-      steer: QueueEnqueuedPayload[];
-      followUp: QueueEnqueuedPayload[];
-      nextRun: QueueEnqueuedPayload[];
-    };
   };
+  queues: MutableQueues;
 }
 
 /**
@@ -89,7 +100,6 @@ export class LaneStateReducer {
           attempts: 0,
           maxAttempts: 0,
           danglingTools: [],
-          pendingQueues: { steer: [], followUp: [], nextRun: [] },
         };
         lane.status = 'running';
         lane.suspendedReason = undefined;
@@ -108,6 +118,10 @@ export class LaneStateReducer {
         lane.open = undefined;
         lane.status = 'idle';
         lane.suspendedReason = undefined;
+        // 队列处置（R3）：abort 与正常结束都使 steer/followUp 死亡；
+        // nextRun 存活（跨操作、跨 abort）。
+        lane.queues.steer = [];
+        lane.queues.followUp = [];
         break;
       }
       case 'tool_started': {
@@ -118,8 +132,8 @@ export class LaneStateReducer {
       }
       case 'queue_enqueued': {
         const payload = asQueueEnqueued(record.payload);
-        if (!payload || !lane.open) return;
-        lane.open.pendingQueues[payload.queue].push(payload);
+        if (!payload) return;
+        lane.queues[payload.queue].push(payload);
         break;
       }
       case 'task_attempt': {
@@ -130,7 +144,7 @@ export class LaneStateReducer {
         lane.open.maxAttempts = Math.max(lane.open.maxAttempts, payload.maxAttempts);
         break;
       }
-      // write_deferred 不改变 lane 状态机（#325 在 checkpoint 消费其载荷）
+      // write_deferred 不改变 lane 状态机（checkpoint 消费其载荷）
       case 'write_deferred':
         break;
     }
@@ -148,7 +162,7 @@ export class LaneStateReducer {
         lane.suspendedReason = 'crash';
       } else if (lane.status === 'aborting') {
         // abort_requested 持久化但 reconcile 未完成：保持 aborting，
-        // resume 走 reconcile 路径（#325 完整化）
+        // resume 走 reconcile 路径
         lane.suspendedReason = 'crash';
       }
     }
@@ -156,24 +170,27 @@ export class LaneStateReducer {
 
   snapshot(laneId: LaneId): LaneState {
     const lane = this.laneFor(laneId);
-    if (!lane.open) return { laneId, status: lane.status };
     return {
       laneId,
       status: lane.status,
-      suspendedReason: lane.suspendedReason,
-      openOperation: {
-        opId: lane.open.opId,
-        kind: lane.open.kind,
-        startedAt: lane.open.startedAt,
-        abortRequested: lane.open.abortRequested,
-        attempts: lane.open.attempts,
-        maxAttempts: lane.open.maxAttempts,
-        danglingTools: [...lane.open.danglingTools],
-        pendingQueues: {
-          steer: [...lane.open.pendingQueues.steer],
-          followUp: [...lane.open.pendingQueues.followUp],
-          nextRun: [...lane.open.pendingQueues.nextRun],
-        },
+      ...(lane.suspendedReason !== undefined ? { suspendedReason: lane.suspendedReason } : {}),
+      ...(lane.open
+        ? {
+            openOperation: {
+              opId: lane.open.opId,
+              kind: lane.open.kind,
+              startedAt: lane.open.startedAt,
+              abortRequested: lane.open.abortRequested,
+              attempts: lane.open.attempts,
+              maxAttempts: lane.open.maxAttempts,
+              danglingTools: [...lane.open.danglingTools],
+            },
+          }
+        : {}),
+      queues: {
+        steer: [...lane.queues.steer],
+        followUp: [...lane.queues.followUp],
+        nextRun: [...lane.queues.nextRun],
       },
     };
   }
@@ -185,7 +202,11 @@ export class LaneStateReducer {
   private laneFor(laneId: LaneId): MutableLaneState {
     let lane = this.lanes.get(laneId);
     if (!lane) {
-      lane = { laneId, status: 'idle' };
+      lane = {
+        laneId,
+        status: 'idle',
+        queues: { steer: [], followUp: [], nextRun: [] },
+      };
       this.lanes.set(laneId, lane);
     }
     return lane;
