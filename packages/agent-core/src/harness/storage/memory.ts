@@ -24,6 +24,7 @@ export class Wire2StorageError extends Error {
       | 'DUPLICATE_LANE'
       | 'BAD_INPUT'
       | 'CORRUPTED_JOURNAL'
+      | 'UNSUPPORTED_FORMAT'
       | 'CLOSED',
     message: string,
     options?: { cause?: unknown },

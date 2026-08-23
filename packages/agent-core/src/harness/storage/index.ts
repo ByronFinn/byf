@@ -7,3 +7,5 @@
 export * from './types';
 export type { RecordFilter, SessionStorage } from './storage';
 export { InMemorySessionStorage, Wire2StorageError } from './memory';
+export { JsonlSessionStorage } from './jsonl';
+export type { JsonlStorageOptions } from './jsonl';
