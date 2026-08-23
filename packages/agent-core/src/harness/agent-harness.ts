@@ -325,6 +325,203 @@ export class AgentHarness {
     return this.config.tools.filter((tool) => activeSet.has(tool.name));
   }
 
+  // ===== 导航与压缩（#329） =====
+
+  /**
+   * 导航（#329）：移动 lane 指针到任意 entry（前向/后向皆可）。
+   * 可选 branch summary（LLM 摘要被离开的路径）链到目标；label 写为 global fact。
+   * 崩溃一致性：started → 效果（预分配 id 幂等）→ move → finished；
+   * 任意位点崩溃，lane 要么在旧位置（resume 幂等重放），要么导航完成。
+   */
+  async navigateTree(
+    laneId: LaneId,
+    targetEntryId: string,
+    options?: {
+      readonly summarize?: boolean;
+      readonly customInstructions?: string;
+      readonly label?: string;
+    },
+  ): Promise<LaneResult<void>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    const guard = this.guardPrompt(laneId);
+    if (guard) return guard;
+    if (!(await this.laneExists(laneId))) return err('LANE_NOT_FOUND', `lane ${laneId} not found`);
+    if (!this.session.getEntry(targetEntryId)) {
+      return err('INVALID_INPUT', `target entry not found: ${targetEntryId}`);
+    }
+    const opId = randomUUID();
+    const payload: OperationStartedPayload = {
+      opId,
+      kind: 'navigation',
+      targetEntryId,
+      summarize: options?.summarize === true,
+      ...(options?.customInstructions !== undefined
+        ? { customInstructions: options.customInstructions }
+        : {}),
+      ...(options?.label !== undefined ? { label: options.label } : {}),
+      summaryEntryId: `entry:${opId}:summary`,
+      startedAt: Date.now(),
+    };
+    try {
+      await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
+      await this.applyNavigation(laneId, payload);
+      return ok(undefined);
+    } catch (error) {
+      return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** 导航效果（live 与 resume 幂等共用；效果全部预分配 id）。 */
+  private async applyNavigation(laneId: LaneId, op: OperationStartedPayload): Promise<void> {
+    const target = op.targetEntryId!;
+    // 摘要存在（或刚写入）时导航终点是 summary（它链到 target）；否则是 target 自身
+    let leafTarget = target;
+    if (op.summarize === true && op.summaryEntryId !== undefined) {
+      const existing = this.session.getEntry(op.summaryEntryId);
+      if (!existing) {
+        const summary = await this.summarizeBranch(laneId, target, op.customInstructions);
+        // 先移到目标，再追加 branch_summary——entry 链到目标
+        await this.session.navigate(laneId, target);
+        await this.session.append({
+          laneId,
+          kind: 'branch_summary',
+          id: op.summaryEntryId,
+          summary,
+        });
+      }
+      leafTarget = op.summaryEntryId;
+    }
+    if (op.label !== undefined) {
+      await this.session.setFact({ name: `label:${laneId}`, value: op.label });
+    }
+    await this.session.navigate(laneId, leafTarget);
+    await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+      opId: op.opId,
+      outcome: 'completed',
+      finishedAt: Date.now(),
+    });
+  }
+
+  /** LLM 摘要被离开的路径（leaf → target 区间，不含 target）。 */
+  private async summarizeBranch(
+    laneId: LaneId,
+    targetEntryId: string,
+    customInstructions?: string,
+  ): Promise<string> {
+    const llm = await this.resolveLLMFor(laneId);
+    const leaf = await this.session.leaf(laneId);
+    if (!leaf) return '(no departed branch)';
+    // 被离开路径 = 从 leaf 向根走到 target（不含 target）
+    const departed: string[] = [];
+    let cursor: string | undefined = leaf.id;
+    while (cursor !== undefined && cursor !== targetEntryId) {
+      const entry = this.session.getEntry(cursor);
+      if (!entry) break;
+      if (entry.kind === 'message') {
+        departed.push(`${entry.message.role}: ${summarizeContent(entry)}`);
+      }
+      cursor = entry.parentId ?? undefined;
+    }
+    const transcript = departed.toReversed().slice(-30).join('\n');
+    const parts: string[] = [];
+    await llm.chat({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `请把以下对话段压缩为简明摘要（保留关键事实与未决事项）${
+                customInstructions ? `；附加要求：${customInstructions}` : ''
+              }：\n${transcript}`,
+            },
+          ],
+          toolCalls: [],
+        },
+      ],
+      tools: [],
+      signal: new AbortController().signal,
+      onTextPart: (part) => {
+        parts.push(part.text);
+      },
+    });
+    return parts.length > 0 ? parts.join('') : `（branch summary）${transcript.slice(0, 400)}`;
+  }
+
+  /**
+   * 手动压缩（#329）：独立操作（operation_started kind compaction）。
+   * declined（before_compaction 拒绝）由 #332 hooks 接入；aborted/failed 齐全。
+   */
+  async compact(laneId: LaneId): Promise<LaneResult<OperationOutcome>> {
+    if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
+    const guard = this.guardPrompt(laneId);
+    if (guard) return guard;
+    const opId = randomUUID();
+    const payload: OperationStartedPayload = {
+      opId,
+      kind: 'compaction',
+      compactionEntryId: `entry:${opId}:compaction`,
+      startedAt: Date.now(),
+    };
+    const controller = new AbortController();
+    this.runtimes.set(laneId, { controller, opId });
+    try {
+      await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
+      const outcome = await this.applyCompaction(laneId, payload, controller.signal);
+      return ok(outcome);
+    } catch (error) {
+      this.runtimes.delete(laneId);
+      return err('INTERNAL', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** 压缩效果：摘要当前上下文窗口 → compaction entry（含端成为新窗口起点）。 */
+  private async applyCompaction(
+    laneId: LaneId,
+    op: OperationStartedPayload,
+    signal: AbortSignal,
+  ): Promise<OperationOutcome> {
+    try {
+      signal.throwIfAborted();
+      if (op.compactionEntryId !== undefined && !this.session.getEntry(op.compactionEntryId)) {
+        const window = await this.session.branchOf(laneId, {
+          direction: 'oldestFirst',
+          stopAtType: 'compaction',
+        });
+        const transcript = window.entries
+          .filter((e) => e.kind === 'message')
+          .map((e) => (e.kind === 'message' ? `${e.message.role}: ${summarizeContent(e)}` : ''))
+          .filter((s) => s.length > 0)
+          .join('\n');
+        await this.session.append({
+          laneId,
+          kind: 'compaction',
+          id: op.compactionEntryId,
+          summary: `（compaction）${transcript.slice(0, 2000)}`,
+        });
+      }
+      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+        opId: op.opId,
+        outcome: 'completed',
+        finishedAt: Date.now(),
+      });
+      return { opId: op.opId, outcome: 'completed', steps: 0 };
+    } catch (error) {
+      const aborted = signal.aborted;
+      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+        opId: op.opId,
+        outcome: aborted ? 'aborted' : 'failed',
+        ...(aborted ? {} : { errorMessage: String(error) }),
+        finishedAt: Date.now(),
+      });
+      return {
+        opId: op.opId,
+        outcome: aborted ? 'aborted' : 'failed',
+        steps: 0,
+      };
+    }
+  }
+
   // ===== 三队列（R3：接受即持久、消费点才写树） =====
 
   /** 运行中转向：消费点在 checkpoint（下一 step 前写入树）。 */
@@ -542,6 +739,11 @@ export class AgentHarness {
       const started = await this.findOperationStarted(laneId, open.opId);
       if (!started) {
         return err('INTERNAL', `operation_started record missing for ${open.opId}`);
+      }
+      // navigation 挂起：幂等重放（效果预分配 id，无部分结果）
+      if (started.kind === 'navigation') {
+        await this.applyNavigation(laneId, started);
+        return ok({ opId: open.opId, outcome: 'completed', steps: 0 });
       }
       // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
       // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
@@ -953,6 +1155,23 @@ export class AgentLane {
     return this.harness.deferWrite(this.laneId, input);
   }
 
+  /** 树上移动（#329）：可选 branch summary 与 label。 */
+  navigateTree(
+    targetEntryId: string,
+    options?: {
+      readonly summarize?: boolean;
+      readonly customInstructions?: string;
+      readonly label?: string;
+    },
+  ): Promise<LaneResult<void>> {
+    return this.harness.navigateTree(this.laneId, targetEntryId, options);
+  }
+
+  /** 手动压缩（#329）：独立操作。 */
+  compact(): Promise<LaneResult<OperationOutcome>> {
+    return this.harness.compact(this.laneId);
+  }
+
   waitForIdle(options?: { readonly timeoutMs?: number }): Promise<LaneResult<void>> {
     return this.harness.waitForIdle(this.laneId, options);
   }
@@ -1009,6 +1228,16 @@ export class AgentLane {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** message entry 的首个文本内容（摘要 transcript 用）。 */
+function summarizeContent(entry: {
+  message: { content: readonly { type: string; text?: string }[] };
+}): string {
+  const firstText = entry.message.content.find((part) => part.type === 'text');
+  return firstText !== undefined && firstText.type === 'text' && firstText.text !== undefined
+    ? firstText.text
+    : '';
 }
 
 function usageToRecord(usage: TokenUsage): Record<string, number> {

@@ -11,7 +11,13 @@ import type { EntryId, LaneId, StoredPromptOrigin } from './storage/types';
 
 // ===== 操作生命周期 =====
 
-export type OperationKind = 'prompt' | 'resume' | 'followUp' | 'nextRun' | 'compaction';
+export type OperationKind =
+  | 'prompt'
+  | 'resume'
+  | 'followUp'
+  | 'nextRun'
+  | 'compaction'
+  | 'navigation';
 
 export interface OperationStartedPayload {
   /** 预分配操作 id（= record id，幂等重放的关键）。 */
@@ -22,6 +28,15 @@ export interface OperationStartedPayload {
   readonly origin?: StoredPromptOrigin;
   /** 预分配的输入消息 entry id（意图先行：记录先于任何效果）。 */
   readonly inputEntryId?: EntryId;
+  /** navigation（#329）：目标 entry 与摘要任务参数。 */
+  readonly targetEntryId?: EntryId;
+  readonly summarize?: boolean;
+  readonly customInstructions?: string;
+  readonly label?: string;
+  /** navigation：预分配 branch_summary entry id（幂等重放）。 */
+  readonly summaryEntryId?: EntryId;
+  /** compaction（#329）：预分配 compaction entry id。 */
+  readonly compactionEntryId?: EntryId;
   readonly startedAt: number;
 }
 
