@@ -9,6 +9,7 @@ import type { LoopEvent } from '../loop/events';
 import type { LLM } from '../loop/llm';
 import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
+import { V2EventBus } from './events';
 import {
   clearGoal,
   isGoalOverBudget,
@@ -19,6 +20,7 @@ import {
   updateGoal,
 } from './goal';
 import type { GoalView } from './goal';
+import { V2HookRegistry } from './hooks';
 import { err, ok } from './lane-result';
 import type { LaneError, LaneResult } from './lane-result';
 import { LaneStateReducer } from './lane-state';
@@ -119,6 +121,10 @@ const BOUNDARY_RECORD_KINDS = new Set([
 
 export class AgentHarness {
   readonly session: WireSession;
+  /** v2 hooks 目录（#332：注册 harness 全局、串行、payload 带 lane）。 */
+  readonly hooks = new V2HookRegistry();
+  /** v2 事件总线（#334：提交后触发、listener 抛错隔离）。 */
+  readonly events = new V2EventBus();
   private readonly config: AgentHarnessConfig;
   private readonly reducer = new LaneStateReducer();
   private readonly runtimes = new Map<LaneId, LaneRuntime>();
@@ -672,6 +678,16 @@ export class AgentHarness {
     const controller = new AbortController();
     this.runtimes.set(laneId, { controller, opId });
     try {
+      // before_run（#332）：block 拒绝；persisted 输出随 operation_started 落盘
+      const beforeRun = (await this.hooks.run('before_run', {
+        laneId,
+        hookPoint: 'before_run',
+        input,
+      })) as { block?: boolean; reason?: string; persisted?: unknown } | undefined;
+      if (beforeRun?.block === true) {
+        this.runtimes.delete(laneId);
+        return err('INVALID_INPUT', beforeRun.reason ?? 'blocked by before_run hook');
+      }
       const payload: OperationStartedPayload = {
         opId,
         kind: 'prompt',
@@ -681,9 +697,22 @@ export class AgentHarness {
         inputEntryId: options?.inputEntryId ?? `entry:${opId}:input`,
         startedAt: Date.now(),
       };
-      // 意图先行：接受边界记录先于任何效果（含预分配 id 的输入消息）
-      await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
-      return ok(await this.runOperation(laneId, payload, controller, 1));
+      // 意图先行：接受边界记录先于任何效果；before_run 的 persisted 输出
+      // 一并落盘（重放不重算——重放矩阵：fresh 跑、restore 读记录）
+      await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), {
+        ...payload,
+        ...(beforeRun?.persisted !== undefined ? { hookPersisted: beforeRun.persisted } : {}),
+      });
+      this.events.emit(laneId, (base) => ({ type: 'run_start', opId, ...base }));
+      const outcome = await this.runOperation(laneId, payload, controller, 1);
+      this.events.emit(laneId, (base) => ({
+        type: 'run_end',
+        opId,
+        outcome: outcome.outcome,
+        ...(outcome.usage !== undefined ? { usage: outcome.usage } : {}),
+        ...base,
+      }));
+      return ok(outcome);
     } catch (error) {
       this.runtimes.delete(laneId);
       return err('INTERNAL', error instanceof Error ? error.message : String(error));
@@ -840,12 +869,17 @@ export class AgentHarness {
           direction: 'oldestFirst',
           stopAtType: 'compaction',
         });
-        // 孤儿 tool call（fork 自工具批中途）在投影层合成空结果——会话所存不改
-        return synthesizeOrphanToolResults(
-          branch.entries.flatMap((entry) =>
-            entry.kind === 'message' ? [projectEntryMessage(entry.message)] : [],
+        // 孤儿 tool call（fork 自工具批中途）在投影层合成空结果——会话所存不改；
+        // transform_context（#332）：链式塑形 provider 所见，永不改会话所存
+        const transformed = await this.hooks.transform(
+          laneId,
+          synthesizeOrphanToolResults(
+            branch.entries.flatMap((entry) =>
+              entry.kind === 'message' ? [projectEntryMessage(entry.message)] : [],
+            ),
           ),
         );
+        return [...transformed];
       };
 
       try {
@@ -868,6 +902,29 @@ export class AgentHarness {
             hooks: {
               beforeStep: async () => {
                 await this.checkpoint(laneId);
+                return undefined;
+              },
+              // v2 before_tool（#332）：fail-closed；effective args 返回给 loop
+              prepareToolExecution: async (ctx) => {
+                if (!this.hooks.has('before_tool')) return undefined;
+                const result = (await this.hooks.run('before_tool', {
+                  laneId,
+                  hookPoint: 'before_tool',
+                  toolCallId: ctx.toolCall.id,
+                  name: ctx.toolCall.name,
+                  args: JSON.parse(ctx.toolCall.arguments ?? '{}'),
+                })) as { block?: boolean; reason?: string; args?: unknown } | undefined;
+                if (result?.block === true) {
+                  return {
+                    syntheticResult: {
+                      output: result.reason ?? 'blocked by before_tool hook',
+                      isError: true,
+                    },
+                  };
+                }
+                if (result?.args !== undefined) {
+                  return { updatedArgs: result.args };
+                }
                 return undefined;
               },
             },
