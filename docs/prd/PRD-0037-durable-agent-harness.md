@@ -212,6 +212,9 @@ D1 双进程双写（=B6）；D2 web busy 跟踪只认 main agent（`session-man
 - **Created by**: `/think` (2026-08-23)
 - **Grilled by**: `/grill` (completed 2026-08-23) — 9 项用户裁决（切换策略/旧会话列表/goal 归宿/SQLite 包/AGENTS.md 措辞 + think 轮 5 项）+ 7 项自决映射（侧问/锁文件/hooks 映射/掩码卸载/usage/权限/cron/headless/media/版本号/测试方法论）；修正 D4 为并行新建（ADR-0041）；创建 ADR-0040、ADR-0041；CONTEXT.md 增补目标态术语并标注受冲击词条
 - **Sliced by**: `/story` (2026-08-23) → Child Issues below
+- **Implemented by**: `/implement` (2026-08-23) — 引擎切片 #319-#338 全部落地（Phase 0 存储地基 / Phase 1 durability 核心 / Phase 2 lanes·导航·fork·goal·hooks·events / Phase 3 deferred·SQLite·telemetry）；Phase 4 消费者迁移按 Approach A 可停损原则停在 dogfood 入口（#339-#342 状态注记见 Sliced into）；全仓隔离测试 447 文件全绿
+- **Reviewed by**: `/review` (2026-08-23) — 三视角并行审查（Test/Code/Impact）：3 Critical（compact runtime 泄漏、工具窗口崩溃砖化、锁 TOCTOU）+ 2 P0（LaneSnapshot barrel 遮蔽致 storage typecheck 红）+ 10 Major（队列死亡语义、hooks/events 接线缺口、sqlite lease 原子性、watch 原子性、性能热路径等）
+- **Debugged by**: `/debug` (2026-08-23) — 两轮修复：C1 finally 清理 + C2 ensureAssistantEntriesForDangling 合成 assistant + C3 open(wx) 原子锁 + M1/M2 队列语义（已消费不归还、followUp 仅 abort 死亡）+ M6/M7/M8（lease 原子心跳/watch baseline 前置/SQL 下推）+ M3/M4 事件接线补全 + 两个名不副实测试修复；复审确认全部落地、447 文件全绿
 - **New terms**（供 /grill 精化并录入 CONTEXT.md）: AgentHarness、AgentLane、lane/leaf、entries 树、records（lane 操作日志）、provisioned id（预分配 id）、意图先行（intent-before-effect）、restore 归约（reduction）、suspended/resume、abort reconcile、checkpoint、deferred write、steer/followUp/nextRun 三队列、branch summary、fork（entries-only）、确定性子会话 id、watch() 快照+缓冲订阅、results-not-exceptions、parity 套件、deferred handle / Park、append-only 上下文不变量
 
 - **Sliced into**:
