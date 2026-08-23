@@ -9,8 +9,8 @@ import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
 import { LaneStateReducer } from './lane-state';
 import type { LaneState } from './lane-state';
-import { asOperationStarted, operationRecordId } from './records';
-import type { OperationStartedPayload } from './records';
+import { asOperationStarted, operationRecordId, toolStartedRecordId } from './records';
+import type { OperationStartedPayload, ToolReplaySafety } from './records';
 import { WireSession } from './session/session';
 import { InMemorySessionStorage } from './storage/memory';
 import type { SessionStorage } from './storage/storage';
@@ -19,12 +19,18 @@ import { MAIN_LANE_ID } from './storage/types';
 import { TranscriptBridge, projectEntryMessage } from './transcript';
 
 /**
- * AgentHarness（PRD-0037 #323，ADR-0041 并行新建）。
+ * AgentHarness（PRD-0037 #323/#324，ADR-0041 并行新建）。
  *
  * 执行模型：被接受的 prompt 即持久操作——operation_started（含预分配 id）先于
  * 任何效果落盘，随后驱动 loop 层（host-free step primitives）跑步骤，终态写
  * operation_finished。崩溃后 restore 归约出 lane 状态（idle/suspended），
  * resume() 与 live 走同一 runProcedure 代码路径。
+ *
+ * 意图先行记录全集（#324，v2 §5）：tool_started（预分配 assistant/result
+ * entry id + replay 安全标记）、task_attempt（跨崩溃不可重置的 run-attempt
+ * 计数）、queue_enqueued / write_deferred / abort_requested（#325 消费）。
+ * 接受边界记录（operation_started / queue_enqueued / write_deferred /
+ * abort_requested）以 durability 'boundary' 落盘——存储 fsync-before-resolve。
  *
  * 独立性（AGENTS.md 目标措辞）：内存 SessionStorage 后端下可完全独立构造运行，
  * 不依赖旧 Agent 类与旧 Session 容器，构造不强制 sessionId。
@@ -38,6 +44,10 @@ export interface AgentHarnessConfig {
   readonly tools?: readonly ExecutableTool[];
   readonly maxSteps?: number;
   readonly maxRetryAttempts?: number;
+  /** resume 的持久重试上限（task_attempt 封顶，AC3）。 */
+  readonly maxResumeAttempts?: number;
+  /** 工具 replay 安全分类（AC5 悬空工具处置依据）；缺省保守判 never。 */
+  readonly toolReplaySafety?: (toolName: string) => ToolReplaySafety;
   /** live 事件出口（#334 完整化为 v2 events 目录）。 */
   readonly onEvent?: (event: HarnessLiveEvent) => void;
 }
@@ -61,6 +71,16 @@ interface LaneRuntime {
   readonly controller: AbortController;
   readonly opId: string;
 }
+
+const DEFAULT_MAX_RESUME_ATTEMPTS = 3;
+
+/** 接受边界记录集合（fsync-before-resolve 分级）。 */
+const BOUNDARY_RECORD_KINDS = new Set([
+  'operation_started',
+  'queue_enqueued',
+  'write_deferred',
+  'abort_requested',
+]);
 
 export class AgentHarness {
   readonly session: WireSession;
@@ -143,7 +163,7 @@ export class AgentHarness {
     };
     // 意图先行：接受边界记录先于任何效果（含预分配 id 的输入消息）
     await this.appendRecordTracked(laneId, 'operation_started', operationRecordId(opId), payload);
-    return this.runOperation(laneId, payload, controller);
+    return this.runOperation(laneId, payload, controller, 1);
   }
 
   async resume(laneId: LaneId = MAIN_LANE_ID): Promise<OperationOutcome> {
@@ -167,11 +187,41 @@ export class AgentHarness {
       return { opId: open.opId, outcome: 'aborted', stopReason: 'aborted', steps: 0 };
     }
 
+    // task_attempt：1-based 持久 run-attempt 计数（AC3：跨崩溃-重启不可重置）
+    const maxAttempts = this.config.maxResumeAttempts ?? DEFAULT_MAX_RESUME_ATTEMPTS;
+    if (open.maxAttempts > 0 && open.attempts >= open.maxAttempts) {
+      // 耗尽：落错误 assistant 消息 + operation_finished failed（AC3）
+      const errorMessage = `操作重试次数已耗尽（${open.attempts}/${open.maxAttempts}）`;
+      await this.session.append({
+        laneId,
+        kind: 'message',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: errorMessage }],
+          isError: true,
+        },
+      });
+      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+        opId: open.opId,
+        outcome: 'failed',
+        errorMessage,
+        finishedAt: Date.now(),
+      });
+      return { opId: open.opId, outcome: 'failed', errorMessage, steps: 0 };
+    }
+    const attempt = open.attempts + 1;
+    await this.appendRecordTracked(laneId, 'task_attempt', `attempt:${open.opId}:${attempt}`, {
+      opId: open.opId,
+      attempt,
+      maxAttempts,
+      at: Date.now(),
+    });
+
     const started = await this.findOperationStarted(laneId, open.opId);
     if (!started) throw new Error(`operation_started record missing for ${open.opId}`);
     const controller = new AbortController();
     this.runtimes.set(laneId, { controller, opId: open.opId });
-    return this.runOperation(laneId, started, controller);
+    return this.runOperation(laneId, started, controller, attempt);
   }
 
   async abort(laneId: LaneId = MAIN_LANE_ID): Promise<void> {
@@ -197,6 +247,7 @@ export class AgentHarness {
     laneId: LaneId,
     op: OperationStartedPayload,
     controller: AbortController,
+    attempt: number,
   ): Promise<OperationOutcome> {
     try {
       // 1. 物化输入消息（预分配 id 幂等：live 首写 / resume 补写）
@@ -210,10 +261,28 @@ export class AgentHarness {
       }
 
       // 2. 驱动 loop 层（step primitives）
-      const transcript = new TranscriptBridge({
-        appendMessage: (message) =>
-          this.session.append({ laneId, kind: 'message', message }).then(() => undefined),
-      });
+      const transcript = new TranscriptBridge(
+        {
+          appendMessage: async (message, provisionedId) => {
+            await this.session.append({
+              laneId,
+              kind: 'message',
+              ...(provisionedId !== undefined ? { id: provisionedId } : {}),
+              message,
+            });
+          },
+          appendToolStarted: async (payload) => {
+            await this.appendRecordTracked(
+              laneId,
+              'tool_started',
+              toolStartedRecordId(payload.assistantEntryId, payload.toolIndex),
+              payload,
+            );
+          },
+        },
+        { opId: op.opId, attempt },
+        (toolName) => this.config.toolReplaySafety?.(toolName) ?? 'never',
+      );
       const dispatchEvent = createLoopEventDispatcher({
         appendTranscriptRecord: (event) => transcript.handle(event),
         emitLiveEvent: (event) => this.config.onEvent?.({ laneId, event }),
@@ -280,7 +349,13 @@ export class AgentHarness {
     id: string | undefined,
     payload: unknown,
   ): Promise<void> {
-    const record = await this.session.storageRef.appendRecord({ laneId, kind, id, payload });
+    const record = await this.session.storageRef.appendRecord({
+      laneId,
+      kind,
+      id,
+      payload,
+      durability: BOUNDARY_RECORD_KINDS.has(kind) ? 'boundary' : 'bulk',
+    });
     this.reducer.apply(record); // live 与 restore 共用同一归约
   }
 

@@ -257,11 +257,14 @@ export class JsonlSessionStorage implements SessionStorage {
     kind: WireRecord['kind'];
     payload: unknown;
     id?: string;
+    durability?: 'boundary' | 'bulk';
   }): Promise<WireRecord> {
     this.assertOpen();
     const existing = input.id ? this.state.recordsById.get(input.id) : undefined;
     if (existing) return existing;
     const createdAt = Date.now();
+    // 接受边界记录 fsync-before-resolve（#324 分级）；bulk 走类级默认
+    const fsync = input.durability === 'boundary' ? true : this.fsync;
     return this.enqueue((seq) => {
       const id = input.id ?? `r${seq}`;
       const record: WireRecord = {
@@ -280,6 +283,7 @@ export class JsonlSessionStorage implements SessionStorage {
           createdAt,
           r: { kind: input.kind, payload: input.payload },
         },
+        fsync,
         apply: () => {
           this.state.recordsById.set(id, record);
           this.state.records.push(record);
@@ -361,13 +365,13 @@ export class JsonlSessionStorage implements SessionStorage {
    * 写失败时该链节抛出且状态不推进（append 是唯一事实源）。
    */
   private enqueue<T>(
-    make: (seq: Seq) => { line: Record<string, unknown>; apply: () => T },
+    make: (seq: Seq) => { line: Record<string, unknown>; apply: () => T; fsync?: boolean },
   ): Promise<T> {
     this.assertOpen();
     const task = this.writeChain.then(async () => {
       const seq = this.state.nextSeq;
-      const { line, apply } = make(seq);
-      await appendLine(this.path, JSON.stringify({ ...line, seq }), this.fsync);
+      const { line, apply, fsync } = make(seq);
+      await appendLine(this.path, JSON.stringify({ ...line, seq }), fsync ?? this.fsync);
       this.state.nextSeq = seq + 1;
       return apply();
     });

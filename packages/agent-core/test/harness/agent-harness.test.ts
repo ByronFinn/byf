@@ -102,7 +102,11 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
 
     // 执行记录：started → finished completed，lane 回 idle
     const records = await storage.getRecords();
-    expect(records.map((r) => r.kind)).toEqual(['operation_started', 'operation_finished']);
+    expect(records.map((r) => r.kind)).toEqual([
+      'operation_started',
+      'tool_started',
+      'operation_finished',
+    ]);
     expect(harness.laneState().status).toBe('idle');
 
     // 第二次 chat 收到的上下文包含工具交换四元组

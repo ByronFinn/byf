@@ -301,12 +301,20 @@ type AppendEntryInputVariant =
 
 export type AppendEntryInput = AppendEntryInputVariant & ProvisionedEntryId;
 
+/**
+ * 持久化分级（PRD-0037 #324）：'boundary' = 接受边界记录，存储应在 resolve
+ * 前 fsync（fsync-before-resolve）；'bulk' = 批量 flush 即可。契约上两者
+ * resolve 即 durable，分级只是性能取舍。存储可忽略此提示（内存后端）。
+ */
+export type RecordDurability = 'boundary' | 'bulk';
+
 export interface AppendRecordInput {
   readonly laneId: LaneId;
   readonly kind: RecordKind;
   readonly payload: unknown;
   /** 预分配 id：同 id 记录已存在时幂等返回既有记录（恢复可重入）。 */
   readonly id?: string;
+  readonly durability?: RecordDurability;
 }
 
 export interface AppendFactInput {

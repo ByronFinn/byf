@@ -3,6 +3,7 @@ import {
   asOperationFinished,
   asOperationStarted,
   asQueueEnqueued,
+  asTaskAttempt,
   asToolStarted,
 } from './records';
 import type { OperationKind, QueueEnqueuedPayload, ToolStartedPayload } from './records';
@@ -25,6 +26,10 @@ export interface OpenOperation {
   readonly kind: OperationKind;
   readonly startedAt: number;
   readonly abortRequested: boolean;
+  /** 已持久化的最大 run-attempt 序号（0 = 尚无 resume；AC3 跨崩溃不可重置）。 */
+  readonly attempts: number;
+  /** attempts 达到 maxAttempts 时 resume 耗尽（错误消息 + failed 收尾）。 */
+  readonly maxAttempts: number;
   /** 悬空工具批（tool_started 无配对结果 entry）。 */
   readonly danglingTools: readonly ToolStartedPayload[];
   /** 各队列待办（queue_enqueued 未消费）。 */
@@ -49,6 +54,8 @@ interface MutableLaneState {
     kind: OperationKind;
     startedAt: number;
     abortRequested: boolean;
+    attempts: number;
+    maxAttempts: number;
     danglingTools: ToolStartedPayload[];
     pendingQueues: {
       steer: QueueEnqueuedPayload[];
@@ -79,6 +86,8 @@ export class LaneStateReducer {
           kind: payload.kind,
           startedAt: payload.startedAt,
           abortRequested: false,
+          attempts: 0,
+          maxAttempts: 0,
           danglingTools: [],
           pendingQueues: { steer: [], followUp: [], nextRun: [] },
         };
@@ -113,8 +122,15 @@ export class LaneStateReducer {
         lane.open.pendingQueues[payload.queue].push(payload);
         break;
       }
-      // task_attempt / write_deferred 不改变 lane 状态机（#324/#325 消费其载荷）
-      case 'task_attempt':
+      case 'task_attempt': {
+        // run-attempt 持久计数（AC3）：resume 前追加，restore 折叠出 max
+        const payload = asTaskAttempt(record.payload);
+        if (!payload || !lane.open || lane.open.opId !== payload.opId) return;
+        lane.open.attempts = Math.max(lane.open.attempts, payload.attempt);
+        lane.open.maxAttempts = Math.max(lane.open.maxAttempts, payload.maxAttempts);
+        break;
+      }
+      // write_deferred 不改变 lane 状态机（#325 在 checkpoint 消费其载荷）
       case 'write_deferred':
         break;
     }
@@ -150,6 +166,8 @@ export class LaneStateReducer {
         kind: lane.open.kind,
         startedAt: lane.open.startedAt,
         abortRequested: lane.open.abortRequested,
+        attempts: lane.open.attempts,
+        maxAttempts: lane.open.maxAttempts,
         danglingTools: [...lane.open.danglingTools],
         pendingQueues: {
           steer: [...lane.open.pendingQueues.steer],
