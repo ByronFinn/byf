@@ -19,10 +19,10 @@ import type {
  * wire 2.0 SQLite 后端（PRD-0037 #337，ADR-0006 分层：契约在 agent-core，
  * 本包实现契约；bun:sqlite 依赖隔离于本包）。
  *
- * schema：entries/records/lane_moves/facts/lanes + branch_entries/branch_tips
- * 缓存两不变量（每 entry 至少属一分支；tip 唯一）——plain append（tip 点查
- * 命中）只写一行 branch_entries。leases（owner/heartbeat）接管锁文件的
- * 单写者职责，心跳超时自动接管；每会话独立 lease（同库多会话互不阻塞）。
+ * schema：entries/records/lane_moves/facts/lanes（复合主键 session 内唯一；
+ * 祖先链经 entries.parent_id 索引点查）。leases（owner/heartbeat）接管锁
+ * 文件的单一职责：原子条件写获取 + 自动心跳 + 超时自动接管；每会话独立
+ * lease（同库多会话互不阻塞）。
  */
 
 export interface SqliteStorageOptions {
@@ -111,8 +111,8 @@ export class SqliteSessionStorage implements SessionStorage {
   heartbeat(): void {
     this.assertOpen();
     this.db
-      .query('UPDATE leases SET heartbeat_at = ? WHERE session_id = ?')
-      .run(Date.now(), this.sessionId);
+      .query('UPDATE leases SET heartbeat_at = ? WHERE session_id = ? AND owner = ?')
+      .run(Date.now(), this.sessionId, this.owner);
   }
 
   // ===== lanes =====
@@ -142,7 +142,6 @@ export class SqliteSessionStorage implements SessionStorage {
             'ON CONFLICT(session_id, lane_id) DO UPDATE SET deleted = 0, name = excluded.name, leaf_entry_id = excluded.leaf_entry_id, created_at = excluded.created_at',
         )
         .run(this.sessionId, laneId, name, input.fromEntryId ?? null, createdAt);
-      void laneId;
     });
     tx();
     this.cacheInvalidate();

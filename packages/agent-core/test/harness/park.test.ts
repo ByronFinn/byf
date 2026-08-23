@@ -117,10 +117,15 @@ describe('harness Park loop (#336, AC8)', () => {
 
     // "跨进程"：重开（挂起≡崩溃——journal 无 finished，restore 同一归约分支）
     await harness.close();
-    const reopened = await AgentHarness.create({ storage, llm: deferredLLM([], { n: 0 }) });
+    const reopenedCount = { n: 0 };
+    const reopened = await AgentHarness.create({ storage, llm: deferredLLM([], reopenedCount) });
     expect(reopened.laneState().status).toBe('suspended');
     const resumed = unwrap(await reopened.lane().resume());
     expect(resumed.outcome).toBe('completed');
+    // AC8：兑换恰一次——首进程恰 1 次 chat（挂起）、重开进程恰 1 次
+    // fetchDeferred 兑换（不重复计费语义）
+    expect(requestCount.n).toBe(1);
+    expect(reopenedCount.n).toBe(1);
     // 真实结果落树（deferred partial 消息保留在其前）
     const branch = await reopened.session.branch({ direction: 'oldestFirst' });
     const assistants = branch.entries.filter(

@@ -248,6 +248,27 @@ describe('events and watch (PRD-0037 #334, AC7)', () => {
     await harness.close();
   });
 
+  it('multi-lane watch: events during snapshot capture are never lost', async () => {
+    const harness = await AgentHarness.create({
+      storage: new InMemorySessionStorage('w4'),
+      llm: llm('ok'),
+    });
+    unwrap(await harness.createLane('side'));
+    unwrap(await harness.lane('side').prompt([text('seed side')]));
+    const handle = await watch(harness);
+    // 快照之后、start 之前在两个 lane 上产生事件
+    unwrap(await harness.lane().prompt([text('main run')]));
+    unwrap(await harness.lane('side').prompt([text('side run')]));
+    const live: V2Event[] = [];
+    const unsubscribe = handle.start((event) => live.push(event));
+    unsubscribe();
+    // 两个 lane 的 run 事件都在（无丢失）
+    const runStarts = live.filter((e) => e.type === 'run_start');
+    expect(runStarts.length).toBe(2);
+    expect(new Set(runStarts.map((e) => e.laneId)).size).toBe(2);
+    await harness.close();
+  });
+
   it('discard drops the buffer', async () => {
     const harness = await AgentHarness.create({
       storage: new InMemorySessionStorage('w3'),

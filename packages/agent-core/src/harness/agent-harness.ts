@@ -235,6 +235,7 @@ export class AgentHarness {
         fromEntryId: options?.fromEntryId,
       });
       this.reducer.snapshot(laneId); // 确保归约器知道该 lane
+      this.events.emit(laneId, (base) => ({ type: 'lane_change', detail: 'create', ...base }));
       return ok(laneId);
     } catch (error) {
       return err('INVALID_INPUT', error instanceof Error ? error.message : String(error));
@@ -255,6 +256,7 @@ export class AgentHarness {
       return err('LANE_NOT_FOUND', `lane ${laneId} not found`);
     }
     await this.session.deleteLane(laneId);
+    this.events.emit(laneId, (base) => ({ type: 'lane_change', detail: 'delete', ...base }));
     return ok(undefined);
   }
 
@@ -343,6 +345,7 @@ export class AgentHarness {
       } else {
         await this.session.append({ laneId, kind, activeTools: value as readonly string[] });
       }
+      this.events.emit(laneId, (base) => ({ type: 'config_change', detail: kind, ...base }));
       return ok(undefined);
     } catch (error) {
       return err('INTERNAL', error instanceof Error ? error.message : String(error));
@@ -828,15 +831,39 @@ export class AgentHarness {
       if (!started) {
         return err('INTERNAL', `operation_started record missing for ${open.opId}`);
       }
+      // resume 的 run 事件对（与 prompt 对齐；恢复期工作经 recovery 标记预留）
+      this.events.emit(laneId, (base) => ({
+        type: 'run_start',
+        opId: open.opId,
+        ...base,
+      }));
       // navigation 挂起：幂等重放（效果预分配 id，无部分结果）
       if (started.kind === 'navigation') {
         await this.applyNavigation(laneId, started);
+        this.events.emit(laneId, (base) => ({
+          type: 'run_end',
+          opId: open.opId,
+          outcome: 'completed',
+          ...base,
+        }));
         return ok({ opId: open.opId, outcome: 'completed', steps: 0 });
       }
       // deferred 挂起（#336）：leaf 是无后继的 deferred 助手消息 → 兑换
       const deferredHandle = await findDeferredHandleAtLeaf(this.session, laneId);
       if (deferredHandle !== undefined) {
-        return ok(await this.resumeDeferred(laneId, open.opId, deferredHandle, attempt));
+        const deferredOutcome = await this.resumeDeferred(
+          laneId,
+          open.opId,
+          deferredHandle,
+          attempt,
+        );
+        this.events.emit(laneId, (base) => ({
+          type: 'run_end',
+          opId: open.opId,
+          outcome: deferredOutcome.outcome,
+          ...base,
+        }));
+        return ok(deferredOutcome);
       }
       // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
       // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
@@ -844,7 +871,14 @@ export class AgentHarness {
       await this.reconcileDanglingTools(laneId, open.danglingTools);
       const controller = new AbortController();
       this.runtimes.set(laneId, { controller, opId: open.opId });
-      return ok(await this.runOperation(laneId, started, controller, attempt));
+      const outcome = await this.runOperation(laneId, started, controller, attempt);
+      this.events.emit(laneId, (base) => ({
+        type: 'run_end',
+        opId: open.opId,
+        outcome: outcome.outcome,
+        ...base,
+      }));
+      return ok(outcome);
     } catch (error) {
       this.runtimes.delete(laneId);
       return err('INTERNAL', error instanceof Error ? error.message : String(error));

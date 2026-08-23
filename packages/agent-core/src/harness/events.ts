@@ -10,9 +10,9 @@ import type { LaneId } from './storage/types';
  * 之后）、payload JSON 可序列化、恢复期工作带 recovery: true。
  *
  * watch()：原子捕获快照并开始缓冲 → start(listener) 依序冲刷转直播 →
- * unsubscribe 丢弃缓冲。重连 = 新 watch() 新快照（AC7：无丢无重、恰一次
- * 有序）。LaneSnapshot 含 transcript/operation/队列/pendingWrites——中途
- * attach 的观察者无需重放事件即可渲染。
+ * unsubscribe 丢弃缓冲。重连 = 新 watch() 新快照（AC7：事件 at-least-once
+ * 有序、绝不丢失）。LaneView 含 transcript/operation/队列/pendingWrites——
+ * 中途 attach 的观察者无需重放事件即可渲染。
  */
 
 // ===== 事件目录 =====
@@ -181,13 +181,16 @@ export interface WatchHandle {
  */
 export async function watch(harness: AgentHarness): Promise<WatchHandle> {
   const bus = harness.events;
-  // 先订阅缓冲、后取快照（review M7）：快照读取（逐 lane await）期间的事件
-  // 落入缓冲；start() 以 snapshot.eventSeq 之后过滤冲刷——快照读到的在快照里，
-  // 读后的在缓冲里，无丢无重。
+  // 先订阅缓冲并取 baseline（读任何 lane 之前），后取快照——事件语义为
+  // at-least-once：读取期间的事件可能同时出现在快照与冲刷流中（渲染幂等），
+  // 但绝不丢失（review 复审：读后取 baseline 在多 lane 下有丢事件窗口）。
+  const baseline = bus.currentSeq();
   const earlyBuffer: V2Event[] = [];
-  const earlyUnsub = bus.subscribe((event) => earlyBuffer.push(event));
+  const earlyUnsub = bus.subscribe((event) => {
+    if (event.seq > baseline) earlyBuffer.push(event);
+  });
   try {
-    return await captureSnapshot(harness, bus, earlyBuffer, earlyUnsub);
+    return await captureSnapshot(harness, bus, earlyBuffer, earlyUnsub, baseline);
   } catch (error) {
     earlyUnsub();
     throw error;
@@ -199,6 +202,7 @@ async function captureSnapshot(
   bus: V2EventBus,
   earlyBuffer: V2Event[],
   earlyUnsub: () => void,
+  baseline: number,
 ): Promise<WatchHandle> {
   const laneIds = await harness.lanes();
   const lanes: LaneView[] = [];
@@ -240,9 +244,9 @@ async function captureSnapshot(
       pendingWrites: 0,
     });
   }
-  // 快照读取完成后捕获 seq：earlyBuffer 保留全部期间事件，冲刷时按
-  // seq > eventSeq 过滤（快照内已包含的不再重发）
-  const eventSeq = bus.currentSeq();
+  // eventSeq = baseline（订阅时刻）：冲刷 baseline 之后的事件——与快照可能
+  // 重叠（at-least-once，渲染幂等）但绝不丢失
+  const eventSeq = baseline;
   const buffer = earlyBuffer;
   const unsubscribeBuffer = earlyUnsub;
   let started = false;
@@ -252,8 +256,8 @@ async function captureSnapshot(
       if (started) throw new Error('watch already started');
       started = true;
       unsubscribeBuffer();
-      // 依序冲刷缓冲（快照之后、直播之前），再转直播——恰一次有序
-      for (const event of buffer.splice(0).filter((e) => e.seq > eventSeq)) {
+      // 依序冲刷缓冲（baseline 之后、直播之前），再转直播
+      for (const event of buffer.splice(0)) {
         try {
           listener(event);
         } catch {

@@ -6,7 +6,7 @@ import { operationRecordId, toolStartedRecordId } from '../../src/harness/record
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
 
 /**
- * review 修复回归测试（debug 批次）：
+ * review 修复回归测试（review-fix 批次）：
  * - C1：compact 成功后 lane 可继续操作（runtime 清理）
  * - C2：工具执行窗口崩溃（无 assistant entry）→ resume 合成 assistant 不砖化
  * - M2：followUp 在操作正常结束后存活（drain 消费）
