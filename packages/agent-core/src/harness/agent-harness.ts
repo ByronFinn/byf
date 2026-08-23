@@ -28,6 +28,7 @@ import type { SessionStorage } from './storage/storage';
 import type { LaneId, StoredPromptOrigin } from './storage/types';
 import { MAIN_LANE_ID } from './storage/types';
 import { TranscriptBridge, projectEntryMessage } from './transcript';
+import { synthesizeOrphanToolResults } from './transcript';
 
 /**
  * AgentHarness（PRD-0037 #323/#324，ADR-0041 并行新建）。
@@ -828,8 +829,11 @@ export class AgentHarness {
           direction: 'oldestFirst',
           stopAtType: 'compaction',
         });
-        return branch.entries.flatMap((entry) =>
-          entry.kind === 'message' ? [projectEntryMessage(entry.message)] : [],
+        // 孤儿 tool call（fork 自工具批中途）在投影层合成空结果——会话所存不改
+        return synthesizeOrphanToolResults(
+          branch.entries.flatMap((entry) =>
+            entry.kind === 'message' ? [projectEntryMessage(entry.message)] : [],
+          ),
         );
       };
 

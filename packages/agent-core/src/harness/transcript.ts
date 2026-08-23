@@ -170,3 +170,38 @@ export function projectEntryMessage(message: StoredMessage): Message {
   if (message.partial !== undefined) projected.partial = message.partial;
   return projected;
 }
+
+/**
+ * 请求投影层：为孤儿 tool call 合成空结果（fork 自工具批中途后仍可 prompt）。
+ * 只改 provider 所见，不改会话所存（transform_context 同族语义）。
+ */
+export function synthesizeOrphanToolResults(messages: readonly Message[]): Message[] {
+  const out: Message[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i]!;
+    out.push(message);
+    if (message.role !== 'assistant' || message.toolCalls.length === 0) continue;
+    // 收集紧随其后的 tool 结果 id
+    const answered = new Set<string>();
+    for (let j = i + 1; j < messages.length; j++) {
+      const next = messages[j]!;
+      if (next.role !== 'tool') break;
+      if (next.toolCallId !== undefined) answered.add(next.toolCallId);
+    }
+    // 为未应答的 toolCall 合成空结果（紧跟 assistant，保持消息序合法）
+    const synth: Message[] = [];
+    for (const call of message.toolCalls) {
+      if (answered.has(call.id)) continue;
+      synth.push({
+        role: 'tool',
+        content: [{ type: 'text', text: '[no result — branched before completion]' }],
+        toolCalls: [],
+        toolCallId: call.id,
+      });
+    }
+    if (synth.length > 0) {
+      out.push(...synth);
+    }
+  }
+  return out;
+}

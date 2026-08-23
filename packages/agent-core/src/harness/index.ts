@@ -13,4 +13,11 @@ export {
   resolveSessionEngine,
 } from './engine';
 export type { SessionEngine, V2EngineHarnessInput } from './engine';
+export {
+  deriveChildSessionId,
+  forkSession,
+  HarnessSubagentSpawner,
+  synthesizeOrphanToolResults,
+} from './fork';
+export type { ForkResult, ForkSessionOptions } from './fork';
 export type { SessionLockHandle, SessionLockOptions } from './lock';
