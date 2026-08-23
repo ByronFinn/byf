@@ -38,7 +38,24 @@ export type FinishReason =
   | 'truncated'
   | 'filtered'
   | 'paused'
+  | 'deferred'
   | 'other';
+
+/**
+ * Deferred provider 请求的兑换句柄（PRD-0037 #335，v2 §15）。
+ * 当且仅当 stopReason = 'deferred' 时随 assistant 消息携带；
+ * fetchDeferred/cancelDeferred 以它兑换（幂等无副作用读取）。
+ */
+export interface DeferredHandle {
+  /** provider 名（路由用）。 */
+  readonly provider: string;
+  /** provider API 面（如 'responses'）。 */
+  readonly api: string;
+  /** provider 侧句柄 id。 */
+  readonly id: string;
+  readonly expiresAt?: number;
+  readonly pollAfterMs?: number;
+}
 
 /**
  * 单个 LLM 响应产生的消息 part 的异步可迭代流。
@@ -80,6 +97,12 @@ export interface ProviderRequestAuth {
 }
 
 export interface GenerateOptions {
+  /**
+   * Deferred provider 请求（PRD-0037 #335）：boolean | 窗口毫秒。
+   * 仅具备 fetchDeferred 能力的 provider 生效；其余 provider 忽略该选项
+   * 且永不返回 'deferred' stopReason（能力信号 = 方法存在性）。
+   */
+  deferred?: boolean | number;
   /**
    * 一个 {@link AbortSignal},中止时请求取消进行中的 generate 调用。
    * 接受 signal 的 provider 会把它转发给底层 HTTP 客户端;

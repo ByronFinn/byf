@@ -1,4 +1,4 @@
-import type { ContentPart, Role, ToolCall } from '@byfriends/kosong';
+import type { ContentPart, DeferredHandle, Role, ToolCall } from '@byfriends/kosong';
 
 /**
  * wire 2.0 类型全集（PRD-0037 / ADR-0040）。
@@ -110,6 +110,8 @@ export interface StoredMessage {
   readonly partial?: boolean;
   readonly isError?: boolean;
   readonly origin?: StoredPromptOrigin;
+  /** PRD-0037 #336：仅 deferred 助手消息携带（挂起兑换点）。 */
+  readonly deferredHandle?: DeferredHandle;
 }
 
 // ===== entries：对话树 =====

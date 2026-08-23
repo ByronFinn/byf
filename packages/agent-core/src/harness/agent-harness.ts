@@ -27,6 +27,8 @@ import { LaneStateReducer } from './lane-state';
 import type { LaneState } from './lane-state';
 import { acquireSessionLock } from './lock';
 import type { SessionLockHandle } from './lock';
+import { findDeferredHandleAtLeaf, ParkSignal, persistDeferredAssistant } from './park';
+import type { DeferredCapableLLM } from './park';
 import {
   asOperationStarted,
   asWriteDeferred,
@@ -92,7 +94,7 @@ export interface HarnessLiveEvent {
 
 export interface OperationOutcome {
   readonly opId: string;
-  readonly outcome: 'completed' | 'aborted' | 'failed';
+  readonly outcome: 'completed' | 'aborted' | 'failed' | 'suspended';
   readonly stopReason?: string;
   readonly errorMessage?: string;
   readonly usage?: TokenUsage;
@@ -179,6 +181,10 @@ export class AgentHarness {
     // live 占位运行时（record 尚未落盘的接受窗口）视为 running
     if (state.status === 'idle' && this.runtimes.has(laneId)) {
       return { ...state, status: 'running' };
+    }
+    // 挂起≡崩溃（live 面）：开放操作但无 in-flight 运行时（Park unwind 后）
+    if (state.status === 'running' && !this.runtimes.has(laneId)) {
+      return { ...state, status: 'suspended', suspendedReason: 'deferred' };
     }
     return state;
   }
@@ -736,7 +742,8 @@ export class AgentHarness {
     if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     if (this.runtimes.has(laneId))
       return err('LANE_BUSY', `lane ${laneId} has an in-flight operation`);
-    const state = this.reducer.snapshot(laneId);
+    // 折叠视图（Park 挂起的 live 面 = suspended）
+    const state = this.laneState(laneId);
     if (state.status !== 'suspended' && state.status !== 'aborting') {
       return err('NOT_SUSPENDED', `lane ${laneId} is ${state.status}, nothing to resume`);
     }
@@ -785,6 +792,11 @@ export class AgentHarness {
       if (started.kind === 'navigation') {
         await this.applyNavigation(laneId, started);
         return ok({ opId: open.opId, outcome: 'completed', steps: 0 });
+      }
+      // deferred 挂起（#336）：leaf 是无后继的 deferred 助手消息 → 兑换
+      const deferredHandle = await findDeferredHandleAtLeaf(this.session, laneId);
+      if (deferredHandle !== undefined) {
+        return ok(await this.resumeDeferred(laneId, open.opId, deferredHandle, attempt));
       }
       // 悬空工具批分类处置（AC5）：never → 合成 interrupted 结果；
       // safe → 用真实工具安全重放一次并写真实结果。重跑前必须清空悬空——
@@ -989,6 +1001,12 @@ export class AgentHarness {
           steps: accumulatedSteps,
         };
       } catch (error) {
+        if (error instanceof ParkSignal) {
+          // Park unwind（#336）：deferred handle 随消息落树；不写
+          // operation_finished——挂起 lane 在存储中与崩溃 lane 不可区分
+          await persistDeferredAssistant(this.session, laneId, error.handle, op.opId);
+          return { opId: op.opId, outcome: 'suspended', steps: 0 };
+        }
         await transcript.flushAll();
         const messageText = error instanceof Error ? error.message : String(error);
         await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
@@ -1002,6 +1020,62 @@ export class AgentHarness {
     } finally {
       this.runtimes.delete(laneId);
     }
+  }
+
+  /**
+   * deferred 兑换（#336，AC8）：fetchDeferred 三态——
+   * ready → 落真实结果 + 继续完成 run；
+   * still-pending → 再挂起（轮询节奏属应用策略）；
+   * terminal → 按失败处理（operation_finished failed；持久 attempt 封顶在
+   * 上层 resume 已检查）。兑换幂等无副作用：崩溃重跑安全。
+   */
+  private async resumeDeferred(
+    laneId: LaneId,
+    opId: string,
+    handle: import('@byfriends/kosong').DeferredHandle,
+    attempt: number,
+  ): Promise<OperationOutcome> {
+    void attempt;
+    const llm = await this.resolveLLMFor(laneId);
+    if (typeof (llm as DeferredCapableLLM).redeem !== 'function') {
+      // 无兑换能力：按失败收尾
+      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+        opId,
+        outcome: 'failed',
+        errorMessage: 'deferred handle present but llm lacks redemption capability',
+        finishedAt: Date.now(),
+      });
+      return { opId, outcome: 'failed', errorMessage: 'no redemption capability', steps: 0 };
+    }
+    const redemption = await (llm as DeferredCapableLLM).redeem(handle);
+    if (redemption.state === 'ready') {
+      const text = redemption.message.content
+        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map((p) => p.text)
+        .join('');
+      await this.session.append({
+        laneId,
+        kind: 'message',
+        message: { role: 'assistant', content: [{ type: 'text', text }] },
+      });
+      await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+        opId,
+        outcome: 'completed',
+        stopReason: 'end_turn',
+        finishedAt: Date.now(),
+      });
+      return { opId, outcome: 'completed', stopReason: 'end_turn', steps: 1 };
+    }
+    if (redemption.state === 'still-pending') {
+      return { opId, outcome: 'suspended', steps: 0 };
+    }
+    await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
+      opId,
+      outcome: 'failed',
+      errorMessage: redemption.reason,
+      finishedAt: Date.now(),
+    });
+    return { opId, outcome: 'failed', errorMessage: redemption.reason, steps: 0 };
   }
 
   /**
