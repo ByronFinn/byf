@@ -33,6 +33,8 @@ type SessionSummaryState = z.infer<typeof SessionSummaryStateSchema>;
 export interface CreateSessionRecordInput {
   readonly id: string;
   readonly workDir: string;
+  /** 会话 wire 格式（PRD-0037 #327：engine=v2 创建 2.0 会话）；缺省 1.1。 */
+  readonly formatVersion?: '1.1' | '2.0';
 }
 
 export interface ForkSessionRecordInput {
@@ -80,11 +82,17 @@ export class SessionStore {
     }
 
     await mkdir(dir, { recursive: true, mode: 0o700 });
+    if (input.formatVersion === '2.0') {
+      // 2.0 会话创建即落 header——格式标记原子确立（JsonlSessionStorage.create
+      // 幂等拒绝重复建文件，装配层随后打开同一文件）。
+      const { JsonlSessionStorage } = await import('../../harness/storage/jsonl');
+      await JsonlSessionStorage.create(join(dir, 'wire.jsonl'), input.id);
+    }
     await appendSessionIndexEntry(this.homeDir, {
       sessionId: input.id,
       sessionDir: dir,
       workDir,
-      formatVersion: '1.1',
+      formatVersion: input.formatVersion ?? '1.1',
     });
     return this.summaryFromDir(input.id, dir, workDir);
   }

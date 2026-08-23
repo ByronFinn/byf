@@ -6,4 +6,11 @@ export * from './records';
 export * from './lane-state';
 export { TranscriptBridge, projectEntryMessage, toolResultMessage } from './transcript';
 export { acquireSessionLock, SessionLockError } from './lock';
+export {
+  assertEngineFormatCompatible,
+  createV2EngineHarness,
+  EngineFormatMismatchError,
+  resolveSessionEngine,
+} from './engine';
+export type { SessionEngine, V2EngineHarnessInput } from './engine';
 export type { SessionLockHandle, SessionLockOptions } from './lock';
