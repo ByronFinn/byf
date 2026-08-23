@@ -520,22 +520,6 @@ export class SqliteSessionStorage implements SessionStorage {
       .get(this.sessionId, laneId) as LaneRow | null;
   }
 
-  /** 祖先链（root → target）。 */
-  private chainOf(entryId: string): string[] {
-    const chain: string[] = [];
-    let cursor: string | null = entryId;
-    const guard = new Set<string>();
-    while (cursor !== null) {
-      if (guard.has(cursor)) break;
-      guard.add(cursor);
-      chain.push(cursor);
-      const row = this.entryRow(cursor);
-      if (!row) break;
-      cursor = row.parent_id;
-    }
-    return chain.toReversed();
-  }
-
   private decodeEntry(row: EntryRow): WireEntry {
     return materialize(row.id, row.parent_id, row.seq, row.created_at, JSON.parse(row.payload));
   }
