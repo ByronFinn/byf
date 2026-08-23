@@ -20,4 +20,15 @@ export {
   synthesizeOrphanToolResults,
 } from './fork';
 export type { ForkResult, ForkSessionOptions } from './fork';
+export {
+  clearGoal,
+  GOAL_CUSTOM_TYPE,
+  isGoalOverBudget,
+  MAX_GOAL_ROUNDS,
+  readGoal,
+  recordGoalTurn,
+  setGoal,
+  updateGoal,
+} from './goal';
+export type { GoalBudget2, GoalSnapshot2, GoalStatus2, GoalView } from './goal';
 export type { SessionLockHandle, SessionLockOptions } from './lock';

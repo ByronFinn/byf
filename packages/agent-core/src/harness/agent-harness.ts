@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
 
+import { addUsage, emptyUsage } from '@byfriends/kosong';
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
 
 import { createLoopEventDispatcher } from '../loop/events';
@@ -8,6 +9,16 @@ import type { LoopEvent } from '../loop/events';
 import type { LLM } from '../loop/llm';
 import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
+import {
+  clearGoal,
+  isGoalOverBudget,
+  MAX_GOAL_ROUNDS,
+  readGoal,
+  recordGoalTurn,
+  setGoal,
+  updateGoal,
+} from './goal';
+import type { GoalView } from './goal';
 import { err, ok } from './lane-result';
 import type { LaneError, LaneResult } from './lane-result';
 import { LaneStateReducer } from './lane-state';
@@ -838,42 +849,87 @@ export class AgentHarness {
       };
 
       try {
-        const result = await runTurn({
-          turnId: op.opId, // 持久 runId（B8：turnId 不稳定问题的终局解）
-          signal: controller.signal,
-          llm: await this.resolveLLMFor(laneId), // per-lane 模型（#328 AC）
-          buildMessages,
-          dispatchEvent,
-          tools: await this.resolveToolsFor(laneId), // per-lane activeTools 过滤
-          maxSteps: this.config.maxSteps,
-          maxRetryAttempts: this.config.maxRetryAttempts,
-          // checkpoint（#325）：beforeStep 先于 buildMessages——deferred writes
-          // 应用 + steering 消费写树，被消费内容立即进入本 step 上下文。
-          hooks: {
-            beforeStep: async () => {
-              await this.checkpoint(laneId);
-              return undefined;
+        // goal 续跑循环（#331：before_run_end 缝隙——goal active 时同一 run
+        //（同一 opId）内继续推进；absent/paused/blocked/complete 即停）。
+        let accumulatedSteps = 0;
+        let accumulatedUsage = emptyUsage();
+        for (let round = 0; ; round++) {
+          const result = await runTurn({
+            turnId: op.opId, // 持久 runId（B8：turnId 不稳定问题的终局解）
+            signal: controller.signal,
+            llm: await this.resolveLLMFor(laneId), // per-lane 模型（#328 AC）
+            buildMessages,
+            dispatchEvent,
+            tools: await this.resolveToolsFor(laneId), // per-lane activeTools 过滤
+            maxSteps: this.config.maxSteps,
+            maxRetryAttempts: this.config.maxRetryAttempts,
+            // checkpoint（#325）：beforeStep 先于 buildMessages——deferred writes
+            // 应用 + steering 消费写树，被消费内容立即进入本 step 上下文。
+            hooks: {
+              beforeStep: async () => {
+                await this.checkpoint(laneId);
+                return undefined;
+              },
             },
-          },
-        });
-        await transcript.flushAll();
-        if (result.stopReason === 'aborted') {
-          // live abort 收尾（reconcile 的 live 侧）：合成收尾消息 + 队列处置
-          return await this.finishAbortedOperation(laneId, op.opId, result.steps);
+          });
+          await transcript.flushAll();
+          accumulatedSteps += result.steps;
+          accumulatedUsage = addUsage(accumulatedUsage, result.usage);
+          if (result.stopReason === 'aborted') {
+            // live abort 收尾（reconcile 的 live 侧）：合成收尾消息 + 队列处置
+            return await this.finishAbortedOperation(laneId, op.opId, accumulatedSteps);
+          }
+          // before_run_end：goal 状态决定是否返回 followUp（继续本 run）
+          const goal = await readGoal(this.session, laneId);
+          if (goal.status !== 'active') break;
+          if (round >= MAX_GOAL_ROUNDS) {
+            await updateGoal(this.session, laneId, goal, {
+              status: 'blocked',
+              blockedReason: `goal 驱动轮次达到上限（${MAX_GOAL_ROUNDS}）`,
+            });
+            break;
+          }
+          await recordGoalTurn(this.session, laneId, goal, grandTotal(accumulatedUsage));
+          const afterCount = await readGoal(this.session, laneId);
+          if (afterCount.status === 'active') {
+            const overBudget = isGoalOverBudget(afterCount);
+            if (overBudget) {
+              await updateGoal(this.session, laneId, afterCount, {
+                status: 'blocked',
+                blockedReason: overBudget,
+              });
+              break;
+            }
+          }
+          // continuation 写树（system_trigger，豁免 UserPromptSubmit 语义对齐 ADR-0026）
+          await this.session.append({
+            laneId,
+            kind: 'message',
+            message: {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `(goal continuation) 请继续朝目标「${goal.objective}」推进；完成时将 goal 标记为 complete。`,
+                },
+              ],
+              origin: { kind: 'system_trigger', name: 'goal_continuation' },
+            },
+          });
         }
         await this.appendRecordTracked(laneId, 'operation_finished', undefined, {
           opId: op.opId,
           outcome: 'completed',
-          stopReason: result.stopReason,
-          usage: usageToRecord(result.usage),
+          stopReason: 'end_turn',
+          usage: usageToRecord(accumulatedUsage),
           finishedAt: Date.now(),
         });
         return {
           opId: op.opId,
           outcome: 'completed',
-          stopReason: result.stopReason,
-          usage: result.usage,
-          steps: result.steps,
+          stopReason: 'end_turn',
+          usage: accumulatedUsage,
+          steps: accumulatedSteps,
         };
       } catch (error) {
         await transcript.flushAll();
@@ -1176,6 +1232,26 @@ export class AgentLane {
     return this.harness.compact(this.laneId);
   }
 
+  // ===== goal 域（#331：custom entries 点查询 + before_run_end 续跑） =====
+
+  /** slash 命令权：创建/替换 goal。 */
+  async setGoal(input: {
+    readonly objective: string;
+    readonly budget?: { readonly maxTurns?: number; readonly maxTokens?: number };
+  }): Promise<void> {
+    await setGoal(this.harness.session, this.laneId, input);
+  }
+
+  /** slash 命令权：清除 goal。 */
+  async clearGoal(): Promise<void> {
+    await clearGoal(this.harness.session, this.laneId);
+  }
+
+  /** 点查询还原 goal 状态。 */
+  async goal(): Promise<GoalView> {
+    return readGoal(this.harness.session, this.laneId);
+  }
+
   waitForIdle(options?: { readonly timeoutMs?: number }): Promise<LaneResult<void>> {
     return this.harness.waitForIdle(this.laneId, options);
   }
@@ -1232,6 +1308,10 @@ export class AgentLane {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function grandTotal(usage: TokenUsage): number {
+  return usage.inputOther + usage.output + usage.inputCacheRead + usage.inputCacheCreation;
 }
 
 /** message entry 的首个文本内容（摘要 transcript 用）。 */
