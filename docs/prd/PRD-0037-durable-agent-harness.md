@@ -1,6 +1,6 @@
 # Durable Agent Harness（pi v2 架构采纳）
 
-> **Status**: Sliced | **PRD**: PRD-0037 | **Created**: 2026-08-23 | **Last updated**: 2026-08-23（story 完成）
+> **Status**: In Progress | **PRD**: PRD-0037 | **Created**: 2026-08-23 | **Last updated**: 2026-08-23（implement 开始）
 
 ## Goal
 
@@ -215,15 +215,15 @@ D1 双进程双写（=B6）；D2 web busy 跟踪只认 main agent（`session-man
 - **New terms**（供 /grill 精化并录入 CONTEXT.md）: AgentHarness、AgentLane、lane/leaf、entries 树、records（lane 操作日志）、provisioned id（预分配 id）、意图先行（intent-before-effect）、restore 归约（reduction）、suspended/resume、abort reconcile、checkpoint、deferred write、steer/followUp/nextRun 三队列、branch summary、fork（entries-only）、确定性子会话 id、watch() 快照+缓冲订阅、results-not-exceptions、parity 套件、deferred handle / Park、append-only 上下文不变量
 
 - **Sliced into**:
-  - #319 — [PRD-0037] wire 2.0 类型全集 + SessionStorage 契约 + 内存参考实现 (AFK)
-  - #320 — [PRD-0037] JSONL 2.0 后端 + torn-tail 截断 + parity (AFK, blocked by #319)
-  - #321 — [PRD-0037] 新 Session：SessionTree 视图 + branch 查询 + facts + fork 原语 (AFK, blocked by #319)
-  - #322 — [PRD-0037] session_index 格式版本字段 + 旧会话列表隐藏 (AFK, blocked by #321)
-  - #323 — [PRD-0037] AgentHarness 骨架：create + restore 归约 + runProcedure (AFK, blocked by #321)
-  - #324 — [PRD-0037] 意图先行记录全集 + 预分配 id + fsync 分级 (AFK, blocked by #323)
-  - #325 — [PRD-0037] checkpoint + 三队列 + abort reconcile (AFK, blocked by #324)
-  - #326 — [PRD-0037] 崩溃矩阵属性测试 + 会话锁文件单写者 (AFK, blocked by #325)
-  - #327 — [PRD-0037] 实验开关 engine=v2 (AFK, blocked by #323)
+  - #319 — [PRD-0037] wire 2.0 类型全集 + SessionStorage 契约 + 内存参考实现 — Done (AFK)
+  - #320 — [PRD-0037] JSONL 2.0 后端 + torn-tail 截断 + parity — Done (AFK, blocked by #319)
+  - #321 — [PRD-0037] 新 Session：SessionTree 视图 + branch 查询 + facts + fork 原语 — Done (AFK, blocked by #319)
+  - #322 — [PRD-0037] session_index 格式版本字段 + 旧会话列表隐藏 — Done (AFK, blocked by #321)
+  - #323 — [PRD-0037] AgentHarness 骨架：create + restore 归约 + runProcedure — Done (AFK, blocked by #321)
+  - #324 — [PRD-0037] 意图先行记录全集 + 预分配 id + fsync 分级 — Done (AFK, blocked by #323)
+  - #325 — [PRD-0037] checkpoint + 三队列 + abort reconcile — Done (AFK, blocked by #324)
+  - #326 — [PRD-0037] 崩溃矩阵属性测试 + 会话锁文件单写者 — Done (AFK, blocked by #325)
+  - #327 — [PRD-0037] 实验开关 engine=v2 — Done (AFK, blocked by #323)
   - #328 — [PRD-0037] AgentLane 完整 API + lane CRUD + per-lane 配置 (AFK, blocked by #325)
   - #329 — [PRD-0037] navigateTree + branch summary + 手动/自动压缩操作 (AFK, blocked by #328)
   - #330 — [PRD-0037] fork 重写 + 确定性子会话 id + 子代理迁移 (AFK, blocked by #328)
