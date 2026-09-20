@@ -116,6 +116,15 @@ export class ByfHarness {
     return session;
   }
 
+  /**
+   * 恢复既有会话（AC-3.1 契约行 `SESSION_IDENTITY_CONTRACT.resume`）：保留原
+   * session ID，历史往既有事件日志**追加**，上下文窗口由磁盘日志重建为一个
+   * 新窗口——不继承任何进程内存态。
+   *
+   * durability 边界：恢复重放的是事件日志，并不代表工具副作用可回滚。崩溃时
+   * 正在执行的工具调用只会以一条未完成的观察收尾，本机文件改动与已发出的
+   * 远程调用都不会被撤销。
+   */
   async resumeSession(input: ResumeSessionInput): Promise<Session> {
     const id = normalizeSessionId(input.id);
     const active = this.activeSessions.get(id);
@@ -141,6 +150,14 @@ export class ByfHarness {
     return session;
   }
 
+  /**
+   * 派生新会话（AC-3.1 契约行 `SESSION_IDENTITY_CONTRACT.fork`）：铸造**新**
+   * session ID，把源历史复制进新会话；源会话目录字节必须完全不变
+   * （`must-not-change`）。子会话后续生长不回头改写源。
+   *
+   * durability 边界：fork 复制的只是会话历史，不撤销任何已执行的工具效果；
+   * 切回原会话也不等于把文件状态退回过去——byf 不存在文件级事务回滚。
+   */
   async forkSession(input: ForkSessionInput): Promise<Session> {
     const summary = await this.rpc.forkSession({
       id: normalizeSessionId(input.id),

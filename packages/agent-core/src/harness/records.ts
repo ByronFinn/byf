@@ -57,11 +57,26 @@ export interface AbortRequestedPayload {
 // ===== 工具执行 =====
 
 /**
- * replay 安全性标记：崩溃恢复时悬空 tool_started 的处置分类。
- * - never：不可重放（有副作用），restore 合成 interrupted 结果
- * - safe：幂等只读，restore 可安全重放
+ * replay 安全性标记：崩溃恢复时悬空 tool_started 的处置分类（PRD-0038 AC-3.4
+ * 三档契约，词汇表真源在 SDK 契约层 `TOOL_REPLAY_SAFETY_CLASSES`）：
+ * - `read-only`：幂等只读，restore 可安全重放一次；
+ * - `side-effect`：本机副作用，restore 不重放，以合成观察收尾——合成观察 ≠
+ *   回滚：本机文件可能停在半改动状态，恢复不会把它复原；
+ * - `remote-irreversible`：效果可能已经在远端发生且不可撤销，一律合成观察。
+ * 旧 journal 的 `safe` / `never` 作为接受别名（`safe` ≙ `read-only`，`never`
+ * ≙ `side-effect`），读路径按字面往返、不静默改写（ADR-0040 决策 1）。
  */
-export type ToolReplaySafety = 'never' | 'safe';
+export type ToolReplaySafety =
+  | 'never'
+  | 'safe'
+  | 'read-only'
+  | 'side-effect'
+  | 'remote-irreversible';
+
+/** restore 重放判据：仅只读档（含 legacy `safe`）可安全重放，其余一律合成观察。 */
+export function isReplayableToolReplaySafety(replay: ToolReplaySafety): boolean {
+  return replay === 'safe' || replay === 'read-only';
+}
 
 export interface ToolStartedPayload {
   /** 持久调用身份：(assistantEntryId, toolIndex)。 */

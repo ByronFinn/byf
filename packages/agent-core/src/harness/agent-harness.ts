@@ -32,6 +32,7 @@ import type { DeferredCapableLLM } from './park';
 import {
   asOperationStarted,
   asWriteDeferred,
+  isReplayableToolReplaySafety,
   operationRecordId,
   toolStartedRecordId,
 } from './records';
@@ -113,6 +114,19 @@ interface LaneRuntime {
 }
 
 const DEFAULT_MAX_RESUME_ATTEMPTS = 3;
+
+/** 本机副作用档悬空工具的合成观察：效果半确认，恢复不撤销、不重放。 */
+const SYNTHETIC_INTERRUPTED_LOCAL =
+  '[interrupted] 工具在本机上的执行被崩溃打断：文件可能已被部分修改、效果未获确认。' +
+  'BYF 不会重放该调用，也不会把本机文件改动撤销回崩溃前的状态。请核实实际文件内容后再决定。';
+
+/**
+ * 远程不可逆档悬空工具的合成观察：效果可能已在远端发生，重放会二次生效，
+ * 恢复既不重放也不存在能回滚远端的操作。
+ */
+const SYNTHETIC_INTERRUPTED_REMOTE =
+  '[interrupted] 该工具的效果可能已经在远端发生（例如消息已发出、订单已提交），' +
+  '且这类效果不可逆。BYF 不会重放该调用，也不存在能让远端回到原位的操作。请先核实远端实际状态。';
 
 /** 接受边界记录集合（fsync-before-resolve 分级）。 */
 const BOUNDARY_RECORD_KINDS = new Set([
@@ -871,7 +885,13 @@ export class AgentHarness {
       await this.reconcileDanglingTools(laneId, open.danglingTools);
       const controller = new AbortController();
       this.runtimes.set(laneId, { controller, opId: open.opId });
-      const outcome = await this.runOperation(laneId, started, controller, attempt);
+      // 预分配 entry id 的 attempt 空间必须与已确认的历史错开：live 首跑占用
+      // a1，第 k 次 resume 用 a(k+1)。若复用同一空间，resume 新写的 assistant/
+      // tool 结果 entry 会被 appendIfMissing 幂等吞掉（旧 entry 还声明着旧
+      // toolCall），已执行的副作用进不了上下文，provider 收到原样重发的请求，
+      // 于是同一 action 被再执行一次（PRD-0038 AC-3.2 (iii)）。task_attempt
+      // 的持久计数仍用 `attempt` 本身。
+      const outcome = await this.runOperation(laneId, started, controller, attempt + 1);
       this.events.emit(laneId, (base) => ({
         type: 'run_end',
         opId: open.opId,
@@ -1234,8 +1254,10 @@ export class AgentHarness {
    *   尚未落盘（只在首个 tool.result/step.end 刷出）——从 tool_started 载荷
    *   合成 partial assistant 消息（预分配 id 幂等），否则 provider 会面对
    *   无主的 tool 结果（400 拒绝，会话砖化——review C2）；
-   * - replay 'never'：合成 interrupted 结果（副作用工具不可重放）；
-   * - replay 'safe'：用真实工具安全重放一次并写真实结果。
+   * - replay 可重放档（`read-only`，含 legacy `safe`）：用真实工具安全重放一次
+   *   并写真实结果；
+   * - 不可重放档（`side-effect`/`remote-irreversible`，含 legacy `never`）：按档
+   *   合成 interrupted 观察——合成观察只是把边界说给模型，≠ 回滚。
    */
   private async reconcileDanglingTools(
     laneId: LaneId,
@@ -1244,7 +1266,7 @@ export class AgentHarness {
     await this.ensureAssistantEntriesForDangling(laneId, dangling);
     for (const tool of dangling) {
       if (this.session.getEntry(tool.resultEntryId)) continue; // 已有结果
-      if (tool.replay === 'safe') {
+      if (isReplayableToolReplaySafety(tool.replay)) {
         const replayed = await this.safeReplayTool(laneId, tool);
         if (replayed) continue;
       }
@@ -1304,6 +1326,12 @@ export class AgentHarness {
     }
   }
 
+  /**
+   * 不可重放档的悬空工具：按档合成 interrupted 观察（预分配 resultEntryId 幂等
+   * 落会话）。两档文本必须互相可区分——"本机可能留下半改动"与"远端效果已不可
+   * 撤销"是两种风险，说成同一种等于没说（AC-3.4）。两条都不得暗示存在文件级
+   * 事务回滚。
+   */
   private async appendSyntheticInterrupted(
     laneId: LaneId,
     tool: ToolStartedPayload,
@@ -1315,7 +1343,15 @@ export class AgentHarness {
       message: {
         role: 'tool',
         toolCallId: tool.toolCallId,
-        content: [{ type: 'text', text: '[interrupted]' }],
+        content: [
+          {
+            type: 'text',
+            text:
+              tool.replay === 'remote-irreversible'
+                ? SYNTHETIC_INTERRUPTED_REMOTE
+                : SYNTHETIC_INTERRUPTED_LOCAL,
+          },
+        ],
         isError: true,
       },
     });

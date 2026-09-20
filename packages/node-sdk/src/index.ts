@@ -125,6 +125,19 @@ export { workspaceTitle } from '@byfriends/agent-core';
 export * from '#/events';
 export type * from '#/types';
 
+// PRD-0038 R3 (AC-3.1/AC-3.4)：会话身份与工具重放安全的 SDK 契约层单一定义。
+// CLI / TUI / web / headless 各表面 import 同一张表断言自己那一行，不本地另抄。
+export {
+  SESSION_IDENTITY_CONTRACT,
+  TOOL_REPLAY_SAFETY_CLASSES,
+  classifyToolReplaySafety,
+} from '#/session-contract';
+export type {
+  SessionIdentityContract,
+  SessionIdentitySemantics,
+  ToolReplaySafetyClass,
+} from '#/session-contract';
+
 // Provider config — re-exported from @byfriends/oauth so consumers don't
 // need a direct dependency on the oauth package.
 export { applyProviderConfig, fetchModels, fetchModelsByType } from '@byfriends/oauth';

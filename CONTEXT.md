@@ -124,7 +124,7 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### Wire Records
 
-事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。
+事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。restore 重放重建的是**上下文**，不重放、也不撤销工具调用已经产生的效果；按重放安全分类（只读 / 本机副作用 / 远程不可逆，PRD-0038 AC-3.4），不可重放档的悬空调用以合成观察收尾，而不是回滚。
 
 **两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
 
@@ -439,7 +439,7 @@ lane = 树上命名位置 + 该位置的串行工作（类比 git branch + 独�
 
 ### 意图先行（intent-before-effect）（目标态）
 
-持久化核心规则：效果发生前先写命名将发生什么、将产生哪些 id 的意图记录；效果发生后以完全相同的 id 追加结果条目。崩溃落在任意两点之间，恢复按意图类型机械判定：补完、重试、或以合成结果关闭。不需要多记录原子性。
+持久化核心规则：效果发生前先写命名将发生什么、将产生哪些 id 的意图记录；效果发生后以完全相同的 id 追加结果条目。崩溃落在任意两点之间，恢复按意图类型机械判定：补完、重试、或以合成结果关闭。"重试"仅限只读档（`read-only`）；本机副作用档与远程不可逆档一律以合成观察关闭，且两档的合成文本必须互相可区分——把两种风险说成同一种等于没说。合成观察只声明边界，不存在把本机文件或远端状态复原的能力。不需要多记录原子性。
 
 ### Restore 归约（reduction）（目标态）
 
