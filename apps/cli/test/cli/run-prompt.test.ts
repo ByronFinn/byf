@@ -112,6 +112,7 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     session: undefined,
     continue: false,
     yolo: false,
+    denyUnapproved: false,
     model: undefined,
     outputFormat: undefined,
     prompt: 'say hello',
@@ -1191,6 +1192,150 @@ describe('runPrompt', () => {
       expect(mocks.session.createGoal).not.toHaveBeenCalled();
       expect(mocks.session.prompt).not.toHaveBeenCalled();
     });
+  });
+
+  /**
+   * PRD-0038 AC-1.6 — headless 放行治理(Q2 裁决):默认跟随配置
+   * defaultPermissionMode;--yolo/--approve-all 显式全放行;manual 下不静默
+   * 批准并以专用退出码失败(既有码位占用:1 通用 / 3、6 goal / 129、130、143
+   * 信号 → 专用码必须与之区分)。
+   */
+  describe('headless permission governance (PRD-0038 AC-1.6)', () => {
+    function approvalRequestFixture(): Record<string, unknown> {
+      return {
+        turnId: 1,
+        toolCallId: 'tc_1',
+        toolName: 'Bash',
+        action: 'Bash(printf trail)',
+        display: { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      };
+    }
+
+    it('未指定开关时按配置 defaultPermissionMode 决定会话权限(不再恒 auto)', async () => {
+      mocks.harnessGetConfig.mockResolvedValueOnce({
+        providers: {},
+        defaultModel: 'k2',
+        defaultPermissionMode: 'yolo',
+      });
+
+      await runPrompt(opts(), '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+      expect(mocks.harnessCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'yolo' }),
+      );
+    });
+
+    it('--yolo 显式全放行:覆盖配置 manual 以 yolo 权限创建会话', async () => {
+      mocks.harnessGetConfig.mockResolvedValueOnce({
+        providers: {},
+        defaultModel: 'k2',
+        defaultPermissionMode: 'manual',
+      });
+
+      await runPrompt(opts({ yolo: true }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      expect(mocks.harnessCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'yolo' }),
+      );
+    });
+
+    it('manual 下审批请求到达处理器时不静默批准,并以专用退出码失败', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.harnessGetConfig.mockResolvedValueOnce({
+          providers: {},
+          defaultModel: 'k2',
+          defaultPermissionMode: 'manual',
+        });
+        await runPrompt(opts(), '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+        const handler = mocks.session.setApprovalHandler.mock.calls[0]![0] as (
+          req: Record<string, unknown>,
+        ) => unknown;
+        const response = (await handler(approvalRequestFixture())) as
+          | { decision?: string }
+          | undefined;
+        expect(response?.decision).not.toBe('approved');
+        // 专用退出码:非 0,且与既有语义占用位(1/3/6/129/130/143)区分。
+        expect(typeof process.exitCode).toBe('number');
+        expect([0, 1, 3, 6, 129, 130, 143]).not.toContain(process.exitCode);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+
+    it('--deny-unapproved:即使配置 yolo 也拒绝未批准请求并以专用退出码失败', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.harnessGetConfig.mockResolvedValueOnce({
+          providers: {},
+          defaultModel: 'k2',
+          defaultPermissionMode: 'yolo',
+        });
+        const denyOpts = { ...opts(), denyUnapproved: true };
+        await runPrompt(denyOpts, '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+        const handler = mocks.session.setApprovalHandler.mock.calls[0]![0] as (
+          req: Record<string, unknown>,
+        ) => unknown;
+        const response = (await handler(approvalRequestFixture())) as
+          | { decision?: string }
+          | undefined;
+        expect(response?.decision).not.toBe('approved');
+        expect(typeof process.exitCode).toBe('number');
+        expect([0, 1, 3, 6, 129, 130, 143]).not.toContain(process.exitCode);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 R3 / AC-3.1：headless 表面消费 SDK 契约层的同一张身份语义表
+//
+// 期望值取自 `@byfriends/sdk` 的导出，不在本文件里另写一份——"三表面共用单一
+// 定义"只有在各表面都从同一处取期望时才是可测的。TUI 与 web 的同款断言分别见
+// apps/cli/test/tui/byf-tui-message-flow.test.ts 与
+// apps/web/server/src/web-server.test.ts。
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PRD-0038 AC-3.1 headless honours the shared resume identity contract', () => {
+  it('maps --resume <id> onto the contract row whose sessionId is preserved', async () => {
+    const { SESSION_IDENTITY_CONTRACT } = await import('@byfriends/sdk');
+    const row = (
+      SESSION_IDENTITY_CONTRACT as
+        | Record<
+            string,
+            {
+              readonly sessionId: string;
+              readonly history: string;
+              readonly contextWindow: string;
+            }
+          >
+        | undefined
+    )?.resume;
+    expect(row, 'headless 必须能从 @byfriends/sdk 查到 resume 语义行').toBeDefined();
+    expect(row!.sessionId).toBe('preserve');
+    expect(row!.history).toBe('append-to-existing');
+    expect(row!.contextWindow).toBe('reconstructed-from-event-log');
+
+    mocks.harnessResumeSession.mockClear();
+    mocks.harnessCreateSession.mockClear();
+
+    await runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
+      stdout: { write: vi.fn(() => true) },
+      stderr: { write: vi.fn(() => true) },
+    });
+
+    // 契约行说 resume 不换身份 → 表面必须走 resumeSession，且不得顺手新建会话
+    expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_existing' });
+    expect(mocks.harnessCreateSession).not.toHaveBeenCalled();
   });
 });
 

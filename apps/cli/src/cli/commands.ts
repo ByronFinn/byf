@@ -33,6 +33,12 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
     )
     .option('-C, --continue', 'Continue the previous session for the working directory.', false)
     .option('-y, --yolo', 'Automatically approve all actions.', false)
+    .option('--approve-all', 'Alias for --yolo: approve every action in this run.', false)
+    .option(
+      '--deny-unapproved',
+      'Headless (-p): never auto-approve actions that need approval; reject them and exit with code 7.',
+      false,
+    )
     .addOption(
       new Option(
         '-m, --model <model>',
@@ -92,12 +98,17 @@ export function createProgram(version: string, onMain: MainCommandHandler): Comm
 
     const rawSession = raw['session'] ?? raw['resume'];
     const sessionValue = rawSession === true ? '' : (rawSession as string | undefined);
-    const yoloValue = raw['yolo'] === true || raw['yes'] === true || raw['autoApprove'] === true;
+    const yoloValue =
+      raw['yolo'] === true ||
+      raw['approveAll'] === true ||
+      raw['yes'] === true ||
+      raw['autoApprove'] === true;
 
     const opts: CLIOptions = {
       session: sessionValue,
       continue: raw['continue'] as boolean,
       yolo: yoloValue,
+      denyUnapproved: raw['denyUnapproved'] === true,
       model: raw['model'] as string | undefined,
       outputFormat: raw['outputFormat'] as CLIOptions['outputFormat'],
       prompt: raw['prompt'] as string | undefined,

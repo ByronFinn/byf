@@ -1,9 +1,11 @@
 import {
   ByfHarness,
   log,
+  type ApprovalRequest,
   type Event,
   type GoalSnapshot,
   type HookResultEvent,
+  type PermissionMode,
   type Session,
   type SessionStatus,
 } from '@byfriends/sdk';
@@ -42,6 +44,34 @@ const PROMPT_UI_MODE = 'print';
 const PROMPT_MAIN_AGENT_ID = 'main';
 const PROMPT_BLOCK_BULLET = '• ';
 const PROMPT_BLOCK_INDENT = '  ';
+
+/**
+ * headless 遇到"需要审批但无人可问"时的专用退出码(PRD-0038 AC-1.6 / Q9 裁决)。
+ *
+ * 语义:本次运行被权限治理拦下——不是模型/网络失败(那是通用 `1`),也不是 goal
+ * 未达成(`3`/`6`),更不是信号终止(`129`/`130`/`143`)。脚本可据此区分"跑完了但
+ * 被拦"与"跑挂了"。它是 ADR-0029 headless 完成协议的一部分,新增码位不得与上述
+ * 任何已占用值重合。
+ */
+export const EXIT_CODE_APPROVAL_REQUIRED = 7;
+
+/**
+ * PRD-0038 AC-1.6(Q2 裁决):headless 会话的权限取值。
+ *
+ * - `--deny-unapproved` 显式拒绝 → `manual`:请求会到达审批 handler 并被拒绝(不再
+ *   静默放行),同时以 {@link EXIT_CODE_APPROVAL_REQUIRED} 失败。
+ * - `--yolo` / `--approve-all` → `yolo`:显式全放行。
+ * - 两者都没给 → 跟随配置 `default_permission_mode`;配置缺省时仍是 `auto`,
+ *   以保持 ADR-0029 既有脚本"永不交互"的契约。
+ */
+function resolveHeadlessPermission(
+  opts: CLIOptions,
+  configured: PermissionMode | undefined,
+): PermissionMode {
+  if (opts.denyUnapproved) return 'manual';
+  if (opts.yolo) return 'yolo';
+  return configured ?? 'auto';
+}
 
 export async function runPrompt(
   opts: CLIOptions,
@@ -83,11 +113,13 @@ export async function runPrompt(
   try {
     await harness.ensureConfigFile();
     const config = await harness.getConfig();
+    const permission = resolveHeadlessPermission(opts, config.defaultPermissionMode);
     const { session, restorePermission } = await resolvePromptSession(
       harness,
       opts,
       workDir,
       config.defaultModel,
+      permission,
       stderr,
       (restorePermission) => {
         restorePromptSessionPermission = restorePermission;
@@ -159,6 +191,7 @@ async function resolvePromptSession(
   opts: CLIOptions,
   workDir: string,
   defaultModel: string | undefined,
+  permission: PermissionMode,
   stderr: PromptOutput,
   setRestorePermission: (restorePermission: () => Promise<void>) => void,
 ): Promise<ResolvedPromptSession> {
@@ -167,17 +200,17 @@ async function resolvePromptSession(
     (opts.continue ? await mostRecentSessionId(harness, workDir, stderr) : undefined);
 
   if (resumeId !== undefined) {
-    return resumePromptSession(harness, resumeId, opts, setRestorePermission);
+    return resumePromptSession(harness, resumeId, opts, permission, stderr, setRestorePermission);
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
   const session = await harness.createSession({
     workDir,
     model,
-    permission: 'auto',
+    permission,
     ...(opts.addDirs.length > 0 ? { additionalDirs: opts.addDirs } : {}),
   });
-  installHeadlessHandlers(session);
+  installHeadlessHandlers(session, permission, stderr);
   return { session, resumed: false, restorePermission: async () => {} };
 }
 
@@ -199,6 +232,8 @@ async function resumePromptSession(
   harness: ByfHarness,
   sessionId: string,
   opts: CLIOptions,
+  permission: PermissionMode,
+  stderr: PromptOutput,
   setRestorePermission: (restorePermission: () => Promise<void>) => void,
 ): Promise<ResolvedPromptSession> {
   const session = await harness.resumeSession({ id: sessionId });
@@ -206,30 +241,36 @@ async function resumePromptSession(
   const restorePermission = await forcePromptPermission(
     session,
     status.permission,
+    permission,
     setRestorePermission,
   );
   if (opts.model !== undefined) {
     await session.setModel(opts.model);
   }
-  installHeadlessHandlers(session);
+  installHeadlessHandlers(session, permission, stderr);
   return { session, resumed: true, restorePermission };
 }
 
+/**
+ * 打印模式不能等人回答,因此把恢复出的会话权限抬到本次运行的取值
+ * ({@link resolveHeadlessPermission});退出时再还原成会话原来的权限。
+ */
 async function forcePromptPermission(
   session: Session,
   previousPermission: SessionStatus['permission'],
+  targetPermission: PermissionMode,
   setRestorePermission: (restorePermission: () => Promise<void>) => void,
 ): Promise<() => Promise<void>> {
   let overridePermission: Promise<void> | undefined;
   const restorePermission = async () => {
     await overridePermission?.catch(() => {});
-    if (previousPermission !== 'auto') {
+    if (previousPermission !== targetPermission) {
       await session.setPermission(previousPermission);
     }
   };
   setRestorePermission(restorePermission);
-  if (previousPermission !== 'auto') {
-    overridePermission = session.setPermission('auto');
+  if (previousPermission !== targetPermission) {
+    overridePermission = session.setPermission(targetPermission);
     await overridePermission;
   }
   return restorePermission;
@@ -249,8 +290,34 @@ function configuredModel(...models: readonly (string | undefined)[]): string | u
   return models.find((model) => model !== undefined && model.trim().length > 0);
 }
 
-function installHeadlessHandlers(session: Session): void {
-  session.setApprovalHandler(() => ({ decision: 'approved' }));
+/**
+ * 打印模式的兜底 handler(ADR-0029 完成协议 + PRD-0038 AC-1.6)。
+ *
+ * `manual`(含 `--deny-unapproved` 强制抬到 manual)时**不再静默批准**:headless
+ * 问不到人,唯一诚实的回答是拒绝,同时给出可行动原因并以专用退出码失败——让脚本
+ * 作者看到"这一轮被权限治理拦下",而不是拿到一份看起来成功、实则少跑了工具的输出。
+ *
+ * `yolo` / `auto` 下放行是显式选择的结果(core 通常已在引擎内部直接放行,这里的
+ * handler 只是"意外到达"时的兜底);每次放行的审计痕迹由 core 写进 session records。
+ */
+function installHeadlessHandlers(
+  session: Session,
+  permission: PermissionMode,
+  stderr: PromptOutput,
+): void {
+  if (permission === 'manual') {
+    session.setApprovalHandler((request: ApprovalRequest) => {
+      stderr.write(
+        `byf: ${request.toolName} needs human approval, but this run is headless with permission mode "manual" — rejected.\n` +
+          'To proceed: run `byf` interactively, pass --yolo to approve everything, ' +
+          'or set default_permission_mode = "auto" in config.toml.\n',
+      );
+      process.exitCode = EXIT_CODE_APPROVAL_REQUIRED;
+      return { decision: 'rejected', feedback: 'headless run cannot obtain human approval' };
+    });
+  } else {
+    session.setApprovalHandler(() => ({ decision: 'approved' }));
+  }
   session.setQuestionHandler(() => null);
 }
 
