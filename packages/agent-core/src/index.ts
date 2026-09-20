@@ -36,12 +36,11 @@ export type {
   PromptOrigin,
   UserPromptOrigin,
 } from './agent/context';
-// Pure wire-fold logic + output-offload helpers — shared with the in-monorepo
-// vis projector (apps/vis) so it reconstructs the conversation timeline the
-// same way the live agent does. These are monorepo-internal helpers, not a
-// published npm API contract (@byfriends/agent-core is not registry-published);
-// apps/vis is the only consumer and is updated in lockstep, so signature
-// changes are not a public breaking change. See PRD-0025 / wire-fold.ts.
+// Pure wire-fold logic + output-offload helpers: they reconstruct the
+// conversation timeline the same way the live agent does, and are consumed by
+// the in-repo Inspector projection (see PRD-0025 / wire-fold.ts). This package
+// is registry-published, so these exports are part of the public surface —
+// treat signature changes as breaking and route them through a changeset.
 export {
   createWireFoldState,
   foldAppendMessage,

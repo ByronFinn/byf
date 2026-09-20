@@ -19,6 +19,12 @@
  * exports/main/… into the packed manifest — that overlay is handled by
  * `scripts/lib/publish-manifest.mjs` (attw + the publish wrapper), not here.
  *
+ * The set itself is decided by `describePublishability()` in
+ * `scripts/lib/list-publishable-packages.mjs` (AC-2.2 / PRD-0038): a package must
+ * carry an explicit `publishConfig` **and** either non-source publish-facing
+ * `exports` or `files`/`build`. Run with `--list` to print that set plus the
+ * rejection reason for every other workspace package without packing anything.
+ *
  * Tarball extraction uses the system `tar` (bsdtar on macOS, GNU tar on Linux)
  * rather than a Node tar library, so the script has no runtime dependencies.
  */
@@ -28,10 +34,33 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { listPublishablePackages } from './lib/list-publishable-packages.mjs';
+import {
+  inspectPublishablePackages,
+  listPublishablePackages,
+} from './lib/list-publishable-packages.mjs';
 
 const PROTOCOL_PATTERNS = [/^workspace:/, /^catalog:/];
 const SHIPPED_SECTIONS = ['dependencies', 'peerDependencies', 'optionalDependencies'];
+
+/**
+ * `bun scripts/check-published-manifest.mjs --list`
+ *
+ * Print the AC-2.2 publish set and the reason every other workspace package was
+ * left out. Read-only — no packing, no network — so it is safe to run as the
+ * first line of a release job or when a human asks "what would we ship?".
+ */
+async function printPublishSet() {
+  const { included, excluded } = await inspectPublishablePackages();
+  console.log(`publish set (${String(included.length)} package(s)):`);
+  for (const pkg of included.sort((a, b) => a.name.localeCompare(b.name))) {
+    console.log(`  ${pkg.name}@${pkg.version}  ${pkg.path}`);
+  }
+  console.log(`\nnot published (${String(excluded.length)} package(s)):`);
+  for (const pkg of excluded.sort((a, b) => a.name.localeCompare(b.name))) {
+    console.log(`  ${pkg.name}`);
+    for (const reason of pkg.reasons) console.log(`      - ${reason}`);
+  }
+}
 
 function findResiduals(manifest) {
   const residuals = [];
@@ -59,6 +88,11 @@ function extractTarball(tarballPath, destDir) {
 }
 
 async function main() {
+  if (process.argv.includes('--list')) {
+    await printPublishSet();
+    return;
+  }
+
   const packages = await listPublishablePackages();
   if (packages.length === 0) {
     console.log('check-published-manifest: no publishable packages found');
