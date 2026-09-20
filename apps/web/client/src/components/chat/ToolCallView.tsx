@@ -23,9 +23,15 @@ import {
   type MetaItem,
 } from '#/components/shared/disclosure';
 import type { ToolGroupPart, ToolPart } from '#/lib/chat';
-import { displayCommand, summarizeDisplay } from '#/lib/tool-display';
+import {
+  displayCommand,
+  displayFilePath,
+  isDiffDisplay,
+  summarizeDisplay,
+} from '#/lib/tool-display';
 import { cn } from '#/lib/utils';
 import { formatWallClock } from '#/lib/vis-time';
+import type { ToolInputDisplay } from '#/types';
 
 import { CodeBlock } from './CodeBlock';
 
@@ -42,8 +48,8 @@ export function formatDuration(ms: number): string {
   return seconds > 0 ? `${minutes}m${seconds}s` : `${minutes}m`;
 }
 
-/** 工具类型中文标签(归组摘要行用)。 */
-const TOOL_KIND_LABELS: Record<string, string> = {
+/** 工具类型中文标签(归组摘要行用)。键集合由 ToolInputDisplay 派生：新增 kind 少键即编译期报错。 */
+export const TOOL_KIND_LABELS: Record<ToolInputDisplay['kind'], string> = {
   command: '命令',
   file_io: '文件读写',
   diff: '差异',
@@ -59,47 +65,43 @@ const TOOL_KIND_LABELS: Record<string, string> = {
 };
 
 /** 按工具 display 类型分发图标(kimi ToolRenderers 思路)。 */
-function toolIcon(display: unknown): LucideIcon {
-  if (display !== null && typeof display === 'object') {
-    const d = display as Record<string, unknown>;
-    switch (d['kind']) {
-      case 'command':
-        return Terminal;
-      case 'file_io':
-        return typeof d['operation'] === 'string' && d['operation'] === 'write'
-          ? FileDiff
-          : FileText;
-      case 'diff':
-        return FileDiff;
-      case 'search':
-        return Search;
-      case 'url_fetch':
-        return Globe;
-      case 'agent_call':
-        return Bot;
-      case 'skill_call':
-        return Zap;
-      case 'todo_list':
-        return ListChecks;
-      case 'background_task':
-        return Layers;
-      case 'task_stop':
-        return Square;
-      case 'plan_review':
-        return ClipboardCheck;
-      default:
-        break;
-    }
+function toolIcon(display: ToolInputDisplay | null | undefined): LucideIcon {
+  if (display === null || display === undefined) return Wrench;
+  switch (display.kind) {
+    case 'command':
+      return Terminal;
+    case 'file_io':
+      return display.operation === 'write' ? FileDiff : FileText;
+    case 'diff':
+      return FileDiff;
+    case 'search':
+      return Search;
+    case 'url_fetch':
+      return Globe;
+    case 'agent_call':
+      return Bot;
+    case 'skill_call':
+      return Zap;
+    case 'todo_list':
+      return ListChecks;
+    case 'background_task':
+      return Layers;
+    case 'task_stop':
+      return Square;
+    case 'plan_review':
+      return ClipboardCheck;
+    case 'generic':
+      return Wrench;
+    default:
+      // 穷尽性哨兵：未处理的 kind 会让 `display` 不是 `never` → 编译期报错。
+      unhandledToolDisplayKind(display);
+      return Wrench;
   }
-  return Wrench;
 }
 
-/** file_io/diff display 携带的可查看路径(R-C3;无 path 的 display 返回 null)。 */
-function displayFilePath(display: unknown): string | null {
-  if (display === null || typeof display !== 'object') return null;
-  const d = display as Record<string, unknown>;
-  if (d['kind'] !== 'file_io' && d['kind'] !== 'diff') return null;
-  return typeof d['path'] === 'string' && d['path'].length > 0 ? d['path'] : null;
+/** 见 `#/lib/tool-display` 的同名说明：编译期哨兵，运行期不可达。 */
+function unhandledToolDisplayKind(_display: never): null {
+  return null;
 }
 
 /** 打开文件查看 drawer(全局事件,ChatPage 挂载监听;与 openSettingsDialog 同款)。 */
@@ -107,14 +109,6 @@ export const OPEN_FILE_EVENT = 'byf:open-file';
 
 export function openFileDrawer(path: string): void {
   window.dispatchEvent(new CustomEvent<string>(OPEN_FILE_EVENT, { detail: path }));
-}
-
-function isDiffDisplay(display: unknown): boolean {
-  return (
-    display !== null &&
-    typeof display === 'object' &&
-    (display as Record<string, unknown>)['kind'] === 'diff'
-  );
 }
 
 /** ContentPart 形态的工具结果:提取图片 data-URL 内联渲染(PRD-0034 R-C1)。 */
@@ -315,7 +309,7 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
 export function ToolGroupView({ group }: { group: ToolGroupPart }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const Icon = toolIcon(group.tools[0]?.display);
-  const label = TOOL_KIND_LABELS[group.toolKind] ?? '工具调用';
+  const label = TOOL_KIND_LABELS[group.toolKind];
   const errorCount = group.tools.filter((t) => t.isError).length;
   const meta: MetaItem[] = [
     { label: '数量', value: String(group.tools.length) },

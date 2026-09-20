@@ -10,6 +10,15 @@ import type { ToolInputDisplay } from '../tools/display';
 import type { InputTokenBreakdown } from '../utils/tokens';
 
 export type { ToolInputDisplay } from '../tools/display';
+// 展示载荷的 zod 真源与运行时 kind 全集（PRD-0038 AC-6.1）：跨表面消费方
+// （SDK → TUI / web-server / web-client 契约测试）据此断言 kind 覆盖，不再各自兜底。
+export {
+  parseToolInputDisplay,
+  TOOL_INPUT_DISPLAY_KINDS,
+  TOOL_RESULT_DISPLAY_KINDS,
+  ToolInputDisplaySchema,
+  ToolResultDisplaySchema,
+} from '../tools/display';
 export type { ByfErrorPayload } from '../errors';
 
 export interface UsageStatus {

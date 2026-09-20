@@ -8,6 +8,7 @@ import type {
   ServerFrame,
   SessionStatus,
   ToolCall,
+  ToolInputDisplay,
 } from '#/types';
 
 // ---- 单条消息的内部部件 -----------------------------------------------------
@@ -24,7 +25,8 @@ export interface ToolPart {
   readonly kind: 'tool';
   readonly toolCallId: string;
   readonly name: string;
-  readonly display?: unknown;
+  /** 由 agent-core zod 真源派生的展示载荷（web-shared 仅类型再导出）。 */
+  readonly display?: ToolInputDisplay;
   readonly description?: string;
   readonly status: 'running' | 'done';
   readonly result?: unknown;
@@ -41,7 +43,7 @@ export interface ToolPart {
 export interface ToolGroupPart {
   readonly kind: 'tool-group';
   /** 组内统一的 ToolInputDisplay.kind(如 file_io/command)。 */
-  readonly toolKind: string;
+  readonly toolKind: ToolInputDisplay['kind'];
   readonly tools: readonly ToolPart[];
   /** span 总耗时 = max(endedAt) - min(startedAt)(并行工具按墙钟段,不按累加)。 */
   readonly spanMs: number | undefined;
@@ -216,7 +218,7 @@ function textOf(parts: readonly ContentPart[]): string {
  * 让展开体的「查看/复制命令」在回放会话中同样可用(被拒绝的调用没有结果
  * 输出,命令是唯一可查看的内容)。
  */
-function replayToolDisplay(call: ToolCall): unknown {
+function replayToolDisplay(call: ToolCall): ToolInputDisplay | undefined {
   if (call.name !== 'Bash' || call.arguments === null) return undefined;
   try {
     const args = JSON.parse(call.arguments) as { command?: unknown };
@@ -315,9 +317,8 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
 }
 
 /** ToolPart.display 的 ToolInputDisplay.kind(未知 display 归入 generic 桶)。 */
-function toolDisplayKind(part: ToolPart): string {
-  const kind = (part.display as { kind?: unknown } | undefined)?.kind;
-  return typeof kind === 'string' ? kind : 'generic';
+function toolDisplayKind(part: ToolPart): ToolInputDisplay['kind'] {
+  return part.display?.kind ?? 'generic';
 }
 
 /**
@@ -327,7 +328,7 @@ function toolDisplayKind(part: ToolPart): string {
  */
 export function groupParts(parts: readonly AssistantPart[]): RenderPart[] {
   const result: RenderPart[] = [];
-  let group: { toolKind: string; tools: ToolPart[] } | null = null;
+  let group: { toolKind: ToolInputDisplay['kind']; tools: ToolPart[] } | null = null;
   const flush = (): void => {
     if (group === null) return;
     if (group.tools.length === 1) {
@@ -514,7 +515,7 @@ function addTool(
   turnId: number,
   toolCallId: string,
   name: string,
-  display: unknown,
+  display: ToolInputDisplay | undefined,
   description: string | undefined,
   startedAt: number | undefined,
 ): ChatState {
