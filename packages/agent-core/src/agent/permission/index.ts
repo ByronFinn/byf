@@ -121,6 +121,7 @@ export class PermissionManager {
       }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'afk');
+        this.recordAutomaticApproval(context, 'auto');
       }
       return undefined;
     }
@@ -133,6 +134,7 @@ export class PermissionManager {
       }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'yolo');
+        this.recordAutomaticApproval(context, 'yolo');
       }
       return undefined;
     }
@@ -217,6 +219,36 @@ export class PermissionManager {
       block: true,
       reason: this.formatApprovalRejectionMessage(name, result),
     };
+  }
+
+  /**
+   * PRD-0038 AC-1.6：yolo / auto 的放行绕过了 `requestApproval`，也就绕过了审批
+   * 记录——headless 与托管运行里"这个工具被谁放行了"因此在 session records 中
+   * 查不到任何痕迹。模式本身就是一个决策者，所以放行同样落一条
+   * `permission.record_approval_result`，用 `selectedLabel` 标明它来自模式而非人。
+   *
+   * `scope` 必须留空：这不是用户「本会话同类都放行」的批准，不能据此生成
+   * session-runtime 规则（见 {@link recordApprovalResult} 的分支）。
+   * 只在 manual 模式下本该询问时才记录——默认自动放行的工具（Read 等）不是
+   * 治理决策，记录它们只会把痕迹淹成噪音。
+   */
+  private recordAutomaticApproval(
+    context: ToolExecutionHookContext,
+    mode: Extract<PermissionMode, 'yolo' | 'auto'>,
+  ): void {
+    const name = context.toolCall.name;
+    const args = context.args;
+    this.recordApprovalResult({
+      turnId: Number(context.turnId),
+      toolCallId: context.toolCall.id,
+      toolName: name,
+      action: describeApprovalAction(name, args, {
+        kind: 'generic',
+        summary: `Approve ${name}`,
+        detail: args,
+      }),
+      result: { decision: 'approved', selectedLabel: `auto_approve:${mode}` },
+    });
   }
 
   private async evaluatePolicies(
