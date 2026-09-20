@@ -86,7 +86,7 @@ OAuth 凭据以文件形式存放在数据根下的 `credentials/` 子目录，�
 会话目录的内部结构包含：
 
 - `state.json`：会话标题、`lastPrompt`、`createdAt`、`updatedAt`、`isCustomTitle`、`forkedFrom` 以及各个 Agent 的元数据。
-- `agents/main/wire.jsonl`：主 Agent 的 Wire 事件流（内部通信记录），用于回放和恢复。`main` 是主 Agent 的固定 id。
+- `agents/main/wire.jsonl`：主 Agent 的 Wire 事件流（内部通信记录），用于回放和恢复。`main` 是主 Agent 的固定 id。重放这份 journal 只会重建对话历史，不会重放工具调用；已经写入本机文件或已经发往远端服务的副作用不会被撤销，也不存在文件级事务回滚。
 - `agents/agent-0/`、`agents/agent-1/` 等：子 Agent 实例的目录，各自包含 `wire.jsonl`。子 Agent id 由会话内的递增计数器生成（`agent-` 加从 0 起的整数）。
 - `logs/byf.log`：该会话的诊断日志。只有发生被记录的诊断事件时才会出现；普通对话不一定产生这个文件。
 - `tasks/`：后台任务持久化目录。每个任务在 `tasks/<task_id>.json` 保存元信息（状态、pid、退出码等），标准输出与标准错误写入 `tasks/<task_id>/output.log`。任务 id 格式为 `bash-` 或 `agent-` 前缀加 8 位随机字母数字（如 `bash-a1b2c3d4`）。
