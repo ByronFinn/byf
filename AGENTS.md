@@ -15,8 +15,7 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 ## Project Map
 
 - `apps/cli`: the CLI / TUI application. It consumes core capabilities through `@byfriends/sdk` and must not depend directly on `@byfriends/agent-core`.
-- `apps/vis`: visual debugging tools for sessions and replays, including `apps/vis/server` and `apps/vis/web`.
-- `apps/web`: the browser web client that drives a live agent over HTTP/SSE, including `apps/web/server` (`@byfriends/web-server`, Hono + `ByfHarness`), `apps/web/client` (React 19 SPA), and `apps/web/shared` (wire DTO). See PRD-0032 / ADR-0034.
+- `apps/web`: the browser web client that drives a live agent over HTTP/SSE, including `apps/web/server` (`@byfriends/web-server`, Hono + `ByfHarness`), `apps/web/client` (React 19 SPA), and `apps/web/shared` (wire DTO). See PRD-0032 / ADR-0034. It is also the single visualizer surface: the former `apps/vis` tree is gone (removed in PRD-0038 R5), `byf vis` is now a deprecated alias that starts this same server, and session/replay inspection lives in the unified workbench (ADR-0037).
 - `packages/agent-core`: the unified agent engine, including Agent, Session, profile, skills, tools, plan, permission, background, records, and other core capabilities.
 - `packages/node-sdk`: the public TypeScript SDK and harness.
 - `packages/kosong`: the LLM / provider abstraction layer.

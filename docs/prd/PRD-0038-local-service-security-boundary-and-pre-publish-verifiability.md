@@ -15,15 +15,15 @@
 
 ### 安全侧事实
 
-| 事实 | 位置 |
-| --- | --- |
-| 仅当 `authToken` 非空才安装鉴权中间件；默认绑回环即**完全不鉴权** | `apps/web/server/src/app.ts:127`、`apps/web/server/src/config.ts:6` |
-| 全仓零 Origin/Host/CORS 校验；`c.req.json<T>()` 不校验 Content-Type → `text/plain` 简单请求无预检 | `apps/web/server/src/routes.ts`（18 处 `c.req.json`） |
-| `/api/mcp/test` 把请求体的 config 透传到 stdio spawn：`routes.ts:765` → `session-manager.ts:442` → `node-sdk/byf-harness.ts:289` → `agent-core/rpc/host-rpc.ts:290-302` → `mcp/client-stdio.ts:63-69`（`command/args/env/cwd` 全部来自入参） | 已核实全链路 |
-| headless 恒批准：`installHeadlessHandlers` 无条件返回 approved、提问恒 `null`；同时 CLI 禁止 `--prompt` 与 `--yolo` 并用，制造"headless 受管控"的反向错觉 | `apps/cli/src/cli/run-prompt.ts:253-254`、`apps/cli/src/cli/options.ts:39-41` |
-| 配置原文：解析失败时返回 `text: ''` + `revision: null`，保存即清空整个 config.toml（含全部密钥）。ADR-0039 对 mcp.json 已否决同一设计 | `apps/web/server/src/routes.ts:515-525`、`PUT /config/raw` 于 `:556` |
-| 密钥掩码占位符按**行序**编号（`seq += 1`），还原按行内 `<n>` 取盘上同序密钥 → 重排 provider 块跨 provider 错配、删一行静默丢密钥 | `packages/agent-core/src/config/document.ts:134,142-157,173-196` |
-| DNS rebinding 是"默认绑 127.0.0.1 即安全"这一假设的直接反例（浏览器可把 attacker 域名解析到回环） | `mcpsec.dev/advisories/2026-06-08-mlflow-server-dns-rebinding/`（线索，未进对抗核验） |
+| 事实                                                                                                                                                                                                                                         | 位置                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 仅当 `authToken` 非空才安装鉴权中间件；默认绑回环即**完全不鉴权**                                                                                                                                                                            | `apps/web/server/src/app.ts:127`、`apps/web/server/src/config.ts:6`                   |
+| 全仓零 Origin/Host/CORS 校验；`c.req.json<T>()` 不校验 Content-Type → `text/plain` 简单请求无预检                                                                                                                                            | `apps/web/server/src/routes.ts`（18 处 `c.req.json`）                                 |
+| `/api/mcp/test` 把请求体的 config 透传到 stdio spawn：`routes.ts:765` → `session-manager.ts:442` → `node-sdk/byf-harness.ts:289` → `agent-core/rpc/host-rpc.ts:290-302` → `mcp/client-stdio.ts:63-69`（`command/args/env/cwd` 全部来自入参） | 已核实全链路                                                                          |
+| headless 恒批准：`installHeadlessHandlers` 无条件返回 approved、提问恒 `null`；同时 CLI 禁止 `--prompt` 与 `--yolo` 并用，制造"headless 受管控"的反向错觉                                                                                    | `apps/cli/src/cli/run-prompt.ts:253-254`、`apps/cli/src/cli/options.ts:39-41`         |
+| 配置原文：解析失败时返回 `text: ''` + `revision: null`，保存即清空整个 config.toml（含全部密钥）。ADR-0039 对 mcp.json 已否决同一设计                                                                                                        | `apps/web/server/src/routes.ts:515-525`、`PUT /config/raw` 于 `:556`                  |
+| 密钥掩码占位符按**行序**编号（`seq += 1`），还原按行内 `<n>` 取盘上同序密钥 → 重排 provider 块跨 provider 错配、删一行静默丢密钥                                                                                                             | `packages/agent-core/src/config/document.ts:134,142-157,173-196`                      |
+| DNS rebinding 是"默认绑 127.0.0.1 即安全"这一假设的直接反例（浏览器可把 attacker 域名解析到回环）                                                                                                                                            | `mcpsec.dev/advisories/2026-06-08-mlflow-server-dns-rebinding/`（线索，未进对抗核验） |
 
 ### 引擎与契约事实
 
@@ -48,17 +48,17 @@
 
 ### 业界对标（存活 claim，附强度）
 
-| 结论 | 强度 |
-| --- | --- |
-| 追加式本地 JSON 事件日志是持久化收敛点（Claude Code `*.jsonl` / OpenHands `base_state.json` + `event-*.json`） | 3-0 + 2-1，**共识**；byf 已领先 |
-| resume（同 ID 追加）与 fork（新 ID 复制、原会话不变）必须是两种身份语义，且都不继承上一会话上下文窗口；该语义在 **SDK/harness 契约层**而非 TUI 层 | 3-0，**共识** |
-| 崩溃重放 = 重放检查点之后的事件；必须为无 observation 的孤儿 tool call 回填合成 observation；OpenHands 有同名截断契约测试 `test_event_log_index_gaps_detection` | 2-1，**可验证契约** |
-| 压缩 = 先清旧工具输出、仍不够才总结；连续 3 次回填触顶即硬停抛错（**不要抄诊断文案**，其因果归因被 open issue 反证） | 3-0，单厂商已落地 |
-| checkpoint/undo 能力边界须写成产品契约：只覆盖直接文件编辑、与 git 解耦、Bash/subagent/外部改动不追踪、远程副作用明确不可回滚 | 3-0，**契约表述要求** |
-| 流式渲染按固定间隔缓冲、静态内容不按固定 tick 重绘；开销来自每帧 buffer diff + 序列化 | 3-0+3-0，**方向共识 / 数值单厂商** |
-| `--bytecode` 与 `--compile-jit-policy` 是 Bun 官方明示的启动杠杆；但 jit-policy 仅 canary 1.4.3，byf 版本门槛不满足 | 3-0+3-0，厂商声明，**必须自测** |
-| 体积门禁必须用 `delta_bytes = 二进制 − 同 pin 版本 hello-world floor`，绝对阈值会把运行时升级误判为代码回归 | 3-0 + 2-1 |
-| hyperfine 为标准工具（默认 ≥10 runs 且 ≥3s、`-w` 热 / `-p` 每次前清缓存），但无 pass/fail 门禁、冷缓存配方 Linux-only | 三票合并 |
+| 结论                                                                                                                                                            | 强度                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 追加式本地 JSON 事件日志是持久化收敛点（Claude Code `*.jsonl` / OpenHands `base_state.json` + `event-*.json`）                                                  | 3-0 + 2-1，**共识**；byf 已领先    |
+| resume（同 ID 追加）与 fork（新 ID 复制、原会话不变）必须是两种身份语义，且都不继承上一会话上下文窗口；该语义在 **SDK/harness 契约层**而非 TUI 层               | 3-0，**共识**                      |
+| 崩溃重放 = 重放检查点之后的事件；必须为无 observation 的孤儿 tool call 回填合成 observation；OpenHands 有同名截断契约测试 `test_event_log_index_gaps_detection` | 2-1，**可验证契约**                |
+| 压缩 = 先清旧工具输出、仍不够才总结；连续 3 次回填触顶即硬停抛错（**不要抄诊断文案**，其因果归因被 open issue 反证）                                            | 3-0，单厂商已落地                  |
+| checkpoint/undo 能力边界须写成产品契约：只覆盖直接文件编辑、与 git 解耦、Bash/subagent/外部改动不追踪、远程副作用明确不可回滚                                   | 3-0，**契约表述要求**              |
+| 流式渲染按固定间隔缓冲、静态内容不按固定 tick 重绘；开销来自每帧 buffer diff + 序列化                                                                           | 3-0+3-0，**方向共识 / 数值单厂商** |
+| `--bytecode` 与 `--compile-jit-policy` 是 Bun 官方明示的启动杠杆；但 jit-policy 仅 canary 1.4.3，byf 版本门槛不满足                                             | 3-0+3-0，厂商声明，**必须自测**    |
+| 体积门禁必须用 `delta_bytes = 二进制 − 同 pin 版本 hello-world floor`，绝对阈值会把运行时升级误判为代码回归                                                     | 3-0 + 2-1                          |
+| hyperfine 为标准工具（默认 ≥10 runs 且 ≥3s、`-w` 热 / `-p` 每次前清缓存），但无 pass/fail 门禁、冷缓存配方 Linux-only                                           | 三票合并                           |
 
 **被否决、不得当共识使用**：「OpenHands 主张 core 与所有前端解耦，故 byf 三处重复载荷违反业界原则」——1-2 被否。G6 的契约统一**只凭内部理由**（三处均可静默降级 + ADR-0006 分层）推进，不以业界背书为据。同理：Ink 动态区高度阈值、30–40% diff 交叉点、OpenHands Condenser 成本降 2x、Deno 58MB 地板，均为待测假设。
 

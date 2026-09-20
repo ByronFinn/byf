@@ -1,8 +1,8 @@
 # apps/web — Browser Web Client
 
-浏览器 Web 客户端：在浏览器里**实时驱动** agent（区别于只读 replay 的 `apps/vis`）。详见 PRD-0032 / ADR-0034。
+浏览器 Web 客户端：在浏览器里**实时驱动** agent。详见 PRD-0032 / ADR-0034。它同时也是唯一的可视化面：原先 `apps/vis` 的只读 replay / session visualizer 已并入统一工作台（ADR-0037 D1），`apps/vis` 整棵树已在 PRD-0038 R5 删除，`byf vis` 只是指向本包的弃用别名。
 
-## 结构（三包 + umbrella，镜像 `apps/vis`）
+## 结构（三包 + umbrella）
 
 - `server/` `@byfriends/web-server`（**发布**）：Hono + `Bun.serve`，构造一个 `ByfHarness`（`@byfriends/sdk`）驱动 live agent，暴露 `/api/*` + SSE 事件流 + SPA 静态资产。
 - `client/` `@byfriends/web-client`（私有）：React 19 + Vite + Tailwind v4 + react-query SPA。

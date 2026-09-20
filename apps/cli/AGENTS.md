@@ -41,7 +41,7 @@ Main directories:
 - `theme` is the single source of truth for colors and styles. Components must not bypass the theme system and use chalk named colors directly.
 - `utils` holds utility functions with no UI-state dependency. Logic that needs `TUIState` or a component instance must not live under app-level `src/utils`.
 - `apps/cli` may only use core capabilities through `@byfriends/sdk`. Do not import `@byfriends/agent-core` directly in app code.
-  - **Narrow exception — `byf vis`**: the `vis` subcommand imports `@byfriends/vis-server` (a published runtime dependency), which in turn reads `@byfriends/agent-core` for **read-only wire-record format parsing only** (`AGENT_WIRE_PROTOCOL_VERSION` constant and pure `migrateWireRecord` functions). This transitive dependency is scoped strictly to the read-only session visualizer and does NOT touch the Agent/Session/Tool runtime of the main interaction path. See ADR-0021.
+  - There is **no exception**, and the rule is enforced: `scripts/lib/check-app-layering.mjs` (PRD-0038 AC-2.1, run by `bun run test`) scans every file under `apps/**` — including relative specifiers that reach `packages/agent-core/src/**` — and fails on any hit in `src`, with a ratchet budget of 0 for test files. The `byf vis` subcommand is a deprecation shim that starts `@byfriends/web-server` (PRD-0035 R-B4 / ADR-0037 D1); the `@byfriends/vis-server` package it once pulled in is deleted (PRD-0038 R5), so the historical ADR-0021 "read-only visualizer" carve-out no longer describes anything in this tree.
 
 ## ByfTUI Internal Sections
 

@@ -4,7 +4,11 @@
 
 ## 状态
 
-已接受（2026-06-25 修订——原始的"打包器内联"方法被普通的运行时依赖取代；见修订）
+已废止（2026-09-21）——本 ADR 的决策已被整体撤销，正文保留为历史记录。
+
+- 方向变更：`byf vis` 不再启动独立的 vis-server。可视化能力与 live 客户端合并为单一工作台，唯一 HTTP server 路径是 `@byfriends/web-server` 的 `startWebServer`（PRD-0035 R-B4/R-B5、ADR-0037 D1）；`byf vis` 保留为弃用期别名，默认端口 3001 与 `VIS_AUTH_TOKEN` 兼容转发。
+- 包已删除：`@byfriends/vis-server`（以及 `@byfriends/vis-web`、`@byfriends/vis` umbrella 与 `apps/vis/` 整棵树）在 PRD-0038 R5 / AC-5.6 移除。因此本 ADR 的「正面」第一条仍然成立（一次安装即得可视化工具），但实现方式变成 CLI 依赖 `@byfriends/web-server`；「负面」中的 SemVer 义务、额外安装图谱节点、`resolvePublicDir()` 注入与 `neverBundle: ['@byfriends/vis-server']` 一并消失。
+- 「参考」中指向的 `apps/vis/**` 路径已不存在。
 
 ## 背景
 
