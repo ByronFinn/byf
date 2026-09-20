@@ -30,6 +30,13 @@ const args = [
   '--bundle-workspace',
   '--never-bundle',
   '@byfriends/web-server',
+  // Bun is the only official runtime (ADR-0028 / 库运行时契约). The default
+  // `node` target pulls undici's webidl polyfill into the bundle, which throws
+  // at import time under Bun (`new CacheStorage`), so `bun dist/main.mjs` —
+  // i.e. `dev:prod` — could not start at all. Same reason web-server already
+  // passes `--target bun`; see apps/web/AGENTS.md.
+  '--target',
+  'bun',
   '--no-splitting',
   `--define=${BUILT_IN_CATALOG_DEFINE}=${defineValue}`,
 ];
