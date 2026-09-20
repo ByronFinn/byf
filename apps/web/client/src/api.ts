@@ -107,7 +107,12 @@ async function request<T>(
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   body?: unknown,
 ): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    // PRD-0038 AC-1.1:写请求要证明"是本机 byf 客户端有意发起"。同源浏览器请求
+    // 本来就有 Origin 可判,这层标记头让门判定不依赖各浏览器的 Origin 发送差异。
+    'x-byf-requested-with': 'byf-web',
+  };
   const token = authToken();
   if (token !== null && token.length > 0) {
     headers['authorization'] = `Bearer ${token}`;

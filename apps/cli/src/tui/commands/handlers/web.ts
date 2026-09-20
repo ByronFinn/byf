@@ -41,8 +41,9 @@ async function startWebServerOnFreePort(): Promise<WebServerHandle> {
 /**
  * TUI `/web`(PRD-0034 R-D2):同进程后台起 web-server(独立服务入口,服务新/
  * 历史会话;当前 TUI 会话实时镜像为未来演化),打印 URL 并自动打开浏览器;
- * TUI 退出随进程关闭。回环绑定;token 语义沿用 resolveWebAuthToken(回环默认
- * 无 token,设置了 WEB_AUTH_TOKEN 则复用)。
+ * TUI 退出随进程关闭。回环绑定;token 由 server 交付(PRD-0038 AC-1.2:回环下
+ * 本次启动自动生成,设置了 WEB_AUTH_TOKEN 则复用),自动打开的 URL 带 `?token=`,
+ * 否则浏览器拿不到凭证、任何写操作都会 401。
  */
 export function createWebHandlers(host: SlashCommandHost): Record<'web', SlashCommandHandler> {
   return {
@@ -60,8 +61,9 @@ export function createWebHandlers(host: SlashCommandHost): Record<'web', SlashCo
         });
         host.showStatus(`web server: ${handle.url}(退出 TUI 后关闭)`);
         host.appendTranscriptStatus(`byf web: ${handle.url}`);
+        const query = handle.authToken ? `?token=${encodeURIComponent(handle.authToken)}` : '';
         const { default: open } = await import('open');
-        void open(handle.url, { wait: false }).catch(() => {
+        void open(`${handle.url}${query}`, { wait: false }).catch(() => {
           /* 打开失败不阻塞;URL 已打印 */
         });
       } catch (error) {

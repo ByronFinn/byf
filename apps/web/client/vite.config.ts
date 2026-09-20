@@ -13,7 +13,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: `http://localhost:${apiPort}`,
-        changeOrigin: true,
+        // 必须保留浏览器侧的 Host。web-server 的跨源门(PRD-0038 AC-1.1)比较的是
+        // Origin 与请求自身的 Host;`changeOrigin: true` 只把 Host 改写成 api 端口,
+        // Origin 仍是 dev server 端口 → 两者不同源 → 开发态所有写请求 403。
+        changeOrigin: false,
       },
     },
   },

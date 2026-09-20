@@ -101,3 +101,24 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
     }
   });
 });
+
+/**
+ * PRD-0038 AC-1.2:回环下 token 由 server 首启生成,必须经启动日志与 CLI 打开
+ * 的 URL query 交付给浏览器(Q1 裁决),否则写操作在回环下不可用。
+ */
+describe('byf web loopback token delivery (PRD-0038 AC-1.2)', () => {
+  test('回环启动:handle 交付的 token 进入启动日志,浏览器打开 URL 携带 ?token=', async () => {
+    const handle = {
+      host: '127.0.0.1',
+      port: 4100,
+      staticEnabled: true,
+      url: 'http://127.0.0.1:4100',
+      close: () => {},
+      authToken: 'tok-loop-delivery',
+    } as unknown as WebServerHandle;
+    const deps = makeDeps({ startServer: vi.fn().mockResolvedValue(handle) });
+    await expectExit(handleWeb(deps, undefined, { host: '127.0.0.1', port: 4100, open: true }), 0);
+    expect(deps.stdoutText()).toContain('tok-loop-delivery');
+    expect(deps.openUrl).toHaveBeenCalledWith(expect.stringContaining('token=tok-loop-delivery'));
+  });
+});

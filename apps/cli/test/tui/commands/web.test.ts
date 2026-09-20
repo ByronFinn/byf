@@ -18,6 +18,8 @@ function makeHandle(port: number): WebServerHandle {
     port,
     staticEnabled: true,
     url: `http://127.0.0.1:${String(port)}`,
+    // PRD-0038 AC-1.2:回环下 token 由 server 生成并经句柄交付(测试给一个固定值)。
+    authToken: `tok-${String(port)}`,
     close: vi.fn(),
   };
 }
@@ -39,7 +41,11 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
     await handlers['web']('');
     expect(startWebServerMock).toHaveBeenCalledWith(expect.objectContaining({ host: '127.0.0.1' }));
     expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('http://127.0.0.1:4100'));
-    expect(openMock).toHaveBeenCalledWith('http://127.0.0.1:4100', expect.anything());
+    // 自动打开的 URL 必须带 server 交付的 token,否则浏览器拿不到凭证(PRD-0038 AC-1.2)。
+    expect(openMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:4100?token=tok-4100',
+      expect.anything(),
+    );
   });
 
   test('重复 /web 不再起第二个实例;shutdown 钩子关闭服务', async () => {

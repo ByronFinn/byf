@@ -1,8 +1,9 @@
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 
 import { resolveByfHome } from './config';
 import { createApiRouter } from './routes';
@@ -103,9 +104,101 @@ function isAuthorized(
   return false;
 }
 
+/** 回环自动 token 的生成(每次启动一个;经启动日志与 CLI 打开的 URL 交付)。 */
+function generateAuthToken(): string {
+  return randomBytes(24).toString('hex');
+}
+
+/**
+ * 生效 token:显式配置值(LAN 模式必填)优先,否则本次启动生成回环 token。
+ * `explicit` 决定只读请求是否免 token——免 token 只属于回环自动 token。
+ */
+function resolveAuthToken(configured: string | undefined): {
+  token: string;
+  explicit: boolean;
+} {
+  if (configured !== undefined && configured.length > 0) {
+    return { token: configured, explicit: true };
+  }
+  return { token: generateAuthToken(), explicit: false };
+}
+
+/**
+ * 非浏览器调用者(本机 CLI / 脚本 / 自动化)表明"这是 byf 客户端在有意调用"的标记头。
+ * 浏览器同源请求由 Origin 门放行,不需要它。
+ */
+export const BYF_REQUESTED_WITH_HEADER = 'x-byf-requested-with';
+
+/** 只读方法(SPA 首屏与 SSE 事件流走 GET)。 */
+function isReadOnlyMethod(method: string): boolean {
+  return method === 'GET' || method === 'HEAD';
+}
+
+/** Content-Type 门只作用于"带 body 的写":无 body 的 DELETE/POST 不该被它误杀。 */
+function hasRequestBody(request: Request): boolean {
+  return request.body !== null;
+}
+
+function isJsonContentType(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  return value.split(';', 1)[0]!.trim().toLowerCase() === 'application/json';
+}
+
+/** Origin 与请求自身同源(比较 host;缺端口按协议默认补全)。 */
+function isSameOrigin(origin: string, requestUrl: string): boolean {
+  try {
+    return new URL(origin).host === new URL(requestUrl).host;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * PRD-0038 AC-1.1 的跨站简单请求门(写请求专用)。返回 `null` 表示放行。
+ *
+ * 顺序固定为 Content-Type → Origin/标记头 → token:
+ * - 先 Content-Type:阻断"无预检的表单式简单请求"(text/plain / urlencoded / 缺失),
+ *   这类请求连不上真实客户端,没必要再看后面的门。
+ * - 再 Origin/标记头:显式跨源 Origin 一律拒绝(即使带标记头——标记头不是跨源豁免);
+ *   无 Origin 的非浏览器调用者必须自带标记头(Q1 条件 2)。
+ * - 最后 token:只有"形态合法的写"才值得一次凭证挑战(401 + `www-authenticate`),
+ *   也让 #11 的 5 种失败凭证落在同一个响应体上。
+ * 三层都是纯判定,任何一层拒绝都直接结构化 4xx,不进入路由,因此"无 token 且无标记头"
+ * 这类组合同时命中两层时也只是被前一层拒绝,不会抛错成 500。
+ */
+function writeGateRejection(c: Context): Response | null {
+  if (hasRequestBody(c.req.raw) && !isJsonContentType(c.req.header('content-type'))) {
+    return c.json(
+      {
+        error: 'write requests require Content-Type: application/json',
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+      },
+      415,
+    );
+  }
+  const origin = c.req.header('origin');
+  if (origin !== undefined && !isSameOrigin(origin, c.req.url)) {
+    return c.json({ error: 'cross-origin request rejected', code: 'FORBIDDEN' }, 403);
+  }
+  const marker = c.req.header(BYF_REQUESTED_WITH_HEADER);
+  if (origin === undefined && (marker === undefined || marker.length === 0)) {
+    return c.json(
+      {
+        error: `missing ${BYF_REQUESTED_WITH_HEADER} marker header (required for non-browser callers)`,
+        code: 'FORBIDDEN',
+      },
+      403,
+    );
+  }
+  return null;
+}
+
 export interface CreateAppOptions {
   readonly manager: WebSessionManager;
-  /** 鉴权 token;省略时仅 API 无鉴权(回环默认)。 */
+  /**
+   * 鉴权 token。省略时(回环默认)由本次启动随机生成一个,并经 {@link
+   * CreateAppResult.authToken} 交付给启动日志与 CLI。
+   */
   readonly authToken?: string;
   /** 持有构建后 SPA 资产的目录;省略时自动探测。 */
   readonly publicDir?: string;
@@ -116,24 +209,34 @@ export interface CreateAppOptions {
 export interface CreateAppResult {
   readonly app: Hono;
   readonly staticEnabled: boolean;
+  /** 实际生效的 token:显式配置值,或本次启动自动生成的回环 token。 */
+  readonly authToken: string;
 }
 
-/** 构建 Hono 应用:`/api/*` 路由 + 鉴权 + SPA 静态回退。 */
+/** 构建 Hono 应用:`/api/*` 路由 + 安全门 + SPA 静态回退。 */
 export async function createApp(options: CreateAppOptions): Promise<CreateAppResult> {
   const app = new Hono();
 
   const api = new Hono();
-  const authToken = options.authToken;
-  if (authToken !== undefined && authToken.length > 0) {
-    api.use('*', async (c, next) => {
+  const { token: authToken, explicit } = resolveAuthToken(options.authToken);
+  api.use('*', async (c, next) => {
+    const readOnly = isReadOnlyMethod(c.req.method);
+    if (!readOnly) {
+      const rejection = writeGateRejection(c);
+      if (rejection !== null) return rejection;
+    }
+    // 只读免 token 只属于"未显式配置 token 的回环自动 token"(免 token 是为了不破坏
+    // SPA 首屏);显式配置 token(LAN 模式)时一律要求凭证。
+    if (!(readOnly && !explicit)) {
       if (isAuthorized(c.req.header('authorization'), c.req.query('token'), authToken)) {
         await next();
         return;
       }
       c.header('www-authenticate', 'Bearer realm="byf-web"');
       return c.json({ error: 'unauthorized', code: 'UNAUTHORIZED' }, 401);
-    });
-  }
+    }
+    await next();
+  });
   api.route('/', createApiRouter(options.manager, options.homeDir ?? resolveByfHome()));
   app.route('/api', api);
 
@@ -218,5 +321,5 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
     });
   }
 
-  return { app, staticEnabled: staticSource !== null };
+  return { app, staticEnabled: staticSource !== null, authToken };
 }

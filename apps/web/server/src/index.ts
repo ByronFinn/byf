@@ -12,6 +12,7 @@ async function main(): Promise<void> {
       host,
       port: handle.port,
       staticEnabled: handle.staticEnabled,
+      configInvalid: handle.configInvalid,
     }),
   );
 }

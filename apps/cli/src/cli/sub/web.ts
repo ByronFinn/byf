@@ -73,7 +73,9 @@ export async function handleWeb(
   }
 
   const target = sessionId === undefined ? '/' : `/sessions/${sessionId}`;
-  const authToken = process.env['WEB_AUTH_TOKEN'];
+  // PRD-0038 AC-1.2:token 由 server 交付(回环下是本次启动自动生成的 token,
+  // LAN 下是 WEB_AUTH_TOKEN)。回环写操作一律要求 token,没有交付面就等于不可用。
+  const authToken = handle.authToken ?? process.env['WEB_AUTH_TOKEN'];
   // R-D1:banner 列出所有非回环网卡的完整访问 URL(含 token);自动打开浏览器
   // 仍用 localhost(绑定 0.0.0.0 等非回环地址时 handle.url 不可直接打开)。
   // 仅非回环绑定时收集 LAN IP:回环下服务器未监听这些地址,打印 URL 既误导
@@ -86,9 +88,14 @@ export async function handleWeb(
       port: handle.port,
       staticEnabled: handle.staticEnabled,
       lanIps,
+      // PRD-0038 AC-1.7：损坏的配置不再阻止启动，横幅必须把降级说出来。
+      configInvalid: handle.configInvalid,
     }),
   );
-  const openUrl = `http://127.0.0.1:${String(handle.port)}${target}`;
+  // 只把 server 交付的 token 拼进自动打开的 URL(SPA 首访即从 query 取走并持久化,
+  // 见 apps/web/client/src/api.ts);env token 由 LAN 行的 URL 承担。
+  const query = handle.authToken ? `?token=${encodeURIComponent(handle.authToken)}` : '';
+  const openUrl = `http://127.0.0.1:${String(handle.port)}${target}${query}`;
 
   if (opts.open) {
     try {
