@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { AgentHarness } from './agent-harness';
 import type { AgentHarnessConfig } from './agent-harness';
-export { synthesizeOrphanToolResults } from './transcript';
 import { WireSession } from './session/session';
 import { InMemorySessionStorage } from './storage/memory';
 import type { SessionStorage } from './storage/storage';
+
+export { synthesizeOrphanToolResults } from './transcript';
 
 /**
  * fork 与子代理（PRD-0037 #330，v2 §16）。

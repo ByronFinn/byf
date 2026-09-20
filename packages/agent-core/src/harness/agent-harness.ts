@@ -44,8 +44,7 @@ import type { SessionStorage } from './storage/storage';
 import type { LaneId, StoredPromptOrigin } from './storage/types';
 import { MAIN_LANE_ID } from './storage/types';
 import { SpanTree } from './telemetry';
-import { TranscriptBridge, projectEntryMessage } from './transcript';
-import { synthesizeOrphanToolResults } from './transcript';
+import { TranscriptBridge, projectEntryMessage, synthesizeOrphanToolResults } from './transcript';
 
 /**
  * AgentHarness（PRD-0037 #323/#324，ADR-0041 并行新建）。
