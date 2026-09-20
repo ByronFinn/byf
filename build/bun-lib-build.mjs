@@ -9,7 +9,7 @@
  *     name as external (so node_modules are never inlined), unless listed in
  *     `--always-bundle` / matched by `--bundle-workspace`.
  *   - Workspace siblings (`@byfriends/*`) are external by default; pass
- *     `--bundle-workspace` to inline them (node-sdk, vis-server, cli).
+ *     `--bundle-workspace` to inline them (e.g. node-sdk, cli).
  *   - Raw `.md` / `.yaml` imports are loaded as text via `loader` (same role as
  *     the former tsdown `raw-text-plugin` / root `bunfig.toml` loaders).
  *   - Emits `.mjs` entry/chunk names to match `publishConfig.exports`.
@@ -151,8 +151,6 @@ const workspacePackages = [
   '@byfriends/kosong',
   '@byfriends/kaos',
   '@byfriends/oauth',
-  '@byfriends/vis-server',
-  '@byfriends/vis-web',
   '@byfriends/cli',
   '@byfriends/web-server',
   '@byfriends/web-client',

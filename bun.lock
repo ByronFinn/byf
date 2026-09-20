@@ -13,7 +13,7 @@
         "@types/bun": "1.3.14",
         "@types/node": "^22.20.1",
         "lint-staged": "16.4.0",
-        "oxfmt": "^0.55.0",
+        "oxfmt": "0.55.0",
         "oxlint": "1.59.0",
         "oxlint-tsgolint": "0.20.0",
         "publint": "0.3.18",
@@ -58,13 +58,6 @@
     "apps/cli/npm/linux-x64": {
       "name": "@byfriends/cli-linux-x64",
       "version": "0.5.0",
-    },
-    "apps/vis/server": {
-      "name": "@byfriends/vis-server",
-      "version": "0.4.1",
-      "dependencies": {
-        "@byfriends/web-server": "workspace:^",
-      },
     },
     "apps/web": {
       "name": "@byfriends/web",
@@ -356,8 +349,6 @@
     "@byfriends/sdk": ["@byfriends/sdk@workspace:packages/node-sdk"],
 
     "@byfriends/storage": ["@byfriends/storage@workspace:packages/storage"],
-
-    "@byfriends/vis-server": ["@byfriends/vis-server@workspace:apps/vis/server"],
 
     "@byfriends/web": ["@byfriends/web@workspace:apps/web"],
 

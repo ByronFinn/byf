@@ -5,8 +5,10 @@
  * Replaces apps/cli/tsdown.config.ts as the official JS build entry.
  * - Single entry `src/main.ts` → `dist/main.mjs`
  * - Shebang banner
- * - Inlines workspace packages except `@byfriends/vis-server` (keeps SPA assets
- *   co-located with the published runtime dependency)
+ * - Inlines workspace packages except `@byfriends/web-server` (keeps SPA assets
+ *   co-located with the published runtime dependency that serves them; the
+ *   former `@byfriends/vis-server` never-bundle entry was dropped together with
+ *   the package — PRD-0038 R5 / AC-5.6)
  * - Injects `__BYF_CODE_BUILT_IN_CATALOG__` from BYF_CODE_BUILT_IN_CATALOG_FILE
  * - Raw `.md` / `.yaml` via bun-lib-build loader
  */
@@ -26,8 +28,6 @@ const args = [
   './src/main.ts',
   '--shebang',
   '--bundle-workspace',
-  '--never-bundle',
-  '@byfriends/vis-server',
   '--never-bundle',
   '@byfriends/web-server',
   '--no-splitting',

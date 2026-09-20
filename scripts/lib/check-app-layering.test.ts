@@ -72,8 +72,9 @@ describe('AC-2.1 apps-layer boundary gate (real repository)', () => {
 
   it('scanned a non-trivial number of app source files (guard is not a no-op)', async () => {
     const result = await checkAppLayering(REPO_ROOT);
-    // apps/cli + apps/web + apps/vis together are in the hundreds; anything this
-    // low means the walk stopped finding the apps tree at all.
+    // apps/cli + apps/web are in the hundreds (450 tracked source files at the
+    // time of writing); anything this low means the walk stopped finding the
+    // apps tree at all.
     expect(result.filesScanned).toBeGreaterThan(200);
   });
 
