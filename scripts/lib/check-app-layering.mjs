@@ -39,17 +39,19 @@ export const FORBIDDEN_RELATIVE_DIRS = Object.freeze(['packages/agent-core']);
 /**
  * Explicit exception table. Every entry is one exact file plus a written reason.
  *
- * Deliberately empty. Two candidate exceptions were checked against the code and
+ * Deliberately empty. Both candidate exceptions were checked against the code and
  * neither needs an entry:
- *   - `byf vis`: `apps/vis/server/src/**` is a deprecated re-export shim of
- *     `@byfriends/web-server` (PRD-0035 R-B5 / ADR-0037 D1) and imports
- *     `@byfriends/agent-core` nowhere, so the `apps/cli/AGENTS.md` vis-server
- *     clause describes a *transitive* dependency that no longer exists. Q7 of
- *     PRD-0038 removes the shim package in G5 (AC-5.6) and with it the last
- *     reason to ever list an entry here.
- *   - Test files: no app test imports the package by name either; the single
- *     test-scope escape that does exist is a relative path, and it is held down
- *     by APP_TEST_VIOLATION_BUDGET rather than whitelisted.
+ *   - `byf vis`: removed in PRD-0038 R5 (AC-5.6). `apps/vis/server/src/**` was a
+ *     deprecated re-export shim of `@byfriends/web-server` (PRD-0035 R-B5 /
+ *     ADR-0037 D1) that imported `@byfriends/agent-core` nowhere, so the retired
+ *     `apps/cli/AGENTS.md` vis-server clause described a transitive dependency that
+ *     no longer existed. The package directory is gone; nothing here can reference it.
+ *   - Test files: no app test imports the package by name, and the single
+ *     test-scope escape that did exist (a relative reach into
+ *     `packages/agent-core/src/logging/logger` from
+ *     `apps/cli/test/e2e/local-logging-export.e2e.test.ts`) was closed by routing
+ *     that test through `@byfriends/sdk`'s public surface, so the test budget below
+ *     is 0 rather than a whitelisted exception.
  *
  * A directory prefix, glob or wildcard is rejected by `validateExceptionTable`, so
  * an exception can never silently widen into a whole-folder exemption.
@@ -61,16 +63,14 @@ export const LAYERING_EXCEPTIONS = Object.freeze([]);
 /** Budget for violations found in the `test` scope. Ratchet — lower it, never
  * raise it without a written justification in the PRD-0038 record.
  *
- * Baseline at introduction is 1, and it is a *known* escape, not a tolerated
- * pattern:
- *   apps/cli/test/e2e/local-logging-export.e2e.test.ts:13 reaches
- *   `packages/agent-core/src/logging/logger` for `__resetRootLoggerForTest`, a
- *   test-only reset hook that `@byfriends/sdk` does not re-export. Closing it
- *   means either exposing that hook through the SDK or dropping the direct
- *   reach; the source-layer rule (budget 0, hard fail) already covers every
- *   non-test file, so this entry blocks nothing today.
+ * 0 as of PRD-0038 R5 (AC-2.1 收口). It was introduced at 1 to hold a single known
+ * escape — an e2e test reaching `__resetRootLoggerForTest` (an `@internal` hook) by
+ * relative path. That test now flushes through `flushDiagnosticLogs()` from
+ * `@byfriends/sdk` and lets `ByfHarness` re-point the root logger, which is the
+ * documented public behaviour, so there is nothing left to tolerate. The source
+ * layer (hard fail, budget 0) and the test layer are now held to the same line.
  */
-export const APP_TEST_VIOLATION_BUDGET = 1;
+export const APP_TEST_VIOLATION_BUDGET = 0;
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.jsx']);
 
