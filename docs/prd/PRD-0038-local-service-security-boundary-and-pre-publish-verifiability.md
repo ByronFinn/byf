@@ -187,5 +187,7 @@ resume/fork 身份语义成为 SDK 契约层的单一定义并被三个表面复
 - **Created by**: 主 agent（2026-09-21），依据 `.qoder/analysis/2026-09-20/` 六份审计 + 综合报告 + `10-industry-benchmark.md`（deep-research run `wf_44c46e23-34c`，11 条存活 claim）。
 - **Grilled by**: 用户 2026-09-21 授权全程自主决策，Q1-Q7 由本 agent 依第一性原理 + 代码事实 + 对标强度裁决并随记理由。
 - **Issue**: 待 /story 阶段补建（父 Issue 建议挂 PRD-0026 性能线与 PRD-0037 之外的独立父项）。
-- **Implemented by**: 待补。
-- **Reviewed by**: 待补。
+- **Implemented by**: 主 agent + sub-agent（2026-09-21）— R1 安全边界（web 三层门与回环自动 token、`/api/mcp/test` 命令白名单、密钥掩码改键路径身份、点号键明文补口、损坏配置可读可修且服务可启动、headless 审批治理与审计痕迹）、R2（分层门禁扫描器 src 违规 0/test 域 budget 0、发布集合判据、agent-core barrel 错误注释更正）、R3（SDK 层身份表与三档重放分类深冻结、截断式故障注入、压缩 refill 跨轮累计、16 处对外文案 en/zh 同步）、R5（五道 CI 门禁接线且本地可同命令复现、flaky 真因修正、oxfmt 精确 pin、vis-server 退场、文档漂移清理）、R6（展示载荷 zod 单源 + never 哨兵、staking 基线失效）、R4（三臂启动/体积/空闲 CPU 基线与 gate、`--bytecode` 与 `STREAMING_UI_FLUSH_MS` 实测裁决）。
+  - 实施中额外发现并修复：`resume` 复用 live 首跑的 attempt id 空间导致恢复时新结果被幂等追加静默吞掉、同一 action 重跑；CLI 的 JS 产物因 `--target node` 在 Bun 下 import 即崩（`dev:prod` 长期不可用）。
+  - 未纳入本轮（见 Out of Scope）：AC-2.4 公开面策展、`--bytecode` 采纳落地（裁决为采纳，带三前置，见 `docs/perf/REPORT-0038.md`）、#306 类型错误清零、v2 引擎接线（#339/#342）。
+- **Reviewed by**: 待 /review。
