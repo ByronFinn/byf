@@ -1,5 +1,10 @@
 # PR / push quality gates — Bun is the sole install and run path (ADR 0028 / PRD-0020 #216).
 # Pin matches engines.bun lower bound and grill #4: Bun 1.3.14.
+#
+# The PRD-0038 R5 gates (AC-5.1 … AC-5.5) run here as ordinary steps of this one job,
+# each invoking `bun scripts/ci-gates.mjs <gate>` — the exact command a contributor runs
+# locally. Every gate step is fail-the-job: no `continue-on-error`, no `if: failure()`
+# rescue, no soft warning. A gate that cannot go red is not a gate.
 
 name: CI
 
@@ -19,7 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # `changesets` (AC-5.3) diffs this checkout against its base branch, so the
+      # history has to be there: fetch-depth: 0 is a requirement of that gate, not
+      # a preference.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -27,6 +37,45 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      # --- gates that need nothing but the checkout + install, so they fail fast ---
+
+      # AC-5.1 — credential shapes in the tracked tree.
+      - name: 'Gate: secrets'
+        run: bun scripts/ci-gates.mjs secrets
+
+      # AC-5.5 — no `node` in package.json scripts or any workflow run step (ADR-0028).
+      - name: 'Gate: no-node'
+        run: bun scripts/ci-gates.mjs no-node
+
+      # AC-5.3 — every changed publishable package must have a changeset naming it.
+      # On a pull request the base is the PR target; on a push to main the diff against
+      # origin/main is empty, which is the correct trivial pass (a push that has already
+      # landed cannot be told to add a changeset — the PR that carried it was checked).
+      - name: 'Gate: changesets'
+        env:
+          CHANGESET_BASE: origin/${{ github.base_ref || 'main' }}
+        run: bun scripts/ci-gates.mjs changesets --base "$CHANGESET_BASE"
+
+      # AC-5.7 — oxfmt is an exact pin in package.json (0214ef1 is a whole-tree reflow
+      # caused by a floating formatter). Assert the version actually installed, so a
+      # re-resolution or a cached runner image cannot silently change the formatter
+      # under `fmt:check`. Fails on drift; it never reformats anything.
+      - name: 'Gate: formatter pin'
+        env:
+          OXFMT_PIN: 0.55.0
+        run: |
+          set -eu
+          # `oxfmt --version` prints `Version: X.Y.Z` plus a trailing blank line, so
+          # grab the version token instead of "the last line".
+          actual="$(bun x oxfmt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ "$actual" != "$OXFMT_PIN" ]; then
+            echo "::error::oxfmt installed is [$actual] but package.json pins $OXFMT_PIN." \
+              "A different formatter version produces a different tree-wide format;" \
+              "upgrade deliberately (pin + this step together), never by re-running fmt."
+            exit 1
+          fi
+          echo "oxfmt $actual matches the declared pin"
 
       - name: Lint
         run: bun run lint
@@ -45,3 +94,41 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      # --- gates that need build output or the network, so they run after Build ---
+
+      # AC-5.4 — test-surface type errors must not exceed scripts/lib/test-typecheck-baseline.json.
+      # Deliberately placed after Build: `tsc -p tsconfig.test.json` resolves @byfriends/sdk
+      # through its generated .d.ts, so the error count is only reproducible against built
+      # artifacts — which is exactly what the local reproduction (`bun run build` first, then
+      # `bun run gate:typecheck`) does too.
+      - name: 'Gate: typecheck-ratchet'
+        timeout-minutes: 15
+        run: bun scripts/ci-gates.mjs typecheck-ratchet
+
+      # AC-5.2 — OSV advisories vs scripts/lib/osv-advisory-baseline.json, plus registry
+      # provenance and redistribution licenses.
+      # Network contract, stated plainly: this step POSTs one query per locked package
+      # (~1.3k requests) to https://api.osv.dev with 8-way concurrency and no retry.
+      # GitHub-hosted ubuntu-latest has plain HTTPS egress, so no proxy or credential is
+      # needed and nothing here requires a secret. Failure semantics are fail-closed by
+      # design: any query that does not return 2xx is counted and turns the gate red
+      # ("the audit did not complete"), because an unreachable advisory database must
+      # never be reported as "no known vulnerabilities". A transient OSV outage therefore
+      # blocks CI — that is the accepted trade, and re-running the job is the remedy.
+      # `--no-osv` exists for offline debugging only and is never passed here.
+      - name: 'Gate: deps'
+        timeout-minutes: 10
+        run: bun scripts/ci-gates.mjs deps
+
+      # The audit report is written before the gate verdict, so it exists on red runs too
+      # — which is the only time anyone reads it. This is not a gate step: `!cancelled()`
+      # cannot turn a failed gate green, the gate above has already decided the job.
+      - name: Upload dependency audit report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 14

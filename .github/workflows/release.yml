@@ -44,9 +44,6 @@ jobs:
       - name: Build packages
         run: bun run build:packages
 
-      - name: Build vis (web → server)
-        run: bun run build:vis
-
       - name: Build native binary (bun compile)
         env:
           BYF_CODE_BUILD_TARGET: ${{ matrix.target }}
@@ -174,7 +171,9 @@ jobs:
             fi
             # Monorepo keeps private:true so changesets does not ship empty
             # platform tarballs; clear it for the real binary publish.
-            node -e "
+            # `bun -e` (not `node -e`): ADR-0028 makes Bun the only toolchain, and
+            # `bun scripts/ci-gates.mjs no-node` keeps this line from regressing.
+            bun -e "
               const fs = require('fs');
               const p = process.argv[1];
               const j = JSON.parse(fs.readFileSync(p, 'utf8'));
