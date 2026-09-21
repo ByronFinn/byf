@@ -181,7 +181,7 @@ resume/fork 身份语义成为 SDK 契约层的单一定义并被三个表面复
 - 遥测体系（现 noop telemetry，PRD-0037 C8）与 prompt cache 命中率度量（对标本轮零存活 claim）。
 - post-publish 清白环境端到端安装冒烟（依赖真实 Release，只能作为后续独立项）。
 - 逐符号的完整 API 报告（依赖 API Extractor `apiReport`，与 SDK 稳定性基线同一件事）。AC-2.4 本轮交付的是**不依赖构建产物的 barrel 形状钉**（star-export 集合 + 具名转发清单），堵住"评审时看不见"的那部分。
-- 启动/体积基线的 macOS 侧数值。实施后修订：CI 新增 `macos-smoke` job（install / typecheck / 全量 test / 本机 compile darwin-arm64 / smoke），macOS 断链在 PR 阶段即暴露；基准数值本身仍为 linux-x64 单平台。
+- 启动/体积基线的 macOS 侧数值。实施后修订：CI 新增 `macos-smoke` job（install / typecheck / 全量 test / 本机 compile darwin-arm64 / smoke），macOS 断链在 PR 阶段即暴露；**该 job 已实跑并全绿**，其价值立刻兑现——release 家族（release/bytecode）的 compile-entry 生成码缺陷与 5 个 spawn 类测试在共享 runner 上的计时预算问题都只在 darwin 上现形（见"续批"）。基准数值本身仍为 linux-x64 单平台。
 
 ## 实施后新增发现（release 阻断）
 
@@ -201,5 +201,15 @@ compile-entry 起存在；`release.yml` 仅发版时运行而期间无发版，d
 - **Issue**: 待 /story 阶段补建（父 Issue 建议挂 PRD-0026 性能线与 PRD-0037 之外的独立父项）。
 - **Implemented by**: 主 agent + sub-agent（2026-09-21）— R1 安全边界（web 三层门与回环自动 token、`/api/mcp/test` 命令白名单、密钥掩码改键路径身份、点号键明文补口、损坏配置可读可修且服务可启动、headless 审批治理与审计痕迹）、R2（分层门禁扫描器 src 违规 0/test 域 budget 0、发布集合判据、agent-core barrel 错误注释更正）、R3（SDK 层身份表与三档重放分类深冻结、截断式故障注入、压缩 refill 跨轮累计、16 处对外文案 en/zh 同步）、R5（五道 CI 门禁接线且本地可同命令复现、flaky 真因修正、oxfmt 精确 pin、vis-server 退场、文档漂移清理）、R6（展示载荷 zod 单源 + never 哨兵、staking 基线失效）、R4（三臂启动/体积/空闲 CPU 基线与 gate、`--bytecode` 与 `STREAMING_UI_FLUSH_MS` 实测裁决）。
   - 实施中额外发现并修复：`resume` 复用 live 首跑的 attempt id 空间导致恢复时新结果被幂等追加静默吞掉、同一 action 重跑；CLI 的 JS 产物因 `--target node` 在 Bun 下 import 即崩（`dev:prod` 长期不可用）。
-  - 未纳入本轮（见 Out of Scope）：AC-2.4 公开面策展、`--bytecode` 采纳落地（裁决为采纳，带三前置，见 `docs/perf/REPORT-0038.md`）、#306 类型错误清零、v2 引擎接线（#339/#342）。
+  - 未纳入本轮（见 Out of Scope）：逐符号完整 API 报告（API Extractor `apiReport`）、v2 引擎接线（#339 / #342）。
+
+### 续批（2026-09-21 二批，用户指令"全部立刻修复"）
+
+- **AC-2.4 落地**：barrel 形状钉（star-export 集合 + 具名转发清单 + 类型-only 源）进 CI，注释掉的 export 不计、别名按别名记、移除记为 breaking（commit cb6c32e）。
+- **#306 清零**：`typecheck:tests` 1805 → **0**，ratchet 基线改记 0，AC-5.4 由"只减不增"变成**零容忍**。度量上的关键结论：1805 里只有约 190 是测试真错，其余是项目配置缺口（根 `tsconfig.test.json` 未声明浏览器 `lib`、缺 `*.md`/`*.yaml`/`*.module.css` 的 ambient 声明）——即"门禁用错了世界去检查被测代码"。详见 #306 关闭记录。
+- **类型钉住行为的两处真缺陷**（是清零过程的副产品，非重写测试）：`Omit` 对联合不可分配，`LaneView.append` 与 `V2EventBus.emit` 两处入参/返回被压成公共键并由 cast 兜住，改成 `DistributiveOmit` 后立刻报出 `run_end` 的 `outcome` 少声明 `'suspended'`（commit 941a131）。教训与 AC-2.1/2.2 同源：**被 cast 兜住的类型等于没有类型**。
+- **`--bytecode` 采纳落地**：新增 `--profile=bytecode` 档（默认 release 不变），且 release 家族（release/bytecode）此前必然失败的生成码缺陷已修（commit 36064cf）。
+- **deps 门禁假红**：OSV 查询改为 3 次退避重试，4xx 不重试、耗尽仍计入 fail-closed 计数——"审计没跑完"依然不等于"没有已知漏洞"（`scripts/lib/dependency-audit-retry.test.ts` 覆盖三种结局）。
+- **`macos-smoke` 首跑结论**：`Compile darwin-arm64 binary` 与 `Smoke darwin-arm64 binary` 首次真实通过（run 35555363429）。首跑曾报 5 个 spawn 类测试在 darwin 超时，按 `BYF_TEST_CONCURRENCY` 降并发后全绿，判定为**共享 runner 负载撞上测试内写死的真实计时预算**，而非产品缺陷（#343 关闭记录留了重开判据）。同一形态在 Linux 复现过一次并已按同一理由修正（turn 等待守卫 1s → 10s，外层 `it` timeout 必须大于内层守卫）。附带收益：type-aware lint 现在在 CI（lint 在 build 前）与本地（build 后）两种顺序下结论一致。
+
 - **Reviewed by**: 待 /review。
