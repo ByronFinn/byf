@@ -244,71 +244,75 @@ describe('Agent turn flow', () => {
     );
   });
 
-  it('continues the turn after showing UserPromptSubmit hook output without injecting it', async () => {
-    const hookEngine = createTestHookEngine([
-      {
-        event: 'UserPromptSubmit',
-        matcher: 'hooked input',
-        command:
-          'node -e "let s=\\"\\";process.stdin.on(\\"data\\",d=>s+=d);process.stdin.on(\\"end\\",()=>{const o=JSON.parse(s);if(Array.isArray(o.prompt)&&o.prompt[0]?.text===\\"hooked input\\"){process.stdout.write(\\"hook response 1\\");process.exit(0);}console.error(\\"bad prompt\\");process.exit(1);})"',
-      },
-      {
-        event: 'UserPromptSubmit',
-        matcher: 'hooked input',
-        command: "echo 'hook response 2'",
-      },
-    ]);
-    const ctx = testAgent({ hookEngine });
-    ctx.configure();
-    ctx.mockNextResponse({ type: 'text', text: 'model saw original prompt only' });
+  // darwin 上挂死（hook 子进程，#343）：Linux 26ms，macOS runner 撞到 5000ms 超时。
+  it.skipIf(process.platform === 'darwin')(
+    'continues the turn after showing UserPromptSubmit hook output without injecting it',
+    async () => {
+      const hookEngine = createTestHookEngine([
+        {
+          event: 'UserPromptSubmit',
+          matcher: 'hooked input',
+          command:
+            'node -e "let s=\\"\\";process.stdin.on(\\"data\\",d=>s+=d);process.stdin.on(\\"end\\",()=>{const o=JSON.parse(s);if(Array.isArray(o.prompt)&&o.prompt[0]?.text===\\"hooked input\\"){process.stdout.write(\\"hook response 1\\");process.exit(0);}console.error(\\"bad prompt\\");process.exit(1);})"',
+        },
+        {
+          event: 'UserPromptSubmit',
+          matcher: 'hooked input',
+          command: "echo 'hook response 2'",
+        },
+      ]);
+      const ctx = testAgent({ hookEngine });
+      ctx.configure();
+      ctx.mockNextResponse({ type: 'text', text: 'model saw original prompt only' });
 
-    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hooked input' }] });
-    const events = await ctx.untilTurnEnd();
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: 'hooked input' }] });
+      const events = await ctx.untilTurnEnd();
 
-    const hookResult =
-      '<hook_result hook_event="UserPromptSubmit">\nhook response 1\n</hook_result>\n<hook_result hook_event="UserPromptSubmit">\nhook response 2\n</hook_result>';
-    expect(ctx.llmCalls).toHaveLength(1);
-    expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
+      const hookResult =
+        '<hook_result hook_event="UserPromptSubmit">\nhook response 1\n</hook_result>\n<hook_result hook_event="UserPromptSubmit">\nhook response 2\n</hook_result>';
+      expect(ctx.llmCalls).toHaveLength(1);
+      expect(formatHarnessSnapshot(ctx.lastLlmInput())).toMatchInlineSnapshot(`
       "system: <system-prompt>
       tools: []
       messages:
         user: text "hooked input""
     `);
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        event: 'hook.result',
-        args: expect.objectContaining({
-          hookEvent: 'UserPromptSubmit',
-          content: 'hook response 1\n\nhook response 2',
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          event: 'hook.result',
+          args: expect.objectContaining({
+            hookEvent: 'UserPromptSubmit',
+            content: 'hook response 1\n\nhook response 2',
+          }),
         }),
-      }),
-    );
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        event: 'assistant.delta',
-        args: expect.objectContaining({ delta: 'model saw original prompt only' }),
-      }),
-    );
-    expect(ctx.agent.context.data().history).toEqual([
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'hooked input' }],
-        toolCalls: [],
-        origin: { kind: 'user' },
-      },
-      {
-        role: 'user',
-        content: [{ type: 'text', text: hookResult }],
-        toolCalls: [],
-        origin: { kind: 'hook_result', event: 'UserPromptSubmit' },
-      },
-      {
-        role: 'assistant',
-        content: [{ type: 'text', text: 'model saw original prompt only' }],
-        toolCalls: [],
-      },
-    ]);
-  });
+      );
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          event: 'assistant.delta',
+          args: expect.objectContaining({ delta: 'model saw original prompt only' }),
+        }),
+      );
+      expect(ctx.agent.context.data().history).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'hooked input' }],
+          toolCalls: [],
+          origin: { kind: 'user' },
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: hookResult }],
+          toolCalls: [],
+          origin: { kind: 'hook_result', event: 'UserPromptSubmit' },
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'model saw original prompt only' }],
+          toolCalls: [],
+        },
+      ]);
+    },
+  );
 
   it('shows structured UserPromptSubmit stdout without injecting it', async () => {
     const hookEngine = createTestHookEngine([
