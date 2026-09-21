@@ -171,7 +171,18 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # Concurrency is dialled down from the default 10 on purpose, and it is a
+      # hypothesis under test rather than a workaround to keep: every darwin
+      # failure so far is a *timeout* (never an assertion mismatch) on a test that
+      # spawns a real child process — `echo ok` through runHook included, which
+      # rules out "the fixture needs a binary macOS lacks". macos-14 gives 4 cores
+      # to 10 concurrent bun processes that each fork `detached` process groups
+      # (packages/kaos/src/local.ts:507), so runner load has to be eliminated as
+      # the cause before #343 is treated as a product bug and any test is skipped.
+      # Green at 2 means the hangs are load; red at 2 means they are real.
       - name: Test
+        env:
+          BYF_TEST_CONCURRENCY: 2
         run: bun run test
 
       # The real shipped artifact for this platform. Cross-compiling darwin-arm64
