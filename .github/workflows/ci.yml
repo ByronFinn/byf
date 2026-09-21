@@ -109,14 +109,16 @@ jobs:
       # AC-5.2 — OSV advisories vs scripts/lib/osv-advisory-baseline.json, plus registry
       # provenance and redistribution licenses.
       # Network contract, stated plainly: this step POSTs one query per locked package
-      # (~1.3k requests) to https://api.osv.dev with 8-way concurrency and no retry.
-      # GitHub-hosted ubuntu-latest has plain HTTPS egress, so no proxy or credential is
-      # needed and nothing here requires a secret. Failure semantics are fail-closed by
-      # design: any query that does not return 2xx is counted and turns the gate red
+      # (~1.3k requests) to https://api.osv.dev with 12-way concurrency and three
+      # bounded attempts per package (linear backoff) — a single dropped query used to
+      # redden the gate about one run in six locally. GitHub-hosted ubuntu-latest has
+      # plain HTTPS egress, so no proxy or credential is needed and nothing here
+      # requires a secret. Failure semantics remain fail-closed by design: a query that
+      # still does not return 2xx after its attempts is counted and turns the gate red
       # ("the audit did not complete"), because an unreachable advisory database must
-      # never be reported as "no known vulnerabilities". A transient OSV outage therefore
-      # blocks CI — that is the accepted trade, and re-running the job is the remedy.
-      # `--no-osv` exists for offline debugging only and is never passed here.
+      # never be reported as "no known vulnerabilities". A sustained OSV outage
+      # therefore blocks CI — that is the accepted trade, and re-running the job is the
+      # remedy. `--no-osv` exists for offline debugging only and is never passed here.
       - name: 'Gate: deps'
         timeout-minutes: 10
         run: bun scripts/ci-gates.mjs deps
@@ -132,3 +134,48 @@ jobs:
           path: reports/
           if-no-files-found: warn
           retention-days: 14
+
+  # byf ships a darwin-arm64 binary, yet until now nothing in CI ever executed on
+  # macOS: install, build, typecheck and the whole suite were Linux-only evidence
+  # (PRD-0038 R4 recorded the same gap for the startup/size baselines). This is a
+  # smoke job, not a second full matrix — it exists so a macOS-only breakage
+  # surfaces on the PR that caused it rather than in a release build.
+  #
+  # Deliberately excluded: `Gate: deps` (doubles OSV traffic for the same lockfile)
+  # and the tree-wide gates (secrets / no-node / changesets / formatter pin /
+  # format / sherif), whose verdicts are platform-independent.
+  #
+  # macos-14 is pinned rather than `macos-latest`: ubuntu-latest is documented to
+  # migrate to Ubuntu 26 in October 2026, and a silently-moving runner image is
+  # exactly the failure mode AC-5.7 exists to prevent for the formatter.
+  macos-smoke:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      # The real shipped artifact for this platform. Cross-compiling darwin-arm64
+      # from Linux produces the binary but cannot run it, so this is the step that
+      # actually exercises the macOS compile + embed + boot path.
+      - name: Compile darwin-arm64 binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli build:native:release
+
+      - name: Smoke darwin-arm64 binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli test:native:smoke
