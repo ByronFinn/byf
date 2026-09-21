@@ -930,9 +930,16 @@ describe('Session MCP startup', () => {
       expect(events.some((event) => event.type === 'turn.step.started')).toBe(false);
       expect(scripted.calls).toHaveLength(0);
 
+      // Guard against a deadlock, not the assertion itself: what this test
+      // claims is that the first prompt *waits* for MCP startup and then the turn
+      // runs. How long that turn takes is not under test, and the 1s budget was
+      // losing on CI runners (ubuntu-latest, quality job run 35554884206: fail at
+      // 1320ms) because the turn here still has to boot a real MCP stdio child
+      // process on a machine running 10 test files concurrently. A genuine
+      // never-ends regression still fails — it just takes 10s to say so.
       await Promise.race([
         turnEnded,
-        sleep(1_000).then(() => {
+        sleep(10_000).then(() => {
           throw new Error('Timed out waiting for turn.ended');
         }),
       ]);
@@ -944,7 +951,7 @@ describe('Session MCP startup', () => {
       await session.close();
       await rm(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 10 });
     }
-  }, 7000);
+  }, 20000);
 
   it('emits tool.list.updated(mcp.disconnected) when reconnect drops the live tools', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'byf-session-mcp-reconnect-'));
