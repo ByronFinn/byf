@@ -3,6 +3,7 @@ import type { SessionStorage } from '../storage/storage';
 import { MAIN_LANE_ID } from '../storage/types';
 import type {
   AppendEntryInput,
+  AppendEntryInputWithoutLane,
   EntryId,
   JournalLine,
   LaneId,
@@ -180,7 +181,7 @@ export class LaneView {
     return this.session.leaf(this.laneId);
   }
 
-  async append(input: Omit<AppendEntryInput, 'laneId'>): Promise<WireEntry> {
+  async append(input: AppendEntryInputWithoutLane): Promise<WireEntry> {
     return this.session.append({ ...input, laneId: this.laneId } as AppendEntryInput);
   }
 

@@ -9,6 +9,7 @@ import type { LoopEvent } from '../loop/events';
 import type { LLM } from '../loop/llm';
 import { runTurn } from '../loop/run-turn';
 import type { ExecutableTool } from '../loop/types';
+import type { RunOutcome } from './events';
 import { V2EventBus } from './events';
 import {
   clearGoal,
@@ -95,7 +96,7 @@ export interface HarnessLiveEvent {
 
 export interface OperationOutcome {
   readonly opId: string;
-  readonly outcome: 'completed' | 'aborted' | 'failed' | 'suspended';
+  readonly outcome: RunOutcome;
   readonly stopReason?: string;
   readonly errorMessage?: string;
   readonly usage?: TokenUsage;

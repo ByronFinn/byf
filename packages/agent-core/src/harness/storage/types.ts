@@ -304,6 +304,19 @@ type AppendEntryInputVariant =
 export type AppendEntryInput = AppendEntryInputVariant & ProvisionedEntryId;
 
 /**
+ * `Omit` 对联合不是可分配的：`Omit<A | B, K>` 会先把联合压成公共键，剩下的
+ * 类型既不接受 A 的字段也不接受 B 的字段。去掉一个判别联合的公共字段（这里
+ * 是 `laneId`）必须逐变体做，所以要一个以裸类型参数为检查对象的 helper。
+ */
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+/**
+ * lane 视图（`LaneView.append`）需要的输入：`AppendEntryInput` 去掉 `laneId`，
+ * 但保留每个变体自己的 payload 和可选的预分配 `id`。
+ */
+export type AppendEntryInputWithoutLane = DistributiveOmit<AppendEntryInput, 'laneId'>;
+
+/**
  * 持久化分级（PRD-0037 #324）：'boundary' = 接受边界记录，存储应在 resolve
  * 前 fsync（fsync-before-resolve）；'bulk' = 批量 flush 即可。契约上两者
  * resolve 即 durable，分级只是性能取舍。存储可忽略此提示（内存后端）。

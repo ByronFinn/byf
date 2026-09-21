@@ -1,7 +1,7 @@
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
 
 import type { AgentHarness } from './agent-harness';
-import type { LaneId } from './storage/types';
+import type { DistributiveOmit, LaneId } from './storage/types';
 
 /**
  * v2 events 目录与订阅模型（PRD-0037 #334，R6）。
@@ -45,10 +45,17 @@ export interface RunStartEvent extends V2EventBase {
   readonly type: 'run_start';
   readonly opId: string;
 }
+/**
+ * 一次 run 调用的收尾状态。`'suspended'` 表示本轮调用让出（Park / 等审批 /
+ * defer），操作本身仍开着、可 resumeDeferred —— 但 run_end 仍然要发，观察
+ * 者据此停止渲染"进行中"。少了这个值，run_end 就会在挂起时谎报终态。
+ */
+export type RunOutcome = 'completed' | 'aborted' | 'failed' | 'suspended';
+
 export interface RunEndEvent extends V2EventBase {
   readonly type: 'run_end';
   readonly opId: string;
-  readonly outcome: 'completed' | 'aborted' | 'failed';
+  readonly outcome: RunOutcome;
   readonly usage?: TokenUsage;
 }
 export interface StepEvent extends V2EventBase {
@@ -142,15 +149,17 @@ export class V2EventBus {
       laneId: LaneId;
       seq: number;
       at: number;
-    }) => Omit<V2Event, 'laneId' | 'seq' | 'at'>,
+    }) => DistributiveOmit<V2Event, 'laneId' | 'seq' | 'at'>,
     options?: { readonly recovery?: boolean },
   ): void {
-    const event = {
-      ...build({ laneId, seq: ++this.seq, at: Date.now() }),
-      laneId,
-      seq: this.seq,
+    // 信封三件套（laneId / seq / at）由 emit 负责：build 的返回类型里它们被
+    // 剥掉，所以这里必须显式补回，否则 `at` 只靠调用方顺手 spread base 才存在。
+    const base = { laneId, seq: ++this.seq, at: Date.now() };
+    const event: V2Event = {
+      ...build(base),
+      ...base,
       ...(options?.recovery === true ? { recovery: true } : {}),
-    } as V2Event;
+    };
     for (const listener of this.listeners) {
       try {
         listener(event);
