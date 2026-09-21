@@ -34,6 +34,15 @@ const OSV_QUERY_URL = 'https://api.osv.dev/v1/query';
 const OSV_ECOSYSTEM = 'npm';
 const OSV_CONCURRENCY = 12;
 
+/** Attempts per package before the query counts as failed (fail-closed). */
+const OSV_QUERY_ATTEMPTS = 3;
+/** Linear backoff between attempts; keeps a rate-limited run under the CI timeout. */
+const OSV_RETRY_BACKOFF_MS = 500;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * @typedef {{ name: string, version: string, source: string }} LockedPackage
  */
@@ -204,31 +213,55 @@ export async function queryOsv(locked, options = {}) {
       if (index >= locked.length) return;
       const pkg = locked[index];
       if (!pkg) return;
-      try {
-        const response = await fetchImpl(OSV_QUERY_URL, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(osvQuery(pkg)),
-        });
-        if (!response.ok) {
-          errors += 1;
+      // A single dropped query used to redden the gate roughly one run in six on a
+      // dev box. Retry the transient cases (rate limit, 5xx, connection error) with
+      // bounded backoff, but keep fail-closed: a query that still cannot complete is
+      // counted as an error, so the gate never guesses its way to green.
+      let outcome = null;
+      for (let attempt = 0; attempt < OSV_QUERY_ATTEMPTS; attempt += 1) {
+        if (attempt > 0) {
+          await delay(attempt * OSV_RETRY_BACKOFF_MS);
+        }
+        try {
+          const response = await fetchImpl(OSV_QUERY_URL, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(osvQuery(pkg)),
+          });
+          if (!response.ok) {
+            // 4xx other than rate limiting will not succeed on retry.
+            if (response.status !== 429 && response.status < 500) {
+              outcome = { failed: true };
+              break;
+            }
+            continue;
+          }
+          const body = /** @type {{ vulns?: Array<Record<string, unknown>>} } */ (
+            await response.json()
+          );
+          outcome = { failed: false, body };
+          break;
+        } catch {
           continue;
         }
-        const body = /** @type {{ vulns?: Array<Record<string, unknown>>} } */ (
-          await response.json()
-        );
-        for (const vuln of body.vulns ?? []) {
-          advisories.push({
-            id: String(vuln.id ?? ''),
-            aliases: (Array.isArray(vuln.aliases) ? vuln.aliases : []).map(String),
-            package: pkg.name,
-            version: pkg.version,
-            severity: pickSeverity(vuln),
-            summary: String(vuln.summary ?? vuln.details ?? '').split('\n')[0] ?? '',
-          });
-        }
-      } catch {
+      }
+      if (outcome === null) {
         errors += 1;
+        continue;
+      }
+      if (outcome.failed) {
+        errors += 1;
+        continue;
+      }
+      for (const vuln of outcome.body?.vulns ?? []) {
+        advisories.push({
+          id: String(vuln.id ?? ''),
+          aliases: (Array.isArray(vuln.aliases) ? vuln.aliases : []).map(String),
+          package: pkg.name,
+          version: pkg.version,
+          severity: pickSeverity(vuln),
+          summary: String(vuln.summary ?? vuln.details ?? '').split('\n')[0] ?? '',
+        });
       }
     }
   }
