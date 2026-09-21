@@ -99,29 +99,24 @@ describe('Session lifecycle hooks', () => {
     ]);
   });
 
-  // darwin 上挂死（子进程生命周期没走完，不是断言问题）：#343。
-  // Linux 9ms，macOS runner 直接撞到 5000ms 测试超时。修好 #343 后删掉 skipIf。
-  it.skipIf(process.platform === 'darwin')(
-    'does not let failing SessionStart or SessionEnd hook commands interrupt startup or close',
-    async () => {
-      const { sessionDir, workDir } = await hookFixture();
-      const session = new Session({
-        runtime: { kaos: localKaos, osEnv: OS_ENV },
-        id: 'session-reject',
-        homedir: sessionDir,
-        cwd: workDir,
-        rpc: createSessionRpc(),
-        skills: { explicitDirs: [join(workDir, 'missing-skills')] },
-        hooks: [
-          { event: 'SessionStart', matcher: 'startup', command: 'exit 1', timeout: 5 },
-          { event: 'SessionEnd', matcher: 'exit', command: 'exit 1', timeout: 5 },
-        ],
-      });
+  it('does not let failing SessionStart or SessionEnd hook commands interrupt startup or close', async () => {
+    const { sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      runtime: { kaos: localKaos, osEnv: OS_ENV },
+      id: 'session-reject',
+      homedir: sessionDir,
+      cwd: workDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      hooks: [
+        { event: 'SessionStart', matcher: 'startup', command: 'exit 1', timeout: 5 },
+        { event: 'SessionEnd', matcher: 'exit', command: 'exit 1', timeout: 5 },
+      ],
+    });
 
-      await expect(session.createMain()).resolves.toBeDefined();
-      await expect(session.close()).resolves.toBeUndefined();
-    },
-  );
+    await expect(session.createMain()).resolves.toBeDefined();
+    await expect(session.close()).resolves.toBeUndefined();
+  });
 
   it('stops background tasks on close when keepAliveOnExit is false', async () => {
     const { sessionDir, workDir } = await hookFixture();
