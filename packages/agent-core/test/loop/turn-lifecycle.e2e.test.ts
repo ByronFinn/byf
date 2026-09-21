@@ -8,8 +8,9 @@
  * referenced.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import { inputTotal } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import {

@@ -5,10 +5,10 @@
  * has at least one schema assertion and one execution/error-path assertion.
  */
 
+import { describe, expect, it, vi } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';

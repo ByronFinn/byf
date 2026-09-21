@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { asToolStarted, operationRecordId } from '../../src/harness/records';
@@ -28,7 +29,7 @@ class OneToolLLM implements LLM {
     this.chats.push(params.messages.flatMap((m) => m.content));
     await params.onTextPart?.({ type: 'text', text: this.textOut });
     return {
-      toolCalls: [{ id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }],
+      toolCalls: [{ type: 'function', id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }],
       providerFinishReason: 'tool_calls',
       usage: testUsage(),
     };
@@ -114,8 +115,8 @@ describe('tool_started records (PRD-0037 #324)', () => {
         await params.onTextPart?.({ type: 'text', text: 'two calls' });
         return {
           toolCalls: [
-            { id: 'tc-a', name: 'echo', arguments: '{"text":"a"}' },
-            { id: 'tc-b', name: 'echo', arguments: '{"text":"b"}' },
+            { type: 'function', id: 'tc-a', name: 'echo', arguments: '{"text":"a"}' },
+            { type: 'function', id: 'tc-b', name: 'echo', arguments: '{"text":"b"}' },
           ],
           providerFinishReason: 'tool_calls',
           usage: testUsage(),

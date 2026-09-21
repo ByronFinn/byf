@@ -1,5 +1,6 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import type { ContentPart } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 // Dynamic-import contract: locks the public shape of the future HookEngine
 // without forcing TS module resolution to find a file that doesn't exist yet.

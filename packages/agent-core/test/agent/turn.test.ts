@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,12 +11,13 @@ import {
   APIStatusError,
   APITimeoutError,
   type ChatProvider,
+  type Message,
   type ModelCapability,
   type ToolCall,
 } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';
+import type { ContextMessage } from '../../src/agent/context/types';
 import type { ByfConfig } from '../../src/config';
 import type { Logger, LogPayload } from '../../src/logging';
 import { ProviderManager } from '../../src/providers/provider-manager';
@@ -24,6 +26,7 @@ import {
   estimateTokensForMessages,
   estimateTokensForTools,
 } from '../../src/utils/tokens';
+import { vi } from '../_vitest-vi';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
@@ -476,7 +479,7 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     expect(ctx.llmCalls).toHaveLength(2);
-    const stopHookMessage = {
+    const stopHookMessage: ContextMessage = {
       role: 'user',
       content: [
         {
@@ -487,7 +490,7 @@ describe('Agent turn flow', () => {
       toolCalls: [],
       origin: { kind: 'system_trigger', name: 'stop_hook' },
     };
-    const llmStopHookMessage = {
+    const llmStopHookMessage: Message = {
       role: 'user',
       content: [
         {
@@ -771,7 +774,8 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     const input = ctx.llmCalls[0];
-    expect(input?.tools.length).toBeGreaterThan(0);
+    if (input === undefined) throw new Error('expected an LLM call to be recorded');
+    expect(input.tools.length).toBeGreaterThan(0);
     const expectedTokens =
       estimateTokens(input.systemPrompt) +
       estimateTokensForMessages(input.history) +

@@ -1,9 +1,8 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ByfConfigSchema,
@@ -23,7 +22,7 @@ import {
   writeConfigFile,
 } from '../../src/config';
 import type { ByfConfig } from '../../src/config/schema';
-import { ErrorCodes, ByfError } from '../../src/errors';
+import { ErrorCodes, ByfError, type ByfErrorCode } from '../../src/errors';
 
 const tempDirs: string[] = [];
 
@@ -39,7 +38,7 @@ function makeTempDir(): string {
   return dir;
 }
 
-function expectByfErrorCode(fn: () => unknown, code: string): void {
+function expectByfErrorCode(fn: () => unknown, code: ByfErrorCode): void {
   try {
     fn();
   } catch (error) {

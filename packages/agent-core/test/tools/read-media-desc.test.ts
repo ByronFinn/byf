@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ModelCapability } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { ReadMediaFileTool } from '../../src/tools/builtin/file/read-media';
 import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';

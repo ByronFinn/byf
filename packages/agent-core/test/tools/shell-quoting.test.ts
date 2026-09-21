@@ -1,7 +1,7 @@
+import { describe, expect, it, vi } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { BashInputSchema, BashTool } from '../../src/tools/builtin/shell/bash';
 import type { Environment } from '../../src/utils/environment';
@@ -55,8 +55,15 @@ function captureCommandRewrite(
     const argv = execWithEnv.mock.calls[0]?.[0] as readonly string[];
     // The shell wrapper is "cd '<cwd>' && <rewritten>"; isolate the rewrite.
     const wrapped = argv[2];
-    const match = /^cd '[^']+' && (.*)$/.exec(wrapped)!;
-    return { rewritten: match[1], argv };
+    if (wrapped === undefined) {
+      throw new Error(`expected execWithEnv argv[2] (the -c command), got: ${String(argv)}`);
+    }
+    const match = /^cd '[^']+' && (.*)$/.exec(wrapped);
+    const rewritten = match?.[1];
+    if (rewritten === undefined) {
+      throw new Error(`argv[2] not in "cd '<cwd>' && ..." form: ${wrapped}`);
+    }
+    return { rewritten, argv };
   });
 }
 

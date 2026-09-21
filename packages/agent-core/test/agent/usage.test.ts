@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
+import { cacheHitRate } from '@byfriends/kosong';
 
 import { UsageRecorder } from '../../src/agent/usage';
 
@@ -47,7 +49,12 @@ describe('Agent usage', () => {
         inputCacheCreation: 444,
       },
       currentTurn: undefined,
-      cacheHitRate: 333 / (111 + 333 + 444),
+      cacheHitRate: cacheHitRate({
+        inputOther: 111,
+        output: 222,
+        inputCacheRead: 333,
+        inputCacheCreation: 444,
+      }),
     });
   });
 
@@ -136,7 +143,12 @@ describe('Agent usage', () => {
         inputCacheCreation: 4,
       },
       currentTurn: undefined,
-      cacheHitRate: 3 / (1 + 3 + 4),
+      cacheHitRate: cacheHitRate({
+        inputOther: 1,
+        output: 2,
+        inputCacheRead: 3,
+        inputCacheCreation: 4,
+      }),
     });
   });
 });

@@ -1,9 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { McpOAuthClientProvider, McpOAuthService } from '../../src/mcp/oauth';
 import { JsonFileStore, sanitizeStoreKey } from '../../src/mcp/oauth/store';
@@ -40,7 +40,7 @@ describe('JsonFileStore', () => {
   it('round-trips JSON data via the named file', () => {
     const store = new JsonFileStore(dir);
     store.write('foo.json', { hello: 'world' });
-    expect(store.read('foo.json')).toEqual({ hello: 'world' });
+    expect(store.read<{ hello: string }>('foo.json')).toEqual({ hello: 'world' });
   });
 
   it('returns undefined when a file is missing or unreadable JSON', () => {
@@ -59,7 +59,7 @@ describe('JsonFileStore', () => {
   it('removes existing files without throwing on already-missing files', () => {
     const store = new JsonFileStore(dir);
     store.write('keep.json', { a: 1 });
-    expect(store.read('keep.json')).toEqual({ a: 1 });
+    expect(store.read<{ a: number }>('keep.json')).toEqual({ a: 1 });
     store.remove('keep.json');
     expect(store.read('keep.json')).toBeUndefined();
     store.remove('keep.json'); // no throw

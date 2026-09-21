@@ -5,51 +5,30 @@
  * If tsc does NOT reject it, the @ts-expect-error itself becomes an error
  * ("Unused '@ts-expect-error' directive"), proving the type system has a gap.
  *
- * Run: pnpm exec tsc --noEmit -p tsconfig.type-negative.json
+ * Run: bun x tsc --noEmit -p tsconfig.type-negative.json
+ *
+ * Scope note (PRD-0038): four earlier cases asserted that assigning `undefined`
+ * to an *optional* property must be rejected. That requires
+ * `exactOptionalPropertyTypes`, which this repository does not enable, so those
+ * directives were self-inventing failures (unused directives) while nothing
+ * executed this file. Turning the flag on surfaces a batch of legitimate
+ * `optionalField: undefined` assignments across kosong's own src, so it is a real
+ * decision rather than a config edit — and it is not paid for by quietly deleting
+ * the assertion. What remains below is what the current compiler options
+ * actually guarantee.
  */
 
-import type { Message, ToolCall, StreamedMessagePart, TextPart } from '#/message';
-// Assigning `undefined` to an optional property should be rejected
-// when exactOptionalPropertyTypes is enabled.
+import type { Message, StreamedMessagePart, TextPart } from '#/message';
 
-// @ts-expect-error — toolCallId is optional but not `| undefined`
-const msg1: Message = {
-  role: 'user',
-  content: [{ type: 'text', text: 'hi' }],
-  toolCallId: undefined,
-};
-
-// @ts-expect-error — toolCalls is required ToolCall[] and cannot be undefined
+// A required field cannot be satisfied by an explicit `undefined`.
 const msg2: Message = {
   role: 'assistant',
   content: [],
+  // @ts-expect-error — assigning undefined to a required field must be rejected
   toolCalls: undefined,
 };
 
-// @ts-expect-error — name is optional but not `| undefined`
-const msg3: Message = {
-  role: 'user',
-  content: [{ type: 'text', text: 'hi' }],
-  name: undefined,
-};
-
-// @ts-expect-error — partial is optional but not `| undefined`
-const msg4: Message = {
-  role: 'assistant',
-  content: [],
-  partial: undefined,
-};
-
-// @ts-expect-error — extras on ToolCall is optional but not `| undefined`
-const tc1: ToolCall = {
-  type: 'function',
-  id: 'call-1',
-  name: 'test',
-  arguments: null,
-  extras: undefined,
-};
 // Accessing a property from the wrong variant should fail.
-
 const textPart: TextPart = { type: 'text', text: 'hello' };
 
 // @ts-expect-error — TextPart does not have 'think' property
@@ -69,11 +48,7 @@ const badPart: StreamedMessagePart = {
 };
 
 // Suppress "unused variable" warnings — these variables exist only for type checking.
-void msg1;
 void msg2;
-void msg3;
-void msg4;
-void tc1;
 void _badAccess1;
 void _badAccess2;
 void msg5;

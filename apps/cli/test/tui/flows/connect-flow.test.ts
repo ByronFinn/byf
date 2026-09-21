@@ -2,7 +2,7 @@ import { DEFAULT_CATALOG_URL } from '@byfriends/sdk';
 import type { Component, Focusable } from '@earendil-works/pi-tui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ConnectFlow, type ConnectFlowDeps } from '#/tui/flows/connect-flow';
+import { ConnectFlow, type ConnectFlowDeps, type SpinnerHandle } from '#/tui/flows/connect-flow';
 
 /** A dialog component that is guaranteed to have handleInput. */
 interface TestablePanel extends Component, Focusable {
@@ -103,6 +103,20 @@ function makeDeps(overrides: Partial<ConnectFlowDeps> = {}): ConnectFlowDeps {
 
 function getHost(deps: ConnectFlowDeps): FakeDialogHost {
   return deps.dialogHost as FakeDialogHost;
+}
+
+/**
+ * Return the `stop` spy handed back by the nth `showSpinner` call. `MockResult`
+ * is a `return | throw` union (so `.value` is `unknown` until narrowed) and the
+ * results index may be missing under `noUncheckedIndexedAccess`; fail loudly
+ * rather than assert against `unknown`.
+ */
+function spinnerStop(deps: ConnectFlowDeps, nth = 0): SpinnerHandle['stop'] {
+  const result = vi.mocked(deps.showSpinner).mock.results[nth];
+  if (result === undefined || result.type !== 'return') {
+    throw new Error(`No spinner return result at index ${String(nth)}`);
+  }
+  return result.value.stop;
 }
 
 describe('ConnectFlow', () => {
@@ -418,7 +432,7 @@ describe('ConnectFlow', () => {
       expect(host.panel).not.toBeNull();
     });
     expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
-    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({
       ok: true,
       label: 'Using built-in catalog (offline mode).',
     });
@@ -459,7 +473,7 @@ describe('ConnectFlow', () => {
     expect(host.panel).toBeNull();
     expect(deps.setConfig).not.toHaveBeenCalled();
     expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
-    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({
       ok: false,
       label: 'Failed to load catalog.',
     });
@@ -502,7 +516,7 @@ describe('ConnectFlow', () => {
       expect(host.panel).not.toBeNull();
     });
     expect(deps.showSpinner).toHaveBeenCalledWith(`Fetching catalog from ${DEFAULT_CATALOG_URL}`);
-    expect(vi.mocked(deps.showSpinner).mock.results[0].value.stop).toHaveBeenCalledWith({
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({
       ok: true,
       label: 'Catalog loaded.',
     });

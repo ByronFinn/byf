@@ -1,8 +1,7 @@
+import { describe, expect, it } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { describe, expect, it } from 'vitest';
 
 import { acquireSessionLock, SessionLockError } from '../../src/harness/lock';
 

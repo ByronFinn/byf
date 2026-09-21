@@ -12,7 +12,7 @@
  * exposed schema, and a minimal `{}` call passes runtime argument validation.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   coerceToolArgs,

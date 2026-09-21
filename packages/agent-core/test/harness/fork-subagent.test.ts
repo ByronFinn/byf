@@ -1,5 +1,6 @@
-import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
+import type { ContentPart, TextPart, TokenUsage } from '@byfriends/kosong';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import {
@@ -10,12 +11,13 @@ import {
 } from '../../src/harness/fork';
 import { operationRecordId, toolStartedRecordId } from '../../src/harness/records';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * PRD-0037 #330：fork 重写（v2 §16）+ 确定性子会话 id + 子代理迁移。
  */
 
-const text = (t: string): ContentPart => ({ type: 'text', text: t });
+const text = (t: string): TextPart => ({ type: 'text', text: t });
 const usage = (): TokenUsage => ({
   inputOther: 1,
   output: 1,
@@ -31,7 +33,7 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; messag
 const llm = (out: string) => ({
   systemPrompt: 't',
   modelName: 'm',
-  async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+  async chat(params: LLMChatParams): Promise<LLMChatResponse> {
     await params.onTextPart?.({ type: 'text', text: out });
     return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
   },
@@ -132,11 +134,10 @@ describe('orphan tool calls (#330)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: {
-          messages: { content: ContentPart[] }[];
-          onTextPart?: (p: ContentPart) => Promise<void>;
-        }) {
-          seen.push(params.messages.flatMap((m) => m.content));
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
+          seen.push(
+            params.messages.flatMap((m) => (typeof m.content === 'string' ? [] : m.content)),
+          );
           await params.onTextPart?.({ type: 'text', text: 'recovered' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
         },

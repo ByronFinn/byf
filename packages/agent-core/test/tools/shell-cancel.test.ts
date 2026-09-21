@@ -1,10 +1,11 @@
+import { describe, expect, it } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { BashTool } from '../../src/tools/builtin/shell/bash';
 import type { Environment } from '../../src/utils/environment';
+import { vi } from '../_vitest-vi';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos } from './fixtures/fake-kaos';
 

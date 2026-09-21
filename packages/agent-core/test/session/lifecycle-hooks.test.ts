@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,10 +6,10 @@ import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
 import { localKaos, type KaosProcess } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
+import { vi } from '../_vitest-vi';
 
 const OS_ENV = {
   osKind: 'Linux',

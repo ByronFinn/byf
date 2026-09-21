@@ -101,29 +101,30 @@ describe('WireSession branch queries', () => {
 
   it('paginates with limit and cursor in both directions', async () => {
     const session = await makeSession();
-    const ids: string[] = [];
-    for (let i = 0; i < 5; i++) {
-      ids.push((await appendMessage(session, `m${i}`)).id);
-    }
+    const e0 = await appendMessage(session, 'm0');
+    const e1 = await appendMessage(session, 'm1');
+    const e2 = await appendMessage(session, 'm2');
+    const e3 = await appendMessage(session, 'm3');
+    const e4 = await appendMessage(session, 'm4');
     // newestFirst：每页 2 条
     const page1 = await session.branch({ direction: 'newestFirst', limit: 2 });
-    expect(page1.entries.map((e) => e.id)).toEqual([ids[4], ids[3]]);
-    expect(page1.nextCursor).toBe(ids[3]);
+    expect(page1.entries.map((en) => en.id)).toEqual([e4.id, e3.id]);
+    expect(page1.nextCursor).toBe(e3.id);
     const page2 = await session.branch({
       direction: 'newestFirst',
       limit: 2,
       cursor: page1.nextCursor,
     });
-    expect(page2.entries.map((e) => e.id)).toEqual([ids[2], ids[1]]);
+    expect(page2.entries.map((en) => en.id)).toEqual([e2.id, e1.id]);
     // oldestFirst：从根向叶分页
     const oldest1 = await session.branch({ direction: 'oldestFirst', limit: 2 });
-    expect(oldest1.entries.map((e) => e.id)).toEqual([ids[0], ids[1]]);
+    expect(oldest1.entries.map((en) => en.id)).toEqual([e0.id, e1.id]);
     const oldest2 = await session.branch({
       direction: 'oldestFirst',
       limit: 2,
       cursor: oldest1.nextCursor,
     });
-    expect(oldest2.entries.map((e) => e.id)).toEqual([ids[2], ids[3]]);
+    expect(oldest2.entries.map((en) => en.id)).toEqual([e2.id, e3.id]);
   });
 
   it('branch from a specific entry (not the leaf)', async () => {

@@ -11,7 +11,7 @@
  * runtime checks assert behavior of the inherited boilerplate.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { UNKNOWN_CAPABILITY } from '#/capability';
 import type { ModelCapability } from '#/capability';

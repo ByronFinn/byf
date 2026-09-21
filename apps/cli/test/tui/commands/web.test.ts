@@ -1,9 +1,11 @@
-import type { WebServerHandle } from '@byfriends/web-server';
+import type { StartWebServerOptions, WebServerHandle } from '@byfriends/web-server';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 
 import { createMockHost } from './helpers';
 
-const startWebServerMock = vi.hoisted(() => vi.fn());
+const startWebServerMock = vi.hoisted(() =>
+  vi.fn<(opts: StartWebServerOptions) => Promise<WebServerHandle>>(),
+);
 
 vi.mock('@byfriends/web-server', () => ({
   startWebServer: startWebServerMock,
@@ -20,6 +22,7 @@ function makeHandle(port: number): WebServerHandle {
     url: `http://127.0.0.1:${String(port)}`,
     // PRD-0038 AC-1.2:回环下 token 由 server 生成并经句柄交付(测试给一个固定值)。
     authToken: `tok-${String(port)}`,
+    configInvalid: false,
     close: vi.fn(),
   };
 }
@@ -72,14 +75,15 @@ describe('/web command handler (PRD-0034 R-D2)', () => {
   });
 
   test('端口占用时递增找空闲端口', async () => {
-    startWebServerMock.mockImplementation(async (opts: { port: number }) => {
+    startWebServerMock.mockImplementation(async (opts) => {
+      const port = opts.port ?? 4100;
       // 模拟 4100/4101 被占用
-      if (opts.port < 4102) {
+      if (port < 4102) {
         const error = new Error('bind EADDRINUSE address already in use');
         (error as NodeJS.ErrnoException).code = 'EADDRINUSE';
         throw error;
       }
-      return makeHandle(opts.port);
+      return makeHandle(port);
     });
     const { createWebHandlers, __resetWebServerForTest } =
       await import('../../../src/tui/commands/handlers/web');

@@ -19,6 +19,9 @@ import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector'
 import type { QueuedMessage } from '#/tui/types';
 import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
 
+import { makeCliOptions } from '../helpers/cli-options';
+import { defined } from '../helpers/defined';
+
 vi.mock('#/tui/utils/open-url', () => ({ openUrl: vi.fn() }));
 
 function stripSgr(text: string): string {
@@ -33,20 +36,12 @@ interface MessageDriver {
   persistInputHistory(text: string): Promise<void>;
   startSessionEventSubscription(): void;
   getCurrentSessionId(): string;
+  stop(exitCode?: number): Promise<void>;
 }
 
 function makeStartupInput(): ByfTuiStartupInput {
   return {
-    cliOptions: {
-      session: undefined,
-      continue: false,
-      yolo: false,
-
-      model: undefined,
-      outputFormat: undefined,
-      prompt: undefined,
-      skillsDirs: [],
-    },
+    cliOptions: makeCliOptions(),
     tuiConfig: {
       theme: 'dark',
       editorCommand: null,
@@ -979,7 +974,8 @@ describe('ByfTui message flow', () => {
     // empty editor, nothing streaming/compacting, no in-flight cancel.
     driver.state.editor.onCtrlC?.();
 
-    const renderHint = () => stripSgr(driver.state.footer.render(120)[1]);
+    const renderHint = () =>
+      stripSgr(defined(driver.state.footer.render(120)[1], 'footer hint line'));
     expect(renderHint()).toContain('Press Ctrl+C again to exit');
 
     driver.state.editor.onEscape?.();
@@ -2259,14 +2255,11 @@ describe('ByfTui message flow', () => {
 
 describe('PRD-0038 AC-3.1 TUI honours the shared identity contract', () => {
   it('switches to a forked session under a NEW id and never re-keys a resumed one', async () => {
-    const { SESSION_IDENTITY_CONTRACT } = await import('@byfriends/sdk');
-    const contract = SESSION_IDENTITY_CONTRACT as
-      | Record<string, { readonly sessionId: string; readonly sourceSessionBytes?: string }>
-      | undefined;
+    const { SESSION_IDENTITY_CONTRACT: contract } = await import('@byfriends/sdk');
     expect(contract, 'TUI 必须能从 @byfriends/sdk 查到身份表').toBeDefined();
-    expect(contract!.fork.sessionId).toBe('new');
-    expect(contract!.fork.sourceSessionBytes).toBe('must-not-change');
-    expect(contract!.resume.sessionId).toBe('preserve');
+    expect(contract.fork.sessionId).toBe('new');
+    expect(contract.fork.sourceSessionBytes).toBe('must-not-change');
+    expect(contract.resume.sessionId).toBe('preserve');
 
     // fork 行：/fork 全量复制后，当前会话 id 必须换成 fork 返回的新 id
     const source = makeSession({ id: 'ses-source', summary: { title: 'Source title' } });
@@ -2290,7 +2283,7 @@ describe('PRD-0038 AC-3.1 TUI honours the shared identity contract', () => {
       picker.handleInput('\r');
       await vi.waitFor(() => {
         expect(driver.getCurrentSessionId()).toBe(
-          contract!.fork.sessionId === 'new' ? 'ses-fork' : 'ses-source',
+          contract.fork.sessionId === 'new' ? 'ses-fork' : 'ses-source',
         );
       });
       expect(forkSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'ses-source' }));

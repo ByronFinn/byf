@@ -1,10 +1,12 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { forkSession } from '../../src/harness/fork';
 import { updateGoal } from '../../src/harness/goal';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * PRD-0037 #331：goal 映射（grill Q7）。
@@ -37,13 +39,12 @@ describe('goal e2e on v2 engine (PRD-0037 #331)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: {
-          messages: { role: string; content: ContentPart[] }[];
-          onTextPart?: (p: ContentPart) => Promise<void>;
-        }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           call += 1;
-          const seesContinuation = params.messages.some((m) =>
-            m.content.some((p) => p.type === 'text' && p.text.includes('goal continuation')),
+          const seesContinuation = params.messages.some(
+            (m) =>
+              typeof m.content !== 'string' &&
+              m.content.some((p) => p.type === 'text' && p.text.includes('goal continuation')),
           );
           if (call >= 2) {
             // 第二轮：模型宣告完成（三权分立的工具权——直接调 updateGoal 面）
@@ -86,7 +87,7 @@ describe('goal e2e on v2 engine (PRD-0037 #331)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           call += 1;
           await params.onTextPart?.({ type: 'text', text: `round ${call}` });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -110,7 +111,7 @@ describe('goal e2e on v2 engine (PRD-0037 #331)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           call += 1;
           await params.onTextPart?.({ type: 'text', text: 'plain' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -130,7 +131,7 @@ describe('goal e2e on v2 engine (PRD-0037 #331)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           call += 1;
           await params.onTextPart?.({ type: 'text', text: 'r' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -155,7 +156,7 @@ describe('goal e2e on v2 engine (PRD-0037 #331)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           await params.onTextPart?.({ type: 'text', text: 'ok' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
         },

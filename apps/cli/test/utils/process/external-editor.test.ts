@@ -5,8 +5,10 @@ import { writeFile } from 'node:fs/promises';
 
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
+import { defined } from '../../helpers/defined';
+
 const mocks = vi.hoisted(() => ({
-  spawn: vi.fn(),
+  spawn: vi.fn<(cmd: string, args?: string[]) => unknown>(),
   rmCalls: vi.fn(),
 }));
 
@@ -34,7 +36,7 @@ function tempPathFromSpawn(cmd: string, args: string[]): string {
   const shellCmd = args[0] === '-c' ? (args[1] ?? '') : cmd;
   const match = shellCmd.match(/'([^']+)'$/);
   if (!match) throw new Error(`Could not parse temp path from: ${shellCmd}`);
-  return match[1];
+  return defined(match[1], 'quoted editor path');
 }
 
 afterEach(() => {
@@ -62,7 +64,7 @@ describe('external-editor helpers', () => {
       return child as never;
     });
 
-    await expect(editInExternalEditor('seed', 'code --wait')).resolves.toBe('edited text');
+    expect(editInExternalEditor('seed', 'code --wait')).resolves.toBe('edited text');
     expect(mocks.rmCalls).toHaveBeenCalled();
   });
 
@@ -73,7 +75,7 @@ describe('external-editor helpers', () => {
       return child as never;
     });
 
-    await expect(editInExternalEditor('seed', 'false')).resolves.toBeUndefined();
+    expect(editInExternalEditor('seed', 'false')).resolves.toBeUndefined();
   });
 });
 

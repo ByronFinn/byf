@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 
 import { loadInputHistory, appendInputHistory } from '#/utils/history/input-history';
 
+import { defined } from '../../helpers/defined';
+
 let dir: string;
 let file: string;
 
@@ -59,7 +61,7 @@ describe('input-history', () => {
     expect(written).toBe(true);
     const raw = readFileSync(nested, 'utf-8').trim().split('\n');
     expect(raw).toHaveLength(1);
-    expect(JSON.parse(raw[0])).toEqual({ content: 'hello' });
+    expect(JSON.parse(defined(raw[0], 'raw[0]'))).toEqual({ content: 'hello' });
   });
 
   it('skips empty / whitespace-only entries', async () => {

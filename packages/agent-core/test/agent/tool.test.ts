@@ -1,7 +1,9 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ToolCall } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
+import { vi } from '../_vitest-vi';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, createTestHookEngine, testAgent } from './harness/agent';

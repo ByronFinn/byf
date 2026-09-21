@@ -1,7 +1,7 @@
+import { describe, expect, it, vi } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { BashTool } from '../../src/tools/builtin/shell/bash';
 import type { Environment } from '../../src/utils/environment';

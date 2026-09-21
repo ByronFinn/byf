@@ -21,7 +21,7 @@ describe('ReverseRpcController', () => {
 
     controller.respond('approved');
 
-    await expect(pending).resolves.toBe('approved');
+    expect(pending).resolves.toBe('approved');
     expect(controller.hasPending()).toBe(false);
     expect(hidePanel).toHaveBeenCalledOnce();
   });
@@ -42,7 +42,7 @@ describe('ReverseRpcController', () => {
     expect(controller.hasPending()).toBe(true);
 
     controller.respond('answer-first');
-    await expect(first).resolves.toBe('answer-first');
+    expect(first).resolves.toBe('answer-first');
     // Advancing to the next queued request reuses the same panel without
     // hiding it in between.
     expect(hidePanel).not.toHaveBeenCalled();
@@ -50,12 +50,12 @@ describe('ReverseRpcController', () => {
     expect(showPanel).toHaveBeenLastCalledWith('second');
 
     controller.respond('answer-second');
-    await expect(second).resolves.toBe('answer-second');
+    expect(second).resolves.toBe('answer-second');
     expect(showPanel).toHaveBeenCalledTimes(3);
     expect(showPanel).toHaveBeenLastCalledWith('third');
 
     controller.respond('answer-third');
-    await expect(third).resolves.toBe('answer-third');
+    expect(third).resolves.toBe('answer-third');
     expect(controller.hasPending()).toBe(false);
     expect(hidePanel).toHaveBeenCalledTimes(1);
   });
@@ -88,15 +88,15 @@ describe('ReverseRpcController', () => {
 
     controller.respond('approve_all_same');
 
-    await expect(first).resolves.toBe('approve_all_same');
-    await expect(second).resolves.toBe('auto:b');
-    await expect(fourth).resolves.toBe('auto:d');
+    expect(first).resolves.toBe('approve_all_same');
+    expect(second).resolves.toBe('auto:b');
+    expect(fourth).resolves.toBe('auto:d');
     // The non-matching request advances to the panel and stays pending.
     expect(showPanel).toHaveBeenLastCalledWith({ action: 'edit', id: 'c' });
     expect(controller.hasPending()).toBe(true);
 
     controller.respond('approve_all_same');
-    await expect(third).resolves.toBe('approve_all_same');
+    expect(third).resolves.toBe('approve_all_same');
     expect(controller.hasPending()).toBe(false);
     expect(hidePanel).toHaveBeenCalledTimes(1);
   });
@@ -112,9 +112,9 @@ describe('ReverseRpcController', () => {
 
     controller.cancelAll('shutdown');
 
-    await expect(first).resolves.toBe('cancel:shutdown');
-    await expect(second).resolves.toBe('cancel:shutdown');
-    await expect(third).resolves.toBe('cancel:shutdown');
+    expect(first).resolves.toBe('cancel:shutdown');
+    expect(second).resolves.toBe('cancel:shutdown');
+    expect(third).resolves.toBe('cancel:shutdown');
     expect(controller.hasPending()).toBe(false);
     expect(hidePanel).toHaveBeenCalledTimes(1);
   });

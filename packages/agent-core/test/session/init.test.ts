@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -5,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 import { localKaos } from '@byfriends/kaos';
 import type { ProviderConfig } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCodes } from '../../src/errors';
 import type { ResolvedAgentProfile } from '../../src/profile';

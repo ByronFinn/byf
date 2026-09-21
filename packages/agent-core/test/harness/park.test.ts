@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, DeferredHandle, Message, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { DeferredAwareLLM } from '../../src/harness/park';

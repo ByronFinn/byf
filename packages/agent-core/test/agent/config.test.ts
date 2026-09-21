@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ModelCapability, ProviderConfig, ToolCall } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { ResolvedAgentProfile } from '../../src/profile';
 import { createCommandKaos, testAgent } from './harness/agent';

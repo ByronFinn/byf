@@ -12,7 +12,7 @@
  *   - no header provided → extension-only detection
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 // eslint-disable-next-line import/no-unresolved
 import {
@@ -353,11 +353,7 @@ function buildJpeg(width: number, height: number): Buffer {
 }
 
 describe('sniffImageDimensions', () => {
-  const cases: ReadonlyArray<{
-    name: string;
-    data: Buffer;
-    expected: ImageDimensions;
-  }> = [
+  const cases: { name: string; data: Buffer; expected: ImageDimensions }[] = [
     {
       name: 'PNG (IHDR big-endian uint32)',
       data: buildPng(800, 600),
@@ -422,7 +418,7 @@ describe('sniffImageDimensions', () => {
   });
 
   describe('truncated / malformed input returns null without throwing', () => {
-    const malformed: ReadonlyArray<{ name: string; data: Buffer }> = [
+    const malformed: { name: string; data: Buffer }[] = [
       {
         name: 'PNG header shorter than 24 bytes',
         data: Buffer.from([...PNG_SIGNATURE, 0x00, 0x00, 0x00]),

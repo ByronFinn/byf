@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 
 import { INVALIDATE, QK } from '../src/lib/query-keys';
 
@@ -12,7 +12,8 @@ describe('query keys — SSE invalidation prefix contract', () => {
   const sid = 'session_s1';
 
   test('state/wire/agents 全部落在 session 前缀下（一次前缀失效全覆盖）', () => {
-    const sessionRoot = QK.session(sid);
+    const sessionRoot = ['session', sid];
+    expect(QK.session(sid)).toEqual(['session', sid] as const);
     expect(QK.sessionState(sid).slice(0, 2)).toEqual(sessionRoot);
     expect(QK.sessionWire(sid, 'agent-0').slice(0, 2)).toEqual(sessionRoot);
     expect(QK.sessionAgents(sid).slice(0, 2)).toEqual(sessionRoot);

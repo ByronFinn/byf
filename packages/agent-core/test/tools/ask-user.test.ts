@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import type { Agent } from '../../src/agent';
 import type { PermissionMode } from '../../src/agent/permission';

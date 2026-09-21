@@ -1,8 +1,10 @@
-import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
+import type { ContentPart, TextPart, TokenUsage } from '@byfriends/kosong';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * PRD-0037 #328：AgentLane 完整 API + lane CRUD + per-lane 配置 +
@@ -26,14 +28,11 @@ function llmWithLog(log: string[], name: string) {
   return {
     systemPrompt: 't',
     modelName: name,
-    async chat(params: {
-      messages: { content: ContentPart[] }[];
-      onTextPart?: (p: ContentPart) => Promise<void>;
-    }) {
+    async chat(params: LLMChatParams): Promise<LLMChatResponse> {
       log.push(
         params.messages
-          .flatMap((m) => m.content)
-          .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+          .flatMap((m) => (typeof m.content === 'string' ? [] : m.content))
+          .filter((c): c is TextPart => c.type === 'text')
           .map((c) => c.text)
           .join('|'),
       );
@@ -84,10 +83,7 @@ describe('dual-lane parallel operations (AC6)', () => {
     const llmA = {
       systemPrompt: 't',
       modelName: 'model-a',
-      async chat(params: {
-        messages: { content: ContentPart[] }[];
-        onTextPart?: (p: ContentPart) => Promise<void>;
-      }) {
+      async chat(params: LLMChatParams): Promise<LLMChatResponse> {
         await gateA; // lane a 挂起
         await params.onTextPart?.({ type: 'text', text: 'from a' });
         return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -129,7 +125,7 @@ describe('dual-lane parallel operations (AC6)', () => {
     const gated = {
       systemPrompt: 't',
       modelName: 'm',
-      async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+      async chat(params: LLMChatParams): Promise<LLMChatResponse> {
         await gate;
         await params.onTextPart?.({ type: 'text', text: 'ok' });
         return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -204,11 +200,7 @@ describe('per-lane config point queries (#328)', () => {
         return {
           systemPrompt: 't',
           modelName: modelAlias ?? 'default',
-          async chat(params: {
-            tools: { name: string }[];
-            messages: { content: ContentPart[] }[];
-            onTextPart?: (p: ContentPart) => Promise<void>;
-          }) {
+          async chat(params: LLMChatParams): Promise<LLMChatResponse> {
             // 记录 run 实际提供的工具集（review M7：钉住 activeTools 过滤）
             seenToolSets.push(params.tools.map((tool) => tool.name));
             await params.onTextPart?.({ type: 'text', text: 'ok' });
@@ -222,8 +214,8 @@ describe('per-lane config point queries (#328)', () => {
           description: 'r',
           parameters: { type: 'object', properties: {} },
           resolveExecution: () => ({
-            accesses: { kind: 'none' },
-            display: { kind: 'plain', summary: 'r' },
+            accesses: [],
+            display: { kind: 'generic', summary: 'r' },
             description: 'r',
             execute: async () => ({ output: 'r' }),
           }),
@@ -233,8 +225,8 @@ describe('per-lane config point queries (#328)', () => {
           description: 'w',
           parameters: { type: 'object', properties: {} },
           resolveExecution: () => ({
-            accesses: { kind: 'none' },
-            display: { kind: 'plain', summary: 'w' },
+            accesses: [],
+            display: { kind: 'generic', summary: 'w' },
             description: 'w',
             execute: async () => ({ output: 'w' }),
           }),
@@ -260,7 +252,7 @@ describe('waitForIdle / runWhenIdle (#328)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           await gate;
           await params.onTextPart?.({ type: 'text', text: 'ok' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
@@ -284,7 +276,7 @@ describe('waitForIdle / runWhenIdle (#328)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           await gate;
           await params.onTextPart?.({ type: 'text', text: 'ok' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };

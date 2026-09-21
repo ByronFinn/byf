@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { operationRecordId, toolStartedRecordId } from '../../src/harness/records';
@@ -39,7 +40,7 @@ class GatedLLM implements LLM {
     const done = this.call >= this.steps;
     return {
       toolCalls: done ? [] : [],
-      providerFinishReason: done ? 'completed' : 'end_turn',
+      providerFinishReason: done ? 'completed' : 'tool_calls',
       usage: usage(),
     };
   }
@@ -127,7 +128,9 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
         await params.onTextPart?.({ type: 'text', text: 'ok' });
         return {
           toolCalls:
-            stepContexts.length === 1 ? [{ id: 'tc-d1', name: 'noop', arguments: '{}' }] : [],
+            stepContexts.length === 1
+              ? [{ type: 'function', id: 'tc-d1', name: 'noop', arguments: '{}' }]
+              : [],
           providerFinishReason: stepContexts.length === 1 ? 'tool_calls' : 'completed',
           usage: usage(),
         };
@@ -142,8 +145,8 @@ describe('queues and checkpoint (PRD-0037 #325)', () => {
           description: 'n',
           parameters: { type: 'object', properties: {} },
           resolveExecution: () => ({
-            accesses: { kind: 'none' },
-            display: { kind: 'plain', summary: 'n' },
+            accesses: [],
+            display: { kind: 'generic', summary: 'n' },
             description: 'n',
             execute: async () => ({ output: 'done' }),
           }),

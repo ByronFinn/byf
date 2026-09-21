@@ -1,8 +1,7 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createRPC, type ApprovalResponse, type CoreAPI, type SDKAPI } from '../../src';
 import type { OAuthTokenProviderResolver } from '../../src/providers/runtime-provider';
@@ -10,6 +9,7 @@ import type { OAuthTokenProviderResolver } from '../../src/providers/runtime-pro
 // package surface — see src/rpc/index.ts). Engine tests import it directly
 // from its module so the public API stays narrowed to the CoreAPI contract.
 import { ByfCore } from '../../src/rpc/core-impl';
+import { vi } from '../_vitest-vi';
 
 describe('ByfCore runtime config', () => {
   let tmp: string;

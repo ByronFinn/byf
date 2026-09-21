@@ -1,8 +1,11 @@
 import { mock as bunMock } from 'bun:test';
 
+import type { ByfConfig } from '@byfriends/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { runPrompt } from '#/cli/run-prompt';
+
+import { defined } from '../helpers/defined';
 
 type CreateByfDeviceId = (
   homeDir: string,
@@ -60,10 +63,9 @@ const mocks = vi.hoisted(() => {
     byfHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
     harnessGetConfig: vi.fn(
-      async (): Promise<{ providers: {}; defaultModel?: string; telemetry: boolean }> => ({
+      async (): Promise<ByfConfig> => ({
         providers: {},
         defaultModel: 'k2',
-        telemetry: true,
       }),
     ),
     harnessCreateSession: vi.fn(async () => session),
@@ -471,7 +473,7 @@ describe('runPrompt', () => {
   });
 
   it('resumes a concrete session without a configured default model', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
     mocks.session.getStatus.mockResolvedValueOnce({ permission: 'manual', model: 'saved-model' });
 
     await runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
@@ -498,7 +500,7 @@ describe('runPrompt', () => {
   });
 
   it('continues a previous session without a configured default model', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
     mocks.session.getStatus.mockResolvedValueOnce({ permission: 'manual', model: 'saved-model' });
 
     await runPrompt(opts({ continue: true }), '1.2.3-test', {
@@ -526,7 +528,7 @@ describe('runPrompt', () => {
       }
     });
 
-    await expect(
+    expect(
       runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -535,9 +537,9 @@ describe('runPrompt', () => {
 
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(1, 'auto');
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
-    expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      mocks.harnessClose.mock.invocationCallOrder[0],
-    );
+    expect(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[1], 'setPermission order'),
+    ).toBeLessThan(defined(mocks.harnessClose.mock.invocationCallOrder[0], 'harnessClose order'));
   });
 
   it('restores resumed session permission before exiting on SIGINT', async () => {
@@ -565,9 +567,9 @@ describe('runPrompt', () => {
     await processMock.listener('SIGINT')?.();
 
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
-    expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      processMock.exit.mock.invocationCallOrder[0],
-    );
+    expect(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[1], 'setPermission order'),
+    ).toBeLessThan(defined(processMock.exit.mock.invocationCallOrder[0], 'exit order'));
     expect(mocks.harnessClose).toHaveBeenCalled();
     expect(processMock.exit).toHaveBeenCalledWith(130);
 
@@ -607,8 +609,8 @@ describe('runPrompt', () => {
       expect(processMock.listener('SIGINT')).toBeDefined();
       expect(mocks.session.setPermission).toHaveBeenCalledWith('auto');
     });
-    expect(processMock.once.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.session.setPermission.mock.invocationCallOrder[0],
+    expect(defined(processMock.once.mock.invocationCallOrder[0], 'once order')).toBeLessThan(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[0], 'setPermission order'),
     );
 
     const signalCleanup = processMock.listener('SIGINT')?.();
@@ -644,9 +646,9 @@ describe('runPrompt', () => {
   });
 
   it('throws when no default model is configured', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
 
-    await expect(
+    expect(
       runPrompt(opts(), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -673,7 +675,7 @@ describe('runPrompt', () => {
       }
     });
 
-    await expect(
+    expect(
       runPrompt(opts(), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -1183,7 +1185,7 @@ describe('runPrompt', () => {
     it('rejects malformed /goal create before createGoal / model prompt', async () => {
       // Session may already be opened (resolvePromptSession runs first); the
       // contract is fail-before-model: no createGoal and no user prompt turn.
-      await expect(
+      expect(
         runPrompt(opts({ prompt: '/goal replace' }), '1.2.3-test', {
           stdout: writer(),
           stderr: writer(),
@@ -1307,23 +1309,11 @@ describe('runPrompt', () => {
 
 describe('PRD-0038 AC-3.1 headless honours the shared resume identity contract', () => {
   it('maps --resume <id> onto the contract row whose sessionId is preserved', async () => {
-    const { SESSION_IDENTITY_CONTRACT } = await import('@byfriends/sdk');
-    const row = (
-      SESSION_IDENTITY_CONTRACT as
-        | Record<
-            string,
-            {
-              readonly sessionId: string;
-              readonly history: string;
-              readonly contextWindow: string;
-            }
-          >
-        | undefined
-    )?.resume;
-    expect(row, 'headless 必须能从 @byfriends/sdk 查到 resume 语义行').toBeDefined();
-    expect(row!.sessionId).toBe('preserve');
-    expect(row!.history).toBe('append-to-existing');
-    expect(row!.contextWindow).toBe('reconstructed-from-event-log');
+    const { SESSION_IDENTITY_CONTRACT: contract } = await import('@byfriends/sdk');
+    const row = defined(contract, 'headless 必须能从 @byfriends/sdk 查到身份表').resume;
+    expect(row.sessionId).toBe('preserve');
+    expect(row.history).toBe('append-to-existing');
+    expect(row.contextWindow).toBe('reconstructed-from-event-log');
 
     mocks.harnessResumeSession.mockClear();
     mocks.harnessCreateSession.mockClear();

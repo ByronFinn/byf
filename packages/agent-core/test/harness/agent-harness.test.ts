@@ -1,5 +1,6 @@
-import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
+import type { ContentPart, TokenUsage, ToolCall } from '@byfriends/kosong';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { operationRecordId } from '../../src/harness/records';
@@ -43,7 +44,7 @@ class ScriptedLLM implements LLM {
 
 interface ScriptedResponse {
   readonly textParts: readonly string[];
-  readonly toolCalls?: { id: string; name: string; arguments: string }[];
+  readonly toolCalls?: ToolCall[];
 }
 
 function emptyTestUsage(): TokenUsage {
@@ -58,8 +59,8 @@ function echoTool(): ExecutableTool<{ text: string }> {
     parameters: { type: 'object', properties: { text: { type: 'string' } } },
     resolveExecution(input: { text: string }): ToolExecution {
       return {
-        accesses: { kind: 'none' },
-        display: { kind: 'plain', summary: `echo ${input.text}` },
+        accesses: [],
+        display: { kind: 'generic', summary: `echo ${input.text}` },
         description: `echo ${input.text}`,
         execute: async () => ({ output: `echo:${input.text}` }),
       };
@@ -80,7 +81,7 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     const llm = new ScriptedLLM([
       {
         textParts: ['Let me check.'],
-        toolCalls: [{ id: 'tc-1', name: 'echo', arguments: '{"text":"hi"}' }],
+        toolCalls: [{ type: 'function', id: 'tc-1', name: 'echo', arguments: '{"text":"hi"}' }],
       },
       { textParts: ['Echo said hi. Done.'] },
     ]);
@@ -98,6 +99,9 @@ describe('AgentHarness e2e (in-memory, PRD-0037 #323)', () => {
     const [user, assistant, toolResult, final] = messages as {
       message: { role: string; toolCalls?: { id: string }[]; toolCallId?: string };
     }[];
+    if (!user || !assistant || !toolResult || !final) {
+      throw new Error('expected four messages: user, assistant, tool result, final');
+    }
     expect(user.message.role).toBe('user');
     expect(assistant.message.role).toBe('assistant');
     expect(assistant.message.toolCalls?.[0]?.id).toBe('tc-1');

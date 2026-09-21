@@ -2,11 +2,10 @@
  * BackgroundProcessManager reconcile + persistence integration tests.
  */
 
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { BackgroundProcessManager } from '../../../src/tools/background/manager';
 import { writeTask, listTasks } from '../../../src/tools/background/persist';

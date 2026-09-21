@@ -8,7 +8,7 @@
  *   - `rgUnavailableMessage` surfaces the underlying cause + install hints
  */
 
-import { mock as bunMock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, afterAll, mock as bunMock } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import type * as FsPromises from 'node:fs/promises';
@@ -16,7 +16,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { extract as extractTar } from 'tar';
-import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 import { ZipFile } from 'yazl';
 
 import {
@@ -27,6 +26,8 @@ import {
   rgUnavailableMessage,
   verifyArchiveChecksum,
 } from '../../src/tools/support/rg-locator';
+import { withPreconnect } from '../_fetch-mock';
+import { vi } from '../_vitest-vi';
 
 // Download-branch tests mock `tar.extract` so the archive layout is
 // controlled by the test, not the real CDN. `fetch` is replaced per-test
@@ -195,7 +196,7 @@ describe('ensureRgPath download branch', () => {
   });
 
   it('surfaces a network error when fetch rejects', async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network unreachable')) as typeof fetch;
+    globalThis.fetch = withPreconnect(vi.fn().mockRejectedValue(new Error('network unreachable')));
     await expect(ensureRgPath({ shareDir: fakeShare })).rejects.toThrow(/network unreachable/);
   });
 
@@ -203,7 +204,7 @@ describe('ensureRgPath download branch', () => {
     const controller = new AbortController();
     controller.abort();
     const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = withPreconnect(fetchMock);
 
     await expect(
       ensureRgPath({ shareDir: fakeShare, signal: controller.signal }),
@@ -215,7 +216,7 @@ describe('ensureRgPath download branch', () => {
   it.skip('does not start bootstrap work when aborted after lookup misses', async () => {
     const controller = new AbortController();
     const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = withPreconnect(fetchMock);
 
     let rejectFirstStat: ((error: Error) => void) | undefined;
     let statCalls = 0;

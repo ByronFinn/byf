@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { generate } from '#/generate';
 import { extractText } from '#/message';
@@ -125,8 +125,8 @@ describe('e2e: provider switching', () => {
       const result = await generate(provider, '', [], []);
 
       expect(result.message.content).toHaveLength(2);
-      expect(result.message.content[0].type).toBe('think');
-      expect(result.message.content[1].type).toBe('text');
+      expect(result.message.content[0]?.type).toBe('think');
+      expect(result.message.content[1]?.type).toBe('text');
       expect(extractText(result.message)).toBe('answer');
     });
   });

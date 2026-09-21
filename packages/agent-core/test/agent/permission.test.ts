@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import type { Kaos } from '@byfriends/kaos';
 import type { ToolCall } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { PermissionModeInjector } from '../../src/agent/injection/permission-mode';
@@ -257,9 +258,9 @@ describe('Permission auto mode', () => {
     const result = injector.getEphemeral();
 
     expect(result).toHaveLength(1);
-    expect(result[0].kind).toBe('system_reminder');
-    expect(result[0].content).toContain('Do NOT call AskUserQuestion while auto mode is active');
-    expect(result[0].position).toBe('before_user');
+    expect(result[0]?.kind).toBe('system_reminder');
+    expect(result[0]?.content).toContain('Do NOT call AskUserQuestion while auto mode is active');
+    expect(result[0]?.position).toBe('before_user');
   });
 
   it('blocks AskUserQuestion in auto mode before execution', async () => {

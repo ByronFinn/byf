@@ -28,7 +28,7 @@ describe('question reverse-rpc', () => {
 
     controller.cancelAll('closed');
 
-    await expect(pending).resolves.toEqual({ answers: [] });
+    expect(pending).resolves.toEqual({ answers: [] });
   });
 
   it('normalizes question payloads and returns the selected answer', async () => {
@@ -51,7 +51,7 @@ describe('question reverse-rpc', () => {
       ],
     });
 
-    await expect(handler(event)).resolves.toEqual({
+    expect(handler(event)).resolves.toEqual({
       answers: { 'Q1?': 'Alpha' },
       method: 'number_key',
     });
@@ -72,10 +72,10 @@ describe('question reverse-rpc', () => {
     });
 
     show.mockResolvedValueOnce({ answers: [''] });
-    await expect(handler(questionEvent())).resolves.toBeNull();
+    expect(handler(questionEvent())).resolves.toBeNull();
 
     show.mockRejectedValueOnce(new Error('boom'));
-    await expect(handler(questionEvent())).resolves.toBeNull();
+    expect(handler(questionEvent())).resolves.toBeNull();
   });
 
   it('maps multiple question answers by question text', async () => {
@@ -99,7 +99,7 @@ describe('question reverse-rpc', () => {
       ],
     });
 
-    await expect(handler(event)).resolves.toEqual({
+    expect(handler(event)).resolves.toEqual({
       answers: {
         'Q1?': 'Alpha',
         'Storage?': 'SQLite',

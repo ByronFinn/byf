@@ -1,10 +1,11 @@
+import { describe, it, expect, vi } from 'bun:test';
+
 import {
   APIError as OpenAIAPIError,
   APIConnectionError as OpenAIConnectionError,
   APIConnectionTimeoutError as OpenAITimeoutError,
   APIUserAbortError as OpenAIUserAbortError,
 } from 'openai';
-import { describe, it, expect, vi } from 'vitest';
 
 import {
   APIConnectionError,

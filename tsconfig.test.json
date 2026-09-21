@@ -1,9 +1,22 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // Client tests import from apps/web/client/src, and tsc follows those edges.
+    // Without the browser lib those same sources report ~130 errors here that
+    // their own build (which declares DOM, and is green) never shows — config-gap
+    // noise, not real breakage. Mirror what that package declares so the test
+    // surface sees the same world it builds in.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "bun"]
   },
   "include": [
+    // The client sources tsc reaches need `*.css` ambient modules; `vite/client`
+    // supplies them in the real build but is not resolvable from this project.
+    "build/test-surface-globals.d.ts",
+    // Same reason for `*.md` / `*.yaml` prompt imports, which src files reached
+    // from tests use but only the loader in bunfig/build turns into strings.
+    "packages/agent-core/src/prompt-modules.d.ts",
     "packages/*/test/**/*.ts",
     "packages/*/test/**/*.tsx",
     "apps/*/test/**/*.ts",
@@ -13,5 +26,13 @@
     "apps/web/client/test/**/*.ts",
     "apps/web/client/test/**/*.tsx"
   ],
-  "exclude": ["node_modules", "dist", "dist-types", "**/*.disabled", "**/*.disabled/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-types",
+    "**/*.disabled",
+    "**/*.disabled/**",
+    "**/tsconfig.type-negative.json",
+    "**/type-safety-negative.ts"
+  ]
 }

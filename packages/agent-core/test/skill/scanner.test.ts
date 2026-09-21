@@ -1,8 +1,7 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-
-import { afterEach, describe, expect, it } from 'vitest';
 
 import { discoverSkills, resolveSkillRoots, SkillRegistry, type SkillRoot } from '../../src/skill';
 import { parseSkillFromFile } from '../../src/skill/parser';
@@ -1220,7 +1219,7 @@ describe('listWorkspaceSkills', () => {
 
     const shared = project.skills.find((s) => s.name === 'shared')!;
     expect(shared.writable).toBe(false);
-    expect(user.skills[0].writable).toBe(true);
+    expect(user.skills[0]?.writable).toBe(true);
 
     const projectRoots = project.roots.map((r) => r.writable);
     expect(projectRoots).toEqual([true, false]);
@@ -1241,9 +1240,9 @@ describe('listWorkspaceSkills', () => {
     }
     const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
     const userGroup = listing.groups.find((g) => g.scope === 'user')!;
-    expect(userGroup.skills[0].shadowed).toBe(true);
+    expect(userGroup.skills[0]?.shadowed).toBe(true);
     const projectGroup = listing.groups.find((g) => g.scope === 'project')!;
-    expect(projectGroup.skills[0].shadowed).toBeUndefined();
+    expect(projectGroup.skills[0]?.shadowed).toBeUndefined();
   });
 
   it('supports root-level single-file skills in the listing', async () => {
@@ -1257,7 +1256,7 @@ describe('listWorkspaceSkills', () => {
     const listing = await listWorkspaceSkills({ workDir, userHomeDir: homeDir });
     const userGroup = listing.groups.find((g) => g.scope === 'user')!;
     expect(userGroup.skills.map((s) => s.name)).toEqual(['quick']);
-    expect(userGroup.skills[0].path.endsWith('quick.md')).toBe(true);
+    expect(userGroup.skills[0]?.path.endsWith('quick.md')).toBe(true);
   });
 
   it('marks .agents shadowed by .byf within the same scope', async () => {

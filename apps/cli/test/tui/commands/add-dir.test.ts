@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createAddDirHandlers } from '#/tui/commands/handlers/add-dir';
+import type { ChoicePickerOptions } from '#/tui/components/dialogs/choice-picker';
 
 import { createMockHost } from './helpers';
 
@@ -127,15 +128,12 @@ describe('/add-dir command (PRD-0023 #239)', () => {
 });
 
 /** ChoicePicker keeps options on a private `opts` field — dig them out for unit tests. */
-function pickerOpts(host: ReturnType<typeof createMockHost>): {
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-  readonly onSelect: (value: string) => void;
-} {
-  const shown = vi.mocked(host.dialogHost.show).mock.calls[0]![0] as {
-    opts: {
-      options: readonly { value: string; label: string }[];
-      onSelect: (value: string) => void;
-    };
-  };
+function pickerOpts(host: ReturnType<typeof createMockHost>): ChoicePickerOptions {
+  // `DialogHost.show` erases the concrete component to `Component & Focusable`;
+  // read the picker's real option payload back through a subtype intersection
+  // (target is assignable to the shown type) instead of an unrelated cast.
+  const shown = vi.mocked(host.dialogHost.show).mock.calls[0]![0] as Parameters<
+    typeof host.dialogHost.show
+  >[0] & { opts: ChoicePickerOptions };
   return shown.opts;
 }

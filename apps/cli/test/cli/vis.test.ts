@@ -7,7 +7,9 @@
  * stderr / exit).
  */
 
+import type { WebServerHandle } from '@byfriends/web-server';
 import { Command } from 'commander';
+import type { Mock } from 'vitest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { handleVis, registerVisCommand } from '#/cli/sub/vis';
@@ -31,14 +33,14 @@ function makeDeps(overrides: Partial<VisDeps> = {}): {
   exitCodes: number[];
   openedUrls: string[];
   startCalls: StartCall[];
-  closeSpy: ReturnType<typeof vi.fn>;
+  closeSpy: Mock<WebServerHandle['close']>;
 } {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const exitCodes: number[] = [];
   const openedUrls: string[] = [];
   const startCalls: StartCall[] = [];
-  const closeSpy = vi.fn();
+  const closeSpy = vi.fn<WebServerHandle['close']>();
   const deps: VisDeps = {
     startServer: async (opts) => {
       const host = opts.host ?? '127.0.0.1';
@@ -47,7 +49,10 @@ function makeDeps(overrides: Partial<VisDeps> = {}): {
       return {
         host,
         port,
+        staticEnabled: true,
         url: `http://${host}:${port}`,
+        authToken: `tok-${String(port)}`,
+        configInvalid: false,
         close: closeSpy,
       };
     },
@@ -69,10 +74,10 @@ function makeDeps(overrides: Partial<VisDeps> = {}): {
         return true;
       },
     },
-    exit: ((code: number) => {
+    exit: (code: number) => {
       exitCodes.push(code);
       throw new ExitCalled(code);
-    }) as VisDeps['exit'],
+    },
     ...overrides,
   };
   return { deps, stdout, stderr, exitCodes, openedUrls, startCalls, closeSpy };
@@ -99,7 +104,7 @@ describe('byf vis', () => {
 
     expect(exitCodes).toEqual([0]);
     expect(startCalls).toEqual([{ host: '127.0.0.1', port: 3001 }]);
-    expect(openedUrls).toEqual(['http://127.0.0.1:3001/']);
+    expect(openedUrls).toEqual(['http://127.0.0.1:3001/?token=tok-3001']);
     expect(stdout.join('')).toContain('http://127.0.0.1:3001');
   });
 
@@ -108,7 +113,7 @@ describe('byf vis', () => {
 
     await runVis(deps, 'session_abc123', { open: true });
 
-    expect(openedUrls).toEqual(['http://127.0.0.1:3001/sessions/session_abc123']);
+    expect(openedUrls).toEqual(['http://127.0.0.1:3001/sessions/session_abc123?token=tok-3001']);
   });
 
   it('honors --port and --host overrides', async () => {
@@ -117,7 +122,7 @@ describe('byf vis', () => {
     await runVis(deps, undefined, { port: 4000, host: '127.0.0.1', open: true });
 
     expect(startCalls).toEqual([{ host: '127.0.0.1', port: 4000 }]);
-    expect(openedUrls).toEqual(['http://127.0.0.1:4000/']);
+    expect(openedUrls).toEqual(['http://127.0.0.1:4000/?token=tok-4000']);
   });
 
   it('does not open the browser when --no-open is set', async () => {
@@ -190,7 +195,7 @@ describe('byf vis', () => {
     }
 
     expect(startCalls).toEqual([{ host: '127.0.0.1', port: 5050 }]);
-    expect(openedUrls).toEqual(['http://127.0.0.1:5050/sessions/session_xyz']);
+    expect(openedUrls).toEqual(['http://127.0.0.1:5050/sessions/session_xyz?token=tok-5050']);
   });
 
   it('closes the server on shutdown', async () => {

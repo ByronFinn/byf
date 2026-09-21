@@ -1,15 +1,16 @@
+import { describe, expect, it } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ContentPart, Message, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import type { ContentPart, Message, TokenUsage, ToolCall } from '@byfriends/kosong';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { asToolStarted } from '../../src/harness/records';
 import { chainFrom } from '../../src/harness/session/branch-query';
 import { JsonlSessionStorage } from '../../src/harness/storage/jsonl';
 import type { LLM, LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
+import type { ToolExecution } from '../../src/loop/types';
 
 /**
  * PRD-0037 #326：崩溃矩阵属性测试（AC1/AC2/AC5）。
@@ -35,9 +36,7 @@ async function makeJsonl(sessionId: string): Promise<JsonlSessionStorage> {
   return JsonlSessionStorage.create(join(dir, 'wire.jsonl'), sessionId);
 }
 
-function scriptedLLM(
-  responses: { text: string; toolCalls?: { id: string; name: string; arguments: string }[] }[],
-): LLM {
+function scriptedLLM(responses: { text: string; toolCalls?: ToolCall[] }[]): LLM {
   let call = 0;
   return {
     systemPrompt: 't',
@@ -60,10 +59,10 @@ function echoTool() {
     name: 'echo',
     description: 'echo',
     parameters: { type: 'object', properties: {} },
-    resolveExecution(input: { text: string }) {
+    resolveExecution(input: { text: string }): ToolExecution {
       return {
-        accesses: { kind: 'none' },
-        display: { kind: 'plain', summary: 'echo' },
+        accesses: [],
+        display: { kind: 'generic', summary: 'echo' },
         description: 'echo',
         execute: async () => ({ output: `echo:${input.text}` }),
       };
@@ -80,7 +79,10 @@ async function assertCrashMatrix(
   const harness = await AgentHarness.create({
     storage,
     llm: scriptedLLM([
-      { text: 'using tool', toolCalls: [{ id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }] },
+      {
+        text: 'using tool',
+        toolCalls: [{ type: 'function', id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }],
+      },
       { text: 'done' },
     ]),
     tools: [echoTool()],
@@ -135,12 +137,10 @@ async function assertCrashMatrix(
       }
       const laneSnapshots = await truncated.getLanes();
       for (const lane of laneSnapshots) {
-        if (lane.leafEntryId === null) continue;
-        expect(byId.has(lane.leafEntryId), `${name}@${prefix}: leaf missing`).toBe(true);
-        expect(
-          () => chainFrom(byId, lane.leafEntryId),
-          `${name}@${prefix}: chain broken`,
-        ).not.toThrow();
+        const leafEntryId = lane.leafEntryId;
+        if (leafEntryId === null) continue;
+        expect(byId.has(leafEntryId), `${name}@${prefix}: leaf missing`).toBe(true);
+        expect(() => chainFrom(byId, leafEntryId), `${name}@${prefix}: chain broken`).not.toThrow();
       }
 
       // 4. 悬空工具分类存在（AC5）
@@ -410,7 +410,9 @@ function lineIndexOfOrphanToolStarted(lines: readonly string[]): number {
   });
 }
 
-function toolCallIdsOf(message: Message | undefined): string[] {
+function toolCallIdsOf(
+  message: { readonly toolCalls?: readonly ToolCall[] } | undefined,
+): string[] {
   if (message === undefined) return [];
   return (message.toolCalls ?? []).map((call) => call.id);
 }
@@ -497,10 +499,10 @@ function countingTool(name: string, executions: string[]) {
     name,
     description: name,
     parameters: { type: 'object', properties: {} },
-    resolveExecution(input: { text: string }) {
+    resolveExecution(input: { text: string }): ToolExecution {
       return {
-        accesses: { kind: 'none' },
-        display: { kind: 'plain', summary: name },
+        accesses: [],
+        display: { kind: 'generic', summary: name },
         description: name,
         execute: async () => {
           executions.push(input.text);
@@ -897,10 +899,10 @@ describe('replay safety boundary is declared on restore (PRD-0038 AC-3.4)', () =
       name,
       description: name,
       parameters: { type: 'object', properties: {} },
-      resolveExecution(input: { text: string }) {
+      resolveExecution(input: { text: string }): ToolExecution {
         return {
-          accesses: { kind: 'none' },
-          display: { kind: 'plain', summary: name },
+          accesses: [],
+          display: { kind: 'generic', summary: name },
           description: name,
           execute: async () => {
             executions.push(name);

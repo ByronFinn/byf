@@ -3,7 +3,7 @@
  * never reach the loop.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { LoopEvent, LoopLiveEventEmitter } from '../../src/loop/index';
 import { CollectingSink } from './fixtures/collecting-sink';

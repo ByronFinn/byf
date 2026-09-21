@@ -5,7 +5,8 @@
  *   字符串/文本数组豁免（合法输出零回归）；错误结果跳过；合法结构化输出通过。
  * - 工具接线：Bash/Write/Grep/Read/Agent 声明 outputSchema（取代 drift-guard）。
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
 import { z } from 'zod';
 
 import { coerceToolResult, validateStructuredOutput } from '../../src/loop/tool-call';
@@ -123,7 +124,7 @@ describe('工具接线（PRD-0031 2c）', () => {
       shellName: 'bash',
     });
     expect(bash.outputSchema).toBeDefined();
-    const write = new WriteTool({} as never, {} as never, {} as never, {} as never);
+    const write = new WriteTool({} as never, {} as never);
     expect(write.outputSchema).toBeDefined();
     const grep = new GrepTool({} as never, {} as never);
     expect(grep.outputSchema).toBeDefined();

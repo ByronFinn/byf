@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, Message, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { HookEngine } from '../../src/agent/hooks/engine';
 import { AgentHarness } from '../../src/harness/agent-harness';
@@ -8,6 +9,7 @@ import type { V2Event } from '../../src/harness/events';
 import { V2HookRegistry } from '../../src/harness/hooks';
 import { bridgeShellHooks } from '../../src/harness/shell-hook-bridge';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * PRD-0037 #332/#333/#334：v2 hooks 目录 + shell hooks 桥 + events/watch。
@@ -29,7 +31,7 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; messag
 const llm = (out: string) => ({
   systemPrompt: 't',
   modelName: 'm',
-  async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+  async chat(params: LLMChatParams): Promise<LLMChatResponse> {
     await params.onTextPart?.({ type: 'text', text: out });
     return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
   },
@@ -120,11 +122,14 @@ describe('v2 hooks directory (PRD-0037 #332)', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
           call += 1;
           await params.onTextPart?.({ type: 'text', text: 'using tool' });
           return {
-            toolCalls: call === 1 ? [{ id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }] : [],
+            toolCalls:
+              call === 1
+                ? [{ type: 'function', id: 'tc-1', name: 'echo', arguments: '{"text":"x"}' }]
+                : [],
             providerFinishReason: call === 1 ? ('tool_calls' as const) : ('completed' as const),
             usage: usage(),
           };
@@ -136,8 +141,8 @@ describe('v2 hooks directory (PRD-0037 #332)', () => {
           description: 'e',
           parameters: { type: 'object', properties: {} },
           resolveExecution: () => ({
-            accesses: { kind: 'none' },
-            display: { kind: 'plain', summary: 'e' },
+            accesses: [],
+            display: { kind: 'generic', summary: 'e' },
             description: 'e',
             execute: async () => ({ output: 'should-not-run' }),
           }),

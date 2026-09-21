@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { Logger, LogPayload } from '../../src/logging';
 import { ToolAccesses } from '../../src/loop';
@@ -6,6 +6,7 @@ import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SessionSubagentHost } from '../../src/session/subagent-host';
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
 import { AgentTool, AgentToolInputSchema } from '../../src/tools/builtin/collaboration/agent';
+import { vi } from '../_vitest-vi';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;
@@ -681,7 +682,7 @@ describe('AgentTool', () => {
   });
 
   it('returns the spawned agent id when a foreground subagent times out', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.useFakeTimers();
     try {
       const host = mockSubagentHost({
         spawn: vi.fn((_profileName: string, options: { signal: AbortSignal }) =>

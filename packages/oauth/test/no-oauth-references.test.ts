@@ -1,7 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
-
-import { describe, expect, it } from 'vitest';
 
 const SRC_DIR = join(import.meta.dirname, '..', 'src');
 

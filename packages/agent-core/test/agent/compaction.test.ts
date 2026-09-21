@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,6 @@ import {
   type Message,
   type ToolCall,
 } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';
 import { DefaultCompactionStrategy, type CompactionStrategy } from '../../src/agent/compaction';
@@ -19,10 +19,11 @@ import { HookEngine, type HookEngineTriggerArgs } from '../../src/agent/hooks';
 import type { ByfConfig } from '../../src/config';
 import { ProviderManager } from '../../src/providers/provider-manager';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
+import { vi } from '../_vitest-vi';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createTestHookEngine, testAgent } from './harness/agent';
 import type { TestAgentContext } from './harness/agent';
-import { formatHarnessSnapshot } from './harness/snapshots';
+import { formatHarnessSnapshot, type EventSnapshotEntry } from './harness/snapshots';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -471,15 +472,19 @@ describe('Agent compaction', () => {
 
     expect(attempts).toBe(2);
     // First attempt still had image_url; second used full-strip markers.
-    const firstHadImage = seenHistories[0].some((m) =>
+    const [firstHistory, secondHistory] = seenHistories;
+    if (firstHistory === undefined || secondHistory === undefined) {
+      throw new Error(`Expected two recorded histories, got ${String(seenHistories.length)}`);
+    }
+    const firstHadImage = firstHistory.some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
-    const secondHadImage = seenHistories[1].some((m) =>
+    const secondHadImage = secondHistory.some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
     expect(firstHadImage).toBe(true);
     expect(secondHadImage).toBe(false);
-    const secondText = seenHistories[1]
+    const secondText = secondHistory
       .flatMap((m) => m.content)
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
@@ -1674,14 +1679,31 @@ function historyChars(ctx: TestAgentContext): number {
   );
 }
 
+function isEventSnapshotEntry(entry: unknown): entry is EventSnapshotEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    'event' in entry &&
+    typeof entry.event === 'string'
+  );
+}
+
 function eventNames(events: ReturnType<TestAgentContext['newEvents']>): string[] {
-  return events.map((entry) => String(entry.event));
+  return events.map((entry) => {
+    if (!isEventSnapshotEntry(entry)) {
+      throw new Error(`Unexpected event snapshot entry: ${JSON.stringify(entry)}`);
+    }
+    return entry.event;
+  });
 }
 
 function failedOverflow(
   events: ReturnType<TestAgentContext['newEvents']>,
 ): { reason: string; error?: { code?: string; message?: string } } | undefined {
-  const ended = events.find((entry) => entry.event === 'turn.ended');
+  const ended = events.find(
+    (entry): entry is EventSnapshotEntry =>
+      isEventSnapshotEntry(entry) && entry.event === 'turn.ended',
+  );
   if (ended === undefined) return undefined;
   const args = ended.args as { reason?: string; error?: { code?: string; message?: string } };
   if (args.reason !== 'failed') return undefined;

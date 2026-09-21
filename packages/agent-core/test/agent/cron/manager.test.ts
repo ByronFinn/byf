@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 /**
  * CronManager unit tests — real manager with a minimal Agent stub.
  * Covers add/list/stale/coalesce/one-shot paths that AC-C1/AC-C5 require.
@@ -6,11 +7,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { CronManager } from '../../../src/agent/cron/manager';
 import type { ClockSources } from '../../../src/tools/cron/clock';
 import type { CronTask } from '../../../src/tools/cron/types';
+import { defined } from '../../_defined';
+import { vi } from '../../_vitest-vi';
 
 const WALL_ANCHOR = Date.UTC(2024, 0, 1, 12, 0, 0);
 
@@ -23,7 +24,7 @@ function createClocks(start = WALL_ANCHOR): {
   return {
     clocks: {
       wallNow: () => now,
-      monoNow: () => now,
+      monoNowMs: () => now,
     },
     advance: (ms: number) => {
       now += ms;
@@ -56,6 +57,8 @@ function createAgentStub(options: { hasActiveTurn?: boolean } = {}) {
   };
   return {
     agent: agent as never,
+    // concrete handle: CronManager needs `Agent`, but tests read the stub's own telemetry/homedir
+    real: agent,
     steered,
     events,
     setIdle(idle: boolean) {
@@ -97,12 +100,12 @@ describe('CronManager', () => {
     expect(task.id).toMatch(/^[0-9a-f]{8}$/);
     const snaps = manager.listTaskSnapshots();
     expect(snaps).toHaveLength(1);
-    expect(snaps[0].id).toBe(task.id);
-    expect(snaps[0].recurring).toBe(true);
-    expect(snaps[0].nextFireAt).not.toBeNull();
-    expect(snaps[0].prompt).toBe('morning check');
-    expect(snaps[0].humanSchedule.length).toBeGreaterThan(0);
-    expect(snaps[0].humanSchedule).not.toBe('');
+    expect(snaps[0]?.id).toBe(task.id);
+    expect(snaps[0]?.recurring).toBe(true);
+    expect(snaps[0]?.nextFireAt).not.toBeNull();
+    expect(snaps[0]?.prompt).toBe('morning check');
+    expect(snaps[0]?.humanSchedule.length).toBeGreaterThan(0);
+    expect(snaps[0]?.humanSchedule).not.toBe('');
   });
 
   it('listTaskSnapshots falls back to raw cron for malformed expressions', () => {
@@ -119,8 +122,8 @@ describe('CronManager', () => {
     });
     const snaps = manager.listTaskSnapshots();
     expect(snaps).toHaveLength(1);
-    expect(snaps[0].humanSchedule).toBe('not a valid cron');
-    expect(snaps[0].prompt).toBe('x');
+    expect(snaps[0]?.humanSchedule).toBe('not a valid cron');
+    expect(snaps[0]?.prompt).toBe('x');
   });
 
   it('deleteCronTask removes task and emits telemetry; missing/invalid id is false', () => {
@@ -134,7 +137,7 @@ describe('CronManager', () => {
     });
     expect(manager.deleteCronTask(task.id)).toEqual({ deleted: true });
     expect(manager.listTaskSnapshots()).toHaveLength(0);
-    expect(stub.agent.telemetry.track).toHaveBeenCalled();
+    expect(stub.real.telemetry.track).toHaveBeenCalled();
     expect(manager.deleteCronTask(task.id)).toEqual({ deleted: false });
     expect(manager.deleteCronTask('not-hex!!')).toEqual({ deleted: false });
     expect(manager.deleteCronTask('ABCDEF01')).toEqual({ deleted: false }); // uppercase
@@ -149,7 +152,7 @@ describe('CronManager', () => {
     advance(60_000);
     manager.tick();
     expect(stub.steered.length).toBeGreaterThanOrEqual(1);
-    const origin = stub.steered[0].origin as { kind: string; jobId: string };
+    const origin = stub.steered[0]?.origin as { kind: string; jobId: string };
     expect(origin.kind).toBe('cron_job');
     expect(stub.events.some((e) => (e as { type: string }).type === 'cron.fired')).toBe(true);
   });
@@ -214,7 +217,7 @@ describe('CronManager', () => {
     const otherSessionDir = await mkdtemp(join(tmpdir(), 'byf-cron-new-'));
     try {
       const stub = createAgentStub();
-      stub.agent.homedir = sessionDir;
+      stub.real.homedir = sessionDir;
       const { clocks } = createClocks();
       const manager = new CronManager(stub.agent, { clocks, pollIntervalMs: null });
       const task = manager.addTask({
@@ -228,20 +231,20 @@ describe('CronManager', () => {
 
       // Same session dir: loadFromDisk rehydrates original id + createdAt.
       const resumeStub = createAgentStub();
-      resumeStub.agent.homedir = sessionDir;
+      resumeStub.real.homedir = sessionDir;
       const resumed = new CronManager(resumeStub.agent, { clocks, pollIntervalMs: null });
       expect(resumed.store.list()).toHaveLength(0);
       await resumed.loadFromDisk();
       const loaded = resumed.store.list();
       expect(loaded).toHaveLength(1);
-      expect(loaded[0].id).toBe(task.id);
-      expect(loaded[0].createdAt).toBe(createdAt);
-      expect(loaded[0].prompt).toBe('persist me');
+      expect(loaded[0]?.id).toBe(task.id);
+      expect(loaded[0]?.createdAt).toBe(createdAt);
+      expect(loaded[0]?.prompt).toBe('persist me');
       await resumed.stop();
 
       // New session dir does not inherit tasks.
       const freshStub = createAgentStub();
-      freshStub.agent.homedir = otherSessionDir;
+      freshStub.real.homedir = otherSessionDir;
       const fresh = new CronManager(freshStub.agent, { clocks, pollIntervalMs: null });
       await fresh.loadFromDisk();
       expect(fresh.store.list()).toHaveLength(0);
@@ -267,7 +270,7 @@ describe('CronManager', () => {
     advance(60_000);
     manager.tick();
     expect(stub.steered.length).toBeGreaterThanOrEqual(1);
-    const origin = stub.steered[0].origin as { stale?: boolean; kind: string };
+    const origin = stub.steered[0]?.origin as { stale?: boolean; kind: string };
     expect(origin.kind).toBe('cron_job');
     expect(origin.stale).toBe(true);
     expect(manager.store.list()).toHaveLength(0);

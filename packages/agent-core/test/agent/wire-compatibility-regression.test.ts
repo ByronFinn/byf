@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { AgentRecord } from '../../src/agent/records/types';
@@ -151,7 +151,7 @@ describe('Wire.jsonl compatibility regression tests', () => {
       // 验证compaction历史被正确恢复
       expect(agent.fullCompaction.compactedHistory).toHaveLength(1);
       expect(agent.fullCompaction.compactedHistory[0]).toHaveProperty('text');
-      expect(typeof agent.fullCompaction.compactedHistory[0].text).toBe('string');
+      expect(typeof agent.fullCompaction.compactedHistory[0]?.text).toBe('string');
     });
   });
 

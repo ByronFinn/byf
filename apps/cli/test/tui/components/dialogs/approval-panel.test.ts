@@ -5,6 +5,7 @@ import { ApprovalPanelComponent, resolveSection } from '#/tui/components/dialogs
 import type { PendingApproval } from '#/tui/reverse-rpc/types';
 import { getColorPalette } from '#/tui/theme/colors';
 
+import { defined } from '../../../helpers/defined';
 import { captureProcessWrite } from '../../../helpers/process';
 
 const COLORS = getColorPalette('dark');
@@ -118,7 +119,7 @@ describe('resolveSection', () => {
       COLORS,
     );
     expect(section.lines.length).toBe(1);
-    const plain = strip(section.lines[0]);
+    const plain = strip(defined(section.lines[0], 'section.lines[0]'));
     expect(plain).toContain('hello');
   });
 });
@@ -597,7 +598,7 @@ describe('ApprovalPanelComponent', () => {
     }
 
     // All lines (border + body) must have the same visible width.
-    const expectedWidth = plain[0].length;
+    const expectedWidth = defined(plain[0], 'plain[0]').length;
     for (const line of plain) {
       expect(line.length).toBe(expectedWidth);
     }

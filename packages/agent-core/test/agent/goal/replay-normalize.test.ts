@@ -1,5 +1,6 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+
 import { localKaos } from '@byfriends/kaos';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../../src/agent';
 import type { GoalSnapshot } from '../../../src/agent/goal/types';
@@ -9,6 +10,7 @@ import type { AgentRecord } from '../../../src/agent/records/types';
 import { ProviderManager } from '../../../src/providers/provider-manager';
 import type { SDKAgentRPC } from '../../../src/rpc';
 import type { Environment } from '../../../src/utils/environment';
+import { vi } from '../../_vitest-vi';
 
 const TEST_OS_ENV: Environment = {
   osKind: 'Linux',

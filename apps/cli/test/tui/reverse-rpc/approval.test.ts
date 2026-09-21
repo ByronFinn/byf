@@ -41,7 +41,7 @@ describe('approval reverse-rpc', () => {
 
     controller.respond({ decision: 'approved', scope: 'session', feedback: 'ok' });
 
-    await expect(first).resolves.toEqual({
+    expect(first).resolves.toEqual({
       decision: 'approved',
       scope: 'session',
       feedback: 'ok',
@@ -49,13 +49,13 @@ describe('approval reverse-rpc', () => {
     // Queued same-action requests inherit a session-scoped approval without
     // surfacing another panel. The user's feedback is not carried over —
     // it described the first request only.
-    await expect(second).resolves.toEqual({ decision: 'approved', scope: 'session' });
-    await expect(fourth).resolves.toEqual({ decision: 'approved', scope: 'session' });
+    expect(second).resolves.toEqual({ decision: 'approved', scope: 'session' });
+    expect(fourth).resolves.toEqual({ decision: 'approved', scope: 'session' });
     // A different-action request still waits for an explicit decision.
     expect(controller.hasPending()).toBe(true);
 
     controller.respond({ decision: 'rejected' });
-    await expect(third).resolves.toEqual({ decision: 'rejected' });
+    expect(third).resolves.toEqual({ decision: 'rejected' });
   });
 
   it('does not auto-approve queued requests when only approved-once is chosen', async () => {
@@ -75,12 +75,12 @@ describe('approval reverse-rpc', () => {
 
     controller.respond({ decision: 'approved' });
 
-    await expect(first).resolves.toEqual({ decision: 'approved' });
+    expect(first).resolves.toEqual({ decision: 'approved' });
     // The second same-action request must NOT be auto-resolved — approve-once
     // is a one-shot decision, not a session rule.
     expect(controller.hasPending()).toBe(true);
     controller.respond({ decision: 'approved' });
-    await expect(second).resolves.toEqual({ decision: 'approved' });
+    expect(second).resolves.toEqual({ decision: 'approved' });
   });
 
   it('ApprovalController cancels pending requests with a cancelled response', async () => {
@@ -97,7 +97,7 @@ describe('approval reverse-rpc', () => {
 
     controller.cancelAll('closed');
 
-    await expect(pending).resolves.toEqual({
+    expect(pending).resolves.toEqual({
       decision: 'cancelled',
       feedback: 'closed',
     });
@@ -112,7 +112,7 @@ describe('approval reverse-rpc', () => {
     });
     const handler = createApprovalRequestHandler(controller);
 
-    await expect(handler(approvalEvent())).resolves.toEqual({
+    expect(handler(approvalEvent())).resolves.toEqual({
       decision: 'approved',
       scope: 'session',
       feedback: 'looks good',
@@ -134,7 +134,7 @@ describe('approval reverse-rpc', () => {
     );
 
     show.mockRejectedValueOnce(new Error('boom'));
-    await expect(handler(approvalEvent())).resolves.toEqual({
+    expect(handler(approvalEvent())).resolves.toEqual({
       decision: 'cancelled',
       feedback: 'approval handler failed',
     });

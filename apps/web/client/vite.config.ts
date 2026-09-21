@@ -2,8 +2,12 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const apiPort = Number(process.env.PORT) || 4100;
-const webPort = Number(process.env.WEB_PORT) || 4200;
+// Bracket access, not dot: `process.env` is an index signature and the root
+// tsconfig turns on `noPropertyAccessFromIndexSignature`. This file is outside
+// the client project's `include` ("src" only) but the web-server test imports
+// it to assert the dev proxy contract, which brings it into that program.
+const apiPort = Number(process.env['PORT']) || 4100;
+const webPort = Number(process.env['WEB_PORT']) || 4200;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

@@ -1,5 +1,6 @@
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
+
 import type { ChatProvider, Message, ModelCapability, Tool } from '@byfriends/kosong';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyCompletionBudget,
@@ -230,7 +231,7 @@ describe('applyCompletionBudget', () => {
       capability: makeCapability(10000),
       messages: makeMessages(1000),
     });
-    expect(withMaxCompletionTokens).toHaveBeenCalledOnce();
+    expect(withMaxCompletionTokens).toHaveBeenCalledTimes(1);
     const cap = withMaxCompletionTokens.mock.calls[0]?.[0] as number;
     expect(cap).toBeLessThanOrEqual(10000 - 1000 - 1024);
     expect(cap).toBeGreaterThan(7000);

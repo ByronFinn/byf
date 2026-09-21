@@ -6,8 +6,9 @@ import {
   initialChatState,
   replayToEntries,
   subagentsFromResume,
+  type ChatInput,
 } from '../src/lib/chat';
-import type { AgentReplayRecord } from '../src/types';
+import type { AgentReplayRecord, Event } from '../src/types';
 
 /** 完整形状的 toolCall(与 ContextMessage 的 ToolCall 对齐)。 */
 function toolCall(
@@ -154,46 +155,49 @@ describe('replayToEntries', () => {
 // ---- 工具耗时与归组(PRD-0034 R-B2) ---------------------------------------------
 
 describe('tool timing and grouping', () => {
-  function liveEvent(
-    type: string,
-    patch: Record<string, unknown>,
-  ): { type: string } & Record<string, unknown> {
-    return { type, ...patch };
-  }
+  const frame = (event: Event): ChatInput => ({
+    type: 'frame',
+    frame: { type: 'agent.event', event },
+  });
 
   test('live tool.call.started/tool.result 把 startedAt/endedAt 存进 ToolPart', () => {
     let state = initialChatState();
-    const frame = (event: unknown): { type: 'frame'; frame: { type: string; event: unknown } } => ({
-      type: 'frame',
-      frame: { type: 'agent.event', event },
-    });
     state = chatReducer(
       state,
-      frame(liveEvent('turn.started', { turnId: 1, origin: { kind: 'user' } })),
+      frame({
+        type: 'turn.started',
+        turnId: 1,
+        origin: { kind: 'user' },
+        agentId: 'main',
+        sessionId: 's',
+      }),
     );
     state = chatReducer(
       state,
-      frame(
-        liveEvent('tool.call.started', {
-          turnId: 1,
-          toolCallId: 't1',
-          name: 'Read',
-          display: { kind: 'file_io', operation: 'read', path: '/a' },
-          startedAt: 1000,
-        }),
-      ),
+      frame({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 't1',
+        name: 'Read',
+        args: {},
+        display: { kind: 'file_io', operation: 'read', path: '/a' },
+        startedAt: 1000,
+        agentId: 'main',
+        sessionId: 's',
+      }),
     );
     state = chatReducer(
       state,
-      frame(
-        liveEvent('tool.result', {
-          turnId: 1,
-          toolCallId: 't1',
-          output: 'ok',
-          startedAt: 1000,
-          endedAt: 2500,
-        }),
-      ),
+      frame({
+        type: 'tool.result',
+        turnId: 1,
+        toolCallId: 't1',
+        output: 'ok',
+        startedAt: 1000,
+        endedAt: 2500,
+        agentId: 'main',
+        sessionId: 's',
+      }),
     );
     const entry = state.entries[0];
     if (entry === undefined || entry.kind !== 'assistant') throw new Error('expected assistant');
@@ -286,7 +290,9 @@ describe('tool timing and grouping', () => {
     const grouped = groupParts(parts as never);
     expect(grouped).toHaveLength(4);
     expect(grouped[0]).toMatchObject({ kind: 'tool-group', toolKind: 'file_io' });
-    expect((grouped[0] as { tools: unknown[] }).tools).toHaveLength(2);
+    const firstGroup = grouped[0];
+    if (firstGroup?.kind !== 'tool-group') throw new Error('expected tool-group');
+    expect(firstGroup.tools).toHaveLength(2);
     expect(grouped[1]).toMatchObject({ kind: 'text' });
     expect(grouped[2]).toMatchObject({ kind: 'tool', toolCallId: 'c' });
     expect(grouped[3]).toMatchObject({ kind: 'tool', toolCallId: 'd' });
@@ -323,12 +329,8 @@ describe('tool timing and grouping', () => {
     ];
     const grouped = groupParts(parts as never);
     expect(grouped).toHaveLength(1);
-    const group = grouped[0] as {
-      kind: string;
-      tools: unknown[];
-      spanMs: number;
-      hasRunning: boolean;
-    };
+    const group = grouped[0];
+    if (group?.kind !== 'tool-group') throw new Error('expected tool-group');
     expect(group.kind).toBe('tool-group');
     expect(group.tools).toHaveLength(3);
     // span = max(endedAt) - min(startedAt);进行中的工具不计入 endedAt。
@@ -340,7 +342,7 @@ describe('tool timing and grouping', () => {
 // ---- 子 Agent 看板数据(PRD-0034 R-B3) ------------------------------------------
 
 describe('subagent board state', () => {
-  const frame = (event: unknown): { type: 'frame'; frame: { type: string; event: unknown } } => ({
+  const frame = (event: Event): ChatInput => ({
     type: 'frame',
     frame: { type: 'agent.event', event },
   });
@@ -364,7 +366,8 @@ describe('subagent board state', () => {
         turnId: 1,
         toolCallId: 'call_agent_1',
         name: 'Agent',
-        display: { kind: 'agent_call', prompt: 'do research' },
+        args: {},
+        display: { kind: 'agent_call', agent_name: 'coder', prompt: 'do research' },
         agentId: 'main',
         sessionId: 's',
       }),
@@ -457,6 +460,7 @@ describe('subagent board state', () => {
         turnId: 0,
         toolCallId: 'child-tool-1',
         name: 'Read',
+        args: {},
         display: { kind: 'file_io', operation: 'read', path: '/x' },
         startedAt: 100,
         agentId: 'agent-1',
@@ -543,7 +547,7 @@ describe('subagent board state', () => {
   });
 
   test('subagentsFromResume 用 agents map 重建已完成卡片(含 parentToolCallId)', () => {
-    const agents = {
+    const agents: Parameters<typeof subagentsFromResume>[0] = {
       main: { replay: [] },
       'agent-1': {
         parentToolCallId: 'call_agent_1',

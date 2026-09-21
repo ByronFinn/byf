@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { generate } from '#/generate';
 import type { StreamedMessagePart } from '#/message';
@@ -27,7 +27,7 @@ describe('e2e: extreme streaming scenarios', () => {
 
       // Single merged text part.
       expect(result.message.content).toHaveLength(1);
-      expect(result.message.content[0].type).toBe('text');
+      expect(result.message.content[0]?.type).toBe('text');
 
       const text = extractText(result.message);
       expect(text.length).toBe(count);
@@ -52,21 +52,21 @@ describe('e2e: extreme streaming scenarios', () => {
 
       // 4 merged blocks (2 text, 2 think) appearing in order.
       expect(result.message.content).toHaveLength(4);
-      expect(result.message.content[0].type).toBe('text');
-      expect(result.message.content[1].type).toBe('think');
-      expect(result.message.content[2].type).toBe('text');
-      expect(result.message.content[3].type).toBe('think');
+      expect(result.message.content[0]?.type).toBe('text');
+      expect(result.message.content[1]?.type).toBe('think');
+      expect(result.message.content[2]?.type).toBe('text');
+      expect(result.message.content[3]?.type).toBe('think');
 
       // Each block carries exactly 2500 characters.
       const c0 = result.message.content[0];
       const c2 = result.message.content[2];
-      expect(c0.type === 'text' && c0.text.length === 2500).toBe(true);
-      expect(c2.type === 'text' && c2.text.length === 2500).toBe(true);
+      expect(c0?.type === 'text' && c0.text.length === 2500).toBe(true);
+      expect(c2?.type === 'text' && c2.text.length === 2500).toBe(true);
 
       const c1 = result.message.content[1];
       const c3 = result.message.content[3];
-      expect(c1.type === 'think' && c1.think.length === 2500).toBe(true);
-      expect(c3.type === 'think' && c3.think.length === 2500).toBe(true);
+      expect(c1?.type === 'think' && c1.think.length === 2500).toBe(true);
+      expect(c3?.type === 'think' && c3.think.length === 2500).toBe(true);
     });
   });
 
@@ -107,9 +107,9 @@ describe('e2e: extreme streaming scenarios', () => {
       expect(result.message.toolCalls).toHaveLength(n);
       for (let i = 0; i < n; i++) {
         const tc = result.message.toolCalls[i];
-        expect(tc.id).toBe(`tc_${i}`);
-        expect(tc.name).toBe('f');
-        expect(tc.arguments).toBe(`{"i":${i}}`);
+        expect(tc?.id).toBe(`tc_${i}`);
+        expect(tc?.name).toBe('f');
+        expect(tc?.arguments).toBe(`{"i":${i}}`);
         // _streamIndex must be stripped from the stored ToolCall.
         expect(tc).not.toHaveProperty('_streamIndex');
       }
@@ -138,9 +138,9 @@ describe('e2e: extreme streaming scenarios', () => {
       const elapsed = Date.now() - t0;
 
       expect(result.message.toolCalls).toHaveLength(1);
-      const args = result.message.toolCalls[0].arguments;
-      if (args === null) {
-        throw new Error('Expected assembled tool-call arguments');
+      const args = result.message.toolCalls[0]?.arguments;
+      if (typeof args !== 'string') {
+        throw new TypeError('Expected assembled tool-call arguments');
       }
       expect(args.length).toBeGreaterThan(1_200_000);
       const parsed = JSON.parse(args) as { blob: string };
@@ -180,7 +180,7 @@ describe('e2e: extreme streaming scenarios', () => {
       for (let i = 0; i < n; i++) {
         const tc = result.message.toolCalls[i];
         // Assembled args preserve the per-call routing contract.
-        expect(tc.arguments).toBe(`{"idx":${i}}`);
+        expect(tc?.arguments).toBe(`{"idx":${i}}`);
       }
     });
   });

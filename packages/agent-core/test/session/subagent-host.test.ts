@@ -1,11 +1,11 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, describe, expect, it, afterAll } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { localKaos } from '@byfriends/kaos';
 import type { ToolCall } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
@@ -15,6 +15,7 @@ import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import { SessionSubagentHost } from '../../src/session/subagent-host';
+import { vi } from '../_vitest-vi';
 import { testAgent } from '../agent/harness/agent';
 import { createScriptedGenerate } from '../agent/harness/scripted-generate';
 import { formatHarnessSnapshot } from '../agent/harness/snapshots';

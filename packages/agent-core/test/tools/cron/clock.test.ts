@@ -1,11 +1,10 @@
+import { describe, expect, it } from 'bun:test';
 /**
  * Tests for `tools/cron/clock.ts`.
  */
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import { join } from 'node:path';
-
-import { describe, expect, it } from 'vitest';
 
 import { resolveClockSources, SYSTEM_CLOCKS } from '../../../src/tools/cron/clock';
 

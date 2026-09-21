@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { BtwViewer, type BtwViewerProps } from '#/tui/components/dialogs/btw-viewer';
 import { darkColors } from '#/tui/theme/colors';
 
+import { defined } from '../../../helpers/defined';
+
 const ANSI_SGR = /\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
@@ -163,9 +165,9 @@ describe('BtwViewer', () => {
     const viewer = makeViewer({ maxHeight }, rows);
     const out = viewer.render(80);
     expect(out.length).toBe(maxHeight);
-    const topLine = out[0];
-    const bottomLine = out[maxHeight - 2];
-    const footerLine = out[maxHeight - 1];
+    const topLine = defined(out[0], 'topLine');
+    const bottomLine = defined(out[maxHeight - 2], 'bottomLine');
+    const footerLine = defined(out[maxHeight - 1], 'footerLine');
     expect(topLine).toBeDefined();
     expect(bottomLine).toBeDefined();
     expect(footerLine).toBeDefined();

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
@@ -15,7 +16,6 @@ import type {
   OAuthClientInformationFull,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ByfError } from '../../src/errors';
@@ -938,7 +938,7 @@ describe('Session MCP startup', () => {
       ]);
 
       expect(scripted.calls).toHaveLength(1);
-      const toolNames = scripted.calls[0].tools.map((tool) => tool.name);
+      const toolNames = scripted.calls[0]?.tools.map((tool) => tool.name);
       expect(toolNames).toContain('mcp__slow__echo');
     } finally {
       await session.close();

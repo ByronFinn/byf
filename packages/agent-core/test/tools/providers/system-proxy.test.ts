@@ -4,7 +4,7 @@
  * Tests parsing of scutil output, platform detection, and error handling.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   detectSystemProxy,

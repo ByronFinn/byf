@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { WireService, type WirePersistence, type WireRecord } from '../../../../src/agent/wire';
 import { backgroundModel, backgroundStop } from '../../../../src/agent/wire/ops/background';

@@ -14,8 +14,9 @@
  * 测，loopTools 门控在此测。
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import { localKaos } from '@byfriends/kaos';
-import { describe, expect, it } from 'vitest';
 
 import { Agent } from '../../../src/agent';
 import { InMemoryAgentRecordPersistence } from '../../../src/agent/records/persistence';

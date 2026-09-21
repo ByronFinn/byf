@@ -8,8 +8,9 @@
  * while dispatching terminal events in provider order.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { Logger } from '../../src/logging';
 import { ToolAccesses } from '../../src/loop';
@@ -20,6 +21,7 @@ import type {
   ToolExecution,
 } from '../../src/loop';
 import { PathSecurityError } from '../../src/tools/policies/path-access';
+import { defined } from '../_defined';
 import {
   makeEndTurnResponse,
   makeResponse,
@@ -801,7 +803,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0].result;
+    const result = defined(results[0]).result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBe('rejected');
@@ -826,7 +828,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0].result;
+    const result = defined(results[0]).result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBe('cancelled');
@@ -844,7 +846,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0].result;
+    const result = defined(results[0]).result;
     expect(result.isError).toBeFalsy();
     if (result.isError === true) {
       expect(result.blockedReason).toBeUndefined();
@@ -863,7 +865,7 @@ describe('runTurn — blocked tool result carries blockedReason', () => {
 
     const results = sink.byType('tool.result');
     expect(results).toHaveLength(1);
-    const result = results[0].result;
+    const result = defined(results[0]).result;
     expect(result.isError).toBe(true);
     if (result.isError !== true) throw new Error('expected error');
     expect(result.blockedReason).toBeUndefined();

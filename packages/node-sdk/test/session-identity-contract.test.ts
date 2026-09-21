@@ -1,10 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * PRD-0038 R3 / AC-3.1 + AC-3.4：会话身份与重放安全边界在 **SDK 契约层**的
@@ -24,9 +23,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * 的 `createProvider` fake 模式（`session-prompt-events.test.ts`）。
  */
 
-const providerState = vi.hoisted(() => ({
+const providerState = {
   requests: [] as Array<{ readonly systemPrompt: string; readonly history: unknown[] }>,
-}));
+};
 
 const __mockActual__kosong = await import('@byfriends/kosong');
 vi.mock('@byfriends/kosong', () => {
@@ -287,7 +286,7 @@ describe('PRD-0038 AC-3.4 tool replay safety is a queryable contract', () => {
   it('exposes the three-way replay vocabulary and a default classifier on the SDK surface', () => {
     const surface = sdkNamespace as unknown as {
       TOOL_REPLAY_SAFETY_CLASSES?: readonly string[];
-      classifyToolReplaySafety?: (toolName: string) => string;
+      classifyToolReplaySafety?: (toolName: string) => (typeof EXPECTED_REPLAY_CLASSES)[number];
     };
 
     expect(
@@ -322,8 +321,8 @@ describe('PRD-0038 AC-3.4 tool replay safety is a queryable contract', () => {
     // 仍然会暗示"事件日志可重放 = 副作用可回滚"。行为侧（不可逆工具在 resume 时
     // 不得再执行一次）在 packages/agent-core/test/harness/crash-matrix.test.ts 断言。
     const surface = sdkNamespace as unknown as Record<string, unknown>;
-    expect(surface.SESSION_IDENTITY_CONTRACT, '身份表缺失时不得只补重放分类').toBeDefined();
-    expect(surface.TOOL_REPLAY_SAFETY_CLASSES, '重放分类缺失时不得只补身份表').toBeDefined();
+    expect(surface['SESSION_IDENTITY_CONTRACT'], '身份表缺失时不得只补重放分类').toBeDefined();
+    expect(surface['TOOL_REPLAY_SAFETY_CLASSES'], '重放分类缺失时不得只补身份表').toBeDefined();
   });
 });
 

@@ -1,9 +1,8 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRPC,
@@ -17,6 +16,7 @@ import {
 // package surface — see src/rpc/index.ts). Engine tests import it directly
 // from its module so the public API stays narrowed to the CoreAPI contract.
 import { ByfCore } from '../../src/rpc/core-impl';
+import { vi } from '../_vitest-vi';
 
 describe('HarnessAPI session skills', () => {
   let tmp: string;

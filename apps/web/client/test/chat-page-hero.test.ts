@@ -16,14 +16,26 @@ describe('hero 新建会话首条消息显示', () => {
       type: 'frame',
       frame: {
         type: 'agent.event',
-        event: { type: 'turn.started', turnId: 1, origin: { kind: 'user' } },
+        event: {
+          type: 'turn.started',
+          turnId: 1,
+          origin: { kind: 'user' },
+          agentId: 'main',
+          sessionId: 's-hero',
+        },
       },
     });
     state = chatReducer(state, {
       type: 'frame',
       frame: {
         type: 'agent.event',
-        event: { type: 'assistant.delta', turnId: 1, delta: '好的' },
+        event: {
+          type: 'assistant.delta',
+          turnId: 1,
+          delta: '好的',
+          agentId: 'main',
+          sessionId: 's-hero',
+        },
       },
     });
     expect(state.entries).toHaveLength(2);

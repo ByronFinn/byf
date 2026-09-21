@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { migrateWireRecord, type WireMigration } from '../../../src/agent/records/migration';
 

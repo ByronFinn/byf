@@ -33,6 +33,7 @@ import {
 import type {
   ApprovalRequest,
   ApprovalResponse,
+  AgentTreeResponse,
   Event,
   PermissionMode,
   QuestionRequest,
@@ -218,15 +219,16 @@ class FakeSession implements SessionLike {
 
   /** 模拟真实 harness resume:把演进态合入 summary(真实实现由 core active 路径现场重建)。 */
   refreshSummaryFromState(): void {
-    const main = (this.summary as Partial<ResumedSessionSummary>).agents?.main ?? {};
+    const agents = (this.summary as Partial<ResumedSessionSummary>).agents;
+    const main = agents?.['main'] ?? {};
     this.summary = {
       ...this.summary,
       agents: {
-        ...(this.summary as Partial<ResumedSessionSummary>).agents,
+        ...agents,
         main: { ...main, type: 'main', replay: [...this.replayRecords] },
       },
       updatedAt: Date.now(),
-    };
+    } as SessionSummary;
   }
 }
 
@@ -692,9 +694,9 @@ describe('WebSessionManager', () => {
 
     // 刷新页面 → resume:必须咨询 harness 拿到演进后的 summary,而不是返回创建快照
     const resumed = await manager.resumeSession(created.id);
-    const replay = resumed.agents?.main?.replay;
+    const replay = resumed.agents?.['main']?.replay;
     expect(replay).toHaveLength(1);
-    expect((replay[0] as { message: { text: string } }).message.text).toBe('hi');
+    expect(replay?.[0]).toMatchObject({ message: { text: 'hi' } });
   });
 
   test('每次 resume 都刷新 live summary:命中缓存也咨询 harness(不返回过期快照)', async () => {
@@ -1381,7 +1383,14 @@ describe('Config routes', () => {
       defaultPermissionMode?: string;
       defaultThinking?: boolean;
       thinking?: { mode?: string; effort?: string };
-      providers: { id: string; type: string; baseUrl?: string; hasApiKey: boolean }[];
+      providers: {
+        id: string;
+        type: string;
+        baseUrl?: string;
+        hasApiKey: boolean;
+        keyFromEnv: boolean;
+        oauth: boolean;
+      }[];
       models: { id: string; provider: string }[];
     };
     expect(body.configPath).toBe('/tmp/fake-config.toml');
@@ -2249,9 +2258,31 @@ describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
   test('collectLanIps 排除回环与内网 IPv6,返回 IPv4 地址', async () => {
     const { collectLanIps } = await import('./startup-banner');
     const ips = collectLanIps([
-      { address: '127.0.0.1', family: 'IPv4', internal: true, scopeid: undefined },
-      { address: '192.168.1.5', family: 'IPv4', internal: false, scopeid: undefined },
-      { address: 'fe80::1', family: 'IPv6', internal: false, scopeid: 5 },
+      {
+        address: '127.0.0.1',
+        netmask: '255.0.0.0',
+        mac: '00:00:00:00:00:00',
+        internal: true,
+        cidr: '127.0.0.1/8',
+        family: 'IPv4',
+      },
+      {
+        address: '192.168.1.5',
+        netmask: '255.255.255.0',
+        mac: 'aa:bb:cc:dd:ee:ff',
+        internal: false,
+        cidr: '192.168.1.5/24',
+        family: 'IPv4',
+      },
+      {
+        address: 'fe80::1',
+        netmask: 'ffff:ffff:ffff:ffff::',
+        mac: 'aa:bb:cc:dd:ee:ff',
+        internal: false,
+        cidr: null,
+        family: 'IPv6',
+        scopeid: 5,
+      },
     ]);
     expect(ips).toEqual(['192.168.1.5']);
   });
@@ -2364,8 +2395,8 @@ describe('config management routes (PRD-0034 R-D3)', () => {
         providers: Record<string, { baseUrl?: string; apiKey?: string }>;
       }
     ).providers['myprov'];
-    expect(provider.baseUrl).toBe('https://new/v1');
-    expect(provider.apiKey).toBe('sk-keep');
+    expect(provider?.baseUrl).toBe('https://new/v1');
+    expect(provider?.apiKey).toBe('sk-keep');
   });
 
   test('POST/PATCH/DELETE /api/config/models:别名查重、更新、删除清理 defaultModel', async () => {
@@ -2481,7 +2512,7 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { sessions: InspectorSessionSummary[] };
     expect(data.sessions).toHaveLength(1);
-    expect(data.sessions[0].health).toBe('ok');
+    expect(data.sessions?.[0]?.health).toBe('ok');
   });
 
   it('DELETE /api/sessions/:id delegates to the harness', async () => {
@@ -2643,9 +2674,9 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     expect(res.status).toBe(200);
     expect(harness.configWriteCalls).toHaveLength(1);
     // 占位符被还原为磁盘原值，写盘的是原文（不含占位符）
-    expect(harness.configWriteCalls[0].text).toContain('sk-top-secret');
-    expect(harness.configWriteCalls[0].text).not.toContain('__BYF_KEEP_SECRET__');
-    expect(harness.configWriteCalls[0].expectedRevision).toBe('rev-abc');
+    expect(harness.configWriteCalls[0]?.text).toContain('sk-top-secret');
+    expect(harness.configWriteCalls[0]?.text).not.toContain('__BYF_KEEP_SECRET__');
+    expect(harness.configWriteCalls[0]?.expectedRevision).toBe('rev-abc');
   });
 
   it('PUT /api/config/raw maps revision conflict to 409', async () => {
@@ -2727,8 +2758,8 @@ describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
     const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/work/ws')}`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as McpConfigListing;
-    expect(data.user.servers[0].overridden).toBe(true);
-    expect(data.project.servers[0].name).toBe('shared');
+    expect(data.user?.servers[0]?.overridden).toBe(true);
+    expect(data.project?.servers[0]?.name).toBe('shared');
     expect(harness.mcpListCalls).toEqual(['/work/ws']);
   });
 
@@ -3046,8 +3077,8 @@ describe('Skill listing route (PRD-0036 #314)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as WorkspaceSkillListing;
     expect(data.groups).toHaveLength(2);
-    expect(data.groups[0].skills[0].name).toBe('deploy');
-    expect(data.groups[1].skills[0].shadowed).toBe(true);
+    expect(data.groups[0]?.skills[0]?.name).toBe('deploy');
+    expect(data.groups[1]?.skills[0]?.shadowed).toBe(true);
     expect(harness.skillListCalls).toEqual(['/work/ws']);
   });
 
@@ -4100,7 +4131,7 @@ describe('PRD-0038 dev flow: vite proxy keeps Origin and Host the same site', ()
   test('apps/web/client/vite.config.ts 不再把 Host 改写到 api target', async () => {
     // 判据取解析后的代理配置,不取源文本:注释里出现 "changeOrigin: true" 是解释
     // 回归原因的,不该被当成回归本身。
-    const config = (await import('../../client/vite.config.ts')).default as {
+    const config = (await import('../../client/vite.config')).default as {
       server?: { proxy?: Record<string, { changeOrigin?: boolean } | string> };
     };
     const api = config.server?.proxy?.['/api'];

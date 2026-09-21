@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../src/agent/records';
+import { fullCompactionModel } from '../../../src/agent/wire/ops/full-compaction';
+import { toolsModel } from '../../../src/agent/wire/ops/tools';
 import { testAgent } from '../harness/agent';
 
 /**
@@ -155,9 +157,14 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
     // tools：注册 + 激活（MCP glob 拆分：mcp__ 名进 mcpAccessPatterns，不进 enabledTools）。
     const toolData = agent.tools.data();
     expect(toolData.map((t) => t.name)).toContain('myTool');
-    expect(agent.tools.enabledTools).not.toContain('mcp__github__*');
+    expect([...agent.wire.getModel(toolsModel).enabledTools]).not.toContain('mcp__github__*');
     // context：loop event fold 出的消息 + mark_blocked 生效。
-    expect(agent.context.history.map((m) => m.content[0]?.text ?? '')).toContain('streamed part');
+    expect(
+      agent.context.history.map((m) => {
+        const first = m.content[0];
+        return first?.type === 'text' ? first.text : '';
+      }),
+    ).toContain('streamed part');
     expect(agent.context.history[0]).toMatchObject({
       role: 'user',
       origin: expect.objectContaining({ blockedByHook: 'test-hook' }),
@@ -177,7 +184,7 @@ describe('Facade AC1 — 行为等价（全 record 类型 fixture）', () => {
     expect(agent.context.history[0]).toMatchObject({ role: 'user' });
     expect(agent.context.history[1]).toMatchObject({ role: 'assistant' });
     // full_compaction（legacy）：count + _compactedHistory。
-    expect(agent.fullCompaction.compactionCountInTurn).toBe(1);
+    expect(agent.wire.getModel(fullCompactionModel).compactionCountInTurn).toBe(1);
   });
 
   it('v1.0 老会话经迁移链重建（context.append_message 工具调用展平）', async () => {

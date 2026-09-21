@@ -1,8 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, test } from 'bun:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, beforeEach, describe, expect, it, test } from 'vitest';
 
 import { KaosFileExistsError } from '#/errors';
 import { LocalKaos } from '#/local';
@@ -395,7 +394,7 @@ describe('LocalKaos', () => {
       // Unfixed: ~16 copies like `ring/self/self/.../leaf.txt` before
       // the kernel's SYMLOOP_MAX trips.
       expect(matches).toHaveLength(1);
-      expect(matches[0].endsWith('leaf.txt')).toBe(true);
+      expect(matches[0]?.endsWith('leaf.txt')).toBe(true);
     });
 
     it('T-C2 mutual cycle (A/to_b→B, B/to_a→A) yields only finite real reaches', async () => {

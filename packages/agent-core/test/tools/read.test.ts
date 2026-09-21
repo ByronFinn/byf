@@ -1,5 +1,6 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import type { Kaos } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { EditTool } from '../../src/tools/builtin/file/edit';
 import {
@@ -37,7 +38,7 @@ const DIRECTORY_STAT = {
   stMode: 0o040_755,
 } satisfies Awaited<ReturnType<Kaos['stat']>>;
 
-function context(args: ReadInput) {
+function context<Input = ReadInput>(args: Input) {
   return {
     turnId: '0',
     toolCallId: 'call_read',

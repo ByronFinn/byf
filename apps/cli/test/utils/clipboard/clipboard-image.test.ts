@@ -147,7 +147,7 @@ describe('readClipboardMedia', () => {
         getText: vi.fn(async () => pathToFileURL(videoPath).toString()),
       });
 
-      await expect(
+      expect(
         readClipboardMedia({
           platform: 'darwin',
           clipboard: clip,

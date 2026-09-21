@@ -187,7 +187,7 @@ describe('classifyNativeInstallSource', () => {
 
 describe('detectInstallSource', () => {
   it('returns pnpm-global when packageRoot matches pnpm heuristic', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/Users/me/Library/pnpm/global/5/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -198,7 +198,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns yarn-global when packageRoot matches yarn heuristic', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/Users/me/.config/yarn/global/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -209,7 +209,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns bun-global when packageRoot matches bun heuristic', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/Users/me/.bun/install/global/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -221,7 +221,7 @@ describe('detectInstallSource', () => {
 
   it('returns npm-global when packageRoot matches npm prefix (new layout)', async () => {
     const root = makePackageRoot({ withLauncher: true });
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => root,
         getGlobalPrefix: async () => {
@@ -238,7 +238,7 @@ describe('detectInstallSource', () => {
 
   it('returns npm-global for standard npm prefix path without legacy markers', async () => {
     // No temp package.json → isLegacyJsGlobalLayout returns false → npm-global.
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/usr/local/lib/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -268,7 +268,7 @@ describe('detectInstallSource', () => {
     mkdirSync(join(nested, 'dist'), { recursive: true });
     writeFileSync(join(nested, 'dist', 'main.mjs'), 'export {}');
 
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => nested,
         getGlobalPrefix: async () => prefix,
@@ -279,7 +279,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns npm-global (not native) when native binary came from optionalDep layout', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/usr/local/lib/node_modules/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -292,7 +292,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns native when detectNative and path is outside node_modules', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => {
           throw new Error('no package root');
@@ -307,7 +307,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns unsupported when nothing matches', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/Users/me/dev/@byfriends/cli',
         getGlobalPrefix: async () => '/usr/local',
@@ -318,7 +318,7 @@ describe('detectInstallSource', () => {
   });
 
   it('returns unsupported when npm prefix lookup throws', async () => {
-    await expect(
+    expect(
       detectInstallSource({
         getPackageRoot: () => '/Users/me/dev/@byfriends/cli',
         getGlobalPrefix: async () => {

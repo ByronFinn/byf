@@ -4,7 +4,7 @@
  * Legacy `bg_<hex>` format is NOT accepted.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { generateTaskId, VALID_TASK_ID } from '../../../src/tools/background/index';
 

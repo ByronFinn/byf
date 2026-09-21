@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Load launcher without running main().
-process.env.BYF_LAUNCHER_TEST = '1';
+process.env['BYF_LAUNCHER_TEST'] = '1';
 const require = createRequire(import.meta.url);
 const launcherPath = join(import.meta.dirname, '../../../bin/byf.cjs');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -27,7 +27,7 @@ const { resolveNativeBinary, platformPackageForHost } = require(launcherPath) as
 const tempDirs: string[] = [];
 
 afterEach(() => {
-  delete process.env.BYF_BINARY_PATH;
+  delete process.env['BYF_BINARY_PATH'];
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -121,7 +121,7 @@ describe('resolveNativeBinary', () => {
     const bin = join(root, 'custom-byf');
     writeFileSync(bin, '#!/bin/sh\n');
     chmodSync(bin, 0o755);
-    process.env.BYF_BINARY_PATH = bin;
+    process.env['BYF_BINARY_PATH'] = bin;
     const result = resolveNativeBinary({ platform: 'win32', arch: 'x64' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -129,7 +129,7 @@ describe('resolveNativeBinary', () => {
   });
 
   it('errors when BYF_BINARY_PATH points nowhere', () => {
-    process.env.BYF_BINARY_PATH = join(tmpdir(), 'does-not-exist-byf-binary');
+    process.env['BYF_BINARY_PATH'] = join(tmpdir(), 'does-not-exist-byf-binary');
     const result = resolveNativeBinary();
     expect(result.ok).toBe(false);
     if (result.ok) return;

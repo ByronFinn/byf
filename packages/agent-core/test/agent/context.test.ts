@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { Message } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { sliceCompleteMessages } from '../../src/agent/context/complete-slice';
 import { renderNotificationXml } from '../../src/agent/context/notification-xml';
@@ -20,6 +21,7 @@ import {
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { LoopRecordedEvent } from '../../src/loop';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
+import { defined } from '../_defined';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
 import { formatHarnessSnapshot } from './harness/snapshots';
@@ -574,9 +576,9 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0])).toMatch(/^<notification /);
-    expect(textOf(messages[0])).toContain('Task done');
-    expect(textOf(messages[1])).toBe('Actual user prompt');
+    expect(textOf(defined(messages[0]))).toMatch(/^<notification /);
+    expect(textOf(defined(messages[0]))).toContain('Task done');
+    expect(textOf(defined(messages[1]))).toBe('Actual user prompt');
   });
 
   it('places before_user injections after history (dynamic zone)', () => {
@@ -599,11 +601,11 @@ describe('Agent context notification projection', () => {
     // Expected order: [after_system] [history...] [before_user]
     // before_user injections go at the end so they don't break the cached prefix
     expect(messages).toHaveLength(5);
-    expect(textOf(messages[0])).toContain('After system content');
-    expect(textOf(messages[1])).toBe('Hello');
-    expect(textOf(messages[2])).toBe('Hi there');
-    expect(textOf(messages[3])).toBe('Do something');
-    expect(textOf(messages[4])).toContain('Before user content');
+    expect(textOf(defined(messages[0]))).toContain('After system content');
+    expect(textOf(defined(messages[1]))).toBe('Hello');
+    expect(textOf(defined(messages[2]))).toBe('Hi there');
+    expect(textOf(defined(messages[3]))).toBe('Do something');
+    expect(textOf(defined(messages[4]))).toContain('Before user content');
   });
 
   it('places before_user injections at the end even with no after_system injections', () => {
@@ -619,8 +621,8 @@ describe('Agent context notification projection', () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(textOf(messages[0])).toBe('Question');
-    expect(textOf(messages[1])).toContain('Dynamic context');
+    expect(textOf(defined(messages[0]))).toBe('Question');
+    expect(textOf(defined(messages[1]))).toContain('Dynamic context');
   });
 });
 
@@ -975,7 +977,7 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:old'), imageUrl('data:recent')),
     ];
     const result = degradeOlderMediaParts(messages, 0); // keep none
-    const text = textOf(result[0]);
+    const text = textOf(defined(result[0]));
     expect(text).toContain('re-read the file');
     expect(text).toContain('request size limit');
   });
@@ -986,8 +988,8 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:ok')),
     ];
     const result = degradeOlderMediaParts(messages, 0, MEDIA_STRIPPED_PLACEHOLDERS);
-    const text0 = textOf(result[0]);
-    const text1 = textOf(result[1]);
+    const text0 = textOf(defined(result[0]));
+    const text1 = textOf(defined(result[1]));
     expect(text0).toContain('provider rejected this image');
     expect(text1).toContain('provider rejected this image');
   });
@@ -997,11 +999,11 @@ describe('degradeOlderMediaParts', () => {
       mediaMessage('user', imageUrl('data:original')),
       mediaMessage('user', imageUrl('data:later')),
     ];
-    const originalContent = messages[0].content;
+    const originalContent = defined(messages[0]).content;
     degradeOlderMediaParts(messages, 0);
     // Input array and its content parts are untouched
-    expect(messages[0].content).toBe(originalContent);
-    expect(messages[0].content[0]).toMatchObject({ type: 'image_url' });
+    expect(defined(messages[0]).content).toBe(originalContent);
+    expect(defined(messages[0]).content[0]).toMatchObject({ type: 'image_url' });
   });
 
   it('preserves surrounding text parts including ReadMediaFile wrappers', () => {
@@ -1014,7 +1016,7 @@ describe('degradeOlderMediaParts', () => {
       ),
     ];
     const result = degradeOlderMediaParts(messages, 0);
-    const text = textOf(result[0]);
+    const text = textOf(defined(result[0]));
     expect(text).toContain('<image path="/tmp/screenshot.png">');
     expect(text).toContain('</image>');
     expect(text).toContain('re-read the file');

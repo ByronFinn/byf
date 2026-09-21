@@ -1,7 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-
-import { describe, expect, it } from 'vitest';
 
 /**
  * Guard against unrendered template placeholders reaching the model.

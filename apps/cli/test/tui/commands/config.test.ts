@@ -171,22 +171,24 @@ describe('createConfigHandlers', () => {
       const { registry } = registryFor(host);
       await registry.get('fork')?.('');
 
-      const call = host.dialogManager.showForkRewindPicker.mock.calls[0];
+      const call = vi.mocked(host.dialogManager.showForkRewindPicker).mock.calls[0];
       expect(call).toBeDefined();
       const [options, onSelect, onCancel] = call!;
 
       // 2 user messages + 1 full-copy entry
       expect(options).toHaveLength(3);
       expect(options[0]).toMatchObject({ value: '1' });
-      expect(options[2]).toMatchObject({ value: '0' });
-      expect(options[2].label).toContain('full copy');
+      const fullCopy = options[2];
+      if (fullCopy === undefined) throw new Error('expected a full-copy entry at index 2');
+      expect(fullCopy).toMatchObject({ value: '0' });
+      expect(fullCopy.label).toContain('full copy');
 
       // Selecting an ordinal message triggers a fork rewind up to that point.
       onSelect('1');
       expect(host.performForkRewind).toHaveBeenCalledWith(session, 1);
 
       // The full-copy sentinel ('0') rewinds everything (undefined upToMessage).
-      host.performForkRewind.mockClear();
+      vi.mocked(host.performForkRewind).mockClear();
       onSelect('0');
       expect(host.performForkRewind).toHaveBeenCalledWith(session, undefined);
 

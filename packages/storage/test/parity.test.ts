@@ -1,9 +1,9 @@
+import { afterAll, describe } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runSessionStorageContractTests } from '@byfriends/agent-core/harness/storage-contract';
-import { afterAll, describe } from 'vitest';
 
 import { SqliteSessionStorage } from '../src/sqlite-storage';
 

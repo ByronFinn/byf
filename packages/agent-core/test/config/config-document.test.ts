@@ -215,7 +215,12 @@ api_key = "sk-c"
     const idxC = rows.findIndex((l) =>
       l.includes(`${MASKED_SECRET_PLACEHOLDER}providers.c.api_key`),
     );
-    [rows[idxB], rows[idxC]] = [rows[idxC], rows[idxB]];
+    const rowB = rows[idxB];
+    const rowC = rows[idxC];
+    if (rowB === undefined || rowC === undefined) {
+      throw new Error('expected one masked row per anchored key path');
+    }
+    [rows[idxB], rows[idxC]] = [rowC, rowB];
     const restored = restoreMaskedSecrets(rows.join('\n'), MULTI);
     // 值跟随它标注的键路径：落在 [providers.b] 下的那行标注 providers.c → sk-c；
     // 每个磁盘密钥恰好被引用一次，既不丢也不复制到别处。

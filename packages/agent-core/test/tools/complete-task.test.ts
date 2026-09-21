@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'bun:test';
 /**
  * CompleteTask 测试（PRD-0031 2b：完成语义泛化）。
  *
@@ -8,13 +9,10 @@
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../src/tools/background/manager';
 import { CompleteTaskTool } from '../../src/tools/builtin/state/complete-task';
 import { testAgent } from '../agent/harness/agent';
-import { executeTool } from '../tools/fixtures/execute-tool';
-import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 
 function context() {
   return {
@@ -54,11 +52,10 @@ describe('CompleteTaskTool (PRD-0031 2b)', () => {
   it('无后台任务：声明式完成契约（isError + stopTurn）', async () => {
     const tool = new CompleteTaskTool();
     const execution = tool.resolveExecution({});
-    const result = await execution.execute({
-      ...context(),
-      kaos: createFakeKaos(),
-      runtime: {} as never,
-    });
+    if (execution.isError === true) {
+      throw new TypeError('expected an executable run, got a resolve-time error');
+    }
+    const result = await execution.execute(context());
     expect(result.isError).toBe(true);
     expect((result as { stopTurn?: boolean }).stopTurn).toBe(true);
     const output = typeof result.output === 'string' ? result.output : '';
@@ -66,18 +63,17 @@ describe('CompleteTaskTool (PRD-0031 2b)', () => {
   });
 
   it('有运行中的后台任务：guard nudge，不停止 turn', async () => {
-    const background = new BackgroundProcessManager(createFakeKaos(), {});
+    const background = new BackgroundProcessManager();
     const reservation = background.reserveSlot();
     background.register(pendingProcess(), 'sleep 100', 'running job', { reservation });
     expect(background.list().length).toBeGreaterThan(0);
 
     const tool = new CompleteTaskTool(background);
     const execution = tool.resolveExecution({});
-    const result = await execution.execute({
-      ...context(),
-      kaos: createFakeKaos(),
-      runtime: {} as never,
-    });
+    if (execution.isError === true) {
+      throw new TypeError('expected an executable run, got a resolve-time error');
+    }
+    const result = await execution.execute(context());
     expect(result.isError).toBe(false);
     const output = typeof result.output === 'string' ? result.output : '';
     expect(output).toContain('premature');

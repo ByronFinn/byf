@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
+
+import type { StatResult } from '@byfriends/kaos';
 
 import { ReadFileTracker } from '../../src/tools/builtin/file/read-state';
 import { type WriteInput, WriteInputSchema, WriteTool } from '../../src/tools/builtin/file/write';
@@ -411,9 +413,21 @@ describe('WriteTool', () => {
       // Target file does not exist yet — stat rejects ENOENT for the file,
       // returns a directory for the parent.
       const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
-      const stat = vi.fn(async (p: string) => {
+      const stat = vi.fn(async (p: string): Promise<StatResult> => {
         if (p.endsWith('/new.txt')) throw enoent;
-        return { stMode: 0o040755 };
+        // Parent directory exists (S_IFDIR | 0o755); only the target file is new.
+        return {
+          stMode: 0o040755,
+          stIno: 0,
+          stDev: 0,
+          stNlink: 2,
+          stUid: 0,
+          stGid: 0,
+          stSize: 0,
+          stAtime: 0,
+          stMtime: 0,
+          stCtime: 0,
+        };
       });
       const writeText = vi.fn().mockResolvedValue(3);
       const tool = new WriteTool(

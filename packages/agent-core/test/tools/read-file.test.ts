@@ -1,5 +1,6 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import type { Kaos } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { ReadTool } from '../../src/tools/builtin/file/read';
 import { executeTool } from './fixtures/execute-tool';

@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCompileEntrySource,
   CATALOG_GLOBAL_NAME,
+  type CompileEntryInput,
 } from '../../../scripts/compile/compile-entry-source.mjs';
+import { defined } from '../../helpers/defined';
 
 const ENTRY_INPUT = {
   clipboardRelativeRequire: './clipboard.linux-x64-gnu.node',
@@ -21,7 +23,7 @@ const ENTRY_INPUT = {
   ],
 };
 
-function sourceFor(input) {
+function sourceFor(input: CompileEntryInput): string {
   return buildCompileEntrySource(input);
 }
 
@@ -81,7 +83,10 @@ describe('compile-entry codegen output is parseable TypeScript', () => {
     // shape of the generated code, not about resolving the real build tree.
     const localised = source
       .replaceAll(ENTRY_INPUT.catalogInjectPath, join(dir, 'catalog-inject.ts'))
-      .replaceAll(ENTRY_INPUT.assetSets[0].entryPath, join(dir, 'web-embedded-assets.ts'))
+      .replaceAll(
+        defined(ENTRY_INPUT.assetSets[0], 'assetSets[0]').entryPath,
+        join(dir, 'web-embedded-assets.ts'),
+      )
       .replaceAll(ENTRY_INPUT.mainEntryPath, join(dir, 'main.ts'));
     writeFileSync(join(dir, 'catalog-inject.ts'), 'export default "";');
     writeFileSync(

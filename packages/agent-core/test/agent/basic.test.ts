@@ -1,5 +1,6 @@
+import { expect, it } from 'bun:test';
+
 import type { ToolCall } from '@byfriends/kosong';
-import { expect, it } from 'vitest';
 
 import { createCommandKaos, testAgent } from './harness/agent';
 import { formatHarnessSnapshot } from './harness/snapshots';

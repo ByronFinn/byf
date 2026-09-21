@@ -1,9 +1,11 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { operationRecordId, toolStartedRecordId } from '../../src/harness/records';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * review 修复回归测试（review-fix 批次）：
@@ -28,7 +30,7 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; messag
 const llm = (out: string) => ({
   systemPrompt: 't',
   modelName: 'm',
-  async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+  async chat(params: LLMChatParams): Promise<LLMChatResponse> {
     await params.onTextPart?.({ type: 'text', text: out });
     return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
   },
@@ -99,11 +101,10 @@ describe('review-fix regressions', () => {
       llm: {
         systemPrompt: 't',
         modelName: 'm',
-        async chat(params: {
-          messages: { content: ContentPart[] }[];
-          onTextPart?: (p: ContentPart) => Promise<void>;
-        }) {
-          seen.push(params.messages.flatMap((m) => m.content));
+        async chat(params: LLMChatParams): Promise<LLMChatResponse> {
+          seen.push(
+            params.messages.flatMap((m) => (typeof m.content === 'string' ? [] : m.content)),
+          );
           await params.onTextPart?.({ type: 'text', text: 'recovered' });
           return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
         },

@@ -1,8 +1,10 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { AgentHarness } from '../../src/harness/agent-harness';
 import { InMemorySessionStorage } from '../../src/harness/storage/memory';
+import type { LLMChatParams, LLMChatResponse } from '../../src/loop/llm';
 
 /**
  * PRD-0037 #329：navigateTree + branch summary + 手动压缩。
@@ -28,7 +30,7 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; code: string; messag
 const summaryLLM = {
   systemPrompt: 't',
   modelName: 'm',
-  async chat(params: { onTextPart?: (p: ContentPart) => Promise<void> }) {
+  async chat(params: LLMChatParams): Promise<LLMChatResponse> {
     await params.onTextPart?.({ type: 'text', text: 'SUMMARY: the departed branch in one line' });
     return { toolCalls: [], providerFinishReason: 'completed' as const, usage: usage() };
   },
