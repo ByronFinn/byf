@@ -177,9 +177,21 @@ resume/fork 身份语义成为 SDK 契约层的单一定义并被三个表面复
 - `AgentHarness` / `Agent` / `TurnFlow` 的 God object 拆分（→ Q5 裁决，子 Issue 挂 #339）。
 - v2 引擎 host 面移植与默认切换（→ #339、#342）。
 - SQLite 后端、leases、parity 套件（→ PRD-0037 C7 / #342）。
-- `#306` 的 1379 个既有测试面类型错误清零（本 PRD 只加 ratchet）。
+- `#306` 的测试面类型错误清零：本 PRD 只负责加"只减不增"的 ratchet（初始基线 1805，其中 210 是 #306 从未计量的 apps/web 与 packages/storage 面）。**实施后修订（2026-09-21）**：清零纳入本轮范围，ratchet 基线随之逐批下调。
 - 遥测体系（现 noop telemetry，PRD-0037 C8）与 prompt cache 命中率度量（对标本轮零存活 claim）。
 - post-publish 清白环境端到端安装冒烟（依赖真实 Release，只能作为后续独立项）。
+- 逐符号的完整 API 报告（依赖 API Extractor `apiReport`，与 SDK 稳定性基线同一件事）。AC-2.4 本轮交付的是**不依赖构建产物的 barrel 形状钉**（star-export 集合 + 具名转发清单），堵住"评审时看不见"的那部分。
+- 启动/体积基线的 macOS 侧数值。实施后修订：CI 新增 `macos-smoke` job（install / typecheck / 全量 test / 本机 compile darwin-arm64 / smoke），macOS 断链在 PR 阶段即暴露；基准数值本身仍为 linux-x64 单平台。
+
+## 实施后新增发现（release 阻断）
+
+`apps/cli/scripts/compile/build.mjs` 生成的 compile-entry 把全局名直接接在括号断言之后（
+`(globalThis as Record<string, unknown>).__BYF_WEB_EMBEDDED_ASSETS__ = …`），非法语法：
+**只要会话携带 SPA 资产，官方 release 管线就产不出二进制**。该缺陷自 SPA 资产内嵌进
+compile-entry 起存在；`release.yml` 仅发版时运行而期间无发版，dev 分支 CI 全绿亦无法暴露。
+已修复并加纯函数级回归测试（含"生成码无语法诊断"的真解析断言）。同时满足 `--bytecode`
+的顶层 await 前置，并新增 `--profile=bytecode` 档位（默认 release 不变）。
+
 - 引入 OS 级沙箱（ADR-0033 立场不变：permission 层仍是 best-effort UX guard）。
 
 ## Traceability
