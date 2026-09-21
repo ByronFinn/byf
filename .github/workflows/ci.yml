@@ -89,6 +89,13 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # Negative type assertions (kosong's message/ToolCall contracts): each
+      # `@ts-expect-error` must actually fire. That project has its own tsconfig
+      # precisely because it asserts rejection, so the ordinary test-surface
+      # project excludes it — which would make it dead weight if nothing ran it.
+      - name: Typecheck (negative assertions)
+        run: bun run typecheck:negative
+
       - name: Test
         run: bun run test
 

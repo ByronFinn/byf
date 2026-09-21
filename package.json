@@ -30,6 +30,7 @@
     "dev:docs": "bun run --filter 'byf-docs' dev",
     "typecheck": "bun run build:packages && bun run build:web && bun run --filter './packages/*' typecheck && bun run --filter '@byfriends/cli' typecheck && bun run --filter '@byfriends/web-shared' typecheck && bun run --filter '@byfriends/web-server' typecheck && bun run --filter '@byfriends/web-client' typecheck",
     "typecheck:tests": "bun x tsc -p tsconfig.test.json --noEmit",
+    "typecheck:negative": "bun x tsc --noEmit -p packages/kosong/tsconfig.type-negative.json",
     "lint": "oxlint --type-aware",
     "lint:fix": "bun run lint --fix",
     "lint:pkg": "bun scripts/publint-pkg.mjs && bun scripts/attw-pkg.mjs",
