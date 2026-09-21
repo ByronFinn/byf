@@ -1,0 +1,163 @@
+{
+  "starFrom": [
+    "./agent",
+    "./config",
+    "./errors",
+    "./harness",
+    "./rpc",
+    "./session",
+    "./session/export"
+  ],
+  "named": [
+    {
+      "from": "./agent/context",
+      "name": "buildPreview",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "createWireFoldState",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "DEFAULT_OFFLOADING_CONFIG",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "flushDeferred",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "foldAppendMessage",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "foldApplyCompaction",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "foldLoopEvent",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "resetWireFoldState",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "shouldOffload",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "toolResultOutputForModel",
+      "aliased": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "USER_PROMPT_ORIGIN",
+      "aliased": false
+    },
+    {
+      "from": "./agent/records",
+      "name": "AGENT_WIRE_PROTOCOL_VERSION",
+      "aliased": false
+    },
+    {
+      "from": "./home/workspace-registry",
+      "name": "workspaceTitle",
+      "aliased": false
+    },
+    {
+      "from": "./logging/logger",
+      "name": "flushDiagnosticLogs",
+      "aliased": false
+    },
+    {
+      "from": "./logging/logger",
+      "name": "getRootLogger",
+      "aliased": false
+    },
+    {
+      "from": "./logging/logger",
+      "name": "log",
+      "aliased": false
+    },
+    {
+      "from": "./logging/logger",
+      "name": "redact",
+      "aliased": false
+    },
+    {
+      "from": "./logging/logger",
+      "name": "resolveGlobalLogPath",
+      "aliased": false
+    },
+    {
+      "from": "./logging/resolve-config",
+      "name": "resolveLoggingConfig",
+      "aliased": false
+    },
+    {
+      "from": "./loop/errors",
+      "name": "isAbortError",
+      "aliased": false
+    },
+    {
+      "from": "./prompt-plan",
+      "name": "buildPromptPlan",
+      "aliased": false
+    },
+    {
+      "from": "./tools/builtin/goal/outcome-prompts",
+      "name": "renderBlockedReason",
+      "aliased": false
+    },
+    {
+      "from": "./tools/builtin/goal/outcome-prompts",
+      "name": "renderCompletionSummary",
+      "aliased": false
+    },
+    {
+      "from": "./tools/builtin/goal/outcome-prompts",
+      "name": "renderStatusLine",
+      "aliased": false
+    },
+    {
+      "from": "./tools/support/image-compress",
+      "name": "compressImageForModel",
+      "aliased": false
+    },
+    {
+      "from": "./tools/support/image-limits",
+      "name": "ImageLimits",
+      "aliased": false
+    }
+  ],
+  "typeOnlyFrom": [
+    "./agent/compaction",
+    "./agent/config",
+    "./agent/context",
+    "./agent/permission",
+    "./agent/records",
+    "./agent/usage",
+    "./config/schema",
+    "./logging/resolve-config",
+    "./logging/types",
+    "./loop",
+    "./loop/types",
+    "./providers/runtime-provider",
+    "./runtime-types",
+    "./telemetry",
+    "./tools/background/manager",
+    "./tools/store",
+    "./utils/tokens"
+  ],
+  "note": "AC-2.4 (PRD-0038). Pinned shape of @byfriends/agent-core root barrel. Widening the published surface must be an intentional edit here; see check-agent-core-surface.mjs."
+}
