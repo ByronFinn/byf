@@ -1,6 +1,6 @@
 # 本地服务安全边界与发布前可验证性（Security Boundary & Pre-publish Verifiability）
 
-> **Status**: In Progress | **PRD**: PRD-0038 | **Created**: 2026-09-21 | **Last updated**: 2026-09-21
+> **Status**: Implemented — R1–R6 已落地、已评审并完成评审修复；未发布 | **PRD**: PRD-0038 | **Created**: 2026-09-21 | **Last updated**: 2026-09-23
 
 ## Goal
 
@@ -165,7 +165,7 @@ resume/fork 身份语义成为 SDK 契约层的单一定义并被三个表面复
 
 ## Technical Approach
 
-- **R1** 以中间件形式集中施加（Content-Type 门 + Origin/Host 门 + token 门三层），不在各 route 内散落判断；密钥占位符改造以**键路径**为身份，配 disk↔masked 的可逆映射，并在写盘前加不变式校验。
+- **R1** 以中间件形式集中施加（四层，顺序固定：Host 允许集合 → Content-Type → Origin/标记头 → token；实施修订见「续批」与 ADR-0042 D1），不在各 route 内散落判断；密钥占位符改造以**键路径**为身份，配 disk↔masked 的可逆映射，并在写盘前加不变式校验。
 - **R2** 分层门禁仿仓内既有先例 `apps/cli/test/tui/printable-key-guard.test.ts`（纯 AST/正则扫描 + 显式例外表 + 负向自测），不引入新工具链。
 - **R3** 契约表格落在 SDK 契约层（对齐"业界该语义出现在 SDK/harness 文档层"的对标结论），三表面各自消费同一断言夹具。
 - **R4** 基准脚本放 `scripts/perf/`（与既有 `load.ts` 并存、职责区分：`load.ts` 测进程内分配/GC，新脚本测二进制启动/体积/RSS）；阈值来自首次实测并写成可再生成的基线文件。
@@ -185,12 +185,13 @@ resume/fork 身份语义成为 SDK 契约层的单一定义并被三个表面复
 
 ## 实施后新增发现（release 阻断）
 
-`apps/cli/scripts/compile/build.mjs` 生成的 compile-entry 把全局名直接接在括号断言之后（
-`(globalThis as Record<string, unknown>).__BYF_WEB_EMBEDDED_ASSETS__ = …`），非法语法：
-**只要会话携带 SPA 资产，官方 release 管线就产不出二进制**。该缺陷自 SPA 资产内嵌进
-compile-entry 起存在；`release.yml` 仅发版时运行而期间无发版，dev 分支 CI 全绿亦无法暴露。
+`apps/cli/scripts/compile/build.mjs` 生成的 compile-entry 曾把全局名直接接在括号断言之后（
+`(globalThis as Record<string, unknown>).__BYF_WEB_EMBEDDED_ASSETS__ = …`），这不是合法语法。
+该缺陷自 SPA 资产内嵌进 compile-entry 起存在，并在 R4 的 `--bytecode` A/B 实测中被正面撞上（`docs/perf/REPORT-0038.md` §4 前置 2：该轮全部测量是在"修复后的中间产物"上完成的）。
 已修复并加纯函数级回归测试（含"生成码无语法诊断"的真解析断言）。同时满足 `--bytecode`
 的顶层 await 前置，并新增 `--profile=bytecode` 档位（默认 release 不变）。
+
+**严重度修订（2026-09-23，/review 裁决）**：本节初版把后果写成"只要会话携带 SPA 资产，官方 release 管线就产不出二进制"。该定性在官方管线的真实前置下**从未成立**：committed 的 `release.yml` `build-native` job 只跑 `bun run build:packages`（`packages/*`），从不构建 SPA，`apps/web/server/dist/public` 在 release runner 上不存在，`writeEmbeddedAssetsEntry` 直接返回 `null`（`build.mjs:215-226`），资产集恒空（`assetSets: [{ entryPath: null }]`，`build.mjs:379-390`）——坏生成码在官方路径上从不被产出，管线也不会因此断掉。codegen 缺陷本身是真的（本地跑过 `build:web` 再 compile 必然复现），修复正确、值得保留；但真正**活在发布物里的缺陷**是另一个：官方管线的前置决定了内嵌步骤永远找不到资产，**发布的二进制里没有工作台 UI**——`byf web` / `byf vis` 只有 API（`build.mjs:381-383` 在该路径打印 "web SPA assets not found … (byf web will be API-only)" 并成功退出），`@byfriends/cli@0.6.1` 及此前所有发布态皆如此，而 CI 全绿。把 SPA 构建接进 release 路径属于**与本节并行的发布管线修复**（`.github/workflows/release.yml` + compile 侧资产前置校验），不在本轮文档修正范围，由管线侧单独记账。
 
 - 引入 OS 级沙箱（ADR-0033 立场不变：permission 层仍是 best-effort UX guard）。
 
@@ -198,7 +199,7 @@ compile-entry 起存在；`release.yml` 仅发版时运行而期间无发版，d
 
 - **Created by**: 主 agent（2026-09-21），依据 `.qoder/analysis/2026-09-20/` 六份审计 + 综合报告 + `10-industry-benchmark.md`（deep-research run `wf_44c46e23-34c`，11 条存活 claim）。
 - **Grilled by**: 用户 2026-09-21 授权全程自主决策，Q1-Q7 由本 agent 依第一性原理 + 代码事实 + 对标强度裁决并随记理由。
-- **Issue**: 待 /story 阶段补建（父 Issue 建议挂 PRD-0026 性能线与 PRD-0037 之外的独立父项）。
+- **Issue**: 未按 /story 切片实施（R1–R6 单轮落地，追溯靠 commit 范围 `a40b488^..HEAD` 与本 PRD 三节）；评审后新增的后续项已建 issue：#344、#345、#346。
 - **Implemented by**: 主 agent + sub-agent（2026-09-21）— R1 安全边界（web 三层门与回环自动 token、`/api/mcp/test` 命令白名单、密钥掩码改键路径身份、点号键明文补口、损坏配置可读可修且服务可启动、headless 审批治理与审计痕迹）、R2（分层门禁扫描器 src 违规 0/test 域 budget 0、发布集合判据、agent-core barrel 错误注释更正）、R3（SDK 层身份表与三档重放分类深冻结、截断式故障注入、压缩 refill 跨轮累计、16 处对外文案 en/zh 同步）、R5（五道 CI 门禁接线且本地可同命令复现、flaky 真因修正、oxfmt 精确 pin、vis-server 退场、文档漂移清理）、R6（展示载荷 zod 单源 + never 哨兵、staking 基线失效）、R4（三臂启动/体积/空闲 CPU 基线与 gate、`--bytecode` 与 `STREAMING_UI_FLUSH_MS` 实测裁决）。
   - 实施中额外发现并修复：`resume` 复用 live 首跑的 attempt id 空间导致恢复时新结果被幂等追加静默吞掉、同一 action 重跑；CLI 的 JS 产物因 `--target node` 在 Bun 下 import 即崩（`dev:prod` 长期不可用）。
   - 未纳入本轮（见 Out of Scope）：逐符号完整 API 报告（API Extractor `apiReport`）、v2 引擎接线（#339 / #342）。
@@ -212,4 +213,29 @@ compile-entry 起存在；`release.yml` 仅发版时运行而期间无发版，d
 - **deps 门禁假红**：OSV 查询改为 3 次退避重试，4xx 不重试、耗尽仍计入 fail-closed 计数——"审计没跑完"依然不等于"没有已知漏洞"（`scripts/lib/dependency-audit-retry.test.ts` 覆盖三种结局）。
 - **`macos-smoke` 首跑结论**：`Compile darwin-arm64 binary` 与 `Smoke darwin-arm64 binary` 首次真实通过（run 35555363429）。首跑曾报 5 个 spawn 类测试在 darwin 超时，按 `BYF_TEST_CONCURRENCY` 降并发后全绿，判定为**共享 runner 负载撞上测试内写死的真实计时预算**，而非产品缺陷（#343 关闭记录留了重开判据）。同一形态在 Linux 复现过一次并已按同一理由修正（turn 等待守卫 1s → 10s，外层 `it` timeout 必须大于内层守卫）。附带收益：type-aware lint 现在在 CI（lint 在 build 前）与本地（build 后）两种顺序下结论一致。
 
-- **Reviewed by**: 待 /review。
+### 三批（2026-09-22/23，评审后修复）
+
+三视角 `/review`（Test / Code / Impact）对 `a40b488^..eefb503` 全批给出一致 **Request Changes**：3 个阻断、10 个较大、10 个次要。逐条处置与实测证据：
+
+1. **`941a131` 补测**（评审把它当样板提交，实际零测试，回退成 `Omit` 后全量仍绿）。新增 `packages/agent-core/tsconfig.type-negative.json` + `test/type-safety-negative.ts`：正向半边（payload 具名字面量必须被接受）本身就是回退探针——旧的压平 `Omit` 会因 excess-property 检查拒掉它。运行时在 `test/harness/hooks-events.test.ts` 补 `run_end.outcome === 'suspended'` 与"每一个发出事件都满足 `laneId`/`seq`/`at` 信封"的全集断言，并带 `guardedEvents > 0` 与必需事件类型到达性检查，防止守卫自己变成从不执行的死代码。
+2. **零容忍门禁量对了世界**。`tsconfig.test.json` 的 include 扩到 `scripts/**/*.test.ts` 与 `build/*.ts`（`build/run-tests.mjs` 的 roots 含 `scripts`，此前"0 errors"描述的是比测试实际运行面更小的世界）。扩宽当场抓出 48 个活错（含 `dependency-audit-retry.test.ts` 三条 TS7006），全部修到 0，未删或放宽任何一条断言。`build/test-preload.ts`（316 行 shim）从此纳入类型面。新增 `scripts/lib/script-modules.d.ts` + `.test.ts` 做声明与运行时导出的双向配对。
+3. **AC-2.4 barrel 钉的两个盲区已闭**：`export type { … }` 的具名并入比较、递归一层子 barrel（快照从根 74 条扩到 74 + 嵌套 81 条，覆盖 `./harness` 等 7 个模块）。两条 mutation 自测证明盲区真的会红。顺带修掉同处两处"承诺多于实现"：`readSnapshot()` 声明返回含 `unresolved: string[]` 而磁盘快照从未写过它；`compareSurface` 的 `missing`/`added` 只算根 star 目标，具名与 type-only 导出从不出现在机器可读差集里。
+4. **R1 增第四层门**：`Host` 允许集合（回环字面量 ∪ 绑定主机 ∪ 非回环绑定的网卡地址，端口不参与），挂在根中间件、先于只读豁免与静态资产，于是 rebinding 的跨站**读**被闭合。评审自陈做不到的端到端复现由真 socket + 真 `Bun.serve` 做到并固化成用例（`Host` 是 forbidden header，`fetch` 设不了，故走 `node:net` 手写 HTTP/1.1）。施工中发现并修掉三个真实缺陷：`127.0.0.1.attacker.test` 前缀撞名（按 `startsWith('127.')` 分类会放行）、重复 `Host` 头被 Bun 拼成 `127.0.0.1:4100, evil.test` 后按首个冒号截断即被读成回环、`%2f` 逃过 URL 段规范化后静态路由可读到 `publicDir` 的兄弟目录。stdio 命令白名单从 route 下沉到 `host-rpc.ts` 的收口点，两 scope 皆空时默认拒绝；`args`/`env`/`cwd` 不约束这一残留按 ADR-0033 语域写进注释与 ADR-0042。
+5. **退出码 7 钉住**：`run-prompt.test.ts` 两处由"是个数字且不在占用位表里"改成同时钉常量与字面 `7`（改常量必红），并补进 ADR-0029 与两语种用户文档。
+6. **`vitest.d.ts` 的声明诚实化**：实测 `vi.unmock` / `advanceTimers` / `getSystemTime` 运行时无实现而声明有，已删并加声明↔运行时守卫测试；`resolves`/`rejects` 改 `Assertion<Awaited<T>>`。顺带记录一条只有实测才能得到的语义：Bun 的 `.resolves` 同步阻塞测试体（300ms 的 promise 在同一条用例体内可见 301ms 墙钟差），因此 97 处去掉的 `await` 不是噪音掩盖；这是 Bun 私有行为，迁回真 vitest 时必须整体加回。
+7. **发布管线真正修好**（评审的第二个阻断，也是本 PRD 标题的后半）：`release.yml` 此前只跑 `build:packages`，其 filter 永不覆盖 `apps/`，SPA 目录因此不存在，`build.mjs` 打一行 "API-only" 后 **exit 0** —— 于是 `@byfriends/cli@0.6.1` 及之前每个发布二进制的 `byf web` 都没有工作台，而 CI 一直是绿的。现在 release 家族缺资产即失败、`test:native:smoke` 断言 SPA 经 HTTP 可取回、`macos-smoke` 的 Build 步骤与 release 用同一条命令，且新增 `scripts/lib/release-workflow-shape.test.ts` 把两套 workflow 的形状钉住（含 `apps/vis` 不得借合并复活、平台包名四处一致）。本节原先"只要携带 SPA 资产官方管线就产不出二进制"的定性按事实下调：官方管线那条路上 asset 集恒为 null，因此真正的缺陷是"发出去的产物没有界面"。
+8. **#345 授权与来源分离**：审批的授权来源成为记录的必填入参并随 `permission.record_approval_result` 一起落 journal，纯 reducer 对 `audit-only` 不铸造会话级免问规则；`PermissionManager` 的 `set mode` 访问器删除（它就地改状态、不落记录、不进 replay），改由 `setMode` 唯一入口留痕。伪造测试覆盖"钩入文本声称已获得授权"与"伪造一条 origin=user 的队列记录"，后者经 JSONL 截断-恢复仍不能 mint 用户授权。
+9. **#307 六项**：侧边栏元数据按 `session.meta.updated` 帧失效（带 400 帧只失效 1 次的防风暴断言）；发送/取消/切权限失败改为可见并回滚乐观条目；动效时长统一进 token；AA 对比度守护脚本 + CI 步骤；token 存储键统一到 `byf.` 命名空间并懒迁移。守护首跑实测出三组今日低于 AA 的字色，如实 WARN 不判红，交视觉裁决（#346）。
+10. **文档与追溯**：新增 ADR-0042（四层门、能力分级、残余面）；ADR-0032 / ADR-0020 加"部分取代"精确注记并逐条声明未被推翻的部分；ADR-0034 / ADR-0036 的 D4 加被取代注记；SECURITY.md 增「本地 HTTP 服务」一节；`byf-command.md` 两语种纠正与代码相反的 `--yolo` / `--prompt` 叙述、补 `--deny-unapproved` / `--approve-all` / 退出码 7；`env-vars.md` 补 `WEB_AUTH_TOKEN`；CONTEXT.md 七个"目标态"括注逐行裁决后**全部保留**（依据同一条未接线事实）；AGENTS.md 按 ADR-0041 D4 自己规定的过渡语义，把 Q9 批准措辞作为目标条款与现行 `Agent` 条款并列落地。
+
+**本轮未做（不是遗漏，是前置未到）**：
+
+- `--bytecode` 仍未成为 release 默认。前置 3 要求一次真实测量重录 `scripts/perf/baselines/linux-x64.json`，而本机度量与编译未被授权执行；更关键的是采纳裁决的 linux 半边证据没有 darwin 对应物。`macos-smoke` 已新增 bytecode 的 compile + smoke 两步，翻转默认以那两步变绿为前置。
+- AC-4.3 的环比门仍未接进任何 workflow：接进去就是一个"构造性红"的门（已提交基线含两条自测冒烟本就失败的死臂），因此让 `gate` 在变红时自己说明原因并给出重录命令，而不是伪造绿。基线重录后再接。
+- 启动/体积基线仍只有 linux-x64 一个文件；prompt cache 命中率仍无跨轮汇总与对外可见面（`TokenUsage` 已有 `inputCacheRead`/`inputCacheCreation`，缺的是聚合）。
+- `typecheck:negative` 仍不在 `scripts/ci-gates.mjs` 的门禁名单里，所以 `bun run gate` 不等于 CI 全部门禁。
+
+**记账**：新建 #344（v2 装配地基，阻塞 #339/#340/#341）、#345（hook 授权边界，本轮已实现）、#346（AA 未达标字色）；#339/#340/#341 的 body 追加 Blocked by #344 与死开关证据；#342 记删除足迹、`lock.ts`/JSONL 单写者冲突与 barrel 口径；关闭与 PRD 状态矛盾的 #284 / #299 / #310。R1–R6 本轮按单轮实施落地，不回补"已完成"性质的 Issue——那只会给 tracker 增加六条没有信息量的记录。
+
+- **Reviewed by**: 三视角 `/review`（Test / Code / Impact）于 2026-09-23 执行，一致 **Request Changes**；发现的处置与未处置项全部记录在「三批」。复审判据：同一批文件重跑一遍三视角，重点看「三批」里第 1/2/3/7 条的断言是否真的会红。
+- **发布态势（2026-09-23）**: **未发布**。R1–R6 的实现与评审修复均已合入/正落入 `dev`，但 `.changeset/` 尚有 51 份未消费条目（其中 34 条 minor 派生、0 条 major），下一次版本派生为 **0.6.1 → 0.7.0**（当前最新 tag `@byfriends/cli@0.6.1`）。发布动作本身、以及上节的管线修复落地与验证，都在版本执行之前。

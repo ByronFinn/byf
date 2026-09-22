@@ -10,15 +10,11 @@
 
 ### vis
 
-BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 monorepo 的 `vis` 脚本（API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。工具链迁移后开发入口以 Bun 为准（见「开发工具链契约」）。
-
-> **已弃用（PRD-0035）**：其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台；`byf vis` 在弃用期内成为 `byf web` 的别名（默认端口仍 3001），此后随 `@byfriends/vis-server` shim 一并移除。
+历史工具名（已删除）：BYF 曾经的独立会话与 replay 可视化调试工具（Hono API server + React/Vite SPA），读取 `$BYF_HOME/sessions` 下的会话记录渲染为可浏览的时间线/树形视图。其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台（ADR-0037），`apps/vis` 整棵树随 PRD-0038 R5 删除，monorepo 也已不存在 `vis` 开发脚本。现状：`byf vis` 是弃用期别名，与 `byf web` 共用 `@byfriends/web-server` 的 `startWebServer`（差异只剩默认端口 3001 与 `VIS_AUTH_TOKEN` 兼容转发），启动时打印一行弃用提示；会话 / replay 检视在统一工作台的 Inspector。
 
 ### vis-server
 
-承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可独立启动服务入口（库入口供程序化导入）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。独立启动的解释器与库运行时契约一致（Bun，不再以 Node 为官方路径）。
-
-> **已弃用（PRD-0035）**：弃用期内保留一个版本 shim（导出 `startWebServer`/类型别名，标注 deprecated），其路由能力与 Inspector 读取逻辑已由 `@byfriends/web-server` + `agent-core` 的 Inspector 取代。
+已删除的包（`@byfriends/vis-server`）：历史上承载 vis 的 HTTP 服务。它的公开契约（`startVisServer`、`VIS_HOST` 默认 `127.0.0.1`、非回环绑定时 `VIS_AUTH_TOKEN` 必填、独立启动入口）在代码中已不存在——包本体与 workspace、`build:vis`、dev 脚本、release 挂点一并在 PRD-0038 R5 移除（ADR-0037 D1 定下的"保留一个版本 shim 后弃用"窗口已走完）。今天唯一的本地 HTTP 服务是 `@byfriends/web-server`（见「web 客户端 / web-client（`apps/web`）」与 ADR-0042）；`VIS_AUTH_TOKEN` 这个名字仅在 `byf vis` 别名路径上作为兼容输入被读取（`WEB_AUTH_TOKEN` 未设置时转发为它）。
 
 ### 开发工具链契约
 
@@ -124,7 +120,7 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### Wire Records
 
-事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。restore 重放重建的是**上下文**，不重放、也不撤销工具调用已经产生的效果；按重放安全分类（只读 / 本机副作用 / 远程不可逆，PRD-0038 AC-3.4），不可重放档的悬空调用以合成观察收尾，而不是回滚。
+事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）与 Inspector 只读检视（统一工作台）。restore 重放重建的是**上下文**，不重放、也不撤销工具调用已经产生的效果；按重放安全分类（只读 / 本机副作用 / 远程不可逆，PRD-0038 AC-3.4），不可重放档的悬空调用以合成观察收尾，而不是回滚。
 
 **两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
 
@@ -132,7 +128,7 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 ### wire 折叠 (wire fold) / 投影函数 (projection function)
 
-把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 `apps/vis` 的 `projectContext` 共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
+把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 Inspector 的 `projectContext`（`session/inspector/context-projector.ts`，自历史的 `apps/vis` 上移）共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
 
 ### wire reducer（Op / Model）
 
@@ -177,7 +173,7 @@ PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-
 
 ### 压缩 (Compaction)
 
-对旧的对话历史进行摘要，以保持在上下文限制内。手动触发或在上下文溢出时自动触发。压缩事件记录在 wire records 中，并在 vis 中显示为 ribbon。
+对旧的对话历史进行摘要，以保持在上下文限制内。手动触发或在上下文溢出时自动触发。压缩事件记录在 wire records 中，并在统一工作台 Inspector 的 context 视图显示为 ribbon（`CompactionRibbon`）。
 
 ### 思考 (Thinking)
 
@@ -307,7 +303,7 @@ env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（�
 
 将超过阈值（约 8000 token）的完整工具输出写入临时文件，将工具结果替换为预览（1000 字符）加文件引用。代理可按需重新读取。临时文件按大小/时间限制管理，防止无限制增长。
 
-**Live-only 语义**：offload 是 live 时基于当前 token 压力的临时优化，restore 路径有意跳过它（恢复后的 `_history` 携带原始完整输出，下次 turn 的 `beforeStep` 会重做压缩）。临时文件易失不可恢复。`context.output_offloaded` wire record 写入仅作 vis 调试徽章；在 `ContextMemory.restoreRecord` 中为**显式 no-op case**（非遗漏）。`context.pruning` 同理——记录 live 裁剪事件，restore 重建原始未裁剪内容后由 `beforeStep` 重做。
+**Live-only 语义**：offload 是 live 时基于当前 token 压力的临时优化，restore 路径有意跳过它（恢复后的 `_history` 携带原始完整输出，下次 turn 的 `beforeStep` 会重做压缩）。临时文件易失不可恢复。`context.output_offloaded` wire record 写入仅作 Inspector 调试徽章；在 `ContextMemory.restoreRecord` 中为**显式 no-op case**（非遗漏）。`context.pruning` 同理——记录 live 裁剪事件，restore 重建原始未裁剪内容后由 `beforeStep` 重做。
 
 ### AGENTS.md 预算 (AGENTS.md Budget)
 
@@ -373,7 +369,7 @@ byf 配置文件的两层模型：**全局**（用户级，`~/.byf/` 下）与**
 
 ### web 客户端 / web-client（`apps/web`）
 
-浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
+浏览器中实时驱动 agent 的 Web UI，也是唯一的本地 HTTP 服务面（`byf vis` 只是它的弃用别名；鉴权门见 ADR-0042）。三包拆分（`apps/web/{shared,server,client}`；结构当初镜像 `apps/vis`，该树已随 PRD-0038 R5 删除）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话，Inspector 只读检视能力自 `apps/vis` 上移 core（ADR-0037）。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
 
 ### 三层设计 token
 
@@ -408,6 +404,38 @@ apiKey 的管理语义：仅接受写入、任何读取路径恒脱敏（仅报�
 ### settle 后渲染 (render-after-settle)
 
 web 客户端流式渲染策略：流式期间保持纯文本，块完结（settle）后再做语法高亮、Mermaid 图表、LaTeX 公式等重渲染，避免每帧重排抖动（沿 PRD-0033 高亮决策推广到图表与公式）。
+
+### 回环自动 token (loopback auto token)
+
+`byf web` 在回环绑定、且用户未配置 `WEB_AUTH_TOKEN` 时，由 `generateAuthToken` 每次启动生成的随机 token（48 位十六进制，重启即更换）。`resolveAuthToken` 的 `explicit` 标记区分"显式配置值"（LAN 模式）与"本次启动自动 token"：**写操作在任何模式下都要求 token**；只有非 explicit（回环自动 token）时只读 GET/HEAD 才免 token，以免破坏 SPA 首屏与 SSE。token 经启动横幅 `token=` 与 CLI 自动打开的 URL `?token=` 交付。见 ADR-0042、`apps/web/server/src/app.ts`。
+
+### x-byf-requested-with（标记头契约）
+
+非浏览器调用者向 web-server 声明"这是 byf 客户端在有意调用"的契约头（常量 `BYF_REQUESTED_WITH_HEADER`）。带显式跨源 `Origin` 的写一律 403——标记头不是跨源豁免；不带 `Origin` 的调用者（本机脚本 / 集成方）必须自带此头。它可被任何本机进程轻易伪造：证明的是调用意图，不是身份。web client 也恒带此头，使门判定不依赖各浏览器发送 `Origin` 的差异。见 ADR-0042 D1/D4。
+
+### stdio 命令白名单 (stdio command allowlist)
+
+`/api/mcp/test` 的治理门（PRD-0038 AC-1.3 / Q3 裁决）：请求体指定的 stdio `command` 必须是任一 scope 已保存 MCP 配置中出现过的命令名，否则 403 且不 spawn 任何进程；未保存的配置仍可测（填完先测再存是真实需求），但命令来源从"请求体任意值"收窄到"本机已声明的集合"。http/sse transport 不经过此门。写门落地时在 web 路由层（`stdioCommandOf` / `listedStdioCommands`）于 probe 之前执行。见 ADR-0042 D5。
+
+### 密钥占位符的「键路径身份」 (key-path identity of secret placeholders)
+
+raw 配置编辑器中密钥值的掩码占位符按**键路径**标注归属（`__BYF_KEEP_SECRET__<键路径>`；路径中的引号/控制符经 `encodeSecretPath` 折叠为 `~`），保存还原时"这个占位符属于哪个密钥"由键路径唯一决定、与行序无关——早期的按行序编号方案会在重排 provider 块时跨 provider 错配、删一行静默丢密钥（PRD-0038 AC-1.5 改正）。实现在 `agent-core` 的 `config/document.ts`。占位符 round-trip 语义见 ADR-0038 D4 / ADR-0039。
+
+### SESSION_IDENTITY_CONTRACT
+
+`@byfriends/sdk` 的深冻结会话身份契约表（`packages/node-sdk/src/session-contract.ts`）：resume = 保留原 session ID、往既有历史追加、原会话字节可增长；fork = 铸造新 ID、历史复制进新会话、源会话字节必须不变；两者都从事件日志重建**新**上下文窗口，不继承内存态。各消费表面 import 同一张表、各自断言自己那一行，不本地另抄期望（PRD-0038 AC-3.1）。
+
+### TOOL_REPLAY_SAFETY_CLASSES
+
+`@byfriends/sdk` 深冻结的工具重放安全三档词汇（同上文件）：`read-only`（幂等只读，restore 可安全重放一次）/ `side-effect`（本机副作用，restore 以合成观察收尾，≠ 回滚）/ `remote-irreversible`（效果可能已在远端发生且不可撤销，一律合成观察）。`classifyToolReplaySafety` 是默认判定的单一真源：未登记工具保守归 `side-effect`，`mcp__` 前缀工具归 `remote-irreversible`。这是 SECURITY.md「事件日志可重放 ≠ 工具副作用可回滚」纪律的代码事实源（PRD-0038 AC-3.4）。
+
+### EXIT_CODE_APPROVAL_REQUIRED
+
+headless `-p` 被权限治理拦下时的专用退出码 `7`（`apps/cli/src/cli/run-prompt.ts` 常量）：`manual` 模式（含 `--deny-unapproved`）下审批请求问不到人，一律拒绝并以 `7` 结束；与 `1`（通用失败）、`3`/`6`（goal 终态）、`129`/`130`/`143`（信号）互不相交，脚本据此区分"跑完了但被拦"与"跑挂了"。自记录起属于 ADR-0029 §6 完成协议（PRD-0038 Q9 裁决）。
+
+### delta_bytes（体积环比口径）
+
+官方二进制体积环比的判定度量：`delta_bytes = 当次编译二进制体积 − 同 pin Bun 版本 hello-world floor`。环比 gate 只比较该差值、不比较绝对体积——Bun 升级会整体平移 floor，绝对阈值会把运行时升级误判为代码回归（PRD-0038 AC-4.1 / 业界对标「体积门禁必须用 delta-over-floor」）。gate 阈值派生自仓内基线 `scripts/perf/baselines/linux-x64.json` 的 `sizeFloor.deltaBytes`；口径与实测见 `docs/perf/REPORT-0038.md` §3。
 
 ## 术语表（PRD-0037 目标态）
 

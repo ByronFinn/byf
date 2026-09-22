@@ -38,6 +38,12 @@ This is a TypeScript monorepo built for agent-assisted development. Keep the roo
 - Internal methods with only a single parameter should not be turned into options objects just for stylistic uniformity.
 - Except for a package's `index.ts`, other `index.ts` files should prefer `export * from './module';`.
 - The `Agent` class in `packages/agent-core/src/agent` must be usable on its own. The constructor must not force the caller to create a `Session` instance, nor require an `agentId` or `session`. It may accept an optional `sessionId` as a request-config hint (threaded toward provider cache-key routing; on the OpenAI Chat Completions path a PromptPlan content-hash takes precedence, so `sessionId` is a hint, not a guarantee of the on-wire key), but the instance must not hold `sessionId`, and must not depend on the Session lifecycle, metadata, or parent/child relationship logic.
+- **Target-state version of the clause above (PRD-0037 Q9 approved wording, ADR-0041 D4; it replaces the `Agent` bullet only when the Phase 4 cutover lands).** The `AgentHarness` class in `packages/agent-core/src/harness` must be usable on its own:
+  - its construction must not force session storage — `Session` is an injectable storage object, and the in-memory backend is enough to run the harness standalone;
+  - `sessionId` may only be accepted as a request-config hint, and the instance must not hold it;
+  - the harness is the only records writer;
+  - the `loop` layer stays host-free and is consumed by the harness as step primitives.
+    Today nothing runs on this path: `config.engine` is parsed but never read by the assembly layer (`packages/agent-core/src/rpc/core-impl.ts` always constructs the legacy `Session`, which in turn creates the `Agent`), and `AgentHarness` is constructed only inside `src/harness` and its tests. Until the cutover (PRD-0037 PR4.4), the previous bullet is the operative constraint for every consumer, and the legacy `Agent` class stays frozen (blocking bug fixes only) but live.
 - Do not add too many new test files. Prefer adding tests to the existing test file of the corresponding component or module.
 - When a test fails because of a user modification, default to fixing the test first; do not change the implementation to satisfy an old test unless the implementation truly has a bug.
 - Do not sacrifice code quality for external compatibility unless the user explicitly asks for it. Breaking changes go through changesets and a `major` bump, gated by the rule below.
