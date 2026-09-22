@@ -36,7 +36,10 @@ export function SizePreview({
       >
         <span className="flex items-center gap-2">
           <ChevronRight
-            className={cn('size-3 shrink-0 transition-transform duration-150', open && 'rotate-90')}
+            className={cn(
+              'size-3 shrink-0 transition-transform duration-(--duration-fast)',
+              open && 'rotate-90',
+            )}
             aria-hidden
           />
           <span className="tracking-[0.08em]">{label}</span>

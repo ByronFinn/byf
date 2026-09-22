@@ -41,8 +41,16 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
-  /* 动效曲线(三档时长见 :root --duration-*) */
+  /* 动效 token 单一来源:三档时长 + 曲线。--default-transition-* 是 Tailwind
+     v4 的官方接线点——所有 `transition-*` 工具类(transition-colors 等)未显式
+     指定时长/曲线时落到这里,统一走 token 而非 Tailwind 内置默认值(#307 项 3)。
+     组件里需要快档的地方(chevron 旋转)用 duration-(--duration-fast)。 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration: var(--duration-base);
+  --default-transition-timing-function: var(--ease-smooth);
 
   /* 品牌 deepseek 蓝(替代 byf emerald;ADR-0037 D6)。向 deepseek 签名色
      #4D6BFE 校准(≈oklch(0.58 0.2 273)):提高饱和、色相偏紫,更贴合精致蓝。 */
@@ -155,10 +163,7 @@
   --code-bg: oklch(0.16 0.006 255);
   --code-fg: oklch(0.68 0.008 255);
 
-  /* 动效三档时长 */
-  --duration-fast: 120ms;
-  --duration-base: 200ms;
-  --duration-slow: 320ms;
+  /* 动效三档时长已上移至 @theme(单一来源 + Tailwind 接线),见 Layer 1。 */
 
   /* 窄屏导航 overlay 的遮罩(深浅主题同值) */
   --scrim: oklch(0 0 0 / 0.5);

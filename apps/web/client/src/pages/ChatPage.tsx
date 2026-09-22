@@ -46,7 +46,7 @@ import {
 import { useEventStream } from '#/hooks/useEventStream';
 import { useTheme } from '#/hooks/useTheme';
 import { chatReducer, initialChatState, replayToEntries, subagentsFromResume } from '#/lib/chat';
-import { INVALIDATE } from '#/lib/query-keys';
+import { invalidationsForFrame } from '#/lib/query-keys';
 import { userActivatableSkills } from '#/lib/skills';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
@@ -185,16 +185,15 @@ function ChatSessionPage({
 
   useEventStream(resumed ? sessionId : undefined, (frame) => {
     dispatch({ type: 'frame', frame });
-    // 事件驱动刷新右栏 State(PRD-0035):turn 结束/step 完成即失效查询,
-    // 与轮询互补——活跃对话结束时 state 立即更新,无需等下一个轮询 tick。
+    // 事件驱动刷新(PRD-0035 + #307 项 1):哪些帧失效哪些 key 集中在
+    // `invalidationsForFrame`(lib/query-keys)——turn/step 结束刷新右栏检视,
+    // session.meta.updated 刷新侧栏会话列表(title/updatedAt 首条消息后即落位);
+    // delta 等高频帧零失效,无 refetch 风暴。契约测试 test/query-keys.test.ts。
+    for (const queryKey of invalidationsForFrame(frame, sessionId)) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
     if (frame.type === 'agent.event') {
       const e = frame.event;
-      if (e.type === 'turn.ended' || e.type === 'turn.step.completed') {
-        // 事件驱动刷新检视数据:session 前缀一次失效 wire/agents/state(前缀
-        // 匹配),context 独立 key;key 形状集中在 lib/query-keys 并被测试钉住。
-        void queryClient.invalidateQueries({ queryKey: INVALIDATE.session(sessionId) });
-        void queryClient.invalidateQueries({ queryKey: INVALIDATE.context(sessionId) });
-      }
       // 后台任务状态实时同步(deepseek 面板同源)
       if (e.type === 'background.task.started') {
         setBackgroundTasks((prev) => [...prev.filter((t) => t.taskId !== e.info.taskId), e.info]);
@@ -213,6 +212,11 @@ function ChatSessionPage({
   const heroPromptRef = useRef<string | null>(null);
   const heroPromptRendered = useRef(false);
   const pruneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // 乐观发送回滚(#307 项 2):每次 onSend 落一条带显式 id 的用户条目,prompt
+  // 请求被拒(网络失败 / 写门 401/403)时按该 id 撤销条目并落转录错误;hero
+  // 交接的首条消息同理,条目 id 固定。
+  const sendSeq = useRef(0);
+  const heroEntryId = `u-hero-${sessionId}`;
 
   useEffect(() => {
     if (sessionId.length === 0) return;
@@ -236,7 +240,7 @@ function ChatSessionPage({
     // 里就永远看不到用户自己的第一条消息(ref 防 StrictMode 双跑重复落)。
     if (heroPrompt !== null && !heroPromptRendered.current) {
       heroPromptRendered.current = true;
-      dispatch({ type: 'user-message', text: heroPrompt });
+      dispatch({ type: 'user-message', text: heroPrompt, id: heroEntryId });
     }
     void (async () => {
       try {
@@ -265,7 +269,15 @@ function ChatSessionPage({
         // 第一条链会跳过发送,只有存活的链发一次(此前双链各发一次 → turn.agent_busy)。
         if (!cancelled && heroPrompt !== null) {
           promptAttempted = true;
-          void api.prompt(sessionId, heroPrompt);
+          // hero 首条消息的发送失败同样要可见:回滚乐观条目 + 转录错误
+          // (此前是裸 void,401/403 时 UI 停在「已发送」且留下 unhandled rejection)。
+          void api.prompt(sessionId, heroPrompt).catch((error: unknown) => {
+            dispatch({
+              type: 'send-failed',
+              entryId: heroEntryId,
+              message: `发送失败：${errorMessage(error)}`,
+            });
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -303,12 +315,29 @@ function ChatSessionPage({
   }, [sessionId, location.state]);
 
   const onSend = (text: string, images: readonly ComposerImage[]): void => {
-    dispatch({ type: 'user-message', text, images: images.map((img) => img.dataUrl) });
-    void api.prompt(
-      sessionId,
+    sendSeq.current += 1;
+    const entryId = `u-send-${sendSeq.current}`;
+    dispatch({
+      type: 'user-message',
       text,
-      images.map((img) => ({ dataUrl: img.dataUrl })),
-    );
+      images: images.map((img) => img.dataUrl),
+      id: entryId,
+    });
+    // 发送失败(网络失败 / 写门 401/403):回滚乐观条目并在转录里落一条错误,
+    // 不留假「已发送」(#307 项 2)。
+    void api
+      .prompt(
+        sessionId,
+        text,
+        images.map((img) => ({ dataUrl: img.dataUrl })),
+      )
+      .catch((error: unknown) => {
+        dispatch({
+          type: 'send-failed',
+          entryId,
+          message: `发送失败：${errorMessage(error)}`,
+        });
+      });
   };
 
   // 会话恢复后拉取技能列表(slash 面板 `skill:<name>` 命令数据源;与 TUI 的
@@ -328,7 +357,10 @@ function ChatSessionPage({
   }, [resumed, sessionId]);
 
   const onCancel = (): void => {
-    void api.cancel(sessionId);
+    // 取消失败(网络 / 写门 401/403)用户必须看到:复用 toast 通道(#307 项 2)。
+    void api.cancel(sessionId).catch((error: unknown) => {
+      toast.error(`取消失败：${errorMessage(error)}`);
+    });
   };
 
   // 权限切换:乐观值由 PermissionChip 内部持有,settle 后回读服务端状态确认。
@@ -370,7 +402,11 @@ function ChatSessionPage({
         const current = state.status?.permission ?? 'manual';
         const next =
           PERMISSION_CYCLE[(PERMISSION_CYCLE.indexOf(current) + 1) % PERMISSION_CYCLE.length]!;
-        void onPermissionChange(next);
+        // 斜杠命令路径不经 PermissionChip(组件内自建 toast),裸 void 会把
+        // setPermission 失败吞成 unhandled rejection(#307 项 2)。
+        void onPermissionChange(next).catch((error: unknown) => {
+          toast.error(`权限切换失败：${errorMessage(error)}`);
+        });
       },
     },
     { name: 'model', description: '打开设置选择默认模型', run: openSettingsDialog },

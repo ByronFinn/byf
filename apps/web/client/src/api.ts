@@ -55,7 +55,29 @@ import type {
   WorkspaceView,
 } from '#/types';
 
-const TOKEN_STORAGE_KEY = 'byf-web-auth-token';
+/**
+ * 认证 token 存储键(#307 项 5):统一到全仓 `byf.*` 点命名空间。旧连字符键
+ * `byf-web-auth-token` 保持可读并懒迁移——改名不得让任何已存 token 的用户丢
+ * 登录态(旧键命中时写回新键,但旧键原样保留)。
+ * (issue 里提到的第三个键 `byf-web-workdir` 已随 hero 工作区改导航 state 而
+ * 不再读写,无需迁移。)
+ */
+export const TOKEN_STORAGE_KEY = 'byf.auth.token';
+export const LEGACY_TOKEN_STORAGE_KEYS = ['byf-web-auth-token'] as const;
+
+/** 新键优先读取;旧键命中则迁移写入新键(纯函数,Storage 由调用方注入)。 */
+export function readAuthToken(store: Pick<Storage, 'getItem' | 'setItem'>): string | null {
+  const current = store.getItem(TOKEN_STORAGE_KEY);
+  if (current !== null && current.length > 0) return current;
+  for (const legacy of LEGACY_TOKEN_STORAGE_KEYS) {
+    const value = store.getItem(legacy);
+    if (value !== null && value.length > 0) {
+      store.setItem(TOKEN_STORAGE_KEY, value);
+      return value;
+    }
+  }
+  return null;
+}
 
 function readTokenParam(raw: string): string | null {
   const trimmed = raw.replace(/^[#?]/, '');
@@ -99,7 +121,7 @@ function authToken(): string | null {
     scrubTokenFromUrl();
     return token;
   }
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  return readAuthToken(window.localStorage);
 }
 
 async function request<T>(

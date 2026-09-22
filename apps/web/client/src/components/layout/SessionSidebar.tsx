@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu';
 import { useWorkspaceView } from '#/hooks/useWorkspaceView';
+import { QK } from '#/lib/query-keys';
 import { relativeTimeLabel } from '#/lib/relative-time';
 import { errorMessage, toast } from '#/lib/toast';
 import { cn } from '#/lib/utils';
@@ -45,9 +46,9 @@ import {
   type WorkspaceGroupNode,
 } from '#/lib/workspace-tree';
 
-/** 工作区数据 query key(侧边栏与 hero 选择器共享缓存)。 */
+/** 工作区数据 query key(侧边栏与 hero 选择器共享缓存;形状钉在 lib/query-keys)。 */
 export function workspaceListKey(): readonly unknown[] {
-  return ['workspaces'];
+  return QK.workspaces;
 }
 
 /** 全局「打开设置弹层」事件(slash 命令 /settings 等触发)。 */

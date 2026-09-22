@@ -146,7 +146,20 @@ export function initialChatState(): ChatState {
 
 export type ChatInput =
   | { type: 'reset' }
-  | { type: 'user-message'; text: string; images?: readonly string[] }
+  | {
+      type: 'user-message';
+      text: string;
+      images?: readonly string[];
+      /** 显式条目 id(发送失败回滚需要按 id 精确移除乐观条目);缺省自动生成。 */
+      id?: string;
+    }
+  | {
+      /** 乐观发送的 prompt 请求被拒(网络失败 / 写门 401/403):按 entryId 移除
+       *  乐观用户条目,并落一条转录错误系统条目。 */
+      type: 'send-failed';
+      entryId: string;
+      message: string;
+    }
   | { type: 'status-loaded'; status: SessionStatus }
   | {
       type: 'transcript-loaded';
@@ -163,11 +176,34 @@ export function chatReducer(state: ChatState, input: ChatInput): ChatState {
     case 'user-message': {
       const entry: UserEntry = {
         kind: 'user',
-        id: `u-${state.entries.length}-${Date.now()}`,
+        id: input.id ?? `u-${state.entries.length}-${Date.now()}`,
         text: input.text,
         images: input.images,
       };
       return { ...state, entries: [...state.entries, entry] };
+    }
+    case 'send-failed': {
+      // 乐观发送被拒(网络失败 / 写门 401/403):移除该乐观用户条目,并落一条
+      // 转录内系统错误。条目定位按 id 且必须是 user 条目;找不到(已被 reset /
+      // transcript-loaded 替换)则只落错误。turnIndex/toolIndex 是按位置的下标,
+      // 移除后统一重建(条目下标整体前移)。
+      const idx = state.entries.findIndex((e) => e.id === input.entryId && e.kind === 'user');
+      let next = state;
+      if (idx !== -1) {
+        const entries = state.entries.filter((_, i) => i !== idx);
+        const turnIndex = new Map<number, number>();
+        for (const [turnId, pos] of state.turnIndex) {
+          if (pos > idx) turnIndex.set(turnId, pos - 1);
+          else if (pos < idx) turnIndex.set(turnId, pos);
+        }
+        const toolIndex = new Map<string, { entry: number; part: number }>();
+        for (const [callId, loc] of state.toolIndex) {
+          if (loc.entry > idx) toolIndex.set(callId, { entry: loc.entry - 1, part: loc.part });
+          else if (loc.entry < idx) toolIndex.set(callId, loc);
+        }
+        next = { ...state, entries, turnIndex, toolIndex };
+      }
+      return addSystem(next, input.message, 'error');
     }
     case 'status-loaded': {
       const status: StatusView = {

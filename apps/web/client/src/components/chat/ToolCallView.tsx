@@ -260,7 +260,7 @@ export function ToolCallView({ part }: { part: ToolPart }): React.JSX.Element {
           )}
           <ChevronRight
             className={cn(
-              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-(--duration-fast)',
               open && 'rotate-90',
             )}
             aria-hidden
@@ -341,7 +341,7 @@ export function ToolGroupView({ group }: { group: ToolGroupPart }): React.JSX.El
           <span className="shrink-0 text-fg-muted">× {group.tools.length}</span>
           <ChevronRight
             className={cn(
-              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+              'ml-auto size-3.5 shrink-0 text-fg-subtle transition-transform duration-(--duration-fast)',
               open && 'rotate-90',
             )}
             aria-hidden

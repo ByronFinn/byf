@@ -87,7 +87,7 @@ export function ScopeSelector({
       >
         {label}
         <ChevronDown
-          className={`size-3 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`size-3 shrink-0 text-fg-subtle transition-transform duration-(--duration-fast) ${open ? 'rotate-180' : ''}`}
           aria-hidden
         />
       </button>
