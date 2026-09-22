@@ -1,6 +1,11 @@
 import type { ContentPart } from '@byfriends/kosong';
 
-import type { EntryId, LaneId, StoredPromptOrigin } from './storage/types';
+import type {
+  ContributablePromptOrigin,
+  EntryId,
+  LaneId,
+  StoredPromptOrigin,
+} from './storage/types';
 
 /**
  * wire 2.0 执行记录载荷目录（v2 §5，PRD-0037 #323/#324）。
@@ -112,7 +117,12 @@ export interface QueueEnqueuedPayload {
   readonly queue: QueueName;
   /** 完整 payload（abort 时 steer/followUp 死亡并归还调用方）。 */
   readonly input: readonly ContentPart[];
-  readonly origin?: StoredPromptOrigin;
+  /**
+   * 队列项来源。#345：类型层面排除 `user`——三队列都是"到达会话的内容"而非
+   * "用户的决定"（用户输入入口只有 `prompt()`）。消费点的运行时守卫见
+   * `agent-harness.ts`（journal 载荷是 `unknown`，恢复不据类型信任）。
+   */
+  readonly origin?: ContributablePromptOrigin;
   /** 预分配消费 entry id：消费点写树用；entry 存在 = 已消费（恢复判定）。 */
   readonly entryId: string;
   readonly enqueuedAt: number;

@@ -100,6 +100,42 @@ export type StoredPromptOrigin =
   | CronJobOrigin2
   | CronMissedOrigin2;
 
+/**
+ * 唯一携带**用户裁决权威**的来源（#345）。`kind === 'user'` 只在真实用户路径上
+ * 出现：host 调用方经 `AgentHarness.prompt()` 提交本轮输入。其余来源
+ * （hook 贡献的文本、injection、skill 激活、cron 触发、后台任务通知、压缩摘要）
+ * 都是"到达会话的内容"，不是"用户的决定"。
+ *
+ * 这是**来源与授权能力的分离**，不是安全边界（ADR-0033）：它不判断内容真伪，
+ * 只保证一个可复查的事实——一条记录被持久化成 `user` 时，它是从用户输入入口
+ * 进来的，而不是从某段文本（包括 hook 输出）拼出来的。
+ */
+export type UserAuthorityPromptOrigin = UserPromptOrigin2;
+
+/**
+ * 内容贡献方（hook / 三队列 / fork / 派生注入）可声明的来源：类型层面排除 `user`。
+ * 见 {@link UserAuthorityPromptOrigin}——用户输入入口只有一个（`prompt()`），
+ * 其余写入方即使拿到 hook 文本也只能落非权威来源，restore 后仍可区分。
+ */
+export type ContributablePromptOrigin = Exclude<StoredPromptOrigin, UserAuthorityPromptOrigin>;
+
+/**
+ * 特权判定唯一允许询问的来源问题："这条来源携带用户裁决权威吗？"
+ *
+ * 特权判定（审批放行 / 自动放行、config 写入、MCP stdio spawn、permission mode
+ * 切换）的授权来源必须收窄到真实用户裁决路径，不得从消息文本、hook 输出或工具
+ * 参数推断授权。hook 贡献的内容（`kind === 'hook_result'`）恒为 false。
+ *
+ * 读磁盘来源时的运行时用途见 `agent-harness.ts` 的队列消费点：journal 里的
+ * `queue_enqueued.payload.origin` 是 `unknown`，恢复一条声称 `user` 的队列项
+ * 不得让 hook / 派生文本获得用户权威。
+ */
+export function hasUserPromptAuthority(
+  origin: StoredPromptOrigin | undefined,
+): origin is UserAuthorityPromptOrigin {
+  return origin?.kind === 'user';
+}
+
 /** 落入 entries 树的消息形状（kosong Message 的可存储超集）。 */
 export interface StoredMessage {
   readonly role: Role;

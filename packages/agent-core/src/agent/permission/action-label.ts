@@ -23,6 +23,7 @@
  */
 
 import type { ToolInputDisplay } from '../../tools/display/schemas';
+import { GOVERNANCE_WRITE_ACTION_PREFIX } from './policies/governance-file-write-ask';
 import { SENSITIVE_READ_ACTION_PREFIX } from './policies/sensitive-file-read-ask';
 
 /** 0b 动作标签前缀：`run command: <命令前缀/精确命令>`。 */
@@ -247,6 +248,11 @@ export function actionToRulePattern(action: string, fallbackToolName: string): s
   // 敏感文件读（PRD-0031 跟进 #298）：payload-scoped——批准一次只放行该路径，
   // 不生成宽泛 PermissionRule（同路径会话内再次免问由 sessionApprovedActions 处理）
   if (action.startsWith(SENSITIVE_READ_ACTION_PREFIX)) {
+    return undefined;
+  }
+  // 治理文件写（#345）：同上 payload-scoped。少了这条，`approve_for_session` 会
+  // 落到 `fallbackToolName`，一次批准变成整个 `Write` 工具免问。
+  if (action.startsWith(GOVERNANCE_WRITE_ACTION_PREFIX)) {
     return undefined;
   }
   if (action.startsWith(RUN_COMMAND_ACTION_PREFIX)) {

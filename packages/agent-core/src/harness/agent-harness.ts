@@ -42,8 +42,8 @@ import { WireSession } from './session/session';
 import { JsonlSessionStorage } from './storage/jsonl';
 import { InMemorySessionStorage } from './storage/memory';
 import type { SessionStorage } from './storage/storage';
-import type { LaneId, StoredPromptOrigin } from './storage/types';
-import { MAIN_LANE_ID } from './storage/types';
+import type { ContributablePromptOrigin, LaneId, StoredPromptOrigin } from './storage/types';
+import { hasUserPromptAuthority, MAIN_LANE_ID } from './storage/types';
 import { SpanTree } from './telemetry';
 import { TranscriptBridge, projectEntryMessage, synthesizeOrphanToolResults } from './transcript';
 
@@ -602,7 +602,7 @@ export class AgentHarness {
   async steer(
     laneId: LaneId,
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     const status = this.laneState(laneId).status; // 含接受窗口的同步占位
@@ -617,7 +617,7 @@ export class AgentHarness {
   async followUp(
     laneId: LaneId,
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     await this.enqueueQueueItem(laneId, 'followUp', input, options?.origin);
@@ -628,7 +628,7 @@ export class AgentHarness {
   async nextRun(
     laneId: LaneId,
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     if (this.closed) return err('HARNESS_CLOSED', 'AgentHarness is closed');
     await this.enqueueQueueItem(laneId, 'nextRun', input, options?.origin);
@@ -639,7 +639,7 @@ export class AgentHarness {
     laneId: LaneId,
     queue: 'steer' | 'followUp' | 'nextRun',
     input: readonly ContentPart[],
-    origin: StoredPromptOrigin | undefined,
+    origin: ContributablePromptOrigin | undefined,
   ): Promise<void> {
     const itemId = randomUUID();
     await this.appendRecordTracked(laneId, 'queue_enqueued', `q:${itemId}`, {
@@ -719,7 +719,11 @@ export class AgentHarness {
         message: {
           role: 'user',
           content: item.input,
-          origin: item.origin ?? { kind: 'injection', variant: 'steer' },
+          // #345：队列项永远不带用户权威。归约后的 `item.origin` 来自
+          // `queue_enqueued` 记录载荷（对存储不透明、`asQueueEnqueued` 只查键），
+          // 所以这里按来源判别而不是按类型信任：声称 `user` 的队列项降级为
+          // steer 自身的注入来源。
+          origin: queuedOriginOf(item.origin),
         },
       });
     }
@@ -753,6 +757,9 @@ export class AgentHarness {
         opId,
         kind: 'prompt',
         input,
+        // #345：这里是 v2 会话里 `kind: 'user'`（用户裁决权威）的**唯一铸造点**。
+        // 其余把文本送进会话的路径（三队列、fork、hook）在类型上拿不到这个来源，
+        // 见 `ContributablePromptOrigin`。
         origin: options?.origin ?? { kind: 'user' },
         // 队列消费路径传入队列项的预分配 entryId（消费点写树）
         inputEntryId: options?.inputEntryId ?? `entry:${opId}:input`,
@@ -1483,7 +1490,7 @@ export class AgentHarness {
   async consumeNextQueuedInput(laneId: LaneId): Promise<
     | {
         input: readonly ContentPart[];
-        origin: StoredPromptOrigin | undefined;
+        origin: ContributablePromptOrigin;
         entryId: string;
       }
     | undefined
@@ -1492,7 +1499,12 @@ export class AgentHarness {
     if (state.status !== 'idle') return undefined;
     for (const item of [...state.queues.followUp, ...state.queues.nextRun]) {
       if (this.session.getEntry(item.entryId)) continue; // 已消费
-      return { input: item.input, origin: item.origin, entryId: item.entryId };
+      // #345：同 checkpoint 的 steer 消费点——队列项永远不带用户权威。
+      return {
+        input: item.input,
+        origin: queuedOriginOf(item.origin),
+        entryId: item.entryId,
+      };
     }
     return undefined;
   }
@@ -1500,6 +1512,17 @@ export class AgentHarness {
   private assertOpen(): void {
     if (this.closed) throw new Error('AgentHarness is closed');
   }
+}
+
+/**
+ * 队列消费点的来源（#345）。队列载荷的 `origin` 出磁盘即 `unknown`
+ * （`asQueueEnqueued` 只校验键存在性，不校验来源），所以这里按来源判别而不是
+ * 按类型信任：一条伪造的 `queue_enqueued` 记录声称 `user`，也不会让派生文本在
+ * 恢复后拿到用户裁决权威——降级为该队列自己的注入来源。
+ */
+function queuedOriginOf(origin: StoredPromptOrigin | undefined): ContributablePromptOrigin {
+  if (hasUserPromptAuthority(origin)) return { kind: 'injection', variant: 'steer' };
+  return origin ?? { kind: 'injection', variant: 'steer' };
 }
 
 /**
@@ -1540,21 +1563,21 @@ export class AgentLane {
 
   steer(
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     return this.harness.steer(this.laneId, input, options);
   }
 
   followUp(
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     return this.harness.followUp(this.laneId, input, options);
   }
 
   nextRun(
     input: readonly ContentPart[],
-    options?: { readonly origin?: StoredPromptOrigin },
+    options?: { readonly origin?: ContributablePromptOrigin },
   ): Promise<LaneResult<void>> {
     return this.harness.nextRun(this.laneId, input, options);
   }

@@ -46,7 +46,7 @@ describe('Agent permission', () => {
       [emit] assistant.delta                     { "turnId": 0, "delta": "Running without asking." }
       [emit] tool.call.delta                     { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf permission-output\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event           { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "Running without asking." } }, "time": "<time>" }
-      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf permission-output", "result": { "decision": "approved", "selectedLabel": "auto_approve:auto" }, "time": "<time>" }
+      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf permission-output", "result": { "decision": "approved", "selectedLabel": "auto_approve:auto" }, "authority": { "kind": "audit-only", "from": "mode-auto-approve" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "auto-output" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
@@ -103,7 +103,7 @@ describe('Agent permission', () => {
       [emit] assistant.delta                     { "turnId": 0, "delta": "Running in yolo mode." }
       [emit] tool.call.delta                     { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf permission-output\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event           { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "Running in yolo mode." } }, "time": "<time>" }
-      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf permission-output", "result": { "decision": "approved", "selectedLabel": "auto_approve:yolo" }, "time": "<time>" }
+      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf permission-output", "result": { "decision": "approved", "selectedLabel": "auto_approve:yolo" }, "authority": { "kind": "audit-only", "from": "mode-auto-approve" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf permission-output", "timeout": 60 }, "description": "Running: printf permission-output", "display": { "kind": "command", "command": "printf permission-output", "language": "bash" }, "startedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "yolo-output" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
@@ -218,7 +218,7 @@ describe('Agent permission', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'I will not run the command.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf should-not-run", "result": { "decision": "rejected", "selectedLabel": "reject" }, "authority": { "kind": "user-verdict" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "startedAt": "<time>" }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "startedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "Tool \\"Bash\\" was not run because the user rejected the approval request.", "isError": true }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }
@@ -652,6 +652,7 @@ describe('Permission live derive', () => {
         scope: 'session',
         selectedLabel: 'Approve for this session',
       },
+      authority: { kind: 'user-verdict' },
     });
     const child = makePermissionManager(async () => ({ decision: 'approved' }), {
       parent: parent.manager,
@@ -716,6 +717,8 @@ describe('Agent-local approve for session', () => {
           scope: 'session',
           selectedLabel: 'Approve for this session',
         },
+        // #345：来源随记录一起持久化，所以这条 wire 记录本身就是"谁批准的"的证据。
+        authority: { kind: 'user-verdict' },
       },
       descriptor: expect.anything(),
     });
@@ -773,6 +776,7 @@ describe('Agent-local approve for session', () => {
         result: {
           decision: 'approved',
         },
+        authority: { kind: 'user-verdict' },
       },
       descriptor: expect.anything(),
     });
@@ -786,6 +790,7 @@ describe('Agent-local approve for session', () => {
         result: {
           decision: 'approved',
         },
+        authority: { kind: 'user-verdict' },
       },
       descriptor: expect.anything(),
     });
@@ -805,6 +810,7 @@ describe('Agent-local approve for session', () => {
         decision: 'approved',
         scope: 'session',
       },
+      authority: { kind: 'user-verdict' },
     });
     manager.rules.push({
       decision: 'deny',
@@ -837,6 +843,7 @@ describe('Agent-local approve for session', () => {
         scope: 'session',
         selectedLabel: 'Approve for this session',
       },
+      authority: { kind: 'user-verdict' },
     });
 
     expect(ctx.agent.permission.data().rules).toContainEqual(rule);
@@ -2113,6 +2120,7 @@ describe('Permission rule helpers', () => {
       toolName: 'Bash',
       action: 'run command: git status',
       result: { decision: 'approved', scope: 'session' },
+      authority: { kind: 'user-verdict' },
     });
 
     // 规则为 per-prefix，非裸 Bash
@@ -2156,6 +2164,7 @@ describe('Permission rule helpers', () => {
       toolName: 'Bash',
       action: 'run command: curl https://x.com',
       result: { decision: 'approved', scope: 'session' },
+      authority: { kind: 'user-verdict' },
     });
     expect(manager.data().rules).toContainEqual({
       decision: 'allow',

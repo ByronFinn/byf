@@ -16,6 +16,13 @@ export interface PermissionPolicyContext {
    * from the built-in default permission table rather than a user rule.
    */
   readonly matchedRule: PermissionRule | undefined;
+  /**
+   * 让 policy 落一条审批**审计**记录（`permission.record_approval_result`）。
+   *
+   * 审计-only（#345）：绑定的是 `{ kind: 'audit-only', from: 'policy' }`，因此
+   * policy 上报的记录不会生成 session-runtime 免问规则，无论 `result.scope` 填了
+   * 什么。扩大免问集合的授权只能来自真实用户裁决（`requestApproval` 的应答）。
+   */
   readonly recordApprovalResult: (record: PermissionApprovalResultRecord) => void;
 }
 
