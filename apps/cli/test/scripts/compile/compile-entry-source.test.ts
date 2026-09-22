@@ -103,12 +103,36 @@ const REPO_ROOT = join(import.meta.dir, '..', '..', '..', '..', '..');
 const TSC_ENTRY = join(REPO_ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 const TYPE_ROOTS = join(REPO_ROOT, 'node_modules', '@types');
 
+/**
+ * Wall-clock budget for ONE `tsc` process, and for one test.
+ *
+ * These tests pay a cold `tsc` startup per call — five calls in this file. A GitHub
+ * runner was measured at ~10s each (CI run 35765202338: two tests hit the 5s default
+ * from the outside, the two-spawn test reported 22.2s), while this repo's WSL dev
+ * machine costs ~2s. The 5000ms default is Bun's, not a decision anyone made, and it
+ * leaves a slower-but-perfectly-working compiler no room at all.
+ *
+ * The numbers are chained so the *informative* failure always wins:
+ *   - spawn budget 20s  — 2x the slowest spawn observed on CI.
+ *   - test budget 55s   — strictly above 2 spawns (the worst test here), per the
+ *     invariant in .github/workflows/ci.yml: an inner bound must stay below the
+ *     enclosing `it(...)` timeout, or the runner kills the file first and the
+ *     failure is an informationless "test timed out".
+ *   - 5 spawns x 20s = 100s < the 120s per-file kill in build/run-tests.mjs, so even
+ *     a runner 4x slower than the one that failed gets these tests' own messages —
+ *     which carry tsc's output — instead of a file-level kill.
+ */
+const TSC_SPAWN_TIMEOUT_MS = 20_000;
+const TSC_TEST_TIMEOUT_MS = 55_000;
+
 interface TscRun {
   readonly exitCode: number;
   readonly output: string;
   readonly diagnostics: string[];
   readonly syntax: string[];
   readonly config: string[];
+  /** True when the budget killed tsc. Bun reports `exitCode: 0` in that case. */
+  readonly timedOut: boolean;
 }
 
 function runTsc(dir: string, file: string): TscRun {
@@ -139,6 +163,7 @@ function runTsc(dir: string, file: string): TscRun {
     cwd: dir,
     stdout: 'pipe',
     stderr: 'pipe',
+    timeout: TSC_SPAWN_TIMEOUT_MS,
   });
   const output = result.stdout.toString() + result.stderr.toString();
   const diagnostics = output
@@ -147,11 +172,26 @@ function runTsc(dir: string, file: string): TscRun {
     .map((line) => line.trim());
   return {
     exitCode: result.exitCode,
+    timedOut: result.exitedDueToTimeout === true,
     output,
     diagnostics,
     syntax: diagnostics.filter((line) => /error TS1\d{3}:/.test(line)),
     config: diagnostics.filter((line) => /error TS5\d{3}:/.test(line)),
   };
+}
+
+/**
+ * Every assertion here is a claim about what tsc *said* — including the claims that
+ * it said nothing. A budget-killed tsc says nothing and still reports exit code 0,
+ * so without this check the timeout above would convert a slow runner into a green
+ * run, which is the same vacuous pass this file was rewritten to rule out.
+ */
+function assertTscRan(run: TscRun, checked: string): void {
+  expect(
+    run.timedOut,
+    `tsc was killed after ${TSC_SPAWN_TIMEOUT_MS}ms while checking ${checked}, so ` +
+      `the absence of diagnostics below means nothing.\n${run.output}`,
+  ).toBe(false);
 }
 
 /**
@@ -190,67 +230,90 @@ function writeFixture(dir: string, source: string): string {
 }
 
 describe('compile-entry codegen output is parseable TypeScript', () => {
-  it('the typechecker used as the parser is the repo-pinned one and it reports', () => {
-    expect(existsSync(TSC_ENTRY), `missing ${TSC_ENTRY}`).toBe(true);
-    withTempDir((dir) => {
-      const file = join(dir, 'control.ts');
-      writeFileSync(file, "export const wrongType: number = 'not a number';\n");
-      const run = runTsc(dir, file);
-      // A deliberate *type* error must be reported. If this fails, tsc never ran,
-      // and every "no syntax diagnostics" assertion below means nothing.
-      expect(
-        run.diagnostics.some((line) => /error TS2\d{3}:/.test(line)),
-        `tsc produced no type diagnostic for a known type error.\n${run.output}`,
-      ).toBe(true);
-    });
-  });
+  it(
+    'the typechecker used as the parser is the repo-pinned one and it reports',
+    () => {
+      expect(existsSync(TSC_ENTRY), `missing ${TSC_ENTRY}`).toBe(true);
+      withTempDir((dir) => {
+        const file = join(dir, 'control.ts');
+        writeFileSync(file, "export const wrongType: number = 'not a number';\n");
+        const run = runTsc(dir, file);
+        assertTscRan(run, 'control.ts');
+        // A deliberate *type* error must be reported. If this fails, tsc never ran,
+        // and every "no syntax diagnostics" assertion below means nothing.
+        expect(
+          run.diagnostics.some((line) => /error TS2\d{3}:/.test(line)),
+          `tsc produced no type diagnostic for a known type error.\n${run.output}`,
+        ).toBe(true);
+      });
+    },
+    TSC_TEST_TIMEOUT_MS,
+  );
 
-  it('has no syntax errors once its stub imports exist', () => {
-    withTempDir((dir) => {
-      const entry = writeFixture(dir, sourceFor(ENTRY_INPUT));
-      const run = runTsc(dir, entry);
-      // Only syntax diagnostics are a regression here: the stubs intentionally fail
-      // type-level checks (e.g. a .node import), which is not what this guards.
-      expect(run.syntax, run.output).toEqual([]);
-      // TS5xxx is the "the compiler refused to check this file" family (bad flag,
-      // a tsconfig collision). Empty output with a non-zero exit is not a pass.
-      expect(run.config, run.output).toEqual([]);
-    });
-  });
+  it(
+    'has no syntax errors once its stub imports exist',
+    () => {
+      withTempDir((dir) => {
+        const entry = writeFixture(dir, sourceFor(ENTRY_INPUT));
+        const run = runTsc(dir, entry);
+        assertTscRan(run, 'the generated compile entry');
+        // Only syntax diagnostics are a regression here: the stubs intentionally fail
+        // type-level checks (e.g. a .node import), which is not what this guards.
+        expect(run.syntax, run.output).toEqual([]);
+        // TS5xxx is the "the compiler refused to check this file" family (bad flag,
+        // a tsconfig collision). Empty output with a non-zero exit is not a pass.
+        expect(run.config, run.output).toEqual([]);
+      });
+    },
+    TSC_TEST_TIMEOUT_MS,
+  );
 
-  it('negative self-test: the pre-fix globalThis shape really does produce TS1xxx', () => {
-    withTempDir((dir) => {
-      // Exactly what codegen emitted before 36064cf: a bare interpolated name after
-      // a parenthesized cast, which `--profile=release` could not compile. Feeding
-      // it through the same pipeline must be loud — otherwise the filter above is
-      // matching nothing and the test is theatre.
-      const brokenShape = [
-        'const embeddedAssets_0 = new Map<string, string>();',
-        '(globalThis as any)__BYF_WEB_EMBEDDED_ASSETS__ = embeddedAssets_0;',
-        '',
-      ].join('\n');
-      const file = join(dir, 'broken.ts');
-      writeFileSync(file, brokenShape);
-      const run = runTsc(dir, file);
-      expect(
-        run.syntax.length,
-        `a known-bad shape produced no syntax diagnostic.\n${run.output}`,
-      ).toBeGreaterThan(0);
-      expect(run.syntax[0]).toMatch(/error TS1\d{3}:/);
-    });
-  });
+  it(
+    'negative self-test: the pre-fix globalThis shape really does produce TS1xxx',
+    () => {
+      withTempDir((dir) => {
+        // Exactly what codegen emitted before 36064cf: a bare interpolated name after
+        // a parenthesized cast, which `--profile=release` could not compile. Feeding
+        // it through the same pipeline must be loud — otherwise the filter above is
+        // matching nothing and the test is theatre.
+        const brokenShape = [
+          'const embeddedAssets_0 = new Map<string, string>();',
+          '(globalThis as any)__BYF_WEB_EMBEDDED_ASSETS__ = embeddedAssets_0;',
+          '',
+        ].join('\n');
+        const file = join(dir, 'broken.ts');
+        writeFileSync(file, brokenShape);
+        const run = runTsc(dir, file);
+        assertTscRan(run, 'the known-bad shape');
+        expect(
+          run.syntax.length,
+          `a known-bad shape produced no syntax diagnostic.\n${run.output}`,
+        ).toBeGreaterThan(0);
+        expect(run.syntax[0]).toMatch(/error TS1\d{3}:/);
+      });
+    },
+    TSC_TEST_TIMEOUT_MS,
+  );
 
-  it('negative self-test: appending a broken tail to the real codegen output is caught', () => {
-    withTempDir((dir) => {
-      const clean = writeFixture(dir, sourceFor(ENTRY_INPUT));
-      expect(runTsc(dir, clean).syntax).toEqual([]);
-      const broken = writeFixture(dir, `${sourceFor(ENTRY_INPUT)}\nconst brokenTail: = (;\n`);
-      const run = runTsc(dir, broken);
-      expect(
-        run.syntax.length,
-        `a broken tail appended to the real codegen output produced no syntax ` +
-          `diagnostic, so the filter above cannot be trusted.\n${run.output}`,
-      ).toBeGreaterThan(0);
-    });
-  });
+  it(
+    'negative self-test: appending a broken tail to the real codegen output is caught',
+    () => {
+      withTempDir((dir) => {
+        const clean = writeFixture(dir, sourceFor(ENTRY_INPUT));
+        const cleanRun = runTsc(dir, clean);
+        assertTscRan(cleanRun, 'the clean generated entry');
+        expect(cleanRun.syntax, cleanRun.output).toEqual([]);
+        const broken = writeFixture(dir, `${sourceFor(ENTRY_INPUT)}\nconst brokenTail: = (;\n`);
+        const run = runTsc(dir, broken);
+        assertTscRan(run, 'the generated entry with a broken tail');
+        expect(
+          run.syntax.length,
+          `a broken tail appended to the real codegen output produced no syntax ` +
+            `diagnostic, so the filter above cannot be trusted.\n${run.output}`,
+        ).toBeGreaterThan(0);
+      });
+    },
+    // Two tsc processes, so this is the test the spawn budget actually binds.
+    TSC_TEST_TIMEOUT_MS,
+  );
 });
