@@ -3,7 +3,7 @@ import { mock as bunMock } from 'bun:test';
 import type { ByfConfig } from '@byfriends/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
-import { runPrompt } from '#/cli/run-prompt';
+import { EXIT_CODE_APPROVAL_REQUIRED, runPrompt } from '#/cli/run-prompt';
 
 import { defined } from '../helpers/defined';
 
@@ -1262,9 +1262,10 @@ describe('runPrompt', () => {
           | { decision?: string }
           | undefined;
         expect(response?.decision).not.toBe('approved');
-        // 专用退出码:非 0,且与既有语义占用位(1/3/6/129/130/143)区分。
-        expect(typeof process.exitCode).toBe('number');
-        expect([0, 1, 3, 6, 129, 130, 143]).not.toContain(process.exitCode);
+        // 钉到具体值。此前只断言"是个数字且不在占用位表里"——把常量改成 9 或 42,
+        // 全仓没有一条测试会变红,而 ADR-0029 的完成协议依赖的正是这个数字本身。
+        expect(process.exitCode).toBe(EXIT_CODE_APPROVAL_REQUIRED);
+        expect(EXIT_CODE_APPROVAL_REQUIRED).toBe(7);
       } finally {
         restoreProcessExitCode(previousExitCode);
       }
@@ -1289,8 +1290,8 @@ describe('runPrompt', () => {
           | { decision?: string }
           | undefined;
         expect(response?.decision).not.toBe('approved');
-        expect(typeof process.exitCode).toBe('number');
-        expect([0, 1, 3, 6, 129, 130, 143]).not.toContain(process.exitCode);
+        expect(process.exitCode).toBe(EXIT_CODE_APPROVAL_REQUIRED);
+        expect(EXIT_CODE_APPROVAL_REQUIRED).toBe(7);
       } finally {
         restoreProcessExitCode(previousExitCode);
       }
