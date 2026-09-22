@@ -86,6 +86,17 @@ jobs:
       - name: Sherif
         run: bun run sherif
 
+      # PRD-0033 R15 (AA contrast) was originally verified by a throwaway script
+      # plus comments, so nothing noticed a token change. This reads theme.css's
+      # three token layers, resolves var/oklch/color-mix chains, and fails on any
+      # guarded semantic text/background pair below 4.5:1. No build artifacts
+      # needed, so it sits before Typecheck. Known-below-threshold pairs are
+      # reported as warnings, not failures — see DEBT_PAIRS in the script and the
+      # design debt tracked by #307's follow-up issue; promoting one to the
+      # guarded set is a visual decision, not a code decision.
+      - name: 'Gate: web client AA contrast'
+        run: cd apps/web/client && bun run check-contrast
+
       - name: Typecheck
         run: bun run typecheck
 
@@ -148,6 +159,34 @@ jobs:
   # smoke job, not a second full matrix — it exists so a macOS-only breakage
   # surfaces on the PR that caused it rather than in a release build.
   #
+  # STEP ORDER IS LOAD-BEARING, in this exact sequence:
+  #   Install → Typecheck → Test → Build → Compile → Smoke
+  #   * Typecheck and Test come first because they are this job's reason to
+  #     exist (a darwin-only breakage should fail before anything spends time
+  #     compiling).
+  #   * `Build` is deliberately the step immediately before `Compile`, and runs
+  #     the *same command* `.github/workflows/release.yml` runs there
+  #     (`bun run build`). Until PRD-0038's release review this job fed compile
+  #     through `typecheck`'s side effect: root `typecheck` = `build:packages &&
+  #     build:web && …`, so the SPA existed here and `==> Embedded web SPA assets
+  #     from …` printed (run 35555926340, job 106199441931) while the release
+  #     workflow — which ran only `build:packages` — silently produced an
+  #     API-only binary. An accidental precondition is how a green job hid a
+  #     shipping defect; stating the build step makes this job verify the
+  #     release path instead of repairing it.
+  #     scripts/lib/release-workflow-shape.test.ts fails if either workflow's
+  #     compile step stops being fed by that same command.
+  #   * Cost, from the same run rather than guessed: the `Typecheck` step measured
+  #     47s and the `Test` step 61s (03:00:52 `Files: 454 passed, 0 failed / 454
+  #     total`), so the ~45s this job already spends on the suite is dwarfed by
+  #     the 30-minute budget. `Build` repeats the two build steps that root
+  #     `typecheck` also runs — an overlap bounded by those 47s, not measured
+  #     separately. The way to reclaim it is to split root `package.json`'s
+  #     `typecheck` so it stops building, after which this comment's ordering
+  #     constraint still holds.
+  #   * `Smoke` runs against the compiled darwin binary and asserts the embedded
+  #     SPA is served over HTTP, so it must stay after `Compile`.
+  #
   # Deliberately excluded: `Gate: deps` (doubles OSV traffic for the same lockfile)
   # and the tree-wide gates (secrets / no-node / changesets / formatter pin /
   # format / sherif), whose verdicts are platform-independent.
@@ -171,19 +210,47 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
-      # Concurrency is dialled down from the default 10 on purpose, and it is a
-      # hypothesis under test rather than a workaround to keep: every darwin
-      # failure so far is a *timeout* (never an assertion mismatch) on a test that
-      # spawns a real child process — `echo ok` through runHook included, which
-      # rules out "the fixture needs a binary macOS lacks". macos-14 gives 4 cores
-      # to 10 concurrent bun processes that each fork `detached` process groups
-      # (packages/kaos/src/local.ts:507), so runner load has to be eliminated as
-      # the cause before #343 is treated as a product bug and any test is skipped.
-      # Green at 2 means the hangs are load; red at 2 means they are real.
+      # ADJUDICATED, not a hypothesis: these darwin hangs were runner load
+      # colliding with hard-coded real-time budgets in the tests, not a product
+      # defect. #343 closed on 2026-09-21 with the evidence chain in its last
+      # comment — at the default concurrency 10 the failures were timeouts only
+      # (never an assertion mismatch) and they moved to different files between
+      # runs; at `BYF_TEST_CONCURRENCY: 2` all 454 files went green, including
+      # `Compile darwin-arm64 binary` and `Smoke darwin-arm64 binary` for the
+      # first time (run 35555363429; re-confirmed green by run 35555926340).
+      #
+      # What this env costs, stated plainly: macos-14 has 4 cores and the suite
+      # runs one `bun test` process per file, so 2 is 1/5 of the default
+      # throughput. The `Test` step measured 61s at concurrency 2 on
+      # 2026-09-21 — affordable today against the job's 30-minute budget, but
+      # this is a permanent dial-down with no automatic way back, so the trigger
+      # is written down here instead of in someone's memory:
+      #
+      #   RE-TEST / DELETE THIS ENV when EITHER
+      #   (a) any darwin spawn-related hang reproduces at low concurrency or on an
+      #       exclusive machine — that is the real #343 reopening criterion, and
+      #       load is then no longer the explanation (look at whether
+      #       `LocalProcess` waits for 'exit' or 'close', and whether the
+      #       detached kill reaches the whole process group); OR
+      #   (b) the runner gains >= 8 darwin cores, or the suite's real-time budgets
+      #       stop depending on wall clock — then re-measure the whole job at the
+      #       default 10 in a throwaway PR and, if green, remove this `env:` block.
+      #
+      # Related invariant for whoever next touches a timing test: an in-test
+      # guard must stay STRICTLY BELOW the enclosing `it(..., timeout)` — otherwise
+      # the runner kills the file first and the failure is an informationless
+      # "test timed out" instead of the guard's own message. Precedent:
+      # packages/agent-core/test/mcp/connection-manager.test.ts (guard 10s, outer
+      # it 20s, commit 6d91a19).
       - name: Test
         env:
           BYF_TEST_CONCURRENCY: 2
         run: bun run test
+
+      # Same command release.yml feeds its compile step with — see the ordering
+      # note at the top of this job. Keep the two in lockstep.
+      - name: Build (packages + CLI + web SPA)
+        run: bun run build
 
       # The real shipped artifact for this platform. Cross-compiling darwin-arm64
       # from Linux produces the binary but cannot run it, so this is the step that
@@ -194,6 +261,23 @@ jobs:
         run: bun run --filter @byfriends/cli build:native:release
 
       - name: Smoke darwin-arm64 binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli test:native:smoke
+
+      # AC-4.2's `--bytecode` verdict (docs/perf/REPORT-0038.md §4) is measured on
+      # linux-x64 only, so the darwin half of the evidence does not exist anywhere.
+      # Cross-compiling from Linux produces a binary it cannot execute, so this is
+      # the only place that proof can come from. It reuses the output path of the
+      # release compile above — which has already run and smoked — and it does NOT
+      # mean the release default is bytecode: flipping that is gated on this pair
+      # being green (see PRD-0038 「三批」).
+      - name: Compile darwin-arm64 binary (--bytecode profile)
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli build:native:bytecode
+
+      - name: Smoke darwin-arm64 bytecode binary
         env:
           BYF_CODE_BUILD_TARGET: darwin-arm64
         run: bun run --filter @byfriends/cli test:native:smoke

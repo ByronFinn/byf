@@ -11,6 +11,23 @@
  * `gate` re-measures and exits non-zero on a regression past the allowances
  * recorded in the baseline, which is what makes it usable as a CI / nightly step.
  *
+ * WIRING STATUS (as of PRD-0038's release review): AC-4.3's gate is run by NO
+ * workflow — `grep -rn binary-baseline .github/` returns nothing, so the AC holds
+ * as a command and not as a gate; it cannot fail a PR. Left unwired deliberately
+ * rather than wired to a red-by-construction step, for two reasons that both have
+ * to be closed first:
+ *   1. the committed `baselines/linux-x64.json` records two arms that failed the
+ *      baseline's own functional smoke (`bunDist`, `bunDistBun`), so a gate wired
+ *      today would go red on those rows over stale data, not over a regression.
+ *      `gate` now says that out loud — see `deadBaselineArms` /
+ *      `reportDeadBaseline`, which print the cause and the re-record command.
+ *   2. `gate` calls `runMeasure()`, so it needs `apps/cli/dist/main.mjs` *and* a
+ *      compiled `dist-native/bin/<target>/byf`, and it re-derives its allowances
+ *      from wall-clock medians. Those are not comparable to a 2-4 vCPU shared
+ *      runner from a 12-core WSL2 host, so wiring means choosing a dedicated
+ *      runner or a nightly schedule and re-recording per platform — a decision,
+ *      not a one-line step.
+ *
  * No production code is imported or modified: every arm is launched as a real
  * subprocess, and the cold-cache recipe is `posix_fadvise(DONTNEED)` over the
  * resolver-reported file set rather than a root-only `drop_caches`.
@@ -18,7 +35,7 @@
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import {
@@ -551,6 +568,73 @@ const GATE_FLOOR = {
 /** Absolute slack in milliseconds, so sub-10 ms cells do not gate on rounding. */
 const ABS_SLACK_MS = 8;
 
+/**
+ * Name the arms a committed baseline recorded but which never actually ran.
+ *
+ * `measure` refuses to call a report with a dead arm usable (it exits 1 on a
+ * smoke failure), but `gate` compares numbers and would happily fail against a
+ * baseline whose cells were measured on a process that crashed on import. That
+ * is not a hypothesis: `baselines/linux-x64.json` was committed with `bunDist`
+ * and `bunDistBun` failing their own smoke — the `--target node` undici/webidl
+ * polyfill crash that b0e3bc7 later fixed, plus a `buildDistVariant` that
+ * relocated the bundle to a temp dir and died on `Cannot find package 'zod'`.
+ * Every cell of a dead arm is therefore a number from a non-existent code path,
+ * and the honest thing to do on red is say so out loud, name the cause, and
+ * print the re-record command — never quietly edit the JSON.
+ *
+ * @param {any} baseline
+ * @returns {string[]} arm names whose recorded smoke failed
+ */
+function deadBaselineArms(baseline) {
+  const smoke = baseline?.smoke;
+  if (smoke === null || typeof smoke !== 'object') return [];
+  const dead = [];
+  for (const [arm, result] of Object.entries(smoke)) {
+    if (result === null || typeof result !== 'object') continue;
+    if (result.version === true && result.help === true) continue;
+    dead.push(arm);
+  }
+  return dead;
+}
+
+/**
+ * The gate's own explanation when it is red against a baseline that admits it
+ * measured dead arms. Printed *before* the table so nobody reads those FAIL rows
+ * as a product regression.
+ */
+function reportDeadBaseline(baseline, baselinePath, dead) {
+  console.error(
+    [
+      '',
+      `THE COMMITTED BASELINE IS NOT SELF-CONSISTENT: ${String(dead.length)} arm(s) recorded`,
+      "measurements for a process that failed the baseline's own functional smoke.",
+      `See ${baselinePath}:`,
+      ...dead.map((arm) => {
+        const problems = baseline.smoke?.[arm]?.problems;
+        const first = Array.isArray(problems) ? String(problems[0] ?? '') : '';
+        const oneLine = first.replace(/\s+/g, ' ').trim();
+        return `  * ${arm}: smoke failed — ${oneLine.slice(0, 160)}`;
+      }),
+      '',
+      'Consequence: every latency/RSS cell of those arms was measured on a build that',
+      'never started, so the thresholds derived from them are meaningless and the rows',
+      'marked [stale] below are expected to fail. This is stale baseline data,',
+      'NOT evidence that the product got slower. Do not edit the JSON numbers to make a',
+      'row go green — re-measure on a quiet machine and commit the result:',
+      '',
+      '  bun run build                                          # apps/cli/dist/main.mjs',
+      '  bun run --filter @byfriends/cli build:native:compile    # the compiled binary',
+      `  bun scripts/perf/binary-baseline.mjs measure --json=${relative('.', baselinePath)}`,
+      '  git diff --stat scripts/perf/baselines/                # review, then commit',
+      '',
+      'Do NOT run that while other builds or tests share the machine: the cold/warm cells',
+      'and the maxOverMedian-derived allowances are wall-clock numbers, and a polluted',
+      're-measurement is exactly how this baseline went stale the first time.',
+      '',
+    ].join('\n'),
+  );
+}
+
 async function runGate() {
   const baselinePath = resolve(flags.baseline ?? DEFAULT_BASELINE);
   if (Bun.file(baselinePath).size === 0) {
@@ -558,6 +642,9 @@ async function runGate() {
     process.exit(2);
   }
   const baseline = await Bun.file(baselinePath).json();
+  const dead = deadBaselineArms(baseline);
+  if (dead.length > 0) reportDeadBaseline(baseline, baselinePath, dead);
+  const staleArms = new Set(dead);
   const current = await runMeasure();
   const slackBoost = Number(process.env.BYF_PERF_GATE_SLACK ?? '0') / 100;
 
@@ -576,7 +663,8 @@ async function runGate() {
         const floor = state === 'cold' ? GATE_FLOOR.coldLatency : GATE_FLOOR.warmLatency;
         const allowance = Math.max(floor, observed) + slackBoost;
         const limitMs = bs.latency.median * (1 + allowance) + ABS_SLACK_MS;
-        const name = `${arm} ${cmd} ${state} median`;
+        const stale = staleArms.has(arm) ? ' [stale]' : '';
+        const name = `${arm} ${cmd} ${state} median${stale}`;
         if (cs.latency.median > limitMs)
           fail(name, bs.latency.median, cs.latency.median, limitMs, 'ms');
         else pass(name, bs.latency.median, cs.latency.median, limitMs, 'ms');
@@ -628,6 +716,14 @@ async function runGate() {
   }
   console.log(`\n${rows.length - failed}/${rows.length} cells within allowance.`);
   if (failed > 0) {
+    if (dead.length > 0) {
+      console.error(
+        `\n${String(dead.length)} of the failing rows belong to arm(s) the baseline itself ` +
+          `records as never having run: ${dead.join(', ')}.\n` +
+          'Read the "NOT SELF-CONSISTENT" block above this table before concluding anything ' +
+          'about a regression.',
+      );
+    }
     console.error(
       `${failed} cells regressed past their measured allowance. Re-run with --samples=25 before ` +
         'treating it as real, or raise BYF_PERF_GATE_SLACK on a shared runner.',

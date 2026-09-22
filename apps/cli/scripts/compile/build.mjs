@@ -23,6 +23,11 @@ import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs
  *   bun scripts/compile/build.mjs --profile=release
  *   bun scripts/compile/build.mjs --profile=bytecode   # release + --bytecode
  *
+ * Precondition for the release family: the web SPA has to be built already
+ * (`bun run build:web`, or the repo's canonical `bun run build`). A
+ * release/bytecode compile with nothing to embed aborts instead of producing an
+ * API-only binary — see `./web-asset-policy.mjs` for why this is a hard rule.
+ *
  * Env:
  *   BYF_CODE_BUILD_TARGET   e.g. darwin-arm64 (default: host platform-arch)
  *   BYF_CODE_CHANNEL        optional channel define
@@ -49,6 +54,7 @@ import {
   targetTriple,
 } from '../native/paths.mjs';
 import { buildCompileEntrySource } from './compile-entry-source.mjs';
+import { webAssetEmbeddingPolicy } from './web-asset-policy.mjs';
 
 /** Built SPA assets shipped inside `@byfriends/web-server`'s `dist/public`. */
 const webServerPublicDir = resolve(appRoot, '../../apps/web/server/dist/public');
@@ -203,6 +209,15 @@ async function collectPublicFiles(dir) {
   return out;
 }
 
+/** True when `dir` exists as a directory and holds at least one file to embed. */
+async function hasFilesRecursively(dir) {
+  try {
+    return (await collectPublicFiles(dir)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Generate a module that statically imports every SPA asset with
  * `with { type: "file" }` so `bun build --compile` embeds them into the binary,
@@ -348,6 +363,26 @@ const mainEntryPath = resolve(appRoot, 'src/main.ts');
 
 console.log(`==> Compile native build (profile=${profile}, target=${target}, bun=${bunTarget})`);
 
+// A release artifact that silently drops the workbench UI is a product defect,
+// not a build flavour: `@byfriends/cli@0.6.1` shipped exactly that way, because
+// the old code printed "web SPA assets not found … API-only" and exited 0.
+// Checked here, before any side effect (catalog generation, intermediates,
+// chmod), so an unusable release costs nothing to discover. `--profile=local`
+// stays permissive — an unbuilt SPA is normal while iterating on the TUI.
+const spaAssetsFound = await hasFilesRecursively(webServerPublicDir);
+const spaPolicy = webAssetEmbeddingPolicy({
+  profile,
+  assetsFound: spaAssetsFound,
+  publicDir: webServerPublicDir,
+});
+if (spaPolicy.fatal) {
+  console.error(spaPolicy.message);
+  process.exit(1);
+}
+if (!spaAssetsFound) {
+  console.log(spaPolicy.message);
+}
+
 if (isReleaseFamily) {
   await ensureReleaseCatalog();
 }
@@ -379,8 +414,20 @@ await writeCatalogInjectModule(catalogFile, catalogInjectPath);
 const embeddedWebAssets = await writeEmbeddedAssetsEntry(webServerPublicDir, webAssetsEntryPath);
 if (embeddedWebAssets !== null) {
   console.log(`==> Embedded web SPA assets from ${webServerPublicDir}`);
+} else if (isReleaseFamily) {
+  // The up-front check above passed and this did not, so the directory changed
+  // mid-build. Stay fatal: the only acceptable outcome for a release profile is
+  // an embedded SPA.
+  console.error(
+    webAssetEmbeddingPolicy({
+      profile,
+      assetsFound: false,
+      publicDir: webServerPublicDir,
+    }).message,
+  );
+  process.exit(1);
 } else {
-  console.log(`==> web SPA assets not found at ${webServerPublicDir} (byf web will be API-only)`);
+  console.log(`==> web SPA assets vanished from ${webServerPublicDir}; continuing API-only`);
 }
 await writeCompileEntry({
   clipboardRelativeRequire: staged.relativeRequire,

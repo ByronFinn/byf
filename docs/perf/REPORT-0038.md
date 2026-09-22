@@ -14,6 +14,8 @@
 
 附带发现(不属于裁决,但基线过程暴露):**HEAD 的 `bun dist/main.mjs` 臂是死臂**——当前 JS bundle 以 `--target node` 构建(`scripts/build` 未传 target,`bun-lib-build.mjs` 默认 node),在 Bun 下模块初始化期即抛 `webidl.util.markAsUncloneable is not a function`,三臂表里该列数字全部无效(§7)。修复属于产品构建管线,另案。
 
+> **修订(2026-09-23)**:死臂事实已被修复——b0e3bc7 把 CLI 的 JS bundle 改为 `--target bun`,`bun dist/main.mjs` 在 HEAD 上可以启动。本报告 §2 表中的死臂数字与归档基线 `bunDist` / `bunDistBun` 列仍是崩溃/失败态的记录,只有 `measure` 重定基线后才会被活态数字覆盖(见 §6「下一步」)。
+
 ## 2. 三臂启动基线(AC-4.1)
 
 冷配方 = 对「解析器报告的整个文件集」逐文件 `posix_fadvise(DONTNEED)`(不用 root-only 的 `drop_caches`,§7);热 = 页缓存已驻留。延迟为含 fork/exec 的端到端墙钟,RSS 为 `/proc` VmHWM 峰值中位数。
@@ -98,6 +100,8 @@ hello-world 四种构建(bare / `--minify` / `--bytecode` / `--minify --bytecode
 bun scripts/perf/binary-baseline.mjs gate
 ```
 
+**交付状态要说全**:AC-4.3 交付的是**可跑**的判定能力(命令与阈值语义如上,两个方向的结论各实测过一次),但它**没有接进任何 workflow**——`.github/workflows/` 下没有任何 job 调用 `binary-baseline.mjs`(也没有 nightly),跑与不跑仍是人的决定。且以报告完成时的仓内状态,它对**自己归档的全量基线原样执行是红的**(运行 A:退出码 1,12 个 FAIL 全部来自 `bunDist` / `bunDistBun` 两条污染臂,实体三臂 20 格全绿)——红是基线污染的如实反映,不是判定门坏了,也不是代码退化;把它当门禁使用前必须先按「下一步」重定基线。
+
 - 阈值来源:基线 JSON 即阈值。每格允许量 = `max(GATE_FLOOR, 基线该格最坏单样本膨胀 (maxOverMedian − 1) × 2)`,再加热启动 8 ms 绝对松弛。**没有手工魔法数字,全部从 2026-09-21 实测的 `baselines/linux-x64.json` 导出**——即「阈值来自本次实测」;内置地板 cold 25% / warm 15% / RSS 15% / 体积 5% 只防「异常安静的基线把门拧成假红机器」。共享 runner 更吵时用 `BYF_PERF_GATE_SLACK=<percent>` 加乘,而不是改基线。
 - 体积按 `delta_bytes`(对同版本 hello floor 的差)比较,绝对体积不比较——Bun 升级只重测 floor,不会把运行时平移误判为代码回归(§3)。
 - 噪声处置:离群剔除(5×MAD)、剔除计数入档、`--samples` 下限 10;首次报红先 `--samples=25` 复跑再当真(脚本失败提示原文如此)。
@@ -113,7 +117,7 @@ bun scripts/perf/binary-baseline.mjs gate
 - **未在任何共享 runner 上实测**:runner 噪声处置是机制(§6)+本机 cv(热启动多数格 <1%)的组合,不构成 hosted runner 上不会假红的证明;本机也已实测「同机并发两个 gate」足以顶红单格(§6 运行 B 注),CI 编排需保证互斥。
 - **样本与判定规则**:12–15 计时样本/格(预热丢弃),中位数对比,不是均值;A/B 与基线是不同进程批次,同字节对照臂显示 round-to-round 漂移 ≤0.2%,但批次内跨臂漂移观测到 ≤7.3%(§4 注记 b),小于该带的差值一律不采信。
 - **代理指标边界**:启动/裁决数字来自 `--version`/`--help` 早退路径与 hello floor,**不是完整 TUI 就绪 TTI**;`byf web` 的 SPA 验证证明资产通路完好,不代表浏览器端性能。
-- **数据质量**:归档基线的 `bunDist` 列是死臂的崩溃耗时(§2);`bunDistBun` 列(/tmp 拷贝,100 ms)是模块解析失败的耗时,不构成 `--target bun` 性能证据——现行 `targets.mjs` 已改为「原地重建 + 逐字节还原」,复跑时该臂才真正可跑。
+- **数据质量**:归档基线的 `bunDist` 列是死臂的崩溃耗时(§2);`bunDistBun` 列(/tmp 拷贝,100 ms)是模块解析失败的耗时,不构成 `--target bun` 性能证据——现行 `targets.mjs` 已改为「原地重建 + 逐字节还原」,复跑时该臂才真正可跑。(2026-09-23 修订:b0e3bc7 已把 shipped CLI 的 JS bundle 改为 `--target bun`,HEAD 上 `bunDist` 不再是死臂;上面两个「死臂」描述记录的是归档基线生成时的事实,归档列在 `measure` 重定基线前保持污染态。)
 - 本机 `apps/cli/dist/main.mjs` 现值已确认为 shipped 态(报告完成时校验,还原路径生效)。
 
 ## 8. 未测清单(如实)

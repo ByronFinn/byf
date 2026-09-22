@@ -136,6 +136,9 @@ bun scripts/perf/tui-idle.mjs --window=3000 --windows=10
 - 冷缓存配方是 per-file `posix_fadvise(DONTNEED)`(文件集由 `bun build --metafile` 解出),不用
   root-only 的 `drop_caches`;eviction 计数为 0 的格子会被如实标成非冷,不冒充 cold 数字。
 - 前置产物:需先有 `apps/cli/dist/main.mjs` 与 `apps/cli/dist-native/bin/<target>/byf`
-  (官方 `build:native` 管线;已知 `compile-entry.ts` 缺陷时脚本用修复后的中间产物并显式标注来源)。
+  (官方 `build:native` 管线)。早先基线期的 `compile-entry.ts` 生成码缺陷已修复(36064cf,
+  globalThis 写入改计算属性),脚本里「修复中间产物再重放官方 compile 命令」的兜底路径只剩保险
+  作用;实际用了哪种产物来源(`official` / `preexisting` / `repaired-intermediate`)以
+  `native binary source` 一行显式标注。
 - `measure`/`gate` 会以「原地重建 + 逐字节还原」方式临时替换 `apps/cli/dist/main.mjs` 来测
   `--target bun` 变体;进程中途被杀时从 `/tmp/byf-dist-backup-*` 手动还原。
