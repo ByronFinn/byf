@@ -92,6 +92,12 @@ async function newHarness(homeDir: string): Promise<InstanceType<typeof ByfHarne
 /**
  * 会话目录的完整字节清单（路径 → sha256:字节数），用于"原会话字节不变"。
  * `logs/` 被排除：诊断日志与对话历史无关，它增长不构成身份语义违约。
+ *
+ * 取快照的前提是目录已经落定。`prompt()` 返回不等于记录已落盘——排空靠
+ * `Session.flushMetadata()`（`close()` 会调它），而 `forkSession` 对仍活跃的源会话
+ * 会先自己 flush 一次（`core-impl.ts:390`）。本文件过去靠"轮询到一段安静窗口"来
+ * 判定落定，在争用的 runner 上会输：一次 CI 实测有 1070 字节的源会话自身 turn 记录
+ * 正好落在 fork 窗口里，于是被读成"fork 改写了源会话"。确定性屏障只有 close。
  */
 async function dirManifest(root: string): Promise<string> {
   const entries: string[] = [];
@@ -110,18 +116,6 @@ async function dirManifest(root: string): Promise<string> {
   }
   await walk(root, '');
   return entries.toSorted().join('\n');
-}
-
-/** 等活跃会话的异步 wire flush 落定后再取清单，避免把自身追加误判成 fork 改写。 */
-async function settledManifest(root: string): Promise<string> {
-  let previous = await dirManifest(root);
-  for (let attempt = 0; attempt < 40; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    const current = await dirManifest(root);
-    if (current === previous) return current;
-    previous = current;
-  }
-  return previous;
 }
 
 async function readMainWireLines(sessionDir: string): Promise<string[]> {
@@ -250,11 +244,16 @@ describe('PRD-0038 AC-3.1 resume/fork identity contract (SDK layer)', () => {
     const sourceDir = source.summary?.sessionDir;
     expect(sourceDir).toBeDefined();
     await source.prompt('a fact worth copying');
+    // close 才是确定性的落盘屏障：源会话关掉以后，它的 wire.jsonl 不可能再长出任何
+    // 属于它自己的字节，于是"目录没变"这句话只可能由 fork 的行为来决定。
+    await harness.close();
 
-    const sourceBefore = await settledManifest(sourceDir!);
+    const sourceBefore = await dirManifest(sourceDir!);
     const sourceLinesBefore = await readMainWireLines(sourceDir!);
 
-    const forked = await harness.forkSession({ id: 'ses_ac31_src', forkId: 'ses_ac31_dst' });
+    // 全新 harness 替身：与 resume 那条用例同一手法，也不共享任何内存态。
+    const forker = await newHarness(homeDir);
+    const forked = await forker.forkSession({ id: 'ses_ac31_src', forkId: 'ses_ac31_dst' });
     expect(forked.id, 'fork 产生新 session ID').toBe('ses_ac31_dst');
     expect(forked.summary?.sessionDir, 'fork 落在另一个目录').not.toBe(sourceDir);
     expect(await dirManifest(sourceDir!), 'fork 之后原会话目录字节必须完全不变').toBe(sourceBefore);
@@ -266,14 +265,52 @@ describe('PRD-0038 AC-3.1 resume/fork identity contract (SDK layer)', () => {
       providerUserTexts().some((text) => text.includes('a fact worth copying')),
       'fork 的新窗口同样由复制来的事件日志重建',
     ).toBe(true);
-    await harness.close();
 
     // forked 会话继续生长，不能回头动源
     expect(
       await readMainWireLines(sourceDir!),
       '在子会话里 prompt 后，源会话日志必须仍然逐字节不变',
     ).toEqual(sourceLinesBefore);
-    expect(await dirManifest(sourceDir!)).toBe(sourceBefore);
+    expect(await dirManifest(sourceDir!), '子会话的生长不得改写源目录').toBe(sourceBefore);
+    await forker.close();
+  });
+
+  it('fork of a still-active source appends to it at most, and never rewrites it', async () => {
+    const homeDir = await makeTempDir('byf-ac31-fork-active-home-');
+    const workDir = await makeTempDir('byf-ac31-fork-active-work-');
+
+    const harness = await newHarness(homeDir);
+    const source = await harness.createSession({ id: 'ses_ac31_active', workDir });
+    const sourceDir = source.summary?.sessionDir;
+    expect(sourceDir).toBeDefined();
+    await source.prompt('a fact worth copying');
+    const linesBefore = await readMainWireLines(sourceDir!);
+
+    // 这条路径上源会话仍然活跃，fork 会先替它 flush（core-impl.ts:390），所以源目录
+    // **允许**长出它自己的记录——但绝不允许已有行被动过。截断尤其致命：
+    // truncateMainWireUpToMessage 的写入目标一旦从 target 挪到 source，复制出来的是
+    // 前缀、丢掉的是源会话的历史。所以这里断言的是 append-only（前缀保持），不是
+    // 字节全等：那才是这条路径上真正成立的不变量。
+    const forked = await harness.forkSession({
+      id: 'ses_ac31_active',
+      forkId: 'ses_ac31_active_copy',
+    });
+    const forkedDir = forked.summary?.sessionDir;
+    expect(forkedDir, 'fork 会话有自己的目录').toBeDefined();
+
+    const linesAfter = await readMainWireLines(sourceDir!);
+    expect(linesAfter.slice(0, linesBefore.length), 'fork 不得改写源会话已有的事件行').toEqual(
+      linesBefore,
+    );
+    expect(linesAfter.length, '源会话被 flush 的记录只会追加').toBeGreaterThanOrEqual(
+      linesBefore.length,
+    );
+    expect(
+      await readFile(join(forkedDir!, 'agents', 'main', 'wire.jsonl'), 'utf-8'),
+      '复制出来的日志必须带上源会话刚 flush 的那条事实',
+    ).toContain('a fact worth copying');
+
+    await harness.close();
   });
 });
 
