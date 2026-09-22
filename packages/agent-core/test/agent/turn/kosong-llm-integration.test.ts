@@ -22,7 +22,7 @@ import {
 
 import { KosongLLM, type KosongLLMConfig } from '../../../src/agent/turn/kosong-llm';
 import type { LLMChatParams } from '../../../src/loop';
-import { defined } from '../../_defined';
+import { defined } from '../../helpers/defined';
 
 /**
  * System prompt with cache boundary markers.

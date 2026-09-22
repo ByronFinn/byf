@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { hasGlobChars, parseBashCommand } from '../../src/tools/policies/bash-command';
-import { defined } from '../_defined';
+import { defined } from '../helpers/defined';
 
 describe('bash-command parse — 单子命令分类', () => {
   it('读动词提取 read 路径（含敏感文件）', () => {

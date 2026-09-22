@@ -348,7 +348,7 @@ describe('Agent tools', () => {
       [emit] assistant.delta                     { "turnId": 0, "delta": "I will look it up." }
       [emit] tool.call.delta                     { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "argumentsPart": "{\\"query\\":\\"moon\\"}" }
       [wire] context.append_loop_event           { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will look it up." } }, "time": "<time>" }
-      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_lookup", "toolName": "Lookup", "action": "call Lookup", "result": { "decision": "approved", "selectedLabel": "auto_approve:auto" }, "time": "<time>" }
+      [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_lookup", "toolName": "Lookup", "action": "call Lookup", "result": { "decision": "approved", "selectedLabel": "auto_approve:auto" }, "authority": { "kind": "audit-only", "from": "mode-auto-approve" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_lookup", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" }, "startedAt": "<time>" }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_lookup", "name": "Lookup", "args": { "query": "moon" }, "startedAt": "<time>" }
       [emit] toolCall                            { "turnId": 0, "toolCallId": "call_lookup", "args": { "query": "moon" } }"

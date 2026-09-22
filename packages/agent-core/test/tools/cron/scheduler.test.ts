@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { ClockSources } from '../../../src/tools/cron/clock';
 import { createCronScheduler, type CronScheduler } from '../../../src/tools/cron/scheduler';
 import type { CronTask } from '../../../src/tools/cron/types';
-import { defined } from '../../_defined';
+import { defined } from '../../helpers/defined';
 
 interface HarnessOptions {
   readonly isIdle?: boolean;

@@ -10,154 +10,982 @@
   ],
   "named": [
     {
+      "from": "./agent/compaction",
+      "name": "CompactionBeginData",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/compaction",
+      "name": "CompactionResult",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/config",
+      "name": "AgentConfigUpdateData",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/context",
+      "name": "AgentContextData",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
       "from": "./agent/context",
       "name": "buildPreview",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "ContextMessage",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./agent/context",
       "name": "createWireFoldState",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "DEFAULT_OFFLOADING_CONFIG",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "flushDeferred",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "foldAppendMessage",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "foldApplyCompaction",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "foldLoopEvent",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "OffloadingConfig",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/context",
+      "name": "OffloadResult",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/context",
+      "name": "PromptOrigin",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./agent/context",
       "name": "resetWireFoldState",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "shouldOffload",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "toolResultOutputForModel",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./agent/context",
       "name": "USER_PROMPT_ORIGIN",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./agent/context",
+      "name": "UserPromptOrigin",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/context",
+      "name": "WireFoldState",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/permission",
+      "name": "PermissionApprovalResultRecord",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/permission",
+      "name": "PermissionMode",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./agent/records",
       "name": "AGENT_WIRE_PROTOCOL_VERSION",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./agent/records",
+      "name": "AgentRecord",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/records",
+      "name": "AgentRecordEvents",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/records",
+      "name": "AgentRecordOf",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/records",
+      "name": "AgentRecordPersistence",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./agent/usage",
+      "name": "UsageRecordScope",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./config/schema",
+      "name": "ImageConfig",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./home/workspace-registry",
       "name": "workspaceTitle",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/logger",
       "name": "flushDiagnosticLogs",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/logger",
       "name": "getRootLogger",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/logger",
       "name": "log",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/logger",
       "name": "redact",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/logger",
       "name": "resolveGlobalLogPath",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./logging/resolve-config",
       "name": "resolveLoggingConfig",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./logging/resolve-config",
+      "name": "ResolveLoggingInput",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "LogContext",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "LogEntry",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "Logger",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "LoggingConfig",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "LogLevel",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "LogPayload",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "RootLogger",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "SessionAttachInput",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./logging/types",
+      "name": "SessionLogHandle",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./loop/errors",
       "name": "isAbortError",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./loop/types",
+      "name": "ExecutableToolErrorResult",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop/types",
+      "name": "ExecutableToolResult",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop/types",
+      "name": "ExecutableToolSuccessResult",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopContentPartEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopRecordedEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopStepBeginEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopStepEndEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopToolCallEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./loop",
+      "name": "LoopToolResultEvent",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./prompt-plan",
       "name": "buildPromptPlan",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./providers/runtime-provider",
+      "name": "BearerTokenProvider",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./providers/runtime-provider",
+      "name": "OAuthTokenProviderResolver",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./runtime-types",
+      "name": "RuntimeConfig",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./telemetry",
+      "name": "TelemetryClient",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./telemetry",
+      "name": "TelemetryProperties",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./tools/background/manager",
+      "name": "BackgroundLifecycleEvent",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./tools/background/manager",
+      "name": "BackgroundTaskInfo",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./tools/background/manager",
+      "name": "BackgroundTaskKind",
+      "aliased": false,
+      "typeOnly": true
+    },
+    {
+      "from": "./tools/background/manager",
+      "name": "BackgroundTaskStatus",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./tools/builtin/goal/outcome-prompts",
       "name": "renderBlockedReason",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./tools/builtin/goal/outcome-prompts",
       "name": "renderCompletionSummary",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./tools/builtin/goal/outcome-prompts",
       "name": "renderStatusLine",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./tools/store",
+      "name": "ToolStoreUpdate",
+      "aliased": false,
+      "typeOnly": true
     },
     {
       "from": "./tools/support/image-compress",
       "name": "compressImageForModel",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
     },
     {
       "from": "./tools/support/image-limits",
       "name": "ImageLimits",
-      "aliased": false
+      "aliased": false,
+      "typeOnly": false
+    },
+    {
+      "from": "./utils/tokens",
+      "name": "InputTokenBreakdown",
+      "aliased": false,
+      "typeOnly": true
     }
   ],
-  "typeOnlyFrom": [
-    "./agent/compaction",
-    "./agent/config",
-    "./agent/context",
-    "./agent/permission",
-    "./agent/records",
-    "./agent/usage",
-    "./config/schema",
-    "./logging/resolve-config",
-    "./logging/types",
-    "./loop",
-    "./loop/types",
-    "./providers/runtime-provider",
-    "./runtime-types",
-    "./telemetry",
-    "./tools/background/manager",
-    "./tools/store",
-    "./utils/tokens"
-  ],
-  "note": "AC-2.4 (PRD-0038). Pinned shape of @byfriends/agent-core root barrel. Widening the published surface must be an intentional edit here; see check-agent-core-surface.mjs."
+  "nested": {
+    "./agent": {
+      "starFrom": [],
+      "named": [
+        {
+          "from": "./cron",
+          "name": "CronManager",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./cron",
+          "name": "CronManagerOptions",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./cron",
+          "name": "CronTaskSnapshot",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalBudgetLimits",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalBudgetReport",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalChange",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalMode",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "GoalSnapshot",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalStatus",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalTurnTokens",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalUsage",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "MAX_GOAL_OBJECTIVE_LENGTH",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./records",
+          "name": "AgentRecord",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./records",
+          "name": "AgentRecordPersistence",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./tool",
+          "name": "BuiltinTool",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./tool",
+          "name": "ToolInfo",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./tool",
+          "name": "ToolSource",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./tool",
+          "name": "UserToolRegistration",
+          "aliased": false,
+          "typeOnly": true
+        }
+      ]
+    },
+    "./config": {
+      "starFrom": [
+        "./document",
+        "./login-provider-registry",
+        "./merge",
+        "./path",
+        "./resolve",
+        "./schema",
+        "./toml",
+        "./workspace-local"
+      ],
+      "named": []
+    },
+    "./errors": {
+      "starFrom": ["./errors/index"],
+      "named": []
+    },
+    "./harness": {
+      "starFrom": ["./lane-state", "./records", "./session", "./storage"],
+      "named": [
+        {
+          "from": "./agent-harness",
+          "name": "AgentHarness",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./agent-harness",
+          "name": "AgentHarnessConfig",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./agent-harness",
+          "name": "AgentLane",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./agent-harness",
+          "name": "HarnessLiveEvent",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./agent-harness",
+          "name": "OperationOutcome",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./engine",
+          "name": "assertEngineFormatCompatible",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./engine",
+          "name": "createV2EngineHarness",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./engine",
+          "name": "EngineFormatMismatchError",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./engine",
+          "name": "resolveSessionEngine",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./engine",
+          "name": "SessionEngine",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./engine",
+          "name": "V2EngineHarnessInput",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "LaneView",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "SessionSnapshot",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "V2Event",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "V2EventBus",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./events",
+          "name": "V2EventType",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "watch",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./events",
+          "name": "WatchHandle",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./events",
+          "name": "watchSession",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./fork",
+          "name": "deriveChildSessionId",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./fork",
+          "name": "ForkResult",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./fork",
+          "name": "forkSession",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./fork",
+          "name": "ForkSessionOptions",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./fork",
+          "name": "HarnessSubagentSpawner",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./fork",
+          "name": "synthesizeOrphanToolResults",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "clearGoal",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "GOAL_CUSTOM_TYPE",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "GoalBudget2",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalSnapshot2",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalStatus2",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "GoalView",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./goal",
+          "name": "isGoalOverBudget",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "MAX_GOAL_ROUNDS",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "readGoal",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "recordGoalTurn",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "setGoal",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./goal",
+          "name": "updateGoal",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./hooks",
+          "name": "HookHandlerErrorEvent",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./hooks",
+          "name": "V2HookInput",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./hooks",
+          "name": "V2HookPoint",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./hooks",
+          "name": "V2HookRegistry",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./hooks",
+          "name": "V2HookResult",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./lock",
+          "name": "acquireSessionLock",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./lock",
+          "name": "SessionLockError",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./lock",
+          "name": "SessionLockHandle",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./lock",
+          "name": "SessionLockOptions",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "bridgeShellHooks",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "fireNotification",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "firePostCompact",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "fireSessionEnd",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "fireSessionStart",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "fireSubagentStart",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./shell-hook-bridge",
+          "name": "fireSubagentStop",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./storage/types",
+          "name": "LaneSnapshot",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./transcript",
+          "name": "projectEntryMessage",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./transcript",
+          "name": "toolResultMessage",
+          "aliased": false,
+          "typeOnly": false
+        },
+        {
+          "from": "./transcript",
+          "name": "TranscriptBridge",
+          "aliased": false,
+          "typeOnly": false
+        }
+      ]
+    },
+    "./rpc": {
+      "starFrom": ["./client", "./core-api", "./events", "./resumed", "./sdk-api", "./types"],
+      "named": [
+        {
+          "from": "../utils/types",
+          "name": "Promisable",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "../utils/types",
+          "name": "PromisableMethods",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "../utils/types",
+          "name": "Promisify",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./core-impl",
+          "name": "ByfCoreOptions",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./core-impl",
+          "name": "CoreEngineHandle",
+          "aliased": false,
+          "typeOnly": true
+        },
+        {
+          "from": "./core-impl",
+          "name": "createByfCore",
+          "aliased": false,
+          "typeOnly": false
+        }
+      ]
+    },
+    "./session": {
+      "starFrom": ["./subagent-host"],
+      "named": []
+    },
+    "./session/export": {
+      "starFrom": [
+        "#/session/export/manifest",
+        "#/session/export/session-export",
+        "#/session/export/wire-scan",
+        "#/session/export/zip"
+      ],
+      "named": []
+    }
+  },
+  "note": "AC-2.4 (PRD-0038). Pinned published surface of @byfriends/agent-core: the root barrel (value and type named exports) plus one level into every module it star-exports (./agent, ./config, ./errors, ./harness, ./rpc, ./session, ./session/export). Widening it must be an intentional edit here; see check-agent-core-surface.mjs. Regenerated by `bun scripts/lib/check-agent-core-surface.mjs --update`."
 }

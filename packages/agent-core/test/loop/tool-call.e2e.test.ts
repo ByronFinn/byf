@@ -21,7 +21,7 @@ import type {
   ToolExecution,
 } from '../../src/loop';
 import { PathSecurityError } from '../../src/tools/policies/path-access';
-import { defined } from '../_defined';
+import { defined } from '../helpers/defined';
 import {
   makeEndTurnResponse,
   makeResponse,

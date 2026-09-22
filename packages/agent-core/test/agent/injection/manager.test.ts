@@ -178,7 +178,7 @@ describe('PermissionModeInjector (ephemeral)', () => {
   it('produces injection when auto mode is active', () => {
     const ctx = testAgent();
     ctx.configure();
-    ctx.agent.permission.mode = 'auto';
+    ctx.agent.permission.setMode('auto');
 
     const injector = new PermissionModeInjector(ctx.agent);
     const result = injector.getEphemeral();

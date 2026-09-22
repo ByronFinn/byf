@@ -5,7 +5,7 @@ import type { CacheScope, ProviderCacheCapability } from '@byfriends/kosong';
 
 import { buildPromptPlan, detectBoundaryDiagnostics } from '#/prompt-plan/builder';
 
-import { defined } from '../_defined';
+import { defined } from '../helpers/defined';
 
 /**
  * Helper function to create SHA256 hash (consistent with fingerprint() in agent/index.ts)

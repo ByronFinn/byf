@@ -56,7 +56,13 @@ export const FORBIDDEN_RELATIVE_DIRS = Object.freeze(['packages/agent-core']);
  * A directory prefix, glob or wildcard is rejected by `validateExceptionTable`, so
  * an exception can never silently widen into a whole-folder exemption.
  *
- * @type {ReadonlyArray<{ file: string, specifier: string, reason: string }>}
+ * `specifier` is optional and that optionality is load-bearing in the other
+ * direction too: an entry that omits it exempts *every* forbidden specifier in
+ * that one exact file (see `isExceptioned`). The table is empty, so nothing
+ * depends on either reading today; naming the specifier is the narrower,
+ * preferred form whenever an exception is added.
+ *
+ * @type {ReadonlyArray<{ file: string, specifier?: string, reason: string }>}
  */
 export const LAYERING_EXCEPTIONS = Object.freeze([]);
 

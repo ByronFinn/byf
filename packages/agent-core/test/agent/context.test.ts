@@ -21,7 +21,7 @@ import {
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { LoopRecordedEvent } from '../../src/loop';
 import { estimateTokensForMessages } from '../../src/utils/tokens';
-import { defined } from '../_defined';
+import { defined } from '../helpers/defined';
 import type { TestAgentContext } from './harness/agent';
 import { testAgent } from './harness/agent';
 import { formatHarnessSnapshot } from './harness/snapshots';

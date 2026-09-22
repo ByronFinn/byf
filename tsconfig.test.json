@@ -24,7 +24,18 @@
     "apps/*/server/src/**/*.test.ts",
     "apps/*/server/src/**/*.test.tsx",
     "apps/web/client/test/**/*.ts",
-    "apps/web/client/test/**/*.tsx"
+    "apps/web/client/test/**/*.tsx",
+    // The gate scripts are part of the tested surface, not a side room:
+    // `build/run-tests.mjs` runs `scripts/**` with the same runner and the same
+    // preload as packages and apps (`roots = ['packages','apps','scripts']`), so
+    // a type error in `scripts/lib/*.test.ts` is a defect in a file CI executes.
+    // Leaving them out of `include` made the zero-tolerance number describe a
+    // smaller world than the one the tests run in.
+    "scripts/**/*.test.ts",
+    "scripts/**/*.d.ts",
+    // `build/test-preload.ts` is the 316-line vitest compatibility shim that makes
+    // ~151 `from 'vitest'` imports work at all. It was in no tsconfig anywhere.
+    "build/*.ts"
   ],
   "exclude": [
     "node_modules",

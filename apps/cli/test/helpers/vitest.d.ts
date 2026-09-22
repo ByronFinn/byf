@@ -5,13 +5,42 @@
  * Bun's built-in Vitest compatibility layer (see `docs/` and the
  * `mock as bunMock` pattern in several files). The package itself is not a
  * dependency, so `tsc -p tsconfig.test.json` cannot resolve it. This file
- * declares the *exact* API surface the suite consumes, typed as faithfully
- * as the runtime allows, so mock drift fails at compile time instead of
- * silently becoming `any`.
+ * declares the API surface the suite consumes, typed as faithfully as the
+ * runtime allows, so mock drift fails at compile time instead of silently
+ * becoming `any`.
+ *
+ * This is NOT the whole Vitest API and it is not a claim that Bun provides
+ * everything listed here. Two concrete gaps, both pinned by
+ * `apps/cli/test/helpers/vitest-shim.test.ts`:
+ *
+ *   - `MockUtils` lists exactly the members that exist at runtime, i.e. Bun's own
+ *     `vi` plus the shims in `build/test-preload.ts`. The first version of this
+ *     file also declared `unmock`, `advanceTimers` and `getSystemTime`, none of
+ *     which anything implemented — a test calling one got `undefined is not a
+ *     function` at runtime while the type said it was fine. They are deleted, not
+ *     shimmed: `vi.unmock` in particular cannot be honoured under Bun (that is the
+ *     whole reason `build/run-tests.mjs` runs one process per file), so a no-op
+ *     shim would turn a real failure into a silent pass.
+ *   - the matchers below take `expected: unknown`, while real Vitest constrains
+ *     them to the actual type. That is why `expect(42).toBe('x')` still typechecks
+ *     here. Widening it is a follow-up with a large blast radius, not a fix to
+ *     slip in silently; `resolves`/`rejects` do unwrap `Awaited` (as in Vitest),
+ *     and `vitest-shim.test.ts` asserts that with a type-exactness check.
+ *
+ * Bun-specific behaviour to know about before touching an `expect().resolves`
+ * call: on Bun, `.resolves` / `.rejects` block the test body synchronously (a
+ * sibling agent measured 301 ms of wall clock consumed inside the same test
+ * body), so an un-awaited `expect(promise).resolves.toX()` still fails the test
+ * correctly today. That is *Bun-private*. Real Vitest returns a promise from the
+ * matcher and an un-awaited `expect().resolves` is fire-and-forget — it would
+ * pass silently. If this repository ever adopts real vitest, every
+ * `expect(...).resolves`/`.rejects` call that is not `await`ed becomes a test
+ * that no longer tests anything, and this file's runtime guarantees are void.
  *
  * Keep this surface small: if a test needs another member of the real
- * Vitest API, add its precise signature here (or migrate the call to
- * `bun:test`).
+ * Vitest API, add its precise signature here *and* make `build/test-preload.ts`
+ * provide it (or migrate the call to `bun:test`), then let the guard test prove
+ * the pair stayed in sync.
  */
 declare module 'vitest' {
   type AnyProcedure = (...args: never[]) => unknown;
@@ -111,8 +140,10 @@ declare module 'vitest' {
     toHaveBeenCalledOnce(): void;
     // modifiers
     readonly not: Assertion<TActual>;
-    readonly resolves: Assertion<TActual>;
-    readonly rejects: Assertion<TActual>;
+    // Vitest unwraps the promise here; typing it `Assertion<TActual>` would let
+    // `expect(42).resolves` through and hide the awaited-ness of the chain.
+    readonly resolves: Assertion<Awaited<TActual>>;
+    readonly rejects: Assertion<Awaited<TActual>>;
   }
 
   interface ExpectStatic {
@@ -154,7 +185,6 @@ declare module 'vitest' {
     fn<T extends AnyProcedure>(impl?: T): Mock<T>;
     mocked<T>(original: T): T extends AnyProcedure ? Mock<T> : T;
     mock(path: string, factory?: () => unknown, options?: { factory?: boolean }): void;
-    unmock(path: string): void;
     hoisted<T>(factory: () => T): T;
     spyOn<
       T extends object,
@@ -170,21 +200,22 @@ declare module 'vitest' {
     useRealTimers(): void;
     advanceTimersByTime(ms: number): void;
     advanceTimersByTimeAsync(ms: number): Promise<void>;
-    advanceTimers(ms: number): Promise<void>;
     runAllTimers(): void;
     runAllTimersAsync(): Promise<void>;
     runOnlyPendingTimers(): void;
     runOnlyPendingTimersAsync(): Promise<void>;
     setSystemTime(time?: number | string | Date): void;
-    getSystemTime(): number;
     waitFor<T>(assertion: () => T | Promise<T>, options?: WaitUntilOptions): Promise<Awaited<T>>;
     stubGlobal(name: string | symbol, value: unknown): void;
     unstubAllGlobals(): void;
     stubEnv(name: string, value: string | undefined): void;
     unstubAllEnvs(): void;
+    importActual<T = unknown>(path: string): Promise<T>;
+    doMock(path: string, factory?: () => unknown): void;
+    resetModules(): void;
   }
 
-  export type { Mock, MockInstance, MockContext, MockResult };
+  export type { Assertion, Mock, MockInstance, MockContext, MockResult, MockUtils };
   export const vitest: MockUtils;
   export const vi: MockUtils;
   export const expect: ExpectStatic;

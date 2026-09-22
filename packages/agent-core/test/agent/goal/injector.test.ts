@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { GoalInjector } from '../../../src/agent/injection/goal';
-import { defined } from '../../_defined';
+import { defined } from '../../helpers/defined';
 import { makeGoalAgent } from './harness';
 
 /**

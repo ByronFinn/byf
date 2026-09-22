@@ -197,12 +197,16 @@ export function osvQuery(pkg) {
  * request), so this fans out with bounded concurrency.
  *
  * @param {LockedPackage[]} locked
- * @param {{ fetchImpl?: typeof fetch, concurrency?: number }} [options]
+ * @param {{ fetchImpl?: typeof fetch, concurrency?: number, sleep?: (ms: number) => Promise<void> }} [options]
  * @returns {Promise<{ advisories: Array<{ id: string, aliases: string[], package: string, version: string, severity: string, summary: string }>, errors: number }>}
  */
 export async function queryOsv(locked, options = {}) {
   const fetchImpl = options.fetchImpl ?? fetch;
   const concurrency = options.concurrency ?? OSV_CONCURRENCY;
+  // Injectable for the same reason `fetchImpl` is: without it the retry test can
+  // only observe the backoff through wall clock (3.53s burned per run, and an
+  // assertion that measures elapsed time says nothing about the schedule).
+  const sleep = options.sleep ?? delay;
   const advisories = [];
   let errors = 0;
   let cursor = 0;
@@ -220,7 +224,7 @@ export async function queryOsv(locked, options = {}) {
       let outcome = null;
       for (let attempt = 0; attempt < OSV_QUERY_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
-          await delay(attempt * OSV_RETRY_BACKOFF_MS);
+          await sleep(attempt * OSV_RETRY_BACKOFF_MS);
         }
         try {
           const response = await fetchImpl(OSV_QUERY_URL, {

@@ -30,7 +30,7 @@
     "dev:docs": "bun run --filter 'byf-docs' dev",
     "typecheck": "bun run build:packages && bun run build:web && bun run --filter './packages/*' typecheck && bun run --filter '@byfriends/cli' typecheck && bun run --filter '@byfriends/web-shared' typecheck && bun run --filter '@byfriends/web-server' typecheck && bun run --filter '@byfriends/web-client' typecheck",
     "typecheck:tests": "bun x tsc -p tsconfig.test.json --noEmit",
-    "typecheck:negative": "bun x tsc --noEmit -p packages/kosong/tsconfig.type-negative.json",
+    "typecheck:negative": "bun x tsc --noEmit -p packages/kosong/tsconfig.type-negative.json && bun x tsc --noEmit -p packages/agent-core/tsconfig.type-negative.json",
     "lint": "oxlint --type-aware",
     "lint:fix": "bun run lint --fix",
     "lint:pkg": "bun scripts/publint-pkg.mjs && bun scripts/attw-pkg.mjs",
@@ -90,7 +90,8 @@
   },
   "packageManager": "bun@1.3.14",
   "//": {
-    "oxfmt": "Exact pin, no caret (PRD-0038 AC-5.7): a floating formatter range reflows the whole tree on any minor release, which is what happened in 0214ef1. The pin is asserted in .github/workflows/ci.yml ('Gate: formatter pin') so a stale runner image cannot silently change the formatter under fmt:check. Changing this version is a deliberate, tree-wide commit — update the pin in both places and format once. bun.lock must be refreshed by `bun install` before the frozen-install CI step can pass."
+    "oxfmt": "Exact pin, no caret (PRD-0038 AC-5.7): a floating formatter range reflows the whole tree on any minor release, which is what happened in 0214ef1. The pin is asserted in .github/workflows/ci.yml ('Gate: formatter pin') so a stale runner image cannot silently change the formatter under fmt:check. Changing this version is a deliberate, tree-wide commit — update the pin in both places and format once. bun.lock must be refreshed by `bun install` before the frozen-install CI step can pass.",
+    "typecheck:negative": "Runs every `tsconfig.type-negative.json` in the monorepo from ONE script, because CI runs it as one step ('Typecheck (negative assertions)'). These projects assert *rejection* (@ts-expect-error), so they must be excluded from tsconfig.test.json — which in turn means nothing checks them unless this script names them. When you add a new one, append it here; do not add a second CI step."
   },
   "catalog": {
     "@types/bun": "1.3.14",

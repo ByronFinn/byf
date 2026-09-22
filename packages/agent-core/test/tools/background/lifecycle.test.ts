@@ -23,7 +23,7 @@ import {
   BackgroundProcessManager,
   type BackgroundTaskInfo,
 } from '../../../src/tools/background/manager';
-import { defined } from '../../_defined';
+import { defined } from '../../helpers/defined';
 
 type LifecycleEvent = 'started' | 'updated' | 'terminated';
 

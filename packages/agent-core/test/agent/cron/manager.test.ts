@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { CronManager } from '../../../src/agent/cron/manager';
 import type { ClockSources } from '../../../src/tools/cron/clock';
 import type { CronTask } from '../../../src/tools/cron/types';
-import { defined } from '../../_defined';
 import { vi } from '../../_vitest-vi';
+import { defined } from '../../helpers/defined';
 
 const WALL_ANCHOR = Date.UTC(2024, 0, 1, 12, 0, 0);
 

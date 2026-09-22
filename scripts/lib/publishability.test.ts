@@ -13,6 +13,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { PackageManifest } from './list-publishable-packages.mjs';
 import {
   describePublishability,
   inspectPublishablePackages,
@@ -40,7 +41,7 @@ const EXPECTED_PUBLISH_SET = [
 const AGENT_CORE_BARREL_DRIFT = 'agent-core-barrel-claims-not-registry-published';
 const KNOWN_DOC_DRIFT: string[] = [];
 
-function libraryManifest(overrides) {
+function libraryManifest(overrides: Partial<PackageManifest>) {
   return {
     name: '@byfriends/demo',
     version: '1.0.0',
