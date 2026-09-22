@@ -1,7 +1,3 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -9,7 +5,6 @@ import {
   CATALOG_GLOBAL_NAME,
   type CompileEntryInput,
 } from '../../../scripts/compile/compile-entry-source.mjs';
-import { defined } from '../../helpers/defined';
 
 const ENTRY_INPUT = {
   clipboardRelativeRequire: './clipboard.linux-x64-gnu.node',
@@ -84,236 +79,106 @@ describe('compile-entry codegen (PRD-0038 release blocker)', () => {
 });
 
 /**
- * F5.2 — "the generated code has no syntax diagnostics" is only an assertion if
- * the compiler demonstrably ran. The first version spawned `bun x tsc`, threw the
- * exit code away, and filtered the output for `error TS1…`, so a tsc that failed
- * to start (unresolvable `bun x` lookup, bad flags, a config collision) produced
- * empty output, an empty filter, and a green test.
+ * F5.2 — "the generated entry parses" has to be answered by the parser that actually
+ * consumes it.
  *
- * Three layers now, in this order:
- *   1. `tscRuns()` — the toolchain itself is the repo-pinned TypeScript and it
- *      reports a deliberate type error. A broken invocation fails here.
- *   2. the codegen output has no TS1xxx **and no TS5xxx** diagnostic — TS5 is the
- *      "tsc never checked this file" family.
- *   3. a negative self-test that feeds tsc the exact shape the release build used
- *      to emit and requires a TS1xxx back.
+ * The first version shelled out to `bun x tsc`, discarded the exit code and grepped the
+ * output for `error TS1…`, so a tsc that never started gave empty output, an empty
+ * match, and a green test. The fix for that kept tsc and added a liveness proof — which
+ * converted the file into five cold starts of a whole type checker inside a suite that
+ * runs ten files in parallel on a 4-core runner. Measured cost of one such start: ~2s
+ * here; on CI the same calls reported 3.7s, 5.1s and 22.2s (run 35765202338), and after
+ * the per-spawn budget was raised to 20s, CI still reported three of them killed at the
+ * budget (run 35769431862). No timeout number survives that spread, because the variable
+ * is runner contention, not the code under test.
+ *
+ * So there is no subprocess here. `Bun.Transpiler` with the `ts` loader is the same
+ * parser `bun build` / `bun compile` applies to this entry — so "this parses" is a claim
+ * about the real consumer rather than about a second compiler that has to be kept
+ * configured (`--allowImportingTsExtensions`, `--types bun` and `--typeRoots` existed
+ * only to keep tsc from refusing to look at the file) — and it costs about 10µs per
+ * transform (200 transforms: 2ms). The vacuous-pass shape disappears with the process:
+ * nothing can "fail to start", and the two rejection cases below are an unambiguous
+ * liveness proof, since a parser that had stopped working would *accept* them.
+ *
+ * Deliberately no longer checked: type-level (TS2xxx) diagnostics of the generated
+ * entry. They were scaffolding for the spawn, and the old fixture stubs failed type
+ * checks on purpose. The end-to-end claim — "a release binary compiles out of this" — is
+ * CI's: `Compile darwin-arm64 binary` and `test:native:smoke` run the real compiler over
+ * exactly this codegen output.
  */
 
-const REPO_ROOT = join(import.meta.dir, '..', '..', '..', '..', '..');
-const TSC_ENTRY = join(REPO_ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
-const TYPE_ROOTS = join(REPO_ROOT, 'node_modules', '@types');
+const transpiler = new Bun.Transpiler({ loader: 'ts' });
 
 /**
- * Wall-clock budget for ONE `tsc` process, and for one test.
+ * Parse messages for `code`, empty when it parses.
  *
- * These tests pay a cold `tsc` startup per call — five calls in this file. A GitHub
- * runner was measured at ~10s each (CI run 35765202338: two tests hit the 5s default
- * from the outside, the two-spawn test reported 22.2s), while this repo's WSL dev
- * machine costs ~2s. The 5000ms default is Bun's, not a decision anyone made, and it
- * leaves a slower-but-perfectly-working compiler no room at all.
- *
- * The numbers are chained so the *informative* failure always wins:
- *   - spawn budget 20s  — 2x the slowest spawn observed on CI.
- *   - test budget 55s   — strictly above 2 spawns (the worst test here), per the
- *     invariant in .github/workflows/ci.yml: an inner bound must stay below the
- *     enclosing `it(...)` timeout, or the runner kills the file first and the
- *     failure is an informationless "test timed out".
- *   - 5 spawns x 20s = 100s < the 120s per-file kill in build/run-tests.mjs, so even
- *     a runner 4x slower than the one that failed gets these tests' own messages —
- *     which carry tsc's output — instead of a file-level kill.
+ * A thrown error that carries no parse messages is rethrown rather than reported as
+ * "clean": otherwise any future failure mode of the transpiler — out of memory, a bad
+ * loader, an internal panic — would read as a successful parse, which is the same class
+ * of lie this file has already been rewritten for twice.
  */
-const TSC_SPAWN_TIMEOUT_MS = 20_000;
-const TSC_TEST_TIMEOUT_MS = 55_000;
-
-interface TscRun {
-  readonly exitCode: number;
-  readonly output: string;
-  readonly diagnostics: string[];
-  readonly syntax: string[];
-  readonly config: string[];
-  /** True when the budget killed tsc. Bun reports `exitCode: 0` in that case. */
-  readonly timedOut: boolean;
-}
-
-function runTsc(dir: string, file: string): TscRun {
-  const result = Bun.spawnSync({
-    cmd: [
-      // The binary, not `bun x tsc`: `x` resolves through the network/PATH, and a
-      // resolution failure is precisely the vacuous pass this file guards against.
-      process.execPath,
-      TSC_ENTRY,
-      '--noEmit',
-      '--target',
-      'esnext',
-      '--module',
-      'preserve',
-      '--moduleResolution',
-      'bundler',
-      // The generated entry imports `.ts` paths, which is what Bun's bundler
-      // consumes. Without this flag tsc answers TS5097 for every one of them, and
-      // a filter that only looks at TS1xxx discards that whole class of "the
-      // compiler never read this file" failure in silence.
-      '--allowImportingTsExtensions',
-      '--types',
-      'bun',
-      '--typeRoots',
-      TYPE_ROOTS,
-      file,
-    ],
-    cwd: dir,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    timeout: TSC_SPAWN_TIMEOUT_MS,
-  });
-  const output = result.stdout.toString() + result.stderr.toString();
-  const diagnostics = output
-    .split('\n')
-    .filter((line) => /error TS\d+:/.test(line))
-    .map((line) => line.trim());
-  return {
-    exitCode: result.exitCode,
-    timedOut: result.exitedDueToTimeout === true,
-    output,
-    diagnostics,
-    syntax: diagnostics.filter((line) => /error TS1\d{3}:/.test(line)),
-    config: diagnostics.filter((line) => /error TS5\d{3}:/.test(line)),
-  };
-}
-
-/**
- * Every assertion here is a claim about what tsc *said* — including the claims that
- * it said nothing. A budget-killed tsc says nothing and still reports exit code 0,
- * so without this check the timeout above would convert a slow runner into a green
- * run, which is the same vacuous pass this file was rewritten to rule out.
- */
-function assertTscRan(run: TscRun, checked: string): void {
-  expect(
-    run.timedOut,
-    `tsc was killed after ${TSC_SPAWN_TIMEOUT_MS}ms while checking ${checked}, so ` +
-      `the absence of diagnostics below means nothing.\n${run.output}`,
-  ).toBe(false);
-}
-
-/**
- * The temp dir is created and removed per test. It used to be a `mkdtempSync` in
- * the describe body, which runs at collection time: a file that failed to load
- * still leaked a directory, and a test skipped by a filter left one behind too.
- */
-function withTempDir<T>(run: (dir: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), 'byf-compile-entry-'));
+function parseMessages(code: string): string[] {
   try {
-    return run(dir);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+    transpiler.transformSync(code);
+    return [];
+  } catch (error) {
+    const details = (error as { errors?: unknown }).errors;
+    if (Array.isArray(details) && details.length > 0) {
+      return details.map((item) => String((item as Error).message ?? item));
+    }
+    throw error;
   }
 }
 
-/** Write the generated entry plus the stubs its imports point at. */
-function writeFixture(dir: string, source: string): string {
-  const localised = source
-    .replaceAll(ENTRY_INPUT.catalogInjectPath, join(dir, 'catalog-inject.ts'))
-    .replaceAll(
-      defined(ENTRY_INPUT.assetSets[0], 'assetSets[0]').entryPath,
-      join(dir, 'web-embedded-assets.ts'),
-    )
-    .replaceAll(ENTRY_INPUT.mainEntryPath, join(dir, 'main.ts'));
-  writeFileSync(join(dir, 'catalog-inject.ts'), 'export default "";');
-  writeFileSync(
-    join(dir, 'web-embedded-assets.ts'),
-    'export const embeddedAssets: Map<string,string> = new Map();',
-  );
-  writeFileSync(join(dir, 'main.ts'), 'export function main() {}');
-  writeFileSync(join(dir, 'clipboard.linux-x64-gnu.node'), '');
-  const entry = join(dir, 'entry.ts');
-  writeFileSync(entry, localised);
-  return entry;
-}
-
 describe('compile-entry codegen output is parseable TypeScript', () => {
-  it(
-    'the typechecker used as the parser is the repo-pinned one and it reports',
-    () => {
-      expect(existsSync(TSC_ENTRY), `missing ${TSC_ENTRY}`).toBe(true);
-      withTempDir((dir) => {
-        const file = join(dir, 'control.ts');
-        writeFileSync(file, "export const wrongType: number = 'not a number';\n");
-        const run = runTsc(dir, file);
-        assertTscRan(run, 'control.ts');
-        // A deliberate *type* error must be reported. If this fails, tsc never ran,
-        // and every "no syntax diagnostics" assertion below means nothing.
-        expect(
-          run.diagnostics.some((line) => /error TS2\d{3}:/.test(line)),
-          `tsc produced no type diagnostic for a known type error.\n${run.output}`,
-        ).toBe(true);
-      });
-    },
-    TSC_TEST_TIMEOUT_MS,
-  );
+  it('the parser itself rejects what it must reject before "parses clean" can mean anything', () => {
+    // Liveness, asserted first: a transpiler on the wrong loader, or a helper that
+    // swallowed failures, would silently turn every clean-parse assertion below into a
+    // pass. These two shapes are the exact defects this file exists to catch.
+    expect(
+      parseMessages('(globalThis as any)__BYF_WEB_EMBEDDED_ASSETS__ = m;\n').length,
+    ).toBeGreaterThan(0);
+    expect(parseMessages('const brokenTail: = (;\n').length).toBeGreaterThan(0);
+    // And it is not simply always failing, which would make the negative cases theatre.
+    expect(parseMessages('export const fine: number = 1;\n')).toEqual([]);
+  });
 
-  it(
-    'has no syntax errors once its stub imports exist',
-    () => {
-      withTempDir((dir) => {
-        const entry = writeFixture(dir, sourceFor(ENTRY_INPUT));
-        const run = runTsc(dir, entry);
-        assertTscRan(run, 'the generated compile entry');
-        // Only syntax diagnostics are a regression here: the stubs intentionally fail
-        // type-level checks (e.g. a .node import), which is not what this guards.
-        expect(run.syntax, run.output).toEqual([]);
-        // TS5xxx is the "the compiler refused to check this file" family (bad flag,
-        // a tsconfig collision). Empty output with a non-zero exit is not a pass.
-        expect(run.config, run.output).toEqual([]);
-      });
-    },
-    TSC_TEST_TIMEOUT_MS,
-  );
+  it('has no syntax errors', () => {
+    const source = sourceFor(ENTRY_INPUT);
+    expect(parseMessages(source), `generated entry does not parse:\n${source}`).toEqual([]);
+  });
 
-  it(
-    'negative self-test: the pre-fix globalThis shape really does produce TS1xxx',
-    () => {
-      withTempDir((dir) => {
-        // Exactly what codegen emitted before 36064cf: a bare interpolated name after
-        // a parenthesized cast, which `--profile=release` could not compile. Feeding
-        // it through the same pipeline must be loud — otherwise the filter above is
-        // matching nothing and the test is theatre.
-        const brokenShape = [
-          'const embeddedAssets_0 = new Map<string, string>();',
-          '(globalThis as any)__BYF_WEB_EMBEDDED_ASSETS__ = embeddedAssets_0;',
-          '',
-        ].join('\n');
-        const file = join(dir, 'broken.ts');
-        writeFileSync(file, brokenShape);
-        const run = runTsc(dir, file);
-        assertTscRan(run, 'the known-bad shape');
-        expect(
-          run.syntax.length,
-          `a known-bad shape produced no syntax diagnostic.\n${run.output}`,
-        ).toBeGreaterThan(0);
-        expect(run.syntax[0]).toMatch(/error TS1\d{3}:/);
-      });
-    },
-    TSC_TEST_TIMEOUT_MS,
-  );
+  it('has no syntax errors in the no-SPA-asset shape either', () => {
+    // The release family also compiles an entry with no asset set at all; that branch
+    // emits a different file, and "the other branch parses" is not evidence about it.
+    const source = sourceFor({ ...ENTRY_INPUT, assetSets: [{ entryPath: null, globalName: 'X' }] });
+    expect(parseMessages(source), `asset-less entry does not parse:\n${source}`).toEqual([]);
+  });
 
-  it(
-    'negative self-test: appending a broken tail to the real codegen output is caught',
-    () => {
-      withTempDir((dir) => {
-        const clean = writeFixture(dir, sourceFor(ENTRY_INPUT));
-        const cleanRun = runTsc(dir, clean);
-        assertTscRan(cleanRun, 'the clean generated entry');
-        expect(cleanRun.syntax, cleanRun.output).toEqual([]);
-        const broken = writeFixture(dir, `${sourceFor(ENTRY_INPUT)}\nconst brokenTail: = (;\n`);
-        const run = runTsc(dir, broken);
-        assertTscRan(run, 'the generated entry with a broken tail');
-        expect(
-          run.syntax.length,
-          `a broken tail appended to the real codegen output produced no syntax ` +
-            `diagnostic, so the filter above cannot be trusted.\n${run.output}`,
-        ).toBeGreaterThan(0);
-      });
-    },
-    // Two tsc processes, so this is the test the spawn budget actually binds.
-    TSC_TEST_TIMEOUT_MS,
-  );
+  it('negative self-test: the pre-fix globalThis shape really is rejected', () => {
+    // Exactly what codegen emitted before 36064cf — a bare interpolated name after a
+    // parenthesized cast, which `--profile=release` could not compile.
+    const brokenShape = [
+      'const embeddedAssets_0 = new Map<string, string>();',
+      '(globalThis as any)__BYF_WEB_EMBEDDED_ASSETS__ = embeddedAssets_0;',
+      '',
+    ].join('\n');
+    const messages = parseMessages(brokenShape);
+    expect(
+      messages.length,
+      'the known-bad shape parsed, so the check above is vacuous',
+    ).toBeGreaterThan(0);
+    expect(messages.join('\n')).toMatch(/Expected|Unexpected/);
+  });
+
+  it('negative self-test: a broken tail appended to the real codegen output is caught', () => {
+    // Same pipeline, real output, one broken line. The pairing is the point: it proves
+    // the rejection below comes from the appended tail and not from the fixture.
+    const broken = `${sourceFor(ENTRY_INPUT)}\nconst brokenTail: = (;\n`;
+    expect(
+      parseMessages(broken).length,
+      'a broken tail appended to the generated entry produced no parse error',
+    ).toBeGreaterThan(0);
+  });
 });
