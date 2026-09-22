@@ -11,18 +11,20 @@ byf <subcommand> [options]
 
 下表列出 `byf` 主命令支持的全部选项。所有 flag 都是可选的，直接运行 `byf` 即可进入交互式会话。
 
-| 选项                       | 简写 | 说明                                                                                                                                                                   |
-| -------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--version`                | `-V` | 打印版本号并退出。                                                                                                                                                     |
-| `--help`                   | `-h` | 显示帮助信息并退出。                                                                                                                                                   |
-| `--session [id]`           | `-S` | 恢复一个会话。带 ID 时直接打开指定会话；不带 ID 时进入交互式选择器，从历史会话中挑选。                                                                                 |
-| `--continue`               | `-C` | 继续当前工作目录下最近一次的会话，无需手动指定 ID。                                                                                                                    |
-| `--model <model>`          | `-m` | 为本次启动指定模型别名。省略时，新会话使用配置文件中的 `default_model`，恢复会话使用会话当前模型。                                                                     |
-| `--prompt <prompt>`        | `-p` | 非交互执行单次 prompt，并把 Assistant 输出流式写到 stdout。该模式会使用 `auto` 权限处理工具调用，不会打开 TUI。退出条件与 headless goal 见 [非交互执行](#非交互执行)。 |
-| `--output-format <format>` |      | 设置非交互输出格式，支持 `text` 与 `stream-json`。仅可与 `--prompt` 一起使用，默认 `text`。                                                                            |
-| `--add-dir <dir>`          |      | 追加额外工作区根目录（Read/Grep/Glob/Write/Edit 等路径策略允许访问）。可重复传入；相对路径相对当前工作目录解析。项目 `.byf/local.toml` 中的配置也会自动加载。          |
-| `--yolo`                   | `-y` | 自动批准普通工具调用，跳过审批请求。                                                                                                                                   |
-| `--skills-dir <dir>`       |      | 从指定目录加载 Skills，替换自动发现的用户和项目目录。可重复传入以叠加多个目录。详见下文 [自定义 Skills 目录](#自定义-skills-目录)。                                    |
+| 选项                       | 简写 | 说明                                                                                                                                                                                                                                                                        |
+| -------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`                | `-V` | 打印版本号并退出。                                                                                                                                                                                                                                                          |
+| `--help`                   | `-h` | 显示帮助信息并退出。                                                                                                                                                                                                                                                        |
+| `--session [id]`           | `-S` | 恢复一个会话。带 ID 时直接打开指定会话；不带 ID 时进入交互式选择器，从历史会话中挑选。                                                                                                                                                                                      |
+| `--continue`               | `-C` | 继续当前工作目录下最近一次的会话，无需手动指定 ID。                                                                                                                                                                                                                         |
+| `--model <model>`          | `-m` | 为本次启动指定模型别名。省略时，新会话使用配置文件中的 `default_model`，恢复会话使用会话当前模型。                                                                                                                                                                          |
+| `--prompt <prompt>`        | `-p` | 非交互执行单次 prompt，并把 Assistant 输出流式写到 stdout。权限取值默认跟随配置文件中的 `default_permission_mode`（未配置时回退 `auto`），可被 `--yolo` / `--approve-all` / `--deny-unapproved` 覆盖；不会打开 TUI。退出条件与 headless goal 见 [非交互执行](#非交互执行)。 |
+| `--output-format <format>` |      | 设置非交互输出格式，支持 `text` 与 `stream-json`。仅可与 `--prompt` 一起使用，默认 `text`。                                                                                                                                                                                 |
+| `--add-dir <dir>`          |      | 追加额外工作区根目录（Read/Grep/Glob/Write/Edit 等路径策略允许访问）。可重复传入；相对路径相对当前工作目录解析。项目 `.byf/local.toml` 中的配置也会自动加载。                                                                                                               |
+| `--yolo`                   | `-y` | 自动批准普通工具调用，跳过审批请求。                                                                                                                                                                                                                                        |
+| `--approve-all`            |      | `--yolo` 的别名：本次运行放行一切动作。                                                                                                                                                                                                                                     |
+| `--deny-unapproved`        |      | 仅配合 `--prompt` 生效：以 `manual` 模式运行——需要审批的工具调用一律拒绝而非静默放行，stderr 给出原因，进程以退出码 `7` 结束。与 `--yolo` 同时给出时，本开关优先。                                                                                                          |
+| `--skills-dir <dir>`       |      | 从指定目录加载 Skills，替换自动发现的用户和项目目录。可重复传入以叠加多个目录。详见下文 [自定义 Skills 目录](#自定义-skills-目录)。                                                                                                                                         |
 
 `-r` / `--resume` 是 `--session` 的隐藏别名；`--yes` 和 `--auto-approve` 是 `--yolo` 的隐藏别名。它们在帮助信息中不会显示，行为与对应的官方 flag 完全一致。
 
@@ -32,15 +34,15 @@ byf <subcommand> [options]
 
 ### flag 冲突规则
 
-以下组合会在启动时被拒绝：
+flag 组合规则如下，其中标为"拒绝"的会在启动时直接报错：
 
 - `--continue` 与 `--session` 互斥：两者都表示"恢复历史会话"，含义重叠。
-- `--yolo` 不能与 `--continue` 或 `--session` 同时使用：恢复会话时会沿用原会话的审批设置。此规则仅适用于交互式模式；在 `--prompt` 模式下，`--yolo` 已因与 `--prompt` 互斥而被更早拦截。
-- `--prompt` 不能与 `--yolo` 同时使用：非交互模式固定使用 `auto` 权限。
+- `--yolo` 不能与 `--continue` 或 `--session` 同时使用：交互式恢复会话时会沿用原会话的审批设置。此规则仅适用于交互式模式；`--prompt` 模式下两者可以并用——本次运行会把恢复出的会话权限抬到本次取值，并在结束时还原。
+- `--prompt` 可以与 `--yolo` / `--approve-all` 一起使用（本轮全部放行），也可以与 `--deny-unapproved` 一起使用（需要审批的调用一律拒绝并以退出码 `7` 结束）；两者都不给时，权限跟随配置文件的 `default_permission_mode`，未配置则回退 `auto`。旧的 `Cannot combine --prompt with --yolo.` 启动报错已移除——它制造的是"headless 受管控"的反向错觉：打印模式其实恒批准。
 - `--prompt` 可以与 `--continue` 或带 ID 的 `--session <id>` 一起使用；不带 ID 的 `--session` 会尝试打开选择器，因此不能用于非交互模式。
 - `--output-format` 只能与 `--prompt` 一起使用；交互式 TUI 不支持把完整事件流写成 stdout JSONL。
 
-如果需要在恢复会话时强制使用 YOLO 模式，请改在交互式会话内通过斜杠命令切换。
+如果需要在交互式恢复会话时强制使用 YOLO 模式，请改在会话内通过斜杠命令切换。
 
 ## 典型用法
 
@@ -94,7 +96,21 @@ byf --yolo
 byf -p "Summarize the current repository status"
 ```
 
-输出采用 transcript 样式：thinking 内容和 Assistant 正文都会以 `• ` 开头，换行后使用两个空格缩进。Assistant 正文会输出到 stdout；thinking、工具进度和 `To resume this session: byf -r <id>` 提示输出到 stderr。`-p` 模式不会请求人工审批，普通工具调用、Plan 审批和 Agent 提问都会按 `auto` 权限策略处理。静态 deny 规则仍然会阻止匹配的工具调用。
+输出采用 transcript 样式：thinking 内容和 Assistant 正文都会以 `• ` 开头，换行后使用两个空格缩进。Assistant 正文会输出到 stdout；thinking、工具进度和 `To resume this session: byf -r <id>` 提示输出到 stderr。静态 deny 规则仍然会阻止匹配的工具调用。
+
+### Headless 审批治理
+
+`-p` 的权限取值先看显式开关，再看配置文件：
+
+| 传入 `-p` 的开关            | 本次运行的权限模式                                        |
+| --------------------------- | --------------------------------------------------------- |
+| `--deny-unapproved`         | `manual`                                                  |
+| `--yolo` 或 `--approve-all` | `yolo`                                                    |
+| 都不给                      | 配置文件的 `default_permission_mode`，未配置时回退 `auto` |
+
+`manual` 是受治理的路径。headless 问不到人，因此到达审批请求的工具调用**不会被静默批准，而是被拒绝**：拒绝原因与可行的下一步会打印到 stderr，进程以专用退出码 `7`（`EXIT_CODE_APPROVAL_REQUIRED`）结束。`7` 与 `1`（通用失败，含 print 等待超时后仍有后台任务）、`3`/`6`（goal 终态）、`129`/`130`/`143`（信号终止）互不相交，脚本作者由此能区分"这一轮跑完了但被权限治理拦下"与"这一轮跑挂了"。`yolo` / `auto` 对"manual 下本该询问"的工具调用的每次放行，都会在会话 records 里留下一条可查询的 `permission.record_approval_result` 痕迹。
+
+Agent 提问在 print 模式下永远不会到达人工：无论权限模式为何，提问 handler 一律返回空。
 
 ### `-p` 何时退出
 

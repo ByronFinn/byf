@@ -50,7 +50,10 @@ export interface WebServerHandle {
 export declare function startWebServer(options?: StartWebServerOptions): Promise<WebServerHandle>;
 /** Format the startup banner text (reused by the CLI). */
 export declare function formatWebServerStartupBanner(input: {
-  readonly authToken?: string;
+  /** Required: the token in effect for this launch (explicit, or the loopback
+   *  auto-generated one). The banner is a credential delivery surface, so
+   *  "no token to report" is not a reachable state. */
+  readonly authToken: string;
   readonly host: string;
   readonly port: number;
   readonly staticEnabled?: boolean;

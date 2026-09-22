@@ -93,6 +93,23 @@ export BYF_DISABLE_TELEMETRY="1"
 BYF_PRINT_WAIT_CEILING_S=120 byf -p "Run the smoke suite"
 ```
 
+## Web server auth token
+
+The local HTTP server started by `byf web` (and by the deprecated `byf vis` alias) authenticates requests with a token read from `WEB_AUTH_TOKEN`. The legacy name `BYF_WEB_AUTH_TOKEN` is still read; `byf vis` additionally forwards `VIS_AUTH_TOKEN` into `WEB_AUTH_TOKEN` when the latter is unset.
+
+| Environment variable | Purpose                                                                                   | Default                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `WEB_AUTH_TOKEN`     | Web server auth token; accepted as an `Authorization: Bearer` header or a `?token=` query | Unset: required when binding outside loopback; auto-generated per start on loopback |
+| `BYF_WEB_AUTH_TOKEN` | Legacy name for `WEB_AUTH_TOKEN`; still read as a fallback                                | —                                                                                   |
+| `VIS_AUTH_TOKEN`     | `byf vis` compatibility path only: forwarded to `WEB_AUTH_TOKEN` when that is unset       | —                                                                                   |
+
+A few behaviors are worth knowing before you set (or ignore) this variable:
+
+- **Non-loopback binds require an explicit token.** Starting `byf web --host 0.0.0.0` (or setting `WEB_HOST`) without `WEB_AUTH_TOKEN` fails at startup: the CLI prints how to set one and exits with code `1`.
+- **Loopback binds auto-generate a token when none is configured** — one random 48-hex-character token per process start, replaced on every restart. It is printed in the startup banner (`token=...`) and appended as `?token=` to the URL the CLI opens in your browser. That is why you may see a token you never set.
+- **Which requests need the token:** every state-changing request (POST / PUT / PATCH / DELETE) does. Read-only GET / HEAD requests are token-free only in loopback auto-token mode (nothing configured); once `WEB_AUTH_TOKEN` is set explicitly, reads require the credential too.
+- **The cost:** the token appears in the launch URL, in terminal scrollback, and in browser history. On non-loopback binds the LAN lines of the banner carry a note suggesting you rotate `WEB_AUTH_TOKEN` after use.
+
 ## Diagnostic logging
 
 The variables below control `byf`'s diagnostic logs. Logs are written to two locations: the global diagnostic log at `$BYF_HOME/logs/byf.log`, and each session's own diagnostic log at `<sessionDir>/logs/byf.log` (see [Data locations](./data-locations.md#logs-and-update-state) for path details). All of these variables are read only once at process startup.

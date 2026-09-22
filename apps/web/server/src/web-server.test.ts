@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:te
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -1712,6 +1713,43 @@ describe('Static source hint', () => {
       stdoutWrite.mockRestore();
     }
   });
+
+  /**
+   * review F3:目录前缀判定必须带分隔符。`resolve(publicDir, '.' + pathname)` 的结果
+   * 只要**字符串上**以 publicDir 开头就会被当成目录内文件,于是兄弟目录
+   * `<root>/public-evil/` 撞上 `<root>/public` 而漏过去。
+   *
+   * 可达路径是**编码斜杠**:`/..%2f..%2f` 里的 `%2f` 逃过 WHATWG URL 的段规范化
+   * （裸 `%2e%2e` 会被解码并折叠掉,所以那条反而不是攻击面),`decodeURIComponent`
+   * 之后才变成 `../`。与 `/fs/list`(routes.ts)的 `startsWith(`${base}${sep}`)` 同一判据。
+   */
+  test('兄弟目录名以 publicDir 开头时不算目录内文件(前缀判定要带分隔符)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'byf-static-'));
+    const publicDir = join(root, 'public');
+    await mkdir(publicDir, { recursive: true });
+    await writeFile(join(publicDir, 'index.html'), '<html>spa</html>\n', 'utf-8');
+    await mkdir(join(root, 'public-evil'), { recursive: true });
+    await writeFile(join(root, 'public-evil', 'secret.txt'), 'leaked-by-prefix\n', 'utf-8');
+
+    const manager = new WebSessionManager(new FakeHarness());
+    const { app } = await createTestApp({ manager, publicDir });
+
+    // 合法 SPA 路径不被误杀,深链接仍然回退到 index.html。
+    const index = await app.request('/');
+    expect(index.status).toBe(200);
+    expect(await index.text()).toContain('<html>spa</html>');
+    const spaRoute = await app.request('/sessions/abc123');
+    expect(spaRoute.status).toBe(200);
+    expect(await spaRoute.text()).toContain('<html>spa</html>');
+
+    const escape = await app.request('/..%2fpublic-evil%2fsecret.txt');
+    expect(escape.status).toBe(403);
+    expect(await escape.text()).not.toContain('leaked-by-prefix');
+
+    // 真正的目录外逃逸（`..` 到根以外）同样被拒,且不会因为判定失败而 500。
+    const traversal = await app.request('/..%2f..%2f..%2fetc%2fpasswd');
+    expect(traversal.status).toBe(403);
+  });
 });
 
 // ---- Wave A 会话组织路由(PRD-0034) ------------------------------------------
@@ -2231,16 +2269,22 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
 // ---- LAN banner(PRD-0034 R-D1) -------------------------------------------------
 
 describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
-  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不变', async () => {
+  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不列 LAN 行', async () => {
     const { formatWebStartupBanner } = await import('./startup-banner');
+    // PRD-0038 F4:`authToken` 是必填项,因为 `resolveAuthToken` 保证每次启动都
+    // 有生效 token。原来"不传 token → auth=disabled"那一支在运行时不可达,只是
+    // 让同一行横幅说出假话,所以它连同这条断言一起被删掉。
     const loopback = formatWebStartupBanner({
+      authToken: 'tok-loopback',
       host: '127.0.0.1',
       port: 4100,
       byfHome: '/home/u/.byf',
     });
     expect(loopback).toBe(
-      '[web-server] listening on http://127.0.0.1:4100 (auth=disabled, BYF_HOME=/home/u/.byf)\n',
+      '[web-server] listening on http://127.0.0.1:4100 ' +
+        '(auth=required, token=tok-loopback, BYF_HOME=/home/u/.byf)\n',
     );
+    expect(loopback).not.toContain('auth=disabled');
 
     const lan = formatWebStartupBanner({
       host: '0.0.0.0',
@@ -3329,6 +3373,256 @@ describe('PRD-0038 AC-1.1 cross-site simple-request gate', () => {
   });
 });
 
+/**
+ * 真 socket 手写 HTTP/1.1 —— 唯一能伪造 `Host` 头的办法。`fetch` 里 `Host` 是
+ * forbidden header name(浏览器与 Bun/node 都不允许设),而 DNS rebinding 到达本机
+ * 时服务器看到的**就是这些字节**,所以这一层不是"绕开测试",而是把被测试的东西
+ * 换成线上形态本身。
+ */
+async function rawHttpRequest(
+  port: number,
+  lines: readonly string[],
+): Promise<{ status: number; head: string; body: string }> {
+  const raw = await new Promise<string>((resolvePromise, reject) => {
+    let data = '';
+    const sock = connect(port, '127.0.0.1', () => {
+      sock.write([...lines, '', ''].join('\r\n'));
+    });
+    sock.setEncoding('utf8');
+    sock.on('data', (chunk: string) => {
+      data += chunk;
+      if (data.includes('\r\n\r\n')) {
+        sock.destroy();
+        resolvePromise(data);
+      }
+    });
+    sock.on('error', reject);
+    setTimeout(() => {
+      sock.destroy();
+      resolvePromise(data);
+    }, 3000);
+  });
+  const split = raw.indexOf('\r\n\r\n');
+  const head = split === -1 ? raw : raw.slice(0, split);
+  const body = split === -1 ? '' : raw.slice(split + 4);
+  return { status: Number(/^HTTP\/1\.[01] (\d{3})/.exec(head)?.[1] ?? 0), head, body };
+}
+
+/**
+ * PRD-0038 AC-1.1：DNS rebinding 的 `Host` 允许集合门（review F1）。
+ *
+ * 威胁形态：攻击者域名 TTL=0 解析到 127.0.0.1 之后，页面发出的每个请求同时带
+ * `Host: evil.test:4100` 与 `Origin: http://evil.test:4100`。Bun 的 `c.req.url`
+ * 主机部分正是从请求自带的 `Host` 头拼出来的（下面的 e2e 用例用真 socket 钉住这条
+ * 事实），于是 `isSameOrigin` 退化为"攻击者写的 A 和他写的 A 相比"——必然相等。
+ * 而只读 GET 在回环自动 token 下免凭证，`/api/files`（工作区内任意文件，含 `.env`）
+ * 与 `/api/sessions/:id/wire` 因此完全敞开。
+ *
+ * 门在根中间件：写门之前、只读免 token 豁免之前、以及 SPA 静态回退之前。
+ */
+describe('PRD-0038 AC-1.1 Host allowlist blocks DNS rebinding', () => {
+  const REBOUND_PORT = 4100;
+
+  async function setup(options: {
+    readonly bindHost?: string;
+    readonly lanHosts?: readonly string[];
+  }): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    token: string;
+  }> {
+    const harness = new FakeHarness();
+    const result = await createTestApp({
+      manager: new WebSessionManager(harness),
+      bindHost: options.bindHost ?? '127.0.0.1',
+      lanHosts: options.lanHosts,
+    });
+    return { app: result.app, harness, token: result.authToken };
+  }
+
+  /** rebinding 的完整形态：Origin 与 Host 是同一个未绑定主机名。 */
+  function reboundHeaders(host = 'evil.test'): Record<string, string> {
+    const origin = `http://${host}:${String(REBOUND_PORT)}`;
+    return { host: `${host}:${String(REBOUND_PORT)}`, origin };
+  }
+
+  function absoluteUrl(path: string, host = 'evil.test'): string {
+    return `http://${host}:${String(REBOUND_PORT)}${path}`;
+  }
+
+  it('只读 GET 用同源 Host+Origin 伪装也不放行：工作区内 .env 读不到', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'byf-rebind-ws-'));
+    await writeFile(join(ws, '.env'), 'APP_SECRET=do-not-serve-to-evil\n', 'utf-8');
+    const { app, harness } = await setup({});
+    harness.workspaceList = [ws];
+
+    // 修复前：Host 与 Origin 同源 ⇒ 过门；回环只读免 token ⇒ 直接 200 读出文件内容。
+    const rejected = await app.request(
+      absoluteUrl(`/api/files?path=${encodeURIComponent(join(ws, '.env'))}`),
+      { headers: reboundHeaders() },
+    );
+    expect(rejected.status).toBe(403);
+    const rejectedText = await rejected.text();
+    expect(JSON.parse(rejectedText) as { code?: string }).toHaveProperty('code', 'FORBIDDEN');
+    expect(rejectedText).not.toContain('do-not-serve-to-evil');
+
+    // 同一台服务器、同一请求，只是 Host 回到本机绑定地址上 —— 用户自己的浏览器不受影响。
+    // （`.env` 不在文本扩展名表里，命中 `application/octet-stream` 分支，所以按原始
+    // 字节断言：这条路径**确实**能把工作区里的点文件内容发出去，正是该洞的危害所在。）
+    const allowed = await app.request(
+      `http://127.0.0.1:${String(REBOUND_PORT)}/api/files?path=${encodeURIComponent(join(ws, '.env'))}`,
+      { headers: { host: `127.0.0.1:${String(REBOUND_PORT)}` } },
+    );
+    expect(allowed.status).toBe(200);
+    expect(await allowed.text()).toContain('APP_SECRET=');
+  });
+
+  it('Host 门跑在 token 门之前：带着正确 token 的 rebinding 写请求仍被拒且零副作用', async () => {
+    const { app, harness, token } = await setup({});
+    const res = await app.request(absoluteUrl('/api/sessions'), {
+      method: 'POST',
+      headers: {
+        ...reboundHeaders(),
+        'content-type': 'application/json',
+        [BYF_MARKER]: 'byf-web',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect(res.status).toBe(403);
+    expect(harness.sessions.size).toBe(0);
+  });
+
+  it('本机三种回环写法照常放行，端口不参与判定（dev 态 vite 代理保留 client 端口）', async () => {
+    const { app } = await setup({});
+    // 相对 URL + 显式 `Host` 头：门读的就是这个头（真实 Bun.serve 上 `c.req.url`
+    // 的主机部分也由它决定，见下面的 e2e 用例）。裸 IPv6 不能拼进 URL
+    // （`http://::1/` 不是合法 URL），所以走这条路反而是更准的测法。
+    for (const host of [
+      `localhost:${String(REBOUND_PORT)}`,
+      'localhost',
+      'localhost:4200',
+      `127.0.0.2:${String(REBOUND_PORT)}`,
+      '[::1]:4100',
+      '::1',
+      'LocalHost.',
+    ]) {
+      const res = await app.request('/api/sessions?workDir=/x', { headers: { host } });
+      expect([res.status, host]).toEqual([200, host]);
+    }
+  });
+
+  it('只是"以本机地址开头"的域名不算本机地址（127.0.0.1.attacker.test / localhost.attacker.test）', async () => {
+    const { app } = await setup({});
+    for (const host of [
+      '127.0.0.1.attacker.test',
+      'localhost.attacker.test',
+      '127.0.0.1.nip.io',
+      'evil-localhost',
+    ]) {
+      const res = await app.request(absoluteUrl('/api/sessions?workDir=/x', host), {
+        headers: reboundHeaders(host),
+      });
+      expect([res.status, host]).toEqual([403, host]);
+    }
+  });
+
+  it('格式不良的 Host 值一律拒绝：不做"取前段"式洗白（重复头拼接 / 路径 / 空白）', async () => {
+    const { app } = await setup({});
+    for (const host of [
+      '127.0.0.1:4100, evil.test',
+      'localhost, evil.test',
+      'localhost evil',
+      'localhost/evil',
+      'evil.test\\@127.0.0.1',
+      'localhost:not-a-port',
+      ':4100',
+      '',
+    ]) {
+      const res = await app.request('/api/sessions?workDir=/x', { headers: { host } });
+      expect([res.status, host]).toEqual([403, host]);
+    }
+  });
+
+  it('LAN 绑定接受 banner 交付的网卡地址，仍拒绝未绑定主机名', async () => {
+    const lan = await setup({ bindHost: '0.0.0.0', lanHosts: ['192.168.1.10'] });
+    const viaLanIp = await lan.app.request('http://192.168.1.10:4100/api/sessions?workDir=/x', {
+      headers: { host: '192.168.1.10:4100' },
+    });
+    expect(viaLanIp.status).toBe(200);
+    // 回环名在 LAN 绑定下仍然可用：本机浏览器是同一台机器上的合法调用者。
+    const viaLoopback = await lan.app.request('http://localhost:4100/api/sessions?workDir=/x', {
+      headers: { host: 'localhost:4100' },
+    });
+    expect(viaLoopback.status).toBe(200);
+    const viaEvil = await lan.app.request('http://evil.test:4100/api/sessions?workDir=/x', {
+      headers: { host: 'evil.test:4100', origin: 'http://evil.test:4100' },
+    });
+    expect(viaEvil.status).toBe(403);
+    // 绑定到具体网卡地址时，同机其它网卡名也不太该被接受（未绑定 = 不可达）。
+    const bound = await setup({ bindHost: '192.168.1.10' });
+    const otherIface = await bound.app.request('http://10.0.0.9:4100/api/sessions?workDir=/x', {
+      headers: { host: '10.0.0.9:4100' },
+    });
+    expect(otherIface.status).toBe(403);
+  });
+
+  it('SPA 静态路径同样受 Host 门约束（门在根中间件，不是只挡 /api）', async () => {
+    const { app } = await setup({});
+    const res = await app.request('http://evil.test:4100/', {
+      headers: reboundHeaders(),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('e2e：真 Bun.serve 上的伪造 Host 头（rebinding 的线上形态）', async () => {
+    const handle = await startWebServer({
+      harness: new FakeHarness(),
+      host: '127.0.0.1',
+      port: 0,
+    });
+    try {
+      const port = handle.port;
+      // 前提本身也要钉住：`c.req.url` 的主机来自请求自带的 Host，所以
+      // "同源 Origin/Host" 在 rebinding 下总能成立——这正是修复前的洞。
+      const forged = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: evil.test:${String(port)}`,
+        `Origin: http://evil.test:${String(port)}`,
+        'Connection: close',
+      ]);
+      expect(forged.status).toBe(403);
+      expect(forged.body).not.toContain('"sessions"');
+
+      const control = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: 127.0.0.1:${String(port)}`,
+        'Connection: close',
+      ]);
+      expect(control.status).toBe(200);
+      expect(control.body).toContain('"sessions"');
+
+      // 重复 Host 头：Bun 会把两个值拼成一个（`a.test, 127.0.0.1:port`），而拼接结果
+      // 不是任何本机主机名——等值比较（不是前缀比较）才能挡住这一类。
+      const duplicated = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: 127.0.0.1:${String(port)}`,
+        'Host: evil.test',
+        'Connection: close',
+      ]);
+      expect(duplicated.status).toBe(403);
+      expect(duplicated.body).not.toContain('"sessions"');
+
+      // 缺 Host 的 HTTP/1.0：既不是 200，也不泄漏任何会话数据。
+      const hostless = await rawHttpRequest(port, ['GET /api/sessions?workDir=/x HTTP/1.0']);
+      expect(hostless.status).not.toBe(200);
+      expect(hostless.body).not.toContain('"sessions"');
+    } finally {
+      handle.close();
+    }
+  });
+});
+
 /** PRD-0038 AC-1.2:回环写必须持 token;token 经 createApp 结果交付;比对失败路径一致。 */
 describe('PRD-0038 AC-1.2 loopback writes require token', () => {
   interface Env {
@@ -3561,6 +3855,36 @@ describe('PRD-0038 AC-1.3 /api/mcp/test command allowlist', () => {
     expect(res.status).toBe(200);
     expect(env.harness.mcpTestCalls).toHaveLength(1);
   });
+
+  /**
+   * review F2:路由里的预检只是短路,**权威门在 core 的
+   * `host-rpc.testMcpConnection`**。这条用例把命令写成"已列出"的 `npx`,让预检必然
+   * 放行,然后让 harness 那一层抛出 core 的拒绝——断言它变成 403(而不是经 onError
+   * 变 500),并且响应体带的是 core 那句话,证明服务端确实还有一层在名单之外兜着。
+   */
+  it('预检放行后 core 门的拒绝映射为 403(不是 500)', async () => {
+    const env = await setup(LISTED);
+    env.harness.mcpTestError = new ByfError(
+      ErrorCodes.REQUEST_INVALID,
+      'core-side allowlist deny',
+      {
+        details: { reason: 'stdio_command_not_allowlisted', command: 'npx' },
+      },
+    );
+    const res = await postTest(env, { transport: 'stdio', command: 'npx' });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error?: string; code?: string };
+    expect(body.error).toBe('core-side allowlist deny');
+    expect(body.code).toBe('FORBIDDEN');
+  });
+
+  it('core 拒绝若不带 allowlist reason(如磁盘配置损坏)仍按原语义映射,不被吞成 403', async () => {
+    const env = await setup(LISTED);
+    env.harness.mcpTestError = new ByfError(ErrorCodes.REQUEST_INVALID, 'unrelated validation');
+    const res = await postTest(env, { transport: 'stdio', command: 'npx' });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code?: string }).code).toBe('INTERNAL');
+  });
 });
 
 /**
@@ -3783,7 +4107,9 @@ describe('PRD-0038 AC-1.4/AC-1.5 config raw disk safety', () => {
       const match = /^\[providers\.([^\]]+)\]$/.exec(header);
       if (match === null) continue;
       const key = /^api_key = "(.*?)"\s*(?:#.*)?$/m.exec(block)?.[1];
-      out[match[1]!] = key;
+      const section = match[1];
+      if (section === undefined) continue;
+      out[section] = key;
     }
     return out;
   }
@@ -3933,6 +4259,12 @@ api_keys = [
     expect(body).not.toContain('brave-leak-1');
     expect(body).not.toContain('brave-leak-2');
     expect(body).toMatch(/line/i);
+    // review F6：这条 422 是"编辑器为什么读不到东西"的唯一解释，而界面上只显示
+    // `error` 这一个字符串（apps/web/client/src/api.ts）。策略不动，但文案必须回答
+    // 用户此刻缺的三件事：哪一个文件、磁盘有没有被改动、行号指的是哪份文本。
+    expect(body).toContain(env.configFile);
+    expect(body).toMatch(/nothing was written to disk/i);
+    expect(body).toContain('CONFIG_SECRET_NOT_MASKABLE');
     // 拒绝是只读端点的行为,磁盘不能被改动。
     expect(await readFile(env.configFile, 'utf-8')).toBe(multiLineArray);
   });
@@ -4217,14 +4549,14 @@ describe('PRD-0038 AC-3.1 web surface honours the shared identity contract', () 
     const created = await manager.createSession({ workDir: '/web-fork' });
 
     const resumed = await manager.resumeSession(created.id);
-    expect(resumed.id, `契约 resume.sessionId = ${String(contract!.resume.sessionId)}`).toBe(
+    expect(resumed.id, `契约 resume.sessionId = ${contract!.resume.sessionId}`).toBe(
       contract!.resume.sessionId === 'preserve' ? created.id : `${created.id}-other`,
     );
 
     const forkTarget = new FakeSession(`${created.id}-forked`, '/web-fork');
     harness.nextForkResult = forkTarget;
     const forked = await manager.forkSession(created.id);
-    expect(forked.id, `契约 fork.sessionId = ${String(contract!.fork.sessionId)}`).toBe(
+    expect(forked.id, `契约 fork.sessionId = ${contract!.fork.sessionId}`).toBe(
       contract!.fork.sessionId === 'new' ? forkTarget.id : created.id,
     );
     expect(forked.id).not.toBe(created.id);

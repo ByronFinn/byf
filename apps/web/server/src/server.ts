@@ -68,6 +68,8 @@ export async function startWebServer(
     authToken,
     publicDir: options.publicDir,
     homeDir: resolveByfHome(),
+    // PRD-0038 AC-1.1：Host 允许集合按真实绑定地址构造。
+    bindHost: host,
   });
 
   // PRD-0038 AC-1.7：配置损坏不再阻止启动，代价是降级必须在启动日志里说出来。
@@ -114,9 +116,9 @@ async function detectInvalidConfig(manager: WebSessionManager): Promise<boolean>
   }
 }
 
-/** 格式化启动横幅(CLI 复用同一措辞)。 */
+/** 格式化启动横幅(CLI 复用同一措辞)。`authToken` 传 `WebServerHandle.authToken`。 */
 export function formatWebServerStartupBanner(input: {
-  readonly authToken?: string;
+  readonly authToken: string;
   readonly host: string;
   readonly port: number;
   readonly staticEnabled?: boolean;

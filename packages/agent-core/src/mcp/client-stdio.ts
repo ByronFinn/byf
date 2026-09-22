@@ -53,6 +53,19 @@ export class StdioMcpClient implements MCPClient {
   /** Capacity (in characters) of the stderr tail captured for diagnostics. */
   static readonly stderrBufferCapacity = STDERR_BUFFER_CAPACITY;
 
+  /**
+   * Spawns the child directly (`StdioClientTransport` → `child_process.spawn`
+   * with `shell: false`), so `command` / `args` / `env` / `cwd` are not
+   * interpreted by a shell. That is a fact about this constructor, not a
+   * guarantee about the caller: whoever supplied this config decided all four,
+   * and a listed interpreter with caller-chosen `args` (`node -e …`,
+   * `sh -c …`) still runs arbitrary code. For the web-triggered probe path,
+   * PRD-0038 AC-1.3 narrows *which executables* may be launched — the check
+   * lives upstream in `rpc/host-rpc.ts` (`assertProbeCommandAllowlisted`),
+   * because this class is also how saved servers get connected at startup.
+   * Per ADR-0033 none of this is a sandbox: BYF has no in-process OS boundary,
+   * the child runs with the user's own privileges.
+   */
   constructor(config: McpServerStdioConfig, options: StdioMcpClientOptions = {}) {
     if (config.executor !== undefined && config.executor !== 'local') {
       throw new ByfError(

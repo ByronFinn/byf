@@ -11,18 +11,20 @@ byf <subcommand> [options]
 
 The table below lists all options supported by the `byf` main command. All flags are optional — running `byf` on its own is enough to enter an interactive session.
 
-| Option                     | Short | Description                                                                                                                                                                                                                                                |
-| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--version`                | `-V`  | Print the version number and exit.                                                                                                                                                                                                                         |
-| `--help`                   | `-h`  | Show help information and exit.                                                                                                                                                                                                                            |
-| `--session [id]`           | `-S`  | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions.                                                                                                         |
-| `--continue`               | `-C`  | Continue the most recent session in the current working directory, without manually specifying an ID.                                                                                                                                                      |
-| `--model <model>`          | `-m`  | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model.                                                                                          |
-| `--prompt <prompt>`        | `-p`  | Run one prompt non-interactively and stream assistant output to stdout. This mode uses `auto` permission for tool calls and does not open the TUI. See [Non-interactive execution](#non-interactive-execution) for exit conditions and headless goal mode. |
-| `--output-format <format>` |       | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`.                                                                                                                      |
-| `--add-dir <dir>`          |       | Add an extra workspace root (allowed for Read/Grep/Glob/Write/Edit/etc.). Can be repeated. Relative paths resolve against the current working directory. Also loaded from project `.byf/local.toml` when present.                                          |
-| `--yolo`                   | `-y`  | Auto-approve ordinary tool calls, skipping approval requests.                                                                                                                                                                                              |
-| `--skills-dir <dir>`       |       | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below.                        |
+| Option                     | Short | Description                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`                | `-V`  | Print the version number and exit.                                                                                                                                                                                                                                                                                                                                                          |
+| `--help`                   | `-h`  | Show help information and exit.                                                                                                                                                                                                                                                                                                                                                             |
+| `--session [id]`           | `-S`  | Resume a session. With an ID, open the specified session directly; without an ID, enter the interactive picker to choose from historical sessions.                                                                                                                                                                                                                                          |
+| `--continue`               | `-C`  | Continue the most recent session in the current working directory, without manually specifying an ID.                                                                                                                                                                                                                                                                                       |
+| `--model <model>`          | `-m`  | Use a model alias for this invocation. When omitted, new sessions use `default_model` from the config file, and resumed sessions use the session's current model.                                                                                                                                                                                                                           |
+| `--prompt <prompt>`        | `-p`  | Run one prompt non-interactively and stream assistant output to stdout. The permission mode follows `default_permission_mode` from the config file (falling back to `auto` when unset) unless `--yolo` / `--approve-all` / `--deny-unapproved` overrides it; the TUI does not open. See [Non-interactive execution](#non-interactive-execution) for exit conditions and headless goal mode. |
+| `--output-format <format>` |       | Set the non-interactive output format. Supported values are `text` and `stream-json`. Only valid with `--prompt`; defaults to `text`.                                                                                                                                                                                                                                                       |
+| `--add-dir <dir>`          |       | Add an extra workspace root (allowed for Read/Grep/Glob/Write/Edit/etc.). Can be repeated. Relative paths resolve against the current working directory. Also loaded from project `.byf/local.toml` when present.                                                                                                                                                                           |
+| `--yolo`                   | `-y`  | Auto-approve ordinary tool calls, skipping approval requests.                                                                                                                                                                                                                                                                                                                               |
+| `--approve-all`            |       | Alias for `--yolo`: approve every action in this run.                                                                                                                                                                                                                                                                                                                                       |
+| `--deny-unapproved`        |       | With `--prompt` only: run in `manual` mode — reject tool calls that need approval instead of auto-approving, print the reason to stderr, and exit with code `7`. Takes precedence over `--yolo`.                                                                                                                                                                                            |
+| `--skills-dir <dir>`       |       | Load Skills from the specified directory, replacing the auto-discovered user and project directories. Can be passed multiple times to stack several directories. See [Custom Skills directories](#custom-skills-directories) below.                                                                                                                                                         |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo`. They do not appear in the help output and behave identically to their official counterparts.
 
@@ -32,15 +34,15 @@ The table below lists all options supported by the `byf` main command. All flags
 
 ### Flag conflict rules
 
-The following combinations are rejected at startup:
+The flag combination rules are as follows; items marked as rejected fail at startup:
 
 - `--continue` and `--session` are mutually exclusive: both mean "resume a previous session" and overlap in meaning.
-- `--yolo` cannot be combined with `--continue` or `--session`: when resuming a session, the original session's approval settings are preserved. This rule only applies to interactive mode; in `--prompt` mode, `--yolo` is rejected earlier because it is mutually exclusive with `--prompt`.
-- `--prompt` cannot be combined with `--yolo`: non-interactive mode always uses `auto` permission.
+- `--yolo` cannot be combined with `--continue` or `--session`: when resuming a session interactively, the original session's approval settings are preserved. This rule applies to interactive mode only; in `--prompt` mode the flags can be combined — the run overrides the resumed session's permission mode with its own value and restores it when it ends.
+- `--prompt` can be combined with `--yolo` / `--approve-all` (approve everything for this run) and with `--deny-unapproved` (reject anything that needs approval and exit with code `7`). With neither switch, prompt mode follows `default_permission_mode` from the config file, falling back to `auto`. The former startup error `Cannot combine --prompt with --yolo.` was removed: it created the reverse illusion that headless runs were governance-gated while prompt mode in fact always approved everything.
 - `--prompt` can be combined with `--continue` or `--session <id>` with an ID; bare `--session` without an ID would open the interactive picker and therefore cannot be used in non-interactive mode.
 - `--output-format` can only be used with `--prompt`; the interactive TUI does not support writing the full event stream as stdout JSONL.
 
-If you need to force YOLO mode while resuming a session, switch into it from inside the interactive session via slash commands instead.
+If you need to force YOLO mode while resuming a session interactively, switch into it from inside the session via slash commands instead.
 
 ## Typical usage
 
@@ -94,7 +96,21 @@ Use `-p` when a script or CI job needs to run one prompt:
 byf -p "Summarize the current repository status"
 ```
 
-Output uses transcript-style blocks: thinking and assistant text start with `• `, with continuation lines indented by two spaces. Assistant text is written to stdout; thinking, tool progress, and the `To resume this session: byf -r <id>` hint are written to stderr. Prompt mode does not wait for manual approvals: ordinary tool calls, Plan approvals, and agent questions follow the `auto` permission policy. Static deny rules still block matching tool calls.
+Output uses transcript-style blocks: thinking and assistant text start with `• `, with continuation lines indented by two spaces. Assistant text is written to stdout; thinking, tool progress, and the `To resume this session: byf -r <id>` hint are written to stderr. Static deny rules still block matching tool calls.
+
+### Headless approval governance
+
+A `-p` run resolves its permission mode from the flags first, then from the config file:
+
+| Flags passed to `-p`        | Permission mode for the run                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `--deny-unapproved`         | `manual`                                                                               |
+| `--yolo` or `--approve-all` | `yolo`                                                                                 |
+| neither                     | `default_permission_mode` from `config.toml`, falling back to `auto` when unconfigured |
+
+`manual` is the governed path. Because a headless run cannot ask a human, any tool call that reaches an approval request is rejected instead of silently auto-approved: the rejection and the ways to proceed are printed to stderr, and the process exits with the dedicated code `7` (`EXIT_CODE_APPROVAL_REQUIRED`). That code is disjoint from `1` (generic failures, including unfinished background tasks after the print wait ceiling), `3`/`6` (goal terminal statuses), and `129`/`130`/`143` (signal termination), so a script can tell "the run finished but permission governance blocked part of it" from "the run crashed". Approvals granted by `yolo`/`auto` for tool calls that `manual` would have asked about leave a queryable `permission.record_approval_result` record in the session records.
+
+Agent questions never reach a human in print mode: the question handler always answers empty, regardless of the permission mode.
 
 ### When `-p` exits
 

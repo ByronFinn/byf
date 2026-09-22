@@ -3,8 +3,12 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
 import type { ByfConfig, ByfConfigPatch, McpConfigListing, PromptInput } from '@byfriends/sdk';
-import { isByfError, maskConfigSecrets, restoreMaskedSecrets } from '@byfriends/sdk';
-import { workspaceTitle } from '@byfriends/sdk';
+import {
+  isByfError,
+  maskConfigSecrets,
+  restoreMaskedSecrets,
+  workspaceTitle,
+} from '@byfriends/sdk';
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
@@ -512,7 +516,20 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
         return maskConfigSecrets(text);
       } catch (error) {
         if (isUnmaskableSecretError(error)) {
-          return c.json({ error: error.message, code: 'CONFIG_SECRET_NOT_MASKABLE' }, 422);
+          // 只补文案，不动策略：AC-1.8 的"认不出键路径身份就拒绝外发"是有意的取舍。
+          // 但浏览器里只显示 `error` 这一个字符串，而 core 那句话没有回答用户此刻
+          // 最需要的三件事：哪一个文件、磁盘有没有被改动、行号指的是哪份文本
+          // （编辑器这次根本没把文件内容显示出来）。
+          return c.json(
+            {
+              error:
+                `${error.message} File: ${manager.configPath} — nothing was written to disk, ` +
+                'and the line numbers above point at that file on disk (this is why the ' +
+                'editor could not show you its contents).',
+              code: 'CONFIG_SECRET_NOT_MASKABLE',
+            },
+            422,
+          );
         }
         throw error;
       }
@@ -814,8 +831,12 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       return badRequest(c, 'name must be a non-empty string');
     }
     try {
-      // AC-1.3 白名单门必须在 probe 之前：testMcpConnection 一路走到 core 的
-      // stdio client（command/args/env/cwd 全部来自请求体）→ 命中即已 spawn。
+      // AC-1.3。**权威**门在 core 的 `host-rpc.testMcpConnection`（探测唯一必经的
+      // 收口点），这里只是同一规则的提前短路——省下一次 config 读 + 一次 spawn 机会，
+      // 并且让 403 的响应体由 web 自己决定。两处判定重复是 ADR-0006 分层的后果
+      // （web-server 运行时只依赖 `@byfriends/sdk`，拿不到 core 的实现）。
+      // 范围与本文件末尾 `stdioCommandOf` / `listedStdioCommands` 的说明一致：只约束
+      // 可执行文件名，args/env/cwd 不在名单语义覆盖范围内。
       const command = stdioCommandOf(body.config);
       if (command !== null) {
         const listed = listedStdioCommands(await manager.listMcpServerConfigs(workDir));
@@ -837,6 +858,11 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       });
       return c.json(result);
     } catch (error) {
+      // core 的那道门拒绝 → 同样是 403（不能落到 onError 变成 500：调用方给出的
+      // 命令不在名单里是"拒绝"，不是服务器故障）。
+      if (isUnlistedStdioCommandError(error)) {
+        return c.json({ error: error.message, code: 'FORBIDDEN' }, 403);
+      }
       if (isByfError(error) && error.code === 'config.invalid') {
         return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
       }
@@ -1149,10 +1175,26 @@ async function readDiskConfigText(
 }
 
 /**
- * PRD-0038 AC-1.3（Q3 裁决）：`/api/mcp/test` 允许测**尚未保存**的配置（表单填完
- * 先测再存是真实需求），但 stdio `command` 必须来自本机已在任一 scope 声明过的命令
- * 集合。请求体可任意指定 command 的组合等价本机 RCE，因此把命令来源收窄。
- * 返回 `null` 表示该 config 不含 stdio command（http/sse transport 不受此门约束）。
+ * PRD-0038 AC-1.3（Q3 裁决）的 web 侧短路：`/api/mcp/test` 允许测**尚未保存**的配置
+ * （表单填完先测再存是真实需求），但 stdio `command` 必须来自本机已在任一 scope
+ * 声明过的命令集合。
+ *
+ * 这两函数只是 core 同一规则的本地镜像，**不是**那道保护本身：权威判定在
+ * `packages/agent-core/src/rpc/host-rpc.ts` 的 `testMcpConnection`（探测的唯一收口
+ * 点，所有 host 表面都过它）。这里保留一份的理由是 ADR-0006 分层——web-server
+ * 运行时只依赖 `@byfriends/sdk`，不可能 import core 的实现——加上省掉一次必然被拒
+ * 的 RPC 往返。改语义时两处都要改，测试分别钉住两层（`web-server.test.ts` 的
+ * AC-1.3 组 + `packages/agent-core/test/rpc/host-rpc.test.ts` 的 allowlist 组）。
+ *
+ * 名单约束的**精确范围**（诚实版，ADR-0033：这是尽力而为的护栏，不是安全边界）：
+ * - 只约束可执行文件名。`args` / `env` / `cwd` 仍按请求体原样进入 spawn，所以名单里
+ *   的解释器（`node` / `python` / `sh` …）配上 `-e` / `-c` 之类参数依然是本机代码执行。
+ *   "通过了这道门"不代表"这条配置安全"。
+ * - 不做 command + args 的整份配置比对，因为 AC-1.3 要求保住"保存前先测试"的体验，
+ *   而用户在表单里改的正是 args（`npx -y <新包名>`）。真要收紧到 args，先改 AC-1.3。
+ * - 挡住的是"未经任何本机声明的任意可执行文件"，以及（连同 token 门之后）跨站请求
+ *   把 web 端点当本机进程启动器用的那条路。
+ * 返回 `null` 表示该 config 不含 stdio command（http / sse transport 不受此门约束）。
  */
 function stdioCommandOf(config: Record<string, unknown>): string | null {
   const command = config['command'];
@@ -1161,7 +1203,7 @@ function stdioCommandOf(config: Record<string, unknown>): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-/** 任一 scope 已保存配置中出现过的 stdio command 集合。 */
+/** 任一 scope 已保存配置中出现过的 stdio command 集合（与 core 同一判定源）。 */
 function listedStdioCommands(listing: McpConfigListing): Set<string> {
   const commands = new Set<string>();
   for (const scope of [listing.user, listing.project]) {
@@ -1172,6 +1214,19 @@ function listedStdioCommands(listing: McpConfigListing): Set<string> {
     }
   }
   return commands;
+}
+
+/**
+ * core 侧 AC-1.3 门的拒绝（`host-rpc.testMcpConnection`）。与
+ * {@link isUnmaskableSecretError} 同一手法：按 `details.reason` 认领，不与
+ * `config.invalid`（磁盘配置损坏）混淆。
+ */
+function isUnlistedStdioCommandError(error: unknown): error is Error {
+  return (
+    isByfError(error) &&
+    error.code === 'request.invalid' &&
+    error.details?.['reason'] === 'stdio_command_not_allowlisted'
+  );
 }
 
 function notFound(c: Context, error: string): Response {

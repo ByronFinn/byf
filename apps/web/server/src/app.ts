@@ -1,11 +1,13 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { isIPv4, isIPv6 } from 'node:net';
+import { networkInterfaces } from 'node:os';
+import { join, resolve, sep } from 'node:path';
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 
-import { resolveByfHome } from './config';
+import { isLoopbackHost, resolveByfHome, resolveHost } from './config';
 import { createApiRouter } from './routes';
 import { SessionNotFoundError, type WebSessionManager } from './session-manager';
 
@@ -144,7 +146,13 @@ function isJsonContentType(value: string | undefined): boolean {
   return value.split(';', 1)[0]!.trim().toLowerCase() === 'application/json';
 }
 
-/** Origin 与请求自身同源(比较 host;缺端口按协议默认补全)。 */
+/**
+ * Origin 与请求自身同源(比较 host;缺端口按协议默认补全)。
+ *
+ * 这个比较的前提是 `c.req.url` 的主机名可信,而它恰恰来自请求自带的 `Host` 头——
+ * 所以本函数只有在 {@link hostGateRejection} 已经放行之后才有意义,单独调用它不构成
+ * 跨站判定(DNS rebinding 下攻击者能同时决定 Origin 与 Host)。
+ */
 function isSameOrigin(origin: string, requestUrl: string): boolean {
   try {
     return new URL(origin).host === new URL(requestUrl).host;
@@ -154,16 +162,148 @@ function isSameOrigin(origin: string, requestUrl: string): boolean {
 }
 
 /**
+ * 请求主机名是不是"真的回环"。刻意比 `config.isLoopbackHost` 严格:后者分类的是
+ * **配置里写的绑定地址**(字符串 `127.x` 在那个语境下没有歧义),而这里分类的是
+ * **网络输入**——`127.0.0.1.attacker.example` 这类域名解析服务可以把名字指到
+ * 127.0.0.1,而它按字符串前缀看也是 "127." 开头。所以回环只认三种形态:
+ * `localhost`、`127/8` 的**字面 IPv4**、`::1` 的**字面 IPv6**。
+ */
+function isLoopbackRequestHost(host: string): boolean {
+  if (host === 'localhost' || host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+  return isIPv4(host) && host.startsWith('127.');
+}
+
+/**
+ * 把 `Host` 头规范化为**裸主机名**:小写、去 IPv6 方括号、去端口、去根点。
+ * 只对**格式良好**的值返回结果,其余一律 `null` 交给拒绝分支——宁可拒一个合法的怪
+ * 写法,也不能"取前段"把可疑值洗成合法主机名:重复 `Host` 头会被 HTTP 栈拼成
+ * `127.0.0.1:4100, evil.test` 这种形态,按第一个冒号截断就会把它读成 `127.0.0.1`。
+ */
+function normalizeRequestHost(raw: string): string | null {
+  const value = raw.trim().toLowerCase();
+  if (value.length === 0) return null;
+  // 逗号 = 重复头拼接;空白 / `/` / `\` 不是任何主机名语法的一部分。
+  if (/[,\s/\\]/.test(value)) return null;
+  if (value.startsWith('[')) {
+    const end = value.indexOf(']');
+    if (end === -1) return null;
+    const rest = value.slice(end + 1);
+    if (rest.length > 0 && !/^:\d{1,5}$/.test(rest)) return null;
+    const host = value.slice(1, end);
+    return host.length === 0 ? null : host;
+  }
+  const first = value.indexOf(':');
+  if (first !== -1) {
+    if (value.includes(':', first + 1)) {
+      // 多个冒号且不带方括号:裸 IPv6 字面量(`::1`)。除此之外不按"主机:端口"解析。
+      return isIPv6(value) ? stripRootDot(value) : null;
+    }
+    const port = value.slice(first + 1);
+    if (!/^\d{1,5}$/.test(port)) return null;
+    return stripRootDot(value.slice(0, first));
+  }
+  return stripRootDot(value);
+}
+
+function stripRootDot(host: string): string | null {
+  const trimmedDot = host.endsWith('.') ? host.slice(0, -1) : host;
+  return trimmedDot.length === 0 ? null : trimmedDot;
+}
+
+/**
+ * 本机能合法应答的主机名集合(端口无关)。回环名不在这里——{@link hostGateRejection}
+ * 用 {@link isLoopbackRequestHost} 判定,所以 `localhost` / `127/8` 字面量 / `::1`
+ * 恒可。
+ *
+ * 这里只补两类"服务器确实绑到的地址":绑定主机本身,以及非回环绑定时本机网卡
+ * 地址(LAN 访问 URL 由启动 banner 按同一批地址交付,不接受它们就等于 banner 说谎)。
+ */
+function allowedRequestHosts(bindHost: string, lanHosts: readonly string[]): Set<string> {
+  const hosts = new Set<string>();
+  const bound = normalizeRequestHost(bindHost);
+  if (bound !== null) hosts.add(bound);
+  if (!isLoopbackHost(bindHost)) {
+    for (const candidate of lanHosts) {
+      const host = normalizeRequestHost(candidate);
+      if (host !== null) hosts.add(host);
+    }
+  }
+  return hosts;
+}
+
+/** 非回环绑定时并入允许集合的本机网卡地址(IPv4 + IPv6,排除 internal)。 */
+function interfaceHosts(): string[] {
+  const addresses: string[] = [];
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (!entry.internal) addresses.push(entry.address);
+    }
+  }
+  return addresses;
+}
+
+/**
+ * PRD-0038 AC-1.1：`Host` 允许集合门（对 DNS rebinding 的唯一有效对策）。
+ *
+ * 为什么必须有这道门：`c.req.url` 的主机部分是 Bun 从请求自带的 `Host` 头拼出来
+ * 的，于是 {@link isSameOrigin} 的"同源"比较变成了拿攻击者写的 A 和攻击者写的 A
+ * 比——一个把域名指到 127.0.0.1 的页面发 `Host: evil.test:4100` +
+ * `Origin: http://evil.test:4100` 必然"同源"。而只读 GET 在回环自动 token 下免
+ * 凭证，所以那一次"同源"就足够把 `/api/files`（工作区内任意文件，含 `.env`）和
+ * `/api/sessions/:id/wire`（完整提示词与工具载荷）读空。
+ *
+ * 判定与请求方是谁无关：主机名必须是本机实际绑定/可达的地址，否则一律 403。
+ * 它跑在写门与只读免 token 豁免**之前**，因此读写两条路径同时被覆盖。
+ *
+ * 诚实边界（ADR-0033：这是尽力而为的护栏，不是沙箱）：
+ * - 端口不参与判定（rebinding 下攻击者改不了主机名，改不改端口都一样；而 dev 态
+ *   vite 代理会保留 client 端口的 Host，见 web-server.test.ts 的 dev flow 用例）。
+ * - 本机进程仍可随意伪造 `Host`——它本来就有回环网络与文件系统的直接访问权，
+ *   这道门不针对它（威胁模型见 SECURITY.md）。
+ * - 不禁止 `Host: localhost`：那是用户自己的浏览器访问本机服务的方式；攻击者的页面
+ *   发不出这个头——`Host` 是 forbidden header name，只能由 URL 决定。
+ *
+ * `Host` 头缺失时回退到 `c.req.url` 的主机名：真实 HTTP 流量必带 `Host`，走到回退
+ * 的只有 Hono `app.request('/api/…')` 这类进程内合成请求——它不带该头，主机名只存在
+ * 于调用方自己构造的 URL 里，不是网络输入。
+ */
+function hostGateRejection(c: Context, allowedHosts: ReadonlySet<string>): Response | null {
+  const rawHost = c.req.header('host');
+  const candidate = rawHost ?? urlHost(c.req.url);
+  const host = candidate === null ? null : normalizeRequestHost(candidate);
+  if (host !== null && (isLoopbackRequestHost(host) || allowedHosts.has(host))) return null;
+  return c.json(
+    {
+      error:
+        `host not allowed: ${host ?? 'unparseable'} (this server only answers on the ` +
+        'address it is bound to)',
+      code: 'FORBIDDEN',
+    },
+    403,
+  );
+}
+
+function urlHost(requestUrl: string): string | null {
+  try {
+    return new URL(requestUrl).host;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * PRD-0038 AC-1.1 的跨站简单请求门(写请求专用)。返回 `null` 表示放行。
  *
- * 顺序固定为 Content-Type → Origin/标记头 → token:
+ * 完整顺序固定为 Host → Content-Type → Origin/标记头 → token,其中 Host 门在
+ * {@link createApp} 的根中间件里(它必须同时挡住只读豁免路径)。本函数是后三层:
  * - 先 Content-Type:阻断"无预检的表单式简单请求"(text/plain / urlencoded / 缺失),
  *   这类请求连不上真实客户端,没必要再看后面的门。
  * - 再 Origin/标记头:显式跨源 Origin 一律拒绝(即使带标记头——标记头不是跨源豁免);
- *   无 Origin 的非浏览器调用者必须自带标记头(Q1 条件 2)。
+ *   无 Origin 的非浏览器调用者必须自带标记头(Q1 条件 2)。这里的 Origin 比较之所以
+ *   成立,是因为 Host 门已经把 `c.req.url` 的主机名钉在本机地址上。
  * - 最后 token:只有"形态合法的写"才值得一次凭证挑战(401 + `www-authenticate`),
  *   也让 #11 的 5 种失败凭证落在同一个响应体上。
- * 三层都是纯判定,任何一层拒绝都直接结构化 4xx,不进入路由,因此"无 token 且无标记头"
+ * 每一层都是纯判定,任何一层拒绝都直接结构化 4xx,不进入路由,因此"无 token 且无标记头"
  * 这类组合同时命中两层时也只是被前一层拒绝,不会抛错成 500。
  */
 function writeGateRejection(c: Context): Response | null {
@@ -204,6 +344,16 @@ export interface CreateAppOptions {
   readonly publicDir?: string;
   /** byf home 目录(工作区注册表 / 会话索引所在);默认 `resolveByfHome()`。 */
   readonly homeDir?: string;
+  /**
+   * 服务器**实际绑定**的地址,`Host` 允许集合据此构造(PRD-0038 AC-1.1);
+   * 省略时取 `resolveHost()`(与 `startWebServer` 的默认解析一致)。
+   */
+  readonly bindHost?: string;
+  /**
+   * 非回环绑定时并入 `Host` 允许集合的本机地址;省略时读 `os.networkInterfaces()`
+   * (回环绑定不会用到它,因此也不会触发这次系统调用)。
+   */
+  readonly lanHosts?: readonly string[];
 }
 
 export interface CreateAppResult {
@@ -216,6 +366,19 @@ export interface CreateAppResult {
 /** 构建 Hono 应用:`/api/*` 路由 + 安全门 + SPA 静态回退。 */
 export async function createApp(options: CreateAppOptions): Promise<CreateAppResult> {
   const app = new Hono();
+
+  // `Host` 门挂在根中间件上、先于 `/api` 挂载与 SPA 静态回退:写门、只读免 token
+  // 豁免、静态资产三条路径共用同一个"这台机器只应答自己绑定的地址"判定。
+  const bindHost = options.bindHost ?? resolveHost();
+  const allowedHosts = allowedRequestHosts(
+    bindHost,
+    options.lanHosts ?? (isLoopbackHost(bindHost) ? [] : interfaceHosts()),
+  );
+  app.use('*', async (c, next) => {
+    const rejection = hostGateRejection(c, allowedHosts);
+    if (rejection !== null) return rejection;
+    await next();
+  });
 
   const api = new Hono();
   const { token: authToken, explicit } = resolveAuthToken(options.authToken);
@@ -289,7 +452,9 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
       });
     });
   } else {
-    const publicDir = staticSource.publicDir;
+    // 基准目录先规范化:调用方传相对 publicDir 时,下面的前缀比较才会和 `resolve()`
+    // 的结果处在同一个坐标系里。
+    const publicDir = resolve(staticSource.publicDir);
     app.get('*', async (c) => {
       const url = new URL(c.req.url);
       let pathname = decodeURIComponent(url.pathname);
@@ -298,7 +463,10 @@ export async function createApp(options: CreateAppOptions): Promise<CreateAppRes
       }
       if (pathname === '/' || pathname === '') pathname = '/index.html';
       const resolved = resolve(publicDir, `.${pathname}`);
-      if (!resolved.startsWith(publicDir)) {
+      // 分隔符是判定的一部分:只比 `publicDir` 会让兄弟目录 `/x/public-evil/…` 因为
+      // 前缀撞上 `/x/public` 而被当成目录内文件放行(与 `/fs/list` 的
+      // `target !== base && !target.startsWith(`${base}${sep}`)` 同一判据)。
+      if (resolved !== publicDir && !resolved.startsWith(`${publicDir}${sep}`)) {
         return c.text('forbidden', 403);
       }
       try {

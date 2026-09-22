@@ -93,6 +93,23 @@ export BYF_DISABLE_TELEMETRY="1"
 BYF_PRINT_WAIT_CEILING_S=120 byf -p "跑冒烟测试"
 ```
 
+## Web 服务鉴权
+
+`byf web`（以及弃用期的 `byf vis` 别名）启动的本地 HTTP 服务以 `WEB_AUTH_TOKEN` 作为请求鉴权 token。旧名 `BYF_WEB_AUTH_TOKEN` 仍被读取；`byf vis` 还会在 `WEB_AUTH_TOKEN` 未设置时把 `VIS_AUTH_TOKEN` 转发给它。
+
+| 环境变量             | 用途                                                                     | 默认值                                             |
+| -------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
+| `WEB_AUTH_TOKEN`     | web 服务的鉴权 token；经 `Authorization: Bearer` 头或 `?token=` 查询传递 | 未设置时：非回环绑定必填；回环绑定每次启动自动生成 |
+| `BYF_WEB_AUTH_TOKEN` | `WEB_AUTH_TOKEN` 的旧名，仍作为回退读取                                  | —                                                  |
+| `VIS_AUTH_TOKEN`     | 仅 `byf vis` 兼容路径：`WEB_AUTH_TOKEN` 未设置时转发为它                 | —                                                  |
+
+在设置（或忽略）这个变量之前，有几件事值得了解：
+
+- **非回环绑定必须显式配置 token。** 未设置 `WEB_AUTH_TOKEN` 时启动 `byf web --host 0.0.0.0`（或设置 `WEB_HOST`）会在启动阶段失败：CLI 打印配置指引并以退出码 `1` 结束。
+- **回环绑定未配置时自动生成 token** —— 每次启动生成一个 48 位十六进制的随机 token，进程重启即更换。它会出现在启动横幅里（`token=...`），也会以 `?token=` 拼进 CLI 自动打开的浏览器 URL——这就是你可能会看到一个从未自己设置的 token 的原因。
+- **哪些请求需要 token：** 所有改变状态的请求（POST / PUT / PATCH / DELETE）一律需要；只读 GET / HEAD 仅在"回环自动 token（未显式配置）"下免 token，显式设置了 `WEB_AUTH_TOKEN` 后读写一律要求凭证。
+- **代价：** token 会出现在启动 URL、终端回滚缓冲与浏览器历史里。非回环绑定时，横幅的 LAN 行末尾附带"建议用后轮换 `WEB_AUTH_TOKEN`"的提示。
+
 ## 诊断日志
 
 下列变量控制 `byf` 的诊断日志。日志会写入两个位置：全局诊断日志在 `$BYF_HOME/logs/byf.log`，每个会话自身的诊断日志在 `<sessionDir>/logs/byf.log`（路径细节见 [数据路径](./data-locations.md#日志与更新状态)）。所有变量都只在进程启动时读取一次。
