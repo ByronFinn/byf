@@ -38,7 +38,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "build": "bun scripts/build.mjs",

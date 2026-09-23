@@ -47,7 +47,7 @@
       "./package.json": "./package.json"
     },
     "access": "public",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

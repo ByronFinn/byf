@@ -45,7 +45,7 @@
       }
     },
     "access": "public",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts --banner-dirname && bun ../../build/bun-lib-dts.mjs",
