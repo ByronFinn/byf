@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/kosong",
-  "version": "0.5.0",
+  "version": "0.6.2",
   "description": "LLM and provider abstraction layer for BYF",
   "keywords": [
     "agent",

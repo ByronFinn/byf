@@ -1,6 +1,6 @@
 {
   "name": "@byfriends/web-server",
-  "version": "0.2.0",
+  "version": "0.6.2",
   "description": "HTTP server for the BYF web client — drives a live agent via @byfriends/sdk and streams events over SSE",
   "keywords": [
     "agent",

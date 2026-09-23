@@ -1,5 +1,28 @@
 # @byfriends/cli
 
+## 0.6.2
+
+### Patch Changes
+
+- 33e51a1: 修复提示缓存断点在单轮中途发生上下文压缩后打在错误位置的问题：缓存桩按消息序号定位，压缩重写了历史长度而基线未失效，导致断点错位并静默多付 token。该轮不再应用失效基线的桩，下一轮基线重建后自动恢复。
+- 33e51a1: 修复 byf 的 JS 构建产物无法用 bun 直接运行的问题（此前 dev:prod 一启动即崩）：构建目标误用 node，把仅适用于 Node 的兼容层打进了产物。
+- 33e51a1: 上下文压缩的触发次数改为跨轮累计：此前只在单轮内计数，单个超大输出使上下文每次压缩后立刻又触顶时，长任务里会自动压缩反复重试而不收敛。现在连续三次回填触顶即停止并明确报上下文溢出；若某轮开始时压力已低于触发线，计数照常归零。
+- 33e51a1: 修复通过网页设置页编辑配置文件时的两类数据损失：配置文件损坏时读取到空内容、保存后会把整个配置（含全部密钥）清空；以及密钥占位符按出现顺序配对，导致重排或复制配置块时密钥被错配到别的提供方或静默丢失。现在密钥按所属配置路径配对，损坏的配置返回原始内容并可就地修复。
+- 33e51a1: 无头模式（byf --print）此前无条件放行每一次工具调用、并把提问吞成空回答，既没有开关可以关闭，事后也查不到是谁放行的。现在默认沿用配置里的权限模式；新增 --yolo（等价 --approve-all）显式全放行、--deny-unapproved 显式拒绝；手动模式下的审批请求不再静默通过，而是以退出码 7 失败并在输出中说明原因。自动放行会写入会话记录，可事后审计。
+- 071cbe2: 权限模式的每次改动都会留下可查询的会话记录（此前直接改模式不留任何痕迹），并且只有真实用户裁决能扩大"本会话同类操作免审批"的集合：模式自动放行与策略上报现在只落审计记录。来自 hook 输出的文本不再具有授权能力。
+- 27c5ec8: 修复已发布的二进制里网页工作台只有接口、没有界面的问题：发布流程此前不构建前端资产，编译时会静默跳过并照常成功。现在缺资产会直接让发布构建失败，且产物启动后会真正被验证一次。
+- 33e51a1: 工具调用与审批的展示结构改为单一来源定义。此前终端、网页与引擎各自维护一份，三者都带兜底分支，新增一类展示块时不会有任何一方报错，只会在界面上静默降级成空白或错乱的内容。
+- 33e51a1: 会话恢复与分叉的身份语义、以及工具调用的重放安全分类，收敛为跨终端、网页与无头三种用法共用的单一定义：恢复沿用原会话标识并追加历史，分叉得到新标识且原会话不变，两者都从全新的上下文窗口开始。工具按只读、本机有副作用、远端不可逆三档区分，中断时留下的说明文字据此不同。
+- a31acfd: 网页工作台若干体验修正：发出首条消息后侧边栏的会话标题与时间立即更新（此前一直显示裸会话 id）；发送、取消、切换权限失败时现在会给出可见提示并撤回那条乐观显示的消息，不再静默丢失；本地保存的访问令牌统一到一个键名，旧键自动迁移。
+- 33e51a1: 修复本地网页服务在默认回环地址下完全不做鉴权的问题：浏览器可用无需预检的简单请求直接驱动本机服务，并经 MCP 连接测试以请求参数指定的命令启动子进程。现在所有写操作都要求来源与凭证校验，回环启动自动生成并在启动信息与打开的链接中给出访问令牌。
+- 37d9cd4: 本地网页服务新增主机名校验：请求携带的 Host 必须是本机回环地址、绑定时使用的那个名字，或绑定的网卡地址；其余一律拒绝。这让把攻击者域名解析到 127.0.0.1 的跨站读取不再成立，代价是通过反向代理或自定义主机名访问时需要把服务绑到那个名字上。
+- Updated dependencies [33e51a1]
+- Updated dependencies [33e51a1]
+- Updated dependencies [a31acfd]
+- Updated dependencies [33e51a1]
+- Updated dependencies [37d9cd4]
+  - @byfriends/web-server@0.6.2
+
 ## 0.6.1
 
 ### Patch Changes
@@ -313,6 +336,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -614,6 +638,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 9f7a9d1: Remove Kimi OAuth auth and replace with BYF API-key auth (issue #4, slice 3)
 
   ### @byfriends/oauth (breaking)
+
   - Deleted all OAuth device-code flow files: `oauth.ts`, `oauth-manager.ts`,
     `managed-kimi-code.ts`, `managed-usage.ts`, `managed-feedback.ts`,
     `identity.ts`, `constants.ts`, `storage.ts`, `token-state.ts`, `toolkit.ts`
@@ -624,6 +649,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `OAuthManager`, `KimiOAuthToolkit`, `FileTokenStorage` are no longer exported
 
   ### @byfriends/sdk (breaking)
+
   - Removed OAuth-related types (`OAuthConfig`, `OAuthTokenProviderResolver` public
     re-exports) and OAuth auth-facade helpers
   - Auth now resolves exclusively via API key; OAuth token-provider path is
@@ -632,6 +658,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
     `kimi-harness-config-smoke.ts`)
 
   ### @byfriends/cli
+
   - Feedback hint copy updated from `kimi export` → `byf export`
   - Model selector and provider labels reflect BYF branding
   - Startup flow no longer references `auth.kimi.com` or OAuth login dialogs;
@@ -644,6 +671,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove remaining upstream Kimi Code brand references (postinstall, flake, build scripts)
 
   ### @byfriends/cli
+
   - Replaced the postinstall hook (`scripts/postinstall.mjs`) with a deliberate
     no-op. The previous hook was a full Kimi-to-BYF CLI migration script that
     probed PATH for a Python `kimi-cli` installation and renamed/removed its
@@ -666,6 +694,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
 - 8beb53d: Remove dead code and stale Kimi brand artifacts
 
   ### @byfriends/telemetry
+
   - Removed unused optional fields from `AsyncTransportOptions`: `endpoint`,
     `getAccessToken`, `fetchImpl`, `retryBackoffsMs`, `requestTimeoutMs`,
     `sleep`, `now`. These options were never read by the constructor after the
@@ -678,6 +707,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   - Updated tests to reflect the slimmed-down interface.
 
   ### @byfriends/cli
+
   - Deleted the `DeviceCodeBoxComponent` TUI component and its test. The
     OAuth device-code flow was removed in slice 3; the component was exported
     but never instantiated in the TUI runtime.

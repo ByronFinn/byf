@@ -1,5 +1,21 @@
 # @byfriends/agent-core
 
+## 0.6.2
+
+### Patch Changes
+
+- 33e51a1: 修复提示缓存断点在单轮中途发生上下文压缩后打在错误位置的问题：缓存桩按消息序号定位，压缩重写了历史长度而基线未失效，导致断点错位并静默多付 token。该轮不再应用失效基线的桩，下一轮基线重建后自动恢复。
+- 33e51a1: 上下文压缩的触发次数改为跨轮累计：此前只在单轮内计数，单个超大输出使上下文每次压缩后立刻又触顶时，长任务里会自动压缩反复重试而不收敛。现在连续三次回填触顶即停止并明确报上下文溢出；若某轮开始时压力已低于触发线，计数照常归零。
+- 941a131: 修正 wire 2.0 的两处类型声明：按 lane 追加条目时此前只认得各事件共有的字段，事件自己的 payload 会被编译期拒绝；run 结束事件的收尾状态漏掉「挂起」，而挂起正是本轮调用让出、等待恢复时的真实取值。
+- 33e51a1: 无头模式（byf --print）此前无条件放行每一次工具调用、并把提问吞成空回答，既没有开关可以关闭，事后也查不到是谁放行的。现在默认沿用配置里的权限模式；新增 --yolo（等价 --approve-all）显式全放行、--deny-unapproved 显式拒绝；手动模式下的审批请求不再静默通过，而是以退出码 7 失败并在输出中说明原因。自动放行会写入会话记录，可事后审计。
+- aea4f24: provider 层为"可先挂起、稍后再取结果"的请求补齐了契约:这类请求返回专门的收尾状态并带回一个取结果用的句柄。目前只有尚未接入装配层的 harness 路径使用它,CLI 与网页用户暂不会感知到行为变化。
+- 071cbe2: 权限模式的每次改动都会留下可查询的会话记录（此前直接改模式不留任何痕迹），并且只有真实用户裁决能扩大"本会话同类操作免审批"的集合：模式自动放行与策略上报现在只落审计记录。来自 hook 输出的文本不再具有授权能力。
+- 33e51a1: 工具调用与审批的展示结构改为单一来源定义。此前终端、网页与引擎各自维护一份，三者都带兜底分支，新增一类展示块时不会有任何一方报错，只会在界面上静默降级成空白或错乱的内容。
+- 33e51a1: 会话恢复与分叉的身份语义、以及工具调用的重放安全分类，收敛为跨终端、网页与无头三种用法共用的单一定义：恢复沿用原会话标识并追加历史，分叉得到新标识且原会话不变，两者都从全新的上下文窗口开始。工具按只读、本机有副作用、远端不可逆三档区分，中断时留下的说明文字据此不同。
+- Updated dependencies [aea4f24]
+  - @byfriends/kosong@0.6.2
+  - @byfriends/kaos@0.6.2
+
 ## 0.6.0
 
 ### Minor Changes
@@ -264,6 +280,7 @@ RPCMethods<T>`, so the handler body stays type-checked.
   `homeDir`/`configPath` but inherited the type graph of all 40+ members).
 
   ### Changes
+
   - `agent-core`: new `createByfCore(rpcClient, options)` factory returns a
     narrow `CoreEngineHandle` (`{ core: PromisableMethods<CoreAPI>,
 homeDir, configPath }`). The `ByfCore` concrete class is no longer
@@ -283,11 +300,11 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
 
   ```ts
   // before
-  import { ByfCore } from '@byfriends/agent-core';
+  import { ByfCore } from "@byfriends/agent-core";
   const core = new ByfCore(rpcClient, options);
 
   // after
-  import { createByfCore } from '@byfriends/agent-core';
+  import { createByfCore } from "@byfriends/agent-core";
   const { core, homeDir, configPath } = createByfCore(rpcClient, options);
   ```
 
@@ -376,6 +393,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   The `byf update-config` CLI subcommand, the `/update-config` (`/uc`) slash command, and their deterministic analyzer/fixer have been **removed** and replaced by a single builtin skill invoked as `/skill:update-config`. See ADR-0019 for the rationale.
 
   ### Breaking changes
+
   - **Removed public API** (major bump): `Finding`, `UpdateConfigInput`, `UpdateConfigResult` types and `ByfHarness.updateConfig()` from `@byfriends/sdk`; `analyzeConfig`, `applyFixes`, `DEPRECATED_FIELD_RULES`, `UpdateAnalyzeInput`, and the `Finding` type from `@byfriends/agent-core`.
   - **Removed files**: `packages/agent-core/src/config/update-rules.ts`, `packages/agent-core/src/config/update.ts`, `apps/cli/src/cli/sub/update-config.ts`.
   - **Removed CLI subcommand**: `byf update-config` no longer exists (no alias period, aligned with ADR-0008).
@@ -394,6 +412,7 @@ homeDir, configPath }`). The `ByfCore` concrete class is no longer
   WebSearchTool now supports three search providers (Exa, Brave, Firecrawl) through a PriorityRouter that selects the best available provider based on configuration and availability.
 
   ### New features
+
   - **PriorityRouter**: automatically selects the highest-priority configured provider with graceful degradation
   - **ExaProvider**, **BraveWebSearchProvider**, **FirecrawlWebSearchProvider**: three backend implementations sharing a common `WebSearchProvider` interface
   - **webSearchProviderRegistry**: single source of truth for provider registration (mirrors the pattern established by `tools/providers/registry.ts`)

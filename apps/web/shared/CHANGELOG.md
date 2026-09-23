@@ -1,5 +1,14 @@
 # @byfriends/web-shared
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [33e51a1]
+- Updated dependencies [33e51a1]
+- Updated dependencies [33e51a1]
+  - @byfriends/sdk@0.6.2
+
 ## 0.1.1
 
 ### Patch Changes
