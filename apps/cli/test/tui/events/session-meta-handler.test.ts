@@ -17,6 +17,8 @@ import {
 import type { AppState } from '#/tui/types';
 import { computeCacheHitRate } from '#/utils/usage/usage-format';
 
+import { defined } from '../../helpers/defined';
+
 const OAUTH_LOGIN_REQUIRED_CODE = 'auth.login_required';
 
 function makeCallbacks(): {
@@ -90,7 +92,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch.model).toBe('k2');
     expect(patch.permissionMode).toBe('yolo');
     expect(patch.yolo).toBe(true);
@@ -112,12 +114,12 @@ describe('handleStatusUpdate', () => {
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
-        currentTurn: { inputOther: 500, inputCacheRead: 8700, inputCacheCreation: 0 } as never,
+        currentTurn: { inputOther: 500, output: 0, inputCacheRead: 8700, inputCacheCreation: 0 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.9457, 4);
   });
@@ -127,12 +129,12 @@ describe('handleStatusUpdate', () => {
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
-        currentTurn: { inputOther: 10000, inputCacheRead: 0, inputCacheCreation: 2000 } as never,
+        currentTurn: { inputOther: 10000, output: 0, inputCacheRead: 0, inputCacheCreation: 2000 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(0);
   });
@@ -142,12 +144,12 @@ describe('handleStatusUpdate', () => {
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
-        currentTurn: { inputOther: 0, inputCacheRead: 0, inputCacheCreation: 0 } as never,
+        currentTurn: { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeUndefined();
   });
@@ -184,12 +186,12 @@ describe('handleStatusUpdate', () => {
       permission: 'auto',
       model: 'claude-sonnet',
       usage: {
-        currentTurn: { inputOther: 300, inputCacheRead: 700, inputCacheCreation: 0 } as never,
+        currentTurn: { inputOther: 300, output: 0, inputCacheRead: 700, inputCacheCreation: 0 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch.contextUsage).toBe(0.42);
     expect(patch.contextTokens).toBe(4200);
     expect(patch.maxContextTokens).toBe(10000);
@@ -209,7 +211,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch.contextUsage).toBe(0.65);
     expect(patch.permissionMode).toBe('auto');
     expect(patch.yolo).toBe(false);
@@ -221,12 +223,12 @@ describe('handleStatusUpdate', () => {
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
-        currentTurn: { inputOther: 0, inputCacheRead: 5000, inputCacheCreation: 0 } as never,
+        currentTurn: { inputOther: 0, output: 0, inputCacheRead: 5000, inputCacheCreation: 0 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBe(1.0);
   });
@@ -236,12 +238,12 @@ describe('handleStatusUpdate', () => {
     const event: AgentStatusUpdatedEvent = {
       type: 'agent.status.updated',
       usage: {
-        currentTurn: { inputOther: 9900, inputCacheRead: 100, inputCacheCreation: 0 } as never,
+        currentTurn: { inputOther: 9900, output: 0, inputCacheRead: 100, inputCacheCreation: 0 },
       },
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch).toHaveProperty('cacheHitRate');
     expect(patch.cacheHitRate).toBeCloseTo(0.01, 4);
   });
@@ -254,7 +256,7 @@ describe('handleStatusUpdate', () => {
     };
     handleStatusUpdate(event, callbacks);
     expect(calls.setAppState).toHaveLength(1);
-    const patch = calls.setAppState[0];
+    const patch = defined(calls.setAppState[0], 'setAppState[0]');
     expect(patch.contextTokens).toBe(12345);
     expect(patch).not.toHaveProperty('cacheHitRate');
   });
@@ -319,8 +321,8 @@ describe('handleSessionError', () => {
     };
     handleSessionError(event, makeState({ sessionId: 'ses-abc' }), callbacks);
     expect(calls.showStatus.length).toBe(1);
-    expect(calls.showStatus[0].message).toContain('ses-abc');
-    expect(calls.showStatus[0].message).toContain('byf export');
+    expect(defined(calls.showStatus[0], 'showStatus[0]').message).toContain('ses-abc');
+    expect(defined(calls.showStatus[0], 'showStatus[0]').message).toContain('byf export');
   });
 
   it('does not show error report hint when sessionId is empty', () => {
@@ -359,7 +361,7 @@ describe('handleSessionWarning', () => {
     };
     handleSessionWarning(event, state, callbacks);
     expect(calls.showStatus).toHaveLength(1);
-    expect(calls.showStatus[0].message).toBe('Warning: deprecated model');
-    expect(calls.showStatus[0].color).toBe(state.theme.colors.warning);
+    expect(defined(calls.showStatus[0], 'showStatus[0]').message).toBe('Warning: deprecated model');
+    expect(defined(calls.showStatus[0], 'showStatus[0]').color).toBe(state.theme.colors.warning);
   });
 });

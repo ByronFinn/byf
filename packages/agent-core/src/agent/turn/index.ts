@@ -34,7 +34,7 @@ import type { AgentEvent, TurnEndedEvent } from '../../rpc';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { abortable } from '../../utils/abort';
 import { resolveCompletionBudget } from '../../utils/completion-budget';
-import { applyCacheStaking } from '../cache-staking';
+import { applyCacheStaking, type StakingContext } from '../cache-staking';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { GOAL_CONTINUATION_ORIGIN, GOAL_CONTINUATION_PROMPT } from '../goal/constants';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../hooks';
@@ -65,6 +65,15 @@ export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private _previousTurnMessageCount = 0;
+  /**
+   * 建立 `_previousTurnMessageCount` 基线时（投影后的）原始历史长度，以及本轮
+   * 之后观测到的最大值。上下文在一轮内只应从尾部增长（ADR-0011 / PRD-0037 的
+   * checkpoint 不变量），一旦变小就说明历史被原地重写（`beforeStep` Pass 4 的
+   * 压缩、`context.clear`），序号基线随之失效（PRD-0038 AC-6.2）。
+   */
+  private _stakingHistoryLengthAtBaseline = 0;
+  private _stakingMaxObservedHistoryLength = 0;
+  private _stakingBaselineInvalid = false;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
   private readonly toolCallStartedAt = new Map<string, { name: string; startedAt: number }>();
   private readonly toolCallDupType = new Map<string, 'normal' | 'cross_step'>();
@@ -115,6 +124,9 @@ export class TurnFlow {
 
     this.turnId += 1;
     this._previousTurnMessageCount = this.agent.context.messages.length;
+    this._stakingHistoryLengthAtBaseline = this.agent.context.history.length;
+    this._stakingMaxObservedHistoryLength = this._stakingHistoryLengthAtBaseline;
+    this._stakingBaselineInvalid = false;
     this.currentStep = 0;
     this.stepToolCallKeys.clear();
     this.toolCallDupType.clear();
@@ -514,6 +526,38 @@ export class TurnFlow {
     return undefined;
   }
 
+  /**
+   * 每 step 发送前重新确认 staking 基线是否仍然可信（PRD-0038 AC-6.2）。
+   *
+   * `previousTurnMessageCount` 是**消息序号**，而 `beforeStep` 的压缩（Pass 4）
+   * 会原地重建历史：序号不再指向上一轮的末尾，桩 3 会被打到本轮仍在增长的消息
+   * 上（缓存前缀边界错位），桩 4 的扫描起点也会偏移。一旦本轮内观测到历史长度
+   * 回退，就把基线判定为失效并**整轮不再打桩**——下一轮 `launch()` 会基于压缩后
+   * 的真实长度重建基线（ADR-0011 的 3+1 语义不受影响）。
+   */
+  private stakingContext(): StakingContext {
+    const historyLength = this.observeHistoryForStaking();
+    return {
+      previousTurnMessageCount: this._previousTurnMessageCount,
+      baselineInvalid:
+        this._stakingBaselineInvalid || historyLength < this._stakingHistoryLengthAtBaseline,
+    };
+  }
+
+  /**
+   * 采样当前原始历史长度并把"回退"记为基线失效。turn 内正常的上下文增长只会
+   * 追加到尾部，因此任何一次长度回退都意味着历史被原地重写。
+   */
+  private observeHistoryForStaking(): number {
+    const historyLength = this.agent.context.history.length;
+    if (historyLength < this._stakingMaxObservedHistoryLength) {
+      this._stakingBaselineInvalid = true;
+    } else {
+      this._stakingMaxObservedHistoryLength = historyLength;
+    }
+    return historyLength;
+  }
+
   private async runTurn(turnId: number, signal: AbortSignal): Promise<LoopTurnStopReason> {
     let stopHookContinuationUsed = false;
     const deduper = new ToolCallDeduplicator();
@@ -542,23 +586,17 @@ export class TurnFlow {
           buildMessages: () => {
             const ephemeral = this.agent.injection.getEphemeralInjections();
             const messages = this.agent.context.getMessages(ephemeral);
-            return applyCacheStaking(messages, {
-              previousTurnMessageCount: this._previousTurnMessageCount,
-            });
+            return applyCacheStaking(messages, this.stakingContext());
           },
           buildMessagesMediaDegraded: () => {
             const ephemeral = this.agent.injection.getEphemeralInjections();
             const messages = this.agent.context.getMediaDegradedMessages(ephemeral);
-            return applyCacheStaking(messages, {
-              previousTurnMessageCount: this._previousTurnMessageCount,
-            });
+            return applyCacheStaking(messages, this.stakingContext());
           },
           buildMessagesMediaStripped: () => {
             const ephemeral = this.agent.injection.getEphemeralInjections();
             const messages = this.agent.context.getMediaStrippedMessages(ephemeral);
-            return applyCacheStaking(messages, {
-              previousTurnMessageCount: this._previousTurnMessageCount,
-            });
+            return applyCacheStaking(messages, this.stakingContext());
           },
           dispatchEvent: this.buildDispatchEvent(turnId),
           tools: this.agent.tools.loopTools,
@@ -567,6 +605,8 @@ export class TurnFlow {
           maxRetryAttempts: loopControl?.maxRetriesPerStep,
           hooks: {
             beforeStep: async ({ signal: stepSignal }) => {
+              // 压缩在 beforeStep 内部落地，先采样再让它改动历史（AC-6.2）。
+              this.observeHistoryForStaking();
               this.flushSteerBuffer();
               await this.agent.fullCompaction.beforeStep(stepSignal);
               await this.agent.injection.inject();
@@ -576,6 +616,8 @@ export class TurnFlow {
             afterStep: async ({ usage }) => {
               this.agent.usage.record(model, usage, 'turn');
               await this.agent.fullCompaction.afterStep();
+              // 工具结果在本 step 内追加/重写，采样后才能识别随后的长度回退。
+              this.observeHistoryForStaking();
               deduper.endStep();
             },
             // oxlint-disable-next-line no-loop-func -- stop hook continuation state is scoped to this turn.

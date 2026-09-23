@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, Tool } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { ToolManager } from '../../src/agent/tool';

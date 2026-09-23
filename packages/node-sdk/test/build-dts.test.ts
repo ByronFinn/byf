@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 /**
  * Build artifact tests for the DTS output of @byfriends/sdk.
  *
@@ -8,8 +9,6 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-
-import { describe, expect, it } from 'vitest';
 
 const distDir = resolve(import.meta.dirname, '../dist');
 const dtsPath = resolve(distDir, 'index.d.mts');

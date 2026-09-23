@@ -1,5 +1,6 @@
+import { expect } from 'bun:test';
+
 import type { Message, PromptPlan, Tool as LLMTool } from '@byfriends/kosong';
-import { expect } from 'vitest';
 
 const IS_EVENT_ARRAY = Symbol('isEventArray');
 const IS_GENERATE_INPUT_SNAPSHOT = Symbol('isGenerateInputSnapshot');
@@ -147,31 +148,44 @@ export function formatHarnessSnapshot(val: unknown): string {
 
 // No-op under Bun (see build/test-preload.ts). Kept so accidental Vitest runs
 // still register serializers when the API exists and is implemented.
-if (typeof expect.addSnapshotSerializer === 'function') {
+// Bun's `Expect` type intentionally omits `addSnapshotSerializer` (it exists at
+// runtime but throws "Not implemented"), so look it up dynamically.
+interface HarnessSnapshotSerializer {
+  test(value: unknown): boolean;
+  serialize(value: unknown): string;
+}
+
+const addSnapshotSerializerCandidate: unknown =
+  'addSnapshotSerializer' in expect ? expect.addSnapshotSerializer : undefined;
+
+if (typeof addSnapshotSerializerCandidate === 'function') {
+  const addSnapshotSerializer = addSnapshotSerializerCandidate as (
+    serializer: HarnessSnapshotSerializer,
+  ) => void;
   try {
-    expect.addSnapshotSerializer({
-      test(val) {
+    addSnapshotSerializer({
+      test(val: unknown) {
         return hasSnapshotSymbol(val, IS_EVENT_ARRAY);
       },
-      serialize(val) {
+      serialize(val: unknown) {
         return serializeEventArray(val as Array<Record<string, unknown>>);
       },
     });
 
-    expect.addSnapshotSerializer({
-      test(val) {
+    addSnapshotSerializer({
+      test(val: unknown) {
         return hasSnapshotSymbol(val, IS_GENERATE_INPUT_SNAPSHOT);
       },
-      serialize(val) {
+      serialize(val: unknown) {
         return serializeGenerateInputSnapshot(val as GenerateInputSnapshot);
       },
     });
 
-    expect.addSnapshotSerializer({
-      test(val) {
+    addSnapshotSerializer({
+      test(val: unknown) {
         return hasSnapshotSymbol(val, IS_GENERATE_INPUTS_SNAPSHOT);
       },
-      serialize(val) {
+      serialize(val: unknown) {
         return serializeGenerateInputsSnapshot(val as GenerateInputsSnapshot);
       },
     });

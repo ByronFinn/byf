@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
 import { z } from 'zod';
 
 import {
@@ -389,8 +390,12 @@ describe('WireService — seal / metadata', () => {
 
     await wire.seal();
     expect(persistence.records).toHaveLength(1);
-    expect(isWireMetadataRecord(persistence.records[0])).toBe(true);
-    expect(persistence.records[0]).toMatchObject({
+    const [sealedRecord] = persistence.records;
+    if (sealedRecord === undefined) {
+      throw new Error('seal() should have written exactly one record');
+    }
+    expect(isWireMetadataRecord(sealedRecord)).toBe(true);
+    expect(sealedRecord).toMatchObject({
       type: 'metadata',
       protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
     });

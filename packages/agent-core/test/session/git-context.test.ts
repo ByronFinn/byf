@@ -1,13 +1,14 @@
+import { describe, expect, it } from 'bun:test';
 import { Readable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import {
   collectGitContext,
   parseProjectName,
   sanitizeRemoteUrl,
 } from '../../src/session/git-context';
+import { vi } from '../_vitest-vi';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 
 function fakeProcess(stdout: string, exitCode = 0): KaosProcess {

@@ -58,6 +58,14 @@ Hold 须使用 **ref'd** 句柄（如 interval）；settle 时清除。Scheduler
 
 现有 `background.keepAliveOnExit` 只表示 **session close 时是否 stopAll**，**不得**被误用作 print 完成协议的替代。print 须显式 `waitForBackgroundTasksOnPrint`（及 ceiling），不得仅依赖 close 钩子。
 
+### 6. 审批治理退出码 `7`（2026-09-21 补记，PRD-0038 AC-1.6 / Q9 裁决）
+
+自 PRD-0038 AC-1.6 起，print 模式的权限取值为：`--deny-unapproved` → `manual`；`--yolo` / `--approve-all` → `yolo`；都不给 → 配置 `default_permission_mode`，缺省回退 `auto`（`apps/cli/src/cli/run-prompt.ts` `resolveHeadlessPermission`）。此前实现是"恒批准"，而旧的 `Cannot combine --prompt with --yolo.` 启动报错制造"headless 受管控"的反向错觉——两处均已随 AC-1.6 更正（`apps/cli/src/cli/options.ts` 注释记录了移除理由）。
+
+`manual` 下 headless 问不到人，到达审批请求的工具调用一律**拒绝**（拒绝与下一步指引写 stderr），进程以专用退出码 **`7`**（常量 `EXIT_CODE_APPROVAL_REQUIRED`，`run-prompt.ts:56`）结束。语义：本次运行被权限治理拦下——不是模型/网络失败（通用 `1`），不是 goal 未达成（`3`/`6`），不是信号终止（`129`/`130`/`143`）。`7` 与上述已占用码位不相交；**新增码位不得与之重合**，且脚本可据 `7` 区分"跑完了但被拦"与"跑挂了"。`yolo`/`auto` 对"manual 本该询问"的每次放行落一条 `permission.record_approval_result` 进 session records（审计痕迹）。
+
+自本条记录起，`7` 成为本 ADR 完成协议的一部分（PRD-0038 Q9 裁决：写进文档后才算入协议）。
+
 ## 后果
 
 - **正面**：脚本可依赖稳定 exit code；后台/wedged 任务有 1h 上限；goal/cron 长任务可跑完。
@@ -67,5 +75,6 @@ Hold 须使用 **ref'd** 句柄（如 interval）；settle 时清除。Scheduler
 ## 关联
 
 - PRD-0023（Grilled）
-- CONTEXT：Headless drain、Print wait ceiling、会话内 Cron
+- PRD-0038（AC-1.6 / Q9：审批治理开关与退出码 `7` 的来源）
+- CONTEXT：Headless drain、Print wait ceiling、会话内 Cron、`EXIT_CODE_APPROVAL_REQUIRED`
 - 对照：kimi-code `run-prompt.ts` / `waitForBackgroundTasksOnPrint` / `goal-prompt.ts`

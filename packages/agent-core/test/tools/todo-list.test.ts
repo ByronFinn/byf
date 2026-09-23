@@ -6,7 +6,7 @@
  * the injected store.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   TodoListInputSchema,
@@ -25,7 +25,7 @@ function makeStore(initial: readonly TodoItem[] = []): {
   let todos = [...initial];
   return {
     store: {
-      get: (key) => (key === 'todo' ? todos : undefined),
+      get: (key) => (key === 'todo' ? (todos as never) : undefined),
       set: (key, value) => {
         if (key === 'todo') {
           todos = [...(value as readonly TodoItem[])];

@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'bun:test';
+
 import {
   APIConnectionError,
   APIEmptyResponseError,
@@ -8,7 +10,6 @@ import {
   type StreamedMessagePart,
   type ToolCall,
 } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { KosongLLM, type GenerateFn } from '../../src/agent/turn/kosong-llm';
 import type { ToolCallDelta } from '../../src/loop';

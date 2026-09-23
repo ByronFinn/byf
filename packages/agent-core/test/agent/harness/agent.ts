@@ -1,10 +1,10 @@
+import { expect, vi } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { Readable, type Writable } from 'node:stream';
 
 import { createControlledPromise } from '@antfu/utils';
 import { localKaos, type Kaos, type KaosProcess } from '@byfriends/kaos';
 import type { ModelCapability, ProviderConfig } from '@byfriends/kosong';
-import { expect, vi } from 'vitest';
 
 import {
   Agent,

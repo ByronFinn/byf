@@ -15,7 +15,7 @@ describe('tmux keyboard setup detection', () => {
   it('skips checks outside tmux', async () => {
     const readOption = optionReader({});
 
-    await expect(detectTmuxKeyboardWarning({}, readOption)).resolves.toBeUndefined();
+    expect(detectTmuxKeyboardWarning({}, readOption)).resolves.toBeUndefined();
 
     expect(readOption).not.toHaveBeenCalled();
   });
@@ -26,7 +26,7 @@ describe('tmux keyboard setup detection', () => {
       'extended-keys-format': undefined,
     });
 
-    await expect(
+    expect(
       detectTmuxKeyboardWarning({ TMUX: '/tmp/tmux/default,123,0' }, readOption),
     ).resolves.toBeUndefined();
   });
@@ -37,7 +37,7 @@ describe('tmux keyboard setup detection', () => {
       'extended-keys-format': 'csi-u',
     });
 
-    await expect(
+    expect(
       detectTmuxKeyboardWarning({ TMUX: '/tmp/tmux/default,123,0' }, readOption),
     ).resolves.toBe(TMUX_EXTENDED_KEYS_OFF_WARNING);
   });
@@ -48,20 +48,20 @@ describe('tmux keyboard setup detection', () => {
       'extended-keys-format': 'xterm',
     });
 
-    await expect(
+    expect(
       detectTmuxKeyboardWarning({ TMUX: '/tmp/tmux/default,123,0' }, readOption),
     ).resolves.toBe(TMUX_EXTENDED_KEYS_FORMAT_XTERM_WARNING);
   });
 
   it('accepts on and always with csi-u or absent format', async () => {
-    await expect(
+    expect(
       detectTmuxKeyboardWarning(
         { TMUX: '/tmp/tmux/default,123,0' },
         optionReader({ 'extended-keys': 'on', 'extended-keys-format': 'csi-u' }),
       ),
     ).resolves.toBeUndefined();
 
-    await expect(
+    expect(
       detectTmuxKeyboardWarning(
         { TMUX: '/tmp/tmux/default,123,0' },
         optionReader({ 'extended-keys': 'always', 'extended-keys-format': undefined }),

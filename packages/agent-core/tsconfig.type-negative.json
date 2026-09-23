@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  // `lib` mirrors packages/agent-core/tsconfig.json: this project type-checks
+  // agent-core's sources (and the workspace sources it resolves through package
+  // `exports`, e.g. packages/kaos/src), and those declare ESNext + DOM. Without
+  // it, `TextDecoder` resolves to the Bun-only overload and unrelated cross-package
+  // files report TS2345 — config-gap noise, not a real defect, and exactly the
+  // kind of error that would get this project turned off.
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"]
+  },
+  "include": ["src/**/*.ts", "test/type-safety-negative.ts"]
+}

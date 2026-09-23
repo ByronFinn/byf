@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { TokenUsage } from '#/usage';
 import { addUsage, emptyUsage, grandTotal, inputTotal } from '#/usage';

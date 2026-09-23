@@ -4,7 +4,7 @@
  * Uses a fake UrlFetcher to test tool behaviour in isolation.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import {
   FetchURLInputSchema,
@@ -13,6 +13,7 @@ import {
   type UrlFetcher,
 } from '../../src/tools/builtin/web/fetch-url';
 import { RemoteFetchURLProvider } from '../../src/tools/providers/remote-fetch-url';
+import { withPreconnect } from '../_fetch-mock';
 import { executeTool } from './fixtures/execute-tool';
 import { toolContentString } from './fixtures/fake-kaos';
 
@@ -262,9 +263,9 @@ describe('RemoteFetchURLProvider', () => {
   it('does not force-refresh request auth after a 401 response', async () => {
     const getAccessToken = vi.fn().mockResolvedValue('fresh-token');
     const localFallback = fakeFetcher('fallback content');
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(new Response('unauthorized', { status: 401 }));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('unauthorized', { status: 401 })),
+    );
     const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       baseUrl: 'https://fetch.example/v1',

@@ -260,6 +260,10 @@ function deriveStepStopReason(response: LLMChatResponse): LoopStepStopReason {
       return 'filtered';
     case 'paused':
       return 'paused';
+    // 'deferred' 正常不达此处（DeferredAwareLLM 在 chat 内 ParkSignal unwind，
+    // PRD-0037 #336）；防御性归一为 paused（挂起语义）。
+    case 'deferred':
+      return 'paused';
     case 'other':
       return 'unknown';
     case 'completed':

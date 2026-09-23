@@ -13,9 +13,10 @@
  * 工具（Skill/Agent/WebSearch/FetchURL/ReadMediaFile）由各自聚焦测试覆盖，
  * 不在此契约表内。
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
-import type { Tool } from '../../src/tools';
+import type { Tool } from '@byfriends/kosong';
+
 import { testAgent } from '../agent/harness/agent';
 
 interface ToolContract {

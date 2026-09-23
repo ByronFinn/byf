@@ -6,10 +6,11 @@
  * from an HTML page.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 
 import { LocalFetchURLProvider } from '../../../src/tools/providers/local-fetch-url';
 import { createProxiedFetch } from '../../../src/tools/providers/proxied-fetch';
+import { withPreconnect } from '../../_fetch-mock';
 
 function htmlResponse(body: string, contentType: string): Response {
   return new Response(body, {
@@ -26,9 +27,11 @@ function networkError(code: string): TypeError {
 
 describe('LocalFetchURLProvider content kind', () => {
   it('reports text/plain bodies as a verbatim passthrough', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(htmlResponse('plain body', 'text/plain; charset=utf-8'));
+    const fetchImpl = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(htmlResponse('plain body', 'text/plain; charset=utf-8')),
+    );
     const provider = new LocalFetchURLProvider({ fetchImpl });
 
     const result = await provider.fetch('https://example.com/file.txt');
@@ -37,9 +40,9 @@ describe('LocalFetchURLProvider content kind', () => {
   });
 
   it('reports text/markdown bodies as a verbatim passthrough', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(htmlResponse('# Title\n\nbody', 'text/markdown'));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(htmlResponse('# Title\n\nbody', 'text/markdown')),
+    );
     const provider = new LocalFetchURLProvider({ fetchImpl });
 
     const result = await provider.fetch('https://example.com/readme.md');
@@ -52,9 +55,9 @@ describe('LocalFetchURLProvider content kind', () => {
       '<html><head><title>Doc</title></head><body><article>' +
       '<p>The quick brown fox jumps over the lazy dog. '.repeat(20) +
       '</p></article></body></html>';
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(htmlResponse(html, 'text/html; charset=utf-8'));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(htmlResponse(html, 'text/html; charset=utf-8')),
+    );
     const provider = new LocalFetchURLProvider({ fetchImpl });
 
     const result = await provider.fetch('https://example.com/page');
@@ -70,11 +73,14 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('returns content without proxy when direct fetch succeeds', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response('direct content', { status: 200, headers: { 'content-type': 'text/plain' } }),
-      );
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response('direct content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        }),
+      ),
+    );
     const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],
@@ -88,12 +94,14 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('retries through proxy when direct fetch fails with retryable error', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(
-        new Response('proxy content', { status: 200, headers: { 'content-type': 'text/plain' } }),
-      );
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(
+          new Response('proxy content', { status: 200, headers: { 'content-type': 'text/plain' } }),
+        ),
+    );
     const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],
@@ -107,7 +115,9 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('propagates error when direct fails and no proxy configured', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockRejectedValue(networkError('ECONNREFUSED'));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockRejectedValue(networkError('ECONNREFUSED')),
+    );
     const env: Record<string, string> = {};
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],
@@ -120,9 +130,9 @@ describe('LocalFetchURLProvider with proxy fallback', () => {
   });
 
   it('does not retry on non-retryable HTTP error (404)', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(new Response('not found', { status: 404 }));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('not found', { status: 404 })),
+    );
     const env: Record<string, string> = { HTTPS_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
       envLookup: (key) => env[key],

@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { vi } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { vi } from 'vitest';
 
 import {
   buildAgentTree,
@@ -87,7 +86,7 @@ describe('readSessionDetail / wire / context / tree', () => {
     );
     const detail = await readSessionDetail(home, 'session_3');
     expect(detail).not.toBeNull();
-    expect(detail!.agents[0].agentId).toBe('main');
+    expect(detail!.agents[0]?.agentId).toBe('main');
   });
 
   test('readAgentWire migrates records and reports warnings on unknown protocol', async () => {
@@ -141,7 +140,7 @@ describe('readSessionDetail / wire / context / tree', () => {
       },
     ]);
     expect(tree.length).toBe(2);
-    expect(tree[0].agentId).toBe('main');
+    expect(tree[0]?.agentId).toBe('main');
   });
 
   test('isSafeAgentId rejects path escapes', () => {

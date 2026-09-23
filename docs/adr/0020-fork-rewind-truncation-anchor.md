@@ -4,7 +4,11 @@
 
 ## 状态
 
-已接受
+已接受（部分被取代，见下方注记：截断锚点机制被 ADR-0040 取代，但 PRD-0037 Phase 4 切换前它仍是 live 的 fork 实现）
+
+> **取代（ADR-0040）**：决策节的核心裁决——「以 `turn.prompt` / `turn.steer` wire records 的出现序数（过滤 `origin.kind === 'user'`）作为 fork 的 `upToMessage` 截断锚点，目录复制后重写主 `wire.jsonl` 为截断前缀」——被 ADR-0040 取代：树导航 + branch summary 取代截断锚点，持久 runId 取代「第 N 条 user prompt」位置锚点；ADR-0040 并明言本机制「随 2.0 导航落地后作废」（另见 PRD-0037 B7/B8 与 R11）。
+>
+> **切换前仍描述现实**：现默认路径仍按本 ADR 实现——`SessionStore.fork` 目录复制 + `truncateMainWireUpToMessage` 截断 `wire.jsonl`（`packages/agent-core/src/session/store/session-store.ts`），TUI `/fork` 回退与 web `forkSession` 仍传 `upToMessage` 序数；v2 树 fork（entries-only 复制 + 确定性子会话 id，`packages/agent-core/src/harness/fork.ts`）已在并行新建路径实现，但 v2 引擎尚未接入装配层（ADR-0041 实验开关，现状见 `packages/agent-core/src/harness/engine.ts` 注释）。背景节的代码事实分析（turnId 不落盘、无 `turn.end` record、fork 重置 turnId）未被 2.0 推翻——PRD-0037 B8 仍以其为迁移依据。
 
 ## 背景
 
@@ -48,6 +52,7 @@ PRD-0015 为 `/fork` 命令添加了可选的回退步骤：用户选择一条�
 ## 参考
 
 - PRD-0015（Fork Step Rewind）
+- ADR-0040 / PRD-0037（取代本 ADR 的截断锚点机制：树导航 + 持久 runId；随装配层 2.0 切换删除旧路径）
 - `packages/agent-core/src/agent/turn/index.ts:79-86`（`turn.prompt` 写入位置）
 - `packages/agent-core/src/loop/events.ts:113-119`（`LoopLiveOnlyEvent`——turnId 未持久化）
 - `packages/agent-core/src/agent/records/types.ts:18-26`（`turn.prompt` / `turn.cancel` 记录形态）

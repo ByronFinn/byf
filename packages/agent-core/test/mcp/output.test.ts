@@ -1,6 +1,7 @@
+import { describe, expect, test } from 'bun:test';
+
 import type { ContentPart } from '@byfriends/kosong';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
-import { describe, expect, test } from 'vitest';
 
 import { convertMCPContentBlock, mcpResultToExecutableOutput } from '../../src/mcp/output';
 import type { MCPContentBlock, MCPToolResult } from '../../src/mcp/types';

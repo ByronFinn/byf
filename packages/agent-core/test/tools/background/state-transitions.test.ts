@@ -14,11 +14,11 @@
  *     straight to `killed` with the approvalReason cleared
  */
 
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../../src/tools/background/manager';
 

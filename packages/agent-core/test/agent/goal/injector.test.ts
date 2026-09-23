@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { GoalInjector } from '../../../src/agent/injection/goal';
+import { defined } from '../../helpers/defined';
 import { makeGoalAgent } from './harness';
 
 /**
@@ -27,16 +28,20 @@ describe('GoalInjector (AC #201 注入)', () => {
     const result = injector.getEphemeral();
     expect(result).toHaveLength(1);
     const injection = result[0];
-    expect(injection.kind).toBe('system_reminder');
-    expect(injection.position).toBe('before_user');
-    expect(typeof injection.content).toBe('string');
-    expect(injection.content).toContain('Ship feature X');
+    expect(injection?.kind).toBe('system_reminder');
+    expect(injection?.position).toBe('before_user');
+    expect(typeof injection?.content).toBe('string');
+    expect(injection?.content).toContain('Ship feature X');
   });
 
   it('active goal reminder includes budget guidance', () => {
     const { injector, agent } = makeInjector();
     agent.goal.createGoal('obj', { budget: { turnBudget: 5, tokenBudget: 1000 } });
-    const content = injector.getEphemeral()[0].content as string;
+    const [injection] = injector.getEphemeral();
+    if (injection === undefined) {
+      throw new Error('expected an active-goal ephemeral reminder');
+    }
+    const content = injection.content as string;
     // budget 指引——含剩余轮数/token 提示（具体措辞自由，但应反映 budget 存在）
     expect(content.length).toBeGreaterThan(0);
     // 用 UpdateGoal 完成的指引
@@ -49,7 +54,7 @@ describe('GoalInjector (AC #201 注入)', () => {
     agent.goal.markBlocked('missing dependency');
     const result = injector.getEphemeral();
     expect(result).toHaveLength(1);
-    const content = result[0].content as string;
+    const content = defined(result[0]).content as string;
     expect(content).toContain('missing dependency');
   });
 
@@ -60,7 +65,7 @@ describe('GoalInjector (AC #201 注入)', () => {
     const result = injector.getEphemeral();
     expect(result).toHaveLength(1);
     // paused 档：守卫提示（具体措辞自由，但应与 active 档区分）
-    const content = result[0].content as string;
+    const content = defined(result[0]).content as string;
     expect(content.length).toBeGreaterThan(0);
   });
 
@@ -71,6 +76,6 @@ describe('GoalInjector (AC #201 注入)', () => {
     // complete 瞬态：getSnapshot 返回 status='complete'
     const result = injector.getEphemeral();
     expect(result).toHaveLength(1);
-    expect(result[0].position).toBe('before_user');
+    expect(result[0]?.position).toBe('before_user');
   });
 });

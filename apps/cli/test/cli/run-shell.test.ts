@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { runShell } from '#/cli/run-shell';
 
+import { makeCliOptions } from '../helpers/cli-options';
 import { captureProcessWrite, ExitCalled, mockProcessExit } from '../helpers/process';
 
 type CreateByfDeviceId = (
@@ -137,14 +138,7 @@ describe('runShell', () => {
     mocks.tuiGetCurrentSessionId.mockReturnValue('ses-startup');
 
     const cliOptions = {
-      session: undefined,
-      continue: false,
-      yolo: true,
-
-      model: undefined,
-      outputFormat: undefined,
-      prompt: undefined,
-      skillsDirs: [],
+      ...makeCliOptions({ yolo: true }),
     };
 
     await runShell(cliOptions, '1.2.3-test');
@@ -188,19 +182,7 @@ describe('runShell', () => {
     mocks.detectTerminalTheme.mockResolvedValue('light');
     mocks.tuiStart.mockResolvedValue(undefined);
 
-    await runShell(
-      {
-        session: '',
-        continue: false,
-        yolo: false,
-
-        model: undefined,
-        outputFormat: undefined,
-        prompt: undefined,
-        skillsDirs: [],
-      },
-      '1.2.3-test',
-    );
+    await runShell(makeCliOptions({ session: '' }), '1.2.3-test');
 
     expect(mocks.detectTerminalTheme).toHaveBeenCalledOnce();
     const [, , startupInput] = mocks.byfTuiConstructor.mock.calls[0]!;
@@ -223,21 +205,7 @@ describe('runShell', () => {
     });
     mocks.tuiStart.mockRejectedValue(new Error('boom'));
 
-    await expect(
-      runShell(
-        {
-          session: undefined,
-          continue: false,
-          yolo: false,
-
-          model: undefined,
-          outputFormat: undefined,
-          prompt: undefined,
-          skillsDirs: [],
-        },
-        '1.2.3-test',
-      ),
-    ).rejects.toThrow('boom');
+    expect(runShell(makeCliOptions(), '1.2.3-test')).rejects.toThrow('boom');
 
     expect(mocks.harnessClose).toHaveBeenCalledOnce();
   });
@@ -257,25 +225,11 @@ describe('runShell', () => {
     const exitSpy = mockProcessExit();
 
     try {
-      await runShell(
-        {
-          session: undefined,
-          continue: false,
-          yolo: false,
-
-          model: undefined,
-          outputFormat: undefined,
-          prompt: undefined,
-          skillsDirs: [],
-        },
-        '1.2.3-test',
-      );
+      await runShell(makeCliOptions(), '1.2.3-test');
       const [tui] = mocks.byfTuiConstructor.mock.calls[0]!;
       mocks.harnessTrack.mockClear();
 
-      await expect((tui as { onExit: () => Promise<void> }).onExit()).rejects.toBeInstanceOf(
-        ExitCalled,
-      );
+      expect((tui as { onExit: () => Promise<void> }).onExit()).rejects.toBeInstanceOf(ExitCalled);
 
       expect(stdout.text()).toBe(' Bye!\n');
       expect(stderr.text()).toContain(' To resume this session: byf -r ses-1');

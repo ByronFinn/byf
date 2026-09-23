@@ -5,17 +5,16 @@
  * 超过阈值 → 全量 schema 不进 prompt（公理 C），改由 McpTools 元工具
  * 按需加载（列表 + schema + `<tools_added>` 公告），MCP 工具仍注册可执行。
  */
-import type { Tool } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { MCP_DISCLOSURE_THRESHOLD } from '../../src/agent/tool';
-import type { MCPClient } from '../../src/mcp/types';
+import type { MCPClient, MCPToolDefinition } from '../../src/mcp/types';
 import { testAgent } from '../agent/harness/agent';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
 function manyToolsClient(count: number): MCPClient {
   return {
-    async listTools(): Promise<Tool[]> {
+    async listTools(): Promise<MCPToolDefinition[]> {
       return Array.from({ length: count }, (_, i) => ({
         name: `tool_${String(i).padStart(2, '0')}`,
         description: `Tool number ${String(i)}`,

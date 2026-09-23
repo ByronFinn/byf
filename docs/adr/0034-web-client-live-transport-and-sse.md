@@ -6,6 +6,8 @@
 
 已接受
 
+> **取代（ADR 0042）**：D4 中「回环默认无 token、非回环强制 `WEB_AUTH_TOKEN`」的鉴权假设已被 PRD-0038 R1 取代——回环绑定现每次启动自动生成一次性 token，写操作一律要求它；只读 GET/HEAD 仅在未显式配置 token 的回环模式下免凭证。D4 其余部分（live-only、单用户、不做登录流）与非回环强制 `WEB_AUTH_TOKEN` 不变。门序与理由见 ADR 0042。
+
 ## 背景
 
 byf 此前**没有任何 live agent 传输**：agent 经 `ByfHarness → SDKRpcClient → createByfCore` 完全在进程内运行（`packages/agent-core/src/rpc/client.ts` 用 `setTimeout` + `JSON.stringify` 模拟网络）。`apps/vis` 是只读 replay（读磁盘，不驱动 agent）。`byf web`（PRD-0032）需要把浏览器接到一个**正在运行**的 agent 上：发消息、流式收事件、做审批/问答反向 RPC。

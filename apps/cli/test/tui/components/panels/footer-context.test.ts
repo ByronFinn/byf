@@ -5,6 +5,8 @@ import { FooterComponent, formatFooterGitBadge } from '#/tui/components/chrome/f
 import { darkColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 
+import { defined } from '../../../helpers/defined';
+
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
@@ -100,8 +102,8 @@ describe('FooterComponent — context NaN resilience', () => {
     const on = new FooterComponent(baseState({ model: 'k2', thinkingEffort: 'high' }), darkColors);
     const off = new FooterComponent(baseState({ model: 'k2', thinkingEffort: 'off' }), darkColors);
 
-    expect(strip(on.render(120)[0])).toContain('thinking');
-    expect(strip(off.render(120)[0])).not.toContain('thinking');
+    expect(strip(defined(on.render(120)[0], 'footer line 1'))).toContain('thinking');
+    expect(strip(defined(off.render(120)[0], 'footer line 1'))).not.toContain('thinking');
   });
 
   it('renders transient hints on the context line', () => {

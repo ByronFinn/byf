@@ -5,6 +5,8 @@ import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { darkColors } from '#/tui/theme/colors';
 import type { ToolCallBlockData } from '#/tui/types';
 
+import { defined } from '../../../helpers/defined';
+
 function makeToolCall(overrides: Partial<ToolCallBlockData> = {}): ToolCallBlockData {
   return {
     id: 'tc-1',
@@ -29,10 +31,10 @@ describe('AgentGroupComponent', () => {
 
     const entries = group.getSubagentEntries();
     expect(entries).toHaveLength(2);
-    expect(entries[0].toolCallId).toBe('tc-1');
-    expect(entries[1].toolCallId).toBe('tc-2');
-    expect(entries[0].tc).toBe(tc1);
-    expect(entries[1].tc).toBe(tc2);
+    expect(entries[0]?.toolCallId).toBe('tc-1');
+    expect(entries[1]?.toolCallId).toBe('tc-2');
+    expect(entries[0]?.tc).toBe(tc1);
+    expect(entries[1]?.tc).toBe(tc2);
   });
 
   it('getSubagentEntries() returns empty array for fresh group', () => {

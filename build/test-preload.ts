@@ -97,8 +97,8 @@ function hasExplicitTestTargets(cmd: string[]): boolean {
  * `bun test path/to/file.test.ts` remain allowed.
  */
 function rejectUnisolatedMonorepoRootFullSuite(): void {
-  if (process.env.BYF_TEST_ISOLATED === '1') return;
-  if (process.env.BYF_ALLOW_UNISOLATED_TEST === '1') return;
+  if (process.env['BYF_TEST_ISOLATED'] === '1') return;
+  if (process.env['BYF_ALLOW_UNISOLATED_TEST'] === '1') return;
   if (!isByfMonorepoRoot(process.cwd())) return;
 
   const cmd = readOsCmdline();
@@ -139,11 +139,11 @@ const realHomedir = nodeOs.homedir.bind(nodeOs);
 mock.module('node:os', () => ({
   ...nodeOs,
   homedir(): string {
-    if (typeof process.env.HOME === 'string' && process.env.HOME.length > 0) {
-      return process.env.HOME;
+    if (typeof process.env['HOME'] === 'string' && process.env['HOME'].length > 0) {
+      return process.env['HOME'];
     }
-    if (typeof process.env.USERPROFILE === 'string' && process.env.USERPROFILE.length > 0) {
-      return process.env.USERPROFILE;
+    if (typeof process.env['USERPROFILE'] === 'string' && process.env['USERPROFILE'].length > 0) {
+      return process.env['USERPROFILE'];
     }
     return realHomedir();
   },

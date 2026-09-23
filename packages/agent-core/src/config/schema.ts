@@ -224,6 +224,11 @@ export const ByfConfigSchema = z.object({
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().optional(),
   defaultModel: z.string().optional(),
+  /**
+   * 执行引擎选择（PRD-0037 #327 / ADR-0041 实验开关）：'legacy'（默认，
+   * 现网行为零变化）| 'v2'（AgentHarness dogfood 入口）。仅影响新会话创建。
+   */
+  engine: z.enum(['legacy', 'v2']).optional(),
   models: z.record(z.string(), ModelAliasSchema).optional(),
   thinking: ThinkingConfigSchema.optional(),
   yolo: z.boolean().optional(),
@@ -260,6 +265,7 @@ export const ByfConfigPatchSchema = z
     providers: z.record(z.string(), ProviderConfigPatchSchema).optional(),
     defaultProvider: z.string().optional(),
     defaultModel: z.string().optional(),
+    engine: z.enum(['legacy', 'v2']).optional(),
     models: z.record(z.string(), ModelAliasPatchSchema).optional(),
     thinking: ThinkingConfigPatchSchema.optional(),
     yolo: z.boolean().optional(),

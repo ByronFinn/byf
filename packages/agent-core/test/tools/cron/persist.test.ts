@@ -8,7 +8,7 @@
  * wiring.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { CRON_ID_REGEX, isValidCronTask } from '../../../src/tools/cron/persist';
 import type { CronTask } from '../../../src/tools/cron/types';

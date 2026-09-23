@@ -8,7 +8,7 @@
  * writes only.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { LLM, LLMChatParams, LLMChatResponse } from '../../src/loop/index';
 import { createLoopEventDispatcher, runTurn } from '../../src/loop/index';

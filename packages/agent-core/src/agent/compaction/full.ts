@@ -143,6 +143,10 @@ export interface CompactedHistory {
 type CompactionTelemetryTrigger = CompactionBeginData['source'] | 'manual-with-prompt' | 'unknown';
 
 export class FullCompaction {
+  /**
+   * 自动压缩计数（AC-3.3：压力持续超线时跨轮累计；名称沿用 wire reducer 的
+   * `compactionCountInTurn` 字段，见 resetForTurn 注释）。
+   */
   protected compactionCountInTurn = 0;
   protected compacting: {
     abortController: AbortController;
@@ -253,8 +257,21 @@ export class FullCompaction {
     return this.strategy.shouldBlock(this.tokenCountWithPending, this.maxContextSize);
   }
 
+  /**
+   * 轮开始时的 refill 计数处置（PRD-0038 AC-3.3）：**跨轮累计**，不再每轮无脑
+   * 归零。只有当本轮开始时压力已降到触发线以下（上一轮的压缩/零成本手段真正
+   * 解压了）才重新可用；若总结后回填仍把压力顶在线外，计数继续增长，直至
+   * `maxCompactionPerTurn` 触顶、`beginAutoCompaction` 抛 CONTEXT_OVERFLOW。
+   *
+   * 该计数是 live-only 的临时状态——与旧 `resetForTurn` 同一纪律：不进 wire
+   * reducer、不落新 record，restore 后经 `syncFromWire` 从既有的
+   * full_compaction.begin 计数重建（ADR-0032：reducer 保持纯函数，不为此加
+   * 副作用型 Op）。
+   */
   resetForTurn(): void {
-    this.compactionCountInTurn = 0;
+    if (!this.shouldCompact) {
+      this.compactionCountInTurn = 0;
+    }
   }
 
   async handleOverflowError(signal: AbortSignal, error: unknown) {

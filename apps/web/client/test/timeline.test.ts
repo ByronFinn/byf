@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 
 import { deriveTimeline, deriveTimelineTurns, timelineFocusLineNos } from '../src/lib/timeline';
 import type { AgentRecord, WireEntry } from '../src/types';
@@ -14,7 +14,7 @@ function withLineNo(entries: readonly WireEntry[], start = 1): readonly WireEntr
 describe('deriveTimelineTurns', () => {
   test('fold: user turn + model step + tool call/result', () => {
     const entries = withLineNo([
-      rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: 'user' }),
+      rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: { kind: 'user' } }),
       rec({
         type: 'context.append_loop_event',
         event: { type: 'step.begin', uuid: 'u1', turnId: 't1', step: 1 },
@@ -38,13 +38,13 @@ describe('deriveTimelineTurns', () => {
           type: 'tool.result',
           parentUuid: 'u2',
           toolCallId: 'c1',
-          result: { ok: true, data: '' },
+          result: { output: '' },
         },
       }),
     ]);
     const turns = deriveTimelineTurns(entries);
     expect(turns).toHaveLength(1);
-    const cells = turns[0].cells;
+    const cells = turns[0]?.cells ?? [];
     expect(cells.map((c) => c.kind)).toEqual(['user', 'message', 'tool']);
     expect(cells[0]).toMatchObject({ lineNo: 1, opensTurn: true });
     expect(cells[1]).toMatchObject({ kind: 'message', text: 'Step 1', lineNo: 2 });
@@ -72,12 +72,12 @@ describe('deriveTimelineTurns', () => {
           type: 'tool.result',
           parentUuid: 'u2',
           toolCallId: 'c1',
-          result: { ok: false, isError: true, output: '', message: 'boom' },
+          result: { isError: true, output: '', message: 'boom' },
         },
       }),
     ]);
     const turns = deriveTimelineTurns(entries);
-    expect(turns[0].cells[0]).toMatchObject({ kind: 'tool', isError: true });
+    expect(turns[0]?.cells[0]).toMatchObject({ kind: 'tool', isError: true });
   });
 
   test('orphan tool.result creates no cell', () => {
@@ -88,7 +88,7 @@ describe('deriveTimelineTurns', () => {
           type: 'tool.result',
           parentUuid: 'u0',
           toolCallId: 'ghost',
-          result: { ok: true, data: '' },
+          result: { output: '' },
         },
       }),
     ]);
@@ -97,12 +97,16 @@ describe('deriveTimelineTurns', () => {
 
   test('steer starts a new turn (both turns split by user cells)', () => {
     const entries = withLineNo([
-      rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: 'user' }),
+      rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: { kind: 'user' } }),
       rec({
         type: 'context.append_loop_event',
         event: { type: 'step.begin', uuid: 'u1', turnId: 't1', step: 1 },
       }),
-      rec({ type: 'turn.steer', input: [{ type: 'text', text: 'go on' }], origin: 'agent' }),
+      rec({
+        type: 'turn.steer',
+        input: [{ type: 'text', text: 'go on' }],
+        origin: { kind: 'user' },
+      }),
       rec({
         type: 'context.append_loop_event',
         event: { type: 'step.begin', uuid: 'u2', turnId: 't2', step: 1 },
@@ -110,9 +114,9 @@ describe('deriveTimelineTurns', () => {
     ]);
     const turns = deriveTimelineTurns(entries);
     expect(turns).toHaveLength(2);
-    expect(turns[0].turn).toBe(1);
-    expect(turns[1].turn).toBe(2);
-    expect(turns[1].cells.map((c) => c.kind)).toEqual(['user', 'message']);
+    expect(turns[0]?.turn).toBe(1);
+    expect(turns[1]?.turn).toBe(2);
+    expect(turns[1]?.cells.map((c) => c.kind)).toEqual(['user', 'message']);
   });
 
   test('cells without a prompt anchor land in a null turn', () => {
@@ -124,35 +128,41 @@ describe('deriveTimelineTurns', () => {
     ]);
     const turns = deriveTimelineTurns(entries);
     expect(turns).toHaveLength(1);
-    expect(turns[0].turn).toBeNull();
-    expect(turns[0].cells).toHaveLength(1);
+    expect(turns[0]?.turn).toBeNull();
+    expect(turns[0]?.cells).toHaveLength(1);
   });
 
   test('compaction begin/complete folds into one compacted cell with duration', () => {
     const entries = withLineNo([
-      rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: 'user', time: 0 }),
-      rec({ type: 'full_compaction.begin', createdAt: 1000, time: 1000 }),
+      rec({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: 'hi' }],
+        origin: { kind: 'user' },
+        time: 0,
+      }),
+      rec({ type: 'full_compaction.begin', source: 'auto', time: 1000 }),
       rec({
         type: 'full_compaction.complete',
-        summary: [],
-        removedMessages: 3,
-        createdAt: 4000,
+        summary: '',
+        compactedCount: 3,
+        tokensBefore: 100,
+        tokensAfter: 40,
         time: 4000,
       }),
     ]);
     const turns = deriveTimelineTurns(entries);
-    const compacted = turns[0].cells.find((c) => c.kind === 'compacted');
+    const compacted = turns[0]?.cells.find((c) => c.kind === 'compacted');
     expect(compacted).toMatchObject({ kind: 'compacted', startedAt: 1000 });
-    expect(compacted!.timeSeconds).toBe(3);
+    expect(compacted?.timeSeconds).toBe(3);
   });
 
   test('system records fold into system cells on lane 0', () => {
     const entries = withLineNo([
-      rec({ type: 'config.update', patch: {} }),
+      rec({ type: 'config.update' }),
       rec({ type: 'permission.set_mode', mode: 'yolo' }),
     ]);
     const turns = deriveTimelineTurns(entries);
-    expect(turns[0].cells.map((c) => c.kind)).toEqual(['system', 'system']);
+    expect(turns[0]?.cells.map((c) => c.kind)).toEqual(['system', 'system']);
   });
 });
 
@@ -160,7 +170,11 @@ describe('deriveTimeline', () => {
   test('sequence mode: three lanes, turn boundary at first user cell', () => {
     const turns = deriveTimelineTurns(
       withLineNo([
-        rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: 'user' }),
+        rec({
+          type: 'turn.prompt',
+          input: [{ type: 'text', text: 'hi' }],
+          origin: { kind: 'user' },
+        }),
         rec({
           type: 'context.append_loop_event',
           event: { type: 'step.begin', uuid: 'u1', turnId: 't1', step: 1 },
@@ -220,7 +234,7 @@ describe('deriveTimeline', () => {
         rec({
           type: 'turn.prompt',
           input: [{ type: 'text', text: 'hi' }],
-          origin: 'user',
+          origin: { kind: 'user' },
           time: 0,
         }),
         rec(
@@ -259,7 +273,11 @@ describe('timelineFocusLineNos', () => {
   test('focus interval returns intersecting wire line numbers', () => {
     const turns = deriveTimelineTurns(
       withLineNo([
-        rec({ type: 'turn.prompt', input: [{ type: 'text', text: 'hi' }], origin: 'user' }),
+        rec({
+          type: 'turn.prompt',
+          input: [{ type: 'text', text: 'hi' }],
+          origin: { kind: 'user' },
+        }),
         rec({
           type: 'context.append_loop_event',
           event: { type: 'step.begin', uuid: 'u1', turnId: 't1', step: 1 },

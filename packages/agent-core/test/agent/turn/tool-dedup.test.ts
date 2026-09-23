@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   FORCE_STOP_STREAK,
@@ -228,8 +228,10 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text: string }>;
       expect(arr).toHaveLength(1);
-      expect(arr[0].type).toBe('text');
-      expect(arr[0].text).toBe('hello' + REMINDER_TEXT_1);
+      const [part] = arr;
+      if (part === undefined) throw new Error('expected one trailing text part');
+      expect(part.type).toBe('text');
+      expect(part.text).toBe('hello' + REMINDER_TEXT_1);
     });
 
     it('appends reminder2 to a trailing text part at streak 5', async () => {
@@ -248,8 +250,10 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text: string }>;
       expect(arr).toHaveLength(1);
-      expect(arr[0].type).toBe('text');
-      expect(arr[0].text).toBe('hello' + makeReminderText2('X', 5, { a: 1 }));
+      const [part] = arr;
+      if (part === undefined) throw new Error('expected one trailing text part');
+      expect(part.type).toBe('text');
+      expect(part.text).toBe('hello' + makeReminderText2('X', 5, { a: 1 }));
     });
 
     it('pushes a new text part when trailing part is non-text', async () => {
@@ -268,9 +272,13 @@ describe('ToolCallDeduplicator', () => {
       dedup.endStep();
       const arr = final.output as Array<{ type: string; text?: string }>;
       expect(arr).toHaveLength(2);
-      expect(arr[0].type).toBe('image_url');
-      expect(arr[1].type).toBe('text');
-      expect(arr[1].text).toBe(REMINDER_TEXT_1);
+      const [imagePart, textPart] = arr;
+      if (imagePart === undefined || textPart === undefined) {
+        throw new Error('expected image_url part plus appended text part');
+      }
+      expect(imagePart.type).toBe('image_url');
+      expect(textPart.type).toBe('text');
+      expect(textPart.text).toBe(REMINDER_TEXT_1);
     });
 
     it('preserves isError flag when injecting reminder', async () => {
@@ -347,6 +355,7 @@ describe('ToolCallDeduplicator', () => {
       // Register a dup that captures the leaked deferred.
       const dupCached = dedup.checkSameStep('dup', 'Read', { p: 1 });
       expect(dupCached).not.toBeNull();
+      if (dupCached === null) throw new Error('expected a same-step dup placeholder');
 
       // Next step begins — the leaked deferred should resolve so an awaiter
       // doesn't hang. (In production the dup's finalize would have already
@@ -357,7 +366,7 @@ describe('ToolCallDeduplicator', () => {
       // syntheticCallIds in beginStep, this is no longer tracked — it just
       // returns the placeholder it was passed. The leaked deferred has been
       // resolved with an error result but nothing is awaiting it now.
-      const finalDup = await dedup.finalizeResult('dup', 'Read', { p: 1 }, dupCached!);
+      const finalDup = await dedup.finalizeResult('dup', 'Read', { p: 1 }, dupCached);
       expect(finalDup).toEqual(dupCached);
     });
   });
@@ -373,16 +382,17 @@ describe('PRD-0031 1a force-stop', () => {
       // 第 12 次：prepare 阶段即返回 force-stop 错误（不执行）
       if (i === FORCE_STOP_STREAK - 1) {
         expect(cached).not.toBeNull();
-        expect(cached!.isError).toBe(true);
-        expect(cached!.output as string).toContain('force-stopped');
-        expect(cached!.output as string).toContain('were not executed');
-        expect(cached!.output as string).not.toContain('Command failed with exit code');
+        if (cached === null) throw new Error('expected a force-stop result at the threshold');
+        expect(cached.isError).toBe(true);
+        expect(cached.output as string).toContain('force-stopped');
+        expect(cached.output as string).toContain('were not executed');
+        expect(cached.output as string).not.toContain('Command failed with exit code');
         // finalize 原样保留该错误（不 resolve 其他结果）
         const finalized = await dedup.finalizeResult(
           `c${String(i)}`,
           'Bash',
           { command: 'rm x' },
-          cached!,
+          cached,
         );
         expect(finalized).toEqual(cached);
       } else {

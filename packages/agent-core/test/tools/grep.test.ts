@@ -1,13 +1,14 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, describe, expect, it, afterAll } from 'bun:test';
 import { Readable, type Writable } from 'node:stream';
 
 import type { KaosProcess, StatResult } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import { type GrepInput, GrepInputSchema, GrepTool } from '../../src/tools/builtin/file/grep';
 import { SENSITIVE_DOT_VARIANT_SUFFIXES } from '../../src/tools/policies/sensitive';
 import { ensureRgPath } from '../../src/tools/support/rg-locator';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
+import { vi } from '../_vitest-vi';
 import { executeTool } from './fixtures/execute-tool';
 import { createFakeKaos, toolContentString } from './fixtures/fake-kaos';
 

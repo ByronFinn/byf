@@ -106,3 +106,39 @@ bun --expose-gc scripts/perf/load.ts --mode a --json           # 默认组
   模式 A/C(无 homedir)输出保持内联——这是预期行为,不是错误。
 - 真实 provider 校准(可选):mock 与真实的比例关系验证不在脚本内,需自行注入真实
   `AgentConfig.generate` 包装(见 PRD R1「可选校准」)。
+
+---
+
+# 二进制启动基线与裁决脚本(PRD-0038 R4)
+
+与上面的进程内负载脚本(`load.ts`)相互独立:这三个脚本不改生产代码,一律以真实子进程启动被测物,
+测量结论落在 `docs/perf/REPORT-0038.md`。
+
+| 脚本                  | 职责                                                                  | 产物                                     |
+| --------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| `binary-baseline.mjs` | 三臂(`bun src` / `bun dist` / 编译二进制)冷/热启动 + RSS + 体积 floor | `baselines/linux-x64.json`(基线,即阈值)  |
+| `bytecode-ab.mjs`     | `--bytecode` A/B:体积、启动、native addon 与 SPA 内嵌的功能退化验证   | `/tmp/byf-bytecode-ab/`(临时,重生成即可) |
+| `tui-idle.mjs`        | TUI 空闲 CPU(真机两相位)+ 固定 tick vs draw-on-change 合成对照        | stdout(结论入报告)                       |
+
+```sh
+# 基线复跑(约 2.5 分钟;--skip-cold/--fast 可裁剪),写回仓内基线文件:
+bun scripts/perf/binary-baseline.mjs measure --json=baselines/linux-x64.json
+
+# AC-4.3 环比判定:一条命令、超出基线派生阈值即非零退出并逐格打印差值。
+# 共享 runner 偏吵时加 BYF_PERF_GATE_SLACK=15(百分点),不要改基线。
+bun scripts/perf/binary-baseline.mjs gate
+
+# --bytecode 与 TUI 空闲裁决的复测:
+bun scripts/perf/bytecode-ab.mjs
+bun scripts/perf/tui-idle.mjs --window=3000 --windows=10
+```
+
+- 冷缓存配方是 per-file `posix_fadvise(DONTNEED)`(文件集由 `bun build --metafile` 解出),不用
+  root-only 的 `drop_caches`;eviction 计数为 0 的格子会被如实标成非冷,不冒充 cold 数字。
+- 前置产物:需先有 `apps/cli/dist/main.mjs` 与 `apps/cli/dist-native/bin/<target>/byf`
+  (官方 `build:native` 管线)。早先基线期的 `compile-entry.ts` 生成码缺陷已修复(36064cf,
+  globalThis 写入改计算属性),脚本里「修复中间产物再重放官方 compile 命令」的兜底路径只剩保险
+  作用;实际用了哪种产物来源(`official` / `preexisting` / `repaired-intermediate`)以
+  `native binary source` 一行显式标注。
+- `measure`/`gate` 会以「原地重建 + 逐字节还原」方式临时替换 `apps/cli/dist/main.mjs` 来测
+  `--target bun` 变体;进程中途被杀时从 `/tmp/byf-dist-backup-*` 手动还原。

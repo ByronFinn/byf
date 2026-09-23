@@ -17,7 +17,7 @@ function Chevron({ open }: { open: boolean }): React.JSX.Element {
   return (
     <ChevronRight
       className={cn(
-        'size-3.5 shrink-0 text-fg-subtle transition-transform duration-150',
+        'size-3.5 shrink-0 text-fg-subtle transition-transform duration-(--duration-fast)',
         open && 'rotate-90',
       )}
       aria-hidden

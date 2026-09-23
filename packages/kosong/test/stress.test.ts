@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { APIEmptyResponseError } from '#/errors';
 import { generate } from '#/generate';
@@ -96,11 +96,12 @@ describe('stress: large ToolCall arguments (10KB)', () => {
     const result = await generate(provider, '', [], []);
 
     expect(result.message.toolCalls).toHaveLength(1);
-    expect(result.message.toolCalls[0].arguments).toBe(fullArgs);
-    expect(result.message.toolCalls[0].arguments!.length).toBe(fullArgs.length);
+    const firstArgs = result.message.toolCalls[0]?.arguments ?? '';
+    expect(firstArgs).toBe(fullArgs);
+    expect(firstArgs.length).toBe(fullArgs.length);
 
     // Verify the JSON is parseable and correct
-    const parsed = JSON.parse(result.message.toolCalls[0].arguments!) as {
+    const parsed = JSON.parse(firstArgs) as {
       data: string;
     };
     expect(parsed.data).toBe(largeValue);
@@ -155,13 +156,13 @@ describe('stress: concurrent tool dispatch', () => {
 
     // Results must be in call order (call-1, call-2, call-3), not completion order
     expect(toolResults).toHaveLength(3);
-    expect(toolResults[0].toolCallId).toBe('call-1');
-    expect(toolResults[1].toolCallId).toBe('call-2');
-    expect(toolResults[2].toolCallId).toBe('call-3');
+    expect(toolResults[0]?.toolCallId).toBe('call-1');
+    expect(toolResults[1]?.toolCallId).toBe('call-2');
+    expect(toolResults[2]?.toolCallId).toBe('call-3');
 
-    expect(toolResults[0].returnValue.output).toBe('result-1');
-    expect(toolResults[1].returnValue.output).toBe('result-2');
-    expect(toolResults[2].returnValue.output).toBe('result-3');
+    expect(toolResults[0]?.returnValue.output).toBe('result-1');
+    expect(toolResults[1]?.returnValue.output).toBe('result-2');
+    expect(toolResults[2]?.returnValue.output).toBe('result-3');
 
     // Verify they actually ran concurrently (call-3 should have finished first)
     expect(completionOrder[0]).toBe('call-3');
@@ -197,9 +198,9 @@ describe('stress: tool handler throws exception', () => {
     // toolResults() should contain the runtime error, not re-throw
     const toolResults = await result.toolResults();
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0].returnValue.isError).toBe(true);
-    expect(toolResults[0].returnValue.message).toBe('Error running tool: catastrophic failure');
-    expect(toolResults[0].returnValue.display).toEqual(
+    expect(toolResults[0]?.returnValue.isError).toBe(true);
+    expect(toolResults[0]?.returnValue.message).toBe('Error running tool: catastrophic failure');
+    expect(toolResults[0]?.returnValue.display).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'brief', text: 'Tool runtime error' }),
       ]),
@@ -240,11 +241,11 @@ describe('stress: tool handler throws exception', () => {
 
     expect(toolResults).toHaveLength(2);
     // First tool succeeded
-    expect(toolResults[0].returnValue.isError).toBe(false);
-    expect(toolResults[0].returnValue.output).toBe('success');
+    expect(toolResults[0]?.returnValue.isError).toBe(false);
+    expect(toolResults[0]?.returnValue.output).toBe('success');
     // Second tool errored
-    expect(toolResults[1].returnValue.isError).toBe(true);
-    expect(toolResults[1].returnValue.message).toBe('Error running tool: tool explosion');
+    expect(toolResults[1]?.returnValue.isError).toBe(true);
+    expect(toolResults[1]?.returnValue.message).toBe('Error running tool: tool explosion');
   });
 });
 
@@ -371,7 +372,7 @@ describe('stress: consecutive different type parts', () => {
 
     expect(result.message.content).toHaveLength(1);
     expect(result.message.toolCalls).toHaveLength(2);
-    expect(result.message.toolCalls[0].id).toBe('tc-1');
-    expect(result.message.toolCalls[1].id).toBe('tc-2');
+    expect(result.message.toolCalls[0]?.id).toBe('tc-1');
+    expect(result.message.toolCalls[1]?.id).toBe('tc-2');
   });
 });

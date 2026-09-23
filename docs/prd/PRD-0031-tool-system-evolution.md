@@ -125,7 +125,7 @@
 
 ## Research References
 
-- [本地 agent OS 沙箱四项对比 + 不做沙箱决策](docs/research/spike-local-agent-os-sandbox.md) — codex/Claude Code/grok-build/opencode 收敛到 seatbelt+bwrap 原语；可移植的仅这两个 CLI 原语；opencode「无沙箱」是成文自洽哲学；byf 采纳其立场（ADR-0033）。
+- [本地 agent OS 沙箱四项对比 + 不做沙箱决策](../research/spike-local-agent-os-sandbox.md) — codex/Claude Code/grok-build/opencode 收敛到 seatbelt+bwrap 原语；可移植的仅这两个 CLI 原语；opencode「无沙箱」是成文自洽哲学；byf 采纳其立场（ADR-0033）。
 
 ## Feasible Approaches
 

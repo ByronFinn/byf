@@ -13,6 +13,8 @@ import {
 } from '#/tui/events/compaction-handler';
 import type { AppState, QueuedMessage } from '#/tui/types';
 
+import { defined } from '../../helpers/defined';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -194,7 +196,7 @@ describe('CompactionHandler', () => {
       );
 
       const after = Date.now();
-      const patch = calls.setAppState[0];
+      const patch = defined(calls.setAppState[0], 'setAppState[0]');
       expect(patch.streamingStartTime).toBeGreaterThanOrEqual(before);
       expect(patch.streamingStartTime).toBeLessThanOrEqual(after + 100);
     });

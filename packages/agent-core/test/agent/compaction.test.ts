@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,17 +12,18 @@ import {
   type Message,
   type ToolCall,
 } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';
 import { DefaultCompactionStrategy, type CompactionStrategy } from '../../src/agent/compaction';
 import { HookEngine, type HookEngineTriggerArgs } from '../../src/agent/hooks';
 import type { ByfConfig } from '../../src/config';
 import { ProviderManager } from '../../src/providers/provider-manager';
+import { estimateTokensForMessages } from '../../src/utils/tokens';
+import { vi } from '../_vitest-vi';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createTestHookEngine, testAgent } from './harness/agent';
 import type { TestAgentContext } from './harness/agent';
-import { formatHarnessSnapshot } from './harness/snapshots';
+import { formatHarnessSnapshot, type EventSnapshotEntry } from './harness/snapshots';
 
 type GenerateFn = NonNullable<AgentConfig['generate']>;
 
@@ -470,15 +472,19 @@ describe('Agent compaction', () => {
 
     expect(attempts).toBe(2);
     // First attempt still had image_url; second used full-strip markers.
-    const firstHadImage = seenHistories[0].some((m) =>
+    const [firstHistory, secondHistory] = seenHistories;
+    if (firstHistory === undefined || secondHistory === undefined) {
+      throw new Error(`Expected two recorded histories, got ${String(seenHistories.length)}`);
+    }
+    const firstHadImage = firstHistory.some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
-    const secondHadImage = seenHistories[1].some((m) =>
+    const secondHadImage = secondHistory.some((m) =>
       m.content.some((p) => p.type === 'image_url' || p.type === 'video_url'),
     );
     expect(firstHadImage).toBe(true);
     expect(secondHadImage).toBe(false);
-    const secondText = seenHistories[1]
+    const secondText = secondHistory
       .flatMap((m) => m.content)
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
@@ -1550,6 +1556,333 @@ describe('Agent compaction', () => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 R3 / AC-3.3：压缩顺序与 refill 硬停的可测契约
+//
+// 对标结论（`.qoder/analysis/2026-09-20/10-industry-benchmark.md` 存活 claim）：
+// 压缩 = 先清旧工具输出、仍不够才总结；连续 3 次回填触顶即硬停抛错，且不得抄
+// 诊断文案的因果归因。现实现的**顺序**在 `agent/compaction/full.ts:267-296`
+// （Pass 2 masking → Pass 3 pruning → Pass 4 LLM summarization）已经成立，缺的
+// 是把它固化成可断言的观测；**跨轮 refill** 则无处可测：`compactionCountInTurn`
+// 在 `resetForTurn()`（full.ts:256）被归零，于是"连续 3 次触顶"只能在单轮内生效。
+// ────────────────────────────────────────────────────────────────────────────
+
+const COMPACTION_INSTRUCTION_MARKER = 'compact this conversation context';
+
+/** 真实策略、真实阈值；只把 reservedContextSize 归零以免干扰小窗口算式。 */
+function realStrategy(maxCompactionPerTurn: number): DefaultCompactionStrategy {
+  return new DefaultCompactionStrategy({
+    triggerRatio: 0.85,
+    blockRatio: 0.85,
+    reservedContextSize: 0,
+    maxCompactionPerTurn,
+    maxRecentSteps: 3,
+    maxRecentUserMessages: Infinity,
+    maxRecentSizeRatio: 0.2,
+  });
+}
+
+/**
+ * 计数型 generate：区分"总结请求"（末条 user 携带压缩指令）与"轮次请求"，并像
+ * 真实 provider 那样回报 usage——`ContextMemory.refreshTokenFromStepEnd` 会让
+ * `tokenCountWithPending` 以真实回报为准，不回报就等于凭空把压力清零。
+ */
+function countingGenerate(input: {
+  readonly counters: { summarizer: number; turn: number };
+  readonly summaryChars: number;
+}): GenerateFn {
+  const { counters, summaryChars } = input;
+  return async (_chat, _systemPrompt, _tools, history, callbacks) => {
+    const last = history.at(-1);
+    const lastText =
+      last?.content.map((part) => (part.type === 'text' ? part.text : '')).join('') ?? '';
+    const inputTokens = estimateTokensForMessages(history);
+    if (lastText.includes(COMPACTION_INSTRUCTION_MARKER)) {
+      counters.summarizer += 1;
+      const summary = `S${String(counters.summarizer)} ${'a'.repeat(summaryChars)}`;
+      await callbacks?.onMessagePart?.({ type: 'text', text: summary });
+      return {
+        ...textResult(summary),
+        usage: {
+          inputOther: inputTokens,
+          output: Math.ceil(summaryChars / 4),
+          inputCacheRead: 0,
+          inputCacheCreation: 0,
+        },
+      };
+    }
+    counters.turn += 1;
+    await callbacks?.onMessagePart?.({ type: 'text', text: 'ok' });
+    return {
+      ...textResult('ok'),
+      usage: { inputOther: inputTokens, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
+    };
+  };
+}
+
+/**
+ * 直接落一条工具交换到历史里。刻意**不**在 step.end 上写 usage：注入阶段的
+ * 压力必须完全由内容估算决定，否则"初始超限"这个前提无法断言。
+ */
+function appendToolExchangeForAC33(
+  ctx: TestAgentContext,
+  step: number,
+  toolName: string,
+  outputChars: number,
+): void {
+  const stepUuid = `ac33-step-${String(step)}-${toolName}`;
+  const toolCallId = `ac33-call-${String(step)}-${toolName}`;
+  ctx.agent.context.appendUserMessage([{ type: 'text', text: `u${String(step)}` }]);
+  ctx.dispatch({
+    type: 'context.append_loop_event',
+    event: { type: 'step.begin', uuid: stepUuid, turnId: '', step },
+  });
+  ctx.dispatch({
+    type: 'context.append_loop_event',
+    event: {
+      type: 'tool.call',
+      uuid: toolCallId,
+      turnId: '',
+      step,
+      stepUuid,
+      toolCallId,
+      name: toolName,
+      args: { file_path: `${toolName.toLowerCase()}.txt` },
+    },
+  });
+  ctx.dispatch({
+    type: 'context.append_loop_event',
+    event: { type: 'step.end', uuid: stepUuid, turnId: '', step, finishReason: 'tool_use' },
+  });
+  ctx.dispatch({
+    type: 'context.append_loop_event',
+    event: {
+      type: 'tool.result',
+      parentUuid: toolCallId,
+      toolCallId,
+      result: { output: 'x'.repeat(outputChars) },
+    },
+  });
+}
+
+function historyChars(ctx: TestAgentContext): number {
+  return ctx.agent.context.history.reduce(
+    (total, message) =>
+      total +
+      message.content.reduce(
+        (sum, part) => (part.type === 'text' ? sum + part.text.length : sum),
+        0,
+      ),
+    0,
+  );
+}
+
+function isEventSnapshotEntry(entry: unknown): entry is EventSnapshotEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    'event' in entry &&
+    typeof entry.event === 'string'
+  );
+}
+
+function eventNames(events: ReturnType<TestAgentContext['newEvents']>): string[] {
+  return events.map((entry) => {
+    if (!isEventSnapshotEntry(entry)) {
+      throw new Error(`Unexpected event snapshot entry: ${JSON.stringify(entry)}`);
+    }
+    return entry.event;
+  });
+}
+
+function failedOverflow(
+  events: ReturnType<TestAgentContext['newEvents']>,
+): { reason: string; error?: { code?: string; message?: string } } | undefined {
+  const ended = events.find(
+    (entry): entry is EventSnapshotEntry =>
+      isEventSnapshotEntry(entry) && entry.event === 'turn.ended',
+  );
+  if (ended === undefined) return undefined;
+  const args = ended.args as { reason?: string; error?: { code?: string; message?: string } };
+  if (args.reason !== 'failed') return undefined;
+  return { reason: args.reason, ...(args.error ? { error: args.error } : {}) };
+}
+
+describe('PRD-0038 AC-3.3 compaction order and cross-turn refill hard stop', () => {
+  it('frees space with masking + pruning before spending an LLM summarization', async () => {
+    const counters = { summarizer: 0, turn: 0 };
+    const ctx = testAgent({ generate: countingGenerate({ counters, summaryChars: 200 }) });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: { ...CATALOGUED_MODEL_CAPABILITIES, max_context_tokens: 1_000 },
+    });
+
+    // 4 条旧的 Read 结果（低优先级 → 可遮蔽、可清理）+ 1 条 Write 结果（高优先级
+    // → 永不遮蔽，只能靠总结处理）。前者是"零成本手段"能释放的空间，后者是它释放
+    // 不动的部分——这正是"先清旧工具输出、仍超限才总结"要区分的两件事。
+    for (let step = 1; step <= 4; step++) appendToolExchangeForAC33(ctx, step, 'Read', 2_000);
+    appendToolExchangeForAC33(ctx, 5, 'Write', 2_400);
+    const charsBefore = historyChars(ctx);
+    expect(
+      ctx.agent.context.tokenCountWithPending,
+      '前提：初始压力已在触发线上（0.85 × 1000）',
+    ).toBeGreaterThanOrEqual(850);
+
+    ctx.newEvents();
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'continue' }] });
+    const events = eventNames(await ctx.untilTurnEnd());
+
+    const maskingAt = events.indexOf('observation_masking.applied');
+    const pruningAt = events.indexOf('pruning.applied');
+    const compactionAt = events.indexOf('compaction.started');
+
+    expect(maskingAt, '必须应用 observation masking').toBeGreaterThanOrEqual(0);
+    expect(pruningAt, 'masking 之后仍超限则必须清理旧工具输出').toBeGreaterThanOrEqual(0);
+    expect(pruningAt, 'pruning 必须晚于 masking').toBeGreaterThan(maskingAt);
+
+    // 顺序的直接证据：两趟零成本手段之后已无需总结。
+    expect(compactionAt, '零成本两趟已把上下文压回阈值以下，不应做 LLM 总结').toBe(-1);
+    expect(counters.summarizer, 'LLM 总结调用次数').toBe(0);
+    expect(historyChars(ctx), '空间确实被释放了').toBeLessThan(charsBefore);
+  });
+
+  it('caps consecutive refill compactions across turns, not only within one turn', async () => {
+    const maxCompactions = new DefaultCompactionStrategy().maxCompactionPerTurn;
+    expect(maxCompactions, '边界数值取自真实默认配置').toBe(3);
+    const triggerTokens = Math.floor(4_000 * 0.85);
+
+    // refill 构造：一条高优先级（`Write`，永不被 observation masking 遮蔽、也不被
+    // pruning 清理）的超大工具输出把压力顶过触发线；总结返回的摘要本身仍然超线，
+    // 于是"总结完立刻回填"，下一轮又得再总结一次。
+    const counters = { summarizer: 0, turn: 0 };
+    const ctx = testAgent({
+      generate: countingGenerate({ counters, summaryChars: 14_000 }),
+      compactionStrategy: realStrategy(maxCompactions),
+    });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: { ...CATALOGUED_MODEL_CAPABILITIES, max_context_tokens: 4_000 },
+    });
+    appendToolExchangeForAC33(ctx, 1, 'Write', 16_000);
+    expect(
+      ctx.agent.context.tokenCountWithPending,
+      '前提：单个超大工具输出把压力顶过触发线',
+    ).toBeGreaterThanOrEqual(triggerTokens);
+
+    const summariesAfterTurn: number[] = [];
+    const pressuresAfterCompaction: number[] = [];
+    const failures: Array<{ reason: string; error?: { code?: string; message?: string } }> = [];
+    let turnsUntilStop = 0;
+    for (let turn = 1; turn <= maxCompactions + 1; turn++) {
+      ctx.newEvents();
+      await ctx.rpc.prompt({ input: [{ type: 'text', text: `turn ${String(turn)}` }] });
+      const events = await ctx.untilTurnEnd();
+      const failure = failedOverflow(events);
+      if (failure !== undefined) {
+        // 触顶轮可以不再发起压缩（这正是"停止自动压缩"），因此本轮不断言
+        // compaction.started，只记录硬停事实。
+        turnsUntilStop = turn;
+        failures.push(failure);
+        break;
+      }
+      expect(
+        eventNames(events),
+        `turn ${String(turn)} 前提：未触顶的每一轮都必须发起自动压缩`,
+      ).toContain('compaction.started');
+      summariesAfterTurn.push(counters.summarizer);
+      pressuresAfterCompaction.push(ctx.agent.context.tokenCountWithPending);
+    }
+
+    // refill 前提必须成立：每次总结之后压力仍在线上，于是每轮各再总结一次。
+    for (const pressure of pressuresAfterCompaction) {
+      expect(pressure, '回填：总结之后压力未降到触发线下').toBeGreaterThanOrEqual(triggerTokens);
+    }
+    expect(summariesAfterTurn, '每轮恰好一次自动总结').toEqual(
+      summariesAfterTurn.map((_, index) => index + 1),
+    );
+
+    // ── 契约：连续触顶按累计计数，第 4 次必须硬停 ──────────────────────────
+    expect(failures.length, '跨轮 refill 必须最终硬停，而不是无限烧总结').toBe(1);
+    expect(
+      counters.summarizer,
+      `AC-3.3 要求"连续 ${String(maxCompactions)} 次触顶即停止"：总结总数必须正好是 ${String(
+        maxCompactions,
+      )}（现实现 resetForTurn()（full.ts:256）每轮归零 → 无上限）`,
+    ).toBe(maxCompactions);
+    expect(
+      turnsUntilStop,
+      `硬停必须发生在第 ${String(maxCompactions + 1)} 轮（前 ${String(
+        maxCompactions,
+      )} 轮各一次总结之后），实测第 ${String(turnsUntilStop)} 轮`,
+    ).toBe(maxCompactions + 1);
+
+    // AC-3.3 明写"抛 CONTEXT_OVERFLOW"：只断言 turn 以 failed 结束是不够的，
+    // 错误码是 headless 退出码与 UI 文案的判据（对齐仓内既有 `context.overflow`）。
+    expect(failures[0]?.error?.code, '触顶硬停必须以 context.overflow 错误码抛出').toBe(
+      'context.overflow',
+    );
+
+    // 诊断文案不得臆断根因（对标结论：该因果归因被厂商自己的用户 issue 反证）。
+    const message = String(failures[0]?.error?.message ?? '');
+    expect(message.length, '错误必须带可诊断文案').toBeGreaterThan(0);
+    for (const unsupportedCause of [
+      'provider',
+      'Provider',
+      'network',
+      '网络',
+      '模型',
+      'rate limit',
+      'retry later',
+      '稍后重试',
+    ]) {
+      expect(message, `诊断文案不得断言无法判定的根因：${unsupportedCause}`).not.toContain(
+        unsupportedCause,
+      );
+    }
+  });
+
+  it('re-arms automatic compaction after a turn that did not need it', async () => {
+    // 反向守卫：跨轮累计计数不得退化成"跑过一次就再也不压缩"。真正解压之后夹一轮
+    // 轻松对话，再次超限仍必须允许自动压缩。这条现在是绿的，约束 refill 修复时
+    // 的过度矫正。
+    const counters = { summarizer: 0, turn: 0 };
+    const ctx = testAgent({
+      generate: countingGenerate({ counters, summaryChars: 400 }),
+      compactionStrategy: realStrategy(3),
+    });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: { ...CATALOGUED_MODEL_CAPABILITIES, max_context_tokens: 4_000 },
+    });
+    appendToolExchangeForAC33(ctx, 1, 'Write', 16_000);
+
+    ctx.newEvents();
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'first' }] });
+    expect(eventNames(await ctx.untilTurnEnd()), '超限 → 总结一次').toContain('compaction.started');
+    expect(counters.summarizer).toBe(1);
+    expect(ctx.agent.context.tokenCountWithPending, '这次总结把压力降到了触发线以下').toBeLessThan(
+      3_400,
+    );
+
+    // 轻松的一轮：不该总结，更不该被判成触顶。
+    ctx.newEvents();
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'small talk' }] });
+    const idle = await ctx.untilTurnEnd();
+    expect(eventNames(idle)).not.toContain('compaction.started');
+    expect(failedOverflow(idle)).toBeUndefined();
+    expect(counters.summarizer).toBe(1);
+
+    // 再来一条超大工具输出把压力顶上去：压缩必须重新可用。
+    appendToolExchangeForAC33(ctx, 2, 'Write', 16_000);
+    ctx.newEvents();
+    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'third' }] });
+    expect(eventNames(await ctx.untilTurnEnd()), '再次超限必须允许新的自动压缩').toContain(
+      'compaction.started',
+    );
+    expect(counters.summarizer).toBe(2);
+  });
 });
 
 function once(ctx: TestAgentContext, type: string): Promise<void> {

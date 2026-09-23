@@ -24,13 +24,13 @@ afterEach(() => {
 
 describe('update cache', () => {
   it('returns an empty cache when the file is missing', async () => {
-    await expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
+    expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
   });
 
   it('falls back to an empty cache when the file is corrupt', async () => {
     mkdirSync(join(dir, 'updates'), { recursive: true });
     writeFileSync(getUpdateStateFile(), '{"broken"', 'utf-8');
-    await expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
+    expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
   });
 
   it('falls back to an empty cache when the file has the old npm.json shape', async () => {
@@ -44,7 +44,7 @@ describe('update cache', () => {
       }),
       'utf-8',
     );
-    await expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
+    expect(readUpdateCache()).resolves.toEqual(emptyUpdateCache());
   });
 
   it('writes and reads back the cache from updates/latest.json', async () => {
@@ -57,6 +57,6 @@ describe('update cache', () => {
     await writeUpdateCache(cache);
 
     expect(getUpdateStateFile()).toBe(join(dir, 'updates', 'latest.json'));
-    await expect(readUpdateCache()).resolves.toEqual(cache);
+    expect(readUpdateCache()).resolves.toEqual(cache);
   });
 });

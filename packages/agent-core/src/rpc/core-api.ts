@@ -123,6 +123,8 @@ export interface ExportSessionResult {
 
 export interface ListSessionsPayload {
   readonly workDir: string;
+  /** 只列出该 wire 格式版本的会话（PRD-0037 #322：engine=v2 时传 '2.0' 隐藏旧会话）。 */
+  readonly formatVersion?: string;
 }
 
 export interface CoreInfo {
@@ -140,6 +142,8 @@ export interface SessionSummary {
   readonly pinned?: boolean;
   readonly archived?: boolean;
   readonly metadata?: JsonObject;
+  /** 会话 wire 格式版本（'1.1' | '2.0'，检测自目录布局）。 */
+  readonly formatVersion?: string;
 }
 
 export interface PromptPayload {

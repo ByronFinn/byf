@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { createFakeProviderHarness, readSseData } from './fake-provider-harness';
 
 class ToyJsonAdapter {
   constructor(private readonly baseUrl: string) {}
 
-  async request(prompt: string): Promise<{ echo: unknown }> {
+  async request(prompt: string): Promise<{ id: string; ok: boolean; echo: unknown }> {
     const response = await fetch(`${this.baseUrl}/json`, {
       method: 'POST',
       headers: {
@@ -16,7 +16,7 @@ class ToyJsonAdapter {
     if (!response.ok) {
       throw new Error(`unexpected status ${response.status}`);
     }
-    return (await response.json()) as { echo: unknown };
+    return (await response.json()) as { id: string; ok: boolean; echo: unknown };
   }
 }
 
@@ -68,7 +68,7 @@ describe('e2e: fake provider harness', () => {
       });
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0].pathname).toBe('/json');
+      expect(harness.requests[0]?.pathname).toBe('/json');
     } finally {
       await harness.close();
     }
@@ -86,7 +86,7 @@ describe('e2e: fake provider harness', () => {
       expect(text).toBe('hello');
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0].pathname).toBe('/stream');
+      expect(harness.requests[0]?.pathname).toBe('/stream');
     } finally {
       await harness.close();
     }

@@ -11,8 +11,9 @@
  * `it` keeps Vitest happy.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import type { ContentPart, ModelCapability, TokenUsage } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { createLoopEventDispatcher, runTurn, ToolAccesses } from '../../src/loop/index';
 import type {
@@ -500,17 +501,18 @@ function _typeOnlyChecks(): void {
   void hookShapes;
 
   // LoopEvent is a closed union with the documented variants.
+  const contentPartEvent: LoopEvent = {
+    type: 'content.part',
+    uuid: 'c1',
+    turnId: 't1',
+    step: 1,
+    stepUuid: 's1',
+    part: { type: 'text', text: '' },
+  };
   const _evs: LoopEvent[] = [
     { type: 'step.begin', uuid: 's1', turnId: 't1', step: 1 },
     { type: 'step.end', uuid: 's1', turnId: 't1', step: 1 },
-    {
-      type: 'content.part',
-      uuid: 'c1',
-      turnId: 't1',
-      step: 1,
-      stepUuid: 's1',
-      part: { type: 'text', text: '' },
-    },
+    contentPartEvent,
     { type: 'turn.interrupted', attemptedSteps: 1, activeStep: 1, reason: 'aborted' },
     { type: 'text.delta', delta: '' },
     { type: 'thinking.delta', delta: '' },
@@ -531,7 +533,7 @@ function _typeOnlyChecks(): void {
   void _evs;
 
   // All recorded events are also live events, including completed content parts.
-  const _contentPartLiveEvent: LoopEvent = _evs[2];
+  const _contentPartLiveEvent: LoopEvent = contentPartEvent;
   void _contentPartLiveEvent;
 
   // TurnResult fields

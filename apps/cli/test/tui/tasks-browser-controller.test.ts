@@ -245,7 +245,7 @@ describe('TasksBrowserController', () => {
   });
 
   it('calls stopBackgroundTask when stop confirmed', async () => {
-    const stopFn = vi.fn();
+    const stopFn = vi.fn<(taskId: string, opts: { reason: string }) => Promise<void>>();
     const env = makeEnv({
       stopBackgroundTask: stopFn,
     });
@@ -338,7 +338,9 @@ describe('TasksBrowserController', () => {
   });
 
   it('select changes selectedTaskId and loads tail', async () => {
-    const getOutputSpy = vi.fn().mockResolvedValue('some output');
+    const getOutputSpy = vi
+      .fn<(taskId: string, opts?: { tail?: number }) => Promise<string>>()
+      .mockResolvedValue('some output');
     const env = makeEnv({ getBackgroundTaskOutput: getOutputSpy });
     env.tasks.push(
       task({ taskId: 'bash-aaa', status: 'running' }),
@@ -360,7 +362,9 @@ describe('TasksBrowserController', () => {
   });
 
   it('select is no-op when already selected', async () => {
-    const getOutputSpy = vi.fn().mockResolvedValue('output');
+    const getOutputSpy = vi
+      .fn<(taskId: string, opts?: { tail?: number }) => Promise<string>>()
+      .mockResolvedValue('output');
     const env = makeEnv({ getBackgroundTaskOutput: getOutputSpy });
     env.tasks.push(task({ taskId: 'bash-aaa', status: 'running' }));
     const controller = new TasksBrowserController(env);

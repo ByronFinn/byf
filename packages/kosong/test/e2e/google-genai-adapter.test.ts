@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import { GoogleGenAI } from '@google/genai';
-import { describe, expect, it } from 'vitest';
 
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';

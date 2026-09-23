@@ -4,8 +4,9 @@
  * These tests verify the implementation of cache observability helper functions.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import type { PromptPlan, ProviderCacheCapability } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 describe('Cache Observability - Helper Functions', () => {
   describe('extractCacheBlockHashes', () => {

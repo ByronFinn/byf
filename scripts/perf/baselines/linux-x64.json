@@ -1,0 +1,970 @@
+{
+  "schema": 1,
+  "prd": "PRD-0038 R4",
+  "generatedAt": "2026-09-20T21:59:28.639Z",
+  "durationSec": 148.5,
+  "host": {
+    "platform": "linux",
+    "arch": "x64",
+    "bunVersion": "1.3.14",
+    "kernel": "5.10.16.3-microsoft-standard-WSL2",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12400F",
+    "logicalCpus": 12,
+    "gnuTime": "/usr/bin/time",
+    "evictor": "posix_fadvise",
+    "cacheStates": ["cold(fadvise)", "warm"]
+  },
+  "arms": {
+    "control": {
+      "label": "control: bare `bun -e 0` (fork/exec + runtime init floor)",
+      "argv": ["/home/ubuntu/.bun/bin/bun", "-e", "0"],
+      "cwd": "/home/ubuntu/Projects/byf",
+      "coldFiles": 1
+    },
+    "bunSrc": {
+      "label": "bun ./src/main.ts (source tree)",
+      "argv": ["/home/ubuntu/.bun/bin/bun", "/home/ubuntu/Projects/byf/apps/cli/src/main.ts"],
+      "cwd": "/home/ubuntu/Projects/byf/apps/cli",
+      "coldFiles": 1938
+    },
+    "bunDist": {
+      "label": "bun dist/main.mjs (bundled)",
+      "argv": ["/home/ubuntu/.bun/bin/bun", "/home/ubuntu/Projects/byf/apps/cli/dist/main.mjs"],
+      "cwd": "/home/ubuntu/Projects/byf/apps/cli",
+      "coldFiles": 1746
+    },
+    "native": {
+      "label": "compiled binary",
+      "argv": ["/home/ubuntu/Projects/byf/apps/cli/dist-native/bin/linux-x64/byf"],
+      "cwd": "/home/ubuntu/Projects/byf",
+      "coldFiles": 1
+    },
+    "bunDistBun": {
+      "label": "bun dist/main.mjs rebuilt with --target bun (hypothetical fix)",
+      "argv": ["/home/ubuntu/.bun/bin/bun", "/tmp/byf-perf-baseline-cache/dist-bun/main.mjs"],
+      "cwd": "/home/ubuntu/Projects/byf/apps/cli",
+      "coldFiles": 1
+    }
+  },
+  "nativeBinary": {
+    "path": "/home/ubuntu/Projects/byf/apps/cli/dist-native/bin/linux-x64/byf",
+    "source": "preexisting",
+    "bytes": 113477760
+  },
+  "smoke": {
+    "bunSrc": {
+      "version": true,
+      "help": true,
+      "problems": []
+    },
+    "bunDist": {
+      "version": false,
+      "help": false,
+      "problems": [
+        "exit 1: 116654 |     #caches = new Map;\n116655 |     constructor() {\n116656 |       if (arguments[0] !== kConstruct) {\n116657 |         webidl.illegalConstructor();\n116658 |       }\n116659 |       webidl.util",
+        "exit 1: 116654 |     #caches = new Map;\n116655 |     constructor() {\n116656 |       if (arguments[0] !== kConstruct) {\n116657 |         webidl.illegalConstructor();\n116658 |       }\n116659 |       webidl.util"
+      ]
+    },
+    "native": {
+      "version": true,
+      "help": true,
+      "problems": []
+    },
+    "bunDistBun": {
+      "version": false,
+      "help": false,
+      "problems": [
+        "exit 1: error: Cannot find package 'zod' from '/tmp/byf-perf-baseline-cache/dist-bun/main.mjs'\n\nBun v1.3.14 (Linux x64)\n",
+        "exit 1: error: Cannot find package 'zod' from '/tmp/byf-perf-baseline-cache/dist-bun/main.mjs'\n\nBun v1.3.14 (Linux x64)\n"
+      ]
+    }
+  },
+  "cells": {
+    "control": {
+      "(noop)": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            12.249, 12.683, 13.109, 15.958, 13.102, 12.687, 12.713, 12.901, 12.244, 13.038, 13.105,
+            12.335, 12.443, 13.716, 12.911
+          ],
+          "latency": {
+            "n": 14,
+            "median": 12.8069805,
+            "mean": 12.802515928571427,
+            "stddev": 0.41030200167558833,
+            "mad": 0.4391164679999995,
+            "min": 12.244083,
+            "max": 13.716132,
+            "p25": 12.5029085,
+            "p75": 13.08564175,
+            "interquartileRatio": 1.0466078152935376,
+            "maxOverMedian": 1.070988747113342,
+            "cv": 0.032037372249890464,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 30908,
+            "mean": 30433.333333333332,
+            "stddev": 1013.5343159083512,
+            "mad": 71.1648,
+            "min": 28432,
+            "max": 31016,
+            "p25": 30842,
+            "p75": 30952,
+            "interquartileRatio": 1.003566565073601,
+            "maxOverMedian": 1.0034942409732108,
+            "cv": 0.03279197346668666
+          },
+          "invalid": 0,
+          "procSamples": 272,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1,
+            "evicted": 1,
+            "bytes": 92752752
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            8.954, 9.146, 9.14, 9.534, 9.832, 9.241, 8.901, 8.845, 9.479, 9.159, 9.135, 8.866, 9.02,
+            9.114, 9.151
+          ],
+          "latency": {
+            "n": 15,
+            "median": 9.139857,
+            "mean": 9.167791733333331,
+            "stddev": 0.26953512631234094,
+            "mad": 0.1779668561999999,
+            "min": 8.844842,
+            "max": 9.831517,
+            "p25": 8.986927999999999,
+            "p75": 9.200137999999999,
+            "interquartileRatio": 1.0237244584578846,
+            "maxOverMedian": 1.0756751445892425,
+            "cv": 0.029490081334132577,
+            "dropped": 0
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 31252,
+            "mean": 30990.666666666668,
+            "stddev": 1063.7031451266753,
+            "mad": 83.0256,
+            "min": 27152,
+            "max": 31364,
+            "p25": 31214,
+            "p75": 31308,
+            "interquartileRatio": 1.003011469212533,
+            "maxOverMedian": 1.0035837706386792,
+            "cv": 0.03403632231942517
+          },
+          "invalid": 0,
+          "procSamples": 192,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      }
+    },
+    "bunSrc": {
+      "--version": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            672.917, 669.256, 670.639, 671.916, 669.85, 693.801, 681.681, 686.186, 689.629, 682.432,
+            674.989, 677.96, 671.376, 674.898, 671.053
+          ],
+          "latency": {
+            "n": 15,
+            "median": 674.897711,
+            "mean": 677.2388328666667,
+            "stddev": 7.779012887085153,
+            "mad": 6.314639511599905,
+            "min": 669.256162,
+            "max": 693.800852,
+            "p25": 671.214789,
+            "p75": 682.0565125,
+            "interquartileRatio": 1.016152390676839,
+            "maxOverMedian": 1.0280088977809558,
+            "cv": 0.011526210209779706,
+            "dropped": 0
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 189676,
+            "mean": 189924.8,
+            "stddev": 2186.9740085985736,
+            "mad": 1707.9551999999999,
+            "min": 187384,
+            "max": 194572,
+            "p25": 188516,
+            "p75": 190636,
+            "interquartileRatio": 1.0112457298054276,
+            "maxOverMedian": 1.0258124380522575,
+            "cv": 0.011530051290614383
+          },
+          "invalid": 0,
+          "procSamples": 13503,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1938,
+            "evicted": 1938,
+            "bytes": 104743225
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            565.52, 494.887, 500.091, 496.718, 495.006, 493.267, 505.596, 496.103, 491.803, 493.155,
+            495.655, 505.114, 494.869, 498.199, 499.573
+          ],
+          "latency": {
+            "n": 14,
+            "median": 495.87914950000004,
+            "mean": 497.14539021428567,
+            "stddev": 4.191901912577935,
+            "mad": 3.655975957200009,
+            "min": 491.803462,
+            "max": 505.596033,
+            "p25": 494.87311875,
+            "p75": 499.22957075,
+            "interquartileRatio": 1.0088031696104325,
+            "maxOverMedian": 1.0195952653177645,
+            "cv": 0.008453474837174887,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 190400,
+            "mean": 189905.06666666668,
+            "stddev": 1797.0365870616256,
+            "mad": 2028.1968,
+            "min": 187016,
+            "max": 192296,
+            "p25": 188176,
+            "p75": 191230,
+            "interquartileRatio": 1.0162294872884958,
+            "maxOverMedian": 1.0099579831932772,
+            "cv": 0.009438217369021142
+          },
+          "invalid": 0,
+          "procSamples": 11356,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      },
+      "--help": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            678.183, 675.441, 673.586, 675.592, 669.778, 676.291, 674.68, 684.806, 675.209, 673.028,
+            679.88, 674.853, 765.898, 669.495, 681.608
+          ],
+          "latency": {
+            "n": 14,
+            "median": 675.325022,
+            "mean": 675.8878845714287,
+            "stddev": 4.193257170452358,
+            "mad": 2.9920973292000173,
+            "min": 669.495308,
+            "max": 684.806435,
+            "p25": 673.8597275,
+            "p75": 677.710262,
+            "interquartileRatio": 1.0057141484241614,
+            "maxOverMedian": 1.0140397774273495,
+            "cv": 0.006209243007217284,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 189736,
+            "mean": 190433.86666666667,
+            "stddev": 2327.3032176032984,
+            "mad": 2384.0208,
+            "min": 187756,
+            "max": 194276,
+            "p25": 188304,
+            "p75": 192030,
+            "interquartileRatio": 1.0197871526892683,
+            "maxOverMedian": 1.0239279841463929,
+            "cv": 0.012266007597942923
+          },
+          "invalid": 0,
+          "procSamples": 15136,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1938,
+            "evicted": 1938,
+            "bytes": 104743225
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            538.628, 499.538, 496.031, 499.681, 494.116, 497.439, 497.156, 568.212, 500.985,
+            497.297, 529.514, 505.922, 504.736, 498.239, 497.976
+          ],
+          "latency": {
+            "n": 12,
+            "median": 498.107822,
+            "mean": 499.0930850833333,
+            "stddev": 3.417057976310464,
+            "mad": 2.2262943990000226,
+            "min": 494.11567,
+            "max": 505.922366,
+            "p25": 497.2618205,
+            "p75": 500.00726525000005,
+            "interquartileRatio": 1.0055211251634792,
+            "maxOverMedian": 1.0156884587128607,
+            "cv": 0.006860076925895903,
+            "dropped": 3
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 189344,
+            "mean": 189149.86666666667,
+            "stddev": 1314.731361298175,
+            "mad": 1114.9152,
+            "min": 186804,
+            "max": 190888,
+            "p25": 188298,
+            "p75": 190032,
+            "interquartileRatio": 1.0092088073160628,
+            "maxOverMedian": 1.0081544701706946,
+            "cv": 0.00694361247939293
+          },
+          "invalid": 0,
+          "procSamples": 10795,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      }
+    },
+    "bunDist": {
+      "--version": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            1165.277, 1170.139, 1169.449, 1174.992, 1167.349, 1175.965, 1168.173, 1161.454,
+            1171.946, 1166.005, 1162.888, 1244.332, 1169.227, 1164.114, 1236.62
+          ],
+          "latency": {
+            "n": 13,
+            "median": 1168.172514,
+            "mean": 1168.2290032307692,
+            "stddev": 4.3905219482840945,
+            "mad": 4.292530267200303,
+            "min": 1161.454176,
+            "max": 1175.964718,
+            "p25": 1165.277242,
+            "p75": 1170.138567,
+            "interquartileRatio": 1.004171818366294,
+            "maxOverMedian": 1.0066704223105867,
+            "cv": 0.0037584533925133033,
+            "dropped": 2
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 215160,
+            "mean": 215191.73333333334,
+            "stddev": 391.6601053148483,
+            "mad": 379.5456,
+            "min": 214404,
+            "max": 215820,
+            "p25": 214920,
+            "p75": 215458,
+            "interquartileRatio": 1.00250325702587,
+            "maxOverMedian": 1.0030674846625767,
+            "cv": 0.0018203202515097987
+          },
+          "invalid": 15,
+          "procSamples": 25636,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1746,
+            "evicted": 1746,
+            "bytes": 110887651
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            777.66, 781.424, 824.053, 776.345, 779.945, 778.863, 780.039, 776.249, 786.525, 785.193,
+            776.484, 778.459, 797.935, 779.526, 781.607
+          ],
+          "latency": {
+            "n": 13,
+            "median": 779.525615,
+            "mean": 779.8705644615384,
+            "stddev": 3.202737330394404,
+            "mad": 2.8141705032000477,
+            "min": 776.249412,
+            "max": 786.524682,
+            "p25": 777.65954,
+            "p75": 781.423747,
+            "interquartileRatio": 1.004840430556539,
+            "maxOverMedian": 1.0089786234926994,
+            "cv": 0.004108572276222641,
+            "dropped": 2
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 215336,
+            "mean": 215369.33333333334,
+            "stddev": 294.61322506118483,
+            "mad": 349.8936,
+            "min": 214984,
+            "max": 215844,
+            "p25": 215102,
+            "p75": 215568,
+            "interquartileRatio": 1.0021664140733233,
+            "maxOverMedian": 1.0023591039120259,
+            "cv": 0.0013681559286936918
+          },
+          "invalid": 15,
+          "procSamples": 16830,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      },
+      "--help": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            1178.239, 1165.695, 1166.191, 1174.586, 1162.008, 1168.933, 1176.493, 1179.137,
+            1168.944, 1165.891, 1165.818, 1171.935, 1193.268, 1168.926, 1175.563
+          ],
+          "latency": {
+            "n": 14,
+            "median": 1168.9384245,
+            "mean": 1170.597023357143,
+            "stddev": 5.399005075678926,
+            "mad": 4.717715484300237,
+            "min": 1162.008168,
+            "max": 1179.136865,
+            "p25": 1165.9658275,
+            "p75": 1175.318412,
+            "interquartileRatio": 1.0080213195613574,
+            "maxOverMedian": 1.008724531836963,
+            "cv": 0.004618724958064654,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 215304,
+            "mean": 215288.26666666666,
+            "stddev": 387.48851903114814,
+            "mad": 343.9632,
+            "min": 214284,
+            "max": 215952,
+            "p25": 215102,
+            "p75": 215510,
+            "interquartileRatio": 1.0018967745534677,
+            "maxOverMedian": 1.0030096979155054,
+            "cv": 0.001799727450633282
+          },
+          "invalid": 15,
+          "procSamples": 24329,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1746,
+            "evicted": 1746,
+            "bytes": 110887651
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            777.801, 781.255, 778.921, 777.56, 781.261, 793.058, 782.826, 819.407, 783.532, 779.436,
+            779.726, 781.985, 826.584, 779.136, 774.775
+          ],
+          "latency": {
+            "n": 13,
+            "median": 779.725874,
+            "mean": 780.8669770000001,
+            "stddev": 4.365602442860144,
+            "mad": 2.854206633599929,
+            "min": 774.774512,
+            "max": 793.057742,
+            "p25": 778.920634,
+            "p75": 781.984577,
+            "interquartileRatio": 1.0039335753429277,
+            "maxOverMedian": 1.0170981474958725,
+            "cv": 0.005598893904167331,
+            "dropped": 2
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 215620,
+            "mean": 215593.33333333334,
+            "stddev": 309.6418822415585,
+            "mad": 284.6592,
+            "min": 215072,
+            "max": 216368,
+            "p25": 215384,
+            "p75": 215730,
+            "interquartileRatio": 1.0016064331612375,
+            "maxOverMedian": 1.0034690659493553,
+            "cv": 0.0014360536232332739
+          },
+          "invalid": 15,
+          "procSamples": 16959,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      }
+    },
+    "native": {
+      "--version": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            441.995, 434.868, 431.237, 461, 493.892, 431.843, 431.896, 430.133, 437.899, 502.662,
+            434.307, 434.716, 430.674, 432.993, 436.713
+          ],
+          "latency": {
+            "n": 12,
+            "median": 433.65014099999996,
+            "mean": 434.10630758333326,
+            "stddev": 3.4568384711079703,
+            "mad": 3.1279872560999316,
+            "min": 430.132846,
+            "max": 441.994877,
+            "p25": 431.69178425,
+            "p75": 435.32920025,
+            "interquartileRatio": 1.0084259560471354,
+            "maxOverMedian": 1.0192430146125562,
+            "cv": 0.007971491634100427,
+            "dropped": 3
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 142580,
+            "mean": 142656.26666666666,
+            "stddev": 415.78419310754856,
+            "mad": 367.6848,
+            "min": 142188,
+            "max": 143492,
+            "p25": 142314,
+            "p75": 142796,
+            "interquartileRatio": 1.0033868769059966,
+            "maxOverMedian": 1.0063964090335251,
+            "cv": 0.0029161466763048716
+          },
+          "invalid": 0,
+          "procSamples": 10258,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1,
+            "evicted": 1,
+            "bytes": 113477760
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            314.644, 316.554, 318.798, 317.072, 318.342, 317.258, 318.065, 316.26, 317.465, 315.472,
+            316.622, 317.242, 318.863, 339.599, 317.604
+          ],
+          "latency": {
+            "n": 14,
+            "median": 317.2501295,
+            "mean": 317.16146178571427,
+            "stddev": 1.2012725440900767,
+            "mad": 1.1196750872999637,
+            "min": 314.644396,
+            "max": 318.863326,
+            "p25": 316.5710905,
+            "p75": 317.9493205,
+            "interquartileRatio": 1.0043536192702345,
+            "maxOverMedian": 1.0050849356706093,
+            "cv": 0.003786515535811867,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 143196,
+            "mean": 143163.73333333334,
+            "stddev": 497.5286734977,
+            "mad": 699.7872,
+            "min": 142488,
+            "max": 144084,
+            "p25": 142710,
+            "p75": 143462,
+            "interquartileRatio": 1.0052694275103355,
+            "maxOverMedian": 1.0062012905388418,
+            "cv": 0.003474459297031342
+          },
+          "invalid": 0,
+          "procSamples": 6838,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      },
+      "--help": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            492.204, 433.999, 434.824, 433.284, 431.962, 439.392, 434.461, 434.337, 438.166,
+            434.691, 437.579, 438.179, 437.684, 431.211, 436.905
+          ],
+          "latency": {
+            "n": 14,
+            "median": 434.75764449999997,
+            "mean": 435.4766831428572,
+            "stddev": 2.513310940960059,
+            "mad": 3.6647270037000372,
+            "min": 431.210785,
+            "max": 439.392202,
+            "p25": 434.08365200000003,
+            "p75": 437.6575985,
+            "interquartileRatio": 1.008233312826994,
+            "maxOverMedian": 1.0106600943275652,
+            "cv": 0.005780947092604968,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 142588,
+            "mean": 142653.06666666668,
+            "stddev": 339.07257265047195,
+            "mad": 415.128,
+            "min": 142096,
+            "max": 143280,
+            "p25": 142424,
+            "p75": 142898,
+            "interquartileRatio": 1.0033280907712183,
+            "maxOverMedian": 1.0048531433220187,
+            "cv": 0.002377988138205683
+          },
+          "invalid": 0,
+          "procSamples": 9983,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1,
+            "evicted": 1,
+            "bytes": 113477760
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            320.259, 317.176, 319.981, 319.046, 323.575, 317.634, 318.855, 316.985, 318.454,
+            389.661, 317.924, 319.944, 317.791, 319.864, 319.953
+          ],
+          "latency": {
+            "n": 14,
+            "median": 318.9500695,
+            "mean": 319.1027091428572,
+            "stddev": 1.7112513228514277,
+            "mad": 1.5248674434000205,
+            "min": 316.98479,
+            "max": 323.574979,
+            "p25": 317.8239445,
+            "p75": 319.95027699999997,
+            "interquartileRatio": 1.0066902841551009,
+            "maxOverMedian": 1.0145004185365132,
+            "cv": 0.0053652639911132794,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 143400,
+            "mean": 143423.73333333334,
+            "stddev": 313.4707702633912,
+            "mad": 379.5456,
+            "min": 142712,
+            "max": 143824,
+            "p25": 143248,
+            "p75": 143660,
+            "interquartileRatio": 1.0028761309058416,
+            "maxOverMedian": 1.0029567642956765,
+            "cv": 0.002185988635030622
+          },
+          "invalid": 0,
+          "procSamples": 7945,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      }
+    },
+    "bunDistBun": {
+      "--version": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            110.633, 110.978, 110.506, 110.925, 112.291, 110.393, 113.229, 109.685, 110.878,
+            153.088, 111.715, 109.841, 110.62, 110.741, 112.413
+          ],
+          "latency": {
+            "n": 14,
+            "median": 110.80949000000001,
+            "mean": 111.06064035714283,
+            "stddev": 1.0054982646345896,
+            "mad": 0.5336885568000136,
+            "min": 109.684541,
+            "max": 113.229087,
+            "p25": 110.53469625,
+            "p75": 111.53080175,
+            "interquartileRatio": 1.0090116997991931,
+            "maxOverMedian": 1.0218356478312463,
+            "cv": 0.009074116888676136,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 67060,
+            "mean": 67054.4,
+            "stddev": 115.11782783615352,
+            "mad": 118.60799999999999,
+            "min": 66856,
+            "max": 67240,
+            "p25": 66980,
+            "p75": 67130,
+            "interquartileRatio": 1.002239474469991,
+            "maxOverMedian": 1.0026841634357293,
+            "cv": 0.0017166392459909562
+          },
+          "invalid": 15,
+          "procSamples": 3234,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1,
+            "evicted": 1,
+            "bytes": 92752752
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            101.107, 100.018, 100.868, 100.506, 100.338, 109.733, 101.491, 100.346, 102.093,
+            100.092, 100.145, 100.436, 100.452, 99.713, 99.996
+          ],
+          "latency": {
+            "n": 14,
+            "median": 100.3907955,
+            "mean": 100.54277907142857,
+            "stddev": 0.6476210947951072,
+            "mad": 0.4978555973999917,
+            "min": 99.712993,
+            "max": 102.092707,
+            "p25": 100.10483075,
+            "p75": 100.77727025,
+            "interquartileRatio": 1.0067173531483145,
+            "maxOverMedian": 1.0169528639704823,
+            "cv": 0.006451000727403413,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 67168,
+            "mean": 67163.73333333334,
+            "stddev": 146.15425640968064,
+            "mad": 201.6336,
+            "min": 66976,
+            "max": 67416,
+            "p25": 67038,
+            "p75": 67284,
+            "interquartileRatio": 1.003669560547749,
+            "maxOverMedian": 1.003692234397332,
+            "cv": 0.002175950696904488
+          },
+          "invalid": 15,
+          "procSamples": 2105,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      },
+      "--help": {
+        "cold": {
+          "n": 15,
+          "raw": [
+            110.04, 110.47, 111.715, 110.168, 109.097, 111.525, 110.643, 109.209, 110.193, 110.563,
+            110.518, 110.97, 110.322, 110.214, 111.847
+          ],
+          "latency": {
+            "n": 15,
+            "median": 110.47037,
+            "mean": 110.4996566,
+            "stddev": 0.7906309645003978,
+            "mad": 0.4477852302000142,
+            "min": 109.097369,
+            "max": 111.847407,
+            "p25": 110.18091,
+            "p75": 110.806456,
+            "interquartileRatio": 1.0056774444865269,
+            "maxOverMedian": 1.0124652157859162,
+            "cv": 0.007156950451966421,
+            "dropped": 0
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 67064,
+            "mean": 67077.86666666667,
+            "stddev": 132.32744379361515,
+            "mad": 124.5384,
+            "min": 66912,
+            "max": 67344,
+            "p25": 66970,
+            "p75": 67138,
+            "interquartileRatio": 1.0025085859340004,
+            "maxOverMedian": 1.0041751163068113,
+            "cv": 0.0019731516729335433
+          },
+          "invalid": 15,
+          "procSamples": 2313,
+          "cacheVerified": true,
+          "eviction": {
+            "backend": "posix_fadvise",
+            "requested": 1,
+            "evicted": 1,
+            "bytes": 92752752
+          }
+        },
+        "warm": {
+          "n": 15,
+          "raw": [
+            100.028, 99.87, 100.835, 99.136, 100.414, 202.819, 100.862, 101.073, 100.755, 100.121,
+            99.339, 99.435, 99.529, 99.972, 100.665
+          ],
+          "latency": {
+            "n": 14,
+            "median": 100.07444050000001,
+            "mean": 100.14530942857142,
+            "stddev": 0.6347227211798516,
+            "mad": 0.911761193699993,
+            "min": 99.136426,
+            "max": 101.073188,
+            "p25": 99.6145885,
+            "p75": 100.73229675,
+            "interquartileRatio": 1.011220326930327,
+            "maxOverMedian": 1.0099800458040031,
+            "cv": 0.006342505818754506,
+            "dropped": 1
+          },
+          "rssKb": {
+            "n": 15,
+            "median": 67176,
+            "mean": 67219.46666666666,
+            "stddev": 230.24889224696042,
+            "mad": 166.0512,
+            "min": 66916,
+            "max": 67892,
+            "p25": 67080,
+            "p75": 67306,
+            "interquartileRatio": 1.0033691115086465,
+            "maxOverMedian": 1.010658568536382,
+            "cv": 0.0034275469251959095
+          },
+          "invalid": 15,
+          "procSamples": 4193,
+          "cacheVerified": true,
+          "eviction": null
+        }
+      }
+    }
+  },
+  "rssCrossCheck": {
+    "control": {
+      "gnuTimeKb": 31980,
+      "vmHwmKb": 31252,
+      "relError": -0.022764227642276424
+    },
+    "bunSrc": {
+      "gnuTimeKb": null,
+      "vmHwmKb": 190400,
+      "relError": null
+    },
+    "bunDist": {
+      "gnuTimeKb": null,
+      "vmHwmKb": 215336,
+      "relError": null
+    },
+    "native": {
+      "gnuTimeKb": null,
+      "vmHwmKb": 143196,
+      "relError": null
+    },
+    "bunDistBun": {
+      "gnuTimeKb": 69532,
+      "vmHwmKb": 67168,
+      "relError": -0.033998734395673934
+    }
+  },
+  "sizeFloor": {
+    "bunVersion": "1.3.14",
+    "bunTarget": "bun-linux-x64",
+    "builds": [
+      {
+        "label": "bare",
+        "bytes": 94582912,
+        "buildExit": 0,
+        "buildMs": 246,
+        "buildError": null
+      },
+      {
+        "label": "minify",
+        "bytes": 94582912,
+        "buildExit": 0,
+        "buildMs": 149.9,
+        "buildError": null
+      },
+      {
+        "label": "bytecode",
+        "bytes": 94582912,
+        "buildExit": 0,
+        "buildMs": 151.3,
+        "buildError": null
+      },
+      {
+        "label": "minify+bytecode",
+        "bytes": 94582912,
+        "buildExit": 0,
+        "buildMs": 151.3,
+        "buildError": null
+      }
+    ],
+    "startup": {
+      "bare": {
+        "medianMs": 13.576,
+        "n": 12,
+        "invalid": 0
+      },
+      "minify": {
+        "medianMs": 13.505,
+        "n": 11,
+        "invalid": 0
+      },
+      "bytecode": {
+        "medianMs": 13.394,
+        "n": 12,
+        "invalid": 0
+      },
+      "minify+bytecode": {
+        "medianMs": 13.221,
+        "n": 11,
+        "invalid": 0
+      }
+    },
+    "floor": 94582912,
+    "byfBytes": 113477760,
+    "deltaBytes": 18894848,
+    "deltaMiB": 18.02,
+    "note": "delta over the same-version Bun hello-world floor; re-measure the floor after any Bun upgrade before comparing deltas"
+  },
+  "warnings": [
+    "arm bunDist failed its functional smoke: exit 1: 116654 |     #caches = new Map;\n116655 |     constructor() {\n116656 |       if (arguments[0] !== kConstruct) {\n116657 |         webidl.illegalConstructor();\n116658 |       }\n116659 |       webidl.util; exit 1: 116654 |     #caches = new Map;\n116655 |     constructor() {\n116656 |       if (arguments[0] !== kConstruct) {\n116657 |         webidl.illegalConstructor();\n116658 |       }\n116659 |       webidl.util",
+    "arm bunDistBun failed its functional smoke: exit 1: error: Cannot find package 'zod' from '/tmp/byf-perf-baseline-cache/dist-bun/main.mjs'\n\nBun v1.3.14 (Linux x64)\n; exit 1: error: Cannot find package 'zod' from '/tmp/byf-perf-baseline-cache/dist-bun/main.mjs'\n\nBun v1.3.14 (Linux x64)\n",
+    "bunDistBun: cold set incomplete (metafile build failed (1)) — that cell is warm-only, not cold"
+  ]
+}

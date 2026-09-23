@@ -5,6 +5,7 @@
  * with no ChildProcess dependency.
  */
 
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,9 +13,9 @@ import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../../src/tools/background/manager';
+import { vi } from '../../_vitest-vi';
 
 /**
  * Creates a KaosProcess that completes immediately with the given exit code.

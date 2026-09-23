@@ -1,9 +1,14 @@
-import { readdir, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
-import type { ByfConfig, ByfConfigPatch, PromptInput } from '@byfriends/sdk';
-import { isByfError, maskConfigSecrets, restoreMaskedSecrets } from '@byfriends/sdk';
-import { workspaceTitle } from '@byfriends/sdk';
+import type { ByfConfig, ByfConfigPatch, McpConfigListing, PromptInput } from '@byfriends/sdk';
+import {
+  isByfError,
+  maskConfigSecrets,
+  restoreMaskedSecrets,
+  workspaceTitle,
+} from '@byfriends/sdk';
 import type {
   ActivateSkillBody,
   ApprovalDecisionBody,
@@ -501,12 +506,42 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   // 密钥值服务端掩码后过线（无明文回显）；revision = sha256(磁盘原文)。
 
   r.get('/config/raw', async (c) => {
+    /**
+     * PRD-0038 AC-1.8：外发文本必须先过掩码器。掩码器把认不出键路径身份的形态
+     * （内联表、跨行数组、多行字符串）判为不可掩码并抛错——这里转成可诊断的 422。
+     * 明文密钥不越线优先于"编辑器总能读到东西"。
+     */
+    const maskForResponse = (text: string): string | Response => {
+      try {
+        return maskConfigSecrets(text);
+      } catch (error) {
+        if (isUnmaskableSecretError(error)) {
+          // 只补文案，不动策略：AC-1.8 的"认不出键路径身份就拒绝外发"是有意的取舍。
+          // 但浏览器里只显示 `error` 这一个字符串，而 core 那句话没有回答用户此刻
+          // 最需要的三件事：哪一个文件、磁盘有没有被改动、行号指的是哪份文本
+          // （编辑器这次根本没把文件内容显示出来）。
+          return c.json(
+            {
+              error:
+                `${error.message} File: ${manager.configPath} — nothing was written to disk, ` +
+                'and the line numbers above point at that file on disk (this is why the ' +
+                'editor could not show you its contents).',
+              code: 'CONFIG_SECRET_NOT_MASKABLE',
+            },
+            422,
+          );
+        }
+        throw error;
+      }
+    };
     try {
       const doc = await manager.getConfigDocument();
       const cfg = await manager.getConfig();
+      const masked = maskForResponse(doc.text);
+      if (masked instanceof Response) return masked;
       return c.json({
         path: doc.path,
-        text: maskConfigSecrets(doc.text),
+        text: masked,
         revision: doc.revision,
         parsed: await toConfigResponse(cfg, manager.configPath, manager),
       });
@@ -514,10 +549,18 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       // 磁盘 config.toml 损坏：不返回 500 也不回显解析细节（zod 片段可能
       // 含密钥样文本）——200 + invalid 标志，编辑器仍可编辑/校验（M3）。
       if (isByfError(error) && error.code === 'config.invalid') {
+        // PRD-0038 AC-1.4：损坏态必须回显**磁盘原文**（此前是 `text: ''`，
+        // 用户照着空串保存即清空整个 config.toml）。仍按同一条规则掩码密钥值，
+        // 明文不过线。revision 取 sha256(磁盘原文)（Q8 裁决：与正常态同算法），
+        // 客户端的乐观并发控制因此无需为损坏态特例化。
+        // PRD-0038 AC-1.7：损坏态下服务照样启动，这条回显就是修复旅程的入口。
+        const disk = await readDiskConfigText(manager.configPath);
+        const masked = maskForResponse(disk.text);
+        if (masked instanceof Response) return masked;
         return c.json({
           path: manager.configPath,
-          text: '',
-          revision: null,
+          text: masked,
+          revision: disk.revision,
           parsed: null,
           invalid: true,
         });
@@ -547,10 +590,19 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
   r.put('/config/raw', async (c) => {
     const body = await c.req.json<{ text?: string; expectedRevision?: string | null }>();
     if (typeof body.text !== 'string') return badRequest(c, 'text is required');
+    // PRD-0038 AC-1.4：空（或纯空白）文本一律拒绝，且拒绝发生在读盘与 CAS 之前——
+    // 匹配 revision 不构成"把整个 config.toml（含全部密钥）清空"的放行理由。
+    if (body.text.trim().length === 0) {
+      return badRequest(c, 'config text must not be empty');
+    }
     try {
       // 掩码占位符还原为磁盘原值（ADR-0038 D4），再以原文写盘。
-      const disk = await manager.getConfigDocument();
-      const restored = restoreMaskedSecrets(body.text, disk.text);
+      //
+      // 还原基准正常态取 `getConfigDocument()`；它抛 config.invalid 时改取磁盘原文
+      // ——否则"损坏后经 web 修复"这条旅程会在写端点再断一次（PRD-0038 AC-1.7）。
+      // 写盘侧的 CAS 与合法性校验仍由 core 的 writeConfigDocument 兜底。
+      const baseText = await restoreBaseText(manager);
+      const restored = restoreMaskedSecrets(body.text, baseText);
       const { revision } = await manager.writeConfigText(restored, body.expectedRevision ?? null);
       const cfg = await manager.getConfig();
       return c.json({ config: await toConfigResponse(cfg, manager.configPath, manager), revision });
@@ -779,6 +831,25 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       return badRequest(c, 'name must be a non-empty string');
     }
     try {
+      // AC-1.3。**权威**门在 core 的 `host-rpc.testMcpConnection`（探测唯一必经的
+      // 收口点），这里只是同一规则的提前短路——省下一次 config 读 + 一次 spawn 机会，
+      // 并且让 403 的响应体由 web 自己决定。两处判定重复是 ADR-0006 分层的后果
+      // （web-server 运行时只依赖 `@byfriends/sdk`，拿不到 core 的实现）。
+      // 范围与本文件末尾 `stdioCommandOf` / `listedStdioCommands` 的说明一致：只约束
+      // 可执行文件名，args/env/cwd 不在名单语义覆盖范围内。
+      const command = stdioCommandOf(body.config);
+      if (command !== null) {
+        const listed = listedStdioCommands(await manager.listMcpServerConfigs(workDir));
+        if (!listed.has(command)) {
+          return c.json(
+            {
+              error: `stdio command not declared in any saved MCP scope: ${command}`,
+              code: 'FORBIDDEN',
+            },
+            403,
+          );
+        }
+      }
       const result = await manager.testMcpConnection({
         workDir,
         scope: body.scope,
@@ -787,6 +858,11 @@ export function createApiRouter(manager: WebSessionManager, homeDir: string): Ho
       });
       return c.json(result);
     } catch (error) {
+      // core 的那道门拒绝 → 同样是 403（不能落到 onError 变成 500：调用方给出的
+      // 命令不在名单里是"拒绝"，不是服务器故障）。
+      if (isUnlistedStdioCommandError(error)) {
+        return c.json({ error: error.message, code: 'FORBIDDEN' }, 403);
+      }
       if (isByfError(error) && error.code === 'config.invalid') {
         return c.json({ error: error.message, code: 'CONFIG_INVALID' }, 422);
       }
@@ -1044,6 +1120,113 @@ async function requireRegisteredWorkDir(
 function mcpScopeParam(c: Context): 'user' | 'project' | null {
   const scope = c.req.param('scope');
   return scope === 'user' || scope === 'project' ? scope : null;
+}
+
+/**
+ * PRD-0038 AC-1.8 的拒绝外发判定。
+ *
+ * 掩码器（`maskConfigSecrets`，core 单源经 SDK 透出）对**归一化不出键路径身份**的
+ * 密钥形态抛 `config.invalid`，并在 `details.reason` 标 `secret_not_maskable`。
+ * 它与 AC-1.4 的"磁盘配置损坏"共用一个错误码，但语义相反：损坏态要回显原文供修复，
+ * 不可掩码态必须停止外发。因此 raw 读取路径先判这个 reason，再判损坏。
+ */
+function isUnmaskableSecretError(error: unknown): error is Error {
+  return (
+    isByfError(error) &&
+    error.code === 'config.invalid' &&
+    error.details?.['reason'] === 'secret_not_maskable'
+  );
+}
+
+/**
+ * PRD-0038 AC-1.7：`PUT /config/raw` 的还原基准文本。
+ *
+ * 正常态用 core 的 ConfigDocument；磁盘文本解析不了时退回原文。占位符还原只需要
+ * 磁盘上的密钥值，不需要一份能解析的配置——否则损坏态下唯一的修复入口自己也会 500/422。
+ */
+async function restoreBaseText(manager: WebSessionManager): Promise<string> {
+  try {
+    const doc = await manager.getConfigDocument();
+    return doc.text;
+  } catch (error) {
+    if (isByfError(error) && error.code === 'config.invalid') {
+      return (await readDiskConfigText(manager.configPath)).text;
+    }
+    throw error;
+  }
+}
+
+/**
+ * PRD-0038 AC-1.4 损坏态读取：直接取磁盘原文与其 revision。
+ *
+ * revision 算法与 core `configRevisionForText` 一致（sha256(磁盘原文)，ADR-0038 D2）；
+ * 该助手未从 SDK 透出，因此在本地镜像同一算法，损坏/正常两态对客户端呈现同一语义。
+ * 文件缺失或不可读时返回空文 + null revision（与 core 对缺失文件的语义对齐）。
+ */
+async function readDiskConfigText(
+  path: string,
+): Promise<{ text: string; revision: string | null }> {
+  try {
+    const text = await readFile(path, 'utf-8');
+    return { text, revision: createHash('sha256').update(text, 'utf-8').digest('hex') };
+  } catch {
+    return { text: '', revision: null };
+  }
+}
+
+/**
+ * PRD-0038 AC-1.3（Q3 裁决）的 web 侧短路：`/api/mcp/test` 允许测**尚未保存**的配置
+ * （表单填完先测再存是真实需求），但 stdio `command` 必须来自本机已在任一 scope
+ * 声明过的命令集合。
+ *
+ * 这两函数只是 core 同一规则的本地镜像，**不是**那道保护本身：权威判定在
+ * `packages/agent-core/src/rpc/host-rpc.ts` 的 `testMcpConnection`（探测的唯一收口
+ * 点，所有 host 表面都过它）。这里保留一份的理由是 ADR-0006 分层——web-server
+ * 运行时只依赖 `@byfriends/sdk`，不可能 import core 的实现——加上省掉一次必然被拒
+ * 的 RPC 往返。改语义时两处都要改，测试分别钉住两层（`web-server.test.ts` 的
+ * AC-1.3 组 + `packages/agent-core/test/rpc/host-rpc.test.ts` 的 allowlist 组）。
+ *
+ * 名单约束的**精确范围**（诚实版，ADR-0033：这是尽力而为的护栏，不是安全边界）：
+ * - 只约束可执行文件名。`args` / `env` / `cwd` 仍按请求体原样进入 spawn，所以名单里
+ *   的解释器（`node` / `python` / `sh` …）配上 `-e` / `-c` 之类参数依然是本机代码执行。
+ *   "通过了这道门"不代表"这条配置安全"。
+ * - 不做 command + args 的整份配置比对，因为 AC-1.3 要求保住"保存前先测试"的体验，
+ *   而用户在表单里改的正是 args（`npx -y <新包名>`）。真要收紧到 args，先改 AC-1.3。
+ * - 挡住的是"未经任何本机声明的任意可执行文件"，以及（连同 token 门之后）跨站请求
+ *   把 web 端点当本机进程启动器用的那条路。
+ * 返回 `null` 表示该 config 不含 stdio command（http / sse transport 不受此门约束）。
+ */
+function stdioCommandOf(config: Record<string, unknown>): string | null {
+  const command = config['command'];
+  if (typeof command !== 'string') return null;
+  const trimmed = command.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/** 任一 scope 已保存配置中出现过的 stdio command 集合（与 core 同一判定源）。 */
+function listedStdioCommands(listing: McpConfigListing): Set<string> {
+  const commands = new Set<string>();
+  for (const scope of [listing.user, listing.project]) {
+    for (const server of scope?.servers ?? []) {
+      const config = server.config as unknown as Record<string, unknown>;
+      const command = stdioCommandOf(config);
+      if (command !== null) commands.add(command);
+    }
+  }
+  return commands;
+}
+
+/**
+ * core 侧 AC-1.3 门的拒绝（`host-rpc.testMcpConnection`）。与
+ * {@link isUnmaskableSecretError} 同一手法：按 `details.reason` 认领，不与
+ * `config.invalid`（磁盘配置损坏）混淆。
+ */
+function isUnlistedStdioCommandError(error: unknown): error is Error {
+  return (
+    isByfError(error) &&
+    error.code === 'request.invalid' &&
+    error.details?.['reason'] === 'stdio_command_not_allowlisted'
+  );
 }
 
 function notFound(c: Context, error: string): Response {

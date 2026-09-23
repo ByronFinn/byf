@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { StreamedMessage } from '#/provider';
@@ -156,8 +156,8 @@ describe('e2e: openai-responses adapter', () => {
       });
 
       expect(harness.requests).toHaveLength(1);
-      expect(harness.requests[0].pathname).toBe('/v1/responses');
-      expect(harness.requests[0].headers['authorization']).toBe('Bearer test-key');
+      expect(harness.requests[0]?.pathname).toBe('/v1/responses');
+      expect(harness.requests[0]?.headers['authorization']).toBe('Bearer test-key');
       expect(result.id).toBe('resp_openai_1');
       expect(result.usage).toEqual({
         inputOther: 10,

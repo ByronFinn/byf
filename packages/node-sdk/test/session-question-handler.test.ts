@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { Session, type QuestionHandler, type QuestionRequest, type QuestionResult } from '#/index';
 import type { SDKRpcClient } from '#/rpc';
@@ -68,7 +68,7 @@ describe('Session question handler', () => {
       workDir: '/tmp',
       rpc: rpc.asRpc(),
     });
-    session.setQuestionHandler((request) => ({ [request.questions[0].question]: true }));
+    session.setQuestionHandler((request) => ({ [request.questions[0]!.question]: true }));
 
     await expect(rpc.requestQuestion(session.id, 'main', questionRequest('A?'))).resolves.toEqual({
       'A?': true,

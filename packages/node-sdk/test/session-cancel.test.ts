@@ -1,9 +1,9 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, describe, expect, it, vi, afterAll } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError, Event } from '#/index';
 

@@ -1,3 +1,5 @@
+import { describe, it, expect, vi } from 'bun:test';
+
 import {
   APIConnectionError as AnthropicConnectionError,
   APIConnectionTimeoutError as AnthropicTimeoutError,
@@ -6,7 +8,6 @@ import {
   AuthenticationError as AnthropicAuthenticationError,
   RateLimitError as AnthropicRateLimitError,
 } from '@anthropic-ai/sdk';
-import { describe, it, expect, vi } from 'vitest';
 
 import {
   APIConnectionError,

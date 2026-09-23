@@ -1,5 +1,6 @@
+import { afterEach, describe, expect, it } from 'bun:test';
+
 import { APIProviderRateLimitError, APIStatusError, emptyUsage } from '@byfriends/kosong';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   LLM,
@@ -9,6 +10,7 @@ import type {
   LoopStepRetryingEvent,
 } from '../../src/loop/index';
 import { chatWithRetry } from '../../src/loop/retry';
+import { vi } from '../_vitest-vi';
 
 interface ScriptedLLMOptions {
   readonly responses: readonly LLMChatResponse[];
@@ -17,9 +19,10 @@ interface ScriptedLLMOptions {
 
 class ScriptedLLM implements LLM {
   readonly modelName = 'scripted';
+  readonly systemPrompt = 'scripted system prompt';
   readonly calls: LLMChatParams[] = [];
 
-  private index = 0;
+  private responseIndex = 0;
   private readonly responses: readonly LLMChatResponse[];
   private readonly throwOnIndex: ScriptedLLMOptions['throwOnIndex'];
 
@@ -38,12 +41,19 @@ class ScriptedLLM implements LLM {
 
   async chat(params: LLMChatParams): Promise<LLMChatResponse> {
     this.calls.push(params);
-    const current = this.index;
-    this.index += 1;
-    if (this.throwOnIndex !== undefined && this.throwOnIndex.index === current) {
+    const callIndex = this.calls.length - 1;
+    if (this.throwOnIndex !== undefined && this.throwOnIndex.index === callIndex) {
       throw this.throwOnIndex.error;
     }
-    return this.responses[current];
+    // `responses` scripts the successful replies only, so a call that throws
+    // does not consume a slot. Running out of the script is a test bug and
+    // must fail loudly instead of resolving with `undefined`.
+    const response = this.responses[this.responseIndex];
+    this.responseIndex += 1;
+    if (response === undefined) {
+      throw new Error(`ScriptedLLM ran out of responses at call #${String(callIndex + 1)}`);
+    }
+    return response;
   }
 }
 
@@ -57,6 +67,13 @@ function capturingDispatcher(events: LoopStepRetryingEvent[]): LoopEventDispatch
   return ((event: LoopStepRetryingEvent) => {
     events.push(event);
   }) as LoopEventDispatcher;
+}
+
+/** The single captured `step.retrying` event, or a loud failure. */
+function soleRetryingEvent(events: readonly LoopStepRetryingEvent[]): LoopStepRetryingEvent {
+  const [event] = events;
+  if (event === undefined) throw new Error('expected one step.retrying event');
+  return event;
 }
 
 describe('chatWithRetry', () => {
@@ -86,7 +103,7 @@ describe('chatWithRetry', () => {
 
     expect(events).toHaveLength(1);
     // retryAfterMs of 1 must override the local backoff (which starts at 300ms).
-    expect(events[0].delayMs).toBe(1);
+    expect(soleRetryingEvent(events).delayMs).toBe(1);
     expect(llm.calls).toHaveLength(2);
   });
 
@@ -116,7 +133,7 @@ describe('chatWithRetry', () => {
 
     expect(events).toHaveLength(1);
     // With no server delay, fall back to the first backoff slot (>= 300ms).
-    expect(events[0].delayMs).toBeGreaterThanOrEqual(300);
+    expect(soleRetryingEvent(events).delayMs).toBeGreaterThanOrEqual(300);
   });
 
   it('clamps an absurd server Retry-After so the turn is not hung', async () => {
@@ -153,9 +170,10 @@ describe('chatWithRetry', () => {
       await promise;
 
       expect(events).toHaveLength(1);
+      const event = soleRetryingEvent(events);
       // The delay must be clamped well below the 24h the server asked for.
-      expect(events[0].delayMs).toBeLessThan(dayMs);
-      expect(events[0].delayMs).toBeLessThanOrEqual(60_000);
+      expect(event.delayMs).toBeLessThan(dayMs);
+      expect(event.delayMs).toBeLessThanOrEqual(60_000);
     } finally {
       vi.useRealTimers();
     }

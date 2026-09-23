@@ -156,7 +156,7 @@ function SystemPromptBubble({ text }: { text: string }) {
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-hover"
       >
         <ChevronRight
-          className={`size-3.5 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+          className={`size-3.5 shrink-0 text-fg-subtle transition-transform duration-(--duration-fast) ${open ? 'rotate-90' : ''}`}
           aria-hidden
         />
         <Pill tone="config" variant="solid">

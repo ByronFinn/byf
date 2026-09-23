@@ -9,9 +9,21 @@
  *     only be set for the caller-driven deadline
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { BackgroundProcessManager } from '../../../src/tools/background/manager';
+import { vi } from '../../_vitest-vi';
+
+/**
+ * Bun's published `useFakeTimers` signature only declares `{ now? }`, but the
+ * runtime honours the Vitest `toFake` option. Passing it through a helper whose
+ * return type keeps `now` satisfies the declared type without a cast, while the
+ * `toFake` list still limits faking to the timer globals the never-cleared
+ * deadline needs. `now: Date.now()` matches the default fake-clock start.
+ */
+function fakeTimerOptions(): { now: number; toFake: string[] } {
+  return { now: Date.now(), toFake: ['setTimeout', 'clearTimeout'] };
+}
 
 describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
   const manager = new BackgroundProcessManager();
@@ -22,7 +34,7 @@ describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
   });
 
   it('external deadline marks task failed with timedOut=true', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.useFakeTimers(fakeTimerOptions());
     // A never-resolving completion — only the deadline will fire.
     const hangForever = new Promise<{ result: string }>(() => {});
     const taskId = manager.registerAgentTask(hangForever, 'hang', { timeoutMs: 2_000 });
@@ -76,7 +88,7 @@ describe('BackgroundProcessManager.registerAgentTask — timeoutMs', () => {
   // the `completion` promise here never resolves, so the lifecycle
   // promise's `.finally(clearTimeout)` would not run under real time.
   it('explicit timeoutMs is persisted on the task info', () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.useFakeTimers(fakeTimerOptions());
     const taskId = manager.registerAgentTask(new Promise(() => {}), 'persist timeout', {
       timeoutMs: 1_800_000,
     });

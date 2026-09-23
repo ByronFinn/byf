@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import { GoogleGenAI } from '@google/genai';
-import { describe, expect, it } from 'vitest';
 
 import { APIStatusError } from '#/errors';
 import type { Message } from '#/message';

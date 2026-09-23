@@ -3,11 +3,12 @@
  * `ClockSources`; `BYF_CRON_NO_JITTER=1` pins fire counts on the
  * recurring tests.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ClockSources } from '../../../src/tools/cron/clock';
 import { createCronScheduler, type CronScheduler } from '../../../src/tools/cron/scheduler';
 import type { CronTask } from '../../../src/tools/cron/types';
+import { defined } from '../../helpers/defined';
 
 interface HarnessOptions {
   readonly isIdle?: boolean;
@@ -140,7 +141,7 @@ describe('createCronScheduler — tick behaviour', () => {
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
   });
 
   it('recurring task coalesces missed fires when scheduler sleeps', () => {
@@ -151,8 +152,8 @@ describe('createCronScheduler — tick behaviour', () => {
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBeGreaterThanOrEqual(3);
-    expect(h.fired[0].coalescedCount).toBeLessThanOrEqual(4);
+    expect(h.fired[0]?.coalescedCount).toBeGreaterThanOrEqual(3);
+    expect(h.fired[0]?.coalescedCount).toBeLessThanOrEqual(4);
   });
 
   it('one-shot task fires once then is removed', () => {
@@ -166,14 +167,14 @@ describe('createCronScheduler — tick behaviour', () => {
         recurring: false,
       }),
     );
-    const taskId = h.tasks[0].id;
+    const taskId = defined(h.tasks[0]).id;
 
     // Advance one full day — guaranteed to pass at least one 12:00.
     h.advance(25 * 60 * 60_000);
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
     expect(h.removed).toEqual([taskId]);
     expect(h.tasks).toHaveLength(0);
   });
@@ -191,7 +192,7 @@ describe('createCronScheduler — tick behaviour', () => {
     h.setIdle(true);
     h.scheduler.tick();
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
   });
 
   it('isKilled=true short-circuits even when due and idle', () => {
@@ -233,7 +234,7 @@ describe('createCronScheduler — tick behaviour', () => {
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].task.id).toBe(good.id);
+    expect(h.fired[0]?.task.id).toBe(good.id);
   });
 
   it('only the due task fires when two tasks are scheduled', () => {
@@ -242,13 +243,13 @@ describe('createCronScheduler — tick behaviour', () => {
       makeTask({ cron: '*/5 * * * *', createdAt: h.now(), recurring: true }),
       makeTask({ cron: '0 0 1 1 *', createdAt: h.now(), recurring: true }),
     );
-    const dueId = h.tasks[0].id;
+    const dueId = defined(h.tasks[0]).id;
 
     h.advance(6 * 60_000);
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].task.id).toBe(dueId);
+    expect(h.fired[0]?.task.id).toBe(dueId);
   });
 
   it('recurring fires exactly once per turn even if multiple ideal fires elapse mid-turn', () => {
@@ -265,7 +266,7 @@ describe('createCronScheduler — tick behaviour', () => {
     h.setIdle(true);
     h.scheduler.tick();
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBeGreaterThanOrEqual(3);
+    expect(h.fired[0]?.coalescedCount).toBeGreaterThanOrEqual(3);
   });
 
   it('recurring task whose onFire throws is retried on the next tick', () => {
@@ -288,7 +289,7 @@ describe('createCronScheduler — tick behaviour', () => {
     // Coalesced from the same just-past slot, not a phantom past
     // delivery — the count is the natural 1 (or up to the gap), never
     // skipped to a later period.
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
   });
 
   it('one-shot whose onFire throws is NOT removed and retries on the next tick', () => {
@@ -303,14 +304,14 @@ describe('createCronScheduler — tick behaviour', () => {
         recurring: false,
       }),
     );
-    const taskId = h.tasks[0].id;
+    const taskId = defined(h.tasks[0]).id;
 
     h.advance(6 * 60_000);
     h.scheduler.tick();
     expect(h.fired).toHaveLength(0);
     // Critical: still present in the store, not removed.
     expect(h.tasks).toHaveLength(1);
-    expect(h.tasks[0].id).toBe(taskId);
+    expect(h.tasks[0]?.id).toBe(taskId);
     expect(h.removed).toEqual([]);
 
     // Recover — delivery succeeds and removeOneShot runs.
@@ -383,7 +384,7 @@ describe('createCronScheduler — getNextFireForTask', () => {
   it('returns the same value getNextFireTime would for a single-task store', () => {
     const h = createHarness();
     h.tasks.push(makeTask({ cron: '*/5 * * * *', createdAt: h.now(), recurring: true }));
-    const taskId = h.tasks[0].id;
+    const taskId = defined(h.tasks[0]).id;
     const aggregate = h.scheduler.getNextFireTime();
     const perTask = h.scheduler.getNextFireForTask(taskId);
     expect(perTask).not.toBeNull();
@@ -406,14 +407,14 @@ describe('createCronScheduler — getNextFireForTask', () => {
         recurring: true,
       }),
     );
-    const taskId = h.tasks[0].id;
+    const taskId = defined(h.tasks[0]).id;
 
     // Burn one fire so lastSeenAt advances onto a known 5-min slot;
     // from this point the period structure is regular.
     h.advance(6 * 60_000 + 30_000);
     h.scheduler.tick();
     expect(h.fired).toHaveLength(1);
-    const firedAtIdeal = h.fired[0].task; // proves we delivered
+    const firedAtIdeal = defined(h.fired[0]).task; // proves we delivered
 
     // The next ideal sits 5 min after the previous ideal. Capture
     // `getNextFireForTask` as the source of truth, then advance just
@@ -476,7 +477,7 @@ describe('createCronScheduler — start/stop lifecycle', () => {
     expect(h.fired.length).toBeGreaterThanOrEqual(1);
     // Coalesced to a single fire — auto-ticks subsequent to the first
     // see lastSeenAt = now and have nothing new to fire.
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
   });
 
   it('stop() is idempotent and clears state', async () => {
@@ -523,7 +524,7 @@ describe('createCronScheduler — jitter integration', () => {
     h.scheduler.tick();
 
     expect(h.fired).toHaveLength(1);
-    expect(h.fired[0].coalescedCount).toBe(1);
+    expect(h.fired[0]?.coalescedCount).toBe(1);
   });
 
   it('one-shot task always reports coalescedCount=1 even after a long backlog', () => {
@@ -545,7 +546,7 @@ describe('createCronScheduler — jitter integration', () => {
       h.scheduler.tick();
 
       expect(h.fired).toHaveLength(1);
-      expect(h.fired[0].coalescedCount).toBe(1);
+      expect(h.fired[0]?.coalescedCount).toBe(1);
       expect(h.removed).toEqual([task.id]);
     } finally {
       delete process.env['BYF_CRON_NO_JITTER'];
@@ -588,6 +589,6 @@ describe('createCronScheduler — jitter integration', () => {
     h.advance(60_000);
     h.scheduler.tick();
     expect(h.fired).toHaveLength(2);
-    expect(h.fired[1].coalescedCount).toBe(1);
+    expect(h.fired[1]?.coalescedCount).toBe(1);
   });
 });

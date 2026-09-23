@@ -10,15 +10,11 @@
 
 ### vis
 
-BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA）。运行在本地，读取 `$BYF_HOME/sessions` 下的会话记录并渲染为可浏览的时间线/树形视图。开发态通过 monorepo 的 `vis` 脚本（API + Vite web 双端口）启动；发布态通过 `byf vis`（进程内单端口服务）启动。工具链迁移后开发入口以 Bun 为准（见「开发工具链契约」）。
-
-> **已弃用（PRD-0035）**：其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台；`byf vis` 在弃用期内成为 `byf web` 的别名（默认端口仍 3001），此后随 `@byfriends/vis-server` shim 一并移除。
+历史工具名（已删除）：BYF 曾经的独立会话与 replay 可视化调试工具（Hono API server + React/Vite SPA），读取 `$BYF_HOME/sessions` 下的会话记录渲染为可浏览的时间线/树形视图。其全部能力（Inspector 模块、视觉 token、三栏骨架）已并入 `apps/web` 统一工作台（ADR-0037），`apps/vis` 整棵树随 PRD-0038 R5 删除，monorepo 也已不存在 `vis` 开发脚本。现状：`byf vis` 是弃用期别名，与 `byf web` 共用 `@byfriends/web-server` 的 `startWebServer`（差异只剩默认端口 3001 与 `VIS_AUTH_TOKEN` 兼容转发），启动时打印一行弃用提示；会话 / replay 检视在统一工作台的 Inspector。
 
 ### vis-server
 
-承载 vis 的 HTTP 服务（`@byfriends/vis-server`）。提供 `/api/sessions/*` 接口并托管 web SPA 静态产物（构建后的 `public/`）。可通过 `byf vis` 子命令在进程内启动（导入 `startVisServer`），也可独立启动服务入口（库入口供程序化导入）。端口、主机、BYF_HOME 走环境变量（`PORT` 默认 3001、`VIS_HOST` 默认 127.0.0.1、非回环绑定时 `VIS_AUTH_TOKEN` 必填）。独立启动的解释器与库运行时契约一致（Bun，不再以 Node 为官方路径）。
-
-> **已弃用（PRD-0035）**：弃用期内保留一个版本 shim（导出 `startWebServer`/类型别名，标注 deprecated），其路由能力与 Inspector 读取逻辑已由 `@byfriends/web-server` + `agent-core` 的 Inspector 取代。
+已删除的包（`@byfriends/vis-server`）：历史上承载 vis 的 HTTP 服务。它的公开契约（`startVisServer`、`VIS_HOST` 默认 `127.0.0.1`、非回环绑定时 `VIS_AUTH_TOKEN` 必填、独立启动入口）在代码中已不存在——包本体与 workspace、`build:vis`、dev 脚本、release 挂点一并在 PRD-0038 R5 移除（ADR-0037 D1 定下的"保留一个版本 shim 后弃用"窗口已走完）。今天唯一的本地 HTTP 服务是 `@byfriends/web-server`（见「web 客户端 / web-client（`apps/web`）」与 ADR-0042）；`VIS_AUTH_TOKEN` 这个名字仅在 `byf vis` 别名路径上作为兼容输入被读取（`WEB_AUTH_TOKEN` 未设置时转发为它）。
 
 ### 开发工具链契约
 
@@ -90,35 +86,49 @@ BYF 的会话与 replay 可视化调试工具（Hono API server + React/Vite SPA
 
 `agent-core` 中的核心类。持有子系统引用（ContextMemory、ConfigState、ToolManager、PermissionManager、FullCompaction、BackgroundManager、AgentRecords、TurnFlow、InjectionManager、UsageRecorder、SkillManager、HookEngine、ReplayBuilder）。必须可独立使用——构造函数不能强制调用者创建 Session 实例，也不能要求 `agentId` 或 `session`。
 
+> **目标态（PRD-0037 / ADR-0041）**：将被并行新建的 `AgentHarness` 取代（lane 操作面、唯一 records 写者、恢复归约）；旧 Agent 冻结只修 bug，Phase 4 默认切换后删除。切换前本条款继续有效。
+
 ### Session
 
 `agent-core` 中的外层生命周期容器。拥有 `SkillRegistry`、`McpConnectionManager` 和 `Agent` 实例映射（主代理 + 子代理）。创建代理、加载技能和 MCP 服务器、管理元数据、触发 hooks。
+
+> **目标态（PRD-0037）**：降为可注入的存储对象（entries 树 + lanes + records + facts，实现 SessionTree），内存后端即可独立运行；现生命周期容器职责（agents 注册表/RPC/subagent-host）随切换解体。
 
 ### Turn
 
 单个对话周期：用户提示 → LLM 循环 → 工具调用 → 响应。由 `TurnFlow` 编排，驱动无状态的 `loop/runTurn()`。一个会话包含多个 turns。每个 turn 的开始通过 `turn.prompt`（或 `turn.steer`）记录锚定在 wire records 中；turnId 本身是内存计数器（不持久化到 wire），在 fork 时重置，因此 wire 锚点是定位 turn 的唯一稳定方式。参见 ADR-0020。
 
+> **目标态（PRD-0037）**：由 **Run（操作）** 取代——被接受的 prompt 是持久操作（operation_started 配对 operation_finished），runId 持久稳定；自动续跑（工具链、steering、follow-up、goal 续跑、自动压缩）全部发生在同一个 run 内。ADR-0020 的 wire 锚点机制随树导航落地后作废。
+
 ### Fork（会话 Fork）
 
 从现有会话创建新会话，原会话不变。实现为完整目录复制 + `state.json` 重写，可选择在用户选定的消息处截断（`upToMessage`）。与 git 分支不同——操作的是会话记录，而非工作树文件。
+
+> **目标态（PRD-0037）**：改为 **entries-only 复制**——只复制对话树条目（无 records、无队列，fork 天生 idle），子会话 id 由 `f(parentSessionId, toolCallId)` 确定性派生；运行中会话可 fork（读 committed prefix）。目录复制 + 截断机制随之废弃。
 
 ### upToMessage
 
 可选的 fork 参数：用户消息的从 1 开始的序号（`origin.kind === 'user'` 的 `turn.prompt`/`turn.steer` 记录）。设置后，fork 后的会话的 `wire.jsonl` 会在该记录之前截断——选定的消息及其之后的内容全部丢弃，新会话从该消息之前的位置继续，用户可以重新输入。省略则完整复制（向后兼容）。
 
+> **目标态（PRD-0037）**：随截断式 fork 一并废弃；编辑消息语义由树上任意 message entry 的 branch fork + 导航承载。
+
 ### Fork Rewind
 
 `/fork` 命令的可选回退能力：从用户选定的历史消息处分叉新会话，丢弃该消息及之后所有内容（包括它产生的子代理）。编辑消息语义（类似 Claude Code 的编辑消息 fork），而非检查点语义。选定的消息通过序号识别，而非 turnId（turnId 在 fork 后不稳定）。
 
+> **目标态（PRD-0037）**：语义保留，实现换为 tree fork（在选定 message entry 处分叉），不再依赖序号锚点。
+
 ### Wire Records
 
-事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）和 vis 调试。
+事件溯源持久化层（`WireService`，PRD-0027 起独占 `wire.jsonl`）。所有状态变更以 JSONL 记录到 `wire.jsonl`，支持协议版本迁移。用于会话恢复（restore 重放重建内存状态）与 Inspector 只读检视（统一工作台）。restore 重放重建的是**上下文**，不重放、也不撤销工具调用已经产生的效果；按重放安全分类（只读 / 本机副作用 / 远程不可逆，PRD-0038 AC-3.4），不可重放档的悬空调用以合成观察收尾，而不是回滚。
 
 **两类 record**：(1) 已注册 Op 的 record——restore 时由 wire 引擎 silent 重放（纯 apply 重建状态），live 写路径统一走 `dispatch`；(2) transient record（`persist:false`，如 `context.output_offloaded`/`context.pruning`）——只改内存不落盘，journal 中如出现旧版本写入的同名记录，restore 时按 schema 可选字段静默 no-op。唯一的 legacy 路由残留是 `context.observation_masking`（apply 需读 config 的 maxContextSize），restore 经 `restoreRecord` 重跑 masking；未知/损坏 record 按 replay tolerance 跳过并计数。
 
+> **目标态（PRD-0037 / ADR-0040）**：由 wire 协议 2.0 取代——entries（对话树）与 records（lane 操作日志）分离存储，单调 seq 贯穿；会话级单文件（lane 为信封字段）。旧 1.1 会话不保证可打开（列表隐藏）。归约哲学（状态=记录的归约）延续。
+
 ### wire 折叠 (wire fold) / 投影函数 (projection function)
 
-把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 `apps/vis` 的 `projectContext` 共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
+把 wire record / loop event 流重建为 `ContextMessage[]` 时间线的过程称为 **wire 折叠**。实现为 `agent/context/wire-fold.ts` 中的纯函数折叠 API（`createWireFoldState`、`foldLoopEvent`、`foldAppendMessage`、`foldApplyCompaction`、`resetWireFoldState` 等），由内核 `ContextMemory`（经 `context` wire Model 共享状态，PRD-0027 Phase 5）与 Inspector 的 `projectContext`（`session/inspector/context-projector.ts`，自历史的 `apps/vis` 上移）共用。折叠是同步纯函数（无 effect ports、无 async），返回本次提交到时间线的消息；副作用（background 投递、replay builder、token 快照、输出卸载写 scratch）全部在 service 层：live 走 `ContextMemory` 方法、restore 走 `Agent.onReplayRecord`。区别于 `agent/context/projector.ts` 的 `project()`——后者是「已折叠 history → provider 请求体」的投影，是另一层（见「投影 (Project)」）。
 
 ### wire reducer（Op / Model）
 
@@ -163,7 +173,7 @@ PRD-0027 引入的声明式 event-sourcing 架构（自研，借鉴 kimi `agent-
 
 ### 压缩 (Compaction)
 
-对旧的对话历史进行摘要，以保持在上下文限制内。手动触发或在上下文溢出时自动触发。压缩事件记录在 wire records 中，并在 vis 中显示为 ribbon。
+对旧的对话历史进行摘要，以保持在上下文限制内。手动触发或在上下文溢出时自动触发。压缩事件记录在 wire records 中，并在统一工作台 Inspector 的 context 视图显示为 ribbon（`CompactionRibbon`）。
 
 ### 思考 (Thinking)
 
@@ -293,7 +303,7 @@ env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（�
 
 将超过阈值（约 8000 token）的完整工具输出写入临时文件，将工具结果替换为预览（1000 字符）加文件引用。代理可按需重新读取。临时文件按大小/时间限制管理，防止无限制增长。
 
-**Live-only 语义**：offload 是 live 时基于当前 token 压力的临时优化，restore 路径有意跳过它（恢复后的 `_history` 携带原始完整输出，下次 turn 的 `beforeStep` 会重做压缩）。临时文件易失不可恢复。`context.output_offloaded` wire record 写入仅作 vis 调试徽章；在 `ContextMemory.restoreRecord` 中为**显式 no-op case**（非遗漏）。`context.pruning` 同理——记录 live 裁剪事件，restore 重建原始未裁剪内容后由 `beforeStep` 重做。
+**Live-only 语义**：offload 是 live 时基于当前 token 压力的临时优化，restore 路径有意跳过它（恢复后的 `_history` 携带原始完整输出，下次 turn 的 `beforeStep` 会重做压缩）。临时文件易失不可恢复。`context.output_offloaded` wire record 写入仅作 Inspector 调试徽章；在 `ContextMemory.restoreRecord` 中为**显式 no-op case**（非遗漏）。`context.pruning` 同理——记录 live 裁剪事件，restore 重建原始未裁剪内容后由 `beforeStep` 重做。
 
 ### AGENTS.md 预算 (AGENTS.md Budget)
 
@@ -303,9 +313,13 @@ env-key 门控、对真实 provider API 验证缓存行为的 opt-in 测试（�
 
 用户给出的、有可验证终态的自主任务目标。通过 `/goal <objective>` 启动。每个 agent 至多持有一个 current goal，作为 agent 的持久化结构状态（由 `GoalMode` 子系统拥有，从 wire records 重建），而非对话中的文本约定。状态机：`active`（推进中）/ `paused`（用户或中断暂停，可 resume）/ `blocked`（系统判定无法推进，可 resume）/ `complete`（瞬态，宣告即清空）。终态决策权三权分立：模型经 `UpdateGoal` 工具判定完成/阻塞，用户经 slash 命令暂停/取消，runtime 经预算/中断判定停止。
 
+> **目标态（PRD-0037）**：goal 状态存为 lane 路径上的 custom entries（点查询还原）；goal 续跑由 `before_run_end` hook 返回 followUp 驱动（同一 run 内继续）；域语义（状态机、三权分立、预算）不变。fork 清空 goal 自动满足（fork 点之前的 goal entry 不被复制）。
+
 ### Goal Mode（目标模式）
 
 agent 自主多轮推进一个 active goal 的运行模式。`driveGoal` 在 turn 边界读 goal 状态决定续跑或停止——把"用户敲 continue"自动化。每个 continuation turn 是 goal driver 自动发起的 turn，origin 为 `{kind:'system_trigger', name:'goal_continuation'}`。goal reminder 走 ephemeral injection（ADR-0022），不进 wire。fork 总是清空 goal（ADR-0023）。终态停止靠 driver 边界读状态，不改 loop 层（ADR-0024）。`complete`（模型经 `UpdateGoal` 声明）是成功终态，渲染 completion 卡片；`cancel`（用户经 slash 主动丢弃）不是成功终态，只渲染低存在感 lifecycle marker，不渲染 completion 卡片。参见 PRD-0019。
+
+> **目标态（PRD-0037）**：driveGoal 的续跑判定并入 harness 的收尾边界（before_run_end → followUp）；goal reminder 的 ephemeral 注入机制不变。
 
 ### Goal Reminder（目标提醒）
 
@@ -355,7 +369,7 @@ byf 配置文件的两层模型：**全局**（用户级，`~/.byf/` 下）与**
 
 ### web 客户端 / web-client（`apps/web`）
 
-浏览器中实时驱动 agent 的 Web UI。三包拆分（`apps/web/{shared,server,client}`，镜像 `apps/vis`）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
+浏览器中实时驱动 agent 的 Web UI，也是唯一的本地 HTTP 服务面（`byf vis` 只是它的弃用别名；鉴权门见 ADR-0042）。三包拆分（`apps/web/{shared,server,client}`；结构当初镜像 `apps/vis`，该树已随 PRD-0038 R5 删除）：web-server（Hono + SSE，ADR 0034）驱动 live agent，web-client（React SPA）渲染对话，Inspector 只读检视能力自 `apps/vis` 上移 core（ADR-0037）。PRD-0032 建立传输骨架，PRD-0033 重设计 UI 视觉层，PRD-0034 补齐会话组织/分叉、过程观测、富内容渲染与访问/配置管理。
 
 ### 三层设计 token
 
@@ -390,3 +404,111 @@ apiKey 的管理语义：仅接受写入、任何读取路径恒脱敏（仅报�
 ### settle 后渲染 (render-after-settle)
 
 web 客户端流式渲染策略：流式期间保持纯文本，块完结（settle）后再做语法高亮、Mermaid 图表、LaTeX 公式等重渲染，避免每帧重排抖动（沿 PRD-0033 高亮决策推广到图表与公式）。
+
+### 回环自动 token (loopback auto token)
+
+`byf web` 在回环绑定、且用户未配置 `WEB_AUTH_TOKEN` 时，由 `generateAuthToken` 每次启动生成的随机 token（48 位十六进制，重启即更换）。`resolveAuthToken` 的 `explicit` 标记区分"显式配置值"（LAN 模式）与"本次启动自动 token"：**写操作在任何模式下都要求 token**；只有非 explicit（回环自动 token）时只读 GET/HEAD 才免 token，以免破坏 SPA 首屏与 SSE。token 经启动横幅 `token=` 与 CLI 自动打开的 URL `?token=` 交付。见 ADR-0042、`apps/web/server/src/app.ts`。
+
+### x-byf-requested-with（标记头契约）
+
+非浏览器调用者向 web-server 声明"这是 byf 客户端在有意调用"的契约头（常量 `BYF_REQUESTED_WITH_HEADER`）。带显式跨源 `Origin` 的写一律 403——标记头不是跨源豁免；不带 `Origin` 的调用者（本机脚本 / 集成方）必须自带此头。它可被任何本机进程轻易伪造：证明的是调用意图，不是身份。web client 也恒带此头，使门判定不依赖各浏览器发送 `Origin` 的差异。见 ADR-0042 D1/D4。
+
+### stdio 命令白名单 (stdio command allowlist)
+
+`/api/mcp/test` 的治理门（PRD-0038 AC-1.3 / Q3 裁决）：请求体指定的 stdio `command` 必须是任一 scope 已保存 MCP 配置中出现过的命令名，否则 403 且不 spawn 任何进程；未保存的配置仍可测（填完先测再存是真实需求），但命令来源从"请求体任意值"收窄到"本机已声明的集合"。http/sse transport 不经过此门。写门落地时在 web 路由层（`stdioCommandOf` / `listedStdioCommands`）于 probe 之前执行。见 ADR-0042 D5。
+
+### 密钥占位符的「键路径身份」 (key-path identity of secret placeholders)
+
+raw 配置编辑器中密钥值的掩码占位符按**键路径**标注归属（`__BYF_KEEP_SECRET__<键路径>`；路径中的引号/控制符经 `encodeSecretPath` 折叠为 `~`），保存还原时"这个占位符属于哪个密钥"由键路径唯一决定、与行序无关——早期的按行序编号方案会在重排 provider 块时跨 provider 错配、删一行静默丢密钥（PRD-0038 AC-1.5 改正）。实现在 `agent-core` 的 `config/document.ts`。占位符 round-trip 语义见 ADR-0038 D4 / ADR-0039。
+
+### SESSION_IDENTITY_CONTRACT
+
+`@byfriends/sdk` 的深冻结会话身份契约表（`packages/node-sdk/src/session-contract.ts`）：resume = 保留原 session ID、往既有历史追加、原会话字节可增长；fork = 铸造新 ID、历史复制进新会话、源会话字节必须不变；两者都从事件日志重建**新**上下文窗口，不继承内存态。各消费表面 import 同一张表、各自断言自己那一行，不本地另抄期望（PRD-0038 AC-3.1）。
+
+### TOOL_REPLAY_SAFETY_CLASSES
+
+`@byfriends/sdk` 深冻结的工具重放安全三档词汇（同上文件）：`read-only`（幂等只读，restore 可安全重放一次）/ `side-effect`（本机副作用，restore 以合成观察收尾，≠ 回滚）/ `remote-irreversible`（效果可能已在远端发生且不可撤销，一律合成观察）。`classifyToolReplaySafety` 是默认判定的单一真源：未登记工具保守归 `side-effect`，`mcp__` 前缀工具归 `remote-irreversible`。这是 SECURITY.md「事件日志可重放 ≠ 工具副作用可回滚」纪律的代码事实源（PRD-0038 AC-3.4）。
+
+### EXIT_CODE_APPROVAL_REQUIRED
+
+headless `-p` 被权限治理拦下时的专用退出码 `7`（`apps/cli/src/cli/run-prompt.ts` 常量）：`manual` 模式（含 `--deny-unapproved`）下审批请求问不到人，一律拒绝并以 `7` 结束；与 `1`（通用失败）、`3`/`6`（goal 终态）、`129`/`130`/`143`（信号）互不相交，脚本据此区分"跑完了但被拦"与"跑挂了"。自记录起属于 ADR-0029 §6 完成协议（PRD-0038 Q9 裁决）。
+
+### delta_bytes（体积环比口径）
+
+官方二进制体积环比的判定度量：`delta_bytes = 当次编译二进制体积 − 同 pin Bun 版本 hello-world floor`。环比 gate 只比较该差值、不比较绝对体积——Bun 升级会整体平移 floor，绝对阈值会把运行时升级误判为代码回归（PRD-0038 AC-4.1 / 业界对标「体积门禁必须用 delta-over-floor」）。gate 阈值派生自仓内基线 `scripts/perf/baselines/linux-x64.json` 的 `sizeFloor.deltaBytes`；口径与实测见 `docs/perf/REPORT-0038.md` §3。
+
+## 术语表（PRD-0037 目标态）
+
+以下术语描述 Durable Agent Harness 架构（PRD-0037）的目标态概念，实施随五期计划落地；落地前词条标注的旧机制仍是现状事实源。
+
+### AgentHarness（目标态）
+
+`packages/agent-core/src/harness` 中的执行引擎（并行新建，取代 Agent 类的编排职责）。lane 操作面的宿主：prompt/steer/followUp/nextRun/compact/navigateTree/resume/abort；唯一的 records 写者；负责恢复归约与 abort reconcile。必须可独立构造——Session 是可注入的存储对象，内存后端即可运行。见 ADR-0041。
+
+### AgentLane（目标态）
+
+单个 lane 的操作接口。一个 lane 是对话树上的命名位置加上该位置上串行化的工作——至多一个开放操作，第二个操作被拒。lane 句柄是按名绑定的无状态门面（身份是名字，不是对象）。每个会话恒有 `main` lane。
+
+### Lane / Leaf（目标态）
+
+lane = 树上命名位置 + 该位置的串行工作（类比 git branch + 独立 worktree：可前可后移动、从不重复检出）。leaf = lane 当前指向的 entry，新 entry 链到它并推进它，导航使其跳转。lanes 并行运行，汇合点仅在存储追加路径（单写者保持）。
+
+### Entries 树（目标态）
+
+会话的对话内容：带 `parentId` 链的只增树（message / model_change / thinking_level_change / active_tools_change / compaction / branch_summary / custom 七类）。共享、被动、属于任何 lane 也不属于任何 lane；条目永不修改或删除。分支共享前缀，从不复制。
+
+### Records（lane 操作日志）（目标态）
+
+执行事实的持久化载体（operation_started / abort_requested / operation_finished / task_attempt / tool_started / queue_enqueued / write_deferred）。描述执行而非对话：永不进入模型上下文、transcript、分支查询或 fork。不变量："删掉全部 records，剩下的仍是完整合法的对话"。区别于旧术语 Wire Records（1.1 混装格式，见其目标态标注）。
+
+### 预分配 id（provisioned id）（目标态）
+
+意图记录携带的、尚不存在但已被预订的 entry id。"意图是否已兑现"退化为点查询：该 id 的 entry 存在与否。兑现内容与预订不符即判定为损坏。
+
+### 意图先行（intent-before-effect）（目标态）
+
+持久化核心规则：效果发生前先写命名将发生什么、将产生哪些 id 的意图记录；效果发生后以完全相同的 id 追加结果条目。崩溃落在任意两点之间，恢复按意图类型机械判定：补完、重试、或以合成结果关闭。"重试"仅限只读档（`read-only`）；本机副作用档与远程不可逆档一律以合成观察关闭，且两档的合成文本必须互相可区分——把两种风险说成同一种等于没说。合成观察只声明边界，不存在把本机文件或远端状态复原的能力。不需要多记录原子性。
+
+### Restore 归约（reduction）（目标态）
+
+"状态 = 记录的归约"：lane 的运行状态由其 records 与自身 entries 的两次有界读取归约得出；live 执行在写入时更新内存状态，restore 从存储重算——两者共用同一套归约规则，因此状态与记录不可能不一致。
+
+### Suspended / Resume（目标态）
+
+suspended = 存在开放操作但不执行任何东西（崩溃恢复后，或 deferred handle 落盘后主动挂起；两者在存储中不可区分）。`resume()` 续跑开放操作，与 live 执行同码。中断的操作不会恢复为静默 idle——要么续跑、要么显式 abort（reconcile：合成 interrupted 工具结果 + 收尾 assistant 消息）。
+
+### Checkpoint（目标态）
+
+步骤之间的边界，依次：应用 pending deferred writes → 消费 steering → 按需压缩。checkpoint 应用即尾部追加，由此保证跨请求的 provider 上下文只在尾部增长（KV 缓存不变量）。
+
+### 三队列（steer / followUp / nextRun）（目标态）
+
+lane 的输入通道，接受即持久（queue_enqueued 带完整 payload），消费点才写树。abort 语义：steer/followUp 死亡并把 payload 归还调用方；nextRun 存活到下一个 run。
+
+### Deferred write（目标态）
+
+步骤飞行中请求的写入：先落 write_deferred 记录，checkpoint 才追加到树尾。防止在 provider 已缓存的尾部之前插入消息（毁 KV 缓存 + 谎称模型见过它没见过的内容）。
+
+### Run（操作）（目标态）
+
+被接受的 prompt 构成的持久操作：从接受到"无可待办"（工具链、steering、follow-up、goal 续跑、自动压缩全部耗尽）的全部自动续跑。四种结局：completed / failed / aborted / declined。取代旧术语 Turn（见其目标态标注）。
+
+### watch 订阅（目标态）
+
+UI 获取"当前状态 + 之后全部变化且无缺口"的订阅模型：`watch()` 原子捕获快照并开始缓冲，`start()` 依序冲刷缓冲后转直播。无序列号、无注册竞态、事件不重放；重连 = 新快照。
+
+### 结果式 API（results-not-exceptions）（目标态）
+
+操作与队列方法的返回契约：永不 throw，一律返回判别联合（`ok: true` 载荷 / `ok: false` 载 outcome 与错误信息）。promise 被 reject 即 bug，不是结果。
+
+### Parity 套件（目标态）
+
+同一份契约测试套件对全部存储后端（内存参考实现 / JSONL / SQLite）运行；内存实现是参考语义，先于其他后端全绿。由 agent-core 导出，`packages/storage` 消费。
+
+### Deferred handle / Park（目标态）
+
+provider 延迟请求的凭证：请求立即返回 handle（stopReason `deferred`）而非内容，handle 随 assistant 消息持久化；lane 挂起（Park 信号 unwind），稍后（可跨进程）`fetchDeferred` 兑换真实结果。兑换是无副作用读取，崩溃不欠账。
+
+### 引擎切换（engine v2）（目标态）
+
+新旧引擎的共存与切换安排（ADR-0041）：AgentHarness 并行新建，旧 Agent 冻结；config `engine = "v2"` 实验开关允许提前 dogfood（新会话即 2.0 格式，旧引擎不可打开）；默认引擎 Phase 4 一次性切换并删除旧路径。

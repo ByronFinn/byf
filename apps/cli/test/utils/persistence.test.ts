@@ -38,9 +38,9 @@ afterEach(() => {
 describe('persistence helpers', () => {
   it('readJsonFile returns fallback when file is missing', async () => {
     const fallback = { name: 'fallback', count: 1 };
-    await expect(
-      readJsonFile(join(dir, 'missing.json'), TestJsonSchema, fallback),
-    ).resolves.toEqual(fallback);
+    expect(readJsonFile(join(dir, 'missing.json'), TestJsonSchema, fallback)).resolves.toEqual(
+      fallback,
+    );
   });
 
   it('writeJsonFile writes schema-valid JSON atomically', async () => {
@@ -48,22 +48,21 @@ describe('persistence helpers', () => {
     await writeJsonFile(file, TestJsonSchema, { name: 'ok', count: 2 });
 
     expect(JSON.parse(readFileSync(file, 'utf-8'))).toEqual({ name: 'ok', count: 2 });
-    await expect(
-      readJsonFile(file, TestJsonSchema, { name: 'fallback', count: 0 }),
-    ).resolves.toEqual({ name: 'ok', count: 2 });
+    expect(readJsonFile(file, TestJsonSchema, { name: 'fallback', count: 0 })).resolves.toEqual({
+      name: 'ok',
+      count: 2,
+    });
   });
 
   it('readJsonFile rejects schema-invalid JSON', async () => {
     const file = join(dir, 'bad.json');
     writeFileSync(file, JSON.stringify({ name: 'bad', count: 'nope' }), 'utf-8');
 
-    await expect(
-      readJsonFile(file, TestJsonSchema, { name: 'fallback', count: 0 }),
-    ).rejects.toThrow();
+    expect(readJsonFile(file, TestJsonSchema, { name: 'fallback', count: 0 })).rejects.toThrow();
   });
 
   it('writeJsonFile refuses to write config.toml', async () => {
-    await expect(
+    expect(
       writeJsonFile(join(dir, 'config.toml'), TestJsonSchema, { name: 'bad', count: 1 }),
     ).rejects.toThrow(/config\.toml/);
   });
@@ -80,7 +79,7 @@ describe('persistence helpers', () => {
       'utf-8',
     );
 
-    await expect(readJsonlFile(file, TestLineSchema)).resolves.toEqual([
+    expect(readJsonlFile(file, TestLineSchema)).resolves.toEqual([
       { content: 'first' },
       { content: 'second' },
       { content: 'third' },
@@ -101,7 +100,7 @@ describe('persistence helpers', () => {
       'utf-8',
     );
 
-    await expect(readJsonlFile(file, TestLineSchema)).resolves.toEqual([
+    expect(readJsonlFile(file, TestLineSchema)).resolves.toEqual([
       { content: 'good' },
       { content: 'tail' },
     ]);

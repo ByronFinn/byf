@@ -1,0 +1,19 @@
+{
+  "_comment": "Import control policy for third-party code, per AC-5.2 (PRD-0038 R5). `allowedRegistryHosts` is the complete set of sources `bun.lock` may resolve from; a new host, or a git/file/link source, fails `bun run gate:deps`. `licenseAllowlist` is judged against the runtime dependencies of the publish set — the code that actually ships inside `@byfriends/cli`.",
+  "_review": "registry.npmmirror.com is listed because the committed bun.lock (revision as of PRD-0038 R5) resolves every one of its 1288 external entries through that mirror, not registry.npmjs.org. Both are recorded here so the gate is explicit about today's reality instead of silently permitting whatever appears next. This mirror is an owner decision to review: re-running `bun install` against registry.npmjs.org and committing the resulting lock would narrow this list to one entry.",
+  "allowedRegistryHosts": ["registry.npmjs.org", "registry.npmmirror.com"],
+  "licenseAllowlist": [
+    "0BSD",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Python-2.0",
+    "Unlicense",
+    "WTFPL"
+  ]
+}

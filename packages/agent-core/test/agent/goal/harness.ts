@@ -1,5 +1,6 @@
+import { vi } from 'bun:test';
+
 import { localKaos } from '@byfriends/kaos';
-import { vi } from 'vitest';
 
 import { Agent } from '../../../src/agent';
 import { InMemoryAgentRecordPersistence } from '../../../src/agent/records/persistence';

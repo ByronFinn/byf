@@ -119,7 +119,10 @@ describe('/cron registry + handler', () => {
     const cmd = findBuiltInSlashCommand('cron');
     expect(cmd?.name).toBe('cron');
     expect(cmd?.aliases).toContain('schedule');
-    expect(cmd?.availability).toBe('always');
+    // `BuiltinSlashCommand` is a union of the `as const` entries; only some
+    // carry `availability`, so narrow to the cron member before reading it.
+    if (!cmd || cmd.name !== 'cron') throw new Error('cron slash command should be registered');
+    expect(cmd.availability).toBe('always');
     expect(findBuiltInSlashCommand('schedule')?.name).toBe('cron');
   });
 

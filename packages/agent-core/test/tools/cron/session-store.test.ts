@@ -1,7 +1,7 @@
 /**
  * Tests for `tools/cron/session-store.ts`.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { SessionCronStore, type SessionCronTaskInit } from '../../../src/tools/cron/session-store';
 

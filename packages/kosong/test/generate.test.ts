@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { APIEmptyResponseError } from '#/errors';
 import { generate } from '#/generate';
@@ -281,8 +281,9 @@ describe('generate()', () => {
     // The two ThinkParts should be merged.
     const thinkParts = result.message.content.filter((p) => p.type === 'think');
     expect(thinkParts).toHaveLength(1);
-    if (thinkParts[0].type === 'think') {
-      expect(thinkParts[0].think).toBe('part1 part2');
+    const firstThink = thinkParts[0];
+    if (firstThink?.type === 'think') {
+      expect(firstThink.think).toBe('part1 part2');
     }
   });
 

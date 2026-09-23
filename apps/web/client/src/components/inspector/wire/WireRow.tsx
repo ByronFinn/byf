@@ -196,7 +196,7 @@ function Chevron({ open }: { open: boolean }) {
   return (
     <ChevronRight
       className={cn(
-        'size-3 shrink-0 text-fg-3 transition-transform duration-150',
+        'size-3 shrink-0 text-fg-3 transition-transform duration-(--duration-fast)',
         open && 'rotate-90',
       )}
       aria-hidden

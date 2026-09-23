@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { AgentRecord } from '../../src/agent/records/types';

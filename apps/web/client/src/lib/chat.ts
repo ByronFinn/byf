@@ -8,6 +8,7 @@ import type {
   ServerFrame,
   SessionStatus,
   ToolCall,
+  ToolInputDisplay,
 } from '#/types';
 
 // ---- 单条消息的内部部件 -----------------------------------------------------
@@ -24,7 +25,8 @@ export interface ToolPart {
   readonly kind: 'tool';
   readonly toolCallId: string;
   readonly name: string;
-  readonly display?: unknown;
+  /** 由 agent-core zod 真源派生的展示载荷（web-shared 仅类型再导出）。 */
+  readonly display?: ToolInputDisplay;
   readonly description?: string;
   readonly status: 'running' | 'done';
   readonly result?: unknown;
@@ -41,7 +43,7 @@ export interface ToolPart {
 export interface ToolGroupPart {
   readonly kind: 'tool-group';
   /** 组内统一的 ToolInputDisplay.kind(如 file_io/command)。 */
-  readonly toolKind: string;
+  readonly toolKind: ToolInputDisplay['kind'];
   readonly tools: readonly ToolPart[];
   /** span 总耗时 = max(endedAt) - min(startedAt)(并行工具按墙钟段,不按累加)。 */
   readonly spanMs: number | undefined;
@@ -144,7 +146,20 @@ export function initialChatState(): ChatState {
 
 export type ChatInput =
   | { type: 'reset' }
-  | { type: 'user-message'; text: string; images?: readonly string[] }
+  | {
+      type: 'user-message';
+      text: string;
+      images?: readonly string[];
+      /** 显式条目 id(发送失败回滚需要按 id 精确移除乐观条目);缺省自动生成。 */
+      id?: string;
+    }
+  | {
+      /** 乐观发送的 prompt 请求被拒(网络失败 / 写门 401/403):按 entryId 移除
+       *  乐观用户条目,并落一条转录错误系统条目。 */
+      type: 'send-failed';
+      entryId: string;
+      message: string;
+    }
   | { type: 'status-loaded'; status: SessionStatus }
   | {
       type: 'transcript-loaded';
@@ -161,11 +176,34 @@ export function chatReducer(state: ChatState, input: ChatInput): ChatState {
     case 'user-message': {
       const entry: UserEntry = {
         kind: 'user',
-        id: `u-${state.entries.length}-${Date.now()}`,
+        id: input.id ?? `u-${state.entries.length}-${Date.now()}`,
         text: input.text,
         images: input.images,
       };
       return { ...state, entries: [...state.entries, entry] };
+    }
+    case 'send-failed': {
+      // 乐观发送被拒(网络失败 / 写门 401/403):移除该乐观用户条目,并落一条
+      // 转录内系统错误。条目定位按 id 且必须是 user 条目;找不到(已被 reset /
+      // transcript-loaded 替换)则只落错误。turnIndex/toolIndex 是按位置的下标,
+      // 移除后统一重建(条目下标整体前移)。
+      const idx = state.entries.findIndex((e) => e.id === input.entryId && e.kind === 'user');
+      let next = state;
+      if (idx !== -1) {
+        const entries = state.entries.filter((_, i) => i !== idx);
+        const turnIndex = new Map<number, number>();
+        for (const [turnId, pos] of state.turnIndex) {
+          if (pos > idx) turnIndex.set(turnId, pos - 1);
+          else if (pos < idx) turnIndex.set(turnId, pos);
+        }
+        const toolIndex = new Map<string, { entry: number; part: number }>();
+        for (const [callId, loc] of state.toolIndex) {
+          if (loc.entry > idx) toolIndex.set(callId, { entry: loc.entry - 1, part: loc.part });
+          else if (loc.entry < idx) toolIndex.set(callId, loc);
+        }
+        next = { ...state, entries, turnIndex, toolIndex };
+      }
+      return addSystem(next, input.message, 'error');
     }
     case 'status-loaded': {
       const status: StatusView = {
@@ -216,7 +254,7 @@ function textOf(parts: readonly ContentPart[]): string {
  * 让展开体的「查看/复制命令」在回放会话中同样可用(被拒绝的调用没有结果
  * 输出,命令是唯一可查看的内容)。
  */
-function replayToolDisplay(call: ToolCall): unknown {
+function replayToolDisplay(call: ToolCall): ToolInputDisplay | undefined {
   if (call.name !== 'Bash' || call.arguments === null) return undefined;
   try {
     const args = JSON.parse(call.arguments) as { command?: unknown };
@@ -315,9 +353,8 @@ export function replayToEntries(replay: readonly AgentReplayRecord[]): {
 }
 
 /** ToolPart.display 的 ToolInputDisplay.kind(未知 display 归入 generic 桶)。 */
-function toolDisplayKind(part: ToolPart): string {
-  const kind = (part.display as { kind?: unknown } | undefined)?.kind;
-  return typeof kind === 'string' ? kind : 'generic';
+function toolDisplayKind(part: ToolPart): ToolInputDisplay['kind'] {
+  return part.display?.kind ?? 'generic';
 }
 
 /**
@@ -327,7 +364,7 @@ function toolDisplayKind(part: ToolPart): string {
  */
 export function groupParts(parts: readonly AssistantPart[]): RenderPart[] {
   const result: RenderPart[] = [];
-  let group: { toolKind: string; tools: ToolPart[] } | null = null;
+  let group: { toolKind: ToolInputDisplay['kind']; tools: ToolPart[] } | null = null;
   const flush = (): void => {
     if (group === null) return;
     if (group.tools.length === 1) {
@@ -514,7 +551,7 @@ function addTool(
   turnId: number,
   toolCallId: string,
   name: string,
-  display: unknown,
+  display: ToolInputDisplay | undefined,
   description: string | undefined,
   startedAt: number | undefined,
 ): ChatState {

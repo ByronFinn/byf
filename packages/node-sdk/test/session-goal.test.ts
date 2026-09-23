@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { ByfHarness, type ByfError, type Event, type GoalSnapshot } from '#/index';
 

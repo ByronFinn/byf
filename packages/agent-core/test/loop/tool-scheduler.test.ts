@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { ToolAccesses } from '../../src/loop';
 import { ToolScheduler, type ToolCallTask } from '../../src/loop/tool-scheduler';

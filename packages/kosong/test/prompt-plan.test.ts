@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'bun:test';
 
 import type { ModelCapability, ProviderCacheCapability } from '#/capability';
 import type { CacheScope, CacheStrategy, PromptBlock, PromptPlan } from '#/prompt-plan';

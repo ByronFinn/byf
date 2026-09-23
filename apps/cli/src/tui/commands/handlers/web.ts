@@ -41,8 +41,9 @@ async function startWebServerOnFreePort(): Promise<WebServerHandle> {
 /**
  * TUI `/web`(PRD-0034 R-D2):同进程后台起 web-server(独立服务入口,服务新/
  * 历史会话;当前 TUI 会话实时镜像为未来演化),打印 URL 并自动打开浏览器;
- * TUI 退出随进程关闭。回环绑定;token 语义沿用 resolveWebAuthToken(回环默认
- * 无 token,设置了 WEB_AUTH_TOKEN 则复用)。
+ * TUI 退出随进程关闭。回环绑定;token 由 server 交付(PRD-0038 AC-1.2:回环下
+ * 本次启动自动生成,设置了 WEB_AUTH_TOKEN 则复用),自动打开的 URL 带 `?token=`,
+ * 否则浏览器拿不到凭证、任何写操作都会 401。
  */
 export function createWebHandlers(host: SlashCommandHost): Record<'web', SlashCommandHandler> {
   return {
@@ -58,11 +59,29 @@ export function createWebHandlers(host: SlashCommandHost): Record<'web', SlashCo
           handle.close();
           if (activeHandle === handle) activeHandle = undefined;
         });
-        host.showStatus(`web server: ${handle.url}(退出 TUI 后关闭)`);
-        host.appendTranscriptStatus(`byf web: ${handle.url}`);
+        host.showStatus(`web server: ${handle.url}(浏览器已带凭证打开;退出 TUI 后关闭)`);
+        // 状态栏与逐字稿印的是**不带 token** 的地址。理由是两条 AC 的合力:
+        // - AC-1.2 要求凭证有交付面——已经有:自动打开的那次浏览器 URL 带 `?token=`,
+        //   SPA 读一次就存进本机 localStorage 并从地址栏擦掉
+        //   (apps/web/client/src/api.ts),所以同一浏览器 profile 之后再打开这个
+        //   免 token 地址仍是登录态,复制粘贴的目标用户拿到的地址并不"缺东西"。
+        // - 把 token 印进终端是另一条泄漏面:回滚缓冲、tmux 日志、任何录屏都会留下它,
+        //   而 LAN 横幅已经在为同一条代价提示轮换(startup-banner.ts)。
+        // 换浏览器/换设备时需要显式取 token:`byf web` 的启动日志会打印生效 token。
+        host.appendTranscriptStatus(
+          `byf web: ${handle.url}\n` +
+            '  这里不打印 token:自动打开的浏览器已拿到本次凭证(存在本机,刷新仍在)。' +
+            '要在别的浏览器或设备上打开,用 `byf web` 的启动日志取 token(它会印 token=…)。',
+        );
+        const query = handle.authToken ? `?token=${encodeURIComponent(handle.authToken)}` : '';
         const { default: open } = await import('open');
-        void open(handle.url, { wait: false }).catch(() => {
-          /* 打开失败不阻塞;URL 已打印 */
+        void open(`${handle.url}${query}`, { wait: false }).catch(() => {
+          // 浏览器没开成,自动交付这条路径就没了:此时免 token 的地址等于不可用,
+          // 必须把带 token 的地址交给用户(与 `byf web` 打开失败时的处理一致)。
+          host.appendTranscriptStatus(
+            '  浏览器自动打开失败,请手工打开(该地址含 token,注意别留在可共享的日志里):' +
+              `\n  ${handle.url}${query}`,
+          );
         });
       } catch (error) {
         host.showError(

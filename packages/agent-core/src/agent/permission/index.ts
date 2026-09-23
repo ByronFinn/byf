@@ -15,7 +15,8 @@ import type { PermissionPathMatchOptions } from './path-glob-match';
 import { createBuiltinPermissionPolicies } from './policies';
 import type { PermissionPolicy, PermissionPolicyResult } from './policy';
 import type {
-  PermissionApprovalResultRecord,
+  ApprovalGrantAuthority,
+  ApprovalGrantInput,
   PermissionData,
   PermissionMode,
   PermissionRule,
@@ -51,10 +52,6 @@ export class PermissionManager {
     return this._modeOverride ?? this.parent?.mode ?? 'manual';
   }
 
-  set mode(mode: PermissionMode) {
-    this._modeOverride = mode;
-  }
-
   data(): PermissionData {
     return {
       mode: this.mode,
@@ -62,6 +59,12 @@ export class PermissionManager {
     };
   }
 
+  /**
+   * 权限模式切换的**唯一**入口（#345）。曾经的 `set mode` 访问器会就地改掉
+   * `_modeOverride`：不落 wire 记录、不进 replay、不发 status_updated，于是
+   * "谁把会话切到 yolo"在持久层查不到任何痕迹——正是本 issue 要堵住的那类
+   * "看不出来源"。走这里必定留痕，调用方只有 host/RPC 用户路径与 journal 恢复。
+   */
   setMode(mode: PermissionMode): void {
     this.agent.wire.dispatch(permissionSetMode({ mode }));
     this.agent.replayBuilder.push({
@@ -72,12 +75,27 @@ export class PermissionManager {
     this.agent.emitStatusUpdated();
   }
 
-  recordApprovalResult(record: PermissionApprovalResultRecord): void {
-    this.agent.wire.dispatch(permissionRecordApprovalResult(record));
+  /**
+   * 落一条审批记录，并按 `authority` 决定是否**扩大**会话级免问集合。
+   *
+   * #345：审计痕迹与授权能力是两件事。记录本身照落（headless / 托管运行要能查
+   * "这个工具被谁放行了"），但 `approved + scope: 'session'` 只有在授权来自真实
+   * 用户裁决时才生成 session-runtime 规则。此前这条界线只靠"模式自动放行恰好
+   * 不传 scope"这一约定维持：policy 经 `PermissionPolicyContext.recordApprovalResult`
+   * 拿到的是同一个铸造入口，任何一次 `scope: 'session'` 上报都会在没有用户裁决
+   * 的情况下永久放行该 action。
+   *
+   * `authority` 是入参的必填字段（不是可选的第二参数），所以"忘了交代来源"在编译
+   * 期就不成立；只有从 journal 恢复的旧记录才在恢复处显式补一个来源。
+   */
+  recordApprovalResult(input: ApprovalGrantInput): void {
+    const { authority, ...record } = input;
+    this.agent.wire.dispatch(permissionRecordApprovalResult(input));
     this.agent.replayBuilder.push({
       type: 'approval_result',
       record,
     });
+    if (!canGrantSessionApproval(authority)) return;
     if (record.result.decision !== 'approved' || record.result.scope !== 'session') {
       return;
     }
@@ -121,6 +139,7 @@ export class PermissionManager {
       }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'afk');
+        this.recordAutomaticApproval(context, 'auto');
       }
       return undefined;
     }
@@ -133,6 +152,7 @@ export class PermissionManager {
       }
       if (this.wouldAskInManualMode(name, args)) {
         this.trackToolApproved(name, 'yolo');
+        this.recordAutomaticApproval(context, 'yolo');
       }
       return undefined;
     }
@@ -194,6 +214,7 @@ export class PermissionManager {
       toolName: name,
       action,
       result,
+      authority: { kind: 'user-verdict' },
     });
 
     if (result.decision === 'approved') {
@@ -219,6 +240,38 @@ export class PermissionManager {
     };
   }
 
+  /**
+   * PRD-0038 AC-1.6：yolo / auto 的放行绕过了 `requestApproval`，也就绕过了审批
+   * 记录——headless 与托管运行里"这个工具被谁放行了"因此在 session records 中
+   * 查不到任何痕迹。模式本身就是一个决策者，所以放行同样落一条
+   * `permission.record_approval_result`，用 `selectedLabel` 标明它来自模式而非人。
+   *
+   * `scope` 必须留空：这不是用户「本会话同类都放行」的批准，不能据此生成
+   * session-runtime 规则（见 {@link recordApprovalResult} 的分支）。#345 起这条
+   * 不再只靠约定：这里的 `authority` 是 audit-only，即便 `scope` 被误传也不会 mint。
+   * 只在 manual 模式下本该询问时才记录——默认自动放行的工具（Read 等）不是
+   * 治理决策，记录它们只会把痕迹淹成噪音。
+   */
+  private recordAutomaticApproval(
+    context: ToolExecutionHookContext,
+    mode: Extract<PermissionMode, 'yolo' | 'auto'>,
+  ): void {
+    const name = context.toolCall.name;
+    const args = context.args;
+    this.recordApprovalResult({
+      turnId: Number(context.turnId),
+      toolCallId: context.toolCall.id,
+      toolName: name,
+      action: describeApprovalAction(name, args, {
+        kind: 'generic',
+        summary: `Approve ${name}`,
+        detail: args,
+      }),
+      result: { decision: 'approved', selectedLabel: `auto_approve:${mode}` },
+      authority: { kind: 'audit-only', from: 'mode-auto-approve' },
+    });
+  }
+
   private async evaluatePolicies(
     context: ToolExecutionHookContext,
     matchedRule: PermissionRule | undefined,
@@ -230,7 +283,10 @@ export class PermissionManager {
         toolCallContext: context,
         matchedRule,
         recordApprovalResult: (record) => {
-          this.recordApprovalResult(record);
+          this.recordApprovalResult({
+            ...record,
+            authority: { kind: 'audit-only', from: 'policy' },
+          });
         },
       });
       if (result !== undefined) return result;
@@ -353,9 +409,14 @@ export class PermissionManager {
       case 'permission.set_mode':
         this.setMode(record.mode);
         break;
-      case 'permission.record_approval_result':
-        this.recordApprovalResult(record);
+      case 'permission.record_approval_result': {
+        // 缺省只可能是 #345 之前写入的 journal：那时来源还不存在，无从复审。
+        this.recordApprovalResult({
+          ...record,
+          authority: record.authority ?? { kind: 'restored-user-verdict' },
+        });
         break;
+      }
     }
   }
 
@@ -390,4 +451,16 @@ function approvalTelemetryMode(
   mode: PermissionMode,
 ): Extract<ApprovalTelemetryMode, 'manual' | 'yolo' | 'afk'> {
   return mode === 'auto' ? 'afk' : mode;
+}
+
+/**
+ * 授权来源能不能扩大会话级免问集合（#345）。审计-only 的来源（模式自动放行、
+ * policy 上报）落记录但不 mint 规则——它们的 `result` 不是用户裁决的产物。
+ *
+ * 同一判据在持久层也成立：`authority` 随 `permission.record_approval_result` 一起
+ * 落 journal，`wire/ops/permission.ts` 的纯 reducer 对 `audit-only` 不铸造会话规则，
+ * 所以"恢复后是谁给的授权"不会在归约过程中丢失。
+ */
+function canGrantSessionApproval(authority: ApprovalGrantAuthority): boolean {
+  return authority.kind === 'user-verdict' || authority.kind === 'restored-user-verdict';
 }

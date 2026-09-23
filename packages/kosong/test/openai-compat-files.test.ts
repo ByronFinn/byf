@@ -1,8 +1,7 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { OpenAICompatFiles } from '#/providers/openai-compat-files';
 import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
@@ -64,7 +63,7 @@ describe('OpenAICompatFiles', () => {
 
       const part = await provider.files.uploadVideo(videoPath);
 
-      expect(mockCreate).toHaveBeenCalledOnce();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
       const call = captured as { file: File; purpose: string };
       expect(call.purpose).toBe('video');
       expect(call.file).toBeInstanceOf(File);
@@ -155,7 +154,7 @@ describe('OpenAICompatFiles', () => {
       );
 
       expect(auths).toEqual([{ apiKey: 'request-token' }]);
-      expect(client.files.create).toHaveBeenCalledOnce();
+      expect(client.files.create).toHaveBeenCalledTimes(1);
     });
 
     it('uploads raw bytes and returns a VideoURLPart', async () => {

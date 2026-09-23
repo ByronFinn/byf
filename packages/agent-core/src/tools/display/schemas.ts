@@ -156,3 +156,25 @@ export const ToolResultDisplaySchema = z.discriminatedUnion('kind', [
 // Types inferred from schemas — single source of truth.
 export type ToolInputDisplay = z.infer<typeof ToolInputDisplaySchema>;
 export type ToolResultDisplay = z.infer<typeof ToolResultDisplaySchema>;
+
+/**
+ * kind 全集的**运行时投影**，由上面的 discriminated union 派生（不是第二份清单）。
+ *
+ * 存在理由（PRD-0038 AC-6.1）：三个表面（TUI 审批面板、web client 工具卡、
+ * web server 透传）各自要"处理每一个 kind"。此前它们都用 `default` 分支兜底，
+ * 新增 kind 会静默降级。消费方改为以本列表为覆盖基准（类型侧由
+ * `ToolInputDisplay['kind']` 派生，运行时侧由本列表驱动契约测试），新增 kind
+ * 时在编译期（`Record<ToolInputDisplay['kind'], …>` 少键）与测试期（覆盖用例
+ * 少项）同时报错。
+ */
+export const TOOL_INPUT_DISPLAY_KINDS: readonly ToolInputDisplay['kind'][] =
+  ToolInputDisplaySchema.options.map((option) => option.shape.kind.value);
+
+export const TOOL_RESULT_DISPLAY_KINDS: readonly ToolResultDisplay['kind'][] =
+  ToolResultDisplaySchema.options.map((option) => option.shape.kind.value);
+
+/** 判断任意值是否为已定义的 `ToolInputDisplay`（跨表面边界处的统一收窄入口）。 */
+export function parseToolInputDisplay(value: unknown): ToolInputDisplay | null {
+  const parsed = ToolInputDisplaySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}

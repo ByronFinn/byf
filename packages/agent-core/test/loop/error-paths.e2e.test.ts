@@ -8,8 +8,9 @@
  * names the cause.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import { APIRequestTooLargeError, APIStatusError, type Message } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import type { Logger, LogPayload } from '../../src/logging';
