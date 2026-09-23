@@ -10,6 +10,8 @@ import {
   supportsOsc9Notification,
 } from '#/tui/utils/terminal-notification';
 
+import { defined } from '../helpers/defined';
+
 function makeNotificationState(
   args: {
     readonly enabled?: boolean;
@@ -186,7 +188,7 @@ describe('terminal notification helpers', () => {
     );
 
     expect(sequences).toHaveLength(1);
-    const wrapped = sequences[0];
+    const wrapped = defined(sequences[0], 'sequences[0]');
     expect(wrapped.startsWith('Ptmux;')).toBe(true);
     expect(wrapped.endsWith('\\')).toBe(true);
     expect(wrapped).toContain(']9;A: B');

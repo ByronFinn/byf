@@ -1,17 +1,17 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError, Event } from '#/index';
 
-const fakeProviderState = vi.hoisted(() => ({
+const fakeProviderState = {
   responseText: 'config/runtime.toml',
-}));
+};
 
 const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
 vi.mock('@byfriends/kosong', () => {

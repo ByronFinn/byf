@@ -1,9 +1,8 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-
-import { afterEach, describe, expect, it } from 'vitest';
 
 import { ByfHarness } from '#/index';
 import type { ByfError } from '#/index';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { testAgent } from './harness/agent';
 import type { GenerateFn } from './harness/scripted-generate';

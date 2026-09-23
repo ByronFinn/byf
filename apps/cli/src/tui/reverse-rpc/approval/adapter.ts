@@ -3,6 +3,15 @@ import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@byfri
 import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval-panel';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
 
+/**
+ * 穷尽性哨兵：只有当上游 switch 漏掉了某个 `ToolInputDisplay` kind 时才会被执行。
+ * 参数类型必须是 `never`，否则编译期即报错（PRD-0038 AC-6.1）。
+ */
+function unreachable(display: never): string {
+  // `kind` 是 unknown，String() 会在它是对象时印出 [object Object]，诊断信息等于没有。
+  return JSON.stringify(display) ?? '<unstringifiable payload>';
+}
+
 const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
   { label: 'Approve once', response: 'approved' },
   { label: 'Approve for this session', response: 'approved_for_session' },
@@ -199,7 +208,10 @@ function describeApproval(display: ToolInputDisplay, action: string): string {
         display.description ?? ''
       }`.trim();
     default:
-      return action;
+      // 编译期穷尽检查：`ToolInputDisplay` 新增 kind 而未在此处理时，`display`
+      // 不再收窄为 `never` → typecheck 报错；运行期同样抛错而非返回 `action`
+      // 静默降级（PRD-0038 AC-6.1）。
+      throw new Error(`Unhandled ToolInputDisplay kind: ${unreachable(display)}`);
   }
 }
 
@@ -305,7 +317,8 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
     case 'background_task':
       return [];
     default:
-      return [];
+      // 同上：kind 未映射到视图块即编译期报错，运行期抛错而非静默返回 `[]`。
+      throw new Error(`Unhandled ToolInputDisplay kind: ${unreachable(display)}`);
   }
 }
 

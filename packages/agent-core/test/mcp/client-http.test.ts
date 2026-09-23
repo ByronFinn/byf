@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -5,13 +6,13 @@ import type { AddressInfo } from 'node:net';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import { HttpMcpClient, isTerminalTransportError } from '../../src/mcp/client-http';
 import { buildMcpHttpHeaders } from '../../src/mcp/client-shared';
 import { createProxiedFetch } from '../../src/tools/providers/proxied-fetch';
+import { withPreconnect } from '../_fetch-mock';
 
 const cleanups: Array<() => Promise<void> | void> = [];
 
@@ -310,19 +311,21 @@ describe('HttpMcpClient with proxy fallback', () => {
     const originalFetch = globalThis.fetch.bind(globalThis);
     // Mock that fails on first call (ECONNREFUSED), then delegates to real
     // fetch on subsequent calls — simulating "direct fails, proxy retry works".
-    const mockFetch: typeof fetch = async (input, init) => {
-      fetchCallCount++;
-      if (fetchCallCount === 1) {
-        const err = new TypeError('fetch failed');
-        (err as unknown as { cause: { code: string } }).cause = { code: 'ECONNREFUSED' };
-        throw err;
-      }
-      // Strip the ProxyAgent dispatcher so the real fetch hits the
-      // in-process server directly instead of trying to connect through a
-      // real proxy.
-      const { dispatcher: _d, ...restInit } = (init ?? {}) as Record<string, unknown>;
-      return originalFetch(input, restInit as RequestInit);
-    };
+    const mockFetch = withPreconnect(
+      async (input: URL | RequestInfo, init: RequestInit | BunFetchRequestInit | undefined) => {
+        fetchCallCount++;
+        if (fetchCallCount === 1) {
+          const err = new TypeError('fetch failed');
+          (err as unknown as { cause: { code: string } }).cause = { code: 'ECONNREFUSED' };
+          throw err;
+        }
+        // Strip the ProxyAgent dispatcher so the real fetch hits the
+        // in-process server directly instead of trying to connect through a
+        // real proxy.
+        const { dispatcher: _d, ...restInit } = (init ?? {}) as Record<string, unknown>;
+        return originalFetch(input, restInit as RequestInit);
+      },
+    );
 
     const env: Record<string, string> = { HTTP_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
@@ -348,10 +351,10 @@ describe('HttpMcpClient with proxy fallback', () => {
 
   it('does not retry non-retryable errors (HTTP 404)', async () => {
     let fetchCallCount = 0;
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = withPreconnect(async () => {
       fetchCallCount++;
       return new Response('not found', { status: 404 });
-    };
+    });
 
     const env: Record<string, string> = { HTTP_PROXY: 'http://proxy:8080' };
     const proxiedFetch = createProxiedFetch({
@@ -376,12 +379,12 @@ describe('HttpMcpClient with proxy fallback', () => {
 
   it('does not retry when no proxy is configured and connection fails', async () => {
     let fetchCallCount = 0;
-    const mockFetch: typeof fetch = async () => {
+    const mockFetch = withPreconnect(async () => {
       fetchCallCount++;
       const err = new TypeError('fetch failed');
       (err as unknown as { cause: { code: string } }).cause = { code: 'ECONNREFUSED' };
       throw err;
-    };
+    });
 
     const proxiedFetch = createProxiedFetch({
       envLookup: () => undefined,

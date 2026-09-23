@@ -1,12 +1,16 @@
-import { afterEach, describe, expect, it, spyOn, test } from 'bun:test';
-import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises';
+import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import {
   ByfError,
+  ByfHarness,
   ErrorCodes,
+  MASKED_SECRET_PLACEHOLDER,
   type ByfConfig,
   type ByfConfigPatch,
   type ConfigDocumentResult,
@@ -30,6 +34,7 @@ import {
 import type {
   ApprovalRequest,
   ApprovalResponse,
+  AgentTreeResponse,
   Event,
   PermissionMode,
   QuestionRequest,
@@ -43,7 +48,38 @@ import type {
 
 import { createApp } from './app';
 import { AsyncQueue } from './async-queue';
+import { startWebServer } from './server';
 import { WebSessionManager, type HarnessLike, type SessionLike } from './session-manager';
+
+// ---- PRD-0038 R1 写门夹具 ---------------------------------------------------
+// `createApp` 现在集中施加三层门(带 body 的写必须 application/json / 同源 Origin
+// 或 `X-Byf-Requested-With` 标记头 / token)。既有既例只需经 `writeHeaders()` 取齐
+// "合法写"的凭证,不逐条复制 token 字符串:最近一次 `createTestApp()` 交付的
+// authToken 记在模块级变量里(bun test 在同一文件内串行执行用例,setup → 请求在
+// 同一条用例内闭环,不存在并发串扰)。
+
+const BYF_MARKER = 'x-byf-requested-with';
+
+let currentAuthToken: string | undefined;
+
+/** `createApp` + 记录生效 token,供 {@link writeHeaders} 使用。 */
+async function createTestApp(
+  options: Parameters<typeof createApp>[0],
+): Promise<Awaited<ReturnType<typeof createApp>>> {
+  const result = await createApp(options);
+  currentAuthToken = result.authToken;
+  return result;
+}
+
+function writeHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    [BYF_MARKER]: 'byf-web',
+    ...extra,
+  };
+  if (currentAuthToken !== undefined) headers['authorization'] = `Bearer ${currentAuthToken}`;
+  return headers;
+}
 
 // ---- Fake harness / session (实现 SessionLike / HarnessLike 契约) ------------
 
@@ -184,15 +220,16 @@ class FakeSession implements SessionLike {
 
   /** 模拟真实 harness resume:把演进态合入 summary(真实实现由 core active 路径现场重建)。 */
   refreshSummaryFromState(): void {
-    const main = (this.summary as Partial<ResumedSessionSummary>).agents?.main ?? {};
+    const agents = (this.summary as Partial<ResumedSessionSummary>).agents;
+    const main = agents?.['main'] ?? {};
     this.summary = {
       ...this.summary,
       agents: {
-        ...(this.summary as Partial<ResumedSessionSummary>).agents,
+        ...agents,
         main: { ...main, type: 'main', replay: [...this.replayRecords] },
       },
       updatedAt: Date.now(),
-    };
+    } as SessionSummary;
   }
 }
 
@@ -658,9 +695,9 @@ describe('WebSessionManager', () => {
 
     // 刷新页面 → resume:必须咨询 harness 拿到演进后的 summary,而不是返回创建快照
     const resumed = await manager.resumeSession(created.id);
-    const replay = resumed.agents?.main?.replay;
+    const replay = resumed.agents?.['main']?.replay;
     expect(replay).toHaveLength(1);
-    expect((replay[0] as { message: { text: string } }).message.text).toBe('hi');
+    expect(replay?.[0]).toMatchObject({ message: { text: 'hi' } });
   });
 
   test('每次 resume 都刷新 live summary:命中缓存也咨询 harness(不返回过期快照)', async () => {
@@ -803,7 +840,7 @@ describe('HTTP routes', () => {
   }> {
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, authToken });
+    const result = await createTestApp({ manager, authToken });
     return { app: result.app, harness };
   }
 
@@ -811,7 +848,7 @@ describe('HTTP routes', () => {
     const { app } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     expect(created.status).toBe(201);
@@ -854,7 +891,7 @@ describe('HTTP routes', () => {
     const mk = async (): Promise<string> => {
       const res = await app.request('/api/sessions', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: writeHeaders(),
         body: JSON.stringify({ workDir: '/proj' }),
       });
       const data = (await res.json()) as { session: SessionSummary };
@@ -889,7 +926,7 @@ describe('HTTP routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -901,7 +938,7 @@ describe('HTTP routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -909,14 +946,14 @@ describe('HTTP routes', () => {
 
     const promptRes = await app.request(`/api/sessions/${id}/prompt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ input: 'hi' }),
     });
     expect(promptRes.status).toBe(202);
 
     const permRes = await app.request(`/api/sessions/${id}/permission`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ mode: 'yolo' }),
     });
     expect(permRes.status).toBe(200);
@@ -931,7 +968,7 @@ describe('HTTP routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -939,7 +976,7 @@ describe('HTTP routes', () => {
 
     const res = await app.request(`/api/sessions/${id}/prompt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ input: '看图', images: [{ dataUrl: TINY_PNG_DATA_URL }] }),
     });
     expect(res.status).toBe(202);
@@ -957,7 +994,7 @@ describe('HTTP routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -965,7 +1002,7 @@ describe('HTTP routes', () => {
 
     const okRes = await app.request(`/api/sessions/${id}/prompt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ input: '', images: [{ dataUrl: TINY_PNG_DATA_URL }] }),
     });
     expect(okRes.status).toBe(202);
@@ -975,7 +1012,7 @@ describe('HTTP routes', () => {
 
     const badRes = await app.request(`/api/sessions/${id}/prompt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ input: 'x', images: [{ dataUrl: 'data:text/plain;base64,aGk=' }] }),
     });
     expect(badRes.status).toBe(400);
@@ -985,13 +1022,13 @@ describe('HTTP routes', () => {
     const { app } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
     const res = await app.request(`/api/sessions/${id}/permission`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ mode: 'bogus' }),
     });
     expect(res.status).toBe(400);
@@ -1026,7 +1063,7 @@ describe('Workspace routes', () => {
     dirs.push(homeDir, projDir);
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir });
+    const result = await createTestApp({ manager, homeDir });
     return { app: result.app, harness, homeDir, projDir };
   }
 
@@ -1039,7 +1076,7 @@ describe('Workspace routes', () => {
   async function createSession(app: Awaited<ReturnType<typeof createApp>>['app'], workDir: string) {
     const res = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir }),
     });
     return ((await res.json()) as { session: SessionSummary }).session;
@@ -1051,7 +1088,7 @@ describe('Workspace routes', () => {
 
     const added = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     expect(added.status).toBe(200);
@@ -1116,26 +1153,26 @@ describe('Workspace routes', () => {
     const { app, projDir } = await setup();
     const rel = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: 'relative/dir' }),
     });
     expect(rel.status).toBe(400);
 
     const missing = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: '/definitely/not/here' }),
     });
     expect(missing.status).toBe(400);
 
     const first = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     const second = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     expect(first.status).toBe(200);
@@ -1150,11 +1187,12 @@ describe('Workspace routes', () => {
     const { app, projDir } = await setup();
     await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     const del = await app.request(`/api/workspaces?workDir=${encodeURIComponent(projDir)}`, {
       method: 'DELETE',
+      headers: writeHeaders(),
     });
     expect(del.status).toBe(200);
     expect(((await del.json()) as { removed: boolean }).removed).toBe(true);
@@ -1173,7 +1211,7 @@ describe('Workspace routes', () => {
 
     const added = await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     expect(added.status).toBe(200);
@@ -1220,7 +1258,7 @@ describe('Workspace routes', () => {
     ];
     await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: oldDir }),
     });
     const list = async (): Promise<string[]> => {
@@ -1234,6 +1272,7 @@ describe('Workspace routes', () => {
     // 删除后:索引枚举不得把它带回来(曾删除 = 用户意图隐藏)
     const del = await app.request(`/api/workspaces?workDir=${encodeURIComponent(oldDir)}`, {
       method: 'DELETE',
+      headers: writeHeaders(),
     });
     expect(((await del.json()) as { removed: boolean }).removed).toBe(true);
     expect(await list()).toEqual([recentDir]);
@@ -1241,7 +1280,7 @@ describe('Workspace routes', () => {
     // 重新添加:从 hidden 移除,恢复原顺序位置(仍在 recentDir 前)
     await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: oldDir }),
     });
     expect(await list()).toEqual([oldDir, recentDir]);
@@ -1251,7 +1290,7 @@ describe('Workspace routes', () => {
     const { app, projDir } = await setup();
     await app.request('/api/workspaces', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ path: projDir }),
     });
     await mkdir(join(projDir, 'sub'));
@@ -1303,7 +1342,7 @@ describe('Config routes', () => {
     dirs.push(homeDir);
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir });
+    const result = await createTestApp({ manager, homeDir });
     return { app: result.app, harness };
   }
 
@@ -1345,7 +1384,14 @@ describe('Config routes', () => {
       defaultPermissionMode?: string;
       defaultThinking?: boolean;
       thinking?: { mode?: string; effort?: string };
-      providers: { id: string; type: string; baseUrl?: string; hasApiKey: boolean }[];
+      providers: {
+        id: string;
+        type: string;
+        baseUrl?: string;
+        hasApiKey: boolean;
+        keyFromEnv: boolean;
+        oauth: boolean;
+      }[];
       models: { id: string; provider: string }[];
     };
     expect(body.configPath).toBe('/tmp/fake-config.toml');
@@ -1384,7 +1430,7 @@ describe('Config routes', () => {
 
     const ok = await app.request('/api/config', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({
         defaultModel: 'm1',
         defaultPermissionMode: 'auto',
@@ -1406,28 +1452,28 @@ describe('Config routes', () => {
 
     const badMode = await app.request('/api/config', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ thinking: { mode: 'bogus' } }),
     });
     expect(badMode.status).toBe(400);
 
     const badEffort = await app.request('/api/config', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ thinking: { effort: 'insane' } }),
     });
     expect(badEffort.status).toBe(400);
 
     const bad = await app.request('/api/config', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ defaultPermissionMode: 'bogus' }),
     });
     expect(bad.status).toBe(400);
 
     const empty = await app.request('/api/config', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({}),
     });
     expect(empty.status).toBe(400);
@@ -1436,7 +1482,10 @@ describe('Config routes', () => {
   test('DELETE /api/config/providers/:id 移除 provider', async () => {
     const { app, harness } = await setup();
     harness.config = { providers: { a: { type: 'anthropic' }, b: { type: 'anthropic' } } };
-    const res = await app.request('/api/config/providers/a', { method: 'DELETE' });
+    const res = await app.request('/api/config/providers/a', {
+      method: 'DELETE',
+      headers: writeHeaders(),
+    });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { providers: { id: string }[] };
     expect(body.providers.map((p) => p.id)).toEqual(['b']);
@@ -1447,7 +1496,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1455,7 +1504,7 @@ describe('Config routes', () => {
 
     const ok = await app.request(`/api/sessions/${id}/model`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ model: 'local/qwen-3.6' }),
     });
     expect(ok.status).toBe(200);
@@ -1463,7 +1512,7 @@ describe('Config routes', () => {
 
     const empty = await app.request(`/api/sessions/${id}/model`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ model: '  ' }),
     });
     expect(empty.status).toBe(400);
@@ -1473,7 +1522,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1482,7 +1531,7 @@ describe('Config routes', () => {
     for (const level of ['off', 'low', 'medium', 'high', 'xhigh', 'max']) {
       const ok = await app.request(`/api/sessions/${id}/thinking`, {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
+        headers: writeHeaders(),
         body: JSON.stringify({ level }),
       });
       expect(ok.status).toBe(200);
@@ -1491,7 +1540,7 @@ describe('Config routes', () => {
 
     const bad = await app.request(`/api/sessions/${id}/thinking`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ level: 'insane' }),
     });
     expect(bad.status).toBe(400);
@@ -1501,7 +1550,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1509,7 +1558,7 @@ describe('Config routes', () => {
 
     const skill = await app.request(`/api/sessions/${id}/activate-skill`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ name: 'init', args: 'src' }),
     });
     expect(skill.status).toBe(200);
@@ -1517,12 +1566,15 @@ describe('Config routes', () => {
 
     const empty = await app.request(`/api/sessions/${id}/activate-skill`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ name: '  ' }),
     });
     expect(empty.status).toBe(400);
 
-    const compact = await app.request(`/api/sessions/${id}/compact`, { method: 'POST' });
+    const compact = await app.request(`/api/sessions/${id}/compact`, {
+      method: 'POST',
+      headers: writeHeaders(),
+    });
     expect(compact.status).toBe(200);
     expect(session.compacted).toBe(true);
   });
@@ -1531,7 +1583,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1560,7 +1612,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1582,7 +1634,7 @@ describe('Config routes', () => {
     const { app, harness } = await setup();
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ workDir: '/proj' }),
     });
     const id = ((await created.json()) as { session: SessionSummary }).session.id;
@@ -1618,7 +1670,10 @@ describe('Config routes', () => {
       } as unknown as Partial<SessionSummary>,
     } as unknown as Partial<SessionSummary>);
 
-    const res = await app.request(`/api/sessions/${id}/resume`, { method: 'POST' });
+    const res = await app.request(`/api/sessions/${id}/resume`, {
+      method: 'POST',
+      headers: writeHeaders(),
+    });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { session: ResumedSessionSummary };
     expect(body.session.agents?.['main']?.replay).toHaveLength(2);
@@ -1635,7 +1690,7 @@ describe('Static source hint', () => {
     const stderrWrite = spyOn(process.stderr, 'write').mockImplementation(() => true);
     const stdoutWrite = spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await createApp({
+      await createTestApp({
         manager: new WebSessionManager(new FakeHarness()),
         publicDir: '/nonexistent-public-dir-xyz',
       });
@@ -1645,7 +1700,7 @@ describe('Static source hint', () => {
 
       stderrWrite.mockClear();
       stdoutWrite.mockClear();
-      await createApp({ manager: new WebSessionManager(new FakeHarness()) });
+      await createTestApp({ manager: new WebSessionManager(new FakeHarness()) });
       expect(
         stdoutWrite.mock.calls.some((args) => String(args[0]).includes('serving API only')),
       ).toBe(true);
@@ -1657,6 +1712,43 @@ describe('Static source hint', () => {
       stderrWrite.mockRestore();
       stdoutWrite.mockRestore();
     }
+  });
+
+  /**
+   * review F3:目录前缀判定必须带分隔符。`resolve(publicDir, '.' + pathname)` 的结果
+   * 只要**字符串上**以 publicDir 开头就会被当成目录内文件,于是兄弟目录
+   * `<root>/public-evil/` 撞上 `<root>/public` 而漏过去。
+   *
+   * 可达路径是**编码斜杠**:`/..%2f..%2f` 里的 `%2f` 逃过 WHATWG URL 的段规范化
+   * （裸 `%2e%2e` 会被解码并折叠掉,所以那条反而不是攻击面),`decodeURIComponent`
+   * 之后才变成 `../`。与 `/fs/list`(routes.ts)的 `startsWith(`${base}${sep}`)` 同一判据。
+   */
+  test('兄弟目录名以 publicDir 开头时不算目录内文件(前缀判定要带分隔符)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'byf-static-'));
+    const publicDir = join(root, 'public');
+    await mkdir(publicDir, { recursive: true });
+    await writeFile(join(publicDir, 'index.html'), '<html>spa</html>\n', 'utf-8');
+    await mkdir(join(root, 'public-evil'), { recursive: true });
+    await writeFile(join(root, 'public-evil', 'secret.txt'), 'leaked-by-prefix\n', 'utf-8');
+
+    const manager = new WebSessionManager(new FakeHarness());
+    const { app } = await createTestApp({ manager, publicDir });
+
+    // 合法 SPA 路径不被误杀,深链接仍然回退到 index.html。
+    const index = await app.request('/');
+    expect(index.status).toBe(200);
+    expect(await index.text()).toContain('<html>spa</html>');
+    const spaRoute = await app.request('/sessions/abc123');
+    expect(spaRoute.status).toBe(200);
+    expect(await spaRoute.text()).toContain('<html>spa</html>');
+
+    const escape = await app.request('/..%2fpublic-evil%2fsecret.txt');
+    expect(escape.status).toBe(403);
+    expect(await escape.text()).not.toContain('leaked-by-prefix');
+
+    // 真正的目录外逃逸（`..` 到根以外）同样被拒,且不会因为判定失败而 500。
+    const traversal = await app.request('/..%2f..%2f..%2fetc%2fpasswd');
+    expect(traversal.status).toBe(403);
   });
 });
 
@@ -1671,7 +1763,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     const dir = homeDir ?? (await mkdtemp(join(tmpdir(), 'byf-wavea-')));
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: dir });
+    const result = await createTestApp({ manager, homeDir: dir });
     return { app: result.app, harness, homeDir: dir };
   }
 
@@ -1693,7 +1785,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const res = await app.request('/api/sessions/ses_rename', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ title: '新标题 🎯' }),
     });
     expect(res.status).toBe(200);
@@ -1708,7 +1800,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const res = await app.request('/api/sessions/ghost', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ title: 'Ghost' }),
     });
     expect(res.status).toBe(404);
@@ -1722,7 +1814,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const res = await app.request('/api/sessions/ses_pin', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ pinned: true, archived: true }),
     });
     expect(res.status).toBe(200);
@@ -1736,21 +1828,21 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const tooLong = await app.request('/api/sessions/ses_a', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ title: 'a'.repeat(201) }),
     });
     expect(tooLong.status).toBe(400);
 
     const blank = await app.request('/api/sessions/ses_a', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ title: '   ' }),
     });
     expect(blank.status).toBe(400);
 
     const empty = await app.request('/api/sessions/ses_a', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({}),
     });
     expect(empty.status).toBe(400);
@@ -1784,7 +1876,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const res = await app.request('/api/sessions/ses_unarchive', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ archived: false }),
     });
     expect(res.status).toBe(200);
@@ -1800,7 +1892,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const res = await app.request('/api/sessions/ses_src/fork', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({ upToMessage: 2 }),
     });
     expect(res.status).toBe(201);
@@ -1813,7 +1905,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     const { app, harness } = await setup();
     const session = seed(harness, 'ses_busy', '/proj');
     // resume 挂上事件监听(manager 跟踪 busy)
-    await app.request('/api/sessions/ses_busy/resume', { method: 'POST' });
+    await app.request('/api/sessions/ses_busy/resume', { method: 'POST', headers: writeHeaders() });
     session.emit({
       type: 'turn.started',
       sessionId: 'ses_busy',
@@ -1824,7 +1916,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
 
     const busy = await app.request('/api/sessions/ses_busy/fork', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({}),
     });
     expect(busy.status).toBe(409);
@@ -1840,7 +1932,7 @@ describe('Wave A session organization routes (PRD-0034)', () => {
     harness.nextForkResult = forked;
     const ok = await app.request('/api/sessions/ses_busy/fork', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: writeHeaders(),
       body: JSON.stringify({}),
     });
     expect(ok.status).toBe(201);
@@ -1849,12 +1941,15 @@ describe('Wave A session organization routes (PRD-0034)', () => {
   test('fork busy 只由主 agent turn 生命周期驱动,子 agent 事件不参与', async () => {
     const { app, harness } = await setup();
     const session = seed(harness, 'ses_nested', '/proj');
-    await app.request('/api/sessions/ses_nested/resume', { method: 'POST' });
+    await app.request('/api/sessions/ses_nested/resume', {
+      method: 'POST',
+      headers: writeHeaders(),
+    });
 
     const fork = () =>
       app.request('/api/sessions/ses_nested/fork', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: writeHeaders(),
         body: JSON.stringify({}),
       });
     const childStarted = () => {
@@ -1876,12 +1971,13 @@ describe('Wave A session organization routes (PRD-0034)', () => {
       });
     };
 
-    // 子 agent turn 开始不应把父会话标为 busy。
+    // PRD-0037 #340（修 D2）：子 agent turn 进行中同样计为 busy——
+    // 任意 lane 的任意操作（含子代理）不再误判空闲。
     harness.nextForkResult = seed(harness, 'ses_forked_sub', '/proj');
     childStarted();
-    expect((await fork()).status).toBe(201);
+    expect((await fork()).status).toBe(409);
 
-    // 主 agent turn 期间,子 agent 结束不能清除 busy(否则撕裂窗口重新打开)。
+    // 主 agent turn 期间,子 agent 结束不能清除 busy(深度计数天然正确)。
     harness.nextForkResult = seed(harness, 'ses_forked_main', '/proj');
     session.emit({
       type: 'turn.started',
@@ -2048,7 +2144,7 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
     const harness = new FakeHarness();
     harness.workspaceList = [ws];
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir });
+    const result = await createTestApp({ manager, homeDir });
     return { app: result.app, homeDir, ws, outside };
   }
 
@@ -2158,7 +2254,7 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
 
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const { app } = await createApp({ manager, homeDir });
+    const { app } = await createTestApp({ manager, homeDir });
 
     const media = await app.request(
       `/api/files?path=${encodeURIComponent(join(mediaDir, 'abc.png'))}`,
@@ -2173,16 +2269,22 @@ describe('GET /api/files scoped file endpoint (PRD-0034)', () => {
 // ---- LAN banner(PRD-0034 R-D1) -------------------------------------------------
 
 describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
-  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不变', async () => {
+  test('非回环绑定时列出各 LAN IP 完整 URL(含 token)+ 轮换提示;回环不列 LAN 行', async () => {
     const { formatWebStartupBanner } = await import('./startup-banner');
+    // PRD-0038 F4:`authToken` 是必填项,因为 `resolveAuthToken` 保证每次启动都
+    // 有生效 token。原来"不传 token → auth=disabled"那一支在运行时不可达,只是
+    // 让同一行横幅说出假话,所以它连同这条断言一起被删掉。
     const loopback = formatWebStartupBanner({
+      authToken: 'tok-loopback',
       host: '127.0.0.1',
       port: 4100,
       byfHome: '/home/u/.byf',
     });
     expect(loopback).toBe(
-      '[web-server] listening on http://127.0.0.1:4100 (auth=disabled, BYF_HOME=/home/u/.byf)\n',
+      '[web-server] listening on http://127.0.0.1:4100 ' +
+        '(auth=required, token=tok-loopback, BYF_HOME=/home/u/.byf)\n',
     );
+    expect(loopback).not.toContain('auth=disabled');
 
     const lan = formatWebStartupBanner({
       host: '0.0.0.0',
@@ -2200,9 +2302,31 @@ describe('formatWebStartupBanner LAN URLs (PRD-0034)', () => {
   test('collectLanIps 排除回环与内网 IPv6,返回 IPv4 地址', async () => {
     const { collectLanIps } = await import('./startup-banner');
     const ips = collectLanIps([
-      { address: '127.0.0.1', family: 'IPv4', internal: true, scopeid: undefined },
-      { address: '192.168.1.5', family: 'IPv4', internal: false, scopeid: undefined },
-      { address: 'fe80::1', family: 'IPv6', internal: false, scopeid: 5 },
+      {
+        address: '127.0.0.1',
+        netmask: '255.0.0.0',
+        mac: '00:00:00:00:00:00',
+        internal: true,
+        cidr: '127.0.0.1/8',
+        family: 'IPv4',
+      },
+      {
+        address: '192.168.1.5',
+        netmask: '255.255.255.0',
+        mac: 'aa:bb:cc:dd:ee:ff',
+        internal: false,
+        cidr: '192.168.1.5/24',
+        family: 'IPv4',
+      },
+      {
+        address: 'fe80::1',
+        netmask: 'ffff:ffff:ffff:ffff::',
+        mac: 'aa:bb:cc:dd:ee:ff',
+        internal: false,
+        cidr: null,
+        family: 'IPv6',
+        scopeid: 5,
+      },
     ]);
     expect(ips).toEqual(['192.168.1.5']);
   });
@@ -2217,17 +2341,17 @@ describe('config management routes (PRD-0034 R-D3)', () => {
   }> {
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager });
+    const result = await createTestApp({ manager });
     return { app: result.app, harness };
   }
 
-  const json = { 'content-type': 'application/json' };
+  const json = (): Record<string, string> => writeHeaders();
 
   test('POST /api/config/providers:slug 校验/查重/baseUrl 必填,合法时一次建全', async () => {
     const { app, harness } = await setup();
     const badSlug = await app.request('/api/config/providers', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         id: 'Bad_Slug',
         type: 'openai-completions',
@@ -2239,14 +2363,14 @@ describe('config management routes (PRD-0034 R-D3)', () => {
 
     const noUrl = await app.request('/api/config/providers', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ id: 'good', type: 'openai-completions', models: [] }),
     });
     expect(noUrl.status).toBe(400);
 
     const noModels = await app.request('/api/config/providers', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         id: 'good',
         type: 'openai-completions',
@@ -2262,7 +2386,7 @@ describe('config management routes (PRD-0034 R-D3)', () => {
     };
     const dup = await app.request('/api/config/providers', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         id: 'existing',
         type: 'openai-completions',
@@ -2274,7 +2398,7 @@ describe('config management routes (PRD-0034 R-D3)', () => {
 
     const ok = await app.request('/api/config/providers', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         id: 'myprov',
         type: 'openai-completions',
@@ -2306,7 +2430,7 @@ describe('config management routes (PRD-0034 R-D3)', () => {
     };
     const res = await app.request('/api/config/providers/myprov', {
       method: 'PATCH',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ baseUrl: 'https://new/v1' }),
     });
     expect(res.status).toBe(200);
@@ -2315,8 +2439,8 @@ describe('config management routes (PRD-0034 R-D3)', () => {
         providers: Record<string, { baseUrl?: string; apiKey?: string }>;
       }
     ).providers['myprov'];
-    expect(provider.baseUrl).toBe('https://new/v1');
-    expect(provider.apiKey).toBe('sk-keep');
+    expect(provider?.baseUrl).toBe('https://new/v1');
+    expect(provider?.apiKey).toBe('sk-keep');
   });
 
   test('POST/PATCH/DELETE /api/config/models:别名查重、更新、删除清理 defaultModel', async () => {
@@ -2329,21 +2453,21 @@ describe('config management routes (PRD-0034 R-D3)', () => {
 
     const dup = await app.request('/api/config/models', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ id: 'existing', provider: 'p', model: 'm2', maxContextSize: 1000 }),
     });
     expect(dup.status).toBe(409);
 
     const created = await app.request('/api/config/models', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ id: 'alias2', provider: 'p', model: 'm2', maxContextSize: 2000 }),
     });
     expect(created.status).toBe(201);
 
     const patched = await app.request('/api/config/models/alias2', {
       method: 'PATCH',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ model: 'm2-new' }),
     });
     expect(patched.status).toBe(200);
@@ -2352,7 +2476,10 @@ describe('config management routes (PRD-0034 R-D3)', () => {
         ?.model,
     ).toBe('m2-new');
 
-    const removed = await app.request('/api/config/models/existing', { method: 'DELETE' });
+    const removed = await app.request('/api/config/models/existing', {
+      method: 'DELETE',
+      headers: writeHeaders(),
+    });
     expect(removed.status).toBe(200);
     expect(harness.removedModels).toEqual(['existing']);
   });
@@ -2362,12 +2489,12 @@ describe('config management routes (PRD-0034 R-D3)', () => {
     const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: [{ id: 'model-a' }, { id: 'model-b' }] }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: writeHeaders(),
       }),
     );
     const res = await app.request('/api/config/discover-models', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         type: 'openai-completions',
         baseUrl: 'https://draft.example/v1',
@@ -2400,11 +2527,11 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
   async function setup(): Promise<Env> {
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
-  const json = { 'content-type': 'application/json' };
+  const json = (): Record<string, string> => writeHeaders();
 
   it('GET /api/sessions without workDir returns the full inspectable projection', async () => {
     const { app, harness } = await setup();
@@ -2429,12 +2556,15 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { sessions: InspectorSessionSummary[] };
     expect(data.sessions).toHaveLength(1);
-    expect(data.sessions[0].health).toBe('ok');
+    expect(data.sessions?.[0]?.health).toBe('ok');
   });
 
   it('DELETE /api/sessions/:id delegates to the harness', async () => {
     const { app, harness } = await setup();
-    const res = await app.request('/api/sessions/session_x', { method: 'DELETE' });
+    const res = await app.request('/api/sessions/session_x', {
+      method: 'DELETE',
+      headers: writeHeaders(),
+    });
     expect(res.status).toBe(200);
     expect(harness.deletedSessions).toEqual(['session_x']);
   });
@@ -2444,12 +2574,15 @@ describe('Inspector & session delete routes (PRD-0035 R-B1)', () => {
     // live 会话须经 manager.createSession 创建（attach 进 manager.sessions 才判 busy）
     const created = await app.request('/api/sessions', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ workDir: '/w' }),
     });
     expect(created.status).toBe(201);
     const { session } = (await created.json()) as { session: { id: string } };
-    const res = await app.request(`/api/sessions/${session.id}`, { method: 'DELETE' });
+    const res = await app.request(`/api/sessions/${session.id}`, {
+      method: 'DELETE',
+      headers: writeHeaders(),
+    });
     expect(res.status).toBe(409);
     const data = (await res.json()) as { code: string };
     expect(data.code).toBe('SESSION_BUSY');
@@ -2524,11 +2657,11 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
   async function setup(): Promise<Env> {
     const harness = new FakeHarness();
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
-  const json = { 'content-type': 'application/json' };
+  const json = (): Record<string, string> => writeHeaders();
 
   it('GET /api/config/raw masks api_key values and returns revision', async () => {
     const { app, harness } = await setup();
@@ -2561,7 +2694,7 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     const { app, harness } = await setup();
     const res = await app.request('/api/config/validate', {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ text: '# ok\n' }),
     });
     expect(res.status).toBe(200);
@@ -2579,15 +2712,15 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     const maskedText = '[providers.d]\napi_key = "__BYF_KEEP_SECRET__"\n';
     const res = await app.request('/api/config/raw', {
       method: 'PUT',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ text: maskedText, expectedRevision: 'rev-abc' }),
     });
     expect(res.status).toBe(200);
     expect(harness.configWriteCalls).toHaveLength(1);
     // 占位符被还原为磁盘原值，写盘的是原文（不含占位符）
-    expect(harness.configWriteCalls[0].text).toContain('sk-top-secret');
-    expect(harness.configWriteCalls[0].text).not.toContain('__BYF_KEEP_SECRET__');
-    expect(harness.configWriteCalls[0].expectedRevision).toBe('rev-abc');
+    expect(harness.configWriteCalls[0]?.text).toContain('sk-top-secret');
+    expect(harness.configWriteCalls[0]?.text).not.toContain('__BYF_KEEP_SECRET__');
+    expect(harness.configWriteCalls[0]?.expectedRevision).toBe('rev-abc');
   });
 
   it('PUT /api/config/raw maps revision conflict to 409', async () => {
@@ -2598,7 +2731,7 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     );
     const res = await app.request('/api/config/raw', {
       method: 'PUT',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ text: '# new\n', expectedRevision: 'stale' }),
     });
     expect(res.status).toBe(409);
@@ -2611,7 +2744,7 @@ describe('Config raw routes (PRD-0035 Wave E / ADR-0038)', () => {
     harness.configWriteError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid configuration');
     const res = await app.request('/api/config/raw', {
       method: 'PUT',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ text: 'default_model = 123', expectedRevision: 'r' }),
     });
     expect(res.status).toBe(422);
@@ -2630,7 +2763,7 @@ describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
     const harness = new FakeHarness();
     harness.workspaceList = [workDir];
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
@@ -2669,8 +2802,8 @@ describe('MCP config routes (PRD-0036 / ADR-0039)', () => {
     const res = await app.request(`/api/mcp/servers?workDir=${encodeURIComponent('/work/ws')}`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as McpConfigListing;
-    expect(data.user.servers[0].overridden).toBe(true);
-    expect(data.project.servers[0].name).toBe('shared');
+    expect(data.user?.servers[0]?.overridden).toBe(true);
+    expect(data.project?.servers[0]?.name).toBe('shared');
     expect(harness.mcpListCalls).toEqual(['/work/ws']);
   });
 
@@ -2735,11 +2868,11 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     const harness = new FakeHarness();
     harness.workspaceList = [workDir];
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
-  const json = { 'content-type': 'application/json' };
+  const json = (): Record<string, string> => writeHeaders();
 
   it('PUT /api/mcp/servers/:scope upserts with name + config', async () => {
     const { app, harness } = await setup();
@@ -2747,7 +2880,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/servers/project?workDir=${encodeURIComponent('/work/ws')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({
           name: 'github',
           config: { transport: 'stdio', command: 'gh', enabled: true },
@@ -2771,7 +2904,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/servers/global?workDir=${encodeURIComponent('/work/ws')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({ name: 'a', config: {} }),
       },
     );
@@ -2781,7 +2914,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/servers/user?workDir=${encodeURIComponent('/work/ws')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({ config: {} }),
       },
     );
@@ -2791,7 +2924,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/servers/user?workDir=${encodeURIComponent('/etc')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({ name: 'a', config: {} }),
       },
     );
@@ -2805,7 +2938,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/servers/user?workDir=${encodeURIComponent('/work/ws')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({ name: 'a', config: { transport: 'stdio' } }),
       },
     );
@@ -2818,7 +2951,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     const { app, harness } = await setup();
     const ok = await app.request(
       `/api/mcp/servers/user/old?workDir=${encodeURIComponent('/work/ws')}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: writeHeaders() },
     );
     expect(ok.status).toBe(200);
     expect(harness.mcpRemoveCalls).toEqual([{ workDir: '/work/ws', scope: 'user', name: 'old' }]);
@@ -2829,7 +2962,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     );
     const missing = await app.request(
       `/api/mcp/servers/user/old?workDir=${encodeURIComponent('/work/ws')}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: writeHeaders() },
     );
     expect(missing.status).toBe(404);
   });
@@ -2838,7 +2971,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     const { app, harness } = await setup();
     const ok = await app.request(`/api/mcp/raw/project?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'PUT',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ text: '{\n  "mcpServers": {}\n}\n' }),
     });
     expect(ok.status).toBe(200);
@@ -2849,7 +2982,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
       `/api/mcp/raw/project?workDir=${encodeURIComponent('/work/ws')}`,
       {
         method: 'PUT',
-        headers: json,
+        headers: json(),
         body: JSON.stringify({ text: '{ broken' }),
       },
     );
@@ -2859,9 +2992,19 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
   it('POST /api/mcp/test probes a server without persisting', async () => {
     const { app, harness } = await setup();
     harness.mcpTestResult = { ok: false, toolCount: 0, error: 'spawn npx ENOENT' };
+    // PRD-0038 AC-1.3:/api/mcp/test 的 stdio command 必须已在任一 scope 的已保存
+    // 配置中出现(白名单),因此被测命令要先出现在 listing 里——测的正是"改过参数、
+    // 保存前先测"这条真实体验。
+    harness.mcpListing = {
+      user: { path: '/home/u/.byf/mcp.json', servers: [] },
+      project: {
+        path: '/work/ws/.byf/mcp.json',
+        servers: [{ name: 'github', config: { transport: 'stdio', command: 'gh' } }],
+      },
+    };
     const res = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         scope: 'project',
         name: 'github',
@@ -2886,21 +3029,21 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     const { app } = await setup();
     const badScope = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'global', config: {} }),
     });
     expect(badScope.status).toBe(400);
 
     const noConfig = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'user' }),
     });
     expect(noConfig.status).toBe(400);
 
     const badDir = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/etc')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'user', config: { transport: 'stdio' } }),
     });
     expect(badDir.status).toBe(400);
@@ -2911,7 +3054,7 @@ describe('MCP config write routes (PRD-0036 #313)', () => {
     harness.mcpTestError = new ByfError(ErrorCodes.CONFIG_INVALID, 'Invalid MCP config');
     const res = await app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'user', config: { transport: 'stdio' } }),
     });
     expect(res.status).toBe(422);
@@ -2930,7 +3073,7 @@ describe('Skill listing route (PRD-0036 #314)', () => {
     const harness = new FakeHarness();
     harness.workspaceList = [workDir];
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
@@ -2978,8 +3121,8 @@ describe('Skill listing route (PRD-0036 #314)', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as WorkspaceSkillListing;
     expect(data.groups).toHaveLength(2);
-    expect(data.groups[0].skills[0].name).toBe('deploy');
-    expect(data.groups[1].skills[0].shadowed).toBe(true);
+    expect(data.groups[0]?.skills[0]?.name).toBe('deploy');
+    expect(data.groups[1]?.skills[0]?.shadowed).toBe(true);
     expect(harness.skillListCalls).toEqual(['/work/ws']);
   });
 
@@ -3002,17 +3145,17 @@ describe('Skill write routes (PRD-0036 #315)', () => {
     const harness = new FakeHarness();
     harness.workspaceList = [workDir];
     const manager = new WebSessionManager(harness);
-    const result = await createApp({ manager, homeDir: '/tmp' });
+    const result = await createTestApp({ manager, homeDir: '/tmp' });
     return { app: result.app, harness };
   }
 
-  const json = { 'content-type': 'application/json' };
+  const json = (): Record<string, string> => writeHeaders();
 
   it('POST /api/skills creates and returns 201 with the template result', async () => {
     const { app, harness } = await setup();
     const res = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({
         scope: 'project',
         name: 'deploy-helper',
@@ -3033,7 +3176,7 @@ describe('Skill write routes (PRD-0036 #315)', () => {
     );
     const res = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'user', name: 'x', description: 'd' }),
     });
     expect(res.status).toBe(409);
@@ -3045,13 +3188,13 @@ describe('Skill write routes (PRD-0036 #315)', () => {
     const { app } = await setup();
     const badScope = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'global', name: 'x', description: 'd' }),
     });
     expect(badScope.status).toBe(400);
     const noName = await app.request(`/api/skills?workDir=${encodeURIComponent('/work/ws')}`, {
       method: 'POST',
-      headers: json,
+      headers: json(),
       body: JSON.stringify({ scope: 'user', description: 'd' }),
     });
     expect(noName.status).toBe(400);
@@ -3061,7 +3204,7 @@ describe('Skill write routes (PRD-0036 #315)', () => {
     const { app, harness } = await setup();
     const ok = await app.request(
       `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/work/ws/.byf/skills/gone/SKILL.md')}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: writeHeaders() },
     );
     expect(ok.status).toBe(200);
     expect(harness.skillRemoveCalls).toEqual([
@@ -3074,15 +3217,1355 @@ describe('Skill write routes (PRD-0036 #315)', () => {
     );
     const forbidden = await app.request(
       `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/etc/hosts')}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: writeHeaders() },
     );
     expect(forbidden.status).toBe(403);
 
     harness.skillWriteError = new ByfError(ErrorCodes.SKILL_NOT_FOUND, 'Skill path not found');
     const missing = await app.request(
       `/api/skills?workDir=${encodeURIComponent('/work/ws')}&path=${encodeURIComponent('/work/ws/.byf/skills/nope/SKILL.md')}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: writeHeaders() },
     );
     expect(missing.status).toBe(404);
+  });
+});
+
+// ---- PRD-0038 R1 本地服务安全边界 ---------------------------------------------
+// AC-1.1 跨站简单请求门 / AC-1.2 回环写必须持 token / AC-1.3 mcp/test 命令白名单 /
+// AC-1.4+AC-1.5 配置原文编辑器数据安全(真实磁盘)。全部只经 HTTP 公开面
+// (createApp + app.request)与包导出函数断言。
+
+/** PRD-0038 AC-1.1:Content-Type 门 + Origin/标记头门,拒绝且零副作用。 */
+describe('PRD-0038 AC-1.1 cross-site simple-request gate', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    token: string | undefined;
+  }
+
+  const GATE_TOKEN = 'a-gate-token-0123456789';
+
+  async function setup(authToken: string | undefined = GATE_TOKEN): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = ['/work/ws'];
+    const manager = new WebSessionManager(harness);
+    const result = await createTestApp({ manager, authToken });
+    const autoToken = (result as unknown as { authToken?: string }).authToken;
+    return { app: result.app, harness, token: authToken ?? autoToken };
+  }
+
+  /** 满足除被测条件外的全部写门:JSON CT + 标记头 + Bearer。 */
+  function writeHeaders(env: Env, extra: Record<string, string> = {}): Record<string, string> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      [BYF_MARKER]: 'byf-web',
+      ...extra,
+    };
+    if (env.token !== undefined) headers['authorization'] = `Bearer ${env.token}`;
+    return headers;
+  }
+
+  function expect4xx(status: number): void {
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(status).toBeLessThan(500);
+  }
+
+  it('POST /api/sessions 携带 text/plain Content-Type 被拒 4xx 且未创建会话', async () => {
+    const env = await setup();
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      // 表单式简单请求:无预检的 text/plain,body 内容是合法 JSON 文本
+      headers: {
+        'content-type': 'text/plain',
+        [BYF_MARKER]: 'byf-web',
+        ...(env.token !== undefined ? { authorization: `Bearer ${env.token}` } : {}),
+      },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect4xx(res.status);
+    expect(env.harness.sessions.size).toBe(0);
+  });
+
+  it('PUT /api/config/raw 携带 text/plain Content-Type 被拒 4xx 且零写盘', async () => {
+    const env = await setup();
+    env.harness.configDocument = {
+      path: '/tmp/config.toml',
+      text: '# keep\n',
+      revision: 'rev-keep',
+      parsed: { providers: {}, models: {} },
+    };
+    const res = await env.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: {
+        'content-type': 'text/plain',
+        [BYF_MARKER]: 'byf-web',
+        ...(env.token !== undefined ? { authorization: `Bearer ${env.token}` } : {}),
+      },
+      body: JSON.stringify({ text: '# destroyed\n', expectedRevision: 'rev-keep' }),
+    });
+    expect4xx(res.status);
+    expect(env.harness.configWriteCalls).toHaveLength(0);
+  });
+
+  it('携带跨源 Origin 的 JSON 写请求被拒 4xx 且未创建会话', async () => {
+    const env = await setup();
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers: writeHeaders(env, { origin: 'http://evil.example' }),
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect4xx(res.status);
+    expect(env.harness.sessions.size).toBe(0);
+  });
+
+  it('跨源 Origin 的 DELETE 写请求被拒 4xx 且 provider 未被移除', async () => {
+    const env = await setup();
+    env.harness.config = { providers: { a: { type: 'anthropic' } }, models: {} };
+    const res = await env.app.request('/api/config/providers/a', {
+      method: 'DELETE',
+      headers: writeHeaders(env, { origin: 'https://attacker.test' }),
+    });
+    expect4xx(res.status);
+    expect(env.harness.config.providers['a']).toBeDefined();
+    expect(env.harness.removedModels).toEqual([]);
+  });
+
+  it('无 Origin 且无 X-Byf-Requested-With 标记头的写请求被拒 4xx(Q1 条件 2)', async () => {
+    const env = await setup();
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (env.token !== undefined) headers['authorization'] = `Bearer ${env.token}`;
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect4xx(res.status);
+    expect(env.harness.sessions.size).toBe(0);
+  });
+
+  it('同源 Origin 的写请求放行(门不得误杀 SPA 自身请求)', async () => {
+    const env = await setup();
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers: writeHeaders(env, { origin: 'http://localhost' }),
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect(res.status).toBe(201);
+    expect(env.harness.sessions.size).toBe(1);
+  });
+
+  it('仅携带 X-Byf-Requested-With(无 Origin)的写请求放行', async () => {
+    const env = await setup();
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers: writeHeaders(env),
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('回环默认(未配 token)只读 GET 免凭证仍 200(SPA 首屏不破坏)', async () => {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const { app } = await createTestApp({ manager });
+    const res = await app.request('/api/sessions?workDir=/x');
+    expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * 真 socket 手写 HTTP/1.1 —— 唯一能伪造 `Host` 头的办法。`fetch` 里 `Host` 是
+ * forbidden header name(浏览器与 Bun/node 都不允许设),而 DNS rebinding 到达本机
+ * 时服务器看到的**就是这些字节**,所以这一层不是"绕开测试",而是把被测试的东西
+ * 换成线上形态本身。
+ */
+async function rawHttpRequest(
+  port: number,
+  lines: readonly string[],
+): Promise<{ status: number; head: string; body: string }> {
+  const raw = await new Promise<string>((resolvePromise, reject) => {
+    let data = '';
+    const sock = connect(port, '127.0.0.1', () => {
+      sock.write([...lines, '', ''].join('\r\n'));
+    });
+    sock.setEncoding('utf8');
+    sock.on('data', (chunk: string) => {
+      data += chunk;
+      if (data.includes('\r\n\r\n')) {
+        sock.destroy();
+        resolvePromise(data);
+      }
+    });
+    sock.on('error', reject);
+    setTimeout(() => {
+      sock.destroy();
+      resolvePromise(data);
+    }, 3000);
+  });
+  const split = raw.indexOf('\r\n\r\n');
+  const head = split === -1 ? raw : raw.slice(0, split);
+  const body = split === -1 ? '' : raw.slice(split + 4);
+  return { status: Number(/^HTTP\/1\.[01] (\d{3})/.exec(head)?.[1] ?? 0), head, body };
+}
+
+/**
+ * PRD-0038 AC-1.1：DNS rebinding 的 `Host` 允许集合门（review F1）。
+ *
+ * 威胁形态：攻击者域名 TTL=0 解析到 127.0.0.1 之后，页面发出的每个请求同时带
+ * `Host: evil.test:4100` 与 `Origin: http://evil.test:4100`。Bun 的 `c.req.url`
+ * 主机部分正是从请求自带的 `Host` 头拼出来的（下面的 e2e 用例用真 socket 钉住这条
+ * 事实），于是 `isSameOrigin` 退化为"攻击者写的 A 和他写的 A 相比"——必然相等。
+ * 而只读 GET 在回环自动 token 下免凭证，`/api/files`（工作区内任意文件，含 `.env`）
+ * 与 `/api/sessions/:id/wire` 因此完全敞开。
+ *
+ * 门在根中间件：写门之前、只读免 token 豁免之前、以及 SPA 静态回退之前。
+ */
+describe('PRD-0038 AC-1.1 Host allowlist blocks DNS rebinding', () => {
+  const REBOUND_PORT = 4100;
+
+  async function setup(options: {
+    readonly bindHost?: string;
+    readonly lanHosts?: readonly string[];
+  }): Promise<{
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    token: string;
+  }> {
+    const harness = new FakeHarness();
+    const result = await createTestApp({
+      manager: new WebSessionManager(harness),
+      bindHost: options.bindHost ?? '127.0.0.1',
+      lanHosts: options.lanHosts,
+    });
+    return { app: result.app, harness, token: result.authToken };
+  }
+
+  /** rebinding 的完整形态：Origin 与 Host 是同一个未绑定主机名。 */
+  function reboundHeaders(host = 'evil.test'): Record<string, string> {
+    const origin = `http://${host}:${String(REBOUND_PORT)}`;
+    return { host: `${host}:${String(REBOUND_PORT)}`, origin };
+  }
+
+  function absoluteUrl(path: string, host = 'evil.test'): string {
+    return `http://${host}:${String(REBOUND_PORT)}${path}`;
+  }
+
+  it('只读 GET 用同源 Host+Origin 伪装也不放行：工作区内 .env 读不到', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'byf-rebind-ws-'));
+    await writeFile(join(ws, '.env'), 'APP_SECRET=do-not-serve-to-evil\n', 'utf-8');
+    const { app, harness } = await setup({});
+    harness.workspaceList = [ws];
+
+    // 修复前：Host 与 Origin 同源 ⇒ 过门；回环只读免 token ⇒ 直接 200 读出文件内容。
+    const rejected = await app.request(
+      absoluteUrl(`/api/files?path=${encodeURIComponent(join(ws, '.env'))}`),
+      { headers: reboundHeaders() },
+    );
+    expect(rejected.status).toBe(403);
+    const rejectedText = await rejected.text();
+    expect(JSON.parse(rejectedText) as { code?: string }).toHaveProperty('code', 'FORBIDDEN');
+    expect(rejectedText).not.toContain('do-not-serve-to-evil');
+
+    // 同一台服务器、同一请求，只是 Host 回到本机绑定地址上 —— 用户自己的浏览器不受影响。
+    // （`.env` 不在文本扩展名表里，命中 `application/octet-stream` 分支，所以按原始
+    // 字节断言：这条路径**确实**能把工作区里的点文件内容发出去，正是该洞的危害所在。）
+    const allowed = await app.request(
+      `http://127.0.0.1:${String(REBOUND_PORT)}/api/files?path=${encodeURIComponent(join(ws, '.env'))}`,
+      { headers: { host: `127.0.0.1:${String(REBOUND_PORT)}` } },
+    );
+    expect(allowed.status).toBe(200);
+    expect(await allowed.text()).toContain('APP_SECRET=');
+  });
+
+  it('Host 门跑在 token 门之前：带着正确 token 的 rebinding 写请求仍被拒且零副作用', async () => {
+    const { app, harness, token } = await setup({});
+    const res = await app.request(absoluteUrl('/api/sessions'), {
+      method: 'POST',
+      headers: {
+        ...reboundHeaders(),
+        'content-type': 'application/json',
+        [BYF_MARKER]: 'byf-web',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect(res.status).toBe(403);
+    expect(harness.sessions.size).toBe(0);
+  });
+
+  it('本机三种回环写法照常放行，端口不参与判定（dev 态 vite 代理保留 client 端口）', async () => {
+    const { app } = await setup({});
+    // 相对 URL + 显式 `Host` 头：门读的就是这个头（真实 Bun.serve 上 `c.req.url`
+    // 的主机部分也由它决定，见下面的 e2e 用例）。裸 IPv6 不能拼进 URL
+    // （`http://::1/` 不是合法 URL），所以走这条路反而是更准的测法。
+    for (const host of [
+      `localhost:${String(REBOUND_PORT)}`,
+      'localhost',
+      'localhost:4200',
+      `127.0.0.2:${String(REBOUND_PORT)}`,
+      '[::1]:4100',
+      '::1',
+      'LocalHost.',
+    ]) {
+      const res = await app.request('/api/sessions?workDir=/x', { headers: { host } });
+      expect([res.status, host]).toEqual([200, host]);
+    }
+  });
+
+  it('只是"以本机地址开头"的域名不算本机地址（127.0.0.1.attacker.test / localhost.attacker.test）', async () => {
+    const { app } = await setup({});
+    for (const host of [
+      '127.0.0.1.attacker.test',
+      'localhost.attacker.test',
+      '127.0.0.1.nip.io',
+      'evil-localhost',
+    ]) {
+      const res = await app.request(absoluteUrl('/api/sessions?workDir=/x', host), {
+        headers: reboundHeaders(host),
+      });
+      expect([res.status, host]).toEqual([403, host]);
+    }
+  });
+
+  it('格式不良的 Host 值一律拒绝：不做"取前段"式洗白（重复头拼接 / 路径 / 空白）', async () => {
+    const { app } = await setup({});
+    for (const host of [
+      '127.0.0.1:4100, evil.test',
+      'localhost, evil.test',
+      'localhost evil',
+      'localhost/evil',
+      'evil.test\\@127.0.0.1',
+      'localhost:not-a-port',
+      ':4100',
+      '',
+    ]) {
+      const res = await app.request('/api/sessions?workDir=/x', { headers: { host } });
+      expect([res.status, host]).toEqual([403, host]);
+    }
+  });
+
+  it('LAN 绑定接受 banner 交付的网卡地址，仍拒绝未绑定主机名', async () => {
+    const lan = await setup({ bindHost: '0.0.0.0', lanHosts: ['192.168.1.10'] });
+    const viaLanIp = await lan.app.request('http://192.168.1.10:4100/api/sessions?workDir=/x', {
+      headers: { host: '192.168.1.10:4100' },
+    });
+    expect(viaLanIp.status).toBe(200);
+    // 回环名在 LAN 绑定下仍然可用：本机浏览器是同一台机器上的合法调用者。
+    const viaLoopback = await lan.app.request('http://localhost:4100/api/sessions?workDir=/x', {
+      headers: { host: 'localhost:4100' },
+    });
+    expect(viaLoopback.status).toBe(200);
+    const viaEvil = await lan.app.request('http://evil.test:4100/api/sessions?workDir=/x', {
+      headers: { host: 'evil.test:4100', origin: 'http://evil.test:4100' },
+    });
+    expect(viaEvil.status).toBe(403);
+    // 绑定到具体网卡地址时，同机其它网卡名也不太该被接受（未绑定 = 不可达）。
+    const bound = await setup({ bindHost: '192.168.1.10' });
+    const otherIface = await bound.app.request('http://10.0.0.9:4100/api/sessions?workDir=/x', {
+      headers: { host: '10.0.0.9:4100' },
+    });
+    expect(otherIface.status).toBe(403);
+  });
+
+  it('SPA 静态路径同样受 Host 门约束（门在根中间件，不是只挡 /api）', async () => {
+    const { app } = await setup({});
+    const res = await app.request('http://evil.test:4100/', {
+      headers: reboundHeaders(),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('e2e：真 Bun.serve 上的伪造 Host 头（rebinding 的线上形态）', async () => {
+    const handle = await startWebServer({
+      harness: new FakeHarness(),
+      host: '127.0.0.1',
+      port: 0,
+    });
+    try {
+      const port = handle.port;
+      // 前提本身也要钉住：`c.req.url` 的主机来自请求自带的 Host，所以
+      // "同源 Origin/Host" 在 rebinding 下总能成立——这正是修复前的洞。
+      const forged = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: evil.test:${String(port)}`,
+        `Origin: http://evil.test:${String(port)}`,
+        'Connection: close',
+      ]);
+      expect(forged.status).toBe(403);
+      expect(forged.body).not.toContain('"sessions"');
+
+      const control = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: 127.0.0.1:${String(port)}`,
+        'Connection: close',
+      ]);
+      expect(control.status).toBe(200);
+      expect(control.body).toContain('"sessions"');
+
+      // 重复 Host 头：Bun 会把两个值拼成一个（`a.test, 127.0.0.1:port`），而拼接结果
+      // 不是任何本机主机名——等值比较（不是前缀比较）才能挡住这一类。
+      const duplicated = await rawHttpRequest(port, [
+        'GET /api/sessions?workDir=/x HTTP/1.1',
+        `Host: 127.0.0.1:${String(port)}`,
+        'Host: evil.test',
+        'Connection: close',
+      ]);
+      expect(duplicated.status).toBe(403);
+      expect(duplicated.body).not.toContain('"sessions"');
+
+      // 缺 Host 的 HTTP/1.0：既不是 200，也不泄漏任何会话数据。
+      const hostless = await rawHttpRequest(port, ['GET /api/sessions?workDir=/x HTTP/1.0']);
+      expect(hostless.status).not.toBe(200);
+      expect(hostless.body).not.toContain('"sessions"');
+    } finally {
+      handle.close();
+    }
+  });
+});
+
+/** PRD-0038 AC-1.2:回环写必须持 token;token 经 createApp 结果交付;比对失败路径一致。 */
+describe('PRD-0038 AC-1.2 loopback writes require token', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    token: string | undefined;
+  }
+
+  async function setup(authToken?: string): Promise<Env> {
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const result = await createTestApp({ manager, authToken });
+    const autoToken = (result as unknown as { authToken?: string }).authToken;
+    return { app: result.app, harness, token: authToken ?? autoToken };
+  }
+
+  function writeHeaders(token: string | undefined): Record<string, string> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      [BYF_MARKER]: 'byf-web',
+      origin: 'http://localhost',
+    };
+    if (token !== undefined) headers['authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  it('createApp 未显式配置 token 时自动生成回环 token,无凭证的合法 JSON 写返回 401 且零副作用', async () => {
+    const env = await setup();
+    expect(typeof env.token).toBe('string');
+    expect((env.token ?? '').length).toBeGreaterThan(0);
+
+    const res = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        [BYF_MARKER]: 'byf-web',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({ workDir: '/proj' }),
+    });
+    expect(res.status).toBe(401);
+    expect(env.harness.sessions.size).toBe(0);
+    // 响应体不泄漏内部状态:只有结构化 error/code,无堆栈/路径/token。
+    const text = await res.text();
+    const body = JSON.parse(text) as Record<string, unknown>;
+    expect(body['code']).toBe('UNAUTHORIZED');
+    expect(text).not.toContain('stack');
+    expect(text).not.toContain('.ts');
+    expect(text).not.toContain(env.token ?? '<<should-never-appear>>');
+  });
+
+  it('正确 token 经 Authorization Bearer 与 ?token= 两种携带方式均放行写请求', async () => {
+    const env = await setup();
+    expect(typeof env.token).toBe('string');
+    const token = env.token as string;
+    const viaBearer = await env.app.request('/api/sessions', {
+      method: 'POST',
+      headers: writeHeaders(token),
+      body: JSON.stringify({ workDir: '/proj-a' }),
+    });
+    expect(viaBearer.status).toBe(201);
+    const viaQuery = await env.app.request(`/api/sessions?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        [BYF_MARKER]: 'byf-web',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({ workDir: '/proj-b' }),
+    });
+    expect(viaQuery.status).toBe(201);
+    expect(env.harness.sessions.size).toBe(2);
+  });
+
+  it('token 失败路径一致:无凭证 / 错误 token(等长与不等长)/ 空 Bearer 均为 401 且响应一致', async () => {
+    const env = await setup();
+    const token = env.token ?? 'expected-token-value';
+    const sameLengthWrong = 'x'.repeat(token.length);
+    const attempts: Array<{ headers: Record<string, string>; query?: string }> = [
+      { headers: writeHeaders(undefined) },
+      { headers: writeHeaders('short-wrong') },
+      { headers: writeHeaders(sameLengthWrong) },
+      { headers: { ...writeHeaders(undefined), authorization: 'Bearer ' } },
+      { headers: writeHeaders(undefined), query: 'wrong-query-token' },
+    ];
+    const bodies = new Set<string>();
+    for (const attempt of attempts) {
+      const url =
+        attempt.query === undefined
+          ? '/api/sessions'
+          : `/api/sessions?token=${encodeURIComponent(attempt.query)}`;
+      const res = await env.app.request(url, {
+        method: 'POST',
+        headers: attempt.headers,
+        body: JSON.stringify({ workDir: '/proj' }),
+      });
+      // 长度不等/相等的错误 token 都不能触发 500(timingSafeEqual 长度守卫)。
+      expect(res.status).toBe(401);
+      bodies.add(await res.text());
+    }
+    expect(env.harness.sessions.size).toBe(0);
+    expect(bodies.size).toBe(1);
+  });
+
+  it('显式配置 token(如 LAN 模式)时只读 GET 也需凭证(免 token 仅限回环自动 token)', async () => {
+    const env = await setup('lan-mode-token-value');
+    const anon = await env.app.request('/api/sessions?workDir=/x');
+    expect(anon.status).toBe(401);
+    const authed = await env.app.request('/api/sessions?workDir=/x', {
+      headers: { authorization: 'Bearer lan-mode-token-value' },
+    });
+    expect(authed.status).toBe(200);
+  });
+
+  it('LAN 绑定仍强制 WEB_AUTH_TOKEN(config.resolveWebAuthToken)', async () => {
+    const { resolveWebAuthToken } = await import('./config');
+    const savedPrimary = process.env['WEB_AUTH_TOKEN'];
+    const savedLegacy = process.env['BYF_WEB_AUTH_TOKEN'];
+    try {
+      delete process.env['WEB_AUTH_TOKEN'];
+      delete process.env['BYF_WEB_AUTH_TOKEN'];
+      expect(() => resolveWebAuthToken('0.0.0.0')).toThrow(/WEB_AUTH_TOKEN/);
+      expect(resolveWebAuthToken('127.0.0.1')).toBeUndefined();
+      process.env['WEB_AUTH_TOKEN'] = 'env-token-value';
+      expect(resolveWebAuthToken('0.0.0.0')).toBe('env-token-value');
+    } finally {
+      if (savedPrimary === undefined) delete process.env['WEB_AUTH_TOKEN'];
+      else process.env['WEB_AUTH_TOKEN'] = savedPrimary;
+      if (savedLegacy === undefined) delete process.env['BYF_WEB_AUTH_TOKEN'];
+      else process.env['BYF_WEB_AUTH_TOKEN'] = savedLegacy;
+    }
+  });
+
+  it('回环 token 进入启动日志(banner 可交付 token)', async () => {
+    const { formatWebStartupBanner } = await import('./startup-banner');
+    const banner = formatWebStartupBanner({
+      authToken: 'tok-loop-delivery',
+      host: '127.0.0.1',
+      port: 4100,
+      byfHome: '/home/u/.byf',
+    });
+    expect(banner).toContain('tok-loop-delivery');
+  });
+});
+
+/** PRD-0038 AC-1.3:/api/mcp/test 的 stdio command 必须已在任一 scope 保存配置中出现。 */
+describe('PRD-0038 AC-1.3 /api/mcp/test command allowlist', () => {
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: FakeHarness;
+    token: string | undefined;
+  }
+
+  async function setup(listed: McpConfigListing | undefined): Promise<Env> {
+    const harness = new FakeHarness();
+    harness.workspaceList = ['/work/ws'];
+    harness.mcpListing = listed;
+    const manager = new WebSessionManager(harness);
+    const result = await createTestApp({ manager });
+    const token = (result as unknown as { authToken?: string }).authToken;
+    return { app: result.app, harness, token };
+  }
+
+  function testHeaders(env: Env): Record<string, string> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      [BYF_MARKER]: 'byf-web',
+      origin: 'http://localhost',
+    };
+    if (env.token !== undefined) headers['authorization'] = `Bearer ${env.token}`;
+    return headers;
+  }
+
+  const LISTED: McpConfigListing = {
+    user: {
+      path: '/home/u/.byf/mcp.json',
+      servers: [
+        { name: 'fs', config: { transport: 'stdio', command: 'npx', args: ['-y', 'server-fs'] } },
+      ],
+    },
+    project: {
+      path: '/work/ws/.byf/mcp.json',
+      servers: [{ name: 'db', config: { transport: 'stdio', command: 'uvx' } }],
+    },
+  };
+
+  async function postTest(env: Env, config: Record<string, unknown>): Promise<Response> {
+    return env.app.request(`/api/mcp/test?workDir=${encodeURIComponent('/work/ws')}`, {
+      method: 'POST',
+      headers: testHeaders(env),
+      body: JSON.stringify({ scope: 'project', config }),
+    });
+  }
+
+  it('未出现在任一 scope 已保存配置中的 stdio command 返回 403 且 probe 未被调用', async () => {
+    const env = await setup(LISTED);
+    const res = await postTest(env, { transport: 'stdio', command: 'rm', args: ['-rf', '/'] });
+    expect(res.status).toBe(403);
+    expect(env.harness.mcpTestCalls).toHaveLength(0);
+    const body = (await res.json()) as { code?: string };
+    expect(typeof body['code']).toBe('string');
+  });
+
+  it('空保存配置(两 scope 均无 server)时任意 stdio command 一律 403', async () => {
+    const env = await setup(undefined);
+    const res = await postTest(env, { transport: 'stdio', command: 'npx' });
+    expect(res.status).toBe(403);
+    expect(env.harness.mcpTestCalls).toHaveLength(0);
+  });
+
+  it('user scope 已列出的 command 仍可保存前测试(config 原样透传给 probe)', async () => {
+    const env = await setup(LISTED);
+    const config = { transport: 'stdio', command: 'npx', args: ['-y', 'server-fs'] };
+    const res = await postTest(env, config);
+    expect(res.status).toBe(200);
+    expect(env.harness.mcpTestCalls).toHaveLength(1);
+    expect(env.harness.mcpTestCalls[0]?.config).toEqual(config);
+  });
+
+  it('仅 project scope 列出的 command 也视为已列出(任一 scope 即可)', async () => {
+    const env = await setup(LISTED);
+    const res = await postTest(env, { transport: 'stdio', command: 'uvx' });
+    expect(res.status).toBe(200);
+    expect(env.harness.mcpTestCalls).toHaveLength(1);
+  });
+
+  it('无 command 字段的 http transport 不受 command 白名单约束(不过度封锁)', async () => {
+    const env = await setup(LISTED);
+    const res = await postTest(env, { transport: 'http', url: 'http://example.test/mcp' });
+    expect(res.status).toBe(200);
+    expect(env.harness.mcpTestCalls).toHaveLength(1);
+  });
+
+  /**
+   * review F2:路由里的预检只是短路,**权威门在 core 的
+   * `host-rpc.testMcpConnection`**。这条用例把命令写成"已列出"的 `npx`,让预检必然
+   * 放行,然后让 harness 那一层抛出 core 的拒绝——断言它变成 403(而不是经 onError
+   * 变 500),并且响应体带的是 core 那句话,证明服务端确实还有一层在名单之外兜着。
+   */
+  it('预检放行后 core 门的拒绝映射为 403(不是 500)', async () => {
+    const env = await setup(LISTED);
+    env.harness.mcpTestError = new ByfError(
+      ErrorCodes.REQUEST_INVALID,
+      'core-side allowlist deny',
+      {
+        details: { reason: 'stdio_command_not_allowlisted', command: 'npx' },
+      },
+    );
+    const res = await postTest(env, { transport: 'stdio', command: 'npx' });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error?: string; code?: string };
+    expect(body.error).toBe('core-side allowlist deny');
+    expect(body.code).toBe('FORBIDDEN');
+  });
+
+  it('core 拒绝若不带 allowlist reason(如磁盘配置损坏)仍按原语义映射,不被吞成 403', async () => {
+    const env = await setup(LISTED);
+    env.harness.mcpTestError = new ByfError(ErrorCodes.REQUEST_INVALID, 'unrelated validation');
+    const res = await postTest(env, { transport: 'stdio', command: 'npx' });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code?: string }).code).toBe('INTERNAL');
+  });
+});
+
+/**
+ * PRD-0038 AC-1.4 / AC-1.5:配置原文编辑器数据安全。磁盘面用真实临时文件
+ * (不 mock fs);harness 经 sanctioned 注入点模拟 core 的 ConfigDocument 语义
+ * (revision=sha256(磁盘原文);损坏时抛 ByfError config.invalid;写盘=原文
+ * 原子写),写盘后果直接断言磁盘字节。
+ */
+describe('PRD-0038 AC-1.4/AC-1.5 config raw disk safety', () => {
+  const dirs: string[] = [];
+
+  /** 镜像 core config/document.ts 的磁盘语义;损坏由测试显式声明。 */
+  class DiskBackedConfigHarness extends FakeHarness {
+    readonly configFile: string;
+    corrupt = false;
+
+    constructor(configFile: string) {
+      super();
+      this.configFile = configFile;
+      this.configPath = configFile;
+    }
+
+    private diskText(): string {
+      return readFileSync(this.configFile, 'utf-8');
+    }
+
+    private static revisionOf(text: string): string {
+      return createHash('sha256').update(text, 'utf-8').digest('hex');
+    }
+
+    override async getConfigDocument(): Promise<ConfigDocumentResult> {
+      const text = this.diskText();
+      if (this.corrupt) {
+        throw new ByfError(
+          ErrorCodes.CONFIG_INVALID,
+          `Invalid configuration in ${this.configFile}: TOML parse error`,
+        );
+      }
+      return {
+        path: this.configFile,
+        text,
+        revision: DiskBackedConfigHarness.revisionOf(text),
+        parsed: this.config,
+      };
+    }
+
+    override async writeConfigText(
+      text: string,
+      expectedRevision: string | null,
+    ): Promise<ConfigWriteResult> {
+      const current = this.diskText();
+      const revision = DiskBackedConfigHarness.revisionOf(current);
+      if (expectedRevision !== revision) {
+        throw new ByfError(
+          ErrorCodes.CONFIG_REVISION_CONFLICT,
+          `Config revision mismatch: expected ${expectedRevision ?? 'null'}, disk has ${revision}`,
+        );
+      }
+      // 与 core writeConfigDocument 一致:通过校验即原样写回(损坏/空文本判决
+      // 是 PRD-0038 要新增的门,不属于 core 现有语义,不在 fake 中预演)。
+      writeFileSync(this.configFile, text, 'utf-8');
+      return { revision: DiskBackedConfigHarness.revisionOf(text) };
+    }
+  }
+
+  interface Env {
+    app: Awaited<ReturnType<typeof createApp>>['app'];
+    harness: DiskBackedConfigHarness;
+    configFile: string;
+    token: string | undefined;
+  }
+
+  async function setupFile(contents: string, corrupt = false): Promise<Env> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-cfg-raw-r1-'));
+    dirs.push(homeDir);
+    const configFile = join(homeDir, 'config.toml');
+    await writeFile(configFile, contents, 'utf-8');
+    const harness = new DiskBackedConfigHarness(configFile);
+    harness.corrupt = corrupt;
+    const manager = new WebSessionManager(harness);
+    const result = await createTestApp({ manager, homeDir });
+    const token = (result as unknown as { authToken?: string }).authToken;
+    return { app: result.app, harness, configFile, token };
+  }
+
+  afterEach(async () => {
+    while (dirs.length > 0) {
+      await rm(dirs.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  function putHeaders(env: Env): Record<string, string> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      [BYF_MARKER]: 'byf-web',
+      origin: 'http://localhost',
+    };
+    if (env.token !== undefined) headers['authorization'] = `Bearer ${env.token}`;
+    return headers;
+  }
+
+  async function getRaw(env: Env): Promise<{ text: string; revision: string | null }> {
+    const res = await env.app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    return (await res.json()) as { text: string; revision: string | null };
+  }
+
+  // ── AC-1.4:配置损坏不销毁数据 ─────────────────────────────────────────────
+  const CORRUPT = [
+    '# 手工编辑损坏:表头未闭合',
+    'default_model = "k2"',
+    '[providers.a',
+    'type = "anthropic"',
+    '',
+  ].join('\n');
+
+  it('损坏的 config.toml:GET /api/config/raw 返回磁盘原文 + invalid: true(不再空串)', async () => {
+    const env = await setupFile(CORRUPT, true);
+    const res = await env.app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { text: string; invalid?: boolean };
+    expect(data.invalid).toBe(true);
+    // 磁盘原文逐字节回显(修复前是 text:'' → 保存即清空全部配置)。
+    expect(data.text).toBe(CORRUPT);
+    expect(await readFile(env.configFile, 'utf-8')).toBe(CORRUPT);
+  });
+
+  it('损坏态下以空文本保存被拒(4xx)且磁盘字节不变', async () => {
+    const env = await setupFile(CORRUPT, true);
+    const { revision } = await getRaw(env);
+    const res = await env.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: putHeaders(env),
+      body: JSON.stringify({ text: '', expectedRevision: revision }),
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    expect(await readFile(env.configFile, 'utf-8')).toBe(CORRUPT);
+  });
+
+  it('非空原文以空文本保存被拒(4xx)——保存即清空的销毁路径必须关闭', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { revision } = await getRaw(env);
+    expect(revision).not.toBeNull();
+    const res = await env.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: putHeaders(env),
+      body: JSON.stringify({ text: '', expectedRevision: revision }),
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    // 修复前:restoreMaskedSecrets('') → '' → 原样写回,整个 config 被清空。
+    expect(await readFile(env.configFile, 'utf-8')).toBe(VALID_MIXED);
+  });
+
+  it('与非空原文 revision 不匹配的保存被拒 409 且磁盘不变', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const res = await env.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: putHeaders(env),
+      body: JSON.stringify({ text: '# replacement\n', expectedRevision: 'bogus-revision' }),
+    });
+    expect(res.status).toBe(409);
+    expect(await readFile(env.configFile, 'utf-8')).toBe(VALID_MIXED);
+  });
+
+  // ── AC-1.5:密钥占位符与行序解耦 ───────────────────────────────────────────
+  // 数组密钥块刻意排在标量 provider 之前:按行序 seq 的实现会为标量占位符
+  // 计入数组元素序号,restore 时错位/丢键。
+  const VALID_MIXED = [
+    '# PRD-0038 R1 fixture',
+    '[services.web_search.providers.brave]',
+    'api_keys = ["brave-1", "brave-2"]',
+    '',
+    '[providers.a]',
+    'type = "anthropic"',
+    'api_key = "sk-aaa"',
+    '',
+    '[providers.b]',
+    'type = "anthropic"',
+    'api_key = "sk-bbb"',
+    '',
+    '[providers.c]',
+    'type = "openai-completions"',
+    'base_url = "https://c.example/v1"',
+    'api_key = "sk-ccc"',
+    '',
+  ].join('\n');
+
+  /** 把文本切为 [prefix, block1, block2, …];block 以 `^\[` 头行起始。 */
+  function splitBlocks(text: string): { prefix: string; blocks: string[] } {
+    const lines = text.split('\n');
+    const blocks: string[] = [];
+    const prefixLines: string[] = [];
+    let current: string[] | undefined;
+    for (const line of lines) {
+      if (line.startsWith('[')) {
+        if (current !== undefined) blocks.push(current.join('\n'));
+        current = [line];
+      } else if (current === undefined) {
+        prefixLines.push(line);
+      } else {
+        current.push(line);
+      }
+    }
+    if (current !== undefined) blocks.push(current.join('\n'));
+    return { prefix: prefixLines.join('\n'), blocks };
+  }
+
+  function joinBlocks(prefix: string, blocks: string[]): string {
+    return [prefix, ...blocks].join('\n');
+  }
+
+  /** 从磁盘文本提取每个 provider 块的 api_key 值(键→值)。 */
+  function providerKeyValues(text: string): Record<string, string | undefined> {
+    const out: Record<string, string | undefined> = {};
+    const { blocks } = splitBlocks(text);
+    for (const block of blocks) {
+      const header = block.split('\n')[0] ?? '';
+      const match = /^\[providers\.([^\]]+)\]$/.exec(header);
+      if (match === null) continue;
+      const key = /^api_key = "(.*?)"\s*(?:#.*)?$/m.exec(block)?.[1];
+      const section = match[1];
+      if (section === undefined) continue;
+      out[section] = key;
+    }
+    return out;
+  }
+
+  async function putMasked(
+    env: Env,
+    maskedText: string,
+    revision: string | null,
+  ): Promise<Response> {
+    return env.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers: putHeaders(env),
+      body: JSON.stringify({ text: maskedText, expectedRevision: revision }),
+    });
+  }
+
+  it('GET→PUT 往返不改一行:每个密钥原样保留(行序 seq 当前会错位/丢键)', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { text: masked, revision } = await getRaw(env);
+    const res = await putMasked(env, masked, revision);
+    expect(res.status).toBe(200);
+    const disk = await readFile(env.configFile, 'utf-8');
+    expect(providerKeyValues(disk)).toEqual({ a: 'sk-aaa', b: 'sk-bbb', c: 'sk-ccc' });
+    expect(disk).toContain('"brave-1"');
+    expect(disk).toContain('"brave-2"');
+    expect(disk).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  it('重排 provider 块后保存:每个密钥回到其所属 provider', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { text: masked, revision } = await getRaw(env);
+    const { prefix, blocks } = splitBlocks(masked);
+    const order = (b: string): string => b.split('\n')[0] ?? '';
+    const byHeader = new Map(blocks.map((b) => [order(b), b]));
+    // 重排:c → b → brave 数组块 → a(全部整块移动,不拆占位符行)。
+    const reordered = [
+      '[providers.c]',
+      '[providers.b]',
+      '[services.web_search.providers.brave]',
+      '[providers.a]',
+    ]
+      .map((header) => byHeader.get(header))
+      .filter((b): b is string => b !== undefined);
+    expect(reordered).toHaveLength(4);
+    const res = await putMasked(env, joinBlocks(prefix, reordered), revision);
+    expect(res.status).toBe(200);
+    const disk = await readFile(env.configFile, 'utf-8');
+    expect(providerKeyValues(disk)).toEqual({ a: 'sk-aaa', b: 'sk-bbb', c: 'sk-ccc' });
+    expect(disk).toContain('"brave-1"');
+    expect(disk).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  it('删除一个含占位符的 provider 块:只丢该块密钥,其余块不动', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { text: masked, revision } = await getRaw(env);
+    const { prefix, blocks } = splitBlocks(masked);
+    const kept = blocks.filter((b) => !(b.split('\n')[0] ?? '').startsWith('[providers.b]'));
+    expect(kept.length).toBe(blocks.length - 1);
+    const res = await putMasked(env, joinBlocks(prefix, kept), revision);
+    expect(res.status).toBe(200);
+    const disk = await readFile(env.configFile, 'utf-8');
+    const values = providerKeyValues(disk);
+    expect(values['a']).toBe('sk-aaa');
+    expect(values['c']).toBe('sk-ccc');
+    expect(values['b']).toBeUndefined();
+    expect(disk).not.toContain('sk-bbb');
+    expect(disk).toContain('"brave-2"');
+    expect(disk).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  it('占位符密钥总数变化(掩码块粘贴到新键路径)且未显式确认:写盘被拒且磁盘字节不变', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { text: masked, revision } = await getRaw(env);
+    const { prefix, blocks } = splitBlocks(masked);
+    const blockA = blocks.find((b) => (b.split('\n')[0] ?? '') === '[providers.a]');
+    expect(blockA).toBeDefined();
+    // 把 a 块(仍带掩码占位符)整体复制为新 provider d:磁盘上不存在 d 的
+    // 密钥,占位符无法按所属键路径解析 → 必须拒绝而不是静默复制 a 的密钥。
+    const duplicated = blockA!.replace('[providers.a]', '[providers.d]');
+    const res = await putMasked(env, joinBlocks(prefix, [...blocks, duplicated]), revision);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    expect(await readFile(env.configFile, 'utf-8')).toBe(VALID_MIXED);
+  });
+
+  it('新增 provider 携带字面新密钥(显式新值):总数变化允许保存且不误伤既有密钥', async () => {
+    const env = await setupFile(VALID_MIXED);
+    const { text: masked, revision } = await getRaw(env);
+    const appended = [
+      masked,
+      '[providers.d]',
+      'type = "anthropic"',
+      'api_key = "sk-new-d"',
+      '',
+    ].join('\n');
+    const res = await putMasked(env, appended, revision);
+    expect(res.status).toBe(200);
+    const disk = await readFile(env.configFile, 'utf-8');
+    expect(providerKeyValues(disk)).toEqual({
+      a: 'sk-aaa',
+      b: 'sk-bbb',
+      c: 'sk-ccc',
+      d: 'sk-new-d',
+    });
+    expect(disk).not.toContain('__BYF_KEEP_SECRET__');
+  });
+
+  // ── AC-1.8:非 table-header 形态的密钥也不得以明文过线 ─────────────────────
+  // raw GET 的响应文本是"过线文本"。点号键写法能归一化成键路径身份 → 必须掩码;
+  // 归一化不出身份的形态（内联表、跨行数组/字符串）→ 必须拒绝外发并给出可诊断错误,
+  // 而不是把明文密钥送出进程。
+
+  const DOTTED = `providers.deepseek.type = "openai-completions"
+providers.deepseek.api_key = "sk-dotted-leak"
+`;
+
+  it('点号键密钥经 GET /api/config/raw 外发时被掩码(不再明文过线)', async () => {
+    const env = await setupFile(DOTTED);
+    const res = await env.app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain('sk-dotted-leak');
+    expect(body).toContain(`${MASKED_SECRET_PLACEHOLDER}providers.deepseek.api_key`);
+  });
+
+  it('点号键掩码后 GET→PUT 恒等往返:磁盘原文一字不变', async () => {
+    const env = await setupFile(DOTTED);
+    const { text: masked, revision } = await getRaw(env);
+    const put = await putMasked(env, masked, revision);
+    expect(put.status).toBe(200);
+    expect(await readFile(env.configFile, 'utf-8')).toBe(DOTTED);
+  });
+
+  it('无法归一化为键路径身份的密钥形态:拒绝外发且响应体不含任何明文', async () => {
+    const multiLineArray = `[services.web_search.providers.brave]
+api_keys = [
+  "brave-leak-1",
+  "brave-leak-2",
+]
+`;
+    const env = await setupFile(multiLineArray);
+    const res = await env.app.request('/api/config/raw');
+    // 拒绝外发:不得是 200 + text。给出可诊断 4xx。
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    const body = await res.text();
+    expect(body).not.toContain('brave-leak-1');
+    expect(body).not.toContain('brave-leak-2');
+    expect(body).toMatch(/line/i);
+    // review F6：这条 422 是"编辑器为什么读不到东西"的唯一解释，而界面上只显示
+    // `error` 这一个字符串（apps/web/client/src/api.ts）。策略不动，但文案必须回答
+    // 用户此刻缺的三件事：哪一个文件、磁盘有没有被改动、行号指的是哪份文本。
+    expect(body).toContain(env.configFile);
+    expect(body).toMatch(/nothing was written to disk/i);
+    expect(body).toContain('CONFIG_SECRET_NOT_MASKABLE');
+    // 拒绝是只读端点的行为,磁盘不能被改动。
+    expect(await readFile(env.configFile, 'utf-8')).toBe(multiLineArray);
+  });
+
+  it('内联表形态的密钥同样拒绝外发(而不是回显明文)', async () => {
+    const inlineTable = `providers = { deepseek = { api_key = "sk-inline-leak" } }\n`;
+    const env = await setupFile(inlineTable);
+    const res = await env.app.request('/api/config/raw');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    expect(await res.text()).not.toContain('sk-inline-leak');
+  });
+
+  it('损坏态且含未闭合引号密钥:仍回显磁盘原文结构,但该密钥值被掩码', async () => {
+    // AC-1.7 的修复路径要真实可达:最常见的损坏就是密钥行引号未闭合。
+    // 掩码器必须把它连同明文一起换成占位符,而不是拒绝整份文件或放行明文。
+    const brokenKey = `[providers.a
+api_key = "sk-broken-quote
+`;
+    const env = await setupFile(brokenKey, true);
+    const res = await env.app.request('/api/config/raw');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { text: string; invalid?: boolean };
+    // 注:未闭合的 `[providers.a` 不是合法表头,磁盘文本归不出该密钥的表路径,
+    // 占位符标注因此只剩 `api_key` 一段。身份不完整不影响 AC-1.8 的判据——判据是
+    // 明文不越线,且修复入口(原文结构)仍在。
+    expect(data.invalid).toBe(true);
+    expect(data.text).not.toContain('sk-broken-quote');
+    expect(data.text).toContain(MASKED_SECRET_PLACEHOLDER);
+    expect(data.text).toContain('[providers.a');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 AC-1.7:损坏配置下服务仍可启动并可修复
+//
+// 与 AC-1.4 的分工:AC-1.4 只保证 raw 读写端点不销毁数据;本组走**真实装配路径**
+// （真 ByfHarness → core-impl → readConfigFile,不经 HarnessLike fake）,锁住
+// "config.toml 解析失败不把进程带走"。否则"损坏后经 web 修复"这条旅程在启动层
+// 就已断裂,AC-1.4 的修复路径不可达。
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PRD-0038 AC-1.7 service starts and self-heals on a corrupt config', () => {
+  /** 损坏点选在表头（非密钥行），与 AC-1.4 同一手法:避免"原文回显 vs 掩码"歧义。 */
+  const BROKEN = [
+    '# 手工编辑损坏:表头未闭合',
+    'default_model = "k2"',
+    '[providers.a',
+    'type = "anthropic"',
+    '',
+  ].join('\n');
+
+  const REPAIRED = [
+    '# repaired through the web raw editor',
+    '[providers.a]',
+    'type = "anthropic"',
+    'api_key = "sk-repaired"',
+    '',
+  ].join('\n');
+
+  const homes: string[] = [];
+  let prevByfHome: string | undefined;
+
+  beforeEach(() => {
+    prevByfHome = process.env['BYF_HOME'];
+  });
+
+  async function homeWithBrokenConfig(): Promise<string> {
+    const homeDir = await mkdtemp(join(tmpdir(), 'byf-ac17-'));
+    homes.push(homeDir);
+    await writeFile(join(homeDir, 'config.toml'), BROKEN, 'utf-8');
+    // startWebServer 内部还会经 resolveByfHome() 取工作区注册表目录,一并指向临时
+    // home,使"真实装配路径"这一验证不会读写调用方的 ~/.byf。
+    process.env['BYF_HOME'] = homeDir;
+    return homeDir;
+  }
+
+  afterEach(async () => {
+    if (prevByfHome === undefined) delete process.env['BYF_HOME'];
+    else process.env['BYF_HOME'] = prevByfHome;
+    while (homes.length > 0) {
+      await rm(homes.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  it('真实 ByfHarness 在 config.toml 解析失败时构造不抛错', async () => {
+    const homeDir = await homeWithBrokenConfig();
+    let harness: ByfHarness | undefined;
+    expect(() => {
+      harness = new ByfHarness({ homeDir });
+    }).not.toThrow();
+    // 装配后的配置读面仍然可用（损坏态降级为内置默认,不把进程带走）。
+    const cfg = await harness!.getConfig();
+    expect(cfg).toBeDefined();
+  });
+
+  it('损坏配置下 web server 仍能启动,raw 端点回显磁盘原文 + invalid: true', async () => {
+    const homeDir = await homeWithBrokenConfig();
+    const handle = await startWebServer({
+      harness: new ByfHarness({ homeDir }),
+      host: '127.0.0.1',
+      port: 0,
+    });
+    try {
+      const res = await fetch(`${handle.url}/api/config/raw`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { text: string; invalid?: boolean };
+      expect(data.invalid).toBe(true);
+      expect(data.text).toBe(BROKEN);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('启动日志明确告知配置处于损坏态', async () => {
+    const homeDir = await homeWithBrokenConfig();
+    const handle = await startWebServer({
+      harness: new ByfHarness({ homeDir }),
+      host: '127.0.0.1',
+      port: 0,
+    });
+    try {
+      expect(handle.configInvalid).toBe(true);
+      const { formatWebStartupBanner } = await import('./startup-banner');
+      const banner = formatWebStartupBanner({
+        authToken: 'tok',
+        host: '127.0.0.1',
+        port: 4100,
+        byfHome: homeDir,
+        configInvalid: true,
+      });
+      expect(banner).toContain('config.toml');
+      expect(banner).toContain('invalid');
+      // 未声明损坏时不得凭空警告。
+      const clean = formatWebStartupBanner({
+        authToken: 'tok',
+        host: '127.0.0.1',
+        port: 4100,
+        byfHome: homeDir,
+      });
+      expect(clean).not.toContain('invalid');
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('经 raw PUT 修好后无需重启即可继续（同一进程读到新配置）', async () => {
+    const homeDir = await homeWithBrokenConfig();
+    const harness = new ByfHarness({ homeDir });
+    const manager = new WebSessionManager(harness);
+    const result = await createApp({ manager, homeDir });
+    const headers = {
+      'content-type': 'application/json',
+      [BYF_MARKER]: 'byf-web',
+      authorization: `Bearer ${result.authToken}`,
+    };
+
+    const before = (await (await result.app.request('/api/config/raw')).json()) as {
+      revision: string | null;
+      invalid?: boolean;
+    };
+    expect(before.invalid).toBe(true);
+    expect(before.revision).not.toBeNull();
+
+    const put = await result.app.request('/api/config/raw', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ text: REPAIRED, expectedRevision: before.revision }),
+    });
+    expect(put.status).toBe(200);
+
+    // 无重启:同一 manager / 同一 harness 立刻读到合法内容,损坏标志消失,密钥仍被掩码。
+    const after = (await (await result.app.request('/api/config/raw')).json()) as {
+      text: string;
+      invalid?: boolean;
+    };
+    expect(after.invalid).not.toBe(true);
+    expect(after.text).not.toContain('sk-repaired');
+    expect(after.text).toContain(MASKED_SECRET_PLACEHOLDER);
+    const cfg = await harness.getConfig();
+    expect(cfg.providers?.['a']).toBeDefined();
+    expect(await readFile(join(homeDir, 'config.toml'), 'utf-8')).toBe(REPAIRED);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 dev 工作流:Vite 代理 + Origin 门必须共存
+//
+// dev 形态是 浏览器 → vite(client port) → 代理 → web-server(api port)。
+// `changeOrigin: true` 只改写 Host(→ api port)而不改 Origin(仍是 client port),
+// 于是 AC-1.1 的同源判定必然失败,开发态所有写请求 403。这里同时钉住配置侧
+// （代理不得改写 Host）与服务侧（同源对必须放行、被改写对必须拒绝）。
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PRD-0038 dev flow: vite proxy keeps Origin and Host the same site', () => {
+  test('apps/web/client/vite.config.ts 不再把 Host 改写到 api target', async () => {
+    // 判据取解析后的代理配置,不取源文本:注释里出现 "changeOrigin: true" 是解释
+    // 回归原因的,不该被当成回归本身。
+    const config = (await import('../../client/vite.config')).default as {
+      server?: { proxy?: Record<string, { changeOrigin?: boolean } | string> };
+    };
+    const api = config.server?.proxy?.['/api'];
+    expect(typeof api === 'object' && api !== null).toBe(true);
+    expect((api as { changeOrigin?: boolean }).changeOrigin).not.toBe(true);
+  });
+
+  it('代理后 Origin 与 Host 同源:写请求放行', async () => {
+    const manager = new WebSessionManager(new FakeHarness());
+    const result = await createTestApp({ manager });
+    const res = await result.app.request('http://localhost:4200/api/sessions', {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost:4200',
+        'content-type': 'application/json',
+        authorization: `Bearer ${result.authToken}`,
+      },
+      body: JSON.stringify({ workDir: '/x' }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('代理改写 Host(Origin=client port / Host=api port) 时门会拒绝——回归的因', async () => {
+    const manager = new WebSessionManager(new FakeHarness());
+    const result = await createTestApp({ manager });
+    const res = await result.app.request('http://localhost:4100/api/sessions', {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost:4200',
+        'content-type': 'application/json',
+        authorization: `Bearer ${result.authToken}`,
+      },
+      body: JSON.stringify({ workDir: '/x' }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('dev 交付面:?token= 查询参数经代理同样可完成写', async () => {
+    const manager = new WebSessionManager(new FakeHarness());
+    const result = await createTestApp({ manager });
+    const res = await result.app.request(
+      `http://localhost:4200/api/sessions?token=${encodeURIComponent(result.authToken)}`,
+      {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:4200',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ workDir: '/x' }),
+      },
+    );
+    expect(res.status).toBe(201);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 R3 / AC-3.1：web 表面必须消费 SDK 契约层的同一张身份语义表
+//
+// 与 headless（apps/cli/test/cli/run-prompt.test.ts）、TUI
+// （apps/cli/test/tui/byf-tui-message-flow.test.ts）断言同一份
+// `SESSION_IDENTITY_CONTRACT`——期望值不写在本文件里，否则"三表面共用单一定义"
+// 这句话就没有被测试。
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PRD-0038 AC-3.1 web surface honours the shared identity contract', () => {
+  it('resume keeps the id, fork mints a new one, per the SDK table', async () => {
+    const { SESSION_IDENTITY_CONTRACT } = await import('@byfriends/sdk');
+    const contract = SESSION_IDENTITY_CONTRACT as
+      | Record<
+          'resume' | 'fork',
+          {
+            readonly sessionId: string;
+            readonly history: string;
+            readonly sourceSessionBytes: string;
+            readonly contextWindow: string;
+          }
+        >
+      | undefined;
+    expect(contract, 'web 表面必须能从 @byfriends/sdk 查到身份表').toBeDefined();
+
+    const harness = new FakeHarness();
+    const manager = new WebSessionManager(harness);
+    const created = await manager.createSession({ workDir: '/web-fork' });
+
+    const resumed = await manager.resumeSession(created.id);
+    expect(resumed.id, `契约 resume.sessionId = ${contract!.resume.sessionId}`).toBe(
+      contract!.resume.sessionId === 'preserve' ? created.id : `${created.id}-other`,
+    );
+
+    const forkTarget = new FakeSession(`${created.id}-forked`, '/web-fork');
+    harness.nextForkResult = forkTarget;
+    const forked = await manager.forkSession(created.id);
+    expect(forked.id, `契约 fork.sessionId = ${contract!.fork.sessionId}`).toBe(
+      contract!.fork.sessionId === 'new' ? forkTarget.id : created.id,
+    );
+    expect(forked.id).not.toBe(created.id);
+    // fork 必须走复制路径，不能靠"重新打开源会话"糊过去（那会往源历史追加）
+    expect(harness.forks.map((entry) => entry.id)).toEqual([created.id]);
+    expect(contract!.fork.sourceSessionBytes, '契约必须声明 fork 不得改动源会话字节').toBe(
+      'must-not-change',
+    );
+    expect(contract!.resume.contextWindow).toBe('reconstructed-from-event-log');
+    expect(contract!.fork.contextWindow).toBe('reconstructed-from-event-log');
   });
 });

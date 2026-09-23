@@ -13,6 +13,8 @@ import {
 } from '#/tui/events/background-task-handler';
 import type { BackgroundAgentMetadata, TranscriptEntry } from '#/tui/types';
 
+import { defined } from '../../helpers/defined';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -71,14 +73,18 @@ function makeHandler(stateOverrides: Partial<BackgroundTaskState> = {}): {
 function backgroundTaskInfo(overrides: Partial<BackgroundTaskInfo> = {}): BackgroundTaskInfo {
   return {
     taskId: 'bash-123',
+    command: 'npm install',
     description: 'npm install',
     status: 'running',
+    pid: 1234,
     exitCode: null,
+    startedAt: 1000,
+    endedAt: null,
     stopReason: undefined,
     timedOut: false,
     approvalReason: undefined,
     ...overrides,
-  } as BackgroundTaskInfo;
+  } satisfies BackgroundTaskInfo;
 }
 
 function startedEvent(
@@ -87,7 +93,7 @@ function startedEvent(
   return {
     type: 'background.task.started',
     info: backgroundTaskInfo(taskInfoOverrides),
-  } as BackgroundTaskStartedEvent;
+  } satisfies BackgroundTaskStartedEvent;
 }
 
 function terminatedEvent(
@@ -96,7 +102,7 @@ function terminatedEvent(
   return {
     type: 'background.task.terminated',
     info: backgroundTaskInfo(taskInfoOverrides),
-  } as BackgroundTaskTerminatedEvent;
+  } satisfies BackgroundTaskTerminatedEvent;
 }
 
 function updatedEvent(
@@ -106,7 +112,7 @@ function updatedEvent(
   return {
     type: 'background.task.updated',
     info: backgroundTaskInfo({ status, ...taskInfoOverrides }),
-  } as BackgroundTaskUpdatedEvent;
+  } satisfies BackgroundTaskUpdatedEvent;
 }
 
 function makeAgentMeta(overrides: Partial<BackgroundAgentMetadata> = {}): BackgroundAgentMetadata {
@@ -155,7 +161,7 @@ describe('BackgroundTaskHandler', () => {
 
       // Transcript entry appended
       expect(calls.appendTranscriptEntry).toHaveLength(1);
-      const entry = calls.appendTranscriptEntry[0];
+      const entry = defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]');
       expect(entry.kind).toBe('status');
       expect(entry.turnId).toBe('turn-1');
       expect(entry.renderMode).toBe('plain');
@@ -191,7 +197,7 @@ describe('BackgroundTaskHandler', () => {
 
       // Terminal entry appended
       expect(calls.appendTranscriptEntry).toHaveLength(2); // started + terminated
-      const terminalEntry = calls.appendTranscriptEntry[1];
+      const terminalEntry = defined(calls.appendTranscriptEntry[1], 'appendTranscriptEntry[1]');
       expect(terminalEntry.kind).toBe('status');
       expect(terminalEntry.content).toContain('completed');
       expect(terminalEntry.detail).toContain('exit 0');
@@ -292,7 +298,7 @@ describe('BackgroundTaskHandler', () => {
       contentMatcher: RegExp,
       detailMatcher: RegExp | null,
     ) {
-      const entry = calls.appendTranscriptEntry[index];
+      const entry = defined(calls.appendTranscriptEntry[index], 'appendTranscriptEntry[index]');
       expect(entry.kind).toBe('status');
       expect(entry.turnId).toBe('turn-1');
       expect(entry.renderMode).toBe('plain');
@@ -312,7 +318,12 @@ describe('BackgroundTaskHandler', () => {
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
       expectEntry(calls, 0, /started in background/, /Exploring the codebase/);
-      expect(calls.appendTranscriptEntry[0].backgroundAgentStatus!.phase).toBe('started');
+      expect(
+        defined(
+          defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]').backgroundAgentStatus,
+          'backgroundAgentStatus',
+        ).phase,
+      ).toBe('started');
     });
 
     it('appends "completed" entry (detail from meta.description, not resultSummary)', () => {
@@ -325,7 +336,12 @@ describe('BackgroundTaskHandler', () => {
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
       expectEntry(calls, 0, /completed in background/, /All tests pass/);
-      expect(calls.appendTranscriptEntry[0].backgroundAgentStatus!.phase).toBe('completed');
+      expect(
+        defined(
+          defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]').backgroundAgentStatus,
+          'backgroundAgentStatus',
+        ).phase,
+      ).toBe('completed');
     });
 
     it('appends "failed" entry with error detail', () => {
@@ -339,7 +355,12 @@ describe('BackgroundTaskHandler', () => {
 
       expect(calls.appendTranscriptEntry).toHaveLength(1);
       expectEntry(calls, 0, /failed in background/, /Reviewing PR · Timeout after 30s/);
-      expect(calls.appendTranscriptEntry[0].backgroundAgentStatus!.phase).toBe('failed');
+      expect(
+        defined(
+          defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]').backgroundAgentStatus,
+          'backgroundAgentStatus',
+        ).phase,
+      ).toBe('failed');
     });
 
     it('uses generic "agent" subject when agentName is undefined', () => {
@@ -347,7 +368,9 @@ describe('BackgroundTaskHandler', () => {
 
       handler.appendBackgroundAgentEntry('started', makeAgentMeta({ agentName: undefined }));
 
-      expect(calls.appendTranscriptEntry[0].content).toBe('agent started in background');
+      expect(defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]').content).toBe(
+        'agent started in background',
+      );
     });
 
     it('uses undefined turnId when currentTurnId is not set', () => {
@@ -355,7 +378,9 @@ describe('BackgroundTaskHandler', () => {
 
       handler.appendBackgroundAgentEntry('started', makeAgentMeta());
 
-      expect(calls.appendTranscriptEntry[0].turnId).toBeUndefined();
+      expect(
+        defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]').turnId,
+      ).toBeUndefined();
     });
   });
 

@@ -32,6 +32,7 @@ export const ErrorCodes = {
   SESSION_APPROVAL_HANDLER_ERROR: 'session.approval_handler_error',
   SESSION_QUESTION_HANDLER_ERROR: 'session.question_handler_error',
   SESSION_INIT_FAILED: 'session.init_failed',
+  SESSION_FORMAT_UNSUPPORTED: 'session.format_unsupported',
 
   AGENT_NOT_FOUND: 'agent.not_found',
   TURN_AGENT_BUSY: 'turn.agent_busy',
@@ -148,6 +149,13 @@ export const BYF_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Provide a non-empty session title.',
+  },
+  'session.format_unsupported': {
+    title: 'Session wire format unsupported',
+    retryable: false,
+    public: true,
+    action:
+      'The session was created by an older byf version and cannot be opened after upgrade. Disk files are preserved.',
   },
   'session.state_not_found': {
     title: 'Session state missing',

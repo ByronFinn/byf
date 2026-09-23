@@ -1,6 +1,7 @@
+import { afterEach, describe, expect, it } from 'bun:test';
+
 import type { RuntimeConfig } from '@byfriends/agent-core';
 import { localKaos } from '@byfriends/kaos';
-import { afterEach, describe, expect, it } from 'vitest';
 
 import { ByfHarness } from '#/index';
 

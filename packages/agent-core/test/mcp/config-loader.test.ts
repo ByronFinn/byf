@@ -1,9 +1,8 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it } from 'vitest';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import { loadMcpServers, resolveMcpJsonPaths } from '../../src/mcp/config-loader';
@@ -244,9 +243,14 @@ describe('config-store listMcpConfigs', () => {
     expect(text).not.toContain('sk-live');
     expect(text).toContain('__MCP_MASKED_');
     const gh = listing.user.servers.find((s) => s.name === 'gh');
-    expect(
-      isMcpMaskedPlaceholder((gh?.config as { env: Record<string, string> }).env['GITHUB_TOKEN']),
-    ).toBe(true);
+    if (gh?.config.transport !== 'stdio') {
+      throw new Error('expected a stdio "gh" entry in the user scope');
+    }
+    const maskedToken = gh.config.env?.['GITHUB_TOKEN'];
+    if (maskedToken === undefined) {
+      throw new Error('expected GITHUB_TOKEN to survive masking as a key');
+    }
+    expect(isMcpMaskedPlaceholder(maskedToken)).toBe(true);
   });
 
   it('reports invalid state with message for corrupt JSON', async () => {
@@ -340,6 +344,9 @@ describe('config-store mask/restore round-trip', () => {
       env: { K: 'v' },
       enabledTools: ['t'],
     });
+    if (masked.transport !== 'stdio') {
+      throw new Error('expected masking to keep the stdio transport');
+    }
     expect(masked.command).toBe('run');
     expect(masked.args).toEqual(['--flag']);
     expect(masked.enabledTools).toEqual(['t']);
@@ -414,7 +421,11 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, { env: Record<string, string> }>;
     };
-    expect(disk.mcpServers['gh'].env).toEqual({ TOKEN: 'disk-secret', OTHER: 'brand-new' });
+    const gh = disk.mcpServers['gh'];
+    if (gh === undefined) {
+      throw new Error('expected the upserted gh entry on disk');
+    }
+    expect(gh.env).toEqual({ TOKEN: 'disk-secret', OTHER: 'brand-new' });
     const text = JSON.stringify(disk);
     expect(text).not.toContain('__MCP_MASKED_');
   });
@@ -443,8 +454,12 @@ describe('config-store upsertMcpServer', () => {
     const disk = (await readJsonFile(join(home, 'mcp.json'))) as {
       mcpServers: Record<string, { env: Record<string, string>; enabled: boolean }>;
     };
-    expect(disk.mcpServers['gh'].enabled).toBe(false);
-    expect(disk.mcpServers['gh'].env).toEqual({ TOKEN: 'disk-secret' });
+    const gh = disk.mcpServers['gh'];
+    if (gh === undefined) {
+      throw new Error('expected the toggled gh entry on disk');
+    }
+    expect(gh.enabled).toBe(false);
+    expect(gh.env).toEqual({ TOKEN: 'disk-secret' });
   });
 
   it('preserves advanced fields from disk; transport switch drops old transport fields (R-M3a)', async () => {
@@ -474,6 +489,9 @@ describe('config-store upsertMcpServer', () => {
       mcpServers: Record<string, Record<string, unknown>>;
     };
     const api = disk.mcpServers['api'];
+    if (api === undefined) {
+      throw new Error('expected the api entry on disk after the transport switch');
+    }
     expect(api['transport']).toBe('http');
     expect(api['url']).toBe('http://localhost/mcp');
     // 旧 transport 专属字段被丢弃。
@@ -511,6 +529,9 @@ describe('config-store upsertMcpServer', () => {
       mcpServers: Record<string, Record<string, unknown>>;
     };
     const api = disk.mcpServers['api'];
+    if (api === undefined) {
+      throw new Error('expected the api entry on disk after the in-place update');
+    }
     expect(api['command']).toBe('new');
     expect(api['enabledTools']).toEqual(['t1']);
     expect(api['disabledTools']).toEqual(['t2']);
@@ -605,6 +626,9 @@ describe('config-store resolveServerConfigForProbe', () => {
         env: { GITHUB_TOKEN: '__MCP_MASKED_1__', NEW: 'plain' },
       },
     });
+    if (config.transport !== 'stdio') {
+      throw new Error('expected the probe config to resolve as a stdio server');
+    }
     expect(config.env).toEqual({ GITHUB_TOKEN: 'disk-secret', NEW: 'plain' });
     // 高级公共字段按 R-M3a 从磁盘保留,便于用真实完整配置做探测。
     expect(config.enabledTools).toEqual(['gh']);

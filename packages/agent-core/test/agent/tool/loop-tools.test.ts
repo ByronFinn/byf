@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { Tool } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { MCPClient } from '../../../src/mcp/types';
 import { testAgent } from '../harness/agent';
@@ -37,11 +38,11 @@ describe('ToolManager.loopTools stability ordering', () => {
 
     // Separate builtin and MCP names
     const builtinNames = names.filter((n) => !n.startsWith('mcp__'));
-    const mcpToolNames = names.filter((n) => n.startsWith('mcp__'));
 
     // All builtin tools must come before all MCP tools
-    if (mcpToolNames.length > 0) {
-      const firstMcpIndex = names.indexOf(mcpToolNames[0]);
+    const firstMcp = names.find((n) => n.startsWith('mcp__'));
+    if (firstMcp !== undefined) {
+      const firstMcpIndex = names.indexOf(firstMcp);
       for (const bn of builtinNames) {
         expect(names.indexOf(bn)).toBeLessThan(firstMcpIndex);
       }

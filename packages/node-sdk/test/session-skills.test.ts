@@ -1,9 +1,9 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, afterAll } from 'bun:test';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, afterAll } from 'vitest';
 
 import type { Event, ByfError, SkillActivatedEvent, SkillSummary } from '#/index';
 import type { SDKRpcClient } from '#/rpc';
@@ -16,10 +16,28 @@ import {
 } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
-const fakeProviderState = vi.hoisted(() => ({
+const fakeProviderState = {
   histories: [] as unknown[],
   responseText: 'skill response',
-}));
+};
+
+const envSnapshots = new Map<string, string | undefined>();
+function stubEnv(name: string, value: string): void {
+  if (!envSnapshots.has(name)) {
+    envSnapshots.set(name, process.env[name]);
+  }
+  process.env[name] = value;
+}
+function unstubAllEnvs(): void {
+  for (const [name, previous] of envSnapshots) {
+    if (previous === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = previous;
+    }
+  }
+  envSnapshots.clear();
+}
 
 const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
 vi.mock('@byfriends/kosong', () => {
@@ -65,7 +83,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await removeTempDirs(tempDirs);
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
 });
 
 describe('Session skills', () => {
@@ -203,8 +221,8 @@ describe('Session skills', () => {
     const homeDir = await makeTempDir(tempDirs, 'byf-sdk-skills-home-');
     const processHome = await makeTempDir(tempDirs, 'byf-sdk-skills-process-home-');
     const workDir = await makeTempDir(tempDirs, 'byf-sdk-skills-work-');
-    vi.stubEnv('HOME', processHome);
-    vi.stubEnv('BYF_HOME', homeDir);
+    stubEnv('HOME', processHome);
+    stubEnv('BYF_HOME', homeDir);
     await writeUserSkill(processHome, 'sdk-real-home-only', 'SDK real home skill');
     await writeUserSkill(homeDir, 'sdk-sandbox-only', 'SDK sandbox skill');
     const harness = new ByfHarness({ identity: TEST_IDENTITY });

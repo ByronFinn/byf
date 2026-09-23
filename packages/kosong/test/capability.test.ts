@@ -4,7 +4,7 @@
  * `capability-providers.test.ts`.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { UNKNOWN_CAPABILITY, isUnknownCapability, type ModelCapability } from '#/capability';
 

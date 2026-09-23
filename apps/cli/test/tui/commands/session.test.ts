@@ -41,9 +41,12 @@ describe('createSessionHandlers', () => {
     expect(host.createNewSession).toHaveBeenCalledTimes(1);
     expect(host.requestRender).toHaveBeenCalledTimes(1);
     // render happens after session creation (order matters for TUI refresh)
-    expect(host.requestRender.mock.invocationCallOrder[0]).toBeGreaterThan(
-      host.createNewSession.mock.invocationCallOrder[0],
-    );
+    const renderOrder = vi.mocked(host.requestRender).mock.invocationCallOrder[0];
+    const createOrder = vi.mocked(host.createNewSession).mock.invocationCallOrder[0];
+    if (renderOrder === undefined || createOrder === undefined) {
+      throw new Error('expected both the render and session-creation mocks to run');
+    }
+    expect(renderOrder).toBeGreaterThan(createOrder);
   });
 
   it('/sessions opens the session picker via dialogManager', async () => {

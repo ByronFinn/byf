@@ -2,7 +2,7 @@
 
 ## 状态
 
-已接受
+已接受（2026-09-21 更新：应用层收缩为 `apps/cli` + `apps/web`，`apps/vis` 相关描述已失效，见文末「更新」）
 
 ## 背景
 
@@ -52,3 +52,11 @@ Agent-core 有一个主要接缝：`Agent` 类是持有 14 个子系统的中央
 - **正面：** 清晰的依赖方向防止循环耦合。SDK 接缝允许用替代宿主机替换 CLI。Kaos 接缝允许在本地或远程运行相同的代理逻辑。
 - **正面：** vis 可以调试任何会话，而无需在运行时导入代理循环、Session、Profile、Skill、Tool、RPC 或其他 agent-core 子系统。唯一加载的 agent-core 表面是 wire-migration 层（一个薄而稳定的叶子依赖）。
 - **负面：** node-sdk 增加了一层 RPC 间接。这个权衡是有意的——隔离接缝比调用开销更有价值。
+
+## 更新（2026-09-21，PRD-0038 R5 / AC-5.8）
+
+上文关于 `apps/vis` 的描述（依赖图第 4 行、层职责表的 `apps/vis` 行、关键不变式第 4 条、以及「结果」里以 vis 为例的正面论据）已不再对应仓库中的任何代码：
+
+- **`apps/vis` 整棵树已删除。** 只读 replay / session visualizer 并入统一工作台，由 `@byfriends/web-server` 单独提供服务（PRD-0035 R-B4/R-B5、ADR-0037 D1）；`byf vis` 退化为一个弃用期的别名子命令，启动的是同一个 web 工作台。`@byfriends/vis-server` 包随之消失，因此这条「从 agent-core 只读取 wire-migration 层」的例外失去了宿主——历史上 `apps/cli/AGENTS.md` 曾把它写成 CLI 的「窄例外」，而删除前的 `apps/vis/server/src/**` 只是 `@byfriends/web-server` 的 re-export、零 agent-core import，该条款本就是散文事实错误，已一并更正。
+- **应用层现在是 `apps/cli` + `apps/web`（server / client / shared）**，两者受同一条不变式约束：只能通过 `@byfriends/sdk` 消费核心能力。
+- **「禁止 → agent-core」从约定升级为门禁。** `scripts/lib/check-app-layering.mjs`（PRD-0038 AC-2.1，随 `bun run test` 执行）扫描 `apps/**` 下全部源文件，含经相对路径逃逸到 `packages/agent-core/src/**` 的写法；`src` 命中即红，测试域 ratchet 基线为 0，例外表 `LAYERING_EXCEPTIONS` 为空且拒绝目录级豁免。

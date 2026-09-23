@@ -7,6 +7,12 @@ export interface SessionIndexEntry {
   readonly sessionId: string;
   readonly sessionDir: string;
   readonly workDir: string;
+  /**
+   * 会话 wire 格式版本（PRD-0037 #322）。缺省 = 旧 1.1 条目。
+   * 加速字段：读取侧始终以目录布局为真相（会话级 wire.jsonl = 2.0，
+   * agents/<id>/wire.jsonl = 1.1）。
+   */
+  readonly formatVersion?: string;
 }
 
 export function sessionIndexPath(homeDir: string): string {
@@ -64,6 +70,7 @@ export async function readSessionIndex(
       sessionId: entry.sessionId,
       sessionDir,
       workDir: resolve(entry.workDir),
+      formatVersion: entry.formatVersion,
     });
   }
   return result;
@@ -85,6 +92,7 @@ function parseIndexLine(line: string): SessionIndexEntry | undefined {
       sessionId: entry.sessionId,
       sessionDir: entry.sessionDir,
       workDir: entry.workDir,
+      formatVersion: typeof entry.formatVersion === 'string' ? entry.formatVersion : undefined,
     };
   } catch {
     return undefined;

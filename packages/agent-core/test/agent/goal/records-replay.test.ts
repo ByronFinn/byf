@@ -1,5 +1,6 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import { localKaos } from '@byfriends/kaos';
-import { describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../../src/agent';
 import type { GoalSnapshot } from '../../../src/agent/goal/types';

@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { Message, PromptBlock, PromptPlan, Tool } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import {
   clearTokenEstimateCache,

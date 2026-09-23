@@ -1,8 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   AGENT_WIRE_PROTOCOL_VERSION,
-  AgentRecords,
   InMemoryAgentRecordPersistence,
   type AgentRecord,
 } from '../../../../src/agent/records';

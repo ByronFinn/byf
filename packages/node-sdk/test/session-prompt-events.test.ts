@@ -1,4 +1,5 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,18 +7,17 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { Event } from '#/index';
 
-const fakeProviderState = vi.hoisted(() => ({
+const fakeProviderState = {
   calls: [] as Array<{
     readonly systemPrompt: string;
     readonly history: unknown;
   }>,
   providerConfigs: [] as unknown[],
   responseText: 'hello from fake provider',
-}));
+};
 
 const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
 vi.mock('@byfriends/kosong', () => {

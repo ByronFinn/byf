@@ -4,8 +4,9 @@
  * by inspecting the loop's call graph.
  */
 
+import { describe, expect, it, vi } from 'bun:test';
+
 import { inputTotal } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { LoopHooks, ExecutableToolResult, ToolExecution } from '../../src/loop/index';
 import { PathSecurityError } from '../../src/tools/policies/path-access';

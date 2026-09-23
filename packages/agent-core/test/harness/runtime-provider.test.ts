@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { ByfConfig } from '../../src/config';
 import { ByfError } from '../../src/errors';
@@ -290,6 +290,9 @@ describe('resolveRuntimeProvider maxOutputSize forwarding', () => {
       type: 'anthropic',
       model: 'claude-opus-4-7',
     });
+    if (resolved.provider.type !== 'anthropic') {
+      throw new Error('expected resolved provider to be anthropic');
+    }
     expect(resolved.provider.defaultMaxTokens).toBeUndefined();
   });
 });

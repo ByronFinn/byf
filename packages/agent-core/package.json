@@ -50,6 +50,10 @@
     "./home": {
       "types": "./src/home/workspace-registry.ts",
       "default": "./src/home/workspace-registry.ts"
+    },
+    "./harness/storage-contract": {
+      "types": "./src/harness/storage-contract.ts",
+      "default": "./src/harness/storage-contract.ts"
     }
   },
   "publishConfig": {
@@ -78,13 +82,18 @@
         "types": "./dist/home/workspace-registry.d.mts",
         "import": "./dist/home/workspace-registry.mjs",
         "default": "./dist/home/workspace-registry.mjs"
+      },
+      "./harness/storage-contract": {
+        "types": "./dist/harness/storage-contract.d.mts",
+        "import": "./dist/harness/storage-contract.mjs",
+        "default": "./dist/harness/storage-contract.mjs"
       }
     },
     "access": "public",
     "provenance": false
   },
   "scripts": {
-    "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts ./src/session/inspector/index.ts ./src/home/workspace-registry.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
+    "build": "bun ../../build/bun-lib-build.mjs ./src/index.ts ./src/agent/records/migration/index.ts ./src/session/store/index.ts ./src/session/inspector/index.ts ./src/home/workspace-registry.ts ./src/harness/storage-contract.ts --always-bundle picomatch && bun ../../build/bun-lib-dts.mjs",
     "test": "bun test",
     "test:baseline": "bun test",
     "typecheck": "tsc --build",

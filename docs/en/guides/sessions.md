@@ -2,6 +2,8 @@
 
 BYF persists every conversation as a "session", preserving message history and metadata so you can close the terminal and resume later. This page covers resuming sessions, context compaction, and managing sessions from inside the TUI.
 
+Resuming or forking replays the event log to rebuild the conversation history; it does not replay tool calls or undo their side effects. Local file edits and remote, irreversible calls made before a crash stay exactly as they were, so a call interrupted mid-tool leaves a recorded observation, not a rollback.
+
 ## Session storage
 
 All sessions are stored under `$BYF_HOME/sessions/` (default `~/.byf/sessions/`), bucketed by working directory:
@@ -25,7 +27,7 @@ All sessions are stored under `$BYF_HOME/sessions/` (default `~/.byf/sessions/`)
 - `agents/*/wire.jsonl` — agent event stream.
 
 ::: warning Note
-Manually editing files under `sessions/` can leave a session unrecoverable due to ordering constraints in `state.json` and `wire.jsonl`.
+Manually editing files under `sessions/` can leave a session unrecoverable due to ordering constraints in `state.json` and `wire.jsonl`. Recovery replays the journal to rebuild the conversation; it is not a transactional rollback, and it does not undo tool side effects.
 :::
 
 ## Starting and resuming sessions
@@ -87,7 +89,7 @@ To try a new line of thinking without disrupting the current conversation, use `
 /fork
 ```
 
-The forked session is fully independent; you can switch back to the original at any time.
+The forked session is fully independent; you can switch back to the original at any time. A fork copies the session history only — it does not undo any tool side effects, and switching back to the original session does not roll your files or remote state back either.
 
 ## Exporting sessions
 

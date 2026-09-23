@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { getCurrentKaos, runWithKaos } from '#/current';
 import type { Kaos } from '#/kaos';

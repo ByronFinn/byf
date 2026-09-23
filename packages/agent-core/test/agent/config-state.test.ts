@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import { UNKNOWN_CAPABILITY } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import { ProviderManager } from '../../src/providers/provider-manager';
 import { testAgent } from './harness';

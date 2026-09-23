@@ -16,17 +16,29 @@ function makeDeps(overrides: Partial<WebDeps> = {}): TestDeps {
     port: 4100,
     staticEnabled: true,
     url: 'http://0.0.0.0:4100',
+    authToken: 'tok-default',
+    configInvalid: false,
     close: () => {},
   };
   const deps: TestDeps = {
-    startServer: vi.fn().mockResolvedValue(handle),
-    openUrl: vi.fn().mockResolvedValue(undefined),
+    startServer: vi.fn<WebDeps['startServer']>().mockResolvedValue(handle),
+    openUrl: vi.fn<WebDeps['openUrl']>().mockResolvedValue(undefined),
     waitForShutdown: async (onClose) => {
       onClose();
     },
     collectLanIps: () => ['192.168.1.5'],
-    stdout: { write: (chunk: string) => stdout.push(chunk) === true } as never,
-    stderr: { write: (chunk: string) => stderr.push(chunk) === true } as never,
+    stdout: {
+      write: (chunk: string): boolean => {
+        stdout.push(chunk);
+        return true;
+      },
+    },
+    stderr: {
+      write: (chunk: string): boolean => {
+        stderr.push(chunk);
+        return true;
+      },
+    },
     exit: (code) => {
       throw new Error(`exit:${code}`);
     },
@@ -51,12 +63,25 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
   test('非回环绑定:banner 含各 LAN IP 完整 URL(带 token)与轮换提示;浏览器打开 localhost', async () => {
     process.env['WEB_AUTH_TOKEN'] = 'tok-lan';
     try {
-      const deps = makeDeps();
+      // 真实 server 自己从环境解析 token 并把它交付在 handle.authToken 上
+      // (apps/web/server/src/server.ts:58),所以这里的替身必须报告同一个值;
+      // 自动打开的 localhost URL 也要带上它,否则 SPA 首访无 token、写操作全 401。
+      const deps = makeDeps({
+        startServer: vi.fn<WebDeps['startServer']>().mockResolvedValue({
+          host: '0.0.0.0',
+          port: 4100,
+          staticEnabled: true,
+          url: 'http://0.0.0.0:4100',
+          authToken: 'tok-lan',
+          configInvalid: false,
+          close: () => {},
+        }),
+      });
       await expectExit(handleWeb(deps, undefined, { host: '0.0.0.0', port: 4100, open: true }), 0);
       const banner = deps.stdoutText();
       expect(banner).toContain('http://192.168.1.5:4100/?token=tok-lan');
       expect(banner).toContain('轮换');
-      expect(deps.openUrl).toHaveBeenCalledWith('http://127.0.0.1:4100/');
+      expect(deps.openUrl).toHaveBeenCalledWith('http://127.0.0.1:4100/?token=tok-lan');
     } finally {
       delete process.env['WEB_AUTH_TOKEN'];
     }
@@ -66,13 +91,15 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
     const collectLanIps = vi.fn(() => ['192.168.1.5']);
     const deps = makeDeps({
       collectLanIps,
-      startServer: vi.fn().mockResolvedValue({
+      startServer: vi.fn<WebDeps['startServer']>().mockResolvedValue({
         host: '127.0.0.1',
         port: 4100,
         staticEnabled: true,
         url: 'http://127.0.0.1:4100',
+        authToken: 'tok-loopback',
+        configInvalid: false,
         close: () => {},
-      } satisfies WebServerHandle),
+      }),
     });
     await expectExit(handleWeb(deps, undefined, { host: '127.0.0.1', port: 4100, open: false }), 0);
     const banner = deps.stdoutText();
@@ -87,17 +114,43 @@ describe('byf web LAN banner (PRD-0034 R-D1)', () => {
       const collectLanIps = vi.fn(() => ['192.168.1.5']);
       const deps = makeDeps({
         collectLanIps,
-        startServer: vi.fn().mockResolvedValue({
+        startServer: vi.fn<WebDeps['startServer']>().mockResolvedValue({
           host,
           port: 4100,
           staticEnabled: true,
           url: `http://${host}:4100`,
+          authToken: 'tok-alias',
+          configInvalid: false,
           close: () => {},
-        } satisfies WebServerHandle),
+        }),
       });
       await expectExit(handleWeb(deps, undefined, { host, port: 4100, open: false }), 0);
       expect(deps.stdoutText()).not.toContain('] lan ');
       expect(collectLanIps).not.toHaveBeenCalled();
     }
+  });
+});
+
+/**
+ * PRD-0038 AC-1.2:回环下 token 由 server 首启生成,必须经启动日志与 CLI 打开
+ * 的 URL query 交付给浏览器(Q1 裁决),否则写操作在回环下不可用。
+ */
+describe('byf web loopback token delivery (PRD-0038 AC-1.2)', () => {
+  test('回环启动:handle 交付的 token 进入启动日志,浏览器打开 URL 携带 ?token=', async () => {
+    const handle: WebServerHandle = {
+      host: '127.0.0.1',
+      port: 4100,
+      staticEnabled: true,
+      url: 'http://127.0.0.1:4100',
+      close: () => {},
+      authToken: 'tok-loop-delivery',
+      configInvalid: false,
+    };
+    const deps = makeDeps({
+      startServer: vi.fn<WebDeps['startServer']>().mockResolvedValue(handle),
+    });
+    await expectExit(handleWeb(deps, undefined, { host: '127.0.0.1', port: 4100, open: true }), 0);
+    expect(deps.stdoutText()).toContain('tok-loop-delivery');
+    expect(deps.openUrl).toHaveBeenCalledWith(expect.stringContaining('token=tok-loop-delivery'));
   });
 });

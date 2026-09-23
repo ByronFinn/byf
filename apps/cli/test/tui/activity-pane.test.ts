@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput, type TUIState } from '#/tui/byf-tui';
 
+import { makeCliOptions } from '../helpers/cli-options';
+
 interface ActivityDriver {
   state: TUIState;
   updateActivityPane(): void;
@@ -9,15 +11,7 @@ interface ActivityDriver {
 
 function makeStartupInput(): ByfTuiStartupInput {
   return {
-    cliOptions: {
-      session: undefined,
-      continue: false,
-      yolo: false,
-      model: undefined,
-      outputFormat: undefined,
-      prompt: undefined,
-      skillsDirs: [],
-    },
+    cliOptions: makeCliOptions(),
     tuiConfig: {
       theme: 'dark',
       editorCommand: null,

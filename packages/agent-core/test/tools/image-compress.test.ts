@@ -7,13 +7,13 @@
  * existing test home, so it gets its own focused file.
  */
 
+import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Jimp } from 'jimp';
-import { describe, expect, it } from 'vitest';
 
 import { sniffImageDimensions } from '../../src/tools/support/file-type';
 import {

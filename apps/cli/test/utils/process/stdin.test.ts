@@ -33,7 +33,7 @@ describe('stdin helpers', () => {
     listeners.get('data')?.(Buffer.from(' hello world \n'));
     listeners.get('end')?.();
 
-    await expect(pending).resolves.toBe('hello world');
+    expect(pending).resolves.toBe('hello world');
 
     onSpy.mockRestore();
     resumeSpy.mockRestore();

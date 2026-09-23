@@ -98,6 +98,29 @@ export interface HostRPC {
   readAgentTree(payload: { readonly sessionId: string }): Promise<AgentTreeResponse>;
 }
 
+/**
+ * 探测请求里的 stdio `command`（未经 schema 校验的原始 config，所以是 `unknown`
+ * 取值）。返回 `null` 表示这份配置不是 stdio 探针（http / sse，或者压根没写
+ * command），那类配置不启动子进程，也就不受命令名单约束。
+ */
+function stdioCommandOf(config: Record<string, unknown>): string | null {
+  const command = config['command'];
+  if (typeof command !== 'string') return null;
+  const trimmed = command.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/** 任一 scope 已保存配置里出现过的 stdio 命令名集合（名单的唯一来源）。 */
+function listedStdioCommands(listing: McpConfigListing): Set<string> {
+  const commands = new Set<string>();
+  for (const scope of [listing.user, listing.project]) {
+    for (const server of scope.servers) {
+      if (server.config.transport === 'stdio') commands.add(server.config.command);
+    }
+  }
+  return commands;
+}
+
 export function createHostRPC(deps: HostRPCDeps): HostRPC {
   const { homeDir, configPath, userHomeDir, providerManager, sessionStore } = deps;
 
@@ -292,6 +315,11 @@ export function createHostRPC(deps: HostRPCDeps): HostRPC {
   ): Promise<McpConnectionTestResult> {
     const workDir = requiredWorkDir('testMcpConnection', input.workDir);
     mcpConfigStore.assertMcpConfigScope(input.scope);
+    // PRD-0038 AC-1.3 的**权威**门在这里,不在任何 host 的路由里:探测一条 stdio
+    // 配置意味着按请求方给出的 command 启动一个真实子进程,而这条 RPC method 的
+    // 调用方不止 web(`ByfHarness.testMcpConnection` 是公开 SDK 面,任何 host 都能
+    // 直接调),门装在路由上等于只装在其中一条入口上。
+    await assertProbeCommandAllowlisted(input.config, workDir);
     const config = await mcpConfigStore.resolveServerConfigForProbe({
       cwd: workDir,
       homeDir,
@@ -300,6 +328,41 @@ export function createHostRPC(deps: HostRPCDeps): HostRPC {
       config: input.config,
     });
     return probeMcpConnection(config);
+  }
+
+  /**
+   * PRD-0038 AC-1.3（Q3 裁决）：探测用的 stdio `command` 必须已经出现在本机任一
+   * scope 的已保存 mcp.json 里。
+   *
+   * 判定对象的**精确范围**（诚实版，ADR-0033：这是尽力而为的护栏，不是边界）：
+   * - 约束的是"可执行文件名"这一个量。名单来自 user + project 两个 scope 的
+   *   `servers[].config.command`（`listMcpConfigs` 已掩码 env/headers，命令名是明文）。
+   * - **不**约束 `args` / `env` / `cwd`。名单里的解释器（`node` / `python` / `sh`
+   *   这类）配上任意 args 仍然是本机代码执行 —— 例如 `node -e …`。所以"通过了这道
+   *   门"不等于"这条配置是安全的"。
+   * - 为什么不做整份配置（command + args 前缀）比对：AC-1.3 明确要求保留"保存前先测
+   *   试"的体验，而用户在表单里改的恰恰是 args（`npx -y <新包名>`）；按 args 前缀
+   *   匹配会把这条真实旅程堵死。要收紧到 args，得先改 AC-1.3，而不是先改这里。
+   * - 非 stdio（http / sse）配置不启动子进程，因此不受本门约束。
+   *
+   * 拒绝时抛 `request.invalid` + `details.reason = 'stdio_command_not_allowlisted'`,
+   * 让 web 路由能把它映射成 403 而不与"配置损坏"（`config.invalid`）混淆。
+   */
+  async function assertProbeCommandAllowlisted(
+    config: Record<string, unknown>,
+    workDir: string,
+  ): Promise<void> {
+    const command = stdioCommandOf(config);
+    if (command === null) return;
+    const listing = await mcpConfigStore.listMcpConfigs({ cwd: workDir, homeDir });
+    if (listedStdioCommands(listing).has(command)) return;
+    throw new ByfError(
+      ErrorCodes.REQUEST_INVALID,
+      `Cannot test MCP server: stdio command "${command}" is not declared in any saved mcp.json ` +
+        `(user or project scope for ${workDir}). Save a server entry that uses this command and ` +
+        'test it again, or pick one of the already-declared commands.',
+      { details: { reason: 'stdio_command_not_allowlisted', command } },
+    );
   }
 
   // ── Workspace skills(PRD-0036)────────────────────────────────────────────

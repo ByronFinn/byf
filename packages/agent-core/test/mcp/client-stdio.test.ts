@@ -1,7 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { describe, expect, it } from 'vitest';
 
 import { ByfError } from '../../src/errors';
 import { StdioMcpClient } from '../../src/mcp/client-stdio';
@@ -217,7 +216,7 @@ describe('StdioMcpClient', () => {
       expect(transportConfirmedDead).toBe(true);
       // `pendingUnexpectedClose` is set; registering the listener must
       // invoke it synchronously inside the call.
-      let received: { stderr?: string };
+      let received: { stderr?: string } | undefined;
       let syncedOnRegister = false;
       client.onUnexpectedClose((reason) => {
         syncedOnRegister = true;

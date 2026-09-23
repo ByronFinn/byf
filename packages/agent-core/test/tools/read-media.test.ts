@@ -2,6 +2,7 @@
  * ReadMediaFileTool tests for the current output/capability contract.
  */
 
+import { describe, expect, it, vi } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +10,6 @@ import { join } from 'node:path';
 import type { Kaos } from '@byfriends/kaos';
 import type { ContentPart, ModelCapability } from '@byfriends/kosong';
 import { Jimp } from 'jimp';
-import { describe, expect, it, vi } from 'vitest';
 
 import { ToolAccesses } from '../../src/loop';
 import type { ExecutableToolResult } from '../../src/loop';
@@ -721,6 +721,7 @@ describe('ReadMediaFileTool', () => {
         turnId: 't1',
         toolCallId: 'c_compress',
         args: { path: '/workspace/big.png' },
+        signal,
       });
 
       const parts = outputParts(result);
@@ -755,6 +756,7 @@ describe('ReadMediaFileTool', () => {
       turnId: 't1',
       toolCallId: 'c_passthrough',
       args: { path: '/workspace/small.png' },
+      signal,
     });
 
     const parts = outputParts(result);
@@ -780,6 +782,7 @@ describe('ReadMediaFileTool', () => {
       turnId: 't1',
       toolCallId: 'c_lying_ext',
       args: { path: '/workspace/photo.png' },
+      signal,
     });
 
     expect(result.isError).toBe(true);
@@ -806,6 +809,7 @@ describe('ReadMediaFileTool', () => {
       turnId: 't1',
       toolCallId: 'c_bomb',
       args: { path: '/workspace/bomb.png' },
+      signal,
     });
 
     expect(result.isError).toBe(true);

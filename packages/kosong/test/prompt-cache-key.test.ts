@@ -1,6 +1,5 @@
+import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
-
-import { describe, expect, it } from 'vitest';
 
 import type { PromptBlock, PromptPlan } from '#/prompt-plan';
 import { deriveCacheKeyFromPromptPlan } from '#/providers/prompt-cache-key';

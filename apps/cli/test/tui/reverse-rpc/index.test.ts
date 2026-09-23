@@ -30,7 +30,7 @@ describe('registerReverseRPCHandlers', () => {
       expect.objectContaining({ id: 'req-1' }),
     );
     approvalController.cancelAll('bye');
-    await expect(approvalPending).resolves.toEqual({
+    expect(approvalPending).resolves.toEqual({
       decision: 'cancelled',
       feedback: 'bye',
     });
@@ -43,7 +43,7 @@ describe('registerReverseRPCHandlers', () => {
     });
     expect(uiHooks.showQuestionDialog).toHaveBeenCalledWith(expect.objectContaining({ id: 'q-1' }));
     questionController.cancelAll('bye');
-    await expect(questionPending).resolves.toEqual({ answers: [] });
+    expect(questionPending).resolves.toEqual({ answers: [] });
     expect(uiHooks.hideQuestionDialog).toHaveBeenCalledOnce();
   });
 
@@ -80,14 +80,14 @@ describe('registerReverseRPCHandlers', () => {
     expect(uiHooks.showQuestionDialog).not.toHaveBeenCalled();
 
     approvalController.respond({ decision: 'approved' });
-    await expect(approvalPending).resolves.toEqual({ decision: 'approved' });
+    expect(approvalPending).resolves.toEqual({ decision: 'approved' });
     expect(uiHooks.hideApprovalPanel).toHaveBeenCalledOnce();
     expect(uiHooks.showQuestionDialog).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'question-1' }),
     );
 
     questionController.respond({ answers: ['answer'] });
-    await expect(questionPending).resolves.toEqual({ answers: ['answer'] });
+    expect(questionPending).resolves.toEqual({ answers: ['answer'] });
     expect(uiHooks.hideQuestionDialog).toHaveBeenCalledOnce();
   });
 
@@ -124,14 +124,14 @@ describe('registerReverseRPCHandlers', () => {
     expect(uiHooks.showApprovalPanel).not.toHaveBeenCalled();
 
     questionController.respond({ answers: ['answer'] });
-    await expect(questionPending).resolves.toEqual({ answers: ['answer'] });
+    expect(questionPending).resolves.toEqual({ answers: ['answer'] });
     expect(uiHooks.hideQuestionDialog).toHaveBeenCalledOnce();
     expect(uiHooks.showApprovalPanel).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'approval-1' }),
     );
 
     approvalController.respond({ decision: 'approved' });
-    await expect(approvalPending).resolves.toEqual({ decision: 'approved' });
+    expect(approvalPending).resolves.toEqual({ decision: 'approved' });
     expect(uiHooks.hideApprovalPanel).toHaveBeenCalledOnce();
   });
 
@@ -163,11 +163,11 @@ describe('registerReverseRPCHandlers', () => {
     });
 
     questionController.cancelAll('closed');
-    await expect(questionPending).resolves.toEqual({ answers: [] });
+    expect(questionPending).resolves.toEqual({ answers: [] });
     expect(uiHooks.hideQuestionDialog).not.toHaveBeenCalled();
 
     approvalController.respond({ decision: 'approved' });
-    await expect(approvalPending).resolves.toEqual({ decision: 'approved' });
+    expect(approvalPending).resolves.toEqual({ decision: 'approved' });
     expect(uiHooks.showQuestionDialog).not.toHaveBeenCalled();
   });
 
@@ -210,7 +210,7 @@ describe('registerReverseRPCHandlers', () => {
 
     // Resolve the first — this should trigger hide(old) then show(next)
     approvalController.respond({ decision: 'approved' });
-    await expect(pending1).resolves.toEqual({ decision: 'approved' });
+    expect(pending1).resolves.toEqual({ decision: 'approved' });
 
     expect(uiHooks.hideApprovalPanel).toHaveBeenCalledTimes(1);
     expect(uiHooks.showApprovalPanel).toHaveBeenCalledTimes(2);
@@ -220,7 +220,7 @@ describe('registerReverseRPCHandlers', () => {
 
     // Resolve the second — no more queued, just hide
     approvalController.respond({ decision: 'rejected' });
-    await expect(pending2).resolves.toEqual({ decision: 'rejected' });
+    expect(pending2).resolves.toEqual({ decision: 'rejected' });
 
     expect(uiHooks.hideApprovalPanel).toHaveBeenCalledTimes(2);
     expect(uiHooks.showApprovalPanel).toHaveBeenCalledTimes(2);
@@ -259,11 +259,11 @@ describe('registerReverseRPCHandlers', () => {
 
     approvalController.cancelAll('closed');
     questionController.cancelAll('closed');
-    await expect(approvalPending).resolves.toEqual({
+    expect(approvalPending).resolves.toEqual({
       decision: 'cancelled',
       feedback: 'closed',
     });
-    await expect(questionPending).resolves.toEqual({ answers: [] });
+    expect(questionPending).resolves.toEqual({ answers: [] });
     expect(uiHooks.hideQuestionDialog).not.toHaveBeenCalled();
   });
 });

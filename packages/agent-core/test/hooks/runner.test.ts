@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 const RUNNER_MODULE = '../../src/agent/hooks/runner' as string;
 

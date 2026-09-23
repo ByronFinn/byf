@@ -1,5 +1,6 @@
+import { describe, expect, it, vi } from 'bun:test';
+
 import type { ByfConfig } from '@byfriends/agent-core';
-import { describe, expect, it, vi } from 'vitest';
 
 import {
   applyCatalogProvider,

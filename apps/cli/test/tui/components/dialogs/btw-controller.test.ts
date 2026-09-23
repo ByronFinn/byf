@@ -6,6 +6,8 @@ import { BtwController, type BtwHost } from '#/tui/components/dialogs/btw-contro
 import { darkColors } from '#/tui/theme/colors';
 import type { TUIState } from '#/tui/types';
 
+import { defined } from '../../../helpers/defined';
+
 /** Minimal fake OverlayHandle recording hide/hidden/focus transitions. */
 function fakeHandle(): OverlayHandle & { hidden: boolean } {
   let hidden = false;
@@ -192,7 +194,7 @@ describe('BtwController', () => {
 
     await controller.show('first question');
     const firstQueryId = (askSide.mock.calls[0]![1] as { queryId: string }).queryId;
-    const firstHandle = handlesOf(state)[0];
+    const firstHandle = defined(handlesOf(state)[0], 'firstHandle');
 
     await controller.show('second question');
 
@@ -211,7 +213,7 @@ describe('BtwController', () => {
 
     await controller.show('quick one');
     const queryId = (askSide.mock.calls[0]![1] as { queryId: string }).queryId;
-    const handle = handlesOf(state)[0];
+    const handle = defined(handlesOf(state)[0], 'handle');
 
     controller.close();
 
@@ -225,7 +227,7 @@ describe('BtwController', () => {
     const controller = new BtwController(state, host);
 
     await controller.show('hi');
-    const handle = handlesOf(state)[0];
+    const handle = defined(handlesOf(state)[0], 'handle');
 
     controller.hideForModal();
     expect(handle.isHidden()).toBe(true);

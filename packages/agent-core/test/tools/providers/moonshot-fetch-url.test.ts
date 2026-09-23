@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import type { UrlFetcher } from '../../../src/tools/builtin/web/fetch-url';
 import { RemoteFetchURLProvider } from '../../../src/tools/providers/remote-fetch-url';
+import { withPreconnect } from '../../_fetch-mock';
 
 function fakeFetcher(content = '', kind: 'passthrough' | 'extracted' = 'extracted'): UrlFetcher {
   return { fetch: vi.fn().mockResolvedValue({ content, kind }) };
@@ -13,7 +14,9 @@ describe('RemoteFetchURLProvider auth fallback', () => {
     // the host should call byf with the static api key when oauth
     // returns nothing — without needing a separate prime step.
     const getAccessToken = vi.fn<() => Promise<string>>().mockResolvedValue('');
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('ok', { status: 200 }));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('ok', { status: 200 })),
+    );
     const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       apiKey: 'fallback-key',
@@ -37,7 +40,9 @@ describe('RemoteFetchURLProvider auth fallback', () => {
     const getAccessToken = vi
       .fn<(o?: { force?: boolean }) => Promise<string>>()
       .mockRejectedValue(new Error('revoked'));
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('ok', { status: 200 }));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('ok', { status: 200 })),
+    );
     const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       apiKey: 'fallback-key',
@@ -57,9 +62,11 @@ describe('RemoteFetchURLProvider auth fallback', () => {
 describe('RemoteFetchURLProvider content kind', () => {
   it('reports service responses as extracted content', async () => {
     const getAccessToken = vi.fn<() => Promise<string>>().mockResolvedValue('token');
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(new Response('# Extracted markdown', { status: 200 }));
+    const fetchImpl = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response('# Extracted markdown', { status: 200 })),
+    );
     const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       baseUrl: 'https://fetch.example/v1',
@@ -74,9 +81,9 @@ describe('RemoteFetchURLProvider content kind', () => {
 
   it('forwards the content kind from the local fallback', async () => {
     const getAccessToken = vi.fn<() => Promise<string>>().mockResolvedValue('token');
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(new Response('boom', { status: 503 }));
+    const fetchImpl = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response('boom', { status: 503 })),
+    );
     const provider = new RemoteFetchURLProvider({
       tokenProvider: { getAccessToken },
       baseUrl: 'https://fetch.example/v1',

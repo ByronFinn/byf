@@ -25,7 +25,7 @@ describe('refreshUpdateCache', () => {
 
   it('propagates fetch errors and skips writeCache so the cache is preserved', async () => {
     const writeCache = vi.fn(async () => {});
-    await expect(
+    expect(
       refreshUpdateCache({
         fetchLatest: async () => {
           throw new Error('network down');

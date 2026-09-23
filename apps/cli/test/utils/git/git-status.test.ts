@@ -4,8 +4,23 @@ import { mock as bunMock } from 'bun:test';
 import { afterEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  spawnSync: vi.fn(),
-  execFile: vi.fn(),
+  spawnSync:
+    vi.fn<
+      (
+        command: string,
+        args: string[],
+        options?: unknown,
+      ) => { status: number | null; stdout: string; stderr?: string }
+    >(),
+  execFile:
+    vi.fn<
+      (
+        command: string,
+        args: string[],
+        options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => void
+    >(),
 }));
 
 vi.mock('node:child_process', () => ({

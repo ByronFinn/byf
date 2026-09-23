@@ -1,7 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { PassThrough } from 'node:stream';
 import { setImmediate as defer, setTimeout as delay } from 'node:timers/promises';
-
-import { describe, expect, it } from 'vitest';
 
 import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from '#/internal';
 

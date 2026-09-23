@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+
 import { z } from 'zod';
 
 import { createToolMessage, extractText } from '#/message';
@@ -135,9 +136,9 @@ describe('e2e: kosong toolchain bridges', () => {
     expect(extractText(first.message)).toBe('I will route the shipment.');
     expect(first.toolCalls).toHaveLength(1);
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0].toolCallId).toBe('tc-route');
-    expect(toolResults[0].returnValue.isError).toBe(false);
-    expect(toolResults[0].returnValue.output).toBe('pkg-42 -> Shanghai:200000');
+    expect(toolResults[0]?.toolCallId).toBe('tc-route');
+    expect(toolResults[0]?.returnValue.isError).toBe(false);
+    expect(toolResults[0]?.returnValue.output).toBe('pkg-42 -> Shanghai:200000');
     expect(extractText(second.message)).toBe('Shipment routed.');
   });
 
@@ -221,11 +222,11 @@ describe('e2e: kosong toolchain bridges', () => {
     const { first, second, toolResults } = await runTwoStepLoop(toolset, provider);
 
     expect(first.toolCalls).toHaveLength(1);
-    expect(receivedArgs).toEqual({
+    expect<Record<string, unknown> | null>(receivedArgs).toEqual({
       shipping: { city: 'Hangzhou', zip: '310000' },
       billing: { city: 'Shenzhen', zip: '518000' },
     });
-    expect(toolResults[0].returnValue.output).toBe('ship:ok');
+    expect(toolResults[0]?.returnValue.output).toBe('ship:ok');
     expect(extractText(second.message)).toBe('Shipment booked.');
   });
 });

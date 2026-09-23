@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { testAgent } from './harness/agent';
@@ -131,7 +131,7 @@ describe('Multi-pass compaction pipeline', () => {
       turnId: '0',
       step: 1,
     });
-    for (let i = 0; i < toolResults.length; i++) {
+    for (const [i, output] of toolResults.entries()) {
       await ctx.agent.context.appendLoopEvent({
         type: 'tool.call',
         uuid: `tc-${String(i)}`,
@@ -146,7 +146,7 @@ describe('Multi-pass compaction pipeline', () => {
         type: 'tool.result',
         parentUuid: `tc-${String(i)}`,
         toolCallId: `call_${String(i)}`,
-        result: { output: toolResults[i] },
+        result: { output },
       });
     }
     await ctx.agent.context.appendLoopEvent({

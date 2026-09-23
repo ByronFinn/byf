@@ -4,6 +4,7 @@
  * Uses KaosProcess fakes.
  */
 
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,6 @@ import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BackgroundProcessManager } from '../../../src/tools/background/manager';
 import { writeTask } from '../../../src/tools/background/persist';
@@ -154,7 +154,7 @@ describe('TaskListTool', () => {
     // Synchronous check — the task is running immediately after register.
     const tasks = manager.list(true);
     expect(tasks.length).toBe(1);
-    expect(tasks[0].command).toBe('sleep 60');
+    expect(tasks[0]?.command).toBe('sleep 60');
   });
 
   it('does not sleep when listing a normally running task', async () => {

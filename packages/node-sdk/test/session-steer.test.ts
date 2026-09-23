@@ -1,16 +1,16 @@
 import { mock as bunMock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'bun:test';
 
 import type * as KosongModule from '@byfriends/kosong';
-import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
 import type { ByfError } from '#/index';
 
 import { makeTempDir, removeTempDirs, waitForAgentWireEvent } from './session-runtime-helpers';
 import { TEST_IDENTITY } from './test-identity';
 
-const fakeProviderState = vi.hoisted(() => ({
+const fakeProviderState = {
   responseText: 'steer response',
-}));
+};
 
 const __mockActual__byfriends_kosong = await import('@byfriends/kosong');
 vi.mock('@byfriends/kosong', () => {

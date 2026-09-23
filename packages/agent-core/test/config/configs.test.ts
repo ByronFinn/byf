@@ -1,9 +1,8 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ByfConfigSchema,
@@ -23,7 +22,7 @@ import {
   writeConfigFile,
 } from '../../src/config';
 import type { ByfConfig } from '../../src/config/schema';
-import { ErrorCodes, ByfError } from '../../src/errors';
+import { ErrorCodes, ByfError, type ByfErrorCode } from '../../src/errors';
 
 const tempDirs: string[] = [];
 
@@ -39,7 +38,7 @@ function makeTempDir(): string {
   return dir;
 }
 
-function expectByfErrorCode(fn: () => unknown, code: string): void {
+function expectByfErrorCode(fn: () => unknown, code: ByfErrorCode): void {
   try {
     fn();
   } catch (error) {
@@ -887,5 +886,64 @@ describe('McpServerConfigSchema (SSE)', () => {
       transport: 'sse',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('PRD-0038 AC-1.7 corrupt config does not take the process down', () => {
+  const BROKEN = ['default_model = "k2"', '[providers.a', 'type = "anthropic"', ''].join('\n');
+
+  it('readConfigFile 在解析失败时降级为内置默认而不是抛错（真实装配路径的前提）', async () => {
+    const configPath = join(makeTempDir(), 'config.toml');
+    await writeFile(configPath, BROKEN, 'utf-8');
+
+    let config: ByfConfig | undefined;
+    expect(() => {
+      config = readConfigFile(configPath);
+    }).not.toThrow();
+    // 降级值就是内置默认:损坏的文件内容一个字也不猜。
+    expect(config).toEqual({ providers: {} });
+    // 磁盘原文不动——修复要经 raw 端点读它。
+    expect(await readFile(configPath, 'utf-8')).toBe(BROKEN);
+  });
+
+  it('parseConfigString 仍然严格:损坏配置的判定路径不变', async () => {
+    const configPath = join(makeTempDir(), 'config.toml');
+    await writeFile(configPath, BROKEN, 'utf-8');
+    expect(() => parseConfigString(BROKEN, configPath)).toThrow(ByfError);
+  });
+
+  it('readConfigFile 修好后立刻读到新内容（无需重启的修复旅程）', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'config.toml');
+    await writeFile(configPath, BROKEN, 'utf-8');
+    expect(readConfigFile(configPath)).toEqual({ providers: {} });
+
+    const fixed = ['[providers.a]', 'type = "anthropic"', 'api_key = "sk-fixed"', ''].join('\n');
+    await writeFile(configPath, fixed, 'utf-8');
+    expect(readConfigFile(configPath).providers?.['a']?.apiKey).toBe('sk-fixed');
+  });
+
+  it('结构化写拒绝覆盖无法解析的磁盘配置（AC-1.4 销毁防护延伸到投影写）', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'config.toml');
+    await writeFile(configPath, BROKEN, 'utf-8');
+
+    // 服务在损坏态下能起来以后，PATCH /config 这类投影写就变成可达路径：
+    // 若照 readConfigFile 的降级默认写回，用户的全部配置（含密钥）会被替换掉。
+    await expect(
+      writeConfigFile(configPath, mergeConfigPatch(readConfigFile(configPath), {})),
+    ).rejects.toThrow(/Refusing to overwrite/);
+    expect(await readFile(configPath, 'utf-8')).toBe(BROKEN);
+  });
+
+  it('结构化写在配置可解析时照常工作（防护不是把写路径整体关掉）', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'config.toml');
+    await writeFile(configPath, '[providers.a]\ntype = "anthropic"\n', 'utf-8');
+    await writeConfigFile(
+      configPath,
+      mergeConfigPatch(readConfigFile(configPath), { defaultModel: 'x' }),
+    );
+    expect(await readFile(configPath, 'utf-8')).toContain('default_model = "x"');
   });
 });

@@ -16,7 +16,9 @@
  *
  * Package discovery is shared with `check-published-manifest.mjs` and covers
  * the whole workspace (packages/* AND apps/*), so app-shaped packages such as
- * `@byfriends/cli` and `@byfriends/vis-server` are validated too.
+ * `@byfriends/cli` are validated too. `@byfriends/vis-server` was in that list until
+ * Q7 of PRD-0038 removed the zero-consumer shim (AC-5.6); discovery is by
+ * publishability, not by name, so nothing else had to change here.
  *
  * `--ignore-rules cjs-resolves-to-esm`: every package here is `type: "module"`
  * and ships ESM only. CJS consumers must use dynamic import — that is by design,

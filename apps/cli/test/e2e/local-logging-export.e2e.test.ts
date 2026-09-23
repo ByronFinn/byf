@@ -3,14 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as zlib from 'node:zlib';
 
-import { ByfHarness, log } from '@byfriends/sdk';
+import { ByfHarness, flushDiagnosticLogs, log } from '@byfriends/sdk';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { registerExportCommand } from '#/cli/sub/export';
 import { createByfHostIdentity } from '#/cli/version';
-
-import { __resetRootLoggerForTest } from '../../../../packages/agent-core/src/logging/logger';
 
 const SESSION_LOG = 'logs/byf.log';
 const GLOBAL_LOG = 'logs/global/byf.log';
@@ -21,8 +19,11 @@ let homeDir: string;
 let workDir: string;
 let oldHome: string | undefined;
 
+// 根日志器是进程级单例，但它由 `ByfHarness` 构造时按 `homeDir` 重新 configure
+// （`packages/node-sdk/src/byf-harness.ts`），落盘则由公开面 `flushDiagnosticLogs()`
+// 兜住。两者足够让本用例自洽，因此不需要 agent-core 的 `__resetRootLoggerForTest`
+// ——那是 `@internal` 钩子，跨过它就是这个文件违反 ADR-0006 包边界（AC-2.1）。
 beforeEach(async () => {
-  await __resetRootLoggerForTest();
   homeDir = await mkdtemp(join(tmpdir(), 'byf-cli-log-home-'));
   workDir = await mkdtemp(join(tmpdir(), 'byf-cli-log-work-'));
   oldHome = process.env['BYF_HOME'];
@@ -30,7 +31,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await __resetRootLoggerForTest();
+  // Flush before tearing the directories down so no sink is left holding a path
+  // that has already been removed.
+  await flushDiagnosticLogs();
   if (oldHome === undefined) {
     delete process.env['BYF_HOME'];
   } else {
@@ -53,6 +56,9 @@ describe.skipIf(!ENABLED)('local logging export e2e', () => {
       });
       log.warn('cli logging export marker', { sessionId: session.id });
       log.warn('cli global marker');
+      // `export` reads the log files off disk, so the markers have to be there
+      // before it runs — the sinks buffer their writes.
+      await flushDiagnosticLogs();
 
       const defaultZip = join(workDir, 'default.zip');
       await runByfExport([session.id, '-o', defaultZip]);

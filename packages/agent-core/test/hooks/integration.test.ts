@@ -1,9 +1,9 @@
+import { describe, expect, it } from 'bun:test';
 import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ContentPart } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 // Dynamic-import contract: locks the Agent <-> HookEngine integration shape
 // (engine ctor, trigger surface, summary, wire callbacks, event helpers,

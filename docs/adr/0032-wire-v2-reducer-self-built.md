@@ -4,9 +4,13 @@ Date: 2026-08-11
 
 ## 状态
 
-已接受
+已接受（部分被取代，见下方注记：格式路线被 ADR-0040 取代，自研 reducer 框架本身仍是现网唯一 live 的 wire 实现，随 PRD-0037 Phase 4 默认切换才删除）
 
 取代 ADR-0031（暂不迁移至 kimi agent-core-v2 的 wire 架构）。
+
+> **取代（ADR-0040）**：决策核心约束 1 的格式路线——「Op type 复用 byf 现有 26 种 record 名，`opToWireRecord` 产出的 JSONL 形状与现有 `logRecord` 逐字节一致，现有 `wire.jsonl` 零迁移即可被新 `WireService.restore()` 读取，`protocol_version` 仍 `1.1`」——被 ADR-0040 的 wire 2.0 greenfield 裁决取代：新格式（entries 树 + records 分离 + lanes + 单调 seq）无法与 1.1 字节兼容，不写 1.1→2.0 转换、旧 1.1 会话不保证可打开。约束 6 的「零数据迁移、新旧并存可渐进验证」与理由第 3 条随之失效——ADR-0040 明言该前提「在采纳 v2 树形格式后不再成立」。
+>
+> **未被取代**：「自研 wire reducer 框架、借鉴 kimi v2 实际落地子集、不移植其代码与 on-disk 格式」这一核心决策不受影响；ADR-0040「结果」一节明确归约哲学（状态=记录的归约、live/restore 同 apply）在新格式内延续。代码事实：`packages/agent-core/src/agent/wire/`（`WireService` + `ops/` 注册 Op）仍是现网 wire 路径，`AGENT_WIRE_PROTOCOL_VERSION` 仍为 `'1.1'`（`packages/agent-core/src/agent/records/migration/index.ts`）；wire 2.0 位于并行新建的 `packages/agent-core/src/harness/`（ADR-0041），1.1 路径的删除随 Phase 4 切换。
 
 ## 背景
 
@@ -77,6 +81,7 @@ ADR-0031 的 Consequences 里关于「双写仍存在」「未来需重新评估
 
 - PRD-0027：wire v2 reducer 重构（本决策的实施 PRD）
 - ADR-0031：暂不迁移至 kimi agent-core-v2 的 wire 架构（被本 ADR supersede）
+- ADR-0040 / ADR-0041：wire 2.0 greenfield 与并行新建切换（取代本 ADR 的字节兼容/零迁移格式路线；归约哲学在新格式内延续）
 - ADR-0010：AgentRecords 恢复机制重构（上一代 wire restore 重构）
 - PRD-0025：wire 投影纯函数抽取与 pi-tui 升级（其 Out of Scope 的「全面 v2 迁移」由本决策兑现）
 - kimi-code `packages/agent-core-v2/src/wire/`：v2 实现（精读对象，非移植来源）

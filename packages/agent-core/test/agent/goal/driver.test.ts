@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { GOAL_CONTINUATION_ORIGIN } from '../../../src/agent/goal/constants';
 import { AgentTestContext, testAgent } from '../harness/agent';

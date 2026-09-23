@@ -1,5 +1,10 @@
 # PR / push quality gates — Bun is the sole install and run path (ADR 0028 / PRD-0020 #216).
 # Pin matches engines.bun lower bound and grill #4: Bun 1.3.14.
+#
+# The PRD-0038 R5 gates (AC-5.1 … AC-5.5) run here as ordinary steps of this one job,
+# each invoking `bun scripts/ci-gates.mjs <gate>` — the exact command a contributor runs
+# locally. Every gate step is fail-the-job: no `continue-on-error`, no `if: failure()`
+# rescue, no soft warning. A gate that cannot go red is not a gate.
 
 name: CI
 
@@ -19,7 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # `changesets` (AC-5.3) diffs this checkout against its base branch, so the
+      # history has to be there: fetch-depth: 0 is a requirement of that gate, not
+      # a preference.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -27,6 +37,45 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      # --- gates that need nothing but the checkout + install, so they fail fast ---
+
+      # AC-5.1 — credential shapes in the tracked tree.
+      - name: 'Gate: secrets'
+        run: bun scripts/ci-gates.mjs secrets
+
+      # AC-5.5 — no `node` in package.json scripts or any workflow run step (ADR-0028).
+      - name: 'Gate: no-node'
+        run: bun scripts/ci-gates.mjs no-node
+
+      # AC-5.3 — every changed publishable package must have a changeset naming it.
+      # On a pull request the base is the PR target; on a push to main the diff against
+      # origin/main is empty, which is the correct trivial pass (a push that has already
+      # landed cannot be told to add a changeset — the PR that carried it was checked).
+      - name: 'Gate: changesets'
+        env:
+          CHANGESET_BASE: origin/${{ github.base_ref || 'main' }}
+        run: bun scripts/ci-gates.mjs changesets --base "$CHANGESET_BASE"
+
+      # AC-5.7 — oxfmt is an exact pin in package.json (0214ef1 is a whole-tree reflow
+      # caused by a floating formatter). Assert the version actually installed, so a
+      # re-resolution or a cached runner image cannot silently change the formatter
+      # under `fmt:check`. Fails on drift; it never reformats anything.
+      - name: 'Gate: formatter pin'
+        env:
+          OXFMT_PIN: 0.55.0
+        run: |
+          set -eu
+          # `oxfmt --version` prints `Version: X.Y.Z` plus a trailing blank line, so
+          # grab the version token instead of "the last line".
+          actual="$(bun x oxfmt --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ "$actual" != "$OXFMT_PIN" ]; then
+            echo "::error::oxfmt installed is [$actual] but package.json pins $OXFMT_PIN." \
+              "A different formatter version produces a different tree-wide format;" \
+              "upgrade deliberately (pin + this step together), never by re-running fmt."
+            exit 1
+          fi
+          echo "oxfmt $actual matches the declared pin"
 
       - name: Lint
         run: bun run lint
@@ -37,11 +86,198 @@ jobs:
       - name: Sherif
         run: bun run sherif
 
+      # PRD-0033 R15 (AA contrast) was originally verified by a throwaway script
+      # plus comments, so nothing noticed a token change. This reads theme.css's
+      # three token layers, resolves var/oklch/color-mix chains, and fails on any
+      # guarded semantic text/background pair below 4.5:1. No build artifacts
+      # needed, so it sits before Typecheck. Known-below-threshold pairs are
+      # reported as warnings, not failures — see DEBT_PAIRS in the script and the
+      # design debt tracked by #307's follow-up issue; promoting one to the
+      # guarded set is a visual decision, not a code decision.
+      - name: 'Gate: web client AA contrast'
+        run: cd apps/web/client && bun run check-contrast
+
       - name: Typecheck
         run: bun run typecheck
+
+      # Negative type assertions (kosong's message/ToolCall contracts): each
+      # `@ts-expect-error` must actually fire. That project has its own tsconfig
+      # precisely because it asserts rejection, so the ordinary test-surface
+      # project excludes it — which would make it dead weight if nothing ran it.
+      - name: Typecheck (negative assertions)
+        run: bun run typecheck:negative
 
       - name: Test
         run: bun run test
 
       - name: Build
         run: bun run build
+
+      # --- gates that need build output or the network, so they run after Build ---
+
+      # AC-5.4 — test-surface type errors must not exceed scripts/lib/test-typecheck-baseline.json.
+      # Deliberately placed after Build: `tsc -p tsconfig.test.json` resolves @byfriends/sdk
+      # through its generated .d.ts, so the error count is only reproducible against built
+      # artifacts — which is exactly what the local reproduction (`bun run build` first, then
+      # `bun run gate:typecheck`) does too.
+      - name: 'Gate: typecheck-ratchet'
+        timeout-minutes: 15
+        run: bun scripts/ci-gates.mjs typecheck-ratchet
+
+      # AC-5.2 — OSV advisories vs scripts/lib/osv-advisory-baseline.json, plus registry
+      # provenance and redistribution licenses.
+      # Network contract, stated plainly: this step POSTs one query per locked package
+      # (~1.3k requests) to https://api.osv.dev with 12-way concurrency and three
+      # bounded attempts per package (linear backoff) — a single dropped query used to
+      # redden the gate about one run in six locally. GitHub-hosted ubuntu-latest has
+      # plain HTTPS egress, so no proxy or credential is needed and nothing here
+      # requires a secret. Failure semantics remain fail-closed by design: a query that
+      # still does not return 2xx after its attempts is counted and turns the gate red
+      # ("the audit did not complete"), because an unreachable advisory database must
+      # never be reported as "no known vulnerabilities". A sustained OSV outage
+      # therefore blocks CI — that is the accepted trade, and re-running the job is the
+      # remedy. `--no-osv` exists for offline debugging only and is never passed here.
+      - name: 'Gate: deps'
+        timeout-minutes: 10
+        run: bun scripts/ci-gates.mjs deps
+
+      # The audit report is written before the gate verdict, so it exists on red runs too
+      # — which is the only time anyone reads it. This is not a gate step: `!cancelled()`
+      # cannot turn a failed gate green, the gate above has already decided the job.
+      - name: Upload dependency audit report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # byf ships a darwin-arm64 binary, yet until now nothing in CI ever executed on
+  # macOS: install, build, typecheck and the whole suite were Linux-only evidence
+  # (PRD-0038 R4 recorded the same gap for the startup/size baselines). This is a
+  # smoke job, not a second full matrix — it exists so a macOS-only breakage
+  # surfaces on the PR that caused it rather than in a release build.
+  #
+  # STEP ORDER IS LOAD-BEARING, in this exact sequence:
+  #   Install → Typecheck → Test → Build → Compile → Smoke
+  #   * Typecheck and Test come first because they are this job's reason to
+  #     exist (a darwin-only breakage should fail before anything spends time
+  #     compiling).
+  #   * `Build` is deliberately the step immediately before `Compile`, and runs
+  #     the *same command* `.github/workflows/release.yml` runs there
+  #     (`bun run build`). Until PRD-0038's release review this job fed compile
+  #     through `typecheck`'s side effect: root `typecheck` = `build:packages &&
+  #     build:web && …`, so the SPA existed here and `==> Embedded web SPA assets
+  #     from …` printed (run 35555926340, job 106199441931) while the release
+  #     workflow — which ran only `build:packages` — silently produced an
+  #     API-only binary. An accidental precondition is how a green job hid a
+  #     shipping defect; stating the build step makes this job verify the
+  #     release path instead of repairing it.
+  #     scripts/lib/release-workflow-shape.test.ts fails if either workflow's
+  #     compile step stops being fed by that same command.
+  #   * Cost, from the same run rather than guessed: the `Typecheck` step measured
+  #     47s and the `Test` step 61s (03:00:52 `Files: 454 passed, 0 failed / 454
+  #     total`), so the ~45s this job already spends on the suite is dwarfed by
+  #     the 30-minute budget. `Build` repeats the two build steps that root
+  #     `typecheck` also runs — an overlap bounded by those 47s, not measured
+  #     separately. The way to reclaim it is to split root `package.json`'s
+  #     `typecheck` so it stops building, after which this comment's ordering
+  #     constraint still holds.
+  #   * `Smoke` runs against the compiled darwin binary and asserts the embedded
+  #     SPA is served over HTTP, so it must stay after `Compile`.
+  #
+  # Deliberately excluded: `Gate: deps` (doubles OSV traffic for the same lockfile)
+  # and the tree-wide gates (secrets / no-node / changesets / formatter pin /
+  # format / sherif), whose verdicts are platform-independent.
+  #
+  # macos-14 is pinned rather than `macos-latest`: ubuntu-latest is documented to
+  # migrate to Ubuntu 26 in October 2026, and a silently-moving runner image is
+  # exactly the failure mode AC-5.7 exists to prevent for the formatter.
+  macos-smoke:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # ADJUDICATED, not a hypothesis: these darwin hangs were runner load
+      # colliding with hard-coded real-time budgets in the tests, not a product
+      # defect. #343 closed on 2026-09-21 with the evidence chain in its last
+      # comment — at the default concurrency 10 the failures were timeouts only
+      # (never an assertion mismatch) and they moved to different files between
+      # runs; at `BYF_TEST_CONCURRENCY: 2` all 454 files went green, including
+      # `Compile darwin-arm64 binary` and `Smoke darwin-arm64 binary` for the
+      # first time (run 35555363429; re-confirmed green by run 35555926340).
+      #
+      # What this env costs, stated plainly: macos-14 has 4 cores and the suite
+      # runs one `bun test` process per file, so 2 is 1/5 of the default
+      # throughput. The `Test` step measured 61s at concurrency 2 on
+      # 2026-09-21 — affordable today against the job's 30-minute budget, but
+      # this is a permanent dial-down with no automatic way back, so the trigger
+      # is written down here instead of in someone's memory:
+      #
+      #   RE-TEST / DELETE THIS ENV when EITHER
+      #   (a) any darwin spawn-related hang reproduces at low concurrency or on an
+      #       exclusive machine — that is the real #343 reopening criterion, and
+      #       load is then no longer the explanation (look at whether
+      #       `LocalProcess` waits for 'exit' or 'close', and whether the
+      #       detached kill reaches the whole process group); OR
+      #   (b) the runner gains >= 8 darwin cores, or the suite's real-time budgets
+      #       stop depending on wall clock — then re-measure the whole job at the
+      #       default 10 in a throwaway PR and, if green, remove this `env:` block.
+      #
+      # Related invariant for whoever next touches a timing test: an in-test
+      # guard must stay STRICTLY BELOW the enclosing `it(..., timeout)` — otherwise
+      # the runner kills the file first and the failure is an informationless
+      # "test timed out" instead of the guard's own message. Precedent:
+      # packages/agent-core/test/mcp/connection-manager.test.ts (guard 10s, outer
+      # it 20s, commit 6d91a19).
+      - name: Test
+        env:
+          BYF_TEST_CONCURRENCY: 2
+        run: bun run test
+
+      # Same command release.yml feeds its compile step with — see the ordering
+      # note at the top of this job. Keep the two in lockstep.
+      - name: Build (packages + CLI + web SPA)
+        run: bun run build
+
+      # The real shipped artifact for this platform. Cross-compiling darwin-arm64
+      # from Linux produces the binary but cannot run it, so this is the step that
+      # actually exercises the macOS compile + embed + boot path.
+      - name: Compile darwin-arm64 binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli build:native:release
+
+      - name: Smoke darwin-arm64 binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli test:native:smoke
+
+      # AC-4.2's `--bytecode` verdict (docs/perf/REPORT-0038.md §4) is measured on
+      # linux-x64 only, so the darwin half of the evidence does not exist anywhere.
+      # Cross-compiling from Linux produces a binary it cannot execute, so this is
+      # the only place that proof can come from. It reuses the output path of the
+      # release compile above — which has already run and smoked — and it does NOT
+      # mean the release default is bytecode: flipping that is gated on this pair
+      # being green (see PRD-0038 「三批」).
+      - name: Compile darwin-arm64 binary (--bytecode profile)
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli build:native:bytecode
+
+      - name: Smoke darwin-arm64 bytecode binary
+        env:
+          BYF_CODE_BUILD_TARGET: darwin-arm64
+        run: bun run --filter @byfriends/cli test:native:smoke

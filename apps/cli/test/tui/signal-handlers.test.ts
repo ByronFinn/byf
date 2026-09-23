@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ByfTui, type ByfTuiStartupInput } from '#/tui/byf-tui';
 
+import { makeCliOptions } from '../helpers/cli-options';
+
 interface SignalDriver {
   registerSignalHandlers(): void;
   unregisterSignalHandlers(): void;
@@ -11,15 +13,7 @@ interface SignalDriver {
 
 function makeStartupInput(): ByfTuiStartupInput {
   return {
-    cliOptions: {
-      session: undefined,
-      continue: false,
-      yolo: false,
-      model: undefined,
-      outputFormat: undefined,
-      prompt: undefined,
-      skillsDirs: [],
-    },
+    cliOptions: makeCliOptions(),
     tuiConfig: {
       theme: 'dark',
       editorCommand: null,
@@ -317,7 +311,7 @@ describe('ByfTui signal handlers', () => {
     const beforeStdout = process.stdout.listenerCount('error');
     const beforeStderr = process.stderr.listenerCount('error');
 
-    await expect(tui.start()).rejects.toThrow(/init boom/);
+    expect(tui.start()).rejects.toThrow(/init boom/);
 
     expect(process.listenerCount('SIGTERM')).toBe(beforeSigterm);
     expect(process.listenerCount('SIGHUP')).toBe(beforeSighup);

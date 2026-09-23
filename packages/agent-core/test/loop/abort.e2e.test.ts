@@ -7,8 +7,9 @@
  * the LLM call, during tool execution, between steps, and during a hook.
  */
 
+import { describe, expect, it } from 'bun:test';
+
 import { inputTotal } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { LLMChatResponse, LoopHooks } from '../../src/loop/index';
 import { makeEndTurnResponse, makeToolCall, makeToolUseResponse } from './fixtures/fake-llm';

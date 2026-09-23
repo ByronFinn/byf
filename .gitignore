@@ -22,3 +22,8 @@ coverage/
 superpowers/
 dist-types/
 .zcode/
+.qoder/
+# `bun scripts/ci-gates.mjs deps` writes its audit report here (AC-5.2) and CI uploads
+# it as an artifact. Left unignored it also joins `fmt:check`'s file list, so running
+# the deps gate locally would turn the format gate red.
+reports/

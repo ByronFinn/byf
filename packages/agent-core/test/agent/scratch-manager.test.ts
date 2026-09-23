@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { ScratchManager } from '../../src/agent/context/scratch-manager';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
@@ -66,8 +66,9 @@ describe('ScratchManager', () => {
         return { size: f.content.length, mtime: f.mtime };
       }),
       exec: vi.fn().mockImplementation(async (...args: string[]) => {
-        if (args[0] === 'rm' && args.length === 2) {
-          files.delete(args[1]);
+        const [cmd, target] = args;
+        if (cmd === 'rm' && args.length === 2 && target !== undefined) {
+          files.delete(target);
         }
         return {
           stdin: { write: vi.fn(), end: vi.fn() },
@@ -122,8 +123,9 @@ describe('ScratchManager', () => {
         return { size: f.content.length, mtime: f.mtime };
       }),
       exec: vi.fn().mockImplementation(async (...args: string[]) => {
-        if (args[0] === 'rm' && args.length === 2) {
-          files.delete(args[1]);
+        const [cmd, target] = args;
+        if (cmd === 'rm' && args.length === 2 && target !== undefined) {
+          files.delete(target);
         }
         return {
           stdin: { write: vi.fn(), end: vi.fn() },

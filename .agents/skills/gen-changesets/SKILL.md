@@ -9,17 +9,28 @@ description: Use when generating changesets in the byf repository, covering pack
 
 - `@byfriends/cli`:CLI。它的产物 `dist/main.mjs` 内联 bundle 了 `@byfriends/sdk` 的源码,而 `@byfriends/sdk` 又引入 `@byfriends/agent-core`、`@byfriends/kosong`、`@byfriends/kaos`、`@byfriends/oauth` —— 这些内部包的源码最终都会进入 CLI 产物。
 
-其余 public 包:`@byfriends/sdk`、`@byfriends/agent-core`、`@byfriends/kosong`、`@byfriends/kaos`、`@byfriends/oauth`、`@byfriends/vis-server`。
+其余 public 包:`@byfriends/sdk`、`@byfriends/agent-core`、`@byfriends/kosong`、`@byfriends/kaos`、`@byfriends/oauth`、`@byfriends/web-server`(`byf web` / `byf vis` 启动的那个服务器,CLI 以运行时依赖携带,不进入 CLI bundle)。
 
-private 包(不发布):`@byfriends/vis`(仅做编排)、`@byfriends/vis-web`(其构建产物经 `@byfriends/vis-server` 发布,与 CLI 无关,不进入 CLI bundle)。
+private 包(不发布):`@byfriends/web-client`(SPA,构建产物被复制进 `@byfriends/web-server` 的 `dist/public` 随之发布)、`@byfriends/web-shared`(线路 DTO,type-only)、`@byfriends/storage`(在建:wire 2.0 的 SQLite 会话存储后端,PRD-0037;`private: true`,不参与发布集,改动不要单独列进 changeset)。
+
+已删除的包,任何 changeset 里都不该再出现:`@byfriends/vis-server`、`@byfriends/vis-web`、`@byfriends/vis` —— `apps/vis` 整棵树已在 PRD-0038 R5(AC-5.6)移除,会话可视化并入 `@byfriends/web-server`(ADR-0037)。
+
+## 统一版本(fixed 组)
+
+`.changeset/config.json` 的 `fixed` 组覆盖全部 7 个发布包:`@byfriends/cli`、`@byfriends/agent-core`、`@byfriends/sdk`、`@byfriends/web-server`、`@byfriends/kosong`、`@byfriends/kaos`、`@byfriends/oauth`。changesets 对 fixed 组取**组内最高 bump 等级**,把整组统一升到同一个版本号。
+
+因此 bump 级别不再是单个包的事:任何一个包写 `minor`,7 个包一起跳到下一个 minor;任一包写 `major`,整组进下一个 major。判断级别时按"这次改动值不值得把整个发布集推一号"来取舍,而不只看被点名的那个包。
+
+- `apps/cli/npm/*` 两个平台包不在组内:它们 `private: true`,changesets 不定它们的版,其版本号由 `.github/workflows/release.yml` 发布时按 CLI 版本写入。
+- `@byfriends/storage`、`@byfriends/web-client`、`@byfriends/web-shared` 同为 private,列进 frontmatter 只改本地版本号,不产生任何发布产物。
 
 ## Core Rules
 
 1. **先看真实改动。** 用 `git status` / `git diff --name-only` 确认实际改了哪些包。
 2. **列出 changesets 能发布的包。** 本仓库 `.changeset/config.json` 的 `ignore` 为空,没有"忽略包与非忽略包不能混在同一个 frontmatter"的限制。
 3. **进入 CLI bundle 的内部包源码改动,要手动列 CLI。** `@byfriends/sdk`(以及它带进来的 agent-core/kosong/kaos/oauth)位于 CLI 的 devDependencies,源码被 bundle 进 `dist/main.mjs`。changesets 会因内部依赖更新把 CLI 自动 patch bump,但**不会替你写 CLI 的 changelog 条目**。当改动改变了 CLI 用户可见的行为时,必须在 frontmatter 列出 `@byfriends/cli`,并在正文描述用户实际能感知的变化。
-4. **`@byfriends/vis-server` 与 CLI 相互独立。** 它虽在 CLI 的 dependencies,但 tsdown 配置里 `neverBundle` 了它,它的改动**不进入** CLI bundle。vis-server 的改动只给 `@byfriends/vis-server` 生成 changeset,不要列 CLI。
-5. **`@byfriends/vis-web` 与 CLI 无关。** 它是 private,经 vis-server 发布,不进入 CLI bundle,任何情况下都不要为它的改动列 `@byfriends/cli`。
+4. **`@byfriends/web-server` 不进 CLI bundle,但它就是 CLI 的功能。** 它在 CLI 的 `dependencies` 里,而 `apps/cli/scripts/build.mjs` 用 `--never-bundle @byfriends/web-server` 把它排除在 `dist/main.mjs` 之外,所以它的改动**不进入** CLI bundle,不适用规则 3 的 bundle 判断。但用户是通过 `byf web` / `byf vis` 用到它的:凡是改变 CLI 用户可感知行为的,`@byfriends/web-server` 与 `@byfriends/cli` 一起列;纯服务端内部修复只列 `@byfriends/web-server`。
+5. **private 包不发布。** `@byfriends/web-client`、`@byfriends/web-shared`、`@byfriends/storage` 都是 `private: true`。用户可见性一律用 `@byfriends/web-server` / `@byfriends/cli` 的条目表达;列 private 包只影响其本地版本号,不影响任何发布产物。
 6. **纯文档 / 纯测试改动通常不需要 changeset。** README、内部文档、`test/` 下不进入包产物的改动不触发 bump。
 
 ## Workflow
@@ -143,14 +154,25 @@ private 包(不发布):`@byfriends/vis`(仅做编排)、`@byfriends/vis-web`(其
 为内部 SDK 调用方澄清会话状态的类型定义。
 ```
 
-vis-server / vis-web 改动(各自独立,不列 CLI):
+web-server 的纯服务端修复(规则 4 后段,不列 CLI):
 
 ```markdown
 ---
-'@byfriends/vis-server': patch
+'@byfriends/web-server': patch
 ---
 
-修复会话列表在数据量较大时的滚动卡顿。
+修复对不存在会话的操作返回 500 而非 404 的问题。
+```
+
+CLI 用户可感知的 Web 工作台变化(规则 4 前段,两个一起列):
+
+```markdown
+---
+'@byfriends/web-server': minor
+'@byfriends/cli': minor
+---
+
+新增 byf web 子命令,在浏览器中打开网页聊天界面实时驱动 agent(发消息、流式渲染、审批与问答)。运行 byf web 启动。
 ```
 
 ## Red Flags
@@ -163,4 +185,5 @@ vis-server / vis-web 改动(各自独立,不列 CLI):
 - 措辞声称的范围超出 diff 实际所做的。
 - CLI 条目里出现内部包名、类名或 PR 编号。
 - 条目里出现真实内部标识符而非中性占位符。
-- 只改了 `@byfriends/vis-web` 或 `@byfriends/vis-server`,却列了 `@byfriends/cli`。
+- frontmatter 里仍写 `@byfriends/vis-server` / `@byfriends/vis-web` / `@byfriends/vis`(已随 `apps/vis` 删除,changeset 会引用到不存在的包)。
+- 改了 `@byfriends/web-server` 的用户可见行为却漏列 `@byfriends/cli`——它不进 bundle,但 `byf web` / `byf vis` 就是 CLI 的入口功能(规则 4)。

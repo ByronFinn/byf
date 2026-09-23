@@ -10,6 +10,8 @@ import {
   TERMINAL_THEME_LIGHT,
 } from '#/tui/utils/terminal-theme';
 
+import { makeCliOptions } from '../helpers/cli-options';
+
 interface StartupDriver {
   state: TUIState;
   init(): Promise<boolean>;
@@ -27,16 +29,7 @@ function makeStartupInput(
   resolvedTheme: ByfTuiStartupInput['resolvedTheme'] = 'dark',
 ): ByfTuiStartupInput {
   return {
-    cliOptions: {
-      session: undefined,
-      continue: false,
-      yolo: false,
-      model: undefined,
-      outputFormat: undefined,
-      prompt: undefined,
-      skillsDirs: [],
-      ...cliOptions,
-    },
+    cliOptions: makeCliOptions(cliOptions),
     tuiConfig: {
       theme: 'dark',
       editorCommand: null,
@@ -143,7 +136,7 @@ describe('ByfTui startup', () => {
     const harness = makeHarness(session);
     const driver = makeDriver(harness, makeStartupInput({ yolo: true }));
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(harness.createSession).toHaveBeenCalledWith({
       workDir: '/tmp/proj-a',
@@ -171,7 +164,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput({ continue: true }));
 
-    await expect(driver.init()).resolves.toBe(true);
+    expect(driver.init()).resolves.toBe(true);
 
     expect(harness.resumeSession).toHaveBeenCalledWith({ id: 'ses-latest' });
     expect(harness.createSession).not.toHaveBeenCalled();
@@ -183,7 +176,7 @@ describe('ByfTui startup', () => {
     const harness = makeHarness();
     const driver = makeDriver(harness, makeStartupInput({ model: 'byf/k2.5' }));
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(harness.createSession).toHaveBeenCalledWith({
       workDir: '/tmp/proj-a',
@@ -212,7 +205,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput({ continue: true, model: 'byf/k2.5' }));
 
-    await expect(driver.init()).resolves.toBe(true);
+    expect(driver.init()).resolves.toBe(true);
 
     expect(session.setModel).toHaveBeenCalledWith('byf/k2.5');
     expect(driver.state.appState.model).toBe('byf/k2.5');
@@ -222,7 +215,7 @@ describe('ByfTui startup', () => {
     const harness = makeHarness();
     const driver = makeDriver(harness, makeStartupInput({ session: '' }));
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(harness.createSession).not.toHaveBeenCalled();
     expect(harness.resumeSession).not.toHaveBeenCalled();
@@ -298,7 +291,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput());
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(driver.state.startupState).toBe('ready');
     expect(driver.state.startupNotice).toContain(
@@ -324,7 +317,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput({ continue: true }));
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(harness.resumeSession).toHaveBeenCalledWith({ id: 'ses-latest' });
     expect(harness.createSession).not.toHaveBeenCalled();
@@ -341,7 +334,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput({ session: 'ses-target' }));
 
-    await expect(driver.init()).resolves.toBe(false);
+    expect(driver.init()).resolves.toBe(false);
 
     expect(harness.resumeSession).toHaveBeenCalledWith({ id: 'ses-target' });
     expect(driver.state.startupState).toBe('ready');
@@ -356,7 +349,7 @@ describe('ByfTui startup', () => {
     });
     const driver = makeDriver(harness, makeStartupInput());
 
-    await expect(driver.init()).rejects.toThrow('provider config is invalid');
+    expect(driver.init()).rejects.toThrow('provider config is invalid');
   });
 
   it('emits a deprecation warning when defaultThinking is true and maps to effort high', async () => {

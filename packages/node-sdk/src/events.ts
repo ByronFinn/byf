@@ -67,6 +67,26 @@ export type {
   ToolInputDisplay,
 } from '@byfriends/agent-core';
 
+/**
+ * 反向 RPC / 展示载荷的 zod 真源与 kind 全集（PRD-0038 AC-6.1）。运行时值随类型
+ * 一起出 SDK 门：宿主（TUI、web-server）与三个表面的契约测试都据此断言覆盖，
+ * 不再各自维护第二份清单或用 `default` 兜底。
+ */
+export {
+  ApprovalDecisionSchema,
+  ApprovalRequestSchema,
+  ApprovalResponseSchema,
+  parseToolInputDisplay,
+  QuestionItemSchema,
+  QuestionRequestSchema,
+  QuestionResponseSchema,
+  QuestionResultSchema,
+  TOOL_INPUT_DISPLAY_KINDS,
+  TOOL_RESULT_DISPLAY_KINDS,
+  ToolInputDisplaySchema,
+  ToolResultDisplaySchema,
+} from '@byfriends/agent-core';
+
 // Question reverse-RPC request and answer payloads.
 export type {
   QuestionRequest,

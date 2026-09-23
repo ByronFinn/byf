@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type {
   AudioURLPart,
@@ -53,7 +53,7 @@ describe('createAssistantMessage', () => {
     };
     const msg = createAssistantMessage([{ type: 'text', text: 'ok' }], [tc]);
     expect(msg.toolCalls).toHaveLength(1);
-    expect(msg.toolCalls[0].name).toBe('search');
+    expect(msg.toolCalls[0]?.name).toBe('search');
   });
 
   it('defaults toolCalls to empty array when not provided', () => {
@@ -408,7 +408,7 @@ describe('Message optional fields', () => {
       ],
     };
     expect(msg.toolCalls).toHaveLength(1);
-    expect(msg.toolCalls[0].name).toBe('search');
+    expect(msg.toolCalls[0]?.name).toBe('search');
   });
 
   it('message can have partial flag', () => {

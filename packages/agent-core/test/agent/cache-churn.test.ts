@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'bun:test';
+
 import type { PromptPlan, Tool } from '@byfriends/kosong';
-import { describe, it, expect } from 'vitest';
 
 import { computeToolsHash, extractCacheBlockHashes, diffStaticPrefix } from '#/agent/cache-churn';
 
@@ -191,10 +192,10 @@ describe('Agent churn dispatch (integration via harness)', () => {
     expect(churn.length).toBe(1);
     const change = churn[0];
     // Short prompts without boundary headers fall back to a single 'base' block.
-    expect(change.blockName).toBe('base');
-    expect(change.beforeHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(change.afterHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(change.beforeHash).not.toBe(change.afterHash);
+    expect(change?.blockName).toBe('base');
+    expect(change?.beforeHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(change?.afterHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(change?.beforeHash).not.toBe(change?.afterHash);
   });
 
   it('does not dispatch churn across stable turns (same system prompt)', async () => {

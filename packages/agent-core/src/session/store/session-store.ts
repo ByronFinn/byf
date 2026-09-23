@@ -33,6 +33,8 @@ type SessionSummaryState = z.infer<typeof SessionSummaryStateSchema>;
 export interface CreateSessionRecordInput {
   readonly id: string;
   readonly workDir: string;
+  /** 会话 wire 格式（PRD-0037 #327：engine=v2 创建 2.0 会话）；缺省 1.1。 */
+  readonly formatVersion?: '1.1' | '2.0';
 }
 
 export interface ForkSessionRecordInput {
@@ -80,10 +82,17 @@ export class SessionStore {
     }
 
     await mkdir(dir, { recursive: true, mode: 0o700 });
+    if (input.formatVersion === '2.0') {
+      // 2.0 会话创建即落 header——格式标记原子确立（JsonlSessionStorage.create
+      // 幂等拒绝重复建文件，装配层随后打开同一文件）。
+      const { JsonlSessionStorage } = await import('../../harness/storage/jsonl');
+      await JsonlSessionStorage.create(join(dir, 'wire.jsonl'), input.id);
+    }
     await appendSessionIndexEntry(this.homeDir, {
       sessionId: input.id,
       sessionDir: dir,
       workDir,
+      formatVersion: input.formatVersion ?? '1.1',
     });
     return this.summaryFromDir(input.id, dir, workDir);
   }
@@ -213,14 +222,39 @@ export class SessionStore {
       const id = entry.name;
       if (!isSafeSessionId(id)) continue;
       const dir = join(bucketDir, id);
-      sessions.push(await this.summaryFromDir(id, dir, workDir));
+      const summary = await this.summaryFromDir(id, dir, workDir);
+      // PRD-0037 #322：按调用方要求的格式过滤（engine=v2 → '2.0'，旧 1.1 会话
+      // 从列表消失但磁盘保留，ADR-0040）。
+      if (options.formatVersion !== undefined && summary.formatVersion !== options.formatVersion) {
+        continue;
+      }
+      sessions.push(summary);
     }
     sessions.sort(compareSessionSummary);
     return sessions;
   }
 
-  async assertDirectory(id: string): Promise<string> {
-    return (await this.findExistingSessionEntry(id)).sessionDir;
+  /**
+   * 校验会话目录存在并可被当前引擎打开。requireFormat 给出时（engine=v2 →
+   * '2.0'），旧格式目录返回清晰错误而非崩溃（PRD-0037 #322 / ADR-0040）。
+   */
+  async assertDirectory(
+    id: string,
+    options?: { readonly requireFormat?: string },
+  ): Promise<string> {
+    const entry = await this.findExistingSessionEntry(id);
+    if (options?.requireFormat !== undefined) {
+      const format = await detectSessionFormat(entry.sessionDir);
+      if (format !== options.requireFormat) {
+        throw new ByfError(
+          ErrorCodes.SESSION_FORMAT_UNSUPPORTED,
+          `会话 "${id}" 来自旧版本 byf（wire ${format ?? '未知'} 格式），当前引擎无法打开。` +
+            ' 磁盘文件已保留；如需检视旧会话内容请使用升级前的版本。',
+          { details: { sessionId: id, format, requireFormat: options.requireFormat } },
+        );
+      }
+    }
+    return entry.sessionDir;
   }
 
   /** 删除会话目录并原子重建 session_index.jsonl（PRD-0035 R-A2；
@@ -319,6 +353,8 @@ export class SessionStore {
       pinned: state?.pinned,
       archived: state?.archived,
       metadata: metadataFromState(state),
+      formatVersion:
+        wireInfo !== undefined ? '2.0' : agentsWireMtime !== undefined ? '1.1' : undefined,
     };
   }
 }
@@ -647,4 +683,16 @@ async function appendGoalClearIfPresent(sessionDir: string): Promise<void> {
   const clearRecord = { type: 'goal.clear', time: Date.now() };
   const suffix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
   await writeFile(mainWirePath, content + suffix + JSON.stringify(clearRecord) + '\n', 'utf-8');
+}
+
+/**
+ * 会话 wire 格式检测（PRD-0037 #322）：目录布局即真相——
+ * 会话级单文件 wire.jsonl = 2.0；agents/<id>/wire.jsonl 布局 = 1.1；两者皆无 = undefined。
+ */
+export async function detectSessionFormat(sessionDir: string): Promise<'1.1' | '2.0' | undefined> {
+  const sessionWire = await statIfExists(join(sessionDir, 'wire.jsonl'));
+  if (sessionWire !== undefined) return '2.0';
+  const legacyWire = await statIfExists(join(sessionDir, 'agents', 'main', 'wire.jsonl'));
+  if (legacyWire !== undefined) return '1.1';
+  return undefined;
 }

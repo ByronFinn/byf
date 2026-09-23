@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vites
 
 import type { CLIOptions } from '#/cli/options';
 
+import { defined } from '../helpers/defined';
+
 const mocks = vi.hoisted(() => {
   const parse = vi.fn();
   return {
@@ -64,10 +66,12 @@ function defaultOpts(): CLIOptions {
     session: undefined,
     continue: false,
     yolo: false,
+    denyUnapproved: false,
     model: undefined,
     outputFormat: undefined,
     prompt: undefined,
     skillsDirs: [],
+    addDirs: [],
   };
 }
 
@@ -108,8 +112,13 @@ describe('main entry command handling', () => {
     expect(exitCode).toBeNull();
     expect(validateOptions).toHaveBeenCalledWith(opts);
     expect(runUpdatePreflight).toHaveBeenCalledWith('0.0.1-alpha.2', {});
-    expect(mocks.runUpdatePreflight.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.runShell.mock.invocationCallOrder[0],
+    expect(
+      defined(
+        mocks.runUpdatePreflight.mock.invocationCallOrder[0],
+        'runUpdatePreflight invocation order',
+      ),
+    ).toBeLessThan(
+      defined(mocks.runShell.mock.invocationCallOrder[0], 'runShell invocation order'),
     );
     expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2');
   });

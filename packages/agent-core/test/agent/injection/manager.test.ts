@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { EphemeralInjection } from '../../../src/agent/context/projector';
 import { DynamicInjector } from '../../../src/agent/injection/injector';
@@ -135,8 +135,8 @@ describe('InjectionManager.getEphemeralInjections', () => {
     const result = ctx.agent.injection.getEphemeralInjections();
 
     expect(result).toHaveLength(1);
-    expect(result[0].content).toBe('test ephemeral content');
-    expect(result[0].position).toBe('before_user');
+    expect(result[0]?.content).toBe('test ephemeral content');
+    expect(result[0]?.position).toBe('before_user');
   });
 
   it('returns empty when no injectors implement getEphemeral', () => {
@@ -159,9 +159,9 @@ describe('InjectionManager.getEphemeralInjections', () => {
     const result = ctx.agent.injection.getEphemeralInjections();
 
     expect(result).toHaveLength(1);
-    expect(result[0].kind).toBe('system_reminder');
-    expect(result[0].position).toBe('before_user');
-    expect(result[0].content).toMatch(/ISO format/);
+    expect(result[0]?.kind).toBe('system_reminder');
+    expect(result[0]?.position).toBe('before_user');
+    expect(result[0]?.content).toMatch(/ISO format/);
   });
 });
 
@@ -178,14 +178,14 @@ describe('PermissionModeInjector (ephemeral)', () => {
   it('produces injection when auto mode is active', () => {
     const ctx = testAgent();
     ctx.configure();
-    ctx.agent.permission.mode = 'auto';
+    ctx.agent.permission.setMode('auto');
 
     const injector = new PermissionModeInjector(ctx.agent);
     const result = injector.getEphemeral();
 
     expect(result).toHaveLength(1);
-    expect(result[0].kind).toBe('system_reminder');
-    expect(result[0].position).toBe('before_user');
-    expect(result[0].content).toContain('Auto permission mode is active');
+    expect(result[0]?.kind).toBe('system_reminder');
+    expect(result[0]?.position).toBe('before_user');
+    expect(result[0]?.content).toContain('Auto permission mode is active');
   });
 });

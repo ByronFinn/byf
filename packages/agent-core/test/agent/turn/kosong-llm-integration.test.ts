@@ -10,6 +10,8 @@
  * - promptPlan is passed correctly to GenerateOptions
  */
 
+import { describe, expect, it, vi } from 'bun:test';
+
 import {
   emptyUsage,
   type GenerateOptions,
@@ -17,10 +19,10 @@ import {
   type PromptPlan,
   UNKNOWN_CAPABILITY,
 } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import { KosongLLM, type KosongLLMConfig } from '../../../src/agent/turn/kosong-llm';
 import type { LLMChatParams } from '../../../src/loop';
+import { defined } from '../../helpers/defined';
 
 /**
  * System prompt with cache boundary markers.
@@ -159,7 +161,7 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.options).toBeDefined();
       expect(call.options?.promptPlan).toBeDefined();
 
@@ -167,19 +169,19 @@ describe('KosongLLM PromptPlan Integration', () => {
       expect(plan.blocks).toHaveLength(3);
 
       // First block (base) should have global scope
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[0].text).toContain('Base system instructions');
-      expect(plan.blocks[0].cacheScope).toBe('global');
+      expect(plan.blocks[0]?.name).toBe('base');
+      expect(plan.blocks[0]?.text).toContain('Base system instructions');
+      expect(plan.blocks[0]?.cacheScope).toBe('global');
 
       // Second block (project) should have project scope
-      expect(plan.blocks[1].name).toBe('projectInstructions');
-      expect(plan.blocks[1].text).toContain('Project-specific context');
-      expect(plan.blocks[1].cacheScope).toBe('project');
+      expect(plan.blocks[1]?.name).toBe('projectInstructions');
+      expect(plan.blocks[1]?.text).toContain('Project-specific context');
+      expect(plan.blocks[1]?.cacheScope).toBe('project');
 
       // Third block (session) should have session scope
-      expect(plan.blocks[2].name).toBe('sessionContext');
-      expect(plan.blocks[2].text).toContain('Session-specific context');
-      expect(plan.blocks[2].cacheScope).toBe('session');
+      expect(plan.blocks[2]?.name).toBe('sessionContext');
+      expect(plan.blocks[2]?.text).toContain('Session-specific context');
+      expect(plan.blocks[2]?.cacheScope).toBe('session');
     });
 
     it('should handle system prompt without cache boundaries', async () => {
@@ -195,15 +197,15 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.options?.promptPlan).toBeDefined();
 
       const plan = call.options?.promptPlan as PromptPlan;
       expect(plan.blocks).toHaveLength(1);
-      expect(plan.blocks[0].name).toBe('base');
-      expect(plan.blocks[0].text).toBe(SYSTEM_PROMPT_NO_BOUNDARIES);
+      expect(plan.blocks[0]?.name).toBe('base');
+      expect(plan.blocks[0]?.text).toBe(SYSTEM_PROMPT_NO_BOUNDARIES);
       // Without boundaries, cache scope should be 'none'
-      expect(plan.blocks[0].cacheScope).toBe('none');
+      expect(plan.blocks[0]?.cacheScope).toBe('none');
     });
 
     it('should not include cacheBreakpoints in GenerateOptions', async () => {
@@ -219,7 +221,7 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
 
       // Verify cacheBreakpoints is not in options
       expect('cacheBreakpoints' in (call.options ?? {})).toBe(false);
@@ -243,20 +245,20 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.options?.promptPlan).toBeDefined();
 
       const plan = call.options?.promptPlan as PromptPlan;
       expect(plan.blocks).toHaveLength(3);
 
       // First block (base) should have global scope (supported)
-      expect(plan.blocks[0].cacheScope).toBe('global');
+      expect(plan.blocks[0]?.cacheScope).toBe('global');
 
       // Second block (project) should fallback to 'none' (not supported)
-      expect(plan.blocks[1].cacheScope).toBe('none');
+      expect(plan.blocks[1]?.cacheScope).toBe('none');
 
       // Third block (session) should fallback to 'none' (not supported)
-      expect(plan.blocks[2].cacheScope).toBe('none');
+      expect(plan.blocks[2]?.cacheScope).toBe('none');
     });
   });
 
@@ -274,7 +276,7 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.options?.promptPlan).toBeDefined();
 
       const plan = call.options?.promptPlan as PromptPlan;
@@ -299,7 +301,7 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
 
       // Should still create a promptPlan, but with 'none' scopes
       expect(call.options?.promptPlan).toBeDefined();
@@ -342,7 +344,7 @@ describe('KosongLLM PromptPlan Integration', () => {
 
       // Verify provider was called correctly
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.systemPrompt).toBe(SYSTEM_PROMPT_WITH_BOUNDARIES);
       expect(call.options?.promptPlan).toBeDefined();
     });
@@ -366,7 +368,7 @@ describe('KosongLLM PromptPlan Integration', () => {
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       expect(call.options?.signal).toBe(abortController.signal);
     });
   });
@@ -431,17 +433,17 @@ Third line`,
       await llm.chat(params);
 
       expect(provider.calls).toHaveLength(1);
-      const call = provider.calls[0];
+      const call = defined(provider.calls[0]);
       const plan = call.options?.promptPlan as PromptPlan;
 
       // First block keeps trailing newline before marker
-      expect(plan.blocks[0].text).toBe('First line\n');
+      expect(plan.blocks[0]?.text).toBe('First line\n');
 
       // Middle block keeps newlines between markers
-      expect(plan.blocks[1].text).toBe('\nSecond line\n');
+      expect(plan.blocks[1]?.text).toBe('\nSecond line\n');
 
       // Last block removes leading newline after last marker
-      expect(plan.blocks[2].text).toBe('Third line');
+      expect(plan.blocks[2]?.text).toBe('Third line');
     });
   });
 });

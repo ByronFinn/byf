@@ -2,6 +2,7 @@ import {
   isContentPart,
   isToolCall,
   type FinishReason,
+  type GenerateOptions,
   type Message,
   type PromptPlan,
   type StreamedMessagePart,
@@ -128,7 +129,7 @@ export function createScriptedGenerate() {
   };
 }
 
-function extractGenerateOptions(options: { promptPlan?: PromptPlan }): {
+function extractGenerateOptions(options: GenerateOptions | undefined): {
   promptPlan?: PromptPlan;
 } {
   if (options?.promptPlan === undefined) return {};

@@ -6,6 +6,7 @@
  * subscribers can react in real time without polling.
  */
 
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,11 +14,11 @@ import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
 import type { KaosProcess } from '@byfriends/kaos';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackgroundManager } from '../../src/agent/background';
 import type { AgentEvent } from '../../src/rpc/events';
 import { appendTaskOutput, writeTask } from '../../src/tools/background/persist';
+import { vi } from '../_vitest-vi';
 
 interface FakeAgent {
   emitEvent: (event: AgentEvent) => void;
@@ -108,8 +109,8 @@ describe('BackgroundManager — RPC event emission', () => {
 
     const started = agent.emittedEvents.filter((e) => e.type === 'background.task.started');
     expect(started.length).toBe(1);
-    expect(started[0].info.taskId).toBe(taskId);
-    expect(started[0].info.status).toBe('running');
+    expect(started[0]?.info.taskId).toBe(taskId);
+    expect(started[0]?.info.status).toBe('running');
     expect(agent.telemetry.track).toHaveBeenCalledWith('background_task_created', {
       kind: 'bash',
     });
@@ -120,7 +121,7 @@ describe('BackgroundManager — RPC event emission', () => {
 
     const started = agent.emittedEvents.filter((e) => e.type === 'background.task.started');
     expect(started.length).toBe(1);
-    expect(started[0].info.taskId).toBe(taskId);
+    expect(started[0]?.info.taskId).toBe(taskId);
     expect(taskId).toMatch(/^agent-/);
     expect(agent.telemetry.track).toHaveBeenCalledWith('background_task_created', {
       kind: 'agent',
@@ -136,8 +137,8 @@ describe('BackgroundManager — RPC event emission', () => {
 
     const updated = agent.emittedEvents.filter((e) => e.type === 'background.task.updated');
     expect(updated.length).toBe(2);
-    expect(updated[0].info.status).toBe('awaiting_approval');
-    expect(updated[1].info.status).toBe('running');
+    expect(updated[0]?.info.status).toBe('awaiting_approval');
+    expect(updated[1]?.info.status).toBe('running');
   });
 
   it('emits background.task.terminated on natural exit', async () => {
@@ -146,7 +147,7 @@ describe('BackgroundManager — RPC event emission', () => {
 
     const terminated = agent.emittedEvents.filter((e) => e.type === 'background.task.terminated');
     expect(terminated.length).toBe(1);
-    expect(terminated[0].info.status).toBe('completed');
+    expect(terminated[0]?.info.status).toBe('completed');
   });
 
   it('tracks successful task completion with duration and no reason', async () => {
@@ -210,7 +211,7 @@ describe('BackgroundManager — RPC event emission', () => {
 
     const terminated = agent.emittedEvents.filter((e) => e.type === 'background.task.terminated');
     expect(terminated.length).toBe(1);
-    expect(terminated[0].info.status).toBe('killed');
+    expect(terminated[0]?.info.status).toBe('killed');
   });
 
   it('emits background.task.terminated when a restored task is marked lost', async () => {
@@ -234,8 +235,8 @@ describe('BackgroundManager — RPC event emission', () => {
 
       const terminated = agent.emittedEvents.filter((e) => e.type === 'background.task.terminated');
       expect(terminated.length).toBe(1);
-      expect(terminated[0].info.taskId).toBe('bash-orphan00');
-      expect(terminated[0].info.status).toBe('lost');
+      expect(terminated[0]?.info.taskId).toBe('bash-orphan00');
+      expect(terminated[0]?.info.status).toBe('lost');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }
@@ -298,8 +299,8 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'completed',
       notificationId: `task:${taskId}:completed`,
     });
-    expect((content as Array<{ text: string }>)[0].text).toContain('Background agent completed');
-    expect((content as Array<{ text: string }>)[0].text).toContain('final subagent summary');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('Background agent completed');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('final subagent summary');
   });
 
   it('steers completed bash task notifications into the turn flow', async () => {
@@ -320,8 +321,8 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'completed',
       notificationId: `task:${taskId}:completed`,
     });
-    expect((content as Array<{ text: string }>)[0].text).toContain('Background task completed');
-    expect((content as Array<{ text: string }>)[0].text).toContain('shell task completed.');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('Background task completed');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('shell task completed.');
   });
 
   it('steers stopped bash task notifications into the turn flow', async () => {
@@ -339,8 +340,8 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'killed',
       notificationId: `task:${taskId}:killed`,
     });
-    expect((content as Array<{ text: string }>)[0].text).toContain('Background task killed');
-    expect((content as Array<{ text: string }>)[0].text).toContain('long shell task killed.');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('Background task killed');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('long shell task killed.');
   });
 
   it('queues background agent notifications without waiting for an active turn', async () => {
@@ -362,7 +363,7 @@ describe('BackgroundManager — RPC event emission', () => {
       status: 'completed',
       notificationId: `task:${taskId}:completed`,
     });
-    expect((content as Array<{ text: string }>)[0].text).toContain('active turn summary');
+    expect((content as Array<{ text: string }>)[0]?.text).toContain('active turn summary');
   });
 
   it('replays restored terminal agent task notifications when they were not delivered', async () => {
@@ -396,8 +397,8 @@ describe('BackgroundManager — RPC event emission', () => {
         status: 'completed',
         notificationId: 'task:agent-done0000:completed',
       });
-      expect((content as Array<{ text: string }>)[0].text).toContain('Background agent completed');
-      expect((content as Array<{ text: string }>)[0].text).toContain('restored subagent summary');
+      expect((content as Array<{ text: string }>)[0]?.text).toContain('Background agent completed');
+      expect((content as Array<{ text: string }>)[0]?.text).toContain('restored subagent summary');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }
@@ -434,8 +435,8 @@ describe('BackgroundManager — RPC event emission', () => {
         status: 'completed',
         notificationId: 'task:bash-done0000:completed',
       });
-      expect((content as Array<{ text: string }>)[0].text).toContain('Background task completed');
-      expect((content as Array<{ text: string }>)[0].text).toContain('restored shell output');
+      expect((content as Array<{ text: string }>)[0]?.text).toContain('Background task completed');
+      expect((content as Array<{ text: string }>)[0]?.text).toContain('restored shell output');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }
@@ -471,7 +472,7 @@ describe('BackgroundManager — RPC event emission', () => {
       expect(snapshotSpy).toHaveBeenCalledWith(taskId, expect.any(Number));
       expect(snapshotSpy.mock.calls[0]![1]).toBeLessThan(largeOutput.length);
       const [content] = vi.mocked(agent.context.appendUserMessage).mock.calls[0]!;
-      const text = (content as Array<{ text: string }>)[0].text;
+      const text = (content as Array<{ text: string }>)[0]?.text;
       expect(text).toContain('final output line');
       expect(text).not.toContain('early-output-marker');
     } finally {
@@ -542,7 +543,7 @@ describe('BackgroundManager — RPC event emission', () => {
         status: 'lost',
         notificationId: 'task:agent-run00000:lost',
       });
-      expect((content as Array<{ text: string }>)[0].text).toContain('Background agent lost');
+      expect((content as Array<{ text: string }>)[0]?.text).toContain('Background agent lost');
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }

@@ -8,7 +8,7 @@
  * 4. Signature changes when cache blocks change
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 describe('Cache Observability - Hash Extraction', () => {
   it('should extract stable SHA256 hashes for each block', () => {

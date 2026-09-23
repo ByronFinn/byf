@@ -1,8 +1,11 @@
 import { mock as bunMock } from 'bun:test';
 
+import type { ByfConfig } from '@byfriends/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
 
-import { runPrompt } from '#/cli/run-prompt';
+import { EXIT_CODE_APPROVAL_REQUIRED, runPrompt } from '#/cli/run-prompt';
+
+import { defined } from '../helpers/defined';
 
 type CreateByfDeviceId = (
   homeDir: string,
@@ -60,10 +63,9 @@ const mocks = vi.hoisted(() => {
     byfHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
     harnessGetConfig: vi.fn(
-      async (): Promise<{ providers: {}; defaultModel?: string; telemetry: boolean }> => ({
+      async (): Promise<ByfConfig> => ({
         providers: {},
         defaultModel: 'k2',
-        telemetry: true,
       }),
     ),
     harnessCreateSession: vi.fn(async () => session),
@@ -112,6 +114,7 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     session: undefined,
     continue: false,
     yolo: false,
+    denyUnapproved: false,
     model: undefined,
     outputFormat: undefined,
     prompt: 'say hello',
@@ -470,7 +473,7 @@ describe('runPrompt', () => {
   });
 
   it('resumes a concrete session without a configured default model', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
     mocks.session.getStatus.mockResolvedValueOnce({ permission: 'manual', model: 'saved-model' });
 
     await runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
@@ -497,7 +500,7 @@ describe('runPrompt', () => {
   });
 
   it('continues a previous session without a configured default model', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
     mocks.session.getStatus.mockResolvedValueOnce({ permission: 'manual', model: 'saved-model' });
 
     await runPrompt(opts({ continue: true }), '1.2.3-test', {
@@ -525,7 +528,7 @@ describe('runPrompt', () => {
       }
     });
 
-    await expect(
+    expect(
       runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -534,9 +537,9 @@ describe('runPrompt', () => {
 
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(1, 'auto');
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
-    expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      mocks.harnessClose.mock.invocationCallOrder[0],
-    );
+    expect(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[1], 'setPermission order'),
+    ).toBeLessThan(defined(mocks.harnessClose.mock.invocationCallOrder[0], 'harnessClose order'));
   });
 
   it('restores resumed session permission before exiting on SIGINT', async () => {
@@ -564,9 +567,9 @@ describe('runPrompt', () => {
     await processMock.listener('SIGINT')?.();
 
     expect(mocks.session.setPermission).toHaveBeenNthCalledWith(2, 'manual');
-    expect(mocks.session.setPermission.mock.invocationCallOrder[1]).toBeLessThan(
-      processMock.exit.mock.invocationCallOrder[0],
-    );
+    expect(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[1], 'setPermission order'),
+    ).toBeLessThan(defined(processMock.exit.mock.invocationCallOrder[0], 'exit order'));
     expect(mocks.harnessClose).toHaveBeenCalled();
     expect(processMock.exit).toHaveBeenCalledWith(130);
 
@@ -606,8 +609,8 @@ describe('runPrompt', () => {
       expect(processMock.listener('SIGINT')).toBeDefined();
       expect(mocks.session.setPermission).toHaveBeenCalledWith('auto');
     });
-    expect(processMock.once.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.session.setPermission.mock.invocationCallOrder[0],
+    expect(defined(processMock.once.mock.invocationCallOrder[0], 'once order')).toBeLessThan(
+      defined(mocks.session.setPermission.mock.invocationCallOrder[0], 'setPermission order'),
     );
 
     const signalCleanup = processMock.listener('SIGINT')?.();
@@ -643,9 +646,9 @@ describe('runPrompt', () => {
   });
 
   it('throws when no default model is configured', async () => {
-    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {}, telemetry: true });
+    mocks.harnessGetConfig.mockResolvedValueOnce({ providers: {} });
 
-    await expect(
+    expect(
       runPrompt(opts(), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -672,7 +675,7 @@ describe('runPrompt', () => {
       }
     });
 
-    await expect(
+    expect(
       runPrompt(opts(), '1.2.3-test', {
         stdout: { write: vi.fn(() => true) },
         stderr: { write: vi.fn(() => true) },
@@ -1182,7 +1185,7 @@ describe('runPrompt', () => {
     it('rejects malformed /goal create before createGoal / model prompt', async () => {
       // Session may already be opened (resolvePromptSession runs first); the
       // contract is fail-before-model: no createGoal and no user prompt turn.
-      await expect(
+      expect(
         runPrompt(opts({ prompt: '/goal replace' }), '1.2.3-test', {
           stdout: writer(),
           stderr: writer(),
@@ -1191,6 +1194,139 @@ describe('runPrompt', () => {
       expect(mocks.session.createGoal).not.toHaveBeenCalled();
       expect(mocks.session.prompt).not.toHaveBeenCalled();
     });
+  });
+
+  /**
+   * PRD-0038 AC-1.6 — headless 放行治理(Q2 裁决):默认跟随配置
+   * defaultPermissionMode;--yolo/--approve-all 显式全放行;manual 下不静默
+   * 批准并以专用退出码失败(既有码位占用:1 通用 / 3、6 goal / 129、130、143
+   * 信号 → 专用码必须与之区分)。
+   */
+  describe('headless permission governance (PRD-0038 AC-1.6)', () => {
+    function approvalRequestFixture(): Record<string, unknown> {
+      return {
+        turnId: 1,
+        toolCallId: 'tc_1',
+        toolName: 'Bash',
+        action: 'Bash(printf trail)',
+        display: { kind: 'generic', summary: 'Approve Bash', detail: {} },
+      };
+    }
+
+    it('未指定开关时按配置 defaultPermissionMode 决定会话权限(不再恒 auto)', async () => {
+      mocks.harnessGetConfig.mockResolvedValueOnce({
+        providers: {},
+        defaultModel: 'k2',
+        defaultPermissionMode: 'yolo',
+      });
+
+      await runPrompt(opts(), '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+      expect(mocks.harnessCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'yolo' }),
+      );
+    });
+
+    it('--yolo 显式全放行:覆盖配置 manual 以 yolo 权限创建会话', async () => {
+      mocks.harnessGetConfig.mockResolvedValueOnce({
+        providers: {},
+        defaultModel: 'k2',
+        defaultPermissionMode: 'manual',
+      });
+
+      await runPrompt(opts({ yolo: true }), '1.2.3-test', {
+        stdout: writer(),
+        stderr: writer(),
+      });
+
+      expect(mocks.harnessCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'yolo' }),
+      );
+    });
+
+    it('manual 下审批请求到达处理器时不静默批准,并以专用退出码失败', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.harnessGetConfig.mockResolvedValueOnce({
+          providers: {},
+          defaultModel: 'k2',
+          defaultPermissionMode: 'manual',
+        });
+        await runPrompt(opts(), '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+        const handler = mocks.session.setApprovalHandler.mock.calls[0]![0] as (
+          req: Record<string, unknown>,
+        ) => unknown;
+        const response = (await handler(approvalRequestFixture())) as
+          | { decision?: string }
+          | undefined;
+        expect(response?.decision).not.toBe('approved');
+        // 钉到具体值。此前只断言"是个数字且不在占用位表里"——把常量改成 9 或 42,
+        // 全仓没有一条测试会变红,而 ADR-0029 的完成协议依赖的正是这个数字本身。
+        expect(process.exitCode).toBe(EXIT_CODE_APPROVAL_REQUIRED);
+        expect(EXIT_CODE_APPROVAL_REQUIRED).toBe(7);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+
+    it('--deny-unapproved:即使配置 yolo 也拒绝未批准请求并以专用退出码失败', async () => {
+      const previousExitCode = process.exitCode;
+      clearProcessExitCode();
+      try {
+        mocks.harnessGetConfig.mockResolvedValueOnce({
+          providers: {},
+          defaultModel: 'k2',
+          defaultPermissionMode: 'yolo',
+        });
+        const denyOpts = { ...opts(), denyUnapproved: true };
+        await runPrompt(denyOpts, '1.2.3-test', { stdout: writer(), stderr: writer() });
+
+        const handler = mocks.session.setApprovalHandler.mock.calls[0]![0] as (
+          req: Record<string, unknown>,
+        ) => unknown;
+        const response = (await handler(approvalRequestFixture())) as
+          | { decision?: string }
+          | undefined;
+        expect(response?.decision).not.toBe('approved');
+        expect(process.exitCode).toBe(EXIT_CODE_APPROVAL_REQUIRED);
+        expect(EXIT_CODE_APPROVAL_REQUIRED).toBe(7);
+      } finally {
+        restoreProcessExitCode(previousExitCode);
+      }
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PRD-0038 R3 / AC-3.1：headless 表面消费 SDK 契约层的同一张身份语义表
+//
+// 期望值取自 `@byfriends/sdk` 的导出，不在本文件里另写一份——"三表面共用单一
+// 定义"只有在各表面都从同一处取期望时才是可测的。TUI 与 web 的同款断言分别见
+// apps/cli/test/tui/byf-tui-message-flow.test.ts 与
+// apps/web/server/src/web-server.test.ts。
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PRD-0038 AC-3.1 headless honours the shared resume identity contract', () => {
+  it('maps --resume <id> onto the contract row whose sessionId is preserved', async () => {
+    const { SESSION_IDENTITY_CONTRACT: contract } = await import('@byfriends/sdk');
+    const row = defined(contract, 'headless 必须能从 @byfriends/sdk 查到身份表').resume;
+    expect(row.sessionId).toBe('preserve');
+    expect(row.history).toBe('append-to-existing');
+    expect(row.contextWindow).toBe('reconstructed-from-event-log');
+
+    mocks.harnessResumeSession.mockClear();
+    mocks.harnessCreateSession.mockClear();
+
+    await runPrompt(opts({ session: 'ses_existing' }), '1.2.3-test', {
+      stdout: { write: vi.fn(() => true) },
+      stderr: { write: vi.fn(() => true) },
+    });
+
+    // 契约行说 resume 不换身份 → 表面必须走 resumeSession，且不得顺手新建会话
+    expect(mocks.harnessResumeSession).toHaveBeenCalledWith({ id: 'ses_existing' });
+    expect(mocks.harnessCreateSession).not.toHaveBeenCalled();
   });
 });
 

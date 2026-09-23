@@ -178,10 +178,12 @@ describe('CLI options parsing', () => {
       );
     });
 
-    it('rejects prompt mode with --yolo because prompt mode always uses auto permission', () => {
+    it('accepts prompt mode with --yolo (PRD-0038 AC-1.6:显式全放行)', () => {
+      // 旧断言:`Cannot combine --prompt with --yolo.` —— 该提示是 PRD-0038 明确
+      // 移除的"反向错觉"(打印模式其实恒批准),现在显式 --yolo 在 -p 下合法。
       const opts = parse(['-p', 'run this', '--yolo']);
-      expect(() => validateOptions(opts)).toThrow(OptionConflictError);
-      expect(() => validateOptions(opts)).toThrow('Cannot combine --prompt with --yolo.');
+      expect(() => validateOptions(opts)).not.toThrow();
+      expect(validateOptions(opts).uiMode).toBe('print');
     });
 
     it('parses --output-format=stream-json in prompt mode', () => {
@@ -265,5 +267,35 @@ describe('CLI options parsing', () => {
       expect(stderrOutput).toContain('unknown command');
       expect(stderrOutput).not.toContain('too many arguments');
     });
+  });
+});
+
+// ---- PRD-0038 AC-1.6:headless 放行治理开关(Q2 裁决) --------------------------
+
+describe('PRD-0038 AC-1.6 headless approval switches', () => {
+  it('--prompt 与 --yolo 合法并存:反向错觉提示被移除,仍为 print 模式', () => {
+    const opts = parse(['-p', 'run this', '--yolo']);
+    expect(opts.prompt).toBe('run this');
+    expect(opts.yolo).toBe(true);
+    // 旧行为:抛 'Cannot combine --prompt with --yolo.'(制造 headless 受管控的
+    // 反向错觉)。新契约:显式 --yolo 在 print 模式合法 = 显式全放行。
+    expect(() => validateOptions(opts)).not.toThrow();
+    expect(validateOptions(opts).uiMode).toBe('print');
+  });
+
+  it('--approve-all 是 --yolo 的等价别名,可与 --prompt 并用', () => {
+    const alias = parse(['--approve-all']);
+    expect(alias.yolo).toBe(true);
+    const combined = parse(['-p', 'run this', '--approve-all']);
+    expect(combined.yolo).toBe(true);
+    expect(() => validateOptions(combined)).not.toThrow();
+  });
+
+  it('--deny-unapproved 解析为显式拒绝开关且与 --prompt 无冲突', () => {
+    const opts = parse(['-p', 'run this', '--deny-unapproved']) as CLIOptions & {
+      denyUnapproved?: boolean;
+    };
+    expect(opts.denyUnapproved).toBe(true);
+    expect(() => validateOptions(opts)).not.toThrow();
   });
 });

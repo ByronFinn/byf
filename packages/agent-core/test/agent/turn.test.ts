@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,12 +11,13 @@ import {
   APIStatusError,
   APITimeoutError,
   type ChatProvider,
+  type Message,
   type ModelCapability,
   type ToolCall,
 } from '@byfriends/kosong';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentConfig } from '../../src/agent';
+import type { ContextMessage } from '../../src/agent/context/types';
 import type { ByfConfig } from '../../src/config';
 import type { Logger, LogPayload } from '../../src/logging';
 import { ProviderManager } from '../../src/providers/provider-manager';
@@ -24,6 +26,7 @@ import {
   estimateTokensForMessages,
   estimateTokensForTools,
 } from '../../src/utils/tokens';
+import { vi } from '../_vitest-vi';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { executeTool } from '../tools/fixtures/execute-tool';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
@@ -476,7 +479,7 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     expect(ctx.llmCalls).toHaveLength(2);
-    const stopHookMessage = {
+    const stopHookMessage: ContextMessage = {
       role: 'user',
       content: [
         {
@@ -487,7 +490,7 @@ describe('Agent turn flow', () => {
       toolCalls: [],
       origin: { kind: 'system_trigger', name: 'stop_hook' },
     };
-    const llmStopHookMessage = {
+    const llmStopHookMessage: Message = {
       role: 'user',
       content: [
         {
@@ -771,7 +774,8 @@ describe('Agent turn flow', () => {
     await ctx.untilTurnEnd();
 
     const input = ctx.llmCalls[0];
-    expect(input?.tools.length).toBeGreaterThan(0);
+    if (input === undefined) throw new Error('expected an LLM call to be recorded');
+    expect(input.tools.length).toBeGreaterThan(0);
     const expectedTokens =
       estimateTokens(input.systemPrompt) +
       estimateTokensForMessages(input.history) +
@@ -1279,7 +1283,7 @@ describe('Agent turn flow', () => {
     });
 
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf approved", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf approved", "result": { "decision": "approved", "selectedLabel": "approve" }, "authority": { "kind": "user-verdict" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf approved", "timeout": 60 }, "description": "Running: printf approved", "display": { "kind": "command", "command": "printf approved", "language": "bash" }, "startedAt": "<time>" }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf approved", "timeout": 60 }, "description": "Running: printf approved", "display": { "kind": "command", "command": "printf approved", "language": "bash" }, "startedAt": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.result", "parentUuid": "call_bash", "toolCallId": "call_bash", "result": { "output": "approved" }, "startedAt": "<time>", "endedAt": "<time>" }, "time": "<time>" }

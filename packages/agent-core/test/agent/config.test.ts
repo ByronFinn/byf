@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import type { ModelCapability, ProviderConfig, ToolCall } from '@byfriends/kosong';
-import { describe, expect, it } from 'vitest';
 
 import type { ResolvedAgentProfile } from '../../src/profile';
 import { createCommandKaos, testAgent } from './harness/agent';
@@ -142,7 +143,7 @@ describe('Agent config', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'Still using the original turn config.' });
     expect(formatHarnessSnapshot(await ctx.untilTurnEnd())).toMatchInlineSnapshot(`
-      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "result": { "decision": "approved", "selectedLabel": "approve" }, "time": "<time>" }
+      "[wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "run command: printf original-result", "result": { "decision": "approved", "selectedLabel": "approve" }, "authority": { "kind": "user-verdict" }, "time": "<time>" }
       [wire] config.update                       { "modelAlias": "changed-model", "time": "<time>" }
       [emit] agent.status.updated                { "model": "changed-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "permission": "manual" }
       [wire] config.update                       { "systemPrompt": "Changed system prompt.", "time": "<time>" }

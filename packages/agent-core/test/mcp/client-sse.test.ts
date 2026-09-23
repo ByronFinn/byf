@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -5,7 +6,6 @@ import type { AddressInfo } from 'node:net';
 import { SseError } from '@modelcontextprotocol/sdk/client/sse.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { buildMcpHttpHeaders } from '../../src/mcp/client-shared';

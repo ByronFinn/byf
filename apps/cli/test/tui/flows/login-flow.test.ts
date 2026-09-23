@@ -4,7 +4,7 @@ import { DEFAULT_CATALOG_URL, fetchCatalog, type Catalog } from '@byfriends/sdk'
 import type { Component, Focusable } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi, afterAll, afterEach } from 'vitest';
 
-import { LoginFlow, type LoginFlowDeps } from '#/tui/flows/login-flow';
+import { LoginFlow, type LoginFlowDeps, type SpinnerHandle } from '#/tui/flows/login-flow';
 
 // fetchCatalog makes a real HTTP request to DEFAULT_CATALOG_URL. Mock it to
 // throw so fetchCatalogWithFallback falls through to loadBuiltInCatalog
@@ -103,6 +103,20 @@ function selectNth(host: FakeDialogHost, n: number): void {
   const panel = activePanel(host);
   for (let i = 0; i < n; i += 1) panel.handleInput('\u001B[B'); // Down arrow
   panel.handleInput('\r');
+}
+
+/**
+ * Return the `stop` spy handed back by the nth `showLoginProgressSpinner` call.
+ * `MockResult` is a `return | throw` union (so `.value` is `unknown` until
+ * narrowed) and the results array index may be missing under
+ * `noUncheckedIndexedAccess`; fail loudly rather than assert against `unknown`.
+ */
+function spinnerStop(deps: LoginFlowDeps, nth = 1): SpinnerHandle['stop'] {
+  const result = vi.mocked(deps.showLoginProgressSpinner).mock.results[nth];
+  if (result === undefined || result.type !== 'return') {
+    throw new Error(`No progress-spinner return result at index ${String(nth)}`);
+  }
+  return result.value.stop;
 }
 
 function makeDeps(overrides: Partial<LoginFlowDeps> = {}): LoginFlowDeps {
@@ -1149,7 +1163,9 @@ describe('LoginFlow', () => {
     };
 
     for (let i = 0; i < registryOptions.length; i++) {
-      const expectedType = registryOptions[i].value;
+      const option = registryOptions[i];
+      if (option === undefined) throw new Error(`missing login provider option at ${String(i)}`);
+      const expectedType = option.value;
       const expectedBaseUrl = loginProviderRegistry[expectedType].defaultBaseUrl;
 
       const deps = makeDeps({
@@ -1270,7 +1286,7 @@ describe('LoginFlow', () => {
       2,
       `Fetching catalog from ${DEFAULT_CATALOG_URL}`,
     );
-    expect(spinnerResults[1].value.stop).toHaveBeenCalledWith({
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({
       ok: false,
       label: 'Failed to load catalog.',
     });
@@ -1339,9 +1355,10 @@ describe('LoginFlow', () => {
     expect(deps.showError).not.toHaveBeenCalled();
     expect(deps.applyProviderConfig).toHaveBeenCalled();
     expect(deps.setConfig).toHaveBeenCalled();
-    expect(
-      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
-    ).toHaveBeenCalledWith({ ok: true, label: 'Using built-in catalog (offline mode).' });
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({
+      ok: true,
+      label: 'Using built-in catalog (offline mode).',
+    });
   });
 
   it('aborts the whole login when the user cancels during the catalog fetch', async () => {
@@ -1402,9 +1419,7 @@ describe('LoginFlow', () => {
     expect(deps.track).not.toHaveBeenCalled();
     expect(host.panel).toBeNull();
     expect(deps.clearCancelInFlight).toHaveBeenCalledWith(cancel);
-    expect(
-      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
-    ).toHaveBeenCalledWith({ ok: false, label: 'Aborted.' });
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({ ok: false, label: 'Aborted.' });
   });
 
   // ── Catalog regression guards ──
@@ -1455,9 +1470,7 @@ describe('LoginFlow', () => {
     expect(deps.setConfig).toHaveBeenCalled();
     expect(deps.setCancelInFlight).toHaveBeenCalled();
     expect(deps.clearCancelInFlight).toHaveBeenCalled();
-    expect(
-      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
-    ).toHaveBeenCalledWith({ ok: false, label: 'Failed to load catalog.' });
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({ ok: false, label: 'Failed to load catalog.' });
   });
 
   it('enriches models from a successfully fetched catalog (happy path)', async () => {
@@ -1526,9 +1539,7 @@ describe('LoginFlow', () => {
         }),
       }),
     );
-    expect(
-      vi.mocked(deps.showLoginProgressSpinner).mock.results[1].value.stop,
-    ).toHaveBeenCalledWith({ ok: true, label: 'Catalog loaded.' });
+    expect(spinnerStop(deps)).toHaveBeenCalledWith({ ok: true, label: 'Catalog loaded.' });
   });
 });
 

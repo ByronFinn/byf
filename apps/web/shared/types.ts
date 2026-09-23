@@ -266,16 +266,14 @@ export interface UpdateConfigBody {
   };
 }
 
-export interface ApprovalDecisionBody {
-  readonly decision: ApprovalDecision;
-  readonly scope?: ApprovalScope;
-  readonly feedback?: string;
-  readonly selectedLabel?: string;
-}
+/**
+ * 裁决请求体 = 反向 RPC 响应载荷本身（PRD-0038 AC-6.1）：不再手写一份字段表，
+ * 由 SDK 的 zod 派生类型（`ApprovalResponse` / `QuestionResponse`）定义，避免
+ * 审批载荷出现第二个真源。
+ */
+export type ApprovalDecisionBody = ApprovalResponse;
 
-export interface QuestionAnswerBody {
-  readonly answers: QuestionAnswers;
-}
+export type QuestionAnswerBody = Pick<QuestionResponse, 'answers'>;
 
 // ---- 响应 --------------------------------------------------------------------
 

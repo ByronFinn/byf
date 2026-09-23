@@ -6,7 +6,7 @@
  * direct→proxy fallback flow.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 
 import { isAbortError } from '../../../src/loop/errors';
 import {
@@ -16,6 +16,7 @@ import {
   isRetryableError,
 } from '../../../src/tools/providers/proxied-fetch';
 import type { ProxySettings } from '../../../src/tools/providers/system-proxy';
+import { withPreconnect } from '../../_fetch-mock';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -418,7 +419,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('returns a successful response without proxy when direct fetch succeeds', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(okResponse('hello'));
+    const innerFetch = withPreconnect(vi.fn<typeof fetch>().mockResolvedValue(okResponse('hello')));
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -428,10 +429,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('retries through proxy when direct fetch fails with retryable error and proxy is configured', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(okResponse('via-proxy'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(okResponse('via-proxy')),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -444,7 +447,9 @@ describe('createProxiedFetch', () => {
   });
 
   it('propagates original error when direct fetch fails and no proxy is configured', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED'));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED')),
+    );
     const env = envFromRecord({});
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -453,7 +458,9 @@ describe('createProxiedFetch', () => {
   });
 
   it('propagates original error when direct fetch fails with non-retryable error', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(404));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(404)),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -464,10 +471,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('propagates proxy error when proxy retry also fails', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockRejectedValueOnce(networkError('ECONNRESET'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockRejectedValueOnce(networkError('ECONNRESET')),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -476,7 +485,9 @@ describe('createProxiedFetch', () => {
   });
 
   it('skips proxy when host matches NO_PROXY', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED'));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockRejectedValueOnce(networkError('ECONNREFUSED')),
+    );
     const env = envFromRecord({
       HTTPS_PROXY: 'http://proxy:8080',
       NO_PROXY: 'example.com',
@@ -488,7 +499,7 @@ describe('createProxiedFetch', () => {
   });
 
   it('passes through request init options', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(okResponse());
+    const innerFetch = withPreconnect(vi.fn<typeof fetch>().mockResolvedValue(okResponse()));
     const env = envFromRecord({});
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -506,10 +517,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('retries HTTP 403 through proxy', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(errorResponse(403))
-      .mockResolvedValueOnce(okResponse('unblocked'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(errorResponse(403))
+        .mockResolvedValueOnce(okResponse('unblocked')),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -520,7 +533,9 @@ describe('createProxiedFetch', () => {
   });
 
   it('does NOT retry HTTP 401 through proxy', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(401));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValueOnce(errorResponse(401)),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -530,10 +545,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('retries HTTP 502 through proxy', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(errorResponse(502))
-      .mockResolvedValueOnce(okResponse('recovered'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(errorResponse(502))
+        .mockResolvedValueOnce(okResponse('recovered')),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -543,10 +560,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('retries HTTP 503 through proxy', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(errorResponse(503))
-      .mockResolvedValueOnce(okResponse('recovered'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(errorResponse(503))
+        .mockResolvedValueOnce(okResponse('recovered')),
+    );
     const env = envFromRecord({ HTTPS_PROXY: 'http://proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -556,10 +575,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('uses HTTP_PROXY for http:// URLs', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(okResponse('via-http-proxy'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(okResponse('via-http-proxy')),
+    );
     const env = envFromRecord({
       HTTP_PROXY: 'http://http-proxy:8080',
       HTTPS_PROXY: 'http://https-proxy:8080',
@@ -574,7 +595,9 @@ describe('createProxiedFetch', () => {
   });
 
   it('does not modify behavior when no proxy is configured and request succeeds', async () => {
-    const innerFetch = vi.fn<typeof fetch>().mockResolvedValue(okResponse('direct'));
+    const innerFetch = withPreconnect(
+      vi.fn<typeof fetch>().mockResolvedValue(okResponse('direct')),
+    );
     const env = envFromRecord({});
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -589,10 +612,12 @@ describe('createProxiedFetch', () => {
   // ── SOCKS5 proxy integration (#118) ────────────────────────────────
 
   it('retries through SOCKS5 proxy from SOCKS_PROXY env var', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(okResponse('via-socks'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(okResponse('via-socks')),
+    );
     const env = envFromRecord({ SOCKS_PROXY: 'socks5://proxy:1080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -605,10 +630,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('retries through SOCKS5 proxy from ALL_PROXY env var', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(okResponse('via-all-proxy-socks'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(okResponse('via-all-proxy-socks')),
+    );
     const env = envFromRecord({ ALL_PROXY: 'socks5://proxy:1080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -620,10 +647,12 @@ describe('createProxiedFetch', () => {
   });
 
   it('for HTTPS: falls back to HTTP_PROXY when HTTPS_PROXY and ALL_PROXY are absent', async () => {
-    const innerFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(networkError('ECONNREFUSED'))
-      .mockResolvedValueOnce(okResponse('via-http-fallback'));
+    const innerFetch = withPreconnect(
+      vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(networkError('ECONNREFUSED'))
+        .mockResolvedValueOnce(okResponse('via-http-fallback')),
+    );
     const env = envFromRecord({ HTTP_PROXY: 'http://http-proxy:8080' });
     const proxied = createProxiedFetch({ envLookup: env, innerFetch });
 
@@ -639,27 +668,36 @@ describe('createProxiedFetch', () => {
    * stays pending until the signal is aborted, then rejects with AbortError.
    * If the signal is already aborted on entry, rejects immediately.
    */
-  function signalAwareMock(): ReturnType<typeof vi.fn<typeof fetch>> {
-    return vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-      return new Promise<Response>((_resolve, reject) => {
-        const signal = (init as RequestInit)?.signal;
-        if (!signal) {
-          reject(new Error('no signal provided'));
-          return;
-        }
-        if (signal.aborted) {
-          reject(new DOMException('The operation was aborted', 'AbortError'));
-          return;
-        }
-        signal.addEventListener(
-          'abort',
-          () => {
-            reject(new DOMException('The operation was aborted', 'AbortError'));
-          },
-          { once: true },
-        );
-      });
-    });
+  function signalAwareMock(): typeof fetch {
+    return withPreconnect(
+      vi
+        .fn<
+          (
+            input: Parameters<typeof fetch>[0],
+            init?: Parameters<typeof fetch>[1],
+          ) => Promise<Response>
+        >()
+        .mockImplementation((_input, init) => {
+          return new Promise<Response>((_resolve, reject) => {
+            const signal = (init as RequestInit)?.signal;
+            if (!signal) {
+              reject(new Error('no signal provided'));
+              return;
+            }
+            if (signal.aborted) {
+              reject(new DOMException('The operation was aborted', 'AbortError'));
+              return;
+            }
+            signal.addEventListener(
+              'abort',
+              () => {
+                reject(new DOMException('The operation was aborted', 'AbortError'));
+              },
+              { once: true },
+            );
+          });
+        }),
+    );
   }
 
   it('interrupts in-flight request when parent signal is aborted', async () => {

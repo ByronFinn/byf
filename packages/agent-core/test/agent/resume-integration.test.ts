@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { AgentRecord } from '../../src/agent/records/types';
@@ -349,7 +349,12 @@ describe('Agent.resume() integration tests', () => {
 
       await agent.resume();
 
-      expect(agent.context.history.map((m) => m.content[0]?.text ?? '')).toEqual(['Msg1', 'Resp1']);
+      expect(
+        agent.context.history.map((m) => {
+          const first = m.content[0];
+          return first?.type === 'text' ? first.text : '';
+        }),
+      ).toEqual(['Msg1', 'Resp1']);
       // usage 两条按顺序累加。
       expect(agent.usage.data().total).toMatchObject({
         inputCacheCreation: 110,

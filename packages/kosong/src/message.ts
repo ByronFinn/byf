@@ -1,3 +1,4 @@
+import type { DeferredHandle } from './provider';
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
 export interface TextPart {
@@ -111,6 +112,8 @@ export interface Message {
   partial?: boolean;
   /** 供提示缓存策略使用的缓存提示元数据。 */
   cacheHint?: CacheHint;
+  /** PRD-0037 #335：仅 stopReason=deferred 时携带。 */
+  deferredHandle?: DeferredHandle;
 }
 
 /** 检查流式 part 是否为 ContentPart(text、think、image_url、audio_url、video_url)。 */

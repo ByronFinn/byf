@@ -12,16 +12,16 @@
  * 计费/调度波动导致 flaky。
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import type { Message } from '#/message';
 import type { StreamedMessage } from '#/provider';
 import { OpenAICompletionsChatProvider } from '#/providers/openai-completions';
 import { emptyUsage, type TokenUsage } from '#/usage';
 
-const KEY = process.env.DEEPSEEK_API_KEY;
-const BASE_URL = process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com';
-const MODEL = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat';
+const KEY = process.env['DEEPSEEK_API_KEY'];
+const BASE_URL = process.env['DEEPSEEK_BASE_URL'] ?? 'https://api.deepseek.com';
+const MODEL = process.env['DEEPSEEK_MODEL'] ?? 'deepseek-chat';
 
 // DeepSeek 缓存对足够长的前缀生效；构造一段稳定的静态前缀（≈ 数百 token）。
 const STATIC_PREFIX = [

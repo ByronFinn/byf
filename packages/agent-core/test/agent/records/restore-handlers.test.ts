@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { AgentRecordEvents } from '../../../src/agent/records/types';
 // import 触发全部业务 Op 注册（import = register）—— per-file 隔离进程下必须显式
@@ -44,6 +44,7 @@ describe('AgentRecords facade — record type restore coverage (drift guard)', (
     'context.observation_masking',
     'context.output_offloaded',
     'context.pruning',
+    'context.cache_churn',
     'goal.create',
     'goal.update',
     'goal.clear',

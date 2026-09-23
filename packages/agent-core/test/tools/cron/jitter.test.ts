@@ -3,7 +3,7 @@
  * `new Date(y, m, d, h, mn, s)` so minute-of-hour assertions are
  * TZ-stable.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { parseCronExpression } from '../../../src/tools/cron/cron-expr';
 import {
@@ -75,8 +75,10 @@ describe('jitteredNextCronRunMs — recurring', () => {
     const calls = Array.from({ length: 5 }, () =>
       jitteredNextCronRunMs({ id: ID_A, cron: '0 9 * * *', recurring: true }, parsed, ideal),
     );
+    const reference = calls[0];
+    if (reference === undefined) throw new Error('expected deterministic calls to be populated');
     for (const v of calls) {
-      expect(v).toBe(calls[0]);
+      expect(v).toBe(reference);
     }
   });
 
@@ -142,8 +144,10 @@ describe('oneShotJitteredNextCronRunMs', () => {
     const calls = Array.from({ length: 5 }, () =>
       oneShotJitteredNextCronRunMs({ id: ID_A }, ideal),
     );
+    const reference = calls[0];
+    if (reference === undefined) throw new Error('expected deterministic calls to be populated');
     for (const v of calls) {
-      expect(v).toBe(calls[0]);
+      expect(v).toBe(reference);
     }
   });
 

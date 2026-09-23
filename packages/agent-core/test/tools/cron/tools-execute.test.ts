@@ -1,13 +1,20 @@
 /**
  * CronCreate / CronList / CronDelete tool execute paths (AC-C1).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CronManager } from '../../../src/agent/cron/manager';
+import type {
+  ExecutableToolContext,
+  ExecutableToolOutput,
+  RunnableToolExecution,
+  ToolExecution,
+} from '../../../src/loop/types';
 import type { ClockSources } from '../../../src/tools/cron/clock';
 import { CronCreateTool, MAX_CRON_JOBS_PER_SESSION } from '../../../src/tools/cron/cron-create';
 import { CronDeleteTool } from '../../../src/tools/cron/cron-delete';
 import { CronListTool } from '../../../src/tools/cron/cron-list';
+import { vi } from '../../_vitest-vi';
 
 const WALL_ANCHOR = Date.UTC(2024, 0, 1, 12, 0, 0);
 
@@ -15,8 +22,37 @@ function createClocks(start = WALL_ANCHOR): ClockSources {
   let now = start;
   return {
     wallNow: () => now,
-    monoNow: () => now,
+    monoNowMs: () => now,
   };
+}
+
+/** The per-call context the engine hands to `RunnableToolExecution.execute`. */
+function execContext(): ExecutableToolContext {
+  return { turnId: '0', toolCallId: 'tc', signal: new AbortController().signal };
+}
+
+/**
+ * The cron tools always emit a plain string on these paths; surface it for the
+ * `.toContain` / `.match` assertions without running the (possibly-object)
+ * `ExecutableToolOutput` through `String()`.
+ */
+function textOf(output: ExecutableToolOutput): string {
+  return typeof output === 'string' ? output : '';
+}
+
+/**
+ * Narrow a resolved `ToolExecution` to its runnable variant. The cron tools
+ * only return the error variant at resolve time (killswitch / cap), so a
+ * resolve-time error here means the test's precondition is violated — fail
+ * loudly rather than reaching for a non-existent `execute`.
+ */
+function requireRunnable(execution: ToolExecution): RunnableToolExecution {
+  if (execution.isError === true) {
+    throw new TypeError(
+      `expected an executable run, got a resolve-time error: ${textOf(execution.output)}`,
+    );
+  }
+  return execution;
 }
 
 function createAgentStub() {
@@ -61,25 +97,28 @@ describe('Cron tools execute (AC-C1)', () => {
         recurring: true,
       });
       expect(createExec.isError).not.toBe(true);
-      const created = await createExec.execute!();
+      const created = await requireRunnable(createExec).execute(execContext());
       expect(created.isError).toBe(false);
-      expect(String(created.output)).toMatch(/id: [0-9a-f]{8}/);
-      expect(String(created.output)).toContain('recurring: true');
+      expect(textOf(created.output)).toMatch(/id: [0-9a-f]{8}/);
+      expect(textOf(created.output)).toContain('recurring: true');
 
       const listExec = list.resolveExecution({});
-      const listed = await listExec.execute!();
+      const listed = await requireRunnable(listExec).execute(execContext());
       expect(listed.isError).toBe(false);
-      expect(String(listed.output)).toContain('cron_jobs: 1');
-      expect(String(listed.output)).toContain('prompt: "ping"');
+      expect(textOf(listed.output)).toContain('cron_jobs: 1');
+      expect(textOf(listed.output)).toContain('prompt: "ping"');
 
-      const idMatch = String(created.output).match(/id: ([0-9a-f]{8})/);
+      const idMatch = textOf(created.output).match(/id: ([0-9a-f]{8})/);
       expect(idMatch).not.toBeNull();
-      const id = idMatch![1];
+      const id = idMatch?.[1];
+      if (id === undefined) {
+        throw new Error('expected CronCreate output to include an 8-hex job id');
+      }
 
       const deleteExec = del.resolveExecution({ id });
-      const deleted = await deleteExec.execute!();
+      const deleted = await requireRunnable(deleteExec).execute(execContext());
       expect(deleted.isError).toBe(false);
-      expect(String(deleted.output)).toContain(`Deleted cron job ${id}`);
+      expect(textOf(deleted.output)).toContain(`Deleted cron job ${id}`);
       expect(manager.store.list()).toHaveLength(0);
     } finally {
       await manager.stop();
@@ -95,9 +134,9 @@ describe('Cron tools execute (AC-C1)', () => {
     try {
       const del = new CronDeleteTool(manager);
       const exec = del.resolveExecution({ id: 'deadbeef' });
-      const result = await exec.execute!();
+      const result = await requireRunnable(exec).execute(execContext());
       expect(result.isError).toBe(true);
-      expect(String(result.output)).toContain('No cron job with id deadbeef');
+      expect(textOf(result.output)).toContain('No cron job with id deadbeef');
     } finally {
       await manager.stop();
     }
@@ -116,8 +155,9 @@ describe('Cron tools execute (AC-C1)', () => {
       prompt: 'nope',
       recurring: true,
     });
+    if (exec.isError !== true) throw new Error('expected a resolve-time error (killswitch)');
     expect(exec.isError).toBe(true);
-    expect(String(exec.output)).toContain('BYF_DISABLE_CRON');
+    expect(textOf(exec.output)).toContain('BYF_DISABLE_CRON');
   });
 
   it('CronCreate rejects when session cap is reached', () => {
@@ -135,7 +175,8 @@ describe('Cron tools execute (AC-C1)', () => {
       prompt: 'overflow',
       recurring: true,
     });
+    if (exec.isError !== true) throw new Error('expected a resolve-time error (cap reached)');
     expect(exec.isError).toBe(true);
-    expect(String(exec.output)).toContain('cap reached');
+    expect(textOf(exec.output)).toContain('cap reached');
   });
 });

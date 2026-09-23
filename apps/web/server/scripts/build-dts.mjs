@@ -29,6 +29,18 @@ export interface WebServerHandle {
   readonly port: number;
   readonly staticEnabled: boolean;
   readonly url: string;
+  /**
+   * Effective auth token (PRD-0038 AC-1.2): the configured WEB_AUTH_TOKEN, or the
+   * loopback token generated for this start. Callers (byf web / TUI /web) deliver it
+   * via the startup banner and the opened URL query — loopback writes require it.
+   */
+  readonly authToken: string;
+  /**
+   * True when config.toml on disk cannot be parsed (PRD-0038 AC-1.7). The server still
+   * starts — that is what makes the web repair path reachable — but the startup banner
+   * must say the run is on built-in defaults.
+   */
+  readonly configInvalid: boolean;
   close(): void;
 }
 /**
@@ -38,12 +50,17 @@ export interface WebServerHandle {
 export declare function startWebServer(options?: StartWebServerOptions): Promise<WebServerHandle>;
 /** Format the startup banner text (reused by the CLI). */
 export declare function formatWebServerStartupBanner(input: {
-  readonly authToken?: string;
+  /** Required: the token in effect for this launch (explicit, or the loopback
+   *  auto-generated one). The banner is a credential delivery surface, so
+   *  "no token to report" is not a reachable state. */
+  readonly authToken: string;
   readonly host: string;
   readonly port: number;
   readonly staticEnabled?: boolean;
   /** Non-loopback IPv4 addresses for LAN URL lines (PRD-0034 R-D1). */
   readonly lanIps?: readonly string[];
+  /** config.toml is unparseable: add the AC-1.7 degraded-start warning line. */
+  readonly configInvalid?: boolean;
 }): string;
 /**
  * Collect non-loopback IPv4 addresses for the LAN banner (PRD-0034 R-D1).

@@ -1,0 +1,6 @@
+{
+  "errors": 0,
+  "command": "bun run typecheck:tests",
+  "detailLock": "count only, on purpose: #306 is worked on by several people at once and a checked-in list of file(line,col) entries conflicts on every unrelated edit and every reformat. The per-file detail is printed by the gate on every red run.",
+  "note": "Zero since 2026-09-21: #306 is closed, so this is a zero-tolerance gate, not a ratchet with slack. Any test-surface type error fails it. Measured with build artifacts present (`bun run build` first) because that is the order CI runs in and because tsc resolves @byfriends/sdk through its generated .d.ts. History: initialised at 1805 (PRD-0038 AC-5.4), of which roughly 1600 were config-gap noise rather than broken code — tsconfig.test.json declared no browser `lib`, so tsc mis-checked apps/web/client/src through test imports, and the ambient `*.md` / `*.yaml` / `*.module.css` module declarations the loaders and Vite actually provide were absent from the project. Fixing the project config took it to 193; the rest were real test-code errors (mostly unhandled `noUncheckedIndexedAccess`). Re-record with `bun run build && bun scripts/ci-gates.mjs typecheck-ratchet --update`."
+}

@@ -3,7 +3,7 @@
  * `new Date(year, monthIndex, day, h, m, s)` so the suite is stable
  * regardless of the host TZ (cron expressions evaluate in local time).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   computeNextCronRun,

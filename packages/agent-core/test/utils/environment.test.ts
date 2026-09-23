@@ -16,7 +16,7 @@
  * identically on macOS/Linux/Windows CI runners.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { ErrorCodes, ByfError } from '../../src/errors';
 import {

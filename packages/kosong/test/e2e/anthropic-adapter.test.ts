@@ -1,5 +1,6 @@
+import { describe, expect, it } from 'bun:test';
+
 import Anthropic from '@anthropic-ai/sdk';
-import { describe, expect, it } from 'vitest';
 
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import { AnthropicChatProvider } from '#/providers/anthropic';

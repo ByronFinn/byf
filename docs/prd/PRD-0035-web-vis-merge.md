@@ -1,6 +1,6 @@
 # PRD-0035: byf Web × Vis 合并：单源工作台（Single-Source Workbench）
 
-> **Status**: In Progress | **PRD**: PRD-0035 | **Created**: 2026-08-17 | **Last updated**: 2026-08-17
+> **Status**: Done | **PRD**: PRD-0035 | **Created**: 2026-08-17 | **Last updated**: 2026-09-21（末项 R-B5/R-F1 由 PRD-0038 R5 收口）
 
 ## Goal
 
@@ -112,6 +112,9 @@
 - **R-B3 鉴权单源**：统一使用 `WEB_AUTH_TOKEN`；`byf vis` shim 在一个弃用版本内兼容读取 `VIS_AUTH_TOKEN` 并转发。EventSource `?token=` 逻辑不变。
 - **R-B4 CLI 合并**：`apps/cli/src/cli/sub/vis.ts` 改为调用 `web.ts` 的 `handleWeb`，附加 `view=inspector` 深链语义；`byf vis` 弃用期默认端口仍 3001，`byf web` 与 TUI `/web` 默认 4100，两者共用 `startWebServer`。
 - **R-B5 `@byfriends/vis-server` shim**：包保留一个 minor 版本，导出 `startWebServer`/类型别名，标注 deprecated；此后从 workspace 删除。
+
+  **已交付（2026-09-21，PRD-0038 R5 / AC-5.6）**：弃用窗口已跨过（承诺"保留一个 minor 版本"，实际跨过多轮），shim 与其在 workspaces、`build:vis`、dev 脚本、`release.yml`、attw/publint 校验面的挂点全部移除，`byf vis` 保留为 `byf web` 别名。
+
 - **R-B6 构建单资产**：`apps/cli/scripts/compile/build.mjs` 移除 `__BYF_VIS_EMBEDDED_ASSETS__` 嵌入，只保留 `__BYF_WEB_EMBEDDED_ASSETS__`。
 - **R-B7 共享类型合并**：`apps/web/shared/types.ts` 吸收 `apps/vis/shared/types.ts` 的全部 inspector DTO；`apps/vis/shared` 随 shim 弃用。
 
@@ -184,6 +187,9 @@
 ### Wave F：弃用与清理
 
 - **R-F1 删除 vis 实现**：shim 一个 minor 版本后，删除 `apps/vis/server`、`apps/vis/web`、`apps/vis/shared` 实际实现与相关 tests。
+
+  **已交付（2026-09-21，PRD-0038 R5 / AC-5.6）**：`apps/vis/server` 已整树删除。`apps/vis/web` 与 `apps/vis/shared` 在本条写下时即已不在树中（`git ls-tree` 核实：HEAD 处 `apps/vis` 下仅 `server`），故本条实际剩余范围只有 server shim。
+
 - **R-F2 根脚本清理**：`package.json` 移除 `build:vis`/`vis` 脚本或改为 unified 别名；`typecheck` 只构建一个 Web SPA。
 - **R-F3 文档与 ADR**：更新 `apps/web/AGENTS.md`、`CONTEXT.md`、`docs` 架构说明；新建 ADR 记录“单源工作台、config raw 编辑、vis 弃用”决策。
 

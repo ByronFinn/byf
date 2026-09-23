@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import { APIConnectionError, APIStatusError, APITimeoutError, ChatProviderError } from '#/errors';
 import type { FinishReason } from '#/provider';

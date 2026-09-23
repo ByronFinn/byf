@@ -1,9 +1,22 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // Client tests import from apps/web/client/src, and tsc follows those edges.
+    // Without the browser lib those same sources report ~130 errors here that
+    // their own build (which declares DOM, and is green) never shows — config-gap
+    // noise, not real breakage. Mirror what that package declares so the test
+    // surface sees the same world it builds in.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "bun"]
   },
   "include": [
+    // The client sources tsc reaches need `*.css` ambient modules; `vite/client`
+    // supplies them in the real build but is not resolvable from this project.
+    "build/test-surface-globals.d.ts",
+    // Same reason for `*.md` / `*.yaml` prompt imports, which src files reached
+    // from tests use but only the loader in bunfig/build turns into strings.
+    "packages/agent-core/src/prompt-modules.d.ts",
     "packages/*/test/**/*.ts",
     "packages/*/test/**/*.tsx",
     "apps/*/test/**/*.ts",
@@ -11,7 +24,26 @@
     "apps/*/server/src/**/*.test.ts",
     "apps/*/server/src/**/*.test.tsx",
     "apps/web/client/test/**/*.ts",
-    "apps/web/client/test/**/*.tsx"
+    "apps/web/client/test/**/*.tsx",
+    // The gate scripts are part of the tested surface, not a side room:
+    // `build/run-tests.mjs` runs `scripts/**` with the same runner and the same
+    // preload as packages and apps (`roots = ['packages','apps','scripts']`), so
+    // a type error in `scripts/lib/*.test.ts` is a defect in a file CI executes.
+    // Leaving them out of `include` made the zero-tolerance number describe a
+    // smaller world than the one the tests run in.
+    "scripts/**/*.test.ts",
+    "scripts/**/*.d.ts",
+    // `build/test-preload.ts` is the 316-line vitest compatibility shim that makes
+    // ~151 `from 'vitest'` imports work at all. It was in no tsconfig anywhere.
+    "build/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "dist-types", "**/*.disabled", "**/*.disabled/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-types",
+    "**/*.disabled",
+    "**/*.disabled/**",
+    "**/tsconfig.type-negative.json",
+    "**/type-safety-negative.ts"
+  ]
 }

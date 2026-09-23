@@ -1,4 +1,4 @@
-import type { Session } from '@byfriends/sdk';
+import type { ByfConfig, Session } from '@byfriends/sdk';
 import { vi } from 'vitest';
 
 import type { SlashCommandHost } from '#/tui/commands/handlers';
@@ -60,7 +60,7 @@ export function createMockHost(overrides: Partial<SlashCommandHost> = {}): Slash
     cancelCurrentStream: vi.fn(),
     appendTranscriptStatus: vi.fn(),
     sendNormalUserInput: vi.fn(),
-    getConfig: vi.fn(async () => ({})),
+    getConfig: vi.fn(async (): Promise<ByfConfig> => ({ providers: {} })),
     setConfig: vi.fn(async () => undefined),
     removeProvider: vi.fn(async () => undefined),
     refreshConfigAfterLogin: vi.fn(async () => {}),

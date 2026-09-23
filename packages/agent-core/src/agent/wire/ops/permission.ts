@@ -16,10 +16,17 @@
 
 import { z } from 'zod';
 
-import type { PermissionMode } from '#/agent/permission/types';
+import type { ApprovalGrantAuthority, PermissionMode } from '#/agent/permission/types';
 import { defineModel } from '#/agent/wire';
 
 const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodType<PermissionMode>;
+
+/** 与 `ApprovalGrantAuthority` 一一对应（#345）。 */
+const approvalGrantAuthoritySchema = z.union([
+  z.object({ kind: z.literal('user-verdict') }),
+  z.object({ kind: z.literal('restored-user-verdict') }),
+  z.object({ kind: z.literal('audit-only'), from: z.enum(['mode-auto-approve', 'policy']) }),
+]) satisfies z.ZodType<ApprovalGrantAuthority>;
 
 // —— Model ——
 
@@ -54,10 +61,18 @@ export const permissionRecordApprovalResult = permissionModel.defineOp(
       action: z.string(),
       // ApprovalResponse —— reducer 只用 decision/scope，其余结构宽松即可（replay tolerance）。
       result: z.unknown(),
+      // #345：授权来源随记录一起持久化，否则"谁能扩大本会话同类放行"这件事在
+      // 恢复后就无人记得（reducer 只看得到 decision + scope）。
+      authority: approvalGrantAuthoritySchema.optional(),
     }),
     apply: (state, payload) => {
       const result = payload.result as { decision?: string; scope?: string } | undefined;
       if (result?.decision !== 'approved' || result?.scope !== 'session') return state;
+      // 审计-only 的来源（模式自动放行、policy 上报）落记录但不 mint 会话规则。
+      // `authority` 缺失只可能是 #345 之前写入的 journal：那时还没有来源概念，
+      // 无从复审判定，所以按当时语义入账。该默认值只影响历史数据，且不会比改动
+      // 前更宽松——新写入的记录一定带 authority。
+      if (payload.authority?.kind === 'audit-only') return state;
       if (state.sessionApproved.has(payload.action)) return state;
       return {
         ...state,

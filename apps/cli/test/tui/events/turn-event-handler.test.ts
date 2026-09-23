@@ -30,6 +30,8 @@ import type {
   TranscriptEntry,
 } from '#/tui/types';
 
+import { defined } from '../../helpers/defined';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -443,8 +445,8 @@ describe('TurnEventHandler', () => {
       handler.handleStepCompleted(stepCompleted(1, 2, 'max_tokens'));
 
       expect(calls.showNotice).toHaveLength(1);
-      expect(calls.showNotice[0].title).toContain('truncated');
-      expect(calls.showNotice[0].detail).toContain('max_output_size');
+      expect(calls.showNotice[0]?.title).toContain('truncated');
+      expect(calls.showNotice[0]?.detail).toContain('max_output_size');
       expect(toolCall.truncated).toBe(true);
     });
 
@@ -454,7 +456,7 @@ describe('TurnEventHandler', () => {
 
       handler.handleStepCompleted(stepCompleted(1, 0, 'max_tokens'));
 
-      expect(calls.showNotice[0].detail).toBeUndefined();
+      expect(calls.showNotice[0]?.detail).toBeUndefined();
     });
   });
 
@@ -466,22 +468,22 @@ describe('TurnEventHandler', () => {
     it('shows user interrupted status with error color for aborted reason', () => {
       const { handler, calls } = makeHandler();
       handler.handleStepInterrupted(stepInterrupted(1, 0, 'aborted'));
-      expect(calls.showStatus[0].message).toBe('Interrupted by user');
-      expect(calls.showStatus[0].color).toBe('#ff0000');
+      expect(calls.showStatus[0]?.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]?.color).toBe('#ff0000');
     });
 
     it('shows user interrupted status when reason is undefined', () => {
       const { handler, calls } = makeHandler();
       handler.handleStepInterrupted(stepInterrupted(1, 0, undefined));
-      expect(calls.showStatus[0].message).toBe('Interrupted by user');
-      expect(calls.showStatus[0].color).toBe('#ff0000');
+      expect(calls.showStatus[0]?.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]?.color).toBe('#ff0000');
     });
 
     it('shows user interrupted status when reason is empty string', () => {
       const { handler, calls } = makeHandler();
       handler.handleStepInterrupted(stepInterrupted(1, 0, ''));
-      expect(calls.showStatus[0].message).toBe('Interrupted by user');
-      expect(calls.showStatus[0].color).toBe('#ff0000');
+      expect(calls.showStatus[0]?.message).toBe('Interrupted by user');
+      expect(calls.showStatus[0]?.color).toBe('#ff0000');
     });
 
     it('shows error for max_steps', () => {
@@ -564,7 +566,7 @@ describe('TurnEventHandler', () => {
         }),
       );
       expect(calls.appendTranscriptEntry).toHaveLength(1);
-      const entry = calls.appendTranscriptEntry[0];
+      const entry = defined(calls.appendTranscriptEntry[0], 'appendTranscriptEntry[0]');
       expect(entry.kind).toBe('assistant');
       expect(entry.renderMode).toBe('markdown');
       expect(entry.content).toContain('PreToolUse hook');
@@ -580,7 +582,7 @@ describe('TurnEventHandler', () => {
           blocked: true,
         }),
       );
-      expect(calls.appendTranscriptEntry[0].content).toContain('blocked');
+      expect(defined(calls.appendTranscriptEntry[0], 'entry').content).toContain('blocked');
     });
   });
 
@@ -596,7 +598,7 @@ describe('TurnEventHandler', () => {
       const tc = state.activeToolCalls.get('tc-1')!;
       expect(tc.name).toBe('Read');
       expect(calls.onToolCallStart).toHaveLength(1);
-      expect(calls.onToolCallStart[0].name).toBe('Read');
+      expect(calls.onToolCallStart[0]?.name).toBe('Read');
     });
 
     it('does not start component for Agent tool calls', () => {
@@ -686,7 +688,7 @@ describe('TurnEventHandler', () => {
 
       handler.handleToolResult(toolResult('tc-1', 'file contents'));
       expect(calls.onToolCallEnd).toHaveLength(1);
-      expect(calls.onToolCallEnd[0].toolCallId).toBe('tc-1');
+      expect(calls.onToolCallEnd[0]?.toolCallId).toBe('tc-1');
       expect(state.activeToolCalls.has('tc-1')).toBe(false);
     });
 

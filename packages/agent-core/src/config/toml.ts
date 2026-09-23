@@ -22,6 +22,7 @@ import {
   validateConfig,
 } from '#/config/schema';
 import { ErrorCodes, ByfError } from '#/errors';
+import { log } from '#/logging/logger';
 import { atomicWrite } from '#/utils/fs';
 
 /* ------------------------------------------------------------------ */
@@ -64,12 +65,26 @@ export async function ensureConfigFile(filePath: string): Promise<void> {
   }
 }
 
+/**
+ * 装配路径的配置读取（PRD-0038 AC-1.7）。
+ *
+ * `config.toml` 解析失败时返回内置默认并记一条 warn，**不抛错**：真实装配路径
+ * （`ByfCore` 构造 → `ProviderManager`）此前在这里即抛，使"配置损坏后经 web 修复"
+ * 这条旅程在 server 启动层就已断裂。降级不等于隐瞒：损坏态由 raw 端点的
+ * `invalid: true` 与 web 启动日志对外声明（两者各自复核磁盘文本，见
+ * `config/document.ts` 的 `readConfigDocument`），并且任何想用自己的投影覆盖磁盘的
+ * 写路径都会被 {@link writeConfigFile} 的销毁防护挡住。
+ */
 export function readConfigFile(filePath: string): ByfConfig {
-  if (!existsSync(filePath)) {
+  if (!existsSync(filePath)) return getDefaultConfig();
+  try {
+    return parseConfigString(readFileSync(filePath, 'utf-8'), filePath);
+  } catch (error) {
+    // 只吞「配置本身无效」（TOML 语法 / schema）；IO 错误照抛——它不是损坏态。
+    if (!(error instanceof ByfError) || error.code !== ErrorCodes.CONFIG_INVALID) throw error;
+    log.warn(`config: falling back to built-in defaults; ${error.message}`);
     return getDefaultConfig();
   }
-  const text = readFileSync(filePath, 'utf-8');
-  return parseConfigString(text, filePath);
 }
 
 export function parseConfigString(tomlText: string, filePath = 'config.toml'): ByfConfig {
@@ -272,10 +287,37 @@ function transformLoopControlData(data: Record<string, unknown>): Record<string,
 /*  Write / stringify                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * 结构化写（语义投影）：把 config 重新 stringify 后覆盖磁盘。
+ *
+ * PRD-0038 AC-1.7 让服务在配置损坏时也能启动，这条路径因此变得可达：磁盘上的
+ * `config.toml` 解析不了时 `readConfigFile` 降级为内置默认，照此写回就会把用户的
+ * 全部配置（含密钥）换成一份投影——正是 AC-1.4 禁止的数据销毁。所以覆盖前先复核
+ * 磁盘原文，解析不了就拒绝，并把用户指向按文本修复的出口。
+ */
 export async function writeConfigFile(filePath: string, config: ByfConfig): Promise<void> {
+  assertDiskConfigParsable(filePath);
   const validated = validateConfig(config);
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   await atomicWrite(filePath, `${stringifyToml(configToTomlData(validated))}\n`);
+}
+
+function assertDiskConfigParsable(filePath: string): void {
+  if (!existsSync(filePath)) return;
+  try {
+    parseConfigString(readFileSync(filePath, 'utf-8'), filePath);
+  } catch (error) {
+    if (error instanceof ByfError && error.code === ErrorCodes.CONFIG_INVALID) {
+      throw new ByfError(
+        ErrorCodes.CONFIG_INVALID,
+        `Refusing to overwrite ${filePath}: the config on disk cannot be parsed, and a structured ` +
+          'write would replace your existing settings. Fix the file as text (web raw config editor, ' +
+          'or your $EDITOR) first.',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 export function configToTomlData(config: ByfConfig): Record<string, unknown> {

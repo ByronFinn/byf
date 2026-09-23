@@ -33,7 +33,7 @@ describe('expandPublishConfig', () => {
   });
 
   it('ignores non-object publishConfig', () => {
-    const manifest = { name: 'pkg', publishConfig: 'public' as unknown as object };
+    const manifest = { name: 'pkg', publishConfig: 'public' };
     expect(expandPublishConfig(manifest)).toEqual(manifest);
   });
 

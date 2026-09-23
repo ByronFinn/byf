@@ -7,7 +7,7 @@
  * insert harmless writes do not falsely trip the suite.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   makeEndTurnResponse,

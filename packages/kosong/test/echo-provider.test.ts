@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import { ChatProviderError } from '#/errors';
 import {
@@ -349,8 +349,8 @@ describe('EchoChatProvider', () => {
     expect(result.message.toolCalls).toHaveLength(1);
 
     const tc = result.message.toolCalls[0];
-    expect(tc.id).toBe('call-1');
-    expect(tc.name).toBe('search');
-    expect(tc.arguments).toBe('{"q":"python"}');
+    expect(tc?.id).toBe('call-1');
+    expect(tc?.name).toBe('search');
+    expect(tc?.arguments).toBe('{"q":"python"}');
   });
 });

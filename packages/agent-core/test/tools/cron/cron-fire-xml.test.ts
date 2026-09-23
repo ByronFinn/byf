@@ -3,7 +3,7 @@
  * recurring vs one-shot rendering, attribute escaping, and verbatim
  * prompt-body handling (including multi-line and quote content).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { CronJobOrigin } from '../../../src/agent/context/types';
 import { renderCronFireXml } from '../../../src/tools/cron/cron-fire-xml';

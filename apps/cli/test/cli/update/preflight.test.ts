@@ -110,7 +110,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(emptyUpdateCache());
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(readUpdateCache).toHaveBeenCalledTimes(1);
     expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
     expect(detectInstallSource).not.toHaveBeenCalled();
@@ -120,9 +120,7 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', { ...options, isTTY: false })).resolves.toBe(
-      'continue',
-    );
+    expect(runUpdatePreflight('0.4.0', { ...options, isTTY: false })).resolves.toBe('continue');
     expect(detectInstallSource).not.toHaveBeenCalled();
   });
 
@@ -134,7 +132,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
     expect(mocks.promptForInstallConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({
         installCommand: 'npm install -g @byfriends/cli@0.5.0',
@@ -228,7 +226,7 @@ describe('runUpdatePreflight', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     try {
       const { stdout, options } = captureOutput();
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
       expect(stdout.join('')).toContain(
         'irm https://github.com/ByronFinn/byf/releases/latest/download/install.ps1 | iex',
       );
@@ -244,7 +242,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('unsupported');
     const { stdout, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(stdout.join('')).toContain('npm install -g @byfriends/cli@0.5.0');
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
@@ -254,7 +252,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('npm-global-js');
     const { stdout, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(stdout.join('')).toContain('legacy npm-global JS layout');
     expect(stdout.join('')).toContain('npm uninstall -g @byfriends/cli');
     expect(stdout.join('')).toContain('npm install -g @byfriends/cli@0.5.0');
@@ -268,7 +266,7 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('npm-global');
     mocks.promptForInstallConfirmation.mockResolvedValue(false);
     const { options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
@@ -279,7 +277,7 @@ describe('runUpdatePreflight', () => {
     mocks.promptForInstallConfirmation.mockResolvedValue(true);
     mockSpawnExit(1);
     const { stderr, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
     expect(stderr.join('')).toContain('warning: failed to install');
   });
 });
