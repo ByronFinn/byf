@@ -1,5 +1,5 @@
 ---
-'@byfriends/cli': minor
+'@byfriends/cli': patch
 '@byfriends/sdk': patch
 '@byfriends/agent-core': patch
 ---
