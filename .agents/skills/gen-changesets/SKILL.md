@@ -15,12 +15,21 @@ private 包(不发布):`@byfriends/web-client`(SPA,构建产物被复制进 `@by
 
 已删除的包,任何 changeset 里都不该再出现:`@byfriends/vis-server`、`@byfriends/vis-web`、`@byfriends/vis` —— `apps/vis` 整棵树已在 PRD-0038 R5(AC-5.6)移除,会话可视化并入 `@byfriends/web-server`(ADR-0037)。
 
+## 统一版本(fixed 组)
+
+`.changeset/config.json` 的 `fixed` 组覆盖全部 7 个发布包:`@byfriends/cli`、`@byfriends/agent-core`、`@byfriends/sdk`、`@byfriends/web-server`、`@byfriends/kosong`、`@byfriends/kaos`、`@byfriends/oauth`。changesets 对 fixed 组取**组内最高 bump 等级**,把整组统一升到同一个版本号。
+
+因此 bump 级别不再是单个包的事:任何一个包写 `minor`,7 个包一起跳到下一个 minor;任一包写 `major`,整组进下一个 major。判断级别时按"这次改动值不值得把整个发布集推一号"来取舍,而不只看被点名的那个包。
+
+- `apps/cli/npm/*` 两个平台包不在组内:它们 `private: true`,changesets 不定它们的版,其版本号由 `.github/workflows/release.yml` 发布时按 CLI 版本写入。
+- `@byfriends/storage`、`@byfriends/web-client`、`@byfriends/web-shared` 同为 private,列进 frontmatter 只改本地版本号,不产生任何发布产物。
+
 ## Core Rules
 
 1. **先看真实改动。** 用 `git status` / `git diff --name-only` 确认实际改了哪些包。
 2. **列出 changesets 能发布的包。** 本仓库 `.changeset/config.json` 的 `ignore` 为空,没有"忽略包与非忽略包不能混在同一个 frontmatter"的限制。
 3. **进入 CLI bundle 的内部包源码改动,要手动列 CLI。** `@byfriends/sdk`(以及它带进来的 agent-core/kosong/kaos/oauth)位于 CLI 的 devDependencies,源码被 bundle 进 `dist/main.mjs`。changesets 会因内部依赖更新把 CLI 自动 patch bump,但**不会替你写 CLI 的 changelog 条目**。当改动改变了 CLI 用户可见的行为时,必须在 frontmatter 列出 `@byfriends/cli`,并在正文描述用户实际能感知的变化。
-4. **`@byfriends/web-server` 不进 CLI bundle,但它就是 CLI 的功能。** 它在 CLI 的 `dependencies` 里,而 `apps/cli/scripts/build.mjs` 用 `--never-bundle @byfriends/web-server` 把它排除在 `dist/main.mjs` 之外,所以它的改动**不进入** CLI bundle,不适用规则 3 的 bundle 判断。但用户是通过 `byf web` / `byf vis` 用到它的:凡是改变 CLI 用户可感知行为的,`@byfriends/web-server` 与 `@byfriends/cli` 一起列(见 `.changeset/merged-workbench.md`);纯服务端内部修复只列 `@byfriends/web-server`(见 `.changeset/prd-0034-web-missing-session-404.md`)。
+4. **`@byfriends/web-server` 不进 CLI bundle,但它就是 CLI 的功能。** 它在 CLI 的 `dependencies` 里,而 `apps/cli/scripts/build.mjs` 用 `--never-bundle @byfriends/web-server` 把它排除在 `dist/main.mjs` 之外,所以它的改动**不进入** CLI bundle,不适用规则 3 的 bundle 判断。但用户是通过 `byf web` / `byf vis` 用到它的:凡是改变 CLI 用户可感知行为的,`@byfriends/web-server` 与 `@byfriends/cli` 一起列;纯服务端内部修复只列 `@byfriends/web-server`。
 5. **private 包不发布。** `@byfriends/web-client`、`@byfriends/web-shared`、`@byfriends/storage` 都是 `private: true`。用户可见性一律用 `@byfriends/web-server` / `@byfriends/cli` 的条目表达;列 private 包只影响其本地版本号,不影响任何发布产物。
 6. **纯文档 / 纯测试改动通常不需要 changeset。** README、内部文档、`test/` 下不进入包产物的改动不触发 bump。
 
