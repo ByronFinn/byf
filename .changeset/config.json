@@ -16,6 +16,7 @@
   "linked": [],
   "access": "restricted",
   "baseBranch": "main",
+  "npmClient": "npm",
   "updateInternalDependencies": "patch",
   "ignore": []
 }

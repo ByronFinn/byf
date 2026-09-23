@@ -29,23 +29,36 @@ name: Release (npm)
 # `bun run pubcheck:manifest` (`bun pm pack`) so a regression never reaches
 # the registry.
 #
+# Credential model: npm Trusted Publishing (OIDC), no NPM_TOKEN. The registry
+# stopped honouring direct publishes from granular tokens that bypass 2FA, which
+# is what this workflow used up to and including the aborted 0.6.2 attempt; the
+# replacement is the `id-token: write` permission plus
+# `publishConfig.provenance: true` on every publishable manifest.
+#
 # Toolchain (PRD-0020 / ADR 0028 / #216 / #217): install + quality gates use
 # Bun 1.3.14. Publish goes through `bun scripts/with-publish-manifests.mjs
 # bunx changeset publish`:
 #   - Bun built-in pack rewrite is the primary protocol story (validated by
 #     pubcheck); changesets itself only knows pnpm/npm, so the wrapper is the
 #     explicit gap-fill (protocol rewrite + publishConfig.exports overlay).
-#   - Residual root `packageManager: pnpm@…` / `pnpm-lock.yaml` may still make
-#     changesets pick `pnpm publish` during transition; that residual is
-#     removed by the PRD-0020 breaking minor (#221 / #222). Do not reintroduce
-#     pnpm/action-setup as the install main path.
+#   - The historical pnpm escape hatch (`packageManager: pnpm@…` / pnpm-lock.yaml
+#     making changesets pick `pnpm publish`) is long gone — root pins
+#     `bun@1.3.14` and there is no pnpm lockfile. `.changeset/config.json` now
+#     also pins `npmClient: "npm"` explicitly, because the OIDC exchange exists
+#     only in npm: silently falling back to another client would mean no
+#     trusted publishing and a misleading E404.
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: write # commit the version bump + push tags
-  id-token: write # reserved for future provenance (currently publishConfig.provenance: false)
+  # npm Trusted Publishing (OIDC). This is NOT optional-and-not-yet-used: the
+  # registry refuses direct publishes from bypass-2FA granular tokens, so this
+  # permission is the credential. There is deliberately no NPM_TOKEN anywhere in
+  # this job. Do not "helpfully" add one back — a token in the environment makes
+  # npm use token auth and the trusted-publishing flow never engages.
+  id-token: write
 
 jobs:
   release:
@@ -60,13 +73,14 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      # Registry auth for publish (changeset → pack/publish). setup-node writes
-      # .npmrc with NODE_AUTH_TOKEN; Bun also honors NPM_TOKEN / NODE_AUTH_TOKEN.
+      # Node/npm only — NOT registry auth. Passing `registry-url` + `scope` makes
+      # setup-node write an `_authToken` line into a generated userconfig npmrc,
+      # and npm then authenticates with the (empty) token instead of exchanging
+      # the OIDC token for a short-lived publishing credential. So: pin the
+      # toolchain here, and give it nothing that looks like a credential.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@byfriends'
 
       - run: bun install --frozen-lockfile
 
@@ -104,14 +118,33 @@ jobs:
           fi
 
       - name: Publish
-        # Wrapper rewrites workspace:/catalog: and expands publishConfig so
-        # publish is safe whether changesets invokes pnpm or npm (see header).
-        run: bun scripts/with-publish-manifests.mjs bunx changeset publish
+        # Trusted publishing: npm exchanges the OIDC token that `id-token: write`
+        # provides for a short-lived publishing credential, so this step must run
+        # with NO registry token in its environment. `publishConfig.provenance:
+        # true` on every publishable manifest is what asks npm to do that;
+        # `.changeset/config.json` pins `npmClient: npm`, because changesets only
+        # knows pnpm and npm and the OIDC exchange is npm-only.
+        #
+        # The preflight below is deliberate: a reintroduced NPM_TOKEN does not
+        # fail loudly, it silently downgrades npm back to token auth and the
+        # publish dies with a misleading E404 (that is exactly the failure this
+        # workflow hit before migrating). Prefer a red assertion instead.
         env:
-          # Auth for registry: setup-node .npmrc + env tokens below.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           HUSKY: '0' # skip git hooks in CI
+        run: |
+          set -euo pipefail
+          if [[ -n "${NPM_TOKEN:-}" || -n "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::A registry token is present in this step's environment." \
+              "npm Trusted Publishing requires none; remove the NPM_TOKEN /" \
+              "NODE_AUTH_TOKEN wiring rather than the OIDC permission."
+            exit 1
+          fi
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::No OIDC token is available to the runner." \
+              "Check that the job/workflow still declares id-token: write."
+            exit 1
+          fi
+          bun scripts/with-publish-manifests.mjs bunx changeset publish
 
       # changesets creates package tags during publish but does not always push
       # them (and `@byfriends/cli@*` is the trigger for release.yml binaries).

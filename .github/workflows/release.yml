@@ -15,7 +15,11 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: write # create the GitHub Release + push nothing else
+  # Needed by the `release` job's npm platform-package publish (trusted
+  # publishing / OIDC). `build-native` never publishes, so this is broader than
+  # that job needs, but the matrix runners do not get a token they can use.
+  id-token: write
 
 jobs:
   build-native:
@@ -127,12 +131,26 @@ jobs:
 
       - name: Resolve version
         id: version
+        # Event/inputs fields go through `env:`, never `${{ }}` inside the script
+        # body: `inputs.version` is free text on the workflow_dispatch path, and
+        # interpolating it into bash makes this step runnable as arbitrary shell.
+        # The shape check then bounds what can reach the tag name and the
+        # platform-package manifests.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ inputs.version }}"
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
           else
             TAG="${GITHUB_REF_NAME}"
             VERSION="${TAG#@byfriends/cli@}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then
+            echo "::error::resolved version '$VERSION' is not a valid semver." \
+              "Refusing to tag or publish from it."
+            exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=@byfriends/cli@${VERSION}" >> "$GITHUB_OUTPUT"
@@ -171,18 +189,28 @@ jobs:
       # resolve the native binary (PRD-0020 / #220). Main @byfriends/cli is
       # published by release-npm.yml; platform packages are published here after
       # compile so the tarball always contains the binary.
+      # Node/npm only — no registry auth. `registry-url` + `scope` would make
+      # setup-node write an `_authToken` line into a generated npmrc, and npm
+      # would then try token auth instead of the OIDC exchange.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@byfriends'
 
       - name: Publish npm platform packages
+        # Trusted publishing, same as release-npm.yml's Publish step: the
+        # platform manifests carry `publishConfig.provenance: true` and this job
+        # has `id-token: write`, so npm exchanges the OIDC token for a
+        # short-lived credential. A NPM_TOKEN here would break that.
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
+          if [[ -n "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::NODE_AUTH_TOKEN is set; these packages publish via" \
+              "npm Trusted Publishing (OIDC) and must not carry a token."
+            exit 1
+          fi
+          VERSION="$RELEASE_VERSION"
           for target in darwin-arm64 linux-x64; do
             src="npm-platforms/npm-platform-${target}"
             if [[ ! -d "$src" ]]; then
@@ -208,6 +236,10 @@ jobs:
             echo "Publishing @byfriends/cli-${target}@${VERSION} from $src"
             # Require a ./ prefix so npm treats the argument as a local path
             # (bare "npm-platforms/..." is misparsed as a git/github specifier).
-            npm publish "./$src" --access public
+            # `--provenance` is explicit here even though the manifest already
+            # asks for it: this is the one publish call that bypasses the
+            # changesets wrapper, so the attestation must not depend on a reader
+            # knowing to check publishConfig.
+            npm publish "./$src" --access public --provenance
           done
         shell: bash
