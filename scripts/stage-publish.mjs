@@ -24,7 +24,6 @@ import { listPublishablePackages } from './lib/list-publishable-packages.mjs';
 import { loadPublishRewriteContext, preparePublishManifest } from './lib/publish-manifest.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const REGISTRY = 'https://registry.npmjs.org';
 
 function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, {
@@ -103,71 +102,33 @@ async function main() {
         const stageOutput = stageResult.stdout + stageResult.stderr;
         console.log(stageOutput.trim());
         if (stageResult.status !== 0) {
-          console.error(`stage publish failed for ${pkg.name}:`, stageOutput);
-          process.exitCode = 1;
-          return;
+          if (/already staged|E.Stage/.test(stageOutput)) {
+            console.log(`  already staged, will approve existing`);
+          } else {
+            console.error(`stage publish failed for ${pkg.name}:`, stageOutput);
+            process.exitCode = 1;
+            return;
+          }
         }
         staged.push({ name: pkg.name, version: pkg.version });
       }
 
-      console.log('\n── querying staged items for approval');
-      const listResult = run('curl', [
-        '-sS',
-        '-H',
-        `Authorization: Bearer ${token}`,
-        `${REGISTRY}/-/stage`,
-      ]);
-      let stagedItems;
-      try {
-        const parsed = JSON.parse(listResult.stdout);
-        stagedItems = Array.isArray(parsed) ? parsed : (parsed.items ?? []);
-      } catch {
-        console.error('failed to parse staged items list:', listResult.stdout.slice(0, 500));
-        process.exitCode = 1;
-        return;
-      }
-
-      const pending = stagedItems.filter((item) =>
-        staged.some((s) => item.packageName === s.name && item.version === s.version),
-      );
-      console.log(`found ${pending.length} staged item(s) matching this release`);
-
-      if (pending.length === 0) {
-        console.log('no staged items to approve — they may have been auto-published');
-        return;
-      }
-
+      console.log('\n── approving staged items');
       let approved = 0;
-      for (const item of pending) {
-        const stageId = item.id ?? item.stageId;
-        if (!stageId) {
-          console.warn(`  skipping ${item.packageName}@${item.version}: no stage ID`);
-          continue;
-        }
-        console.log(`── approving ${item.packageName}@${item.version} (${stageId})`);
-        const approveResult = run('curl', [
-          '-sS',
-          '-X',
-          'POST',
-          '-H',
-          `Authorization: Bearer ${token}`,
-          '-H',
-          'Content-Type: application/json',
-          '-w',
-          '\n%{http_code}',
-          `${REGISTRY}/-/stage/${stageId}/approve`,
-        ]);
-        const httpCode = approveResult.stdout.trim().split('\n').pop();
-        const body = approveResult.stdout.trim().split('\n').slice(0, -1).join('\n');
-        if (httpCode?.startsWith('2')) {
-          console.log(`  approved (${httpCode})`);
-          approved++;
-        } else {
-          console.error(`  approve failed (HTTP ${httpCode}):`, body);
+      for (const pkg of staged) {
+        const spec = `${pkg.name}@${pkg.version}`;
+        console.log(`── approving ${spec}`);
+        const approveResult = run('npm', ['stage', 'approve', spec]);
+        const approveOutput = approveResult.stdout + approveResult.stderr;
+        console.log(approveOutput.trim());
+        if (approveResult.status !== 0) {
+          console.error(`approve failed for ${spec}:`, approveOutput);
           process.exitCode = 1;
+        } else {
+          approved++;
         }
       }
-      console.log(`\n${approved}/${pending.length} package(s) approved`);
+      console.log(`\n${approved}/${staged.length} package(s) approved`);
     }
   } finally {
     for (const { path: manifestPath, original } of backups) {
