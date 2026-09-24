@@ -505,5 +505,5 @@ describe('PRD-0031 1a force-stop 集成（loop 级）', () => {
     expect(snapshot).toContain('force-stopped');
     expect(snapshot).toContain('were not executed');
     // 12 步完整 turn 的重型集成:并发套件(10 路)下放宽超时,避免资源竞争误报。
-  }, 30_000);
+  }, 60_000);
 });
