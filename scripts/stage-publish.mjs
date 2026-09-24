@@ -113,12 +113,41 @@ async function main() {
         staged.push({ name: pkg.name, version: pkg.version });
       }
 
-      console.log('\n── approving staged items');
+      console.log('\n── listing staged items for approval');
+      const listResult = run('npm', ['stage', 'list', '--json']);
+      let stagedItems;
+      try {
+        const parsed = JSON.parse(listResult.stdout);
+        stagedItems = Array.isArray(parsed) ? parsed : (parsed.items ?? []);
+      } catch {
+        console.error(
+          'failed to parse staged items:',
+          listResult.stdout.slice(0, 500) || listResult.stderr.slice(0, 500),
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const pending = stagedItems.filter((item) =>
+        staged.some((s) => item.packageName === s.name && item.version === s.version),
+      );
+      console.log(`found ${pending.length} staged item(s) matching this release`);
+
+      if (pending.length === 0) {
+        console.log('no staged items to approve');
+        return;
+      }
+
       let approved = 0;
-      for (const pkg of staged) {
-        const spec = `${pkg.name}@${pkg.version}`;
-        console.log(`── approving ${spec}`);
-        const approveResult = run('npm', ['stage', 'approve', spec]);
+      for (const item of pending) {
+        const stageId = item.id ?? item.stageId;
+        const spec = `${item.packageName}@${item.version}`;
+        if (!stageId) {
+          console.warn(`  skipping ${spec}: no stage ID`);
+          continue;
+        }
+        console.log(`── approving ${spec} (${stageId})`);
+        const approveResult = run('npm', ['stage', 'approve', stageId]);
         const approveOutput = approveResult.stdout + approveResult.stderr;
         console.log(approveOutput.trim());
         if (approveResult.status !== 0) {
@@ -128,7 +157,7 @@ async function main() {
           approved++;
         }
       }
-      console.log(`\n${approved}/${staged.length} package(s) approved`);
+      console.log(`\n${approved}/${pending.length} package(s) approved`);
     }
   } finally {
     for (const { path: manifestPath, original } of backups) {
