@@ -17,7 +17,7 @@ const concurrency = Number(process.env.BYF_TEST_CONCURRENCY ?? 10);
 /** Soft wall-clock limit per file (ms). Prevents a single hung file from blocking CI. */
 const perFileTimeoutMs = Number(process.env.BYF_TEST_FILE_TIMEOUT_MS ?? 120_000);
 /** Default per-test timeout (ms). CI macos runners are slow at spawning processes. */
-const testTimeoutMs = Number(process.env.BYF_TEST_TIMEOUT_MS ?? 30_000);
+const testTimeoutMs = Number(process.env.BYF_TEST_TIMEOUT_MS ?? 60_000);
 // packages/apps: product tests. scripts: pure helpers (publish-manifest rewrite, …).
 const roots = ['packages', 'apps', 'scripts'];
 
