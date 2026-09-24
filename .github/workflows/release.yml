@@ -187,6 +187,8 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
+
+          # Stage each platform package
           for target in darwin-arm64 linux-x64; do
             src="npm-platforms/npm-platform-${target}"
             if [[ ! -d "$src" ]]; then
@@ -209,9 +211,36 @@ jobs:
               delete j.private;
               fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
             " "$src/package.json" "$VERSION"
-            echo "Publishing @byfriends/cli-${target}@${VERSION} from $src"
+            echo "Staging @byfriends/cli-${target}@${VERSION} from $src"
             # Require a ./ prefix so npm treats the argument as a local path
             # (bare "npm-platforms/..." is misparsed as a git/github specifier).
-            npm publish "./$src" --access public
+            npm stage publish "./$src" --access public || true
+          done
+
+          # List staged items and approve each by UUID
+          echo "Listing staged items for approval"
+          STAGED_JSON=$(npm stage list --json)
+          echo "$STAGED_JSON"
+
+          # Extract stageIds for our platform packages
+          for target in darwin-arm64 linux-x64; do
+            PKG_NAME="@byfriends/cli-${target}"
+            STAGE_ID=$(echo "$STAGED_JSON" | bun -e "
+              const chunks = [];
+              process.stdin.on('data', c => chunks.push(c));
+              process.stdin.on('end', () => {
+                const json = JSON.parse(Buffer.concat(chunks).toString());
+                const items = Array.isArray(json) ? json : (json.items ?? []);
+                const item = items.find(i => i.packageName === process.argv[1] && i.version === process.argv[2]);
+                if (item) console.log(item.stageId);
+              });
+            " "$PKG_NAME" "$VERSION")
+
+            if [[ -n "$STAGE_ID" ]]; then
+              echo "Approving $PKG_NAME@$VERSION (stageId: $STAGE_ID)"
+              npm stage approve "$STAGE_ID"
+            else
+              echo "Warning: no staged item found for $PKG_NAME@$VERSION"
+            fi
           done
         shell: bash
