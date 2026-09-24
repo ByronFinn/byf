@@ -102,8 +102,8 @@ async function main() {
         const stageOutput = stageResult.stdout + stageResult.stderr;
         console.log(stageOutput.trim());
         if (stageResult.status !== 0) {
-          if (/already staged|E.Stage/.test(stageOutput)) {
-            console.log(`  already staged, will approve existing`);
+          if (/already staged|E409|E\.Stage|Cannot stage/.test(stageOutput)) {
+            console.log(`  already staged/published, will approve existing`);
           } else {
             console.error(`stage publish failed for ${pkg.name}:`, stageOutput);
             process.exitCode = 1;
