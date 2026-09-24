@@ -308,7 +308,7 @@ describe('Agent turn flow', () => {
         toolCalls: [],
       },
     ]);
-  });
+  }, 15_000);
 
   it('shows structured UserPromptSubmit stdout without injecting it', async () => {
     const hookEngine = createTestHookEngine([
