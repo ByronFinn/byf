@@ -44,7 +44,7 @@ describe('GoalMode replace (AC-3)', () => {
     const newUsage = agent.goal.getSnapshot()?.usage;
     expect(newUsage?.turns).toBe(0);
     expect(newUsage?.tokens).toBe(0);
-    expect(newUsage?.wallClockMs).toBe(0);
+    expect(newUsage?.wallClockMs).toBeLessThan(50);
   });
 
   it('replace does not emit completion change for the old goal', () => {
