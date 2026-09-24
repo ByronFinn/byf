@@ -6,7 +6,7 @@ import {
   __testing,
 } from '../../../src/agent/turn/tool-dedup';
 import type { ExecutableToolResult } from '../../../src/loop/types';
-import { testAgent } from '../harness/agent';
+import { createCommandKaos, testAgent } from '../harness/agent';
 import { formatHarnessSnapshot } from '../harness/snapshots';
 
 const { REMINDER_TEXT_1, makeReminderText2 } = __testing;
@@ -471,7 +471,7 @@ describe('PRD-0031 1a force-stop', () => {
 
 describe('PRD-0031 1a force-stop 集成（loop 级）', () => {
   it('12 次重复调用后模型收到 force-stopped 结构化错误（不静默丢弃）', async () => {
-    const ctx = testAgent();
+    const ctx = testAgent({ kaos: createCommandKaos('x') });
     ctx.configure({ tools: ['Bash'] });
     // auto 模式：Bash 免审批直跑（force-stop 与模式无关）
     await ctx.rpc.setPermission({ mode: 'auto' });
@@ -505,5 +505,5 @@ describe('PRD-0031 1a force-stop 集成（loop 级）', () => {
     expect(snapshot).toContain('force-stopped');
     expect(snapshot).toContain('were not executed');
     // 12 步完整 turn 的重型集成:并发套件(10 路)下放宽超时,避免资源竞争误报。
-  }, 60_000);
+  }, 15_000);
 });
