@@ -189,13 +189,16 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
 
           # Stage each platform package (approve manually via npm website)
-          for target in darwin-arm64 linux; do
+          # Directory names: darwin-arm64, linux-x64
+          # Package names: @byfriends/cli-darwin-arm64, @byfriends/cli-linux
+          declare -A TARGET_TO_PKG=(
+            ["darwin-arm64"]="@byfriends/cli-darwin-arm64"
+            ["linux-x64"]="@byfriends/cli-linux"
+          )
+
+          for target in darwin-arm64 linux-x64; do
             src="npm-platforms/npm-platform-${target}"
-            if [[ "$target" == "darwin-arm64" ]]; then
-              pkg_name="@byfriends/cli-darwin-arm64"
-            else
-              pkg_name="@byfriends/cli-linux"
-            fi
+            pkg_name="${TARGET_TO_PKG[$target]}"
             if [[ ! -d "$src" ]]; then
               echo "missing platform package dir: $src" >&2
               exit 1
@@ -215,7 +218,14 @@ jobs:
               fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
             " "$src/package.json" "$VERSION"
             echo "Staging $pkg_name@$VERSION from $src"
-            npm stage publish "./$src" --access public || true
+            if npm stage publish "./$src" --access public 2>&1 | tee /tmp/npm-stage.log; then
+              echo "  staged successfully"
+            elif grep -q "Cannot stage previously published version\|already been published" /tmp/npm-stage.log; then
+              echo "  already published, skipping"
+            else
+              echo "  stage failed"
+              cat /tmp/npm-stage.log
+            fi
           done
 
           echo ""
