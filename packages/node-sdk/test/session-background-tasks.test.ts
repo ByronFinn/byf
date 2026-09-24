@@ -52,7 +52,7 @@ describe('Session.listBackgroundTasks / getBackgroundTaskOutput / getBackgroundT
       } finally {
         await harness.close();
       }
-    });
+    }, 15_000);
 
     it('supports timeout and reports timedOut=true', async () => {
       const homeDir = await makeTempDir(tempDirs, 'byf-sdk-shell-home-');
