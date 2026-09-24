@@ -52,7 +52,7 @@ describe('Agent tools', () => {
       ['PostToolUseFailure', 'Bash', 1],
     ]);
     expect(JSON.stringify(ctx.agent.context.data().history)).toContain('blocked by PreToolUse');
-  });
+  }, 60_000);
 
   it('emits PostToolUse after successful tools', async () => {
     const triggered: Array<[string, string, number]> = [];

@@ -16,6 +16,8 @@ const root = import.meta.dir.endsWith('/build') ? join(import.meta.dir, '..') : 
 const concurrency = Number(process.env.BYF_TEST_CONCURRENCY ?? 10);
 /** Soft wall-clock limit per file (ms). Prevents a single hung file from blocking CI. */
 const perFileTimeoutMs = Number(process.env.BYF_TEST_FILE_TIMEOUT_MS ?? 120_000);
+/** Default per-test timeout (ms). CI macos runners are slow at spawning processes. */
+const testTimeoutMs = Number(process.env.BYF_TEST_TIMEOUT_MS ?? 30_000);
 // packages/apps: product tests. scripts: pure helpers (publish-manifest rewrite, …).
 const roots = ['packages', 'apps', 'scripts'];
 
@@ -73,7 +75,15 @@ async function worker() {
     const file = files[i];
     const rel = relative(root, file);
     const proc = Bun.spawn(
-      ['bun', 'test', '--preload', join(root, 'build/test-preload.ts'), file],
+      [
+        'bun',
+        'test',
+        '--timeout',
+        String(testTimeoutMs),
+        '--preload',
+        join(root, 'build/test-preload.ts'),
+        file,
+      ],
       {
         cwd: root,
         stdout: 'pipe',
