@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Stage-publish: pack → `npm stage publish` → approve via registry API.
+ * Stage-publish: pack → `npm stage publish` (approve manually).
  *
  * Replaces `changeset publish` when the npm token is gated by
  * E_STAGE_REQUIRED (npm staging policy). The wrapper reuses the same
@@ -13,6 +13,8 @@
  *
  * Required env:
  *   NPM_TOKEN  – npm automation token with staging publish permission
+ *
+ * After running, manually approve the staged packages via npm website.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -103,61 +105,25 @@ async function main() {
         console.log(stageOutput.trim());
         if (stageResult.status !== 0) {
           if (/already staged|E409|E\.Stage|Cannot stage/.test(stageOutput)) {
-            console.log(`  already staged/published, will approve existing`);
+            console.log(`  already staged/published, skipping`);
           } else {
             console.error(`stage publish failed for ${pkg.name}:`, stageOutput);
             process.exitCode = 1;
             return;
           }
-        }
-        staged.push({ name: pkg.name, version: pkg.version });
-      }
-
-      console.log('\n── listing staged items for approval');
-      const listResult = run('npm', ['stage', 'list', '--json']);
-      let stagedItems;
-      try {
-        const parsed = JSON.parse(listResult.stdout);
-        stagedItems = Array.isArray(parsed) ? parsed : (parsed.items ?? []);
-      } catch {
-        console.error(
-          'failed to parse staged items:',
-          listResult.stdout.slice(0, 500) || listResult.stderr.slice(0, 500),
-        );
-        process.exitCode = 1;
-        return;
-      }
-
-      const pending = stagedItems.filter((item) =>
-        staged.some((s) => item.packageName === s.name && item.version === s.version),
-      );
-      console.log(`found ${pending.length} staged item(s) matching this release`);
-
-      if (pending.length === 0) {
-        console.log('no staged items to approve');
-        return;
-      }
-
-      let approved = 0;
-      for (const item of pending) {
-        const stageId = item.id ?? item.stageId;
-        const spec = `${item.packageName}@${item.version}`;
-        if (!stageId) {
-          console.warn(`  skipping ${spec}: no stage ID`);
-          continue;
-        }
-        console.log(`── approving ${spec} (${stageId})`);
-        const approveResult = run('npm', ['stage', 'approve', stageId]);
-        const approveOutput = approveResult.stdout + approveResult.stderr;
-        console.log(approveOutput.trim());
-        if (approveResult.status !== 0) {
-          console.error(`approve failed for ${spec}:`, approveOutput);
-          process.exitCode = 1;
         } else {
-          approved++;
+          staged.push({ name: pkg.name, version: pkg.version });
         }
       }
-      console.log(`\n${approved}/${pending.length} package(s) approved`);
+
+      console.log('\n==========================================');
+      console.log(`${staged.length} package(s) staged successfully.`);
+      console.log('');
+      console.log('Please approve manually via npm website:');
+      for (const pkg of staged) {
+        console.log(`  https://www.npmjs.com/package/${pkg.name}`);
+      }
+      console.log('==========================================');
     }
   } finally {
     for (const { path: manifestPath, original } of backups) {

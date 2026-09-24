@@ -181,16 +181,21 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: '@byfriends'
 
-      - name: Publish npm platform packages
+      - name: Stage npm platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Stage each platform package
-          for target in darwin-arm64 linux-x64; do
+          # Stage each platform package (approve manually via npm website)
+          for target in darwin-arm64 linux; do
             src="npm-platforms/npm-platform-${target}"
+            if [[ "$target" == "darwin-arm64" ]]; then
+              pkg_name="@byfriends/cli-darwin-arm64"
+            else
+              pkg_name="@byfriends/cli-linux"
+            fi
             if [[ ! -d "$src" ]]; then
               echo "missing platform package dir: $src" >&2
               exit 1
@@ -201,8 +206,6 @@ jobs:
             fi
             # Monorepo keeps private:true so changesets does not ship empty
             # platform tarballs; clear it for the real binary publish.
-            # `bun -e` (not `node -e`): ADR-0028 makes Bun the only toolchain, and
-            # `bun scripts/ci-gates.mjs no-node` keeps this line from regressing.
             bun -e "
               const fs = require('fs');
               const p = process.argv[1];
@@ -211,37 +214,14 @@ jobs:
               delete j.private;
               fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
             " "$src/package.json" "$VERSION"
-            echo "Staging @byfriends/cli-${target}@${VERSION} from $src"
-            # Require a ./ prefix so npm treats the argument as a local path
-            # (bare "npm-platforms/..." is misparsed as a git/github specifier).
+            echo "Staging $pkg_name@$VERSION from $src"
             npm stage publish "./$src" --access public || true
           done
 
-          # List staged items and approve each by UUID
-          echo "Listing staged items for approval"
-          STAGED_JSON=$(npm stage list --json)
-          echo "$STAGED_JSON"
-
-          # Extract IDs for our platform packages
-          # Note: linux package is @byfriends/cli-linux (not linux-x64)
-          for target in darwin-arm64 linux; do
-            PKG_NAME="@byfriends/cli-${target}"
-            STAGE_ID=$(echo "$STAGED_JSON" | bun -e "
-              const chunks = [];
-              process.stdin.on('data', c => chunks.push(c));
-              process.stdin.on('end', () => {
-                const json = JSON.parse(Buffer.concat(chunks).toString());
-                const items = Array.isArray(json) ? json : (json.items ?? []);
-                const item = items.find(i => i.packageName === process.argv[1] && i.version === process.argv[2]);
-                if (item) console.log(item.id);
-              });
-            " "$PKG_NAME" "$VERSION")
-
-            if [[ -n "$STAGE_ID" ]]; then
-              echo "Approving $PKG_NAME@$VERSION (id: $STAGE_ID)"
-              npm stage approve "$STAGE_ID"
-            else
-              echo "Warning: no staged item found for $PKG_NAME@$VERSION"
-            fi
-          done
+          echo ""
+          echo "=========================================="
+          echo "Platform packages staged. Please approve manually:"
+          echo "  https://www.npmjs.com/package/@byfriends/cli-darwin-arm64"
+          echo "  https://www.npmjs.com/package/@byfriends/cli-linux"
+          echo "=========================================="
         shell: bash

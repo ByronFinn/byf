@@ -11,9 +11,8 @@ name: Release (npm)
 #     3. If anything changed, commit and push the version bump back to main
 #        (using the built-in GITHUB_TOKEN), so the repo and the registry stay
 #        in sync. If nothing changed, the run ends — there was nothing to ship.
-#     4. `bun scripts/stage-publish.mjs` packs each package, stages via
-#        `npm stage publish`, then approves via the npm registry API. This
-#        two-phase flow is required by the token's staging policy.
+#     4. `bun scripts/stage-publish.mjs` packs each package and stages via
+#        `npm stage publish`. Approve manually via npm website.
 #   A `@byfriends/cli@*` tag then triggers the existing release.yml, which
 #   builds the native binaries and creates the GitHub Release. The two workflows
 #   connect through that tag — no manual coordination needed.
@@ -33,11 +32,11 @@ name: Release (npm)
 # Toolchain (PRD-0020 / ADR 0028 / #216 / #217): install + quality gates use
 # Bun 1.3.14. Publish goes through `bun scripts/stage-publish.mjs`:
 #   - The script prepares publish manifests (rewrites workspace:/catalog:
-#     specifiers + expands publishConfig), packs each package, stages via
-#     `npm stage publish`, then approves via the npm registry API.
+#     specifiers + expands publishConfig), packs each package, and stages via
+#     `npm stage publish`. Approve manually via npm website.
 #   - This flow is required because the NPM_TOKEN uses an automation token
 #     with staging policy (E_STAGE_REQUIRED). Direct `npm publish` is
-#     rejected; the two-phase stage → approve is the supported path.
+#     rejected; the stage → manual approve is the supported path.
 #   - Residual root `packageManager: pnpm@…` / `pnpm-lock.yaml` may still
 #     exist; do not reintroduce pnpm/action-setup as the install main path.
 
@@ -104,10 +103,10 @@ jobs:
             git push
           fi
 
-      - name: Publish (npm staging → approve)
+      - name: Stage packages (approve manually)
         # Prepares manifests (workspace:/catalog: rewrite + publishConfig expand),
-        # packs each package, stages via `npm stage publish`, then approves via
-        # the npm registry API. Required by the token's staging policy.
+        # packs each package, and stages via `npm stage publish`. Approve manually
+        # via npm website. Required by the token's staging policy.
         run: bun scripts/stage-publish.mjs
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
