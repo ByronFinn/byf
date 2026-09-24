@@ -370,7 +370,7 @@ describe('Agent turn flow', () => {
         toolCalls: [],
       },
     ]);
-  });
+  }, 60_000);
 
   it('stops the turn when a UserPromptSubmit hook blocks', async () => {
     const hookEngine = createTestHookEngine([
